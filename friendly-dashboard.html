@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071827">
+  <title>MuniControl Friendly | Junín, Mendoza</title>
+  <meta name="description" content="Tablero Friendly de gestión para la Municipalidad de Junín, Mendoza, con datos agregados y trazables.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='18' font-size='18'>M</text></svg>">
+  <style>
+    :root{
+      color-scheme:dark;
+      --ink:#071827;--ink-2:#0b2134;--ink-3:#102c43;--paper:#f4f1e8;--white:#fff;
+      --text:#f7f5ee;--muted:#a9bac8;--line:#274259;--cyan:#5ed4c8;--cyan-2:#163f43;
+      --lime:#c9ef72;--amber:#ffc966;--red:#ff867a;--blue:#76a8ff;--shadow:0 24px 70px rgba(0,0,0,.22);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--ink);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,a{font:inherit}button{color:inherit}.skip{position:fixed;left:16px;top:-60px;z-index:100;padding:10px 14px;background:var(--paper);color:var(--ink);border-radius:8px}.skip:focus{top:16px}
+    .app{min-height:100vh;display:grid;grid-template-columns:276px minmax(0,1fr)}
+    .sidebar{position:sticky;top:0;height:100vh;padding:24px 18px;border-right:1px solid var(--line);background:#061521;display:flex;flex-direction:column;z-index:20}
+    .brand{display:flex;align-items:center;gap:12px;padding:4px 8px 24px}.brand-mark{width:40px;height:40px;display:grid;place-items:center;border:1px solid #477086;background:var(--paper);color:var(--ink);font:900 20px/1 Georgia,serif;border-radius:4px 14px 4px 4px;box-shadow:7px 7px 0 #17405b}.brand-name{font-size:18px;font-weight:900;letter-spacing:-.02em}.brand small{display:block;color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+    .nav-label{margin:8px 10px 8px;color:#70879a;font-size:10px;font-weight:850;letter-spacing:.13em;text-transform:uppercase}.nav{display:grid;gap:4px}.nav button{width:100%;display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;border:1px solid transparent;text-align:left;padding:10px 12px;border-radius:10px;color:var(--muted);background:transparent;cursor:pointer;font-weight:680}.nav button svg{width:18px;height:18px}.nav button:hover{background:#0d2638;color:var(--white)}.nav button.active{color:var(--ink);background:var(--lime);border-color:#e2ff9f}.nav button:focus-visible,.action:focus-visible,.assistant-fab:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+    .side-foot{margin-top:auto;padding:14px;border:1px solid #285165;background:#0b2735;border-radius:14px}.side-foot strong{display:block;color:var(--cyan);font-size:12px}.side-foot span{display:block;color:var(--muted);font-size:11px;margin-top:4px}.side-foot a{display:inline-block;color:var(--text);margin-top:10px;font-size:11px}
+    .workspace{min-width:0}.topbar{height:76px;position:sticky;top:0;z-index:15;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 34px;border-bottom:1px solid rgba(39,66,89,.8);background:rgba(7,24,39,.92);backdrop-filter:blur(16px)}.crumb{font-size:12px;color:var(--muted)}.top-title{font-weight:850}.top-actions{display:flex;align-items:center;gap:9px}.snapshot{display:flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #2e635e;background:#0a2b2c;border-radius:999px;color:#aef4e8;font-size:11px;font-weight:750}.snapshot i{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 4px rgba(94,212,200,.12)}.logout{border:1px solid var(--line);background:transparent;color:var(--muted);padding:8px 11px;border-radius:9px;cursor:pointer}.logout:hover{color:var(--white);border-color:#50718b}
+    .content{width:min(1320px,100%);margin:0 auto;padding:32px 34px 70px}.section{display:none;animation:enter .24s ease-out}.section.active{display:block}@keyframes enter{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .eyebrow{color:var(--cyan);font-size:11px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr);gap:32px;align-items:end;padding:38px;border:1px solid #315069;background:linear-gradient(135deg,#102d43 0%,#0b2032 65%,#103139 100%);border-radius:24px;box-shadow:var(--shadow)}.hero:after{content:"";position:absolute;width:360px;height:360px;border:1px solid rgba(201,239,114,.15);border-radius:50%;right:-180px;top:-215px;box-shadow:0 0 0 55px rgba(94,212,200,.025),0 0 0 110px rgba(94,212,200,.018)}h1{margin:9px 0 16px;font:800 clamp(34px,5vw,64px)/.98 Georgia,"Times New Roman",serif;letter-spacing:-.045em;max-width:850px}.hero p{margin:0;color:#c1ced7;font-size:17px;max-width:760px}.hero-aside{position:relative;z-index:1;padding:20px;border-left:1px solid #42647a}.hero-aside strong{display:block;font-size:34px;font-family:Georgia,serif;color:var(--lime)}.hero-aside span{color:var(--muted);font-size:12px}.source-line{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.tag:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.tag.real{color:#aef4e8;border-color:#2e635e;background:#0a2b2c}.tag.derived{color:#c6d7ff;border-color:#3c5680;background:#101f3a}.tag.unavailable{color:#ffe1a3;border-color:#6f5730;background:#332815}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.kpi{position:relative;min-height:148px;padding:20px;border:1px solid var(--line);background:var(--ink-2);border-radius:17px}.kpi:before{content:"";position:absolute;left:20px;right:20px;top:0;height:2px;background:var(--tone,var(--cyan))}.kpi-head{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;font-weight:750}.kpi-value{margin:18px 0 4px;font:800 38px/1 Georgia,serif;letter-spacing:-.03em}.kpi-detail{font-size:11px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.panel{grid-column:span 6;border:1px solid var(--line);background:var(--ink-2);border-radius:18px;padding:22px;min-width:0}.panel.wide{grid-column:1/-1}.panel.third{grid-column:span 4}.panel h2{font-size:17px;margin:0}.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px}.panel-sub{margin:4px 0 0;color:var(--muted);font-size:11px}.insight-list{display:grid;gap:10px}.insight{display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:start;padding:14px;border:1px solid #29485f;background:#0a1d2d;border-radius:13px}.insight-number{height:38px;display:grid;place-items:center;border:1px solid #3a6872;background:#0c3034;color:var(--cyan);font-weight:900;border-radius:11px}.insight strong{font-size:13px}.insight p{margin:3px 0 0;color:var(--muted);font-size:11px}
+    .trust-strip{display:flex;align-items:flex-start;gap:12px;margin:18px 0;padding:15px 17px;border:1px solid #44613c;background:#172817;border-radius:14px;color:#dfffb2}.trust-strip svg{flex:0 0 auto}.trust-strip strong{display:block;font-size:12px}.trust-strip span{display:block;color:#b8cb9f;font-size:11px;margin-top:2px}
+    .section-head{display:flex;justify-content:space-between;gap:20px;align-items:end;margin:2px 0 22px}.section-head h1{font-size:clamp(32px,4vw,52px);margin:4px 0 0}.section-head p{max-width:570px;margin:0;color:var(--muted)}
+    .ring-wrap{display:grid;grid-template-columns:170px 1fr;gap:24px;align-items:center}.ring{--value:36;width:160px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--lime) calc(var(--value)*1%),#173348 0);position:relative}.ring:after{content:"";position:absolute;inset:18px;background:var(--ink-2);border-radius:50%}.ring-label{position:relative;z-index:1;text-align:center}.ring-label strong{display:block;font:800 34px Georgia,serif}.ring-label span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.legend{display:grid;gap:10px}.legend-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.legend-row span:first-child{color:var(--muted)}
+    .bars{display:grid;gap:12px}.bar-row{display:grid;grid-template-columns:minmax(125px,1.2fr) minmax(120px,2.8fr) 52px;align-items:center;gap:10px}.bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c5d1da;font-size:11px}.bar-track{height:8px;border-radius:99px;background:#173348;overflow:hidden}.bar-fill{height:100%;width:var(--pct);background:linear-gradient(90deg,var(--cyan),var(--lime));border-radius:inherit}.bar-value{text-align:right;font:750 11px ui-monospace,SFMono-Regular,Consolas,monospace}
+    .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.compare-card{border:1px solid var(--line);background:#0a1d2d;border-radius:15px;padding:18px}.compare-card.current{border-color:#4c7054;background:#102a27}.compare-card h3{margin:0 0 3px;font-size:14px}.compare-card small{color:var(--muted)}.compare-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.compare-numbers div{padding-top:10px;border-top:1px solid var(--line)}.compare-numbers strong{display:block;font:800 24px Georgia,serif}.compare-numbers span{font-size:9px;color:var(--muted);text-transform:uppercase}.positive{color:var(--lime)}
+    .year-bars{display:grid;gap:11px}.year-row{display:grid;grid-template-columns:42px 1fr 1fr;gap:8px;align-items:center}.year{font:750 11px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted)}.year-segment{display:grid;grid-template-columns:54px 1fr;gap:7px;align-items:center}.year-segment span{font-size:10px;color:var(--muted)}.year-segment .bar-track{height:10px}.hires .bar-fill{background:var(--cyan)}.exits .bar-fill{background:var(--amber)}
+    .trend{display:flex;align-items:end;gap:8px;min-height:240px;padding-top:26px;border-bottom:1px solid var(--line)}.trend-col{height:210px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;min-width:0}.trend-bar{width:min(42px,72%);height:var(--height);min-height:3px;background:linear-gradient(180deg,var(--blue),#31548a);border-radius:7px 7px 2px 2px;position:relative}.trend-bar strong{position:absolute;left:50%;top:-21px;transform:translateX(-50%);font:700 9px ui-monospace,SFMono-Regular,Consolas,monospace}.trend-col span{font-size:9px;color:var(--muted)}
+    .quality-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.quality-card{padding:17px;border:1px solid var(--line);background:#0a1d2d;border-radius:14px}.quality-card .value{font:800 28px Georgia,serif;margin:8px 0 2px}.quality-card p{margin:0;color:var(--muted);font-size:11px}.quality-card.good{border-color:#315b54}.quality-card.warn{border-color:#68522f}
+    .availability{width:100%;border-collapse:collapse}.availability th,.availability td{text-align:left;padding:12px;border-bottom:1px solid var(--line);font-size:12px}.availability th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.availability td:last-child{text-align:right}
+    .roadmap{display:grid;gap:12px}.roadmap-item{display:grid;grid-template-columns:78px 1fr auto;gap:16px;align-items:start;padding:18px;border:1px solid var(--line);background:var(--ink-2);border-radius:15px}.roadmap-item .phase{font:900 11px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--cyan)}.roadmap-item h3{margin:0;font-size:14px}.roadmap-item p{margin:4px 0 0;color:var(--muted);font-size:11px}.status{padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:9px;font-weight:850;text-transform:uppercase}.status.now{color:#ddff9c;border-color:#56713a;background:#1a2c14}.status.next{color:#bad9ff;border-color:#365474;background:#102538}
+    .action{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 13px;border:1px solid #4b7288;background:#14354c;color:var(--white);border-radius:10px;text-decoration:none;cursor:pointer;font-weight:750;font-size:12px}.action:hover{background:#1a425d}.action.primary{background:var(--lime);color:var(--ink);border-color:#e0ff99}.action.primary:hover{background:#d8ff82}
+    .privacy-box{max-width:850px;padding:34px;border:1px solid #735b30;background:#2a2113;border-radius:22px}.privacy-box h2{font:800 clamp(28px,4vw,46px)/1.05 Georgia,serif;margin:8px 0 15px}.privacy-box p{color:#d1c09f}.privacy-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0}.privacy-list div{padding:10px;border:1px solid #5f4b2b;background:#211a10;border-radius:10px;color:#ead8b2;font-size:11px}
+    .assistant-fab{position:fixed;right:24px;bottom:24px;z-index:35;display:flex;align-items:center;gap:9px;padding:12px 15px;border:1px solid #dfffa1;background:var(--lime);color:var(--ink);box-shadow:0 15px 40px rgba(0,0,0,.35);border-radius:999px;cursor:pointer;font-weight:850}.assistant-panel{position:fixed;right:24px;bottom:82px;z-index:34;width:min(390px,calc(100vw - 32px));padding:18px;border:1px solid #45657a;background:#091d2c;box-shadow:var(--shadow);border-radius:18px}.assistant-panel[hidden]{display:none}.assistant-head{display:flex;justify-content:space-between;gap:12px;align-items:start}.assistant-head h2{margin:0;font-size:16px}.assistant-head p{margin:3px 0 0;color:var(--muted);font-size:10px}.assistant-close{border:0;background:transparent;cursor:pointer;font-size:20px}.assistant-options{display:flex;flex-wrap:wrap;gap:7px;margin:15px 0}.assistant-options button{border:1px solid #36566e;background:#102a3e;padding:7px 9px;border-radius:999px;cursor:pointer;font-size:10px}.assistant-options button:hover{border-color:var(--cyan)}.assistant-answer{min-height:86px;padding:13px;background:#061722;border:1px solid #253f52;border-radius:12px;color:#d2dce3;font-size:12px}.assistant-answer strong{color:var(--lime)}
+    .loading{min-height:60vh;display:grid;place-items:center;color:var(--muted)}.error-state{padding:22px;border:1px solid #78443e;background:#321d1b;border-radius:14px;color:#ffd0ca}.footer{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;color:#72899b;font-size:10px}
+    @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.panel.third{grid-column:span 6}.hero{grid-template-columns:1fr}.hero-aside{border-left:0;border-top:1px solid #42647a;padding:18px 0 0}.quality-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){.app{display:block}.sidebar{position:static;height:auto;padding:14px;border-right:0;border-bottom:1px solid var(--line)}.brand{padding-bottom:12px}.nav-label,.side-foot{display:none}.nav{display:flex;overflow-x:auto;padding-bottom:3px}.nav button{display:block;width:auto;white-space:nowrap;padding:9px 11px}.nav button svg{display:none}.topbar{position:static;height:auto;padding:14px 16px}.snapshot span{display:none}.content{padding:20px 16px 76px}.hero{padding:25px;border-radius:18px}.hero p{font-size:15px}.kpis{grid-template-columns:1fr 1fr;gap:9px}.kpi{min-height:128px;padding:15px}.kpi-value{font-size:30px}.panel,.panel.third{grid-column:1/-1}.section-head{display:block}.section-head p{margin-top:8px}.ring-wrap{grid-template-columns:1fr}.ring{margin:auto}.compare{grid-template-columns:1fr}.quality-grid{grid-template-columns:1fr}.roadmap-item{grid-template-columns:58px 1fr}.roadmap-item .status{grid-column:2}.privacy-list{grid-template-columns:1fr}.bar-row{grid-template-columns:105px 1fr 40px}.assistant-fab{right:16px;bottom:16px}.assistant-panel{right:16px;bottom:72px}.top-actions .logout{font-size:0;width:38px}.top-actions .logout:after{content:"→";font-size:18px}}
+    @media(max-width:420px){.kpis{grid-template-columns:1fr}.year-row{grid-template-columns:36px 1fr}.year-segment.exits{grid-column:2}.top-title{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.section{animation:none}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">M</div><div><div class="brand-name">MuniControl</div><small>Friendly · Junín, Mendoza</small></div></div>
+      <div class="nav-label">Recorrido</div>
+      <nav class="nav" aria-label="Secciones principales">
+        <button class="active" data-section="inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z"/></svg>Inicio</button>
+        <button data-section="personas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a6 6 0 0112 0v2M17 11a4 4 0 010-8M23 21v-2a6 6 0 00-4-5.65"/></svg>Personas</button>
+        <button data-section="gestion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Gestiones</button>
+        <button data-section="ausentismo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>Ausentismo</button>
+        <button data-section="calidad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>Calidad de datos</button>
+        <button data-section="hoja-ruta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M8.5 17.5l7-10"/></svg>Hoja de ruta</button>
+        <button data-section="datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>Datos personales</button>
+      </nav>
+      <div class="side-foot"><strong>Datos agregados</strong><span>Esta vista no contiene nombres, documentos, domicilios, legajos ni remuneraciones individuales.</span><a href="friendly-data.json" download>Descargar fuente agregada</a></div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Mendoza</div><div class="top-title" id="pageTitle">Panorama ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><button class="logout" id="logout" type="button">Cerrar sesión</button></div></header>
+      <main class="content" id="main"><div class="loading" id="loading">Preparando el tablero verificado...</div><div id="dashboard" hidden>
+        <section class="section active" id="inicio">
+          <div class="hero"><div><div class="eyebrow">Control ejecutivo sin ruido</div><h1>Datos claros para decidir mejor.</h1><p>MuniControl Friendly convierte el histórico de RRHH de Junín en una lectura simple, trazable y sin datos personales. Cada cifra indica qué sabemos, de dónde sale y qué falta validar.</p><div class="source-line"><span class="tag real">Fuente verificada</span><span class="tag derived">Cálculo derivado</span><span class="tag unavailable">No disponible</span></div></div><div class="hero-aside"><div class="eyebrow">Corte de información</div><strong id="heroCutoff">06 AGO 2026</strong><span>No es tiempo real. Es una fotografía controlada del sistema GRH municipal.</span></div></div>
+          <div class="kpis">
+            <article class="kpi" style="--tone:var(--lime)"><div class="kpi-head"><span>Personas activas</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiActive">—</div><div class="kpi-detail">Con fecha de egreso vacía al corte</div></article>
+            <article class="kpi" style="--tone:var(--cyan)"><div class="kpi-head"><span>Legajos históricos</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiHistorical">—</div><div class="kpi-detail">Clave legajo sin duplicados</div></article>
+            <article class="kpi" style="--tone:var(--blue)"><div class="kpi-head"><span>Balance gestión actual</span><span class="tag derived">Derivado</span></div><div class="kpi-value positive" id="kpiBalance">—</div><div class="kpi-detail">Altas menos bajas desde 09/12/2023</div></article>
+            <article class="kpi" style="--tone:var(--amber)"><div class="kpi-head"><span>Eventos de ausencia</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiAbsence">—</div><div class="kpi-detail">Histórico; no equivale a días</div></article>
+          </div>
+          <div class="trust-strip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg><div><strong>La interfaz no completa huecos con números inventados.</strong><span>Masa salarial, ejecución presupuestaria y licencias actuales se muestran como no disponibles hasta incorporar una fuente homologada.</span></div></div>
+          <div class="grid"><article class="panel wide"><div class="panel-head"><div><h2>Lecturas para la gestión</h2><p class="panel-sub">Hallazgos descriptivos, sin inferir desempeño ni causalidad.</p></div><button class="action" data-open="calidad">Ver calidad</button></div><div class="insight-list" id="homeInsights"></div></article></div>
+        </section>
+
+        <section class="section" id="personas">
+          <div class="section-head"><div><div class="eyebrow">Dotación agregada</div><h1>Personas</h1></div><p>Una mirada institucional de la nómina, sin exponer fichas individuales. Los sectores se presentan tal como figuran en GRH.</p></div>
+          <div class="grid"><article class="panel"><div class="panel-head"><div><h2>Situación de los legajos</h2><p class="panel-sub">Activo es un proxy derivado de fecha de egreso vacía.</p></div><span class="tag derived">Derivado</span></div><div class="ring-wrap"><div class="ring" id="activeRing"><div class="ring-label"><strong id="activePct">36%</strong><span>activos</span></div></div><div class="legend"><div class="legend-row"><span>Activos</span><strong id="activeLegend">—</strong></div><div class="legend-row"><span>Inactivos</span><strong id="inactiveLegend">—</strong></div><div class="legend-row"><span>Total histórico</span><strong id="historicalLegend">—</strong></div></div></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Distribución por sexo</h2><p class="panel-sub">Cobertura del 100% entre activos.</p></div><span class="tag real">Real</span></div><div class="bars" id="genderBars"></div></article>
+          <article class="panel wide"><div class="panel-head"><div><h2>Personas activas por sector</h2><p class="panel-sub">Los jardines quedan diferenciados para no ocultar su composición; el criterio podrá alternarse.</p></div><span class="tag real">Real</span></div><div class="bars" id="sectorBars"></div></article></div>
+        </section>
+
+        <section class="section" id="gestion">
+          <div class="section-head"><div><div class="eyebrow">Ventana de ocho años</div><h1>Gestiones</h1></div><p>Altas y bajas se comparan con fechas exactas. La gestión actual está incompleta y no debe leerse como una comparación de rendimiento.</p></div>
+          <div class="grid"><article class="panel wide"><div class="compare" id="managementCompare"></div></article><article class="panel wide"><div class="panel-head"><div><h2>Movimientos por año</h2><p class="panel-sub">2019 y 2026 son años parciales dentro de la ventana.</p></div><div><span class="tag real">Altas</span> <span class="tag unavailable">Bajas</span></div></div><div class="year-bars" id="managementBars"></div></article><article class="panel wide"><div class="trust-strip" style="margin:0"><div><strong>Lectura responsable</strong><span>El balance positivo (+ altas que bajas) describe movimientos registrales. No demuestra por sí solo expansión eficiente, ahorro ni calidad del servicio.</span></div></div></article></div>
+        </section>
+
+        <section class="section" id="ausentismo">
+          <div class="section-head"><div><div class="eyebrow">Eventos del sistema GRH</div><h1>Ausentismo</h1></div><p>La serie cuenta registros de ausencia y personas alcanzadas. No suma días ni calcula una tasa hasta homologar la semántica con RRHH.</p></div>
+          <div class="kpis"><article class="kpi"><div class="kpi-head"><span>Eventos históricos</span><span class="tag real">Real</span></div><div class="kpi-value" id="absenceTotal">—</div><div class="kpi-detail">Clave de evento única</div></article><article class="kpi"><div class="kpi-head"><span>Eventos 2025</span><span class="tag real">Real</span></div><div class="kpi-value" id="absence2025">—</div><div class="kpi-detail">Año completo más reciente</div></article><article class="kpi"><div class="kpi-head"><span>Personas 2025</span><span class="tag real">Real</span></div><div class="kpi-value" id="affected2025">—</div><div class="kpi-detail">Con al menos un evento</div></article><article class="kpi"><div class="kpi-head"><span>Días perdidos</span><span class="tag unavailable">Pendiente</span></div><div class="kpi-value">—</div><div class="kpi-detail">Requiere validación funcional</div></article></div>
+          <div class="grid"><article class="panel wide"><div class="panel-head"><div><h2>Evolución de eventos</h2><p class="panel-sub">2026 incluye datos hasta el 06/08.</p></div><span class="tag real">Real</span></div><div class="trend" id="absenceTrend" role="img" aria-label="Eventos de ausencia por año entre 2019 y 2026"></div></article><article class="panel wide"><div class="trust-strip" style="margin:0;border-color:#6f5730;background:#2a2113;color:#ffe1a3"><div><strong id="absenceWarning">Validación pendiente</strong><span>La tabla de licencias disponible termina en 2009; no se presenta como indicador actual.</span></div></div></article></div>
+        </section>
+
+        <section class="section" id="calidad">
+          <div class="section-head"><div><div class="eyebrow">Confiabilidad antes que volumen</div><h1>Calidad de datos</h1></div><p>Los hallazgos se mantienen visibles para que una cifra no parezca más precisa de lo que permite su fuente.</p></div>
+          <div class="quality-grid" id="qualityCards"></div>
+          <div class="grid" style="margin-top:15px"><article class="panel wide"><div class="panel-head"><div><h2>Disponibilidad por dominio</h2><p class="panel-sub">Qué puede usarse hoy y qué necesita una nueva fuente.</p></div><span class="tag real">Contrato de verdad</span></div><table class="availability"><thead><tr><th>Dominio</th><th>Uso actual</th><th>Estado</th></tr></thead><tbody id="availabilityRows"></tbody></table></article></div>
+        </section>
+
+        <section class="section" id="hoja-ruta">
+          <div class="section-head"><div><div class="eyebrow">Evolución progresiva</div><h1>Hoja de ruta</h1></div><p>La complejidad queda detrás de la interfaz. Cada etapa agrega valor verificable sin romper la experiencia Friendly.</p></div>
+          <div class="roadmap"><article class="roadmap-item"><div class="phase">P0 · AHORA</div><div><h3>Verdad de datos + QA Friendly</h3><p>Fuente agregada sin PII, rutas estables, métricas trazables, estados vacíos y verificación desktop/mobile.</p></div><span class="status now">En curso</span></article><article class="roadmap-item"><div class="phase">P1</div><div><h3>Presupuesto autorizado vs. ejecutado</h3><p>Importar documentos oficiales, conservar fuente/período y mostrar desfasaje en más o en menos.</p></div><span class="status next">Siguiente</span></article><article class="roadmap-item"><div class="phase">P1</div><div><h3>Importación asistida y reversible</h3><p>Excel, CSV, PDF y TXT con previsualización, validación, versión del dataset y posibilidad de deshacer.</p></div><span class="status next">Siguiente</span></article><article class="roadmap-item"><div class="phase">P2</div><div><h3>Asistente con manuales y fuentes</h3><p>Guía contextual para tareas y preguntas; las respuestas citarán dato, período y nivel de confianza.</p></div><span class="status">Planificado</span></article><article class="roadmap-item"><div class="phase">P2</div><div><h3>Conexión progresiva al backend</h3><p>Mantener el contrato Friendly y reemplazar snapshots por endpoints homologados, sin migrar el frontend a un framework innecesario.</p></div><span class="status">Planificado</span></article></div>
+        </section>
+
+        <section class="section" id="datos"><div class="section-head"><div><div class="eyebrow">Acceso protegido</div><h1>Datos personales</h1></div></div><div class="privacy-box"><div class="eyebrow" style="color:var(--amber)">Fuera del alcance Friendly</div><h2>La analítica puede ser rica sin publicar fichas nominales.</h2><p>Esta versión usa sólo agregados. Los perfiles individuales pertenecen a un entorno autorizado y no forman parte del artefacto desplegable Friendly.</p><div class="privacy-list"><div>Nombres y documentos</div><div>Legajos individuales</div><div>Domicilios y teléfonos</div><div>Remuneraciones nominales</div><div>Familiares y licencias</div><div>Datos de ciudadanos</div></div><a class="action" href="datos-personales.html">Ver política de alcance</a></div></section>
+
+        <footer class="footer"><span>MuniControl Friendly · Junín, Mendoza</span><span id="footerSource">Fuente en preparación</span></footer>
+      </div></main>
+    </div>
+  </div>
+
+  <button class="assistant-fab" id="assistantToggle" type="button" aria-expanded="false" aria-controls="assistantPanel"><span aria-hidden="true">✦</span> Guía del tablero</button>
+  <aside class="assistant-panel" id="assistantPanel" hidden aria-label="Guía contextual"><div class="assistant-head"><div><h2>Guía MuniControl</h2><p>Respuestas basadas en este snapshot, sin consultar datos personales.</p></div><button class="assistant-close" id="assistantClose" type="button" aria-label="Cerrar guía">×</button></div><div class="assistant-options"><button type="button" data-question="active">¿Cuántas personas activas?</button><button type="button" data-question="management">¿Qué cambió en esta gestión?</button><button type="button" data-question="missing">¿Qué datos faltan?</button><button type="button" data-question="trust">¿Puedo confiar en las cifras?</button></div><div class="assistant-answer" id="assistantAnswer" aria-live="polite">Elegí una pregunta. Te voy a responder con la fuente y sus límites.</div></aside>
+
+  <script>
+    (function(){
+      'use strict';
+      const sessionRaw=sessionStorage.getItem('mjunin_user');
+      if(!sessionRaw){location.replace('login.html');return;}
+
+      const nf=new Intl.NumberFormat('es-AR');
+      const titles={inicio:'Panorama ejecutivo',personas:'Personas',gestion:'Comparación de gestiones',ausentismo:'Ausentismo',calidad:'Calidad de datos','hoja-ruta':'Hoja de ruta',datos:'Datos personales'};
+      let data=null;
+      const $=id=>document.getElementById(id);
+      const format=n=>nf.format(Number(n||0));
+      const esc=value=>String(value).replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+      const dateLabel=value=>new Date(value).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric',timeZone:'America/Argentina/Buenos_Aires'}).replace('.','').toUpperCase();
+
+      function openSection(requested,updateHistory){
+        const id=titles[requested]?requested:'inicio';
+        document.querySelectorAll('.section').forEach(section=>section.classList.toggle('active',section.id===id));
+        document.querySelectorAll('[data-section]').forEach(button=>button.classList.toggle('active',button.dataset.section===id));
+        $('pageTitle').textContent=titles[id];
+        if(updateHistory!==false)history.replaceState(null,'','#'+id);
+        document.querySelector('.content').scrollTo?.({top:0,behavior:'smooth'});
+      }
+
+      function renderBars(container,items,total){
+        const max=Math.max(...items.map(item=>item.value),1);
+        container.innerHTML=items.map(item=>`<div class="bar-row"><div class="bar-label" title="${esc(item.label)}">${esc(item.label)}</div><div class="bar-track"><div class="bar-fill" style="--pct:${(item.value/max*100).toFixed(1)}%"></div></div><div class="bar-value">${format(item.value)}${total?'':''}</div></div>`).join('');
+      }
+
+      function renderManagement(){
+        const cards=[data.management.previous,data.management.current];
+        $('managementCompare').innerHTML=cards.map((item,index)=>`<div class="compare-card ${index?'current':''}"><h3>${esc(item.label)}</h3><small>${dateLabel(item.from)} → ${dateLabel(item.to)}${item.partial?' · período parcial':''}</small><div class="compare-numbers"><div><strong>${format(item.hires)}</strong><span>Altas</span></div><div><strong>${format(item.exits)}</strong><span>Bajas</span></div><div><strong class="positive">+${format(item.balance)}</strong><span>Balance</span></div></div></div>`).join('');
+        const max=Math.max(...data.management.yearly.flatMap(item=>[item.hires,item.exits]));
+        $('managementBars').innerHTML=data.management.yearly.map(item=>`<div class="year-row"><span class="year">${item.year}${item.partial?'*':''}</span><div class="year-segment hires"><span>${item.hires} altas</span><div class="bar-track"><div class="bar-fill" style="--pct:${(item.hires/max*100).toFixed(1)}%"></div></div></div><div class="year-segment exits"><span>${item.exits} bajas</span><div class="bar-track"><div class="bar-fill" style="--pct:${(item.exits/max*100).toFixed(1)}%"></div></div></div></div>`).join('');
+      }
+
+      function renderAbsence(){
+        const rows=data.absence.yearly,max=Math.max(...rows.map(row=>row.events));
+        $('absenceTrend').innerHTML=rows.map(row=>`<div class="trend-col"><div class="trend-bar" style="--height:${(row.events/max*100).toFixed(1)}%"><strong>${format(row.events)}</strong></div><span>${row.year}${row.partial?'*':''}</span></div>`).join('');
+        const y2025=rows.find(row=>row.year===2025);
+        $('absenceTotal').textContent=format(data.absence.totalEvents);
+        $('absence2025').textContent=format(y2025.events);
+        $('affected2025').textContent=format(y2025.employeesAffected);
+        $('absenceWarning').textContent=data.absence.warning;
+      }
+
+      function renderQuality(){
+        const q=data.quality;
+        const cards=[
+          {tone:'good',label:'Legajos duplicados',value:q.employeeKeyDuplicates,copy:'La clave de legajo es única en el dump.'},
+          {tone:'good',label:'Cobertura de sexo',value:q.activeGenderCoveragePct+'%',copy:'Entre las personas activas.'},
+          {tone:'warn',label:'Sin sector homologado',value:q.activeWithoutMatchedSector,copy:'Activos que requieren clasificación.'},
+          {tone:'warn',label:'Fecha de alta ausente',value:q.missingHireDate,copy:'Registros que no entran en comparativas temporales.'},
+          {tone:'warn',label:'Ausencias huérfanas',value:q.absenceOrphans,copy:'Eventos sin legajo padre coincidente.'},
+          {tone:'warn',label:'Fechas a revisar',value:q.absenceDatesBefore1900+q.absenceDatesAfterSnapshot,copy:'Antes de 1900 o posteriores al corte.'}
+        ];
+        $('qualityCards').innerHTML=cards.map(card=>`<article class="quality-card ${card.tone}"><div class="eyebrow">${esc(card.label)}</div><div class="value">${format(card.value).replace('%','')} ${String(card.value).includes('%')?'%':''}</div><p>${esc(card.copy)}</p></article>`).join('');
+        const availability=[
+          ['Dotación agregada','Dashboard y distribuciones','verified'],['Comparación de gestiones','Altas, bajas y balance','derived'],['Eventos de ausencia','Conteos y tendencia','verified'],['Masa salarial','No mostrar importes','unavailable'],['Ejecución presupuestaria','Esperar fuente oficial','unavailable'],['Licencias actuales','Histórico disponible sólo hasta 2009','unavailable']
+        ];
+        const labels={verified:['Fuente verificada','real'],derived:['Derivado','derived'],unavailable:['No disponible','unavailable']};
+        $('availabilityRows').innerHTML=availability.map(row=>`<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td><span class="tag ${labels[row[2]][1]}">${labels[row[2]][0]}</span></td></tr>`).join('');
+      }
+
+      function renderHome(){
+        const w=data.workforce,m=data.management.current,a=data.absence;
+        $('kpiActive').textContent=format(w.active);$('kpiHistorical').textContent=format(w.historicalRecords);$('kpiBalance').textContent='+'+format(m.balance);$('kpiAbsence').textContent=format(a.totalEvents);
+        const top3=w.activeSectors.slice(0,3).reduce((sum,item)=>sum+item.value,0);const topPct=(top3/w.active*100).toFixed(1).replace('.',',');
+        $('homeInsights').innerHTML=[
+          ['01',`La gestión actual registra <strong>${format(m.hires)} altas y ${format(m.exits)} bajas</strong>.`,`El balance registral es +${format(m.balance)} al corte; el período aún no completó cuatro años.`],
+          ['02',`Tres agrupaciones concentran <strong>${topPct}% de las personas activas</strong>.`,`Obrero, Temporarios y Administrativo suman ${format(top3)} de ${format(w.active)} activos.`],
+          ['03',`La última fecha válida de ausentismo es <strong>${dateLabel(a.latestValidDate)}</strong>.`,`La serie sirve para volumen de eventos; todavía no para costo, días perdidos ni causalidad.`]
+        ].map(item=>`<div class="insight"><div class="insight-number">${item[0]}</div><div><strong>${item[1]}</strong><p>${item[2]}</p></div></div>`).join('');
+      }
+
+      function renderAll(){
+        const w=data.workforce;
+        $('snapshotLabel').textContent='Corte '+dateLabel(data.source.snapshotAt);
+        $('heroCutoff').textContent=dateLabel(data.source.snapshotAt);
+        $('footerSource').textContent=`${data.source.dataset} · ${dateLabel(data.source.snapshotAt)}`;
+        renderHome();
+        $('activeRing').style.setProperty('--value',w.activeSharePct);$('activePct').textContent=w.activeSharePct+'%';$('activeLegend').textContent=format(w.active);$('inactiveLegend').textContent=format(w.inactive);$('historicalLegend').textContent=format(w.historicalRecords);
+        renderBars($('genderBars'),w.genderActive,w.active);renderBars($('sectorBars'),w.activeSectors,w.active);renderManagement();renderAbsence();renderQuality();
+      }
+
+      function assistantAnswer(question){
+        if(!data)return;
+        const answers={
+          active:`Hay <strong>${format(data.workforce.active)} personas activas</strong> sobre ${format(data.workforce.historicalRecords)} legajos históricos. Activo se deriva de fecha de egreso vacía y debe homologarse con RRHH.`,
+          management:`Desde el 9 de diciembre de 2023 hasta el corte se registran <strong>${format(data.management.current.hires)} altas y ${format(data.management.current.exits)} bajas</strong>: balance +${format(data.management.current.balance)}. Es una descripción registral, no una evaluación de desempeño.`,
+          missing:`Faltan fuentes homologadas para <strong>masa salarial, ejecución presupuestaria y licencias actuales</strong>. La plataforma no las reemplaza con cifras simuladas.`,
+          trust:`Los conteos publicados se calcularon directamente del snapshot GRH del <strong>${dateLabel(data.source.snapshotAt)}</strong>. La pantalla Calidad de datos expone excepciones y distingue fuente, derivación y dato no disponible.`
+        };
+        $('assistantAnswer').innerHTML=answers[question]||'No tengo una respuesta trazable para esa pregunta.';
+      }
+
+      document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.section)));
+      document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.open)));
+      $('logout').addEventListener('click',()=>{sessionStorage.removeItem('mjunin_user');location.replace('login.html');});
+      $('assistantToggle').addEventListener('click',()=>{const panel=$('assistantPanel'),open=panel.hidden;panel.hidden=!open;$('assistantToggle').setAttribute('aria-expanded',String(open));if(open)panel.querySelector('button').focus();});
+      $('assistantClose').addEventListener('click',()=>{$('assistantPanel').hidden=true;$('assistantToggle').setAttribute('aria-expanded','false');$('assistantToggle').focus();});
+      document.querySelectorAll('[data-question]').forEach(button=>button.addEventListener('click',()=>assistantAnswer(button.dataset.question)));
+      window.addEventListener('hashchange',()=>openSection(location.hash.slice(1),false));
+
+      fetch('friendly-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('HTTP '+response.status);return response.json();}).then(payload=>{
+        data=payload;renderAll();$('loading').hidden=true;$('dashboard').hidden=false;openSection(location.hash.slice(1)||'inicio',false);
+      }).catch(error=>{$('loading').innerHTML=`<div class="error-state"><strong>No se pudo cargar la fuente agregada.</strong><br>${esc(error.message)}. Ejecutá la plataforma desde un servidor local o revisá el build Friendly.</div>`;console.error(error);});
+    })();
+  </script>
+</body>
+</html>

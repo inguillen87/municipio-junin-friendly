@@ -1,0 +1,100 @@
+{
+  "version": 2,
+  "cleanUrls": false,
+  "trailingSlash": false,
+  "functions": {
+    "api/friendly-policy.js": { "maxDuration": 10 }
+  },
+  "rewrites": [
+    { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
+    { "source": "/api/ai-proxy", "destination": "/api/friendly-policy" },
+    { "source": "/api/audit", "destination": "/api/friendly-policy" },
+    { "source": "/api/auth-email", "destination": "/api/friendly-policy" },
+    { "source": "/api/auth/login", "destination": "/api/friendly-policy" },
+    { "source": "/api/chat", "destination": "/api/friendly-policy" },
+    { "source": "/api/cron-daily-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/email-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/export-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/external-connector", "destination": "/api/friendly-policy" },
+    { "source": "/api/google-sheets", "destination": "/api/friendly-policy" },
+    { "source": "/api/hacienda-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/intelligence", "destination": "/api/friendly-policy" },
+    { "source": "/api/payroll", "destination": "/api/friendly-policy" },
+    { "source": "/api/pdf-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/reclamos", "destination": "/api/friendly-policy" },
+    { "source": "/api/reports", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-enrichment", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-sync", "destination": "/api/friendly-policy" },
+    { "source": "/api/upload-handler", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-alert", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-test", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-vecinos", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-voice", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-webhook", "destination": "/api/friendly-policy" },
+    { "source": "/rrhh-data/:path*", "destination": "/api/friendly-policy" },
+
+    { "source": "/login", "destination": "/login.html" },
+
+    { "source": "/rrhh", "destination": "/datos-personales.html" },
+    { "source": "/rrhh-sync", "destination": "/datos-personales.html" },
+    { "source": "/hacienda", "destination": "/datos-personales.html" },
+    { "source": "/ia", "destination": "/datos-personales.html" },
+    { "source": "/ia-hf", "destination": "/datos-personales.html" },
+    { "source": "/inteligencia", "destination": "/datos-personales.html" },
+    { "source": "/reportes", "destination": "/datos-personales.html" },
+    { "source": "/exportar", "destination": "/datos-personales.html" },
+    { "source": "/importar", "destination": "/datos-personales.html" },
+    { "source": "/upload", "destination": "/datos-personales.html" },
+    { "source": "/ingest", "destination": "/datos-personales.html" },
+    { "source": "/admin", "destination": "/datos-personales.html" },
+    { "source": "/auditoria", "destination": "/datos-personales.html" },
+
+    { "source": "/", "destination": "/friendly-dashboard.html" },
+    { "source": "/dashboard", "destination": "/friendly-dashboard.html" },
+    { "source": "/inicio", "destination": "/friendly-dashboard.html" },
+    { "source": "/index-loaded", "destination": "/friendly-dashboard.html" },
+    { "source": "/afip", "destination": "/friendly-dashboard.html" },
+    { "source": "/analytics", "destination": "/friendly-dashboard.html" },
+    { "source": "/ciudadano", "destination": "/friendly-dashboard.html" },
+    { "source": "/configuracion", "destination": "/friendly-dashboard.html" },
+    { "source": "/control", "destination": "/friendly-dashboard.html" },
+    { "source": "/cuentas-claras", "destination": "/friendly-dashboard.html" },
+    { "source": "/expedientes", "destination": "/friendly-dashboard.html" },
+    { "source": "/form-public", "destination": "/friendly-dashboard.html" },
+    { "source": "/forms", "destination": "/friendly-dashboard.html" },
+    { "source": "/informe-rrhh", "destination": "/datos-personales.html" },
+    { "source": "/licitaciones", "destination": "/friendly-dashboard.html" },
+    { "source": "/manuales", "destination": "/friendly-dashboard.html" },
+    { "source": "/mapa", "destination": "/friendly-dashboard.html" },
+    { "source": "/obras", "destination": "/friendly-dashboard.html" },
+    { "source": "/organigrama", "destination": "/friendly-dashboard.html" },
+    { "source": "/presentacion", "destination": "/friendly-dashboard.html" },
+    { "source": "/presupuesto", "destination": "/friendly-dashboard.html" },
+    { "source": "/proveedores", "destination": "/friendly-dashboard.html" },
+    { "source": "/servicios", "destination": "/friendly-dashboard.html" },
+    { "source": "/talleres", "destination": "/friendly-dashboard.html" },
+    { "source": "/vecinos", "destination": "/friendly-dashboard.html" },
+    { "source": "/whatsapp", "destination": "/friendly-dashboard.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    },
+    {
+      "source": "/rrhh-data/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "municipio-junin-friendly",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/verify-friendly-containment.mjs",
+    "build": "npm run test && node scripts/build-friendly.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
