@@ -169,13 +169,13 @@
         const q=data.quality;
         const cards=[
           {tone:'good',label:'Legajos duplicados',value:q.employeeKeyDuplicates,copy:'La clave de legajo es única en el dump.'},
-          {tone:'good',label:'Cobertura de sexo',value:q.activeGenderCoveragePct+'%',copy:'Entre las personas activas.'},
+          {tone:'good',label:'Cobertura de sexo',value:q.activeGenderCoveragePct,suffix:'%',copy:'Entre las personas activas.'},
           {tone:'warn',label:'Sin sector homologado',value:q.activeWithoutMatchedSector,copy:'Activos que requieren clasificación.'},
           {tone:'warn',label:'Fecha de alta ausente',value:q.missingHireDate,copy:'Registros que no entran en comparativas temporales.'},
           {tone:'warn',label:'Ausencias huérfanas',value:q.absenceOrphans,copy:'Eventos sin legajo padre coincidente.'},
           {tone:'warn',label:'Fechas a revisar',value:q.absenceDatesBefore1900+q.absenceDatesAfterSnapshot,copy:'Antes de 1900 o posteriores al corte.'}
         ];
-        $('qualityCards').innerHTML=cards.map(card=>`<article class="quality-card ${card.tone}"><div class="eyebrow">${esc(card.label)}</div><div class="value">${format(card.value).replace('%','')} ${String(card.value).includes('%')?'%':''}</div><p>${esc(card.copy)}</p></article>`).join('');
+        $('qualityCards').innerHTML=cards.map(card=>`<article class="quality-card ${card.tone}"><div class="eyebrow">${esc(card.label)}</div><div class="value">${format(card.value)}${card.suffix||''}</div><p>${esc(card.copy)}</p></article>`).join('');
         const availability=[
           ['Dotación agregada','Dashboard y distribuciones','verified'],['Comparación de gestiones','Altas, bajas y balance','derived'],['Eventos de ausencia','Conteos y tendencia','verified'],['Masa salarial','No mostrar importes','unavailable'],['Ejecución presupuestaria','Esperar fuente oficial','unavailable'],['Licencias actuales','Histórico disponible sólo hasta 2009','unavailable']
         ];

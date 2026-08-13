@@ -441,6 +441,10 @@
       .right-panel { width: 100%; padding: 40px 24px; min-height: 100vh; }
       .kpi-cards { display: none; }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+    }
   </style>
 </head>
 <body>
@@ -465,15 +469,15 @@
       <div class="feature-item" data-reveal>
         <div class="feature-icon" style="background:rgba(59,130,246,0.15)">&#128200;</div>
         <div>
-          <div class="feature-text">Información fácil de entender</div>
-          <div class="feature-sub">Recorridos claros para equipos municipales</div>
+          <div class="feature-text">Datos con fuente y período</div>
+          <div class="feature-sub">Cada cifra explica de dónde sale</div>
         </div>
       </div>
       <div class="feature-item" data-reveal>
         <div class="feature-icon" style="background:rgba(16,185,129,0.15)">&#129504;</div>
         <div>
-          <div class="feature-text">Módulos conectados</div>
-          <div class="feature-sub">Gestión, servicios y transparencia en un solo lugar</div>
+          <div class="feature-text">Lectura ejecutiva simple</div>
+          <div class="feature-sub">Personas, gestiones, ausencias y calidad</div>
         </div>
       </div>
       <div class="feature-item" data-reveal>
@@ -488,19 +492,19 @@
     <!-- Floating KPI cards -->
     <div class="kpi-cards">
       <div class="kpi-card">
-        <div class="kpi-label">Uso</div>
-        <div class="kpi-value" style="color:#60a5fa;font-size:24px">Simple</div>
-        <div class="kpi-trend" style="color:#10b981">Diseño Friendly</div>
+        <div class="kpi-label">Legajos históricos</div>
+        <div class="kpi-value" style="color:#60a5fa;font-size:24px">2.450</div>
+        <div class="kpi-trend" style="color:#10b981">Fuente GRH verificada</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Jurisdicción</div>
-        <div class="kpi-value" style="color:#34d399;font-size:24px">Mendoza</div>
-        <div class="kpi-trend" style="color:#10b981">Junín</div>
+        <div class="kpi-label">Personas activas</div>
+        <div class="kpi-value" style="color:#34d399;font-size:24px">882</div>
+        <div class="kpi-trend" style="color:#10b981">Corte 06 ago 2026</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Datos personales</div>
-        <div class="kpi-value" style="color:#a78bfa;font-size:24px">Protegidos</div>
-        <div class="kpi-trend" style="color:#f59e0b">Sólo Enterprise</div>
+        <div class="kpi-label">Balance gestión actual</div>
+        <div class="kpi-value" style="color:#a78bfa;font-size:24px">+49</div>
+        <div class="kpi-trend" style="color:#f59e0b">281 altas · 232 bajas</div>
       </div>
     </div>
   </div>

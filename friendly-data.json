@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "jurisdiction": {
+    "municipality": "Junín",
+    "province": "Mendoza",
+    "country": "Argentina"
+  },
+  "source": {
+    "dataset": "Sistema GRH municipal",
+    "snapshotAt": "2026-08-06T15:15:21-03:00",
+    "timezone": "America/Argentina/Mendoza",
+    "sha256": "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92",
+    "method": "Agregación directa del dump municipal, sin registros nominales",
+    "scope": "RRHH histórico y eventos de ausentismo",
+    "limitations": [
+      "La condición activo se deriva de la ausencia de fecha de egreso; debe homologarse con el municipio.",
+      "La fuente no contiene importes salariales utilizables para publicar masa salarial.",
+      "Licencias tiene última fecha en 2009 y no representa el estado actual.",
+      "Los datos 2026 están cortados al 6 de agosto y no equivalen a un año completo."
+    ]
+  },
+  "privacy": {
+    "grain": "aggregate",
+    "containsPersonRows": false,
+    "minimumPublishedGroupSize": 10
+  },
+  "workforce": {
+    "historicalRecords": 2450,
+    "active": 882,
+    "inactive": 1568,
+    "activeSharePct": 36,
+    "genderActive": [
+      { "label": "Masculino", "value": 501 },
+      { "label": "Femenino", "value": 381 }
+    ],
+    "activeSectors": [
+      { "label": "Obrero", "value": 218 },
+      { "label": "Temporarios", "value": 163 },
+      { "label": "Administrativo", "value": 158 },
+      { "label": "Docentes de jardines maternales", "value": 58 },
+      { "label": "Horas cátedra Cultura", "value": 57 },
+      { "label": "Horas cátedra Deportes", "value": 45 },
+      { "label": "Funcionarios", "value": 23 },
+      { "label": "Otros sectores", "value": 145 },
+      { "label": "Sin sector homologado", "value": 15 }
+    ]
+  },
+  "management": {
+    "previous": {
+      "label": "Gestión anterior",
+      "from": "2019-12-10",
+      "to": "2023-12-08",
+      "hires": 299,
+      "exits": 268,
+      "balance": 31
+    },
+    "current": {
+      "label": "Gestión actual",
+      "from": "2023-12-09",
+      "to": "2026-08-06",
+      "hires": 281,
+      "exits": 232,
+      "balance": 49,
+      "partial": true
+    },
+    "yearly": [
+      { "year": 2019, "hires": 74, "exits": 58 },
+      { "year": 2020, "hires": 54, "exits": 41 },
+      { "year": 2021, "hires": 72, "exits": 70 },
+      { "year": 2022, "hires": 99, "exits": 82 },
+      { "year": 2023, "hires": 75, "exits": 75 },
+      { "year": 2024, "hires": 88, "exits": 92 },
+      { "year": 2025, "hires": 108, "exits": 85 },
+      { "year": 2026, "hires": 80, "exits": 51, "partial": true }
+    ]
+  },
+  "absence": {
+    "totalEvents": 31572,
+    "latestValidDate": "2026-08-06",
+    "yearly": [
+      { "year": 2019, "events": 1180, "employeesAffected": 538 },
+      { "year": 2020, "events": 916, "employeesAffected": 508 },
+      { "year": 2021, "events": 1251, "employeesAffected": 535 },
+      { "year": 2022, "events": 1670, "employeesAffected": 584 },
+      { "year": 2023, "events": 1986, "employeesAffected": 581 },
+      { "year": 2024, "events": 2172, "employeesAffected": 610 },
+      { "year": 2025, "events": 2048, "employeesAffected": 614 },
+      { "year": 2026, "events": 1559, "employeesAffected": 590, "partial": true }
+    ],
+    "unit": "eventos registrados",
+    "warning": "No se suman días ni se calcula tasa hasta homologar la semántica de los campos con RRHH."
+  },
+  "quality": {
+    "employeeKeyDuplicates": 0,
+    "activeGenderCoveragePct": 100,
+    "activeWithoutMatchedSector": 15,
+    "missingHireDate": 20,
+    "hireDatePlaceholders": 1,
+    "absenceOrphans": 6,
+    "absenceDatesBefore1900": 6,
+    "absenceDatesAfterSnapshot": 7,
+    "catalogCounts": {
+      "sectors": 36,
+      "categories": 156,
+      "unions": 6,
+      "agreements": 14
+    },
+    "sourceCounts": {
+      "employeeRecords": 2450,
+      "personRecords": 2349,
+      "absenceEvents": 31572,
+      "leaveRecords": 3448
+    }
+  },
+  "availability": {
+    "workforce": "verified",
+    "managementComparison": "derived",
+    "absenceEvents": "verified",
+    "payrollAmounts": "unavailable",
+    "budgetExecution": "unavailable",
+    "currentLeaves": "unavailable"
+  }
+}
