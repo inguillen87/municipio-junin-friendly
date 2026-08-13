@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173447">
+  <title>Informe ejecutivo de RRHH | MuniControl Friendly</title>
+  <meta name="description" content="Informe ejecutivo de recursos humanos de la Municipalidad de Junín, Mendoza, elaborado con datos agregados del sistema GRH.">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #173447;
+      --navy-deep: #0d2534;
+      --blue: #2d6078;
+      --blue-soft: #dce7ec;
+      --paper: #f4f1ea;
+      --surface: #ffffff;
+      --ink: #17242c;
+      --muted: #596970;
+      --line: #cbd3d4;
+      --line-dark: #9eaeb2;
+      --brick: #914b3d;
+      --brick-soft: #f2dfda;
+      --green: #456352;
+      --green-soft: #e0e9e2;
+      --ochre: #8a6824;
+      --ochre-soft: #f0e7d3;
+      --focus: #d18c22;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.55 "Segoe UI", Inter, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .skip-link {
+      position: fixed;
+      left: 16px;
+      top: -80px;
+      z-index: 100;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 2px solid var(--navy);
+      color: var(--navy);
+      font-weight: 700;
+    }
+    .skip-link:focus { top: 16px; }
+
+    .site-header {
+      background: var(--navy-deep);
+      color: #f6f2e8;
+      border-bottom: 4px solid var(--brick);
+    }
+    .header-inner {
+      width: min(1240px, calc(100% - 40px));
+      min-height: 74px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #d8d0c1;
+      background: #f6f2e8;
+      color: var(--navy-deep);
+      font: 800 16px/1 Georgia, serif;
+    }
+    .brand-name { display: block; font-size: 16px; font-weight: 750; letter-spacing: -.015em; }
+    .brand-context { display: block; color: #aebec7; font-size: 11px; letter-spacing: .045em; text-transform: uppercase; }
+    .header-nav { display: flex; align-items: center; gap: 4px; }
+    .header-nav a {
+      padding: 9px 12px;
+      color: #c8d4d9;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+    }
+    .header-nav a:hover, .header-nav a[aria-current="page"] { color: #fff; border-color: #fff; }
+    .header-nav .internal-link { margin-left: 8px; border: 1px solid #78919e; }
+    .header-nav .internal-link:hover { border-color: #fff; }
+
+    .report-shell {
+      width: min(1240px, calc(100% - 40px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 44px;
+      align-items: start;
+      padding: 32px 0 72px;
+    }
+    .report-index {
+      position: sticky;
+      top: 24px;
+      border-top: 3px solid var(--navy);
+      padding-top: 13px;
+    }
+    .report-index strong {
+      display: block;
+      color: var(--navy);
+      font-size: 11px;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .report-index nav { display: grid; margin-top: 10px; }
+    .report-index nav a {
+      padding: 9px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .report-index nav a:hover { color: var(--navy); }
+    .source-brief {
+      margin-top: 22px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line-dark);
+      color: var(--muted);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+    .source-brief b { display: block; margin-bottom: 5px; color: var(--ink); }
+
+    .report-main { min-width: 0; }
+    .loading, .load-error {
+      min-height: 45vh;
+      display: grid;
+      place-items: center;
+      padding: 36px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      text-align: center;
+    }
+    .loading[hidden], .load-error[hidden] { display: none; }
+    .load-error { color: #6c2d23; border-color: #c9978d; background: #fff8f6; }
+    .report-content[hidden] { display: none; }
+
+    .report-kicker {
+      margin: 0 0 12px;
+      color: var(--brick);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .report-title {
+      max-width: 780px;
+      margin: 0;
+      color: var(--navy-deep);
+      font: 700 clamp(42px, 6vw, 76px)/.96 Georgia, "Times New Roman", serif;
+      letter-spacing: -.045em;
+    }
+    .report-deck {
+      max-width: 760px;
+      margin: 22px 0 0;
+      color: #3f515a;
+      font-size: clamp(17px, 2vw, 21px);
+      line-height: 1.45;
+    }
+    .report-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      margin: 28px 0 0;
+      padding: 14px 0;
+      border-top: 1px solid var(--line-dark);
+      border-bottom: 1px solid var(--line-dark);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .report-meta span { display: inline-flex; gap: 6px; }
+    .report-meta b { color: var(--ink); }
+
+    .metric-ledger {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 34px;
+      border-top: 1px solid var(--line-dark);
+      border-left: 1px solid var(--line-dark);
+      background: var(--surface);
+    }
+    .metric {
+      min-height: 142px;
+      padding: 18px 18px 16px;
+      border-right: 1px solid var(--line-dark);
+      border-bottom: 1px solid var(--line-dark);
+    }
+    .metric-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .metric-value { display: block; margin-top: 12px; color: var(--navy); font: 700 36px/1 Georgia, serif; }
+    .metric-note { display: block; margin-top: 9px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .metric-status { display: inline-block; margin-top: 10px; padding: 2px 5px; border: 1px solid currentColor; color: var(--green); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .metric-status.derived { color: var(--ochre); }
+
+    .report-section {
+      margin-top: 58px;
+      scroll-margin-top: 24px;
+    }
+    .section-number { color: var(--brick); font: 700 12px/1.2 "Segoe UI", sans-serif; letter-spacing: .08em; }
+    .section-title-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, .7fr);
+      gap: 34px;
+      align-items: end;
+      margin-top: 9px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--navy);
+    }
+    .section-title-row h2 { margin: 0; color: var(--navy); font: 700 clamp(27px, 3.6vw, 42px)/1.05 Georgia, serif; letter-spacing: -.025em; }
+    .section-title-row p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .finding-list { border-top: 1px solid var(--line); }
+    .finding {
+      display: grid;
+      grid-template-columns: 45px minmax(0, 1fr);
+      gap: 18px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .finding-index { color: var(--brick); font: 700 23px/1 Georgia, serif; }
+    .finding h3 { margin: 0 0 6px; color: var(--ink); font-size: 16px; }
+    .finding p { max-width: 770px; margin: 0; color: var(--muted); }
+
+    .chart-block {
+      margin-top: 22px;
+      padding: 22px;
+      border: 1px solid var(--line-dark);
+      background: var(--surface);
+    }
+    .chart-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 18px; }
+    .chart-header h3 { margin: 0; color: var(--navy); font-size: 17px; }
+    .chart-header p { max-width: 610px; margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; color: var(--muted); font-size: 11px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 11px; height: 11px; background: var(--blue); }
+    .legend .exit { background: var(--brick); }
+    .chart-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+    .chart-scroll svg { display: block; width: 100%; min-width: 690px; height: auto; }
+    .chart-footnote { margin: 13px 0 0; color: var(--muted); font-size: 11px; }
+
+    .management-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-top: 20px;
+      border-top: 1px solid var(--line-dark);
+      border-left: 1px solid var(--line-dark);
+      background: var(--surface);
+    }
+    .management-period { padding: 19px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .management-period.current { border-top: 4px solid var(--green); padding-top: 15px; }
+    .management-period.previous { border-top: 4px solid var(--blue); padding-top: 15px; }
+    .management-period h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .period-date { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .period-numbers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+    .period-numbers div { border-top: 1px solid var(--line); padding-top: 9px; }
+    .period-numbers strong { display: block; color: var(--navy); font: 700 27px/1 Georgia, serif; }
+    .period-numbers span { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
+
+    .absence-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, .55fr);
+      gap: 22px;
+      margin-top: 22px;
+    }
+    .absence-bars { display: grid; gap: 14px; }
+    .absence-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) 62px; align-items: center; gap: 10px; }
+    .absence-year { color: var(--muted); font: 700 11px/1 Consolas, monospace; }
+    .absence-track { height: 18px; background: #e4e9e9; }
+    .absence-fill { height: 100%; width: var(--width); min-width: 2px; background: var(--blue); }
+    .absence-value { text-align: right; color: var(--ink); font: 700 11px/1 Consolas, monospace; }
+    .absence-row[data-partial="true"] .absence-fill { background: var(--ochre); }
+    .absence-row[data-partial="true"] .absence-year::after { content: "*"; color: var(--ochre); }
+    .exact-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .exact-table th, .exact-table td { padding: 9px 7px; border-bottom: 1px solid var(--line); text-align: right; }
+    .exact-table th:first-child, .exact-table td:first-child { text-align: left; }
+    .exact-table th { color: var(--muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+    .exact-table tbody tr:last-child td { border-bottom: 0; }
+
+    .sector-list { display: grid; gap: 14px; margin-top: 22px; }
+    .sector-row { display: grid; grid-template-columns: minmax(185px, .85fr) minmax(0, 2fr) 50px; align-items: center; gap: 12px; }
+    .sector-label { color: #344750; font-size: 12px; }
+    .sector-track { height: 10px; border: 1px solid #c8d0d0; background: #edf0ef; }
+    .sector-fill { height: 100%; width: var(--width); background: var(--green); }
+    .sector-value { text-align: right; color: var(--ink); font: 700 11px/1 Consolas, monospace; }
+
+    .method-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: 1px solid var(--line-dark);
+      border-left: 1px solid var(--line-dark);
+      margin-top: 22px;
+      background: var(--surface);
+    }
+    .method-item { min-height: 150px; padding: 18px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .method-item strong { display: block; color: var(--navy); font-size: 13px; }
+    .method-item p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .method-item a { display: inline-block; margin-top: 13px; color: var(--blue); font-size: 12px; font-weight: 700; }
+
+    .report-actions {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      margin-top: 58px;
+      border: 1px solid var(--navy);
+      background: var(--surface);
+    }
+    .action-copy { padding: 25px; }
+    .action-copy h2 { margin: 0; color: var(--navy); font: 700 28px/1.1 Georgia, serif; }
+    .action-copy p { margin: 10px 0 0; color: var(--muted); }
+    .action-links { display: grid; border-left: 1px solid var(--navy); }
+    .action-links a { display: flex; justify-content: space-between; gap: 20px; padding: 15px 18px; border-bottom: 1px solid var(--line); color: var(--navy); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .action-links a:last-child { border-bottom: 0; }
+    .action-links a:hover { background: var(--blue-soft); }
+
+    .report-footer {
+      margin-top: 36px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line-dark);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    @media (max-width: 980px) {
+      .report-shell { grid-template-columns: 1fr; gap: 20px; }
+      .report-index { position: static; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 18px; }
+      .report-index nav { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+      .report-index nav a { padding: 5px 0; }
+      .source-brief { margin-top: 0; padding-top: 0; border-top: 0; max-width: 260px; text-align: right; }
+      .metric-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .absence-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .header-inner { width: min(100% - 28px, 1240px); min-height: 64px; }
+      .brand-context { display: none; }
+      .header-nav a { display: none; }
+      .header-nav .internal-link { display: block; margin-left: 0; padding: 7px 9px; font-size: 11px; }
+      .report-shell { width: min(100% - 28px, 1240px); padding-top: 20px; }
+      .report-index { display: block; }
+      .report-index nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 7px; }
+      .report-index nav a { flex: 0 0 auto; }
+      .source-brief { display: none; }
+      .report-title { font-size: clamp(38px, 13vw, 56px); }
+      .section-title-row { grid-template-columns: 1fr; gap: 10px; }
+      .management-compare, .method-grid, .report-actions { grid-template-columns: 1fr; }
+      .management-period.current { border-top: 0; border-left: 4px solid var(--green); padding: 18px 18px 18px 14px; }
+      .management-period.previous { border-left: 4px solid var(--blue); border-top: 0; padding: 18px 18px 18px 14px; }
+      .action-links { border-left: 0; border-top: 1px solid var(--navy); }
+      .chart-header { display: block; }
+      .legend { justify-content: flex-start; margin-top: 10px; }
+    }
+    @media (max-width: 460px) {
+      .metric-ledger { grid-template-columns: 1fr 1fr; }
+      .metric { min-height: 132px; padding: 14px; }
+      .metric-value { font-size: 29px; }
+      .metric-note { font-size: 10px; }
+      .finding { grid-template-columns: 32px 1fr; gap: 10px; }
+      .chart-block { padding: 15px; }
+      .period-numbers { gap: 7px; }
+      .period-numbers strong { font-size: 22px; }
+      .sector-row { grid-template-columns: minmax(120px, .95fr) minmax(70px, 1fr) 36px; gap: 7px; }
+      .sector-label { font-size: 10px; }
+      .absence-row { grid-template-columns: 40px minmax(0, 1fr) 52px; gap: 7px; }
+    }
+    @media print {
+      body { background: #fff; }
+      .site-header, .report-index, .report-actions { display: none; }
+      .report-shell { display: block; width: 100%; padding: 0; }
+      .report-section, .chart-block { break-inside: avoid; }
+      .chart-scroll svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al informe</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="friendly-dashboard.html" aria-label="MuniControl Friendly, volver al centro ejecutivo">
+        <span class="brand-mark" aria-hidden="true">MC</span>
+        <span><span class="brand-name">MuniControl Friendly</span><span class="brand-context">Municipalidad de Junín · Mendoza</span></span>
+      </a>
+      <nav class="header-nav" aria-label="Navegación principal">
+        <a href="friendly-dashboard.html">Centro ejecutivo</a>
+        <a href="reportes-rrhh.html" aria-current="page">Informe RRHH</a>
+        <a href="calidad-datos.html">Calidad de datos</a>
+        <a href="modulos.html">Mapa de producto</a>
+        <a class="internal-link" href="/internal">Portal interno</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="report-shell">
+    <aside class="report-index" aria-label="Índice del informe">
+      <div>
+        <strong>Contenido</strong>
+        <nav>
+          <a href="#resumen">Resumen</a>
+          <a href="#gestiones">Gestiones</a>
+          <a href="#ausentismo">Ausentismo</a>
+          <a href="#sectores">Sectores</a>
+          <a href="#metodologia">Método y límites</a>
+        </nav>
+      </div>
+      <div class="source-brief">
+        <b>Fuente de control</b>
+        <span id="asideDataset">Sistema GRH municipal</span><br>
+        Corte <span id="asideDate">—</span><br>
+        <span id="asidePrivacy">Solo datos agregados</span>
+      </div>
+    </aside>
+
+    <main class="report-main" id="contenido">
+      <div class="loading" id="loading" role="status">Leyendo el corte agregado de RRHH…</div>
+      <div class="load-error" id="loadError" hidden role="alert"></div>
+
+      <article class="report-content" id="reportContent" hidden>
+        <header id="resumen">
+          <p class="report-kicker">Informe ejecutivo · Recursos humanos</p>
+          <h1 class="report-title">Dotación, movimientos y ausentismo</h1>
+          <p class="report-deck">Lectura institucional del sistema GRH. Las cifras describen registros administrativos y conservan sus límites; no se presentan como evaluación de desempeño.</p>
+          <div class="report-meta" aria-label="Metadatos del informe">
+            <span><b>Jurisdicción</b> <span id="jurisdiction">—</span></span>
+            <span><b>Corte</b> <time id="snapshotDate">—</time></span>
+            <span><b>Grano</b> Agregado, sin filas personales</span>
+            <span><b>Versión</b> <span id="schemaVersion">—</span></span>
+          </div>
+
+          <div class="metric-ledger" aria-label="Indicadores principales">
+            <div class="metric">
+              <span class="metric-label">Legajos históricos</span>
+              <strong class="metric-value" id="metricHistorical">—</strong>
+              <span class="metric-note">Registros laborales incluidos en el corte.</span>
+              <span class="metric-status">Verificado</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Legajos activos</span>
+              <strong class="metric-value" id="metricActive">—</strong>
+              <span class="metric-note" id="metricActiveNote">—</span>
+              <span class="metric-status derived">Derivado</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Eventos de ausencia</span>
+              <strong class="metric-value" id="metricAbsences">—</strong>
+              <span class="metric-note">Eventos históricos; no equivalen a días perdidos.</span>
+              <span class="metric-status">Verificado</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Balance gestión actual</span>
+              <strong class="metric-value" id="metricBalance">—</strong>
+              <span class="metric-note" id="metricBalanceNote">—</span>
+              <span class="metric-status derived">Derivado</span>
+            </div>
+          </div>
+        </header>
+
+        <section class="report-section" aria-labelledby="findingsTitle">
+          <span class="section-number">01</span>
+          <div class="section-title-row">
+            <h2 id="findingsTitle">Lecturas principales</h2>
+            <p>Hallazgos descriptivos construidos con el mismo corte. Las comparaciones que no tienen períodos equivalentes se mantienen señaladas.</p>
+          </div>
+          <div class="finding-list" id="findings"></div>
+        </section>
+
+        <section class="report-section" id="gestiones" aria-labelledby="managementTitle">
+          <span class="section-number">02</span>
+          <div class="section-title-row">
+            <h2 id="managementTitle">Movimientos de dotación</h2>
+            <p>Altas y bajas registrales entre 2019 y 2026. El corte 2026 llega al 6 de agosto y no debe extrapolarse como cierre anual.</p>
+          </div>
+          <div class="management-compare" id="managementCompare"></div>
+          <div class="chart-block">
+            <div class="chart-header">
+              <div>
+                <h3>Altas y bajas por año</h3>
+                <p>Conteo de movimientos en el sistema GRH. El gráfico ofrece una serie administrativa, no una medición de productividad.</p>
+              </div>
+              <div class="legend" aria-label="Referencias del gráfico"><span><i></i>Altas</span><span><i class="exit"></i>Bajas</span></div>
+            </div>
+            <div class="chart-scroll" id="managementChart"></div>
+            <p class="chart-footnote">2019 se conserva como año de contexto; la ventana de “gestión anterior” comienza el 10/12/2019. * 2026 es parcial.</p>
+          </div>
+        </section>
+
+        <section class="report-section" id="ausentismo" aria-labelledby="absenceTitle">
+          <span class="section-number">03</span>
+          <div class="section-title-row">
+            <h2 id="absenceTitle">Ausentismo registrado</h2>
+            <p>Se cuentan eventos y personas alcanzadas. No se suman días, no se calcula una tasa y la tabla histórica de licencias no se usa como indicador actual.</p>
+          </div>
+          <div class="absence-layout">
+            <div class="chart-block" style="margin-top:0">
+              <div class="chart-header">
+                <div><h3>Eventos por año</h3><p>Volumen de registros válidos de ausencia por año calendario.</p></div>
+              </div>
+              <div class="absence-bars" id="absenceBars" role="list" aria-label="Eventos de ausencia por año"></div>
+              <p class="chart-footnote">* 2026 incluye registros hasta la fecha de corte.</p>
+            </div>
+            <div class="chart-block" style="margin-top:0">
+              <div class="chart-header"><div><h3>Detalle exacto</h3><p>Personas con al menos un evento en cada año.</p></div></div>
+              <table class="exact-table">
+                <thead><tr><th>Año</th><th>Eventos</th><th>Personas</th></tr></thead>
+                <tbody id="absenceTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="report-section" id="sectores" aria-labelledby="sectorTitle">
+          <span class="section-number">04</span>
+          <div class="section-title-row">
+            <h2 id="sectorTitle">Composición por sector</h2>
+            <p>Distribución de legajos activos según la clasificación disponible en GRH. “Activo” continúa siendo una condición derivada.</p>
+          </div>
+          <div class="chart-block">
+            <div class="chart-header">
+              <div><h3>Legajos activos por sector</h3><p>Los sectores de cátedra y jardines se mantienen separados para no esconder su composición administrativa.</p></div>
+              <div class="legend"><span><i style="background:var(--green)"></i>Legajos activos</span></div>
+            </div>
+            <div class="sector-list" id="sectorList" role="list" aria-label="Legajos activos por sector"></div>
+          </div>
+        </section>
+
+        <section class="report-section" id="metodologia" aria-labelledby="methodTitle">
+          <span class="section-number">05</span>
+          <div class="section-title-row">
+            <h2 id="methodTitle">Método y límites</h2>
+            <p>La página consume el archivo agregado de la plataforma. No incorpora nombres, documentos, domicilios ni importes salariales.</p>
+          </div>
+          <div class="method-grid">
+            <div class="method-item"><strong>Condición de actividad</strong><p id="activeLimitation">—</p><a href="calidad-datos.html#reglas">Revisar regla y cobertura</a></div>
+            <div class="method-item"><strong>Ausentismo</strong><p id="absenceLimitation">—</p><a href="calidad-datos.html#excepciones">Revisar excepciones</a></div>
+            <div class="method-item"><strong>Remuneraciones</strong><p id="payrollLimitation">—</p><a href="calidad-datos.html#disponibilidad">Ver disponibilidad por dominio</a></div>
+            <div class="method-item"><strong>Período</strong><p id="periodLimitation">—</p><a href="calidad-datos.html#fuente">Consultar trazabilidad</a></div>
+          </div>
+        </section>
+
+        <section class="report-actions" aria-labelledby="continueTitle">
+          <div class="action-copy"><h2 id="continueTitle">Continuar según la tarea</h2><p>El informe responde preguntas agregadas. La consulta de legajos y relaciones personales pertenece al espacio autenticado.</p></div>
+          <nav class="action-links" aria-label="Continuar en MuniControl">
+            <a href="/internal"><span>Abrir portal interno</span><span aria-hidden="true">→</span></a>
+            <a href="calidad-datos.html"><span>Auditar calidad del corte</span><span aria-hidden="true">→</span></a>
+            <a href="modulos.html"><span>Ver mapa completo de producto</span><span aria-hidden="true">→</span></a>
+            <a href="friendly-dashboard.html"><span>Volver al centro ejecutivo</span><span aria-hidden="true">→</span></a>
+          </nav>
+        </section>
+
+        <footer class="report-footer">
+          <span>MuniControl Friendly · Informe ejecutivo de RRHH</span>
+          <span id="footerSource">Fuente en preparación</span>
+        </footer>
+      </article>
+    </main>
+  </div>
+
+  <noscript><p style="margin:30px;padding:20px;border:1px solid #914b3d;background:#fff">Este informe necesita JavaScript para leer el archivo agregado <code>friendly-data.json</code>.</p></noscript>
+  <script>
+    (function () {
+      'use strict';
+
+      const nf = new Intl.NumberFormat('es-AR');
+      const dateFmt = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      const byId = (id) => document.getElementById(id);
+      const safeNumber = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+      const formatDate = (value) => {
+        const text = String(value || '').slice(0, 10);
+        const parts = text.split('-').map(Number);
+        if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return 'Fecha no disponible';
+        return dateFmt.format(new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])));
+      };
+      const setText = (id, value) => { const node = byId(id); if (node) node.textContent = value; };
+      const signed = (value) => `${safeNumber(value) > 0 ? '+' : ''}${nf.format(safeNumber(value))}`;
+
+      function makeFinding(index, title, text) {
+        const row = document.createElement('article');
+        row.className = 'finding';
+        const marker = document.createElement('div');
+        marker.className = 'finding-index';
+        marker.textContent = String(index).padStart(2, '0');
+        const copy = document.createElement('div');
+        const heading = document.createElement('h3');
+        heading.textContent = title;
+        const paragraph = document.createElement('p');
+        paragraph.textContent = text;
+        copy.append(heading, paragraph);
+        row.append(marker, copy);
+        return row;
+      }
+
+      function renderFindings(data) {
+        const findings = byId('findings');
+        const active = safeNumber(data.workforce.active);
+        const historical = safeNumber(data.workforce.historicalRecords);
+        const completeAbsence = data.absence.yearly.filter((row) => !row.partial).at(-1);
+        const current = data.management.current;
+        const previous = data.management.previous;
+        findings.replaceChildren(
+          makeFinding(1, `${nf.format(active)} legajos cumplen la regla operativa de actividad`, `${nf.format(active)} de ${nf.format(historical)} registros (${nf.format(data.workforce.activeSharePct)}%) no tienen fecha de egreso. La cifra es útil para navegar el corte, pero debe homologarse antes de convertirse en dotación oficial.`),
+          makeFinding(2, `El balance registral de la gestión actual es ${signed(current.balance)}`, `La ventana actual registra ${nf.format(current.hires)} altas y ${nf.format(current.exits)} bajas; la anterior registra ${nf.format(previous.hires)} y ${nf.format(previous.exits)}. Los períodos tienen distinta duración y el actual está incompleto, por lo que la comparación no mide eficiencia.`),
+          makeFinding(3, `${nf.format(completeAbsence.events)} eventos de ausencia en ${completeAbsence.year}`, `${nf.format(completeAbsence.employeesAffected)} personas tuvieron al menos un evento en el último año completo disponible. La fuente no permite convertir estos registros en días perdidos ni en una tasa homologada.`)
+        );
+      }
+
+      function renderManagementCompare(data) {
+        const host = byId('managementCompare');
+        host.replaceChildren();
+        [['previous', data.management.previous], ['current', data.management.current]].forEach(([kind, period]) => {
+          const article = document.createElement('article');
+          article.className = `management-period ${kind}`;
+          const title = document.createElement('h3');
+          title.textContent = period.label;
+          const dates = document.createElement('span');
+          dates.className = 'period-date';
+          dates.textContent = `${formatDate(period.from)} — ${formatDate(period.to)}${period.partial ? ' · período parcial' : ''}`;
+          const numbers = document.createElement('div');
+          numbers.className = 'period-numbers';
+          [['Altas', period.hires, false], ['Bajas', period.exits, false], ['Balance', period.balance, true]].forEach(([label, value, isSigned]) => {
+            const cell = document.createElement('div');
+            const strong = document.createElement('strong');
+            strong.textContent = isSigned ? signed(value) : nf.format(value);
+            const small = document.createElement('span');
+            small.textContent = label;
+            cell.append(strong, small);
+            numbers.append(cell);
+          });
+          article.append(title, dates, numbers);
+          host.append(article);
+        });
+      }
+
+      function renderManagementChart(rows) {
+        const host = byId('managementChart');
+        const width = 860;
+        const height = 330;
+        const margin = { top: 28, right: 24, bottom: 48, left: 45 };
+        const plotW = width - margin.left - margin.right;
+        const plotH = height - margin.top - margin.bottom;
+        const maxValue = Math.max(...rows.flatMap((row) => [safeNumber(row.hires), safeNumber(row.exits)]), 1);
+        const axisMax = Math.ceil(maxValue / 20) * 20;
+        const groupW = plotW / rows.length;
+        const barW = Math.min(24, groupW * .27);
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-labelledby', 'managementSvgTitle managementSvgDesc');
+        const title = document.createElementNS(ns, 'title');
+        title.id = 'managementSvgTitle';
+        title.textContent = 'Altas y bajas por año';
+        const desc = document.createElementNS(ns, 'desc');
+        desc.id = 'managementSvgDesc';
+        desc.textContent = rows.map((row) => `${row.year}: ${row.hires} altas y ${row.exits} bajas${row.partial ? ', período parcial' : ''}`).join('. ');
+        svg.append(title, desc);
+
+        for (let tick = 0; tick <= 4; tick += 1) {
+          const value = axisMax * tick / 4;
+          const y = margin.top + plotH - (value / axisMax) * plotH;
+          const line = document.createElementNS(ns, 'line');
+          line.setAttribute('x1', margin.left);
+          line.setAttribute('x2', width - margin.right);
+          line.setAttribute('y1', y);
+          line.setAttribute('y2', y);
+          line.setAttribute('stroke', tick === 0 ? '#8fa1a6' : '#d8dede');
+          line.setAttribute('stroke-width', '1');
+          const label = document.createElementNS(ns, 'text');
+          label.setAttribute('x', margin.left - 9);
+          label.setAttribute('y', y + 4);
+          label.setAttribute('text-anchor', 'end');
+          label.setAttribute('fill', '#63737a');
+          label.setAttribute('font-size', '10');
+          label.textContent = nf.format(value);
+          svg.append(line, label);
+        }
+
+        rows.forEach((row, index) => {
+          const center = margin.left + groupW * index + groupW / 2;
+          [['hires', '#2d6078', -barW - 2], ['exits', '#914b3d', 2]].forEach(([field, color, offset]) => {
+            const value = safeNumber(row[field]);
+            const barHeight = value / axisMax * plotH;
+            const rect = document.createElementNS(ns, 'rect');
+            rect.setAttribute('x', center + offset);
+            rect.setAttribute('y', margin.top + plotH - barHeight);
+            rect.setAttribute('width', barW);
+            rect.setAttribute('height', Math.max(barHeight, 1));
+            rect.setAttribute('fill', color);
+            const barTitle = document.createElementNS(ns, 'title');
+            barTitle.textContent = `${row.year}: ${nf.format(value)} ${field === 'hires' ? 'altas' : 'bajas'}`;
+            rect.append(barTitle);
+            svg.append(rect);
+          });
+          const year = document.createElementNS(ns, 'text');
+          year.setAttribute('x', center);
+          year.setAttribute('y', height - 22);
+          year.setAttribute('text-anchor', 'middle');
+          year.setAttribute('fill', row.partial ? '#8a6824' : '#4d6068');
+          year.setAttribute('font-size', '11');
+          year.setAttribute('font-weight', row.partial ? '700' : '600');
+          year.textContent = `${row.year}${row.partial ? '*' : ''}`;
+          svg.append(year);
+        });
+        host.replaceChildren(svg);
+      }
+
+      function renderAbsences(rows) {
+        const max = Math.max(...rows.map((row) => safeNumber(row.events)), 1);
+        const bars = byId('absenceBars');
+        const tbody = byId('absenceTable');
+        bars.replaceChildren();
+        tbody.replaceChildren();
+        rows.forEach((row) => {
+          const item = document.createElement('div');
+          item.className = 'absence-row';
+          item.setAttribute('role', 'listitem');
+          item.dataset.partial = String(Boolean(row.partial));
+          item.setAttribute('aria-label', `${row.year}: ${nf.format(row.events)} eventos${row.partial ? ', período parcial' : ''}`);
+          const year = document.createElement('span');
+          year.className = 'absence-year';
+          year.textContent = row.year;
+          const track = document.createElement('span');
+          track.className = 'absence-track';
+          const fill = document.createElement('span');
+          fill.className = 'absence-fill';
+          fill.style.setProperty('--width', `${safeNumber(row.events) / max * 100}%`);
+          track.append(fill);
+          const value = document.createElement('span');
+          value.className = 'absence-value';
+          value.textContent = nf.format(row.events);
+          item.append(year, track, value);
+          bars.append(item);
+
+          const tr = document.createElement('tr');
+          [row.partial ? `${row.year}*` : row.year, nf.format(row.events), nf.format(row.employeesAffected)].forEach((cellValue) => {
+            const td = document.createElement('td');
+            td.textContent = cellValue;
+            tr.append(td);
+          });
+          tbody.append(tr);
+        });
+      }
+
+      function renderSectors(rows) {
+        const max = Math.max(...rows.map((row) => safeNumber(row.value)), 1);
+        const host = byId('sectorList');
+        host.replaceChildren();
+        rows.forEach((row) => {
+          const item = document.createElement('div');
+          item.className = 'sector-row';
+          item.setAttribute('role', 'listitem');
+          item.setAttribute('aria-label', `${row.label}: ${nf.format(row.value)} legajos activos`);
+          const label = document.createElement('span');
+          label.className = 'sector-label';
+          label.textContent = row.label;
+          const track = document.createElement('span');
+          track.className = 'sector-track';
+          const fill = document.createElement('span');
+          fill.className = 'sector-fill';
+          fill.style.setProperty('--width', `${safeNumber(row.value) / max * 100}%`);
+          track.append(fill);
+          const value = document.createElement('span');
+          value.className = 'sector-value';
+          value.textContent = nf.format(row.value);
+          item.append(label, track, value);
+          host.append(item);
+        });
+      }
+
+      function fillReport(data) {
+        const municipality = data.jurisdiction.municipality;
+        const snapshot = formatDate(data.source.snapshotAt);
+        setText('asideDataset', data.source.dataset);
+        setText('asideDate', snapshot);
+        setText('jurisdiction', `${municipality}, ${data.jurisdiction.province}`);
+        setText('snapshotDate', snapshot);
+        byId('snapshotDate').dateTime = String(data.source.snapshotAt).slice(0, 10);
+        setText('schemaVersion', `Contrato ${data.schemaVersion}`);
+        setText('metricHistorical', nf.format(data.workforce.historicalRecords));
+        setText('metricActive', nf.format(data.workforce.active));
+        setText('metricActiveNote', `${nf.format(data.workforce.activeSharePct)}% del histórico; proxy por fecha de egreso.`);
+        setText('metricAbsences', nf.format(data.absence.totalEvents));
+        setText('metricBalance', signed(data.management.current.balance));
+        setText('metricBalanceNote', `${nf.format(data.management.current.hires)} altas y ${nf.format(data.management.current.exits)} bajas; período parcial.`);
+        setText('activeLimitation', data.source.limitations[0]);
+        setText('payrollLimitation', data.source.limitations[1]);
+        setText('absenceLimitation', `${data.absence.warning} ${data.source.limitations[2]}`);
+        setText('periodLimitation', data.source.limitations[3]);
+        setText('footerSource', `${data.source.dataset} · corte ${snapshot} · SHA-256 ${data.source.sha256.slice(0, 12)}…`);
+        renderFindings(data);
+        renderManagementCompare(data);
+        renderManagementChart(data.management.yearly);
+        renderAbsences(data.absence.yearly);
+        renderSectors(data.workforce.activeSectors);
+      }
+
+      async function start() {
+        try {
+          const response = await fetch('friendly-data.json', { cache: 'no-store', headers: { Accept: 'application/json' } });
+          if (!response.ok) throw new Error(`La fuente respondió HTTP ${response.status}.`);
+          const data = await response.json();
+          if (!data?.workforce || !data?.management || !data?.absence || !data?.source) throw new Error('El archivo no cumple el contrato de datos esperado.');
+          fillReport(data);
+          byId('loading').hidden = true;
+          byId('reportContent').hidden = false;
+        } catch (error) {
+          byId('loading').hidden = true;
+          byId('loadError').hidden = false;
+          byId('loadError').textContent = `No se pudo abrir el informe: ${error.message} Reintentá cuando friendly-data.json esté disponible.`;
+        }
+      }
+
+      start();
+    }());
+  </script>
+</body>
+</html>

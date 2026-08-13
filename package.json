@@ -3,10 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node scripts/verify-friendly-containment.mjs",
-    "build": "npm run test && node scripts/build-friendly.mjs"
+    "test": "node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
+    "test:browser": "node scripts/verify-friendly-browser.mjs",
+    "build": "npm run test && node scripts/build-friendly.mjs",
+    "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
+    "data:extract": "python scripts/extract_rrhh_curated.py",
+    "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2"
   }
 }

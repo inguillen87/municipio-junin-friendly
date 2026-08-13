@@ -3,7 +3,9 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
-    "api/friendly-policy.js": { "maxDuration": 10 }
+    "api/friendly-policy.js": { "maxDuration": 10 },
+    "api/internal-auth.js": { "maxDuration": 10 },
+    "api/internal-data.js": { "maxDuration": 20 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
@@ -36,19 +38,25 @@
     { "source": "/rrhh-data/:path*", "destination": "/api/friendly-policy" },
 
     { "source": "/login", "destination": "/login.html" },
+    { "source": "/internal", "destination": "/internal-dashboard.html" },
+    { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
+    { "source": "/modulos", "destination": "/modulos.html" },
+    { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
+    { "source": "/calidad-datos", "destination": "/calidad-datos.html" },
+    { "source": "/estructura", "destination": "/estructura.html" },
 
-    { "source": "/rrhh", "destination": "/datos-personales.html" },
+    { "source": "/rrhh", "destination": "/internal-dashboard.html" },
     { "source": "/rrhh-sync", "destination": "/datos-personales.html" },
-    { "source": "/hacienda", "destination": "/datos-personales.html" },
-    { "source": "/ia", "destination": "/datos-personales.html" },
-    { "source": "/ia-hf", "destination": "/datos-personales.html" },
-    { "source": "/inteligencia", "destination": "/datos-personales.html" },
-    { "source": "/reportes", "destination": "/datos-personales.html" },
+    { "source": "/hacienda", "destination": "/friendly-dashboard.html?section=hacienda" },
+    { "source": "/ia", "destination": "/modulos.html" },
+    { "source": "/ia-hf", "destination": "/modulos.html" },
+    { "source": "/inteligencia", "destination": "/reportes-rrhh.html" },
+    { "source": "/reportes", "destination": "/reportes-rrhh.html" },
     { "source": "/exportar", "destination": "/datos-personales.html" },
     { "source": "/importar", "destination": "/datos-personales.html" },
     { "source": "/upload", "destination": "/datos-personales.html" },
     { "source": "/ingest", "destination": "/datos-personales.html" },
-    { "source": "/admin", "destination": "/datos-personales.html" },
+    { "source": "/admin", "destination": "/internal-dashboard.html" },
     { "source": "/auditoria", "destination": "/datos-personales.html" },
 
     { "source": "/", "destination": "/friendly-dashboard.html" },
@@ -56,7 +64,7 @@
     { "source": "/inicio", "destination": "/friendly-dashboard.html" },
     { "source": "/index-loaded", "destination": "/friendly-dashboard.html" },
     { "source": "/afip", "destination": "/friendly-dashboard.html" },
-    { "source": "/analytics", "destination": "/friendly-dashboard.html" },
+    { "source": "/analytics", "destination": "/reportes-rrhh.html" },
     { "source": "/ciudadano", "destination": "/friendly-dashboard.html" },
     { "source": "/configuracion", "destination": "/friendly-dashboard.html" },
     { "source": "/control", "destination": "/friendly-dashboard.html" },
@@ -64,19 +72,19 @@
     { "source": "/expedientes", "destination": "/friendly-dashboard.html" },
     { "source": "/form-public", "destination": "/friendly-dashboard.html" },
     { "source": "/forms", "destination": "/friendly-dashboard.html" },
-    { "source": "/informe-rrhh", "destination": "/datos-personales.html" },
-    { "source": "/licitaciones", "destination": "/friendly-dashboard.html" },
-    { "source": "/manuales", "destination": "/friendly-dashboard.html" },
-    { "source": "/mapa", "destination": "/friendly-dashboard.html" },
-    { "source": "/obras", "destination": "/friendly-dashboard.html" },
-    { "source": "/organigrama", "destination": "/friendly-dashboard.html" },
+    { "source": "/informe-rrhh", "destination": "/reportes-rrhh.html" },
+    { "source": "/licitaciones", "destination": "/friendly-dashboard.html?section=compras" },
+    { "source": "/manuales", "destination": "/modulos.html" },
+    { "source": "/mapa", "destination": "/modulos.html" },
+    { "source": "/obras", "destination": "/modulos.html" },
+    { "source": "/organigrama", "destination": "/estructura.html" },
     { "source": "/presentacion", "destination": "/friendly-dashboard.html" },
-    { "source": "/presupuesto", "destination": "/friendly-dashboard.html" },
-    { "source": "/proveedores", "destination": "/friendly-dashboard.html" },
-    { "source": "/servicios", "destination": "/friendly-dashboard.html" },
-    { "source": "/talleres", "destination": "/friendly-dashboard.html" },
-    { "source": "/vecinos", "destination": "/friendly-dashboard.html" },
-    { "source": "/whatsapp", "destination": "/friendly-dashboard.html" }
+    { "source": "/presupuesto", "destination": "/friendly-dashboard.html?section=hacienda" },
+    { "source": "/proveedores", "destination": "/friendly-dashboard.html?section=compras" },
+    { "source": "/servicios", "destination": "/friendly-dashboard.html?section=servicios" },
+    { "source": "/talleres", "destination": "/friendly-dashboard.html?section=servicios" },
+    { "source": "/vecinos", "destination": "/modulos.html" },
+    { "source": "/whatsapp", "destination": "/modulos.html" }
   ],
   "headers": [
     {
@@ -94,6 +102,10 @@
     },
     {
       "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/internal-dashboard.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     }
   ]

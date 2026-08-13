@@ -44,7 +44,14 @@ prisma/
 *.sqlite3
 *.csv
 *.sql
+!scripts/internal-schema.sql
 *.sql.gz
 *.backup*
+
+# Herramientas locales instaladas y caches de ejecución
+.agents/
+skills-lock.json
+__pycache__/
+*.pyc
 
 .env*

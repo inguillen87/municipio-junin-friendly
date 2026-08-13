@@ -1,0 +1,2565 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123244">
+  <meta name="color-scheme" content="light">
+  <title>Panel interno | MuniControl</title>
+  <meta name="description" content="Panel interno Friendly para consultar indicadores y legajos municipales.">
+  <style>
+    :root {
+      --ink: #172b36;
+      --ink-soft: #49616d;
+      --navy: #123244;
+      --navy-2: #19475b;
+      --blue: #126b79;
+      --blue-soft: #dcebed;
+      --green: #24745a;
+      --green-soft: #e2f1ea;
+      --amber: #8b5a18;
+      --amber-soft: #f7ead3;
+      --red: #a33b36;
+      --red-soft: #f8e5e3;
+      --paper: #ffffff;
+      --canvas: #f3f5f2;
+      --canvas-2: #e8ece8;
+      --line: #d6dedb;
+      --line-strong: #b9c7c3;
+      --focus: #0d76a8;
+      --shadow: 0 8px 24px rgba(22, 50, 64, .08);
+      --radius: 12px;
+      --sidebar: 244px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      text-rendering: optimizeLegibility;
+    }
+
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 1000;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--navy);
+      font-weight: 800;
+      box-shadow: var(--shadow);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+    [hidden] { display: none !important; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .auth-gate {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: var(--canvas);
+    }
+
+    .gate-card {
+      width: min(440px, 100%);
+      padding: 32px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--navy);
+      border-radius: var(--radius);
+      background: var(--paper);
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .gate-mark, .brand-mark {
+      display: inline-grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: var(--navy);
+      color: #fff;
+      font-weight: 900;
+      letter-spacing: -.04em;
+    }
+
+    .gate-card h1 { margin: 18px 0 6px; font-size: 1.5rem; }
+    .gate-card p { margin: 0; color: var(--ink-soft); }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      margin: 24px auto 0;
+      border: 3px solid var(--line);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px;
+      overflow-y: auto;
+      background: var(--navy);
+      color: #fff;
+      border-right: 1px solid rgba(255, 255, 255, .12);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, .15);
+    }
+
+    .brand-mark { background: #fff; color: var(--navy); }
+    .brand strong { display: block; font-size: 1.05rem; letter-spacing: -.02em; }
+    .brand small { display: block; margin-top: 1px; color: #bcd0d7; font-size: .75rem; }
+
+    .primary-nav {
+      display: grid;
+      gap: 5px;
+      margin-top: 24px;
+    }
+
+    .nav-button {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: #c9d9de;
+      text-align: left;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .nav-button:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+    .nav-button[aria-current="page"] {
+      background: #fff;
+      color: var(--navy);
+      font-weight: 800;
+    }
+
+    .nav-index {
+      display: inline-grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border: 1px solid currentColor;
+      border-radius: 6px;
+      font-size: .72rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sidebar-source {
+      margin-top: auto;
+      padding: 16px 8px 0;
+      color: #bcd0d7;
+      font-size: .76rem;
+    }
+
+    .suite-links {
+      display: grid;
+      gap: 5px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, .15);
+    }
+
+    .suite-label {
+      padding: 0 12px 5px;
+      color: #89a3ad;
+      font-size: .65rem;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-source strong { display: block; margin-bottom: 4px; color: #fff; }
+
+    .workspace { min-width: 0; }
+
+    .topbar {
+      min-height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 16px clamp(18px, 3.2vw, 44px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .96);
+    }
+
+    .user-context { min-width: 0; }
+    .user-context small { display: block; color: var(--ink-soft); }
+    .user-context strong {
+      display: block;
+      max-width: 52vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+    .button {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--navy);
+      font-weight: 750;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .button:hover { border-color: var(--navy-2); background: #f8faf9; }
+    .button.primary { border-color: var(--navy); background: var(--navy); color: #fff; }
+    .button.primary:hover { background: var(--navy-2); }
+    .button.quiet { border-color: transparent; background: transparent; }
+    .button.danger { color: var(--red); }
+    .button:disabled { cursor: not-allowed; opacity: .52; }
+
+    .main-content {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      padding: clamp(24px, 4vw, 48px) clamp(16px, 3.2vw, 44px) 56px;
+    }
+
+    .view[hidden] { display: none; }
+
+    .page-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--blue);
+      font-size: .75rem;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { color: var(--navy); line-height: 1.2; letter-spacing: -.025em; }
+    h1 { margin: 0; font-size: clamp(1.85rem, 4vw, 2.8rem); }
+    h2 { margin: 0; font-size: clamp(1.25rem, 2.4vw, 1.6rem); }
+    h3 { margin: 0; font-size: 1rem; }
+
+    .page-lead {
+      max-width: 720px;
+      margin: 10px 0 0;
+      color: var(--ink-soft);
+      font-size: clamp(.96rem, 1.6vw, 1.08rem);
+    }
+
+    .status-line {
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      color: var(--ink-soft);
+      font-size: .82rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--line-strong);
+    }
+
+    .status-dot.ready { background: var(--green); }
+    .status-dot.error { background: var(--red); }
+    .status-dot.loading { background: var(--blue); animation: pulse 1.3s ease-in-out infinite; }
+
+    @keyframes pulse { 50% { opacity: .35; } }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .kpi-card, .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+      box-shadow: 0 3px 14px rgba(22, 50, 64, .045);
+    }
+
+    .kpi-card { min-height: 170px; padding: 19px; }
+
+    .kpi-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .kpi-label { color: var(--ink-soft); font-size: .8rem; font-weight: 800; }
+
+    .kpi-value {
+      margin: 22px 0 4px;
+      color: var(--navy);
+      font-size: clamp(2rem, 4vw, 2.65rem);
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.045em;
+      line-height: 1;
+    }
+
+    .kpi-note { margin: 10px 0 0; color: var(--ink-soft); font-size: .78rem; }
+
+    .evidence {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      background: #f5f7f6;
+      font-size: .67rem;
+      font-weight: 850;
+      letter-spacing: .025em;
+      white-space: nowrap;
+    }
+
+    .evidence.source { border-color: #9ec8bb; background: var(--green-soft); color: #185c46; }
+    .evidence.derived { border-color: #9cc5cc; background: var(--blue-soft); color: #115a65; }
+    .evidence.unavailable { border-color: #d7c19a; background: var(--amber-soft); color: #72480f; }
+    .evidence.error { border-color: #dfaaa6; background: var(--red-soft); color: #84302c; }
+    .evidence.loading { color: var(--ink-soft); }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .panel { min-width: 0; padding: clamp(18px, 2.5vw, 24px); }
+    .panel + .panel { margin-top: 0; }
+
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .panel-subtitle { margin: 5px 0 0; color: var(--ink-soft); font-size: .83rem; }
+
+    .composition {
+      min-height: 116px;
+      display: grid;
+      align-content: center;
+    }
+
+    .composition-track {
+      height: 16px;
+      display: flex;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--canvas-2);
+    }
+
+    .composition-active { width: 0; background: var(--blue); transition: width .3s ease; }
+    .composition-inactive { flex: 1; background: #bdc9c6; }
+
+    .composition-legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px 20px;
+      margin-top: 13px;
+      color: var(--ink-soft);
+      font-size: .8rem;
+    }
+
+    .composition-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    .source-summary {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+    }
+
+    .source-summary > div {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .source-summary > div:last-child { padding-bottom: 0; border-bottom: 0; }
+    .source-summary dt { color: var(--ink-soft); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+    .source-summary dd { margin: 4px 0 0; color: var(--ink); font-weight: 750; overflow-wrap: anywhere; }
+
+    .notice {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      background: #f8faf9;
+      color: var(--ink-soft);
+      font-size: .84rem;
+    }
+
+    .notice.warning { border-left-color: var(--amber); background: #fdfaf5; }
+    .notice.error { border-color: #dfaaa6; border-left-color: var(--red); background: var(--red-soft); color: #6f2a27; }
+    .notice strong { color: var(--ink); }
+    .notice.error strong { color: #6f2a27; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(170px, .55fr) minmax(150px, .4fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .field { min-width: 0; }
+    .field label { display: block; margin-bottom: 6px; color: var(--ink-soft); font-size: .75rem; font-weight: 850; }
+
+    .input, .select {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .input:focus, .select:focus { border-color: var(--focus); }
+    .filter-actions { display: flex; gap: 8px; }
+
+    .table-meta {
+      min-height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      color: var(--ink-soft);
+      font-size: .8rem;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper);
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { background: #edf1ef; color: var(--navy); font-size: .72rem; font-weight: 900; letter-spacing: .035em; text-transform: uppercase; white-space: nowrap; }
+    td { font-size: .84rem; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #f8faf9; }
+    .cell-name { min-width: 190px; font-weight: 750; color: var(--navy); }
+    .cell-sector { min-width: 180px; }
+    .cell-muted { color: var(--ink-soft); }
+
+    .link-button {
+      padding: 0;
+      border: 0;
+      border-bottom: 1px solid currentColor;
+      background: transparent;
+      color: var(--blue);
+      font-weight: 800;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .state-pill {
+      display: inline-flex;
+      min-height: 25px;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: .7rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .state-pill.active { color: #185c46; background: var(--green-soft); }
+    .state-pill.inactive { color: #5d6e74; background: #e9edec; }
+    .state-pill.unknown { color: #72480f; background: var(--amber-soft); }
+
+    .table-message { padding: 34px 18px; text-align: center; color: var(--ink-soft); }
+    .table-message strong { display: block; margin-bottom: 5px; color: var(--ink); }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .pagination-status { min-width: 130px; color: var(--ink-soft); font-size: .8rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+    .availability-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .availability-card {
+      min-height: 190px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+    }
+
+    .availability-card .kpi-value { margin-top: 24px; }
+    .availability-card p { margin: 12px 0 0; color: var(--ink-soft); font-size: .82rem; }
+
+    .quality-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .fact-list { display: grid; gap: 0; margin: 0; }
+
+    .fact-row {
+      display: grid;
+      grid-template-columns: minmax(130px, .8fr) minmax(0, 1.2fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .fact-row:last-child { border-bottom: 0; }
+    .fact-row dt { color: var(--ink-soft); font-size: .78rem; font-weight: 750; }
+    .fact-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-weight: 700; }
+    .fact-row code { color: var(--ink-soft); font-size: .72rem; font-weight: 500; }
+
+    .nested-facts { margin: 5px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: .8rem; }
+    .nested-facts li + li { margin-top: 4px; }
+
+    .definitions { margin: 16px 0 0; padding: 0; list-style: none; }
+    .definitions li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; color: var(--ink-soft); font-size: .8rem; }
+
+    .app-footer {
+      margin-top: 32px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--ink-soft);
+      font-size: .76rem;
+    }
+
+    .toast-region {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1100;
+      width: min(380px, calc(100vw - 36px));
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 13px 15px;
+      border: 1px solid var(--line-strong);
+      border-left: 4px solid var(--navy);
+      border-radius: 9px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-size: .84rem;
+      animation: toast-in .16s ease-out;
+    }
+
+    .toast.error { border-left-color: var(--red); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+    dialog {
+      width: min(900px, calc(100vw - 32px));
+      max-height: min(860px, calc(100vh - 32px));
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 0 24px 80px rgba(15, 35, 45, .28);
+    }
+
+    dialog::backdrop { background: rgba(13, 32, 42, .62); }
+
+    .dialog-shell { max-height: min(860px, calc(100vh - 32px)); display: flex; flex-direction: column; }
+
+    .dialog-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+      background: #f8faf9;
+    }
+
+    .dialog-head p { margin: 4px 0 0; color: var(--ink-soft); font-size: .8rem; }
+    .dialog-body { padding: 22px; overflow-y: auto; }
+    .dialog-close { width: 42px; padding: 0; flex: 0 0 auto; font-size: 1.3rem; }
+
+    .detail-fields {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .detail-field {
+      min-width: 0;
+      min-height: 98px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfb;
+    }
+
+    .detail-field dt { color: var(--ink-soft); font-size: .71rem; font-weight: 850; text-transform: uppercase; letter-spacing: .045em; }
+    .detail-field dd { margin: 7px 0 9px; overflow-wrap: anywhere; color: var(--ink); font-weight: 800; }
+
+    .detail-section { margin-top: 24px; }
+    .dialog-body > .detail-section:first-child { margin-top: 0; }
+    .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .detail-section-copy { margin: -6px 0 12px; color: var(--ink-soft); font-size: .8rem; }
+
+    .detail-counts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .detail-count {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfb;
+    }
+
+    .detail-count strong { display: block; margin: 5px 0 8px; color: var(--navy); font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+    .detail-count span:first-child { color: var(--ink-soft); font-size: .74rem; font-weight: 800; }
+
+    .timeline { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .timeline-item { padding: 13px 15px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 8px; }
+    .timeline-item.license { border-left-color: var(--green); }
+    .timeline-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .timeline-title { font-weight: 850; color: var(--navy); }
+    .timeline-date { color: var(--ink-soft); font-size: .76rem; white-space: nowrap; }
+    .timeline-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 7px; color: var(--ink-soft); font-size: .78rem; }
+    .timeline-note { margin: 7px 0 0; color: var(--ink-soft); font-size: .8rem; overflow-wrap: anywhere; }
+
+    .family-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .family-card {
+      min-width: 0;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fbfcfb;
+    }
+
+    .family-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 11px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .family-card-head strong { min-width: 0; color: var(--navy); overflow-wrap: anywhere; }
+    .family-card-head span { flex: 0 0 auto; color: var(--ink-soft); font-size: .74rem; }
+
+    .family-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      margin: 12px 0 0;
+    }
+
+    .family-fields > div { min-width: 0; }
+    .family-fields dt { color: var(--ink-soft); font-size: .68rem; font-weight: 850; text-transform: uppercase; letter-spacing: .035em; }
+    .family-fields dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: .8rem; font-weight: 750; }
+
+    .trace-details {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8faf9;
+    }
+
+    .trace-details > summary {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      color: var(--navy);
+      font-size: .78rem;
+      font-weight: 850;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .trace-details > summary::-webkit-details-marker { display: none; }
+    .trace-details > summary::before { content: "+"; width: 18px; color: var(--blue); font-size: 1rem; }
+    .trace-details[open] > summary::before { content: "−"; }
+    .trace-details > summary .evidence { margin-left: auto; }
+
+    .trace-body {
+      max-height: 440px;
+      padding: 0 12px 12px;
+      overflow: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    .trace-list { margin: 0; }
+
+    .trace-row {
+      display: grid;
+      grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .trace-row:last-child { border-bottom: 0; }
+    .trace-row dt { min-width: 0; color: var(--ink-soft); font-size: .72rem; font-weight: 750; overflow-wrap: anywhere; }
+    .trace-row dt code { display: block; margin-top: 2px; color: #71858e; font-size: .65rem; font-weight: 500; }
+    .trace-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: .78rem; font-weight: 700; white-space: pre-wrap; }
+
+    .event-trace { margin-top: 10px; }
+
+    .skeleton {
+      position: relative;
+      overflow: hidden;
+      color: transparent !important;
+      border-radius: 5px;
+      background: #e8edeb;
+    }
+
+    .skeleton::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
+      animation: shimmer 1.2s infinite;
+    }
+
+    @keyframes shimmer { to { transform: translateX(100%); } }
+
+    @media (max-width: 1080px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .filters { grid-template-columns: 1fr 1fr; }
+      .filter-actions { justify-content: flex-start; }
+      .detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 860px) {
+      .app-shell { display: block; }
+      .sidebar {
+        position: sticky;
+        z-index: 100;
+        height: auto;
+        padding: 10px 12px;
+        overflow: visible;
+      }
+      .brand { padding: 0 4px 9px; border-bottom: 0; }
+      .brand-mark { width: 34px; height: 34px; }
+      .brand small { display: none; }
+      .primary-nav {
+        display: flex;
+        gap: 6px;
+        margin: 0;
+        padding-bottom: 2px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+      .suite-links { display: contents; }
+      .suite-label { display: none; }
+      .nav-button { width: auto; min-width: max-content; padding: 8px 10px; }
+      .nav-index { display: none; }
+      .sidebar-source { display: none; }
+      .topbar { min-height: 70px; }
+      .dashboard-grid, .quality-grid { grid-template-columns: 1fr; }
+      .availability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 620px) {
+      .topbar { align-items: flex-start; padding: 12px 16px; }
+      .user-context strong { max-width: 44vw; }
+      .topbar-actions .button span { display: none; }
+      .topbar-actions .button { width: 42px; padding: 0; }
+      .main-content { padding-top: 28px; }
+      .page-heading { display: block; }
+      .kpi-grid, .availability-grid, .filters, .detail-fields, .detail-counts { grid-template-columns: 1fr; }
+      .kpi-card { min-height: 154px; }
+      .filter-actions .button { flex: 1; }
+      .table-meta { display: block; }
+      .table-meta > * + * { margin-top: 5px; }
+      .table-wrap { overflow: visible; border: 0; background: transparent; }
+      table, tbody { display: block; }
+      thead { display: none; }
+      tbody { display: grid; gap: 10px; }
+      tbody tr {
+        display: block;
+        padding: 8px 13px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--paper);
+      }
+      tbody tr:hover { background: var(--paper); }
+      tbody td {
+        display: grid;
+        grid-template-columns: minmax(92px, .42fr) minmax(0, 1fr);
+        gap: 10px;
+        min-width: 0;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      tbody td::before { content: attr(data-label); color: var(--ink-soft); font-size: .71rem; font-weight: 850; text-transform: uppercase; letter-spacing: .035em; }
+      tbody td:last-child { border-bottom: 0; }
+      tbody td.table-message { display: block; }
+      tbody td.table-message::before { content: none; }
+      .cell-name, .cell-sector { min-width: 0; }
+      .pagination { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+      .pagination-status { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
+      .pagination .button { width: 100%; padding-inline: 11px; }
+      .fact-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .fact-row dd { grid-column: 1; grid-row: 2; }
+      .family-list, .family-fields { grid-template-columns: 1fr; }
+      .trace-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .trace-row dd { grid-column: 1; grid-row: 2; }
+      dialog { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
+      .dialog-shell { max-height: calc(100vh - 16px); }
+      .dialog-head, .dialog-body { padding: 16px; }
+      .timeline-top { display: block; }
+      .timeline-date { display: block; margin-top: 4px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+
+    @media print {
+      .sidebar, .topbar-actions, .filters, .pagination, dialog, .toast-region { display: none !important; }
+      .app-shell { display: block; }
+      .topbar { padding-inline: 0; }
+      .main-content { width: 100%; padding: 24px 0; }
+      .view[hidden] { display: none !important; }
+      .panel, .kpi-card { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <section class="auth-gate" id="authGate" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <span class="gate-mark" aria-hidden="true">MC</span>
+      <h1 id="gateTitle">Verificando sesión</h1>
+      <p id="gateMessage" role="status" aria-live="polite">Estamos confirmando tu acceso al panel interno.</p>
+      <div class="spinner" id="gateSpinner" aria-hidden="true"></div>
+      <button class="button primary" id="retryAuth" type="button" hidden>Reintentar</button>
+    </div>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">MC</span>
+        <div>
+          <strong>MuniControl</strong>
+          <small>Junín, Mendoza · Uso interno</small>
+        </div>
+      </div>
+
+      <nav class="primary-nav" aria-label="Secciones">
+        <button class="nav-button" type="button" data-view="inicio" aria-controls="view-inicio">
+          <span class="nav-index" aria-hidden="true">01</span><span>Inicio</span>
+        </button>
+        <button class="nav-button" type="button" data-view="legajos" aria-controls="view-legajos">
+          <span class="nav-index" aria-hidden="true">02</span><span>Legajos</span>
+        </button>
+        <button class="nav-button" type="button" data-view="ausentismo" aria-controls="view-ausentismo">
+          <span class="nav-index" aria-hidden="true">03</span><span>Ausentismo</span>
+        </button>
+        <button class="nav-button" type="button" data-view="calidad" aria-controls="view-calidad">
+          <span class="nav-index" aria-hidden="true">04</span><span>Calidad</span>
+        </button>
+      </nav>
+
+      <nav class="suite-links" aria-label="Suite municipal">
+        <span class="suite-label">Suite municipal</span>
+        <a class="nav-button" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
+        <a class="nav-button" href="reportes-rrhh.html"><span class="nav-index" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a class="nav-button" href="estructura.html"><span class="nav-index" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a class="nav-button" href="modulos.html"><span class="nav-index" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+
+      <div class="sidebar-source" id="sidebarSource">
+        <strong>Datos internos</strong>
+        <span>Corte: consultando…</span>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="user-context">
+          <small id="userRole">Usuario interno</small>
+          <strong id="userName">Cargando…</strong>
+        </div>
+        <div class="topbar-actions">
+          <button class="button" id="refreshButton" type="button" aria-label="Actualizar datos">
+            <span aria-hidden="true">↻</span><span>Actualizar</span>
+          </button>
+          <button class="button quiet danger" id="logoutButton" type="button" aria-label="Cerrar sesión">
+            <span aria-hidden="true">↪</span><span>Cerrar sesión</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="main-content" id="mainContent" tabindex="-1">
+        <section class="view" id="view-inicio" data-section="inicio" aria-labelledby="inicioTitle">
+          <header class="page-heading">
+            <div>
+              <p class="eyebrow">Panorama interno</p>
+              <h1 id="inicioTitle" tabindex="-1">El estado municipal, sin ruido.</h1>
+              <p class="page-lead">Indicadores informados por la API interna y cálculos simples identificados de forma explícita.</p>
+              <div class="status-line" id="summaryStatus" role="status" aria-live="polite">
+                <span class="status-dot loading" aria-hidden="true"></span>
+                <span>Consultando el resumen…</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="kpi-grid" aria-label="Indicadores principales">
+            <article class="kpi-card" id="kpiHistorical" aria-busy="true">
+              <div class="kpi-head"><span class="kpi-label">Registros históricos</span><span class="evidence loading" data-evidence>Cargando</span></div>
+              <p class="kpi-value skeleton" data-value>000</p>
+              <p class="kpi-note" data-note>Consultando la fuente…</p>
+            </article>
+            <article class="kpi-card" id="kpiActive" aria-busy="true">
+              <div class="kpi-head"><span class="kpi-label">Personas activas</span><span class="evidence loading" data-evidence>Cargando</span></div>
+              <p class="kpi-value skeleton" data-value>000</p>
+              <p class="kpi-note" data-note>Consultando la fuente…</p>
+            </article>
+            <article class="kpi-card" id="kpiInactive" aria-busy="true">
+              <div class="kpi-head"><span class="kpi-label">Registros inactivos</span><span class="evidence loading" data-evidence>Cargando</span></div>
+              <p class="kpi-value skeleton" data-value>000</p>
+              <p class="kpi-note" data-note>Consultando la fuente…</p>
+            </article>
+            <article class="kpi-card" id="kpiAbsence" aria-busy="true">
+              <div class="kpi-head"><span class="kpi-label">Eventos de ausencia</span><span class="evidence loading" data-evidence>Cargando</span></div>
+              <p class="kpi-value skeleton" data-value>000</p>
+              <p class="kpi-note" data-note>Consultando la fuente…</p>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel" aria-labelledby="compositionTitle">
+              <div class="panel-head">
+                <div>
+                  <h2 id="compositionTitle">Composición del histórico</h2>
+                  <p class="panel-subtitle">Participación activa calculada sobre los registros históricos informados.</p>
+                </div>
+                <span class="evidence loading" id="compositionEvidence">Cargando</span>
+              </div>
+              <div class="composition" id="composition" aria-busy="true">
+                <div class="composition-track" role="img" aria-label="Composición todavía no disponible">
+                  <span class="composition-active" id="compositionActive"></span>
+                  <span class="composition-inactive"></span>
+                </div>
+                <div class="composition-legend">
+                  <span>Activos <strong id="compositionActiveLabel">—</strong></span>
+                  <span>Inactivos <strong id="compositionInactiveLabel">—</strong></span>
+                  <span>Participación activa <strong id="compositionShare">—</strong></span>
+                </div>
+              </div>
+              <div class="notice" id="reconciliationNotice" style="margin-top:18px">Esperando los totales para comprobar su conciliación.</div>
+            </article>
+
+            <article class="panel" aria-labelledby="sourceTitle">
+              <div class="panel-head">
+                <div>
+                  <h2 id="sourceTitle">Fuente del corte</h2>
+                  <p class="panel-subtitle">Identificación entregada por el resumen interno.</p>
+                </div>
+              </div>
+              <dl class="source-summary">
+                <div>
+                  <dt>Fecha de corte</dt>
+                  <dd id="sourceCutoff">Consultando…</dd>
+                </div>
+                <div>
+                  <dt>Huella SHA-256</dt>
+                  <dd id="sourceHash">Consultando…</dd>
+                </div>
+                <div>
+                  <dt>Estado</dt>
+                  <dd id="sourceState">Consultando…</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-legajos" data-section="legajos" aria-labelledby="legajosTitle" hidden>
+          <header class="page-heading">
+            <div>
+              <p class="eyebrow">Consulta nominal</p>
+              <h1 id="legajosTitle" tabindex="-1">Legajos</h1>
+              <p class="page-lead">Buscá por nombre o legajo y abrí sólo el registro que necesitás consultar.</p>
+            </div>
+          </header>
+
+          <section class="panel" aria-labelledby="employeeTableTitle">
+            <h2 class="sr-only" id="employeeTableTitle">Listado de legajos</h2>
+            <form class="filters" id="employeeFilters" role="search">
+              <div class="field">
+                <label for="employeeSearch">Nombre o legajo</label>
+                <input class="input" id="employeeSearch" name="search" type="search" autocomplete="off" placeholder="Escribí para buscar…">
+              </div>
+              <div class="field">
+                <label for="sectorFilter">Sector</label>
+                <select class="select" id="sectorFilter" name="sector">
+                  <option value="">Todos los sectores</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="statusFilter">Estado</label>
+                <select class="select" id="statusFilter" name="status">
+                  <option value="">Todos</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Inactivos</option>
+                </select>
+              </div>
+              <div class="filter-actions">
+                <button class="button primary" type="submit">Buscar</button>
+                <button class="button" id="clearFilters" type="button">Limpiar</button>
+              </div>
+            </form>
+
+            <div class="table-meta">
+              <div id="employeeResultCount" role="status" aria-live="polite">Preparando consulta…</div>
+              <span class="evidence source">Fuente</span>
+            </div>
+
+            <div class="table-wrap" id="employeeTableWrap" aria-busy="false">
+              <table>
+                <caption class="sr-only">Resultados de legajos municipales. Seleccioná un nombre o Ver ficha para abrir el detalle.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Legajo</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Sector</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col">Ingreso</th>
+                    <th scope="col"><span class="sr-only">Acciones</span></th>
+                  </tr>
+                </thead>
+                <tbody id="employeeRows">
+                  <tr><td class="table-message" colspan="7">Abrí esta sección para consultar los legajos.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <nav class="pagination" aria-label="Paginación de legajos">
+              <button class="button" id="previousPage" type="button" disabled>Anterior</button>
+              <span class="pagination-status" id="paginationStatus">Página —</span>
+              <button class="button" id="nextPage" type="button" disabled>Siguiente</button>
+            </nav>
+          </section>
+        </section>
+
+        <section class="view" id="view-ausentismo" data-section="ausentismo" aria-labelledby="absenceTitle" hidden>
+          <header class="page-heading">
+            <div>
+              <p class="eyebrow">Lectura responsable</p>
+              <h1 id="absenceTitle" tabindex="-1">Ausentismo</h1>
+              <p class="page-lead">Se muestra únicamente lo que entrega el resumen. Las tasas y tendencias quedan señaladas como no disponibles si falta su base de cálculo.</p>
+            </div>
+          </header>
+
+          <div class="availability-grid">
+            <article class="availability-card" id="absenceTotalCard" aria-busy="true">
+              <div class="kpi-head"><h2 class="kpi-label">Eventos informados</h2><span class="evidence loading" data-evidence>Cargando</span></div>
+              <p class="kpi-value skeleton" data-value>000</p>
+              <p data-note>Consultando la fuente…</p>
+            </article>
+            <article class="availability-card">
+              <div class="kpi-head"><h2 class="kpi-label">Tasa de ausentismo</h2><span class="evidence unavailable">No disponible</span></div>
+              <p class="kpi-value">—</p>
+              <p>El contrato actual no informa denominador ni período para calcular una tasa.</p>
+            </article>
+            <article class="availability-card">
+              <div class="kpi-head"><h2 class="kpi-label">Tendencia temporal</h2><span class="evidence unavailable">No disponible</span></div>
+              <p class="kpi-value">—</p>
+              <p>El resumen actual no entrega una serie temporal agregada.</p>
+            </article>
+          </div>
+
+          <article class="panel" style="margin-top:16px" aria-labelledby="absenceUseTitle">
+            <div class="panel-head">
+              <div>
+                <h2 id="absenceUseTitle">Consulta de eventos por legajo</h2>
+                <p class="panel-subtitle">Las ausencias y licencias nominales aparecen en la ficha individual cuando la API las informa.</p>
+              </div>
+            </div>
+            <div class="notice warning">
+              <strong>Alcance actual.</strong> “Eventos informados” no equivale por sí solo a personas ausentes, jornadas perdidas ni tasa de ausentismo.
+            </div>
+            <button class="button primary" id="goToEmployees" type="button" style="margin-top:16px">Buscar un legajo</button>
+          </article>
+        </section>
+
+        <section class="view" id="view-calidad" data-section="calidad" aria-labelledby="qualityTitle" hidden>
+          <header class="page-heading">
+            <div>
+              <p class="eyebrow">Trazabilidad del dato</p>
+              <h1 id="qualityTitle" tabindex="-1">Calidad y fuente</h1>
+              <p class="page-lead">Controles, catálogos e identificación del snapshot tal como los reporta la API.</p>
+              <div class="status-line" id="qualityStatus" role="status" aria-live="polite">
+                <span class="status-dot loading" aria-hidden="true"></span><span>Consultando calidad…</span>
+              </div>
+            </div>
+          </header>
+
+          <div class="quality-grid">
+            <article class="panel" aria-labelledby="qualityFactsTitle">
+              <div class="panel-head">
+                <div>
+                  <h2 id="qualityFactsTitle">Controles reportados</h2>
+                  <p class="panel-subtitle">Los nombres originales se conservan cuando no existe una etiqueta conocida.</p>
+                </div>
+                <span class="evidence source">Fuente</span>
+              </div>
+              <dl class="fact-list" id="qualityFacts">
+                <div class="table-message">Consultando…</div>
+              </dl>
+            </article>
+
+            <article class="panel" aria-labelledby="catalogFactsTitle">
+              <div class="panel-head">
+                <div>
+                  <h2 id="catalogFactsTitle">Catálogos recibidos</h2>
+                  <p class="panel-subtitle">Disponibilidad declarada en el resumen interno.</p>
+                </div>
+                <span class="evidence source">Fuente</span>
+              </div>
+              <dl class="fact-list" id="catalogFacts">
+                <div class="table-message">Consultando…</div>
+              </dl>
+            </article>
+          </div>
+
+          <article class="panel" style="margin-top:16px" aria-labelledby="sourceDetailTitle">
+            <div class="panel-head">
+              <div>
+                <h2 id="sourceDetailTitle">Identificación del corte</h2>
+                <p class="panel-subtitle">Sirve para comprobar qué snapshot alimenta la lectura.</p>
+              </div>
+            </div>
+            <dl class="fact-list" id="sourceFacts">
+              <div class="table-message">Consultando…</div>
+            </dl>
+            <ul class="definitions" aria-label="Significado de las etiquetas">
+              <li><span class="evidence source">Fuente</span><span>Valor entregado directamente por la API.</span></li>
+              <li><span class="evidence derived">Derivado</span><span>Cálculo explícito a partir de valores disponibles.</span></li>
+              <li><span class="evidence unavailable">No disponible</span><span>La respuesta no aporta datos suficientes; no se completa con supuestos.</span></li>
+            </ul>
+          </article>
+        </section>
+
+        <footer class="app-footer">Uso interno · MuniControl Friendly muestra valores de fuente o derivados explícitos. Los faltantes permanecen como “No disponible”.</footer>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="employeeDialog" aria-labelledby="dialogTitle">
+    <div class="dialog-shell">
+      <header class="dialog-head">
+        <div>
+          <p class="eyebrow">Ficha de legajo</p>
+          <h2 id="dialogTitle">Consultando…</h2>
+          <p id="dialogSubtitle">Cargando información de la fuente.</p>
+        </div>
+        <button class="button dialog-close" id="closeDialog" type="button" aria-label="Cerrar ficha">×</button>
+      </header>
+      <div class="dialog-body" id="dialogBody" aria-live="polite" aria-busy="true">
+        <div class="table-message"><strong>Cargando ficha</strong>Consultando datos y eventos asociados…</div>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript>
+    <div class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>Este panel consulta la sesión y los datos internos mediante la API municipal.</p></div></div>
+  </noscript>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const AUTH_URL = '/api/internal-auth';
+      const DATA_URL = '/api/internal-data';
+      const LOGIN_URL = 'login.html?next=internal-dashboard.html';
+      const PAGE_LIMIT = 25;
+      const VALID_VIEWS = new Set(['inicio', 'legajos', 'ausentismo', 'calidad']);
+
+      const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+      const integerFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      const percentFormatter = new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 });
+      const dateFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+      const state = {
+        user: null,
+        summary: null,
+        summaryError: null,
+        currentView: 'inicio',
+        employeesLoaded: false,
+        employeesLoading: false,
+        employeeRequest: 0,
+        employeeController: null,
+        detailController: null,
+        filters: { search: '', sector: '', status: '' },
+        pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
+        sectors: new Set()
+      };
+
+      const els = {
+        authGate: document.getElementById('authGate'),
+        gateTitle: document.getElementById('gateTitle'),
+        gateMessage: document.getElementById('gateMessage'),
+        gateSpinner: document.getElementById('gateSpinner'),
+        retryAuth: document.getElementById('retryAuth'),
+        appShell: document.getElementById('appShell'),
+        mainContent: document.getElementById('mainContent'),
+        userName: document.getElementById('userName'),
+        userRole: document.getElementById('userRole'),
+        refreshButton: document.getElementById('refreshButton'),
+        logoutButton: document.getElementById('logoutButton'),
+        summaryStatus: document.getElementById('summaryStatus'),
+        qualityStatus: document.getElementById('qualityStatus'),
+        sidebarSource: document.getElementById('sidebarSource'),
+        sourceCutoff: document.getElementById('sourceCutoff'),
+        sourceHash: document.getElementById('sourceHash'),
+        sourceState: document.getElementById('sourceState'),
+        composition: document.getElementById('composition'),
+        compositionActive: document.getElementById('compositionActive'),
+        compositionActiveLabel: document.getElementById('compositionActiveLabel'),
+        compositionInactiveLabel: document.getElementById('compositionInactiveLabel'),
+        compositionShare: document.getElementById('compositionShare'),
+        compositionEvidence: document.getElementById('compositionEvidence'),
+        reconciliationNotice: document.getElementById('reconciliationNotice'),
+        employeeFilters: document.getElementById('employeeFilters'),
+        employeeSearch: document.getElementById('employeeSearch'),
+        sectorFilter: document.getElementById('sectorFilter'),
+        statusFilter: document.getElementById('statusFilter'),
+        clearFilters: document.getElementById('clearFilters'),
+        employeeResultCount: document.getElementById('employeeResultCount'),
+        employeeTableWrap: document.getElementById('employeeTableWrap'),
+        employeeRows: document.getElementById('employeeRows'),
+        previousPage: document.getElementById('previousPage'),
+        nextPage: document.getElementById('nextPage'),
+        paginationStatus: document.getElementById('paginationStatus'),
+        goToEmployees: document.getElementById('goToEmployees'),
+        qualityFacts: document.getElementById('qualityFacts'),
+        catalogFacts: document.getElementById('catalogFacts'),
+        sourceFacts: document.getElementById('sourceFacts'),
+        employeeDialog: document.getElementById('employeeDialog'),
+        dialogTitle: document.getElementById('dialogTitle'),
+        dialogSubtitle: document.getElementById('dialogSubtitle'),
+        dialogBody: document.getElementById('dialogBody'),
+        closeDialog: document.getElementById('closeDialog'),
+        toastRegion: document.getElementById('toastRegion')
+      };
+
+      class UnauthorizedError extends Error {}
+
+      function text(value) {
+        return value === null || value === undefined ? '' : String(value).trim();
+      }
+
+      function finiteNumber(value) {
+        if (value === null || value === undefined || value === '') return null;
+        const parsed = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+
+      function nonNegativeNumber(value) {
+        const parsed = finiteNumber(value);
+        return parsed !== null && parsed >= 0 ? parsed : null;
+      }
+
+      function firstValue(object, paths) {
+        for (const path of paths) {
+          let cursor = object;
+          for (const key of path) {
+            if (!cursor || typeof cursor !== 'object' || !(key in cursor)) {
+              cursor = undefined;
+              break;
+            }
+            cursor = cursor[key];
+          }
+          if (cursor !== undefined && cursor !== null && cursor !== '') return cursor;
+        }
+        return null;
+      }
+
+      function normalizeBoolean(value) {
+        if (value === true || value === 1) return true;
+        if (value === false || value === 0) return false;
+        const normalized = text(value).toLowerCase();
+        if (['true', '1', 'activo', 'active', 'sí', 'si'].includes(normalized)) return true;
+        if (['false', '0', 'inactivo', 'inactive', 'no'].includes(normalized)) return false;
+        return null;
+      }
+
+      function formatNumber(value, integer) {
+        const parsed = finiteNumber(value);
+        if (parsed === null) return '—';
+        return (integer === false ? numberFormatter : integerFormatter).format(parsed);
+      }
+
+      function parseDate(value) {
+        const raw = text(value);
+        if (!raw) return null;
+        const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateOnly) {
+          const parsed = new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])));
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+
+      function formatDate(value) {
+        const parsed = parseDate(value);
+        return parsed ? dateFormatter.format(parsed).replace(/\./g, '') : '—';
+      }
+
+      function displayValue(value) {
+        const raw = text(value);
+        return raw || '—';
+      }
+
+      function create(tag, className, content) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (content !== undefined) node.textContent = content;
+        return node;
+      }
+
+      function evidenceLabel(type) {
+        return ({ source: 'Fuente', derived: 'Derivado', unavailable: 'No disponible', error: 'Error', loading: 'Cargando' })[type] || 'No disponible';
+      }
+
+      function setEvidence(node, type) {
+        if (!node) return;
+        node.className = 'evidence ' + type;
+        node.textContent = evidenceLabel(type);
+      }
+
+      function setStatus(node, type, message) {
+        node.replaceChildren();
+        const dot = create('span', 'status-dot ' + type);
+        dot.setAttribute('aria-hidden', 'true');
+        node.append(dot, create('span', '', message));
+      }
+
+      function redirectToLogin() {
+        window.location.replace(LOGIN_URL);
+      }
+
+      function errorMessage(payload, fallback) {
+        if (payload && typeof payload === 'object') {
+          if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim();
+          if (typeof payload.error === 'string' && payload.error.trim()) return payload.error.trim();
+          if (payload.error && typeof payload.error.message === 'string') return payload.error.message.trim();
+        }
+        return fallback;
+      }
+
+      async function requestJSON(url, options) {
+        const settings = options || {};
+        const headers = Object.assign({ Accept: 'application/json' }, settings.headers || {});
+        const response = await fetch(url, Object.assign({}, settings, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: headers
+        }));
+
+        let payload = null;
+        if (response.status !== 204) {
+          try { payload = await response.json(); } catch (_) { payload = null; }
+        }
+
+        if (response.status === 401) {
+          redirectToLogin();
+          throw new UnauthorizedError('Sesión no disponible');
+        }
+
+        if (!response.ok || (payload && payload.ok === false)) {
+          throw new Error(errorMessage(payload, 'La API respondió con un error (' + response.status + ').'));
+        }
+
+        return payload || {};
+      }
+
+      function friendlyNetworkError(error, fallback) {
+        if (!error || error instanceof TypeError) return fallback;
+        return text(error.message) || fallback;
+      }
+
+      function toast(message, type) {
+        els.toastRegion.replaceChildren();
+        const node = create('div', 'toast' + (type === 'error' ? ' error' : ''), message);
+        els.toastRegion.appendChild(node);
+        window.setTimeout(function () {
+          if (node.parentNode) node.remove();
+        }, 4200);
+      }
+
+      function normalizeUser(payload) {
+        const user = payload && payload.user && typeof payload.user === 'object' ? payload.user : null;
+        if (!user) return null;
+        return {
+          name: text(user.name) || text(user.email) || 'Usuario interno',
+          email: text(user.email),
+          role: text(user.role) || 'Usuario interno'
+        };
+      }
+
+      async function authenticate() {
+        els.gateTitle.textContent = 'Verificando sesión';
+        els.gateMessage.textContent = 'Estamos confirmando tu acceso al panel interno.';
+        els.gateSpinner.hidden = false;
+        els.retryAuth.hidden = true;
+
+        try {
+          const payload = await requestJSON(AUTH_URL);
+          const user = normalizeUser(payload);
+          if (!user) {
+            redirectToLogin();
+            return;
+          }
+          state.user = user;
+          els.userName.textContent = user.name;
+          els.userRole.textContent = user.role;
+          els.authGate.hidden = true;
+          els.appShell.hidden = false;
+          const initialView = viewFromLocation();
+          showView(initialView, false, false);
+          loadSummary();
+          if (initialView === 'legajos') loadEmployees(1);
+        } catch (error) {
+          if (error instanceof UnauthorizedError) return;
+          els.gateTitle.textContent = 'No pudimos verificar la sesión';
+          els.gateMessage.textContent = friendlyNetworkError(error, 'No se pudo conectar con el servicio de acceso.');
+          els.gateSpinner.hidden = true;
+          els.retryAuth.hidden = false;
+          els.retryAuth.focus();
+        }
+      }
+
+      function viewFromLocation() {
+        const view = window.location.hash.replace(/^#/, '').toLowerCase();
+        return VALID_VIEWS.has(view) ? view : 'inicio';
+      }
+
+      function showView(view, updateHistory, focusHeading) {
+        const target = VALID_VIEWS.has(view) ? view : 'inicio';
+        state.currentView = target;
+
+        document.querySelectorAll('[data-section]').forEach(function (section) {
+          section.hidden = section.dataset.section !== target;
+        });
+        document.querySelectorAll('[data-view]').forEach(function (button) {
+          if (button.dataset.view === target) button.setAttribute('aria-current', 'page');
+          else button.removeAttribute('aria-current');
+        });
+
+        if (updateHistory !== false && window.location.hash !== '#' + target) {
+          window.history.pushState(null, '', '#' + target);
+        }
+
+        document.title = ({ inicio: 'Inicio', legajos: 'Legajos', ausentismo: 'Ausentismo', calidad: 'Calidad' })[target] + ' | MuniControl';
+
+        if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
+        if (focusHeading !== false) {
+          const heading = document.querySelector('#view-' + target + ' h1');
+          if (heading) heading.focus({ preventScroll: true });
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+      }
+
+      function normalizeSectorRows(value) {
+        if (!Array.isArray(value)) return [];
+        return value.map(function (item) {
+          if (item === null || item === undefined) return null;
+          if (typeof item !== 'object') return { label: text(item), value: null };
+          return {
+            label: text(firstValue(item, [['label'], ['sector'], ['name'], ['nombre']])),
+            value: nonNegativeNumber(firstValue(item, [['value'], ['count'], ['total'], ['cantidad']]))
+          };
+        }).filter(function (item) { return item && item.label; });
+      }
+
+      function normalizeSummary(payload) {
+        const root = payload && typeof payload === 'object' ? payload : {};
+        const historical = nonNegativeNumber(firstValue(root, [
+          ['workforce', 'historicalRecords'], ['workforce', 'historical'], ['historicalRecords'], ['totalHistorico']
+        ]));
+        const active = nonNegativeNumber(firstValue(root, [
+          ['workforce', 'active'], ['active'], ['totalActivos']
+        ]));
+        const inactiveDirect = nonNegativeNumber(firstValue(root, [
+          ['workforce', 'inactive'], ['inactive'], ['totalInactivos']
+        ]));
+        let inactive = inactiveDirect;
+        let inactiveType = inactiveDirect === null ? 'unavailable' : 'source';
+        if (inactive === null && historical !== null && active !== null && historical >= active) {
+          inactive = historical - active;
+          inactiveType = 'derived';
+        }
+
+        return {
+          source: root.source && typeof root.source === 'object' ? root.source : {},
+          quality: root.quality && typeof root.quality === 'object' ? root.quality : {},
+          catalogs: root.catalogs && typeof root.catalogs === 'object' ? root.catalogs : {},
+          sectors: normalizeSectorRows(firstValue(root, [['workforce', 'sectors'], ['sectors']])),
+          metrics: {
+            historical: { value: historical, type: historical === null ? 'unavailable' : 'source' },
+            active: { value: active, type: active === null ? 'unavailable' : 'source' },
+            inactive: { value: inactive, type: inactiveType },
+            absence: (function () {
+              const value = nonNegativeNumber(firstValue(root, [
+                ['absence', 'totalEvents'], ['absence', 'total'], ['totalEvents'], ['totalAusencias']
+              ]));
+              return { value: value, type: value === null ? 'unavailable' : 'source' };
+            })()
+          }
+        };
+      }
+
+      function setMetricCard(id, metric, notes) {
+        const card = document.getElementById(id);
+        if (!card) return;
+        const value = card.querySelector('[data-value]');
+        const badge = card.querySelector('[data-evidence]');
+        const note = card.querySelector('[data-note]');
+        card.setAttribute('aria-busy', 'false');
+        value.classList.remove('skeleton');
+        value.textContent = metric && metric.value !== null ? formatNumber(metric.value) : '—';
+        const type = metric ? metric.type : 'unavailable';
+        setEvidence(badge, type);
+        note.textContent = notes[type] || notes.unavailable;
+      }
+
+      function setSummaryLoading() {
+        ['kpiHistorical', 'kpiActive', 'kpiInactive', 'kpiAbsence', 'absenceTotalCard'].forEach(function (id) {
+          const card = document.getElementById(id);
+          if (!card) return;
+          card.setAttribute('aria-busy', 'true');
+          const value = card.querySelector('[data-value]');
+          const badge = card.querySelector('[data-evidence]');
+          const note = card.querySelector('[data-note]');
+          if (value) { value.textContent = '000'; value.classList.add('skeleton'); }
+          setEvidence(badge, 'loading');
+          if (note) note.textContent = 'Consultando la fuente…';
+        });
+        setStatus(els.summaryStatus, 'loading', 'Consultando el resumen…');
+        setStatus(els.qualityStatus, 'loading', 'Consultando calidad…');
+      }
+
+      function setSummaryError(error) {
+        const unavailable = { value: null, type: 'error' };
+        const notes = { error: 'No se pudo consultar este indicador.', unavailable: 'No disponible.' };
+        ['kpiHistorical', 'kpiActive', 'kpiInactive', 'kpiAbsence', 'absenceTotalCard'].forEach(function (id) {
+          setMetricCard(id, unavailable, notes);
+        });
+        const message = friendlyNetworkError(error, 'No se pudo conectar con el resumen interno.');
+        setStatus(els.summaryStatus, 'error', message);
+        setStatus(els.qualityStatus, 'error', message);
+        els.sourceCutoff.textContent = 'No disponible';
+        els.sourceHash.textContent = 'No disponible';
+        els.sourceState.textContent = 'Error de consulta';
+        els.sidebarSource.querySelector('span').textContent = 'Corte: no disponible';
+        renderUnavailableFacts(els.qualityFacts, 'No se pudieron consultar los controles de calidad.', 'error');
+        renderUnavailableFacts(els.catalogFacts, 'No se pudieron consultar los catálogos.', 'error');
+        renderUnavailableFacts(els.sourceFacts, 'No se pudo identificar el corte.', 'error');
+        setEvidence(els.compositionEvidence, 'error');
+        els.composition.setAttribute('aria-busy', 'false');
+        els.reconciliationNotice.className = 'notice error';
+        els.reconciliationNotice.textContent = message;
+      }
+
+      async function loadSummary() {
+        state.summaryError = null;
+        setSummaryLoading();
+        try {
+          const payload = await requestJSON(DATA_URL + '?resource=summary');
+          state.summary = normalizeSummary(payload);
+          renderSummary(state.summary);
+        } catch (error) {
+          if (error instanceof UnauthorizedError) return;
+          state.summaryError = error;
+          setSummaryError(error);
+        }
+      }
+
+      function renderSummary(summary) {
+        const metrics = summary.metrics;
+        setMetricCard('kpiHistorical', metrics.historical, {
+          source: 'Total informado por el resumen interno.',
+          unavailable: 'El resumen no informó este total.'
+        });
+        setMetricCard('kpiActive', metrics.active, {
+          source: 'Estado activo informado por la fuente.',
+          unavailable: 'El resumen no informó personas activas.'
+        });
+        setMetricCard('kpiInactive', metrics.inactive, {
+          source: 'Total inactivo informado por la fuente.',
+          derived: 'Calculado como históricos menos activos.',
+          unavailable: 'No hay valores suficientes para obtenerlo.'
+        });
+        setMetricCard('kpiAbsence', metrics.absence, {
+          source: 'Eventos acumulados informados por la fuente.',
+          unavailable: 'El resumen no informó eventos de ausencia.'
+        });
+        setMetricCard('absenceTotalCard', metrics.absence, {
+          source: 'Campo totalEvents del resumen interno.',
+          unavailable: 'El resumen no informó eventos de ausencia.'
+        });
+
+        setStatus(els.summaryStatus, 'ready', 'Resumen actualizado desde la API interna.');
+        setStatus(els.qualityStatus, 'ready', 'Calidad y catálogos recibidos desde la API interna.');
+        renderComposition(metrics);
+        renderSource(summary.source);
+        renderFactObject(els.qualityFacts, summary.quality, 'quality');
+        renderFactObject(els.catalogFacts, summary.catalogs, 'catalog');
+        renderSourceFacts(summary.source);
+        collectWorkforceSectors(summary.sectors);
+      }
+
+      function renderComposition(metrics) {
+        const historical = metrics.historical.value;
+        const active = metrics.active.value;
+        const inactive = metrics.inactive.value;
+        els.composition.setAttribute('aria-busy', 'false');
+
+        if (historical === null || active === null || historical <= 0 || active > historical) {
+          els.compositionActive.style.width = '0%';
+          els.compositionActiveLabel.textContent = active === null ? '—' : formatNumber(active);
+          els.compositionInactiveLabel.textContent = inactive === null ? '—' : formatNumber(inactive);
+          els.compositionShare.textContent = '—';
+          els.composition.querySelector('.composition-track').setAttribute('aria-label', 'Composición no disponible');
+          setEvidence(els.compositionEvidence, 'unavailable');
+          els.reconciliationNotice.className = 'notice warning';
+          els.reconciliationNotice.textContent = 'No hay totales suficientes y consistentes para calcular la composición.';
+          return;
+        }
+
+        const share = active / historical;
+        els.compositionActive.style.width = Math.max(0, Math.min(100, share * 100)) + '%';
+        els.compositionActiveLabel.textContent = formatNumber(active);
+        els.compositionInactiveLabel.textContent = inactive === null ? '—' : formatNumber(inactive);
+        els.compositionShare.textContent = percentFormatter.format(share);
+        els.composition.querySelector('.composition-track').setAttribute('aria-label', percentFormatter.format(share) + ' de los registros históricos están activos');
+        setEvidence(els.compositionEvidence, 'derived');
+
+        if (inactive !== null && historical === active + inactive) {
+          els.reconciliationNotice.className = 'notice';
+          els.reconciliationNotice.textContent = 'Los registros activos e inactivos concilian con el total histórico informado.';
+        } else if (inactive !== null) {
+          els.reconciliationNotice.className = 'notice warning';
+          els.reconciliationNotice.textContent = 'Los totales informados no concilian: activos más inactivos difieren del histórico.';
+        } else {
+          els.reconciliationNotice.className = 'notice warning';
+          els.reconciliationNotice.textContent = 'El total inactivo no está disponible para completar la conciliación.';
+        }
+      }
+
+      function renderSource(source) {
+        const cutoff = firstValue(source, [['cutoff'], ['fechaCorte'], ['date']]);
+        const hash = text(firstValue(source, [['sha256'], ['hash'], ['checksum']]));
+        const cutoffLabel = cutoff ? formatDate(cutoff) : 'No disponible';
+        const hashLabel = hash ? (hash.length > 18 ? hash.slice(0, 18) + '…' : hash) : 'No disponible';
+        els.sourceCutoff.textContent = cutoffLabel;
+        els.sourceHash.textContent = hashLabel;
+        if (hash) els.sourceHash.title = hash;
+        else els.sourceHash.removeAttribute('title');
+        els.sourceState.textContent = cutoff || hash ? 'Identificado por la fuente' : 'No disponible';
+        els.sidebarSource.querySelector('span').textContent = 'Corte: ' + cutoffLabel;
+      }
+
+      const qualityLabels = {
+        status: 'Estado reportado',
+        missingSector: 'Registros sin sector',
+        missingStartDate: 'Registros sin fecha de ingreso',
+        duplicateEmployeeIds: 'Identificadores duplicados',
+        partialAbsenceSnapshot: 'Detalle de ausencias parcial',
+        partialLeaveSnapshot: 'Detalle de licencias parcial',
+        notes: 'Observaciones',
+        historicalRecords: 'Registros históricos',
+        active: 'Personas activas',
+        inactive: 'Registros inactivos'
+      };
+
+      function readableKey(key, context) {
+        if (context === 'quality' && qualityLabels[key]) return qualityLabels[key];
+        return key.replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, function (letter) { return letter.toUpperCase(); });
+      }
+
+      function primitiveLabel(value) {
+        if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+        if (typeof value === 'number') return formatNumber(value, false);
+        return displayValue(value);
+      }
+
+      function appendComplexValue(container, value) {
+        if (Array.isArray(value)) {
+          if (!value.length) {
+            container.textContent = '0 elementos';
+            return;
+          }
+          const primitiveItems = value.filter(function (item) { return item === null || typeof item !== 'object'; });
+          container.appendChild(create('span', '', formatNumber(value.length) + ' elementos'));
+          if (primitiveItems.length) {
+            const list = create('ul', 'nested-facts');
+            primitiveItems.slice(0, 8).forEach(function (item) { list.appendChild(create('li', '', primitiveLabel(item))); });
+            if (primitiveItems.length > 8) list.appendChild(create('li', '', '… y ' + formatNumber(primitiveItems.length - 8) + ' más'));
+            container.appendChild(list);
+          }
+          return;
+        }
+
+        if (value && typeof value === 'object') {
+          const entries = Object.entries(value);
+          if (!entries.length) {
+            container.textContent = '0 campos';
+            return;
+          }
+          const list = create('ul', 'nested-facts');
+          entries.slice(0, 10).forEach(function (entry) {
+            const detail = entry[1] && typeof entry[1] === 'object'
+              ? (Array.isArray(entry[1]) ? entry[1].length + ' elementos' : Object.keys(entry[1]).length + ' campos')
+              : primitiveLabel(entry[1]);
+            list.appendChild(create('li', '', entry[0] + ': ' + detail));
+          });
+          if (entries.length > 10) list.appendChild(create('li', '', '… y ' + formatNumber(entries.length - 10) + ' más'));
+          container.appendChild(list);
+          return;
+        }
+
+        container.textContent = primitiveLabel(value);
+      }
+
+      function renderUnavailableFacts(container, message, type) {
+        container.replaceChildren();
+        const row = create('div', 'fact-row');
+        const term = create('dt', '', 'Disponibilidad');
+        const value = create('dd', '', message);
+        const badge = create('span', 'evidence ' + (type || 'unavailable'), evidenceLabel(type || 'unavailable'));
+        row.append(term, value, badge);
+        container.appendChild(row);
+      }
+
+      function renderFactObject(container, object, context) {
+        const entries = object && typeof object === 'object' ? Object.entries(object) : [];
+        container.replaceChildren();
+        if (!entries.length) {
+          renderUnavailableFacts(container, 'La respuesta no incluyó información para esta sección.', 'unavailable');
+          return;
+        }
+
+        entries.forEach(function (entry) {
+          const key = entry[0];
+          const value = entry[1];
+          const row = create('div', 'fact-row');
+          const term = create('dt');
+          term.appendChild(create('span', '', readableKey(key, context)));
+          if (readableKey(key, context) !== key) {
+            term.appendChild(document.createElement('br'));
+            term.appendChild(create('code', '', key));
+          }
+          const detail = create('dd');
+          appendComplexValue(detail, value);
+          row.append(term, detail, create('span', 'evidence source', 'Fuente'));
+          container.appendChild(row);
+        });
+      }
+
+      function renderSourceFacts(source) {
+        els.sourceFacts.replaceChildren();
+        const items = [
+          ['Fecha de corte', firstValue(source, [['cutoff'], ['fechaCorte'], ['date']]), 'date'],
+          ['Huella SHA-256', firstValue(source, [['sha256'], ['hash'], ['checksum']]), 'text']
+        ];
+        items.forEach(function (item) {
+          const row = create('div', 'fact-row');
+          const raw = item[1];
+          const available = raw !== null && raw !== undefined && text(raw) !== '';
+          const value = item[2] === 'date' && available ? formatDate(raw) : (available ? text(raw) : '—');
+          row.append(
+            create('dt', '', item[0]),
+            create('dd', '', value),
+            create('span', 'evidence ' + (available ? 'source' : 'unavailable'), available ? 'Fuente' : 'No disponible')
+          );
+          els.sourceFacts.appendChild(row);
+        });
+      }
+
+      function collectWorkforceSectors(sectors) {
+        if (!Array.isArray(sectors)) return;
+        sectors.forEach(function (sector) {
+          const label = sector && typeof sector === 'object' ? sector.label : sector;
+          if (text(label)) state.sectors.add(text(label));
+        });
+        refreshSectorOptions();
+      }
+
+      function collectRowSectors(rows) {
+        rows.forEach(function (row) {
+          const sector = text(row && row.sector);
+          if (sector) state.sectors.add(sector);
+        });
+        refreshSectorOptions();
+      }
+
+      function refreshSectorOptions() {
+        const selected = els.sectorFilter.value;
+        const fragment = document.createDocumentFragment();
+        const all = create('option', '', 'Todos los sectores');
+        all.value = '';
+        fragment.appendChild(all);
+        Array.from(state.sectors).sort(function (a, b) { return a.localeCompare(b, 'es', { sensitivity: 'base' }); }).forEach(function (sector) {
+          const option = create('option', '', sector);
+          option.value = sector;
+          fragment.appendChild(option);
+        });
+        els.sectorFilter.replaceChildren(fragment);
+        if (Array.from(els.sectorFilter.options).some(function (option) { return option.value === selected; })) {
+          els.sectorFilter.value = selected;
+        }
+      }
+
+      function normalizeEmployees(payload) {
+        const rows = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload.employees) ? payload.employees : []);
+        const pagination = payload.pagination && typeof payload.pagination === 'object' ? payload.pagination : {};
+        const page = nonNegativeNumber(pagination.page) || 1;
+        const limit = nonNegativeNumber(pagination.limit) || PAGE_LIMIT;
+        const total = nonNegativeNumber(pagination.total);
+        let pages = nonNegativeNumber(pagination.pages);
+        if (pages === null && total !== null && limit > 0) pages = Math.max(1, Math.ceil(total / limit));
+        return { rows: rows, pagination: { page: page, limit: limit, total: total, pages: pages } };
+      }
+
+      function employeeQuery(page) {
+        const params = new URLSearchParams();
+        params.set('resource', 'employees');
+        params.set('search', state.filters.search);
+        params.set('sector', state.filters.sector);
+        params.set('status', state.filters.status);
+        params.set('page', String(page));
+        params.set('limit', String(PAGE_LIMIT));
+        return DATA_URL + '?' + params.toString();
+      }
+
+      function setEmployeesLoading(hasRows) {
+        state.employeesLoading = true;
+        els.employeeTableWrap.setAttribute('aria-busy', 'true');
+        els.employeeResultCount.textContent = hasRows ? 'Actualizando resultados…' : 'Consultando legajos…';
+        els.previousPage.disabled = true;
+        els.nextPage.disabled = true;
+        if (!hasRows) {
+          els.employeeRows.replaceChildren();
+          const row = create('tr');
+          const cell = create('td', 'table-message', 'Consultando legajos…');
+          cell.colSpan = 7;
+          row.appendChild(cell);
+          els.employeeRows.appendChild(row);
+        }
+      }
+
+      async function loadEmployees(page) {
+        if (state.employeeController) state.employeeController.abort();
+        const controller = new AbortController();
+        state.employeeController = controller;
+        const requestId = ++state.employeeRequest;
+        const hasRows = state.employeesLoaded && els.employeeRows.querySelector('[data-legajo]');
+        setEmployeesLoading(Boolean(hasRows));
+
+        try {
+          const payload = await requestJSON(employeeQuery(page), { signal: controller.signal });
+          if (requestId !== state.employeeRequest) return;
+          const result = normalizeEmployees(payload);
+          state.pagination = result.pagination;
+          state.employeesLoaded = true;
+          collectRowSectors(result.rows);
+          renderEmployees(result.rows, result.pagination);
+        } catch (error) {
+          if (error.name === 'AbortError' || error instanceof UnauthorizedError) return;
+          if (requestId !== state.employeeRequest) return;
+          renderEmployeesError(error);
+        } finally {
+          if (requestId === state.employeeRequest) {
+            state.employeesLoading = false;
+            els.employeeTableWrap.setAttribute('aria-busy', 'false');
+          }
+        }
+      }
+
+      function statusDisplay(value) {
+        const normalized = normalizeBoolean(value);
+        if (normalized === true) return { label: 'Activo', className: 'active' };
+        if (normalized === false) return { label: 'Inactivo', className: 'inactive' };
+        return { label: 'No disponible', className: 'unknown' };
+      }
+
+      function appendCell(row, label, content, className) {
+        const cell = create('td', className || '');
+        cell.dataset.label = label;
+        if (content instanceof Node) cell.appendChild(content);
+        else cell.textContent = content;
+        row.appendChild(cell);
+        return cell;
+      }
+
+      function detailButton(label, legajo, fallbackName, className) {
+        const button = create('button', className || 'link-button', label);
+        button.type = 'button';
+        button.dataset.legajo = text(legajo);
+        button.dataset.name = text(fallbackName);
+        button.addEventListener('click', function () { openEmployee(button.dataset.legajo, button.dataset.name); });
+        return button;
+      }
+
+      function renderEmployees(rows, pagination) {
+        els.employeeRows.replaceChildren();
+        if (!rows.length) {
+          const row = create('tr');
+          const cell = create('td', 'table-message');
+          cell.colSpan = 7;
+          cell.append(create('strong', '', 'Sin resultados'), document.createTextNode('Probá con otros filtros o limpiá la búsqueda.'));
+          row.appendChild(cell);
+          els.employeeRows.appendChild(row);
+        } else {
+          rows.forEach(function (employee) {
+            const row = create('tr');
+            const legajo = text(employee.legajo);
+            const name = text(employee.nombre);
+            const status = statusDisplay(employee.activo);
+            appendCell(row, 'Legajo', legajo || '—', legajo ? '' : 'cell-muted');
+            appendCell(row, 'Nombre', legajo ? detailButton(name || 'Sin nombre informado', legajo, name) : (name || '—'), 'cell-name');
+            appendCell(row, 'Estado', create('span', 'state-pill ' + status.className, status.label));
+            appendCell(row, 'Sector', displayValue(employee.sector), 'cell-sector' + (text(employee.sector) ? '' : ' cell-muted'));
+            appendCell(row, 'Categoría', displayValue(employee.categoria), text(employee.categoria) ? '' : 'cell-muted');
+            appendCell(row, 'Ingreso', employee.fechaIngreso ? formatDate(employee.fechaIngreso) : '—', employee.fechaIngreso ? '' : 'cell-muted');
+            appendCell(row, 'Acciones', legajo ? detailButton('Ver ficha', legajo, name, 'button') : create('span', 'cell-muted', 'No disponible'));
+            els.employeeRows.appendChild(row);
+          });
+        }
+
+        const totalLabel = pagination.total === null ? null : formatNumber(pagination.total);
+        els.employeeResultCount.textContent = totalLabel === null
+          ? formatNumber(rows.length) + ' resultados en esta página · total no disponible'
+          : totalLabel + (pagination.total === 1 ? ' legajo encontrado' : ' legajos encontrados');
+
+        const currentPage = Math.max(1, pagination.page || 1);
+        const knownPages = pagination.pages !== null ? Math.max(1, pagination.pages) : null;
+        els.paginationStatus.textContent = knownPages === null
+          ? 'Página ' + formatNumber(currentPage)
+          : 'Página ' + formatNumber(currentPage) + ' de ' + formatNumber(knownPages);
+        els.previousPage.disabled = currentPage <= 1;
+        els.nextPage.disabled = knownPages !== null ? currentPage >= knownPages : rows.length < pagination.limit;
+      }
+
+      function renderEmployeesError(error) {
+        const message = friendlyNetworkError(error, 'No se pudo conectar con la consulta de legajos.');
+        els.employeeRows.replaceChildren();
+        const row = create('tr');
+        const cell = create('td', 'table-message');
+        cell.colSpan = 7;
+        cell.append(create('strong', '', 'No pudimos cargar los legajos'), document.createTextNode(message));
+        const retry = create('button', 'button', 'Reintentar');
+        retry.type = 'button';
+        retry.style.margin = '14px auto 0';
+        retry.addEventListener('click', function () { loadEmployees(state.pagination.page || 1); });
+        cell.appendChild(retry);
+        row.appendChild(cell);
+        els.employeeRows.appendChild(row);
+        els.employeeResultCount.textContent = 'Error de consulta';
+        els.paginationStatus.textContent = 'Página —';
+        els.previousPage.disabled = true;
+        els.nextPage.disabled = true;
+      }
+
+      function applyFilters() {
+        state.filters.search = els.employeeSearch.value.trim();
+        state.filters.sector = els.sectorFilter.value;
+        state.filters.status = els.statusFilter.value;
+        loadEmployees(1);
+      }
+
+      function normalizeEmployeeDetail(payload) {
+        const data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {};
+        const meta = payload && payload.meta && typeof payload.meta === 'object' ? payload.meta : {};
+        return {
+          employee: data,
+          absences: Array.isArray(data.ausencias) ? data.ausencias : [],
+          leaves: Array.isArray(data.licencias) ? data.licencias : [],
+          family: Array.isArray(data.familiares) ? data.familiares : [],
+          meta: meta
+        };
+      }
+
+      function showDialog() {
+        if (typeof els.employeeDialog.showModal === 'function') {
+          if (!els.employeeDialog.open) els.employeeDialog.showModal();
+        } else {
+          els.employeeDialog.setAttribute('open', '');
+        }
+      }
+
+      function closeDialog() {
+        if (state.detailController) state.detailController.abort();
+        if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
+        else els.employeeDialog.removeAttribute('open');
+      }
+
+      async function openEmployee(legajo, fallbackName) {
+        if (!text(legajo)) return;
+        if (state.detailController) state.detailController.abort();
+        const controller = new AbortController();
+        state.detailController = controller;
+        els.dialogTitle.textContent = fallbackName || 'Ficha de legajo';
+        els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · consultando la fuente';
+        els.dialogBody.setAttribute('aria-busy', 'true');
+        els.dialogBody.replaceChildren();
+        const loading = create('div', 'table-message');
+        loading.append(create('strong', '', 'Cargando ficha'), document.createTextNode('Consultando datos y eventos asociados…'));
+        els.dialogBody.appendChild(loading);
+        showDialog();
+
+        const params = new URLSearchParams({ resource: 'employee', legajo: legajo });
+        try {
+          const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
+          const detail = normalizeEmployeeDetail(payload);
+          renderEmployeeDetail(detail);
+        } catch (error) {
+          if (error.name === 'AbortError' || error instanceof UnauthorizedError) return;
+          renderDetailError(error, legajo, fallbackName);
+        } finally {
+          els.dialogBody.setAttribute('aria-busy', 'false');
+        }
+      }
+
+      function detailField(label, value, formatter) {
+        const available = value !== null && value !== undefined && text(value) !== '';
+        const field = create('div', 'detail-field');
+        const term = create('dt', '', label);
+        const output = available ? (formatter ? formatter(value) : text(value)) : '—';
+        const definition = create('dd', '', output);
+        field.append(term, definition, create('span', 'evidence ' + (available ? 'source' : 'unavailable'), available ? 'Fuente' : 'No disponible'));
+        return field;
+      }
+
+      function detailCount(label, direct, rows) {
+        const sourceValue = nonNegativeNumber(direct);
+        const derivedValue = Array.isArray(rows) ? rows.length : null;
+        const value = sourceValue !== null ? sourceValue : derivedValue;
+        const type = sourceValue !== null ? 'source' : (derivedValue !== null ? 'derived' : 'unavailable');
+        const card = create('div', 'detail-count');
+        card.append(
+          create('span', '', label),
+          create('strong', '', value === null ? '—' : formatNumber(value)),
+          create('span', 'evidence ' + type, evidenceLabel(type))
+        );
+        return card;
+      }
+
+      function detailSection(title, subtitle, fields) {
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', title), create('span', 'evidence source', 'Fuente'));
+        section.appendChild(head);
+        if (subtitle) section.appendChild(create('p', 'detail-section-copy', subtitle));
+        const list = create('dl', 'detail-fields');
+        fields.forEach(function (field) { list.appendChild(field); });
+        section.appendChild(list);
+        return section;
+      }
+
+      function parseRawFields(rawFields) {
+        if (rawFields && typeof rawFields === 'object') return rawFields;
+        const raw = text(rawFields);
+        if (!raw) return null;
+        try { return JSON.parse(raw); } catch (_) { return raw; }
+      }
+
+      function tracePathLabel(path) {
+        return path.map(function (part) {
+          return /^\d+$/.test(part) ? 'Elemento ' + (Number(part) + 1) : readableKey(part, 'trace');
+        }).join(' › ');
+      }
+
+      function tracePathCode(path) {
+        return path.reduce(function (output, part) {
+          return /^\d+$/.test(part) ? output + '[' + part + ']' : output + (output ? '.' : '') + part;
+        }, '');
+      }
+
+      function traceValue(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+        if (typeof value === 'number') return numberFormatter.format(value);
+        return String(value);
+      }
+
+      function flattenTrace(value, path, rows, visited) {
+        if (value && typeof value === 'object') {
+          if (visited.has(value)) {
+            rows.push({ path: path, value: 'Referencia circular', available: false });
+            return;
+          }
+          visited.add(value);
+          const entries = Array.isArray(value) ? value.map(function (item, index) { return [String(index), item]; }) : Object.entries(value);
+          if (!entries.length) rows.push({ path: path, value: Array.isArray(value) ? 'Lista vacía' : 'Sin campos', available: false });
+          entries.forEach(function (entry) { flattenTrace(entry[1], path.concat(entry[0]), rows, visited); });
+          return;
+        }
+        rows.push({
+          path: path.length ? path : ['valor'],
+          value: traceValue(value),
+          available: value !== null && value !== undefined && value !== ''
+        });
+      }
+
+      function traceDetails(rawFields, label, extraClass) {
+        const details = create('details', 'trace-details' + (extraClass ? ' ' + extraClass : ''));
+        const summary = create('summary');
+        const parsed = parseRawFields(rawFields);
+        const available = parsed !== null;
+        summary.append(
+          create('span', '', label),
+          create('span', 'evidence ' + (available ? 'source' : 'unavailable'), available ? 'Fuente' : 'No disponible')
+        );
+        details.appendChild(summary);
+        const body = create('div', 'trace-body');
+        const list = create('dl', 'trace-list');
+        const rows = [];
+        if (available) flattenTrace(parsed, [], rows, new WeakSet());
+        else rows.push({ path: ['campos de origen'], value: '—', available: false });
+        rows.forEach(function (item) {
+          const row = create('div', 'trace-row');
+          const term = create('dt', '', tracePathLabel(item.path));
+          term.appendChild(create('code', '', tracePathCode(item.path)));
+          row.append(
+            term,
+            create('dd', '', item.value),
+            create('span', 'evidence ' + (item.available ? 'source' : 'unavailable'), item.available ? 'Fuente' : 'No disponible')
+          );
+          list.appendChild(row);
+        });
+        body.appendChild(list);
+        details.appendChild(body);
+        return details;
+      }
+
+      function familyValue(label, value, formatter) {
+        const wrapper = create('div');
+        wrapper.append(
+          create('dt', '', label),
+          create('dd', '', value !== null && value !== undefined && text(value) !== '' ? (formatter ? formatter(value) : text(value)) : '—')
+        );
+        return wrapper;
+      }
+
+      function familyCard(member, index) {
+        const card = create('article', 'family-card');
+        const head = create('div', 'family-card-head');
+        head.append(
+          create('strong', '', text(member.nombre) || 'Familiar ' + (index + 1)),
+          create('span', '', text(member.vinculoCode) ? 'Vínculo ' + text(member.vinculoCode) : 'Vínculo no disponible')
+        );
+        card.appendChild(head);
+        const fields = create('dl', 'family-fields');
+        fields.append(
+          familyValue('ID familiar', member.familyId),
+          familyValue('Sexo', member.sexo),
+          familyValue('Nacimiento', member.fechaNacimiento, formatDate),
+          familyValue('DNI', member.dni),
+          familyValue('CUIL', member.cuil),
+          familyValue('Fecha de baja', member.fechaBaja, formatDate)
+        );
+        card.appendChild(fields);
+        card.appendChild(traceDetails(member.rawFields, 'Campos de origen del familiar'));
+        return card;
+      }
+
+      function renderFamilySection(detail) {
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', 'Familiares'), create('span', 'evidence source', 'Fuente'));
+        section.appendChild(head);
+        const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
+        const received = detail.family.length;
+        section.appendChild(create('p', 'detail-section-copy',
+          (total === null ? formatNumber(received) + ' registros recibidos.' : formatNumber(total) + ' registros informados; ' + formatNumber(received) + ' recibidos en esta ficha.')
+        ));
+        if (!received) {
+          const empty = create('div', 'notice warning');
+          empty.textContent = total && total > 0
+            ? 'La fuente informa familiares asociados, pero esta respuesta no incluyó el detalle.'
+            : 'La respuesta no incluyó familiares asociados.';
+          section.appendChild(empty);
+          return section;
+        }
+        const list = create('div', 'family-list');
+        detail.family.forEach(function (member, index) { list.appendChild(familyCard(member || {}, index)); });
+        section.appendChild(list);
+        return section;
+      }
+
+      function eventTimestamp(value) {
+        const parsed = parseDate(value);
+        return parsed ? parsed.getTime() : -Infinity;
+      }
+
+      function normalizeEvents(absences, leaves) {
+        const events = [];
+        absences.forEach(function (item, index) {
+          events.push({ kind: 'absence', source: item || {}, date: firstValue(item || {}, [['fecha'], ['fechaInicio'], ['date']]), index: index });
+        });
+        leaves.forEach(function (item, index) {
+          events.push({ kind: 'license', source: item || {}, date: firstValue(item || {}, [['fechaInicio'], ['fecha'], ['date']]), index: index });
+        });
+        return events.sort(function (a, b) {
+          const timeA = eventTimestamp(a.date);
+          const timeB = eventTimestamp(b.date);
+          if (timeA !== timeB) return timeB - timeA;
+          return a.kind.localeCompare(b.kind) || a.index - b.index;
+        });
+      }
+
+      function eventItem(event) {
+        const item = event.source;
+        const isLicense = event.kind === 'license';
+        const titleParts = [isLicense ? 'Licencia' : 'Ausencia'];
+        const typeOrReason = isLicense
+          ? firstValue(item, [['tipo'], ['tipoLicencia']])
+          : firstValue(item, [['motivo'], ['motivoCode'], ['tipo']]);
+        if (text(typeOrReason)) titleParts.push(text(typeOrReason));
+        const node = create('li', 'timeline-item' + (isLicense ? ' license' : ''));
+        const top = create('div', 'timeline-top');
+        top.append(create('span', 'timeline-title', titleParts.join(' · ')));
+        const dateNode = create('time', 'timeline-date', event.date ? formatDate(event.date) : 'Fecha no disponible');
+        if (event.date) dateNode.dateTime = text(event.date);
+        top.appendChild(dateNode);
+        node.appendChild(top);
+
+        const meta = create('div', 'timeline-meta');
+        const days = firstValue(item, [['dias'], ['days']]);
+        const quantity = firstValue(item, [['cantidad'], ['quantity']]);
+        const period = firstValue(item, [['periodo'], ['period']]);
+        const end = firstValue(item, [['fechaFin'], ['fechaHasta'], ['fechaRegreso'], ['endDate']]);
+        if (days !== null) meta.appendChild(create('span', '', 'Días: ' + displayValue(days)));
+        if (quantity !== null) meta.appendChild(create('span', '', 'Cantidad: ' + displayValue(quantity)));
+        if (period !== null) meta.appendChild(create('span', '', 'Período: ' + displayValue(period)));
+        if (end !== null && text(end)) meta.appendChild(create('span', '', 'Finaliza/regreso: ' + formatDate(end)));
+        meta.appendChild(create('span', 'evidence source', 'Fuente'));
+        node.appendChild(meta);
+
+        const note = firstValue(item, [['observaciones'], ['observacion'], ['comentario'], ['detalle']]);
+        if (note !== null && text(note)) node.appendChild(create('p', 'timeline-note', text(note)));
+        node.appendChild(traceDetails(item.rawFields, 'Campos de origen del evento', 'event-trace'));
+        return node;
+      }
+
+      function renderEmployeeDetail(detail) {
+        const employee = detail.employee;
+        const legajo = text(employee.legajo);
+        const name = text(employee.nombre);
+        els.dialogTitle.textContent = name || 'Ficha de legajo';
+        els.dialogSubtitle.textContent = legajo ? 'Legajo ' + legajo + ' · datos de la API interna' : 'Legajo no disponible · datos de la API interna';
+        els.dialogBody.replaceChildren();
+
+        const active = normalizeBoolean(employee.activo);
+        els.dialogBody.appendChild(detailSection('Identidad', 'Datos identificatorios informados para el legajo seleccionado.', [
+          detailField('Legajo', employee.legajo),
+          detailField('ID de persona', employee.personId),
+          detailField('Nombre', employee.nombre),
+          detailField('Estado', active, function (value) { return value ? 'Activo' : 'Inactivo'; }),
+          detailField('Fecha de nacimiento', employee.fechaNacimiento, formatDate),
+          detailField('Sexo', employee.sexo),
+          detailField('DNI', employee.dni),
+          detailField('CUIL', employee.cuil)
+        ]));
+
+        els.dialogBody.appendChild(detailSection('Contacto y domicilio', 'Información de contacto y localización disponible en la ficha interna.', [
+          detailField('Teléfono', employee.telefono),
+          detailField('Email', employee.email),
+          detailField('Domicilio', employee.domicilio),
+          detailField('Localidad', employee.localidad)
+        ]));
+
+        els.dialogBody.appendChild(detailSection('Situación laboral', 'Asignación, códigos de catálogo y fechas de la relación laboral.', [
+          detailField('Fecha de ingreso', employee.fechaIngreso, formatDate),
+          detailField('Fecha de egreso', employee.fechaEgreso, formatDate),
+          detailField('Sector', employee.sector),
+          detailField('Código de sector', employee.sectorCode),
+          detailField('Categoría', employee.categoria),
+          detailField('Código de categoría', employee.categoriaCode),
+          detailField('Convenio', employee.convenio),
+          detailField('Código de convenio', employee.convenioCode),
+          detailField('Cargo', employee.cargo),
+          detailField('Código de cargo', employee.cargoCode),
+          detailField('Gremio', employee.gremio),
+          detailField('Lugar de trabajo', employee.lugarTrabajo),
+          detailField('Profesión', employee.profesion),
+          detailField('ID de compañía', employee.companyId)
+        ]));
+
+        const coverage = create('section', 'detail-section');
+        const coverageHead = create('div', 'detail-section-head');
+        coverageHead.append(create('h3', '', 'Registros asociados'), create('span', 'evidence source', 'Fuente'));
+        coverage.appendChild(coverageHead);
+        const counts = create('div', 'detail-counts');
+        counts.append(
+          detailCount('Ausencias', firstValue(detail.meta, [['absenceTotal'], ['totalAusencias']]), detail.absences),
+          detailCount('Licencias', firstValue(detail.meta, [['leaveTotal'], ['totalLicencias']]), detail.leaves),
+          detailCount('Familiares', firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]), detail.family)
+        );
+        coverage.appendChild(counts);
+        const cap = nonNegativeNumber(firstValue(detail.meta, [['relationRowsCappedAt'], ['rowsCappedAt']]));
+        const absenceTotal = nonNegativeNumber(firstValue(detail.meta, [['absenceTotal'], ['totalAusencias']]));
+        const leaveTotal = nonNegativeNumber(firstValue(detail.meta, [['leaveTotal'], ['totalLicencias']]));
+        const familyTotal = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
+        const truncated = (absenceTotal !== null && absenceTotal > detail.absences.length)
+          || (leaveTotal !== null && leaveTotal > detail.leaves.length)
+          || (familyTotal !== null && familyTotal > detail.family.length);
+        if (truncated) {
+          const limitation = create('div', 'notice warning');
+          limitation.style.marginTop = '12px';
+          limitation.textContent = 'La ficha informa más registros asociados que filas recibidas. '
+            + (cap !== null ? 'La API entrega hasta ' + formatNumber(cap) + ' filas por tipo en cada consulta.' : 'La respuesta está paginada o limitada por la fuente.');
+          coverage.appendChild(limitation);
+        }
+        els.dialogBody.appendChild(coverage);
+
+        els.dialogBody.appendChild(renderFamilySection(detail));
+
+        const eventSection = create('section', 'detail-section');
+        const eventHead = create('div', 'detail-section-head');
+        eventHead.append(create('h3', '', 'Últimos eventos'), create('span', 'evidence derived', 'Derivado'));
+        eventSection.appendChild(eventHead);
+        const events = normalizeEvents(detail.absences, detail.leaves);
+        if (!events.length) {
+          const empty = create('div', 'notice warning');
+          empty.textContent = 'La respuesta no incluyó ausencias o licencias para mostrar.';
+          eventSection.appendChild(empty);
+        } else {
+          const timeline = create('ol', 'timeline');
+          events.slice(0, 10).forEach(function (event) { timeline.appendChild(eventItem(event)); });
+          eventSection.appendChild(timeline);
+          const note = create('p', 'panel-subtitle', 'Orden combinado por fecha; se muestran primero los 10 eventos más recientes.');
+          eventSection.appendChild(note);
+          if (events.length > 10) {
+            const older = create('details', 'trace-details');
+            const summary = create('summary');
+            summary.append(
+              create('span', '', 'Ver ' + formatNumber(events.length - 10) + ' eventos anteriores recibidos'),
+              create('span', 'evidence source', 'Fuente')
+            );
+            older.appendChild(summary);
+            const body = create('div', 'trace-body');
+            const olderTimeline = create('ol', 'timeline');
+            events.slice(10).forEach(function (event) { olderTimeline.appendChild(eventItem(event)); });
+            body.appendChild(olderTimeline);
+            older.appendChild(body);
+            eventSection.appendChild(older);
+          }
+        }
+        els.dialogBody.appendChild(eventSection);
+
+        const traceSection = create('section', 'detail-section');
+        const traceHead = create('div', 'detail-section-head');
+        traceHead.append(create('h3', '', 'Trazabilidad del registro'), create('span', 'evidence source', 'Fuente'));
+        traceSection.appendChild(traceHead);
+        traceSection.appendChild(create('p', 'detail-section-copy', 'Campos originales preservados por la importación, presentados como rutas y valores legibles.'));
+        traceSection.appendChild(traceDetails(employee.rawFields, 'Ver todos los campos originales de la persona y su empleo'));
+        els.dialogBody.appendChild(traceSection);
+      }
+
+      function renderDetailError(error, legajo, fallbackName) {
+        els.dialogBody.replaceChildren();
+        const notice = create('div', 'notice error');
+        notice.append(create('strong', '', 'No pudimos cargar esta ficha. '), document.createTextNode(friendlyNetworkError(error, 'No se pudo conectar con el detalle del legajo.')));
+        els.dialogBody.appendChild(notice);
+        const retry = create('button', 'button primary', 'Reintentar');
+        retry.type = 'button';
+        retry.style.marginTop = '14px';
+        retry.addEventListener('click', function () { openEmployee(legajo, fallbackName); });
+        els.dialogBody.appendChild(retry);
+      }
+
+      async function logout() {
+        els.logoutButton.disabled = true;
+        els.logoutButton.setAttribute('aria-busy', 'true');
+        try {
+          await requestJSON(AUTH_URL, { method: 'DELETE' });
+          sessionStorage.removeItem('mjunin_user');
+          redirectToLogin();
+        } catch (error) {
+          if (error instanceof UnauthorizedError) {
+            sessionStorage.removeItem('mjunin_user');
+            return;
+          }
+          els.logoutButton.disabled = false;
+          els.logoutButton.removeAttribute('aria-busy');
+          toast(friendlyNetworkError(error, 'No se pudo cerrar la sesión. Volvé a intentarlo.'), 'error');
+        }
+      }
+
+      function refreshCurrentView() {
+        els.refreshButton.disabled = true;
+        const tasks = [loadSummary()];
+        if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
+        Promise.allSettled(tasks).finally(function () {
+          els.refreshButton.disabled = false;
+          toast('Actualización finalizada.');
+        });
+      }
+
+      let searchTimer = null;
+
+      document.querySelectorAll('[data-view]').forEach(function (button) {
+        button.addEventListener('click', function () { showView(button.dataset.view, true, true); });
+      });
+      window.addEventListener('popstate', function () { showView(viewFromLocation(), false, true); });
+      els.retryAuth.addEventListener('click', authenticate);
+      els.refreshButton.addEventListener('click', refreshCurrentView);
+      els.logoutButton.addEventListener('click', logout);
+      els.closeDialog.addEventListener('click', closeDialog);
+      els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
+      els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(); });
+      els.employeeSearch.addEventListener('input', function () {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(applyFilters, 380);
+      });
+      els.sectorFilter.addEventListener('change', applyFilters);
+      els.statusFilter.addEventListener('change', applyFilters);
+      els.clearFilters.addEventListener('click', function () {
+        window.clearTimeout(searchTimer);
+        els.employeeSearch.value = '';
+        els.sectorFilter.value = '';
+        els.statusFilter.value = '';
+        applyFilters();
+        els.employeeSearch.focus();
+      });
+      els.previousPage.addEventListener('click', function () {
+        if (state.pagination.page > 1) loadEmployees(state.pagination.page - 1);
+      });
+      els.nextPage.addEventListener('click', function () {
+        loadEmployees((state.pagination.page || 1) + 1);
+      });
+      els.goToEmployees.addEventListener('click', function () {
+        showView('legajos', true, true);
+        window.setTimeout(function () { els.employeeSearch.focus(); }, 0);
+      });
+
+      authenticate();
+    })();
+  </script>
+</body>
+</html>

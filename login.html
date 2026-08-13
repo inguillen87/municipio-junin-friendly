@@ -3,627 +3,723 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#060b18">
-  <title>Acceso al Sistema | MuniControl</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='18' font-size='18'>M</text></svg>">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#08283a">
+  <meta name="description" content="Acceso al portal interno y a la vista agregada de MuniControl Friendly.">
+  <title>Acceso | MuniControl Friendly</title>
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --navy-950: #061e2c;
+      --navy-900: #08283a;
+      --navy-800: #10394e;
+      --navy-700: #1b5068;
+      --ink: #17232b;
+      --muted: #586974;
+      --line: #cbd5db;
+      --line-strong: #9dacb5;
+      --paper: #ffffff;
+      --canvas: #eef2f4;
+      --wash: #f6f8f9;
+      --accent: #c6ee6b;
+      --accent-dark: #263b12;
+      --danger: #a5252d;
+      --danger-wash: #fff4f4;
+      --focus: #147ca8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { color-scheme: light; }
 
     body {
+      min-width: 320px;
       min-height: 100vh;
-      display: flex;
-      font-family: 'Inter', sans-serif;
-      background: #060b18;
-      color: #f0f4ff;
-      overflow: hidden;
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* LEFT PANEL — animated background */
-    .left-panel {
-      flex: 1;
-      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #064e3b 100%);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 60px 56px;
-      position: relative;
-      overflow: hidden;
-    }
+    button, input { font: inherit; }
 
-    .left-panel::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 60% 50% at 20% 20%, rgba(59,130,246,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 60% at 80% 80%, rgba(139,92,246,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 40% at 50% 50%, rgba(16,185,129,0.08) 0%, transparent 60%);
-      pointer-events: none;
-    }
+    button, a { -webkit-tap-highlight-color: transparent; }
 
-    .left-panel::after {
-      content: '';
-      position: absolute;
-      width: 600px; height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%);
-      top: -100px; right: -100px;
-      animation: float 8s ease-in-out infinite;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0) scale(1); }
-      50% { transform: translateY(-30px) scale(1.05); }
-    }
-
-    .brand-logo {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 56px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .brand-logo img {
-      width: 48px; height: 48px;
-      border-radius: 12px;
-      object-fit: cover;
-    }
-
-    .brand-logo .brand-name {
-      font-family: 'Outfit', sans-serif;
-      font-size: 24px;
-      font-weight: 900;
-      letter-spacing: -0.5px;
-    }
-
-    .hero-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: clamp(32px, 4vw, 52px);
-      font-weight: 900;
-      line-height: 1.1;
-      margin-bottom: 20px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-title span {
-      background: linear-gradient(135deg, #60a5fa, #a78bfa, #34d399);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero-sub {
-      font-size: 16px;
-      color: rgba(148,163,184,0.8);
-      line-height: 1.7;
-      max-width: 400px;
-      margin-bottom: 48px;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* Feature pills */
-    .features {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 12px;
-      backdrop-filter: blur(10px);
-      transition: all 0.2s;
-    }
-
-    .feature-item:hover {
-      background: rgba(255,255,255,0.07);
-      border-color: rgba(255,255,255,0.12);
-    }
-
-    .feature-icon {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-
-    .feature-text { font-size: 13px; font-weight: 600; }
-    .feature-sub { font-size: 11px; color: rgba(148,163,184,0.6); margin-top: 1px; }
-
-    /* KPI FLOATING CARDS */
-    .kpi-cards {
-      position: absolute;
-      right: -20px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      z-index: 2;
-    }
-
-    .kpi-card {
-      background: rgba(13,21,38,0.85);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 14px;
-      padding: 14px 18px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      min-width: 160px;
-      animation: slideIn 0.6s ease forwards;
-    }
-
-    .kpi-card:nth-child(1) { animation-delay: 0.1s; }
-    .kpi-card:nth-child(2) { animation-delay: 0.2s; }
-    .kpi-card:nth-child(3) { animation-delay: 0.3s; }
-
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(30px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
-
-    .kpi-label {
-      font-size: 10px;
+    .skip-link {
+      position: fixed;
+      z-index: 20;
+      top: 8px;
+      left: 8px;
+      padding: 10px 14px;
+      background: var(--paper);
+      color: var(--navy-950);
       font-weight: 700;
+      transform: translateY(-150%);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .site-header {
+      background: var(--navy-950);
+      color: var(--paper);
+      border-bottom: 4px solid var(--accent);
+    }
+
+    .header-inner {
+      width: min(1160px, calc(100% - 48px));
+      min-height: 78px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid #a9bcc6;
+      background: var(--paper);
+      color: var(--navy-950);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 25px;
+      font-weight: 700;
+    }
+
+    .brand-name {
+      display: block;
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-place {
+      display: block;
+      margin-top: 4px;
+      color: #bdcbd2;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(148,163,184,0.6);
-      margin-bottom: 4px;
     }
 
-    .kpi-value {
-      font-family: 'Outfit', sans-serif;
-      font-size: 24px;
-      font-weight: 900;
+    .header-context {
+      margin: 0;
+      color: #d9e2e6;
+      font-size: 13px;
+      text-align: right;
     }
 
-    .kpi-trend {
-      font-size: 10px;
-      margin-top: 2px;
-      font-weight: 700;
+    main {
+      width: min(1160px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 54px 0 46px;
     }
 
-    /* RIGHT PANEL */
-    .right-panel {
-      width: 480px;
-      flex-shrink: 0;
-      background: #060b18;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 48px 48px;
-      border-left: 1px solid rgba(255,255,255,0.06);
-      overflow-y: auto;
+    .access-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(390px, 0.78fr);
+      gap: 72px;
+      align-items: start;
     }
 
-    .login-header {
-      margin-bottom: 32px;
+    .context-panel { padding-top: 12px; }
+
+    .eyebrow {
+      margin: 0 0 16px;
+      color: var(--navy-700);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
     }
 
-    .login-header h2 {
-      font-family: 'Outfit', sans-serif;
-      font-size: 28px;
-      font-weight: 900;
-      margin-bottom: 6px;
+    h1 {
+      max-width: 690px;
+      margin: 0;
+      color: var(--navy-950);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(38px, 5vw, 62px);
+      font-weight: 400;
+      line-height: 1.02;
+      letter-spacing: -0.035em;
     }
 
-    .login-header p {
+    .intro {
+      max-width: 590px;
+      margin: 25px 0 0;
+      color: #3d515d;
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .route-note {
+      max-width: 610px;
+      margin: 31px 0 0;
+      padding: 17px 0 17px 19px;
+      border-left: 4px solid var(--navy-700);
+      color: var(--muted);
       font-size: 14px;
-      color: rgba(148,163,184,0.7);
+      line-height: 1.55;
     }
 
-    /* FORM */
-    .form-group {
-      margin-bottom: 18px;
+    .route-note strong { color: var(--ink); }
+
+    .facts {
+      margin: 42px 0 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+      list-style: none;
     }
+
+    .fact {
+      min-width: 0;
+      padding: 19px 18px 18px 0;
+    }
+
+    .fact + .fact {
+      padding-left: 18px;
+      border-left: 1px solid var(--line);
+    }
+
+    .fact-value {
+      display: block;
+      color: var(--navy-950);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 31px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .fact-label {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .source-line {
+      margin: 13px 0 0;
+      color: #71808a;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .access-panel {
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-top: 5px solid var(--navy-900);
+    }
+
+    .access-panel-header {
+      padding: 28px 30px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .route-number {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--navy-700);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      color: var(--navy-950);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 29px;
+      font-weight: 400;
+      line-height: 1.15;
+    }
+
+    .panel-description {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .login-form { padding: 24px 30px 27px; }
+
+    .error-msg {
+      margin: 0 0 18px;
+      padding: 12px 13px;
+      border: 1px solid #df9ea2;
+      border-left: 4px solid var(--danger);
+      background: var(--danger-wash);
+      color: #761a20;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .error-msg[hidden] { display: none; }
+
+    .form-group { margin-bottom: 18px; }
 
     .form-label {
       display: block;
-      font-size: 12px;
+      margin-bottom: 7px;
+      color: #263945;
+      font-size: 13px;
       font-weight: 700;
-      color: rgba(148,163,184,0.8);
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
     .form-input {
       width: 100%;
-      padding: 13px 16px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 12px;
-      color: #f0f4ff;
-      font-size: 14px;
-      font-family: 'Inter', sans-serif;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 2px;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 15px;
       outline: none;
-      transition: all 0.2s;
     }
+
+    .form-input::placeholder { color: #82909a; }
+
+    .form-input:hover { border-color: #71838e; }
 
     .form-input:focus {
-      border-color: rgba(59,130,246,0.5);
-      background: rgba(59,130,246,0.05);
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px rgba(20, 124, 168, 0.18);
     }
 
-    .form-input::placeholder { color: rgba(148,163,184,0.35); }
+    .password-field { position: relative; }
 
-    .input-wrapper {
-      position: relative;
-    }
+    .password-field .form-input { padding-right: 78px; }
 
     .toggle-pass {
       position: absolute;
-      right: 14px;
       top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: rgba(148,163,184,0.5);
-      cursor: pointer;
-      font-size: 16px;
-      padding: 4px;
-    }
-
-    .toggle-pass:hover { color: rgba(148,163,184,0.9); }
-
-    .forgot-link {
-      text-align: right;
-      margin-top: 6px;
-    }
-
-    .forgot-link a {
+      right: 7px;
+      min-width: 64px;
+      min-height: 34px;
+      padding: 5px 8px;
+      border: 0;
+      background: transparent;
+      color: var(--navy-700);
       font-size: 12px;
-      color: rgba(96,165,250,0.8);
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .forgot-link a:hover { color: #60a5fa; }
-
-    .btn-login {
-      width: 100%;
-      padding: 14px;
-      position: relative; overflow: hidden;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      border: none;
-      border-radius: 12px;
-      color: white;
-      font-size: 15px;
-      font-weight: 800;
-      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.25s;
-      margin-top: 6px;
-      letter-spacing: 0.3px;
+      transform: translateY(-50%);
     }
 
-    .btn-login:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+    .toggle-pass:hover { text-decoration: underline; }
+
+    .toggle-pass:focus-visible,
+    .button:focus-visible {
+      outline: 3px solid rgba(20, 124, 168, 0.35);
+      outline-offset: 2px;
     }
 
-    .btn-login:active { transform: translateY(0); }
-
-    .btn-login.loading {
-      opacity: 0.92;
-      pointer-events: none;
+    .form-help {
+      margin: -5px 0 20px;
+      color: #657680;
+      font-size: 12px;
+      line-height: 1.45;
     }
-    .btn-login.loading::after {
-      content: '';
-      position: absolute;
-      right: 14px; top: 50%; transform: translateY(-50%);
-      width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spinLogin 0.7s linear infinite;
-    }
-    @keyframes spinLogin { to { transform: translateY(-50%) rotate(360deg); } }
 
-    /* ERROR */
-    .error-msg {
+    .button {
+      width: 100%;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 11px 16px;
+      border-radius: 2px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .button:disabled { cursor: wait; opacity: 0.72; }
+
+    .button-primary {
+      border: 1px solid var(--navy-950);
+      background: var(--navy-950);
+      color: var(--paper);
+    }
+
+    .button-primary:hover:not(:disabled) { background: var(--navy-800); }
+
+    .loading-indicator {
+      width: 13px;
+      height: 13px;
       display: none;
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.25);
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 13px;
-      color: #f87171;
-      margin-bottom: 16px;
-      font-weight: 600;
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      border-top-color: var(--paper);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
     }
 
-    .divider {
+    .button.is-loading .loading-indicator { display: inline-block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .public-route {
+      padding: 23px 30px 27px;
+      border-top: 1px solid var(--line);
+      background: var(--wash);
+    }
+
+    .public-route-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 17px;
+    }
+
+    .public-route h3 {
+      margin: 0;
+      color: var(--navy-950);
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .public-route p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .route-tag {
+      flex: 0 0 auto;
+      padding: 4px 7px;
+      border: 1px solid #91a0a8;
+      color: #445761;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .button-secondary {
+      border: 1px solid var(--navy-800);
+      background: var(--paper);
+      color: var(--navy-900);
+    }
+
+    .button-secondary:hover:not(:disabled) { background: #e7eef1; }
+
+    .access-status {
+      min-height: 18px;
+      margin: 11px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .site-footer {
+      border-top: 1px solid var(--line);
+      background: #e5ebee;
+    }
+
+    .footer-inner {
+      width: min(1160px, calc(100% - 48px));
+      min-height: 54px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin: 24px 0 20px;
-    }
-
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-    }
-
-    .divider span {
+      justify-content: space-between;
+      gap: 20px;
+      color: #60717b;
       font-size: 11px;
-      color: rgba(148,163,184,0.5);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
+      line-height: 1.4;
     }
 
-    /* DEMO USERS */
-    .demo-title {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(148,163,184,0.5);
-      margin-bottom: 10px;
-    }
+    .footer-inner strong { color: #334852; }
 
-    .demo-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .demo-card {
-      padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      text-align: left;
-      font-family: 'Inter', sans-serif;
-      color: #f0f4ff;
-    }
-
-    .demo-card:hover {
-      background: rgba(255,255,255,0.07);
-      border-color: rgba(255,255,255,0.14);
-      transform: translateY(-1px);
-    }
-
-    .demo-card-role {
-      font-size: 11px;
-      font-weight: 800;
-      margin-bottom: 2px;
-    }
-
-    .demo-card-email {
-      font-size: 10px;
-      color: rgba(148,163,184,0.55);
-      font-weight: 500;
-    }
-
-    /* SECURITY BADGES */
-    .security-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 24px;
-      flex-wrap: wrap;
-    }
-
-    .sec-badge {
-      font-size: 10px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 99px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      color: rgba(148,163,184,0.6);
-    }
-
-    /* RESPONSIVE */
     @media (max-width: 900px) {
-      body { overflow: auto; flex-direction: column; }
-      .left-panel { display: none; }
-      .right-panel { width: 100%; padding: 40px 24px; min-height: 100vh; }
-      .kpi-cards { display: none; }
+      .access-layout {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .context-panel { padding-top: 0; }
+
+      .intro { max-width: 700px; }
+    }
+
+    @media (max-width: 560px) {
+      .header-inner,
+      main,
+      .footer-inner { width: min(100% - 32px, 1160px); }
+
+      .header-inner {
+        min-height: 70px;
+        gap: 12px;
+      }
+
+      .brand-mark { width: 37px; height: 37px; font-size: 22px; }
+      .brand-name { font-size: 17px; }
+      .brand-place { font-size: 9px; }
+      .header-context { display: none; }
+
+      main { padding: 34px 0 32px; }
+
+      h1 { font-size: 39px; }
+      .intro { margin-top: 18px; font-size: 15px; }
+      .route-note { margin-top: 24px; font-size: 13px; }
+      .facts { margin-top: 29px; }
+      .fact { padding: 15px 10px 14px 0; }
+      .fact + .fact { padding-left: 10px; }
+      .fact-value { font-size: 24px; }
+      .fact-label { font-size: 9px; letter-spacing: 0.02em; }
+
+      .access-layout { gap: 32px; }
+      .access-panel-header,
+      .login-form,
+      .public-route { padding-left: 20px; padding-right: 20px; }
+      .access-panel-header { padding-top: 23px; }
+      h2 { font-size: 26px; }
+
+      .footer-inner {
+        min-height: 64px;
+        padding: 10px 0;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 2px;
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#access-panel">Saltar al acceso</a>
 
-  <!-- LEFT PANEL -->
-  <div class="left-panel">
-    <div class="brand-logo">
-      <span aria-hidden="true" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:#1d4ed8;font-weight:900">M</span>
-      <span class="brand-name">MuniControl</span>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand" aria-label="MuniControl Friendly, Municipalidad de Junín">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span>
+          <span class="brand-name">MuniControl</span>
+          <span class="brand-place">Friendly · Junín, Mendoza</span>
+        </span>
+      </div>
+      <p class="header-context">Plataforma de gestión municipal</p>
     </div>
+  </header>
 
-    <h1 class="hero-title">
-      Gestión municipal<br>
-      <span>simple y accesible</span>
-    </h1>
+  <main>
+    <div class="access-layout">
+      <section class="context-panel" aria-labelledby="page-title">
+        <p class="eyebrow">Acceso municipal</p>
+        <h1 id="page-title">Una entrada clara para cada consulta.</h1>
+        <p class="intro">
+          El portal interno permite trabajar con fichas y relaciones del respaldo municipal.
+          La vista agregada resume indicadores institucionales sin mostrar datos personales.
+        </p>
 
-    <p class="hero-sub">
-      Vista Friendly de evaluación para la Municipalidad de Junín, Mendoza. Sin datos personales ni cifras sin validar.
-    </p>
+        <p class="route-note">
+          <strong>¿Qué acceso corresponde?</strong><br>
+          Usá tu cuenta institucional para consultar legajos. Si solo necesitás una lectura general,
+          abrí la vista agregada sin completar el formulario.
+        </p>
 
-       <div class="features">
-      <div class="feature-item" data-reveal>
-        <div class="feature-icon" style="background:rgba(59,130,246,0.15)">&#128200;</div>
-        <div>
-          <div class="feature-text">Datos con fuente y período</div>
-          <div class="feature-sub">Cada cifra explica de dónde sale</div>
+        <ul class="facts" aria-label="Cobertura verificada del respaldo GRH">
+          <li class="fact">
+            <span class="fact-value">2.450</span>
+            <span class="fact-label">Legajos históricos</span>
+          </li>
+          <li class="fact">
+            <span class="fact-value">882</span>
+            <span class="fact-label">Legajos activos</span>
+          </li>
+          <li class="fact">
+            <span class="fact-value">31.572</span>
+            <span class="fact-label">Registros de ausentismo</span>
+          </li>
+        </ul>
+        <p class="source-line">Fuente: respaldo GRH municipal verificado · corte de datos 06 de agosto de 2026.</p>
+      </section>
+
+      <section class="access-panel" id="access-panel" aria-labelledby="login-title">
+        <div class="access-panel-header">
+          <span class="route-number">Acceso 01 · Personal autorizado</span>
+          <h2 id="login-title">Portal interno</h2>
+          <p class="panel-description">Legajos, ausencias, licencias, vínculos y catálogos de gestión.</p>
         </div>
-      </div>
-      <div class="feature-item" data-reveal>
-        <div class="feature-icon" style="background:rgba(16,185,129,0.15)">&#129504;</div>
-        <div>
-          <div class="feature-text">Lectura ejecutiva simple</div>
-          <div class="feature-sub">Personas, gestiones, ausencias y calidad</div>
+
+        <form class="login-form" id="loginForm" onsubmit="doLogin(event)" autocomplete="on" aria-describedby="internal-help">
+          <div class="error-msg" id="errorMsg" role="alert" aria-live="assertive" hidden>
+            Credenciales incorrectas. Verificá el correo y la contraseña.
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="emailInput">Correo institucional</label>
+            <input
+              class="form-input"
+              id="emailInput"
+              name="email"
+              type="email"
+              inputmode="email"
+              placeholder="usuario@junin.gob.ar"
+              autocomplete="username"
+              spellcheck="false"
+              required
+            >
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="passInput">Contraseña</label>
+            <div class="password-field">
+              <input
+                class="form-input"
+                id="passInput"
+                name="password"
+                type="password"
+                placeholder="Ingresá tu contraseña"
+                autocomplete="current-password"
+                required
+              >
+              <button type="button" class="toggle-pass" onclick="togglePass()" id="togglePassBtn" aria-controls="passInput" aria-pressed="false">Mostrar</button>
+            </div>
+          </div>
+
+          <p class="form-help" id="internal-help">Requiere una cuenta interna habilitada por la Municipalidad.</p>
+
+          <button type="submit" class="button button-primary" id="btnLogin">
+            <span class="button-label">Ingresar al portal interno</span>
+            <span class="loading-indicator" aria-hidden="true"></span>
+          </button>
+          <p class="access-status" id="accessStatus" role="status" aria-live="polite"></p>
+        </form>
+
+        <div class="public-route">
+          <div class="public-route-top">
+            <div>
+              <h3>Vista agregada</h3>
+              <p>Indicadores generales, sin nombres, documentos ni fichas individuales.</p>
+            </div>
+            <span class="route-tag">Sin cuenta</span>
+          </div>
+          <button type="button" class="button button-secondary" id="publicAccessBtn" onclick="openPublicView()">
+            Abrir vista agregada
+          </button>
         </div>
-      </div>
-      <div class="feature-item" data-reveal>
-        <div class="feature-icon" style="background:rgba(139,92,246,0.15)">&#128274;</div>
-        <div>
-          <div class="feature-text">Privacidad desde el inicio</div>
-          <div class="feature-sub">Los datos personales se consultan sólo en Enterprise</div>
-        </div>
-      </div>
+      </section>
     </div>
+  </main>
 
-    <!-- Floating KPI cards -->
-    <div class="kpi-cards">
-      <div class="kpi-card">
-        <div class="kpi-label">Legajos históricos</div>
-        <div class="kpi-value" style="color:#60a5fa;font-size:24px">2.450</div>
-        <div class="kpi-trend" style="color:#10b981">Fuente GRH verificada</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Personas activas</div>
-        <div class="kpi-value" style="color:#34d399;font-size:24px">882</div>
-        <div class="kpi-trend" style="color:#10b981">Corte 06 ago 2026</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Balance gestión actual</div>
-        <div class="kpi-value" style="color:#a78bfa;font-size:24px">+49</div>
-        <div class="kpi-trend" style="color:#f59e0b">281 altas · 232 bajas</div>
-      </div>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span><strong>Municipalidad de Junín</strong> · Mendoza</span>
+      <span>MuniControl Friendly · Datos con fuente y período</span>
     </div>
-  </div>
-
-  <!-- RIGHT PANEL -->
-  <div class="right-panel">
-    <div class="login-header">
-      <h2>Ingresá a la demo Friendly</h2>
-      <p>Acceso compartido de evaluación para funcionarios.</p>
-    </div>
-
-    <div class="error-msg" id="errorMsg" role="alert" aria-live="polite">Credenciales incorrectas. Verificá el email y la contraseña.</div>
-
-    <form id="loginForm" onsubmit="doLogin(event)" autocomplete="on">
-      <div class="form-group">
-        <label class="form-label" for="emailInput">Correo institucional</label>
-        <input
-          class="form-input"
-          id="emailInput"
-          type="email"
-          placeholder="usuario@junin.gob.ar"
-          autocomplete="username"
-          required
-        >
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="passInput">Contrasena</label>
-        <div class="input-wrapper">
-          <input
-            class="form-input"
-            id="passInput"
-            type="password"
-            placeholder="&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;&#9679;"
-            autocomplete="current-password"
-            required
-            style="padding-right: 44px"
-          >
-          <button type="button" class="toggle-pass" onclick="togglePass()" id="togglePassBtn">&#128065;</button>
-        </div>
-        <div class="forgot-link">Esta credencial permite evaluar diseño y navegación; no habilita datos personales.</div>
-      </div>
-
-      <button type="submit" class="btn-login" id="btnLogin">
-        Ingresar al sistema
-      </button>
-    </form>
-
-    <div class="divider"><span>Credencial de evaluación</span></div>
-    <button class="demo-card" onclick="fillUser('intendente@junin.gob.ar','Junin2026!')" style="width:100%;border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.08)">
-      <div class="demo-card-role" style="color:#60a5fa">Ingresar con un clic</div>
-      <div class="demo-card-email">intendente@junin.gob.ar · Junin2026!</div>
-    </button>
-  </div>
+  </footer>
 
   <script>
-    const USERS = [
-      { email:'intendente@junin.gob.ar', pass:'Junin2026!', name:'Intendencia', role:'INTENDENTE', secretaria:'Intendencia', tenantId:'municipio-junin-mendoza' }
-    ];
+    function setLoading(isLoading, message) {
+      var btn = document.getElementById('btnLogin');
+      var publicBtn = document.getElementById('publicAccessBtn');
+      var status = document.getElementById('accessStatus');
+      btn.disabled = isLoading;
+      publicBtn.disabled = isLoading;
+      btn.classList.toggle('is-loading', isLoading);
+      btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      status.textContent = message || '';
+    }
 
-    function fillUser(email, pass) {
-      document.getElementById('emailInput').value = email;
-      document.getElementById('passInput').value = pass;
-      var fakeEvent = { preventDefault: function(){} };
-      doLogin(fakeEvent);
+    function showError(message) {
+      var errEl = document.getElementById('errorMsg');
+      errEl.textContent = message || 'No se pudo iniciar sesión.';
+      errEl.hidden = false;
+    }
+
+    function hideError() {
+      document.getElementById('errorMsg').hidden = true;
+    }
+
+    function openPublicView() {
+      hideError();
+      setLoading(true, 'Abriendo la vista agregada…');
+      window.location.href = '/';
     }
 
     function togglePass() {
       var inp = document.getElementById('passInput');
       var btn = document.getElementById('togglePassBtn');
-      if (inp.type === 'password') {
-        inp.type = 'text';
-        btn.innerHTML = '&#128683;';
-      } else {
-        inp.type = 'password';
-        btn.innerHTML = '&#128065;';
-      }
+      var isVisible = inp.type === 'text';
+      inp.type = isVisible ? 'password' : 'text';
+      btn.textContent = isVisible ? 'Mostrar' : 'Ocultar';
+      btn.setAttribute('aria-pressed', isVisible ? 'false' : 'true');
     }
 
-    function doLogin(e) {
+    async function doLogin(e) {
       e.preventDefault();
       var email = document.getElementById('emailInput').value.trim().toLowerCase();
       var pass  = document.getElementById('passInput').value;
-      var errEl = document.getElementById('errorMsg');
-      var btn   = document.getElementById('btnLogin');
+      var btnLabel = document.querySelector('#btnLogin .button-label');
 
-      errEl.style.display = 'none';
-      btn.textContent = 'Verificando...';
-      btn.classList.add('loading');
+      hideError();
+      btnLabel.textContent = 'Verificando acceso';
+      setLoading(true, 'Verificando tus credenciales…');
 
-      setTimeout(function() {
-        var user = USERS.find(function(u) {
-          return u.email.toLowerCase() === email && u.pass === pass;
-        });
-
-        if (!user) {
-          errEl.style.display = 'block';
-          btn.textContent = 'Ingresar al sistema';
-          btn.classList.remove('loading');
-          document.getElementById('passInput').value = '';
-          document.getElementById('passInput').focus();
-          return;
-        }
-
-        var session = {
-          name:      user.name,
-          email:     user.email,
-          role:      user.role,
-          secretaria:user.secretaria,
-          tenant:    'municipio-junin-mendoza',
-          loginAt:   new Date().toISOString()
-        };
-        sessionStorage.setItem('mjunin_user', JSON.stringify(session));
-
-        btn.textContent = 'Accediendo...';
-        setTimeout(function() {
-          window.location.href = '/';
-        }, 400);
-      }, 600);
+      try {
+          var response = await fetch('/api/internal-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ email: email, password: pass })
+          });
+          var result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || 'Credenciales incorrectas');
+          sessionStorage.setItem('mjunin_user', JSON.stringify({
+            name: result.user && (result.user.name || result.user.email) || email,
+            email: result.user && result.user.email || email,
+            role: result.user && result.user.role || 'ADMIN_INTERNO',
+            tenant: 'municipio-junin-mendoza',
+            loginAt: new Date().toISOString(),
+            internal: true
+          }));
+          btnLabel.textContent = 'Accediendo al portal interno';
+          setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
+          var next = new URLSearchParams(window.location.search).get('next');
+          window.location.href = next && next.indexOf('internal-dashboard') === 0 ? next : 'internal-dashboard.html';
+        return;
+      } catch (error) {
+        showError(error.message || 'No se pudo iniciar sesión.');
+        btnLabel.textContent = 'Ingresar al portal interno';
+        setLoading(false, 'No se pudo validar el acceso.');
+        document.getElementById('passInput').focus();
+      }
     }
   </script>
 </body>

@@ -1,0 +1,351 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+
+const baseUrl = (process.env.BASE_URL || 'http://127.0.0.1:3100').replace(/\/$/, '');
+const baseOrigin = new URL(baseUrl).origin;
+let internalEmail = (process.env.QA_INTERNAL_EMAIL || '').trim();
+let internalPassword = process.env.QA_INTERNAL_PASSWORD || '';
+const credentialFile = (process.env.QA_INTERNAL_CREDENTIAL_FILE || '').trim();
+if ((!internalEmail || !internalPassword) && credentialFile) {
+  const { readFileSync } = await import('node:fs');
+  const credential = JSON.parse(readFileSync(credentialFile, 'utf8'));
+  if (!internalEmail) internalEmail = String(credential.email || '').trim();
+  if (!internalPassword) internalPassword = String(credential.password || '');
+}
+const navigationTimeout = Number(process.env.QA_NAVIGATION_TIMEOUT_MS || 20_000);
+
+assert.equal(
+  Boolean(internalEmail),
+  Boolean(internalPassword),
+  'QA_INTERNAL_EMAIL y QA_INTERNAL_PASSWORD deben informarse juntas.',
+);
+assert.ok(
+  internalEmail && internalPassword,
+  'La certificacion multipagina requiere QA_INTERNAL_EMAIL y QA_INTERNAL_PASSWORD.',
+);
+
+const publicSections = [
+  'inicio',
+  'personas',
+  'ausentismo',
+  'hacienda',
+  'servicios',
+  'compras',
+  'inteligencia',
+  'gestion',
+  'calidad',
+  'datos',
+  'hoja-ruta',
+];
+
+const productAreas = [
+  'direccion',
+  'personas',
+  'hacienda',
+  'servicios',
+  'compras',
+  'inteligencia',
+  'administracion',
+];
+
+const browserIssues = [];
+const browser = await chromium.launch({ headless: true });
+
+function assertNoBrowserIssues(stage) {
+  assert.deepEqual(browserIssues, [], `${stage}: errores propios de navegador:\n${browserIssues.join('\n')}`);
+}
+
+function isOwnUrl(value) {
+  if (!value) return true;
+  try {
+    const url = new URL(value, baseUrl);
+    return url.origin === baseOrigin;
+  } catch {
+    return true;
+  }
+}
+
+function isInternalApi(value) {
+  try {
+    const pathname = new URL(value, baseUrl).pathname;
+    return pathname === '/api/internal-auth' || pathname === '/api/internal-data';
+  } catch {
+    return false;
+  }
+}
+
+async function newPage(viewport, options = {}) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  const label = options.label || `${viewport.width}x${viewport.height}`;
+  const allowUnauthorized = options.allowUnauthorized === true;
+
+  page.setDefaultNavigationTimeout(navigationTimeout);
+  page.setDefaultTimeout(navigationTimeout);
+
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const value = message.text();
+    const sourceUrl = message.location().url;
+    if (!isOwnUrl(sourceUrl)) return;
+    if (allowUnauthorized && /401\s*\(Unauthorized\)|status of 401|HTTP 401/i.test(value)) return;
+    browserIssues.push(`[${label}] console: ${value}`);
+  });
+
+  page.on('pageerror', (error) => {
+    browserIssues.push(`[${label}] pageerror: ${error.message}`);
+  });
+
+  page.on('requestfailed', (request) => {
+    if (!isOwnUrl(request.url())) return;
+    const reason = request.failure()?.errorText || 'request failed';
+    if (allowUnauthorized && isInternalApi(request.url()) && /abort/i.test(reason)) return;
+    browserIssues.push(`[${label}] requestfailed ${request.url()}: ${reason}`);
+  });
+
+  page.on('response', (response) => {
+    if (!isOwnUrl(response.url()) || response.status() < 400) return;
+    if (allowUnauthorized && response.status() === 401 && isInternalApi(response.url())) return;
+    browserIssues.push(`[${label}] HTTP ${response.status()} ${response.url()}`);
+  });
+
+  return { context, page };
+}
+
+async function assertPageHealthy(page, label) {
+  const state = await page.evaluate(() => ({
+    textLength: document.body?.innerText.trim().length || 0,
+    hasOverlay: Boolean(document.querySelector('[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay')),
+    overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  assert.ok(state.textLength > 80, `${label}: la pagina no tiene contenido significativo`);
+  assert.equal(state.hasOverlay, false, `${label}: se detecto un overlay de error`);
+  assert.equal(
+    state.overflow,
+    false,
+    `${label}: overflow horizontal (${state.scrollWidth}px sobre ${state.clientWidth}px)`,
+  );
+}
+
+async function waitForPublicDashboard(page) {
+  await page.waitForSelector('#dashboard:not([hidden])');
+  await page.waitForFunction(() => {
+    const value = document.querySelector('#kpiHistorical')?.textContent || '';
+    return /2[.\s]?450/.test(value);
+  });
+}
+
+async function assertLoadingCollapsed(page) {
+  const loadingState = await page.locator('#loading').evaluate((loading) => {
+    const dashboard = document.querySelector('#dashboard');
+    const main = document.querySelector('#main');
+    const loadingRect = loading.getBoundingClientRect();
+    const dashboardRect = dashboard.getBoundingClientRect();
+    const mainRect = main.getBoundingClientRect();
+    const mainPaddingTop = Number.parseFloat(getComputedStyle(main).paddingTop) || 0;
+    return {
+      hidden: loading.hidden,
+      display: getComputedStyle(loading).display,
+      width: loadingRect.width,
+      height: loadingRect.height,
+      dashboardHidden: dashboard.hidden,
+      reservedGap: Math.max(0, Math.round(dashboardRect.top - mainRect.top - mainPaddingTop)),
+    };
+  });
+
+  assert.equal(loadingState.hidden, true, 'El indicador de carga debe conservar el atributo hidden');
+  assert.equal(loadingState.display, 'none', 'El CSS no debe sobreescribir [hidden]');
+  assert.equal(loadingState.width, 0, 'El indicador oculto no debe reservar ancho');
+  assert.equal(loadingState.height, 0, 'El indicador oculto no debe reservar alto');
+  assert.equal(loadingState.dashboardHidden, false, 'El tablero debe quedar visible al finalizar la carga');
+  assert.ok(loadingState.reservedGap <= 4, `El estado de carga deja un hueco extra de ${loadingState.reservedGap}px`);
+}
+
+async function assertPublicSection(page, section) {
+  await page.evaluate((target) => {
+    window.location.hash = target;
+  }, section);
+  await page.waitForFunction((target) => {
+    const active = document.querySelector('.section.active');
+    return active?.id === target && getComputedStyle(active).display !== 'none';
+  }, section);
+
+  assert.equal(await page.locator('.section.active').count(), 1, `${section}: debe existir una sola seccion activa`);
+  assert.equal(await page.locator('.section.active').getAttribute('id'), section);
+  assert.equal(
+    await page.locator(`[data-section="${section}"].active[aria-current="page"]`).count(),
+    1,
+    `${section}: la navegacion debe indicar la seccion activa`,
+  );
+  assert.equal(await page.locator(`#${section} h1:visible`).count(), 1, `${section}: falta su titulo visible`);
+}
+
+async function verifyPublicDesktop() {
+  const { context, page } = await newPage({ width: 1440, height: 900 }, { label: 'publico desktop' });
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await waitForPublicDashboard(page);
+
+    const current = new URL(page.url());
+    assert.equal(/login(?:\.html)?$/.test(current.pathname), false, 'La raiz publica no debe exigir login');
+    assert.match(await page.title(), /MuniControl/i);
+    await assertLoadingCollapsed(page);
+
+    for (const section of publicSections) await assertPublicSection(page, section);
+
+    await page.evaluate(() => { window.location.hash = 'ruta-inexistente'; });
+    await page.waitForFunction(() => document.querySelector('.section.active')?.id === 'inicio');
+    assert.equal(await page.locator('.section.active').getAttribute('id'), 'inicio');
+    await assertPageHealthy(page, 'Centro ejecutivo desktop');
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyPublicPages(viewport, suffix) {
+  const { context, page } = await newPage(viewport, { label: `multipagina ${suffix}` });
+  try {
+    await page.goto(`${baseUrl}/modulos`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.area-list .area');
+    assert.equal(await page.locator('.area-list .area').count(), productAreas.length, 'El mapa debe conservar siete areas');
+    for (const area of productAreas) {
+      assert.equal(await page.locator(`#${area}.area`).count(), 1, `Falta el area ${area} en el mapa de producto`);
+    }
+    assert.ok(await page.locator('.state.live').count() > 0, 'El mapa debe distinguir capacidades operativas');
+    assert.ok(await page.locator('.state.history').count() > 0, 'El mapa debe distinguir capacidades preservadas');
+    await assertPageHealthy(page, `Mapa de producto ${suffix}`);
+
+    await page.goto(`${baseUrl}/reportes-rrhh`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#reportContent:not([hidden])');
+    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#metricHistorical')?.textContent || ''));
+    assert.match(await page.locator('#metricActive').innerText(), /882/);
+    assert.match(await page.locator('#metricAbsences').innerText(), /31[.\s]?572/);
+    assert.ok(await page.locator('#managementChart svg').count() > 0, 'El informe debe renderizar el grafico de movimientos');
+    assert.ok(await page.locator('#absenceBars > *').count() > 0, 'El informe debe renderizar ausentismo');
+    assert.ok(await page.locator('#sectorList > *').count() > 0, 'El informe debe renderizar sectores');
+    await assertPageHealthy(page, `Informe RRHH ${suffix}`);
+
+    await page.goto(`${baseUrl}/calidad-datos`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#content:not([hidden])');
+    await page.waitForFunction(() => document.querySelectorAll('#auditRows tr').length >= 6);
+    assert.equal(await page.locator('#duplicateKeys').innerText(), '0');
+    assert.ok(await page.locator('#exceptionGrid > *').count() >= 6, 'Calidad debe enumerar excepciones');
+    assert.ok(await page.locator('#availabilityGrid > *').count() >= 6, 'Calidad debe declarar disponibilidad por dominio');
+    await assertPageHealthy(page, `Calidad de datos ${suffix}`);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyPublicMobile() {
+  const { context, page } = await newPage({ width: 390, height: 844 }, { label: 'publico mobile' });
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    await waitForPublicDashboard(page);
+    await assertLoadingCollapsed(page);
+    for (const section of publicSections) {
+      await assertPublicSection(page, section);
+      await assertPageHealthy(page, `Centro ejecutivo #${section} mobile`);
+    }
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyAnonymousInternal() {
+  const { context, page } = await newPage(
+    { width: 1365, height: 850 },
+    { label: 'interno anonimo', allowUnauthorized: true },
+  );
+  try {
+    const authResponse = await context.request.get(`${baseUrl}/api/internal-auth`);
+    assert.equal(authResponse.status(), 401, 'La API de sesion debe rechazar el acceso anonimo');
+
+    const dataResponse = await context.request.get(`${baseUrl}/api/internal-data`);
+    assert.equal(dataResponse.status(), 401, 'La API nominal debe rechazar el acceso anonimo');
+
+    await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'internal-dashboard.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion interna anonima');
+    assertNoBrowserIssues('Redireccion interna anonima');
+
+    await page.goto(`${baseUrl}/estructura`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => /\/login(?:\.html)?$/.test(url.pathname));
+    await page.waitForSelector('#loginForm');
+    assert.equal(await page.locator('#app').count(), 0, 'La estructura anonima no debe quedar renderizada');
+    await assertPageHealthy(page, 'Redireccion de estructura anonima');
+  } finally {
+    await context.close();
+  }
+}
+
+async function loginInternal(page) {
+  await page.goto(`${baseUrl}/login?next=internal-dashboard.html`, { waitUntil: 'domcontentloaded' });
+  await page.locator('#emailInput').fill(internalEmail);
+  await page.locator('#passInput').fill(internalPassword);
+  await page.locator('#loginForm').evaluate((form) => form.requestSubmit());
+  await page.waitForURL((url) => /\/internal-dashboard(?:\.html)?$/.test(url.pathname));
+  await page.waitForSelector('#appShell:not([hidden])');
+  await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#kpiHistorical [data-value]')?.textContent || ''));
+}
+
+async function verifyAuthenticatedInternal() {
+  const { context, page } = await newPage({ width: 1440, height: 900 }, { label: 'interno autenticado' });
+  try {
+    await loginInternal(page);
+    assert.match(await page.locator('#kpiActive [data-value]').innerText(), /882/);
+    assert.match(await page.locator('#kpiAbsence [data-value]').innerText(), /31[.\s]?572/);
+    assert.notEqual((await page.locator('#userName').innerText()).trim(), 'Cargando…');
+    await assertPageHealthy(page, 'Portal interno desktop');
+
+    await page.locator('[data-view="legajos"]').click();
+    await page.waitForSelector('#employeeRows [data-legajo]');
+    const detail = page.locator('#employeeRows button', { hasText: 'Ver ficha' }).first();
+    await detail.click();
+    await page.waitForSelector('#employeeDialog[open]');
+    await page.waitForFunction(() => document.querySelector('#dialogBody')?.getAttribute('aria-busy') === 'false');
+    assert.match(await page.locator('#dialogBody').innerText(), /DNI|CUIL|Documento|Domicilio/i);
+    await page.locator('#closeDialog').click();
+
+    const structureResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=structure`);
+    assert.equal(structureResponse.status(), 200, 'La estructura debe exigir y aceptar la misma sesion interna');
+
+    await page.goto(`${baseUrl}/estructura`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#app:not([hidden])');
+    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#metricHistorical')?.textContent || ''));
+    assert.ok(await page.locator('#organizationRows tr').count() > 0, 'Estructura debe listar organizaciones observadas');
+    assert.ok(await page.locator('#sectorRows').count() === 1, 'Estructura debe incluir la vista de sectores');
+    await assertPageHealthy(page, 'Estructura desktop');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await assertPageHealthy(page, 'Estructura mobile');
+
+    await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#appShell:not([hidden])');
+    await assertPageHealthy(page, 'Portal interno mobile');
+  } finally {
+    await context.close();
+  }
+}
+
+try {
+  await verifyPublicDesktop();
+  await verifyPublicMobile();
+  await verifyPublicPages({ width: 1440, height: 900 }, 'desktop');
+  await verifyPublicPages({ width: 390, height: 844 }, 'mobile');
+  assertNoBrowserIssues('QA publica multipagina');
+  await verifyAnonymousInternal();
+  assertNoBrowserIssues('QA de acceso anonimo');
+  await verifyAuthenticatedInternal();
+
+  assertNoBrowserIssues('QA interna autenticada');
+  console.log('Friendly browser QA: OK (multipagina publica + portal nominal + estructura protegida; desktop y 390 px)');
+} finally {
+  await browser.close();
+}
