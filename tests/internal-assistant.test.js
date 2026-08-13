@@ -236,7 +236,7 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
   assert.equal(res.payload.provider.limits.timeoutMs, 2500);
 });
 
-test('usa un modelo oficial con política de costo cuando HF_MODEL no está configurado', async () => {
+test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurado', async () => {
   let providerBody;
   const res = await post(
     { intent: 'workforce_summary', enhance: true },
@@ -249,7 +249,7 @@ test('usa un modelo oficial con política de costo cuando HF_MODEL no está conf
     },
   );
   assert.equal(res.payload.mode, 'hybrid');
-  assert.equal(providerBody.model, 'openai/gpt-oss-120b:cheapest');
+  assert.equal(providerBody.model, 'openai/gpt-oss-120b:fastest');
 });
 
 test('una caída o falta de configuración de HF no rompe la respuesta local', async () => {
