@@ -15,6 +15,10 @@ for (const route of ['/rrhh', '/hacienda', '/ia', '/reportes', '/api/rrhh', '/ap
 assert.ok(!fs.existsSync(new URL('../.new_token.txt', import.meta.url)), 'el artefacto secreto no debe existir');
 const ignore = read('.vercelignore');
 for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/**', '*.html']) assert.ok(ignore.includes(pattern));
+const gitIgnore = read('.gitignore');
+for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
+  assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
+}
 
 for (const file of ['login.html', 'friendly-dashboard.html', 'datos-personales.html']) {
   const html = read(file);
@@ -28,7 +32,7 @@ for (const file of ['login.html', 'friendly-dashboard.html', 'datos-personales.h
 const friendlyData = JSON.parse(read('friendly-data.json'));
 assert.equal(friendlyData.jurisdiction.municipality, 'Junín');
 assert.equal(friendlyData.jurisdiction.province, 'Mendoza');
-assert.equal(friendlyData.source.timezone, 'America/Argentina/Mendoza');
+assert.equal(friendlyData.source.timezone, 'not_recorded_in_dump');
 assert.equal(friendlyData.privacy.grain, 'aggregate');
 assert.equal(friendlyData.privacy.containsPersonRows, false);
 assert.equal(friendlyData.workforce.historicalRecords, 2450);

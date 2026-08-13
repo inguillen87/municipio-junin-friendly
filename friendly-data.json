@@ -7,8 +7,8 @@
   },
   "source": {
     "dataset": "Sistema GRH municipal",
-    "snapshotAt": "2026-08-06T15:15:21-03:00",
-    "timezone": "America/Argentina/Mendoza",
+    "snapshotAt": "2026-08-06T15:15:21",
+    "timezone": "not_recorded_in_dump",
     "sha256": "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92",
     "method": "Agregación directa del dump municipal, sin registros nominales",
     "scope": "RRHH histórico y eventos de ausentismo",

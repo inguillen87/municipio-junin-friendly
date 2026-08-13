@@ -32,3 +32,19 @@ Desktop.ini
 
 rrhh-data/*.json
 rrhh-data/**/*.sql
+
+# Friendly nunca versiona fuentes municipales ni bases nominales.
+data-rrhh/
+rrhh-data/
+backend/
+database/
+prisma/
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.sql
+*.sql.gz
+*.backup*
+
+.env*
