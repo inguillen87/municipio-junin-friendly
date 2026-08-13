@@ -1,29 +1,112 @@
 {
   "version": 2,
-  "name": "municipio-junin-friendly",
-  "cleanUrls": true,
+  "cleanUrls": false,
   "trailingSlash": false,
-  "functions": { "api/**/*.js": { "maxDuration": 30, "includeFiles": "rrhh-data/**" } },
+  "functions": {
+    "api/friendly-policy.js": { "maxDuration": 10 },
+    "api/internal-auth.js": { "maxDuration": 10 },
+    "api/internal-data.js": { "maxDuration": 20 }
+  },
   "rewrites": [
-    { "source": "/", "destination": "/login.html" },
-    { "source": "/dashboard", "destination": "/index.html" },
-    { "source": "/inicio", "destination": "/index.html" },
-    { "source": "/api/whatsapp/webhook", "destination": "/api/whatsapp-webhook" }
+    { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
+    { "source": "/api/ai-proxy", "destination": "/api/friendly-policy" },
+    { "source": "/api/audit", "destination": "/api/friendly-policy" },
+    { "source": "/api/auth-email", "destination": "/api/friendly-policy" },
+    { "source": "/api/auth/login", "destination": "/api/friendly-policy" },
+    { "source": "/api/chat", "destination": "/api/friendly-policy" },
+    { "source": "/api/cron-daily-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/email-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/export-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/external-connector", "destination": "/api/friendly-policy" },
+    { "source": "/api/google-sheets", "destination": "/api/friendly-policy" },
+    { "source": "/api/hacienda-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/intelligence", "destination": "/api/friendly-policy" },
+    { "source": "/api/payroll", "destination": "/api/friendly-policy" },
+    { "source": "/api/pdf-report", "destination": "/api/friendly-policy" },
+    { "source": "/api/reclamos", "destination": "/api/friendly-policy" },
+    { "source": "/api/reports", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-data", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-enrichment", "destination": "/api/friendly-policy" },
+    { "source": "/api/rrhh-sync", "destination": "/api/friendly-policy" },
+    { "source": "/api/upload-handler", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-alert", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-test", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-vecinos", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-voice", "destination": "/api/friendly-policy" },
+    { "source": "/api/whatsapp-webhook", "destination": "/api/friendly-policy" },
+    { "source": "/rrhh-data/:path*", "destination": "/api/friendly-policy" },
+
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/internal", "destination": "/internal-dashboard.html" },
+    { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
+    { "source": "/modulos", "destination": "/modulos.html" },
+    { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
+    { "source": "/calidad-datos", "destination": "/calidad-datos.html" },
+    { "source": "/estructura", "destination": "/estructura.html" },
+
+    { "source": "/rrhh", "destination": "/internal-dashboard.html" },
+    { "source": "/rrhh-sync", "destination": "/datos-personales.html" },
+    { "source": "/hacienda", "destination": "/friendly-dashboard.html?section=hacienda" },
+    { "source": "/ia", "destination": "/modulos.html" },
+    { "source": "/ia-hf", "destination": "/modulos.html" },
+    { "source": "/inteligencia", "destination": "/reportes-rrhh.html" },
+    { "source": "/reportes", "destination": "/reportes-rrhh.html" },
+    { "source": "/exportar", "destination": "/datos-personales.html" },
+    { "source": "/importar", "destination": "/datos-personales.html" },
+    { "source": "/upload", "destination": "/datos-personales.html" },
+    { "source": "/ingest", "destination": "/datos-personales.html" },
+    { "source": "/admin", "destination": "/internal-dashboard.html" },
+    { "source": "/auditoria", "destination": "/datos-personales.html" },
+
+    { "source": "/", "destination": "/friendly-dashboard.html" },
+    { "source": "/dashboard", "destination": "/friendly-dashboard.html" },
+    { "source": "/inicio", "destination": "/friendly-dashboard.html" },
+    { "source": "/index-loaded", "destination": "/friendly-dashboard.html" },
+    { "source": "/afip", "destination": "/friendly-dashboard.html" },
+    { "source": "/analytics", "destination": "/reportes-rrhh.html" },
+    { "source": "/ciudadano", "destination": "/friendly-dashboard.html" },
+    { "source": "/configuracion", "destination": "/friendly-dashboard.html" },
+    { "source": "/control", "destination": "/friendly-dashboard.html" },
+    { "source": "/cuentas-claras", "destination": "/friendly-dashboard.html" },
+    { "source": "/expedientes", "destination": "/friendly-dashboard.html" },
+    { "source": "/form-public", "destination": "/friendly-dashboard.html" },
+    { "source": "/forms", "destination": "/friendly-dashboard.html" },
+    { "source": "/informe-rrhh", "destination": "/reportes-rrhh.html" },
+    { "source": "/licitaciones", "destination": "/friendly-dashboard.html?section=compras" },
+    { "source": "/manuales", "destination": "/modulos.html" },
+    { "source": "/mapa", "destination": "/modulos.html" },
+    { "source": "/obras", "destination": "/modulos.html" },
+    { "source": "/organigrama", "destination": "/estructura.html" },
+    { "source": "/presentacion", "destination": "/friendly-dashboard.html" },
+    { "source": "/presupuesto", "destination": "/friendly-dashboard.html?section=hacienda" },
+    { "source": "/proveedores", "destination": "/friendly-dashboard.html?section=compras" },
+    { "source": "/servicios", "destination": "/friendly-dashboard.html?section=servicios" },
+    { "source": "/talleres", "destination": "/friendly-dashboard.html?section=servicios" },
+    { "source": "/vecinos", "destination": "/modulos.html" },
+    { "source": "/whatsapp", "destination": "/modulos.html" }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
-    }
-  ],
-  "crons": [
+    },
     {
-      "path": "/api/cron-daily-report",
-      "schedule": "0 11 * * 1"
+      "source": "/rrhh-data/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/internal-dashboard.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     }
   ]
 }

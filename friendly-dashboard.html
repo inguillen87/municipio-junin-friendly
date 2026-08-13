@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b2637">
+  <title>MuniControl Friendly | Junín, Mendoza</title>
+  <meta name="description" content="Tablero Friendly de gestión para la Municipalidad de Junín, Mendoza, con datos agregados y trazables.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='18' font-size='18'>M</text></svg>">
+  <style>
+    :root{
+      color-scheme:dark;
+      --ink:#071827;--ink-2:#0b2134;--ink-3:#102c43;--paper:#f4f1e8;--white:#fff;
+      --text:#f7f5ee;--muted:#a9bac8;--line:#274259;--cyan:#5ed4c8;--cyan-2:#163f43;
+      --lime:#c9ef72;--amber:#ffc966;--red:#ff867a;--blue:#76a8ff;--shadow:0 24px 70px rgba(0,0,0,.22);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--ink);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,a{font:inherit}button{color:inherit}.skip{position:fixed;left:16px;top:-60px;z-index:100;padding:10px 14px;background:var(--paper);color:var(--ink);border-radius:8px}.skip:focus{top:16px}
+    .app{min-height:100vh;display:grid;grid-template-columns:276px minmax(0,1fr)}
+    .sidebar{position:sticky;top:0;height:100vh;padding:24px 18px;border-right:1px solid var(--line);background:#061521;display:flex;flex-direction:column;z-index:20}
+    .brand{display:flex;align-items:center;gap:12px;padding:4px 8px 24px}.brand-mark{width:40px;height:40px;display:grid;place-items:center;border:1px solid #477086;background:var(--paper);color:var(--ink);font:900 20px/1 Georgia,serif;border-radius:4px 14px 4px 4px;box-shadow:7px 7px 0 #17405b}.brand-name{font-size:18px;font-weight:900;letter-spacing:-.02em}.brand small{display:block;color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+    .nav-label{margin:8px 10px 8px;color:#70879a;font-size:10px;font-weight:850;letter-spacing:.13em;text-transform:uppercase}.nav{display:grid;gap:4px}.nav button{width:100%;display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;border:1px solid transparent;text-align:left;padding:10px 12px;border-radius:10px;color:var(--muted);background:transparent;cursor:pointer;font-weight:680}.nav button svg{width:18px;height:18px}.nav button:hover{background:#0d2638;color:var(--white)}.nav button.active{color:var(--ink);background:var(--lime);border-color:#e2ff9f}.nav button:focus-visible,.action:focus-visible,.assistant-fab:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+    .side-foot{margin-top:auto;padding:14px;border:1px solid #285165;background:#0b2735;border-radius:14px}.side-foot strong{display:block;color:var(--cyan);font-size:12px}.side-foot span{display:block;color:var(--muted);font-size:11px;margin-top:4px}.side-foot a{display:inline-block;color:var(--text);margin-top:10px;font-size:11px}
+    .workspace{min-width:0}.topbar{height:76px;position:sticky;top:0;z-index:15;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 34px;border-bottom:1px solid rgba(39,66,89,.8);background:rgba(7,24,39,.92);backdrop-filter:blur(16px)}.crumb{font-size:12px;color:var(--muted)}.top-title{font-weight:850}.top-actions{display:flex;align-items:center;gap:9px}.snapshot{display:flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #2e635e;background:#0a2b2c;border-radius:999px;color:#aef4e8;font-size:11px;font-weight:750}.snapshot i{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 4px rgba(94,212,200,.12)}.logout{border:1px solid var(--line);background:transparent;color:var(--muted);padding:8px 11px;border-radius:9px;cursor:pointer}.logout:hover{color:var(--white);border-color:#50718b}
+    .content{width:min(1320px,100%);margin:0 auto;padding:32px 34px 70px}.section{display:none;animation:enter .24s ease-out}.section.active{display:block}@keyframes enter{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .eyebrow{color:var(--cyan);font-size:11px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr);gap:32px;align-items:end;padding:38px;border:1px solid #315069;background:linear-gradient(135deg,#102d43 0%,#0b2032 65%,#103139 100%);border-radius:24px;box-shadow:var(--shadow)}.hero:after{content:"";position:absolute;width:360px;height:360px;border:1px solid rgba(201,239,114,.15);border-radius:50%;right:-180px;top:-215px;box-shadow:0 0 0 55px rgba(94,212,200,.025),0 0 0 110px rgba(94,212,200,.018)}h1{margin:9px 0 16px;font:800 clamp(34px,5vw,64px)/.98 Georgia,"Times New Roman",serif;letter-spacing:-.045em;max-width:850px}.hero p{margin:0;color:#c1ced7;font-size:17px;max-width:760px}.hero-aside{position:relative;z-index:1;padding:20px;border-left:1px solid #42647a}.hero-aside strong{display:block;font-size:34px;font-family:Georgia,serif;color:var(--lime)}.hero-aside span{color:var(--muted);font-size:12px}.source-line{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.tag:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.tag.real{color:#aef4e8;border-color:#2e635e;background:#0a2b2c}.tag.derived{color:#c6d7ff;border-color:#3c5680;background:#101f3a}.tag.unavailable{color:#ffe1a3;border-color:#6f5730;background:#332815}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.kpi{position:relative;min-height:148px;padding:20px;border:1px solid var(--line);background:var(--ink-2);border-radius:17px}.kpi:before{content:"";position:absolute;left:20px;right:20px;top:0;height:2px;background:var(--tone,var(--cyan))}.kpi-head{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;font-weight:750}.kpi-value{margin:18px 0 4px;font:800 38px/1 Georgia,serif;letter-spacing:-.03em}.kpi-detail{font-size:11px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:15px}.panel{grid-column:span 6;border:1px solid var(--line);background:var(--ink-2);border-radius:18px;padding:22px;min-width:0}.panel.wide{grid-column:1/-1}.panel.third{grid-column:span 4}.panel h2{font-size:17px;margin:0}.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px}.panel-sub{margin:4px 0 0;color:var(--muted);font-size:11px}.insight-list{display:grid;gap:10px}.insight{display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:start;padding:14px;border:1px solid #29485f;background:#0a1d2d;border-radius:13px}.insight-number{height:38px;display:grid;place-items:center;border:1px solid #3a6872;background:#0c3034;color:var(--cyan);font-weight:900;border-radius:11px}.insight strong{font-size:13px}.insight p{margin:3px 0 0;color:var(--muted);font-size:11px}
+    .trust-strip{display:flex;align-items:flex-start;gap:12px;margin:18px 0;padding:15px 17px;border:1px solid #44613c;background:#172817;border-radius:14px;color:#dfffb2}.trust-strip svg{flex:0 0 auto}.trust-strip strong{display:block;font-size:12px}.trust-strip span{display:block;color:#b8cb9f;font-size:11px;margin-top:2px}
+    .section-head{display:flex;justify-content:space-between;gap:20px;align-items:end;margin:2px 0 22px}.section-head h1{font-size:clamp(32px,4vw,52px);margin:4px 0 0}.section-head p{max-width:570px;margin:0;color:var(--muted)}
+    .ring-wrap{display:grid;grid-template-columns:170px 1fr;gap:24px;align-items:center}.ring{--value:36;width:160px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--lime) calc(var(--value)*1%),#173348 0);position:relative}.ring:after{content:"";position:absolute;inset:18px;background:var(--ink-2);border-radius:50%}.ring-label{position:relative;z-index:1;text-align:center}.ring-label strong{display:block;font:800 34px Georgia,serif}.ring-label span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.legend{display:grid;gap:10px}.legend-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.legend-row span:first-child{color:var(--muted)}
+    .bars{display:grid;gap:12px}.bar-row{display:grid;grid-template-columns:minmax(125px,1.2fr) minmax(120px,2.8fr) 52px;align-items:center;gap:10px}.bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c5d1da;font-size:11px}.bar-track{height:8px;border-radius:99px;background:#173348;overflow:hidden}.bar-fill{height:100%;width:var(--pct);background:linear-gradient(90deg,var(--cyan),var(--lime));border-radius:inherit}.bar-value{text-align:right;font:750 11px ui-monospace,SFMono-Regular,Consolas,monospace}
+    .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}.compare-card{border:1px solid var(--line);background:#0a1d2d;border-radius:15px;padding:18px}.compare-card.current{border-color:#4c7054;background:#102a27}.compare-card h3{margin:0 0 3px;font-size:14px}.compare-card small{color:var(--muted)}.compare-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.compare-numbers div{padding-top:10px;border-top:1px solid var(--line)}.compare-numbers strong{display:block;font:800 24px Georgia,serif}.compare-numbers span{font-size:9px;color:var(--muted);text-transform:uppercase}.positive{color:var(--lime)}
+    .year-bars{display:grid;gap:11px}.year-row{display:grid;grid-template-columns:42px 1fr 1fr;gap:8px;align-items:center}.year{font:750 11px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted)}.year-segment{display:grid;grid-template-columns:54px 1fr;gap:7px;align-items:center}.year-segment span{font-size:10px;color:var(--muted)}.year-segment .bar-track{height:10px}.hires .bar-fill{background:var(--cyan)}.exits .bar-fill{background:var(--amber)}
+    .trend{display:flex;align-items:end;gap:8px;min-height:240px;padding-top:26px;border-bottom:1px solid var(--line)}.trend-col{height:210px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px;min-width:0}.trend-bar{width:min(42px,72%);height:var(--height);min-height:3px;background:linear-gradient(180deg,var(--blue),#31548a);border-radius:7px 7px 2px 2px;position:relative}.trend-bar strong{position:absolute;left:50%;top:-21px;transform:translateX(-50%);font:700 9px ui-monospace,SFMono-Regular,Consolas,monospace}.trend-col span{font-size:9px;color:var(--muted)}
+    .quality-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.quality-card{padding:17px;border:1px solid var(--line);background:#0a1d2d;border-radius:14px}.quality-card .value{font:800 28px Georgia,serif;margin:8px 0 2px}.quality-card p{margin:0;color:var(--muted);font-size:11px}.quality-card.good{border-color:#315b54}.quality-card.warn{border-color:#68522f}
+    .availability{width:100%;border-collapse:collapse}.availability th,.availability td{text-align:left;padding:12px;border-bottom:1px solid var(--line);font-size:12px}.availability th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.availability td:last-child{text-align:right}
+    .roadmap{display:grid;gap:12px}.roadmap-item{display:grid;grid-template-columns:78px 1fr auto;gap:16px;align-items:start;padding:18px;border:1px solid var(--line);background:var(--ink-2);border-radius:15px}.roadmap-item .phase{font:900 11px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--cyan)}.roadmap-item h3{margin:0;font-size:14px}.roadmap-item p{margin:4px 0 0;color:var(--muted);font-size:11px}.status{padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:9px;font-weight:850;text-transform:uppercase}.status.now{color:#ddff9c;border-color:#56713a;background:#1a2c14}.status.next{color:#bad9ff;border-color:#365474;background:#102538}
+    .action{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 13px;border:1px solid #4b7288;background:#14354c;color:var(--white);border-radius:10px;text-decoration:none;cursor:pointer;font-weight:750;font-size:12px}.action:hover{background:#1a425d}.action.primary{background:var(--lime);color:var(--ink);border-color:#e0ff99}.action.primary:hover{background:#d8ff82}
+    .privacy-box{max-width:850px;padding:34px;border:1px solid #735b30;background:#2a2113;border-radius:22px}.privacy-box h2{font:800 clamp(28px,4vw,46px)/1.05 Georgia,serif;margin:8px 0 15px}.privacy-box p{color:#d1c09f}.privacy-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0}.privacy-list div{padding:10px;border:1px solid #5f4b2b;background:#211a10;border-radius:10px;color:#ead8b2;font-size:11px}
+    .assistant-fab{position:fixed;right:24px;bottom:24px;z-index:35;display:flex;align-items:center;gap:9px;padding:12px 15px;border:1px solid #dfffa1;background:var(--lime);color:var(--ink);box-shadow:0 15px 40px rgba(0,0,0,.35);border-radius:999px;cursor:pointer;font-weight:850}.assistant-panel{position:fixed;right:24px;bottom:82px;z-index:34;width:min(390px,calc(100vw - 32px));padding:18px;border:1px solid #45657a;background:#091d2c;box-shadow:var(--shadow);border-radius:18px}.assistant-panel[hidden]{display:none}.assistant-head{display:flex;justify-content:space-between;gap:12px;align-items:start}.assistant-head h2{margin:0;font-size:16px}.assistant-head p{margin:3px 0 0;color:var(--muted);font-size:10px}.assistant-close{border:0;background:transparent;cursor:pointer;font-size:20px}.assistant-options{display:flex;flex-wrap:wrap;gap:7px;margin:15px 0}.assistant-options button{border:1px solid #36566e;background:#102a3e;padding:7px 9px;border-radius:999px;cursor:pointer;font-size:10px}.assistant-options button:hover{border-color:var(--cyan)}.assistant-answer{min-height:86px;padding:13px;background:#061722;border:1px solid #253f52;border-radius:12px;color:#d2dce3;font-size:12px}.assistant-answer strong{color:var(--lime)}
+    .loading{min-height:60vh;display:grid;place-items:center;color:var(--muted)}.error-state{padding:22px;border:1px solid #78443e;background:#321d1b;border-radius:14px;color:#ffd0ca}.footer{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;color:#72899b;font-size:10px}
+    @media(max-width:1050px){.kpis{grid-template-columns:repeat(2,1fr)}.panel.third{grid-column:span 6}.hero{grid-template-columns:1fr}.hero-aside{border-left:0;border-top:1px solid #42647a;padding:18px 0 0}.quality-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){.app{display:block}.sidebar{position:static;height:auto;padding:14px;border-right:0;border-bottom:1px solid var(--line)}.brand{padding-bottom:12px}.nav-label,.side-foot{display:none}.nav{display:flex;overflow-x:auto;padding-bottom:3px}.nav button{display:block;width:auto;white-space:nowrap;padding:9px 11px}.nav button svg{display:none}.topbar{position:static;height:auto;padding:14px 16px}.snapshot span{display:none}.content{padding:20px 16px 76px}.hero{padding:25px;border-radius:18px}.hero p{font-size:15px}.kpis{grid-template-columns:1fr 1fr;gap:9px}.kpi{min-height:128px;padding:15px}.kpi-value{font-size:30px}.panel,.panel.third{grid-column:1/-1}.section-head{display:block}.section-head p{margin-top:8px}.ring-wrap{grid-template-columns:1fr}.ring{margin:auto}.compare{grid-template-columns:1fr}.quality-grid{grid-template-columns:1fr}.roadmap-item{grid-template-columns:58px 1fr}.roadmap-item .status{grid-column:2}.privacy-list{grid-template-columns:1fr}.bar-row{grid-template-columns:105px 1fr 40px}.assistant-fab{right:16px;bottom:16px}.assistant-panel{right:16px;bottom:72px}.top-actions .logout{font-size:0;width:38px}.top-actions .logout:after{content:"→";font-size:18px}}
+    @media(max-width:420px){.kpis{grid-template-columns:1fr}.year-row{grid-template-columns:36px 1fr}.year-segment.exits{grid-column:2}.top-title{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.section{animation:none}}
+
+    /* Shell de producto: navegación municipal, jerarquía sobria y estados explícitos. */
+    [hidden]{display:none!important}
+    :root{
+      color-scheme:light;
+      --ink:#17242c;--ink-2:#ffffff;--ink-3:#eff3f1;--paper:#f7f8f5;--white:#ffffff;
+      --text:#17242c;--muted:#66747b;--line:#d8dfdc;--cyan:#167c77;--cyan-2:#dcefeb;
+      --lime:#c4df67;--amber:#a76512;--red:#b1443d;--blue:#416b91;--shadow:0 8px 24px rgba(27,48,58,.07);
+    }
+    body{background:#eef2f0;color:var(--text);font-size:14px}
+    .app{grid-template-columns:292px minmax(0,1fr)}
+    .sidebar{padding:20px 14px 16px;background:#0b2637;border-right:0;overflow-y:auto}
+    .brand{padding:2px 8px 20px;border-bottom:1px solid #244254;margin-bottom:15px}
+    .brand-mark{width:42px;height:42px;border:1px solid #688091;background:#f4f1e8;color:#0b2637;border-radius:3px;box-shadow:5px 5px 0 #1a4a63;font:900 19px/1 Georgia,serif}
+    .brand-name{color:#fff;font-size:17px;letter-spacing:0}.brand small{color:#9eb0bb;font-size:10px}
+    .nav{display:grid;gap:16px}.nav-group{display:grid;gap:3px}.nav-group-title{padding:0 10px 5px;color:#78909e;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+    .nav button,.nav-product-link{width:100%;display:grid;grid-template-columns:27px 1fr;align-items:center;gap:9px;padding:9px 10px;border:1px solid transparent;border-radius:5px;background:transparent;color:#c0ccd2;text-align:left;text-decoration:none;font-size:12px;font-weight:650;line-height:1.25;cursor:pointer}
+    .nav button:hover,.nav-product-link:hover{background:#14384c;color:#fff}.nav button.active{background:#c4df67;border-color:#c4df67;color:#102430;box-shadow:none}
+    .nav-code{display:grid;place-items:center;width:25px;height:25px;border:1px solid currentColor;border-radius:3px;font-size:8px;font-weight:900;letter-spacing:.04em;opacity:.8}
+    .side-foot{padding:12px 12px 13px;border:1px solid #284b5d;background:#0f3042;border-radius:6px}.side-foot strong{color:#d4e6e1}.side-foot span{color:#9dafb8;line-height:1.45}.side-foot a{color:#fff}
+    .workspace{background:#eef2f0}.topbar{height:70px;padding:0 30px;border-color:#d8dfdc;background:#fff;backdrop-filter:none;box-shadow:0 1px 0 rgba(28,47,56,.03)}
+    .crumb{color:#718087;font-size:11px}.top-title{color:#183043;font-size:14px}
+    .snapshot{border:1px solid #bfd8d2;background:#edf7f4;border-radius:4px;color:#186b65;font-size:10px}.snapshot i{background:#27877e;box-shadow:none}
+    .logout{border-color:#cdd6d2;background:#fff;color:#46565e;border-radius:4px;font-size:11px}.logout:hover{border-color:#7e8d94;color:#17242c;background:#f4f6f5}
+    .content{width:min(1440px,100%);padding:28px 30px 64px}.section{animation:enter .16s ease-out}
+    .eyebrow{color:#28746f;font-size:9px;letter-spacing:.14em}
+    h1,.section-head h1{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#142d3e;letter-spacing:-.035em}
+    .hero{grid-template-columns:minmax(0,1fr) 255px;gap:28px;align-items:center;padding:26px 28px;border:0;background:#123447;border-radius:7px;box-shadow:none}
+    .hero:after{display:none}.hero h1{margin:5px 0 9px;color:#fff;font:760 clamp(28px,3vw,40px)/1.06 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.035em}.hero p{max-width:720px;color:#cfdae0;font-size:14px}
+    .hero .eyebrow{color:#a9d9cf}.hero-aside{padding:8px 0 8px 25px;border-left:1px solid #416174}.hero-aside strong{margin:4px 0;font:760 24px/1.1 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}.hero-aside span{color:#b8c7ce;font-size:10px}
+    .source-line{margin-top:14px}.tag{padding:4px 7px;border-radius:3px;font-size:8px;letter-spacing:.05em}.tag.real{color:#176b62;border-color:#b6d8cf;background:#edf7f4}.tag.derived{color:#365f85;border-color:#c6d3e0;background:#f0f4f8}.tag.unavailable{color:#83581d;border-color:#dfcca8;background:#fbf5e8}
+    .kpis{gap:1px;margin:18px 0;background:#d8dfdc;border:1px solid #d8dfdc}.kpi{min-height:132px;padding:17px 18px;border:0;background:#fff;border-radius:0}.kpi:before{left:0;right:auto;top:0;bottom:0;width:3px;height:auto}.kpi-head{color:#64737b;font-size:10px}.kpi-value{margin:16px 0 5px;font:750 32px/1 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#173447}.kpi-detail{color:#718087;font-size:10px}
+    .module-directory{margin:24px 0}.directory-head{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:12px}.directory-head h2{margin:3px 0 0;color:#153145;font-size:20px}.directory-head p{max-width:580px;margin:0;color:#66747b;font-size:11px}
+    .module-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.module-card{min-height:190px;display:flex;flex-direction:column;padding:17px;border:1px solid #d5ddda;background:#fff;border-radius:6px}.module-card.available{border-top:3px solid #27877e}.module-card.partial{border-top:3px solid #416b91}.module-card.waiting{border-top:3px solid #c7a367}
+    .module-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.module-code{display:grid;place-items:center;width:34px;height:34px;border:1px solid #9aabae;background:#f5f7f6;color:#244457;border-radius:4px;font-size:10px;font-weight:900;letter-spacing:.06em}
+    .module-state{padding:4px 6px;border:1px solid #ccd6d3;background:#f7f9f8;color:#5e6e75;border-radius:3px;font-size:8px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.available .module-state{border-color:#b9d8d0;background:#edf7f4;color:#176b62}.partial .module-state{border-color:#c9d5e0;background:#f0f4f8;color:#365f85}.waiting .module-state{border-color:#e1cfad;background:#fbf5e8;color:#83581d}
+    .module-card h3{margin:18px 0 6px;color:#173447;font-size:14px}.module-card p{margin:0 0 16px;color:#69777e;font-size:10px}.module-card .action{margin-top:auto;align-self:flex-start}
+    .grid{gap:12px}.panel{border-color:#d7dfdc;background:#fff;border-radius:6px;padding:19px;box-shadow:none}.panel h2{color:#173447;font-size:15px}.panel-sub{color:#718087;font-size:10px}.panel-head{margin-bottom:17px}
+    .insight{border-color:#dbe2df;background:#f7f9f8;border-radius:4px}.insight-number{border-color:#a5c8c2;background:#e9f4f1;color:#176f68;border-radius:3px}.insight strong{color:#253841}.insight p{color:#68777e}
+    .trust-strip{border-color:#c8d9d2;background:#f1f7f4;border-radius:5px;color:#255e56}.trust-strip span{color:#56726c}
+    .section-head{align-items:start;margin:2px 0 20px;padding-bottom:16px;border-bottom:1px solid #d6deda}.section-head h1{margin:2px 0 0;font-size:30px;line-height:1.1}.section-head p{color:#627078;font-size:12px}
+    .ring{background:conic-gradient(#2b8981 calc(var(--value)*1%),#e4e9e7 0)}.ring:after{background:#fff}.ring-label strong{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#183447}.bar-label{color:#43545d}.bar-track{background:#e5eae8;border-radius:2px}.bar-fill{background:#287f78;border-radius:2px}.compare-card{border-color:#d9e0dd;background:#f7f9f8;border-radius:4px}.compare-card.current{border-color:#bad1c9;background:#eef6f3}.compare-card h3,.compare-numbers strong{color:#173447}.compare-numbers strong{font-family:Inter,ui-sans-serif,system-ui,sans-serif}.positive{color:#176d63!important}.hires .bar-fill{background:#287f78}.exits .bar-fill{background:#b07a33}.trend{border-color:#d8dfdc}.trend-bar{background:#416b91;border-radius:3px 3px 0 0}.quality-card{border-color:#d8dfdc;background:#fff;border-radius:5px}.quality-card .value{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#173447}.quality-card.good{border-top:3px solid #27877e}.quality-card.warn{border-top:3px solid #b58545}.availability th,.availability td{border-color:#e0e5e3}.roadmap-item{border-color:#d7dfdc;background:#fff;border-radius:5px}.roadmap-item h3{color:#173447}.status{border-radius:3px}.status.now{color:#176b62;border-color:#b9d8d0;background:#edf7f4}.status.next{color:#365f85;border-color:#c9d5e0;background:#f0f4f8}
+    .action{padding:8px 10px;border-color:#b8c5c7;background:#fff;color:#24485d;border-radius:4px;font-size:10px}.action:hover{border-color:#557586;background:#f4f7f6}.action.primary{background:#153f56;color:#fff;border-color:#153f56}.action.primary:hover{background:#0e3246}
+    .module-empty{border:1px solid #d5ddda;background:#fff;border-radius:6px;padding:24px}.module-empty-head{display:grid;grid-template-columns:48px 1fr auto;gap:16px;align-items:start;padding-bottom:20px;border-bottom:1px solid #e0e5e3}.module-empty h2{margin:0 0 5px;color:#173447;font-size:20px}.module-empty p{max-width:760px;margin:0;color:#65747b}.scope-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}.scope-card{padding:15px;border:1px solid #dbe2df;background:#f8faf9;border-radius:4px}.scope-card strong{display:block;color:#264052;font-size:12px}.scope-card span{display:block;margin-top:5px;color:#6a797f;font-size:10px}.scope-card .module-state{display:inline-flex;margin-top:12px}
+    .report-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:18px}.report-link{padding:16px;border:1px solid #d6dfdb;background:#fff;border-radius:5px}.report-link h3{margin:0 0 5px;color:#173447;font-size:13px}.report-link p{margin:0 0 14px;color:#69777e;font-size:10px}
+    .privacy-box{max-width:none;padding:24px;border-color:#d5ddda;background:#fff;border-radius:6px}.privacy-box h2{font:750 24px/1.15 Inter,ui-sans-serif,system-ui,sans-serif;color:#173447}.privacy-box p{color:#637179}.privacy-list{grid-template-columns:repeat(3,1fr)}.privacy-list div{border-color:#dbe2df;background:#f7f9f8;border-radius:3px;color:#354850}
+    .assistant-fab,.assistant-panel{display:none!important}.loading{min-height:112px;padding:22px;border:1px solid #d5ddda;background:#fff;color:#627078;border-radius:5px}.error-state{border-color:#e0beba;background:#fff6f5;color:#8d342e;border-radius:4px}.footer{border-color:#d2dbd7;color:#718087}
+    @media(max-width:1180px){.module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:900px){.app{grid-template-columns:244px minmax(0,1fr)}.sidebar{padding-inline:10px}.topbar{padding-inline:22px}.content{padding-inline:22px}.scope-grid,.report-links{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){
+      .app{display:block}.sidebar{position:static;height:auto;padding:12px 12px 9px}.brand{padding:0 3px 11px;margin:0 0 9px}.brand-mark{width:35px;height:35px}.nav{display:flex;gap:5px;overflow-x:auto;padding:0 0 4px}.nav-group{display:contents}.nav-group-title{display:none}.nav button,.nav-product-link{display:grid;grid-template-columns:22px auto;min-width:max-content;padding:7px 9px}.nav-code{width:21px;height:21px}.side-foot{display:none}.topbar{position:sticky;top:0;padding:11px 14px}.content{padding:18px 14px 48px}.hero{grid-template-columns:1fr;padding:22px}.hero-aside{padding:16px 0 0;border-left:0;border-top:1px solid #416174}.directory-head{display:block}.directory-head p{margin-top:6px}.module-grid{grid-template-columns:1fr 1fr}.module-card{min-height:178px}.module-empty-head{grid-template-columns:42px 1fr}.module-empty-head>.module-state{grid-column:2}.scope-grid,.report-links{grid-template-columns:1fr}.privacy-list{grid-template-columns:1fr}.top-actions .logout{font-size:0;width:34px}.top-actions .logout:after{content:"Salir";font-size:10px}
+    }
+    @media(max-width:480px){.module-grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.kpi{min-height:118px}.kpi-value{font-size:27px}.module-card{min-height:0}.snapshot{display:none}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">M</div><div><div class="brand-name">MuniControl</div><small>Friendly · Junín, Mendoza</small></div></div>
+      <nav class="nav" aria-label="Secciones principales">
+        <div class="nav-group">
+          <span class="nav-group-title">Dirección</span>
+          <button class="active" data-section="inicio"><span class="nav-code">CE</span><span>Centro ejecutivo</span></button>
+          <a class="nav-product-link" href="modulos.html"><span class="nav-code">MP</span><span>Mapa de producto</span></a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-title">Personas y RRHH</span>
+          <button data-section="personas"><span class="nav-code">RH</span><span>Dotación</span></button>
+          <button data-section="ausentismo"><span class="nav-code">AU</span><span>Ausentismo</span></button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-title">Gestión municipal</span>
+          <button data-section="hacienda"><span class="nav-code">HP</span><span>Hacienda y presupuesto</span></button>
+          <button data-section="servicios"><span class="nav-code">SO</span><span>Servicios, obras y reclamos</span></button>
+          <button data-section="compras"><span class="nav-code">CP</span><span>Compras y proveedores</span></button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-title">Análisis y control</span>
+          <button data-section="inteligencia"><span class="nav-code">IR</span><span>Inteligencia y reportes</span></button>
+          <button data-section="gestion"><span class="nav-code">GE</span><span>Comparar gestiones</span></button>
+          <button data-section="calidad"><span class="nav-code">CD</span><span>Calidad de datos</span></button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-group-title">Sistema</span>
+          <button data-section="datos"><span class="nav-code">AD</span><span>Administración</span></button>
+          <button data-section="hoja-ruta"><span class="nav-code">HR</span><span>Hoja de ruta</span></button>
+        </div>
+      </nav>
+      <div class="side-foot"><strong>Datos agregados</strong><span>Esta vista no contiene nombres, documentos, domicilios, legajos ni remuneraciones individuales.</span><a href="friendly-data.json" download>Descargar fuente agregada</a></div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Plataforma de gestión</div><div class="top-title" id="pageTitle">Centro ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><button class="logout" id="logout" type="button">Cerrar sesión</button></div></header>
+      <main class="content" id="main"><div class="loading" id="loading">Preparando el tablero verificado...</div><div id="dashboard" hidden>
+        <section class="section active" id="inicio">
+          <div class="hero"><div><div class="eyebrow">Centro ejecutivo</div><h1>Situación municipal al corte</h1><p>Vista consolidada del snapshot GRH. Los demás dominios permanecen visibles en el mapa de producto y se habilitan cuando existe una fuente municipal homologada.</p><div class="source-line"><span class="tag real">Fuente GRH</span><span class="tag derived">Indicador derivado</span><span class="tag unavailable">Fuente pendiente</span></div></div><div class="hero-aside"><div class="eyebrow">Corte de información</div><strong id="heroCutoff">06 AGO 2026</strong><span>Fotografía controlada; no es una conexión en tiempo real.</span></div></div>
+          <div class="kpis">
+            <article class="kpi" style="--tone:var(--lime)"><div class="kpi-head"><span>Personas activas</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiActive">—</div><div class="kpi-detail">Con fecha de egreso vacía al corte</div></article>
+            <article class="kpi" style="--tone:var(--cyan)"><div class="kpi-head"><span>Legajos históricos</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiHistorical">—</div><div class="kpi-detail">Clave legajo sin duplicados</div></article>
+            <article class="kpi" style="--tone:var(--blue)"><div class="kpi-head"><span>Balance gestión actual</span><span class="tag derived">Derivado</span></div><div class="kpi-value positive" id="kpiBalance">—</div><div class="kpi-detail">Altas menos bajas desde 09/12/2023</div></article>
+            <article class="kpi" style="--tone:var(--amber)"><div class="kpi-head"><span>Eventos de ausencia</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiAbsence">—</div><div class="kpi-detail">Histórico; no equivale a días</div></article>
+          </div>
+          <section class="module-directory" aria-labelledby="modulesTitle">
+            <div class="directory-head"><div><div class="eyebrow">Arquitectura funcional</div><h2 id="modulesTitle">Áreas de la plataforma</h2></div><p>El estado corresponde a la evidencia disponible hoy. Los prototipos históricos siguen inventariados; no se presentan como módulos operativos.</p></div>
+            <div class="module-grid">
+              <article class="module-card available"><div class="module-card-head"><span class="module-code">RH</span><span class="module-state">Operativo</span></div><h3>Personas y RRHH</h3><p>Dotación agregada, ausentismo histórico y portal interno de legajos.</p><button class="action" type="button" data-open="personas">Abrir área</button></article>
+              <article class="module-card waiting"><div class="module-card-head"><span class="module-code">HP</span><span class="module-state">Fuente pendiente</span></div><h3>Hacienda y presupuesto</h3><p>La estructura se conserva; ejecución y crédito requieren documentos oficiales homologados.</p><button class="action" type="button" data-open="hacienda">Ver alcance</button></article>
+              <article class="module-card waiting"><div class="module-card-head"><span class="module-code">SO</span><span class="module-state">Sin integración</span></div><h3>Servicios, obras y reclamos</h3><p>Los prototipos siguen inventariados. Todavía no existe una fuente operativa común.</p><button class="action" type="button" data-open="servicios">Ver alcance</button></article>
+              <article class="module-card waiting"><div class="module-card-head"><span class="module-code">CP</span><span class="module-state">Sin fuente</span></div><h3>Compras y proveedores</h3><p>Proveedores y licitaciones están preservados como alcance funcional, sin datos certificados.</p><button class="action" type="button" data-open="compras">Ver alcance</button></article>
+              <article class="module-card partial"><div class="module-card-head"><span class="module-code">IR</span><span class="module-state">Parcial</span></div><h3>Inteligencia y reportes</h3><p>Informes de GRH y calidad disponibles; los demás dominios esperan integración.</p><button class="action" type="button" data-open="inteligencia">Abrir reportes</button></article>
+              <article class="module-card partial"><div class="module-card-head"><span class="module-code">AD</span><span class="module-state">Parcial</span></div><h3>Administración</h3><p>Acceso interno a legajos habilitado; importaciones, auditoría y configuración siguen en fase de integración.</p><button class="action" type="button" data-open="datos">Abrir administración</button></article>
+              <article class="module-card partial"><div class="module-card-head"><span class="module-code">MP</span><span class="module-state">Inventario</span></div><h3>Mapa completo de producto</h3><p>Consulta todas las capacidades históricas, su archivo de origen y su estado actual.</p><a class="action" href="modulos.html">Abrir mapa</a></article>
+            </div>
+          </section>
+          <div class="trust-strip"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg><div><strong>La interfaz no completa huecos con números inventados.</strong><span>Masa salarial, ejecución presupuestaria y licencias actuales se muestran como no disponibles hasta incorporar una fuente homologada.</span></div></div>
+          <div class="grid"><article class="panel wide"><div class="panel-head"><div><h2>Lecturas para la gestión</h2><p class="panel-sub">Hallazgos descriptivos, sin inferir desempeño ni causalidad.</p></div><button class="action" data-open="calidad">Ver calidad</button></div><div class="insight-list" id="homeInsights"></div></article></div>
+        </section>
+
+        <section class="section" id="personas">
+          <div class="section-head"><div><div class="eyebrow">Dotación agregada</div><h1>Personas</h1></div><p>Una mirada institucional de la nómina, sin exponer fichas individuales. Los sectores se presentan tal como figuran en GRH.</p></div>
+          <div class="grid"><article class="panel"><div class="panel-head"><div><h2>Situación de los legajos</h2><p class="panel-sub">Activo es un proxy derivado de fecha de egreso vacía.</p></div><span class="tag derived">Derivado</span></div><div class="ring-wrap"><div class="ring" id="activeRing"><div class="ring-label"><strong id="activePct">36%</strong><span>activos</span></div></div><div class="legend"><div class="legend-row"><span>Activos</span><strong id="activeLegend">—</strong></div><div class="legend-row"><span>Inactivos</span><strong id="inactiveLegend">—</strong></div><div class="legend-row"><span>Total histórico</span><strong id="historicalLegend">—</strong></div></div></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Distribución por sexo</h2><p class="panel-sub">Cobertura del 100% entre activos.</p></div><span class="tag real">Real</span></div><div class="bars" id="genderBars"></div></article>
+          <article class="panel wide"><div class="panel-head"><div><h2>Personas activas por sector</h2><p class="panel-sub">Los jardines quedan diferenciados para no ocultar su composición; el criterio podrá alternarse.</p></div><span class="tag real">Real</span></div><div class="bars" id="sectorBars"></div></article></div>
+        </section>
+
+        <section class="section" id="gestion">
+          <div class="section-head"><div><div class="eyebrow">Ventana de ocho años</div><h1>Gestiones</h1></div><p>Altas y bajas se comparan con fechas exactas. La gestión actual está incompleta y no debe leerse como una comparación de rendimiento.</p></div>
+          <div class="grid"><article class="panel wide"><div class="compare" id="managementCompare"></div></article><article class="panel wide"><div class="panel-head"><div><h2>Movimientos por año</h2><p class="panel-sub">2019 y 2026 son años parciales dentro de la ventana.</p></div><div><span class="tag real">Altas</span> <span class="tag unavailable">Bajas</span></div></div><div class="year-bars" id="managementBars"></div></article><article class="panel wide"><div class="trust-strip" style="margin:0"><div><strong>Lectura responsable</strong><span>El balance positivo (+ altas que bajas) describe movimientos registrales. No demuestra por sí solo expansión eficiente, ahorro ni calidad del servicio.</span></div></div></article></div>
+        </section>
+
+        <section class="section" id="ausentismo">
+          <div class="section-head"><div><div class="eyebrow">Eventos del sistema GRH</div><h1>Ausentismo</h1></div><p>La serie cuenta registros de ausencia y personas alcanzadas. No suma días ni calcula una tasa hasta homologar la semántica con RRHH.</p></div>
+          <div class="kpis"><article class="kpi"><div class="kpi-head"><span>Eventos históricos</span><span class="tag real">Real</span></div><div class="kpi-value" id="absenceTotal">—</div><div class="kpi-detail">Clave de evento única</div></article><article class="kpi"><div class="kpi-head"><span>Eventos 2025</span><span class="tag real">Real</span></div><div class="kpi-value" id="absence2025">—</div><div class="kpi-detail">Año completo más reciente</div></article><article class="kpi"><div class="kpi-head"><span>Personas 2025</span><span class="tag real">Real</span></div><div class="kpi-value" id="affected2025">—</div><div class="kpi-detail">Con al menos un evento</div></article><article class="kpi"><div class="kpi-head"><span>Días perdidos</span><span class="tag unavailable">Pendiente</span></div><div class="kpi-value">—</div><div class="kpi-detail">Requiere validación funcional</div></article></div>
+          <div class="grid"><article class="panel wide"><div class="panel-head"><div><h2>Evolución de eventos</h2><p class="panel-sub">2026 incluye datos hasta el 06/08.</p></div><span class="tag real">Real</span></div><div class="trend" id="absenceTrend" role="img" aria-label="Eventos de ausencia por año entre 2019 y 2026"></div></article><article class="panel wide"><div class="trust-strip" style="margin:0;border-color:#6f5730;background:#2a2113;color:#ffe1a3"><div><strong id="absenceWarning">Validación pendiente</strong><span>La tabla de licencias disponible termina en 2009; no se presenta como indicador actual.</span></div></div></article></div>
+        </section>
+
+        <section class="section" id="calidad">
+          <div class="section-head"><div><div class="eyebrow">Confiabilidad antes que volumen</div><h1>Calidad de datos</h1></div><p>Los hallazgos se mantienen visibles para que una cifra no parezca más precisa de lo que permite su fuente.</p></div>
+          <div class="quality-grid" id="qualityCards"></div>
+          <div class="grid" style="margin-top:15px"><article class="panel wide"><div class="panel-head"><div><h2>Disponibilidad por dominio</h2><p class="panel-sub">Qué puede usarse hoy y qué necesita una nueva fuente.</p></div><span class="tag real">Contrato de verdad</span></div><table class="availability"><thead><tr><th>Dominio</th><th>Uso actual</th><th>Estado</th></tr></thead><tbody id="availabilityRows"></tbody></table></article></div>
+        </section>
+
+        <section class="section" id="hacienda">
+          <div class="section-head"><div><div class="eyebrow">Hacienda y presupuesto</div><h1>Planificación financiera</h1></div><p>El área se mantiene en el producto, pero no publica ejecución ni crédito sin una fuente contable oficial y fechada.</p></div>
+          <div class="module-empty">
+            <div class="module-empty-head"><span class="module-code">HP</span><div><h2>Módulo preservado, datos no integrados</h2><p>Los archivos históricos de Hacienda, Presupuesto, Cuentas Claras y AFIP permanecen en el repositorio. Esta versión no los confunde con información certificada.</p></div><span class="module-state">Fuente pendiente</span></div>
+            <div class="scope-grid">
+              <article class="scope-card"><strong>Presupuesto autorizado</strong><span>Requiere partidas, ejercicio, jurisdicción y fecha de corte.</span><span class="module-state">Sin fuente</span></article>
+              <article class="scope-card"><strong>Ejecución presupuestaria</strong><span>Requiere compromiso, devengado, pagado y trazabilidad documental.</span><span class="module-state">Sin fuente</span></article>
+              <article class="scope-card"><strong>Ingresos y tesorería</strong><span>Requiere conciliación y definición funcional con Hacienda.</span><span class="module-state">Sin fuente</span></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="servicios">
+          <div class="section-head"><div><div class="eyebrow">Servicios, obras y reclamos</div><h1>Operación territorial</h1></div><p>La amplitud del producto se conserva. Los tableros operativos se habilitarán después de integrar órdenes, expedientes y localización.</p></div>
+          <div class="module-empty">
+            <div class="module-empty-head"><span class="module-code">SO</span><div><h2>Tres dominios, una integración pendiente</h2><p>Servicios, Obras, Vecinos, Expedientes y Mapa existen como prototipos preservados. Todavía no comparten un contrato de datos validado.</p></div><span class="module-state">Sin integración</span></div>
+            <div class="scope-grid">
+              <article class="scope-card"><strong>Servicios municipales</strong><span>Órdenes, cuadrillas, tiempos y cobertura.</span><span class="module-state">Prototipo preservado</span></article>
+              <article class="scope-card"><strong>Obras y territorio</strong><span>Avance físico, hitos, ubicación y evidencia.</span><span class="module-state">Prototipo preservado</span></article>
+              <article class="scope-card"><strong>Reclamos y expedientes</strong><span>Ingreso, responsable, estado y resolución.</span><span class="module-state">Prototipo preservado</span></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="compras">
+          <div class="section-head"><div><div class="eyebrow">Compras y proveedores</div><h1>Abastecimiento municipal</h1></div><p>El dominio forma parte del mapa funcional; no se muestran montos, adjudicaciones ni desempeño sin bases confiables.</p></div>
+          <div class="module-empty">
+            <div class="module-empty-head"><span class="module-code">CP</span><div><h2>Alcance preservado para la próxima integración</h2><p>Los prototipos de Proveedores y Licitaciones siguen disponibles en el repositorio. Esta fase define qué fuentes hacen falta para volverlos operativos.</p></div><span class="module-state">Sin fuente</span></div>
+            <div class="scope-grid">
+              <article class="scope-card"><strong>Registro de proveedores</strong><span>Identidad fiscal, rubro, vigencia y documentación.</span><span class="module-state">Prototipo preservado</span></article>
+              <article class="scope-card"><strong>Contrataciones</strong><span>Proceso, oferentes, evaluación y adjudicación.</span><span class="module-state">Prototipo preservado</span></article>
+              <article class="scope-card"><strong>Seguimiento contractual</strong><span>Órdenes, entregas, plazos y observaciones.</span><span class="module-state">No integrado</span></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="inteligencia">
+          <div class="section-head"><div><div class="eyebrow">Inteligencia y reportes</div><h1>Análisis trazable</h1></div><p>Los informes disponibles se limitan al snapshot GRH. Cada acceso conserva su fuente, período y límites de interpretación.</p></div>
+          <div class="module-empty">
+            <div class="module-empty-head"><span class="module-code">IR</span><div><h2>Informes operativos de RRHH</h2><p>La capa analítica general sigue en integración. Hoy se pueden usar tres lecturas respaldadas por la fuente GRH.</p></div><span class="module-state">Parcial</span></div>
+            <div class="report-links">
+              <article class="report-link"><h3>Comparación de gestiones</h3><p>Altas, bajas y balance registral con períodos exactos.</p><button class="action" type="button" data-open="gestion">Abrir informe</button></article>
+              <article class="report-link"><h3>Ausentismo histórico</h3><p>Eventos por año y personas alcanzadas; sin tasa ni días inferidos.</p><button class="action" type="button" data-open="ausentismo">Abrir informe</button></article>
+              <article class="report-link"><h3>Calidad de datos</h3><p>Cobertura, excepciones y disponibilidad por dominio.</p><button class="action" type="button" data-open="calidad">Abrir informe</button></article>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="hoja-ruta">
+          <div class="section-head"><div><div class="eyebrow">Evolución progresiva</div><h1>Hoja de ruta</h1></div><p>La complejidad queda detrás de la interfaz. Cada etapa agrega valor verificable sin romper la experiencia Friendly.</p></div>
+          <div class="roadmap"><article class="roadmap-item"><div class="phase">P0 · LISTO</div><div><h3>Verdad de datos + QA Friendly</h3><p>Fuente agregada sin PII, portal interno autenticado, GRH completo en Neon, métricas trazables y verificación desktop/mobile.</p></div><span class="status now">Completado</span></article><article class="roadmap-item"><div class="phase">P1</div><div><h3>Presupuesto autorizado vs. ejecutado</h3><p>Importar documentos oficiales, conservar fuente/período y mostrar desfasaje en más o en menos.</p></div><span class="status next">Siguiente</span></article><article class="roadmap-item"><div class="phase">P1</div><div><h3>Importación asistida y reversible</h3><p>Excel, CSV, PDF y TXT con previsualización, validación, versión del dataset y posibilidad de deshacer.</p></div><span class="status next">Siguiente</span></article><article class="roadmap-item"><div class="phase">P2</div><div><h3>Asistente con manuales y fuentes</h3><p>Guía contextual para tareas y preguntas; las respuestas citarán dato, período y nivel de confianza.</p></div><span class="status">Planificado</span></article><article class="roadmap-item"><div class="phase">P2</div><div><h3>Conexión operativa al sistema municipal</h3><p>Mantener el contrato Friendly y reemplazar el snapshot controlado por sincronización homologada, con backups y trazabilidad.</p></div><span class="status">Planificado</span></article></div>
+        </section>
+
+        <section class="section" id="datos"><div class="section-head"><div><div class="eyebrow">Administración</div><h1>Accesos y datos internos</h1></div><p>La operación nominal vive en una vista separada de los indicadores agregados.</p></div><div class="privacy-box"><div class="eyebrow">Portal interno operativo</div><h2>Legajos completos con acceso autenticado</h2><p>El portal interno consulta la carga GRH en Neon y permite buscar legajos, documentos, contacto, domicilio, relaciones familiares y eventos. Los importes salariales continúan marcados como no disponibles hasta tener liquidaciones confiables.</p><div class="privacy-list"><div>Nombres y documentos</div><div>Legajos individuales</div><div>Domicilios y teléfonos</div><div>Datos laborales</div><div>Familiares y licencias</div><div>Trazabilidad de fuente</div></div><a class="action primary" href="internal-dashboard.html">Abrir portal interno</a> <a class="action" href="modulos.html#administracion">Ver alcance administrativo</a></div></section>
+
+        <footer class="footer"><span>MuniControl Friendly · Junín, Mendoza</span><span id="footerSource">Fuente en preparación</span></footer>
+      </div></main>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      'use strict';
+      const sessionRaw=sessionStorage.getItem('mjunin_user');
+
+      const nf=new Intl.NumberFormat('es-AR');
+      const titles={inicio:'Centro ejecutivo',personas:'Personas y RRHH',gestion:'Comparación de gestiones',ausentismo:'Ausentismo',hacienda:'Hacienda y presupuesto',servicios:'Servicios, obras y reclamos',compras:'Compras y proveedores',inteligencia:'Inteligencia y reportes',calidad:'Calidad de datos','hoja-ruta':'Hoja de ruta',datos:'Administración'};
+      const routeSections={'/hacienda':'hacienda','/presupuesto':'hacienda','/servicios':'servicios','/talleres':'servicios','/licitaciones':'compras','/proveedores':'compras'};
+      let data=null;
+      const $=id=>document.getElementById(id);
+      const format=n=>nf.format(Number(n||0));
+      const esc=value=>String(value).replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+      const dateLabel=value=>{
+        const match=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if(!match)return 'FECHA NO DISPONIBLE';
+        const date=new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3])));
+        return date.toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).replace('.','').toUpperCase();
+      };
+
+      function openSection(requested,updateHistory){
+        const id=titles[requested]?requested:'inicio';
+        document.querySelectorAll('.section').forEach(section=>section.classList.toggle('active',section.id===id));
+        document.querySelectorAll('[data-section]').forEach(button=>{const active=button.dataset.section===id;button.classList.toggle('active',active);if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
+        $('pageTitle').textContent=titles[id];
+        if(updateHistory!==false)history.replaceState(null,'','#'+id);
+        window.scrollTo({top:0,behavior:'smooth'});
+      }
+
+      function renderBars(container,items,total){
+        const max=Math.max(...items.map(item=>item.value),1);
+        container.innerHTML=items.map(item=>`<div class="bar-row"><div class="bar-label" title="${esc(item.label)}">${esc(item.label)}</div><div class="bar-track"><div class="bar-fill" style="--pct:${(item.value/max*100).toFixed(1)}%"></div></div><div class="bar-value">${format(item.value)}${total?'':''}</div></div>`).join('');
+      }
+
+      function renderManagement(){
+        const cards=[data.management.previous,data.management.current];
+        $('managementCompare').innerHTML=cards.map((item,index)=>`<div class="compare-card ${index?'current':''}"><h3>${esc(item.label)}</h3><small>${dateLabel(item.from)} → ${dateLabel(item.to)}${item.partial?' · período parcial':''}</small><div class="compare-numbers"><div><strong>${format(item.hires)}</strong><span>Altas</span></div><div><strong>${format(item.exits)}</strong><span>Bajas</span></div><div><strong class="positive">+${format(item.balance)}</strong><span>Balance</span></div></div></div>`).join('');
+        const max=Math.max(...data.management.yearly.flatMap(item=>[item.hires,item.exits]));
+        $('managementBars').innerHTML=data.management.yearly.map(item=>`<div class="year-row"><span class="year">${item.year}${item.partial?'*':''}</span><div class="year-segment hires"><span>${item.hires} altas</span><div class="bar-track"><div class="bar-fill" style="--pct:${(item.hires/max*100).toFixed(1)}%"></div></div></div><div class="year-segment exits"><span>${item.exits} bajas</span><div class="bar-track"><div class="bar-fill" style="--pct:${(item.exits/max*100).toFixed(1)}%"></div></div></div></div>`).join('');
+      }
+
+      function renderAbsence(){
+        const rows=data.absence.yearly,max=Math.max(...rows.map(row=>row.events));
+        $('absenceTrend').innerHTML=rows.map(row=>`<div class="trend-col"><div class="trend-bar" style="--height:${(row.events/max*100).toFixed(1)}%"><strong>${format(row.events)}</strong></div><span>${row.year}${row.partial?'*':''}</span></div>`).join('');
+        const y2025=rows.find(row=>row.year===2025);
+        $('absenceTotal').textContent=format(data.absence.totalEvents);
+        $('absence2025').textContent=format(y2025.events);
+        $('affected2025').textContent=format(y2025.employeesAffected);
+        $('absenceWarning').textContent=data.absence.warning;
+      }
+
+      function renderQuality(){
+        const q=data.quality;
+        const cards=[
+          {tone:'good',label:'Legajos duplicados',value:q.employeeKeyDuplicates,copy:'La clave de legajo es única en el dump.'},
+          {tone:'good',label:'Cobertura de sexo',value:q.activeGenderCoveragePct,suffix:'%',copy:'Entre las personas activas.'},
+          {tone:'warn',label:'Sin sector homologado',value:q.activeWithoutMatchedSector,copy:'Activos que requieren clasificación.'},
+          {tone:'warn',label:'Fecha de alta ausente',value:q.missingHireDate,copy:'Registros que no entran en comparativas temporales.'},
+          {tone:'warn',label:'Ausencias huérfanas',value:q.absenceOrphans,copy:'Eventos sin legajo padre coincidente.'},
+          {tone:'warn',label:'Fechas a revisar',value:q.absenceDatesBefore1900+q.absenceDatesAfterSnapshot,copy:'Antes de 1900 o posteriores al corte.'}
+        ];
+        $('qualityCards').innerHTML=cards.map(card=>`<article class="quality-card ${card.tone}"><div class="eyebrow">${esc(card.label)}</div><div class="value">${format(card.value)}${card.suffix||''}</div><p>${esc(card.copy)}</p></article>`).join('');
+        const availability=[
+          ['Dotación agregada','Dashboard y distribuciones','verified'],['Comparación de gestiones','Altas, bajas y balance','derived'],['Eventos de ausencia','Conteos y tendencia','verified'],['Masa salarial','No mostrar importes','unavailable'],['Ejecución presupuestaria','Esperar fuente oficial','unavailable'],['Licencias actuales','Histórico disponible sólo hasta 2009','unavailable']
+        ];
+        const labels={verified:['Fuente verificada','real'],derived:['Derivado','derived'],unavailable:['No disponible','unavailable']};
+        $('availabilityRows').innerHTML=availability.map(row=>`<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td><span class="tag ${labels[row[2]][1]}">${labels[row[2]][0]}</span></td></tr>`).join('');
+      }
+
+      function renderHome(){
+        const w=data.workforce,m=data.management.current,a=data.absence;
+        $('kpiActive').textContent=format(w.active);$('kpiHistorical').textContent=format(w.historicalRecords);$('kpiBalance').textContent='+'+format(m.balance);$('kpiAbsence').textContent=format(a.totalEvents);
+        const top3=w.activeSectors.slice(0,3).reduce((sum,item)=>sum+item.value,0);const topPct=(top3/w.active*100).toFixed(1).replace('.',',');
+        $('homeInsights').innerHTML=[
+          ['01',`La gestión actual registra <strong>${format(m.hires)} altas y ${format(m.exits)} bajas</strong>.`,`El balance registral es +${format(m.balance)} al corte; el período aún no completó cuatro años.`],
+          ['02',`Tres agrupaciones concentran <strong>${topPct}% de las personas activas</strong>.`,`Obrero, Temporarios y Administrativo suman ${format(top3)} de ${format(w.active)} activos.`],
+          ['03',`La última fecha válida de ausentismo es <strong>${dateLabel(a.latestValidDate)}</strong>.`,`La serie sirve para volumen de eventos; todavía no para costo, días perdidos ni causalidad.`]
+        ].map(item=>`<div class="insight"><div class="insight-number">${item[0]}</div><div><strong>${item[1]}</strong><p>${item[2]}</p></div></div>`).join('');
+      }
+
+      function renderAll(){
+        const w=data.workforce;
+        $('snapshotLabel').textContent='Corte '+dateLabel(data.source.snapshotAt);
+        $('heroCutoff').textContent=dateLabel(data.source.snapshotAt);
+        $('footerSource').textContent=`${data.source.dataset} · ${dateLabel(data.source.snapshotAt)}`;
+        renderHome();
+        $('activeRing').style.setProperty('--value',w.activeSharePct);$('activePct').textContent=w.activeSharePct+'%';$('activeLegend').textContent=format(w.active);$('inactiveLegend').textContent=format(w.inactive);$('historicalLegend').textContent=format(w.historicalRecords);
+        renderBars($('genderBars'),w.genderActive,w.active);renderBars($('sectorBars'),w.activeSectors,w.active);renderManagement();renderAbsence();renderQuality();
+      }
+
+      document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.section)));
+      document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.open)));
+      if(sessionRaw){
+        $('logout').addEventListener('click',async()=>{
+          sessionStorage.removeItem('mjunin_user');
+          try{await fetch('/api/internal-auth',{method:'DELETE',credentials:'same-origin'});}catch(_){}
+          location.reload();
+        });
+      }else{
+        $('logout').textContent='Portal interno';
+        $('logout').addEventListener('click',()=>location.href='login.html?next=internal-dashboard.html');
+      }
+      window.addEventListener('hashchange',()=>openSection(location.hash.slice(1),false));
+
+      fetch('friendly-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('HTTP '+response.status);return response.json();}).then(payload=>{
+        const requested=location.hash.slice(1)||new URLSearchParams(location.search).get('section')||routeSections[location.pathname]||'inicio';
+        data=payload;renderAll();$('loading').hidden=true;$('dashboard').hidden=false;openSection(requested,false);
+      }).catch(error=>{$('loading').innerHTML=`<div class="error-state"><strong>No se pudo cargar la fuente agregada.</strong><br>${esc(error.message)}. Ejecutá la plataforma desde un servidor local o revisá el build Friendly.</div>`;console.error(error);});
+    })();
+  </script>
+</body>
+</html>

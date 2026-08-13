@@ -1,5 +1,6 @@
 # Archivos temporales y de build
 node_modules/
+public/
 .env
 .env.local
 .env.*.local
@@ -27,6 +28,30 @@ Desktop.ini
 
 .vercel
 .env*
+.new_token.txt
 
 rrhh-data/*.json
 rrhh-data/**/*.sql
+
+# Friendly nunca versiona fuentes municipales ni bases nominales.
+data-rrhh/
+rrhh-data/
+backend/
+database/
+prisma/
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.sql
+!scripts/internal-schema.sql
+*.sql.gz
+*.backup*
+
+# Herramientas locales instaladas y caches de ejecución
+.agents/
+skills-lock.json
+__pycache__/
+*.pyc
+
+.env*

@@ -1,0 +1,96 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+const config = JSON.parse(read('vercel.json'));
+const rewrites = new Map(config.rewrites.map(({ source, destination }) => [source, destination]));
+
+assert.equal(rewrites.get('/'), '/friendly-dashboard.html');
+assert.equal(rewrites.get('/rrhh-data/:path*'), '/api/friendly-policy');
+assert.equal(rewrites.get('/internal'), '/internal-dashboard.html');
+assert.equal(rewrites.get('/rrhh'), '/internal-dashboard.html');
+assert.equal(rewrites.get('/modulos'), '/modulos.html');
+assert.equal(rewrites.get('/reportes'), '/reportes-rrhh.html');
+assert.equal(rewrites.get('/organigrama'), '/estructura.html');
+assert.ok(config.functions['api/internal-auth.js'], 'falta publicar autenticación interna');
+assert.ok(config.functions['api/internal-data.js'], 'falta publicar API interna');
+for (const route of ['/rrhh', '/hacienda', '/ia', '/reportes', '/api/rrhh', '/api/payroll', '/api/ai-analyze']) {
+  assert.ok(rewrites.has(route), `falta contener ${route}`);
+}
+
+assert.ok(!fs.existsSync(new URL('../.new_token.txt', import.meta.url)), 'el artefacto secreto no debe existir');
+const ignore = read('.vercelignore');
+for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/rrhh.js', 'api/lib/db.js', '*.html', 'lookups.json', 'transcripts_audios.json', 'quick-seed.js', 'sw.js', 'test_prisma.js']) assert.ok(ignore.includes(pattern));
+const gitIgnore = read('.gitignore');
+for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
+  assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
+}
+
+for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html']) {
+  const html = read(file);
+  for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (/\bsrc\s*=/.test(match[1])) continue;
+    new vm.Script(match[2], { filename: file });
+  }
+  assert.ok(!/Buenos Aires|Partido de Jun[ií]n|cross-source|k\s*=\s*10/i.test(html), `${file} contiene copy no permitido`);
+}
+
+const internalDashboard = read('internal-dashboard.html');
+assert.match(internalDashboard, /\/api\/internal-auth/, 'el panel debe validar la sesión interna');
+assert.match(internalDashboard, /\/api\/internal-data/, 'el panel debe consultar la API interna');
+assert.doesNotMatch(internalDashboard, /<input[^>]+(?:email|password)[^>]+value\s*=/i, 'las credenciales internas no deben estar embebidas');
+for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js']) {
+  assert.doesNotMatch(ignore, new RegExp(`^${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `${file} no debe estar excluido de Vercel`);
+}
+
+const friendlyData = JSON.parse(read('friendly-data.json'));
+assert.equal(friendlyData.jurisdiction.municipality, 'Junín');
+assert.equal(friendlyData.jurisdiction.province, 'Mendoza');
+assert.equal(friendlyData.source.timezone, 'not_recorded_in_dump');
+assert.equal(friendlyData.privacy.grain, 'aggregate');
+assert.equal(friendlyData.privacy.containsPersonRows, false);
+assert.equal(friendlyData.workforce.historicalRecords, 2450);
+assert.equal(friendlyData.workforce.active, 882);
+assert.equal(friendlyData.workforce.inactive, 1568);
+assert.equal(friendlyData.management.current.balance, 49);
+assert.equal(friendlyData.management.previous.balance, 31);
+assert.equal(friendlyData.absence.totalEvents, 31572);
+assert.equal(friendlyData.availability.payrollAmounts, 'unavailable');
+assert.equal(friendlyData.availability.budgetExecution, 'unavailable');
+assert.equal(
+  friendlyData.workforce.activeSectors.reduce((sum, row) => sum + row.value, 0),
+  friendlyData.workforce.active,
+  'los sectores activos deben reconciliar con la dotación activa'
+);
+const serializedData = JSON.stringify(friendlyData);
+assert.doesNotMatch(
+  serializedData,
+  /"(?:dni|cuil|documento|legajo|nombre|apellido|telefono|phone|email|domicilio|direccion|calle|salario|sueldo|remuneracion|nacimiento)"\s*:/i,
+  'el snapshot Friendly no debe incluir campos nominales'
+);
+for (const group of friendlyData.workforce.activeSectors) {
+  assert.ok(
+    group.value >= friendlyData.privacy.minimumPublishedGroupSize,
+    `el grupo ${group.label} no alcanza el mínimo de publicación`
+  );
+}
+
+const dashboard = read('friendly-dashboard.html');
+for (const section of ['inicio', 'personas', 'gestion', 'ausentismo', 'calidad', 'hoja-ruta', 'datos']) {
+  assert.match(dashboard, new RegExp(`id=["']${section}["']`), `falta sección Friendly ${section}`);
+}
+assert.match(dashboard, /titles\[requested\]\?requested:'inicio'/, 'los hashes desconocidos deben volver a inicio');
+assert.match(dashboard, /friendly-data\.json/, 'el tablero debe cargar la fuente agregada');
+assert.match(dashboard, /URLSearchParams\(location\.search\)\.get\('section'\)/, 'las rutas heredadas deben abrir su seccion correcta');
+assert.match(dashboard, /routeSections\[location\.pathname\]/, 'las rutas reescritas deben resolver la seccion desde el path visible');
+assert.equal(rewrites.get('/hacienda'), '/friendly-dashboard.html?section=hacienda');
+assert.equal(rewrites.get('/servicios'), '/friendly-dashboard.html?section=servicios');
+assert.equal(rewrites.get('/licitaciones'), '/friendly-dashboard.html?section=compras');
+
+const login = read('login.html');
+assert.doesNotMatch(login, /const\s+USERS\s*=|function\s+fillUser\s*\(/, 'el acceso público no debe depender de credenciales demo embebidas');
+assert.match(login, /function openPublicView\(\)/);
+assert.doesNotMatch(login, /Legajo\s*571|ALONSO|DNI|CUIL/i);
+
+console.log('Friendly containment: OK');

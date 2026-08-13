@@ -1,23 +1,19 @@
 {
+  "name": "municipio-junin-friendly",
+  "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "prisma generate"
+    "test": "node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
+    "test:browser": "node scripts/verify-friendly-browser.mjs",
+    "build": "npm run test && node scripts/build-friendly.mjs",
+    "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
+    "data:extract": "python scripts/extract_rrhh_curated.py",
+    "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.62.1",
-    "prisma": "^5.22.0"
+    "playwright": "^1.62.1"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
-    "@prisma/client": "^5.22.0",
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^17.4.2",
-    "formidable": "^3.5.4",
-    "jsonwebtoken": "^9.0.2",
-    "papaparse": "^5.5.4",
-    "pdf-parse": "^2.4.5",
-    "pg": "^8.22.0",
-    "sqlite3": "^6.0.1",
-    "xlsx": "^0.18.5"
+    "@neondatabase/serverless": "^1.0.2"
   }
 }

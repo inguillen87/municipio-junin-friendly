@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173447">
+  <title>Calidad del corte GRH | MuniControl Friendly</title>
+  <meta name="description" content="Registro de cobertura, excepciones y límites del corte agregado de recursos humanos de la Municipalidad de Junín, Mendoza.">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #173447;
+      --navy-deep: #0d2534;
+      --blue: #2d6078;
+      --paper: #f4f1ea;
+      --surface: #fff;
+      --ink: #17242c;
+      --muted: #596970;
+      --line: #cbd3d4;
+      --line-dark: #9eaeb2;
+      --green: #456352;
+      --green-pale: #e0e9e2;
+      --amber: #8a6824;
+      --amber-pale: #f0e7d3;
+      --red: #914b3d;
+      --red-pale: #f2dfda;
+      --focus: #d18c22;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 "Segoe UI", Inter, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .skip-link { position: fixed; top: -80px; left: 16px; z-index: 100; padding: 10px 14px; border: 2px solid var(--navy); background: var(--surface); color: var(--navy); font-weight: 700; }
+    .skip-link:focus { top: 16px; }
+    .site-header { background: var(--navy-deep); color: #f6f2e8; border-bottom: 4px solid var(--red); }
+    .header-inner { width: min(1180px, calc(100% - 40px)); min-height: 74px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #d8d0c1; background: #f6f2e8; color: var(--navy-deep); font: 800 16px/1 Georgia, serif; }
+    .brand-name { display: block; font-size: 16px; font-weight: 750; }
+    .brand-context { display: block; color: #aebec7; font-size: 11px; letter-spacing: .045em; text-transform: uppercase; }
+    .header-nav { display: flex; align-items: center; gap: 4px; }
+    .header-nav a { padding: 9px 12px; color: #c8d4d9; border-bottom: 2px solid transparent; font-size: 13px; font-weight: 650; text-decoration: none; }
+    .header-nav a:hover, .header-nav a[aria-current="page"] { color: #fff; border-color: #fff; }
+    .header-nav .internal-link { margin-left: 8px; border: 1px solid #78919e; }
+
+    .page { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 72px; }
+    .loading, .load-error { min-height: 48vh; display: grid; place-items: center; padding: 36px; border: 1px solid var(--line); background: var(--surface); text-align: center; }
+    .loading[hidden], .load-error[hidden] { display: none; }
+    .load-error { border-color: #c9978d; background: #fff8f6; color: #6c2d23; }
+    .content[hidden] { display: none; }
+    .breadcrumb { display: flex; flex-wrap: wrap; gap: 7px; color: var(--muted); font-size: 11px; }
+    .breadcrumb a { color: var(--blue); }
+    .title-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(260px, .7fr); gap: 46px; align-items: end; margin-top: 34px; padding-bottom: 27px; border-bottom: 2px solid var(--navy); }
+    .kicker { margin: 0 0 10px; color: var(--red); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy-deep); font: 700 clamp(40px, 6vw, 72px)/.98 Georgia, serif; letter-spacing: -.04em; }
+    .title-grid > p { margin: 0; color: #40535c; font-size: 16px; }
+    .source-line { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 13px 0; border-bottom: 1px solid var(--line-dark); color: var(--muted); font-size: 11px; }
+    .source-line b { color: var(--ink); }
+
+    .verdict { display: grid; grid-template-columns: 190px minmax(0, 1fr); margin-top: 30px; border: 1px solid var(--line-dark); background: var(--surface); }
+    .verdict-label { display: grid; place-items: center; padding: 24px; background: var(--navy); color: #fff; text-align: center; }
+    .verdict-label strong { display: block; font: 700 24px/1.05 Georgia, serif; }
+    .verdict-label span { display: block; margin-top: 8px; color: #c9d7dd; font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+    .verdict-copy { padding: 24px 27px; }
+    .verdict-copy h2 { margin: 0; color: var(--navy); font-size: 19px; }
+    .verdict-copy p { max-width: 760px; margin: 8px 0 0; color: var(--muted); }
+
+    .quality-ledger { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--line-dark); border-left: 1px solid var(--line-dark); margin-top: 28px; background: var(--surface); }
+    .quality-metric { min-height: 130px; padding: 16px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .quality-metric span { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+    .quality-metric strong { display: block; margin-top: 12px; color: var(--navy); font: 700 30px/1 Georgia, serif; }
+    .quality-metric small { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; }
+
+    .section { margin-top: 56px; scroll-margin-top: 20px; }
+    .section-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .65fr); gap: 34px; align-items: end; padding-bottom: 14px; border-bottom: 2px solid var(--navy); }
+    .section-index { display: block; margin-bottom: 8px; color: var(--red); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+    .section-header h2 { margin: 0; color: var(--navy); font: 700 clamp(27px, 3.5vw, 40px)/1.05 Georgia, serif; }
+    .section-header p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .audit-table-wrap { margin-top: 20px; border: 1px solid var(--line-dark); background: var(--surface); overflow-x: auto; }
+    .audit-table { width: 100%; min-width: 730px; border-collapse: collapse; }
+    .audit-table th, .audit-table td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .audit-table th { color: var(--muted); background: #f1f2ef; font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }
+    .audit-table tbody tr:last-child td { border-bottom: 0; }
+    .audit-table td:nth-child(2), .audit-table td:nth-child(3) { font-family: Consolas, monospace; font-size: 12px; white-space: nowrap; }
+    .audit-table td:last-child { color: var(--muted); font-size: 12px; }
+    .state { display: inline-block; min-width: 74px; padding: 3px 6px; border: 1px solid currentColor; font: 800 9px/1.2 "Segoe UI", sans-serif; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
+    .state.good { color: var(--green); background: var(--green-pale); }
+    .state.review { color: var(--amber); background: var(--amber-pale); }
+    .state.blocked { color: var(--red); background: var(--red-pale); }
+
+    .exception-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line-dark); border-left: 1px solid var(--line-dark); margin-top: 20px; background: var(--surface); }
+    .exception { min-height: 135px; padding: 18px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .exception-head { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+    .exception h3 { margin: 0; color: var(--navy); font-size: 14px; }
+    .exception strong { color: var(--red); font: 700 24px/1 Georgia, serif; }
+    .exception p { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
+    .exception-track { height: 7px; margin-top: 15px; background: #e4e9e9; }
+    .exception-fill { height: 100%; width: var(--width); min-width: 2px; background: var(--amber); }
+
+    .rule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px; gap: 18px; }
+    .rule { padding: 20px; border-top: 4px solid var(--blue); background: var(--surface); }
+    .rule h3 { margin: 0; color: var(--navy); font-size: 15px; }
+    .rule p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .rule dl { margin: 16px 0 0; }
+    .rule dt { margin-top: 9px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .rule dd { margin: 2px 0 0; color: var(--ink); font-size: 12px; }
+
+    .availability-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line-dark); border-left: 1px solid var(--line-dark); margin-top: 20px; background: var(--surface); }
+    .domain { min-height: 145px; padding: 18px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .domain h3 { margin: 13px 0 0; color: var(--navy); font-size: 14px; }
+    .domain p { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+
+    .catalog-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; border-top: 1px solid var(--line-dark); border-left: 1px solid var(--line-dark); background: var(--surface); }
+    .catalog { padding: 17px; border-right: 1px solid var(--line-dark); border-bottom: 1px solid var(--line-dark); }
+    .catalog strong { display: block; color: var(--navy); font: 700 27px/1 Georgia, serif; }
+    .catalog span { display: block; margin-top: 7px; color: var(--muted); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+
+    .limit-list { margin-top: 20px; border-top: 1px solid var(--line-dark); }
+    .limit { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+    .limit b { color: var(--red); font: 700 18px/1 Georgia, serif; }
+    .limit p { margin: 0; color: #45575f; }
+
+    .source-card { margin-top: 20px; padding: 23px; border: 1px solid var(--line-dark); background: var(--surface); }
+    .source-card dl { display: grid; grid-template-columns: 160px minmax(0, 1fr); margin: 0; }
+    .source-card dt, .source-card dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .source-card dt { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .source-card dd { color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
+    .source-card dt:last-of-type, .source-card dd:last-of-type { border-bottom: 0; }
+
+    .next-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px; align-items: center; margin-top: 54px; padding: 23px; border: 1px solid var(--navy); background: var(--surface); }
+    .next-actions h2 { margin: 0; color: var(--navy); font: 700 25px/1.1 Georgia, serif; }
+    .next-actions p { margin: 8px 0 0; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 12px; border: 1px solid var(--navy); color: var(--navy); font-size: 12px; font-weight: 700; text-decoration: none; }
+    .button.primary { background: var(--navy); color: #fff; }
+    .button:hover { background: #dce7ec; }
+    .button.primary:hover { background: var(--blue); }
+    .footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--line-dark); color: var(--muted); font-size: 10px; }
+
+    @media (max-width: 960px) {
+      .quality-ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .availability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .header-inner { width: min(100% - 28px, 1180px); min-height: 64px; }
+      .brand-context { display: none; }
+      .header-nav a { display: none; }
+      .header-nav .internal-link { display: block; margin-left: 0; padding: 7px 9px; font-size: 11px; }
+      .page { width: min(100% - 28px, 1180px); padding-top: 26px; }
+      .title-grid, .section-header { grid-template-columns: 1fr; gap: 12px; }
+      .verdict { grid-template-columns: 1fr; }
+      .verdict-label { display: block; text-align: left; }
+      .quality-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .exception-grid, .rule-grid, .availability-grid { grid-template-columns: 1fr; }
+      .catalog-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .next-actions { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+    }
+    @media (max-width: 430px) {
+      h1 { font-size: 42px; }
+      .quality-metric { min-height: 116px; padding: 13px; }
+      .quality-metric strong { font-size: 26px; }
+      .source-card dl { grid-template-columns: 1fr; }
+      .source-card dt { padding-bottom: 1px; border-bottom: 0; }
+      .source-card dd { padding-top: 1px; }
+      .button { width: 100%; }
+    }
+    @media print {
+      body { background: #fff; }
+      .site-header, .next-actions { display: none; }
+      .page { width: 100%; padding: 0; }
+      .section, .source-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="friendly-dashboard.html" aria-label="MuniControl Friendly, volver al centro ejecutivo">
+        <span class="brand-mark" aria-hidden="true">MC</span>
+        <span><span class="brand-name">MuniControl Friendly</span><span class="brand-context">Municipalidad de Junín · Mendoza</span></span>
+      </a>
+      <nav class="header-nav" aria-label="Navegación principal">
+        <a href="friendly-dashboard.html">Centro ejecutivo</a>
+        <a href="reportes-rrhh.html">Informe RRHH</a>
+        <a href="calidad-datos.html" aria-current="page">Calidad de datos</a>
+        <a href="modulos.html">Mapa de producto</a>
+        <a class="internal-link" href="/internal">Portal interno</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="contenido">
+    <div class="loading" id="loading" role="status">Verificando cobertura y excepciones del corte…</div>
+    <div class="load-error" id="loadError" hidden role="alert"></div>
+
+    <div class="content" id="content" hidden>
+      <nav class="breadcrumb" aria-label="Ruta"><a href="friendly-dashboard.html">Centro ejecutivo</a><span>/</span><span>Calidad de datos</span></nav>
+      <div class="title-grid">
+        <div><p class="kicker">Registro público de calidad</p><h1>Calidad del corte GRH</h1></div>
+        <p>Qué puede sostener una decisión hoy, qué requiere homologación funcional y qué no debe mostrarse hasta incorporar una fuente válida.</p>
+      </div>
+      <div class="source-line"><span><b>Fuente</b> <span id="sourceName">—</span></span><span><b>Corte</b> <time id="sourceDate">—</time></span><span><b>Grano</b> Agregado</span><span><b>Filas personales</b> No</span></div>
+
+      <section class="verdict" aria-labelledby="verdictTitle">
+        <div class="verdict-label"><strong>Apto con límites</strong><span>Uso agregado RRHH</span></div>
+        <div class="verdict-copy"><h2 id="verdictTitle">El corte es consistente para análisis agregado de dotación, movimientos y eventos.</h2><p>No habilita por sí solo una dotación oficial, una tasa de ausentismo, licencias actuales ni análisis salariales. Esas restricciones se conservan visibles en todas las páginas que consumen el contrato.</p></div>
+      </section>
+
+      <div class="quality-ledger" aria-label="Resumen de controles">
+        <div class="quality-metric"><span>Claves duplicadas</span><strong id="duplicateKeys">—</strong><small>Entre legajos</small></div>
+        <div class="quality-metric"><span>Cobertura sexo</span><strong id="genderCoverage">—</strong><small>Sobre activos derivados</small></div>
+        <div class="quality-metric"><span>Sin fecha de alta</span><strong id="missingHire">—</strong><small id="missingHirePct">—</small></div>
+        <div class="quality-metric"><span>Sin sector homologado</span><strong id="missingSector">—</strong><small id="missingSectorPct">—</small></div>
+        <div class="quality-metric"><span>Ausencias huérfanas</span><strong id="orphanAbsences">—</strong><small id="orphanAbsencePct">—</small></div>
+      </div>
+
+      <section class="section" id="controles" aria-labelledby="checksTitle">
+        <div class="section-header"><div><span class="section-index">01 · CONTROLES</span><h2 id="checksTitle">Matriz de validación</h2></div><p>El estado “revisar” no invalida todo el corte: indica que la excepción debe mantenerse fuera de una interpretación que dependa de ese campo.</p></div>
+        <div class="audit-table-wrap">
+          <table class="audit-table">
+            <thead><tr><th>Control</th><th>Resultado</th><th>Universo</th><th>Estado</th><th>Uso permitido</th></tr></thead>
+            <tbody id="auditRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="excepciones" aria-labelledby="exceptionsTitle">
+        <div class="section-header"><div><span class="section-index">02 · EXCEPCIONES</span><h2 id="exceptionsTitle">Casos que requieren revisión</h2></div><p>Magnitud relativa calculada contra el universo correspondiente. Las barras tienen escala propia y no deben compararse entre sí como severidad.</p></div>
+        <div class="exception-grid" id="exceptionGrid"></div>
+      </section>
+
+      <section class="section" id="reglas" aria-labelledby="rulesTitle">
+        <div class="section-header"><div><span class="section-index">03 · REGLAS DE LECTURA</span><h2 id="rulesTitle">Cómo se construyen los indicadores</h2></div><p>Las definiciones están separadas de la interfaz para que un cambio de criterio pueda versionarse y volver a auditarse.</p></div>
+        <div class="rule-grid">
+          <article class="rule"><h3>Legajo activo</h3><p>Se considera activo cuando la fecha de egreso está vacía. Es un proxy operativo, no un estado certificado por el área de Personal.</p><dl><dt>Numerador</dt><dd>Legajos sin fecha de egreso</dd><dt>Denominador</dt><dd>Total histórico de legajos</dd><dt>Estado</dt><dd>Derivado; requiere homologación municipal</dd></dl></article>
+          <article class="rule"><h3>Evento de ausencia</h3><p>Cada registro válido de la tabla de ausencias cuenta como un evento. Una misma persona puede aparecer más de una vez.</p><dl><dt>Unidad</dt><dd>Evento registrado</dd><dt>No representa</dt><dd>Días perdidos, duración ni tasa</dd><dt>Estado</dt><dd>Conteo verificado; semántica pendiente</dd></dl></article>
+          <article class="rule"><h3>Balance de movimientos</h3><p>Resta simple entre altas y bajas dentro de una ventana con fechas explícitas.</p><dl><dt>Cálculo</dt><dd>Altas menos bajas</dd><dt>No representa</dt><dd>Eficiencia, ahorro o calidad de servicio</dd><dt>Estado</dt><dd>Derivado de movimientos registrales</dd></dl></article>
+          <article class="rule"><h3>Privacidad del tablero público</h3><p>El archivo que alimenta estas páginas no contiene filas nominales y no publica grupos menores al umbral definido.</p><dl><dt>Grano</dt><dd id="privacyGrain">—</dd><dt>Umbral de publicación</dt><dd id="privacyThreshold">—</dd><dt>Detalle individual</dt><dd>Solo en el portal interno autenticado</dd></dl></article>
+        </div>
+      </section>
+
+      <section class="section" id="disponibilidad" aria-labelledby="availabilityTitle">
+        <div class="section-header"><div><span class="section-index">04 · DISPONIBILIDAD</span><h2 id="availabilityTitle">Contrato por dominio</h2></div><p>La ausencia de una fuente se muestra como tal. No se rellena con valores de demostración ni inferencias silenciosas.</p></div>
+        <div class="availability-grid" id="availabilityGrid"></div>
+        <div class="catalog-strip" id="catalogStrip" aria-label="Catálogos detectados"></div>
+      </section>
+
+      <section class="section" id="limites" aria-labelledby="limitsTitle">
+        <div class="section-header"><div><span class="section-index">05 · LÍMITES</span><h2 id="limitsTitle">Restricciones declaradas</h2></div><p>Estas observaciones viajan con el corte y condicionan el uso correcto del informe ejecutivo.</p></div>
+        <div class="limit-list" id="limitList"></div>
+      </section>
+
+      <section class="section" id="fuente" aria-labelledby="sourceTitle">
+        <div class="section-header"><div><span class="section-index">06 · TRAZABILIDAD</span><h2 id="sourceTitle">Identidad del corte</h2></div><p>Referencia suficiente para saber qué archivo agregado alimentó la publicación y cuándo fue generado.</p></div>
+        <div class="source-card"><dl>
+          <dt>Dataset</dt><dd id="traceDataset">—</dd>
+          <dt>Fecha y hora</dt><dd id="traceDate">—</dd>
+          <dt>Zona horaria</dt><dd id="traceTimezone">—</dd>
+          <dt>Método</dt><dd id="traceMethod">—</dd>
+          <dt>Alcance</dt><dd id="traceScope">—</dd>
+          <dt>SHA-256</dt><dd id="traceHash">—</dd>
+        </dl></div>
+      </section>
+
+      <section class="next-actions" aria-labelledby="nextTitle">
+        <div><h2 id="nextTitle">Elegir la vista adecuada</h2><p>El informe RRHH usa estas reglas; el portal interno consulta legajos completos con una sesión autorizada.</p></div>
+        <div class="actions"><a class="button primary" href="reportes-rrhh.html">Abrir informe RRHH</a><a class="button" href="/internal">Portal interno</a><a class="button" href="modulos.html">Mapa de producto</a></div>
+      </section>
+
+      <footer class="footer"><span>MuniControl Friendly · Registro de calidad</span><span id="footerSource">Fuente en preparación</span></footer>
+    </div>
+  </main>
+
+  <noscript><p style="margin:30px;padding:20px;border:1px solid #914b3d;background:#fff">Esta página necesita JavaScript para leer <code>friendly-data.json</code>.</p></noscript>
+  <script>
+    (function () {
+      'use strict';
+      const nf = new Intl.NumberFormat('es-AR');
+      const pf = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+      const dateFmt = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+      const byId = (id) => document.getElementById(id);
+      const safeNumber = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+      const setText = (id, value) => { const node = byId(id); if (node) node.textContent = value; };
+      const ratioPct = (value, total) => total > 0 ? safeNumber(value) / safeNumber(total) * 100 : 0;
+      const pctText = (value, total) => `${pf.format(ratioPct(value, total))}% del universo`;
+      const formatDateTime = (value) => {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? 'Fecha no disponible' : dateFmt.format(parsed);
+      };
+
+      const STATE_COPY = {
+        verified: { label: 'Verificado', className: 'good' },
+        derived: { label: 'Derivado', className: 'review' },
+        unavailable: { label: 'No disponible', className: 'blocked' }
+      };
+      const DOMAIN_COPY = {
+        workforce: ['Dotación', 'Conteos agregados del universo laboral; la condición activa continúa derivada.'],
+        managementComparison: ['Comparación de gestiones', 'Altas, bajas y balance con períodos exactos y advertencia de corte parcial.'],
+        absenceEvents: ['Eventos de ausencia', 'Conteo histórico utilizable; no equivale a días ni a una tasa.'],
+        payrollAmounts: ['Importes salariales', 'No hay una fuente utilizable para masa salarial o liquidaciones.'],
+        budgetExecution: ['Ejecución presupuestaria', 'No forma parte del corte GRH y requiere una fuente contable oficial.'],
+        currentLeaves: ['Licencias actuales', 'La tabla disponible termina en 2009 y no representa el estado actual.']
+      };
+      const CATALOG_COPY = { sectors: 'Sectores', categories: 'Categorías', unions: 'Sindicatos', agreements: 'Convenios' };
+
+      function makeState(status) {
+        const copy = STATE_COPY[status] || { label: status, className: 'review' };
+        const span = document.createElement('span');
+        span.className = `state ${copy.className}`;
+        span.textContent = copy.label;
+        return span;
+      }
+
+      function addAuditRow(host, control, result, universe, status, usage) {
+        const tr = document.createElement('tr');
+        [control, result, universe].forEach((value) => { const td = document.createElement('td'); td.textContent = value; tr.append(td); });
+        const stateCell = document.createElement('td');
+        stateCell.append(makeState(status));
+        const useCell = document.createElement('td');
+        useCell.textContent = usage;
+        tr.append(stateCell, useCell);
+        host.append(tr);
+      }
+
+      function renderAudit(data) {
+        const q = data.quality;
+        const rows = byId('auditRows');
+        rows.replaceChildren();
+        addAuditRow(rows, 'Unicidad de la clave de legajo', nf.format(q.employeeKeyDuplicates), nf.format(q.sourceCounts.employeeRecords), q.employeeKeyDuplicates === 0 ? 'verified' : 'derived', 'Búsqueda y agregación por legajo.');
+        addAuditRow(rows, 'Cobertura de sexo en activos', `${nf.format(q.activeGenderCoveragePct)}%`, nf.format(data.workforce.active), q.activeGenderCoveragePct === 100 ? 'verified' : 'derived', 'Distribución agregada por sexo.');
+        addAuditRow(rows, 'Fecha de alta informada', nf.format(q.sourceCounts.employeeRecords - q.missingHireDate), nf.format(q.sourceCounts.employeeRecords), 'derived', 'Series con excepción explícita; no imputar fechas.');
+        addAuditRow(rows, 'Sector homologado en activos', nf.format(data.workforce.active - q.activeWithoutMatchedSector), nf.format(data.workforce.active), 'derived', 'Distribución sectorial con grupo no homologado visible.');
+        addAuditRow(rows, 'Integridad referencial de ausencias', nf.format(q.sourceCounts.absenceEvents - q.absenceOrphans), nf.format(q.sourceCounts.absenceEvents), 'derived', 'Conteo agregado con huérfanos identificados.');
+        addAuditRow(rows, 'Fechas de ausencia dentro del rango', nf.format(q.sourceCounts.absenceEvents - q.absenceDatesBefore1900 - q.absenceDatesAfterSnapshot), nf.format(q.sourceCounts.absenceEvents), 'derived', 'Serie histórica con anomalías declaradas para revisión.');
+      }
+
+      function addException(host, title, value, total, description) {
+        const article = document.createElement('article');
+        article.className = 'exception';
+        const head = document.createElement('div');
+        head.className = 'exception-head';
+        const heading = document.createElement('h3');
+        heading.textContent = title;
+        const count = document.createElement('strong');
+        count.textContent = nf.format(value);
+        head.append(heading, count);
+        const paragraph = document.createElement('p');
+        paragraph.textContent = `${description} ${pctText(value, total)} (${nf.format(total)} registros).`;
+        const track = document.createElement('div');
+        track.className = 'exception-track';
+        const fill = document.createElement('div');
+        fill.className = 'exception-fill';
+        fill.style.setProperty('--width', `${Math.min(100, Math.max(.5, ratioPct(value, total)))}%`);
+        track.append(fill);
+        article.append(head, paragraph, track);
+        host.append(article);
+      }
+
+      function renderExceptions(data) {
+        const q = data.quality;
+        const host = byId('exceptionGrid');
+        host.replaceChildren();
+        addException(host, 'Sin fecha de alta', q.missingHireDate, q.sourceCounts.employeeRecords, 'No se imputa una fecha para completar la serie.');
+        addException(host, 'Fecha de alta placeholder', q.hireDatePlaceholders, q.sourceCounts.employeeRecords, 'Valor centinela que no debe interpretarse como fecha real.');
+        addException(host, 'Activos sin sector homologado', q.activeWithoutMatchedSector, data.workforce.active, 'Se conservan en un grupo visible y no se distribuyen por inferencia.');
+        addException(host, 'Ausencias huérfanas', q.absenceOrphans, q.sourceCounts.absenceEvents, 'No enlazan con un legajo del universo laboral importado.');
+        addException(host, 'Ausencias anteriores a 1900', q.absenceDatesBefore1900, q.sourceCounts.absenceEvents, 'Fechas materialmente anómalas que requieren revisión del origen.');
+        addException(host, 'Ausencias posteriores al corte', q.absenceDatesAfterSnapshot, q.sourceCounts.absenceEvents, 'Fechas que exceden el momento declarado del snapshot.');
+      }
+
+      function renderAvailability(data) {
+        const host = byId('availabilityGrid');
+        host.replaceChildren();
+        Object.entries(data.availability).forEach(([key, status]) => {
+          const copy = DOMAIN_COPY[key] || [key, 'Dominio sin descripción.'];
+          const article = document.createElement('article');
+          article.className = 'domain';
+          article.append(makeState(status));
+          const title = document.createElement('h3');
+          title.textContent = copy[0];
+          const paragraph = document.createElement('p');
+          paragraph.textContent = copy[1];
+          article.append(title, paragraph);
+          host.append(article);
+        });
+
+        const catalogs = byId('catalogStrip');
+        catalogs.replaceChildren();
+        Object.entries(data.quality.catalogCounts).forEach(([key, value]) => {
+          const item = document.createElement('div');
+          item.className = 'catalog';
+          const count = document.createElement('strong');
+          count.textContent = nf.format(value);
+          const label = document.createElement('span');
+          label.textContent = CATALOG_COPY[key] || key;
+          item.append(count, label);
+          catalogs.append(item);
+        });
+      }
+
+      function renderLimits(limitations) {
+        const host = byId('limitList');
+        host.replaceChildren();
+        limitations.forEach((text, index) => {
+          const row = document.createElement('div');
+          row.className = 'limit';
+          const number = document.createElement('b');
+          number.textContent = String(index + 1).padStart(2, '0');
+          const paragraph = document.createElement('p');
+          paragraph.textContent = text;
+          row.append(number, paragraph);
+          host.append(row);
+        });
+      }
+
+      function fill(data) {
+        const q = data.quality;
+        const snapshot = formatDateTime(data.source.snapshotAt);
+        setText('sourceName', data.source.dataset);
+        setText('sourceDate', snapshot);
+        byId('sourceDate').dateTime = data.source.snapshotAt;
+        setText('duplicateKeys', nf.format(q.employeeKeyDuplicates));
+        setText('genderCoverage', `${nf.format(q.activeGenderCoveragePct)}%`);
+        setText('missingHire', nf.format(q.missingHireDate));
+        setText('missingHirePct', pctText(q.missingHireDate, q.sourceCounts.employeeRecords));
+        setText('missingSector', nf.format(q.activeWithoutMatchedSector));
+        setText('missingSectorPct', pctText(q.activeWithoutMatchedSector, data.workforce.active));
+        setText('orphanAbsences', nf.format(q.absenceOrphans));
+        setText('orphanAbsencePct', pctText(q.absenceOrphans, q.sourceCounts.absenceEvents));
+        setText('privacyGrain', data.privacy.grain === 'aggregate' ? 'Agregado' : data.privacy.grain);
+        setText('privacyThreshold', `${nf.format(data.privacy.minimumPublishedGroupSize)} registros por grupo`);
+        setText('traceDataset', data.source.dataset);
+        setText('traceDate', snapshot);
+        setText('traceTimezone', data.source.timezone === 'not_recorded_in_dump' ? 'No registrada en el dump' : data.source.timezone);
+        setText('traceMethod', data.source.method);
+        setText('traceScope', data.source.scope);
+        setText('traceHash', data.source.sha256);
+        setText('footerSource', `${data.source.dataset} · corte ${snapshot} · contrato ${data.schemaVersion}`);
+        renderAudit(data);
+        renderExceptions(data);
+        renderAvailability(data);
+        renderLimits(data.source.limitations);
+      }
+
+      async function start() {
+        try {
+          const response = await fetch('friendly-data.json', { cache: 'no-store', headers: { Accept: 'application/json' } });
+          if (!response.ok) throw new Error(`La fuente respondió HTTP ${response.status}.`);
+          const data = await response.json();
+          if (!data?.quality || !data?.availability || !data?.source || !data?.privacy) throw new Error('El archivo no cumple el contrato de calidad esperado.');
+          fill(data);
+          byId('loading').hidden = true;
+          byId('content').hidden = false;
+        } catch (error) {
+          byId('loading').hidden = true;
+          byId('loadError').hidden = false;
+          byId('loadError').textContent = `No se pudo abrir el registro de calidad: ${error.message} Reintentá cuando friendly-data.json esté disponible.`;
+        }
+      }
+      start();
+    }());
+  </script>
+</body>
+</html>
