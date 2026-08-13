@@ -157,6 +157,8 @@
       gap: 12px;
       padding: 0 8px 24px;
       border-bottom: 1px solid rgba(255, 255, 255, .15);
+      color: inherit;
+      text-decoration: none;
     }
 
     .brand-mark { background: #fff; color: var(--navy); }
@@ -187,7 +189,7 @@
 
     .nav-button:hover { background: rgba(255, 255, 255, .07); color: #fff; }
     .nav-button[aria-current="page"] {
-      background: #fff;
+      background: #f8f5ec;
       color: var(--navy);
       font-weight: 800;
     }
@@ -239,15 +241,37 @@
       gap: 20px;
       padding: 16px clamp(18px, 3.2vw, 44px);
       border-bottom: 1px solid var(--line);
-      background: rgba(255, 255, 255, .96);
+      background: var(--paper);
     }
 
-    .user-context { min-width: 0; }
-    .user-context small { display: block; color: var(--ink-soft); }
-    .user-context strong {
+    .topbar-context { min-width: 0; flex: 1 1 auto; }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: var(--ink-soft);
+      font-size: .72rem;
+      white-space: nowrap;
+    }
+    .breadcrumb a { color: var(--blue); font-weight: 750; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .topbar-context > strong {
+      display: block;
+      margin-top: 2px;
+      max-width: 52vw;
+      overflow: hidden;
+      color: var(--navy);
+      font-size: .96rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .session-context {
       display: block;
       max-width: 52vw;
       overflow: hidden;
+      color: var(--ink-soft);
+      font-size: .72rem;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -255,7 +279,7 @@
     .topbar-actions { display: flex; align-items: center; gap: 8px; }
 
     .button {
-      min-height: 42px;
+      min-height: 44px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -484,6 +508,35 @@
       margin-bottom: 18px;
     }
 
+    .directory-filters {
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f8faf9;
+    }
+
+    .directory-filters .search-field { grid-column: span 2; }
+    .directory-filters .filter-actions { align-self: end; }
+
+    .directory-scope {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .scope-fact {
+      min-width: 0;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .scope-fact span { display: block; color: var(--ink-soft); font-size: .69rem; font-weight: 850; letter-spacing: .035em; text-transform: uppercase; }
+    .scope-fact strong { display: block; margin-top: 4px; color: var(--navy); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
     .field { min-width: 0; }
     .field label { display: block; margin-bottom: 6px; color: var(--ink-soft); font-size: .75rem; font-weight: 850; }
 
@@ -554,6 +607,11 @@
     .state-pill.active { color: #185c46; background: var(--green-soft); }
     .state-pill.inactive { color: #5d6e74; background: #e9edec; }
     .state-pill.unknown { color: #72480f; background: var(--amber-soft); }
+    .state-pill.matched { color: #185c46; background: var(--green-soft); }
+    .state-pill.ambiguous { color: #72480f; background: var(--amber-soft); }
+    .state-pill.unmatched, .state-pill.not-loaded { color: #5d6e74; background: #e9edec; }
+    .cell-stack { display: grid; gap: 3px; min-width: 150px; }
+    .cell-stack small { color: var(--ink-soft); font-size: .71rem; }
 
     .table-message { padding: 34px 18px; text-align: center; color: var(--ink-soft); }
     .table-message strong { display: block; margin-bottom: 5px; color: var(--ink); }
@@ -700,7 +758,7 @@
 
     .detail-counts {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
     }
 
@@ -768,7 +826,7 @@
     }
 
     .trace-details > summary {
-      min-height: 42px;
+      min-height: 44px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -816,18 +874,10 @@
       color: transparent !important;
       border-radius: 5px;
       background: #e8edeb;
+      animation: skeleton-pulse 1.2s ease-in-out infinite;
     }
 
-    .skeleton::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
-      animation: shimmer 1.2s infinite;
-    }
-
-    @keyframes shimmer { to { transform: translateX(100%); } }
+    @keyframes skeleton-pulse { 50% { background: #dbe3df; } }
 
     @media (max-width: 1080px) {
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -850,16 +900,24 @@
       .brand small { display: none; }
       .primary-nav {
         display: flex;
+        flex-wrap: wrap;
         gap: 6px;
         margin: 0;
         padding-bottom: 2px;
+        overflow: visible;
+      }
+      .primary-nav .nav-button { flex: 1 1 110px; min-width: 0; justify-content: center; }
+      .suite-links {
+        display: flex;
+        gap: 6px;
+        margin-top: 6px;
+        padding-top: 6px;
         overflow-x: auto;
+        border-top-color: rgba(255, 255, 255, .12);
         scrollbar-width: thin;
       }
-      .suite-links { display: contents; }
       .suite-label { display: none; }
       .nav-button { width: auto; min-width: max-content; padding: 8px 10px; }
-      .nav-index { display: none; }
       .sidebar-source { display: none; }
       .topbar { min-height: 70px; }
       .dashboard-grid, .quality-grid { grid-template-columns: 1fr; }
@@ -868,12 +926,13 @@
 
     @media (max-width: 620px) {
       .topbar { align-items: flex-start; padding: 12px 16px; }
-      .user-context strong { max-width: 44vw; }
-      .topbar-actions .button span { display: none; }
-      .topbar-actions .button { width: 42px; padding: 0; }
+      .topbar-context > strong, .session-context { max-width: 46vw; }
+      .topbar-actions { gap: 6px; }
+      .topbar-actions .button { min-height: 44px; padding: 8px 10px; font-size: .76rem; }
       .main-content { padding-top: 28px; }
       .page-heading { display: block; }
-      .kpi-grid, .availability-grid, .filters, .detail-fields, .detail-counts { grid-template-columns: 1fr; }
+      .kpi-grid, .availability-grid, .filters, .detail-fields, .detail-counts, .directory-scope { grid-template-columns: 1fr; }
+      .directory-filters .search-field { grid-column: auto; }
       .kpi-card { min-height: 154px; }
       .filter-actions .button { flex: 1; }
       .table-meta { display: block; }
@@ -952,34 +1011,33 @@
 
   <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" aria-label="Navegación principal">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">MC</span>
+      <a class="brand" href="internal-dashboard.html#inicio" aria-label="MuniControl, inicio interno">
+        <span class="brand-mark" aria-hidden="true">M</span>
         <div>
           <strong>MuniControl</strong>
           <small>Junín, Mendoza · Uso interno</small>
         </div>
-      </div>
+      </a>
 
-      <nav class="primary-nav" aria-label="Secciones">
+      <nav class="primary-nav" aria-label="Navegación principal">
         <button class="nav-button" type="button" data-view="inicio" aria-controls="view-inicio">
-          <span class="nav-index" aria-hidden="true">01</span><span>Inicio</span>
+          <span class="nav-index" aria-hidden="true">IN</span><span>Inicio</span>
         </button>
         <button class="nav-button" type="button" data-view="legajos" aria-controls="view-legajos">
-          <span class="nav-index" aria-hidden="true">02</span><span>Legajos</span>
+          <span class="nav-index" aria-hidden="true">PE</span><span>Personas</span>
         </button>
-        <button class="nav-button" type="button" data-view="ausentismo" aria-controls="view-ausentismo">
-          <span class="nav-index" aria-hidden="true">03</span><span>Ausentismo</span>
-        </button>
-        <button class="nav-button" type="button" data-view="calidad" aria-controls="view-calidad">
-          <span class="nav-index" aria-hidden="true">04</span><span>Calidad</span>
-        </button>
+        <a class="nav-button" href="estructura.html"><span class="nav-index" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a class="nav-button" href="integracion-datos.html"><span class="nav-index" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a class="nav-button" href="nomina-control.html"><span class="nav-index" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a class="nav-button" href="asistente.html"><span class="nav-index" aria-hidden="true">IA</span><span>Asistente</span></a>
       </nav>
 
-      <nav class="suite-links" aria-label="Suite municipal">
-        <span class="suite-label">Suite municipal</span>
-        <a class="nav-button" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
+      <nav class="suite-links" aria-label="Herramientas internas">
+        <span class="suite-label">Herramientas</span>
+        <button class="nav-button" type="button" data-view="ausentismo" aria-controls="view-ausentismo"><span class="nav-index" aria-hidden="true">AU</span><span>Ausentismo</span></button>
+        <button class="nav-button" type="button" data-view="calidad" aria-controls="view-calidad"><span class="nav-index" aria-hidden="true">CD</span><span>Calidad</span></button>
         <a class="nav-button" href="reportes-rrhh.html"><span class="nav-index" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
-        <a class="nav-button" href="estructura.html"><span class="nav-index" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a class="nav-button" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
         <a class="nav-button" href="modulos.html"><span class="nav-index" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
       </nav>
 
@@ -991,17 +1049,14 @@
 
     <div class="workspace">
       <header class="topbar">
-        <div class="user-context">
-          <small id="userRole">Usuario interno</small>
-          <strong id="userName">Cargando…</strong>
+        <div class="topbar-context">
+          <nav class="breadcrumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span id="breadcrumbCurrent" aria-current="page">Inicio</span></nav>
+          <strong id="topbarViewTitle">Panel interno</strong>
+          <span class="session-context"><span id="userRole">Usuario interno</span> · <span id="userName">Cargando…</span></span>
         </div>
         <div class="topbar-actions">
-          <button class="button" id="refreshButton" type="button" aria-label="Actualizar datos">
-            <span aria-hidden="true">↻</span><span>Actualizar</span>
-          </button>
-          <button class="button quiet danger" id="logoutButton" type="button" aria-label="Cerrar sesión">
-            <span aria-hidden="true">↪</span><span>Cerrar sesión</span>
-          </button>
+          <button class="button" id="refreshButton" type="button">Actualizar</button>
+          <button class="button quiet danger" id="logoutButton" type="button">Salir</button>
         </div>
       </header>
 
@@ -1010,7 +1065,7 @@
           <header class="page-heading">
             <div>
               <p class="eyebrow">Panorama interno</p>
-              <h1 id="inicioTitle" tabindex="-1">El estado municipal, sin ruido.</h1>
+              <h1 id="inicioTitle" tabindex="-1">Panel interno de gestión municipal</h1>
               <p class="page-lead">Indicadores informados por la API interna y cálculos simples identificados de forma explícita.</p>
               <div class="status-line" id="summaryStatus" role="status" aria-live="polite">
                 <span class="status-dot loading" aria-hidden="true"></span>
@@ -1093,18 +1148,25 @@
         <section class="view" id="view-legajos" data-section="legajos" aria-labelledby="legajosTitle" hidden>
           <header class="page-heading">
             <div>
-              <p class="eyebrow">Consulta nominal</p>
-              <h1 id="legajosTitle" tabindex="-1">Legajos</h1>
-              <p class="page-lead">Buscá por nombre o legajo y abrí sólo el registro que necesitás consultar.</p>
+              <p class="eyebrow">Directorio interno · GRH como fuente laboral</p>
+              <h1 id="legajosTitle" tabindex="-1">Personas y legajos</h1>
+              <p class="page-lead">Encontrá una ficha por nombre, legajo, DNI o CUIL. PERSONAS sólo amplía identidad y territorio cuando el vínculo está validado.</p>
             </div>
           </header>
 
           <section class="panel" aria-labelledby="employeeTableTitle">
-            <h2 class="sr-only" id="employeeTableTitle">Listado de legajos</h2>
-            <form class="filters" id="employeeFilters" role="search">
-              <div class="field">
-                <label for="employeeSearch">Nombre o legajo</label>
-                <input class="input" id="employeeSearch" name="search" type="search" autocomplete="off" placeholder="Escribí para buscar…">
+            <h2 class="sr-only" id="employeeTableTitle">Directorio de personas y legajos</h2>
+            <div class="directory-scope" id="directoryScope" aria-label="Cobertura del directorio" aria-live="polite">
+              <div class="scope-fact"><span>Legajos</span><strong id="scopeContracts">—</strong></div>
+              <div class="scope-fact"><span>Personas GRH</span><strong id="scopePeople">—</strong></div>
+              <div class="scope-fact"><span>Vinculadas</span><strong id="scopeMatched">—</strong></div>
+              <div class="scope-fact"><span>Ambiguas</span><strong id="scopeAmbiguous">—</strong></div>
+              <div class="scope-fact"><span>Sin coincidencia</span><strong id="scopeUnmatched">—</strong></div>
+            </div>
+            <form class="filters directory-filters" id="employeeFilters" role="search">
+              <div class="field search-field">
+                <label for="employeeSearch">Nombre, legajo, DNI o CUIL</label>
+                <input class="input" id="employeeSearch" name="search" type="search" autocomplete="off" placeholder="Ej.: apellido, 1042 o documento">
               </div>
               <div class="field">
                 <label for="sectorFilter">Sector</label>
@@ -1113,11 +1175,36 @@
                 </select>
               </div>
               <div class="field">
-                <label for="statusFilter">Estado</label>
+                <label for="organizationFilter">Organización</label>
+                <select class="select" id="organizationFilter" name="organization">
+                  <option value="">Todas las organizaciones</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="agreementFilter">Convenio</label>
+                <select class="select" id="agreementFilter" name="agreement">
+                  <option value="">Todos los convenios</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="statusFilter">Situación</label>
                 <select class="select" id="statusFilter" name="status">
-                  <option value="">Todos</option>
-                  <option value="active">Activos</option>
-                  <option value="inactive">Inactivos</option>
+                  <option value="all">Todas</option>
+                  <option value="administrative_active">Activos administrativos</option>
+                  <option value="liquidable">Incluidos en liquidación</option>
+                  <option value="gap">Activos fuera de liquidación</option>
+                  <option value="inactive">Inactivos administrativos</option>
+                  <option value="state_error">Estado a revisar</option>
+                  <option value="unknown">Sin clasificación</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="crosswalkFilter">Integración PERSONAS</label>
+                <select class="select" id="crosswalkFilter" name="crosswalk">
+                  <option value="all">Todas</option>
+                  <option value="matched">Vínculo validado</option>
+                  <option value="ambiguous">Caso ambiguo</option>
+                  <option value="unmatched">Sin coincidencia</option>
                 </select>
               </div>
               <div class="filter-actions">
@@ -1138,10 +1225,10 @@
                   <tr>
                     <th scope="col">Legajo</th>
                     <th scope="col">Nombre</th>
-                    <th scope="col">Estado</th>
-                    <th scope="col">Sector</th>
-                    <th scope="col">Categoría</th>
-                    <th scope="col">Ingreso</th>
+                    <th scope="col">Situación</th>
+                    <th scope="col">Organización / sector</th>
+                    <th scope="col">Convenio / cargo</th>
+                    <th scope="col">Integración</th>
                     <th scope="col"><span class="sr-only">Acciones</span></th>
                   </tr>
                 </thead>
@@ -1307,12 +1394,16 @@
         currentView: 'inicio',
         employeesLoaded: false,
         employeesLoading: false,
+        employeeLastQuery: null,
         employeeRequest: 0,
         employeeController: null,
         detailController: null,
-        filters: { search: '', sector: '', status: '' },
+        filters: { search: '', sector: '', organization: '', agreement: '', status: 'all', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
-        sectors: new Set()
+        directoryFacetsLoaded: false,
+        sectors: new Set(),
+        organizations: new Set(),
+        agreements: new Set()
       };
 
       const els = {
@@ -1323,6 +1414,8 @@
         retryAuth: document.getElementById('retryAuth'),
         appShell: document.getElementById('appShell'),
         mainContent: document.getElementById('mainContent'),
+        breadcrumbCurrent: document.getElementById('breadcrumbCurrent'),
+        topbarViewTitle: document.getElementById('topbarViewTitle'),
         userName: document.getElementById('userName'),
         userRole: document.getElementById('userRole'),
         refreshButton: document.getElementById('refreshButton'),
@@ -1343,8 +1436,16 @@
         employeeFilters: document.getElementById('employeeFilters'),
         employeeSearch: document.getElementById('employeeSearch'),
         sectorFilter: document.getElementById('sectorFilter'),
+        organizationFilter: document.getElementById('organizationFilter'),
+        agreementFilter: document.getElementById('agreementFilter'),
         statusFilter: document.getElementById('statusFilter'),
+        crosswalkFilter: document.getElementById('crosswalkFilter'),
         clearFilters: document.getElementById('clearFilters'),
+        scopeContracts: document.getElementById('scopeContracts'),
+        scopePeople: document.getElementById('scopePeople'),
+        scopeMatched: document.getElementById('scopeMatched'),
+        scopeAmbiguous: document.getElementById('scopeAmbiguous'),
+        scopeUnmatched: document.getElementById('scopeUnmatched'),
         employeeResultCount: document.getElementById('employeeResultCount'),
         employeeTableWrap: document.getElementById('employeeTableWrap'),
         employeeRows: document.getElementById('employeeRows'),
@@ -1572,7 +1673,10 @@
           window.history.pushState(null, '', '#' + target);
         }
 
-        document.title = ({ inicio: 'Inicio', legajos: 'Legajos', ausentismo: 'Ausentismo', calidad: 'Calidad' })[target] + ' | MuniControl';
+        const viewLabel = ({ inicio: 'Inicio', legajos: 'Personas', ausentismo: 'Ausentismo', calidad: 'Calidad de datos' })[target];
+        els.breadcrumbCurrent.textContent = viewLabel;
+        els.topbarViewTitle.textContent = viewLabel;
+        document.title = viewLabel + ' | MuniControl';
 
         if (target === 'legajos' && !state.employeesLoaded && !state.employeesLoading) loadEmployees(1);
         if (focusHeading !== false) {
@@ -1933,6 +2037,47 @@
         }
       }
 
+      function refreshFacetOptions(select, values, allLabel) {
+        const selected = select.value;
+        const fragment = document.createDocumentFragment();
+        const all = create('option', '', allLabel);
+        all.value = '';
+        fragment.appendChild(all);
+        Array.from(values).sort(function (a, b) { return a.localeCompare(b, 'es', { sensitivity: 'base' }); }).forEach(function (value) {
+          const option = create('option', '', value);
+          option.value = value;
+          fragment.appendChild(option);
+        });
+        select.replaceChildren(fragment);
+        if (Array.from(select.options).some(function (option) { return option.value === selected; })) select.value = selected;
+      }
+
+      function collectDirectoryFacets(facets) {
+        if (!facets || typeof facets !== 'object') return;
+        const add = function (rows, target) {
+          if (!Array.isArray(rows)) return;
+          rows.forEach(function (row) {
+            const value = text(row && typeof row === 'object' ? row.value : row);
+            if (value) target.add(value);
+          });
+        };
+        add(facets.sectors, state.sectors);
+        add(facets.organizations, state.organizations);
+        add(facets.agreements, state.agreements);
+        refreshSectorOptions();
+        refreshFacetOptions(els.organizationFilter, state.organizations, 'Todas las organizaciones');
+        refreshFacetOptions(els.agreementFilter, state.agreements, 'Todos los convenios');
+      }
+
+      function renderDirectoryScope(scope) {
+        const source = scope && typeof scope === 'object' ? scope : {};
+        els.scopeContracts.textContent = formatNumber(nonNegativeNumber(source.totalContracts));
+        els.scopePeople.textContent = formatNumber(nonNegativeNumber(source.totalPeople));
+        els.scopeMatched.textContent = formatNumber(nonNegativeNumber(source.matched));
+        els.scopeAmbiguous.textContent = formatNumber(nonNegativeNumber(source.ambiguous));
+        els.scopeUnmatched.textContent = formatNumber(nonNegativeNumber(source.unmatched));
+      }
+
       function normalizeEmployees(payload) {
         const rows = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload.employees) ? payload.employees : []);
         const pagination = payload.pagination && typeof payload.pagination === 'object' ? payload.pagination : {};
@@ -1941,7 +2086,12 @@
         const total = nonNegativeNumber(pagination.total);
         let pages = nonNegativeNumber(pagination.pages);
         if (pages === null && total !== null && limit > 0) pages = Math.max(1, Math.ceil(total / limit));
-        return { rows: rows, pagination: { page: page, limit: limit, total: total, pages: pages } };
+        return {
+          rows: rows,
+          pagination: { page: page, limit: limit, total: total, pages: pages },
+          scope: payload && payload.scope && typeof payload.scope === 'object' ? payload.scope : {},
+          facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {}
+        };
       }
 
       function employeeQuery(page) {
@@ -1949,7 +2099,11 @@
         params.set('resource', 'employees');
         params.set('search', state.filters.search);
         params.set('sector', state.filters.sector);
+        params.set('organization', state.filters.organization);
+        params.set('agreement', state.filters.agreement);
         params.set('status', state.filters.status);
+        params.set('crosswalk', state.filters.crosswalk);
+        params.set('includeFacets', state.directoryFacetsLoaded ? '0' : '1');
         params.set('page', String(page));
         params.set('limit', String(PAGE_LIMIT));
         return DATA_URL + '?' + params.toString();
@@ -1972,19 +2126,25 @@
       }
 
       async function loadEmployees(page) {
+        const query = employeeQuery(page);
+        if (state.employeesLoading && state.employeeLastQuery === query) return;
         if (state.employeeController) state.employeeController.abort();
         const controller = new AbortController();
         state.employeeController = controller;
+        state.employeeLastQuery = query;
         const requestId = ++state.employeeRequest;
         const hasRows = state.employeesLoaded && els.employeeRows.querySelector('[data-legajo]');
         setEmployeesLoading(Boolean(hasRows));
 
         try {
-          const payload = await requestJSON(employeeQuery(page), { signal: controller.signal });
+          const payload = await requestJSON(query, { signal: controller.signal });
           if (requestId !== state.employeeRequest) return;
           const result = normalizeEmployees(payload);
           state.pagination = result.pagination;
           state.employeesLoaded = true;
+          collectDirectoryFacets(result.facets);
+          if (Object.keys(result.facets).length) state.directoryFacetsLoaded = true;
+          renderDirectoryScope(result.scope);
           collectRowSectors(result.rows);
           renderEmployees(result.rows, result.pagination);
         } catch (error) {
@@ -1999,11 +2159,51 @@
         }
       }
 
-      function statusDisplay(value) {
-        const normalized = normalizeBoolean(value);
-        if (normalized === true) return { label: 'Activo', className: 'active' };
+      function statusDisplay(value, activeFallback) {
+        const status = text(value).toLowerCase();
+        const labels = {
+          active: 'Activo administrativo',
+          suspended: 'Suspendido',
+          leave_without_pay: 'Licencia sin goce',
+          pending_termination: 'Baja pendiente',
+          state_error: 'Estado a revisar',
+          inactive: 'Inactivo',
+          unknown: 'Sin clasificación'
+        };
+        if (labels[status]) {
+          return {
+            label: labels[status],
+            className: ['active', 'suspended', 'leave_without_pay', 'pending_termination'].includes(status) ? 'active' : (status === 'inactive' ? 'inactive' : 'unknown')
+          };
+        }
+        const normalized = normalizeBoolean(activeFallback === undefined ? value : activeFallback);
+        if (normalized === true) return { label: 'Activo administrativo', className: 'active' };
         if (normalized === false) return { label: 'Inactivo', className: 'inactive' };
         return { label: 'No disponible', className: 'unknown' };
+      }
+
+      function crosswalkDisplay(value) {
+        const normalized = text(value).toLowerCase();
+        return ({
+          matched: { label: 'Vínculo validado', className: 'matched' },
+          ambiguous: { label: 'Caso ambiguo', className: 'ambiguous' },
+          unmatched: { label: 'Sin coincidencia', className: 'unmatched' },
+          rejected: { label: 'Vínculo rechazado', className: 'unmatched' },
+          not_loaded: { label: 'No cargado', className: 'not-loaded' }
+        })[normalized] || { label: 'No disponible', className: 'not-loaded' };
+      }
+
+      function controlStateLabel(value) {
+        const normalized = text(value).toLowerCase();
+        return ({
+          liquidado_en_corrida_cerrada: 'Liquidado · corrida cerrada',
+          incluido_en_corrida_abierta: 'Incluido · corrida abierta',
+          active_not_liquidated_never_observed: 'Activo nunca liquidado',
+          active_not_liquidated_historical: 'Activo sin liquidación actual',
+          active_not_liquidated_prior_cycle: 'Activo en ciclo anterior',
+          inactivo_administrativo: 'Inactivo administrativo',
+          sin_clasificar: 'Sin clasificar'
+        })[normalized] || (text(value) ? readableKey(value, 'control') : 'No disponible');
       }
 
       function appendCell(row, label, content, className) {
@@ -2015,12 +2215,16 @@
         return cell;
       }
 
-      function detailButton(label, legajo, fallbackName, className) {
+      function detailButton(label, employee, className) {
         const button = create('button', className || 'link-button', label);
         button.type = 'button';
-        button.dataset.legajo = text(legajo);
-        button.dataset.name = text(fallbackName);
-        button.addEventListener('click', function () { openEmployee(button.dataset.legajo, button.dataset.name); });
+        button.dataset.contractId = text(employee.contractId);
+        button.dataset.companyId = text(employee.companyId);
+        button.dataset.legajo = text(employee.legajo);
+        button.dataset.name = text(employee.nombre);
+        button.addEventListener('click', function () {
+          openEmployee(button.dataset.contractId, button.dataset.legajo, button.dataset.companyId, button.dataset.name);
+        });
         return button;
       }
 
@@ -2038,14 +2242,30 @@
             const row = create('tr');
             const legajo = text(employee.legajo);
             const name = text(employee.nombre);
-            const status = statusDisplay(employee.activo);
+            const status = statusDisplay(employee.administrativeStatus, employee.activo);
+            const integration = crosswalkDisplay(employee.crosswalkStatus);
+            const organization = create('div', 'cell-stack');
+            organization.append(
+              create('span', '', displayValue(employee.organizacion)),
+              create('small', '', displayValue(employee.sector))
+            );
+            const employment = create('div', 'cell-stack');
+            employment.append(
+              create('span', '', displayValue(employee.convenio)),
+              create('small', '', displayValue(employee.cargo))
+            );
+            const situation = create('div', 'cell-stack');
+            situation.append(
+              create('span', 'state-pill ' + status.className, status.label),
+              create('small', '', controlStateLabel(employee.controlState))
+            );
             appendCell(row, 'Legajo', legajo || '—', legajo ? '' : 'cell-muted');
-            appendCell(row, 'Nombre', legajo ? detailButton(name || 'Sin nombre informado', legajo, name) : (name || '—'), 'cell-name');
-            appendCell(row, 'Estado', create('span', 'state-pill ' + status.className, status.label));
-            appendCell(row, 'Sector', displayValue(employee.sector), 'cell-sector' + (text(employee.sector) ? '' : ' cell-muted'));
-            appendCell(row, 'Categoría', displayValue(employee.categoria), text(employee.categoria) ? '' : 'cell-muted');
-            appendCell(row, 'Ingreso', employee.fechaIngreso ? formatDate(employee.fechaIngreso) : '—', employee.fechaIngreso ? '' : 'cell-muted');
-            appendCell(row, 'Acciones', legajo ? detailButton('Ver ficha', legajo, name, 'button') : create('span', 'cell-muted', 'No disponible'));
+            appendCell(row, 'Nombre', legajo ? detailButton(name || 'Sin nombre informado', employee) : (name || '—'), 'cell-name');
+            appendCell(row, 'Situación', situation);
+            appendCell(row, 'Organización / sector', organization, 'cell-sector');
+            appendCell(row, 'Convenio / cargo', employment);
+            appendCell(row, 'Integración', create('span', 'state-pill ' + integration.className, integration.label));
+            appendCell(row, 'Acciones', legajo ? detailButton('Ver ficha', employee, 'button') : create('span', 'cell-muted', 'No disponible'));
             els.employeeRows.appendChild(row);
           });
         }
@@ -2087,7 +2307,10 @@
       function applyFilters() {
         state.filters.search = els.employeeSearch.value.trim();
         state.filters.sector = els.sectorFilter.value;
+        state.filters.organization = els.organizationFilter.value;
+        state.filters.agreement = els.agreementFilter.value;
         state.filters.status = els.statusFilter.value;
+        state.filters.crosswalk = els.crosswalkFilter.value;
         loadEmployees(1);
       }
 
@@ -2099,6 +2322,12 @@
           absences: Array.isArray(data.ausencias) ? data.ausencias : [],
           leaves: Array.isArray(data.licencias) ? data.licencias : [],
           family: Array.isArray(data.familiares) ? data.familiares : [],
+          movements: Array.isArray(data.movements) ? data.movements : [],
+          unions: Array.isArray(data.unionMemberships) ? data.unionMemberships : [],
+          employmentHistory: Array.isArray(data.employmentHistory) ? data.employmentHistory : [],
+          identityAssertions: Array.isArray(data.identityAssertions) ? data.identityAssertions : [],
+          sourceReferences: Array.isArray(data.sourceReferences) ? data.sourceReferences : [],
+          personas: data.personas && typeof data.personas === 'object' ? data.personas : { available: false, status: 'not_loaded' },
           meta: meta
         };
       }
@@ -2117,8 +2346,8 @@
         else els.employeeDialog.removeAttribute('open');
       }
 
-      async function openEmployee(legajo, fallbackName) {
-        if (!text(legajo)) return;
+      async function openEmployee(contractId, legajo, companyId, fallbackName) {
+        if (!text(contractId) && !text(legajo)) return;
         if (state.detailController) state.detailController.abort();
         const controller = new AbortController();
         state.detailController = controller;
@@ -2131,26 +2360,32 @@
         els.dialogBody.appendChild(loading);
         showDialog();
 
-        const params = new URLSearchParams({ resource: 'employee', legajo: legajo });
+        const params = new URLSearchParams({ resource: 'employee' });
+        if (text(contractId)) params.set('contractId', contractId);
+        else {
+          params.set('legajo', legajo);
+          if (text(companyId)) params.set('companyId', companyId);
+        }
         try {
           const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
           const detail = normalizeEmployeeDetail(payload);
           renderEmployeeDetail(detail);
         } catch (error) {
           if (error.name === 'AbortError' || error instanceof UnauthorizedError) return;
-          renderDetailError(error, legajo, fallbackName);
+          renderDetailError(error, contractId, legajo, companyId, fallbackName);
         } finally {
           els.dialogBody.setAttribute('aria-busy', 'false');
         }
       }
 
-      function detailField(label, value, formatter) {
+      function detailField(label, value, formatter, evidenceType) {
         const available = value !== null && value !== undefined && text(value) !== '';
         const field = create('div', 'detail-field');
         const term = create('dt', '', label);
         const output = available ? (formatter ? formatter(value) : text(value)) : '—';
         const definition = create('dd', '', output);
-        field.append(term, definition, create('span', 'evidence ' + (available ? 'source' : 'unavailable'), available ? 'Fuente' : 'No disponible'));
+        const type = available ? (evidenceType || 'source') : 'unavailable';
+        field.append(term, definition, create('span', 'evidence ' + type, evidenceLabel(type)));
         return field;
       }
 
@@ -2168,10 +2403,11 @@
         return card;
       }
 
-      function detailSection(title, subtitle, fields) {
+      function detailSection(title, subtitle, fields, evidenceType) {
         const section = create('section', 'detail-section');
         const head = create('div', 'detail-section-head');
-        head.append(create('h3', '', title), create('span', 'evidence source', 'Fuente'));
+        const type = evidenceType || 'source';
+        head.append(create('h3', '', title), create('span', 'evidence ' + type, evidenceLabel(type)));
         section.appendChild(head);
         if (subtitle) section.appendChild(create('p', 'detail-section-copy', subtitle));
         const list = create('dl', 'detail-fields');
@@ -2366,36 +2602,235 @@
         return node;
       }
 
+      function formatConfidence(value) {
+        const number = finiteNumber(value);
+        return number === null ? '—' : percentFormatter.format(number);
+      }
+
+      function payrollStatusLabel(value) {
+        return ({
+          liquidated: 'Liquidado',
+          preliquidated: 'Preliquidado',
+          not_liquidated: 'No liquidado',
+          not_applicable: 'No aplicable',
+          unknown: 'Sin clasificar'
+        })[text(value).toLowerCase()] || 'No disponible';
+      }
+
+      function renderPersonasSection(detail) {
+        const personas = detail.personas;
+        const display = crosswalkDisplay(personas.status);
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', 'Enriquecimiento PERSONAS'), create('span', 'state-pill ' + display.className, display.label));
+        section.appendChild(head);
+        const explanation = create('div', personas.available ? 'notice' : 'notice warning');
+        explanation.textContent = personas.available
+          ? 'Vínculo validado por evidencia. PERSONAS complementa identidad, domicilio y territorio; nunca modifica la situación laboral de GRH.'
+          : (text(personas.reason) || 'No hay enriquecimiento PERSONAS utilizable para esta identidad.');
+        section.appendChild(explanation);
+        section.appendChild(detailSection('Evidencia del vínculo', '', [
+          detailField('Estado', display.label, null, personas.available ? 'source' : 'unavailable'),
+          detailField('Método', personas.matchMethod),
+          detailField('Confianza', personas.confidence, formatConfidence),
+          detailField('ID original PERSONAS', personas.sourceId),
+          detailField('Vigente desde', personas.validFrom, formatDate)
+        ], personas.available ? 'source' : 'unavailable'));
+        if (!personas.available) return section;
+
+        const contact = personas.contact && typeof personas.contact === 'object' ? personas.contact : {};
+        section.appendChild(detailSection('Contacto auxiliar', contact.available
+          ? 'Contacto aportado por PERSONAS para esta identidad vinculada.'
+          : (text(contact.reason) || 'PERSONAS no aportó contacto para esta identidad.'), [
+          detailField('Teléfono PERSONAS', contact.phone),
+          detailField('Email PERSONAS', contact.email)
+        ], contact.available ? 'source' : 'unavailable'));
+
+        const territory = personas.territory && typeof personas.territory === 'object' ? personas.territory : {};
+        section.appendChild(detailSection('Territorio PERSONAS', 'Valores auxiliares conservados tal como fueron extraídos.', [
+          detailField('Localidad', territory.locality),
+          detailField('Provincia', territory.province),
+          detailField('Código postal', territory.postalCode),
+          detailField('Domicilio en padrón', territory.inlineAddress)
+        ]));
+
+        const domiciles = Array.isArray(personas.domiciles) ? personas.domiciles : [];
+        const domicileSection = create('section', 'detail-section');
+        const domicileHead = create('div', 'detail-section-head');
+        domicileHead.append(create('h3', '', 'Domicilios PERSONAS'), create('span', 'evidence source', 'Fuente'));
+        domicileSection.appendChild(domicileHead);
+        domicileSection.appendChild(create('p', 'detail-section-copy', domiciles.length
+          ? formatNumber(domiciles.length) + ' domicilios históricos o vigentes asociados al padrón auxiliar.'
+          : 'PERSONAS no aportó domicilios para esta identidad vinculada.'));
+        if (domiciles.length) {
+          const list = create('div', 'family-list');
+          domiciles.forEach(function (domicile, index) {
+            const card = create('article', 'family-card');
+            const title = text(domicile.sourceDisplay)
+              || [domicile.street, domicile.number].filter(function (part) { return text(part); }).join(' ')
+              || 'Domicilio ' + (index + 1);
+            const header = create('div', 'family-card-head');
+            header.append(create('strong', '', title), create('span', '', text(domicile.type) || 'Tipo no informado'));
+            const fields = create('dl', 'family-fields');
+            fields.append(
+              familyValue('Localidad', domicile.locality),
+              familyValue('Departamento', domicile.department),
+              familyValue('Provincia', domicile.province),
+              familyValue('Barrio', domicile.barrio),
+              familyValue('Piso / unidad', [domicile.floor, domicile.unit].filter(function (part) { return text(part); }).join(' · ')),
+              familyValue('ID original', domicile.sourceId)
+            );
+            card.append(header, fields);
+            card.appendChild(traceDetails(domicile.coordinates, 'Coordenadas informadas'));
+            list.appendChild(card);
+          });
+          domicileSection.appendChild(list);
+        } else {
+          domicileSection.appendChild(create('div', 'notice warning', 'No hay domicilios PERSONAS disponibles; no se infiere ninguno.'));
+        }
+        section.appendChild(domicileSection);
+        return section;
+      }
+
+      function renderMembershipSection(detail) {
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', 'Gremios y afiliaciones'), create('span', 'evidence source', 'Fuente'));
+        section.appendChild(head);
+        section.appendChild(create('p', 'detail-section-copy', detail.unions.length
+          ? formatNumber(detail.unions.length) + ' afiliaciones preservadas en GRH.'
+          : 'GRH no informó afiliaciones para este legajo.'));
+        if (!detail.unions.length) {
+          section.appendChild(create('div', 'notice warning', 'Sin afiliaciones registradas. Esto no equivale a confirmar que la persona no esté afiliada.'));
+          return section;
+        }
+        const list = create('div', 'family-list');
+        detail.unions.forEach(function (membership, index) {
+          const card = create('article', 'family-card');
+          const head = create('div', 'family-card-head');
+          head.append(create('strong', '', text(membership.unionName) || 'Afiliación ' + (index + 1)), create('span', '', text(membership.unionCode) || 'Sin código'));
+          const fields = create('dl', 'family-fields');
+          fields.append(
+            familyValue('Alta', membership.startDate, formatDate),
+            familyValue('Baja', membership.endDate, formatDate),
+            familyValue('Lugar', membership.workplace)
+          );
+          card.append(head, fields);
+          list.appendChild(card);
+        });
+        section.appendChild(list);
+        return section;
+      }
+
+      function renderEmploymentHistorySection(detail) {
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', 'Historial de legajos'), create('span', 'evidence source', 'Fuente'));
+        section.appendChild(head);
+        section.appendChild(create('p', 'detail-section-copy', 'Contratos GRH que apuntan a la misma identidad canónica; no es una unión por IDPERSONA entre bases.'));
+        const timeline = create('ol', 'timeline');
+        detail.employmentHistory.forEach(function (contract) {
+          const item = create('li', 'timeline-item');
+          const top = create('div', 'timeline-top');
+          top.append(create('span', 'timeline-title', 'Legajo ' + displayValue(contract.legajo) + ' · compañía ' + displayValue(contract.companyId)));
+          top.append(create('span', 'timeline-date', contract.startDate ? formatDate(contract.startDate) : 'Ingreso no disponible'));
+          const meta = create('div', 'timeline-meta');
+          meta.append(
+            create('span', '', displayValue(contract.organization)),
+            create('span', '', displayValue(contract.sector)),
+            create('span', '', displayValue(contract.role)),
+            create('span', 'state-pill ' + (contract.status === 'inactive' ? 'inactive' : 'active'), readableKey(contract.status, 'status'))
+          );
+          item.append(top, meta);
+          timeline.appendChild(item);
+        });
+        if (detail.employmentHistory.length) section.appendChild(timeline);
+        else section.appendChild(create('div', 'notice warning', 'No se recibió historial contractual.'));
+        return section;
+      }
+
+      function renderMovementSection(detail) {
+        const section = create('section', 'detail-section');
+        const head = create('div', 'detail-section-head');
+        head.append(create('h3', '', 'Últimos movimientos de legajo'), create('span', 'evidence source', 'Fuente'));
+        section.appendChild(head);
+        const total = nonNegativeNumber(detail.meta.movementTotal);
+        section.appendChild(create('p', 'detail-section-copy', (total === null ? formatNumber(detail.movements.length) : formatNumber(total))
+          + ' movimientos informados; se muestran los ' + formatNumber(detail.movements.length) + ' más recientes.'));
+        if (!detail.movements.length) {
+          section.appendChild(create('div', 'notice warning', 'GRH no aportó movimientos para este legajo.'));
+          return section;
+        }
+        const timeline = create('ol', 'timeline');
+        detail.movements.forEach(function (movement) {
+          const item = create('li', 'timeline-item');
+          const top = create('div', 'timeline-top');
+          top.append(create('span', 'timeline-title', text(movement.movementType) || 'Movimiento GRH'));
+          top.append(create('time', 'timeline-date', movement.movementPeriod ? formatDate(movement.movementPeriod) : 'Fecha no disponible'));
+          const meta = create('div', 'timeline-meta');
+          if (text(movement.payrollType)) meta.appendChild(create('span', '', 'Liquidación: ' + movement.payrollType));
+          if (text(movement.conceptSourceId)) meta.appendChild(create('span', '', 'Concepto: ' + movement.conceptSourceId));
+          if (movement.quantity !== null && movement.quantity !== undefined) meta.appendChild(create('span', '', 'Cantidad: ' + displayValue(movement.quantity)));
+          if (text(movement.movementStatus)) meta.appendChild(create('span', '', 'Estado: ' + movement.movementStatus));
+          meta.appendChild(create('span', 'evidence source', 'Fuente'));
+          item.append(top, meta);
+          if (text(movement.legalInstrument)) item.appendChild(create('p', 'timeline-note', 'Instrumento: ' + movement.legalInstrument));
+          item.appendChild(traceDetails(movement.rawFields, 'Campos originales del movimiento', 'event-trace'));
+          timeline.appendChild(item);
+        });
+        section.appendChild(timeline);
+        return section;
+      }
+
       function renderEmployeeDetail(detail) {
         const employee = detail.employee;
         const legajo = text(employee.legajo);
         const name = text(employee.nombre);
+        const integration = crosswalkDisplay(detail.personas.status);
         els.dialogTitle.textContent = name || 'Ficha de legajo';
-        els.dialogSubtitle.textContent = legajo ? 'Legajo ' + legajo + ' · datos de la API interna' : 'Legajo no disponible · datos de la API interna';
+        els.dialogSubtitle.textContent = legajo
+          ? 'Legajo ' + legajo + ' · ' + integration.label + ' · fuente laboral GRH'
+          : 'Legajo no disponible · fuente laboral GRH';
         els.dialogBody.replaceChildren();
 
-        const active = normalizeBoolean(employee.activo);
-        els.dialogBody.appendChild(detailSection('Identidad', 'Datos identificatorios informados para el legajo seleccionado.', [
+        els.dialogBody.appendChild(detailSection('Identidad canónica', 'Identidad consolidada desde GRH; los valores originales permanecen trazables.', [
           detailField('Legajo', employee.legajo),
-          detailField('ID de persona', employee.personId),
           detailField('Nombre', employee.nombre),
-          detailField('Estado', active, function (value) { return value ? 'Activo' : 'Inactivo'; }),
           detailField('Fecha de nacimiento', employee.fechaNacimiento, formatDate),
           detailField('Sexo', employee.sexo),
           detailField('DNI', employee.dni),
-          detailField('CUIL', employee.cuil)
+          detailField('CUIL', employee.cuil),
+          detailField('Calidad de identidad', employee.identityQualityScore, function (value) { return formatNumber(value, false) + ' / 100'; }),
+          detailField('Estado de identidad', employee.identityState, function (value) { return readableKey(value, 'identity'); })
         ]));
 
-        els.dialogBody.appendChild(detailSection('Contacto y domicilio', 'Información de contacto y localización disponible en la ficha interna.', [
+        els.dialogBody.appendChild(detailSection('Contacto y domicilio GRH', 'Datos del núcleo laboral. PERSONAS se presenta por separado y sólo si el crosswalk está validado.', [
           detailField('Teléfono', employee.telefono),
           detailField('Email', employee.email),
           detailField('Domicilio', employee.domicilio),
           detailField('Localidad', employee.localidad)
         ]));
 
-        els.dialogBody.appendChild(detailSection('Situación laboral', 'Asignación, códigos de catálogo y fechas de la relación laboral.', [
+        els.dialogBody.appendChild(renderPersonasSection(detail));
+
+        const administrative = statusDisplay(employee.administrativeStatus, employee.activo);
+        els.dialogBody.appendChild(detailSection('Situación laboral y control', 'GRH define el vínculo laboral; liquidable describe inclusión en la corrida observada, no un estado civil del contrato.', [
+          detailField('Estado administrativo', administrative.label),
+          detailField('Incluido en liquidación', employee.liquidable, function (value) { return value ? 'Sí' : 'No'; }),
+          detailField('Estado de liquidación', employee.payrollStatus, payrollStatusLabel),
+          detailField('Control 882 / 854', employee.controlState, controlStateLabel, 'derived'),
+          detailField('Cierre de corrida', employee.payrollClosureStatus, function (value) { return readableKey(value, 'payroll'); }),
+          detailField('Foto de estado', employee.statusSnapshotDate, formatDate),
           detailField('Fecha de ingreso', employee.fechaIngreso, formatDate),
           detailField('Fecha de egreso', employee.fechaEgreso, formatDate),
+          detailField('Motivo de diferencia', employee.discrepancyReasonCode, function (value) { return readableKey(value, 'control'); }),
+          detailField('Explicación', employee.discrepancyExplanation)
+        ]));
+
+        els.dialogBody.appendChild(detailSection('Organización y encuadre', 'Asignación literal preservada en GRH y, cuando existe, fotografía de nómina más reciente.', [
+          detailField('Organización', employee.organizacion),
+          detailField('Departamento', employee.departmentName),
+          detailField('Área', employee.areaName),
           detailField('Sector', employee.sector),
           detailField('Código de sector', employee.sectorCode),
           detailField('Categoría', employee.categoria),
@@ -2404,11 +2839,15 @@
           detailField('Código de convenio', employee.convenioCode),
           detailField('Cargo', employee.cargo),
           detailField('Código de cargo', employee.cargoCode),
-          detailField('Gremio', employee.gremio),
+          detailField('Gremio legado', employee.gremio),
           detailField('Lugar de trabajo', employee.lugarTrabajo),
           detailField('Profesión', employee.profesion),
-          detailField('ID de compañía', employee.companyId)
+          detailField('Estructura presupuestaria', employee.budgetStructure),
+          detailField('Detalle presupuestario', employee.budgetDetail)
         ]));
+
+        els.dialogBody.appendChild(renderEmploymentHistorySection(detail));
+        els.dialogBody.appendChild(renderMembershipSection(detail));
 
         const coverage = create('section', 'detail-section');
         const coverageHead = create('div', 'detail-section-head');
@@ -2416,23 +2855,23 @@
         coverage.appendChild(coverageHead);
         const counts = create('div', 'detail-counts');
         counts.append(
-          detailCount('Ausencias', firstValue(detail.meta, [['absenceTotal'], ['totalAusencias']]), detail.absences),
-          detailCount('Licencias', firstValue(detail.meta, [['leaveTotal'], ['totalLicencias']]), detail.leaves),
-          detailCount('Familiares', firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]), detail.family)
+          detailCount('Ausencias', detail.meta.absenceTotal, detail.absences),
+          detailCount('Licencias', detail.meta.leaveTotal, detail.leaves),
+          detailCount('Familiares', detail.meta.familyTotal, detail.family),
+          detailCount('Movimientos', detail.meta.movementTotal, detail.movements)
         );
         coverage.appendChild(counts);
-        const cap = nonNegativeNumber(firstValue(detail.meta, [['relationRowsCappedAt'], ['rowsCappedAt']]));
-        const absenceTotal = nonNegativeNumber(firstValue(detail.meta, [['absenceTotal'], ['totalAusencias']]));
-        const leaveTotal = nonNegativeNumber(firstValue(detail.meta, [['leaveTotal'], ['totalLicencias']]));
-        const familyTotal = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
-        const truncated = (absenceTotal !== null && absenceTotal > detail.absences.length)
-          || (leaveTotal !== null && leaveTotal > detail.leaves.length)
-          || (familyTotal !== null && familyTotal > detail.family.length);
+        const cap = nonNegativeNumber(detail.meta.relationRowsCappedAt);
+        const truncated = [
+          [detail.meta.absenceTotal, detail.absences.length],
+          [detail.meta.leaveTotal, detail.leaves.length],
+          [detail.meta.familyTotal, detail.family.length]
+        ].some(function (entry) { return nonNegativeNumber(entry[0]) > entry[1]; });
         if (truncated) {
           const limitation = create('div', 'notice warning');
           limitation.style.marginTop = '12px';
-          limitation.textContent = 'La ficha informa más registros asociados que filas recibidas. '
-            + (cap !== null ? 'La API entrega hasta ' + formatNumber(cap) + ' filas por tipo en cada consulta.' : 'La respuesta está paginada o limitada por la fuente.');
+          limitation.textContent = 'La ficha muestra los eventos más recientes para mantener una respuesta liviana. '
+            + (cap !== null ? 'La API entrega hasta ' + formatNumber(cap) + ' filas por tipo.' : 'El detalle está limitado por la fuente.');
           coverage.appendChild(limitation);
         }
         els.dialogBody.appendChild(coverage);
@@ -2441,26 +2880,19 @@
 
         const eventSection = create('section', 'detail-section');
         const eventHead = create('div', 'detail-section-head');
-        eventHead.append(create('h3', '', 'Últimos eventos'), create('span', 'evidence derived', 'Derivado'));
+        eventHead.append(create('h3', '', 'Ausencias y licencias recientes'), create('span', 'evidence derived', 'Derivado'));
         eventSection.appendChild(eventHead);
         const events = normalizeEvents(detail.absences, detail.leaves);
         if (!events.length) {
-          const empty = create('div', 'notice warning');
-          empty.textContent = 'La respuesta no incluyó ausencias o licencias para mostrar.';
-          eventSection.appendChild(empty);
+          eventSection.appendChild(create('div', 'notice warning', 'La fuente no incluyó ausencias o licencias para mostrar.'));
         } else {
           const timeline = create('ol', 'timeline');
           events.slice(0, 10).forEach(function (event) { timeline.appendChild(eventItem(event)); });
           eventSection.appendChild(timeline);
-          const note = create('p', 'panel-subtitle', 'Orden combinado por fecha; se muestran primero los 10 eventos más recientes.');
-          eventSection.appendChild(note);
           if (events.length > 10) {
             const older = create('details', 'trace-details');
             const summary = create('summary');
-            summary.append(
-              create('span', '', 'Ver ' + formatNumber(events.length - 10) + ' eventos anteriores recibidos'),
-              create('span', 'evidence source', 'Fuente')
-            );
+            summary.append(create('span', '', 'Ver ' + formatNumber(events.length - 10) + ' eventos anteriores recibidos'), create('span', 'evidence source', 'Fuente'));
             older.appendChild(summary);
             const body = create('div', 'trace-body');
             const olderTimeline = create('ol', 'timeline');
@@ -2471,17 +2903,30 @@
           }
         }
         els.dialogBody.appendChild(eventSection);
+        els.dialogBody.appendChild(renderMovementSection(detail));
+
+        els.dialogBody.appendChild(detailSection('Identificadores de origen', 'IDs preservados para auditoría; nunca se usa IDPERSONA para unir GRH con PERSONAS.', [
+          detailField('Contrato canónico', employee.contractId),
+          detailField('Persona canónica', employee.canonicalPersonId),
+          detailField('Persona original GRH', employee.grhPersonId),
+          detailField('Compañía GRH', employee.companyId),
+          detailField('Legajo GRH', employee.legajo),
+          detailField('Persona original PERSONAS', detail.personas.sourceId)
+        ]));
 
         const traceSection = create('section', 'detail-section');
         const traceHead = create('div', 'detail-section-head');
-        traceHead.append(create('h3', '', 'Trazabilidad del registro'), create('span', 'evidence source', 'Fuente'));
+        traceHead.append(create('h3', '', 'Trazabilidad y evidencia'), create('span', 'evidence source', 'Fuente'));
         traceSection.appendChild(traceHead);
-        traceSection.appendChild(create('p', 'detail-section-copy', 'Campos originales preservados por la importación, presentados como rutas y valores legibles.'));
-        traceSection.appendChild(traceDetails(employee.rawFields, 'Ver todos los campos originales de la persona y su empleo'));
+        traceSection.appendChild(create('p', 'detail-section-copy', 'Afirmaciones, referencias y campos originales de las fuentes. Se muestran bajo sesión y no se almacenan en el navegador.'));
+        traceSection.appendChild(traceDetails(detail.sourceReferences, 'Referencias GRH / PERSONAS (source_xref)'));
+        traceSection.appendChild(traceDetails(detail.identityAssertions, 'Afirmaciones de identidad por fuente'));
+        traceSection.appendChild(traceDetails(detail.personas.evidence, 'Evidencia del crosswalk'));
+        traceSection.appendChild(traceDetails(employee.rawFields, 'Campos originales preservados del contrato GRH'));
         els.dialogBody.appendChild(traceSection);
       }
 
-      function renderDetailError(error, legajo, fallbackName) {
+      function renderDetailError(error, contractId, legajo, companyId, fallbackName) {
         els.dialogBody.replaceChildren();
         const notice = create('div', 'notice error');
         notice.append(create('strong', '', 'No pudimos cargar esta ficha. '), document.createTextNode(friendlyNetworkError(error, 'No se pudo conectar con el detalle del legajo.')));
@@ -2489,7 +2934,7 @@
         const retry = create('button', 'button primary', 'Reintentar');
         retry.type = 'button';
         retry.style.marginTop = '14px';
-        retry.addEventListener('click', function () { openEmployee(legajo, fallbackName); });
+        retry.addEventListener('click', function () { openEmployee(contractId, legajo, companyId, fallbackName); });
         els.dialogBody.appendChild(retry);
       }
 
@@ -2538,12 +2983,18 @@
         searchTimer = window.setTimeout(applyFilters, 380);
       });
       els.sectorFilter.addEventListener('change', applyFilters);
+      els.organizationFilter.addEventListener('change', applyFilters);
+      els.agreementFilter.addEventListener('change', applyFilters);
       els.statusFilter.addEventListener('change', applyFilters);
+      els.crosswalkFilter.addEventListener('change', applyFilters);
       els.clearFilters.addEventListener('click', function () {
         window.clearTimeout(searchTimer);
         els.employeeSearch.value = '';
         els.sectorFilter.value = '';
-        els.statusFilter.value = '';
+        els.organizationFilter.value = '';
+        els.agreementFilter.value = '';
+        els.statusFilter.value = 'all';
+        els.crosswalkFilter.value = 'all';
         applyFilters();
         els.employeeSearch.focus();
       });

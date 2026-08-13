@@ -116,7 +116,7 @@
     "workforce": "verified",
     "managementComparison": "derived",
     "absenceEvents": "verified",
-    "payrollAmounts": "unavailable",
+    "payrollAmounts": "internal_closed_runs_only",
     "budgetExecution": "unavailable",
     "currentLeaves": "unavailable"
   }

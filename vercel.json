@@ -5,7 +5,8 @@
   "functions": {
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },
-    "api/internal-data.js": { "maxDuration": 20 }
+    "api/internal-data.js": { "maxDuration": 20 },
+    "api/internal-assistant.js": { "maxDuration": 15 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
@@ -44,12 +45,15 @@
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
     { "source": "/calidad-datos", "destination": "/calidad-datos.html" },
     { "source": "/estructura", "destination": "/estructura.html" },
+    { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
+    { "source": "/nomina-control", "destination": "/nomina-control.html" },
+    { "source": "/asistente", "destination": "/asistente.html" },
 
     { "source": "/rrhh", "destination": "/internal-dashboard.html" },
     { "source": "/rrhh-sync", "destination": "/datos-personales.html" },
     { "source": "/hacienda", "destination": "/friendly-dashboard.html?section=hacienda" },
-    { "source": "/ia", "destination": "/modulos.html" },
-    { "source": "/ia-hf", "destination": "/modulos.html" },
+    { "source": "/ia", "destination": "/asistente.html" },
+    { "source": "/ia-hf", "destination": "/asistente.html" },
     { "source": "/inteligencia", "destination": "/reportes-rrhh.html" },
     { "source": "/reportes", "destination": "/reportes-rrhh.html" },
     { "source": "/exportar", "destination": "/datos-personales.html" },
@@ -88,6 +92,25 @@
   ],
   "headers": [
     {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, no-cache, no-store, must-revalidate" },
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" },
+        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/assets/pwa/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
@@ -105,7 +128,75 @@
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
+      "source": "/internal",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/internal-dashboard",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
       "source": "/internal-dashboard.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/integracion-datos",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/integracion-datos.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/nomina-control",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/nomina-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/asistente",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/asistente.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/ia",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/ia-hf",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/admin",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/datos-personales.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/rrhh",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/rrhh-sync",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/estructura",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/estructura.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/organigrama",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     }
   ]

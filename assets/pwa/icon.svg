@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">MuniControl Friendly</title>
+  <desc id="desc">Monograma M de la plataforma municipal de Junín.</desc>
+  <rect width="512" height="512" rx="112" fill="#0b2637"/>
+  <path d="M104 118h304v276H104z" fill="#f4f1e8"/>
+  <path d="M104 118h304v276H104z" fill="none" stroke="#5ed4c8" stroke-width="12"/>
+  <path d="M154 344V172h45l57 84 57-84h45v172h-47v-96l-55 78-55-78v96z" fill="#0b2637"/>
+  <path d="M104 394h304v18H104z" fill="#c9ef72"/>
+</svg>

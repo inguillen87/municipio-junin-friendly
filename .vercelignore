@@ -15,6 +15,9 @@ infra/
 docs/
 tenants/
 database/
+!scripts/extract_grh_core.py
+!scripts/canonical-promote-current-grh.sql
+!scripts/migrations/002-canonical-integration.sql
 data-rrhh/
 prisma/
 css/
@@ -22,7 +25,6 @@ js/
 
 # Friendly Production publishes only the verified multipage platform.
 quick-seed.js
-sw.js
 test_prisma.js
 *.html
 !login.html
@@ -33,6 +35,9 @@ test_prisma.js
 !reportes-rrhh.html
 !calidad-datos.html
 !estructura.html
+!integracion-datos.html
+!nomina-control.html
+!asistente.html
 
 # Excluir endpoints legacy uno por uno. No usar `api/**`: Vercel no vuelve a
 # incluir de forma fiable los archivos negados y dejaría las APIs internas en 404.

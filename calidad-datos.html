@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#173447">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
   <title>Calidad del corte GRH | MuniControl Friendly</title>
   <meta name="description" content="Registro de cobertura, excepciones y límites del corte agregado de recursos humanos de la Municipalidad de Junín, Mendoza.">
   <style>
@@ -301,7 +303,7 @@
         workforce: ['Dotación', 'Conteos agregados del universo laboral; la condición activa continúa derivada.'],
         managementComparison: ['Comparación de gestiones', 'Altas, bajas y balance con períodos exactos y advertencia de corte parcial.'],
         absenceEvents: ['Eventos de ausencia', 'Conteo histórico utilizable; no equivale a días ni a una tasa.'],
-        payrollAmounts: ['Importes salariales', 'No hay una fuente utilizable para masa salarial o liquidaciones.'],
+        payrollAmounts: ['Importes de nómina', 'Disponibles sólo en el control interno para corridas cerradas y reconciliadas; no se publican en la vista agregada.'],
         budgetExecution: ['Ejecución presupuestaria', 'No forma parte del corte GRH y requiere una fuente contable oficial.'],
         currentLeaves: ['Licencias actuales', 'La tabla disponible termina en 2009 y no representa el estado actual.']
       };
@@ -463,6 +465,13 @@
       }
       start();
     }());
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+      }, { once: true });
+    }
   </script>
 </body>
 </html>

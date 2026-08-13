@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b2637">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
   <title>Mapa de producto | MuniControl Friendly</title>
   <meta name="description" content="Mapa funcional de MuniControl Friendly: módulos operativos, integraciones pendientes y prototipos históricos preservados.">
   <style>
@@ -94,7 +96,7 @@
         <div class="capabilities">
           <article class="capability"><div class="cap-head"><h3>Reportes trazables</h3><span class="state partial">Parcial</span></div><p>Gestiones, ausentismo y calidad respaldados por el snapshot actual.</p><a class="button" href="friendly-dashboard.html#inteligencia">Abrir</a></article>
           <article class="capability"><div class="cap-head"><h3>Analítica transversal</h3><span class="state history">Preservado</span></div><p>Prototipos para reportes, análisis y control multiárea.</p><div class="history-files">analytics.html · inteligencia.html · reportes.html</div></article>
-          <article class="capability"><div class="cap-head"><h3>Asistencia inteligente</h3><span class="state history">Preservado</span></div><p>Experimentos históricos que no se presentan como asistencia operativa.</p><div class="history-files">ia.html · ia-hf.html · manuales.html</div></article>
+          <article class="capability"><div class="cap-head"><h3>Asistencia inteligente</h3><span class="state live">Operativo</span></div><p>Consultas internas sobre GRH, nómina e integración con fuente, corte y privacidad nominal.</p><a class="button" href="asistente.html">Abrir asistente</a></article>
         </div>
       </section>
 
@@ -125,6 +127,13 @@
         button.hidden=true;
       }
     })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+      }, { once: true });
+    }
   </script>
 </body>
 </html>

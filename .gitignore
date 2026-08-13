@@ -1,6 +1,7 @@
 # Archivos temporales y de build
 node_modules/
 public/
+tmp/
 .env
 .env.local
 .env.*.local
@@ -45,6 +46,9 @@ prisma/
 *.csv
 *.sql
 !scripts/internal-schema.sql
+!scripts/canonical-promote-current-grh.sql
+!scripts/migrations/
+!scripts/migrations/*.sql
 *.sql.gz
 *.backup*
 
@@ -55,3 +59,4 @@ __pycache__/
 *.pyc
 
 .env*
+.neon

@@ -7,7 +7,18 @@
     "test:browser": "node scripts/verify-friendly-browser.mjs",
     "build": "npm run test && node scripts/build-friendly.mjs",
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
+    "db:canonical:schema": "node --env-file=.env.local scripts/apply-canonical-schema.mjs",
+    "db:canonical:promote-grh": "node --env-file=.env.local scripts/promote-canonical-grh.mjs",
+    "db:canonical:import-grh-core": "node --env-file=.env.local scripts/import-grh-core-canonical.mjs",
+    "db:canonical:import-personas": "node --env-file=.env.local scripts/import-personas-crosswalk-canonical.mjs",
+    "db:canonical:preflight-grh-core": "node scripts/import-grh-core-canonical.mjs --preflight-only",
+    "db:canonical:preflight-personas": "node scripts/import-personas-crosswalk-canonical.mjs --preflight-only",
+    "db:canonical:verify": "node --env-file=.env.local scripts/verify-canonical-acceptance.mjs",
+    "db:canonical:verify-full": "node --env-file=.env.local scripts/verify-canonical-acceptance.mjs --full-blueprint",
     "data:extract": "python scripts/extract_rrhh_curated.py",
+    "data:extract:core": "python scripts/extract_grh_core.py",
+    "data:extract:personas": "python scripts/extract-personas-crosswalk.py",
+    "data:preflight:canonical": "node scripts/import-grh-core-canonical.mjs --preflight-only && node scripts/import-personas-crosswalk-canonical.mjs --preflight-only",
     "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs"
   },
   "devDependencies": {

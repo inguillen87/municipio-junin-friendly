@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#08283a">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
   <meta name="description" content="Acceso al portal interno y a la vista agregada de MuniControl Friendly.">
   <title>Acceso | MuniControl Friendly</title>
   <style>
@@ -712,7 +714,8 @@
           btnLabel.textContent = 'Accediendo al portal interno';
           setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
           var next = new URLSearchParams(window.location.search).get('next');
-          window.location.href = next && next.indexOf('internal-dashboard') === 0 ? next : 'internal-dashboard.html';
+          var allowedNext = ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html'];
+          window.location.href = allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
         return;
       } catch (error) {
         showError(error.message || 'No se pudo iniciar sesión.');
@@ -720,6 +723,13 @@
         setLoading(false, 'No se pudo validar el acceso.');
         document.getElementById('passInput').focus();
       }
+    }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+      }, { once: true });
     }
   </script>
 </body>

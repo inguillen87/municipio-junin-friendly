@@ -332,105 +332,860 @@ export async function structure(sql) {
   };
 }
 
-async function employees(sql, req) {
-  const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
-  const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
-  const search = queryValue(req, 'search').trim();
-  const sector = queryValue(req, 'sector').trim();
-  const status = queryValue(req, 'status', 'all').toLowerCase();
-  const conditions = [];
-  const values = [];
-  const add = (builder, ...params) => {
-    const placeholders = params.map((value) => {
-      values.push(value);
-      return `$${values.length}`;
-    });
-    conditions.push(builder(placeholders));
-  };
+const INTEGRATION_RELATIONS = Object.freeze({
+  workforce: {
+    name: 'vw_empleado_actual',
+    requiredColumns: Object.freeze([
+      'activo_administrativo',
+      'activo_liquidable',
+      'payroll_closure_status',
+      'estado_control'
+    ])
+  },
+  crosswalk: {
+    name: 'vw_crosswalk_persona',
+    requiredColumns: Object.freeze(['match_status'])
+  },
+  canonicalIdentity: { name: 'person_identity', requiredColumns: Object.freeze([]) },
+  canonicalEmployment: { name: 'employment_contract', requiredColumns: Object.freeze([]) },
+  sourceReferences: { name: 'source_xref', requiredColumns: Object.freeze([]) }
+});
 
-  if (search) {
-    const term = `%${search}%`;
-    add(
-      ([name, legajo, dni, cuil]) => `(nombre ILIKE ${name} OR legajo ILIKE ${legajo} OR dni ILIKE ${dni} OR cuil ILIKE ${cuil})`,
-      term,
-      term,
-      term,
-      term
-    );
+function relationState(columnsByRelation, definition) {
+  const observedColumns = columnsByRelation.get(definition.name) || new Set();
+  if (observedColumns.size === 0) {
+    return {
+      relation: definition.name,
+      status: 'not_loaded',
+      available: false,
+      missingColumns: [...definition.requiredColumns],
+      reason: `La relación ${definition.name} todavía no está cargada.`
+    };
   }
-  if (sector) {
-    add(
-      ([value]) => `COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado') = ${value}`,
-      sector
-    );
-  }
-  if (status === 'active') conditions.push('activo IS TRUE');
-  if (status === 'inactive') conditions.push('activo IS FALSE');
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const [{ total }] = await sql.query(`SELECT count(*)::int AS total FROM grh_employees ${where}`, values);
-  const dataValues = [...values, limit, (page - 1) * limit];
-  const data = await sql.query(`
-    SELECT company_id AS "companyId", legajo, nombre, sexo, dni, cuil,
-           fecha_ingreso AS "fechaIngreso", fecha_egreso AS "fechaEgreso", activo,
-           sector, categoria, convenio, cargo, gremio, lugar_trabajo AS "lugarTrabajo"
-    FROM grh_employees
-    ${where}
-    ORDER BY activo DESC, nombre NULLS LAST, legajo
-    LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
-  `, dataValues);
+  const missingColumns = definition.requiredColumns.filter((column) => !observedColumns.has(column));
+  if (missingColumns.length > 0) {
+    return {
+      relation: definition.name,
+      status: 'incompatible',
+      available: false,
+      missingColumns,
+      reason: `La relación ${definition.name} existe, pero no cumple el contrato de columnas.`
+    };
+  }
 
   return {
-    ok: true,
-    data,
-    pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
+    relation: definition.name,
+    status: 'available',
+    available: true,
+    missingColumns: [],
+    reason: null
   };
 }
 
-async function employee(sql, req) {
-  const legajo = queryValue(req, 'legajo').trim();
-  const companyId = queryValue(req, 'companyId').trim();
-  if (!legajo) return { status: 400, payload: { ok: false, code: 'LEGAJO_REQUIRED', error: 'Legajo requerido' } };
+function metric(status, value, source, definition, reason = null) {
+  return {
+    status,
+    value: status === 'available' ? Number(value || 0) : null,
+    source,
+    definition,
+    reason
+  };
+}
+
+/**
+ * Read-only integration control for the future canonical/data-mart layer.
+ *
+ * GRH remains authoritative for employment. PERSONAS is only an auxiliary
+ * identity/territory source. Missing future relations are reported as
+ * not_loaded or incompatible; their values are never inferred or backfilled.
+ */
+export async function integrationQuality(sql) {
+  const relationNames = Object.values(INTEGRATION_RELATIONS).map(({ name }) => name);
+  const [[grh], [latestImport = null], relationColumns] = await Promise.all([
+    sql.query(`
+      SELECT (count(*) FILTER (WHERE activo))::int AS "administrativeActive",
+             (count(DISTINCT person_id) FILTER (WHERE activo AND person_id IS NOT NULL))::int
+               AS "administrativePeople"
+      FROM grh_employees
+    `),
+    sql.query(`
+      SELECT id,
+             source_name AS "sourceName",
+             source_sha256 AS "sourceSha256",
+             source_cutoff AS "sourceCutoff",
+             completed_at AS "completedAt",
+             status
+      FROM data_import_runs
+      WHERE status = 'completed'
+      ORDER BY completed_at DESC NULLS LAST, id DESC
+      LIMIT 1
+    `),
+    sql.query(`
+      SELECT table_name AS "relationName", column_name AS "columnName"
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = ANY($1::text[])
+      ORDER BY table_name, ordinal_position
+    `, [relationNames])
+  ]);
+
+  const columnsByRelation = new Map();
+  relationColumns.forEach(({ relationName, columnName }) => {
+    if (!columnsByRelation.has(relationName)) columnsByRelation.set(relationName, new Set());
+    columnsByRelation.get(relationName).add(columnName);
+  });
+  const relations = Object.fromEntries(
+    Object.entries(INTEGRATION_RELATIONS).map(([key, definition]) => [key, relationState(columnsByRelation, definition)])
+  );
+
+  const administrativeActive = Number(grh?.administrativeActive || 0);
+  const administrativePeople = Number(grh?.administrativePeople || 0);
+  let liquidable = metric(
+    relations.workforce.status,
+    null,
+    relations.workforce.relation,
+    'Legajos incluidos en la última corrida operativa observada; no implica que esté cerrada.',
+    relations.workforce.reason
+  );
+  let difference = metric(
+    relations.workforce.status,
+    null,
+    'control derivado',
+    'Activo administrativo menos activo liquidable.',
+    relations.workforce.reason
+  );
+  let stateBreakdown = {
+    status: relations.workforce.status,
+    rows: [],
+    total: null,
+    reason: relations.workforce.reason
+  };
+  let workforceChecks = {
+    viewAdministrativeMatchesGrh: null,
+    stateBreakdownReconcilesDifference: null
+  };
+  let workforceClosureStatus = null;
+
+  if (relations.workforce.available) {
+    const [[control], stateRows] = await Promise.all([
+      sql.query(`
+        SELECT (count(*) FILTER (WHERE activo_administrativo IS TRUE))::int AS "viewAdministrative",
+               (count(*) FILTER (WHERE activo_liquidable IS TRUE))::int AS liquidable,
+               max(payroll_closure_status) FILTER (
+                 WHERE activo_liquidable IS TRUE
+               ) AS "closureStatus"
+        FROM vw_empleado_actual
+      `),
+      sql.query(`
+        SELECT COALESCE(NULLIF(btrim(estado_control), ''), 'sin_clasificar') AS state,
+               count(*)::int AS records
+        FROM vw_empleado_actual
+        WHERE activo_administrativo IS TRUE
+          AND activo_liquidable IS NOT TRUE
+        GROUP BY 1
+        ORDER BY records DESC, state
+      `)
+    ]);
+    const liquidableValue = Number(control?.liquidable || 0);
+    workforceClosureStatus = control?.closureStatus ?? null;
+    const differenceValue = administrativeActive - liquidableValue;
+    const breakdownTotal = stateRows.reduce((sum, row) => sum + Number(row.records || 0), 0);
+
+    liquidable = metric(
+      'available',
+      liquidableValue,
+      relations.workforce.relation,
+      'Legajos incluidos en la última corrida operativa observada; no implica que esté cerrada.'
+    );
+    difference = metric(
+      'available',
+      differenceValue,
+      'grh_employees + vw_empleado_actual',
+      'Activo administrativo menos activo liquidable.'
+    );
+    stateBreakdown = {
+      status: 'available',
+      rows: stateRows.map((row) => ({ state: row.state, records: Number(row.records || 0) })),
+      total: breakdownTotal,
+      reason: null
+    };
+    workforceChecks = {
+      viewAdministrativeMatchesGrh: Number(control?.viewAdministrative || 0) === administrativeActive,
+      stateBreakdownReconcilesDifference: breakdownTotal === differenceValue
+    };
+  }
+
+  let crosswalk = {
+    status: relations.crosswalk.status,
+    relation: relations.crosswalk.relation,
+    matched: null,
+    unmatched: null,
+    ambiguous: null,
+    total: null,
+    coveragePct: null,
+    reconciled: null,
+    reason: relations.crosswalk.reason
+  };
+  if (relations.crosswalk.available) {
+    const [counts] = await sql.query(`
+      SELECT (count(*) FILTER (WHERE lower(match_status) = 'matched'))::int AS matched,
+             (count(*) FILTER (WHERE lower(match_status) = 'unmatched'))::int AS unmatched,
+             (count(*) FILTER (WHERE lower(match_status) = 'ambiguous'))::int AS ambiguous,
+             count(*)::int AS total
+      FROM vw_crosswalk_persona
+    `);
+    const matched = Number(counts?.matched || 0);
+    const unmatched = Number(counts?.unmatched || 0);
+    const ambiguous = Number(counts?.ambiguous || 0);
+    const total = Number(counts?.total || 0);
+    crosswalk = {
+      status: 'available',
+      relation: relations.crosswalk.relation,
+      matched,
+      unmatched,
+      ambiguous,
+      total,
+      coveragePct: total > 0 ? Number(((matched / total) * 100).toFixed(1)) : 0,
+      reconciled: matched + unmatched + ambiguous === total,
+      reason: null
+    };
+  }
+
+  const workforceReady = relations.workforce.available
+    && workforceChecks.viewAdministrativeMatchesGrh === true
+    && workforceChecks.stateBreakdownReconcilesDifference === true;
+  const crosswalkReady = relations.crosswalk.available && crosswalk.reconciled === true;
+  const hasFutureData = relations.workforce.available || relations.crosswalk.available;
+
+  return {
+    ok: true,
+    status: workforceReady && crosswalkReady
+      ? 'ready'
+      : (hasFutureData ? 'needs_review' : 'partial'),
+    source: latestImport ? {
+      importId: latestImport.id,
+      name: latestImport.sourceName,
+      sha256: latestImport.sourceSha256,
+      cutoff: latestImport.sourceCutoff,
+      importedAt: latestImport.completedAt,
+      status: latestImport.status
+    } : { status: 'not_imported' },
+    sourcePolicy: {
+      laborCore: 'GRH',
+      auxiliaryRegistry: 'PERSONAS',
+      rule: 'GRH define el estado laboral. PERSONAS sólo enriquece identidad, domicilios y territorio.',
+      forbiddenJoin: 'No unir GRH y PERSONAS por IDPERSONA; conservar siempre los identificadores originales.'
+    },
+    workforceControl: {
+      status: workforceReady ? 'reconciled' : (relations.workforce.available ? 'needs_review' : 'partial'),
+      administrative: metric(
+        'available',
+        administrativeActive,
+        'grh_employees.activo',
+        'Legajos GRH sin fecha de egreso; proxy administrativo pendiente de homologación.'
+      ),
+      administrativePeople,
+      liquidable,
+      difference,
+      stateBreakdown,
+      checks: workforceChecks,
+      payrollClosureStatus: workforceClosureStatus
+    },
+    identityEnrichment: {
+      role: 'quality_and_enrichment_only',
+      crosswalk,
+      rules: [
+        'CUIL normalizado y con dígito verificador válido como primera evidencia.',
+        'DNI sólo como respaldo y con evidencia adicional.',
+        'Nombre normalizado y fecha de nacimiento para validar duplicados o ambigüedades.',
+        'El crosswalk no modifica el estado laboral definido por GRH.'
+      ]
+    },
+    relations,
+    limitations: [
+      'Activo administrativo es un proxy derivado de fecha de egreso vacía hasta la homologación de Personal.',
+      'La inclusión y la brecha operativa sólo se publican cuando vw_empleado_actual expone también el estado de cierre.',
+      'Una corrida abierta o preliquidación no se usa como cifra financiera ejecutiva.',
+      'Las coincidencias con PERSONAS no crean, eliminan ni cambian legajos GRH.',
+      'No se infieren valores para relaciones no cargadas o incompatibles.'
+    ]
+  };
+}
+
+const PAYROLL_CONTROL_RELATIONS = Object.freeze({
+  payrollRuns: {
+    name: 'payroll_run',
+    requiredColumns: ['payroll_date', 'closure_status', 'source_closed_flag']
+  },
+  monthlyFacts: {
+    name: 'payroll_monthly_fact',
+    requiredColumns: ['payroll_run_id', 'net_payable', 'employer_contributions']
+  },
+  monthlyControl: {
+    name: 'vw_liquidacion_mensual',
+    requiredColumns: [
+      'month', 'closure_status', 'liquidated_contracts', 'gross_payable',
+      'employee_withholdings', 'net_payable', 'employer_contributions',
+      'employer_cost_proxy', 'arithmetic_difference', 'rounding_tolerance',
+      'arithmetic_reconciled', 'executive_publishable'
+    ]
+  },
+  runControl: {
+    name: 'vw_nomina_totales',
+    requiredColumns: ['closure_status', 'arithmetic_reconciled', 'executive_publishable']
+  }
+});
+
+function payrollMetricRow(row) {
+  if (!row) return null;
+  const numericFields = [
+    'contracts', 'grossPayable', 'employeeWithholdings', 'netPayable',
+    'employerContributions', 'employerCostProxy', 'arithmeticDifference',
+    'roundingTolerance'
+  ];
+  const result = { ...row };
+  numericFields.forEach((field) => {
+    result[field] = row[field] === null || row[field] === undefined ? null : Number(row[field]);
+  });
+  result.arithmeticReconciled = row.arithmeticReconciled === true;
+  result.executivePublishable = row.executivePublishable === true;
+  return result;
+}
+
+/**
+ * Executive payroll controls sourced only from canonical GRH runs.
+ * Open/preliquidation runs remain visible for operations, but can never be
+ * returned as publishable financial KPIs.
+ */
+export async function payrollControl(sql) {
+  const definitions = Object.values(PAYROLL_CONTROL_RELATIONS);
+  const relationColumns = await sql.query(`
+    SELECT table_name AS "relationName", column_name AS "columnName"
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = ANY($1::text[])
+    ORDER BY table_name, ordinal_position
+  `, [definitions.map(({ name }) => name)]);
+  const columnsByRelation = new Map();
+  relationColumns.forEach(({ relationName, columnName }) => {
+    if (!columnsByRelation.has(relationName)) columnsByRelation.set(relationName, new Set());
+    columnsByRelation.get(relationName).add(columnName);
+  });
+  const relations = Object.fromEntries(
+    Object.entries(PAYROLL_CONTROL_RELATIONS).map(([key, definition]) => [
+      key,
+      relationState(columnsByRelation, definition)
+    ])
+  );
+  const unavailable = Object.values(relations).filter(({ available }) => !available);
+  if (unavailable.length > 0) {
+    return {
+      ok: true,
+      status: unavailable.some(({ status }) => status === 'incompatible')
+        ? 'incompatible'
+        : 'not_loaded',
+      sourcePolicy: {
+        authority: 'GRH',
+        openRunRule: 'Una corrida abierta o sin marca de cierre nunca se publica como KPI financiero.',
+        monetaryBasis: 'ARS nominal; sin IPC ni ajuste paritario.'
+      },
+      latestClosed: null,
+      currentOpen: null,
+      runs: [],
+      quality: { ready: false, relations },
+      limitations: unavailable.map(({ reason }) => reason)
+    };
+  }
+
+  const [monthlyRows, runRows, [quality = {}], [source = null]] = await Promise.all([
+    sql.query(`
+      SELECT month,
+             closure_status AS "closureStatus",
+             liquidated_contracts AS contracts,
+             gross_payable AS "grossPayable",
+             employee_withholdings AS "employeeWithholdings",
+             net_payable AS "netPayable",
+             employer_contributions AS "employerContributions",
+             employer_cost_proxy AS "employerCostProxy",
+             arithmetic_difference AS "arithmeticDifference",
+             rounding_tolerance AS "roundingTolerance",
+             arithmetic_reconciled AS "arithmeticReconciled",
+             executive_publishable AS "executivePublishable"
+      FROM vw_liquidacion_mensual
+      ORDER BY month DESC, closure_status
+      LIMIT 36
+    `),
+    sql.query(`
+      SELECT payroll_date AS month,
+             payroll_type AS "payrollType",
+             closure_status AS "closureStatus",
+             contracts,
+             gross_payable AS "grossPayable",
+             employee_withholdings AS "employeeWithholdings",
+             net_payable AS "netPayable",
+             employer_contributions AS "employerContributions",
+             employer_cost_proxy AS "employerCostProxy",
+             arithmetic_difference AS "arithmeticDifference",
+             rounding_tolerance AS "roundingTolerance",
+             arithmetic_reconciled AS "arithmeticReconciled",
+             executive_publishable AS "executivePublishable"
+      FROM vw_nomina_totales
+      ORDER BY payroll_date DESC, payroll_type
+      LIMIT 24
+    `),
+    sql.query(`
+      SELECT count(*)::int AS "totalRuns",
+             (count(*) FILTER (WHERE closure_status = 'closed'))::int AS "closedRuns",
+             (count(*) FILTER (WHERE closure_status = 'open'))::int AS "openRuns",
+             (count(*) FILTER (WHERE closure_status = 'unknown'))::int AS "unknownRuns",
+             (count(*) FILTER (
+               WHERE closure_status = 'closed' AND NOT executive_publishable
+             ))::int AS "closedRunsBlocked",
+             (count(*) FILTER (
+               WHERE closure_status <> 'closed' AND executive_publishable
+             ))::int AS "openRunsPublished"
+      FROM vw_nomina_totales
+    `),
+    sql.query(`
+      SELECT source_file_name AS "fileName",
+             source_sha256 AS sha256,
+             source_cutoff AS cutoff,
+             recorded_at AS "recordedAt"
+      FROM source_import_batch
+      WHERE source_system = 'GRH'
+      ORDER BY source_cutoff DESC, recorded_at DESC
+      LIMIT 1
+    `)
+  ]);
+
+  const monthly = monthlyRows.map(payrollMetricRow);
+  const latestClosed = monthly.find((row) => row.closureStatus === 'closed') || null;
+  const currentOpen = monthly.find((row) => row.closureStatus === 'open') || null;
+  const runs = runRows.map(payrollMetricRow);
+  const openRunsPublished = Number(quality.openRunsPublished || 0);
+  const ready = Boolean(latestClosed)
+    && latestClosed.executivePublishable
+    && Boolean(currentOpen)
+    && !currentOpen.executivePublishable
+    && openRunsPublished === 0;
+
+  return {
+    ok: true,
+    status: ready ? 'ready' : 'needs_review',
+    sourcePolicy: {
+      authority: 'GRH',
+      closeEvidence: 'histocal.CIER_31 = 1',
+      arithmeticControl: '993 + 994 + 995 - 996 = 999, con tolerancia de un centavo por legajo.',
+      employerCostProxy: '993 + 994 + 995 + 990; medida analítica, no devengado contable.',
+      openRunRule: 'Una corrida abierta o sin marca de cierre nunca se publica como KPI financiero.',
+      monetaryBasis: 'ARS nominal; sin IPC ni ajuste paritario.'
+    },
+    latestClosed,
+    currentOpen,
+    runs,
+    quality: {
+      ready,
+      totalRuns: Number(quality.totalRuns || 0),
+      closedRuns: Number(quality.closedRuns || 0),
+      openRuns: Number(quality.openRuns || 0),
+      unknownRuns: Number(quality.unknownRuns || 0),
+      closedRunsBlocked: Number(quality.closedRunsBlocked || 0),
+      openRunsPublished,
+      relations
+    },
+    source,
+    limitations: [
+      'Los importes son nominales y no expresan variación real sin IPC, paritarias y composición de dotación.',
+      'El costo empleador es un proxy analítico; Contaduría debe conciliarlo antes de tratarlo como gasto devengado.',
+      'GRH no contiene el archivo bancario, extracto, asiento ni ejecución presupuestaria necesarios para conciliación financiera completa.',
+      'Agosto 2026 permanece abierto/preliquidado y sólo se muestra como control operativo.'
+    ]
+  };
+}
+
+const DIRECTORY_STATUS = new Set([
+  'all', 'active', 'administrative_active', 'liquidable', 'gap',
+  'inactive', 'state_error', 'unknown'
+]);
+const DIRECTORY_CROSSWALK = new Set(['all', 'matched', 'ambiguous', 'unmatched', 'rejected']);
+const DETAIL_EVENT_LIMIT = 25;
+const DETAIL_MOVEMENT_LIMIT = 20;
+
+function boundedQueryValue(req, name, maximum = 160) {
+  return queryValue(req, name).trim().slice(0, maximum);
+}
+
+function directoryBaseSql() {
+  return `
+    WITH directory AS (
+      SELECT contract.id AS "contractId",
+             contract.person_id AS "canonicalPersonId",
+             contract.legacy_company_id AS "companyId",
+             contract.legacy_legajo AS legajo,
+             COALESCE(identity.full_name, employee.nombre) AS nombre,
+             identity.dni,
+             identity.cuil,
+             identity.sex_code AS sexo,
+             identity.data_quality_score AS "identityQualityScore",
+             identity.identity_state AS "identityState",
+             contract.start_date AS "fechaIngreso",
+             contract.end_date AS "fechaEgreso",
+             contract.status AS "contractStatus",
+             latest_status.administrative_status AS "administrativeStatus",
+             latest_status.payroll_status AS "payrollStatus",
+             latest_status.snapshot_date AS "statusSnapshotDate",
+             COALESCE(
+               control.estado_control,
+               CASE WHEN latest_status.administrative_status = 'inactive'
+                    THEN 'inactivo_administrativo' ELSE 'sin_clasificar' END
+             ) AS "controlState",
+             COALESCE(latest_status.administrative_status IN (
+               'active', 'suspended', 'leave_without_pay', 'pending_termination', 'state_error'
+             ), false) AS activo,
+             COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false)
+               AS liquidable,
+             COALESCE(
+               NULLIF(btrim(contract.source_payload #>> '{employment,organizationName}'), ''),
+               latest_assignment.department_name
+             ) AS organizacion,
+             COALESCE(
+               NULLIF(btrim(contract.source_payload #>> '{employment,sectorName}'), ''),
+               employee.sector,
+               latest_assignment.area_name
+             ) AS sector,
+             COALESCE(
+               NULLIF(btrim(contract.source_payload #>> '{employment,categoryName}'), ''),
+               employee.categoria,
+               latest_assignment.category_name
+             ) AS categoria,
+             COALESCE(
+               NULLIF(btrim(contract.source_payload #>> '{employment,agreementName}'), ''),
+               employee.convenio,
+               latest_assignment.agreement_name
+             ) AS convenio,
+             COALESCE(
+               NULLIF(btrim(contract.source_payload #>> '{employment,cargoName}'), ''),
+               employee.cargo,
+               latest_assignment.role_name
+             ) AS cargo,
+             COALESCE(crosswalk.match_status, 'not_loaded') AS "crosswalkStatus",
+             crosswalk.match_method AS "crosswalkMethod",
+             crosswalk.confidence AS "crosswalkConfidence"
+      FROM employment_contract contract
+      JOIN person_identity identity ON identity.id = contract.person_id
+      LEFT JOIN grh_employees employee
+        ON employee.company_id = contract.legacy_company_id
+       AND employee.legajo = contract.legacy_legajo
+      LEFT JOIN vw_empleado_actual control ON control.employment_contract_id = contract.id
+      LEFT JOIN crosswalk_persona crosswalk
+        ON crosswalk.person_id = identity.id
+       AND crosswalk.valid_to IS NULL
+      LEFT JOIN LATERAL (
+        SELECT snapshot.snapshot_date,
+               snapshot.administrative_status,
+               snapshot.payroll_status
+        FROM employment_status_snapshot snapshot
+        WHERE snapshot.employment_contract_id = contract.id
+        ORDER BY snapshot.snapshot_date DESC
+        LIMIT 1
+      ) latest_status ON true
+      LEFT JOIN LATERAL (
+        SELECT assignment.department_name,
+               assignment.area_name,
+               assignment.category_name,
+               assignment.agreement_name,
+               assignment.role_name
+        FROM payroll_snapshot_assignment assignment
+        WHERE assignment.employment_contract_id = contract.id
+        ORDER BY assignment.snapshot_date DESC
+        LIMIT 1
+      ) latest_assignment ON true
+    )
+  `;
+}
+
+export async function employees(sql, req) {
+  const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
+  const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
+  const search = boundedQueryValue(req, 'search', 100);
+  const sector = boundedQueryValue(req, 'sector');
+  const organization = boundedQueryValue(req, 'organization');
+  const agreement = boundedQueryValue(req, 'agreement');
+  const includeFacets = queryValue(req, 'includeFacets', '1') !== '0';
+  const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || 'all';
+  const status = requestedStatus === 'active' ? 'administrative_active' : requestedStatus;
+  const crosswalk = boundedQueryValue(req, 'crosswalk', 32).toLowerCase() || 'all';
+  if (!DIRECTORY_STATUS.has(requestedStatus)) {
+    return { status: 400, payload: { ok: false, code: 'DIRECTORY_STATUS_INVALID', error: 'Filtro de estado inválido' } };
+  }
+  if (!DIRECTORY_CROSSWALK.has(crosswalk)) {
+    return { status: 400, payload: { ok: false, code: 'DIRECTORY_CROSSWALK_INVALID', error: 'Filtro de integración inválido' } };
+  }
+
+  const conditions = [];
+  const values = [];
+  const parameter = (value) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+  if (search) {
+    const term = parameter(`%${search}%`);
+    conditions.push(`(
+      directory.nombre ILIKE ${term}
+      OR directory.legajo ILIKE ${term}
+      OR directory.dni ILIKE ${term}
+      OR directory.cuil ILIKE ${term}
+    )`);
+  }
+  if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
+  if (organization) conditions.push(`COALESCE(directory.organizacion, 'Sin organización informada') = ${parameter(organization)}`);
+  if (agreement) conditions.push(`COALESCE(directory.convenio, 'Sin convenio informado') = ${parameter(agreement)}`);
+  if (status === 'administrative_active') conditions.push('directory.activo IS TRUE');
+  if (status === 'liquidable') conditions.push('directory.liquidable IS TRUE');
+  if (status === 'gap') conditions.push('directory.activo IS TRUE AND directory.liquidable IS NOT TRUE');
+  if (status === 'inactive') conditions.push("directory.\"administrativeStatus\" = 'inactive'");
+  if (status === 'state_error') conditions.push("directory.\"administrativeStatus\" = 'state_error'");
+  if (status === 'unknown') conditions.push("directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown'");
+  if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const baseSql = directoryBaseSql();
+  const dataValues = [...values, limit, (page - 1) * limit];
+
+  const [[countRow], data, [scope], sectors, organizations, agreements] = await Promise.all([
+    sql.query(`${baseSql} SELECT count(*)::int AS total FROM directory ${where}`, values),
+    sql.query(`
+      ${baseSql}
+      SELECT * FROM directory
+      ${where}
+      ORDER BY CASE
+                 WHEN activo AND liquidable THEN 0
+                 WHEN activo THEN 1
+                 WHEN "administrativeStatus" = 'inactive' THEN 2
+                 ELSE 3
+               END,
+               nombre NULLS LAST,
+               "companyId",
+               legajo
+      LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
+    `, dataValues),
+    sql.query(`
+      SELECT (SELECT count(*)::int FROM employment_contract) AS "totalContracts",
+             (SELECT count(*)::int FROM person_identity) AS "totalPeople",
+             (SELECT count(*)::int FROM crosswalk_persona
+               WHERE valid_to IS NULL AND match_status = 'matched') AS matched,
+             (SELECT count(*)::int FROM crosswalk_persona
+               WHERE valid_to IS NULL AND match_status = 'ambiguous') AS ambiguous,
+             (SELECT count(*)::int FROM crosswalk_persona
+               WHERE valid_to IS NULL AND match_status = 'unmatched') AS unmatched
+    `),
+    includeFacets ? sql.query(`
+      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,sectorName}'), ''), 'Sin sector informado') AS value,
+             count(*)::int AS count
+      FROM employment_contract
+      GROUP BY 1 ORDER BY value
+    `) : Promise.resolve([]),
+    includeFacets ? sql.query(`
+      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,organizationName}'), ''), 'Sin organización informada') AS value,
+             count(*)::int AS count
+      FROM employment_contract
+      GROUP BY 1 ORDER BY value
+    `) : Promise.resolve([]),
+    includeFacets ? sql.query(`
+      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,agreementName}'), ''), 'Sin convenio informado') AS value,
+             count(*)::int AS count
+      FROM employment_contract
+      GROUP BY 1 ORDER BY value
+    `) : Promise.resolve([])
+  ]);
+  const total = Number(countRow?.total || 0);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data,
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+      scope: {
+        grain: 'employment_contract',
+        authority: 'GRH',
+        personasRole: 'auxiliary_identity_and_territory_only',
+        totalContracts: Number(scope?.totalContracts || 0),
+        totalPeople: Number(scope?.totalPeople || 0),
+        matched: Number(scope?.matched || 0),
+        ambiguous: Number(scope?.ambiguous || 0),
+        unmatched: Number(scope?.unmatched || 0)
+      },
+      facets: { sectors, organizations, agreements }
+    }
+  };
+}
+
+function safeJsonObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function assertionValue(assertions, sourceSystem, attributeName) {
+  return assertions.find((row) => row.sourceSystem === sourceSystem && row.attributeName === attributeName)?.rawValue ?? null;
+}
+
+export async function employee(sql, req) {
+  const contractId = boundedQueryValue(req, 'contractId', 64);
+  const legajo = boundedQueryValue(req, 'legajo', 64);
+  const companyId = boundedQueryValue(req, 'companyId', 32);
+  if (!contractId && !legajo) {
+    return { status: 400, payload: { ok: false, code: 'EMPLOYEE_IDENTIFIER_REQUIRED', error: 'Identificador de ficha requerido' } };
+  }
+  if (contractId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) {
+    return { status: 400, payload: { ok: false, code: 'CONTRACT_ID_INVALID', error: 'Identificador de contrato inválido' } };
+  }
   if (companyId && !/^-?\d+$/.test(companyId)) {
-    return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa invalido' } };
+    return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa inválido' } };
   }
   const companyIdNumber = companyId ? Number(companyId) : null;
   if (companyId && !Number.isSafeInteger(companyIdNumber)) {
-    return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa invalido' } };
+    return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa inválido' } };
   }
-  const params = companyId ? [legajo, companyIdNumber] : [legajo];
-  const [row] = await sql.query(`
-    SELECT company_id AS "companyId", legajo, person_id AS "personId", nombre, sexo,
-           fecha_nacimiento AS "fechaNacimiento", dni, cuil, telefono, email, domicilio, localidad,
-           fecha_ingreso AS "fechaIngreso", fecha_egreso AS "fechaEgreso", activo,
-           sector_code AS "sectorCode", sector, categoria_code AS "categoriaCode", categoria,
-           convenio_code AS "convenioCode", convenio, cargo_code AS "cargoCode", cargo, gremio,
-           lugar_trabajo AS "lugarTrabajo", profesion, source_payload AS "rawFields"
-    FROM grh_employees
-    WHERE legajo = $1 ${companyId ? 'AND company_id = $2' : ''}
-    ORDER BY company_id
-    LIMIT 1
-  `, params);
-  if (!row) return { status: 404, payload: { ok: false, code: 'EMPLOYEE_NOT_FOUND', error: 'Legajo no encontrado' } };
-
+  const identifierSql = contractId
+    ? { clause: 'contract.id = $1::uuid', values: [contractId] }
+    : {
+        clause: `contract.legacy_legajo = $1 ${companyId ? 'AND contract.legacy_company_id = $2' : ''}`,
+        values: companyId ? [legajo, companyIdNumber] : [legajo]
+      };
+  const rows = await sql.query(`
+    SELECT contract.id AS "contractId",
+           contract.person_id AS "canonicalPersonId",
+           contract.legacy_company_id AS "companyId",
+           contract.legacy_legajo AS legajo,
+           contract.source_batch_id AS "contractSourceBatchId",
+           contract.start_date AS "fechaIngreso",
+           contract.end_date AS "fechaEgreso",
+           contract.status AS "contractStatus",
+           contract.status_explanation AS "contractStatusExplanation",
+           contract.agreement_code AS "convenioCode",
+           contract.category_code AS "categoriaCode",
+           contract.organization_unit_source_id AS "organizationSourceId",
+           contract.position_source_id AS "cargoCode",
+           contract.sector_source_id AS "sectorCode",
+           contract.source_payload AS "rawFields",
+           identity.full_name AS nombre,
+           identity.sex_code AS sexo,
+           identity.birth_date AS "fechaNacimiento",
+           identity.dni,
+           identity.cuil,
+           identity.data_quality_score AS "identityQualityScore",
+           identity.identity_state AS "identityState",
+           employee.person_id AS "grhPersonId",
+           employee.telefono,
+           employee.email,
+           employee.domicilio,
+           employee.localidad,
+           employee.sector,
+           employee.categoria,
+           employee.convenio,
+           employee.cargo,
+           employee.gremio,
+           employee.lugar_trabajo AS "lugarTrabajo",
+           employee.profesion,
+           employee.source_payload AS "legacyRawFields",
+           latest_status.snapshot_date AS "statusSnapshotDate",
+           latest_status.administrative_status AS "administrativeStatus",
+           latest_status.payroll_status AS "payrollStatus",
+           latest_status.discrepancy_reason_code AS "discrepancyReasonCode",
+           latest_status.discrepancy_explanation AS "discrepancyExplanation",
+           payroll_run.closure_status AS "payrollClosureStatus",
+           control.estado_control AS "controlState",
+           COALESCE(latest_status.administrative_status IN (
+             'active', 'suspended', 'leave_without_pay', 'pending_termination', 'state_error'
+           ), false) AS activo,
+           COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false) AS liquidable,
+           latest_assignment.snapshot_date AS "assignmentSnapshotDate",
+           latest_assignment.agreement_source_id AS "assignmentAgreementCode",
+           latest_assignment.agreement_name AS "assignmentAgreementName",
+           latest_assignment.category_name AS "assignmentCategoryName",
+           latest_assignment.role_name AS "assignmentRoleName",
+           latest_assignment.department_source_id AS "departmentSourceId",
+           latest_assignment.department_name AS "departmentName",
+           latest_assignment.area_name AS "areaName",
+           latest_assignment.budget_structure AS "budgetStructure",
+           latest_assignment.budget_detail AS "budgetDetail",
+           crosswalk.match_status AS "crosswalkStatus",
+           crosswalk.match_method AS "crosswalkMethod",
+           crosswalk.confidence AS "crosswalkConfidence",
+           crosswalk.evidence AS "crosswalkEvidence",
+           crosswalk.grh_source_id AS "crosswalkGrhSourceId",
+           crosswalk.personas_source_id AS "personasSourceId",
+           crosswalk.valid_from AS "crosswalkValidFrom",
+           crosswalk.reviewed_by AS "crosswalkReviewedBy",
+           crosswalk.reviewed_at AS "crosswalkReviewedAt"
+    FROM employment_contract contract
+    JOIN person_identity identity ON identity.id = contract.person_id
+    LEFT JOIN grh_employees employee
+      ON employee.company_id = contract.legacy_company_id
+     AND employee.legajo = contract.legacy_legajo
+    LEFT JOIN crosswalk_persona crosswalk
+      ON crosswalk.person_id = identity.id
+     AND crosswalk.valid_to IS NULL
+    LEFT JOIN vw_empleado_actual control ON control.employment_contract_id = contract.id
+    LEFT JOIN LATERAL (
+      SELECT snapshot.*
+      FROM employment_status_snapshot snapshot
+      WHERE snapshot.employment_contract_id = contract.id
+      ORDER BY snapshot.snapshot_date DESC
+      LIMIT 1
+    ) latest_status ON true
+    LEFT JOIN payroll_run ON payroll_run.id = latest_status.payroll_run_id
+    LEFT JOIN LATERAL (
+      SELECT assignment.*
+      FROM payroll_snapshot_assignment assignment
+      WHERE assignment.employment_contract_id = contract.id
+      ORDER BY assignment.snapshot_date DESC
+      LIMIT 1
+    ) latest_assignment ON true
+    WHERE ${identifierSql.clause}
+    ORDER BY contract.legacy_company_id, contract.legacy_legajo
+    LIMIT 2
+  `, identifierSql.values);
+  if (!rows.length) return { status: 404, payload: { ok: false, code: 'EMPLOYEE_NOT_FOUND', error: 'Legajo no encontrado' } };
+  if (rows.length > 1) {
+    return {
+      status: 409,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_IDENTIFIER_AMBIGUOUS',
+        error: 'El legajo existe en más de una compañía; seleccioná la ficha desde el directorio.'
+      }
+    };
+  }
+  const row = rows[0];
   const relationParams = [row.companyId, row.legajo];
-  const [counts] = await sql.query(`
-    SELECT
-      (SELECT count(*)::int FROM grh_absences WHERE company_id = $1 AND legajo = $2) AS absence_total,
-      (SELECT count(*)::int FROM grh_leaves WHERE company_id = $1 AND legajo = $2) AS leave_total,
-      (SELECT count(*)::int FROM grh_family WHERE company_id = $1 AND legajo = $2) AS family_total
-  `, relationParams);
-  const [absences, leaves, family] = await Promise.all([
+  const [
+    [counts],
+    absences,
+    leaves,
+    family,
+    movements,
+    assertions,
+    sourceReferences,
+    employmentHistory
+  ] = await Promise.all([
     sql.query(`
-      SELECT a.fecha, a.motivo_code AS "motivoCode", c.label AS motivo,
-             a.cantidad, a.dias, a.fecha_hasta AS "fechaHasta", a.fecha_hasta AS "fechaFin",
-             a.comentario, a.comentario AS observaciones, a.source_payload AS "rawFields"
-      FROM grh_absences a
-      LEFT JOIN grh_catalog_rows c
-        ON c.catalog = 'absence_reasons'
-       AND c.source_payload #>> '{sourceKey,reasonCode}' = a.motivo_code
-      WHERE a.company_id = $1 AND a.legajo = $2
-      ORDER BY a.fecha DESC
+      SELECT
+        (SELECT count(*)::int FROM grh_absences WHERE company_id = $1 AND legajo = $2) AS "absenceTotal",
+        (SELECT count(*)::int FROM grh_leaves WHERE company_id = $1 AND legajo = $2) AS "leaveTotal",
+        (SELECT count(*)::int FROM grh_family WHERE company_id = $1 AND legajo = $2) AS "familyTotal",
+        (SELECT count(*)::int FROM employment_movement WHERE employment_contract_id = $3::uuid) AS "movementTotal"
+    `, [...relationParams, row.contractId]),
+    sql.query(`
+      SELECT absence.fecha, absence.motivo_code AS "motivoCode", catalog.label AS motivo,
+             absence.cantidad, absence.dias, absence.fecha_hasta AS "fechaHasta",
+             absence.comentario, absence.source_payload AS "rawFields"
+      FROM grh_absences absence
+      LEFT JOIN grh_catalog_rows catalog
+        ON catalog.catalog = 'absence_reasons'
+       AND catalog.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
+      WHERE absence.company_id = $1 AND absence.legajo = $2
+      ORDER BY absence.fecha DESC
+      LIMIT ${DETAIL_EVENT_LIMIT}
     `, relationParams),
     sql.query(`
       SELECT periodo, tipo, fecha_inicio AS "fechaInicio", fecha_fin AS "fechaFin",
@@ -438,31 +1193,144 @@ async function employee(sql, req) {
       FROM grh_leaves
       WHERE company_id = $1 AND legajo = $2
       ORDER BY fecha_inicio DESC
+      LIMIT ${DETAIL_EVENT_LIMIT}
     `, relationParams),
     sql.query(`
-      SELECT f.family_id AS "familyId", f.nombre, f.sexo,
-             f.fecha_nacimiento AS "fechaNacimiento", f.dni, f.cuil,
-             f.vinculo_code AS "vinculoCode", c.label AS vinculo,
-             f.fecha_baja AS "fechaBaja", f.source_payload AS "rawFields"
-      FROM grh_family f
-      LEFT JOIN grh_catalog_rows c
-        ON c.catalog = 'family_relationships'
-       AND c.source_payload #>> '{sourceKey,relationshipId}' = f.vinculo_code
-      WHERE f.company_id = $1 AND f.legajo = $2
-      ORDER BY f.nombre
-    `, relationParams)
+      SELECT family.family_id AS "familyId", family.nombre, family.sexo,
+             family.fecha_nacimiento AS "fechaNacimiento", family.dni, family.cuil,
+             family.vinculo_code AS "vinculoCode", catalog.label AS vinculo,
+             family.fecha_baja AS "fechaBaja", family.source_payload AS "rawFields"
+      FROM grh_family family
+      LEFT JOIN grh_catalog_rows catalog
+        ON catalog.catalog = 'family_relationships'
+       AND catalog.source_payload #>> '{sourceKey,relationshipId}' = family.vinculo_code
+      WHERE family.company_id = $1 AND family.legajo = $2
+      ORDER BY family.fecha_baja NULLS FIRST, family.nombre
+      LIMIT ${DETAIL_EVENT_LIMIT}
+    `, relationParams),
+    sql.query(`
+      SELECT movement_period AS "movementPeriod", payroll_type AS "payrollType",
+             movement_type AS "movementType", concept_source_id AS "conceptSourceId",
+             cost_center_source_id AS "costCenterSourceId", quantity,
+             installment, legal_instrument AS "legalInstrument",
+             movement_status AS "movementStatus", source_id AS "sourceId",
+             source_payload AS "rawFields"
+      FROM employment_movement
+      WHERE employment_contract_id = $1::uuid
+      ORDER BY movement_period DESC, id DESC
+      LIMIT ${DETAIL_MOVEMENT_LIMIT}
+    `, [row.contractId]),
+    sql.query(`
+      SELECT attribute_name AS "attributeName", raw_value AS "rawValue",
+             normalized_value AS "normalizedValue", source_system AS "sourceSystem",
+             source_entity AS "sourceEntity", source_id AS "sourceId",
+             confidence, evidence, eligible_for_promotion AS "eligibleForPromotion",
+             preferred, valid_from AS "validFrom"
+      FROM person_identity_assertion
+      WHERE person_id = $1::uuid AND valid_to IS NULL
+      ORDER BY source_system, attribute_name, valid_from DESC
+    `, [row.canonicalPersonId]),
+    sql.query(`
+      SELECT source_system AS "sourceSystem", source_entity AS "sourceEntity",
+             source_id AS "sourceId", source_batch_id AS "sourceBatchId",
+             canonical_entity AS "canonicalEntity", canonical_id AS "canonicalId",
+             match_method AS "matchMethod", confidence, evidence,
+             valid_from AS "validFrom"
+      FROM source_xref
+      WHERE canonical_id = ANY($1::uuid[]) AND valid_to IS NULL
+      ORDER BY source_system, canonical_entity, source_entity, source_id
+    `, [[row.canonicalPersonId, row.contractId]]),
+    sql.query(`
+      SELECT contract.id AS "contractId", contract.legacy_company_id AS "companyId",
+             contract.legacy_legajo AS legajo, contract.start_date AS "startDate",
+             contract.end_date AS "endDate", contract.status,
+             contract.source_payload #>> '{employment,organizationName}' AS organization,
+             contract.source_payload #>> '{employment,sectorName}' AS sector,
+             contract.source_payload #>> '{employment,cargoName}' AS role
+      FROM employment_contract contract
+      WHERE contract.person_id = $1::uuid
+      ORDER BY contract.start_date DESC NULLS LAST, contract.legacy_company_id, contract.legacy_legajo
+    `, [row.canonicalPersonId])
   ]);
+
+  const rawFields = safeJsonObject(row.rawFields);
+  const memberships = Array.isArray(rawFields.unionMemberships) ? rawFields.unionMemberships : [];
+  const matched = row.crosswalkStatus === 'matched';
+  const personasAssertions = matched
+    ? assertions.filter((assertion) => assertion.sourceSystem === 'PERSONAS')
+    : [];
+  const visibleAssertions = matched
+    ? assertions
+    : assertions.filter((assertion) => assertion.sourceSystem !== 'PERSONAS');
+  const visibleSourceReferences = matched
+    ? sourceReferences
+    : sourceReferences.filter((reference) => reference.sourceSystem !== 'PERSONAS');
+  const personasAddresses = assertionValue(personasAssertions, 'PERSONAS', 'address');
+  const personasTerritory = assertionValue(personasAssertions, 'PERSONAS', 'territory');
+  const personasPhone = assertionValue(personasAssertions, 'PERSONAS', 'phone');
+  const personasEmail = assertionValue(personasAssertions, 'PERSONAS', 'email');
+  const controlState = row.controlState
+    || (row.administrativeStatus === 'inactive' ? 'inactivo_administrativo' : 'sin_clasificar');
+  const contactAvailable = personasPhone !== null || personasEmail !== null;
+  const personasReason = matched
+    ? null
+    : row.crosswalkStatus === 'ambiguous'
+      ? 'Existen candidatos, pero la identidad no fue vinculada automáticamente.'
+      : row.crosswalkStatus === 'unmatched'
+        ? 'No se encontró una identidad PERSONAS con evidencia suficiente.'
+        : 'El crosswalk PERSONAS todavía no está disponible para esta identidad.';
 
   return {
     status: 200,
     payload: {
       ok: true,
-      data: { ...row, ausencias: absences, licencias: leaves, familiares: family },
+      data: {
+        ...row,
+        controlState,
+        organizacion: rawFields.employment?.organizationName ?? row.departmentName ?? null,
+        sector: rawFields.employment?.sectorName ?? row.sector ?? row.areaName ?? null,
+        categoria: rawFields.employment?.categoryName ?? row.categoria ?? row.assignmentCategoryName ?? null,
+        convenio: rawFields.employment?.agreementName ?? row.convenio ?? row.assignmentAgreementName ?? null,
+        cargo: rawFields.employment?.cargoName ?? row.cargo ?? row.assignmentRoleName ?? null,
+        unionMemberships: memberships,
+        identityAssertions: visibleAssertions,
+        sourceReferences: visibleSourceReferences,
+        employmentHistory,
+        movements,
+        ausencias: absences,
+        licencias: leaves,
+        familiares: family,
+        personas: {
+          available: matched,
+          status: row.crosswalkStatus || 'not_loaded',
+          sourceId: matched ? row.personasSourceId : null,
+          matchMethod: row.crosswalkMethod,
+          confidence: row.crosswalkConfidence === null ? null : Number(row.crosswalkConfidence),
+          evidence: safeJsonObject(row.crosswalkEvidence),
+          validFrom: row.crosswalkValidFrom,
+          reason: personasReason,
+          contact: {
+            available: contactAvailable,
+            phone: personasPhone,
+            email: personasEmail,
+            reason: contactAvailable ? null : 'PERSONAS no aportó teléfono ni email para esta identidad vinculada.'
+          },
+          domiciles: matched && Array.isArray(personasAddresses) ? personasAddresses : [],
+          territory: matched ? safeJsonObject(personasTerritory) : {},
+          assertions: personasAssertions
+        }
+      },
       meta: {
-        absenceTotal: counts.absence_total,
-        leaveTotal: counts.leave_total,
-        familyTotal: counts.family_total,
-        relationRowsComplete: true
+        absenceTotal: Number(counts?.absenceTotal || 0),
+        leaveTotal: Number(counts?.leaveTotal || 0),
+        familyTotal: Number(counts?.familyTotal || 0),
+        movementTotal: Number(counts?.movementTotal || 0),
+        relationRowsCappedAt: DETAIL_EVENT_LIMIT,
+        movementRowsCappedAt: DETAIL_MOVEMENT_LIMIT,
+        relationRowsComplete:
+          Number(counts?.absenceTotal || 0) <= DETAIL_EVENT_LIMIT
+          && Number(counts?.leaveTotal || 0) <= DETAIL_EVENT_LIMIT
+          && Number(counts?.familyTotal || 0) <= DETAIL_EVENT_LIMIT
       }
     }
   };
@@ -481,7 +1349,12 @@ export default async function handler(req, res) {
     const resource = queryValue(req, 'resource', 'summary').toLowerCase();
     if (resource === 'summary') return send(res, 200, await summary(sql));
     if (resource === 'structure') return send(res, 200, await structure(sql));
-    if (resource === 'employees') return send(res, 200, await employees(sql, req));
+    if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));
+    if (resource === 'payrollcontrol') return send(res, 200, await payrollControl(sql));
+    if (resource === 'employees') {
+      const result = await employees(sql, req);
+      return send(res, result.status, result.payload);
+    }
     if (resource === 'employee') {
       const result = await employee(sql, req);
       return send(res, result.status, result.payload);

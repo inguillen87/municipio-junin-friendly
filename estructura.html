@@ -126,7 +126,7 @@
     .nav-label { margin: 22px 9px 8px; color: #7fa2b2; font-size: 9px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
     .nav { display: grid; gap: 4px; }
     .nav a {
-      min-height: 42px;
+      min-height: 44px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -170,13 +170,16 @@
       border-bottom: 1px solid var(--line);
     }
     .topbar-context { min-width: 0; }
-    .topbar-context small { display: block; color: var(--muted); font-size: 10px; }
+    .breadcrumb { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .breadcrumb a { color: var(--teal); font-weight: 800; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
     .topbar-context strong { display: block; overflow: hidden; color: var(--navy); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+    .session-user { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .top-actions { display: flex; align-items: center; gap: 8px; }
     .source-chip {
       display: inline-flex;
       align-items: center;
-      min-height: 34px;
+      min-height: 44px;
       padding: 7px 10px;
       background: var(--teal-soft);
       color: #145f59;
@@ -187,7 +190,7 @@
       white-space: nowrap;
     }
     .button {
-      min-height: 34px;
+      min-height: 44px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -258,7 +261,7 @@
     .field { display: grid; gap: 4px; }
     .field label { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
     input, select {
-      min-height: 36px;
+      min-height: 44px;
       padding: 7px 10px;
       background: #fff;
       color: var(--ink);
@@ -271,6 +274,7 @@
     .tabs { display: flex; gap: 0; overflow-x: auto; padding: 0 19px; border-bottom: 1px solid var(--line); }
     .tab {
       min-width: max-content;
+      min-height: 44px;
       padding: 13px 15px 11px;
       background: transparent;
       color: var(--muted);
@@ -344,7 +348,10 @@
       .brand { padding-bottom: 13px; }
       .nav-label, .sidebar-meta { display: none; }
       .nav { display: flex; gap: 5px; margin-top: 12px; overflow-x: auto; padding-bottom: 3px; }
-      .nav a { min-width: max-content; min-height: 36px; padding: 6px 8px; }
+      .nav[aria-label="Navegación principal"] { flex-wrap: wrap; overflow: visible; }
+      .nav[aria-label="Navegación principal"] a { flex: 1 1 110px; justify-content: center; }
+      .nav + .nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
+      .nav a { min-width: max-content; min-height: 44px; padding: 8px 10px; }
       .topbar { padding: 11px 14px; }
       .source-chip { display: none; }
       main { padding: 24px 14px 40px; }
@@ -359,7 +366,7 @@
       .metrics { grid-template-columns: 1fr; }
       .metric { min-height: 0; }
       .catalog-overview { grid-template-columns: 1fr; }
-      .topbar-context small { display: none; }
+      .session-user { display: none; }
       .top-actions .button { padding-inline: 8px; font-size: 10px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -380,22 +387,25 @@
   </section>
 
   <div class="shell" id="app" hidden>
-    <aside class="sidebar">
-      <a class="brand" href="internal-dashboard.html">
+    <aside class="sidebar" aria-label="Navegación interna">
+      <a class="brand" href="internal-dashboard.html" aria-label="MuniControl, inicio interno">
         <span class="brand-mark" aria-hidden="true">M</span>
         <span><strong>MuniControl</strong><small>Junín · portal interno</small></span>
       </a>
 
-      <div class="nav-label">Personas y organización</div>
-      <nav class="nav" aria-label="Secciones internas">
+      <div class="nav-label">Operación interna</div>
+      <nav class="nav" aria-label="Navegación principal">
         <a href="internal-dashboard.html"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
         <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
-        <a href="internal-dashboard.html#ausentismo"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <a href="estructura.html" aria-current="page"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
       </nav>
 
-      <div class="nav-label">Análisis y producto</div>
-      <nav class="nav" aria-label="Otras áreas">
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="internal-dashboard.html#ausentismo"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
         <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
         <a href="friendly-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
@@ -410,8 +420,9 @@
     <div class="page">
       <header class="topbar">
         <div class="topbar-context">
-          <small>Municipalidad de Junín · Mendoza</small>
-          <strong id="userLabel">Portal interno</strong>
+          <nav class="breadcrumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Estructura</span></nav>
+          <strong>Estructura municipal</strong>
+          <span class="session-user" id="userLabel">Portal interno</span>
         </div>
         <div class="top-actions">
           <span class="source-chip" id="cutoffChip">Corte de fuente</span>

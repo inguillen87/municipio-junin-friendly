@@ -68,7 +68,7 @@ function isOwnUrl(value) {
 function isInternalApi(value) {
   try {
     const pathname = new URL(value, baseUrl).pathname;
-    return pathname === '/api/internal-auth' || pathname === '/api/internal-data';
+    return pathname === '/api/internal-auth' || pathname === '/api/internal-data' || pathname === '/api/internal-assistant';
   } catch {
     return false;
   }
@@ -266,6 +266,11 @@ async function verifyAnonymousInternal() {
     const dataResponse = await context.request.get(`${baseUrl}/api/internal-data`);
     assert.equal(dataResponse.status(), 401, 'La API nominal debe rechazar el acceso anonimo');
 
+    const assistantResponse = await context.request.post(`${baseUrl}/api/internal-assistant`, {
+      data: { message: 'dotación' },
+    });
+    assert.equal(assistantResponse.status(), 401, 'El asistente debe rechazar el acceso anonimo');
+
     await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => (
       /\/login(?:\.html)?$/.test(url.pathname)
@@ -325,6 +330,18 @@ async function verifyAuthenticatedInternal() {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Estructura mobile');
+
+    await page.goto(`${baseUrl}/asistente`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#app:not([hidden])');
+    await page.locator('#messageInput').fill('Cual es la brecha de dotacion?');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForSelector('.message.assistant .answer-text');
+    const assistantText = await page.locator('.message.assistant .answer-text').last().innerText();
+    assert.match(assistantText, /882/);
+    assert.match(assistantText, /854/);
+    assert.match(assistantText, /28/);
+    assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH/i, 'El asistente debe mostrar una fuente GRH real');
+    await assertPageHealthy(page, 'Asistente mobile');
 
     await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#appShell:not([hidden])');

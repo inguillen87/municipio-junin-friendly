@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123247">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Asistente interno de MuniControl para consultar dotación, nómina, integración y legajos con fuentes verificables.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
+  <title>Asistente interno | MuniControl</title>
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #885a18;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --red-soft: #faefed;
+      --focus: #1476a2;
+      --sidebar: 254px;
+      --radius: 5px;
+      --shadow: 0 8px 22px rgba(20, 48, 61, .07);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--canvas); }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    button, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 1000;
+      transform: translateY(-160%);
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 13px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .auth-gate {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .gate-card {
+      width: min(440px, 100%);
+      padding: 31px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--navy);
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .gate-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 4px;
+      font: 900 20px/1 Georgia, serif;
+    }
+    .gate-card h1 { margin: 17px 0 6px; color: var(--navy); font-size: 21px; }
+    .gate-card p { margin: 0; color: var(--muted); }
+    .loader {
+      width: 23px;
+      height: 23px;
+      margin: 21px auto 0;
+      border: 3px solid var(--line);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 18px;
+      overflow-y: auto;
+      background: var(--navy);
+      color: #e9f1f4;
+      border-right: 1px solid #21475c;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 24px;
+      color: inherit;
+      border-bottom: 1px solid #315166;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: #f8f5ec;
+      color: var(--navy);
+      border: 1px solid #aebdc2;
+      border-radius: 3px;
+      font: 800 21px/1 Georgia, serif;
+    }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .01em; }
+    .brand small { display: block; margin-top: 2px; color: #a8c0cb; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .nav-label { margin: 24px 9px 8px; color: #8fabb8; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      color: #c9d8df;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .nav a:hover { color: #fff; border-color: #416175; }
+    .nav a[aria-current="page"] { color: #102e3f; background: #f8f5ec; border-color: #f8f5ec; font-weight: 800; }
+    .nav-code {
+      width: 25px;
+      height: 25px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #88a7b5;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 8px;
+      font-weight: 850;
+      letter-spacing: .04em;
+    }
+    .nav a[aria-current="page"] .nav-code { color: var(--green); }
+    .side-note {
+      margin-top: auto;
+      padding: 14px;
+      background: #173b50;
+      color: #b8cbd3;
+      border: 1px solid #31576c;
+      border-radius: var(--radius);
+      font-size: 11px;
+    }
+    .side-note strong { display: block; margin-bottom: 5px; color: #fff; }
+
+    .workspace { min-width: 0; }
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 34px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .top-context { min-width: 0; }
+    .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .crumb a { min-height: 44px; display: inline-flex; align-items: center; color: var(--green); font-weight: 800; text-decoration: none; }
+    .crumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .top-title { margin-top: 2px; overflow: hidden; color: var(--navy); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .user-label { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .session-chip {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid #b9d8ce;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+    .button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 750;
+      text-decoration: none;
+    }
+    .button:hover { background: var(--surface-2); border-color: var(--navy-2); }
+    .button:disabled { cursor: not-allowed; opacity: .58; }
+    .button.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .button.primary:hover { background: var(--navy-2); }
+
+    main { width: min(1440px, 100%); margin: 0 auto; padding: 32px 34px 46px; }
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+      gap: 30px;
+      align-items: end;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(31px, 5vw, 48px); line-height: 1.04; letter-spacing: -.035em; }
+    .lead { max-width: 790px; margin: 13px 0 0; color: var(--muted); font-size: 15px; }
+    .trust-panel { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
+    .trust-panel strong { display: block; color: var(--navy); }
+    .trust-panel p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+
+    .quick-section { margin-top: 22px; }
+    .section-title { display: flex; align-items: end; justify-content: space-between; gap: 15px; margin-bottom: 10px; }
+    .section-title h2 { margin: 0; color: var(--navy); font-size: 17px; }
+    .section-title p { margin: 0; color: var(--muted); font-size: 11px; }
+    .quick-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+    .quick-button {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 11px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      text-align: left;
+      cursor: pointer;
+      font-weight: 750;
+    }
+    .quick-button:hover { border-color: var(--green); background: var(--green-soft); }
+    .quick-button:disabled, .suggestion-button:disabled { cursor: not-allowed; opacity: .58; }
+    .quick-code {
+      width: 27px;
+      height: 27px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: var(--green);
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 8px;
+      letter-spacing: .04em;
+    }
+
+    .assistant-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; margin-top: 20px; }
+    .conversation-card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .conversation-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .conversation-head strong { display: block; color: var(--navy); }
+    .conversation-head span { display: block; color: var(--muted); font-size: 11px; }
+    .clear-button { min-height: 44px; padding: 8px 10px; background: transparent; color: var(--blue); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; font-weight: 750; }
+    .clear-button:hover { background: var(--blue-soft); border-color: #c1d3de; }
+
+    .messages {
+      min-height: 350px;
+      max-height: calc(100vh - 360px);
+      overflow-y: auto;
+      padding: 18px;
+      scroll-behavior: smooth;
+      overscroll-behavior: contain;
+    }
+    .empty-state {
+      min-height: 310px;
+      display: grid;
+      place-items: center;
+      padding: 34px;
+      text-align: center;
+    }
+    .empty-state > div { max-width: 500px; }
+    .empty-mark {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 14px;
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid #b9d8ce;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .07em;
+    }
+    .empty-state h2 { margin: 0; color: var(--navy); font-size: 20px; }
+    .empty-state p { margin: 8px 0 0; color: var(--muted); }
+
+    .message { display: flex; margin-bottom: 16px; }
+    .message.user { justify-content: flex-end; }
+    .message-card { width: min(760px, 90%); border: 1px solid var(--line); border-radius: var(--radius); }
+    .message.user .message-card { width: min(640px, 86%); background: var(--navy); color: #fff; border-color: var(--navy); }
+    .message.assistant .message-card { background: var(--surface-2); }
+    .message-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    .message.user .message-header { border-bottom-color: rgba(255, 255, 255, .18); }
+    .message-header strong { font-size: 11px; letter-spacing: .03em; }
+    .message-header time { color: var(--muted); font-size: 10px; }
+    .message.user .message-header time { color: #bcd0d7; }
+    .message-body { padding: 12px 14px; }
+    .answer-text { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+    .mode-badge {
+      min-height: 27px;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 7px;
+      padding: 3px 7px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      border: 1px solid #c5d6e0;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .mode-badge.deterministic { background: var(--green-soft); color: var(--green); border-color: #b9d8ce; }
+    .mode-badge.degraded { background: var(--amber-soft); color: var(--amber); border-color: #e1cb99; }
+    .topic-label { margin: 0 0 7px; color: var(--muted); font-size: 11px; font-weight: 750; }
+    .facts { display: grid; gap: 6px; margin: 13px 0 0; padding: 0; list-style: none; }
+    .facts li { padding: 8px 10px; background: var(--surface); border-left: 3px solid var(--green); color: var(--ink); font-size: 12px; }
+    .sources { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line); }
+    .sources strong { display: block; margin-bottom: 5px; color: var(--navy); font-size: 11px; }
+    .sources ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .sources li { padding: 5px 7px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 3px; font-size: 10px; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .suggestion-button { min-height: 44px; padding: 7px 10px; background: var(--surface); color: var(--blue); border: 1px solid #c5d6e0; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 750; }
+    .suggestion-button:hover { background: var(--blue-soft); }
+
+    .thinking { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--muted); }
+    .thinking-mark { display: inline-flex; gap: 3px; }
+    .thinking-mark span { width: 5px; height: 5px; background: var(--green); border-radius: 50%; animation: pulse 1s infinite ease-in-out; }
+    .thinking-mark span:nth-child(2) { animation-delay: .14s; }
+    .thinking-mark span:nth-child(3) { animation-delay: .28s; }
+    @keyframes pulse { 0%, 80%, 100% { opacity: .28; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+
+    .composer { padding: 14px 16px 16px; background: var(--surface-2); border-top: 1px solid var(--line); }
+    .composer-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; }
+    textarea {
+      width: 100%;
+      min-height: 50px;
+      max-height: 160px;
+      resize: vertical;
+      padding: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      line-height: 1.45;
+    }
+    textarea::placeholder { color: #78878e; }
+    textarea:disabled { background: #eef1ef; }
+    .send-button { min-width: 112px; min-height: 50px; }
+    .composer-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; }
+    .composer-meta [data-state="error"] { color: var(--red); font-weight: 750; }
+
+    .context-column { display: grid; gap: 12px; }
+    .context-card { padding: 15px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .context-card h2 { margin: 0 0 9px; color: var(--navy); font-size: 14px; }
+    .context-card p { margin: 0; color: var(--muted); font-size: 11px; }
+    .context-card ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+    .context-card li { padding-top: 8px; color: var(--muted); border-top: 1px solid var(--line); font-size: 11px; }
+    .context-card li strong { display: block; margin-bottom: 2px; color: var(--ink); }
+    .context-card.warning { background: var(--amber-soft); border-color: #e1cb99; }
+    .context-card.warning h2 { color: #684716; }
+    .context-card.warning p { color: #74531f; }
+
+    .error-card { width: min(560px, calc(100% - 40px)); margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); box-shadow: var(--shadow); }
+    .error-card h1 { margin: 0; font-size: 22px; }
+    .error-card p { margin: 8px 0 17px; color: var(--muted); }
+
+    @media (max-width: 1180px) {
+      .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .assistant-layout { grid-template-columns: minmax(0, 1fr) 250px; }
+    }
+
+    @media (max-width: 900px) {
+      .app { display: block; }
+      .sidebar { position: static; width: 100%; height: auto; min-height: 0; padding: 13px 16px; }
+      .brand { padding: 0 4px 11px; border-bottom: 0; }
+      .brand small { display: none; }
+      .nav-label { margin: 9px 4px 6px; }
+      .nav { display: flex; flex-wrap: wrap; gap: 6px; }
+      .nav a { flex: 1 1 120px; justify-content: center; padding: 7px 8px; }
+      .side-note { display: none; }
+      .topbar { padding: 12px 20px; }
+      main { padding: 27px 20px 38px; }
+      .page-head { grid-template-columns: 1fr; gap: 16px; }
+      .assistant-layout { grid-template-columns: 1fr; }
+      .context-column { grid-template-columns: repeat(2, minmax(0, 1fr)); order: -1; }
+      .messages { max-height: none; }
+    }
+
+    @media (max-width: 640px) {
+      .topbar { align-items: flex-start; padding: 11px 14px; }
+      .crumb, .session-chip { display: none; }
+      .top-actions { flex: 0 0 auto; }
+      main { padding: 22px 14px 32px; }
+      .page-head { padding-bottom: 19px; }
+      h1 { font-size: 31px; }
+      .lead { font-size: 14px; }
+      .quick-grid { display: flex; margin-right: -14px; padding-right: 14px; overflow-x: auto; scroll-snap-type: x proximity; }
+      .quick-button { min-width: 205px; scroll-snap-align: start; }
+      .section-title { align-items: flex-start; flex-direction: column; gap: 2px; }
+      .context-column { grid-template-columns: 1fr; }
+      .conversation-head { align-items: flex-start; padding: 11px 12px; }
+      .messages { min-height: 310px; padding: 13px; }
+      .empty-state { min-height: 280px; padding: 25px 12px; }
+      .message-card, .message.user .message-card { width: 94%; }
+      .message-header { align-items: flex-start; }
+      .composer { padding: 12px; }
+      .composer-row { grid-template-columns: 1fr; }
+      .send-button { width: 100%; }
+      .composer-meta { align-items: flex-start; }
+      .composer-meta span:last-child { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <section class="auth-gate" id="authGate" aria-live="polite">
+    <div class="gate-card">
+      <div class="gate-mark" aria-hidden="true">M</div>
+      <h1 id="gateTitle">Verificando sesión</h1>
+      <p id="gateMessage">Estamos confirmando tu acceso al asistente interno.</p>
+      <div class="loader" id="gateLoader" role="status"><span class="visually-hidden">Cargando</span></div>
+      <button class="button" id="retryButton" type="button" hidden>Reintentar</button>
+    </div>
+  </section>
+
+  <div class="app" id="app" hidden>
+    <aside class="sidebar" aria-label="Navegación interna">
+      <a class="brand" href="internal-dashboard.html" aria-label="MuniControl, inicio interno">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><strong>MuniControl</strong><small>Friendly · Junín</small></span>
+      </a>
+
+      <div class="nav-label">Operación interna</div>
+      <nav class="nav" aria-label="Navegación principal">
+        <a href="internal-dashboard.html"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
+        <a href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html" aria-current="page"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
+      </nav>
+
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a href="friendly-dashboard.html#calidad"><span class="nav-code" aria-hidden="true">CD</span><span>Calidad pública</span></a>
+        <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+
+      <div class="side-note"><strong>Asistencia con evidencia</strong>GRH gobierna los datos laborales. PERSONAS sólo enriquece identidades cuando existe una vinculación validada.</div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="top-context">
+          <div class="crumb"><a href="internal-dashboard.html">Portal interno</a><span aria-hidden="true">/</span><span>Asistente</span></div>
+          <div class="top-title">Consultas municipales con trazabilidad</div>
+          <span class="user-label" id="userLabel">Usuario interno</span>
+        </div>
+        <div class="top-actions">
+          <span class="session-chip">Sesión protegida</span>
+          <button class="button" id="logoutButton" type="button">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <main id="mainContent" tabindex="-1">
+        <section class="page-head" aria-labelledby="pageTitle">
+          <div>
+            <p class="eyebrow">Consulta asistida</p>
+            <h1 id="pageTitle">Preguntá sobre la gestión municipal</h1>
+            <p class="lead">Obtené respuestas claras sobre dotación, legajos, nómina e integración. Cada resultado informa su fuente, fecha de corte y nivel de procesamiento.</p>
+          </div>
+          <div class="trust-panel">
+            <strong>Primero evidencia, después explicación</strong>
+            <p>Las cifras provienen de controles internos. Si un dato no está disponible o requiere revisión, la respuesta lo indica expresamente.</p>
+          </div>
+        </section>
+
+        <section class="quick-section" aria-labelledby="quickTitle">
+          <div class="section-title">
+            <h2 id="quickTitle">Consultas rápidas</h2>
+            <p>Podés usarlas como punto de partida y continuar la conversación.</p>
+          </div>
+          <div class="quick-grid">
+            <button class="quick-button" type="button" data-prompt="¿Cuál es la dotación administrativa y liquidable actual? Explicá la diferencia."><span class="quick-code" aria-hidden="true">DO</span><span>Dotación actual</span></button>
+            <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
+            <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
+            <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
+            <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
+          </div>
+        </section>
+
+        <div class="assistant-layout">
+          <section class="conversation-card" aria-labelledby="conversationTitle">
+            <header class="conversation-head">
+              <div><strong id="conversationTitle">Conversación de trabajo</strong><span>El historial vive sólo en esta pestaña y se elimina al recargar.</span></div>
+              <button class="clear-button" id="clearButton" type="button" disabled>Limpiar</button>
+            </header>
+
+            <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions text">
+              <div class="empty-state" id="emptyState">
+                <div>
+                  <div class="empty-mark" aria-hidden="true">IA</div>
+                  <h2>Una consulta concreta produce una respuesta verificable</h2>
+                  <p>Preguntá por un indicador, una diferencia de control o una persona. Para decisiones sensibles, confirmá siempre la ficha o el tablero de origen.</p>
+                </div>
+              </div>
+            </div>
+
+            <form class="composer" id="assistantForm">
+              <label class="visually-hidden" for="messageInput">Escribí tu consulta</label>
+              <div class="composer-row">
+                <textarea id="messageInput" name="message" rows="2" maxlength="1500" required placeholder="Ejemplo: ¿por qué hay 28 legajos de diferencia?" aria-describedby="composerStatus composerHint"></textarea>
+                <button class="button primary send-button" id="sendButton" type="submit">Consultar</button>
+              </div>
+              <div class="composer-meta">
+                <span id="composerStatus" role="status">Listo para consultar.</span>
+                <span id="composerHint">Enter envía · Shift + Enter agrega una línea</span>
+              </div>
+            </form>
+          </section>
+
+          <aside class="context-column" aria-label="Criterios de la consulta">
+            <section class="context-card">
+              <h2>Fuentes y autoridad</h2>
+              <p>La respuesta distingue el origen y la fecha de cada evidencia.</p>
+              <ul>
+                <li><strong>GRH</strong>Base central para personas laborales, legajos, estructura y liquidación.</li>
+                <li><strong>PERSONAS</strong>Padrón auxiliar para identidad, domicilio y territorio, sólo con cruce validado.</li>
+                <li><strong>Control canónico</strong>Conciliaciones y reglas publicadas por MuniControl.</li>
+              </ul>
+            </section>
+            <section class="context-card warning">
+              <h2>Criterio profesional</h2>
+              <p>El asistente ayuda a consultar y explicar. Una respuesta no reemplaza la validación administrativa ni autoriza por sí sola una liquidación o publicación.</p>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <noscript><div class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>El asistente consulta la sesión y las fuentes internas mediante la API municipal.</p></div></div></noscript>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var ASSISTANT_URL = '/api/internal-assistant';
+      var LOGIN_URL = 'login.html?next=asistente.html';
+      var MAX_HISTORY = 6;
+      var redirectIssued = false;
+      var pendingController = null;
+      var state = { messages: [], busy: false, user: null };
+      var factNumberFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+
+      var authGate = document.getElementById('authGate');
+      var gateTitle = document.getElementById('gateTitle');
+      var gateMessage = document.getElementById('gateMessage');
+      var gateLoader = document.getElementById('gateLoader');
+      var retryButton = document.getElementById('retryButton');
+      var app = document.getElementById('app');
+      var messages = document.getElementById('messages');
+      var emptyState = document.getElementById('emptyState');
+      var form = document.getElementById('assistantForm');
+      var input = document.getElementById('messageInput');
+      var sendButton = document.getElementById('sendButton');
+      var clearButton = document.getElementById('clearButton');
+      var composerStatus = document.getElementById('composerStatus');
+      var logoutButton = document.getElementById('logoutButton');
+
+      function cleanText(value, fallback) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+        if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+        return fallback || '';
+      }
+
+      function factValue(value) {
+        var number = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(number) ? factNumberFormat.format(number) : cleanText(value);
+      }
+
+      function readableCode(value) {
+        return cleanText(value).replace(/[_-]+/g, ' ');
+      }
+
+      function formatTime(date) {
+        return new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(date);
+      }
+
+      function formatCutoff(value) {
+        var text = cleanText(value);
+        if (!text) return '';
+        var dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+        if (!dateOnly) return text;
+        var date = new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])));
+        if (Number.isNaN(date.getTime())) return text;
+        return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date);
+      }
+
+      function redirectToLogin() {
+        if (redirectIssued) return;
+        redirectIssued = true;
+        window.location.replace(LOGIN_URL);
+      }
+
+      async function readPayload(response) {
+        if (response.status === 204) return null;
+        try { return await response.json(); } catch (_) { return null; }
+      }
+
+      async function requestJSON(url, options) {
+        var settings = options || {};
+        var headers = Object.assign({ Accept: 'application/json' }, settings.headers || {});
+        var response = await fetch(url, Object.assign({}, settings, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: headers
+        }));
+        var payload = await readPayload(response);
+        if (response.status === 401) {
+          redirectToLogin();
+          var authError = new Error('AUTH_REQUIRED');
+          authError.code = 'AUTH_REQUIRED';
+          throw authError;
+        }
+        if (!response.ok) {
+          var message = payload && (payload.error || payload.message);
+          var error = new Error(cleanText(message, 'La consulta no pudo completarse.'));
+          error.code = payload && payload.code ? String(payload.code) : 'REQUEST_FAILED';
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      }
+
+      function normalizeUser(payload) {
+        var user = payload && payload.user && typeof payload.user === 'object' ? payload.user : null;
+        if (!user) return null;
+        return {
+          name: cleanText(user.name, cleanText(user.email, 'Usuario interno')),
+          email: cleanText(user.email),
+          role: cleanText(user.role, 'Usuario interno')
+        };
+      }
+
+      function normalizeFacts(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 12).map(function (item) {
+          if (typeof item === 'string' || typeof item === 'number') return cleanText(item);
+          if (!item || typeof item !== 'object') return '';
+          var label = cleanText(item.label || item.name || item.metric);
+          var rawValue = item.value !== undefined && item.value !== null ? item.value : (item.detail || item.text);
+          var factValue = cleanText(rawValue);
+          return label && factValue ? label + ': ' + factValue : label || factValue;
+        }).filter(Boolean);
+      }
+
+      function factsFromPayload(payload) {
+        var explicit = normalizeFacts(payload.facts || (payload.data && payload.data.facts));
+        if (explicit.length) return explicit;
+        var data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+        var intent = cleanText(payload.intent || payload.topic);
+        var facts = [];
+        function add(label, value) {
+          if (value === undefined || value === null || value === '') return;
+          facts.push(label + ': ' + factValue(value));
+        }
+        if (intent === 'workforce_summary') {
+          add('Legajos históricos', data.totalContracts);
+          add('Personas canónicas', data.totalPeople);
+          add('Activos administrativos', data.administrativeActive);
+          add('Incluidos en corrida operativa', data.liquidable);
+          add('Brecha controlada', data.gap);
+        } else if (intent === 'integration_quality') {
+          var crosswalk = data.crosswalk && typeof data.crosswalk === 'object' ? data.crosswalk : {};
+          add('Coincidencias confirmadas', crosswalk.matched);
+          add('Casos ambiguos', crosswalk.ambiguous);
+          add('Sin coincidencia', crosswalk.unmatched);
+          if (crosswalk.coveragePct !== undefined && crosswalk.coveragePct !== null) facts.push('Cobertura: ' + factValue(crosswalk.coveragePct) + '%');
+        } else if (intent === 'payroll_control') {
+          var closed = data.latestClosed && typeof data.latestClosed === 'object' ? data.latestClosed : null;
+          var open = data.currentOpen && typeof data.currentOpen === 'object' ? data.currentOpen : null;
+          if (closed) {
+            add('Último período cerrado', cleanText(closed.month).slice(0, 10));
+            add('Contratos del cierre', closed.contracts);
+          }
+          if (open) {
+            add('Período operativo abierto', cleanText(open.month).slice(0, 10));
+            add('Contratos en corrida abierta', open.contracts);
+          }
+        } else if (intent === 'employee_search') {
+          var rows = Array.isArray(data.data) ? data.data.slice(0, 10) : [];
+          rows.forEach(function (row) {
+            var name = cleanText(row && row.nombre, 'Nombre no informado');
+            var legajo = cleanText(row && row.legajo, 'sin número');
+            var context = cleanText(row && (row.organizacion || row.sector || row.administrativeStatus), 'estado no informado');
+            facts.push(name + ' · legajo ' + legajo + ' · ' + context);
+          });
+        } else if (intent === 'employee_detail') {
+          var employee = data.data && typeof data.data === 'object' ? data.data : null;
+          if (employee) {
+            add('Legajo', employee.legajo);
+            add('Estado administrativo', readableCode(employee.administrativeStatus));
+            add('Estado de nómina', readableCode(employee.payrollStatus));
+            add('Organización', employee.organizacion);
+            add('Sector', employee.sector);
+          }
+        }
+        return facts.slice(0, intent === 'employee_search' ? 10 : 12);
+      }
+
+      function normalizeSources(value, fallbackCutoff) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 8).map(function (item) {
+          if (typeof item === 'string') return { label: cleanText(item), asOf: cleanText(fallbackCutoff) };
+          if (!item || typeof item !== 'object') return null;
+          var label = cleanText(item.label || item.name || item.source || [item.system, item.relation].filter(Boolean).join(' · '));
+          if (!label) return null;
+          return { label: label, asOf: cleanText(item.asOf || item.cutoff || item.corte, cleanText(fallbackCutoff)) };
+        }).filter(Boolean);
+      }
+
+      function normalizeSuggestions(value) {
+        if (!Array.isArray(value)) return [];
+        return value.slice(0, 4).map(function (item) { return cleanText(item); }).filter(Boolean);
+      }
+
+      function suggestionsFromPayload(payload) {
+        var explicit = normalizeSuggestions(payload.suggestions);
+        if (explicit.length) return explicit;
+        var intent = cleanText(payload.intent || payload.topic);
+        var data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+        if (intent !== 'employee_search' || !Array.isArray(data.data)) return [];
+        return data.data.slice(0, 3).map(function (row) {
+          var legajo = cleanText(row && row.legajo);
+          if (!legajo) return '';
+          var company = cleanText(row && row.companyId);
+          return 'Abrir ficha del legajo ' + legajo + (company ? ', empresa ' + company : '') + '.';
+        }).filter(Boolean);
+      }
+
+      function normalizeAnswer(payload) {
+        if (!payload || typeof payload !== 'object') throw new Error('La respuesta del asistente no tiene el formato esperado.');
+        if (payload.ok === false) throw new Error(cleanText(payload.error || payload.message, 'El asistente informó que la consulta no pudo completarse.'));
+        var answer = cleanText(payload.answer || payload.response || payload.message);
+        if (!answer) throw new Error('El asistente no devolvió una respuesta utilizable.');
+        var providerUsed = payload.provider && payload.provider.externalProviderUsed === true;
+        var mode = ['deterministic', 'hybrid', 'degraded'].includes(payload.mode)
+          ? payload.mode
+          : (providerUsed ? 'hybrid' : 'deterministic');
+        var insight = cleanText(payload.insight);
+        if (insight) answer += '\n\nLectura asistida: ' + insight;
+        return {
+          role: 'assistant',
+          content: answer,
+          mode: mode,
+          topic: cleanText(payload.topic || payload.intent, 'Consulta municipal'),
+          facts: factsFromPayload(payload),
+          sources: normalizeSources(payload.sources, payload.cutoff || payload.asOf),
+          suggestions: suggestionsFromPayload(payload),
+          createdAt: new Date()
+        };
+      }
+
+      function modeLabel(mode) {
+        return ({ deterministic: 'Dato directo', hybrid: 'Asistida', degraded: 'Modo limitado' })[mode] || 'Modo limitado';
+      }
+
+      function createElement(tag, className, text) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function createMessage(message) {
+        var wrapper = createElement('article', 'message ' + message.role);
+        var card = createElement('div', 'message-card');
+        var header = createElement('header', 'message-header');
+        var identity = createElement('div');
+        var author = createElement('strong', '', message.role === 'user' ? 'Vos' : 'MuniControl Asistente');
+        if (message.role === 'assistant') {
+          var mode = createElement('span', 'mode-badge ' + message.mode, modeLabel(message.mode));
+          identity.append(author, mode);
+        } else {
+          identity.appendChild(author);
+        }
+        var time = createElement('time', '', formatTime(message.createdAt));
+        time.dateTime = message.createdAt.toISOString();
+        header.append(identity, time);
+
+        var body = createElement('div', 'message-body');
+        if (message.role === 'assistant' && message.topic) body.appendChild(createElement('p', 'topic-label', message.topic));
+        body.appendChild(createElement('p', 'answer-text', message.content));
+
+        if (message.role === 'assistant' && message.facts.length) {
+          var facts = createElement('ul', 'facts');
+          message.facts.forEach(function (fact) { facts.appendChild(createElement('li', '', fact)); });
+          body.appendChild(facts);
+        }
+
+        if (message.role === 'assistant') {
+          var sourceBlock = createElement('div', 'sources');
+          sourceBlock.appendChild(createElement('strong', '', 'Fuentes y corte'));
+          var sourceList = createElement('ul');
+          if (message.sources.length) {
+            message.sources.forEach(function (source) {
+              var label = source.label + (source.asOf ? ' · corte ' + formatCutoff(source.asOf) : ' · corte no informado');
+              sourceList.appendChild(createElement('li', '', label));
+            });
+          } else {
+            sourceList.appendChild(createElement('li', '', 'Fuente y corte no informados por el servicio'));
+          }
+          sourceBlock.appendChild(sourceList);
+          body.appendChild(sourceBlock);
+
+          if (message.suggestions.length) {
+            var suggestionHost = createElement('div', 'suggestions');
+            message.suggestions.forEach(function (suggestion) {
+              var button = createElement('button', 'suggestion-button', suggestion);
+              button.type = 'button';
+              button.addEventListener('click', function () { submitMessage(suggestion); });
+              suggestionHost.appendChild(button);
+            });
+            body.appendChild(suggestionHost);
+          }
+        }
+
+        card.append(header, body);
+        wrapper.appendChild(card);
+        return wrapper;
+      }
+
+      function addMessage(message) {
+        state.messages.push(message);
+        emptyState.hidden = true;
+        messages.appendChild(createMessage(message));
+        clearButton.disabled = false;
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function addThinking() {
+        var wrapper = createElement('article', 'message assistant');
+        wrapper.id = 'thinkingMessage';
+        wrapper.setAttribute('aria-label', 'El asistente está consultando las fuentes');
+        var card = createElement('div', 'message-card');
+        var body = createElement('div', 'message-body');
+        var line = createElement('p', 'thinking');
+        var mark = createElement('span', 'thinking-mark');
+        mark.setAttribute('aria-hidden', 'true');
+        mark.append(createElement('span'), createElement('span'), createElement('span'));
+        line.append(mark, document.createTextNode('Consultando datos y controles…'));
+        body.appendChild(line);
+        card.appendChild(body);
+        wrapper.appendChild(card);
+        messages.appendChild(wrapper);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function removeThinking() {
+        var node = document.getElementById('thinkingMessage');
+        if (node) node.remove();
+      }
+
+      function setBusy(busy) {
+        state.busy = busy;
+        input.disabled = busy;
+        sendButton.disabled = busy;
+        document.querySelectorAll('.quick-button, .suggestion-button').forEach(function (button) { button.disabled = busy; });
+        sendButton.textContent = busy ? 'Consultando…' : 'Consultar';
+        form.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (!busy) input.focus();
+      }
+
+      function historyForRequest() {
+        return state.messages.slice(-MAX_HISTORY).map(function (message) {
+          return { role: message.role, content: message.content };
+        });
+      }
+
+      function removeFailedUserMessage() {
+        var last = state.messages[state.messages.length - 1];
+        if (!last || last.role !== 'user') return;
+        state.messages.pop();
+        var userNodes = messages.querySelectorAll('.message.user');
+        if (userNodes.length) userNodes[userNodes.length - 1].remove();
+        if (!state.messages.length) {
+          emptyState.hidden = false;
+          clearButton.disabled = true;
+        }
+      }
+
+      function friendlyError(error) {
+        if (!navigator.onLine) return 'No hay conexión. El asistente interno no conserva respuestas sin conexión.';
+        if (error && error.name === 'AbortError') return 'La consulta fue cancelada.';
+        if (error && error.status === 429) return 'Se alcanzó el límite temporal de consultas. Esperá un momento e intentá de nuevo.';
+        if (error && error.status >= 500) return 'El asistente no está disponible en este momento. Los tableros internos siguen accesibles desde la navegación.';
+        return cleanText(error && error.message, 'No se pudo completar la consulta.');
+      }
+
+      async function submitMessage(rawMessage) {
+        var value = cleanText(rawMessage !== undefined ? rawMessage : input.value);
+        if (!value || state.busy || redirectIssued) return;
+        var previousHistory = historyForRequest();
+        input.value = '';
+        addMessage({ role: 'user', content: value, createdAt: new Date() });
+        setBusy(true);
+        composerStatus.dataset.state = 'loading';
+        composerStatus.textContent = 'Consultando fuentes internas…';
+        addThinking();
+        pendingController = new AbortController();
+
+        try {
+          var payload = await requestJSON(ASSISTANT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: value, history: previousHistory, enhance: true }),
+            signal: pendingController.signal
+          });
+          removeThinking();
+          addMessage(normalizeAnswer(payload));
+          composerStatus.dataset.state = 'ready';
+          composerStatus.textContent = 'Respuesta lista. Revisá fuentes y corte.';
+        } catch (error) {
+          removeThinking();
+          if (error && error.code === 'AUTH_REQUIRED') return;
+          removeFailedUserMessage();
+          composerStatus.dataset.state = 'error';
+          composerStatus.textContent = friendlyError(error);
+          input.value = value;
+        } finally {
+          pendingController = null;
+          if (!redirectIssued) setBusy(false);
+        }
+      }
+
+      function clearConversation() {
+        if (state.busy) return;
+        state.messages = [];
+        Array.from(messages.querySelectorAll('.message')).forEach(function (node) { node.remove(); });
+        emptyState.hidden = false;
+        clearButton.disabled = true;
+        composerStatus.removeAttribute('data-state');
+        composerStatus.textContent = 'Conversación eliminada de esta pestaña.';
+        input.value = '';
+        input.focus();
+      }
+
+      function showGateError(error) {
+        if (error && error.code === 'AUTH_REQUIRED') return;
+        gateTitle.textContent = 'No se pudo verificar la sesión';
+        gateMessage.textContent = friendlyError(error);
+        gateLoader.hidden = true;
+        retryButton.hidden = false;
+      }
+
+      async function authenticate() {
+        if (redirectIssued) return;
+        gateTitle.textContent = 'Verificando sesión';
+        gateMessage.textContent = 'Estamos confirmando tu acceso al asistente interno.';
+        gateLoader.hidden = false;
+        retryButton.hidden = true;
+        try {
+          var payload = await requestJSON(AUTH_URL);
+          var user = normalizeUser(payload);
+          if (!user || payload.authenticated === false) {
+            redirectToLogin();
+            return;
+          }
+          state.user = user;
+          document.getElementById('userLabel').textContent = user.name + (user.role ? ' · ' + user.role : '');
+          authGate.hidden = true;
+          app.hidden = false;
+          input.focus();
+        } catch (error) {
+          showGateError(error);
+        }
+      }
+
+      async function logout() {
+        logoutButton.disabled = true;
+        if (pendingController) pendingController.abort();
+        try {
+          await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+        } finally {
+          state.messages = [];
+          sessionStorage.removeItem('mjunin_user');
+          redirectToLogin();
+        }
+      }
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitMessage();
+      });
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          submitMessage();
+        }
+      });
+      document.querySelectorAll('[data-prompt]').forEach(function (button) {
+        button.addEventListener('click', function () { submitMessage(button.dataset.prompt); });
+      });
+      document.querySelectorAll('[data-compose]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          input.value = button.dataset.compose;
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        });
+      });
+      clearButton.addEventListener('click', clearConversation);
+      retryButton.addEventListener('click', authenticate);
+      logoutButton.addEventListener('click', logout);
+
+      authenticate();
+    }());
+  </script>
+</body>
+</html>

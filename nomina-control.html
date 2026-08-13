@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123247">
+  <meta name="color-scheme" content="light">
+  <title>Control de nómina | MuniControl</title>
+  <meta name="description" content="Control interno de cierres, conciliación aritmética y trazabilidad de la nómina municipal.">
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #885a18;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --red-soft: #faefed;
+      --focus: #1476a2;
+      --radius: 5px;
+      --sidebar: 254px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { background: var(--canvas); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    button, a { font: inherit; -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      transform: translateY(-160%);
+      padding: 9px 12px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      font-weight: 800;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      min-height: 100vh;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 18px;
+      overflow-y: auto;
+      background: var(--navy);
+      color: #e9f1f4;
+      border-right: 1px solid #21475c;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 24px;
+      border-bottom: 1px solid #315166;
+      color: inherit;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      background: #f8f5ec;
+      border: 1px solid #aebdc2;
+      border-radius: 3px;
+      font: 800 21px Georgia, serif;
+    }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .01em; }
+    .brand > span:last-child > span { display: block; margin-top: 2px; color: #a8c0cb; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .nav-label { margin: 24px 9px 8px; color: #8fabb8; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      color: #c9d8df;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .nav a:hover { color: #fff; border-color: #416175; }
+    .nav a[aria-current="page"] { color: #102e3f; background: #f8f5ec; border-color: #f8f5ec; font-weight: 800; }
+    .nav-code { width: 25px; height: 25px; display: inline-grid; place-items: center; color: #88a7b5; border: 1px solid currentColor; border-radius: 3px; font-size: 8px; font-weight: 850; letter-spacing: .04em; }
+    .nav a[aria-current="page"] .nav-code { color: var(--green); }
+    .side-note {
+      margin-top: auto;
+      padding: 14px;
+      color: #b8cbd3;
+      background: #173b50;
+      border: 1px solid #31576c;
+      border-radius: var(--radius);
+      font-size: 11px;
+    }
+    .side-note strong { display: block; margin-bottom: 5px; color: #fff; }
+
+    .workspace { min-width: 0; }
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 34px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .crumb a { color: var(--green); font-weight: 800; text-decoration: none; }
+    .crumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .top-title { margin-top: 2px; color: var(--navy); font-size: 14px; font-weight: 800; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .source-chip {
+      max-width: 260px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      overflow: hidden;
+      color: var(--green);
+      background: var(--green-soft);
+      border: 1px solid #b9d8ce;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .button {
+      min-height: 44px;
+      padding: 7px 11px;
+      color: var(--navy);
+      background: #fff;
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .button:hover { border-color: var(--navy-2); background: var(--surface-2); }
+
+    main { max-width: 1380px; margin: 0 auto; padding: 34px; }
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(290px, 400px);
+      gap: 30px;
+      align-items: end;
+      padding-bottom: 25px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(30px, 5vw, 48px); font-weight: 790; line-height: 1.04; letter-spacing: -.035em; }
+    .lead { max-width: 780px; margin: 13px 0 0; color: var(--muted); font-size: 15px; }
+    .status-panel { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
+    .status-panel[data-state="warning"] { border-top-color: var(--amber); }
+    .status-panel strong { display: block; color: var(--navy); }
+    .status-panel p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+
+    .notice {
+      display: grid;
+      grid-template-columns: 46px minmax(0, 1fr);
+      gap: 11px;
+      margin-top: 20px;
+      padding: 14px 16px;
+      color: #664615;
+      background: var(--amber-soft);
+      border: 1px solid #dfca99;
+      border-left: 4px solid var(--amber);
+      border-radius: var(--radius);
+    }
+    .notice-mark { font-weight: 900; }
+    .notice strong { display: block; color: #5b3e12; }
+    .notice p { margin: 2px 0 0; font-size: 12px; }
+
+    .section { margin-top: 30px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+    .section-head h2 { margin: 0; color: var(--navy); font-size: 23px; letter-spacing: -.02em; }
+    .section-head p { max-width: 720px; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .section-index { color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .state-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 27px;
+      padding: 5px 8px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      border: 1px solid #c7d6e0;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .state-badge.closed { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
+    .state-badge.open, .state-badge.warning { color: var(--amber); background: var(--amber-soft); border-color: #e2cf9e; }
+    .state-badge.blocked { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; }
+
+    .run-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .run-card { min-width: 0; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: var(--radius); }
+    .run-card.open-run { border-top-color: var(--amber); }
+    .run-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .run-kicker { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .run-month { margin: 4px 0 0; color: var(--navy); font-size: 28px; font-weight: 790; line-height: 1.1; }
+    .run-summary { display: grid; grid-template-columns: minmax(120px, .55fr) minmax(0, 1.45fr); gap: 18px; align-items: end; margin-top: 20px; }
+    .run-contracts { padding-right: 18px; border-right: 1px solid var(--line); }
+    .value-label { display: block; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .large-value { display: block; margin-top: 5px; color: var(--navy); font-size: 38px; font-weight: 790; line-height: 1; font-variant-numeric: tabular-nums; }
+    .value-note { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .publication-state { min-width: 0; }
+    .publication-state strong { display: block; color: var(--green); font-size: 14px; }
+    .publication-state.blocked strong { color: var(--red); }
+    .publication-state p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+    .metric { min-width: 0; padding: 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .metric span { display: block; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 8px; overflow-wrap: anywhere; color: var(--navy); font-size: clamp(15px, 1.55vw, 20px); line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .metric small { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; }
+    .metric.blocked { background: var(--red-soft); border-color: #e2c4c0; }
+    .metric.blocked strong { color: var(--red); font-size: 13px; }
+
+    .formula-panel { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(270px, .7fr); gap: 12px; }
+    .panel { min-width: 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .panel h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .panel-note { margin: 5px 0 14px; color: var(--muted); font-size: 12px; }
+    .formula {
+      padding: 14px;
+      overflow-x: auto;
+      color: var(--navy);
+      background: #f2f5f4;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--green);
+      border-radius: 4px;
+      font: 700 13px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      white-space: normal;
+    }
+    .formula + .formula { margin-top: 9px; border-left-color: var(--blue); }
+    .reconcile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .reconcile-item { padding: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .reconcile-item span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .reconcile-item strong { display: block; margin-top: 5px; color: var(--navy); font-variant-numeric: tabular-nums; }
+    .decision { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+    .decision-state { margin-top: 16px; padding: 14px; background: var(--green-soft); border: 1px solid #b9d8ce; border-radius: 4px; }
+    .decision-state.warning { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; }
+    .decision-state strong { display: block; color: inherit; }
+    .decision-state p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 11px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: #4d6069; background: #f4f6f5; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    .cell-status { font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .cell-status.closed { color: var(--green); }
+    .cell-status.open, .cell-status.blocked { color: var(--red); }
+    .empty { padding: 22px; color: var(--muted); text-align: center; }
+
+    .audit-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr); gap: 12px; }
+    .trace-list, .quality-list, .limit-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .trace-list li, .quality-list li, .limit-list li { padding: 10px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+    .trace-list strong, .quality-list strong { display: block; margin-bottom: 2px; color: var(--navy); }
+    .quality-list li[data-state="ok"] { border-left: 3px solid var(--green); }
+    .quality-list li[data-state="warning"] { border-left: 3px solid var(--amber); }
+    .limit-list li { color: #5c4b31; background: #fbf8f0; border-left: 3px solid var(--amber); }
+    .method-note { margin-top: 12px; padding: 12px; color: var(--blue); background: var(--blue-soft); border: 1px solid #c9d8e2; border-radius: 4px; font-size: 12px; }
+    footer { margin-top: 30px; padding-top: 16px; color: #718087; border-top: 1px solid var(--line); font-size: 10px; }
+
+    .loading { min-height: 55vh; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
+    .loading-inner strong { display: block; color: var(--navy); }
+    .loader { width: 24px; height: 24px; margin: 16px auto 0; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+    .error-card { max-width: 650px; margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #e0c1bd; border-top: 4px solid var(--red); border-radius: var(--radius); }
+    .error-card h1 { margin: 0; color: var(--navy); font-size: 30px; font-weight: 790; line-height: 1.1; }
+    .error-card p { color: var(--muted); }
+
+    @media (max-width: 1080px) {
+      .formula-panel, .audit-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 950px) {
+      .app { display: block; }
+      .sidebar { position: relative; min-height: auto; height: auto; padding: 14px; }
+      .brand { padding-bottom: 12px; }
+      .nav-label, .side-note { display: none; }
+      .nav { display: flex; overflow-x: auto; scrollbar-width: thin; }
+      .nav[aria-label="Navegación principal"] { flex-wrap: wrap; gap: 5px; overflow: visible; }
+      .nav[aria-label="Navegación principal"] a { flex: 1 1 110px; justify-content: center; }
+      .nav + .nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
+      .nav a { flex: 0 0 auto; white-space: nowrap; }
+      .topbar { padding: 12px 16px; }
+      main { padding: 24px 16px 60px; }
+      .page-head, .run-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .source-chip { display: none; }
+      .page-head { gap: 20px; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .run-card { padding: 16px; }
+      .run-summary { grid-template-columns: 1fr; gap: 12px; }
+      .run-contracts { padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .metric-grid, .reconcile-grid { grid-template-columns: 1fr; }
+      .metric strong { font-size: 18px; }
+      th, td { padding: 9px; }
+    }
+    @media print {
+      .sidebar, .topbar, .button, .loading, #errorHost { display: none !important; }
+      .app { display: block; }
+      main { max-width: none; padding: 0; }
+      .run-card, .panel, .metric { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegación interna">
+      <a class="brand" href="internal-dashboard.html" aria-label="MuniControl, inicio interno"><span class="brand-mark" aria-hidden="true">M</span><span><strong>MuniControl</strong><span>Friendly · Junín</span></span></a>
+      <div class="nav-label">Operación interna</div>
+      <nav class="nav" aria-label="Navegación principal">
+        <a href="internal-dashboard.html"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
+        <a href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html" aria-current="page"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
+      </nav>
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a href="friendly-dashboard.html#calidad"><span class="nav-code" aria-hidden="true">CD</span><span>Calidad pública</span></a>
+        <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+      <div class="side-note"><strong>Regla de publicación</strong>Sólo una corrida cerrada, conciliada y autorizada puede alimentar indicadores financieros ejecutivos.</div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div><nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Nómina</span></nav><div class="top-title">Control interno de nómina</div></div>
+        <div class="top-actions"><span class="source-chip" id="sourceChip">Consultando política de fuente</span><button class="button" id="logoutButton" type="button">Cerrar sesión</button></div>
+      </header>
+
+      <div class="loading" id="loading" role="status" aria-live="polite"><div class="loading-inner"><strong>Preparando el control de nómina</strong><span>Validando cierres, conceptos y conciliación.</span><div class="loader" aria-hidden="true"></div></div></div>
+      <div id="errorHost" hidden></div>
+
+      <main id="mainContent" hidden>
+        <section class="page-head" aria-labelledby="pageTitle">
+          <div><p class="eyebrow">Nómina · cierre y trazabilidad</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Separa la referencia cerrada de la corrida en curso. Los importes abiertos permanecen fuera de los indicadores ejecutivos, aunque estén disponibles en la fuente técnica.</p></div>
+          <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Estado del control</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
+        </section>
+
+        <section class="notice" aria-labelledby="publicationRuleTitle"><span class="notice-mark" aria-hidden="true">Nota</span><div><strong id="publicationRuleTitle">La fecha más reciente no siempre es un cierre</strong><p>Una preliquidación sirve para control operativo, pero no para comunicar gasto, costo ni evolución financiera. La API debe autorizar expresamente la publicación ejecutiva.</p></div></section>
+
+        <section class="section" aria-labelledby="runsTitle">
+          <header class="section-head"><div><span class="section-index">01 · ESTADO DE CORRIDAS</span><h2 id="runsTitle">Cierre de referencia y período abierto</h2><p>Los meses, cantidades y estados provienen del contrato interno. La interfaz no completa ni estima valores faltantes.</p></div><span class="state-badge" id="runsBadge">Consultando</span></header>
+          <div class="run-grid">
+            <article class="run-card" id="closedRunCard">
+              <header class="run-card-head"><div><span class="run-kicker">Última corrida cerrada</span><h3 class="run-month" id="closedMonth">—</h3></div><span class="state-badge" id="closedBadge">Sin confirmar</span></header>
+              <div class="run-summary"><div class="run-contracts"><span class="value-label">Legajos en corrida</span><strong class="large-value" id="closedContracts">—</strong><small class="value-note">Conteo informado por la corrida.</small></div><div class="publication-state" id="closedPublication"><strong id="closedPublicationTitle">Validando publicación</strong><p id="closedPublicationDetail">Se revisan cierre, conciliación y autorización ejecutiva.</p></div></div>
+              <div class="metric-grid" aria-label="Importes de la corrida cerrada">
+                <div class="metric" id="closedGrossCard"><span>Haberes brutos pagables</span><strong id="closedGross">—</strong><small>Conceptos 993 + 994 + 995</small></div>
+                <div class="metric" id="closedWithholdingsCard"><span>Retenciones del agente</span><strong id="closedWithholdings">—</strong><small>Concepto 996</small></div>
+                <div class="metric" id="closedNetCard"><span>Neto pagable</span><strong id="closedNet">—</strong><small>Concepto 999</small></div>
+                <div class="metric" id="closedCostCard"><span>Costo empleador proxy</span><strong id="closedCost">—</strong><small>Bruto pagable + concepto 990</small></div>
+              </div>
+            </article>
+
+            <article class="run-card open-run" id="openRunCard">
+              <header class="run-card-head"><div><span class="run-kicker">Corrida actual abierta</span><h3 class="run-month" id="openMonth">—</h3></div><span class="state-badge open" id="openBadge">Sin confirmar</span></header>
+              <div class="run-summary"><div class="run-contracts"><span class="value-label">Legajos en corrida</span><strong class="large-value" id="openContracts">—</strong><small class="value-note">Control operativo; no es un KPI financiero.</small></div><div class="publication-state blocked"><strong>Publicación financiera bloqueada</strong><p>Mientras la corrida siga abierta, sus importes no se presentan como gasto, costo ni nómina oficial.</p></div></div>
+              <div class="metric-grid" aria-label="Importes bloqueados de la corrida abierta">
+                <div class="metric blocked"><span>Haberes brutos pagables</span><strong>No publicable</strong><small>Corrida abierta</small></div>
+                <div class="metric blocked"><span>Retenciones del agente</span><strong>No publicable</strong><small>Corrida abierta</small></div>
+                <div class="metric blocked"><span>Neto pagable</span><strong>No publicable</strong><small>Corrida abierta</small></div>
+                <div class="metric blocked"><span>Costo empleador proxy</span><strong>No publicable</strong><small>Corrida abierta</small></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="reconciliationTitle">
+          <header class="section-head"><div><span class="section-index">02 · CONCILIACIÓN ARITMÉTICA</span><h2 id="reconciliationTitle">Cómo se valida el neto pagable</h2><p>La conciliación se aplica a la última corrida cerrada. Una diferencia dentro de tolerancia habilita el control aritmético, no reemplaza el cierre administrativo.</p></div><span class="state-badge" id="reconciliationBadge">Consultando</span></header>
+          <div class="formula-panel">
+            <article class="panel"><h3>Reglas de cálculo</h3><p class="panel-note">Las expresiones usan los totales literales de GRH; no se suma indiscriminadamente el importe técnico de todos los conceptos.</p><div class="formula">993 + 994 + 995 - 996 = 999</div><div class="formula">Costo empleador proxy = 993 + 994 + 995 + 990</div><div class="reconcile-grid"><div class="reconcile-item"><span>Diferencia aritmética</span><strong id="arithmeticDifference">—</strong></div><div class="reconcile-item"><span>Tolerancia</span><strong id="roundingTolerance">—</strong></div><div class="reconcile-item"><span>Aportes patronales</span><strong id="employerContributions">—</strong></div></div></article>
+            <article class="panel"><div class="decision"><div><h3>Decisión de publicación</h3><p class="panel-note">Deben coincidir el estado de cierre, la conciliación y la autorización ejecutiva enviada por la API.</p></div><div class="decision-state" id="decisionState"><strong id="decisionTitle">Validando corrida</strong><p id="decisionDetail">Todavía no hay una decisión disponible.</p></div></div></article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="historyTitle">
+          <header class="section-head"><div><span class="section-index">03 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
+        </section>
+
+        <section class="section" aria-labelledby="auditTitle">
+          <header class="section-head"><div><span class="section-index">04 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <div class="audit-grid">
+            <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
+            <div>
+              <article class="panel"><h3>Controles de calidad</h3><p class="panel-note">Se muestran exactamente como llegan desde la API; no se convierten pendientes en aprobaciones.</p><ul class="quality-list" id="qualityList"></ul></article>
+              <article class="panel" style="margin-top:12px"><h3>Limitaciones vigentes</h3><p class="panel-note">Condiciones que deben acompañar cualquier lectura o exportación.</p><ul class="limit-list" id="limitations"></ul></article>
+            </div>
+          </div>
+        </section>
+
+        <footer><span id="footerSource">Fuente interna sin confirmar</span> · Importes nominales en pesos argentinos · Uso interno de gestión.</footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var DATA_URL = '/api/internal-data?resource=payrollControl';
+      var LOGIN_URL = 'login.html?next=nomina-control.html';
+      var redirectIssued = false;
+      var numberFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      var moneyFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      var qualityLabels = {
+        sourceRowsReconciled: 'Filas de origen reconciliadas',
+        conceptTotalsAvailable: 'Totales literales disponibles',
+        arithmeticReconciled: 'Conciliación aritmética',
+        currentOpenBlocked: 'Corrida abierta bloqueada',
+        closedRunIdentified: 'Cierre de referencia identificado',
+        invalidDateRows: 'Filas con fecha inválida',
+        quarantinedRows: 'Filas en cuarentena',
+        monthMismatchRows: 'Filas con mes inconsistente',
+        periodMismatchRows: 'Filas con período inconsistente'
+      };
+
+      function byId(id) { return document.getElementById(id); }
+      function isNumber(value) { return typeof value === 'number' && Number.isFinite(value); }
+      function setText(id, value) { byId(id).textContent = value == null || value === '' ? '—' : String(value); }
+      function formatInteger(value) { return isNumber(value) ? numberFormat.format(value) : '—'; }
+      function formatMoney(value) { return isNumber(value) ? moneyFormat.format(value) : '—'; }
+      function normalizeStatus(value) { return String(value == null ? '' : value).trim().toLowerCase(); }
+      function isClosed(run) { return ['closed', 'cerrado', 'closed_run'].includes(normalizeStatus(run && run.closureStatus)); }
+      function isOpen(run) { return ['open', 'abierto', 'preliquidation', 'preliquidacion', 'in_progress'].includes(normalizeStatus(run && run.closureStatus)); }
+      function isPublishable(run) { return Boolean(run && isClosed(run) && run.arithmeticReconciled === true && run.executivePublishable === true); }
+      function monthLabel(value) {
+        if (typeof value !== 'string' || !value.trim()) return 'Período no informado';
+        var match = value.trim().match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+        if (!match) return value;
+        var year = Number(match[1]);
+        var month = Number(match[2]);
+        if (month < 1 || month > 12) return value;
+        return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
+      }
+      function closureLabel(run) {
+        if (isClosed(run)) return 'Cerrada';
+        if (isOpen(run)) return 'Abierta';
+        return run && run.closureStatus ? String(run.closureStatus) : 'Sin confirmar';
+      }
+      function policyValue(policy, keys) {
+        if (typeof policy === 'string') return policy;
+        if (!policy || typeof policy !== 'object') return '';
+        for (var index = 0; index < keys.length; index += 1) {
+          var candidate = policy[keys[index]];
+          if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+        }
+        return '';
+      }
+      function safeDisplay(value) {
+        if (value === true) return 'Cumple';
+        if (value === false) return 'Requiere revisión';
+        if (isNumber(value)) return numberFormat.format(value);
+        if (typeof value === 'string' && value.trim()) return value;
+        if (Array.isArray(value)) return value.length ? value.map(safeDisplay).join(', ') : 'Sin observaciones';
+        if (value && typeof value === 'object') {
+          return Object.keys(value).map(function (key) { return key + ': ' + safeDisplay(value[key]); }).join(' · ');
+        }
+        return 'No informado';
+      }
+      function setBadge(id, state, text) {
+        var node = byId(id);
+        node.className = 'state-badge ' + state;
+        node.textContent = text;
+      }
+      function appendCell(row, text, className) {
+        var cell = document.createElement('td');
+        cell.textContent = text;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+      }
+      function emptyRow(host, columns, message) {
+        var row = document.createElement('tr');
+        var cell = document.createElement('td');
+        cell.colSpan = columns;
+        cell.className = 'empty';
+        cell.textContent = message;
+        row.appendChild(cell);
+        host.appendChild(row);
+      }
+
+      function renderClosed(run) {
+        setText('closedMonth', monthLabel(run && run.month));
+        setText('closedContracts', formatInteger(run && run.contracts));
+        var closed = isClosed(run);
+        var publishable = isPublishable(run);
+        setBadge('closedBadge', closed ? 'closed' : 'warning', closureLabel(run));
+        byId('closedPublication').classList.toggle('blocked', !publishable);
+        setText('closedPublicationTitle', publishable ? 'Apta para publicación ejecutiva' : 'Publicación ejecutiva no habilitada');
+        setText('closedPublicationDetail', publishable ? 'La corrida está cerrada, conciliada y autorizada por el backend.' : 'Falta al menos una condición: cierre, conciliación o autorización ejecutiva.');
+        ['closedGrossCard', 'closedWithholdingsCard', 'closedNetCard', 'closedCostCard'].forEach(function (id) { byId(id).classList.toggle('blocked', !publishable); });
+        setText('closedGross', publishable ? formatMoney(run.grossPayable) : 'No publicable');
+        setText('closedWithholdings', publishable ? formatMoney(run.employeeWithholdings) : 'No publicable');
+        setText('closedNet', publishable ? formatMoney(run.netPayable) : 'No publicable');
+        setText('closedCost', publishable ? formatMoney(run.employerCostProxy) : 'No publicable');
+        setText('arithmeticDifference', formatMoney(run && run.arithmeticDifference));
+        setText('roundingTolerance', formatMoney(run && run.roundingTolerance));
+        setText('employerContributions', publishable ? formatMoney(run.employerContributions) : 'No publicable');
+        setBadge('reconciliationBadge', run && run.arithmeticReconciled === true ? 'closed' : 'warning', run && run.arithmeticReconciled === true ? 'Conciliada' : 'Revisión requerida');
+        byId('decisionState').classList.toggle('warning', !publishable);
+        setText('decisionTitle', publishable ? 'Publicación habilitada' : 'Publicación bloqueada');
+        setText('decisionDetail', publishable ? 'La referencia cerrada puede alimentar indicadores financieros ejecutivos nominales.' : 'Los importes permanecen fuera de indicadores ejecutivos hasta completar todas las condiciones.');
+        return publishable;
+      }
+
+      function renderOpen(run) {
+        setText('openMonth', monthLabel(run && run.month));
+        setText('openContracts', formatInteger(run && run.contracts));
+        setBadge('openBadge', isOpen(run) ? 'open' : 'warning', closureLabel(run));
+      }
+
+      function renderRuns(runs) {
+        var host = byId('runRows');
+        host.replaceChildren();
+        if (!runs.length) {
+          emptyRow(host, 6, 'La API no informó corridas para el historial.');
+          return;
+        }
+        runs.forEach(function (run) {
+          var publishable = isPublishable(run);
+          var row = document.createElement('tr');
+          appendCell(row, monthLabel(run.month));
+          appendCell(row, closureLabel(run), 'cell-status ' + (isClosed(run) ? 'closed' : 'open'));
+          appendCell(row, formatInteger(run.contracts), 'numeric');
+          appendCell(row, publishable ? formatMoney(run.netPayable) : 'Bloqueado', 'numeric');
+          appendCell(row, publishable ? formatMoney(run.employerCostProxy) : 'Bloqueado', 'numeric');
+          appendCell(row, publishable ? 'Habilitado' : 'No publicable', 'cell-status ' + (publishable ? 'closed' : 'blocked'));
+          host.appendChild(row);
+        });
+      }
+
+      function renderQuality(quality) {
+        var host = byId('qualityList');
+        host.replaceChildren();
+        var entries = quality && typeof quality === 'object' ? Object.entries(quality) : [];
+        if (!entries.length) {
+          var missing = document.createElement('li');
+          missing.dataset.state = 'warning';
+          missing.textContent = 'La API no informó controles de calidad.';
+          host.appendChild(missing);
+          return;
+        }
+        entries.forEach(function (entry) {
+          var item = document.createElement('li');
+          var title = document.createElement('strong');
+          title.textContent = qualityLabels[entry[0]] || entry[0].replace(/([a-z])([A-Z])/g, '$1 $2');
+          item.dataset.state = entry[1] === true ? 'ok' : entry[1] === false ? 'warning' : 'neutral';
+          item.append(title, document.createTextNode(safeDisplay(entry[1])));
+          host.appendChild(item);
+        });
+      }
+
+      function renderLimitations(limitations) {
+        var host = byId('limitations');
+        host.replaceChildren();
+        if (!limitations.length) {
+          var item = document.createElement('li');
+          item.textContent = 'La API no informó limitaciones adicionales.';
+          host.appendChild(item);
+          return;
+        }
+        limitations.forEach(function (limitation) {
+          var item = document.createElement('li');
+          item.textContent = safeDisplay(limitation);
+          host.appendChild(item);
+        });
+      }
+
+      function render(payload) {
+        var closedPublishable = renderClosed(payload.latestClosed);
+        renderOpen(payload.currentOpen);
+        renderRuns(payload.runs);
+        renderQuality(payload.quality);
+        renderLimitations(payload.limitations);
+
+        var source = policyValue(payload.sourcePolicy, ['label', 'authoritativeSource', 'source', 'authority']) || 'GRH · política de fuente recibida';
+        var policyDetail = policyValue(payload.sourcePolicy, ['detail', 'rule', 'methodology', 'description']) || 'GRH gobierna la nómina y los totales se publican únicamente desde una corrida cerrada y conciliada.';
+        setText('sourceChip', source);
+        setText('footerSource', source);
+        setText('sourcePolicyDetail', policyDetail + ' Los importes son nominales y no están ajustados por IPC.');
+
+        var openCorrectlyBlocked = payload.currentOpen ? !isPublishable(payload.currentOpen) : true;
+        var ready = payload.status === 'ready' && closedPublishable && openCorrectlyBlocked;
+        setBadge('runsBadge', ready ? 'closed' : 'warning', ready ? 'Control vigente' : 'Con pendientes');
+        byId('overallPanel').dataset.state = ready ? 'ready' : 'warning';
+        setText('overallTitle', ready ? 'Referencia cerrada disponible' : 'Control disponible con pendientes');
+        setText('overallDetail', ready ? 'La última corrida cerrada está conciliada; la corrida abierta permanece bloqueada para uso financiero.' : 'La interfaz conserva los bloqueos hasta que la API confirme cierre, conciliación y publicación.');
+
+        byId('loading').hidden = true;
+        byId('errorHost').hidden = true;
+        byId('mainContent').hidden = false;
+      }
+
+      function validatePayload(payload) {
+        return Boolean(
+          payload &&
+          payload.ok === true &&
+          typeof payload.status === 'string' &&
+          payload.sourcePolicy != null &&
+          payload.latestClosed && typeof payload.latestClosed === 'object' &&
+          payload.currentOpen && typeof payload.currentOpen === 'object' &&
+          Array.isArray(payload.runs) &&
+          payload.quality && typeof payload.quality === 'object' &&
+          Array.isArray(payload.limitations)
+        );
+      }
+
+      function showError(message) {
+        byId('loading').hidden = true;
+        byId('mainContent').hidden = true;
+        var host = byId('errorHost');
+        host.hidden = false;
+        host.replaceChildren();
+        var card = document.createElement('section');
+        card.className = 'error-card';
+        card.setAttribute('role', 'alert');
+        var title = document.createElement('h1');
+        title.textContent = 'No se pudo abrir el control de nómina';
+        var detail = document.createElement('p');
+        detail.textContent = message;
+        var retry = document.createElement('button');
+        retry.className = 'button';
+        retry.type = 'button';
+        retry.textContent = 'Reintentar';
+        retry.addEventListener('click', load);
+        card.append(title, detail, retry);
+        host.appendChild(card);
+      }
+
+      function redirectToLogin() {
+        if (redirectIssued) return;
+        redirectIssued = true;
+        location.replace(LOGIN_URL);
+      }
+
+      async function load() {
+        if (redirectIssued) return;
+        byId('errorHost').hidden = true;
+        byId('mainContent').hidden = true;
+        byId('loading').hidden = false;
+        try {
+          var response = await fetch(DATA_URL, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+          if (response.status === 401) {
+            redirectToLogin();
+            return;
+          }
+          if (!response.ok) throw new Error('La API interna respondió con estado ' + response.status + '.');
+          var payload = await response.json();
+          if (!validatePayload(payload)) throw new Error('La respuesta no cumple el contrato de control de nómina.');
+          render(payload);
+        } catch (error) {
+          if (!redirectIssued) showError(error instanceof Error ? error.message : 'La fuente interna no está disponible.');
+        }
+      }
+
+      byId('logoutButton').addEventListener('click', async function () {
+        try {
+          await fetch('/api/internal-auth', { method: 'DELETE', credentials: 'same-origin' });
+        } finally {
+          sessionStorage.removeItem('mjunin_user');
+          location.replace('login.html');
+        }
+      });
+
+      load();
+    }());
+  </script>
+</body>
+</html>

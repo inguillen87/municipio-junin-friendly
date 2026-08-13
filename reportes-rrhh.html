@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#173447">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
   <title>Informe ejecutivo de RRHH | MuniControl Friendly</title>
   <meta name="description" content="Informe ejecutivo de recursos humanos de la Municipalidad de Junín, Mendoza, elaborado con datos agregados del sistema GRH.">
   <style>
@@ -828,6 +830,13 @@
 
       start();
     }());
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+      }, { once: true });
+    }
   </script>
 </body>
 </html>

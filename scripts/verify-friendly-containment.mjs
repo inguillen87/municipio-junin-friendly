@@ -13,21 +13,27 @@ assert.equal(rewrites.get('/rrhh'), '/internal-dashboard.html');
 assert.equal(rewrites.get('/modulos'), '/modulos.html');
 assert.equal(rewrites.get('/reportes'), '/reportes-rrhh.html');
 assert.equal(rewrites.get('/organigrama'), '/estructura.html');
+assert.equal(rewrites.get('/integracion-datos'), '/integracion-datos.html');
+assert.equal(rewrites.get('/nomina-control'), '/nomina-control.html');
+assert.equal(rewrites.get('/asistente'), '/asistente.html');
 assert.ok(config.functions['api/internal-auth.js'], 'falta publicar autenticación interna');
 assert.ok(config.functions['api/internal-data.js'], 'falta publicar API interna');
+assert.ok(config.functions['api/internal-assistant.js'], 'falta publicar asistente interno');
 for (const route of ['/rrhh', '/hacienda', '/ia', '/reportes', '/api/rrhh', '/api/payroll', '/api/ai-analyze']) {
   assert.ok(rewrites.has(route), `falta contener ${route}`);
 }
 
 assert.ok(!fs.existsSync(new URL('../.new_token.txt', import.meta.url)), 'el artefacto secreto no debe existir');
 const ignore = read('.vercelignore');
-for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/rrhh.js', 'api/lib/db.js', '*.html', 'lookups.json', 'transcripts_audios.json', 'quick-seed.js', 'sw.js', 'test_prisma.js']) assert.ok(ignore.includes(pattern));
+for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/rrhh.js', 'api/lib/db.js', '*.html', 'lookups.json', 'transcripts_audios.json', 'quick-seed.js', 'test_prisma.js']) assert.ok(ignore.includes(pattern));
+assert.doesNotMatch(ignore, /^sw\.js$/m, 'el service worker PWA debe llegar al build de Vercel');
+assert.doesNotMatch(ignore, /^manifest\.webmanifest$/m, 'el manifiesto PWA debe llegar al build de Vercel');
 const gitIgnore = read('.gitignore');
 for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
   assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
 }
 
-for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html']) {
+for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;
@@ -40,7 +46,7 @@ const internalDashboard = read('internal-dashboard.html');
 assert.match(internalDashboard, /\/api\/internal-auth/, 'el panel debe validar la sesión interna');
 assert.match(internalDashboard, /\/api\/internal-data/, 'el panel debe consultar la API interna');
 assert.doesNotMatch(internalDashboard, /<input[^>]+(?:email|password)[^>]+value\s*=/i, 'las credenciales internas no deben estar embebidas');
-for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js']) {
+for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js', 'api/internal-assistant.js']) {
   assert.doesNotMatch(ignore, new RegExp(`^${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `${file} no debe estar excluido de Vercel`);
 }
 
@@ -56,7 +62,7 @@ assert.equal(friendlyData.workforce.inactive, 1568);
 assert.equal(friendlyData.management.current.balance, 49);
 assert.equal(friendlyData.management.previous.balance, 31);
 assert.equal(friendlyData.absence.totalEvents, 31572);
-assert.equal(friendlyData.availability.payrollAmounts, 'unavailable');
+assert.equal(friendlyData.availability.payrollAmounts, 'internal_closed_runs_only');
 assert.equal(friendlyData.availability.budgetExecution, 'unavailable');
 assert.equal(
   friendlyData.workforce.activeSectors.reduce((sum, row) => sum + row.value, 0),
