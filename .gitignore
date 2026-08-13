@@ -1,0 +1,32 @@
+# Archivos temporales y de build
+node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backups
+*.bak
+*.tmp
+*~
+
+# ZIP builds (no subir al repo, ya están en Google Drive/local)
+*.zip
+
+.vercel
+.env*
+
+rrhh-data/*.json
+rrhh-data/**/*.sql

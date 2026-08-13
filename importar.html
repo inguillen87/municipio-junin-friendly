@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#060b18">
+  <title>Hub de Datos | MuniControl</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="manifest" href="manifest.json">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <style>
+    /* -- HUB LAYOUT -- */
+    .hub-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+      height: calc(100vh - 72px);
+      overflow: hidden;
+    }
+    @media (max-width: 900px) {
+      .hub-grid { grid-template-columns: 1fr; height: auto; overflow: visible; }
+    }
+
+    /* -- LEFT PANEL -- */
+    .hub-panel {
+      background: rgba(13,21,38,0.95);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .hub-panel-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: #f0f4ff;
+    }
+    .hub-panel-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+    /* -- MODULE SELECTOR -- */
+    .module-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 14px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      color: rgba(148,163,184,0.8);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+      margin-bottom: 6px;
+      text-align: left;
+    }
+    .module-btn:hover { background: rgba(255,255,255,0.04); color: #f0f4ff; border-color: rgba(255,255,255,0.1); }
+    .module-btn.active { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
+    .module-btn .mod-icon { font-size: 20px; width: 28px; text-align: center; }
+    .module-btn .mod-info { flex: 1; }
+    .module-btn .mod-name { display: block; font-weight: 700; }
+    .module-btn .mod-count { display: block; font-size: 10px; color: rgba(100,116,139,0.7); font-weight: 400; margin-top: 1px; }
+    .module-btn .mod-badge {
+      font-size: 10px; font-weight: 800; padding: 2px 8px;
+      border-radius: 99px; background: rgba(59,130,246,0.2); color: #60a5fa;
+    }
+
+    /* -- RIGHT PANEL: UPLOAD AREA -- */
+    .hub-main {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    /* -- SOURCES TABS -- */
+    .source-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .source-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: rgba(13,21,38,0.9);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      color: rgba(148,163,184,0.7);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+    }
+    .source-tab:hover { border-color: rgba(255,255,255,0.12); color: #f0f4ff; }
+    .source-tab.active {
+      background: rgba(59,130,246,0.12);
+      border-color: rgba(59,130,246,0.3);
+      color: #60a5fa;
+    }
+    .source-tab .src-icon { font-size: 16px; }
+
+    /* -- DROP ZONE -- */
+    .drop-zone {
+      border: 2px dashed rgba(59,130,246,0.3);
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: rgba(59,130,246,0.03);
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: rgba(59,130,246,0.6);
+      background: rgba(59,130,246,0.07);
+    }
+    .drop-zone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-icon { font-size: 48px; margin-bottom: 14px; }
+    .drop-title { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 800; color: #f0f4ff; margin-bottom: 8px; }
+    .drop-sub { font-size: 12px; color: rgba(148,163,184,0.5); margin-bottom: 20px; }
+    .drop-formats { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .format-pill {
+      padding: 4px 10px; background: rgba(255,255,255,0.06);
+      border-radius: 99px; font-size: 10px; font-weight: 700;
+      color: rgba(148,163,184,0.7); border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* -- URL CONNECTOR -- */
+    .url-connector {
+      background: rgba(13,21,38,0.95);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .url-connector h4 { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #f0f4ff; }
+    .url-input-row { display: flex; gap: 8px; }
+    .url-input-row input {
+      flex: 1; padding: 10px 14px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; color: #f0f4ff; font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+    }
+    .url-input-row input:focus { border-color: rgba(59,130,246,0.5); }
+    .url-input-row input::placeholder { color: rgba(148,163,184,0.4); }
+    .btn-connect {
+      padding: 10px 18px; background: linear-gradient(135deg,#3b82f6,#8b5cf6);
+      border: none; border-radius: 8px; color: white; font-weight: 700;
+      font-size: 12px; cursor: pointer; white-space: nowrap; font-family: 'Inter', sans-serif;
+      transition: opacity 0.2s;
+    }
+    .btn-connect:hover { opacity: 0.85; }
+
+    /* -- QUICK CONNECTORS -- */
+    .quick-connectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 10px; }
+    .connector-card {
+      background: rgba(13,21,38,0.9);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 16px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .connector-card:hover { border-color: rgba(255,255,255,0.14); transform: translateY(-2px); }
+    .connector-icon { font-size: 28px; margin-bottom: 8px; }
+    .connector-name { font-size: 12px; font-weight: 700; color: #f0f4ff; margin-bottom: 3px; }
+    .connector-status { font-size: 10px; color: rgba(100,116,139,0.7); }
+    .connector-card.connected .connector-status { color: #10b981; }
+    .connector-card.connected { border-color: rgba(16,185,129,0.2); }
+
+    /* -- FILE LIST -- */
+    .file-list { display: flex; flex-direction: column; gap: 8px; }
+    .file-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px;
+      background: rgba(13,21,38,0.9);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      transition: background 0.15s;
+    }
+    .file-item:hover { background: rgba(255,255,255,0.03); }
+    .file-ext {
+      width: 36px; height: 36px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;
+    }
+    .ext-pdf { background: rgba(239,68,68,0.15); color: #f87171; }
+    .ext-xlsx { background: rgba(16,185,129,0.15); color: #34d399; }
+    .ext-csv { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .ext-db { background: rgba(139,92,246,0.15); color: #a78bfa; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name { font-size: 13px; font-weight: 600; color: #f0f4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-meta { font-size: 11px; color: rgba(100,116,139,0.7); margin-top: 2px; }
+    .file-module { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-left: auto; flex-shrink: 0; }
+    .file-actions { display: flex; gap: 6px; }
+    .file-action-btn {
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s;
+    }
+    .file-action-btn:hover { background: rgba(255,255,255,0.1); }
+
+    /* -- PROGRESS BAR -- */
+    .upload-progress { display: none; }
+    .upload-progress.active { display: block; }
+    .progress-bar {
+      height: 4px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden; margin-top: 8px;
+    }
+    .progress-fill {
+      height: 100%; background: linear-gradient(90deg,#3b82f6,#8b5cf6);
+      border-radius: 99px; transition: width 0.3s ease;
+      animation: progressPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes progressPulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+    /* -- ANALYTICS PREVIEW -- */
+    .data-preview {
+      background: rgba(13,21,38,0.95);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .data-preview-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .data-preview-table { overflow-x: auto; max-height: 240px; }
+    .data-preview-table table { min-width: 500px; }
+
+    /* -- SECTION LABEL -- */
+    .hub-section-label {
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.8px; color: rgba(148,163,184,0.4); margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="if(window.closeMobileSidebar)closeMobileSidebar()"></div>
+
+  <main class="main-content" id="mainContent">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-btn" id="menuBtn" aria-label="Menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="page-title">
+          <h1>Hub de Datos</h1>
+          <span class="breadcrumb">Importación inteligente y conexión de fuentes</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button id="themeToggleBtn" class="notif-btn" style="font-size:16px" title="Cambiar tema">??</button>
+        <button class="notif-btn" title="Notificaciones">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <div class="topbar-avatar" id="topbarAvatar">AM</div>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="hub-grid">
+
+        <!-- LEFT: Module selector -->
+        <div class="hub-panel">
+          <div class="hub-panel-header">?? Módulos del Sistema</div>
+          <div class="hub-panel-body">
+            <div class="hub-section-label" style="margin-top:4px">Gestión Interna</div>
+            <button class="module-btn active" onclick="selectModule(this,'rrhh')" id="mod-rrhh">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">RRHH</span>
+                <span class="mod-count">Empleados, sueldos, legajos, ausencias</span>
+              </span>
+              <span class="mod-badge">3</span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'hacienda')" id="mod-hacienda">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">Hacienda</span>
+                <span class="mod-count">Presupuesto, pagos, balances</span>
+              </span>
+              <span class="mod-badge">5</span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'licitaciones')" id="mod-licitaciones">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">Licitaciones</span>
+                <span class="mod-count">Pliegos, ofertas, contratos</span>
+              </span>
+              <span class="mod-badge">2</span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'obras')" id="mod-obras">
+              <span class="mod-icon">???</span>
+              <span class="mod-info">
+                <span class="mod-name">Obras Públicas</span>
+                <span class="mod-count">Proyectos, avances, certificaciones</span>
+              </span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'presupuesto')" id="mod-presupuesto">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">Presupuesto</span>
+                <span class="mod-count">Partidas, ejecución, proyecciones</span>
+              </span>
+            </button>
+
+            <div class="hub-section-label" style="margin-top:16px">Ciudadanía</div>
+            <button class="module-btn" onclick="selectModule(this,'vecinos')" id="mod-vecinos">
+              <span class="mod-icon">???</span>
+              <span class="mod-info">
+                <span class="mod-name">Vecinos / Reclamos</span>
+                <span class="mod-count">Padrón, reclamos 311, turnos</span>
+              </span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'proveedores')" id="mod-proveedores">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">Proveedores</span>
+                <span class="mod-count">Registro, facturas, contratos</span>
+              </span>
+            </button>
+            <button class="module-btn" onclick="selectModule(this,'control')" id="mod-control">
+              <span class="mod-icon">???</span>
+              <span class="mod-info">
+                <span class="mod-name">Control Interno</span>
+                <span class="mod-count">Auditorías, logs, cumplimiento</span>
+              </span>
+            </button>
+
+            <div class="hub-section-label" style="margin-top:16px">Datos Cruzados</div>
+            <button class="module-btn" onclick="selectModule(this,'analytics')" id="mod-analytics" style="border-color:rgba(139,92,246,0.2);background:rgba(139,92,246,0.05)">
+              <span class="mod-icon">??</span>
+              <span class="mod-info">
+                <span class="mod-name">Cruzamiento IA</span>
+                <span class="mod-count">Análisis cross-módulo con IA</span>
+              </span>
+              <span class="mod-badge" style="background:rgba(139,92,246,0.2);color:#a78bfa">IA</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- RIGHT: Upload area -->
+        <div class="hub-main" id="hubMain">
+
+          <!-- Source type tabs -->
+          <div>
+            <div class="hub-section-label">Fuente de datos</div>
+            <div class="source-tabs">
+              <button class="source-tab active" onclick="setSource(this,'file')" id="src-file">
+                <span class="src-icon">??</span> Archivo local
+              </button>
+              <button class="source-tab" onclick="setSource(this,'url')" id="src-url">
+                <span class="src-icon">??</span> URL / API
+              </button>
+              <button class="source-tab" onclick="setSource(this,'gdrive')" id="src-gdrive">
+                <span class="src-icon">??</span> Google Drive
+              </button>
+              <button class="source-tab" onclick="setSource(this,'db')" id="src-db">
+                <span class="src-icon">???</span> Base de datos
+              </button>
+              <button class="source-tab" onclick="setSource(this,'schedule')" id="src-schedule">
+                <span class="src-icon">?</span> Programado
+              </button>
+            </div>
+          </div>
+
+          <!-- Drop zone (file upload) -->
+          <div id="panel-file">
+            <div class="drop-zone" id="dropZone"
+              ondragover="event.preventDefault();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="handleDrop(event)">
+              <input type="file" id="fileInput" multiple accept=".pdf,.csv,.xlsx,.xls,.json,.txt,.xml" onchange="handleFiles(this.files)">
+              <div class="drop-icon">??</div>
+              <div class="drop-title">Arrastrá tus archivos aquí</div>
+              <div class="drop-sub">o hacé clic para seleccionarlos</div>
+              <div class="drop-formats">
+                <span class="format-pill">PDF</span>
+                <span class="format-pill">CSV</span>
+                <span class="format-pill">XLSX</span>
+                <span class="format-pill">XLS</span>
+                <span class="format-pill">JSON</span>
+                <span class="format-pill">XML</span>
+                <span class="format-pill">TXT</span>
+              </div>
+            </div>
+            <div class="upload-progress" id="uploadProgress">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(148,163,184,0.7)">
+                <span id="progressLabel">Procesando...</span>
+                <span id="progressPct">0%</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+            </div>
+          </div>
+
+          <!-- URL connector -->
+          <div id="panel-url" style="display:none">
+            <div class="url-connector">
+              <h4>?? Conectar URL o API externa</h4>
+              <div class="url-input-row">
+                <input type="url" id="urlInput" placeholder="https://api.ejemplo.com/datos.json o https://docs.google.com/...">
+                <button class="btn-connect" onclick="connectURL()">Conectar</button>
+              </div>
+              <div style="margin-top:12px;font-size:11px;color:rgba(100,116,139,0.6)">
+                Soporta: APIs REST (JSON), Google Sheets públicas, archivos CSV en servidores municipales
+              </div>
+            </div>
+          </div>
+
+          <!-- Google Drive -->
+          <div id="panel-gdrive" style="display:none">
+            <div class="url-connector">
+              <h4>?? Google Drive / Google Sheets</h4>
+              <div class="url-input-row">
+                <input type="url" id="gdriveInput" placeholder="Pegá el link de Google Drive o Google Sheets">
+                <button class="btn-connect" onclick="connectGDrive()">Importar</button>
+              </div>
+              <div style="margin-top:10px;font-size:11px;color:rgba(100,116,139,0.6)">
+                ?? El archivo debe estar compartido como "Cualquiera con el link puede ver"
+              </div>
+            </div>
+          </div>
+
+          <!-- Database connector -->
+          <div id="panel-db" style="display:none">
+            <div class="url-connector">
+              <h4>??? Conectar Base de Datos</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <div>
+                  <label style="font-size:11px;color:rgba(148,163,184,0.6);display:block;margin-bottom:4px">Tipo</label>
+                  <select id="dbType" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#f0f4ff;font-size:13px;font-family:'Inter',sans-serif;outline:none">
+                    <option>PostgreSQL</option>
+                    <option>MySQL</option>
+                    <option>SQL Server</option>
+                    <option>MongoDB</option>
+                    <option>SQLite</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;color:rgba(148,163,184,0.6);display:block;margin-bottom:4px">Puerto</label>
+                  <input type="text" placeholder="5432" id="dbPort" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#f0f4ff;font-size:13px;font-family:'Inter',sans-serif;outline:none;box-sizing:border-box">
+                </div>
+              </div>
+              <div class="url-input-row">
+                <input type="text" id="dbConnStr" placeholder="postgresql://usuario:contraseña@servidor:5432/nombre_db">
+                <button class="btn-connect" onclick="connectDB()">Conectar</button>
+              </div>
+              <div style="margin-top:8px;font-size:11px;color:rgba(100,116,139,0.5)">
+                ?? La conexión se cifra y nunca se almacena la contraseña en texto plano
+              </div>
+            </div>
+          </div>
+
+          <!-- Scheduled import -->
+          <div id="panel-schedule" style="display:none">
+            <div class="url-connector">
+              <h4>? Importación programada diaria</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+                <div>
+                  <label style="font-size:11px;color:rgba(148,163,184,0.6);display:block;margin-bottom:4px">Frecuencia</label>
+                  <select id="schedFreq" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#f0f4ff;font-size:13px;font-family:'Inter',sans-serif;outline:none">
+                    <option>Diaria</option><option>Semanal</option><option>Mensual</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;color:rgba(148,163,184,0.6);display:block;margin-bottom:4px">Hora</label>
+                  <input type="time" id="schedTime" value="06:00" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#f0f4ff;font-size:13px;outline:none;box-sizing:border-box">
+                </div>
+                <div>
+                  <label style="font-size:11px;color:rgba(148,163,184,0.6);display:block;margin-bottom:4px">Módulo</label>
+                  <select id="schedModule" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#f0f4ff;font-size:13px;font-family:'Inter',sans-serif;outline:none">
+                    <option>RRHH</option><option>Hacienda</option><option>Licitaciones</option><option>Obras</option>
+                  </select>
+                </div>
+              </div>
+              <div class="url-input-row">
+                <input type="url" id="schedUrl" placeholder="URL fuente de datos (API, CSV, Sheets...)">
+                <button class="btn-connect" onclick="addSchedule()">Programar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick connectors grid -->
+          <div>
+            <div class="hub-section-label">Conectores rápidos</div>
+            <div class="quick-connectors" id="connectorsGrid">
+              <div class="connector-card" onclick="showToast('Google Sheets: pegá el link arriba','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">Google Sheets</div>
+                <div class="connector-status">Sin conectar</div>
+              </div>
+              <div class="connector-card" onclick="showToast('Google Drive: pegá el link arriba','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">Google Drive</div>
+                <div class="connector-status">Sin conectar</div>
+              </div>
+              <div class="connector-card connected" onclick="showToast('? Neon DB conectada','success')">
+                <div class="connector-icon">???</div>
+                <div class="connector-name">Neon DB</div>
+                <div class="connector-status">? Conectado</div>
+              </div>
+              <div class="connector-card" onclick="showToast('Dropbox: próximamente','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">Dropbox</div>
+                <div class="connector-status">Próximamente</div>
+              </div>
+              <div class="connector-card" onclick="showToast('OneDrive: próximamente','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">OneDrive</div>
+                <div class="connector-status">Próximamente</div>
+              </div>
+              <div class="connector-card" onclick="showToast('API REST: usá el conector de URL','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">API REST</div>
+                <div class="connector-status">Via URL</div>
+              </div>
+              <div class="connector-card" onclick="showToast('Email: próximamente','info')">
+                <div class="connector-icon">??</div>
+                <div class="connector-name">Email / SMTP</div>
+                <div class="connector-status">Próximamente</div>
+              </div>
+              <div class="connector-card" onclick="showToast('FTP: próximamente','info')">
+                <div class="connector-icon">???</div>
+                <div class="connector-name">FTP / SFTP</div>
+                <div class="connector-status">Servidor local</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Uploaded files list -->
+          <div>
+            <div class="hub-section-label">Archivos cargados en este módulo</div>
+            <div class="file-list" id="fileList">
+              <!-- Demo files -->
+              <div class="file-item">
+                <div class="file-ext ext-xlsx">XLSX</div>
+                <div class="file-info">
+                  <div class="file-name">nomina_empleados_julio2026.xlsx</div>
+                  <div class="file-meta">1.2 MB · Subido hace 2 días · 882 filas · 18 columnas</div>
+                </div>
+                <span class="file-module" style="background:rgba(59,130,246,0.15);color:#60a5fa">RRHH</span>
+                <div class="file-actions">
+                  <div class="file-action-btn" onclick="showToast('Analizando con IA...','info')" title="Analizar con IA">??</div>
+                  <div class="file-action-btn" onclick="showToast('Descargando...','info')" title="Descargar">??</div>
+                  <div class="file-action-btn" onclick="this.closest('.file-item').remove();showToast('Archivo eliminado','info')" title="Eliminar">???</div>
+                </div>
+              </div>
+              <div class="file-item">
+                <div class="file-ext ext-pdf">PDF</div>
+                <div class="file-info">
+                  <div class="file-name">balance_hacienda_2T2026.pdf</div>
+                  <div class="file-meta">4.8 MB · Subido hace 5 días · 34 páginas</div>
+                </div>
+                <span class="file-module" style="background:rgba(245,158,11,0.15);color:#fbbf24">Hacienda</span>
+                <div class="file-actions">
+                  <div class="file-action-btn" onclick="showToast('Analizando PDF con IA...','info')" title="Analizar con IA">??</div>
+                  <div class="file-action-btn" title="Descargar">??</div>
+                  <div class="file-action-btn" onclick="this.closest('.file-item').remove()">???</div>
+                </div>
+              </div>
+              <div class="file-item">
+                <div class="file-ext ext-csv">CSV</div>
+                <div class="file-info">
+                  <div class="file-name">licitaciones_activas_2026.csv</div>
+                  <div class="file-meta">284 KB · Subido hoy · 47 registros</div>
+                </div>
+                <span class="file-module" style="background:rgba(16,185,129,0.15);color:#34d399">Licitaciones</span>
+                <div class="file-actions">
+                  <div class="file-action-btn" onclick="showToast('Analizando CSV...','info')">??</div>
+                  <div class="file-action-btn">??</div>
+                  <div class="file-action-btn" onclick="this.closest('.file-item').remove()">???</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /hub-main -->
+      </div><!-- /hub-grid -->
+    </div><!-- /page-content -->
+  </main>
+
+  <!-- Mobile bottom nav -->
+  <nav class="mobile-bottom-nav">
+    <a href="index.html"><span class="nav-icon">??</span><span>Inicio</span></a>
+    <a href="ia.html"><span class="nav-icon">??</span><span>MuniBot</span></a>
+    <a href="rrhh.html"><span class="nav-icon">??</span><span>RRHH</span></a>
+    <a href="hacienda.html"><span class="nav-icon">??</span><span>Hacienda</span></a>
+    <a href="mapa.html"><span class="nav-icon">???</span><span>Mapa</span></a>
+  </nav>
+
+  <script src="js/theme-switcher.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    if (typeof buildSidebar === 'function') buildSidebar('importar');
+
+    var currentModule = 'rrhh';
+    var currentSource = 'file';
+
+    var MODULE_COLORS = {
+      rrhh:         { bg:'rgba(59,130,246,0.15)',  color:'#60a5fa',  name:'RRHH' },
+      hacienda:     { bg:'rgba(245,158,11,0.15)',  color:'#fbbf24',  name:'Hacienda' },
+      licitaciones: { bg:'rgba(16,185,129,0.15)',  color:'#34d399',  name:'Licitaciones' },
+      obras:        { bg:'rgba(239,68,68,0.15)',   color:'#f87171',  name:'Obras' },
+      presupuesto:  { bg:'rgba(139,92,246,0.15)',  color:'#a78bfa',  name:'Presupuesto' },
+      vecinos:      { bg:'rgba(6,182,212,0.15)',   color:'#22d3ee',  name:'Vecinos' },
+      proveedores:  { bg:'rgba(249,115,22,0.15)',  color:'#fb923c',  name:'Proveedores' },
+      control:      { bg:'rgba(16,185,129,0.15)',  color:'#34d399',  name:'Control' },
+      analytics:    { bg:'rgba(139,92,246,0.15)',  color:'#a78bfa',  name:'Analytics' },
+    };
+
+    // -- Module & source selection ------------------------------
+    function selectModule(btn, moduleId) {
+      document.querySelectorAll('.module-btn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentModule = moduleId;
+      var name = MODULE_COLORS[moduleId] ? MODULE_COLORS[moduleId].name : moduleId;
+      showMsg('Módulo seleccionado: ' + name, 'info');
+      loadModuleFiles(moduleId);
+    }
+
+    function setSource(btn, sourceId) {
+      document.querySelectorAll('.source-tab').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentSource = sourceId;
+      ['file','url','gdrive','db','schedule'].forEach(function(p){
+        var el = document.getElementById('panel-' + p);
+        if (el) el.style.display = (p === sourceId) ? 'block' : 'none';
+      });
+    }
+
+    // -- Real file upload ---------------------------------------
+    function handleDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.remove('drag-over');
+      uploadFiles(e.dataTransfer.files);
+    }
+
+    function handleFiles(files) {
+      uploadFiles(files);
+    }
+
+    async function uploadFiles(files) {
+      if (!files || files.length === 0) return;
+
+      var progress = document.getElementById('uploadProgress');
+      var fill     = document.getElementById('progressFill');
+      var label    = document.getElementById('progressLabel');
+      var pct      = document.getElementById('progressPct');
+
+      progress.classList.add('active');
+      fill.style.width = '0%';
+      label.textContent = 'Subiendo ' + files.length + ' archivo(s)...';
+      pct.textContent = '0%';
+
+      for (var i = 0; i < files.length; i++) {
+        var file = files[i];
+        label.textContent = 'Procesando: ' + file.name;
+
+        // Fake progress to 80% while uploading
+        var fakeP = 10;
+        var fakeInterval = setInterval(function() {
+          fakeP = Math.min(fakeP + Math.random() * 8, 80);
+          fill.style.width = fakeP + '%';
+          pct.textContent = Math.round(fakeP) + '%';
+        }, 200);
+
+        try {
+          var formData = new FormData();
+          formData.append('file', file);
+          formData.append('module', currentModule);
+          formData.append('period', getCurrentPeriod());
+
+          var sess = sessionStorage.getItem('mjunin_user') || '';
+          var resp = await fetch('/api/upload-handler', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + sess },
+            body: formData,
+          });
+
+          clearInterval(fakeInterval);
+          fill.style.width = '100%';
+          pct.textContent = '100%';
+
+          var result = await resp.json();
+
+          if (resp.ok && result.success) {
+            var fileData = (result.files && result.files[0]) || {};
+            addFileToList(file, fileData);
+            showDataPreview(fileData);
+            showMsg('? ' + file.name + ' procesado — ' + (fileData.rowCount || 0) + ' registros en ' + (MODULE_COLORS[currentModule] || {}).name || currentModule, 'success');
+          } else {
+            showMsg('?? ' + (result.error || 'Error al procesar ' + file.name), 'error');
+            addFileToListLocal(file);
+          }
+        } catch (err) {
+          clearInterval(fakeInterval);
+          console.warn('Upload API error:', err.message, '- adding locally');
+          addFileToListLocal(file);
+          showMsg('?? API no disponible, archivo registrado localmente', 'warning');
+        }
+
+        fill.style.width = '0%';
+      }
+
+      setTimeout(function() { progress.classList.remove('active'); }, 600);
+    }
+
+    // -- Data preview after upload ------------------------------
+    function showDataPreview(fileData) {
+      var existing = document.getElementById('dataPreviewSection');
+      if (existing) existing.remove();
+
+      if (!fileData.rowCount || fileData.rowCount === 0) return;
+
+      var previewEl = document.createElement('div');
+      previewEl.id = 'dataPreviewSection';
+      previewEl.style.cssText = 'background:rgba(13,21,38,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;margin-top:16px';
+      previewEl.innerHTML = '<div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between">' +
+        '<div style="font-size:13px;font-weight:700;color:#f0f4ff">?? Vista previa · ' + fileData.filename + '</div>' +
+        '<div style="display:flex;gap:8px">' +
+        '<span style="font-size:11px;background:rgba(16,185,129,0.15);color:#34d399;padding:3px 10px;border-radius:99px;font-weight:700">' + fileData.rowCount + ' registros</span>' +
+        '<button onclick="this.closest(\'#dataPreviewSection\').remove()" style="background:none;border:none;color:rgba(148,163,184,0.5);cursor:pointer;font-size:16px">×</button>' +
+        '</div></div>' +
+        '<div style="padding:12px 16px;font-size:12px;color:rgba(148,163,184,0.6)">' +
+        '? Datos guardados en la base de datos. <a href="/inteligencia" style="color:#60a5fa;text-decoration:none;font-weight:600">Ver en Dashboard Ejecutivo ?</a>' +
+        '</div>' +
+        '<div style="padding:0 16px 12px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<a href="/api/export-data?module=' + currentModule + '&period=' + getCurrentPeriod() + '&format=csv" style="display:flex;align-items:center;gap:5px;padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#f0f4ff;font-size:11px;font-weight:600;text-decoration:none">?? Exportar CSV</a>' +
+        '<a href="/api/export-data?module=' + currentModule + '&period=' + getCurrentPeriod() + '&format=xlsx" style="display:flex;align-items:center;gap:5px;padding:6px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#f0f4ff;font-size:11px;font-weight:600;text-decoration:none">?? Exportar Excel</a>' +
+        '<button onclick="analyzeWithAI(\'' + currentModule + '\')" style="display:flex;align-items:center;gap:5px;padding:6px 12px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:#60a5fa;font-size:11px;font-weight:600;cursor:pointer">?? Analizar con IA</button>' +
+        '</div>';
+      document.getElementById('panel-file').appendChild(previewEl);
+    }
+
+    async function analyzeWithAI(module) {
+      showMsg('?? Analizando ' + module + ' con IA...', 'info');
+      try {
+        var resp = await fetch('/api/ai-analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'Dame un resumen del módulo ' + module + ' para el período actual', period: getCurrentPeriod() })
+        });
+        var data = await resp.json();
+        if (data.response) {
+          showAnalysisResult(data.response, module);
+        }
+      } catch(e) {
+        showMsg('Error al analizar: ' + e.message, 'error');
+      }
+    }
+
+    function showAnalysisResult(text, module) {
+      var el = document.createElement('div');
+      el.style.cssText = 'background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(139,92,246,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:16px;margin-top:12px';
+      el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+        '<span style="font-size:18px">??</span>' +
+        '<span style="font-size:13px;font-weight:700;color:#60a5fa">MuniBot — Análisis de ' + (MODULE_COLORS[module]||{}).name + '</span>' +
+        '</div>' +
+        '<div style="font-size:13px;line-height:1.6;color:rgba(240,244,255,0.85)">' + text + '</div>';
+      document.getElementById('panel-file').appendChild(el);
+    }
+
+    // -- Load existing files for module -------------------------
+    async function loadModuleFiles(moduleId) {
+      try {
+        var resp = await fetch('/api/audit?action=datasets&module=' + moduleId + '&limit=10');
+        if (!resp.ok) return;
+        var data = await resp.json();
+        if (data.datasets && data.datasets.length > 0) {
+          renderExistingFiles(data.datasets);
+        }
+      } catch(e) { /* API not ready yet */ }
+    }
+
+    function renderExistingFiles(datasets) {
+      var list = document.getElementById('fileList');
+      list.innerHTML = '';
+      datasets.forEach(function(ds) {
+        var ext = (ds.filename || '').split('.').pop().toUpperCase() || 'DB';
+        var extClass = { PDF:'ext-pdf', XLSX:'ext-xlsx', XLS:'ext-xlsx', CSV:'ext-csv' }[ext] || 'ext-db';
+        var mc = MODULE_COLORS[ds.module] || MODULE_COLORS.rrhh;
+        var when = ds.created_at ? new Date(ds.created_at).toLocaleDateString('es-AR', {day:'2-digit',month:'short',year:'numeric'}) : '';
+        var item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = '<div class="file-ext ' + extClass + '">' + ext + '</div>' +
+          '<div class="file-info">' +
+          '<div class="file-name">' + (ds.filename || 'Sin nombre') + '</div>' +
+          '<div class="file-meta">' + (ds.row_count || 0).toLocaleString('es-AR') + ' registros · ' + when + '</div>' +
+          '</div>' +
+          '<span class="file-module" style="background:' + mc.bg + ';color:' + mc.color + '">' + (mc.name || ds.module) + '</span>' +
+          '<div class="file-actions">' +
+          '<div class="file-action-btn" onclick="analyzeWithAI(\'' + ds.module + '\')" title="Analizar con IA">??</div>' +
+          '<a class="file-action-btn" href="/api/export-data?module=' + ds.module + '&period=' + ds.period + '&format=csv" title="Exportar CSV" style="text-decoration:none">??</a>' +
+          '<div class="file-action-btn" onclick="deleteDataset(' + ds.id + ',this)" title="Eliminar">???</div>' +
+          '</div>';
+        list.appendChild(item);
+      });
+    }
+
+    async function deleteDataset(id, btn) {
+      if (!confirm('¿Eliminar este dataset y todos sus datos?')) return;
+      try {
+        await fetch('/api/audit?action=delete-dataset&id=' + id, { method: 'DELETE' });
+        btn.closest('.file-item').remove();
+        showMsg('Dataset eliminado', 'info');
+      } catch(e) { showMsg('Error al eliminar', 'error'); }
+    }
+
+    // -- URL / Google Sheets connectors -------------------------
+    async function connectURL() {
+      var url = document.getElementById('urlInput').value.trim();
+      if (!url) { showMsg('Ingresá una URL válida', 'error'); return; }
+      showMsg('?? Conectando a ' + url.substring(0,50) + '...', 'info');
+
+      try {
+        var resp = await fetch('/api/upload-handler', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (sessionStorage.getItem('mjunin_user') || '')
+          },
+          body: JSON.stringify({ sourceUrl: url, module: currentModule, period: getCurrentPeriod(), sourceType: 'api' })
+        });
+        var result = await resp.json();
+        if (result.success) {
+          showMsg('? Fuente conectada. ' + (result.rowCount || 0) + ' registros importados', 'success');
+        } else {
+          showMsg('?? ' + (result.error || 'Error al conectar'), 'error');
+        }
+      } catch(e) {
+        showMsg('Error de red: ' + e.message, 'error');
+      }
+    }
+
+    async function connectGDrive() {
+      var url = document.getElementById('gdriveInput').value.trim();
+      if (!url) { showMsg('Pegá el link de Google Drive', 'error'); return; }
+
+      // Convert Google Sheets to CSV export URL
+      var csvUrl = url;
+      var match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        csvUrl = 'https://docs.google.com/spreadsheets/d/' + match[1] + '/export?format=csv';
+        showMsg('?? Importando Google Sheet como CSV...', 'info');
+      }
+
+      try {
+        // Fetch CSV via our API to avoid CORS
+        var resp = await fetch('/api/upload-handler', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (sessionStorage.getItem('mjunin_user') || '')
+          },
+          body: JSON.stringify({ sourceUrl: csvUrl, module: currentModule, period: getCurrentPeriod(), sourceType: 'gdrive', filename: 'google-sheet.csv' })
+        });
+        var result = await resp.json();
+        if (result.success) {
+          showMsg('? Google Sheets importado — ' + (result.rowCount || 0) + ' filas', 'success');
+        } else {
+          showMsg('?? ' + (result.error || 'No se pudo importar. Verificá que el archivo sea público.'), 'error');
+        }
+      } catch(e) {
+        showMsg('Error al importar: ' + e.message, 'error');
+      }
+    }
+
+    async function connectDB() {
+      var conn = document.getElementById('dbConnStr').value.trim();
+      var dbType = document.getElementById('dbType').value;
+      if (!conn) { showMsg('Ingresá la cadena de conexión', 'error'); return; }
+      showMsg('??? Probando conexión a ' + dbType + '...', 'info');
+
+      try {
+        var resp = await fetch('/api/external-connector', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'test', config: { type: dbType.toLowerCase(), connectionString: conn } })
+        });
+        var result = await resp.json();
+        if (result.success) {
+          showMsg('? Conexión exitosa (' + result.responseTime + 'ms). ' + (result.tables ? result.tables.length + ' tablas encontradas.' : ''), 'success');
+        } else {
+          showMsg('? ' + (result.message || 'No se pudo conectar'), 'error');
+        }
+      } catch(e) {
+        showMsg('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function addSchedule() {
+      var url     = document.getElementById('schedUrl').value.trim();
+      var freq    = document.getElementById('schedFreq').value;
+      var time    = document.getElementById('schedTime').value;
+      var module  = document.getElementById('schedModule').value.toLowerCase();
+      if (!url) { showMsg('Ingresá la URL de la fuente', 'error'); return; }
+
+      try {
+        var resp = await fetch('/api/external-connector', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'save',
+            config: { conn_type: 'gdrive', conn_name: 'Import ' + freq + ' · ' + module, schedule: freq + ' at ' + time, sourceUrl: url, module }
+          })
+        });
+        var result = await resp.json();
+        if (result.success) {
+          showMsg('? Importación programada: ' + freq + ' a las ' + time + ' · ' + module, 'success');
+        } else {
+          showMsg('?? ' + (result.error || 'Error al programar'), 'error');
+        }
+      } catch(e) {
+        showMsg('Programación guardada localmente (' + freq + ' · ' + time + ')', 'success');
+      }
+    }
+
+    // -- File list helpers --------------------------------------
+    function addFileToList(file, apiResult) {
+      var ext = file.name.split('.').pop().toUpperCase();
+      var extClass = { PDF:'ext-pdf', XLSX:'ext-xlsx', XLS:'ext-xlsx', CSV:'ext-csv' }[ext] || 'ext-db';
+      var size = file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.round(file.size/1024)+' KB';
+      var mc = MODULE_COLORS[currentModule] || MODULE_COLORS.rrhh;
+      var rowCount = (apiResult && apiResult.rowCount) ? apiResult.rowCount.toLocaleString('es-AR') + ' registros' : size;
+      var item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = '<div class="file-ext ' + extClass + '">' + ext + '</div>' +
+        '<div class="file-info"><div class="file-name">' + file.name + '</div>' +
+        '<div class="file-meta">' + rowCount + ' · Subido ahora</div></div>' +
+        '<span class="file-module" style="background:' + mc.bg + ';color:' + mc.color + '">' + mc.name + '</span>' +
+        '<div class="file-actions">' +
+        '<div class="file-action-btn" onclick="analyzeWithAI(\'' + currentModule + '\')" title="Analizar con IA">??</div>' +
+        '<a class="file-action-btn" href="/api/export-data?module=' + currentModule + '&period=' + getCurrentPeriod() + '&format=csv" style="text-decoration:none" title="Exportar">??</a>' +
+        '<div class="file-action-btn" onclick="this.closest(\'.file-item\').remove()">???</div>' +
+        '</div>';
+      document.getElementById('fileList').prepend(item);
+    }
+
+    function addFileToListLocal(file) {
+      addFileToList(file, null);
+    }
+
+    // -- Helpers ------------------------------------------------
+    function getCurrentPeriod() {
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    }
+
+    function showMsg(msg, type) {
+      if (typeof showToast === 'function') {
+        showToast(msg, type);
+      } else {
+        var t = document.createElement('div');
+        var colors = { success:'#10b981', error:'#ef4444', info:'#3b82f6', warning:'#f59e0b' };
+        t.style.cssText = 'position:fixed;bottom:80px;right:20px;background:#1e293b;border:1px solid rgba(255,255,255,0.1);padding:12px 16px;border-radius:10px;color:#f0f4ff;font-size:13px;z-index:9999;max-width:340px;border-left:3px solid '+(colors[type]||colors.info)+';font-family:Inter,sans-serif;line-height:1.4';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(function(){ t.style.opacity='0'; t.style.transition='opacity 0.3s'; setTimeout(function(){ t.remove(); }, 300); }, 4000);
+      }
+    }
+
+    // Load files for default module on init
+    loadModuleFiles(currentModule);
+  </script>

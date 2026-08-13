@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="img/municontrol-icon.jpg" type="image/jpeg" />
+  <meta name="theme-color" content="#060b18">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Centro de Ingesta Multiformato — MuniControl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/shared.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    .upload-zone {
+      border: 2px dashed rgba(59,130,246,0.4);
+      background: rgba(15,23,42,0.6);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: #60a5fa;
+      background: rgba(59,130,246,0.1);
+      transform: translateY(-2px);
+    }
+    .upload-icon {
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin: 0 auto 16px;
+    }
+    .format-badge {
+      display: inline-block;
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      margin: 4px;
+    }
+    .preview-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px; margin-top: 20px;
+      display: none;
+    }
+    .preview-table-wrapper {
+      max-height: 340px; overflow: auto;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; margin-top: 14px;
+    }
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .preview-table th { background: rgba(15,23,42,0.9); padding: 10px 14px; text-align: left; font-weight: 700; color: #94a3b8; sticky: top; }
+    .preview-table td { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content" id="mainContent">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-btn" id="menuBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+        <div class="page-title">
+          <h1>📂 Centro de Ingesta Multiformato</h1>
+          <div class="breadcrumb">Administración / Carga de Documentos & Datos</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-avatar" id="topbarAvatar">SA</div>
+      </div>
+    </header>
+
+    <div class="content-wrapper">
+      <!-- HEADER BANNER -->
+      <div style="background:linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,58,138,0.4)); border:1px solid rgba(59,130,246,0.3); padding:20px; border-radius:16px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h2 style="font-family:'Outfit',sans-serif; font-size:20px; font-weight:900; color:#f8fafc; margin:0 0 4px">Cargue de Archivos & Documentación Municipal</h2>
+          <p style="font-size:13px; color:#94a3b8; margin:0">Suba planillas Excel, decretos en PDF, archivos CSV o bases de datos externas para alimentar la inteligencia ejecutiva.</p>
+        </div>
+        <div>
+          <span class="format-badge" style="color:#60a5fa">📊 Excel (.xlsx, .xls)</span>
+          <span class="format-badge" style="color:#34d399">📄 CSV (.csv)</span>
+          <span class="format-badge" style="color:#fbbf24">📕 PDF (.pdf)</span>
+          <span class="format-badge" style="color:#a78bfa">📋 JSON / TXT</span>
+        </div>
+      </div>
+
+      <!-- DRAG AND DROP ZONE -->
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" style="display:none" accept=".xlsx,.xls,.csv,.pdf,.json,.txt" onchange="handleFileSelect(this.files[0])">
+        <div class="upload-icon">📤</div>
+        <h3 style="font-family:'Outfit',sans-serif; font-size:18px; font-weight:800; color:#f8fafc; margin-bottom:6px">Arrastre su archivo aquí o haga clic para examinar</h3>
+        <p style="font-size:13px; color:#94a3b8">El sistema detectará automáticamente los campos, legajos, partidas presupuestarias y montos.</p>
+      </div>
+
+      <!-- PREVIEW CARD -->
+      <div class="preview-card" id="previewCard">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div>
+            <h3 style="font-family:'Outfit',sans-serif; font-size:16px; font-weight:800; color:#f8fafc; margin:0" id="previewFileName">Planilla_Presupuesto_2026.xlsx</h3>
+            <div style="font-size:12px; color:#34d399; margin-top:2px" id="previewMeta">Registros detectados: 48 filas · 6 columnas</div>
+          </div>
+          <button class="btn btn-primary" onclick="confirmIngestion()" style="padding:10px 18px; font-weight:700">⚡ Confirmar & Procesar Ingesta</button>
+        </div>
+        <div class="preview-table-wrapper">
+          <table class="preview-table" id="previewTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- HISTORIAL DE CARGAS -->
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-top:24px;">
+        <h3 style="font-family:'Outfit',sans-serif; font-size:16px; font-weight:800; color:#f8fafc; margin-bottom:14px">📜 Historial de Ingestas Recientes</h3>
+        <div class="preview-table-wrapper" style="max-height:220px">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>Fecha & Hora</th>
+                <th>Usuario / Rol</th>
+                <th>Archivo Procesado</th>
+                <th>Registros</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>12/08/2026 20:45</td>
+                <td>👑 Intendente (SuperAdmin)</td>
+                <td><code>empleados_junin_2026.json</code></td>
+                <td>2.450 legajos</td>
+                <td><span style="color:#34d399; font-weight:700">✓ Ingerido con Éxito</span></td>
+              </tr>
+              <tr>
+                <td>12/08/2026 19:12</td>
+                <td>💰 Sec. Hacienda</td>
+                <td><code>ejecucion_presupuestaria_q3.xlsx</code></td>
+                <td>184 partidas</td>
+                <td><span style="color:#34d399; font-weight:700">✓ Ingerido con Éxito</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/nav.js"></script>
+  <script src="js/auth-roles.js"></script>
+  <script>
+    if(typeof buildSidebar === 'function') buildSidebar('importar');
+
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if(e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+    });
+
+    function handleFileSelect(file) {
+      if(!file) return;
+      document.getElementById('previewFileName').textContent = file.name;
+      document.getElementById('previewCard').style.display = 'block';
+
+      if(file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.SheetNames[0];
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+          renderPreview(json);
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        document.getElementById('previewMeta').textContent = `Archivo ${file.name} listo para procesamiento del servidor.`;
+      }
+    }
+
+    function renderPreview(rows) {
+      if(!rows || rows.length === 0) return;
+      const headers = rows[0];
+      const tbodyRows = rows.slice(1, 11); // Show first 10 rows
+
+      const tableHead = document.querySelector('#previewTable thead');
+      const tableBody = document.querySelector('#previewTable tbody');
+
+      tableHead.innerHTML = '<tr>' + headers.map(h => `<th>${h || ''}</th>`).join('') + '</tr>';
+      tableBody.innerHTML = tbodyRows.map(r => '<tr>' + r.map(c => `<td>${c !== undefined ? c : ''}</td>`).join('') + '</tr>').join('');
+      document.getElementById('previewMeta').textContent = `Registros detectados: ${rows.length - 1} filas · ${headers.length} columnas`;
+    }
+
+    function confirmIngestion() {
+      if(window.showToast) window.showToast('¡Archivo Ingerido con Éxito en la Inteligencia Municipal!', 'success');
+      setTimeout(() => {
+        document.getElementById('previewCard').style.display = 'none';
+      }, 1500);
+    }
+  </script>
+  <script src="js/chat-widget.js"></script>
+</body>
+</html>

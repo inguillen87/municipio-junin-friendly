@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GDE - Expedientes Digitales | MuniControl</title>
+  <meta name="theme-color" content="#060b18">
+  <link rel="icon" href="img/municontrol-icon.jpg" type="image/jpeg">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <style>
+    /* KANBAN BOARD STYLES */
+    .kanban-container {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 20px;
+      min-height: 60vh;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+    
+    .kanban-column {
+      flex: 1;
+      min-width: 320px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .kanban-header {
+      padding: 16px;
+      background: rgba(0,0,0,0.2);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .kanban-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f0f4ff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .kanban-count {
+      background: rgba(255,255,255,0.1);
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    
+    .kanban-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    
+    .expediente-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    
+    .expediente-card:hover {
+      border-color: rgba(59,130,246,0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .exp-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .exp-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #60a5fa;
+      font-weight: 600;
+      background: rgba(59,130,246,0.1);
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    
+    .exp-date {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    .exp-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 12px;
+      color: #f0f4ff;
+    }
+    
+    .exp-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .exp-owner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .avatar-mini {
+      width: 20px;
+      height: 20px;
+      background: #3b82f6;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .exp-priority {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 99px;
+      text-transform: uppercase;
+    }
+    .priority-high { background: rgba(239,68,68,0.1); color: #ef4444; }
+    .priority-medium { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .priority-low { background: rgba(16,185,129,0.1); color: #10b981; }
+
+    /* Modal Sign */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    
+    .sign-modal {
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 500px;
+      padding: 32px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+    
+    .btn-sign {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      font-size: 15px;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .trace-item {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .trace-item::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 30px;
+      bottom: -16px;
+      width: 2px;
+      background: rgba(255,255,255,0.1);
+    }
+    .trace-item:last-child::before { display: none; }
+    .trace-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 2px solid #3b82f6;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body class="dashboard-body">
+
+  <div id="sidebar-container"></div>
+
+  <main class="main-content">
+    <div class="topbar">
+      <div class="page-title">
+        <div class="breadcrumb">GDE / Gestión Documental</div>
+        <h1>Expedientes Digitales</h1>
+      </div>
+      <div class="user-profile">
+        <div class="user-info">
+          <div class="user-name" id="topbar-user-name">Usuario</div>
+          <div class="user-role" id="topbar-user-role">Rol</div>
+        </div>
+        <div class="user-avatar" id="topbar-user-avatar">US</div>
+      </div>
+    </div>
+
+    <div class="content-wrapper">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <p style="color:var(--text-muted); margin:0;">Trazabilidad, firma digital y pases automáticos entre áreas.</p>
+        <button class="btn-primary" style="padding: 8px 16px; font-size: 13px;">+ Nuevo Expediente</button>
+      </div>
+
+      <!-- KANBAN BOARD -->
+      <div class="kanban-container">
+        
+        <!-- MESA DE ENTRADA -->
+        <div class="kanban-column">
+          <div class="kanban-header">
+            <div class="kanban-title">📥 Mesa de Entrada</div>
+            <div class="kanban-count">2</div>
+          </div>
+          <div class="kanban-body">
+            
+            <div class="expediente-card" onclick="openSignModal('EXP-2026-9912', 'Solicitud Poda Árboles - Bº San Nicolás')">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9912</span>
+                <span class="exp-date">Hace 2 hs</span>
+              </div>
+              <div class="exp-title">Solicitud Poda Árboles - Bº San Nicolás</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini">AC</div> Atención al Ciudadano
+                </div>
+                <div class="exp-priority priority-low">Baja</div>
+              </div>
+            </div>
+
+            <div class="expediente-card" onclick="openSignModal('EXP-2026-9915', 'Pedido Suministros Hospital Regional')">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9915</span>
+                <span class="exp-date">Hace 5 hs</span>
+              </div>
+              <div class="exp-title">Pedido Suministros Hospital Regional</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini">S</div> Salud Pública
+                </div>
+                <div class="exp-priority priority-medium">Media</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- EN ANÁLISIS -->
+        <div class="kanban-column">
+          <div class="kanban-header">
+            <div class="kanban-title">🔍 En Análisis Técnico</div>
+            <div class="kanban-count">3</div>
+          </div>
+          <div class="kanban-body">
+            
+            <div class="expediente-card">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9880</span>
+                <span class="exp-date">Ayer</span>
+              </div>
+              <div class="exp-title">Licitación Asfalto RP-60 (Tramo 2)</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini">OP</div> Obras Públicas
+                </div>
+                <div class="exp-priority priority-high">Alta</div>
+              </div>
+            </div>
+
+            <div class="expediente-card">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9855</span>
+                <span class="exp-date">Hace 2 días</span>
+              </div>
+              <div class="exp-title">Ajuste Paritario Gremios 2026</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini">RH</div> Recursos Humanos
+                </div>
+                <div class="exp-priority priority-high">Alta</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ESPERANDO FIRMA -->
+        <div class="kanban-column" style="border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.02)">
+          <div class="kanban-header" style="background: rgba(245,158,11,0.1)">
+            <div class="kanban-title" style="color:#f59e0b">✍️ Esperando Firma</div>
+            <div class="kanban-count" style="background:rgba(245,158,11,0.2);color:#fbbf24">1</div>
+          </div>
+          <div class="kanban-body">
+            
+            <div class="expediente-card" style="border-color: rgba(245,158,11,0.5)" onclick="openSignModal('EXP-2026-9801', 'Pago a Proveedor - Iluminación LED')">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9801</span>
+                <span class="exp-date">Hace 3 días</span>
+              </div>
+              <div class="exp-title">Aprobación Pago a Proveedor - Licitación Iluminación LED (Fase 4)</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini" style="background:#f59e0b">H</div> Hacienda
+                </div>
+                <div class="exp-priority priority-high">Alta</div>
+              </div>
+              <div style="margin-top: 12px; padding: 8px; background: rgba(239,68,68,0.1); border-radius: 6px; font-size: 11px; color: #fca5a5;">
+                ⚠️ Requiere firma del Intendente (Monto > $10M)
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- FINALIZADO -->
+        <div class="kanban-column">
+          <div class="kanban-header">
+            <div class="kanban-title">✅ Archivado / Finalizado</div>
+            <div class="kanban-count">1.492</div>
+          </div>
+          <div class="kanban-body" style="opacity: 0.7">
+            
+            <div class="expediente-card">
+              <div class="exp-header">
+                <span class="exp-code">EXP-2026-9750</span>
+                <span class="exp-date">05 Ago</span>
+              </div>
+              <div class="exp-title">Subsidio Club Deportivo Junín</div>
+              <div class="exp-meta">
+                <div class="exp-owner">
+                  <div class="avatar-mini" style="background:#10b981">✓</div> Resuelto
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL DE FIRMA Y TRAZABILIDAD -->
+  <div class="modal-overlay" id="signModal">
+    <div class="sign-modal">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 24px;">
+        <div>
+          <div style="font-family:'JetBrains Mono', monospace; color:#60a5fa; font-size:12px; margin-bottom:4px" id="modalExpCode">EXP-0000</div>
+          <h2 style="font-family:'Outfit',sans-serif; font-size:20px; font-weight:800; margin:0;" id="modalExpTitle">Título del Expediente</h2>
+        </div>
+        <button onclick="closeSignModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:20px;">✕</button>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size:12px; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:16px;">Trazabilidad del Documento</h3>
+        
+        <div class="trace-item">
+          <div class="trace-icon" style="border-color:#10b981; color:#10b981;">✓</div>
+          <div>
+            <div style="font-size:13px; font-weight:600;">Mesa de Entrada Central</div>
+            <div style="font-size:11px; color:var(--text-muted);">Caratulado por: M. Pérez - 10/08/2026 09:14</div>
+          </div>
+        </div>
+        
+        <div class="trace-item">
+          <div class="trace-icon" style="border-color:#10b981; color:#10b981;">✓</div>
+          <div>
+            <div style="font-size:13px; font-weight:600;">Dirección de Compras</div>
+            <div style="font-size:11px; color:var(--text-muted);">Firma autorizada por: J. Gómez - 11/08/2026 14:30</div>
+          </div>
+        </div>
+
+        <div class="trace-item">
+          <div class="trace-icon" style="border-color:#f59e0b; color:#f59e0b; background:rgba(245,158,11,0.1)">✍️</div>
+          <div>
+            <div style="font-size:13px; font-weight:600; color:#f59e0b">Secretaría de Hacienda / Intendencia</div>
+            <div style="font-size:11px; color:var(--text-muted);">Pendiente de autorización final</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+        <p style="font-size:12px; color:var(--text-muted); margin-top:0; margin-bottom:12px;">Se requiere su token biométrico/criptográfico para autorizar este pase.</p>
+        <button class="btn-sign" id="btnSignAction" onclick="simularFirma()">
+          ✍️ Firmar y Pase de Área
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/nav.js"></script>
+  <script src="js/auth-roles.js"></script>
+
+  <script>
+    function openSignModal(code, title) {
+      document.getElementById('modalExpCode').innerText = code;
+      document.getElementById('modalExpTitle').innerText = title;
+      document.getElementById('signModal').classList.add('active');
+    }
+
+    function closeSignModal() {
+      document.getElementById('signModal').classList.remove('active');
+    }
+
+    function simularFirma() {
+      var btn = document.getElementById('btnSignAction');
+      btn.innerHTML = 'Verificando Criptografía...';
+      btn.style.opacity = '0.7';
+      
+      setTimeout(() => {
+        btn.innerHTML = '✅ Documento Firmado Digitalmente';
+        btn.style.background = '#10b981';
+        btn.style.opacity = '1';
+        
+        setTimeout(() => {
+          closeSignModal();
+          btn.innerHTML = '✍️ Firmar y Pase de Área';
+          btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        }, 1500);
+      }, 1500);
+    }
+  </script>
+  <script src="js/chat-widget.js"></script>
+</body>
+</html>

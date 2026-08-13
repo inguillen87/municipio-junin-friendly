@@ -1,0 +1,573 @@
+// ============================================================
+// SCHEMA.PRISMA v3 - GovTech Municipal Platform
+// Multi-tenant: Full municipal data (RRHH GRH + Ciudadanos)
+// DB: Neon PostgreSQL (serverless) via Prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url       = env("DATABASE_URL")
+}
+
+
+
+
+
+
+
+model Tenant {
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  name            String
+  shortName       String
+  province        String?
+  country         String       @default("Argentina")
+  population      Int?
+  logoUrl         String?
+  themePrimary    String       @default("#3b82f6")
+  themeAccent     String       @default("#6366f1")
+  themeBackground String       @default("#060b18")
+  contactEmail    String?
+  contactPhone    String?
+  website         String?
+  plan String         @default("DEMO")
+  status String @default("TRIAL")
+  trialEndsAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  users           User[]
+  empleados       Empleado[]
+  empleadosGRH    EmpleadoGRH[]
+  pagos           Pago[]
+  reclamos        Reclamo[]
+  obras           Obra[]
+  presupuestos    Presupuesto[]
+  licitaciones    Licitacion[]
+  auditLogs       AuditLog[]
+  documentos      Documento[]
+  notificaciones  Notificacion[]
+  sectores        Sector[]
+  categorias      Categoria[]
+  gremios         Gremio[]
+  convenios       Convenio[]
+  motivosAusencia MotivoAusencia[]
+  barrios         Barrio[]
+  calles          Calle[]
+  localidades     Localidad[]
+  ciudadanos      Ciudadano[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role String @default("TENANT_USER")
+  tenantId     String?
+  tenant       Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  active       Boolean   @default(true)
+  avatar       String?
+  lastLogin    DateTime?
+  loginCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+// ============================================================
+// RRHH — LEGACY EMPLEADO (kept for backward compat)
+// ============================================================
+model Empleado {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  legajo          String
+  nombre          String
+  apellido        String
+  dni             String?
+  cargo           String
+  categoria       String?
+  secretaria      String
+  area            String?
+  tipoContrato    String    @default("Planta Permanente")
+  salarioBruto    Float
+  salarioNeto     Float?
+  fechaIngreso    DateTime?
+  fechaNacimiento DateTime?
+  email           String?
+  telefono        String?
+  domicilio       String?
+  estado          String    @default("Activo")
+  observaciones   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([tenantId, legajo])
+  @@map("empleados")
+}
+
+// ============================================================
+// RRHH — GRH REAL (datos del municipio)
+// ============================================================
+model Sector {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  codigo    String
+  nombre    String
+  abrev     String?
+  createdAt DateTime @default(now())
+
+  empleados EmpleadoGRH[]
+
+  @@unique([tenantId, codigo])
+  @@map("sectores_grh")
+}
+
+model Categoria {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  codigo    String
+  nombre    String
+  abrev     String?
+  createdAt DateTime @default(now())
+
+  empleados EmpleadoGRH[]
+
+  @@unique([tenantId, codigo])
+  @@map("categorias_grh")
+}
+
+model Gremio {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  codigo    String
+  nombre    String
+  abrev     String?
+  createdAt DateTime @default(now())
+
+  empleados EmpleadoGRH[]
+
+  @@unique([tenantId, codigo])
+  @@map("gremios_grh")
+}
+
+model Convenio {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  codigo    String
+  nombre    String
+  createdAt DateTime @default(now())
+
+  empleados EmpleadoGRH[]
+
+  @@unique([tenantId, codigo])
+  @@map("convenios_grh")
+}
+
+model MotivoAusencia {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  codigo    String
+  nombre    String
+  diasMax   Int?
+  conGoce   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  ausencias Ausencia[]
+
+  @@unique([tenantId, codigo])
+  @@map("motivos_ausencia")
+}
+
+model EmpleadoGRH {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  legajo          String
+  nombre          String
+  sexo            String?
+  fechaNacimiento DateTime?
+  dni             String?
+  cuil            String?
+  grupoSanguineo  String?
+  telefono        String?
+  email           String?
+
+  // Domicilio con GPS
+  calle           String?
+  numero          String?
+  piso            String?
+  dpto            String?
+  barrioNombre    String?
+  localidad       String?
+  provincia       String?   @default("Mendoza")
+  latitud         Float?
+  longitud        Float?
+
+  // Empleo
+  fechaIngreso    DateTime?
+  fechaEgreso     DateTime?
+  activo          Boolean   @default(true)
+  sueldoBasico    Float?
+  antiguedadAnios Int?
+  antiguedadMeses Int?
+  horasDiarias    Float?
+  horasMensuales  Float?
+  lugarTrabajo    String?
+  concursado      Boolean?
+  profesion       String?
+
+  // Relaciones
+  sectorId        String?
+  sector          Sector?    @relation(fields: [sectorId], references: [id])
+  categoriaId     String?
+  categoria       Categoria? @relation(fields: [categoriaId], references: [id])
+  gremioId        String?
+  gremio          Gremio?    @relation(fields: [gremioId], references: [id])
+  convenioId      String?
+  convenio        Convenio?  @relation(fields: [convenioId], references: [id])
+
+  ausencias       Ausencia[]
+  licencias       Licencia[]
+  familiares      Familiar[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([tenantId, legajo])
+  @@index([tenantId, activo])
+  @@index([sectorId])
+  @@index([categoriaId])
+  @@map("empleados_grh")
+}
+
+model Ausencia {
+  id           String    @id @default(cuid())
+  tenantId     String
+  empleadoId   String
+  empleado     EmpleadoGRH @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  fecha        DateTime
+  dias         Float?
+  fechaRegreso DateTime?
+  motivoId     String?
+  motivo       MotivoAusencia? @relation(fields: [motivoId], references: [id])
+  motivoCodigo String?
+  observaciones String?
+  periodo      String?
+  createdAt    DateTime  @default(now())
+
+  @@index([empleadoId])
+  @@index([tenantId, fecha])
+  @@map("ausencias_grh")
+}
+
+model Licencia {
+  id            String    @id @default(cuid())
+  tenantId      String
+  empleadoId    String
+  empleado      EmpleadoGRH @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  tipo          String?
+  fechaInicio   DateTime?
+  fechaFin      DateTime?
+  dias          Int?
+  periodo       String?
+  observaciones String?
+  createdAt     DateTime  @default(now())
+
+  @@index([empleadoId])
+  @@index([tenantId])
+  @@map("licencias_grh")
+}
+
+model Familiar {
+  id            String    @id @default(cuid())
+  empleadoId    String
+  empleado      EmpleadoGRH @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  nombre        String
+  vinculo       String
+  fechaNac      DateTime?
+  cuil          String?
+  sexo          String?
+  discapacidad  Boolean   @default(false)
+  escolaridad   String?
+  createdAt     DateTime  @default(now())
+
+  @@index([empleadoId])
+  @@map("familiares_grh")
+}
+
+// ============================================================
+// PADRÓN CIUDADANO (personas_junin)
+// ============================================================
+model Ciudadano {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre      String
+  sexo        String?
+  fechaNac    DateTime?
+  dni         String?
+  cuil        String?
+  calle       String?
+  numero      String?
+  barrio      String?
+  localidad   String?
+  latitud     Float?
+  longitud    Float?
+  telefono    String?
+  email       String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([dni])
+  @@map("ciudadanos")
+}
+
+// ============================================================
+// GEOGRAFÍA MUNICIPAL
+// ============================================================
+model Barrio {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre    String
+  codigo    String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, nombre])
+  @@map("barrios")
+}
+
+model Calle {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre    String
+  codigo    String?
+  createdAt DateTime @default(now())
+
+  @@map("calles")
+}
+
+model Localidad {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre    String
+  codigo    String?
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, nombre])
+  @@map("localidades")
+}
+
+// ============================================================
+// FINANZAS / PAGOS / PRESUPUESTO (existing)
+// ============================================================
+model Pago {
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  numero         String?
+  proveedor      String
+  cuit           String?
+  concepto       String
+  secretaria     String
+  monto          Float
+  moneda         String    @default("ARS")
+  fecha          DateTime
+  fechaPago      DateTime?
+  estado         String    @default("Pagado")
+  categoria      String?
+  comprobanteUrl String?
+  observaciones  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("pagos")
+}
+
+model Presupuesto {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  secretaria String
+  codigo     String?
+  programa   String?
+  asignado   Float
+  ejecutado  Float    @default(0)
+  periodo    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, secretaria, periodo])
+  @@map("presupuestos")
+}
+
+// ============================================================
+// RECLAMOS 311
+// ============================================================
+model Reclamo {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  numero        String
+  categoria     String
+  subcategoria  String?
+  descripcion   String
+  estado        String    @default("Pendiente")
+  prioridad     String    @default("Media")
+  barrio        String?
+  domicilio     String?
+  lat           Float?
+  lng           Float?
+  nombre        String?
+  telefono      String?
+  email         String?
+  agente        String?
+  fechaAsignado DateTime?
+  fechaCierre   DateTime?
+  observaciones String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, numero])
+  @@map("reclamos")
+}
+
+// ============================================================
+// OBRAS PÚBLICAS
+// ============================================================
+model Obra {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre           String
+  descripcion      String?
+  contratista      String?
+  monto            Float?
+  moneda           String    @default("ARS")
+  avance           Int       @default(0)
+  estado           String    @default("En ejecucion")
+  barrio           String?
+  domicilio        String?
+  lat              Float?
+  lng              Float?
+  fechaInicio      DateTime?
+  fechaFinEstimada DateTime?
+  fechaFin         DateTime?
+  licitacionId     String?
+  observaciones    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("obras")
+}
+
+// ============================================================
+// LICITACIONES
+// ============================================================
+model Licitacion {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  numero            String
+  tipo              String    @default("Licitacion Publica")
+  objeto            String
+  montoBase         Float?
+  adjudicadoA       String?
+  montoAdjudicado   Float?
+  estado            String    @default("En preparacion")
+  fechaApertura     DateTime?
+  fechaAdjudicacion DateTime?
+  secretaria        String?
+  expediente        String?
+  observaciones     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([tenantId, numero])
+  @@map("licitaciones")
+}
+
+// ============================================================
+// DOCUMENTOS / NOTIFICACIONES / AUDIT
+// ============================================================
+model Documento {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nombre    String
+  tipo      String
+  url       String
+  size      Int?
+  mimeType  String?
+  modulo    String?
+  entidadId String?
+  subidoPor String?
+  createdAt DateTime @default(now())
+
+  @@map("documentos")
+}
+
+model Notificacion {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tipo      String
+  titulo    String
+  cuerpo    String
+  modulo    String?
+  href      String?
+  leida     Boolean  @default(false)
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@map("notificaciones")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?
+  details String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model Invitation {
+  id        String    @id @default(cuid())
+  email     String
+  role String @default("TENANT_USER")
+  tenantId  String
+  token     String    @unique @default(cuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("invitations")
+}
+
+

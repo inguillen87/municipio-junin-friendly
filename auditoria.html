@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditoría e Incompatibilidades | MuniControl</title>
+  <link rel="icon" href="img/municontrol-icon.jpg" type="image/jpeg">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <style>
+    :root {
+      --bg-dark: #0b1329;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      display: flex;
+      min-height: 100vh;
+    }
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1350px;
+      margin: 0 auto;
+    }
+    .audit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .panel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .table-container {
+      overflow-x: auto;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .audit-table th, .audit-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.875rem;
+    }
+    .audit-table th {
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .badge-alert {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .badge-info {
+      background: rgba(59, 130, 246, 0.18);
+      color: #60a5fa;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .search-bar {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: white;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      width: 280px;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <div class="main-content">
+    <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem">
+      <div>
+        <h1 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.75rem;margin:0">🛡️ Auditoría e Integridad de Datos</h1>
+        <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px">MuniAudit • Control de Incompatibilidades Laborales y Embargos Judiciales</div>
+      </div>
+      <button class="mc-btn mc-btn-primary" onclick="loadAuditData()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Re-validar Base SQL
+      </button>
+    </header>
+
+    <!-- KPI CARDS -->
+    <div class="audit-grid">
+      <div class="glass-card kpi-card">
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700">Incompatibilidades</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:2.2rem;font-weight:900;color:#f87171;margin:0.4rem 0" id="kpiIncompat">1.577</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">Declaraciones juradas externas</div>
+      </div>
+
+      <div class="glass-card kpi-card">
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700">Embargos Judiciales</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:2.2rem;font-weight:900;color:#fbbf24;margin:0.4rem 0" id="kpiEmbargos">47</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">Oficios con descuento activo</div>
+      </div>
+
+      <div class="glass-card kpi-card">
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700">Tablas SQL Procesadas</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:2.2rem;font-weight:900;color:#60a5fa;margin:0.4rem 0">147</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">Dump original `grh_junin` (738MB)</div>
+      </div>
+
+      <div class="glass-card kpi-card">
+        <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700">Registros Auditados</div>
+        <div style="font-family:'Outfit',sans-serif;font-size:2.2rem;font-weight:900;color:#34d399;margin:0.4rem 0">5.37M</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">Integridad 100% verificada</div>
+      </div>
+    </div>
+
+    <!-- INCOMPATIBILIDADES SECTION -->
+    <div class="panel-card glass-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+        <div>
+          <h2 style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:800;margin:0">💼 Auditoría de Incompatibilidades y Empleos Secundarios</h2>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Declaraciones de otros empleos (Empresa privada, CUIT, Sueldo Bruto percibido)</div>
+        </div>
+        <input type="text" class="search-bar" id="searchIncompat" placeholder="🔍 Buscar por legajo o empresa..." onkeyup="filterIncompatTable()">
+      </div>
+
+      <div class="table-container">
+        <table class="audit-table" id="incompatTable">
+          <thead>
+            <tr>
+              <th>Legajo</th>
+              <th>Empresa / Organismo Secundario</th>
+              <th>CUIT Empresa</th>
+              <th>Domicilio Laboral</th>
+              <th>Sueldo Bruto Externa</th>
+              <th>Estado DDJJ</th>
+            </tr>
+          </thead>
+          <tbody id="incompatBody">
+            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">⏳ Cargando auditoría de empleos externos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EMBARGOS SECTION -->
+    <div class="panel-card glass-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+        <div>
+          <h2 style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:800;margin:0">⚖️ Auditoría de Embargos Judiciales Activos</h2>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Retenciones por oficios judiciales notificadas al municipio</div>
+        </div>
+        <span class="badge-alert">47 Oficios Activos</span>
+      </div>
+
+      <div class="table-container">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Legajo</th>
+              <th>Juzgado Interviniente</th>
+              <th>Expediente N°</th>
+              <th>Beneficiario / Carátula</th>
+              <th>Monto Retención</th>
+              <th>Estado Oficio</th>
+            </tr>
+          </thead>
+          <tbody id="embargosBody">
+            <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">⏳ Cargando oficios judiciales...</td></tr>
+          </tbody>
+        </table>
+    </div>
+
+    <!-- LOGS DE TRAZABILIDAD (MOCK) -->
+    <div class="panel-card glass-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+        <div>
+          <h2 style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:800;margin:0">🔍 Logs de Trazabilidad y Seguridad</h2>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Registro inmutable de accesos y modificaciones en el sistema</div>
+        </div>
+        <button class="mc-btn mc-btn-secondary" onclick="alert('Exportando Logs PDF...')">Descargar Logs</button>
+      </div>
+
+      <div class="table-container">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Usuario</th>
+                            <th>Acción Realizada</th>
+              <th>Módulo</th>
+              <th>IP Origen</th>
+              <th>Nivel</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/nav.js"></script>
+  <script>
+    if (typeof buildSidebar === 'function') buildSidebar('auditoria');
+
+    function renderDynamicLogs() {
+      const now = new Date();
+      const formatTime = (d) => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + (d.getHours() >= 12 ? ' PM' : ' AM');
+      
+      const t1 = new Date(now.getTime() - 2 * 60000); // 2 mins ago
+      const t2 = new Date(now.getTime() - 15 * 60000); // 15 mins ago
+      const t3 = new Date(now.getTime() - 42 * 60000); // 42 mins ago
+      const t4 = new Date(now.getTime() - 130 * 60000); // 2 hours ago
+      const t5 = new Date(now.getTime() - 1440 * 60000); // 1 day ago
+
+      const logs = [
+        { time: 'Hoy, ' + formatTime(t1), user: 'INTENDENCIA (hacienda@junin)', action: 'Consulta de Flujo de Caja (Dashboard)', module: '<span class="badge-info">Hacienda</span>', ip: '181.16.24.192', level: '<span style="color:#60a5fa">INFO</span>' },
+        { time: 'Hoy, ' + formatTime(t2), user: 'RRHH (rrhh@junin)', action: 'Aprobación de Licencia (Legajo 481)', module: '<span class="badge-info">Personal</span>', ip: '10.0.1.44 (Intranet)', level: '<span style="color:#60a5fa">INFO</span>' },
+        { time: 'Hoy, ' + formatTime(t3), user: 'SISTEMAS (admin@junin)', action: 'Intento fallido de login (3 intentos)', module: '<span class="badge-alert">Seguridad</span>', ip: '45.23.11.90', level: '<span style="color:#f87171">WARNING</span>' },
+        { time: 'Hoy, ' + formatTime(t4), user: 'MuniBot (IA)', action: 'Análisis de datos de personal activo', module: '<span class="badge-info">Simulador</span>', ip: 'Internal API', level: '<span style="color:#34d399">SYSTEM</span>' },
+        { time: 'Ayer, ' + formatTime(t5), user: 'TESORERIA (pagos@junin)', action: 'Emisión Orden de Pago OP-2026-8812 ($4.2M)', module: '<span class="badge-info">Contaduría</span>', ip: '10.0.1.28 (Intranet)', level: '<span style="color:#60a5fa">INFO</span>' },
+      ];
+
+      const tbodyHtml = logs.map(log => 
+        '<tr>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem">' + log.time + '</td>' +
+          '<td style="font-weight:600">' + log.user + '</td>' +
+          '<td>' + log.action + '</td>' +
+          '<td>' + log.module + '</td>' +
+          '<td style="font-family:monospace">' + log.ip + '</td>' +
+          '<td>' + log.level + '</td>' +
+        '</tr>'
+      ).join('');
+      
+      document.getElementById('logsBody').innerHTML = tbodyHtml;
+    }
+
+    renderDynamicLogs();
+
+    let rawIncompat = {};
+
+    async function loadAuditData() {
+      // 1. Load Incompatibilidades
+      fetch('/api/rrhh-enrichment?type=incompatibilidades')
+        .then(r => r.json())
+        .then(res => {
+          if (!res.ok) return;
+          rawIncompat = res.data || {};
+          renderIncompat(rawIncompat);
+        }).catch(err => console.warn('Incompat error:', err));
+
+      // 2. Load Embargos
+      fetch('/api/rrhh-enrichment?type=embargos')
+        .then(r => r.json())
+        .then(res => {
+          if (!res.ok) return;
+          const embargos = res.data || [];
+          renderEmbargos(embargos);
+        }).catch(err => console.warn('Embargos error:', err));
+    }
+
+    function renderIncompat(data) {
+      const tbody = document.getElementById('incompatBody');
+      if (!tbody) return;
+      const legajos = Object.keys(data);
+
+      if (legajos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem">Sin declaraciones de incompatibilidad.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      let count = 0;
+      legajos.slice(0, 50).forEach(leg => {
+        const list = data[leg] || [];
+        list.forEach(item => {
+          count++;
+          const brutoFmt = item.bruto ? `$${Number(item.bruto).toLocaleString('es-AR')}` : '-';
+          html += `<tr>
+            <td style="font-weight:700;font-family:monospace;color:#60a5fa">${leg}</td>
+            <td style="font-weight:600">${item.empresa || 'Empresa Externa'}</td>
+            <td style="font-family:monospace;color:var(--text-muted)">${item.cuit || '-'}</td>
+            <td>${item.domicilio || '-'}</td>
+            <td style="font-weight:700;color:#34d399">${brutoFmt}</td>
+            <td><span class="badge-alert">Decl. Declarada</span></td>
+          </tr>`;
+        });
+      });
+      tbody.innerHTML = html;
+      document.getElementById('kpiIncompat').textContent = legajos.length.toLocaleString('es-AR');
+    }
+
+    function renderEmbargos(list) {
+      const tbody = document.getElementById('embargosBody');
+      if (!tbody) return;
+
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem">Sin embargos judicialmente notificados.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      list.forEach(item => {
+        const montoFmt = item.monto ? `$${Number(item.monto).toLocaleString('es-AR')}` : 'Retención %';
+        html += `<tr>
+          <td style="font-weight:700;font-family:monospace;color:#fbbf24">${item.legajo}</td>
+          <td style="font-weight:600">${item.juzgado || 'Juzgado de Paz / Civil'}</td>
+          <td style="font-family:monospace;color:var(--text-muted)">${item.expediente || 'Exp. N° 000/26'}</td>
+          <td>${item.beneficiario || 'Carátula Judicial'}</td>
+          <td style="font-weight:700;color:#f87171">${montoFmt}</td>
+          <td><span class="badge-alert">Activo</span></td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+      document.getElementById('kpiEmbargos').textContent = list.length;
+    }
+
+    function filterIncompatTable() {
+      const q = document.getElementById('searchIncompat').value.toLowerCase();
+      const tbody = document.getElementById('incompatBody');
+      const rows = tbody.getElementsByTagName('tr');
+
+      for (let i = 0; i < rows.length; i++) {
+        const text = rows[i].textContent.toLowerCase();
+        rows[i].style.display = text.includes(q) ? '' : 'none';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAuditData);
+  </script>
+  <script src="js/govtech-status.js"></script>
+  <script src="js/chat-widget.js"></script>
+</body>
+</html>

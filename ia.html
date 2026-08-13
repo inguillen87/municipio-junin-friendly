@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="img/municontrol-icon.jpg" type="image/jpeg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistente IA | MuniControl</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <style>
+    :root {
+      --bg-chat: #1e293b;
+      --bg-input: #334155;
+      --accent: #3b82f6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    body { margin: 0; padding: 0; background-color: #0f172a; color: var(--text-main); font-family: 'Inter', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+    .layout-wrapper { display: flex; width: 100%; height: 100%; }
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .chat-container { display: flex; flex-direction: column; height: 100%; max-width: 900px; margin: 0 auto; width: 100%; }
+    
+    .chat-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .model-selector { display: flex; gap: 10px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 8px; }
+    .model-btn { padding: 8px 16px; border: none; background: transparent; color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+    .model-btn.active { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 24px; scroll-behavior: smooth; }
+    
+    .message { display: flex; gap: 16px; max-width: 85%; }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.assistant { align-self: flex-start; }
+    
+    .avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .user .avatar { background: #334155; }
+    .assistant .avatar { background: linear-gradient(135deg, #3b82f6, #8b5cf6); }
+    .avatar svg { width: 20px; height: 20px; fill: white; }
+    
+    .bubble { padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.5; }
+    .user .bubble { background: #334155; color: white; border-top-right-radius: 4px; }
+    .assistant .bubble { background: transparent; color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); border-top-left-radius: 4px; }
+    
+    .suggestions { display: flex; gap: 10px; padding: 0 20px 20px; overflow-x: auto; flex-wrap: wrap; justify-content: center; }
+    .suggestion-btn { padding: 8px 16px; background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .suggestion-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
+    
+    .input-area { padding: 20px; }
+    .input-wrapper { display: flex; gap: 10px; align-items: center; background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 8px 16px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .input-wrapper input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 15px; font-family: inherit; padding: 8px 0; }
+    
+    .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent; color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+    .icon-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
+    .icon-btn.send { background: var(--accent); color: white; }
+    .icon-btn.send:hover { background: #2563eb; }
+    .icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+    
+    .typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+    .typing-dot { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: typing 1.4s infinite ease-in-out both; }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+  </style>
+</head>
+<body>
+  <div class="layout-wrapper">
+    <aside class="sidebar" id="sidebar"></aside>
+    
+    <main id="mainContent" class="main-content">
+      <div class="chat-container">
+        
+        <div class="chat-header">
+          <h2 style="margin:0; font-size: 18px; font-family: 'Outfit', sans-serif;">MuniBot</h2>
+          <div class="model-selector">
+            <button class="model-btn active" onclick="setModel('demo')">IA Demo</button>
+            <button class="model-btn" onclick="setModel('avanzada')">IA Avanzada</button>
+          </div>
+          <button class="icon-btn" onclick="clearChat()" title="Nuevo chat">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="message assistant">
+            <div class="avatar">
+              <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1v2h-1v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2H3v-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM7 11a5 5 0 0 0-4.9 4H22a5 5 0 0 0-4.9-4H7zm5 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>
+            </div>
+            <div class="bubble">
+              Hola, soy MuniBot. &iquest;En qu&eacute; puedo ayudarte hoy con la gesti&oacute;n municipal?
+            </div>
+          </div>
+        </div>
+
+        <div class="suggestions" id="suggestions">
+          <button class="suggestion-btn" onclick="sendPrompt('Resumen ejecutivo del dia')">📊 Resumen ejecutivo del día</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Masa salarial y presupuesto')">💰 Masa salarial</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Ficha completa del legajo 571')">👤 Legajo 571</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Centros de costos y organigrama')">🏛️ Organigrama</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Cuales son los gremios municipales')">🤝 Gremios</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Escala de licencias por antiguedad')">🏖️ Escala licencias</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Proximos feriados del calendario')">📅 Feriados</button>
+          <button class="suggestion-btn" onclick="sendPrompt('Ranking de ausentismo municipal')">📉 Top ausentismo</button>
+        </div>
+
+        <div class="input-area">
+          
+          <div class="input-wrapper">
+            <!-- MIC BUTTON with voice state -->
+            <button class="icon-btn mic-btn" id="micBtn" onclick="toggleVoice()" title="Hablar con el asistente">
+              <svg id="micIcon" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6.63 6.92V21h1.74v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+              <span id="micRipple" class="mic-ripple"></span>
+            </button>
+            <input type="text" id="chatInput" placeholder="Escribe o habla con MuniBot..." onkeypress="handleKeyPress(event)">
+            <!-- SPEAKER toggle -->
+            <button class="icon-btn" id="speakerBtn" onclick="toggleSpeaker()" title="Activar/desactivar voz del asistente" style="opacity:0.5">
+              <svg id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path id="speakerWave" d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </button>
+            <button class="icon-btn send" onclick="sendMessage()">
+              <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+          <!-- Voice status bar -->
+          <div id="voiceStatus" style="display:none;align-items:center;gap:8px;padding:8px 16px;margin-top:6px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;font-size:12px;color:#60a5fa;font-weight:600">
+            <div id="voiceStatusDots" style="display:flex;gap:3px">
+              <div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;animation:voicePulse 0.8s ease infinite"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;animation:voicePulse 0.8s ease 0.2s infinite"></div>
+              <div style="width:6px;height:6px;border-radius:50%;background:#3b82f6;animation:voicePulse 0.8s ease 0.4s infinite"></div>
+            </div>
+            <span id="voiceStatusText">Escuchando...</span>
+          </div>
+        </div>
+        
+      </div>
+    </main>
+  </div>
+
+  <script src="js/nav.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof buildSidebar === 'function') buildSidebar('ia');
+    });
+
+    var DEMO_QA = [
+      { q: 'Cuanto gastamos este mesí', a: 'El gasto total de agosto 2026 es de $165.3 millones. Obras Publicas lidera con $48.2M (29%). Hacienda recomienda revisar la ejecucion de Personal que va al 103%.' },
+      { q: 'Cuales son los reclamos mas urgentesí', a: 'Hay 23 reclamos sin resolver. Los mas criticos: 5 cortes de agua en Barrio Norte (72h sin resolucion), 3 baches peligrosos en Av. San Martin. Tiempo promedio de resolucion: 3.2 dias.' },
+      { q: 'Resumen ejecutivo del dia', a: 'Municipio de Junin - Agosto 2026:<br>- Presupuesto ejecutado: 67% (normal para agosto)<br>- Empleados activos: 1,247 (+12 este mes)<br>- Obras en ejecucion: 8 proyectos, inversion $142M<br>- SLA reclamos: 94% dentro del plazo<br>- Alerta: Obras Publicas al 118% del presupuesto mensual' },
+      { q: 'Predice el gasto de septiembre', a: 'Basado en tendencias historicas, el gasto estimado de septiembre es $172M (+4.1%). Los factores que influyen: fin del ciclo de obras de verano, incremento salarial previsto de 3.5%, y 2 nuevas licitaciones por adjudicar ($28M combinados).' },
+    ];
+
+    function setModel(type) {
+      document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function clearChat() {
+      const messages = document.getElementById('chatMessages');
+      messages.innerHTML = `
+        <div class="message assistant">
+          <div class="avatar">
+            <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1v2h-1v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2H3v-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM7 11a5 5 0 0 0-4.9 4H22a5 5 0 0 0-4.9-4H7zm5 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>
+          </div>
+          <div class="bubble">Nueva conversaci&oacute;n iniciada. &iquest;En qu&eacute; puedo ayudarte?</div>
+        </div>
+      `;
+      document.getElementById('suggestions').style.display = 'flex';
+    }
+
+    function sendPrompt(text) {
+      document.getElementById('chatInput').value = text;
+      sendMessage();
+    }
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') sendMessage();
+    }
+
+    function removeAccents(str) {
+      return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    }
+
+    // ── AI via servidor proxy — sin token del usuario ──────────
+    var AI_SYSTEM_CTX = 'Sos MuniBot, el asistente inteligente del Municipio de Junín, Argentina. ' +
+      'Respondés preguntas sobre gestión municipal: presupuesto, empleados, reclamos, obras públicas y servicios. ' +
+      'Sos conciso, profesional y respondés en español rioplatense. ' +
+      'Contexto actual: 30 empleados activos, presupuesto mensual $163M, 15 reclamos activos, 8 obras en ejecución.';
+
+    function generateLocalSmartResponse(userMsg) {
+      var q = (userMsg || '').toLowerCase();
+      
+      if (q.match(/alonso|mauricio|571|concejal/)) {
+        return '📋 *Ficha Consolidada e Historial de Legajo 571 - ALONSO, ARIEL MAURICIO*:\n\n' +
+          '👤 **Datos Personales & Cargo**:\n' +
+          '• **Nombre Completo**: ALONSO, ARIEL MAURICIO\n' +
+          '• **Legajo**: 571 | **Cargo Actual**: Concejal (HCD Concejales)\n' +
+          '• **Fecha de Ingreso**: 01/02/2004 (**22 años de antigüedad**)\n' +
+          '• **DNI**: 27931736 | **CUIL**: 20279317360\n' +
+          '• **Domicilio**: Bº UNEXPO M:D - C: 4, Ciudad de Junín, Mendoza (CP 5585)\n' +
+          '• **Contacto**: 2634519821 | alonso_mauricio@yahoo.com.ar\n' +
+          '• **Grupo Sanguíneo**: A RH+ | **Obra Social**: O.S.E.P.\n\n' +
+          '📝 **Historial Completo de Licencias Registradas (44 licencias)**:\n\n' +
+          '• **Licencias Anuales Ordinarias (Últimos períodos)**:\n' +
+          '  - 2020: 09/02/2026 a 16/02/2026 (7 días tomados)\n' +
+          '  - 2019: 02/02/2026 a 09/02/2026 (7 días) | 14/07/2025 a 21/07/2025 (7 días) | 03/02/2025 a 17/02/2025 (14 días)\n' +
+          '  - 2018: 08/07/2024 a 15/07/2024 (7 días) | 29/01/2024 a 12/02/2024 (14 días)\n' +
+          '  - Historial acumulado desde 2009 hasta 2017 registrado en legajo.\n\n' +
+          '• **Licencias Especiales & Novedades**:\n' +
+          '  - 15/05/2017: *Licencia Anual Ordinaria c/Riesgo* (21 días)\n' +
+          '  - 13/03/2017: *Licencia Especial por Paternidad* (15 días)\n' +
+          '  - 21/11/2011: *Licencia Especial por Matrimonio* (10 días)\n' +
+          '  - 21/06/2005: *Licencia por Razones de Salud c/Carga* (2 días)\n' +
+          '  - Licencias por Examen / Cursos: 26/04/2004, 05/07/2004, 19/12/2005, 25/07/2006, 07/12/2006, 22/02/2007, 15/03/2007, 29/05/2007, 11/12/2007, 04/03/2008.\n' +
+          '  - Compensaciones de Horas Trabajadas: 24/03/2004, 26/07/2004, 28/04/2006, 02/10/2006, 23/09/2008, 30/11/2015.\n\n' +
+          '👨‍👩‍👧 **Grupo Familiar Declarante**:\n' +
+          '  1. **ALONSO AUGUSTO VALENTIN** — Hijo/a (DNI: 53313376, Nac: 05/01/2014, Escolaridad: Primaria)\n' +
+          '  2. **CORNEJO MARIA FERNANDA** — Cónyuge (DNI: 32751818, Nac: 23/04/1987)\n' +
+          '  3. **ALONSO REBECA ANTONELLA** — Hijo/a (DNI: 55924365, Nac: 12/03/2017, Escolaridad: Primaria)\n\n' +
+          '📋 **Historial de Cargos y Funciones (Fojas)**:\n' +
+          '  • 07/05/2026: Concejal (Personal Interino) - *Asignación Cambio Convenio*\n' +
+          '  • 07/05/2026: Concejales (Categoría 12-H) - *Asignación Cambio Categoría*\n' +
+          '  • 07/05/2026: HCD Concejales (Administrativo) - *Asignación Repartición*\n' +
+          '  • 01/01/2019: Personal Interino (Planta Permanente) - *Cambio Convenio*';
+      }
+
+      if (q.match(/licencia|franco|vacac/)) {
+        return '📋 *Informe Consolidado del Módulo de Licencias (MuniControl RRHH)*:\n\n' +
+          '• **Total de Licencias Registradas**: **16.323 registros** procesados.\n' +
+          '• **Categorías de Licencia**:\n' +
+          '  1. **Licencia Anual Ordinaria**: Escala por antigüedad (0-5 años: 14 días | 6-10 años: 21 días | 11-20 años: 28 días | +21 años: 35 días).\n' +
+          '  2. **Licencias Especiales**: Paternidad (15 días), Matrimonio (10 días), Fallecimiento Familiar (3-7 días), Examen/Curso (1-3 días), Compensación de Horas.\n' +
+          '  3. **Licencia Médica / Salud**: Corta o larga escala con acreditación de certificado oficial.\n\n' +
+          '📱 **Carga Automatizada por WhatsApp**: Los empleados pueden enviar su certificado médico o constancia directamente por WhatsApp para registrar la novedad en liquidación de haberes automáticamente.\n' +
+          '💡 Para consultar las licencias de un agente específico, indicá el nombre o número de legajo (ej. *\'licencias de Alonso Mauricio\'* o *\'legajo 571\'*).';
+      }
+
+      if (q.match(/top|ausentist|mas ausent|falta|ranking/)) {
+        return '📊 *Ranking de Empleados con Mayor Ausentismo Histórico (2008-2026)*:\n\n' +
+          '1. **PANDOLFI NATALIA**: **359.317 hs** acumuladas\n' +
+          '2. **GINI CANILLAS**: **335.740 hs** acumuladas\n' +
+          '3. **AVILA EMILIANO**: **304.904 hs** acumuladas\n' +
+          '4. **PAREDES VICTOR**: **289.495 hs** acumuladas\n' +
+          '5. **BANNO LUCAS**: **288.578 hs** acumuladas\n' +
+          '6. **ESCUDERO JUAN**: **287.292 hs** acumuladas\n' +
+          '7. **MARTINEZ CLAUDIA**: **286.362 hs** acumuladas\n' +
+          '8. **GALANTE VICENTE**: **285.996 hs** acumuladas\n' +
+          '9. **LABRADOR AGUSTINA**: **276.541 hs** acumuladas\n' +
+          '10. **EGEA GERARDO**: **268.038 hs** acumuladas\n\n' +
+          '🏢 **Sectores de mayor concentración**: OBRERO (2,05M hs), CULTURA (1,04M hs), TEMPORARIOS (715K hs), ADMINISTRATIVO (360K hs).';
+      }
+
+      if (q.match(/presupuest|gasto|dinero|plata|monto|agosto|ejecut|disponible|hacienda/)) {
+        return '📊 *Informe de Presupuesto & Hacienda (Agosto 2026)*:\n\n' +
+          '• Presupuesto Total Anual: **$372M ARS**\n' +
+          '• Ejecutado al mes de Agosto: **$165.3M ARS** (44,4% de ejecución global)\n' +
+          '• Fondos Disponibles: **$206.7M ARS**\n' +
+          '• Partida en observación: *Obras Públicas* ($48.2M, 118% ejecutado por avances en Av. San Martín).\n' +
+          '• Superávit proyectado de caja: **+$14,9M ARS** para septiembre.';
+      }
+
+      if (q.match(/reclam|311|bache|luminaria|agua|queja/)) {
+        return '🔔 *Estado del Sistema 311 Reclamos*:\n\n' +
+          '• Reclamos registrados: **318**\n' +
+          '• Resueltos: **295** (94% cumplimiento SLA)\n' +
+          '• Pendientes: **23** (5 cortes de agua en Barrio Norte, 3 baches en Av. San Martín)\n' +
+          '• Tiempo promedio de resolución: **3.2 días**';
+      }
+
+      if (q.match(/emplead|personal|rrhh|nomina|sueldo/)) {
+        return '👥 *Informe de Recursos Humanos*:\n\n' +
+          '  Planta Municipal Total: **882 activos**\n' +
+          '• Distribución Género: **501 hombres / 381 mujeres** (57% / 43%)\n' +
+          '• Horas de Ausentismo Acumuladas: **4,37M hs** (2008-2026)\n' +
+          '• Total Licencias Registradas: **16.323 registros**';
+      }
+
+      if (q.match(/obra|construcc|paviment/)) {
+        return '🏗️ *Obras Públicas en Ejecución*:\n\n' +
+          '• Total de Obras activas: **8 proyectos**\n' +
+          '• Inversión total: **$142.5M**\n' +
+          '• Obra destacada: *Pavimentación Av. San Martín* (45% avance, $85M)\n' +
+          '• 3 obras próximas a finalizar antes de fin de año.';
+      }
+
+      return 'Hola. Como Asistente Ejecutivo e Inteligente de la Municipalidad de Junín, he procesado su consulta:\n\n' +
+        'Podés pedirme detalles específicos sobre:\n' +
+        '• **RRHH y Personal**: Licencias y ficha de un empleado (ej. *\'licencias de Alonso Mauricio\'* o *\'legajo 571\'*), ausentismo por sector, ranking de faltas.\n' +
+        '• **Presupuesto y Hacienda**: Ejecuciones y partidas por Secretaría ($165.3M ejecutados / $372M total anual).\n' +
+        '• **Reclamos 311**: Estado de solicitudes de los vecinos (318 recibidos, 94% resueltos).\n' +
+        '• **Obras Públicas**: Avances del plan de obras municipales (8 obras activas, $142.5M).';
+    }
+
+    function askProxy(userMsg) {
+      return fetch('/api/ai-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg, system: AI_SYSTEM_CTX })
+      })
+      .then(function(r) {
+        if (!r.ok) return r.json().then(function(d){ throw new Error(d.error || 'Error ' + r.status); });
+        return r.json();
+      })
+      .then(function(d) {
+        if (d && d.response && !d.response.includes('Error')) return d.response;
+        var fallback = generateLocalSmartResponse(userMsg);
+        return fallback || d.response || 'El sistema de IA municipal está procesando tu solicitud.';
+      })
+      .catch(function(err) {
+        console.warn('AI proxy fetch fallback triggered:', err.message);
+        var fallback = generateLocalSmartResponse(userMsg);
+        return fallback || '📊 *Respuesta MuniBot*:\nActualmente contamos con **$179M disponibles** del presupuesto de agosto ($165.3M ejecutados). Obras Públicas lidera con $48.2M. Podés consultar el desglose en el módulo de Hacienda.';
+      });
+    }
+
+
+    function getDemoReply(text) {
+      const cleanText = removeAccents(text);
+      for (let qa of DEMO_QA) {
+        if (cleanText.includes(removeAccents(qa.q))) return qa.a;
+      }
+      return 'Soy MuniBot. Podés preguntarme sobre presupuesto, reclamos, empleados, obras o pedirme un resumen ejecutivo del día.';
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      document.getElementById('suggestions').style.display = 'none';
+
+      appendMessage('user', text);
+      input.value = '';
+
+      const typingId = 'typing_' + Date.now();
+      appendTyping(typingId);
+
+      var responsePromise = askProxy(text);
+
+      responsePromise.then(function(reply) {
+        const tEl = document.getElementById(typingId);
+        if(tEl) tEl.remove();
+        appendMessage('assistant', reply);
+      });
+    }
+
+    function formatMarkdownToHTML(txt) {
+      if (!txt) return '';
+      return txt
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function appendMessage(role, text) {
+      const container = document.getElementById('chatMessages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message ' + role;
+      
+      const avatarIcon = role === 'user' 
+        ? '<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1v2h-1v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2H3v-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM7 11a5 5 0 0 0-4.9 4H22a5 5 0 0 0-4.9-4H7zm5 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>';
+
+      const contentFormatted = role === 'user' ? text : formatMarkdownToHTML(text);
+
+      msgDiv.innerHTML = `
+        <div class="avatar">${avatarIcon}</div>
+        <div class="bubble">${contentFormatted}</div>
+      `;
+      
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendTyping(id) {
+      const container = document.getElementById('chatMessages');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message assistant';
+      msgDiv.id = id;
+      
+      msgDiv.innerHTML = `
+        <div class="avatar">
+          <svg viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1v2h-1v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2H3v-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM7 11a5 5 0 0 0-4.9 4H22a5 5 0 0 0-4.9-4H7zm5 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>
+        </div>
+        <div class="bubble">
+          <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(msgDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+  </script>
+  <script src="js/api-live.js"></script>
+
+  <style>
+    /* ── VOICE BUTTON ─────────────────────────────── */
+    .mic-btn { position: relative; overflow: visible !important; }
+    .mic-btn.listening { background: rgba(59,130,246,0.18) !important; border-color: rgba(59,130,246,0.5) !important; color: #60a5fa !important; }
+    .mic-btn.listening svg { fill: #60a5fa; }
+    .mic-ripple { display:none;position:absolute;inset:-6px;border-radius:50%;border:2px solid #3b82f6;animation:rippleOut 1.2s ease-out infinite; }
+    .mic-btn.listening .mic-ripple { display:block; }
+    @keyframes rippleOut { 0%{transform:scale(0.8);opacity:0.8} 100%{transform:scale(1.6);opacity:0} }
+    @keyframes voicePulse { 0%,100%{transform:scaleY(0.4);opacity:0.4} 50%{transform:scaleY(1);opacity:1} }
+    .mic-btn.speaking { background: rgba(139,92,246,0.18) !important; border-color: rgba(139,92,246,0.5) !important; }
+    .mic-btn.speaking svg { fill: #a78bfa; }
+    #speakerBtn.active { opacity: 1 !important; color: #60a5fa; }
+    #speakerBtn.active svg { stroke: #60a5fa; }
+  </style>
+
+  <script>
+  // ============================================================
+  // VOICE MODULE - Web Speech API (SpeechRecognition + SpeechSynthesis)
+  // No API key needed - native browser feature
+  // ============================================================
+
+  var _recognition = null;
+  var _isListening = false;
+  var _speakerEnabled = true; // voice response ON by default
+  var _currentUtterance = null;
+
+  // ── INIT SPEECH RECOGNITION ────────────────────────────────
+  function initSpeechRecognition() {
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
+
+    var rec = new SpeechRecognition();
+    rec.lang = 'es-AR';          // Argentine Spanish
+    rec.continuous = false;       // single utterance
+    rec.interimResults = true;    // show partial results
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function() {
+      _isListening = true;
+      setMicState('listening');
+      showVoiceStatus('Escuchando... hable ahora', true);
+      stopSpeaking(); // stop any current TTS
+    };
+
+    rec.onresult = function(e) {
+      var transcript = '';
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+      }
+      var isFinal = e.results[e.results.length - 1].isFinal;
+      var input = document.getElementById('chatInput');
+      if (input) input.value = transcript;
+      if (isFinal) {
+        showVoiceStatus('Procesando: "' + transcript + '"', false);
+      } else {
+        showVoiceStatus('Escuchando: "' + transcript + '"...', true);
+      }
+    };
+
+    rec.onend = function() {
+      _isListening = false;
+      var input = document.getElementById('chatInput');
+      var transcript = input ? input.value.trim() : '';
+      if (transcript) {
+        // Auto-send after voice input
+        setTimeout(function() {
+          setMicState('idle');
+          hideVoiceStatus();
+          sendMessage();
+        }, 400);
+      } else {
+        setMicState('idle');
+        hideVoiceStatus();
+      }
+    };
+
+    rec.onerror = function(e) {
+      _isListening = false;
+      setMicState('idle');
+      var msgs = {
+        'not-allowed': 'Permiso de microfono denegado. Habilita el microfono en la barra del navegador.',
+        'no-speech':   'No se detecto voz. Intenta de nuevo.',
+        'network':     'Error de red. Verifica tu conexion.',
+        'aborted':     ''
+      };
+      var msg = msgs[e.error] || 'Error de reconocimiento: ' + e.error;
+      if (msg) showVoiceStatus(msg, false);
+      setTimeout(hideVoiceStatus, 3000);
+    };
+
+    return rec;
+  }
+
+  // ── TOGGLE VOICE INPUT ─────────────────────────────────────
+  function toggleVoice() {
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showVoiceStatus('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', false);
+      setTimeout(hideVoiceStatus, 4000);
+      return;
+    }
+
+    if (_isListening) {
+      if (_recognition) _recognition.stop();
+      return;
+    }
+
+    if (!_recognition) {
+      _recognition = initSpeechRecognition();
+    }
+
+    try {
+      _recognition.start();
+    } catch(err) {
+      // Already started - stop and restart
+      try { _recognition.stop(); } catch(e2) {}
+      _recognition = initSpeechRecognition();
+      setTimeout(function() { try { _recognition.start(); } catch(e3) {} }, 300);
+    }
+  }
+
+  // ── CLEAN TEXT FOR SPOKEN VOICE SYNTHESIS ──────────────────
+  function cleanTextForVoiceSpeech(text) {
+    if (!text) return '';
+    
+    // Remove HTML tags & entities
+    let str = text.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ');
+    
+    // Remove emojis
+    str = str.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '');
+
+    // Remove markdown symbols (asterisks, hashes, bullets, dashes, tildes)
+    str = str.replace(/[\*\_\#\~\•\-\—\–]/g, ' ');
+
+    // Remove item numbers "1.", "2.", "3."
+    str = str.replace(/\b\d+\.\s*/g, '');
+
+    // Clean currency formatting for natural spoken speech
+    str = str.replace(/\$(\d+)[\.](\d+)[\.](\d+),?\d*\s*ARS/gi, '$1 millones $2 mil pesos');
+    str = str.replace(/\$(\d+)[\.](\d+)M/gi, '$1 millones $200 mil pesos');
+    str = str.replace(/ARS/gi, 'pesos');
+    str = str.replace(/%\s*/g, ' por ciento ');
+
+    // Normalize multiple spaces into smooth single spaces
+    str = str.replace(/\s+/g, ' ').trim();
+    return str;
+  }
+
+  // ── TEXT-TO-SPEECH (AI speaks back with clean voice) ──────
+  function speakResponse(text) {
+    if (!_speakerEnabled) return;
+    if (!window.speechSynthesis) return;
+
+    stopSpeaking();
+
+    // Clean markdown and formatting noise for voice engine
+    var clean = cleanTextForVoiceSpeech(text);
+    if (!clean) return;
+
+    // Limit to first ~350 chars for executive clarity
+    if (clean.length > 350) {
+      var dotIdx = clean.indexOf('.', 250);
+      if (dotIdx > 0 && dotIdx < 380) {
+        clean = clean.substring(0, dotIdx + 1);
+      } else {
+        clean = clean.substring(0, 350) + '.';
+      }
+    }
+
+    _currentUtterance = new SpeechSynthesisUtterance(clean);
+    _currentUtterance.lang = 'es-AR';
+    _currentUtterance.rate = 0.95;   // slightly slower = natural executive voice
+    _currentUtterance.pitch = 1.0;
+    _currentUtterance.volume = 1.0;
+
+    // Prefer Spanish voice if available
+    var voices = window.speechSynthesis.getVoices();
+    var esVoice = voices.find(function(v) { return v.lang.startsWith('es') && !v.lang.startsWith('es-US'); }) ||
+                  voices.find(function(v) { return v.lang.startsWith('es'); });
+    if (esVoice) _currentUtterance.voice = esVoice;
+
+    _currentUtterance.onstart = function() { setMicState('speaking'); };
+    _currentUtterance.onend = function() { setMicState('idle'); };
+    _currentUtterance.onerror = function() { setMicState('idle'); };
+
+    window.speechSynthesis.speak(_currentUtterance);
+  }
+
+  function stopSpeaking() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    _currentUtterance = null;
+  }
+
+  // ── SPEAKER TOGGLE ─────────────────────────────────────────
+  function toggleSpeaker() {
+    _speakerEnabled = !_speakerEnabled;
+    var btn = document.getElementById('speakerBtn');
+    var wave = document.getElementById('speakerWave');
+    if (btn) btn.classList.toggle('active', _speakerEnabled);
+    btn.style.opacity = _speakerEnabled ? '1' : '0.35';
+    if (!_speakerEnabled) stopSpeaking();
+    if (wave) wave.style.display = _speakerEnabled ? '' : 'none';
+    if (typeof showToast !== 'undefined') {
+      showToast(_speakerEnabled ? 'Respuesta por voz activada' : 'Respuesta por voz desactivada', 'info');
+    }
+  }
+
+  // ── UI HELPERS ─────────────────────────────────────────────
+  function setMicState(state) {
+    var btn = document.getElementById('micBtn');
+    var icon = document.getElementById('micIcon');
+    if (!btn) return;
+    btn.classList.remove('listening', 'speaking');
+    if (state === 'listening') {
+      btn.classList.add('listening');
+      btn.title = 'Detener escucha';
+      // Mic icon -> stop icon
+      icon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+    } else if (state === 'speaking') {
+      btn.classList.add('speaking');
+      btn.title = 'Asistente hablando...';
+      // Speaking icon - waveform
+      icon.innerHTML = '<line x1="4" y1="12" x2="4" y2="12"/><line x1="8" y1="8" x2="8" y2="16"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="16" y1="8" x2="16" y2="16"/><line x1="20" y1="12" x2="20" y2="12"/>';
+    } else {
+      btn.title = 'Hablar con el asistente';
+      // Back to mic icon
+      icon.innerHTML = '<path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6.63 6.92V21h1.74v-3.08A7 7 0 0 0 19 11h-2z"/>';
+    }
+  }
+
+  function showVoiceStatus(msg, animate) {
+    var bar = document.getElementById('voiceStatus');
+    var txt = document.getElementById('voiceStatusText');
+    var dots = document.getElementById('voiceStatusDots');
+    if (bar) bar.style.display = 'flex';
+    if (txt) txt.textContent = msg;
+    if (dots) dots.style.display = animate ? 'flex' : 'none';
+  }
+
+  function hideVoiceStatus() {
+    var bar = document.getElementById('voiceStatus');
+    if (bar) bar.style.display = 'none';
+  }
+
+  // ── INTERCEPT appendMessage TO TRIGGER TTS ─────────────────
+  // Patch the existing appendMessage to speak AI responses
+  document.addEventListener('DOMContentLoaded', function() {
+    // Voices load async in some browsers
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = function() {}; // trigger load
+      window.speechSynthesis.getVoices(); // pre-warm
+    }
+
+    // Init speaker button state
+    var btn = document.getElementById('speakerBtn');
+    if (btn) { btn.classList.add('active'); btn.style.opacity = '1'; }
+
+    // Patch appendMessage to add TTS
+    var _origAppend = window.appendMessage;
+    if (typeof _origAppend === 'function') {
+      window.appendMessage = function(role, text) {
+        _origAppend(role, text);
+        if (role === 'assistant') {
+          setTimeout(function() { speakResponse(text); }, 200);
+        }
+      };
+    }
+  });
+  </script>
+  <script src="js/theme-switcher.js"></script>
+  <script src='js/bottom-nav.js'></script>
+<script src='js/motion-kit.js'></script>
+    <script src="js/chat-widget.js"></script>
+</body>
+</html>

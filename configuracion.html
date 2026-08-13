@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración - MuniControl</title>
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    .settings-section { margin-bottom: 30px; }
+    .settings-title { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; color: var(--text-primary); }
+    
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
+    .form-input { width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 14px; transition: border 0.2s; }
+    .form-input:focus { outline: none; border-color: var(--blue); }
+    
+    /* Toggle switch */
+    .toggle-wrap { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+    .toggle-label { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .4s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--blue); }
+    input:focus + .slider { box-shadow: 0 0 1px var(--blue); }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Module Grid */
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    
+    /* Integrations */
+    .integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .int-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: all 0.2s; }
+    .int-card:hover { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); }
+    .int-header { display: flex; align-items: center; gap: 12px; }
+    .int-logo { width: 40px; height: 40px; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; }
+    .int-name { font-weight: 600; font-size: 15px; }
+    .int-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; flex: 1; }
+    .int-badge { align-self: flex-start; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+    .int-badge.connected { background: rgba(16,185,129,0.15); color: #10b981; }
+    .int-badge.disconnected { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .int-badge.soon { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, var(--blue), #6366f1); color: white; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
+    .btn-outline:hover { background: rgba(255,255,255,0.05); }
+
+    .color-preview { display: inline-block; width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-left: 8px; border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="bg-orbs">
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <div class="bg-grid"></div>
+  </div>
+
+  <div id="sidebar"></div>
+
+  <div id="mainContent" class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button id="menuBtn" class="menu-btn"></button>
+        <div class="page-title">
+          <div class="breadcrumb">Sistema / Configuración</div>
+          <h1>Configuración de Plataforma</h1>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-avatar" id="topbarAvatar">AD</div>
+      </div>
+    </div>
+
+    <div class="content-wrapper">
+      <form id="settingsForm" onsubmit="saveSettings(event)">
+        
+        <!-- SECCION 1 -->
+        <div class="card settings-section">
+          <h2 class="settings-title">Identidad del Municipio</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nombre Completo</label>
+              <input type="text" class="form-input" id="cFullName" value="Municipio de Junín">
+            </div>
+            <div class="form-group">
+              <label>Nombre Corto</label>
+              <input type="text" class="form-input" id="cShortName" value="Junín">
+            </div>
+            <div class="form-group">
+              <label>Logo URL (Dashboard)</label>
+              <input type="text" class="form-input" id="cLogo" placeholder="https://ejemplo.com/logo.png">
+            </div>
+            <div class="form-group">
+              <label>Escudo/Emblema URL (Reportes)</label>
+              <input type="text" class="form-input" id="cEscudo" placeholder="https://ejemplo.com/escudo.png">
+            </div>
+            <div class="form-group">
+              <label>Color Primario</label>
+              <div style="display:flex; align-items:center;">
+                <input type="color" class="form-input" id="cColor1" value="#3b82f6" style="width:100px; height:42px; padding:2px;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Color Acento</label>
+              <div style="display:flex; align-items:center;">
+                <input type="color" class="form-input" id="cColor2" value="#8b5cf6" style="width:100px; height:42px; padding:2px;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCION 2 -->
+        <div class="card settings-section">
+          <h2 class="settings-title">Módulos Activos</h2>
+          <div class="module-grid">
+            <div class="toggle-wrap"><div class="toggle-label">Panel Principal</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Reportes</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Hacienda</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Presupuesto</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Control Gastos</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">RRHH</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Licitaciones</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Obras</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Mapa Municipal</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Reclamos 311</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Formularios</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Asistente IA</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">WhatsApp Bot</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Cuentas Claras</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Portal Ciudadano</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="toggle-wrap"><div class="toggle-label">Exportar</div><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+          </div>
+        </div>
+
+        <!-- SECCION 3 -->
+        <div class="card settings-section">
+          <h2 class="settings-title">Notificaciones y Alertas</h2>
+          <div class="form-grid">
+            <div class="toggle-wrap" style="flex-direction:column; align-items:flex-start; gap:10px;">
+              <div style="display:flex; justify-content:space-between; width:100%;">
+                <div class="toggle-label">Alertas por Presupuesto Superado</div>
+                <label class="switch"><input type="checkbox" checked id="nPresupuesto"><span class="slider"></span></label>
+              </div>
+              <input type="number" class="form-input" placeholder="Umbral (%) ej: 80" style="margin-top:8px;">
+            </div>
+            <div class="toggle-wrap" style="flex-direction:column; align-items:flex-start; gap:10px;">
+              <div style="display:flex; justify-content:space-between; width:100%;">
+                <div class="toggle-label">Alertas de Contratos por Vencer</div>
+                <label class="switch"><input type="checkbox" checked id="nContratos"><span class="slider"></span></label>
+              </div>
+              <input type="number" class="form-input" placeholder="Días de anticipación ej: 30" style="margin-top:8px;">
+            </div>
+            <div class="toggle-wrap">
+              <div class="toggle-label">Alertas por SLA vencido en reclamos</div>
+              <label class="switch"><input type="checkbox" checked id="nSLA"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-wrap">
+              <div class="toggle-label">Resumen diario por Email</div>
+              <label class="switch"><input type="checkbox" id="nEmail"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCION 4 -->
+        <div class="card settings-section">
+          <h2 class="settings-title">Integraciones Externas</h2>
+          <div class="integration-grid">
+            
+            <div class="int-card">
+              <div class="int-header">
+                <div class="int-logo" style="color:#3b82f6;">DB</div>
+                <div class="int-name">Base de Datos Municipal</div>
+              </div>
+              <div class="int-desc">Conexión directa a sistemas legacy municipales.</div>
+              <input type="password" class="form-input" placeholder="JDBC Connection String / URL">
+              <div class="int-badge connected">Conectado</div>
+            </div>
+
+            <div class="int-card">
+              <div class="int-header">
+                <div class="int-logo" style="color:#06b6d4;">AFIP</div>
+                <div class="int-name">AFIP / ARCA</div>
+              </div>
+              <div class="int-desc">Validación de CUIT, facturación y situación fiscal.</div>
+              <input type="password" class="form-input" placeholder="API Key / Token">
+              <div class="int-badge disconnected">Desconectado</div>
+            </div>
+
+            <div class="int-card">
+              <div class="int-header">
+                <div class="int-logo" style="color:#10b981;">ANSES</div>
+                <div class="int-name">ANSES</div>
+              </div>
+              <div class="int-desc">Consulta de CUIL, programas sociales y datos demográficos.</div>
+              <input type="password" class="form-input" placeholder="API Key / Token">
+              <div class="int-badge disconnected">Desconectado</div>
+            </div>
+
+            <div class="int-card">
+              <div class="int-header">
+                <div class="int-logo" style="color:#f59e0b;">BCRA</div>
+                <div class="int-name">Banco Central (BCRA)</div>
+              </div>
+              <div class="int-desc">Información financiera y riesgo crediticio de proveedores.</div>
+              <input type="password" class="form-input" placeholder="API Key / Token">
+              <div class="int-badge soon">Próximamente</div>
+            </div>
+
+            <div class="int-card">
+              <div class="int-header">
+                <div class="int-logo" style="color:#8b5cf6;">RENAPER</div>
+                <div class="int-name">RENAPER</div>
+              </div>
+              <div class="int-desc">Validación de identidad y DNI en tiempo real para ciudadanos.</div>
+              <input type="password" class="form-input" placeholder="API Key / Token">
+              <div class="int-badge soon">Próximamente</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- SECCION 5 -->
+        <div class="card settings-section">
+          <h2 class="settings-title">Seguridad</h2>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Tiempo de expiración de sesión (Inactividad)</label>
+              <select class="form-input">
+                <option value="30m">30 Minutos</option>
+                <option value="1h">1 Hora</option>
+                <option value="4h">4 Horas</option>
+                <option value="8h">8 Horas</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Política de Contraseñas</label>
+              <select class="form-input">
+                <option value="estricta">Estricta (Alfanumérica + Símbolo, min 8)</option>
+                <option value="media">Media (Alfanumérica, min 8)</option>
+                <option value="baja">Baja (min 6)</option>
+              </select>
+            </div>
+            <div class="toggle-wrap">
+              <div class="toggle-label">Autenticación de Dos Factores (2FA) <span class="int-badge soon" style="margin-left:8px;">Pronto</span></div>
+              <label class="switch"><input type="checkbox" disabled><span class="slider"></span></label>
+            </div>
+            <div style="display:flex; align-items:center;">
+              <button type="button" class="btn btn-outline" onclick="downloadAudit()">Descargar Registro de Auditoría (.csv)</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; padding:20px 0; border-top:1px solid var(--border); position:sticky; bottom:0; background:var(--bg-base); z-index:10;">
+          <button type="submit" class="btn btn-primary" style="font-size: 16px; padding: 12px 30px;">Guardar Cambios</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <script src="js/nav.js"></script>
+  <script>
+    buildSidebar('configuracion');
+
+    function saveSettings(e) {
+      e.preventDefault();
+      // Simulation of saving settings
+      if(window.showToast) {
+        showToast('Configuración guardada correctamente.', 'success');
+      }
+      
+      // Attempt to update CSS variables live
+      const color1 = document.getElementById('cColor1').value;
+      const color2 = document.getElementById('cColor2').value;
+      document.documentElement.style.setProperty('--blue', color1);
+      document.documentElement.style.setProperty('--violet', color2);
+    }
+
+    function downloadAudit() {
+      if(window.showToast) showToast('Descargando auditoria_seguridad.csv', 'info');
+    }
+  </script>
+  <script src="js/theme-switcher.js"></script>
+  <script src='js/bottom-nav.js'></script>
+  <script src="js/chat-widget.js"></script>
+</body>
+</html>

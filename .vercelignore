@@ -1,0 +1,7 @@
+rrhh-data/ausencias_full.json
+rrhh-data/licencias_full.json
+rrhh-data/grh_junin.sql/
+*.sql
+*.sql.gz
+*.backup*
+test_prisma.js
