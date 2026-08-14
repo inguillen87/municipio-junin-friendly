@@ -50,6 +50,8 @@ const NEVER_INTERCEPT_PATHS = new Set([
   '/nomina-control.html',
   '/ausentismo-control',
   '/ausentismo-control.html',
+  '/calidad-operativa',
+  '/calidad-operativa.html',
   '/asistente',
   '/asistente.html',
   '/ia',

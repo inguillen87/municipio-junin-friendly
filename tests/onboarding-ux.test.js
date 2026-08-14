@@ -49,7 +49,7 @@ test('la guía contextual aísla progreso por sesión y cumple el contrato modal
 });
 
 test('todas las vistas internas principales cargan una sola guía compartida', () => {
-  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'ausentismo-control.html']) {
+  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'ausentismo-control.html', 'calidad-operativa.html']) {
     const html = read(file);
     assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
     assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);

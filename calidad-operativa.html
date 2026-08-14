@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08283a">
+  <title>Calidad operativa de datos | MuniControl</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #08283a;
+      --navy-2: #123f55;
+      --ink: #183747;
+      --muted: #5c7280;
+      --line: #d6e1e7;
+      --line-strong: #b8c8d1;
+      --surface: #ffffff;
+      --canvas: #f4f7f8;
+      --teal: #0f766e;
+      --teal-dark: #0a5651;
+      --teal-soft: #e9f5f2;
+      --amber: #95640a;
+      --amber-soft: #fff6dc;
+      --red: #a53535;
+      --red-soft: #fff0f0;
+      --blue: #245c83;
+      --blue-soft: #edf5fb;
+      --radius: 10px;
+      --shadow: 0 8px 24px rgba(8, 40, 58, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.5; }
+    button, input, select { font: inherit; }
+    button, a, input, select { -webkit-tap-highlight-color: transparent; }
+    a { color: var(--teal-dark); }
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible, summary:focus-visible { outline: 3px solid rgba(15, 118, 110, .28); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+    .skip-link { position: fixed; z-index: 200; top: 10px; left: 10px; padding: 10px 14px; border-radius: 6px; background: #fff; color: var(--navy); font-weight: 800; transform: translateY(-160%); }
+    .skip-link:focus { transform: translateY(0); }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 254px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 18px; background: var(--navy); color: #fff; border-right: 1px solid #1c4a60; z-index: 50; }
+    .brand { display: flex; align-items: center; gap: 11px; min-height: 48px; padding: 0 8px 22px; color: #fff; text-decoration: none; }
+    .brand-mark { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 7px; background: #fff; color: var(--navy); border-bottom: 5px solid #8fb2c5; font-family: Georgia, serif; font-size: 24px; font-weight: 800; }
+    .brand strong { display: block; font-family: Georgia, serif; font-size: 19px; line-height: 1.05; }
+    .brand small { display: block; margin-top: 4px; color: #b8cfdb; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .nav-label { margin: 22px 10px 8px; color: #7fb2ca; font-size: 9px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 10px; border: 1px solid transparent; border-radius: 7px; color: #d7e5ec; text-decoration: none; font-weight: 700; }
+    .nav a:hover, .nav a:focus-visible { background: #123b50; color: #fff; }
+    .nav a[aria-current="page"] { background: #fff; color: var(--navy); border-color: #fff; }
+    .nav-code { display: grid; place-items: center; width: 27px; height: 27px; flex: 0 0 27px; border: 1px solid currentColor; border-radius: 5px; font-size: 9px; font-weight: 900; letter-spacing: .04em; }
+    .side-note { margin: 24px 2px 0; padding: 14px; border: 1px solid #326078; border-radius: 8px; background: #0d3448; }
+    .side-note strong { display: block; color: #70dfd1; font-size: 11px; }
+    .side-note span { display: block; margin-top: 5px; color: #c4d7e0; font-size: 11px; line-height: 1.45; }
+    .menu-close { display: none; }
+    .nav-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(3, 20, 30, .58); }
+    .workspace { min-width: 0; }
+    .topbar { position: sticky; top: 0; z-index: 30; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+    .topbar-start, .top-actions { display: flex; align-items: center; gap: 10px; }
+    .crumb { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    .crumb a { color: var(--muted); text-decoration: none; }
+    .top-title { margin-top: 2px; color: var(--navy); font-weight: 850; }
+    .session-line { color: var(--muted); font-size: 10px; }
+    .menu-button { display: none; }
+    .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; padding: 8px 13px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; color: var(--navy); cursor: pointer; font-weight: 800; text-decoration: none; }
+    .button:hover { border-color: var(--teal); color: var(--teal-dark); }
+    .button.primary { border-color: var(--teal); background: var(--teal); color: #fff; }
+    .button.quiet { background: transparent; }
+    .button.danger:hover { border-color: var(--red); color: var(--red); }
+    .button:disabled { cursor: not-allowed; opacity: .45; }
+    .source-chip { max-width: 270px; padding: 7px 10px; border: 1px solid #b7d5d0; border-radius: 999px; background: var(--teal-soft); color: var(--teal-dark); font-size: 10px; font-weight: 800; text-align: center; }
+    main { width: min(1240px, calc(100% - 44px)); margin: 0 auto; padding: 38px 0 52px; }
+    .loading { min-height: calc(100vh - 76px); display: grid; place-items: center; padding: 28px; }
+    .loading-card, .error-card { width: min(520px, 100%); padding: 30px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); text-align: center; }
+    .loading-card h1, .error-card h1 { margin: 5px 0 8px; color: var(--navy); font-family: Georgia, serif; font-size: 30px; }
+    .loading-card p:not(.eyebrow), .error-card p:not(.eyebrow) { color: var(--muted); }
+    .spinner { width: 32px; height: 32px; margin: 22px auto 0; border: 3px solid #d9e6e8; border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .eyebrow, .section-index { margin: 0; color: var(--teal); font-size: 10px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .page-head { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .65fr); gap: 24px; align-items: end; }
+    .page-head h1 { margin: 6px 0 9px; color: var(--navy); font-family: Georgia, serif; font-size: clamp(34px, 4vw, 53px); line-height: 1.02; }
+    .lead { max-width: 780px; margin: 0; color: #405d6d; font-size: 15px; }
+    .status-panel { padding: 17px 18px; border: 1px solid var(--line-strong); border-left: 4px solid var(--amber); border-radius: var(--radius); background: #fff; }
+    .status-panel[data-state="ready"] { border-left-color: var(--teal); }
+    .status-panel[data-state="error"] { border-left-color: var(--red); }
+    .status-panel strong { color: var(--navy); }
+    .status-panel p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .notice { display: flex; align-items: flex-start; gap: 14px; margin-top: 24px; padding: 16px 18px; border: 1px solid #e5ce8f; border-left: 4px solid var(--amber); border-radius: var(--radius); background: var(--amber-soft); }
+    .notice-mark { display: grid; place-items: center; min-width: 42px; height: 30px; border: 1px solid #c89b39; border-radius: 5px; color: #72500e; font-size: 9px; font-weight: 900; }
+    .notice strong { color: #5d430e; }
+    .notice p { margin: 3px 0 0; color: #675523; font-size: 12px; }
+    .section { margin-top: 44px; scroll-margin-top: 96px; }
+    .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+    .section-head h2 { margin: 4px 0 2px; color: var(--navy); font-family: Georgia, serif; font-size: 27px; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .state-badge { display: inline-flex; align-items: center; min-height: 27px; padding: 5px 9px; border: 1px solid #b9cbd4; border-radius: 999px; background: #f3f7f9; color: #526b79; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    .state-badge.ready { border-color: #a6d3ca; background: var(--teal-soft); color: var(--teal-dark); }
+    .state-badge.warning { border-color: #dfc276; background: var(--amber-soft); color: #76530a; }
+    .state-badge.error, .severity-error, .severity-critical { border-color: #e2b3b3; background: var(--red-soft); color: var(--red); }
+    .state-badge.info, .severity-info { border-color: #b8cfe0; background: var(--blue-soft); color: var(--blue); }
+    .severity-warning { border-color: #dfc276; background: var(--amber-soft); color: #76530a; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .kpi { min-height: 154px; padding: 18px; border: 1px solid var(--line); border-top: 3px solid var(--navy-2); border-radius: var(--radius); background: #fff; }
+    .kpi:nth-child(2) { border-top-color: var(--amber); }
+    .kpi:nth-child(3) { border-top-color: var(--red); }
+    .kpi:nth-child(4) { border-top-color: #bd8110; }
+    .kpi-label { display: block; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .kpi-value { display: block; margin: 10px 0 6px; color: var(--navy); font-family: Georgia, serif; font-size: 35px; line-height: 1; }
+    .kpi-note { display: block; color: var(--muted); font-size: 11px; }
+    .domain-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .domain-card, .panel { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+    .domain-card { display: grid; grid-template-columns: 1fr auto; gap: 15px; padding: 18px; }
+    .domain-card h3, .panel h3 { margin: 0; color: var(--navy); font-size: 15px; }
+    .domain-card p, .panel-note { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .domain-metrics { display: flex; flex-wrap: wrap; gap: 7px 16px; margin: 14px 0; }
+    .domain-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .domain-metric strong { color: var(--navy); font-size: 17px; }
+    .domain-link { align-self: end; font-size: 11px; font-weight: 850; }
+    .domain-status { align-self: start; }
+    .source-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .65fr); gap: 14px; }
+    .panel { padding: 18px; min-width: 0; }
+    .definition-list { margin: 13px 0 0; }
+    .definition-list > div { display: grid; grid-template-columns: minmax(110px, .45fr) minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .definition-list > div:last-child { border-bottom: 0; }
+    .definition-list dt { color: var(--muted); font-size: 10px; font-weight: 800; }
+    .definition-list dd { margin: 0; color: var(--navy); font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+    .caveat-list { margin: 12px 0 0; padding: 0; list-style: none; }
+    .caveat-list li { position: relative; padding: 9px 0 9px 17px; border-bottom: 1px solid var(--line); color: #405d6d; font-size: 11px; }
+    .caveat-list li::before { content: ""; position: absolute; top: 15px; left: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+    .caveat-list li:last-child { border-bottom: 0; }
+    .filter-panel { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+    .filter-grid { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; align-items: end; }
+    .field label { display: block; margin-bottom: 5px; color: var(--navy); font-size: 10px; font-weight: 850; }
+    .field input, .field select, .page-size select { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--ink); }
+    .filter-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+    .filter-summary { margin: 0; color: var(--muted); font-size: 11px; }
+    .filter-buttons, .table-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .table-tools { justify-content: space-between; margin: 13px 0 9px; }
+    .result-count { color: var(--muted); font-size: 11px; }
+    .page-size { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; font-weight: 800; }
+    .page-size select { width: 72px; min-height: 38px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    caption.visually-hidden, .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+    th { padding: 11px 12px; background: #edf2f4; color: #385362; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+    td { padding: 12px; border-top: 1px solid var(--line); color: #314e5e; font-size: 11px; vertical-align: top; }
+    td strong { display: block; color: var(--navy); }
+    td small { display: block; margin-top: 2px; color: var(--muted); }
+    td.empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+    .severity { display: inline-flex; min-height: 24px; align-items: center; padding: 4px 8px; border: 1px solid; border-radius: 999px; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
+    .page-status { color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+    .learning { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 18px; border: 1px solid #b8d8d2; border-radius: var(--radius); background: var(--teal-soft); }
+    .learning h2 { margin: 0; color: var(--navy); font-size: 17px; }
+    .learning p { margin: 4px 0 0; color: #3f615f; font-size: 11px; }
+    dialog { width: min(590px, calc(100% - 28px)); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 22px 64px rgba(4, 29, 43, .28); color: var(--ink); }
+    dialog::backdrop { background: rgba(3, 20, 30, .58); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 3px 0 0; color: var(--navy); font-family: Georgia, serif; font-size: 25px; }
+    .dialog-close { width: 42px; height: 42px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; color: var(--navy); cursor: pointer; font-size: 20px; }
+    .dialog-body { padding: 20px; }
+    .guide-steps { margin: 0; padding-left: 23px; }
+    .guide-steps li { padding: 7px 0 11px 5px; }
+    .guide-steps strong { display: block; color: var(--navy); }
+    .guide-steps span { color: var(--muted); font-size: 12px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 16px; }
+    footer { margin-top: 42px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    @media (max-width: 1060px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .filter-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .field-search { grid-column: 1 / -1; }
+      .source-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 820px) {
+      body.menu-open { overflow: hidden; }
+      .app { display: block; }
+      .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, 88vw); height: 100dvh; transform: translateX(-105%); transition: transform .18s ease-out; box-shadow: 18px 0 42px rgba(3, 20, 30, .26); }
+      .sidebar.open { transform: translateX(0); }
+      .menu-close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #51758a; border-radius: 7px; background: #0d3448; color: #fff; cursor: pointer; font-size: 21px; }
+      .topbar { min-height: 70px; padding: 10px 14px; }
+      .menu-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; color: var(--navy); cursor: pointer; font-size: 20px; }
+      .source-chip, .top-actions .button:not(#guideButton) { display: none; }
+      main { width: min(100% - 28px, 760px); padding-top: 28px; }
+      .page-head { grid-template-columns: 1fr; align-items: start; }
+      .page-head h1 { font-size: 38px; }
+      .domain-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .top-title { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .session-line { max-width: 210px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .crumb { display: none; }
+      .top-actions { gap: 4px; }
+      #guideButton { min-height: 42px; padding: 7px 9px; font-size: 11px; }
+      .page-head h1 { font-size: 34px; }
+      .notice { display: block; }
+      .notice-mark { width: 42px; margin-bottom: 9px; }
+      .section { margin-top: 36px; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .kpi-grid, .filter-grid { grid-template-columns: 1fr; }
+      .kpi { min-height: 132px; }
+      .field-search { grid-column: auto; }
+      .filter-actions, .learning { align-items: stretch; flex-direction: column; display: flex; }
+      .filter-buttons { display: grid; grid-template-columns: 1fr 1fr; }
+      .filter-buttons .button { width: 100%; }
+      .domain-card { grid-template-columns: 1fr; }
+      .domain-status { grid-row: 1; }
+      .table-wrap { overflow: visible; border: 0; background: transparent; }
+      table { min-width: 0; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+      tbody { display: grid; gap: 10px; }
+      tr { display: block; padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+      td { display: grid; grid-template-columns: minmax(92px, .42fr) minmax(0, 1fr); gap: 9px; padding: 7px 0; border-top: 0; border-bottom: 1px solid var(--line); }
+      td:last-child { border-bottom: 0; }
+      td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+      td.empty { display: block; }
+      td.empty::before { content: none; }
+      .pagination { display: grid; grid-template-columns: 1fr 1fr; }
+      .page-status { grid-column: 1 / -1; grid-row: 1; }
+      .definition-list > div { grid-template-columns: 1fr; gap: 3px; }
+      .dialog-actions { display: grid; grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+    @media print {
+      .sidebar, .topbar, .filter-panel, .pagination, .learning, .nav-backdrop { display: none !important; }
+      .app { display: block; }
+      main { width: 100%; padding: 0; }
+      .panel, .kpi, .domain-card, .table-wrap { break-inside: avoid; }
+    }
+  </style>
+  <script src="assets/internal-guide.js" defer></script>
+</head>
+<body data-mc-page="quality">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación interna">
+      <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      <a class="brand" href="internal-dashboard.html#inicio" aria-label="MuniControl, inicio interno">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><strong>MuniControl</strong><small>Junín, Mendoza</small></span>
+      </a>
+      <div class="nav-label">Operación</div>
+      <nav class="nav" aria-label="Operación interna">
+        <a href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
+        <a href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
+      </nav>
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
+        <a href="calidad-operativa.html" aria-current="page"><span class="nav-code" aria-hidden="true">DQ</span><span>Calidad operativa</span></a>
+        <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a href="calidad-datos.html"><span class="nav-code" aria-hidden="true">CP</span><span>Calidad pública</span></a>
+        <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+      <div class="nav-label">Aprender</div>
+      <nav class="nav" aria-label="Aprendizaje">
+        <a href="centro-ayuda.html"><span class="nav-code" aria-hidden="true">AY</span><span>Ayuda</span></a>
+      </nav>
+      <div class="side-note"><strong>Regla de lectura</strong><span>Una ausencia de controles o incidencias materializadas no demuestra calidad perfecta. Siempre revisá corte, cobertura y linaje.</span></div>
+    </aside>
+    <div class="nav-backdrop" id="navBackdrop" hidden></div>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-start">
+          <button class="menu-button" id="menuButton" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir menú">☰</button>
+          <div>
+            <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Calidad operativa</span></nav>
+            <div class="top-title">Control de calidad de datos</div>
+            <div class="session-line"><span id="userRole">Usuario interno</span> · <span id="userName">Verificando sesión</span></div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="source-chip" id="sourceChip">Fuentes internas · verificando</span>
+          <button class="button" id="guideButton" type="button" aria-haspopup="dialog" data-mc-open-guide>Leer esta pantalla</button>
+          <button class="button" id="refreshButton" type="button">Actualizar</button>
+          <button class="button quiet danger" id="logoutButton" type="button">Salir</button>
+        </div>
+      </header>
+
+      <section class="loading" id="loading" aria-live="polite">
+        <div class="loading-card">
+          <p class="eyebrow">Control interno</p>
+          <h1>Preparando calidad operativa</h1>
+          <p id="loadingMessage">Verificamos tu sesión antes de consultar controles e importaciones.</p>
+          <div class="spinner" aria-hidden="true"></div>
+        </div>
+      </section>
+      <section class="loading" id="errorHost" hidden></section>
+
+      <main id="mainContent" hidden>
+        <header class="page-head">
+          <div>
+            <p class="eyebrow">Incidencias, controles y trazabilidad</p>
+            <h1>Calidad operativa de datos</h1>
+            <p class="lead">Revisá qué controles están materializados, dónde existen incidencias y qué lote respalda cada resultado. Esta vista no calcula un puntaje de salud ni reemplaza el análisis de cada fuente.</p>
+          </div>
+          <div class="status-panel" id="overallPanel" data-state="warning">
+            <strong id="overallTitle">Consultando cobertura</strong>
+            <p id="overallDetail">La disponibilidad se determina desde las respuestas de la API interna.</p>
+          </div>
+        </header>
+
+        <div class="notice" role="note">
+          <span class="notice-mark" aria-hidden="true">0 ≠ OK</span>
+          <div><strong>PERSONAS: 0 controles materializados no equivale a calidad perfecta</strong><p>Significa que todavía no hay controles persistidos que permitan afirmarlo. Un cero debe leerse junto con la cobertura, el lote y la fecha de corte.</p></div>
+        </div>
+
+        <section class="section" id="summaryPanel" aria-labelledby="summaryTitle">
+          <div class="section-head"><div><span class="section-index">01 · Resumen</span><h2 id="summaryTitle">Incidencias registradas</h2><p>Conteos observables; no se convierten en un indicador sintético de salud.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
+          <div class="kpi-grid">
+            <article class="kpi"><span class="kpi-label">Registradas</span><strong class="kpi-value" id="registeredValue">—</strong><span class="kpi-note">Total informado por el control materializado.</span></article>
+            <article class="kpi"><span class="kpi-label">Abiertas</span><strong class="kpi-value" id="openValue">—</strong><span class="kpi-note">Pendientes de aceptación, corrección o rechazo.</span></article>
+            <article class="kpi"><span class="kpi-label">Errores</span><strong class="kpi-value" id="errorValue">—</strong><span class="kpi-note">Severidad error informada por la fuente.</span></article>
+            <article class="kpi"><span class="kpi-label">Advertencias</span><strong class="kpi-value" id="warningValue">—</strong><span class="kpi-note">Severidad warning que requiere revisión.</span></article>
+          </div>
+        </section>
+
+        <section class="section" id="domainsPanel" aria-labelledby="domainsTitle">
+          <div class="section-head"><div><span class="section-index">02 · Controles</span><h2 id="domainsTitle">Controles por dominio</h2><p>Separación explícita entre cobertura materializada e incidencias detectadas.</p></div><span class="state-badge" id="domainsBadge">Consultando</span></div>
+          <div class="domain-grid" id="domainGrid"></div>
+        </section>
+
+        <section class="section" id="lineagePanel" aria-labelledby="lineageTitle">
+          <div class="section-head"><div><span class="section-index">03 · Linaje</span><h2 id="lineageTitle">Fuentes e importaciones</h2><p>Cada lote conserva sistema de origen, corte, validación y cantidad de filas cuando la fuente la informa.</p></div><span class="state-badge" id="lineageBadge">Consultando</span></div>
+          <div class="source-grid">
+            <article class="panel">
+              <h3>Lotes registrados</h3>
+              <p class="panel-note">“No informado” conserva un dato nulo; nunca se transforma en cero.</p>
+              <div class="table-wrap" tabindex="0" role="region" aria-labelledby="lineageTitle" style="margin-top:12px">
+                <table>
+                  <caption class="visually-hidden">Lotes de importación y su trazabilidad.</caption>
+                  <thead><tr><th>Fuente</th><th>Corte</th><th>Filas de origen</th><th>Incidencias trazadas</th><th>Huella</th><th>Validación</th><th>Cargado</th></tr></thead>
+                  <tbody id="lineageRows"><tr><td class="empty" colspan="7">Consultando lotes…</td></tr></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="panel">
+              <h3>Contrato de procedencia</h3>
+              <p class="panel-note">Referencias comunes para interpretar la pantalla.</p>
+              <dl class="definition-list">
+                <div><dt>Fuente laboral</dt><dd>GRH</dd></div>
+                <div><dt>Padrón auxiliar</dt><dd>PERSONAS</dd></div>
+                <div><dt>Corte más reciente</dt><dd id="latestCutoff">No informado</dd></div>
+                <div><dt>Última carga</dt><dd id="latestLoad">No informada</dd></div>
+                <div><dt>Estado del linaje</dt><dd id="lineageState">No informado</dd></div>
+              </dl>
+              <p class="panel-note" style="margin-top:14px"><a href="integracion-datos.html">Abrir diagnóstico de integración →</a></p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="issuesPanel" aria-labelledby="issuesTitle">
+          <div class="section-head"><div><span class="section-index">04 · Bandeja</span><h2 id="issuesTitle">Incidencias de calidad</h2><p>Detalle operativo sin nombres, DNI, CUIL, identificadores personales ni valores observados.</p></div><span class="state-badge" id="issuesBadge">Consultando</span></div>
+          <form class="filter-panel" id="filterForm">
+            <div class="filter-grid">
+              <div class="field"><label for="severitySelect">Severidad</label><select id="severitySelect" name="severity"><option value="">Todas</option><option value="critical">Crítica</option><option value="error">Error</option><option value="warning">Advertencia</option><option value="info">Información</option></select></div>
+              <div class="field"><label for="resolutionSelect">Estado</label><select id="resolutionSelect" name="resolution"><option value="">Todos</option><option value="open">Abierta</option><option value="accepted">Aceptada</option><option value="corrected">Corregida</option><option value="rejected">Rechazada</option></select></div>
+              <div class="field"><label for="sourceSelect">Fuente</label><select id="sourceSelect" name="source"><option value="">Todas</option><option value="GRH">GRH</option><option value="PERSONAS">PERSONAS</option></select></div>
+              <div class="field"><label for="entitySelect">Entidad</label><select id="entitySelect" name="entity"><option value="">Todas</option><option value="persona">Persona</option><option value="legajo">Legajo</option><option value="artifact:calculo">Cálculo</option><option value="artifact:histocal">Histórico de cálculo</option><option value="artifact:legamov">Movimientos</option><option value="calculo_monthly">Cálculo mensual</option></select></div>
+              <div class="field field-search"><label for="codeSelect">Código de control</label><select id="codeSelect" name="code"><option value="">Todos</option><option value="CUIL_INVALID">CUIL inválido</option><option value="CUIL_MISSING">CUIL faltante</option><option value="DATE_ORDER_INVALID">Orden de fechas inválido</option><option value="DATE_OUT_OF_RANGE">Fecha fuera de rango</option><option value="SOURCE_MONTH_MISMATCH">Mes de fuente inconsistente</option><option value="SOURCE_PERIOD_MISMATCH">Período de fuente inconsistente</option></select></div>
+            </div>
+            <div class="filter-actions">
+              <p class="filter-summary" id="filterSummary">Sin filtros aplicados.</p>
+              <div class="filter-buttons"><button class="button" id="clearFilters" type="button">Limpiar</button><button class="button primary" type="submit">Aplicar filtros</button></div>
+            </div>
+          </form>
+          <div class="table-tools">
+            <div class="result-count" id="resultCount" role="status" aria-live="polite">Consultando incidencias…</div>
+            <label class="page-size" for="pageSizeSelect">Filas por página <select id="pageSizeSelect"><option value="25">25</option><option value="50">50</option></select></label>
+          </div>
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="issuesTitle">
+            <table>
+              <caption class="visually-hidden">Incidencias de calidad sin datos personales.</caption>
+              <thead><tr><th>Severidad</th><th>Control</th><th>Entidad</th><th>Campo</th><th>Fuente</th><th>Estado</th><th>Detectada</th><th>Resuelta</th></tr></thead>
+              <tbody id="issueRows"><tr><td class="empty" colspan="8">Consultando incidencias…</td></tr></tbody>
+            </table>
+          </div>
+          <nav class="pagination" aria-label="Paginación de incidencias"><button class="button" id="previousPage" type="button" disabled>Anterior</button><span class="page-status" id="pageStatus">Página —</span><button class="button" id="nextPage" type="button" disabled>Siguiente</button></nav>
+        </section>
+
+        <section class="section" id="caveatsPanel" aria-labelledby="caveatsTitle">
+          <div class="section-head"><div><span class="section-index">05 · Límites</span><h2 id="caveatsTitle">Corte, alcance y salvedades</h2><p>Condiciones que deben acompañar cualquier conclusión sobre calidad.</p></div><span class="state-badge warning">Lectura obligatoria</span></div>
+          <div class="source-grid">
+            <article class="panel"><h3>Salvedades informadas</h3><ul class="caveat-list" id="caveatList"></ul></article>
+            <article class="panel"><h3>Continuar el análisis</h3><p class="panel-note">Abrí el dominio responsable sin perder el contexto de lectura.</p><dl class="definition-list"><div><dt>Identidad y crosswalk</dt><dd><a href="integracion-datos.html#identityTitle">Integración</a></dd></div><div><dt>Coherencia laboral</dt><dd><a href="nomina-control.html">Nómina</a></dd></div><div><dt>Ficha y contexto</dt><dd><a href="internal-dashboard.html#legajos">Personas</a></dd></div></dl></article>
+          </div>
+        </section>
+
+        <section class="section learning" aria-labelledby="learningTitle">
+          <div><h2 id="learningTitle">¿Es tu primera vez en calidad de datos?</h2><p>El recorrido explica cómo leer ceros, estados, severidades y lotes sin confundir ausencia de evidencia con aprobación.</p></div>
+          <button class="button primary" id="learningButton" type="button" aria-haspopup="dialog">Ver recorrido breve</button>
+        </section>
+
+        <footer>Uso interno · <span id="footerSource">Fuentes por verificar</span> · <span id="footerCutoff">Corte no informado</span> · Sin puntaje sintético de salud.</footer>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="guideDialog" aria-labelledby="guideTitle">
+    <div class="dialog-head"><div><p class="eyebrow">Ayuda contextual</p><h2 id="guideTitle">Cómo leer calidad operativa</h2></div><button class="dialog-close" id="guideClose" type="button" aria-label="Cerrar ayuda">×</button></div>
+    <div class="dialog-body">
+      <ol class="guide-steps">
+        <li><strong>Empezá por cobertura y corte</strong><span>Confirmá que existan controles materializados y un lote trazable antes de interpretar conteos.</span></li>
+        <li><strong>Separá cero de “sin evidencia”</strong><span>Un cero en PERSONAS puede significar que el control todavía no fue persistido; no demuestra calidad perfecta.</span></li>
+        <li><strong>Filtrá la bandeja</strong><span>Usá severidad, estado, fuente y dominio. La tabla excluye PII y valores observados.</span></li>
+        <li><strong>Continuá en el módulo responsable</strong><span>Integración explica el crosswalk; Nómina, la coherencia laboral; Personas, el contexto autorizado de una ficha.</span></li>
+      </ol>
+      <div class="dialog-actions"><a class="button" href="centro-ayuda.html">Centro de aprendizaje</a><a class="button" href="asistente.html?prompt=Explicame%20como%20leer%20calidad%20operativa">Preguntar a la IA</a><button class="button primary" id="guideDone" type="button">Entendido</button></div>
+    </div>
+  </dialog>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var DATA_URL = '/api/internal-data';
+      var LOGIN_URL = 'login.html?next=calidad-operativa.html';
+      var redirectIssued = false;
+      var authenticated = false;
+      var requestSequence = 0;
+      var state = { page: 1, pageSize: 25, total: 0, totalPages: 1, filters: { severity: '', resolution: '', source: '', entity: '', code: '' } };
+      var integerFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      var dateFormat = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      var dateTimeFormat = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+      var domainDefinitions = [
+        { key: 'payroll', aliases: ['payroll', 'nomina', 'workforce', 'employment'], title: 'Coherencia de nómina', description: 'Inconsistencias entre la fecha, el mes o el período declarado por la fuente de liquidación.', href: 'nomina-control.html', link: 'Abrir control de nómina' },
+        { key: 'cuil', aliases: ['cuil', 'taxid', 'tax_id', 'identity_document'], title: 'Validez de CUIL', description: 'CUIL inválidos o faltantes según los controles materializados en la fuente.', href: 'internal-dashboard.html#legajos', link: 'Ir a Personas' },
+        { key: 'dates', aliases: ['dates', 'fechas', 'date', 'temporal'], title: 'Fechas sospechosas', description: 'Valores imposibles, fuera de rango o incoherentes con la secuencia laboral.', href: 'internal-dashboard.html#legajos', link: 'Revisar fichas' },
+        { key: 'identity', aliases: ['identity', 'identidad', 'crosswalk', 'matching'], title: 'Identidad y crosswalk', description: 'Vínculos GRH–PERSONAS confirmados, ambiguos y pendientes de saneamiento.', href: 'integracion-datos.html#identityTitle', link: 'Abrir integración' }
+      ];
+
+      function byId(id) { return document.getElementById(id); }
+      function object(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+      function array(value) { return Array.isArray(value) ? value : []; }
+      function text(value) { return value == null ? '' : String(value).trim(); }
+      function lower(value) { return text(value).toLowerCase(); }
+      function first(source, paths) {
+        var root = source;
+        for (var index = 0; index < paths.length; index += 1) {
+          var current = root;
+          var path = paths[index];
+          for (var cursor = 0; cursor < path.length && current != null; cursor += 1) current = current[path[cursor]];
+          if (current !== undefined && current !== null && current !== '') return current;
+        }
+        return null;
+      }
+      function numberOrNull(value) {
+        if (value === null || value === undefined || value === '') return null;
+        var parsed = Number(value);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+      }
+      function formatNumber(value) { var numeric = numberOrNull(value); return numeric === null ? 'No informado' : integerFormat.format(numeric); }
+      function formatMetric(value) { var numeric = numberOrNull(value); return numeric === null ? '—' : integerFormat.format(numeric); }
+      function safeDate(value, withTime) {
+        var raw = text(value);
+        if (!raw) return 'No informado';
+        var parsed = new Date(raw);
+        if (!Number.isFinite(parsed.getTime())) return raw;
+        return (withTime ? dateTimeFormat : dateFormat).format(parsed);
+      }
+      function setText(id, value) { var node = byId(id); if (node) node.textContent = value; }
+      function unwrap(payload) {
+        var root = object(payload);
+        var candidate = first(root, [['data'], ['payload'], ['result']]);
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) return object(candidate);
+        return root;
+      }
+      function normalizeUser(payload) {
+        var root = unwrap(payload);
+        var user = object(first(root, [['user'], ['session', 'user'], ['profile']]));
+        if (!Object.keys(user).length) user = root;
+        return {
+          name: text(first(user, [['name'], ['displayName'], ['fullName'], ['email']])) || 'Usuario interno',
+          role: text(first(user, [['role'], ['roleLabel'], ['profile', 'role']])) || 'Usuario interno'
+        };
+      }
+      function countsObject(summary, keys) {
+        for (var index = 0; index < keys.length; index += 1) {
+          var value = object(summary[keys[index]]);
+          if (Object.keys(value).length) return value;
+        }
+        return {};
+      }
+      function normalizeOverview(payload) {
+        var envelope = object(payload);
+        var root = object(first(envelope, [['data'], ['payload', 'data'], ['result', 'data']]));
+        if (!Object.keys(root).length) root = unwrap(payload);
+        var meta = object(first(envelope, [['meta'], ['payload', 'meta'], ['result', 'meta']]));
+        var summary = object(first(root, [['issues'], ['summary'], ['totals'], ['counts'], ['overview']]));
+        if (!Object.keys(summary).length) summary = root;
+        var severity = countsObject(summary, ['bySeverity', 'severity', 'severities']);
+        var status = countsObject(summary, ['byResolution', 'byStatus', 'status', 'statuses']);
+        var domainsValue = first(root, [['domains'], ['controls'], ['qualityDomains'], ['breakdown', 'domains']]);
+        if (domainsValue == null) domainsValue = first(summary, [['domains'], ['controls'], ['qualityDomains']]);
+        var source = object(first(root, [['source'], ['lineage'], ['metadata', 'source']]));
+        var registered = numberOrNull(first(summary, [['registeredIssues'], ['registered'], ['totalIssues'], ['issueCount'], ['total']]));
+        var open = numberOrNull(first(summary, [['openIssues'], ['open'], ['pendingIssues']]));
+        if (open === null) open = numberOrNull(first(status, [['open'], ['pending']]));
+        var errors = numberOrNull(first(summary, [['errorIssues'], ['errors'], ['error']]));
+        if (errors === null) errors = numberOrNull(first(severity, [['error'], ['errors']]));
+        var warnings = numberOrNull(first(summary, [['warningIssues'], ['warnings'], ['warning']]));
+        if (warnings === null) warnings = numberOrNull(first(severity, [['warning'], ['warnings']]));
+        return {
+          registered: registered,
+          open: open,
+          errors: errors,
+          warnings: warnings,
+          domains: normalizeDomains(domainsValue),
+          crosswalk: normalizeCrosswalk(first(root, [['crosswalk'], ['identityCrosswalk'], ['matching']])),
+          reconciliation: object(first(root, [['reconciliation'], ['controlsReconciliation']])),
+          sourceTracking: array(first(root, [['breakdowns', 'sources'], ['sources']])).map(function (row) {
+            var item = object(row);
+            return {
+              source: text(first(item, [['source'], ['sourceSystem']])),
+              registered: numberOrNull(first(item, [['registeredIssues'], ['issues'], ['total']])),
+              open: numberOrNull(first(item, [['openIssues'], ['open']])),
+              status: text(first(item, [['trackingStatus'], ['status'], ['state']]))
+            };
+          }),
+          cutoff: text(first(root, [['asOf'], ['cutoff'], ['sourceCutoff'], ['metadata', 'asOf'], ['metadata', 'cutoff']])) || text(first(source, [['cutoff'], ['asOf']])),
+          batch: text(first(root, [['batchId'], ['batch'], ['version'], ['metadata', 'batchId']])) || text(first(source, [['batchId'], ['batch'], ['version']])),
+          state: text(first(root, [['state'], ['status'], ['qualityState']])),
+          caveats: normalizeStrings(first(root, [['caveats'], ['limitations'], ['warnings'], ['metadata', 'caveats']])),
+          zeroDoesNotMeanClean: first(meta, [['zeroTrackedIssuesDoesNotMeanClean']]) === true
+        };
+      }
+      function normalizeCrosswalk(value) {
+        var row = object(value);
+        var total = numberOrNull(first(row, [['total'], ['records'], ['count']]));
+        var matched = numberOrNull(first(row, [['matched'], ['linked'], ['confirmed']]));
+        var ambiguous = numberOrNull(first(row, [['ambiguous'], ['review']]));
+        var unmatched = numberOrNull(first(row, [['unmatched'], ['pending']]));
+        var rejected = numberOrNull(first(row, [['rejected']]));
+        var explicitReconciliation = first(row, [['reconciled'], ['isReconciled']]);
+        var canReconcile = [total, matched, ambiguous, unmatched, rejected].every(function (item) { return item !== null; });
+        return {
+          total: total,
+          matched: matched,
+          ambiguous: ambiguous,
+          unmatched: unmatched,
+          rejected: rejected,
+          reconciled: explicitReconciliation === true || (explicitReconciliation == null && canReconcile && total === matched + ambiguous + unmatched + rejected)
+        };
+      }
+      function normalizeStrings(value) {
+        if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
+        return array(value).map(function (item) {
+          if (typeof item === 'string') return item.trim();
+          return text(first(object(item), [['message'], ['label'], ['description'], ['text']]));
+        }).filter(Boolean);
+      }
+      function normalizeDomains(value) {
+        var result = {};
+        if (Array.isArray(value)) {
+          value.forEach(function (item) {
+            var row = object(item);
+            var key = lower(first(row, [['key'], ['domain'], ['code'], ['name']]));
+            if (key) result[key] = normalizeDomain(row);
+          });
+          return result;
+        }
+        Object.keys(object(value)).forEach(function (key) { result[lower(key)] = normalizeDomain(object(value[key])); });
+        return result;
+      }
+      function normalizeDomain(row) {
+        return {
+          controls: numberOrNull(first(row, [['materializedControls'], ['controlsMaterialized'], ['controls'], ['controlCount'], ['materialized']])),
+          issues: numberOrNull(first(row, [['issues'], ['issueCount'], ['registeredIssues'], ['total']])),
+          open: numberOrNull(first(row, [['openIssues'], ['open'], ['pending']])),
+          codes: array(first(row, [['codes'], ['rules'], ['controlCodes']])).map(text).filter(Boolean),
+          source: text(first(row, [['sourceSystem'], ['source'], ['system']])),
+          cutoff: text(first(row, [['cutoff'], ['asOf'], ['sourceCutoff']])),
+          status: text(first(row, [['status'], ['state']])),
+          note: text(first(row, [['note'], ['description'], ['caveat'], ['message']]))
+        };
+      }
+      function matchDomain(domains, definition) {
+        var keys = Object.keys(domains);
+        for (var index = 0; index < keys.length; index += 1) {
+          var key = keys[index];
+          if (definition.aliases.some(function (alias) { return key === alias || key.indexOf(alias) >= 0; })) return domains[key];
+        }
+        return { controls: null, issues: null, open: null, codes: [], source: '', cutoff: '', status: '', note: '' };
+      }
+      function normalizeIssue(item) {
+        var row = object(item);
+        var domain = text(first(row, [['domain'], ['qualityDomain'], ['category'], ['canonicalEntity']]));
+        return {
+          severity: lower(first(row, [['severity'], ['level'], ['priority']])) || 'info',
+          code: text(first(row, [['issueCode'], ['code'], ['ruleCode'], ['controlCode']])) || 'Control sin código',
+          domain: domain,
+          entity: text(first(row, [['sourceEntity'], ['entity'], ['table'], ['entityType']])),
+          field: text(first(row, [['fieldName'], ['field'], ['column']])),
+          source: text(first(row, [['sourceSystem'], ['source'], ['system']])),
+          status: lower(first(row, [['resolutionStatus'], ['status'], ['state']])) || 'open',
+          detectedAt: text(first(row, [['detectedAt'], ['detected'], ['createdAt'], ['recordedAt']])),
+          resolvedAt: text(first(row, [['resolvedAt'], ['resolved'], ['closedAt']]))
+        };
+      }
+      function normalizeIssues(payload) {
+        var root = unwrap(payload);
+        var rawItems = Array.isArray(payload) ? payload : first(root, [['items'], ['issues'], ['rows'], ['records'], ['data']]);
+        var pagination = object(first(root, [['pagination'], ['pageInfo'], ['meta']]));
+        var items = array(rawItems).map(normalizeIssue);
+        var page = numberOrNull(first(pagination, [['page'], ['currentPage'], ['current']])) || numberOrNull(first(root, [['page']])) || state.page;
+        var pageSize = numberOrNull(first(pagination, [['pageSize'], ['limit'], ['perPage']])) || numberOrNull(first(root, [['pageSize'], ['limit']])) || state.pageSize;
+        pageSize = Math.min(50, Math.max(1, pageSize));
+        var total = numberOrNull(first(pagination, [['total'], ['totalItems'], ['count']]));
+        if (total === null) total = numberOrNull(first(root, [['total'], ['totalItems'], ['count']]));
+        if (total === null) total = items.length;
+        var totalPages = numberOrNull(first(pagination, [['totalPages'], ['pages'], ['pageCount']]));
+        if (totalPages === null) totalPages = numberOrNull(first(root, [['totalPages'], ['pages']]));
+        if (totalPages === null || totalPages < 1) totalPages = Math.max(1, Math.ceil(total / pageSize));
+        return { items: items, page: Math.max(1, page), pageSize: pageSize, total: total, totalPages: totalPages, caveats: normalizeStrings(first(root, [['caveats'], ['limitations'], ['warnings']])) };
+      }
+      function normalizeLineageItem(item) {
+        var row = object(item);
+        return {
+          id: text(first(row, [['batchId'], ['id'], ['importId'], ['version']])),
+          source: text(first(row, [['sourceSystem'], ['source'], ['system']])),
+          database: text(first(row, [['sourceDatabase'], ['database'], ['databaseName']])),
+          file: text(first(row, [['sourceFileName'], ['fileName'], ['file'], ['artifact']])),
+          cutoff: text(first(row, [['sourceCutoff'], ['cutoff'], ['asOf']])),
+          rows: numberOrNull(first(row, [['sourceRowCount'], ['rowCount'], ['rows'], ['records']])),
+          rowCountStatus: text(first(row, [['sourceRowCountStatus'], ['rowCountStatus']])),
+          hash: text(first(row, [['sha256Prefix'], ['hashPrefix'], ['checksumPrefix']])),
+          trackedIssues: numberOrNull(first(row, [['trackedIssues'], ['issueCount'], ['issues']])),
+          trackedIssuesStatus: text(first(row, [['trackedIssuesStatus'], ['trackingStatus']])),
+          validation: text(first(row, [['validationState'], ['validation'], ['status'], ['state']])),
+          recordedAt: text(first(row, [['recordedAt'], ['importedAt'], ['createdAt'], ['loadedAt']]))
+        };
+      }
+      function normalizeLineage(payload) {
+        var root = unwrap(payload);
+        var rawItems = Array.isArray(payload) ? payload : first(root, [['items'], ['batches'], ['imports'], ['rows'], ['records'], ['data']]);
+        var items = array(rawItems).map(normalizeLineageItem);
+        var latest = object(first(root, [['latest'], ['latestBatch'], ['current']]));
+        var summary = object(first(root, [['summary'], ['totals']]));
+        var latestCutoff = items.map(function (item) { return item.cutoff; }).filter(Boolean).sort().reverse()[0] || '';
+        var latestLoad = items.map(function (item) { return item.recordedAt; }).filter(Boolean).sort().reverse()[0] || '';
+        var validations = Array.from(new Set(items.map(function (item) { return item.validation; }).filter(Boolean)));
+        return {
+          items: items,
+          latestCutoff: text(first(root, [['latestCutoff'], ['cutoff'], ['asOf']])) || text(first(latest, [['sourceCutoff'], ['cutoff'], ['asOf']])) || latestCutoff,
+          latestLoad: text(first(root, [['latestLoadedAt'], ['loadedAt'], ['recordedAt']])) || text(first(latest, [['loadedAt'], ['recordedAt']])) || latestLoad,
+          state: text(first(root, [['state'], ['status'], ['lineageState']])) || (validations.length === 1 ? validations[0] : ''),
+          summary: {
+            published: numberOrNull(first(summary, [['publishedBatches'], ['published'], ['total']])),
+            rowsReported: numberOrNull(first(summary, [['reportedRowCounts'], ['reported']])),
+            rowsNotReported: numberOrNull(first(summary, [['notReportedRowCounts'], ['notReported']]))
+          },
+          caveats: normalizeStrings(first(root, [['caveats'], ['limitations'], ['warnings']]))
+        };
+      }
+      function buildParams(resource) {
+        var params = new URLSearchParams({ resource: resource });
+        if (resource === 'qualityissues') {
+          params.set('page', String(state.page));
+          params.set('limit', String(state.pageSize));
+          if (state.filters.severity) params.set('severity', state.filters.severity);
+          if (state.filters.resolution) params.set('resolution', state.filters.resolution);
+          if (state.filters.source) params.set('source', state.filters.source);
+          if (state.filters.entity) params.set('entity', state.filters.entity);
+          if (state.filters.code) params.set('code', state.filters.code);
+        }
+        return params;
+      }
+      async function fetchJson(url) {
+        var response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+        if (response.status === 401) {
+          redirectToLogin();
+          var unauthorized = new Error('Sesión no autorizada');
+          unauthorized.unauthorized = true;
+          throw unauthorized;
+        }
+        if (!response.ok) throw new Error('La API interna respondió con estado ' + response.status + '.');
+        return response.json();
+      }
+      function redirectToLogin() {
+        if (redirectIssued) return;
+        redirectIssued = true;
+        location.replace(LOGIN_URL);
+      }
+      function statusLabel(status) {
+        var labels = { open: 'Abierta', accepted: 'Aceptada', corrected: 'Corregida', rejected: 'Rechazada', pending: 'Pendiente', validated: 'Validado', published: 'Publicado' };
+        return labels[lower(status)] || text(status) || 'No informado';
+      }
+      function severityLabel(severity) {
+        var labels = { critical: 'Crítica', error: 'Error', warning: 'Advertencia', info: 'Información' };
+        return labels[lower(severity)] || text(severity) || 'Información';
+      }
+      function setBadge(id, stateName, label) {
+        var badge = byId(id);
+        if (!badge) return;
+        badge.className = 'state-badge' + (stateName ? ' ' + stateName : '');
+        badge.textContent = label;
+      }
+      function renderOverview(overview) {
+        setText('registeredValue', formatMetric(overview.registered));
+        setText('openValue', formatMetric(overview.open));
+        setText('errorValue', formatMetric(overview.errors));
+        setText('warningValue', formatMetric(overview.warnings));
+        var informed = [overview.registered, overview.open, overview.errors, overview.warnings].filter(function (value) { return value !== null; }).length;
+        setBadge('summaryBadge', informed === 4 ? 'ready' : 'warning', informed === 4 ? 'Conteos informados' : 'Cobertura parcial');
+        renderDomains(overview.domains, overview.crosswalk, overview.sourceTracking);
+      }
+      function renderDomains(domains, crosswalk, sourceTracking) {
+        var host = byId('domainGrid');
+        host.replaceChildren();
+        var informed = 0;
+        var personas = array(sourceTracking).find(function (item) { return item.source.toUpperCase() === 'PERSONAS'; }) || {};
+        domainDefinitions.forEach(function (definition) {
+          var data = matchDomain(domains, definition);
+          var isCrosswalk = definition.key === 'identity';
+          if (isCrosswalk) {
+            if (crosswalk.total !== null) informed += 1;
+          } else {
+            if (data.issues !== null || data.open !== null) informed += 1;
+          }
+          var article = document.createElement('article');
+          article.className = 'domain-card';
+          var body = document.createElement('div');
+          var title = document.createElement('h3');
+          title.textContent = definition.title;
+          var description = document.createElement('p');
+          description.textContent = definition.description;
+          var metrics = document.createElement('div');
+          metrics.className = 'domain-metrics';
+          var metricRows = isCrosswalk
+            ? [['Registros activos', crosswalk.total], ['Vinculados', crosswalk.matched], ['Ambiguos', crosswalk.ambiguous], ['Sin coincidencia', crosswalk.unmatched]]
+            : [['Incidencias', data.issues], ['Abiertas', data.open], ['Reglas observadas', data.codes.length || null]];
+          metricRows.forEach(function (entry) {
+            var metric = document.createElement('div');
+            metric.className = 'domain-metric';
+            var label = document.createElement('span');
+            label.textContent = entry[0];
+            var value = document.createElement('strong');
+            value.textContent = formatNumber(entry[1]);
+            metric.append(label, value);
+            metrics.appendChild(metric);
+          });
+          var note = document.createElement('p');
+          if (isCrosswalk) {
+            note.textContent = crosswalk.total === null
+              ? 'La API todavía no informó el crosswalk activo.'
+              : (crosswalk.reconciled ? 'El total concilia con vinculados, ambiguos, no vinculados y rechazados.' : 'El total del crosswalk requiere conciliación.');
+          } else if (definition.key === 'cuil' && personas.status === 'controls_not_materialized') {
+            note.textContent = 'PERSONAS informa 0 incidencias trazadas, pero sus controles no están materializados; no equivale a calidad perfecta.';
+          } else {
+            note.textContent = data.note || [data.source ? 'Fuente ' + data.source : '', data.cutoff ? 'corte ' + safeDate(data.cutoff) : '', data.codes.length ? 'Reglas: ' + data.codes.join(', ') : ''].filter(Boolean).join(' · ') || 'La API todavía no informó detalle materializado para este dominio.';
+          }
+          var link = document.createElement('a');
+          link.className = 'domain-link';
+          link.href = definition.href;
+          link.textContent = definition.link + ' →';
+          body.append(title, description, metrics, note, link);
+          var status = document.createElement('span');
+          var statusState = '';
+          var statusText = 'No informado';
+          if (isCrosswalk && crosswalk.total !== null) {
+            statusState = crosswalk.reconciled ? 'ready' : 'error';
+            statusText = crosswalk.reconciled ? 'Crosswalk conciliado' : 'Requiere conciliación';
+          } else if (definition.key === 'cuil' && personas.status === 'controls_not_materialized') {
+            statusState = 'warning'; statusText = 'Cobertura no materializada';
+          } else if (data.open !== null && data.open > 0) {
+            statusState = 'error'; statusText = 'Requiere revisión';
+          } else if (data.issues === 0) {
+            statusState = 'ready'; statusText = 'Sin incidencias registradas';
+          } else if (data.issues !== null) {
+            statusState = 'warning'; statusText = statusLabel(data.status || 'Informado');
+          }
+          status.className = 'state-badge domain-status' + (statusState ? ' ' + statusState : '');
+          status.textContent = statusText;
+          article.append(body, status);
+          host.appendChild(article);
+        });
+        setBadge('domainsBadge', informed === domainDefinitions.length ? 'ready' : 'warning', informed + ' de ' + domainDefinitions.length + ' dominios informados');
+      }
+      function renderLineage(lineage) {
+        var host = byId('lineageRows');
+        host.replaceChildren();
+        if (!lineage.items.length) {
+          var row = document.createElement('tr');
+          var cell = document.createElement('td');
+          cell.className = 'empty';
+          cell.colSpan = 7;
+          cell.textContent = 'No hay lotes de importación informados por la API.';
+          row.appendChild(cell);
+          host.appendChild(row);
+          setBadge('lineageBadge', 'warning', 'Linaje no informado');
+        } else {
+          lineage.items.forEach(function (item) {
+            var row = document.createElement('tr');
+            var values = [
+              [item.source || 'No informada', ''],
+              [safeDate(item.cutoff), ''],
+              [formatNumber(item.rows), item.source.toUpperCase() === 'GRH' && item.rows === null ? 'GRH no informó el conteo de origen' : ''],
+              [formatNumber(item.trackedIssues), item.trackedIssuesStatus === 'controls_not_materialized' ? 'Controles no materializados; no equivale a fuente limpia' : ''],
+              [item.hash || 'No informada', item.hash ? 'Prefijo SHA-256' : ''],
+              [statusLabel(item.validation), ''],
+              [safeDate(item.recordedAt, true), '']
+            ];
+            var labels = ['Fuente', 'Corte', 'Filas de origen', 'Incidencias trazadas', 'Huella', 'Validación', 'Cargado'];
+            values.forEach(function (value, index) {
+              var cell = document.createElement('td');
+              cell.dataset.label = labels[index];
+              var strong = document.createElement('strong');
+              strong.textContent = value[0];
+              cell.appendChild(strong);
+              if (value[1]) { var small = document.createElement('small'); small.textContent = value[1]; cell.appendChild(small); }
+              row.appendChild(cell);
+            });
+            host.appendChild(row);
+          });
+          setBadge('lineageBadge', 'ready', integerFormat.format(lineage.items.length) + ' lotes informados');
+        }
+        var latest = lineage.items[0] || {};
+        setText('latestCutoff', safeDate(lineage.latestCutoff || latest.cutoff));
+        setText('latestLoad', safeDate(lineage.latestLoad || latest.recordedAt, true));
+        setText('lineageState', statusLabel(lineage.state || latest.validation));
+      }
+      function renderIssues(result) {
+        state.page = result.page;
+        state.pageSize = result.pageSize;
+        state.total = result.total;
+        state.totalPages = result.totalPages;
+        var host = byId('issueRows');
+        host.replaceChildren();
+        if (!result.items.length) {
+          var row = document.createElement('tr');
+          var cell = document.createElement('td');
+          cell.className = 'empty';
+          cell.colSpan = 8;
+          cell.textContent = state.total === 0 ? 'No hay incidencias materializadas para este alcance. Esto no certifica calidad perfecta.' : 'No hay incidencias en esta página.';
+          row.appendChild(cell);
+          host.appendChild(row);
+        } else {
+          result.items.forEach(function (item) {
+            var row = document.createElement('tr');
+            var severityCell = document.createElement('td');
+            severityCell.dataset.label = 'Severidad';
+            var severity = document.createElement('span');
+            severity.className = 'severity severity-' + (['critical', 'error', 'warning', 'info'].includes(item.severity) ? item.severity : 'info');
+            severity.textContent = severityLabel(item.severity);
+            severityCell.appendChild(severity);
+            row.appendChild(severityCell);
+            var values = [
+              [item.code, ''],
+              [item.entity || item.domain || 'No informada', ''],
+              [item.field || 'No informado', ''],
+              [item.source || 'No informada', ''],
+              [statusLabel(item.status), ''],
+              [safeDate(item.detectedAt, true), ''],
+              [item.resolvedAt ? safeDate(item.resolvedAt, true) : (item.status === 'open' ? 'Pendiente' : 'No informada'), '']
+            ];
+            var labels = ['Control', 'Entidad', 'Campo', 'Fuente', 'Estado', 'Detectada', 'Resuelta'];
+            values.forEach(function (value, index) {
+              var cell = document.createElement('td');
+              cell.dataset.label = labels[index];
+              var strong = document.createElement('strong');
+              strong.textContent = value[0];
+              cell.appendChild(strong);
+              row.appendChild(cell);
+            });
+            host.appendChild(row);
+          });
+        }
+        setText('resultCount', integerFormat.format(result.total) + (result.total === 1 ? ' incidencia registrada' : ' incidencias registradas') + ' · sin PII');
+        setText('pageStatus', 'Página ' + result.page + ' de ' + result.totalPages);
+        byId('previousPage').disabled = result.page <= 1;
+        byId('nextPage').disabled = result.page >= result.totalPages;
+        byId('pageSizeSelect').value = String(result.pageSize);
+        setBadge('issuesBadge', result.items.length ? 'ready' : 'warning', result.items.length ? 'Detalle informado' : 'Sin detalle materializado');
+      }
+      function renderCaveats(overview, issues, lineage, failures) {
+        var fixed = [
+          'GRH es la autoridad laboral; PERSONAS sólo enriquece identidad, domicilio y territorio.',
+          'Los identificadores IDPERSONA de GRH y PERSONAS no son interoperables y no deben cruzarse en forma directa.',
+          'PERSONAS con 0 controles materializados no equivale a calidad perfecta.',
+          'Un conteo nulo de filas de origen se conserva como “No informado”, incluso para GRH.'
+        ];
+        var items = fixed.concat(overview.caveats, issues.caveats, lineage.caveats, failures).filter(function (value, index, list) { return value && list.indexOf(value) === index; });
+        var host = byId('caveatList');
+        host.replaceChildren();
+        items.forEach(function (item) { var row = document.createElement('li'); row.textContent = item; host.appendChild(row); });
+      }
+      function updatePageStatus(overview, lineage, failures) {
+        var partial = failures.length > 0;
+        var panel = byId('overallPanel');
+        panel.dataset.state = partial ? 'error' : 'ready';
+        setText('overallTitle', partial ? 'Cobertura parcial' : 'Controles consultados');
+        setText('overallDetail', partial ? 'Una o más fuentes no respondieron. Los bloques disponibles permanecen visibles y los faltantes no se convierten en cero.' : 'Incidencias, controles y lotes se muestran sin fabricar datos faltantes.');
+        var cutoff = overview.cutoff || lineage.latestCutoff || (lineage.items[0] && lineage.items[0].cutoff) || '';
+        var sources = Array.from(new Set(lineage.items.map(function (item) { return item.source; }).filter(Boolean)));
+        setText('sourceChip', (sources.length ? sources.join(' + ') : 'Fuentes internas') + ' · ' + (cutoff ? 'corte ' + safeDate(cutoff) : 'corte no informado'));
+        setText('footerSource', sources.length ? 'Fuentes ' + sources.join(' + ') : 'Fuentes por verificar');
+        setText('footerCutoff', cutoff ? 'Corte ' + safeDate(cutoff) : 'Corte no informado');
+      }
+      function showError(message) {
+        byId('loading').hidden = true;
+        byId('mainContent').hidden = true;
+        var host = byId('errorHost');
+        host.hidden = false;
+        host.replaceChildren();
+        var card = document.createElement('section');
+        card.className = 'error-card';
+        card.setAttribute('role', 'alert');
+        var eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Control interno';
+        var title = document.createElement('h1'); title.textContent = 'No se pudo abrir calidad operativa';
+        var detail = document.createElement('p'); detail.textContent = message;
+        var retry = document.createElement('button'); retry.className = 'button primary'; retry.type = 'button'; retry.textContent = 'Reintentar';
+        retry.addEventListener('click', function () { if (authenticated) loadData(); else authenticate(); });
+        card.append(eyebrow, title, detail, retry);
+        host.appendChild(card);
+      }
+      async function loadData() {
+        if (redirectIssued) return;
+        var requestId = ++requestSequence;
+        byId('errorHost').hidden = true;
+        byId('loading').hidden = false;
+        byId('mainContent').hidden = true;
+        setText('loadingMessage', 'Consultamos resumen, incidencias y linaje sin exponer datos personales.');
+        var requests = [
+          fetchJson(DATA_URL + '?' + buildParams('qualityoverview').toString()),
+          fetchJson(DATA_URL + '?' + buildParams('qualityissues').toString()),
+          fetchJson(DATA_URL + '?' + buildParams('importlineage').toString())
+        ];
+        var settled = await Promise.allSettled(requests);
+        if (requestId !== requestSequence || redirectIssued) return;
+        if (settled.some(function (result) { return result.status === 'rejected' && result.reason && result.reason.unauthorized; })) return;
+        var failures = [];
+        var overview = settled[0].status === 'fulfilled' ? normalizeOverview(settled[0].value) : normalizeOverview({});
+        var issues = settled[1].status === 'fulfilled' ? normalizeIssues(settled[1].value) : normalizeIssues({});
+        var lineage = settled[2].status === 'fulfilled' ? normalizeLineage(settled[2].value) : normalizeLineage({});
+        ['resumen de calidad', 'bandeja de incidencias', 'linaje de importaciones'].forEach(function (label, index) {
+          if (settled[index].status === 'rejected') failures.push('No respondió ' + label + '; sus valores se muestran como no informados.');
+        });
+        if (failures.length === 3) {
+          showError('Las fuentes de calidad no están disponibles. No se reemplazaron resultados por ceros.');
+          return;
+        }
+        renderOverview(overview);
+        renderIssues(issues);
+        renderLineage(lineage);
+        renderCaveats(overview, issues, lineage, failures);
+        updatePageStatus(overview, lineage, failures);
+        byId('loading').hidden = true;
+        byId('mainContent').hidden = false;
+        document.title = 'Calidad operativa de datos | MuniControl';
+      }
+      async function authenticate() {
+        if (redirectIssued) return;
+        try {
+          var payload = await fetchJson(AUTH_URL);
+          if (redirectIssued) return;
+          var user = normalizeUser(payload);
+          setText('userName', user.name);
+          setText('userRole', user.role);
+          authenticated = true;
+          await loadData();
+        } catch (error) {
+          if (!redirectIssued && !error.unauthorized) showError(error instanceof Error ? error.message : 'No se pudo verificar la sesión.');
+        }
+      }
+      function readFilters() {
+        return { severity: byId('severitySelect').value, resolution: byId('resolutionSelect').value, source: byId('sourceSelect').value, entity: byId('entitySelect').value, code: byId('codeSelect').value };
+      }
+      function syncUrl() {
+        var url = new URL(location.href);
+        ['severity', 'resolution', 'source', 'entity', 'code'].forEach(function (key) {
+          if (state.filters[key]) url.searchParams.set(key, state.filters[key]); else url.searchParams.delete(key);
+        });
+        if (state.page > 1) url.searchParams.set('page', String(state.page)); else url.searchParams.delete('page');
+        if (state.pageSize !== 25) url.searchParams.set('limit', String(state.pageSize)); else url.searchParams.delete('limit');
+        history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+        var count = Object.keys(state.filters).filter(function (key) { return state.filters[key]; }).length;
+        setText('filterSummary', count ? count + (count === 1 ? ' filtro aplicado.' : ' filtros aplicados.') : 'Sin filtros aplicados.');
+      }
+      function openMenu() {
+        byId('sidebar').classList.add('open');
+        byId('navBackdrop').hidden = false;
+        byId('menuButton').setAttribute('aria-expanded', 'true');
+        document.body.classList.add('menu-open');
+        byId('menuClose').focus();
+      }
+      function closeMenu(returnFocus) {
+        var wasOpen = byId('sidebar').classList.contains('open');
+        byId('sidebar').classList.remove('open');
+        byId('navBackdrop').hidden = true;
+        byId('menuButton').setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('menu-open');
+        if (returnFocus && wasOpen && window.innerWidth <= 820) byId('menuButton').focus();
+      }
+      function openGuide() { var dialog = byId('guideDialog'); if (typeof dialog.showModal === 'function') dialog.showModal(); }
+      function closeGuide() { var dialog = byId('guideDialog'); if (dialog.open) dialog.close(); }
+
+      byId('filterForm').addEventListener('submit', function (event) { event.preventDefault(); state.filters = readFilters(); state.page = 1; syncUrl(); loadData(); });
+      byId('clearFilters').addEventListener('click', function () {
+        ['severitySelect', 'resolutionSelect', 'sourceSelect', 'entitySelect', 'codeSelect'].forEach(function (id) { byId(id).value = ''; });
+        state.filters = { severity: '', resolution: '', source: '', entity: '', code: '' };
+        state.page = 1;
+        syncUrl();
+        loadData();
+      });
+      byId('pageSizeSelect').addEventListener('change', function () { state.pageSize = this.value === '50' ? 50 : 25; state.page = 1; syncUrl(); loadData(); });
+      byId('previousPage').addEventListener('click', function () { if (state.page > 1) { state.page -= 1; syncUrl(); loadData(); } });
+      byId('nextPage').addEventListener('click', function () { if (state.page < state.totalPages) { state.page += 1; syncUrl(); loadData(); } });
+      byId('refreshButton').addEventListener('click', loadData);
+      byId('logoutButton').addEventListener('click', async function () { try { await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin' }); } finally { sessionStorage.removeItem('mjunin_user'); location.replace('login.html'); } });
+      byId('menuButton').addEventListener('click', openMenu);
+      byId('menuClose').addEventListener('click', function () { closeMenu(true); });
+      byId('navBackdrop').addEventListener('click', function () { closeMenu(true); });
+      byId('sidebar').querySelectorAll('a').forEach(function (link) { link.addEventListener('click', function () { closeMenu(false); }); });
+      byId('guideButton').addEventListener('click', openGuide);
+      byId('learningButton').addEventListener('click', openGuide);
+      byId('guideClose').addEventListener('click', closeGuide);
+      byId('guideDone').addEventListener('click', closeGuide);
+      byId('guideDialog').addEventListener('click', function (event) { if (event.target === this) closeGuide(); });
+      document.addEventListener('keydown', function (event) {
+        var menuOpen = byId('sidebar').classList.contains('open');
+        if (event.key === 'Escape' && menuOpen) { event.preventDefault(); closeMenu(true); return; }
+        if (event.key === 'Tab' && menuOpen && window.innerWidth <= 820) {
+          var focusable = Array.from(byId('sidebar').querySelectorAll('a[href], button:not([disabled])')).filter(function (node) { return node.getClientRects().length > 0; });
+          if (!focusable.length) return;
+          var firstFocusable = focusable[0];
+          var lastFocusable = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === firstFocusable) { event.preventDefault(); lastFocusable.focus(); }
+          else if (!event.shiftKey && document.activeElement === lastFocusable) { event.preventDefault(); firstFocusable.focus(); }
+        }
+      });
+      window.addEventListener('resize', function () { if (window.innerWidth > 820) closeMenu(false); });
+
+      (function restoreUrlState() {
+        var params = new URLSearchParams(location.search);
+        state.filters = { severity: text(params.get('severity')), resolution: text(params.get('resolution')), source: text(params.get('source')), entity: text(params.get('entity')), code: text(params.get('code')) };
+        state.page = Math.max(1, Number(params.get('page')) || 1);
+        state.pageSize = params.get('limit') === '50' ? 50 : 25;
+        [['severitySelect', 'severity'], ['resolutionSelect', 'resolution'], ['sourceSelect', 'source'], ['entitySelect', 'entity'], ['codeSelect', 'code']].forEach(function (entry) {
+          byId(entry[0]).value = state.filters[entry[1]];
+          state.filters[entry[1]] = byId(entry[0]).value;
+        });
+        byId('pageSizeSelect').value = String(state.pageSize);
+        syncUrl();
+      }());
+
+      authenticate();
+    }());
+  </script>
+</body>
+</html>

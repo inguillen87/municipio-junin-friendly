@@ -79,6 +79,22 @@
         ['#qualityPanel', 'Límites de uso', 'Documenta anomalías y evita convertir la fuente en una tasa o productividad no respaldada.']
       ]
     },
+    quality: {
+      sectionId: 'calidad', title: 'Calidad operativa de datos',
+      tour: [
+        ['#summaryPanel', 'Incidencias registradas', 'Separá total, abiertas y severidad sin convertirlas en un puntaje sintético.'],
+        ['#domainsPanel', 'Controles materializados', 'Cada bloque explica qué control existe y qué parte todavía no fue evaluada.'],
+        ['#lineagePanel', 'Fuente y corte', 'Confirmá lote, fecha de corte, validación y filas informadas antes de interpretar un cero.'],
+        ['#issuesPanel', 'Bandeja priorizada', 'Filtrá por severidad, estado, fuente, entidad o código sin exponer valores observados ni datos personales.'],
+        ['#caveatsPanel', 'Límites de uso', 'Conservá estas salvedades al continuar el análisis en Integración, Nómina o Personas.']
+      ],
+      explain: [
+        ['#summaryPanel', 'Resumen de incidencias', 'Cuenta controles registrados; no mide por sí solo la calidad total de una fuente.'],
+        ['#lineagePanel', 'Linaje de importación', 'Permite reconocer qué snapshot y huella respaldan el resultado visible.'],
+        ['#issuesPanel', 'Incidencias', 'Muestra una proyección operativa deliberadamente acotada y sin PII.'],
+        ['#caveatsPanel', 'Salvedades', 'Aclara por qué cero controles no equivale a una fuente perfecta.']
+      ]
+    },
     assistant: {
       sectionId: 'asistente', title: 'Asistente de control',
       tour: [
@@ -115,6 +131,7 @@
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';
     if (path.indexOf('ausentismo') >= 0) return 'absence';
+    if (path.indexOf('calidad-operativa') >= 0) return 'quality';
     if (path.indexOf('asistente') >= 0 || path === '/ia' || path === '/ia-hf') return 'assistant';
     if (path.indexOf('internal') >= 0 || path === '/rrhh' || path === '/admin') return 'portal';
     return '';

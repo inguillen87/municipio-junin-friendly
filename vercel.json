@@ -48,6 +48,7 @@
     { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
     { "source": "/nomina-control", "destination": "/nomina-control.html" },
     { "source": "/ausentismo-control", "destination": "/ausentismo-control.html" },
+    { "source": "/calidad-operativa", "destination": "/calidad-operativa.html" },
     { "source": "/asistente", "destination": "/asistente.html" },
     { "source": "/centro-ayuda", "destination": "/centro-ayuda.html" },
     { "source": "/ayuda", "destination": "/centro-ayuda.html" },
@@ -164,6 +165,14 @@
     },
     {
       "source": "/ausentismo-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/calidad-operativa",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/calidad-operativa.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

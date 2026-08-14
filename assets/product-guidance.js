@@ -6,7 +6,12 @@ function deepFreeze(value) {
 
 function publicSection(section) {
   const { aliases: _aliases, ...visible } = section;
-  return { ...visible, actions: [...visible.actions], limits: [...visible.limits] };
+  return {
+    ...visible,
+    actions: [...visible.actions],
+    limits: [...visible.limits],
+    ...(visible.relatedLinks ? { relatedLinks: visible.relatedLinks.map((link) => ({ ...link })) } : {}),
+  };
 }
 
 export const GUIDANCE_AS_OF = '2026-08-13T00:00:00.000Z';
@@ -62,10 +67,11 @@ export const SECTION_CATALOG = deepFreeze([
     aliases: ['ausentismo', 'ausencia', 'ausencias', 'evento de ausencia', 'eventos de ausencia'],
   },
   {
-    id: 'calidad', label: 'Calidad', targetPath: '/calidad-datos',
-    purpose: 'Auditar controles, excepciones, reglas de lectura, disponibilidad, límites y trazabilidad del corte.',
-    actions: ['revisar la matriz de validación', 'identificar excepciones', 'leer definiciones y limitaciones por dominio'],
-    limits: ['un estado para revisar no equivale automáticamente a invalidar todo el corte'],
+    id: 'calidad', label: 'Calidad', targetPath: '/calidad-operativa',
+    purpose: 'Analizar hallazgos agregados de calidad por severidad, dominio y fuente, junto con la cobertura del crosswalk.',
+    actions: ['revisar conteos y severidades', 'comparar dominios y cobertura por fuente', 'consultar límites y confirmar si la fuente informa un corte'],
+    limits: ['no calcula un score sintético de calidad', 'la ausencia de controles de PERSONAS significa no evaluado, no calidad perfecta', 'el resumen operativo no informa una fecha de corte propia'],
+    relatedLinks: [{ label: 'Registro público de metodología y calidad', targetPath: '/calidad-datos', scope: 'public_methodology' }],
     aliases: ['calidad', 'calidad de datos', 'auditoria', 'excepcion', 'excepciones', 'trazabilidad'],
   },
   {
@@ -113,7 +119,7 @@ export const TASK_CATALOG = deepFreeze([
   {
     id: 'auditar_calidad', label: 'Auditar la calidad del corte', sectionId: 'calidad',
     aliases: ['auditar calidad', 'revisar calidad', 'ver excepciones', 'validar corte', 'trazabilidad del corte'],
-    steps: ['Abrí Calidad.', 'Revisá la matriz de validación y los casos que requieren atención.', 'Leé las reglas de construcción del indicador que vas a usar.', 'Confirmá disponibilidad, límites y trazabilidad antes de comunicar una conclusión.'],
+    steps: ['Abrí Calidad Operativa.', 'Revisá los conteos agregados y su distribución por severidad y dominio.', 'Confirmá qué fuentes tienen controles disponibles; sin controles de PERSONAS no se puede afirmar calidad perfecta.', 'Leé el crosswalk y los límites; como el overview no informa un corte propio, conservá explícita esa ausencia.', 'Usá el registro público relacionado cuando necesites explicar la metodología sin exponer información interna.'],
   },
   {
     id: 'revisar_ausentismo', label: 'Revisar los eventos de ausentismo', sectionId: 'ausentismo',

@@ -35,29 +35,39 @@ Usá este contexto como fuente de verdad para alinear `municipio-junin` Enterpri
 - Todo KPI monetario es nominal y no comparable entre gestiones sin IPC, paritarias y cambios de escala.
 - La diferencia 882/854 es un control operativo contra agosto abierto; no debe presentarse como comparación con julio cerrado.
 
-## Estado técnico al 13 de agosto de 2026
+## Estado técnico al 14 de agosto de 2026
 
-- Repo de integración: `municipio-junin-friendly-integration`.
-- Rama Git de trabajo: `codex/grh-personas-integration`. La publicación de código sigue pendiente del commit/deploy único de la fase.
+- Repo rector de la aplicación Friendly: `municipio-junin-friendly`.
+- `master` es la referencia publicable y Vercel Producción debe apuntar exactamente al mismo SHA. Los worktrees `-integration` se usan sólo para aislar desarrollo; no son otra aplicación ni otra verdad de datos.
 - Proyecto Neon existente: `municipio-junin-friendly-internal` (`noisy-poetry-54471701`).
 - Rama Neon aislada de QA: `codex-grh-integration-20260813` (`br-square-glade-aczgtll0`).
 - Neon `main` ya contiene y reconcilia 620 corridas, 854 asignaciones de agosto, 214.164 hechos mensuales, 489.459 movimientos y 2.450 controles de legajo.
 - La verificación integral de `main` pasó 36/36 gates; julio cerrado es publicable, agosto abierto permanece bloqueado y la brecha 882/854 queda explicada 16/11/1.
 - El proyecto está en Neon Launch con cómputo acotado a 0,25–1 CU. Existe una rama temporal previa a promoción con expiración automática y la rama aislada sigue disponible para QA.
 - PERSONAS ya fue promovida con 2.349 decisiones: 1.699 matches, 157 ambiguas y 493 sin coincidencia; las 24 personas GRH sin legajo se preservan sin contratos inventados.
+- Friendly ya expone, bajo sesión interna, directorio y ficha de empleados, estructura observada, integración, control de nómina, ausentismo operativo, asistente y centro de aprendizaje. Las vistas públicas continúan siendo agregadas.
+- Calidad operativa usa una cola sólo lectura sobre lotes publicados: 589 incidencias abiertas, 581 advertencias y 8 errores. Se separan 556 incoherencias de período/mes de nómina, 25 controles de CUIL y 8 anomalías de fechas. PERSONAS con cero controles materializados se rotula como “no evaluado”, nunca como fuente perfecta.
 - R2 está aprobado como estrategia, pero bucket, credenciales operativas y prueba de restauración todavía deben verificarse. No afirmar que existe un backup remoto hasta demostrar upload + readback/hash.
+
+## Asistente y proveedores de IA
+
+- `OPENAI_API_KEY` es una variable exclusiva del servidor. Friendly y Enterprise pueden usar la misma cuenta sólo si la variable se configura deliberadamente en cada proyecto de Vercel; nunca copiarla a HTML, Git, logs o documentación.
+- OpenAI Responses es el proveedor primario para redactar explicaciones de hechos agregados y preseleccionados. Hugging Face es un único fallback; la respuesta determinística local debe seguir funcionando si ambos fallan.
+- Búsquedas, fichas nominales, datos de ausencias con cohortes pequeñas, onboarding y guías de producto no salen a proveedores externos.
+- El proveedor nunca recibe nombres, legajos, DNI, CUIL, domicilios, filas de incidencias, valores observados, payloads crudos ni el mensaje libre original del usuario. Sólo recibe un contrato agregado permitido por intención.
+- Una respuesta de IA no reemplaza actos administrativos, autorizaciones, resoluciones ni validaciones de la fuente.
 
 ## Instrucciones para el agente Enterprise
 
 1. Inspeccioná primero Git, variables y conexiones disponibles; nunca pegues ni registres URLs, tokens o contraseñas.
 2. Tratá Neon `main` como producción. Para pruebas, creá o reutilizá una rama aislada y verificá que no sea default/protegida.
-3. No vuelvas a importar los dumps ni construyas un modelo alternativo. Consumí el esquema canónico cuando la fase quede publicada.
+3. No vuelvas a importar los dumps ni construyas un modelo alternativo. Consumí el esquema canónico ya publicado y verificá primero el estado real de `master`, Neon y Vercel.
 4. Prepará Enterprise como consumidor modular de la misma base: RRHH, estructura, nómina y calidad primero; Hacienda/Tesorería sólo cuando exista una fuente real adicional.
 5. No uses `IDPERSONA` entre sistemas, no auto-resuelvas los 157 ambiguos y no expongas personas/domicilios en vistas públicas.
 6. Mantené Friendly simple y Enterprise profundo, pero ambos deben compartir definiciones, IDs canónicos, cierres y trazabilidad.
 7. Antes de afirmar disponibilidad, exigí: migración idempotente, conteos exactos, conciliación financiera, prueba E2E, backup R2 con SHA-256 y restauración verificada.
-8. Coordiná cualquier escritura de esquema/importación con la rama `codex/grh-personas-integration` para evitar procesos simultáneos o doble consumo.
+8. Coordiná cualquier escritura de esquema/importación contra `master` y una rama Neon aislada; nunca tomes un nombre histórico de worktree como señal de que una migración sigue pendiente.
 
 ## Resultado esperado
 
-Enterprise debe quedar listo para conectarse a la misma capa canónica de Neon cuando esta fase sea promovida, sin migración paralela ni cifras inventadas. Informá por separado: validado localmente, validado en rama Neon, publicado en `main`, desplegado en Preview y desplegado en Producción.
+Enterprise debe consumir la misma capa canónica de Neon sin migración paralela ni cifras inventadas. Informá por separado: validado localmente, validado en rama Neon, publicado en `main`, desplegado en Preview y desplegado en Producción.

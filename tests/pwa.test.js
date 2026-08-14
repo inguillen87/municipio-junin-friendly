@@ -105,7 +105,7 @@ test('service worker precachea sólo el shell público agregado', async () => {
   for (const expected of ['/friendly-dashboard.html', '/friendly-data.json', '/manifest.webmanifest']) {
     assert.ok(worker.added.includes(expected), `falta precachear ${expected}`);
   }
-  for (const forbidden of ['/api/internal-data', '/api/internal-assistant', '/internal-dashboard.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/ausentismo-control.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/product-guidance.js']) {
+  for (const forbidden of ['/api/internal-data', '/api/internal-assistant', '/internal-dashboard.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/ausentismo-control.html', '/calidad-operativa.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/product-guidance.js']) {
     assert.ok(!worker.added.includes(forbidden), `no se debe precachear ${forbidden}`);
   }
   assert.equal(worker.skipWaitingCalls, 0, 'una instalación no debe reemplazar la versión activa a mitad de sesión');
@@ -124,6 +124,8 @@ test('service worker nunca intercepta APIs, páginas internas ni rutas nominales
     '/nomina-control',
     '/ausentismo-control',
     '/ausentismo-control.html',
+    '/calidad-operativa',
+    '/calidad-operativa.html',
     '/asistente',
     '/asistente.html',
     '/centro-ayuda',
@@ -217,7 +219,7 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(headers.get('/sw.js').get('Cache-Control'), /no-cache/);
   assert.equal(headers.get('/sw.js').get('Service-Worker-Allowed'), '/');
   assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
-  for (const route of ['/api/(.*)', '/internal', '/internal-dashboard.html', '/estructura', '/datos-personales.html', '/nomina-control', '/ausentismo-control', '/ausentismo-control.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/product-guidance.js', '/admin']) {
+  for (const route of ['/api/(.*)', '/internal', '/internal-dashboard.html', '/estructura', '/datos-personales.html', '/nomina-control', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/product-guidance.js', '/admin']) {
     assert.match(headers.get(route).get('Cache-Control'), /no-store/, `${route} debe impedir cache compartido`);
   }
 });

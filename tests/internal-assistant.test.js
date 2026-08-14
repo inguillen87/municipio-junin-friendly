@@ -87,6 +87,51 @@ const absence = {
     },
   },
 };
+const quality = {
+  status: 200,
+  payload: {
+    ok: true,
+    data: {
+      issues: {
+        total: 37,
+        open: 30,
+        byResolution: { open: 30, accepted: 2, corrected: 4, rejected: 1 },
+        bySeverity: { critical: 1, error: 8, warning: 24, info: 4 },
+        distinctCodes: 6,
+        distinctEntities: 3,
+      },
+      domains: {
+        payrollCoherence: { registeredIssues: 5, openIssues: 4, status: 'needs_review' },
+        identityCuil: { registeredIssues: 21, openIssues: 19, status: 'needs_review' },
+        dates: { registeredIssues: 11, openIssues: 7, status: 'needs_review' },
+      },
+      crosswalk: {
+        total: 2349, matched: 1699, ambiguous: 157, unmatched: 493, rejected: 0, reconciled: true,
+      },
+      reconciliation: {
+        severityTotal: 37,
+        domainTotal: 37,
+        totalMatchesSeverity: true,
+        totalMatchesDomains: true,
+        openEqualsTotal: false,
+      },
+      breakdowns: {
+        sources: [
+          { source: 'GRH', registeredIssues: 37, openIssues: 30, trackingStatus: 'materialized' },
+          { source: 'PERSONAS', registeredIssues: 0, openIssues: 0, trackingStatus: 'controls_not_materialized' },
+        ],
+      },
+    },
+    meta: {
+      authority: { labor: 'GRH', identityAuxiliary: 'PERSONAS' },
+      metric: 'registered_quality_issues',
+      crosswalkMetric: 'crosswalk_decisions',
+      containsPersonalData: false,
+      mutationAllowed: false,
+      zeroTrackedIssuesDoesNotMeanClean: true,
+    },
+  },
+};
 
 function responseRecorder() {
   return {
@@ -101,9 +146,10 @@ function handler(overrides = {}) {
   return createInternalAssistantHandler({
     requireInternalSession: overrides.requireInternalSession || (() => ({ id: 'user-1', email: 'usuario@example.test' })),
     getInternalSql: overrides.getInternalSql || (async () => ({ query: async () => [] })),
-    integrationQuality: async () => integration,
+    integrationQuality: overrides.integrationQuality || (async () => integration),
     payrollControl: async () => payroll,
     absenceAnalytics: overrides.absenceAnalytics || (async () => absence),
+    qualityOverview: overrides.qualityOverview || overrides.qualityoverview || (async () => quality),
     canonicalScope: async () => scope,
     employees: overrides.employees || (async () => ({
       status: 200,
@@ -146,6 +192,8 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ message: '¿Cuál es la brecha de dotación?' }), 'workforce_summary');
   assert.equal(classifyAssistantRequest({ message: '¿La nómina de agosto está cerrada?' }), 'payroll_control');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo viene el crosswalk con PERSONAS?' }), 'integration_quality');
+  assert.equal(classifyAssistantRequest({ message: 'Analizá la calidad operativa por severidad' }), 'quality_analysis');
+  assert.equal(classifyAssistantRequest({ intent: 'quality_analysis' }), 'quality_analysis');
   assert.equal(classifyAssistantRequest({ message: 'Analizá los eventos administrativos de ausencia del último período' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ message: 'Buscar empleado con ausencias' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ intent: 'absence_analysis' }), 'absence_analysis');
@@ -178,7 +226,8 @@ test('catálogo de ayuda expone las diez secciones reales y rutas existentes', (
   assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
   assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/ausentismo-control');
-  assert.equal(catalog.sections.find((section) => section.id === 'calidad').targetPath, '/calidad-datos');
+  assert.equal(catalog.sections.find((section) => section.id === 'calidad').targetPath, '/calidad-operativa');
+  assert.equal(catalog.sections.find((section) => section.id === 'calidad').relatedLinks[0].targetPath, '/calidad-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'reportes').targetPath, '/reportes-rrhh');
   assert.equal(catalog.sections.find((section) => section.id === 'ayuda').targetPath, '/centro-ayuda');
   assert.equal(catalog.sections.every((section) => !('aliases' in section)), true);
@@ -192,13 +241,13 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
     { message: '¿Dónde encuentro Calidad?', enhance: true },
     {
       getInternalSql: async () => { throw new Error('la guía no debe depender de Neon'); },
-      env: { HF_TOKEN: 'hf_test' },
-      fetch: async () => { fetchCalls += 1; throw new Error('la guía no debe salir a HF'); },
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('la guía no debe salir a proveedores externos'); },
     },
   );
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.intent, 'help_navigation');
-  assert.equal(res.payload.targetPath, '/calidad-datos');
+  assert.equal(res.payload.targetPath, '/calidad-operativa');
   assert.equal(res.payload.data.section.label, 'Calidad');
   assert.ok(res.payload.steps.length >= 3);
   assert.equal(res.payload.sources[0].system, 'MUNICONTROL');
@@ -208,6 +257,7 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
   assert.equal(res.payload.privacy.guidanceContent, 'verified_product_catalog_only');
   assert.equal(res.payload.privacy.nominalDataExternalized, false);
   assert.equal(res.payload.provider.status, 'not_allowed_for_product_guidance');
+  assert.equal(res.payload.provider.provider, 'local');
   assert.equal(fetchCalls, 0);
 
   const absence = await post(
@@ -254,6 +304,12 @@ test('guía tareas con pasos y destino sin ejecutar cambios administrativos', as
   assert.equal(absenceHelp.payload.data.task.id, 'revisar_ausentismo');
   assert.equal(absenceHelp.payload.targetPath, '/ausentismo-control');
   assert.match(absenceHelp.payload.steps.at(-1), /No conviertas los valores en jornadas perdidas, productividad ni tasa/i);
+
+  const qualityHelp = await post({ message: '¿Cómo revisar calidad?' });
+  assert.equal(qualityHelp.payload.data.task.id, 'auditar_calidad');
+  assert.equal(qualityHelp.payload.targetPath, '/calidad-operativa');
+  assert.match(qualityHelp.payload.steps[2], /no se puede afirmar calidad perfecta/i);
+  assert.match(qualityHelp.payload.steps[3], /no informa un corte propio/i);
 });
 
 test('glosario define términos sensibles con límites y secciones relacionadas', async () => {
@@ -288,6 +344,13 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
     res.payload.capabilities.find((capability) => capability.intent === 'absence_analysis'),
     { intent: 'absence_analysis', externalEnhancement: true },
   );
+  assert.deepEqual(
+    res.payload.capabilities.find((capability) => capability.intent === 'quality_analysis'),
+    { intent: 'quality_analysis', externalEnhancement: true },
+  );
+  assert.deepEqual(res.payload.providerPolicy, {
+    primary: 'openai', fallback: 'huggingface', localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
+  });
   assert.equal(res.payload.guidance.sections.length, 10);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
@@ -341,6 +404,160 @@ test('integración mantiene GRH como autoridad y PERSONAS como auxiliar', async 
   assert.equal(res.payload.data.crosswalk.ambiguous, 157);
   assert.equal(res.payload.data.crosswalk.unmatched, 493);
   assert.match(res.payload.answer, /72,3%/);
+});
+
+test('calidad operativa responde con conteos, severidad, dominios, crosswalk, fuentes y límites sin inventar score o corte', async () => {
+  const res = await post({ intent: 'quality_analysis' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'quality_analysis');
+  assert.deepEqual(res.payload.data.issues, {
+    total: 37,
+    open: 30,
+    distinctCodes: 6,
+    distinctEntities: 3,
+    byResolution: { open: 30, accepted: 2, corrected: 4, rejected: 1 },
+    bySeverity: { critical: 1, error: 8, warning: 24, info: 4 },
+  });
+  assert.deepEqual(res.payload.data.domains.payrollCoherence, {
+    available: true, registeredIssues: 5, openIssues: 4, status: 'needs_review',
+  });
+  assert.equal(res.payload.data.crosswalk.total, 2349);
+  assert.equal(res.payload.data.crosswalk.matched, 1699);
+  assert.equal(res.payload.data.crosswalk.reconciled, true);
+  assert.deepEqual(res.payload.data.reconciliation, {
+    severityTotal: 37,
+    domainTotal: 37,
+    totalMatchesSeverity: true,
+    totalMatchesDomains: true,
+    openEqualsTotal: false,
+  });
+  assert.equal(res.payload.data.sourceTracking[1].source, 'PERSONAS');
+  assert.equal(res.payload.data.sourceTracking[1].trackingStatus, 'controls_not_materialized');
+  assert.equal(res.payload.data.meta.containsPersonalData, false);
+  assert.equal(res.payload.data.meta.mutationAllowed, false);
+  assert.equal(res.payload.data.meta.sourceCutoff, null);
+  assert.deepEqual(res.payload.data.meta.authority, { labor: 'GRH', identityAuxiliary: 'PERSONAS' });
+  assert.equal(Object.hasOwn(res.payload.data, 'score'), false);
+  assert.equal(res.payload.asOf, null, 'qualityoverview no informa cutoff propio');
+  assert.equal(res.payload.targetPath, '/calidad-operativa');
+  assert.equal(res.payload.sources.find((source) => source.system === 'PERSONAS').authority, 'controls_not_materialized');
+  assert.equal(res.payload.sources.find((source) => source.system === 'PERSONAS').asOf, null);
+  assert.match(res.payload.answer, /37 hallazgos agregados, 30 abiertos/i);
+  assert.match(res.payload.answer, /no evaluado.*no puede interpretarse como calidad perfecta/i);
+  assert.match(res.payload.answer, /no se calcula un score sintético/i);
+  assert.match(res.payload.answer, /no informa una fecha de corte propia/i);
+  assert.ok(res.payload.data.limits.some((limit) => /excluye filas, identificadores y valores observados/i.test(limit)));
+  const serialized = JSON.stringify(res.payload.data);
+  assert.doesNotMatch(serialized, /importLineage|observedValue|issueId|sourceId|"list"/i);
+});
+
+test('acepta el alias de dependencia qualityoverview sin consultar un recurso alternativo', async () => {
+  let calls = 0;
+  const endpoint = createInternalAssistantHandler({
+    requireInternalSession: () => ({ id: 'user-quality' }),
+    getInternalSql: async () => ({ query: async () => [] }),
+    qualityoverview: async () => { calls += 1; return quality; },
+    env: {},
+  });
+  const res = responseRecorder();
+  await endpoint({
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: { intent: 'quality_analysis' },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.issues.total, 37);
+  assert.equal(calls, 1);
+});
+
+test('calidad externa recibe sólo totals, dominios, crosswalk y trackingStatus agregados', async () => {
+  let request;
+  const trapped = JSON.parse(JSON.stringify(quality));
+  trapped.payload.data.breakdowns.importLineage = [{ sourceId: 'source-secret', fileName: 'backup-personas.zip' }];
+  trapped.payload.data.breakdowns.list = [{ issueId: 91, observedValue: 'PERSONA LOCAL', canonicalId: 'canonical-secret' }];
+  const res = await post(
+    { intent: 'quality_analysis', message: 'Analizá el issue de PERSONA LOCAL', enhance: true },
+    {
+      qualityOverview: async () => trapped,
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: async (url, options) => {
+        request = { url, options };
+        return {
+          ok: true,
+          async json() {
+            return { output_text: 'La cobertura de PERSONAS figura como no evaluada; no equivale a calidad perfecta.' };
+          },
+        };
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.provider.provider, 'openai');
+  assert.equal(res.payload.provider.status, 'used');
+  assert.equal(request.url, 'https://api.openai.com/v1/responses');
+  const providerBody = JSON.parse(request.options.body);
+  assert.equal(providerBody.store, false);
+  assert.match(providerBody.input, /"totals"/);
+  assert.match(providerBody.input, /"domains"/);
+  assert.match(providerBody.input, /"crosswalk"/);
+  assert.match(providerBody.input, /"trackingStatuses"/);
+  assert.match(providerBody.input, /controls_not_materialized/);
+  assert.doesNotMatch(providerBody.input, /PERSONA LOCAL|source-secret|backup-personas|canonical-secret/i);
+  assert.doesNotMatch(providerBody.input, /importLineage|observedValue|issueId|sourceId|canonicalId|"list"|"issues"/i);
+  assert.doesNotMatch(providerBody.input, /Analizá el issue/i, 'no debe enviar el mensaje crudo');
+  assert.equal(res.payload.privacy.rawUserMessageSentExternally, false);
+  assert.equal(Object.hasOwn(res.payload.data, 'score'), false);
+  assert.equal(res.payload.asOf, null);
+});
+
+test('la proyección externa de dotación conserva sólo estado y conteo', async () => {
+  let providerBody;
+  const trapped = JSON.parse(JSON.stringify(integration));
+  trapped.workforceControl.stateBreakdown.rows[0] = {
+    ...trapped.workforceControl.stateBreakdown.rows[0],
+    source_id: 'source-secret',
+    observed_value: 'PERSONA LOCAL',
+    canonicalId: 'canonical-secret',
+  };
+
+  const res = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      integrationQuality: async () => trapped,
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: async (_url, options) => {
+        providerBody = JSON.parse(options.body);
+        return { ok: true, async json() { return { output_text: 'Lectura agregada.' }; } };
+      },
+    },
+  );
+
+  assert.equal(res.payload.provider.status, 'used');
+  assert.deepEqual(JSON.parse(providerBody.input.split('Indicadores agregados verificados:\n')[1]).controlStates[0], {
+    state: 'licencia_sin_goce',
+    records: 16,
+  });
+  assert.doesNotMatch(JSON.stringify(providerBody), /source[_-]?id|observed[_-]?value|canonical[_-]?id|PERSONA LOCAL|secret/i);
+});
+
+test('el guard de privacidad reconoce nombres sensibles en snake_case', async () => {
+  let fetchCalls = 0;
+  const trapped = JSON.parse(JSON.stringify(integration));
+  trapped.workforceControl.status = 'source_id';
+
+  const res = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      integrationQuality: async () => trapped,
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('no debe externalizar'); },
+    },
+  );
+
+  assert.equal(res.payload.provider.provider, 'local');
+  assert.equal(res.payload.provider.status, 'blocked_by_privacy_guard');
+  assert.equal(res.payload.provider.externalProviderAttempted, false);
+  assert.equal(fetchCalls, 0);
 });
 
 test('ausentismo responde sólo con agregados GRH, rango comparable y límites metodológicos', async () => {
@@ -480,6 +697,8 @@ test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fil
   assert.equal(res.payload.intent, 'executive_analysis');
   assert.deepEqual(absenceQuery, { from: '', to: '', sector: '', reasonCode: '', bucket: 'month' });
   assert.deepEqual(res.payload.data.absence.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 });
+  assert.equal(res.payload.data.quality.meta.sourceCutoff, null);
+  assert.equal(res.payload.sources.find((source) => source.relation === 'quality_overview').asOf, null);
   assert.equal('rows' in res.payload.data.absence, false);
   assert.match(res.payload.answer, /1\.559 eventos administrativos de ausencia/i);
   assert.match(res.payload.answer, /no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas/i);
@@ -546,6 +765,31 @@ test('el análisis ejecutivo declara resultado parcial cuando ausentismo no est�
   assert.equal(fetchCalls, 0);
 });
 
+test('el análisis ejecutivo conserva los demás dominios cuando Calidad Operativa falla', async () => {
+  const res = await post(
+    { intent: 'executive_analysis' },
+    {
+      qualityOverview: async () => { throw new Error('qualityoverview temporalmente no disponible'); },
+    },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.ok, true);
+  assert.equal(res.payload.data.partial, true);
+  assert.deepEqual(res.payload.data.errors, [{
+    domain: 'quality',
+    status: 503,
+    code: 'QUALITY_OVERVIEW_UNAVAILABLE',
+  }]);
+  assert.deepEqual(res.payload.data.quality, { code: 'QUALITY_OVERVIEW_UNAVAILABLE' });
+  assert.equal(res.payload.data.workforce.gap, 28);
+  assert.equal(res.payload.data.absence.summary.events, 1559);
+  assert.match(res.payload.answer, /calidad operativa no está disponible/i);
+  assert.match(res.payload.answer, /no se infirieron valores/i);
+  assert.equal(res.payload.provider.provider, 'local');
+  assert.equal(res.payload.provider.status, 'not_requested');
+});
+
 test('búsqueda y ficha nominal quedan locales aunque se solicite enhance', async () => {
   let fetchCalls = 0;
   let searchQuery;
@@ -554,7 +798,7 @@ test('búsqueda y ficha nominal quedan locales aunque se solicite enhance', asyn
     { intent: 'employee_search', search: 'PERSONA LOCAL', enhance: true },
     {
       fetch: fetchMock,
-      env: { HF_TOKEN: 'hf_test' },
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
       employees: async (_sql, req) => {
         searchQuery = req.query;
         return {
@@ -568,16 +812,177 @@ test('búsqueda y ficha nominal quedan locales aunque se solicite enhance', asyn
   assert.equal(searchQuery.search, 'PERSONA LOCAL');
   assert.equal(searchQuery.limit, '10');
   assert.equal(list.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(list.payload.provider.provider, 'local');
   assert.equal(list.payload.privacy.nominalQueries, 'local_database_only');
 
   const detail = await post(
     { intent: 'employee_detail', legajo: '42', enhance: true },
-    { fetch: fetchMock, env: { HF_TOKEN: 'hf_test' } },
+    { fetch: fetchMock, env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' } },
   );
   assert.equal(detail.statusCode, 200);
   assert.equal(detail.payload.data.data.nombre, 'PERSONA LOCAL');
   assert.equal(detail.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
   assert.equal(fetchCalls, 0);
+});
+
+test('OpenAI Responses es primario y no intenta HF cuando responde correctamente', async () => {
+  const requests = [];
+  const res = await post(
+    { intent: 'workforce_summary', message: 'Dame una lectura con PERSONA LOCAL', enhance: true },
+    {
+      env: {
+        OPENAI_API_KEY: 'openai_secret_test',
+        HF_TOKEN: 'hf_secret_test',
+        AI_ASSISTANT_MAX_TOKENS: '999',
+        AI_ASSISTANT_TIMEOUT_MS: '8000',
+        OPENAI_ASSISTANT_TIMEOUT_MS: '4000',
+      },
+      fetch: async (url, options) => {
+        requests.push({ url, options });
+        return {
+          ok: true,
+          async json() {
+            return {
+              output_text: 'La brecha operativa está reconciliada y debe seguir controlándose por estado.',
+              usage: { input_tokens: 90, output_tokens: 18, total_tokens: 108 },
+            };
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(requests.length, 1, 'HF no debe ejecutarse después de un resultado válido de OpenAI');
+  assert.equal(requests[0].url, 'https://api.openai.com/v1/responses');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer openai_secret_test');
+  const providerBody = JSON.parse(requests[0].options.body);
+  assert.equal(providerBody.model, 'gpt-5-mini');
+  assert.equal(providerBody.store, false);
+  assert.equal(providerBody.max_output_tokens, 320, 'el tope debe limitar cualquier configuración mayor');
+  assert.deepEqual(providerBody.reasoning, { effort: 'minimal' });
+  assert.match(providerBody.input, /"operationalGap":28/);
+  assert.doesNotMatch(providerBody.input, /Dame una lectura|PERSONA LOCAL/i);
+  assert.equal(res.payload.provider.provider, 'openai');
+  assert.equal(res.payload.provider.name, 'openai_responses');
+  assert.equal(res.payload.provider.status, 'used');
+  assert.equal(res.payload.provider.model, 'gpt-5-mini');
+  assert.equal(res.payload.provider.reasoningEffort, 'minimal');
+  assert.deepEqual(res.payload.provider.usage, {
+    promptTokens: 90, completionTokens: 18, totalTokens: 108, reasoningTokens: 0,
+  });
+  assert.deepEqual(res.payload.provider.attempts, [{ provider: 'openai', status: 'used', model: 'gpt-5-mini' }]);
+  assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
+  assert.equal(res.payload.provider.limits.maxOutputTokens, 320);
+  assert.equal(res.payload.provider.limits.timeoutMs, 4000);
+  assert.equal(res.payload.provider.limits.totalTimeoutMs, 8000);
+  assert.equal(res.payload.privacy.rawUserMessageSentExternally, false);
+});
+
+test('OpenAI Responses acepta texto anidado y aplica el valor predeterminado de 320 tokens', async () => {
+  let providerBody;
+  const res = await post(
+    { intent: 'integration_quality', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: async (_url, options) => {
+        providerBody = JSON.parse(options.body);
+        return {
+          ok: true,
+          async json() {
+            return { output: [{ content: [{ type: 'output_text', text: 'GRH conserva la autoridad laboral.' }] }] };
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(res.payload.provider.provider, 'openai');
+  assert.equal(res.payload.provider.status, 'used');
+  assert.equal(res.payload.insight, 'GRH conserva la autoridad laboral.');
+  assert.equal(providerBody.max_output_tokens, 320);
+  assert.deepEqual(providerBody.reasoning, { effort: 'minimal' });
+  assert.equal(res.payload.provider.limits.maxCallsPerRequest, 1);
+  assert.equal(res.payload.provider.usage, null);
+});
+
+test('una respuesta OpenAI incompleta queda explícita y no dispara un segundo proveedor', async () => {
+  const requests = [];
+  const res = await post(
+    { intent: 'quality_analysis', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url) => {
+        requests.push(url);
+        return {
+          ok: true,
+          async json() {
+            return {
+              status: 'incomplete',
+              incomplete_details: { reason: 'max_output_tokens' },
+              output_text: 'Texto parcial que no debe mostrarse.',
+              usage: {
+                input_tokens: 100,
+                output_tokens: 320,
+                total_tokens: 420,
+                output_tokens_details: { reasoning_tokens: 280 },
+              },
+            };
+          },
+        };
+      },
+    },
+  );
+
+  assert.deepEqual(requests, ['https://api.openai.com/v1/responses']);
+  assert.equal(res.payload.provider.provider, 'openai');
+  assert.equal(res.payload.provider.status, 'incomplete_max_output_tokens');
+  assert.equal(res.payload.provider.incompleteReason, 'max_output_tokens');
+  assert.equal(res.payload.provider.externalProviderAttempted, true);
+  assert.equal(res.payload.provider.externalProviderUsed, false);
+  assert.equal(res.payload.insight, null, 'no debe publicar una salida truncada');
+  assert.equal(Object.hasOwn(res.payload.provider, 'fallbackFrom'), false);
+  assert.deepEqual(res.payload.provider.attempts, [
+    { provider: 'openai', status: 'incomplete_max_output_tokens', model: 'gpt-5-mini' },
+  ]);
+  assert.deepEqual(res.payload.provider.usage, {
+    promptTokens: 100, completionTokens: 320, totalTokens: 420, reasoningTokens: 280,
+  });
+});
+
+test('una falla de OpenAI habilita un único fallback agregado a Hugging Face', async () => {
+  const requests = [];
+  const res = await post(
+    { intent: 'payroll_control', message: 'Analizá PERSONA LOCAL', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url, options) => {
+        requests.push({ url, options });
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 429 };
+        return {
+          ok: true,
+          async json() {
+            return { choices: [{ message: { content: 'La corrida abierta no es un KPI financiero publicable.' } }] };
+          },
+        };
+      },
+    },
+  );
+
+  assert.deepEqual(requests.map((request) => request.url), [
+    'https://api.openai.com/v1/responses',
+    'https://router.huggingface.co/v1/chat/completions',
+  ]);
+  assert.equal(res.payload.provider.provider, 'huggingface');
+  assert.equal(res.payload.provider.status, 'used');
+  assert.deepEqual(res.payload.provider.fallbackFrom, { provider: 'openai', status: 'upstream_rate_limited' });
+  assert.deepEqual(res.payload.provider.attempts, [
+    { provider: 'openai', status: 'upstream_rate_limited', model: 'gpt-5-mini' },
+    { provider: 'huggingface', status: 'used', model: 'openai/gpt-oss-120b:fastest' },
+  ]);
+  assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
+  const serializedRequests = JSON.stringify(requests.map((request) => JSON.parse(request.options.body)));
+  assert.doesNotMatch(serializedRequests, /PERSONA LOCAL|Analizá PERSONA/i);
 });
 
 test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', async () => {
@@ -606,6 +1011,7 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
     },
   );
   assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.provider.provider, 'huggingface');
   assert.equal(res.payload.provider.status, 'used');
   assert.equal(res.payload.insight, 'La brecha está reconciliada; corresponde mantener el control por estado.');
   assert.equal(request.url, 'https://router.huggingface.co/v1/chat/completions');
@@ -636,12 +1042,14 @@ test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurad
     },
   );
   assert.equal(res.payload.mode, 'hybrid');
+  assert.equal(res.payload.provider.provider, 'huggingface');
   assert.equal(providerBody.model, 'openai/gpt-oss-120b:fastest');
 });
 
 test('una caída o falta de configuración de HF no rompe la respuesta local', async () => {
   const missing = await post({ intent: 'workforce_summary', enhance: true });
   assert.equal(missing.statusCode, 200);
+  assert.equal(missing.payload.provider.provider, 'local');
   assert.equal(missing.payload.provider.status, 'not_configured');
   assert.equal(missing.payload.data.gap, 28);
 
@@ -653,6 +1061,7 @@ test('una caída o falta de configuración de HF no rompe la respuesta local', a
     },
   );
   assert.equal(down.statusCode, 200);
+  assert.equal(down.payload.provider.provider, 'huggingface');
   assert.equal(down.payload.provider.status, 'unavailable');
   assert.equal(down.payload.provider.externalProviderAttempted, true);
   assert.equal(down.payload.provider.nominalDataSent, false);

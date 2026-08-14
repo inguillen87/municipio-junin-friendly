@@ -1226,6 +1226,437 @@ export async function absenceEvents(sql, req) {
   };
 }
 
+const QUALITY_SOURCES = new Set(['all', 'GRH', 'PERSONAS']);
+const QUALITY_SEVERITIES = new Set(['all', 'info', 'warning', 'error', 'critical']);
+const QUALITY_ENTITIES = new Set([
+  'all', 'persona', 'legajo', 'artifact:calculo', 'artifact:histocal',
+  'artifact:legamov', 'calculo_monthly'
+]);
+const QUALITY_CODES = new Set([
+  'all', 'CUIL_INVALID', 'CUIL_MISSING', 'DATE_ORDER_INVALID',
+  'DATE_OUT_OF_RANGE', 'SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH'
+]);
+const QUALITY_RESOLUTIONS = new Set(['all', 'open', 'accepted', 'corrected', 'rejected']);
+
+function qualityNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function qualityTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
+function qualityFilterError(field, allowed) {
+  return {
+    status: 400,
+    payload: {
+      ok: false,
+      code: `QUALITY_${field.toUpperCase()}_INVALID`,
+      error: `Filtro ${field} no permitido`,
+      field,
+      allowed: [...allowed]
+    }
+  };
+}
+
+function qualityIssueRequest(req) {
+  const normalized = {
+    source: boundedQueryValue(req, 'source', 32).toUpperCase() || 'all',
+    severity: boundedQueryValue(req, 'severity', 16).toLowerCase() || 'all',
+    entity: boundedQueryValue(req, 'entity', 128).toLowerCase() || 'all',
+    code: boundedQueryValue(req, 'code', 64).toUpperCase() || 'all',
+    resolution: boundedQueryValue(req, 'resolution', 24).toLowerCase() || 'all'
+  };
+  if (normalized.source === 'ALL') normalized.source = 'all';
+  if (normalized.code === 'ALL') normalized.code = 'all';
+
+  const definitions = [
+    ['source', QUALITY_SOURCES],
+    ['severity', QUALITY_SEVERITIES],
+    ['entity', QUALITY_ENTITIES],
+    ['code', QUALITY_CODES],
+    ['resolution', QUALITY_RESOLUTIONS]
+  ];
+  for (const [field, allowed] of definitions) {
+    if (!allowed.has(normalized[field])) return { error: qualityFilterError(field, allowed) };
+  }
+  return normalized;
+}
+
+function qualityIssueScope(filters) {
+  const clauses = [];
+  const values = [];
+  const columns = {
+    source: 'issue.source_system',
+    severity: 'issue.severity',
+    entity: 'issue.source_entity',
+    code: 'issue.issue_code',
+    resolution: 'issue.resolution_status'
+  };
+  for (const [field, column] of Object.entries(columns)) {
+    if (filters[field] === 'all') continue;
+    values.push(filters[field]);
+    clauses.push(`${column} = $${values.length}`);
+  }
+  return { where: clauses.length ? clauses.join(' AND ') : 'true', values };
+}
+
+/**
+ * Aggregate, non-nominal view of materialized canonical quality controls.
+ * Counts are descriptive registered issues; they are intentionally not a
+ * quality score and the PERSONAS crosswalk is reported as a separate process.
+ */
+export async function qualityOverview(sql) {
+  const [
+    [summaryRow = {}],
+    codeRows,
+    entityRows,
+    sourceRows,
+    [crosswalkRow = {}]
+  ] = await Promise.all([
+    sql.query(`
+      /* quality:overview-summary */
+      SELECT count(*)::int AS total,
+             (count(*) FILTER (WHERE issue.resolution_status = 'open'))::int AS open,
+             (count(*) FILTER (WHERE issue.resolution_status = 'accepted'))::int AS accepted,
+             (count(*) FILTER (WHERE issue.resolution_status = 'corrected'))::int AS corrected,
+             (count(*) FILTER (WHERE issue.resolution_status = 'rejected'))::int AS rejected,
+             (count(*) FILTER (WHERE issue.severity = 'info'))::int AS info,
+             (count(*) FILTER (WHERE issue.severity = 'warning'))::int AS warning,
+             (count(*) FILTER (WHERE issue.severity = 'error'))::int AS error,
+             (count(*) FILTER (WHERE issue.severity = 'critical'))::int AS critical,
+             count(DISTINCT issue_code)::int AS "distinctCodes",
+             count(DISTINCT (issue.source_system, issue.source_entity))::int AS "distinctEntities",
+             (count(*) FILTER (WHERE issue.issue_code IN (
+               'SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH'
+             )))::int AS "payrollCoherence",
+             (count(*) FILTER (WHERE issue.resolution_status = 'open' AND issue.issue_code IN (
+               'SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH'
+             )))::int AS "payrollCoherenceOpen",
+             (count(*) FILTER (WHERE issue.issue_code IN (
+               'CUIL_INVALID', 'CUIL_MISSING'
+             )))::int AS "identityCuil",
+             (count(*) FILTER (WHERE issue.resolution_status = 'open' AND issue.issue_code IN (
+               'CUIL_INVALID', 'CUIL_MISSING'
+             )))::int AS "identityCuilOpen",
+             (count(*) FILTER (WHERE issue.issue_code IN (
+               'DATE_ORDER_INVALID', 'DATE_OUT_OF_RANGE'
+             )))::int AS dates,
+             (count(*) FILTER (WHERE issue.resolution_status = 'open' AND issue.issue_code IN (
+               'DATE_ORDER_INVALID', 'DATE_OUT_OF_RANGE'
+             )))::int AS "datesOpen"
+      FROM data_quality_issue issue
+      JOIN source_import_batch batch
+        ON batch.id = issue.source_batch_id
+       AND batch.validation_state = 'published'
+    `),
+    sql.query(`
+      /* quality:overview-codes */
+      SELECT issue.source_system AS source, issue.source_entity AS entity,
+             issue.issue_code AS code, issue.severity,
+             issue.resolution_status AS resolution, count(*)::int AS issues
+      FROM data_quality_issue issue
+      JOIN source_import_batch batch
+        ON batch.id = issue.source_batch_id
+       AND batch.validation_state = 'published'
+      GROUP BY issue.source_system, issue.source_entity, issue.issue_code,
+               issue.severity, issue.resolution_status
+      ORDER BY issues DESC, source, entity, code, severity, resolution
+    `),
+    sql.query(`
+      /* quality:overview-entities */
+      SELECT issue.source_system AS source, issue.source_entity AS entity,
+             count(*)::int AS "registeredIssues",
+             (count(*) FILTER (WHERE issue.resolution_status = 'open'))::int AS "openIssues"
+      FROM data_quality_issue issue
+      JOIN source_import_batch batch
+        ON batch.id = issue.source_batch_id
+       AND batch.validation_state = 'published'
+      GROUP BY issue.source_system, issue.source_entity
+      ORDER BY "registeredIssues" DESC, source, entity
+    `),
+    sql.query(`
+      /* quality:overview-sources */
+      WITH published_sources AS (
+        SELECT DISTINCT source_system
+        FROM source_import_batch
+        WHERE validation_state = 'published'
+      ), published_issues AS (
+        SELECT issue.*
+        FROM data_quality_issue issue
+        JOIN source_import_batch batch
+          ON batch.id = issue.source_batch_id
+         AND batch.validation_state = 'published'
+      )
+      SELECT source.source_system AS source,
+             count(issue.id)::int AS "registeredIssues",
+             (count(issue.id) FILTER (WHERE issue.resolution_status = 'open'))::int AS "openIssues"
+      FROM published_sources source
+      LEFT JOIN published_issues issue ON issue.source_system = source.source_system
+      GROUP BY source.source_system
+      ORDER BY source.source_system
+    `),
+    sql.query(`
+      /* quality:overview-crosswalk */
+      SELECT count(*)::int AS total,
+             (count(*) FILTER (WHERE match_status = 'matched'))::int AS matched,
+             (count(*) FILTER (WHERE match_status = 'ambiguous'))::int AS ambiguous,
+             (count(*) FILTER (WHERE match_status = 'unmatched'))::int AS unmatched,
+             (count(*) FILTER (WHERE match_status = 'rejected'))::int AS rejected
+      FROM vw_crosswalk_persona
+      WHERE valid_to IS NULL
+    `)
+  ]);
+
+  const issues = {
+    total: qualityNumber(summaryRow.total),
+    open: qualityNumber(summaryRow.open),
+    byResolution: {
+      open: qualityNumber(summaryRow.open),
+      accepted: qualityNumber(summaryRow.accepted),
+      corrected: qualityNumber(summaryRow.corrected),
+      rejected: qualityNumber(summaryRow.rejected)
+    },
+    bySeverity: {
+      info: qualityNumber(summaryRow.info),
+      warning: qualityNumber(summaryRow.warning),
+      error: qualityNumber(summaryRow.error),
+      critical: qualityNumber(summaryRow.critical)
+    },
+    distinctCodes: qualityNumber(summaryRow.distinctCodes),
+    distinctEntities: qualityNumber(summaryRow.distinctEntities)
+  };
+  const domains = {
+    payrollCoherence: {
+      registeredIssues: qualityNumber(summaryRow.payrollCoherence),
+      openIssues: qualityNumber(summaryRow.payrollCoherenceOpen),
+      codes: ['SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH']
+    },
+    identityCuil: {
+      registeredIssues: qualityNumber(summaryRow.identityCuil),
+      openIssues: qualityNumber(summaryRow.identityCuilOpen),
+      codes: ['CUIL_INVALID', 'CUIL_MISSING']
+    },
+    dates: {
+      registeredIssues: qualityNumber(summaryRow.dates),
+      openIssues: qualityNumber(summaryRow.datesOpen),
+      codes: ['DATE_ORDER_INVALID', 'DATE_OUT_OF_RANGE']
+    }
+  };
+  const crosswalk = {
+    total: qualityNumber(crosswalkRow.total),
+    matched: qualityNumber(crosswalkRow.matched),
+    ambiguous: qualityNumber(crosswalkRow.ambiguous),
+    unmatched: qualityNumber(crosswalkRow.unmatched),
+    rejected: qualityNumber(crosswalkRow.rejected)
+  };
+  crosswalk.reconciled = crosswalk.total === (
+    crosswalk.matched + crosswalk.ambiguous + crosswalk.unmatched + crosswalk.rejected
+  );
+  const severityTotal = Object.values(issues.bySeverity).reduce((sum, value) => sum + value, 0);
+  const domainTotal = Object.values(domains).reduce((sum, domain) => sum + domain.registeredIssues, 0);
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        issues,
+        domains,
+        crosswalk,
+        reconciliation: {
+          severityTotal,
+          domainTotal,
+          totalMatchesSeverity: issues.total === severityTotal,
+          totalMatchesDomains: issues.total === domainTotal,
+          openEqualsTotal: issues.open === issues.total
+        },
+        breakdowns: {
+          codes: codeRows.map((row) => ({
+            source: row.source,
+            entity: row.entity,
+            code: row.code,
+            severity: row.severity,
+            resolution: row.resolution,
+            issues: qualityNumber(row.issues)
+          })),
+          entities: entityRows.map((row) => ({
+            source: row.source,
+            entity: row.entity,
+            registeredIssues: qualityNumber(row.registeredIssues),
+            openIssues: qualityNumber(row.openIssues)
+          })),
+          sources: sourceRows.map((row) => {
+            const registeredIssues = qualityNumber(row.registeredIssues);
+            return {
+              source: row.source,
+              registeredIssues,
+              openIssues: qualityNumber(row.openIssues),
+              trackingStatus: row.source === 'PERSONAS' && registeredIssues === 0
+                ? 'controls_not_materialized'
+                : 'materialized'
+            };
+          })
+        }
+      },
+      meta: {
+        authority: { labor: 'GRH', identityAuxiliary: 'PERSONAS' },
+        metric: 'registered_data_quality_issues',
+        crosswalkMetric: 'active_crosswalk_records',
+        containsPersonalData: false,
+        mutationAllowed: false,
+        zeroTrackedIssuesDoesNotMeanClean: true
+      }
+    }
+  };
+}
+
+/** Paginated internal queue with a deliberately narrow, non-PII projection. */
+export async function qualityIssues(sql, req) {
+  const filters = qualityIssueRequest(req);
+  if (filters.error) return filters.error;
+  const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
+  const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 50);
+  const scope = qualityIssueScope(filters);
+  const listValues = [...scope.values, limit, (page - 1) * limit];
+  const [countRows, rows] = await Promise.all([
+    sql.query(`
+      /* quality:issues-count */
+      SELECT count(*)::int AS total
+      FROM data_quality_issue issue
+      JOIN source_import_batch batch
+        ON batch.id = issue.source_batch_id
+       AND batch.validation_state = 'published'
+      WHERE ${scope.where}
+    `, scope.values),
+    sql.query(`
+      /* quality:issues-list */
+      SELECT issue.id::text AS "issueId", issue.source_system AS source,
+             issue.source_entity AS entity, issue.issue_code AS code,
+             issue.severity, issue.field_name AS field,
+             issue.resolution_status AS resolution,
+             issue.detected_at AS "detectedAt", issue.resolved_at AS "resolvedAt"
+      FROM data_quality_issue issue
+      JOIN source_import_batch batch
+        ON batch.id = issue.source_batch_id
+       AND batch.validation_state = 'published'
+      WHERE ${scope.where}
+      ORDER BY CASE issue.severity
+                 WHEN 'critical' THEN 1 WHEN 'error' THEN 2
+                 WHEN 'warning' THEN 3 ELSE 4
+               END,
+               issue.detected_at DESC, issue.id DESC
+      LIMIT $${listValues.length - 1} OFFSET $${listValues.length}
+    `, listValues)
+  ]);
+  const total = qualityNumber(countRows[0]?.total);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: rows.map((row) => ({
+        issueId: row.issueId,
+        source: row.source,
+        entity: row.entity,
+        code: row.code,
+        severity: row.severity,
+        field: row.field ?? null,
+        resolution: row.resolution,
+        detectedAt: qualityTimestamp(row.detectedAt),
+        resolvedAt: qualityTimestamp(row.resolvedAt)
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.max(1, Math.ceil(total / limit))
+      },
+      filters: {
+        source: filters.source === 'all' ? null : filters.source,
+        severity: filters.severity === 'all' ? null : filters.severity,
+        entity: filters.entity === 'all' ? null : filters.entity,
+        code: filters.code === 'all' ? null : filters.code,
+        resolution: filters.resolution === 'all' ? null : filters.resolution
+      },
+      meta: {
+        grain: 'data_quality_issue',
+        containsPersonalData: false,
+        containsSourceRecordIdentifiers: false,
+        externalSharingAllowed: false,
+        mutationAllowed: false,
+        excludedFields: [
+          'sourceBatchId', 'sourceId', 'canonicalId', 'observedValue',
+          'details', 'resolutionNote', 'rawPayload'
+        ]
+      }
+    }
+  };
+}
+
+/** Published snapshot lineage; hashes are abbreviated and no manifest is exposed. */
+export async function importLineage(sql) {
+  const rows = await sql.query(`
+    /* quality:lineage */
+    SELECT batch.source_system AS source,
+           batch.source_cutoff AS cutoff,
+           batch.recorded_at AS "loadedAt",
+           batch.validation_state AS validation,
+           batch.source_row_count AS "sourceRowCount",
+           batch.source_sha256 AS sha256,
+           count(issue.id)::int AS "trackedIssues"
+    FROM source_import_batch batch
+    LEFT JOIN data_quality_issue issue ON issue.source_batch_id = batch.id
+    WHERE batch.validation_state = 'published'
+    GROUP BY batch.id, batch.source_system, batch.source_cutoff,
+             batch.recorded_at, batch.validation_state,
+             batch.source_row_count, batch.source_sha256
+    ORDER BY batch.source_system, batch.source_cutoff DESC
+  `);
+  const batches = rows.map((row) => {
+    const sourceRowCount = row.sourceRowCount === null || row.sourceRowCount === undefined
+      ? null
+      : qualityNumber(row.sourceRowCount);
+    const trackedIssues = qualityNumber(row.trackedIssues);
+    return {
+      source: row.source,
+      cutoff: qualityTimestamp(row.cutoff),
+      loadedAt: qualityTimestamp(row.loadedAt),
+      validation: row.validation,
+      sourceRowCount,
+      sourceRowCountStatus: sourceRowCount === null ? 'not_reported' : 'reported',
+      sha256Prefix: String(row.sha256 ?? '').trim().slice(0, 12) || null,
+      trackedIssues,
+      trackedIssuesStatus: row.source === 'PERSONAS' && trackedIssues === 0
+        ? 'controls_not_materialized'
+        : 'materialized'
+    };
+  });
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: batches,
+      summary: {
+        publishedBatches: batches.length,
+        reportedRowCounts: batches.filter((row) => row.sourceRowCountStatus === 'reported').length,
+        notReportedRowCounts: batches.filter((row) => row.sourceRowCountStatus === 'not_reported').length
+      },
+      meta: {
+        grain: 'source_import_batch',
+        snapshotMode: true,
+        liveSynchronization: false,
+        zeroTrackedIssuesDoesNotMeanClean: true,
+        hashRepresentation: 'sha256_first_12_hex_characters',
+        excludedFields: ['batchId', 'sourceFileName', 'manifest', 'fullSha256']
+      }
+    }
+  };
+}
+
 const DIRECTORY_STATUS = new Set([
   'all', 'active', 'administrative_active', 'liquidable', 'gap',
   'inactive', 'state_error', 'unknown'
@@ -1779,6 +2210,18 @@ export default async function handler(req, res) {
     }
     if (resource === 'absenceevents') {
       const result = await absenceEvents(sql, req);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'qualityoverview') {
+      const result = await qualityOverview(sql);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'qualityissues') {
+      const result = await qualityIssues(sql, req);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'importlineage') {
+      const result = await importLineage(sql);
       return send(res, result.status, result.payload);
     }
     if (resource === 'employees') {

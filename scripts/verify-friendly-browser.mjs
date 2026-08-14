@@ -320,6 +320,14 @@ async function verifyAnonymousInternal() {
     ));
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion de ausentismo anonimo');
+
+    await page.goto(`${baseUrl}/calidad-operativa`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'calidad-operativa.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de calidad anonima');
   } finally {
     await context.close();
   }
@@ -430,6 +438,58 @@ async function verifyAuthenticatedInternal() {
     assert.equal(new URL(page.url()).searchParams.get('to'), absenceUrl.searchParams.get('to'));
     await assertPageHealthy(page, 'Regreso a ausentismo con contexto');
 
+    const qualityResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=qualityoverview`);
+    assert.equal(qualityResponse.status(), 200, 'Calidad agregada debe aceptar la sesión interna');
+    const qualityPayload = await qualityResponse.json();
+    assert.deepEqual(qualityPayload.data.issues.bySeverity, {
+      info: 0, warning: 581, error: 8, critical: 0,
+    });
+    assert.equal(qualityPayload.data.issues.total, 589);
+    assert.equal(qualityPayload.data.issues.open, 589);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(qualityPayload.data.domains).map(([key, value]) => [key, value.registeredIssues])),
+      { payrollCoherence: 556, identityCuil: 25, dates: 8 },
+    );
+    assert.deepEqual(qualityPayload.data.crosswalk, {
+      total: 2349, matched: 1699, ambiguous: 157, unmatched: 493, rejected: 0, reconciled: true,
+    });
+
+    const qualityIssuesResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=qualityissues&severity=error&limit=50`);
+    assert.equal(qualityIssuesResponse.status(), 200);
+    const qualityIssuesPayload = await qualityIssuesResponse.json();
+    assert.equal(qualityIssuesPayload.pagination.total, 8);
+    assert.equal(qualityIssuesPayload.data.length, 8);
+    assert.equal(qualityIssuesPayload.data.every((row) => row.severity === 'error'), true);
+    assert.doesNotMatch(JSON.stringify(qualityIssuesPayload.data), /"(?:observedValue|sourceId|canonicalId|details|resolutionNote|dni|cuil|name|nombre)"\s*:/i);
+
+    const lineageResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=importlineage`);
+    assert.equal(lineageResponse.status(), 200);
+    const lineagePayload = await lineageResponse.json();
+    assert.equal(lineagePayload.summary.publishedBatches, 2);
+    const grhLineage = lineagePayload.data.find((row) => row.source === 'GRH');
+    const personasLineage = lineagePayload.data.find((row) => row.source === 'PERSONAS');
+    assert.equal(grhLineage.sourceRowCount, null);
+    assert.equal(grhLineage.sourceRowCountStatus, 'not_reported');
+    assert.equal(personasLineage.sourceRowCount, 96777);
+    assert.equal(personasLineage.trackedIssuesStatus, 'controls_not_materialized');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${baseUrl}/calidad-operativa`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainContent:not([hidden])');
+    await page.waitForFunction(() => /589/.test(document.querySelector('#registeredValue')?.textContent || ''));
+    assert.match(await page.locator('#warningValue').innerText(), /581/);
+    assert.match(await page.locator('#errorValue').innerText(), /8/);
+    assert.match(await page.locator('#sourceChip').innerText(), /GRH.*PERSONAS|PERSONAS.*GRH/i);
+    assert.match(await page.locator('#lineageRows').innerText(), /No informado/i, 'GRH nulo no debe mostrarse como cero');
+    assert.match(await page.locator('#domainGrid').innerText(), /no evaluado|no están materializados|no equivale a calidad perfecta/i);
+    await page.locator('#severitySelect').selectOption('error');
+    await page.locator('#filterForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction(() => /^8\s/.test(document.querySelector('#resultCount')?.textContent || ''));
+    assert.equal(await page.locator('#issueRows tr').count(), 8);
+    await assertPageHealthy(page, 'Calidad operativa desktop');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await assertPageHealthy(page, 'Calidad operativa mobile');
+
     await page.goto(`${baseUrl}/asistente`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
     await page.locator('#messageInput').fill('Cual es la brecha de dotacion?');
@@ -449,9 +509,18 @@ async function verifyAuthenticatedInternal() {
     assert.match(absenceAssistantText, /no constituyen una tasa|no jornadas perdidas/i);
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /grh_absences|GRH/i);
 
-    await page.locator('#messageInput').fill('Soy nuevo, por donde empiezo?');
+    await page.locator('#messageInput').fill('Analiza la calidad operativa por severidad y dominio');
     await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
     await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 3);
+    const qualityAssistantText = await page.locator('.message.assistant .answer-text').last().innerText();
+    assert.match(qualityAssistantText, /589/);
+    assert.match(qualityAssistantText, /581/);
+    assert.match(qualityAssistantText, /no evaluado.*no puede interpretarse como calidad perfecta/i);
+    assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH|PERSONAS/i);
+
+    await page.locator('#messageInput').fill('Soy nuevo, por donde empiezo?');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 4);
     const guidanceText = await page.locator('.message.assistant .answer-text').last().innerText();
     assert.match(guidanceText, /Personas|Estructura|Ayuda/i, 'El asistente debe orientar la navegacion');
     assert.ok(await page.locator('.message.assistant .answer-links').last().count(), 'La orientación debe ofrecer un acceso navegable');
@@ -495,7 +564,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + ficha + IA + onboarding; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + calidad + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

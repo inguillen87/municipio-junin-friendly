@@ -1,5 +1,6 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
+import * as internalData from './internal-data.js';
 import {
   absenceAnalytics,
   employee,
@@ -19,17 +20,23 @@ const MAX_BODY_BYTES = 12 * 1024;
 const MAX_MESSAGE_LENGTH = 1_200;
 const MAX_SEARCH_LENGTH = 100;
 const MAX_PROVIDER_OUTPUT_CHARS = 4_000;
+const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
+const DEFAULT_OPENAI_REASONING_EFFORT = 'minimal';
+const DEFAULT_OPENAI_TIMEOUT_MS = 4_000;
 const HF_ROUTER_URL = 'https://router.huggingface.co/v1/chat/completions';
 const DEFAULT_HF_MODEL = 'openai/gpt-oss-120b:fastest';
 const DEFAULT_HF_TIMEOUT_MS = 6_000;
-const DEFAULT_HF_OUTPUT_TOKENS = 220;
+const DEFAULT_AI_OUTPUT_TOKENS = 320;
 const DEFAULT_HF_CALLS_PER_WINDOW = 3;
 const DEFAULT_HF_WINDOW_MS = 60_000;
+const DEFAULT_AI_TOTAL_TIMEOUT_MS = 7_000;
 
 const INTENTS = new Set([
   'workforce_summary',
   'payroll_control',
   'integration_quality',
+  'quality_analysis',
   'absence_analysis',
   'employee_search',
   'employee_detail',
@@ -53,12 +60,14 @@ const EXTERNAL_ALLOWED_INTENTS = new Set([
   'workforce_summary',
   'payroll_control',
   'integration_quality',
+  'quality_analysis',
   'absence_analysis',
   'executive_analysis',
 ]);
 
-const EXTERNAL_FORBIDDEN_FIELDS = /\b(?:dni|cuil|nombre|apellido|legajo|domicilio|direccion|tel[eé]fono|email|contractid|sourceid)\b/i;
+const EXTERNAL_FORBIDDEN_FIELDS = /\b(?:dni|cuil|nombre|apellido|legajo|domicilio|direcci[oó]n|tel[eé]fono|email|contract[_-]?id|source[_-]?id|canonical[_-]?id|issue[_-]?id|observed[_-]?value|import[_-]?lineage)\b/i;
 const quotaByRuntime = new Map();
+const OPENAI_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -222,6 +231,7 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
+  if (/\b(?:calidad(?: de datos| operativa)?|dq-?01|hallazgos?|severidad|controles? de calidad|controles? de personas)\b/.test(message)) return 'quality_analysis';
   if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
   if (/\b(?:personas|crosswalk|integracion|coincidencia|identidad|padron)\b/.test(message)) return 'integration_quality';
@@ -339,6 +349,174 @@ function integrationResult(integration, scope) {
       { system: 'GRH', relation: 'person_identity', authority: 'canonical_identity' },
       { system: 'GRH_PERSONAS', relation: 'vw_crosswalk_persona', authority: 'identity_enrichment_only' },
     ],
+  };
+}
+
+function qualityCount(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.trunc(number) : fallback;
+}
+
+function qualityCountMap(value, allowedKeys) {
+  const output = Object.fromEntries(allowedKeys.map((key) => [key, 0]));
+  if (Array.isArray(value)) {
+    value.forEach((row) => {
+      const key = foldText(row?.severity || row?.resolutionStatus || row?.status || row?.key || row?.label)
+        .replace(/\s+/g, '_');
+      if (Object.hasOwn(output, key)) output[key] = qualityCount(row?.count ?? row?.issues ?? row?.total);
+    });
+    return output;
+  }
+  if (!value || typeof value !== 'object') return output;
+  allowedKeys.forEach((key) => {
+    const raw = value[key];
+    output[key] = qualityCount(raw && typeof raw === 'object' ? raw.count ?? raw.issues ?? raw.total : raw);
+  });
+  return output;
+}
+
+function qualityDomain(value) {
+  if (value === null || value === undefined) {
+    return { available: false, registeredIssues: 0, openIssues: 0, status: 'not_reported' };
+  }
+  if (typeof value !== 'object') {
+    return { available: true, registeredIssues: qualityCount(value), openIssues: 0, status: 'reported' };
+  }
+  return {
+    available: value.available !== false,
+    registeredIssues: qualityCount(value.registeredIssues ?? value.total ?? value.issues ?? value.issueCount ?? value.count),
+    openIssues: qualityCount(value.openIssues ?? value.open),
+    status: normalizeText(value.status || value.trackingStatus, 80) || 'reported',
+  };
+}
+
+function qualitySourceTracking(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.slice(0, 8).map((row) => ({
+    source: ['GRH', 'PERSONAS'].includes(String(row?.source || '').toUpperCase())
+      ? String(row.source).toUpperCase()
+      : 'OTHER',
+    registeredIssues: qualityCount(row?.registeredIssues),
+    openIssues: qualityCount(row?.openIssues),
+    trackingStatus: normalizeText(row?.trackingStatus, 80) || 'not_reported',
+  }));
+}
+
+function qualityReconciliation(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const allowedKeys = new Set([
+    'severityTotal',
+    'domainTotal',
+    'resolutionTotal',
+    'totalMatchesSeverity',
+    'totalMatchesDomains',
+    'totalMatchesResolution',
+    'openEqualsTotal',
+    'crosswalkMatchesTotal',
+    'severityMatchesTotal',
+    'resolutionMatchesTotal',
+    'reconciled',
+    'status',
+  ]);
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key, item]) => allowedKeys.has(key) && ['boolean', 'number', 'string'].includes(typeof item))
+    .map(([key, item]) => [key, typeof item === 'string' ? normalizeText(item, 80) : item]));
+}
+
+function qualityAnalysisResult(result) {
+  const payload = result?.payload || {};
+  const data = payload.data || {};
+  const issues = data.issues || {};
+  const sourceTracking = qualitySourceTracking(data.breakdowns?.sources);
+  const personasTracking = sourceTracking.find((source) => source.source === 'PERSONAS');
+  const personasControlsAvailable = Boolean(personasTracking
+    && !['controls_not_materialized', 'not_reported', 'unavailable'].includes(personasTracking.trackingStatus));
+  const sources = sourceTracking.map((source) => ({
+    system: source.source,
+    relation: 'quality_overview',
+    authority: source.trackingStatus,
+    asOf: null,
+  }));
+  if (!sources.some((source) => source.system === 'GRH_PERSONAS')) {
+    sources.push({ system: 'GRH_PERSONAS', relation: 'vw_crosswalk_persona', authority: 'identity_reconciliation', asOf: null });
+  }
+
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar el resumen agregado de calidad operativa.',
+      data: { code: normalizeText(payload.code, 80) || 'QUALITY_OVERVIEW_UNAVAILABLE' },
+      targetPath: '/calidad-operativa',
+      relatedSections: relatedSections(['calidad', 'integracion']),
+      asOf: null,
+      sources: sources.length > 1 ? sources : [{ system: 'MUNICONTROL', relation: 'quality_overview', authority: 'aggregate_quality_contract', asOf: null }],
+    };
+  }
+
+  const bySeverity = qualityCountMap(issues.bySeverity, ['critical', 'error', 'warning', 'info']);
+  const byResolution = qualityCountMap(issues.byResolution, ['open', 'accepted', 'corrected', 'rejected']);
+  const counts = {
+    total: qualityCount(issues.total),
+    open: qualityCount(issues.open ?? byResolution.open),
+    distinctCodes: qualityCount(issues.distinctCodes),
+    distinctEntities: qualityCount(issues.distinctEntities),
+  };
+  const domains = {
+    payrollCoherence: qualityDomain(data.domains?.payrollCoherence),
+    identityCuil: qualityDomain(data.domains?.identityCuil),
+    dates: qualityDomain(data.domains?.dates),
+  };
+  const crosswalkRaw = data.crosswalk || {};
+  const crosswalk = {
+    total: qualityCount(crosswalkRaw.total),
+    matched: qualityCount(crosswalkRaw.matched),
+    ambiguous: qualityCount(crosswalkRaw.ambiguous),
+    unmatched: qualityCount(crosswalkRaw.unmatched),
+    rejected: qualityCount(crosswalkRaw.rejected),
+    reconciled: typeof crosswalkRaw.reconciled === 'boolean'
+      ? crosswalkRaw.reconciled
+      : qualityCount(crosswalkRaw.reconciled),
+  };
+  const meta = {
+    authority: {
+      labor: normalizeText(payload.meta?.authority?.labor, 32) || 'GRH',
+      identityAuxiliary: normalizeText(payload.meta?.authority?.identityAuxiliary, 32) || 'PERSONAS',
+    },
+    metric: normalizeText(payload.meta?.metric, 80) || 'registered_quality_issues',
+    crosswalkMetric: normalizeText(payload.meta?.crosswalkMetric, 80) || 'crosswalk_decisions',
+    containsPersonalData: payload.meta?.containsPersonalData === true,
+    mutationAllowed: payload.meta?.mutationAllowed === true,
+    zeroTrackedIssuesDoesNotMeanClean: payload.meta?.zeroTrackedIssuesDoesNotMeanClean !== false,
+    sourceCutoff: null,
+  };
+  const severityText = ['critical', 'error', 'warning', 'info']
+    .map((severity) => `${severity} ${formatNumber(bySeverity[severity])}`)
+    .join(', ');
+  const personasNotice = personasControlsAvailable
+    ? 'PERSONAS informa controles materializados en este resumen.'
+    : 'PERSONAS no tiene controles materializados en este resumen: queda como no evaluado y no puede interpretarse como calidad perfecta.';
+
+  return {
+    answer: `Calidad Operativa registra ${formatNumber(counts.total)} hallazgos agregados, ${formatNumber(counts.open)} abiertos. Por severidad: ${severityText}. El crosswalk informa ${formatNumber(crosswalk.matched)} coincidencias, ${formatNumber(crosswalk.ambiguous)} ambiguas y ${formatNumber(crosswalk.unmatched)} sin coincidencia. ${personasNotice} No se calcula un score sintético y el overview no informa una fecha de corte propia.`,
+    data: {
+      status: normalizeText(data.status || payload.status, 80) || 'available',
+      issues: { ...counts, byResolution, bySeverity },
+      domains,
+      crosswalk,
+      reconciliation: qualityReconciliation(data.reconciliation),
+      sourceTracking,
+      meta,
+      limits: [
+        'No se calcula un score sintético de calidad.',
+        'Cero hallazgos registrados o controles no materializados no equivalen a calidad perfecta.',
+        'El overview no informa una fecha de corte propia; no se inventa una.',
+        'La respuesta es agregada y excluye filas, identificadores y valores observados.',
+      ],
+    },
+    targetPath: '/calidad-operativa',
+    relatedSections: relatedSections(['calidad', 'integracion', 'reportes']),
+    asOf: null,
+    sources,
   };
 }
 
@@ -504,29 +682,42 @@ function employeeDetailResult(result, scope) {
   };
 }
 
-function executiveResult(integration, payroll, scope, absence) {
+function executiveResult(integration, payroll, scope, absence, quality) {
   const workforce = workforceResult(integration, scope);
   const payrollView = payrollResult(payroll);
   const integrationView = integrationResult(integration, scope);
   const absenceView = absenceAnalysisResult(absence);
+  const qualityView = qualityAnalysisResult(quality);
   const absenceAvailable = !absenceView.status || absenceView.status === 200;
-  const partialNotice = absenceAvailable
-    ? ''
-    : ' La lectura ejecutiva es parcial: el bloque de ausentismo no está disponible y no se infirieron valores para reemplazarlo.';
+  const qualityAvailable = !qualityView.status || qualityView.status === 200;
+  const unavailableDomains = [
+    ...(!absenceAvailable ? ['ausentismo'] : []),
+    ...(!qualityAvailable ? ['calidad operativa'] : []),
+  ];
+  const partialNotice = unavailableDomains.length
+    ? ` La lectura ejecutiva es parcial: ${unavailableDomains.join(' y ')} no ${unavailableDomains.length === 1 ? 'está disponible' : 'están disponibles'} y no se infirieron valores para reemplazar ${unavailableDomains.length === 1 ? 'ese bloque' : 'esos bloques'}.`
+    : '';
+  const errors = [
+    ...(!absenceAvailable
+      ? [{ domain: 'absence', status: absenceView.status, code: absenceView.data?.code || 'ABSENCE_ANALYTICS_UNAVAILABLE' }]
+      : []),
+    ...(!qualityAvailable
+      ? [{ domain: 'quality', status: qualityView.status, code: qualityView.data?.code || 'QUALITY_OVERVIEW_UNAVAILABLE' }]
+      : []),
+  ];
   return {
-    answer: `${workforce.answer} ${payrollView.answer} ${integrationView.answer} ${absenceView.answer}${partialNotice}`,
+    answer: `${workforce.answer} ${payrollView.answer} ${integrationView.answer} ${absenceView.answer} ${qualityView.answer}${partialNotice}`,
     data: {
       workforce: workforce.data,
       payroll: payrollView.data,
       integration: integrationView.data,
       absence: absenceView.data,
-      partial: !absenceAvailable,
-      errors: absenceAvailable
-        ? []
-        : [{ domain: 'absence', status: absenceView.status, code: absenceView.data?.code || 'ABSENCE_ANALYTICS_UNAVAILABLE' }],
+      quality: qualityView.data,
+      partial: unavailableDomains.length > 0,
+      errors,
     },
-    asOf: workforce.asOf || payrollView.asOf || integrationView.asOf || absenceView.asOf,
-    sources: [...workforce.sources, ...payrollView.sources, ...integrationView.sources, ...absenceView.sources],
+    asOf: workforce.asOf || payrollView.asOf || integrationView.asOf || absenceView.asOf || qualityView.asOf,
+    sources: [...workforce.sources, ...payrollView.sources, ...integrationView.sources, ...absenceView.sources, ...qualityView.sources],
   };
 }
 
@@ -656,13 +847,19 @@ function productGuidanceResult(intent, body) {
 
 function providerFacts(intent, data) {
   if (intent === 'workforce_summary') {
+    const controlStates = (Array.isArray(data.gapBreakdown) ? data.gapBreakdown : [])
+      .slice(0, 20)
+      .map((row) => ({
+        state: normalizeText(row?.state, 80) || 'sin_clasificar',
+        records: qualityCount(row?.records),
+      }));
     return {
       historicalEmploymentRecords: data.totalContracts,
       canonicalPeople: data.totalPeople,
       administrativeActive: data.administrativeActive,
       includedInOperationalRun: data.liquidable,
       operationalGap: data.gap,
-      controlStates: data.gapBreakdown,
+      controlStates,
       reconciliationStatus: data.status,
     };
   }
@@ -698,6 +895,46 @@ function providerFacts(intent, data) {
         unmatched: data.crosswalk.unmatched,
         total: data.crosswalk.total,
         coveragePct: data.crosswalk.coveragePct,
+      },
+    };
+  }
+  if (intent === 'quality_analysis') {
+    if (!data?.issues || !data?.domains || !data?.crosswalk) return { available: false };
+    const domainFacts = (domain) => ({
+      available: domain?.available === true,
+      registered: qualityCount(domain?.registeredIssues),
+      open: qualityCount(domain?.openIssues),
+      status: normalizeText(domain?.status, 80),
+    });
+    return {
+      available: true,
+      totals: {
+        registered: qualityCount(data.issues.total),
+        open: qualityCount(data.issues.open),
+        distinctCodes: qualityCount(data.issues.distinctCodes),
+        distinctEntities: qualityCount(data.issues.distinctEntities),
+        bySeverity: qualityCountMap(data.issues.bySeverity, ['critical', 'error', 'warning', 'info']),
+      },
+      domains: {
+        payrollCoherence: domainFacts(data.domains.payrollCoherence),
+        identityCuil: domainFacts(data.domains.identityCuil),
+        dates: domainFacts(data.domains.dates),
+      },
+      crosswalk: {
+        total: qualityCount(data.crosswalk.total),
+        matched: qualityCount(data.crosswalk.matched),
+        ambiguous: qualityCount(data.crosswalk.ambiguous),
+        unmatched: qualityCount(data.crosswalk.unmatched),
+        rejected: qualityCount(data.crosswalk.rejected),
+        reconciled: data.crosswalk.reconciled,
+      },
+      trackingStatuses: Object.fromEntries((Array.isArray(data.sourceTracking) ? data.sourceTracking : [])
+        .filter((source) => ['GRH', 'PERSONAS'].includes(source?.source))
+        .map((source) => [source.source, normalizeText(source.trackingStatus, 80)])),
+      constraints: {
+        compositeMetricAvailable: false,
+        sourceCutoffAvailable: false,
+        zeroTrackedDoesNotMeanClean: data.meta?.zeroTrackedIssuesDoesNotMeanClean !== false,
       },
     };
   }
@@ -740,14 +977,15 @@ function providerFacts(intent, data) {
       payroll: providerFacts('payroll_control', data.payroll),
       integration: providerFacts('integration_quality', data.integration),
       absence: providerFacts('absence_analysis', data.absence),
+      quality: providerFacts('quality_analysis', data.quality),
     };
   }
   return null;
 }
 
 function consumeRuntimeQuota(key, env, now, quotaStore) {
-  const limit = boundedInteger(env.HF_ASSISTANT_CALLS_PER_WINDOW, DEFAULT_HF_CALLS_PER_WINDOW, 1, 10);
-  const windowMs = boundedInteger(env.HF_ASSISTANT_WINDOW_MS, DEFAULT_HF_WINDOW_MS, 10_000, 3_600_000);
+  const limit = boundedInteger(env.AI_ASSISTANT_CALLS_PER_WINDOW ?? env.HF_ASSISTANT_CALLS_PER_WINDOW, DEFAULT_HF_CALLS_PER_WINDOW, 1, 10);
+  const windowMs = boundedInteger(env.AI_ASSISTANT_WINDOW_MS ?? env.HF_ASSISTANT_WINDOW_MS, DEFAULT_HF_WINDOW_MS, 10_000, 3_600_000);
   const previous = quotaStore.get(key);
   if (!previous || now - previous.startedAt >= windowMs) {
     quotaStore.set(key, { startedAt: now, calls: 1 });
@@ -758,13 +996,21 @@ function consumeRuntimeQuota(key, env, now, quotaStore) {
   return { allowed: true, limit, windowMs };
 }
 
-function providerStatus(status, extra = {}) {
+function providerStatus(provider, status, extra = {}) {
   const externalProviderAttempted = new Set([
-    'used', 'upstream_rate_limited', 'unavailable', 'invalid_response', 'timeout',
-  ]).has(status);
+    'used', 'upstream_rate_limited', 'unavailable', 'invalid_response', 'timeout', 'error',
+    'incomplete', 'incomplete_max_output_tokens',
+  ]).has(status) && provider !== 'local';
   return {
-    name: 'huggingface_router',
+    provider,
+    name: {
+      openai: 'openai_responses',
+      huggingface: 'huggingface_router',
+      local: 'local',
+    }[provider] || 'local',
     status,
+    model: null,
+    usage: null,
     externalProviderAttempted,
     externalProviderUsed: status === 'used',
     nominalDataSent: false,
@@ -772,47 +1018,121 @@ function providerStatus(status, extra = {}) {
   };
 }
 
-async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
-  if (GUIDANCE_INTENTS.has(intent)) return providerStatus('not_allowed_for_product_guidance');
-  if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('not_allowed_for_nominal_or_unknown_intent');
-  const absenceAffectedContracts = intent === 'absence_analysis'
-    ? Number(data?.summary?.affectedContracts || 0)
-    : intent === 'executive_analysis'
-      ? Number(data?.absence?.summary?.affectedContracts || 0)
-      : null;
-  if (absenceAffectedContracts !== null && absenceAffectedContracts < 5) {
-    return providerStatus('suppressed_small_cohort', { minimumAffectedContracts: 5 });
-  }
-  const token = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
-  if (!token) return providerStatus('not_configured');
-
-  const facts = providerFacts(intent, data);
-  const serializedFacts = JSON.stringify(facts);
-  if (!facts || EXTERNAL_FORBIDDEN_FIELDS.test(serializedFacts)) {
-    return providerStatus('blocked_by_privacy_guard');
-  }
-
-  const quota = consumeRuntimeQuota(String(session.id || session.email), env, now(), quotaStore);
-  if (!quota.allowed) {
-    return providerStatus('runtime_rate_limited', {
-      limit: quota.limit,
-      windowSeconds: Math.round(quota.windowMs / 1000),
-    });
-  }
-
-  const model = normalizeText(env.HF_MODEL, 160) || DEFAULT_HF_MODEL;
-  const timeoutMs = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 8_000);
-  const maxTokens = boundedInteger(env.HF_ASSISTANT_MAX_TOKENS, DEFAULT_HF_OUTPUT_TOKENS, 64, 320);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const topic = {
+function aggregateInsightTopic(intent) {
+  return {
     workforce_summary: 'Explicá el control agregado de dotación y su brecha operativa.',
     payroll_control: 'Explicá el estado agregado de nómina, distinguiendo cerrado publicable de abierto no publicable.',
     integration_quality: 'Explicá la calidad de integración: GRH manda en lo laboral y PERSONAS sólo enriquece identidad y territorio.',
+    quality_analysis: 'Explicá los hallazgos agregados de calidad por severidad, dominio, crosswalk y estado de seguimiento. No inventes un score ni una fecha de corte. Controles PERSONAS no materializados significa no evaluado, no calidad perfecta.',
     absence_analysis: 'Explicá los eventos administrativos de ausencia, su comparación homogénea y sus límites metodológicos. No los conviertas en tasa, presentismo, productividad ni jornadas perdidas.',
-    executive_analysis: 'Redactá una lectura ejecutiva breve de dotación, nómina, integración y ausentismo. Priorizá controles accionables, no inventes causas y no conviertas eventos de ausencia en tasas, presentismo, productividad ni jornadas perdidas.',
+    executive_analysis: 'Redactá una lectura ejecutiva breve de dotación, nómina, integración, ausentismo y calidad operativa. Priorizá controles accionables, no inventes causas, score ni fecha de corte, y no conviertas eventos de ausencia en tasas, presentismo, productividad ni jornadas perdidas.',
   }[intent];
+}
 
+const AGGREGATE_SYSTEM_INSTRUCTION = 'Sos un asistente de control municipal. Recibís sólo indicadores agregados verificados. Respondé en español claro, en hasta 130 palabras. No inventes datos, personas, causas, permisos, scores, cortes ni conclusiones financieras. Diferenciá dato, control y limitación.';
+
+function openAIOutputText(payload) {
+  const direct = normalizeText(payload?.output_text, MAX_PROVIDER_OUTPUT_CHARS);
+  if (direct) return direct;
+  for (const item of Array.isArray(payload?.output) ? payload.output : []) {
+    for (const content of Array.isArray(item?.content) ? item.content : []) {
+      const text = normalizeText(
+        typeof content?.text === 'string' ? content.text : content?.text?.value,
+        MAX_PROVIDER_OUTPUT_CHARS,
+      );
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function openAIUsage(payload) {
+  if (!payload?.usage) return null;
+  return {
+    promptTokens: Number(payload.usage.input_tokens || 0),
+    completionTokens: Number(payload.usage.output_tokens || 0),
+    totalTokens: Number(payload.usage.total_tokens || 0),
+    reasoningTokens: Number(payload.usage.output_tokens_details?.reasoning_tokens || 0),
+  };
+}
+
+function openAIReasoningEffort(model, env) {
+  const configured = normalizeText(env.OPENAI_REASONING_EFFORT, 16).toLowerCase();
+  if (OPENAI_REASONING_EFFORTS.has(configured)) return configured;
+  return /^gpt-5-mini(?:-|$)/i.test(model) ? DEFAULT_OPENAI_REASONING_EFFORT : null;
+}
+
+async function requestOpenAIInsight({
+  token,
+  model,
+  reasoningEffort,
+  topic,
+  serializedFacts,
+  maxTokens,
+  timeoutMs,
+  fetchImpl,
+}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(OPENAI_RESPONSES_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        instructions: AGGREGATE_SYSTEM_INSTRUCTION,
+        input: `${topic}\nIndicadores agregados verificados:\n${serializedFacts}`,
+        store: false,
+        max_output_tokens: maxTokens,
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const status = response.status === 429
+        ? 'upstream_rate_limited'
+        : response.status === 408
+          ? 'timeout'
+          : response.status >= 500
+            ? 'unavailable'
+            : 'error';
+      return providerStatus('openai', status, { model, reasoningEffort });
+    }
+    const payload = await response.json();
+    const usage = openAIUsage(payload);
+    if (payload?.status === 'incomplete') {
+      const incompleteReason = normalizeText(payload?.incomplete_details?.reason, 80) || 'unknown';
+      return providerStatus(
+        'openai',
+        incompleteReason === 'max_output_tokens' ? 'incomplete_max_output_tokens' : 'incomplete',
+        { model, reasoningEffort, usage, incompleteReason },
+      );
+    }
+    const insight = openAIOutputText(payload);
+    if (!insight) return providerStatus('openai', 'invalid_response', { model, reasoningEffort, usage });
+    return providerStatus('openai', 'used', {
+      model,
+      reasoningEffort,
+      insight,
+      usage,
+    });
+  } catch (error) {
+    return providerStatus(
+      'openai',
+      error?.name === 'AbortError' ? 'timeout' : 'unavailable',
+      { model, reasoningEffort },
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function requestHuggingFaceInsight({ token, model, topic, serializedFacts, maxTokens, timeoutMs, fetchImpl }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(HF_ROUTER_URL, {
       method: 'POST',
@@ -823,14 +1143,8 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
       body: JSON.stringify({
         model,
         messages: [
-          {
-            role: 'system',
-            content: 'Sos un asistente de control municipal. Recibís sólo indicadores agregados. Respondé en español claro, en hasta 130 palabras. No inventes datos, personas, causas ni conclusiones financieras. Diferenciá dato, control y limitación.',
-          },
-          {
-            role: 'user',
-            content: `${topic}\nIndicadores agregados verificados:\n${serializedFacts}`,
-          },
+          { role: 'system', content: AGGREGATE_SYSTEM_INSTRUCTION },
+          { role: 'user', content: `${topic}\nIndicadores agregados verificados:\n${serializedFacts}` },
         ],
         max_tokens: maxTokens,
         temperature: 0.2,
@@ -839,12 +1153,12 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
       signal: controller.signal,
     });
     if (!response.ok) {
-      return providerStatus(response.status === 429 ? 'upstream_rate_limited' : 'unavailable', { model });
+      return providerStatus('huggingface', response.status === 429 ? 'upstream_rate_limited' : 'unavailable', { model });
     }
     const payload = await response.json();
     const insight = normalizeText(payload?.choices?.[0]?.message?.content, MAX_PROVIDER_OUTPUT_CHARS);
-    if (!insight) return providerStatus('invalid_response', { model });
-    return providerStatus('used', {
+    if (!insight) return providerStatus('huggingface', 'invalid_response', { model });
+    return providerStatus('huggingface', 'used', {
       model,
       insight,
       usage: payload?.usage ? {
@@ -852,19 +1166,123 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
         completionTokens: Number(payload.usage.completion_tokens || 0),
         totalTokens: Number(payload.usage.total_tokens || 0),
       } : null,
-      limits: {
-        maxCallsPerRequest: 1,
-        maxOutputTokens: maxTokens,
-        timeoutMs,
-        runtimeCallsPerWindow: quota.limit,
-        runtimeWindowSeconds: Math.round(quota.windowMs / 1000),
-      },
     });
   } catch (error) {
-    return providerStatus(error?.name === 'AbortError' ? 'timeout' : 'unavailable', { model });
+    return providerStatus('huggingface', error?.name === 'AbortError' ? 'timeout' : 'unavailable', { model });
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function providerAttempt(result) {
+  return { provider: result.provider, status: result.status, model: result.model || null };
+}
+
+async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
+  if (GUIDANCE_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_product_guidance');
+  if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_nominal_or_unknown_intent');
+  const absenceAffectedContracts = intent === 'absence_analysis'
+    ? Number(data?.summary?.affectedContracts || 0)
+    : intent === 'executive_analysis'
+      ? Number(data?.absence?.summary?.affectedContracts || 0)
+      : null;
+  if (absenceAffectedContracts !== null && absenceAffectedContracts < 5) {
+    return providerStatus('local', 'suppressed_small_cohort', { minimumAffectedContracts: 5 });
+  }
+
+  const facts = providerFacts(intent, data);
+  const serializedFacts = JSON.stringify(facts);
+  if (!facts || EXTERNAL_FORBIDDEN_FIELDS.test(serializedFacts)) {
+    return providerStatus('local', 'blocked_by_privacy_guard');
+  }
+
+  const openAIToken = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY.trim() : '';
+  const hfToken = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
+  if (!openAIToken && !hfToken) return providerStatus('local', 'not_configured');
+
+  const quota = consumeRuntimeQuota(String(session.id || session.email), env, now(), quotaStore);
+  if (!quota.allowed) {
+    return providerStatus('local', 'runtime_rate_limited', {
+      limit: quota.limit,
+      windowSeconds: Math.round(quota.windowMs / 1000),
+    });
+  }
+
+  const topic = aggregateInsightTopic(intent);
+  const openAIModel = normalizeText(env.OPENAI_MODEL, 160) || DEFAULT_OPENAI_MODEL;
+  const reasoningEffort = openAIReasoningEffort(openAIModel, env);
+  const hfModel = normalizeText(env.HF_MODEL, 160) || DEFAULT_HF_MODEL;
+  const maxTokens = boundedInteger(
+    env.AI_ASSISTANT_MAX_TOKENS ?? env.OPENAI_ASSISTANT_MAX_TOKENS ?? env.HF_ASSISTANT_MAX_TOKENS,
+    DEFAULT_AI_OUTPUT_TOKENS,
+    64,
+    320,
+  );
+  const totalTimeoutMs = boundedInteger(env.AI_ASSISTANT_TIMEOUT_MS, DEFAULT_AI_TOTAL_TIMEOUT_MS, 2_000, 8_000);
+  const openAIRequestedTimeout = boundedInteger(env.OPENAI_ASSISTANT_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS, 1_000, 8_000);
+  const hfRequestedTimeout = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 8_000);
+  const openAITimeoutMs = openAIToken && hfToken
+    ? Math.min(openAIRequestedTimeout, Math.max(1_000, totalTimeoutMs - 1_000))
+    : Math.min(openAIRequestedTimeout, totalTimeoutMs);
+  const hfTimeoutMs = openAIToken && hfToken
+    ? Math.min(hfRequestedTimeout, Math.max(1_000, totalTimeoutMs - openAITimeoutMs))
+    : Math.min(hfRequestedTimeout, totalTimeoutMs);
+  const maxCallsPerRequest = Number(Boolean(openAIToken)) + Number(Boolean(hfToken));
+  const commonLimits = {
+    maxCallsPerRequest,
+    maxOutputTokens: maxTokens,
+    totalTimeoutMs,
+    runtimeCallsPerWindow: quota.limit,
+    runtimeWindowSeconds: Math.round(quota.windowMs / 1000),
+  };
+  const attempts = [];
+  let openAIResult = null;
+
+  if (openAIToken) {
+    openAIResult = await requestOpenAIInsight({
+      token: openAIToken,
+      model: openAIModel,
+      reasoningEffort,
+      topic,
+      serializedFacts,
+      maxTokens,
+      timeoutMs: openAITimeoutMs,
+      fetchImpl,
+    });
+    attempts.push(providerAttempt(openAIResult));
+    if (openAIResult.status === 'used' || openAIResult.status.startsWith('incomplete')) {
+      return {
+        ...openAIResult,
+        attempts,
+        limits: { ...commonLimits, timeoutMs: openAITimeoutMs },
+      };
+    }
+  }
+
+  if (hfToken) {
+    const hfResult = await requestHuggingFaceInsight({
+      token: hfToken,
+      model: hfModel,
+      topic,
+      serializedFacts,
+      maxTokens,
+      timeoutMs: hfTimeoutMs,
+      fetchImpl,
+    });
+    attempts.push(providerAttempt(hfResult));
+    return {
+      ...hfResult,
+      attempts,
+      ...(openAIResult ? { fallbackFrom: { provider: 'openai', status: openAIResult.status } } : {}),
+      limits: { ...commonLimits, timeoutMs: hfTimeoutMs },
+    };
+  }
+
+  return {
+    ...openAIResult,
+    attempts,
+    limits: { ...commonLimits, timeoutMs: openAITimeoutMs },
+  };
 }
 
 function capabilitiesPayload() {
@@ -875,6 +1293,7 @@ function capabilitiesPayload() {
       { intent: 'workforce_summary', externalEnhancement: true },
       { intent: 'payroll_control', externalEnhancement: true },
       { intent: 'integration_quality', externalEnhancement: true },
+      { intent: 'quality_analysis', externalEnhancement: true },
       { intent: 'absence_analysis', externalEnhancement: true },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
@@ -889,9 +1308,15 @@ function capabilitiesPayload() {
       sections: SECTION_CATALOG.map(({ id, label, targetPath }) => ({ id, label, targetPath })),
       policy: 'verified_product_catalog_only',
     },
+    providerPolicy: {
+      primary: 'openai',
+      fallback: 'huggingface',
+      localDeterministicFallback: true,
+      maximumExternalAttemptsPerRequest: 2,
+    },
     privacy: {
       nominalQueries: 'local_database_only',
-      externalProvider: 'aggregate_verified_facts_only',
+      externalProvider: 'aggregate_verified_facts_only_openai_then_huggingface',
       rawUserMessageSentExternally: false,
     },
   };
@@ -903,6 +1328,14 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadIntegration = dependencies.integrationQuality ?? integrationQuality;
   const loadPayroll = dependencies.payrollControl ?? payrollControl;
   const loadAbsence = dependencies.absenceAnalytics ?? absenceAnalytics;
+  const loadQuality = dependencies.qualityOverview
+    ?? dependencies.qualityoverview
+    ?? internalData.qualityOverview
+    ?? internalData.qualityoverview
+    ?? (async () => ({
+      status: 503,
+      payload: { ok: false, code: 'QUALITY_OVERVIEW_UNAVAILABLE', error: 'Calidad Operativa todavía no está disponible.' },
+    }));
   const searchEmployees = dependencies.employees ?? employees;
   const loadEmployee = dependencies.employee ?? employee;
   const loadScope = dependencies.canonicalScope ?? canonicalScope;
@@ -947,6 +1380,8 @@ export function createInternalAssistantHandler(dependencies = {}) {
         } else if (intent === 'integration_quality') {
           const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
           result = integrationResult(integration, scope);
+        } else if (intent === 'quality_analysis') {
+          result = qualityAnalysisResult(await loadQuality(sql));
         } else if (intent === 'absence_analysis') {
           result = absenceAnalysisResult(await loadAbsence(sql, absenceAnalyticsRequest(body)));
         } else if (intent === 'employee_search') {
@@ -980,13 +1415,24 @@ export function createInternalAssistantHandler(dependencies = {}) {
           ]);
           result = employeeDetailResult(detail, scope);
         } else if (intent === 'executive_analysis') {
-          const [integration, payroll, scope, absence] = await Promise.all([
+          const [integration, payroll, scope, absence, quality] = await Promise.all([
             loadIntegration(sql),
             loadPayroll(sql),
             loadScope(sql),
-            loadAbsence(sql, absenceAnalyticsRequest(body)),
+            Promise.resolve()
+              .then(() => loadAbsence(sql, absenceAnalyticsRequest(body)))
+              .catch(() => ({
+                status: 503,
+                payload: { ok: false, code: 'ABSENCE_ANALYTICS_UNAVAILABLE', error: 'No se pudo consultar ausentismo.' },
+              })),
+            Promise.resolve()
+              .then(() => loadQuality(sql))
+              .catch(() => ({
+                status: 503,
+                payload: { ok: false, code: 'QUALITY_OVERVIEW_UNAVAILABLE', error: 'No se pudo consultar Calidad Operativa.' },
+              })),
           ]);
-          result = executiveResult(integration, payroll, scope, absence);
+          result = executiveResult(integration, payroll, scope, absence, quality);
         } else {
           result = productGuidanceResult('help', body);
         }
@@ -1009,7 +1455,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
 
       const provider = body.enhance === true
         ? await generateAggregateInsight({ intent, data: result.data, session, env, fetchImpl, now, quotaStore })
-        : providerStatus('not_requested');
+        : providerStatus('local', 'not_requested');
       return send(res, 200, {
         ok: true,
         intent,
@@ -1021,7 +1467,10 @@ export function createInternalAssistantHandler(dependencies = {}) {
         steps: result.steps || [],
         targetPath: result.targetPath || null,
         relatedSections: result.relatedSections || [],
-        sources: result.sources.map((source) => ({ ...source, asOf: result.asOf })),
+        sources: result.sources.map((source) => ({
+          ...source,
+          asOf: Object.hasOwn(source, 'asOf') ? source.asOf : result.asOf,
+        })),
         asOf: result.asOf,
         privacy: {
           internalSessionRequired: true,
