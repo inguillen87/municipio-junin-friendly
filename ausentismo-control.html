@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123247">
+  <meta name="color-scheme" content="light">
+  <title>Control de ausentismo | MuniControl</title>
+  <meta name="description" content="Control interno de eventos de ausencia informados por GRH, con período, fuente y limitaciones verificables.">
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #885a18;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --red-soft: #faefed;
+      --focus: #1476a2;
+      --radius: 5px;
+      --sidebar: 254px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { background: var(--canvas); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    body.menu-open { overflow: hidden; }
+    button, input, select, a { font: inherit; -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 200;
+      transform: translateY(-160%);
+      padding: 9px 12px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      font-weight: 800;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      min-height: 100vh;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 18px;
+      overflow-y: auto;
+      background: var(--navy);
+      color: #e9f1f4;
+      border-right: 1px solid #21475c;
+      z-index: 80;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 24px;
+      border-bottom: 1px solid #315166;
+      color: inherit;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: var(--navy);
+      background: #f8f5ec;
+      border: 1px solid #aebdc2;
+      border-radius: 3px;
+      font: 800 21px Georgia, serif;
+    }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .01em; }
+    .brand small { display: block; margin-top: 2px; color: #a8c0cb; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .menu-close { display: none; }
+    .nav-label { margin: 24px 9px 8px; color: #8fabb8; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      color: #c9d8df;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .nav a:hover { color: #fff; border-color: #416175; }
+    .nav a[aria-current="page"] { color: #102e3f; background: #f8f5ec; border-color: #f8f5ec; font-weight: 800; }
+    .nav-code { width: 25px; height: 25px; display: inline-grid; place-items: center; flex: 0 0 auto; color: #88a7b5; border: 1px solid currentColor; border-radius: 3px; font-size: 8px; font-weight: 850; letter-spacing: .04em; }
+    .nav a[aria-current="page"] .nav-code { color: var(--green); }
+    .side-note { margin-top: auto; padding: 14px; color: #b8cbd3; background: #173b50; border: 1px solid #31576c; border-radius: var(--radius); font-size: 11px; }
+    .side-note strong { display: block; margin-bottom: 5px; color: #fff; }
+    .nav-backdrop { display: none; }
+
+    .workspace { min-width: 0; }
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 34px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-start { min-width: 0; display: flex; align-items: center; gap: 12px; }
+    .menu-button { display: none; }
+    .crumb { display: flex; align-items: center; gap: 6px; overflow: hidden; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .crumb a { color: var(--green); font-weight: 800; text-decoration: none; }
+    .crumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .top-title { margin-top: 2px; overflow: hidden; color: var(--navy); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .session-line { color: var(--muted); font-size: 10px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .source-chip {
+      max-width: 260px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      overflow: hidden;
+      color: var(--green);
+      background: var(--green-soft);
+      border: 1px solid #b9d8ce;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .button {
+      min-height: 44px;
+      padding: 8px 12px;
+      color: var(--navy);
+      background: #fff;
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 750;
+    }
+    .button:hover { border-color: var(--navy-2); background: var(--surface-2); }
+    .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
+    .button.primary:hover { background: #115f56; }
+    .button.quiet { border-color: transparent; background: transparent; }
+    .button.danger { color: var(--red); }
+    .button:disabled { cursor: not-allowed; opacity: .48; }
+
+    main { max-width: 1420px; margin: 0 auto; padding: 34px; }
+    .page-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 400px); gap: 30px; align-items: end; padding-bottom: 25px; border-bottom: 1px solid var(--line-strong); }
+    .eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(30px, 5vw, 48px); font-weight: 790; line-height: 1.04; letter-spacing: -.035em; }
+    .lead { max-width: 780px; margin: 13px 0 0; color: var(--muted); font-size: 15px; }
+    .status-panel { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
+    .status-panel[data-state="warning"] { border-top-color: var(--amber); }
+    .status-panel strong { display: block; color: var(--navy); }
+    .status-panel p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .notice { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 11px; margin-top: 20px; padding: 14px 16px; color: #664615; background: var(--amber-soft); border: 1px solid #dfca99; border-left: 4px solid var(--amber); border-radius: var(--radius); }
+    .notice-mark { font-weight: 900; }
+    .notice strong { display: block; color: #5b3e12; }
+    .notice p { margin: 2px 0 0; font-size: 12px; }
+
+    .section { margin-top: 30px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+    .section-head h2 { margin: 0; color: var(--navy); font-size: 23px; letter-spacing: -.02em; }
+    .section-head p { max-width: 760px; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .section-index { color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .state-badge { display: inline-flex; align-items: center; min-height: 27px; padding: 5px 8px; color: var(--blue); background: var(--blue-soft); border: 1px solid #c7d6e0; border-radius: 4px; font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    .state-badge.ready { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
+    .state-badge.warning { color: var(--amber); background: var(--amber-soft); border-color: #e2cf9e; }
+
+    .filter-panel { padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .filter-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 12px; }
+    .field { min-width: 0; display: grid; gap: 5px; }
+    .field label { color: var(--navy); font-size: 11px; font-weight: 800; }
+    .field input, .field select { width: 100%; min-height: 44px; padding: 8px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; }
+    .filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .filter-actions-group { display: flex; gap: 8px; }
+    .filter-summary { margin: 0; color: var(--muted); font-size: 11px; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .kpi { min-width: 0; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: var(--radius); }
+    .kpi:nth-child(2) { border-top-color: var(--blue); }
+    .kpi:nth-child(3) { border-top-color: var(--amber); }
+    .kpi-label { display: block; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .kpi-value { display: block; margin-top: 8px; color: var(--navy); font-size: clamp(30px, 4vw, 44px); font-weight: 790; line-height: 1; font-variant-numeric: tabular-nums; }
+    .kpi-note { display: block; margin-top: 9px; color: var(--muted); font-size: 11px; }
+
+    .analysis-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .55fr); gap: 12px; }
+    .panel { min-width: 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .panel h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .panel-note { margin: 5px 0 14px; color: var(--muted); font-size: 12px; }
+    .series-scroll { overflow-x: auto; padding: 4px 2px 10px; }
+    .series { min-width: 620px; height: 260px; display: flex; align-items: stretch; gap: 8px; padding: 16px 8px 0; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line-strong); }
+    .series-empty { min-height: 220px; display: grid; place-items: center; color: var(--muted); text-align: center; }
+    .series-item { min-width: 34px; flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 7px; }
+    .series-value { color: var(--navy); font-size: 10px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+    .series-bar { min-height: 2px; background: var(--green); border-radius: 2px 2px 0 0; }
+    .series-label { min-height: 34px; display: grid; place-items: start center; color: var(--muted); font-size: 9px; font-weight: 750; text-align: center; }
+    .ranking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .comparison-panel { margin-top: 12px; }
+    .comparison-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .comparison-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .comparison-card { min-width: 0; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .comparison-card h4 { margin: 0; color: var(--muted); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; }
+    .comparison-values { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .comparison-values span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .comparison-values strong { display: block; margin-top: 3px; overflow-wrap: anywhere; color: var(--navy); font-size: 18px; font-variant-numeric: tabular-nums; }
+    .comparison-change { margin: 11px 0 0; padding-top: 9px; color: var(--navy); border-top: 1px solid var(--line); font-size: 11px; font-weight: 800; }
+    .comparison-unavailable { margin: 14px 0 0; padding: 14px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 4px; }
+    .ranking { margin: 0; padding: 0; list-style: none; }
+    .ranking li + li { margin-top: 12px; }
+    .rank-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--ink); font-size: 11px; }
+    .rank-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-head strong { color: var(--navy); font-variant-numeric: tabular-nums; }
+    .rank-track { height: 7px; margin-top: 5px; overflow: hidden; background: #e5ebe8; border-radius: 2px; }
+    .rank-fill { display: block; height: 100%; background: var(--blue); }
+    .rank-sector .rank-fill { background: var(--green); }
+    .empty { padding: 24px !important; color: var(--muted); text-align: center; }
+
+    .table-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .result-count { color: var(--muted); font-size: 12px; }
+    .page-size { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    .page-size select { min-height: 38px; padding: 6px 28px 6px 8px; background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; }
+    .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    caption { text-align: left; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--navy); background: var(--surface-2); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: #fbfcfb; }
+    .numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .person-cell strong { display: block; color: var(--navy); }
+    .person-cell span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .table-link { color: var(--green); font-weight: 800; text-decoration-thickness: 1px; text-underline-offset: 3px; white-space: nowrap; }
+    .pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+    .page-status { color: var(--muted); font-size: 11px; text-align: center; }
+
+    .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .definition-list { margin: 0; }
+    .definition-list > div { display: grid; grid-template-columns: minmax(120px, .45fr) minmax(0, 1fr); gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .definition-list > div:last-child { border-bottom: 0; }
+    .definition-list dt { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .definition-list dd { margin: 0; overflow-wrap: anywhere; color: var(--navy); font-size: 12px; font-weight: 700; }
+    .quality-list, .limitations { margin: 0; padding: 0; list-style: none; }
+    .quality-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+    .quality-list li:last-child { border-bottom: 0; }
+    .quality-list strong { color: var(--navy); }
+    .quality-list span { color: var(--muted); text-align: right; }
+    .limitations li { position: relative; padding-left: 17px; color: var(--muted); font-size: 12px; }
+    .limitations li + li { margin-top: 9px; }
+    .limitations li::before { content: ""; position: absolute; top: .58em; left: 1px; width: 6px; height: 6px; background: var(--amber); border-radius: 50%; }
+
+    .loading { min-height: calc(100vh - 72px); display: grid; place-items: center; padding: 30px; text-align: center; }
+    .loading-card, .error-card { width: min(520px, 100%); padding: 28px; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: var(--radius); }
+    .loading-card h1, .error-card h1 { font-size: 27px; }
+    .loading-card p, .error-card p { color: var(--muted); }
+    .spinner { width: 28px; height: 28px; margin: 18px auto 0; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+    .error-card { border-top-color: var(--red); }
+    .error-card .button { margin-top: 8px; }
+    footer { margin-top: 36px; padding-top: 18px; color: var(--muted); border-top: 1px solid var(--line); font-size: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1100px) {
+      .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .analysis-grid { grid-template-columns: 1fr; }
+      .ranking-grid { grid-template-columns: 1fr 1fr; }
+      .source-chip { display: none; }
+    }
+    @media (max-width: 820px) {
+      .app { display: block; }
+      .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(310px, calc(100vw - 48px)); height: 100dvh; min-height: 0; transform: translateX(-105%); transition: transform .18s ease; box-shadow: 18px 0 45px rgba(4, 23, 34, .24); }
+      .sidebar.open { transform: translateX(0); }
+      .menu-close { width: 42px; height: 42px; display: grid; place-items: center; position: absolute; top: 18px; right: 12px; color: #fff; background: transparent; border: 1px solid #4d6c7c; border-radius: 4px; cursor: pointer; font-size: 22px; }
+      .brand { padding-right: 42px; }
+      .nav-backdrop { position: fixed; inset: 0; z-index: 70; display: block; background: rgba(4, 20, 31, .52); }
+      .topbar { position: sticky; top: 0; z-index: 50; min-height: 64px; padding: 10px 14px; }
+      .menu-button { width: 44px; height: 44px; display: inline-grid; place-items: center; flex: 0 0 auto; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-size: 18px; }
+      .top-actions .button:not(.danger) { display: none; }
+      .top-actions .danger { min-width: 44px; padding: 8px; font-size: 11px; }
+      main { padding: 24px 18px 42px; }
+      .page-head { grid-template-columns: 1fr; gap: 18px; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .audit-grid { grid-template-columns: 1fr; }
+      .comparison-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      main { padding: 22px 16px 38px; }
+      h1 { font-size: 34px; }
+      .top-title { font-size: 13px; }
+      .session-line { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .filter-grid, .ranking-grid { grid-template-columns: 1fr; }
+      .filter-actions { align-items: stretch; flex-direction: column; }
+      .filter-actions-group { display: grid; grid-template-columns: 1fr 1fr; }
+      .filter-actions-group .button { width: 100%; }
+      .section-head, .table-tools { align-items: flex-start; flex-direction: column; }
+      .table-wrap { border: 0; background: transparent; overflow: visible; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      thead { display: none; }
+      tbody { display: grid; gap: 10px; }
+      tr { padding: 11px 13px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+      td { display: grid; grid-template-columns: minmax(88px, .42fr) minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); text-align: left !important; }
+      td:last-child { border-bottom: 0; }
+      td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+      td.empty { display: block; }
+      td.empty::before { content: none; }
+      .pagination { display: grid; grid-template-columns: 1fr 1fr; }
+      .pagination .page-status { grid-column: 1 / -1; grid-row: 1; }
+      .definition-list > div { grid-template-columns: 1fr; gap: 4px; }
+      .series { min-width: 540px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+    @media print {
+      .sidebar, .topbar, .filter-panel, .pagination, .button, .nav-backdrop { display: none !important; }
+      .app { display: block; }
+      main { max-width: none; padding: 0; }
+      .panel, .kpi, .table-wrap { break-inside: avoid; }
+    }
+  </style>
+  <script src="assets/internal-guide.js" defer></script>
+</head>
+<body data-mc-page="absence">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación interna">
+      <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      <a class="brand" href="internal-dashboard.html#inicio" aria-label="MuniControl, inicio interno">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><strong>MuniControl</strong><small>Junín, Mendoza</small></span>
+      </a>
+      <div class="nav-label">Operación</div>
+      <nav class="nav" aria-label="Operación interna">
+        <a href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
+        <a href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
+      </nav>
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="ausentismo-control.html" aria-current="page"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
+        <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a href="calidad-datos.html"><span class="nav-code" aria-hidden="true">CD</span><span>Calidad pública</span></a>
+        <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+      <div class="nav-label">Aprender</div>
+      <nav class="nav" aria-label="Aprendizaje">
+        <a href="centro-ayuda.html"><span class="nav-code" aria-hidden="true">AY</span><span>Ayuda</span></a>
+      </nav>
+      <div class="side-note"><strong>Lectura responsable</strong><span>Los eventos administrativos y los días declarados no constituyen por sí solos una tasa ni jornadas laborales perdidas.</span></div>
+    </aside>
+    <div class="nav-backdrop" id="navBackdrop" hidden></div>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-start">
+          <button class="menu-button" id="menuButton" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir menú">☰</button>
+          <div>
+            <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Ausentismo</span></nav>
+            <div class="top-title">Control operativo de ausentismo</div>
+            <div class="session-line"><span id="userRole">Usuario interno</span> · <span id="userName">Verificando sesión</span></div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="source-chip" id="sourceChip">Fuente interna · verificando</span>
+          <button class="button" id="refreshButton" type="button">Actualizar</button>
+          <button class="button quiet danger" id="logoutButton" type="button">Salir</button>
+        </div>
+      </header>
+
+      <section class="loading" id="loading" aria-live="polite">
+        <div class="loading-card">
+          <p class="eyebrow">Control interno</p>
+          <h1>Preparando ausentismo</h1>
+          <p id="loadingMessage">Verificamos tu sesión antes de consultar la fuente laboral.</p>
+          <div class="spinner" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <section class="loading" id="errorHost" hidden></section>
+
+      <main id="mainContent" hidden>
+        <header class="page-head">
+          <div>
+            <p class="eyebrow">Eventos administrativos · GRH como autoridad</p>
+            <h1>Control operativo de ausentismo</h1>
+            <p class="lead">Explorá eventos por período, motivo y sector. Cada cifra conserva su fuente y evita transformar registros administrativos en conclusiones laborales no homologadas.</p>
+          </div>
+          <div class="status-panel" id="overallPanel" data-state="warning">
+            <strong id="overallTitle">Consultando cobertura</strong>
+            <p id="overallDetail">La disponibilidad se determina desde la respuesta de la API interna.</p>
+          </div>
+        </header>
+
+        <div class="notice" role="note">
+          <span class="notice-mark" aria-hidden="true">GRH</span>
+          <div><strong>Días declarados no equivale a jornadas perdidas</strong><p>El valor se suma únicamente cuando GRH informa una cantidad. No calcula presentismo, productividad, duración efectiva ni tasa de ausentismo.</p></div>
+        </div>
+
+        <section class="section" aria-labelledby="filtersTitle">
+          <div class="section-head">
+            <div><span class="section-index">01 · Alcance</span><h2 id="filtersTitle">Período y filtros</h2><p>Los mismos filtros gobiernan indicadores, serie, rankings y eventos.</p></div>
+            <span class="state-badge warning" id="periodBadge">Período no informado</span>
+          </div>
+          <form class="filter-panel" id="filterPanel">
+            <div class="filter-grid">
+              <div class="field"><label for="fromInput">Desde</label><input id="fromInput" name="from" type="date"></div>
+              <div class="field"><label for="toInput">Hasta</label><input id="toInput" name="to" type="date"></div>
+              <div class="field"><label for="sectorSelect">Sector</label><select id="sectorSelect" name="sector"><option value="">Todos los sectores</option></select></div>
+              <div class="field"><label for="reasonSelect">Motivo</label><select id="reasonSelect" name="reason"><option value="">Todos los motivos</option></select></div>
+            </div>
+            <div class="filter-actions">
+              <p class="filter-summary" id="filterSummary">Sin filtros aplicados.</p>
+              <div class="filter-actions-group"><button class="button" id="resetFilters" type="button">Limpiar</button><button class="button primary" type="submit">Aplicar filtros</button></div>
+            </div>
+          </form>
+        </section>
+
+        <section class="section" id="summaryMetrics" aria-labelledby="summaryTitle">
+          <div class="section-head"><div><span class="section-index">02 · Resumen</span><h2 id="summaryTitle">Indicadores del período</h2><p>Todos los valores corresponden al alcance seleccionado.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
+          <div class="kpi-grid">
+            <article class="kpi"><span class="kpi-label">Eventos registrados</span><strong class="kpi-value" id="eventsValue">—</strong><span class="kpi-note">Registros administrativos que cumplen los filtros.</span></article>
+            <article class="kpi"><span class="kpi-label">Legajos afectados</span><strong class="kpi-value" id="contractsValue">—</strong><span class="kpi-note">Legajos distintos con al menos un evento.</span></article>
+            <article class="kpi"><span class="kpi-label">Días declarados en GRH</span><strong class="kpi-value" id="daysValue">—</strong><span class="kpi-note">Suma de cantidades informadas; no representa jornadas perdidas.</span></article>
+          </div>
+        </section>
+
+        <section class="section" id="trendPanel" aria-labelledby="evolutionTitle">
+          <div class="section-head"><div><span class="section-index">03 · Evolución</span><h2 id="evolutionTitle">Serie mensual de eventos</h2><p>Comparación por mes dentro del período disponible, sin proyectar meses incompletos.</p></div><span class="state-badge" id="seriesBadge">Fuente</span></div>
+          <div class="analysis-grid">
+            <article class="panel">
+              <h3>Eventos por mes</h3>
+              <p class="panel-note">Desplazá horizontalmente para recorrer todos los meses.</p>
+              <div class="series-scroll" tabindex="0" role="region" aria-label="Gráfico mensual desplazable">
+                <div class="series" id="monthlySeries" role="list" aria-label="Eventos administrativos por mes"></div>
+              </div>
+              <table class="visually-hidden" aria-label="Datos del gráfico mensual"><thead><tr><th>Mes</th><th>Eventos</th><th>Legajos afectados</th><th>Días declarados</th></tr></thead><tbody id="monthlyAccessibleRows"></tbody></table>
+            </article>
+            <article class="panel">
+              <h3>Lectura del período</h3>
+              <p class="panel-note">La interpretación conserva el estado informado por la fuente.</p>
+              <dl class="definition-list">
+                <div><dt>Desde</dt><dd id="rangeFrom">No informado</dd></div>
+                <div><dt>Hasta</dt><dd id="rangeTo">No informado</dd></div>
+                <div><dt>Cobertura</dt><dd id="coverageText">No informada</dd></div>
+                <div><dt>Actualización</dt><dd id="updatedAt">No informada</dd></div>
+              </dl>
+            </article>
+          </div>
+          <article class="panel comparison-panel" id="comparisonPanel">
+            <div class="comparison-head"><div><h3>Comparación homogénea</h3><p class="panel-note" id="comparisonBasis">Sólo se compara el mismo rango calendario contra el año previo.</p></div><span class="state-badge warning" id="comparisonBadge">Verificando</span></div>
+            <div class="comparison-unavailable" id="comparisonUnavailable">La API todavía no informó una comparación válida para este rango.</div>
+            <div class="comparison-grid" id="comparisonContent" hidden>
+              <article class="comparison-card"><h4>Eventos registrados</h4><div class="comparison-values"><div><span id="eventsCurrentLabel">Actual</span><strong id="eventsCurrent">—</strong></div><div><span id="eventsPreviousLabel">Previo</span><strong id="eventsPrevious">—</strong></div></div><p class="comparison-change" id="eventsChange">Variación: —</p></article>
+              <article class="comparison-card"><h4>Legajos afectados</h4><div class="comparison-values"><div><span id="contractsCurrentLabel">Actual</span><strong id="contractsCurrent">—</strong></div><div><span id="contractsPreviousLabel">Previo</span><strong id="contractsPrevious">—</strong></div></div><p class="comparison-change" id="contractsChange">Variación: —</p></article>
+              <article class="comparison-card"><h4>Días declarados GRH</h4><div class="comparison-values"><div><span id="daysCurrentLabel">Actual</span><strong id="daysCurrent">—</strong></div><div><span id="daysPreviousLabel">Previo</span><strong id="daysPrevious">—</strong></div></div><p class="comparison-change" id="daysChange">Variación: —</p></article>
+            </div>
+            <p class="panel-note" style="margin-top:12px">La variación es descriptiva: no constituye una tasa, una evaluación de desempeño ni evidencia de causalidad.</p>
+          </article>
+        </section>
+
+        <section class="section" aria-labelledby="rankingsTitle">
+          <div class="section-head"><div><span class="section-index">04 · Distribución</span><h2 id="rankingsTitle">Principales motivos y sectores</h2><p>Ranking por cantidad de eventos dentro del filtro actual; no mide desempeño individual ni sectorial.</p></div></div>
+          <div class="ranking-grid">
+            <article class="panel"><h3>Motivos informados</h3><p class="panel-note">Se preservan las etiquetas recibidas desde GRH.</p><ol class="ranking" id="reasonRanking"></ol></article>
+            <article class="panel"><h3>Sectores observados</h3><p class="panel-note">Se usa el sector actual del legajo al corte; no reconstruye la asignación histórica del evento.</p><ol class="ranking rank-sector" id="sectorRanking"></ol></article>
+          </div>
+        </section>
+
+        <section class="section" id="eventsPanel" aria-labelledby="eventsTitle">
+          <div class="section-head"><div><span class="section-index">05 · Detalle interno</span><h2 id="eventsTitle">Eventos del período</h2><p>Listado nominal reservado al portal autenticado. El enlace abre la ficha por identificador canónico sin incluir nombre ni legajo en la URL.</p></div><span class="state-badge" id="eventsBadge">Consultando</span></div>
+          <div class="table-tools">
+            <div class="result-count" id="resultCount" role="status" aria-live="polite">Consultando eventos…</div>
+            <a class="button" href="internal-dashboard.html#legajos">Buscar una ficha individual</a>
+            <label class="page-size" for="pageSizeSelect">Filas por página <select id="pageSizeSelect"><option value="25">25</option><option value="50">50</option></select></label>
+          </div>
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="eventsTitle">
+            <table>
+              <caption class="visually-hidden">Eventos administrativos de ausencia que cumplen el filtro aplicado.</caption>
+              <thead><tr><th>Desde / hasta</th><th>Persona / legajo</th><th>Motivo</th><th>Sector</th><th class="numeric">Días declarados</th><th>Control de fuente</th><th>Ficha</th></tr></thead>
+              <tbody id="eventRows"><tr><td class="empty" colspan="7">Consultando eventos…</td></tr></tbody>
+            </table>
+          </div>
+          <nav class="pagination" aria-label="Paginación de eventos"><button class="button" id="previousPage" type="button" disabled>Anterior</button><span class="page-status" id="pageStatus">Página —</span><button class="button" id="nextPage" type="button" disabled>Siguiente</button></nav>
+        </section>
+
+        <section class="section" id="qualityPanel" aria-labelledby="auditTitle">
+          <div class="section-head"><div><span class="section-index">06 · Evidencia</span><h2 id="auditTitle">Fuente, calidad y limitaciones</h2><p>Estos datos deben acompañar cualquier lectura o comparación.</p></div><span class="state-badge" id="qualityBadge">Verificando</span></div>
+          <div class="audit-grid">
+            <article class="panel"><h3>Trazabilidad</h3><p class="panel-note">Identificación recibida en el contrato de la API.</p><dl class="definition-list"><div><dt>Fuente</dt><dd id="sourceLabel">No informada</dd></div><div><dt>Corte</dt><dd id="cutoffLabel">No informado</dd></div><div><dt>Lote o versión</dt><dd id="batchLabel">No informado</dd></div><div><dt>Estado</dt><dd id="statusLabel">No informado</dd></div></dl></article>
+            <article class="panel"><h3>Controles de calidad</h3><p class="panel-note">Los pendientes permanecen visibles y no se convierten en aprobaciones.</p><ul class="quality-list" id="qualityList"></ul></article>
+            <article class="panel" style="grid-column:1/-1"><h3>Limitaciones de uso</h3><p class="panel-note">Condiciones que impiden inferencias automáticas.</p><ul class="limitations" id="limitations"></ul></article>
+          </div>
+        </section>
+
+        <footer>Uso interno · <span id="footerSource">Fuente laboral por verificar</span> · Los eventos y días declarados se muestran con período y alcance explícitos.</footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var DATA_URL = '/api/internal-data';
+      var LOGIN_URL = 'login.html?next=ausentismo-control.html';
+      var redirectIssued = false;
+      var authenticated = false;
+      var loadingRequest = 0;
+      var state = { page: 1, pageSize: 25, total: 0, totalPages: 1, facets: { sectors: [], reasons: [] }, applied: { from: '', to: '', sector: '', reason: '' } };
+      var integerFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      var decimalFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+      var dateFormat = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      var monthFormat = new Intl.DateTimeFormat('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+      var qualityLabels = {
+        sourceCutoff: 'Corte de fuente',
+        sourceRows: 'Filas de fuente',
+        excludedBeforeMinimum: 'Excluidos antes del mínimo',
+        excludedAfterCutoff: 'Excluidos después del corte',
+        missingReasonCode: 'Eventos sin código de motivo',
+        invertedDateRanges: 'Rangos de fecha invertidos',
+        missingSourceDeclaredDays: 'Eventos sin días declarados',
+        unlinkedEvents: 'Eventos sin vínculo laboral',
+        unitSemantics: 'Semántica de la unidad',
+        sectorSemantics: 'Semántica del sector',
+        missingReason: 'Eventos sin motivo',
+        missingSector: 'Eventos sin sector',
+        invalidDates: 'Fechas inválidas',
+        declaredDaysCoverage: 'Cobertura de días declarados',
+        recordsWithDeclaredDays: 'Registros con días declarados',
+        orphanEvents: 'Eventos sin legajo vinculado',
+        duplicateEvents: 'Posibles duplicados',
+        sourceRows: 'Filas de fuente evaluadas'
+      };
+
+      function byId(id) { return document.getElementById(id); }
+      function object(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+      function array(value) { return Array.isArray(value) ? value : []; }
+      function text(value) { return value === null || value === undefined ? '' : String(value).trim(); }
+      function finite(value) { var number = typeof value === 'number' ? value : Number(String(value === undefined || value === null ? '' : value).replace(',', '.')); return Number.isFinite(number) ? number : null; }
+      function nonNegative(value) { var number = finite(value); return number !== null && number >= 0 ? number : null; }
+      function first(root, paths) {
+        for (var index = 0; index < paths.length; index += 1) {
+          var current = root;
+          var path = paths[index];
+          for (var part = 0; part < path.length && current !== null && current !== undefined; part += 1) current = current[path[part]];
+          if (current !== undefined && current !== null && current !== '') return current;
+        }
+        return null;
+      }
+      function formatInteger(value) { var number = nonNegative(value); return number === null ? 'No informado' : integerFormat.format(number); }
+      function formatDecimal(value) { var number = nonNegative(value); return number === null ? 'No informado' : decimalFormat.format(number); }
+      function safeDate(value) {
+        var raw = text(value);
+        if (!raw) return 'No informado';
+        var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!iso) return raw;
+        var date = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+        return Number.isNaN(date.getTime()) ? raw : dateFormat.format(date);
+      }
+      function monthLabel(value) {
+        var raw = text(value);
+        var match = raw.match(/^(\d{4})-(\d{2})/);
+        if (!match) return raw || 'Sin mes';
+        var date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1));
+        return Number.isNaN(date.getTime()) ? raw : monthFormat.format(date);
+      }
+      function setText(id, value) { byId(id).textContent = value; }
+      function setBadge(id, stateName, label) { var node = byId(id); node.className = 'state-badge ' + stateName; node.textContent = label; }
+
+      function normalizeUser(payload) {
+        var user = object(first(object(payload), [['user'], ['data', 'user']]));
+        return {
+          name: text(first(user, [['name'], ['displayName'], ['email']])) || 'Usuario interno',
+          role: text(first(user, [['role'], ['profile'], ['type']])) || 'Usuario interno'
+        };
+      }
+
+      function normalizeRank(value) {
+        return array(value).map(function (item) {
+          if (typeof item === 'string') return { label: item, count: null };
+          var row = object(item);
+          return {
+            label: text(first(row, [['label'], ['name'], ['motivo'], ['reason'], ['sector']])),
+            count: nonNegative(first(row, [['count'], ['events'], ['total'], ['value'], ['cantidad']]))
+          };
+        }).filter(function (item) { return item.label; });
+      }
+
+      function normalizeMonthly(value) {
+        return array(value).map(function (item) {
+          var row = object(item);
+          return {
+            month: text(first(row, [['month'], ['period'], ['mes'], ['date']])),
+            events: nonNegative(first(row, [['events'], ['totalEvents'], ['count'], ['total'], ['cantidad']])),
+            contracts: nonNegative(first(row, [['affectedContracts'], ['contracts'], ['people'], ['persons'], ['legajos']])),
+            declaredDays: nonNegative(first(row, [['sourceDeclaredDays'], ['declaredDays'], ['days'], ['diasDeclarados'], ['durationDays']])),
+            partial: first(row, [['partial'], ['isPartial']]) === true
+          };
+        }).filter(function (item) { return item.month; });
+      }
+
+      function normalizeFacet(value) {
+        return array(value).map(function (item) {
+          if (typeof item === 'string' || typeof item === 'number') return { value: text(item), label: text(item) };
+          var row = object(item);
+          var facetValue = text(first(row, [['value'], ['id'], ['code'], ['codigo'], ['label'], ['name']]));
+          return { value: facetValue, label: text(first(row, [['label'], ['name'], ['nombre'], ['value']])) || facetValue };
+        }).filter(function (item) { return item.value; });
+      }
+
+      function normalizeAnalytics(payload) {
+        var root = object(payload);
+        var data = object(first(root, [['data'], ['analytics'], ['result']]));
+        if (!Object.keys(data).length) data = root;
+        var summary = object(first(data, [['summary'], ['totals'], ['metrics']]));
+        var facets = object(first(data, [['facets'], ['filters'], ['dimensions']])) || {};
+        if (!Object.keys(facets).length) facets = object(first(root, [['facets'], ['filters'], ['dimensions']]));
+        var source = first(data, [['source'], ['sourcePolicy'], ['metadata', 'source']]);
+        var sourceObject = object(source);
+        var metaSource = object(first(root, [['meta', 'source']]));
+        var applied = object(first(data, [['appliedFilters'], ['filters', 'applied'], ['period']]));
+        var rangeSource = object(first(data, [['range'], ['period']]) || first(root, [['range'], ['period']]));
+        var requestedRange = object(first(rangeSource, [['requested']]));
+        var effectiveRange = object(first(rangeSource, [['effective']]));
+        var clampedRange = object(first(rangeSource, [['clamped']]));
+        var effectiveFrom = text(first(effectiveRange, [['from'], ['dateFrom'], ['start']])) || text(first(rangeSource, [['from'], ['dateFrom'], ['start']])) || text(first(applied, [['from'], ['dateFrom'], ['start']]));
+        var effectiveTo = text(first(effectiveRange, [['to'], ['dateTo'], ['end']])) || text(first(rangeSource, [['to'], ['dateTo'], ['end']])) || text(first(applied, [['to'], ['dateTo'], ['end']]));
+        var quality = object(first(data, [['quality'], ['dataQuality'], ['controls']]));
+        if (!Object.keys(quality).length) quality = object(first(root, [['quality'], ['dataQuality'], ['controls']]));
+        var limitations = array(first(data, [['limitations'], ['warnings'], ['metadata', 'limitations']]));
+        if (!limitations.length) limitations = array(first(root, [['limitations'], ['warnings'], ['metadata', 'limitations']]));
+        return {
+          ok: root.ok !== false,
+          status: text(first(data, [['status'], ['state'], ['metadata', 'status']])) || (root.ok === false ? 'error' : 'ready'),
+          source: text(source) || text(first(sourceObject, [['label'], ['name'], ['authoritativeSource'], ['source']])) || text(first(metaSource, [['name'], ['label']])) || text(first(root, [['meta', 'authority']])) || 'GRH',
+          cutoff: text(first(data, [['asOf'], ['cutoff'], ['cutoffDate'], ['source', 'asOf'], ['metadata', 'asOf']])) || text(first(root, [['quality', 'sourceCutoff'], ['meta', 'source', 'cutoff'], ['meta', 'asOf']])),
+          batch: sourceVersionLabel(data, metaSource),
+          range: {
+            from: effectiveFrom,
+            to: effectiveTo,
+            requested: {
+              from: text(first(requestedRange, [['from'], ['dateFrom'], ['start']])),
+              to: text(first(requestedRange, [['to'], ['dateTo'], ['end']]))
+            },
+            effective: { from: effectiveFrom, to: effectiveTo },
+            clamped: { from: clampedRange.from === true, to: clampedRange.to === true }
+          },
+          summary: {
+            events: nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) !== null ? nonNegative(first(summary, [['totalEvents'], ['events'], ['eventCount'], ['total']])) : nonNegative(first(data, [['totalEvents'], ['eventsCount']])),
+            contracts: nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) !== null ? nonNegative(first(summary, [['affectedContracts'], ['uniqueContracts'], ['contracts'], ['legajos'], ['peopleAffected']])) : nonNegative(first(data, [['affectedContracts'], ['uniqueContracts']])),
+            declaredDays: nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) !== null ? nonNegative(first(summary, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared'], ['days'], ['diasDeclarados']])) : nonNegative(first(data, [['sourceDeclaredDays'], ['declaredDays'], ['daysDeclared']]))
+          },
+          monthly: normalizeMonthly(first(data, [['monthly'], ['series'], ['monthlySeries'], ['trends', 'monthly']])),
+          reasons: normalizeRank(first(data, [['reasons'], ['reasonRanking'], ['rankings', 'reasons'], ['topReasons']])),
+          sectors: normalizeRank(first(data, [['sectors'], ['sectorRanking'], ['rankings', 'sectors'], ['topSectors']])),
+          facets: {
+            sectors: normalizeFacet(first(facets, [['sectors'], ['sector'], ['availableSectors']])),
+            reasons: normalizeFacet(first(facets, [['reasons'], ['motives'], ['motivos'], ['availableReasons']]))
+          },
+          coverage: text(first(data, [['coverage', 'label'], ['coverageLabel'], ['period', 'coverage']])) || text(first(summary, [['coverage']])) || text(first(root, [['meta', 'grain']])),
+          comparison: normalizeComparison(first(data, [['comparison']]) || first(root, [['comparison']])),
+          quality: quality,
+          limitations: limitations
+        };
+      }
+
+      function sourceVersionLabel(data, metaSource) {
+        var explicit = text(first(data, [['batchId'], ['version'], ['datasetVersion'], ['source', 'batchId'], ['metadata', 'batchId']]));
+        if (explicit) return explicit;
+        var importId = text(first(metaSource, [['importId'], ['batchId'], ['version']]));
+        var hash = text(first(metaSource, [['sha256'], ['hash']]));
+        var name = text(first(metaSource, [['name'], ['label']]));
+        var parts = [];
+        if (importId) parts.push(importId);
+        if (hash) parts.push('SHA-256 ' + hash);
+        if (!parts.length && name) parts.push(name);
+        return parts.join(' · ');
+      }
+
+      function normalizeComparison(value) {
+        var source = object(value);
+        var current = object(first(source, [['current'], ['actual']]));
+        var previous = object(first(source, [['previous'], ['prior'], ['anterior']]));
+        var changes = first(source, [['changePercent'], ['changes'], ['variationPercent']]);
+        var changeObject = object(changes);
+        function metric(row, paths) { return nonNegative(first(row, paths)); }
+        function change(paths) {
+          var candidate = first(changeObject, paths);
+          if (candidate === null && typeof changes === 'number' && paths[0][0] === 'events') candidate = changes;
+          return finite(candidate);
+        }
+        function comparisonLabel(row, fallback) {
+          var explicit = text(first(row, [['label'], ['periodLabel'], ['period'], ['year']]));
+          if (explicit) return explicit;
+          var from = text(first(row, [['range', 'from'], ['from'], ['dateFrom']]));
+          var to = text(first(row, [['range', 'to'], ['to'], ['dateTo']]));
+          if (from || to) return [from ? safeDate(from) : '', to ? safeDate(to) : ''].filter(Boolean).join(' – ');
+          return fallback;
+        }
+        return {
+          available: source.available === true,
+          basis: comparisonBasisLabel(text(first(source, [['basis'], ['comparisonPolicy'], ['methodology']]))),
+          explanation: text(first(source, [['explanation'], ['reason'], ['message'], ['unavailableReason']])),
+          currentLabel: comparisonLabel(current, 'Período actual'),
+          previousLabel: comparisonLabel(previous, 'Año previo'),
+          current: {
+            events: metric(current, [['events'], ['totalEvents']]),
+            contracts: metric(current, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            days: metric(current, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
+          },
+          previous: {
+            events: metric(previous, [['events'], ['totalEvents']]),
+            contracts: metric(previous, [['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            days: metric(previous, [['sourceDeclaredDays'], ['declaredDays'], ['days']])
+          },
+          change: {
+            events: change([['events'], ['totalEvents']]),
+            contracts: change([['affectedContracts'], ['contracts'], ['uniqueContracts']]),
+            days: change([['sourceDeclaredDays'], ['declaredDays'], ['days']])
+          }
+        };
+      }
+
+      function comparisonBasisLabel(value) {
+        var labels = {
+          previous_year_same_calendar_window: 'Mismo rango calendario del año previo',
+          same_calendar_window_only: 'Mismo rango calendario del año previo'
+        };
+        return labels[value] || value;
+      }
+
+      function normalizeEvent(item) {
+        var row = object(item);
+        return {
+          id: text(first(row, [['id'], ['eventId'], ['absenceId'], ['sourceId']])),
+          contractId: text(first(row, [['contractId'], ['contract', 'id']])),
+          companyId: text(first(row, [['companyId'], ['contract', 'companyId']])),
+          legajo: text(first(row, [['legajo'], ['contract', 'legajo']])),
+          name: text(first(row, [['name'], ['nombre'], ['employeeName']])),
+          date: text(first(row, [['date'], ['eventDate'], ['from'], ['startDate'], ['fecha']])),
+          untilDate: text(first(row, [['untilDate'], ['to'], ['endDate'], ['fechaHasta']])),
+          reason: text(first(row, [['reason'], ['reasonLabel'], ['motivo'], ['absenceType'], ['type']])),
+          sector: text(first(row, [['sector'], ['sectorLabel'], ['organization'], ['area'], ['contract', 'sector']])),
+          declaredDays: nonNegative(first(row, [['sourceDeclaredDays'], ['declaredDays'], ['days'], ['durationDays'], ['diasDeclarados'], ['quantity']])),
+          sourceQuantity: nonNegative(first(row, [['sourceQuantity'], ['quantity']])),
+          rangeIntegrity: text(first(row, [['rangeIntegrity']])),
+          flags: object(first(row, [['flags']]))
+        };
+      }
+
+      function normalizeEvents(payload) {
+        var root = object(payload);
+        var dataValue = first(root, [['data'], ['result']]);
+        var data = object(dataValue);
+        var itemsValue = Array.isArray(dataValue) ? dataValue : first(data, [['items'], ['events'], ['rows'], ['records']]);
+        if (!itemsValue) itemsValue = first(root, [['items'], ['events'], ['rows'], ['records']]);
+        var pagination = object(first(data, [['pagination'], ['pageInfo'], ['meta']]));
+        if (!Object.keys(pagination).length) pagination = object(first(root, [['pagination'], ['pageInfo'], ['meta']]));
+        var items = array(itemsValue).map(normalizeEvent);
+        var page = nonNegative(first(pagination, [['page'], ['currentPage'], ['current']])) || nonNegative(first(root, [['page']])) || state.page;
+        var pageSize = nonNegative(first(pagination, [['pageSize'], ['limit'], ['perPage']])) || nonNegative(first(root, [['pageSize'], ['limit']])) || state.pageSize;
+        pageSize = Math.min(50, Math.max(1, pageSize));
+        var total = nonNegative(first(pagination, [['total'], ['totalItems'], ['count']])) !== null ? nonNegative(first(pagination, [['total'], ['totalItems'], ['count']])) : nonNegative(first(root, [['total'], ['totalItems']]));
+        if (total === null) total = items.length;
+        var totalPages = nonNegative(first(pagination, [['totalPages'], ['pages'], ['pageCount']]));
+        if (totalPages === null || totalPages < 1) totalPages = Math.max(1, Math.ceil(total / pageSize));
+        return { items: items, page: Math.max(1, page), pageSize: pageSize, total: total, totalPages: totalPages };
+      }
+
+      function buildParams(resource) {
+        var params = new URLSearchParams({ resource: resource });
+        ['from', 'to', 'sector'].forEach(function (key) { if (state.applied[key]) params.set(key, state.applied[key]); });
+        if (state.applied.reason) params.set('reasonCode', state.applied.reason);
+        if (resource === 'absenceanalytics') params.set('bucket', 'month');
+        if (resource === 'absenceevents') {
+          params.set('page', String(state.page));
+          params.set('limit', String(Math.min(50, state.pageSize)));
+        }
+        return params;
+      }
+
+      function syncUrl() {
+        var url = new URL(location.href);
+        ['from', 'to', 'sector'].forEach(function (key) {
+          if (state.applied[key]) url.searchParams.set(key, state.applied[key]);
+          else url.searchParams.delete(key);
+        });
+        if (state.applied.reason) url.searchParams.set('reasonCode', state.applied.reason);
+        else url.searchParams.delete('reasonCode');
+        if (state.page > 1) url.searchParams.set('page', String(state.page));
+        else url.searchParams.delete('page');
+        if (state.pageSize !== 25) url.searchParams.set('limit', String(Math.min(50, state.pageSize)));
+        else url.searchParams.delete('limit');
+        history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+      }
+
+      async function fetchJson(url) {
+        var response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        if (response.status === 401) {
+          redirectToLogin();
+          var unauthorized = new Error('Sesión no autorizada');
+          unauthorized.unauthorized = true;
+          throw unauthorized;
+        }
+        if (!response.ok) throw new Error('La API interna respondió con estado ' + response.status + '.');
+        return response.json();
+      }
+
+      function redirectToLogin() {
+        if (redirectIssued) return;
+        redirectIssued = true;
+        location.replace(LOGIN_URL);
+      }
+
+      function fillSelect(id, items, selected, emptyLabel) {
+        var select = byId(id);
+        select.replaceChildren();
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = emptyLabel;
+        select.appendChild(empty);
+        var seen = new Set();
+        items.forEach(function (item) {
+          if (!item.value || seen.has(item.value)) return;
+          seen.add(item.value);
+          var option = document.createElement('option');
+          option.value = item.value;
+          option.textContent = item.label;
+          select.appendChild(option);
+        });
+        if (selected && !seen.has(selected)) {
+          var selectedOption = document.createElement('option');
+          selectedOption.value = selected;
+          selectedOption.textContent = selected;
+          select.appendChild(selectedOption);
+        }
+        select.value = selected || '';
+      }
+
+      function renderFilters(analytics) {
+        state.facets = analytics.facets;
+        var rangeWasClamped = analytics.range.clamped.from || analytics.range.clamped.to;
+        if (analytics.range.clamped.from && analytics.range.from) state.applied.from = analytics.range.from;
+        if (analytics.range.clamped.to && analytics.range.to) state.applied.to = analytics.range.to;
+        if (rangeWasClamped) syncUrl();
+        fillSelect('sectorSelect', analytics.facets.sectors, state.applied.sector, 'Todos los sectores');
+        fillSelect('reasonSelect', analytics.facets.reasons, state.applied.reason, 'Todos los motivos');
+        byId('fromInput').value = (state.applied.from || analytics.range.from || '').slice(0, 10);
+        byId('toInput').value = (state.applied.to || analytics.range.to || '').slice(0, 10);
+        var filterLabels = [];
+        if (state.applied.from) filterLabels.push('desde ' + safeDate(state.applied.from));
+        if (state.applied.to) filterLabels.push('hasta ' + safeDate(state.applied.to));
+        if (state.applied.sector) filterLabels.push('sector ' + state.applied.sector);
+        if (state.applied.reason) filterLabels.push('motivo ' + state.applied.reason);
+        if (rangeWasClamped) filterLabels.push('rango ajustado a la disponibilidad de GRH');
+        setText('filterSummary', filterLabels.length ? filterLabels.join(' · ') : 'Sin filtros adicionales; se usa el período informado por la API.');
+      }
+
+      function renderMonthly(items) {
+        var host = byId('monthlySeries');
+        var rows = byId('monthlyAccessibleRows');
+        host.replaceChildren();
+        rows.replaceChildren();
+        if (!items.length) {
+          var empty = document.createElement('div');
+          empty.className = 'series-empty';
+          empty.textContent = 'La API no informó una serie mensual para este período.';
+          host.appendChild(empty);
+          return;
+        }
+        var maximum = Math.max.apply(null, items.map(function (item) { return item.events || 0; }).concat([1]));
+        items.forEach(function (item) {
+          var visual = document.createElement('div');
+          visual.className = 'series-item';
+          visual.setAttribute('role', 'listitem');
+          visual.setAttribute('aria-label', monthLabel(item.month) + ': ' + formatInteger(item.events) + ' eventos' + (item.partial ? ', período parcial' : ''));
+          var value = document.createElement('span');
+          value.className = 'series-value';
+          value.textContent = formatInteger(item.events);
+          var bar = document.createElement('span');
+          bar.className = 'series-bar';
+          bar.style.height = Math.max(2, Math.round(((item.events || 0) / maximum) * 176)) + 'px';
+          var label = document.createElement('span');
+          label.className = 'series-label';
+          label.textContent = monthLabel(item.month) + (item.partial ? ' *' : '');
+          visual.append(value, bar, label);
+          host.appendChild(visual);
+
+          var row = document.createElement('tr');
+          [monthLabel(item.month), formatInteger(item.events), formatInteger(item.contracts), formatDecimal(item.declaredDays)].forEach(function (cellValue) { var cell = document.createElement('td'); cell.textContent = cellValue; row.appendChild(cell); });
+          rows.appendChild(row);
+        });
+      }
+
+      function formatChange(value) {
+        var number = finite(value);
+        if (number === null) return 'Variación: no informada';
+        var prefix = number > 0 ? '+' : '';
+        return 'Variación: ' + prefix + decimalFormat.format(number) + '%';
+      }
+
+      function renderComparison(comparison) {
+        var available = comparison && comparison.available === true;
+        setText('comparisonBasis', comparison && comparison.basis ? comparison.basis : 'Sólo se compara el mismo rango calendario contra el año previo.');
+        byId('comparisonUnavailable').hidden = available;
+        byId('comparisonContent').hidden = !available;
+        if (!available) {
+          setText('comparisonUnavailable', comparison && comparison.explanation ? comparison.explanation : 'La API no habilitó una comparación homogénea para este rango.');
+          setBadge('comparisonBadge', 'warning', 'No comparable');
+          return;
+        }
+        setBadge('comparisonBadge', 'ready', 'Mismo rango calendario');
+        ['events', 'contracts', 'days'].forEach(function (metric) {
+          setText(metric + 'CurrentLabel', comparison.currentLabel);
+          setText(metric + 'PreviousLabel', comparison.previousLabel);
+          setText(metric + 'Current', metric === 'days' ? formatDecimal(comparison.current[metric]) : formatInteger(comparison.current[metric]));
+          setText(metric + 'Previous', metric === 'days' ? formatDecimal(comparison.previous[metric]) : formatInteger(comparison.previous[metric]));
+          setText(metric + 'Change', formatChange(comparison.change[metric]));
+        });
+      }
+
+      function renderRanking(id, items) {
+        var host = byId(id);
+        host.replaceChildren();
+        if (!items.length) {
+          var empty = document.createElement('li');
+          empty.className = 'empty';
+          empty.textContent = 'Sin distribución informada para este período.';
+          host.appendChild(empty);
+          return;
+        }
+        var maximum = Math.max.apply(null, items.map(function (item) { return item.count || 0; }).concat([1]));
+        items.slice(0, 10).forEach(function (item) {
+          var row = document.createElement('li');
+          var head = document.createElement('div');
+          head.className = 'rank-head';
+          var label = document.createElement('span');
+          label.textContent = item.label;
+          label.title = item.label;
+          var value = document.createElement('strong');
+          value.textContent = formatInteger(item.count);
+          head.append(label, value);
+          var track = document.createElement('div');
+          track.className = 'rank-track';
+          track.setAttribute('aria-hidden', 'true');
+          var fill = document.createElement('span');
+          fill.className = 'rank-fill';
+          fill.style.width = Math.round(((item.count || 0) / maximum) * 100) + '%';
+          track.appendChild(fill);
+          row.append(head, track);
+          host.appendChild(row);
+        });
+      }
+
+      function qualityValue(value) {
+        if (value === true) return 'Cumple';
+        if (value === false) return 'Requiere revisión';
+        if (typeof value === 'number') return decimalFormat.format(value);
+        if (typeof value === 'string' && value.trim()) {
+          if (value === 'GRH_declared_days_not_lost_workdays') return 'Días declarados en GRH; no jornadas laborales perdidas';
+          return value;
+        }
+        if (Array.isArray(value)) return value.length ? value.join(', ') : 'Sin observaciones';
+        if (value && typeof value === 'object') return Object.keys(value).map(function (key) { return key + ': ' + qualityValue(value[key]); }).join(' · ');
+        return 'No informado';
+      }
+
+      function renderQuality(quality, limitations) {
+        var qualityHost = byId('qualityList');
+        qualityHost.replaceChildren();
+        var entries = Object.entries(object(quality));
+        if (!entries.length) {
+          var missing = document.createElement('li');
+          var title = document.createElement('strong');
+          title.textContent = 'Contrato de calidad';
+          var value = document.createElement('span');
+          value.textContent = 'No informado por la API';
+          missing.append(title, value);
+          qualityHost.appendChild(missing);
+          setBadge('qualityBadge', 'warning', 'Calidad parcial');
+        } else {
+          entries.forEach(function (entry) {
+            var item = document.createElement('li');
+            var title = document.createElement('strong');
+            title.textContent = qualityLabels[entry[0]] || entry[0].replace(/([a-z])([A-Z])/g, '$1 $2');
+            var value = document.createElement('span');
+            value.textContent = entry[0] === 'sourceCutoff' ? safeDate(entry[1]) : qualityValue(entry[1]);
+            item.append(title, value);
+            qualityHost.appendChild(item);
+          });
+          setBadge('qualityBadge', 'ready', 'Calidad informada');
+        }
+
+        var limitationsHost = byId('limitations');
+        limitationsHost.replaceChildren();
+        var fixed = [
+          'Los días declarados en GRH no equivalen a jornadas laborales perdidas.',
+          'Sin horas programadas y semántica homologada no se calcula tasa de ausentismo ni presentismo.',
+          'El sector corresponde al estado actual del legajo al corte y no a una reconstrucción histórica del evento.'
+        ];
+        fixed.concat(array(limitations).map(qualityValue)).filter(function (item, index, list) { return item && list.indexOf(item) === index; }).forEach(function (item) {
+          var node = document.createElement('li');
+          node.textContent = item;
+          limitationsHost.appendChild(node);
+        });
+      }
+
+      function renderAnalytics(analytics) {
+        renderFilters(analytics);
+        setText('eventsValue', formatInteger(analytics.summary.events));
+        setText('contractsValue', formatInteger(analytics.summary.contracts));
+        setText('daysValue', formatDecimal(analytics.summary.declaredDays));
+        setBadge('summaryBadge', analytics.status === 'ready' ? 'ready' : 'warning', analytics.status === 'ready' ? 'Datos disponibles' : 'Con pendientes');
+        renderMonthly(analytics.monthly);
+        renderComparison(analytics.comparison);
+        renderRanking('reasonRanking', analytics.reasons);
+        renderRanking('sectorRanking', analytics.sectors);
+
+        var from = analytics.range.from;
+        var to = analytics.range.to;
+        setText('rangeFrom', safeDate(from));
+        setText('rangeTo', safeDate(to));
+        setText('coverageText', analytics.coverage || 'Cobertura según registros devueltos');
+        setText('updatedAt', safeDate(analytics.cutoff));
+        setText('sourceLabel', analytics.source);
+        setText('cutoffLabel', safeDate(analytics.cutoff));
+        setText('batchLabel', analytics.batch || 'No informado');
+        setText('statusLabel', analytics.status || 'No informado');
+        setText('sourceChip', analytics.source + (analytics.cutoff ? ' · corte ' + safeDate(analytics.cutoff) : ''));
+        setText('footerSource', analytics.source);
+        setBadge('periodBadge', from || to ? 'ready' : 'warning', from || to ? [from ? safeDate(from) : '', to ? safeDate(to) : ''].filter(Boolean).join(' → ') : 'Período no informado');
+        byId('overallPanel').dataset.state = analytics.status === 'ready' ? 'ready' : 'warning';
+        setText('overallTitle', analytics.status === 'ready' ? 'Control disponible' : 'Control disponible con pendientes');
+        setText('overallDetail', analytics.status === 'ready' ? 'Indicadores y eventos responden al mismo período y filtros.' : 'Revisá calidad y limitaciones antes de usar los resultados.');
+        renderQuality(analytics.quality, analytics.limitations);
+      }
+
+      function appendCell(row, label, value, className) {
+        var cell = document.createElement('td');
+        cell.dataset.label = label;
+        if (className) cell.className = className;
+        if (value instanceof Node) cell.appendChild(value);
+        else cell.textContent = value;
+        row.appendChild(cell);
+      }
+
+      function renderEvents(events) {
+        state.page = events.page;
+        state.pageSize = events.pageSize;
+        state.total = events.total;
+        state.totalPages = events.totalPages;
+        byId('pageSizeSelect').value = String(events.pageSize === 50 ? 50 : 25);
+        var host = byId('eventRows');
+        host.replaceChildren();
+        if (!events.items.length) {
+          var emptyRow = document.createElement('tr');
+          var emptyCell = document.createElement('td');
+          emptyCell.colSpan = 7;
+          emptyCell.className = 'empty';
+          emptyCell.textContent = 'No se encontraron eventos con los filtros aplicados.';
+          emptyRow.appendChild(emptyCell);
+          host.appendChild(emptyRow);
+        } else {
+          events.items.forEach(function (event) {
+            var row = document.createElement('tr');
+            var dateRange = document.createElement('div');
+            dateRange.className = 'person-cell';
+            var from = document.createElement('strong');
+            from.textContent = safeDate(event.date);
+            var until = document.createElement('span');
+            until.textContent = 'Hasta ' + safeDate(event.untilDate);
+            dateRange.append(from, until);
+            appendCell(row, 'Desde / hasta', dateRange);
+            var person = document.createElement('div');
+            person.className = 'person-cell';
+            var name = document.createElement('strong');
+            name.textContent = event.name || 'Nombre no informado';
+            var legajo = document.createElement('span');
+            legajo.textContent = event.legajo ? 'Legajo ' + event.legajo : 'Legajo no informado';
+            person.append(name, legajo);
+            appendCell(row, 'Persona / legajo', person);
+            appendCell(row, 'Motivo', event.reason || 'Sin motivo informado');
+            appendCell(row, 'Sector', event.sector || 'Sin sector informado');
+            appendCell(row, 'Días declarados', event.declaredDays === null ? 'No informado' : formatDecimal(event.declaredDays), 'numeric');
+            var control = event.rangeIntegrity === 'valid_source_range'
+              ? 'Rango válido'
+              : event.rangeIntegrity === 'inverted_source_range'
+                ? 'Rango invertido'
+                : event.rangeIntegrity === 'until_date_not_reported'
+                  ? 'Fecha hasta no informada'
+                  : 'No informado';
+            appendCell(row, 'Control de fuente', control);
+            var link = document.createElement('a');
+            link.className = 'table-link';
+            link.href = event.contractId ? 'internal-dashboard.html?contractId=' + encodeURIComponent(event.contractId) + '#legajos' : 'internal-dashboard.html#legajos';
+            link.textContent = event.contractId ? 'Abrir ficha' : 'Buscar ficha';
+            link.setAttribute('aria-label', event.contractId ? 'Abrir la ficha interna de ' + (event.name || 'este legajo') : 'Buscar la ficha en Personas');
+            appendCell(row, 'Ficha', link);
+            host.appendChild(row);
+          });
+        }
+        var from = events.total ? ((events.page - 1) * events.pageSize) + 1 : 0;
+        var to = Math.min(events.page * events.pageSize, events.total);
+        setText('resultCount', events.total ? integerFormat.format(from) + '–' + integerFormat.format(to) + ' de ' + integerFormat.format(events.total) + ' eventos' : 'Sin eventos para mostrar');
+        setText('pageStatus', 'Página ' + integerFormat.format(events.page) + ' de ' + integerFormat.format(events.totalPages));
+        byId('previousPage').disabled = events.page <= 1;
+        byId('nextPage').disabled = events.page >= events.totalPages;
+        setBadge('eventsBadge', events.items.length ? 'ready' : 'warning', events.items.length ? 'Detalle disponible' : 'Sin resultados');
+      }
+
+      function showError(message) {
+        byId('loading').hidden = true;
+        byId('mainContent').hidden = true;
+        var host = byId('errorHost');
+        host.hidden = false;
+        host.replaceChildren();
+        var card = document.createElement('section');
+        card.className = 'error-card';
+        card.setAttribute('role', 'alert');
+        var eyebrow = document.createElement('p');
+        eyebrow.className = 'eyebrow';
+        eyebrow.textContent = 'Control interno';
+        var title = document.createElement('h1');
+        title.textContent = 'No se pudo abrir ausentismo';
+        var detail = document.createElement('p');
+        detail.textContent = message;
+        var retry = document.createElement('button');
+        retry.className = 'button primary';
+        retry.type = 'button';
+        retry.textContent = 'Reintentar';
+        retry.addEventListener('click', function () { if (authenticated) loadData(); else authenticate(); });
+        card.append(eyebrow, title, detail, retry);
+        host.appendChild(card);
+      }
+
+      async function loadData() {
+        if (redirectIssued) return;
+        var requestId = ++loadingRequest;
+        byId('errorHost').hidden = true;
+        byId('loading').hidden = false;
+        byId('mainContent').hidden = true;
+        setText('loadingMessage', 'Consultamos indicadores y eventos con el mismo alcance.');
+        try {
+          var responses = await Promise.all([
+            fetchJson(DATA_URL + '?' + buildParams('absenceanalytics').toString()),
+            fetchJson(DATA_URL + '?' + buildParams('absenceevents').toString())
+          ]);
+          if (requestId !== loadingRequest || redirectIssued) return;
+          var analytics = normalizeAnalytics(responses[0]);
+          var events = normalizeEvents(responses[1]);
+          renderAnalytics(analytics);
+          renderEvents(events);
+          byId('loading').hidden = true;
+          byId('mainContent').hidden = false;
+          document.title = 'Control de ausentismo | MuniControl';
+        } catch (error) {
+          if (!redirectIssued && !error.unauthorized && requestId === loadingRequest) showError(error instanceof Error ? error.message : 'La fuente interna no está disponible.');
+        }
+      }
+
+      async function authenticate() {
+        if (redirectIssued) return;
+        byId('errorHost').hidden = true;
+        byId('loading').hidden = false;
+        setText('loadingMessage', 'Verificamos tu sesión antes de consultar la fuente laboral.');
+        try {
+          var payload = await fetchJson(AUTH_URL);
+          if (redirectIssued) return;
+          var user = normalizeUser(payload);
+          setText('userName', user.name);
+          setText('userRole', user.role);
+          authenticated = true;
+          await loadData();
+        } catch (error) {
+          if (!redirectIssued && !error.unauthorized) showError(error instanceof Error ? error.message : 'No se pudo verificar la sesión.');
+        }
+      }
+
+      function readFilters() {
+        return {
+          from: byId('fromInput').value,
+          to: byId('toInput').value,
+          sector: byId('sectorSelect').value,
+          reason: byId('reasonSelect').value
+        };
+      }
+
+      function openMenu() {
+        byId('sidebar').classList.add('open');
+        byId('navBackdrop').hidden = false;
+        byId('menuButton').setAttribute('aria-expanded', 'true');
+        document.body.classList.add('menu-open');
+        byId('menuClose').focus();
+      }
+      function closeMenu() {
+        var wasOpen = byId('sidebar').classList.contains('open');
+        byId('sidebar').classList.remove('open');
+        byId('navBackdrop').hidden = true;
+        byId('menuButton').setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('menu-open');
+        if (wasOpen && window.innerWidth <= 820) byId('menuButton').focus();
+      }
+
+      byId('filterPanel').addEventListener('submit', function (event) {
+        event.preventDefault();
+        state.applied = readFilters();
+        state.page = 1;
+        syncUrl();
+        loadData();
+      });
+      byId('resetFilters').addEventListener('click', function () {
+        ['fromInput', 'toInput'].forEach(function (id) { byId(id).value = ''; });
+        ['sectorSelect', 'reasonSelect'].forEach(function (id) { byId(id).value = ''; });
+        state.applied = { from: '', to: '', sector: '', reason: '' };
+        state.page = 1;
+        syncUrl();
+        loadData();
+      });
+      byId('pageSizeSelect').addEventListener('change', function () { state.pageSize = Math.min(50, Math.max(1, Number(this.value) || 25)); state.page = 1; syncUrl(); loadData(); });
+      byId('previousPage').addEventListener('click', function () { if (state.page > 1) { state.page -= 1; syncUrl(); loadData(); } });
+      byId('nextPage').addEventListener('click', function () { if (state.page < state.totalPages) { state.page += 1; syncUrl(); loadData(); } });
+      byId('refreshButton').addEventListener('click', loadData);
+      byId('logoutButton').addEventListener('click', async function () {
+        try { await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin' }); }
+        finally { sessionStorage.removeItem('mjunin_user'); location.replace('login.html'); }
+      });
+      byId('menuButton').addEventListener('click', openMenu);
+      byId('menuClose').addEventListener('click', closeMenu);
+      byId('navBackdrop').addEventListener('click', closeMenu);
+      byId('sidebar').querySelectorAll('a').forEach(function (link) { link.addEventListener('click', closeMenu); });
+      document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && byId('sidebar').classList.contains('open')) closeMenu(); });
+      window.addEventListener('resize', function () { if (window.innerWidth > 820) closeMenu(); });
+
+      (function restoreUrlState() {
+        var params = new URLSearchParams(location.search);
+        state.applied = {
+          from: text(params.get('from')),
+          to: text(params.get('to')),
+          sector: text(params.get('sector')),
+          reason: text(params.get('reasonCode'))
+        };
+        state.page = Math.max(1, Number(params.get('page')) || 1);
+        state.pageSize = params.get('limit') === '50' ? 50 : 25;
+        byId('fromInput').value = state.applied.from;
+        byId('toInput').value = state.applied.to;
+      }());
+
+      authenticate();
+    }());
+  </script>
+</body>
+</html>

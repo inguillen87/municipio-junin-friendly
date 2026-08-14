@@ -55,10 +55,10 @@ export const SECTION_CATALOG = deepFreeze([
     aliases: ['asistente', 'ia', 'bot', 'chat', 'chatbot'],
   },
   {
-    id: 'ausentismo', label: 'Ausentismo', targetPath: '/internal-dashboard#ausentismo',
-    purpose: 'Consultar eventos históricos de ausencia y personas alcanzadas dentro del período informado por la fuente.',
-    actions: ['revisar eventos registrados', 'consultar personas alcanzadas', 'confirmar el período y los límites de la fuente'],
-    limits: ['un evento no equivale a un día perdido, una duración ni una tasa de ausentismo homologada'],
+    id: 'ausentismo', label: 'Ausentismo', targetPath: '/ausentismo-control',
+    purpose: 'Analizar eventos administrativos de ausencia de GRH por período, motivo y sector, con acceso autorizado a la ficha laboral.',
+    actions: ['filtrar un período verificable', 'comparar eventos y legajos alcanzados', 'revisar motivos y sectores', 'abrir el detalle de un evento en su ficha'],
+    limits: ['los días declarados por GRH no equivalen automáticamente a jornadas perdidas', 'sin turnos y fichadas actuales no existe una tasa de presentismo homologada'],
     aliases: ['ausentismo', 'ausencia', 'ausencias', 'evento de ausencia', 'eventos de ausencia'],
   },
   {
@@ -118,7 +118,7 @@ export const TASK_CATALOG = deepFreeze([
   {
     id: 'revisar_ausentismo', label: 'Revisar los eventos de ausentismo', sectionId: 'ausentismo',
     aliases: ['revisar ausentismo', 'ver ausentismo', 'revisar ausencias', 'ver ausencias', 'consultar ausentismo'],
-    steps: ['Abrí Ausentismo desde el portal interno.', 'Confirmá el período y la fuente informados antes de leer los valores.', 'Revisá por separado los eventos registrados y las personas alcanzadas.', 'No conviertas eventos en días perdidos, duración ni tasa: esos indicadores no están homologados en la fuente disponible.'],
+    steps: ['Abrí Ausentismo desde el portal interno.', 'Elegí un período y, si corresponde, filtrá por motivo o sector.', 'Revisá por separado eventos, legajos alcanzados y días declarados por GRH.', 'Usá la bandeja para abrir la ficha laboral sin perder de vista la fuente y el corte.', 'No conviertas los valores en jornadas perdidas, productividad ni tasa de presentismo: esos indicadores no están homologados.'],
   },
   {
     id: 'leer_reporte', label: 'Interpretar un reporte de RRHH', sectionId: 'reportes',
@@ -142,6 +142,7 @@ export const GLOSSARY = deepFreeze([
   { id: 'corrida_cerrada', label: 'Corrida cerrada', aliases: ['corrida cerrada', 'nomina cerrada', 'liquidacion cerrada'], definition: 'Período de nómina cuyo estado de cierre y controles de conciliación permiten tratarlo como referencia publicable según la decisión informada por la API.', relatedSectionIds: ['nomina'] },
   { id: 'corrida_abierta', label: 'Corrida abierta', aliases: ['corrida abierta', 'nomina abierta', 'preliquidacion'], definition: 'Período todavía en curso. Puede usarse para control interno, pero sus importes no se presentan como KPI financiero cerrado.', relatedSectionIds: ['nomina'] },
   { id: 'dato_nominal', label: 'Dato nominal', aliases: ['dato nominal', 'datos nominales', 'informacion nominal', 'informacion personal'], definition: 'Información que identifica o describe a una persona o legajo individual. Las consultas nominales del asistente permanecen en la base local y no se envían al proveedor externo.', relatedSectionIds: ['personas', 'asistente'] },
+  { id: 'evento_ausencia', label: 'Evento administrativo de ausencia', aliases: ['evento de ausencia', 'ausencia administrativa', 'dias declarados', 'día declarado'], definition: 'Registro informado por GRH para un legajo y una fecha. Su cantidad o días declarados no equivalen por sí solos a jornadas perdidas, horas no trabajadas ni tasa de presentismo.', relatedSectionIds: ['ausentismo', 'calidad'] },
 ]);
 
 export function getProductGuidanceCatalog() {

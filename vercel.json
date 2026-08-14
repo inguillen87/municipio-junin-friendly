@@ -47,6 +47,7 @@
     { "source": "/estructura", "destination": "/estructura.html" },
     { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
     { "source": "/nomina-control", "destination": "/nomina-control.html" },
+    { "source": "/ausentismo-control", "destination": "/ausentismo-control.html" },
     { "source": "/asistente", "destination": "/asistente.html" },
     { "source": "/centro-ayuda", "destination": "/centro-ayuda.html" },
     { "source": "/ayuda", "destination": "/centro-ayuda.html" },
@@ -155,6 +156,14 @@
     },
     {
       "source": "/nomina-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/ausentismo-control",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/ausentismo-control.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

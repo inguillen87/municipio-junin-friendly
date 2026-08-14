@@ -27,7 +27,7 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
 test('el contrato de aprendizaje cubre la navegación, las tareas y el glosario vigentes', () => {
   assert.equal(SECTION_CATALOG.length, 10);
   assert.equal(TASK_CATALOG.length, 9);
-  assert.equal(GLOSSARY.length, 9);
+  assert.equal(GLOSSARY.length, 10);
   assert.equal(new Set(SECTION_CATALOG.map((section) => section.id)).size, SECTION_CATALOG.length);
   assert.equal(new Set(TASK_CATALOG.map((task) => task.id)).size, TASK_CATALOG.length);
   for (const task of TASK_CATALOG) assert.ok(SECTION_CATALOG.some((section) => section.id === task.sectionId), `tarea huérfana ${task.id}`);
@@ -49,7 +49,7 @@ test('la guía contextual aísla progreso por sesión y cumple el contrato modal
 });
 
 test('todas las vistas internas principales cargan una sola guía compartida', () => {
-  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
+  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'ausentismo-control.html']) {
     const html = read(file);
     assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
     assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);

@@ -1,6 +1,7 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
 import {
+  absenceAnalytics,
   employee,
   employees,
   integrationQuality,
@@ -29,6 +30,7 @@ const INTENTS = new Set([
   'workforce_summary',
   'payroll_control',
   'integration_quality',
+  'absence_analysis',
   'employee_search',
   'employee_detail',
   'executive_analysis',
@@ -51,6 +53,7 @@ const EXTERNAL_ALLOWED_INTENTS = new Set([
   'workforce_summary',
   'payroll_control',
   'integration_quality',
+  'absence_analysis',
   'executive_analysis',
 ]);
 
@@ -190,6 +193,18 @@ function extractEmployeeSearch(message) {
   return /^(?:empleados?|personas?|todos?|lista|directorio)$/i.test(candidate) ? '' : candidate;
 }
 
+function absenceAnalyticsRequest(body = {}) {
+  return {
+    query: {
+      from: normalizeText(body.from, 10),
+      to: normalizeText(body.to, 10),
+      sector: normalizeText(body.sector, 160),
+      reasonCode: normalizeText(body.reasonCode, 64),
+      bucket: normalizeText(body.bucket, 16) || 'month',
+    },
+  };
+}
+
 export function classifyAssistantRequest(body = {}) {
   const explicit = normalizeText(body.intent, 40).toLowerCase();
   if (explicit && INTENTS.has(explicit)) return explicit;
@@ -205,6 +220,9 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
   if (/\b(?:donde (?:esta|encuentro|veo|puedo)|como (?:llego|entro)|ir a|navegacion|navegar|menu|secciones|pantallas|onboarding|soy nuev[oa]|primer ingreso)\b/.test(message)) return 'help_navigation';
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
+  if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
+      || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
+  if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
   if (/\b(?:personas|crosswalk|integracion|coincidencia|identidad|padron)\b/.test(message)) return 'integration_quality';
   if (/\b(?:dotacion|activos?|liquidables?|brecha|plantel|cuantos?|882|854)\b/.test(message)) return 'workforce_summary';
@@ -324,6 +342,125 @@ function integrationResult(integration, scope) {
   };
 }
 
+function aggregateMetric(row = {}) {
+  const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  return {
+    events: number(row.events),
+    affectedContracts: number(row.affectedContracts),
+    sourceDeclaredDays: number(row.sourceDeclaredDays),
+  };
+}
+
+function aggregateRange(range = {}) {
+  const date = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : null;
+  return {
+    from: date(range.from),
+    to: date(range.to),
+  };
+}
+
+function aggregateRanking(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.slice(0, 8).map((row) => ({
+    label: normalizeText(row?.label, 160) || 'Sin clasificar',
+    ...aggregateMetric(row),
+  }));
+}
+
+function aggregateComparison(comparison = {}) {
+  if (comparison.available !== true) {
+    return {
+      available: false,
+      basis: 'previous_year_same_calendar_window',
+      reason: normalizeText(comparison.reason, 240) || 'No hay una ventana interanual comparable para el rango efectivo.',
+    };
+  }
+  const change = comparison.changePercent || {};
+  const percent = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+  return {
+    available: true,
+    basis: 'previous_year_same_calendar_window',
+    current: {
+      range: aggregateRange(comparison.current?.range),
+      ...aggregateMetric(comparison.current),
+    },
+    previous: {
+      range: aggregateRange(comparison.previous?.range),
+      ...aggregateMetric(comparison.previous),
+    },
+    changePercent: {
+      events: percent(change.events),
+      affectedContracts: percent(change.affectedContracts),
+      sourceDeclaredDays: percent(change.sourceDeclaredDays),
+    },
+  };
+}
+
+function absenceAnalysisResult(result) {
+  const payload = result?.payload || {};
+  const cutoff = payload.quality?.sourceCutoff || payload.meta?.source?.cutoff || null;
+  const sources = [
+    { system: 'GRH', relation: 'grh_absences', authority: 'absence_event_register' },
+    { system: 'GRH', relation: 'grh_catalog_rows', authority: 'absence_reason_catalog' },
+  ];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar la analítica agregada de ausentismo.',
+      data: { code: normalizeText(payload.code, 80) || 'ABSENCE_ANALYTICS_UNAVAILABLE' },
+      asOf: dateValue(cutoff),
+      sources,
+    };
+  }
+
+  const summary = aggregateMetric(payload.data?.summary);
+  const range = {
+    requested: aggregateRange(payload.range?.requested),
+    effective: aggregateRange(payload.range?.effective),
+    clamped: {
+      from: payload.range?.clamped?.from === true,
+      to: payload.range?.clamped?.to === true,
+    },
+  };
+  const comparison = aggregateComparison(payload.data?.comparison);
+  const topReasons = aggregateRanking(payload.data?.reasons);
+  const topSectors = aggregateRanking(payload.data?.sectors);
+  const leadingReason = topReasons[0];
+  const comparisonText = comparison.available && comparison.changePercent.events !== null
+    ? ` Frente al mismo tramo calendario del año anterior, la cantidad de eventos varió ${Number(comparison.changePercent.events).toLocaleString('es-AR', { maximumFractionDigits: 1, signDisplay: 'always' })}%.`
+    : ' El rango elegido no habilita una comparación interanual homogénea.';
+  const leadingReasonText = leadingReason
+    ? ` El motivo con más registros es ${leadingReason.label}, con ${formatNumber(leadingReason.events)} eventos.`
+    : '';
+
+  return {
+    answer: `Entre ${range.effective.from || 'el inicio disponible'} y ${range.effective.to || 'el corte disponible'}, GRH registra ${formatNumber(summary.events)} eventos administrativos de ausencia sobre ${formatNumber(summary.affectedContracts)} contratos laborales vinculados y ${formatNumber(summary.sourceDeclaredDays)} días declarados en origen.${leadingReasonText}${comparisonText} Estos datos no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas.`,
+    data: {
+      summary,
+      range,
+      comparison,
+      topReasons,
+      topSectors,
+      quality: {
+        sourceCutoff: cutoff,
+        unitSemantics: normalizeText(payload.quality?.unitSemantics, 320),
+        sectorSemantics: normalizeText(payload.quality?.sectorSemantics || payload.meta?.sectorSemantics, 320),
+      },
+      methodology: {
+        authority: 'GRH',
+        grain: 'absence_event',
+        ratesAvailable: false,
+        comparisonPolicy: 'same_calendar_window_previous_year_only',
+        sectorSemantics: normalizeText(payload.meta?.sectorSemantics || payload.quality?.sectorSemantics, 320),
+      },
+    },
+    targetPath: '/ausentismo-control',
+    relatedSections: relatedSections(['ausentismo', 'calidad']),
+    asOf: dateValue(cutoff),
+    sources,
+  };
+}
+
 function employeeSearchResult(result, scope) {
   const total = Number(result.payload?.pagination?.total || 0);
   const shown = result.payload?.data?.length || 0;
@@ -367,19 +504,29 @@ function employeeDetailResult(result, scope) {
   };
 }
 
-function executiveResult(integration, payroll, scope) {
+function executiveResult(integration, payroll, scope, absence) {
   const workforce = workforceResult(integration, scope);
   const payrollView = payrollResult(payroll);
   const integrationView = integrationResult(integration, scope);
+  const absenceView = absenceAnalysisResult(absence);
+  const absenceAvailable = !absenceView.status || absenceView.status === 200;
+  const partialNotice = absenceAvailable
+    ? ''
+    : ' La lectura ejecutiva es parcial: el bloque de ausentismo no está disponible y no se infirieron valores para reemplazarlo.';
   return {
-    answer: `${workforce.answer} ${payrollView.answer} ${integrationView.answer}`,
+    answer: `${workforce.answer} ${payrollView.answer} ${integrationView.answer} ${absenceView.answer}${partialNotice}`,
     data: {
       workforce: workforce.data,
       payroll: payrollView.data,
       integration: integrationView.data,
+      absence: absenceView.data,
+      partial: !absenceAvailable,
+      errors: absenceAvailable
+        ? []
+        : [{ domain: 'absence', status: absenceView.status, code: absenceView.data?.code || 'ABSENCE_ANALYTICS_UNAVAILABLE' }],
     },
-    asOf: workforce.asOf || payrollView.asOf || integrationView.asOf,
-    sources: [...workforce.sources, ...payrollView.sources, ...integrationView.sources],
+    asOf: workforce.asOf || payrollView.asOf || integrationView.asOf || absenceView.asOf,
+    sources: [...workforce.sources, ...payrollView.sources, ...integrationView.sources, ...absenceView.sources],
   };
 }
 
@@ -554,11 +701,45 @@ function providerFacts(intent, data) {
       },
     };
   }
+  if (intent === 'absence_analysis') {
+    if (!data?.summary || !data?.range) return null;
+    const ranking = (rows) => (Array.isArray(rows) ? rows : [])
+      .filter((row) => Number(row?.events || 0) >= 5 && Number(row?.affectedContracts || 0) >= 5)
+      .slice(0, 5)
+      .map((row) => ({
+        label: normalizeText(row?.label, 160),
+        ...aggregateMetric(row),
+      }));
+    const comparison = aggregateComparison(data.comparison);
+    const safeComparison = comparison.available
+      && comparison.current.affectedContracts >= 5
+      && comparison.previous.affectedContracts >= 5
+      ? comparison
+      : {
+        available: false,
+        basis: 'previous_year_same_calendar_window',
+        reason: comparison.available ? 'suppressed_small_cohort' : comparison.reason,
+      };
+    return {
+      summary: aggregateMetric(data.summary),
+      range: {
+        effective: aggregateRange(data.range?.effective),
+      },
+      comparison: safeComparison,
+      topReasons: ranking(data.topReasons),
+      topSectors: ranking(data.topSectors),
+      methodology: {
+        ratesAvailable: false,
+        sectorSemantics: normalizeText(data.methodology?.sectorSemantics, 320),
+      },
+    };
+  }
   if (intent === 'executive_analysis') {
     return {
       workforce: providerFacts('workforce_summary', data.workforce),
       payroll: providerFacts('payroll_control', data.payroll),
       integration: providerFacts('integration_quality', data.integration),
+      absence: providerFacts('absence_analysis', data.absence),
     };
   }
   return null;
@@ -594,6 +775,14 @@ function providerStatus(status, extra = {}) {
 async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
   if (GUIDANCE_INTENTS.has(intent)) return providerStatus('not_allowed_for_product_guidance');
   if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('not_allowed_for_nominal_or_unknown_intent');
+  const absenceAffectedContracts = intent === 'absence_analysis'
+    ? Number(data?.summary?.affectedContracts || 0)
+    : intent === 'executive_analysis'
+      ? Number(data?.absence?.summary?.affectedContracts || 0)
+      : null;
+  if (absenceAffectedContracts !== null && absenceAffectedContracts < 5) {
+    return providerStatus('suppressed_small_cohort', { minimumAffectedContracts: 5 });
+  }
   const token = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
   if (!token) return providerStatus('not_configured');
 
@@ -620,7 +809,8 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
     workforce_summary: 'Explicá el control agregado de dotación y su brecha operativa.',
     payroll_control: 'Explicá el estado agregado de nómina, distinguiendo cerrado publicable de abierto no publicable.',
     integration_quality: 'Explicá la calidad de integración: GRH manda en lo laboral y PERSONAS sólo enriquece identidad y territorio.',
-    executive_analysis: 'Redactá una lectura ejecutiva breve, priorizando controles accionables y sin inventar causas.',
+    absence_analysis: 'Explicá los eventos administrativos de ausencia, su comparación homogénea y sus límites metodológicos. No los conviertas en tasa, presentismo, productividad ni jornadas perdidas.',
+    executive_analysis: 'Redactá una lectura ejecutiva breve de dotación, nómina, integración y ausentismo. Priorizá controles accionables, no inventes causas y no conviertas eventos de ausencia en tasas, presentismo, productividad ni jornadas perdidas.',
   }[intent];
 
   try {
@@ -685,6 +875,7 @@ function capabilitiesPayload() {
       { intent: 'workforce_summary', externalEnhancement: true },
       { intent: 'payroll_control', externalEnhancement: true },
       { intent: 'integration_quality', externalEnhancement: true },
+      { intent: 'absence_analysis', externalEnhancement: true },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
@@ -711,6 +902,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
   const loadIntegration = dependencies.integrationQuality ?? integrationQuality;
   const loadPayroll = dependencies.payrollControl ?? payrollControl;
+  const loadAbsence = dependencies.absenceAnalytics ?? absenceAnalytics;
   const searchEmployees = dependencies.employees ?? employees;
   const loadEmployee = dependencies.employee ?? employee;
   const loadScope = dependencies.canonicalScope ?? canonicalScope;
@@ -755,6 +947,8 @@ export function createInternalAssistantHandler(dependencies = {}) {
         } else if (intent === 'integration_quality') {
           const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
           result = integrationResult(integration, scope);
+        } else if (intent === 'absence_analysis') {
+          result = absenceAnalysisResult(await loadAbsence(sql, absenceAnalyticsRequest(body)));
         } else if (intent === 'employee_search') {
           const search = normalizeText(body.search, MAX_SEARCH_LENGTH) || extractEmployeeSearch(message);
           const request = {
@@ -786,12 +980,13 @@ export function createInternalAssistantHandler(dependencies = {}) {
           ]);
           result = employeeDetailResult(detail, scope);
         } else if (intent === 'executive_analysis') {
-          const [integration, payroll, scope] = await Promise.all([
+          const [integration, payroll, scope, absence] = await Promise.all([
             loadIntegration(sql),
             loadPayroll(sql),
             loadScope(sql),
+            loadAbsence(sql, absenceAnalyticsRequest(body)),
           ]);
-          result = executiveResult(integration, payroll, scope);
+          result = executiveResult(integration, payroll, scope, absence);
         } else {
           result = productGuidanceResult('help', body);
         }

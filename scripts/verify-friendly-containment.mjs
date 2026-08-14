@@ -15,6 +15,7 @@ assert.equal(rewrites.get('/reportes'), '/reportes-rrhh.html');
 assert.equal(rewrites.get('/organigrama'), '/estructura.html');
 assert.equal(rewrites.get('/integracion-datos'), '/integracion-datos.html');
 assert.equal(rewrites.get('/nomina-control'), '/nomina-control.html');
+assert.equal(rewrites.get('/ausentismo-control'), '/ausentismo-control.html');
 assert.equal(rewrites.get('/asistente'), '/asistente.html');
 assert.equal(rewrites.get('/centro-ayuda'), '/centro-ayuda.html');
 assert.equal(rewrites.get('/ayuda'), '/centro-ayuda.html');
@@ -35,7 +36,7 @@ for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', 
   assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
 }
 
-for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'centro-ayuda.html']) {
+for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'ausentismo-control.html', 'asistente.html', 'centro-ayuda.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;
@@ -53,7 +54,7 @@ assert.match(internalGuide, /sessionStorage/, 'la guía debe aislar el progreso 
 assert.doesNotMatch(internalGuide, /localStorage/, 'la guía no debe compartir progreso entre empleados del mismo navegador');
 assert.match(internalGuide, /product-guidance\.js/, 'la guía debe consumir el catálogo de producto compartido');
 assert.match(read('api/internal-assistant.js'), /product-guidance\.js/, 'la IA debe consumir el mismo catálogo de producto');
-for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
+for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'ausentismo-control.html', 'asistente.html']) {
   assert.match(read(file), /assets\/internal-guide\.js/, `${file} debe cargar la ayuda contextual compartida`);
 }
 for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js', 'api/internal-assistant.js']) {

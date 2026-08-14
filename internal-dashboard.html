@@ -1035,7 +1035,7 @@
 
       <nav class="suite-links" aria-label="Herramientas internas">
         <span class="suite-label">Herramientas</span>
-        <button class="nav-button" type="button" data-view="ausentismo" aria-controls="view-ausentismo"><span class="nav-index" aria-hidden="true">AU</span><span>Ausentismo</span></button>
+        <a class="nav-button" href="ausentismo-control.html"><span class="nav-index" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <button class="nav-button" type="button" data-view="calidad" aria-controls="view-calidad"><span class="nav-index" aria-hidden="true">CD</span><span>Calidad</span></button>
         <a class="nav-button" href="reportes-rrhh.html"><span class="nav-index" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
         <a class="nav-button" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
@@ -1284,7 +1284,10 @@
             <div class="notice warning">
               <strong>Alcance actual.</strong> “Eventos informados” no equivale por sí solo a personas ausentes, jornadas perdidas ni tasa de ausentismo.
             </div>
-            <button class="button primary" id="goToEmployees" type="button" style="margin-top:16px">Buscar un legajo</button>
+            <div class="button-row" style="margin-top:16px">
+              <a class="button primary" href="ausentismo-control.html">Abrir control operativo</a>
+              <button class="button" id="goToEmployees" type="button">Buscar un legajo</button>
+            </div>
           </article>
         </section>
 
@@ -1621,6 +1624,16 @@
         };
       }
 
+      function detailRequestFromLocation() {
+        const params = new URLSearchParams(window.location.search);
+        const contractId = text(params.get('contractId'));
+        const legajo = text(params.get('legajo'));
+        const companyId = text(params.get('companyId'));
+        if (contractId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) return null;
+        if (!contractId && (!/^\d{1,20}$/.test(legajo) || (companyId && !/^\d{1,10}$/.test(companyId)))) return null;
+        return contractId || legajo ? { contractId: contractId, legajo: legajo, companyId: companyId } : null;
+      }
+
       async function authenticate() {
         els.gateTitle.textContent = 'Verificando sesión';
         els.gateMessage.textContent = 'Estamos confirmando tu acceso al panel interno.';
@@ -1639,10 +1652,12 @@
           els.userRole.textContent = user.role;
           els.authGate.hidden = true;
           els.appShell.hidden = false;
-          const initialView = viewFromLocation();
+          const detailRequest = detailRequestFromLocation();
+          const initialView = detailRequest ? 'legajos' : viewFromLocation();
           showView(initialView, false, false);
           loadSummary();
           if (initialView === 'legajos') loadEmployees(1);
+          if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo');
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
           els.gateTitle.textContent = 'No pudimos verificar la sesión';

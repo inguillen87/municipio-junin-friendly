@@ -47,6 +47,46 @@ const payroll = {
   },
   quality: { ready: true, openRunsPublished: 0 },
 };
+const absence = {
+  status: 200,
+  payload: {
+    ok: true,
+    data: {
+      summary: { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 },
+      reasons: [
+        { code: '01', label: 'Licencia anual ordinaria', events: 583, affectedContracts: 411, sourceDeclaredDays: 8930 },
+        { code: '07', label: 'Enfermedad', events: 314, affectedContracts: 205, sourceDeclaredDays: 2110 },
+      ],
+      sectors: [
+        { label: 'Servicios públicos', events: 298, affectedContracts: 133, sourceDeclaredDays: 2400 },
+        { label: 'Administración', events: 265, affectedContracts: 121, sourceDeclaredDays: 1980 },
+      ],
+      comparison: {
+        available: true,
+        basis: 'previous_year_same_calendar_window',
+        current: { range: { from: '2026-01-01', to: '2026-08-06' }, events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 },
+        previous: { range: { from: '2025-01-01', to: '2025-08-06' }, events: 1331, affectedContracts: 567, sourceDeclaredDays: 16567 },
+        changePercent: { events: 17.1, affectedContracts: 4.1, sourceDeclaredDays: 5 },
+      },
+    },
+    range: {
+      requested: { from: '2026-01-01', to: '2026-08-06' },
+      effective: { from: '2026-01-01', to: '2026-08-06' },
+      clamped: { from: false, to: false },
+    },
+    quality: {
+      sourceCutoff: '2026-08-06',
+      unitSemantics: 'Días declarados por GRH (DIAS_24); no equivalen a jornadas perdidas, duración ni tasa de ausentismo.',
+      sectorSemantics: 'Sector actual observado al corte; no reconstruye la asignación histórica del evento.',
+    },
+    meta: {
+      authority: 'GRH',
+      grain: 'absence_event',
+      ratesAvailable: false,
+      sectorSemantics: 'Sector actual observado al corte; no reconstruye la asignación histórica del evento.',
+    },
+  },
+};
 
 function responseRecorder() {
   return {
@@ -63,6 +103,7 @@ function handler(overrides = {}) {
     getInternalSql: overrides.getInternalSql || (async () => ({ query: async () => [] })),
     integrationQuality: async () => integration,
     payrollControl: async () => payroll,
+    absenceAnalytics: overrides.absenceAnalytics || (async () => absence),
     canonicalScope: async () => scope,
     employees: overrides.employees || (async () => ({
       status: 200,
@@ -105,6 +146,9 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ message: '¿Cuál es la brecha de dotación?' }), 'workforce_summary');
   assert.equal(classifyAssistantRequest({ message: '¿La nómina de agosto está cerrada?' }), 'payroll_control');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo viene el crosswalk con PERSONAS?' }), 'integration_quality');
+  assert.equal(classifyAssistantRequest({ message: 'Analizá los eventos administrativos de ausencia del último período' }), 'absence_analysis');
+  assert.equal(classifyAssistantRequest({ message: 'Buscar empleado con ausencias' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ intent: 'absence_analysis' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ search: 'Pérez' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ legajo: '42' }), 'employee_detail');
 });
@@ -133,7 +177,7 @@ test('catálogo de ayuda expone las diez secciones reales y rutas existentes', (
   assert.equal(catalog.sections.find((section) => section.id === 'estructura').targetPath, '/estructura');
   assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
-  assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/internal-dashboard#ausentismo');
+  assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/ausentismo-control');
   assert.equal(catalog.sections.find((section) => section.id === 'calidad').targetPath, '/calidad-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'reportes').targetPath, '/reportes-rrhh');
   assert.equal(catalog.sections.find((section) => section.id === 'ayuda').targetPath, '/centro-ayuda');
@@ -171,7 +215,7 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
     { getInternalSql: async () => { throw new Error('la navegación no debe consultar Neon'); } },
   );
   assert.equal(absence.payload.intent, 'help_navigation');
-  assert.equal(absence.payload.targetPath, '/internal-dashboard#ausentismo');
+  assert.equal(absence.payload.targetPath, '/ausentismo-control');
   assert.equal(absence.payload.data.section.label, 'Ausentismo');
 });
 
@@ -208,8 +252,8 @@ test('guía tareas con pasos y destino sin ejecutar cambios administrativos', as
 
   const absenceHelp = await post({ message: '¿Cómo revisar ausentismo?' });
   assert.equal(absenceHelp.payload.data.task.id, 'revisar_ausentismo');
-  assert.equal(absenceHelp.payload.targetPath, '/internal-dashboard#ausentismo');
-  assert.match(absenceHelp.payload.steps.at(-1), /No conviertas eventos en días perdidos, duración ni tasa/i);
+  assert.equal(absenceHelp.payload.targetPath, '/ausentismo-control');
+  assert.match(absenceHelp.payload.steps.at(-1), /No conviertas los valores en jornadas perdidas, productividad ni tasa/i);
 });
 
 test('glosario define términos sensibles con límites y secciones relacionadas', async () => {
@@ -240,6 +284,10 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   for (const intent of ['help_navigation', 'section_explanation', 'task_guidance', 'glossary']) {
     assert.ok(res.payload.capabilities.some((capability) => capability.intent === intent));
   }
+  assert.deepEqual(
+    res.payload.capabilities.find((capability) => capability.intent === 'absence_analysis'),
+    { intent: 'absence_analysis', externalEnhancement: true },
+  );
   assert.equal(res.payload.guidance.sections.length, 10);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
@@ -293,6 +341,209 @@ test('integración mantiene GRH como autoridad y PERSONAS como auxiliar', async 
   assert.equal(res.payload.data.crosswalk.ambiguous, 157);
   assert.equal(res.payload.data.crosswalk.unmatched, 493);
   assert.match(res.payload.answer, /72,3%/);
+});
+
+test('ausentismo responde sólo con agregados GRH, rango comparable y límites metodológicos', async () => {
+  let query;
+  const res = await post(
+    {
+      intent: 'absence_analysis',
+      from: '2026-01-01',
+      to: '2026-08-06',
+      sector: 'Servicios públicos',
+      reasonCode: '01',
+      bucket: 'month',
+    },
+    {
+      absenceAnalytics: async (_sql, req) => {
+        query = req.query;
+        return absence;
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'absence_analysis');
+  assert.deepEqual(query, {
+    from: '2026-01-01',
+    to: '2026-08-06',
+    sector: 'Servicios públicos',
+    reasonCode: '01',
+    bucket: 'month',
+  });
+  assert.deepEqual(res.payload.data.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 });
+  assert.equal(res.payload.data.comparison.changePercent.events, 17.1);
+  assert.equal(res.payload.data.topReasons[0].label, 'Licencia anual ordinaria');
+  assert.equal(res.payload.data.topSectors[0].label, 'Servicios públicos');
+  assert.equal(res.payload.data.methodology.ratesAvailable, false);
+  assert.match(res.payload.data.methodology.sectorSemantics, /sector actual.*histórica/i);
+  assert.equal('rows' in res.payload.data, false);
+  assert.equal(res.payload.targetPath, '/ausentismo-control');
+  assert.match(res.payload.answer, /1\.559 eventos administrativos/i);
+  assert.match(res.payload.answer, /no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas/i);
+  assert.equal(res.payload.sources[0].relation, 'grh_absences');
+  assert.equal(res.payload.provider.status, 'not_requested');
+});
+
+test('ausentismo delega el período predeterminado al corte autoritativo de su propia fuente', async () => {
+  let query;
+  const res = await post(
+    { message: '¿Cómo viene el ausentismo?' },
+    { absenceAnalytics: async (_sql, req) => { query = req.query; return absence; } },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'absence_analysis');
+  assert.equal(query.from, '');
+  assert.equal(query.to, '');
+});
+
+test('el proveedor externo de ausentismo recibe rankings agregados y nunca filas nominales', async () => {
+  let providerBody;
+  const payloadWithNominalTrap = JSON.parse(JSON.stringify(absence));
+  payloadWithNominalTrap.payload.data.rows = [{ nombre: 'PERSONA LOCAL', legajo: '42', dni: '00000000', contractId: 'contract-1' }];
+  payloadWithNominalTrap.payload.data.reasons.push({
+    label: 'Motivo recurrente de cohorte unitaria',
+    events: 10,
+    affectedContracts: 1,
+    sourceDeclaredDays: 10,
+  });
+  payloadWithNominalTrap.payload.data.comparison.previous.affectedContracts = 1;
+  const res = await post(
+    { intent: 'absence_analysis', enhance: true },
+    {
+      absenceAnalytics: async () => payloadWithNominalTrap,
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async (_url, options) => {
+        providerBody = JSON.parse(options.body);
+        return { ok: true, async json() { return { choices: [{ message: { content: 'Lectura agregada de ausentismo.' } }] }; } };
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.provider.status, 'used');
+  assert.equal(res.payload.provider.nominalDataSent, false);
+  assert.equal('rows' in res.payload.data, false);
+  const serialized = JSON.stringify(providerBody);
+  assert.match(serialized, /topReasons/);
+  assert.match(serialized, /topSectors/);
+  assert.match(serialized, /Sector actual observado al corte/);
+  assert.doesNotMatch(serialized, /PERSONA LOCAL|00000000|legajo|contractId|sourceId/i);
+  assert.doesNotMatch(serialized, /Motivo recurrente de cohorte unitaria/i);
+  assert.match(providerBody.messages[1].content, /"comparison":\{"available":false/);
+  assert.doesNotMatch(providerBody.messages[1].content, /absence_analysis/i, 'no debe enviar la intención cruda como sustituto de hechos');
+  assert.equal(res.payload.privacy.rawUserMessageSentExternally, false);
+});
+
+test('ausentismo no externaliza cohortes menores a cinco contratos', async () => {
+  let fetchCalls = 0;
+  const smallCohort = JSON.parse(JSON.stringify(absence));
+  smallCohort.payload.data.summary = { events: 1, affectedContracts: 1, sourceDeclaredDays: 1 };
+  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 1, affectedContracts: 1, sourceDeclaredDays: 1 }];
+  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 1, affectedContracts: 1, sourceDeclaredDays: 1 }];
+
+  const res = await post(
+    { intent: 'absence_analysis', enhance: true, sector: 'Sector pequeño' },
+    {
+      absenceAnalytics: async () => smallCohort,
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('no debe llamar al proveedor'); },
+    },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.summary.affectedContracts, 1, 'la respuesta interna conserva el hecho autorizado');
+  assert.equal(res.payload.provider.status, 'suppressed_small_cohort');
+  assert.equal(res.payload.provider.minimumAffectedContracts, 5);
+  assert.equal(res.payload.provider.externalProviderAttempted, false);
+  assert.equal(fetchCalls, 0);
+});
+
+test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fila nominal del proveedor', async () => {
+  let providerBody;
+  let absenceQuery;
+  const payloadWithNominalTrap = JSON.parse(JSON.stringify(absence));
+  payloadWithNominalTrap.payload.data.rows = [{ nombre: 'PERSONA EJECUTIVA', legajo: '999', cuil: '20000000001', contractId: 'contract-secret' }];
+  const res = await post(
+    { intent: 'executive_analysis', enhance: true },
+    {
+      absenceAnalytics: async (_sql, req) => {
+        absenceQuery = req.query;
+        return payloadWithNominalTrap;
+      },
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async (_url, options) => {
+        providerBody = JSON.parse(options.body);
+        return { ok: true, async json() { return { choices: [{ message: { content: 'Lectura ejecutiva agregada.' } }] }; } };
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'executive_analysis');
+  assert.deepEqual(absenceQuery, { from: '', to: '', sector: '', reasonCode: '', bucket: 'month' });
+  assert.deepEqual(res.payload.data.absence.summary, { events: 1559, affectedContracts: 590, sourceDeclaredDays: 17400 });
+  assert.equal('rows' in res.payload.data.absence, false);
+  assert.match(res.payload.answer, /1\.559 eventos administrativos de ausencia/i);
+  assert.match(res.payload.answer, /no constituyen una tasa de ausentismo, presentismo, productividad ni jornadas perdidas/i);
+  const serialized = JSON.stringify(providerBody);
+  assert.match(providerBody.messages[1].content, /"absence"/);
+  assert.match(providerBody.messages[1].content, /"topReasons"/);
+  assert.doesNotMatch(serialized, /PERSONA EJECUTIVA|20000000001|legajo|contractId|contract-secret/i);
+  assert.equal(res.payload.provider.nominalDataSent, false);
+});
+
+test('el análisis ejecutivo tampoco externaliza un filtro de ausentismo con cohorte pequeña', async () => {
+  let fetchCalls = 0;
+  const smallCohort = JSON.parse(JSON.stringify(absence));
+  smallCohort.payload.data.summary = { events: 2, affectedContracts: 1, sourceDeclaredDays: 2 };
+  smallCohort.payload.data.reasons = [{ label: 'Motivo sensible', events: 2, affectedContracts: 1, sourceDeclaredDays: 2 }];
+  smallCohort.payload.data.sectors = [{ label: 'Sector pequeño', events: 2, affectedContracts: 1, sourceDeclaredDays: 2 }];
+
+  const res = await post(
+    { intent: 'executive_analysis', enhance: true, sector: 'Sector pequeño' },
+    {
+      absenceAnalytics: async () => smallCohort,
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('no debe llamar al proveedor'); },
+    },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.absence.summary.affectedContracts, 1);
+  assert.equal(res.payload.provider.status, 'suppressed_small_cohort');
+  assert.equal(res.payload.provider.externalProviderAttempted, false);
+  assert.equal(fetchCalls, 0);
+});
+
+test('el análisis ejecutivo declara resultado parcial cuando ausentismo no está disponible', async () => {
+  let fetchCalls = 0;
+  const res = await post(
+    { intent: 'executive_analysis', enhance: true },
+    {
+      absenceAnalytics: async () => ({
+        status: 503,
+        payload: {
+          ok: false,
+          code: 'ABSENCE_SOURCE_UNAVAILABLE',
+          error: 'No se pudo consultar ausentismo.',
+        },
+      }),
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('no debe externalizar un bloque incompleto'); },
+    },
+  );
+
+  assert.equal(res.statusCode, 200, 'los demás dominios ejecutivos siguen disponibles');
+  assert.equal(res.payload.ok, true);
+  assert.equal(res.payload.data.partial, true);
+  assert.deepEqual(res.payload.data.errors, [{
+    domain: 'absence',
+    status: 503,
+    code: 'ABSENCE_SOURCE_UNAVAILABLE',
+  }]);
+  assert.deepEqual(res.payload.data.absence, { code: 'ABSENCE_SOURCE_UNAVAILABLE' });
+  assert.match(res.payload.answer, /lectura ejecutiva es parcial/i);
+  assert.equal(res.payload.provider.status, 'suppressed_small_cohort');
+  assert.equal(res.payload.provider.externalProviderAttempted, false);
+  assert.equal(fetchCalls, 0);
 });
 
 test('búsqueda y ficha nominal quedan locales aunque se solicite enhance', async () => {
@@ -454,4 +705,8 @@ test('la interfaz activa enriquecimiento y adapta insight y fuentes del contrato
   assert.match(html, /item\.system/);
   assert.match(html, /item\.relation/);
   assert.match(html, /payload\.provider/);
+  assert.match(html, /intent === 'absence_analysis'/);
+  assert.match(html, /intent === 'executive_analysis'/);
+  assert.match(html, /data\.absence/);
+  assert.match(html, /Días declarados en GRH \(no jornadas perdidas\)/);
 });

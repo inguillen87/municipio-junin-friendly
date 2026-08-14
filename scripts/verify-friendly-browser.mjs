@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { INTERNAL_SESSION_COOKIE, issueInternalSessionToken } from '../lib/internal-session.js';
 
 const baseUrl = (process.env.BASE_URL || 'http://127.0.0.1:3100').replace(/\/$/, '');
 const baseOrigin = new URL(baseUrl).origin;
@@ -13,6 +14,8 @@ if ((!internalEmail || !internalPassword) && credentialFile) {
   if (!internalPassword) internalPassword = String(credential.password || '');
 }
 const navigationTimeout = Number(process.env.QA_NAVIGATION_TIMEOUT_MS || 20_000);
+const canIssueSession = Boolean((process.env.INTERNAL_SESSION_SECRET || '').trim());
+const hasCredentials = Boolean(internalEmail && internalPassword);
 
 assert.equal(
   Boolean(internalEmail),
@@ -20,8 +23,8 @@ assert.equal(
   'QA_INTERNAL_EMAIL y QA_INTERNAL_PASSWORD deben informarse juntas.',
 );
 assert.ok(
-  internalEmail && internalPassword,
-  'La certificacion multipagina requiere QA_INTERNAL_EMAIL y QA_INTERNAL_PASSWORD.',
+  hasCredentials || canIssueSession,
+  'La certificacion multipagina requiere credenciales QA o INTERNAL_SESSION_SECRET para una sesión efímera.',
 );
 
 const publicSections = [
@@ -76,6 +79,22 @@ function isInternalApi(value) {
 
 async function newPage(viewport, options = {}) {
   const context = await browser.newContext({ viewport });
+  if (options.authenticated === true && !hasCredentials) {
+    const token = issueInternalSessionToken({
+      id: 'qa-browser-session',
+      email: 'qa-browser@local.invalid',
+      displayName: 'QA navegador',
+      role: 'qa',
+    });
+    await context.addCookies([{
+      name: INTERNAL_SESSION_COOKIE,
+      value: token,
+      url: baseOrigin,
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: baseOrigin.startsWith('https://'),
+    }]);
+  }
   const page = await context.newPage();
   const label = options.label || `${viewport.width}x${viewport.height}`;
   const allowUnauthorized = options.allowUnauthorized === true;
@@ -293,12 +312,26 @@ async function verifyAnonymousInternal() {
     ));
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion de ayuda anonima');
+
+    await page.goto(`${baseUrl}/ausentismo-control`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'ausentismo-control.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de ausentismo anonimo');
   } finally {
     await context.close();
   }
 }
 
 async function loginInternal(page) {
+  if (!hasCredentials) {
+    await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#appShell:not([hidden])');
+    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#kpiHistorical [data-value]')?.textContent || ''));
+    return;
+  }
   await page.goto(`${baseUrl}/login?next=internal-dashboard.html`, { waitUntil: 'domcontentloaded' });
   await page.locator('#emailInput').fill(internalEmail);
   await page.locator('#passInput').fill(internalPassword);
@@ -309,7 +342,10 @@ async function loginInternal(page) {
 }
 
 async function verifyAuthenticatedInternal() {
-  const { context, page } = await newPage({ width: 1440, height: 900 }, { label: 'interno autenticado' });
+  const { context, page } = await newPage(
+    { width: 1440, height: 900 },
+    { label: 'interno autenticado', authenticated: true },
+  );
   try {
     await loginInternal(page);
     assert.match(await page.locator('#kpiActive [data-value]').innerText(), /882/);
@@ -353,6 +389,47 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Estructura mobile');
 
+    const absenceResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=absenceanalytics&from=2026-01-01&to=2026-08-06&bucket=month`);
+    assert.equal(absenceResponse.status(), 200, 'Ausentismo agregado debe aceptar la sesión interna');
+    const absencePayload = await absenceResponse.json();
+    assert.deepEqual(absencePayload.data.summary, {
+      events: 1559,
+      affectedContracts: 590,
+      sourceDeclaredDays: 17400,
+    });
+    assert.equal(absencePayload.data.comparison.changePercent.events, 17.1);
+    assert.equal(absencePayload.meta.ratesAvailable, false);
+
+    await page.goto(`${baseUrl}/ausentismo-control?from=1980-01-01&to=2027-12-31`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainContent:not([hidden])');
+    await page.waitForFunction(() => new URL(location.href).searchParams.get('from') === '1990-01-01'
+      && new URL(location.href).searchParams.get('to') === '2026-08-06');
+    assert.equal(await page.locator('#fromInput').inputValue(), '1990-01-01');
+    assert.equal(await page.locator('#toInput').inputValue(), '2026-08-06');
+    assert.match(await page.locator('#filterSummary').innerText(), /rango ajustado/i);
+    await assertPageHealthy(page, 'Ausentismo con rango ajustado');
+
+    await page.goto(`${baseUrl}/ausentismo-control?from=2026-01-01&to=2026-08-06`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainContent:not([hidden])');
+    await page.waitForFunction(() => /1[.\s]?559/.test(document.querySelector('#eventsValue')?.textContent || ''));
+    assert.match(await page.locator('#contractsValue').innerText(), /590/);
+    assert.match(await page.locator('#daysValue').innerText(), /17[.\s]?400/);
+    assert.match(await page.locator('#comparisonBadge').innerText(), /Mismo rango calendario/i);
+    assert.match(await page.locator('#sourceLabel').innerText(), /GRH/i);
+    assert.ok(await page.locator('#eventRows a[href*="contractId="]').count() > 0, 'Cada evento vinculado debe abrir su ficha canónica');
+    await assertPageHealthy(page, 'Ausentismo mobile');
+
+    const absenceUrl = new URL(page.url());
+    await page.locator('#eventRows a[href*="contractId="]').first().click();
+    await page.waitForSelector('#employeeDialog[open]');
+    await page.waitForFunction(() => document.querySelector('#dialogBody')?.getAttribute('aria-busy') === 'false');
+    assert.ok(new URL(page.url()).searchParams.get('contractId'), 'La ficha debe conservar un deep-link canónico');
+    await page.goBack({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainContent:not([hidden])');
+    assert.equal(new URL(page.url()).searchParams.get('from'), absenceUrl.searchParams.get('from'));
+    assert.equal(new URL(page.url()).searchParams.get('to'), absenceUrl.searchParams.get('to'));
+    await assertPageHealthy(page, 'Regreso a ausentismo con contexto');
+
     await page.goto(`${baseUrl}/asistente`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
     await page.locator('#messageInput').fill('Cual es la brecha de dotacion?');
@@ -364,9 +441,17 @@ async function verifyAuthenticatedInternal() {
     assert.match(assistantText, /28/);
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH/i, 'El asistente debe mostrar una fuente GRH real');
 
-    await page.locator('#messageInput').fill('Soy nuevo, por donde empiezo?');
+    await page.locator('#messageInput').fill('Analiza los eventos de ausencia del ultimo periodo disponible');
     await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
     await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 2);
+    const absenceAssistantText = await page.locator('.message.assistant .answer-text').last().innerText();
+    assert.match(absenceAssistantText, /1[.\s]?559/);
+    assert.match(absenceAssistantText, /no constituyen una tasa|no jornadas perdidas/i);
+    assert.match(await page.locator('.message.assistant .sources').last().innerText(), /grh_absences|GRH/i);
+
+    await page.locator('#messageInput').fill('Soy nuevo, por donde empiezo?');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 3);
     const guidanceText = await page.locator('.message.assistant .answer-text').last().innerText();
     assert.match(guidanceText, /Personas|Estructura|Ayuda/i, 'El asistente debe orientar la navegacion');
     assert.ok(await page.locator('.message.assistant .answer-links').last().count(), 'La orientación debe ofrecer un acceso navegable');
@@ -410,7 +495,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ayuda contextual + asistente + onboarding; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

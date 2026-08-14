@@ -804,6 +804,428 @@ export async function payrollControl(sql) {
   };
 }
 
+const ABSENCE_MIN_DATE = '1990-01-01';
+const ABSENCE_BUCKETS = new Set(['month', 'year']);
+const ABSENCE_UNIT_SEMANTICS = 'Días declarados por GRH (DIAS_24); no equivalen a jornadas perdidas, duración ni tasa de ausentismo.';
+const ABSENCE_SECTOR_SEMANTICS = 'Sector actual observado en el legajo al corte de importación; no reconstruye la asignación histórica al momento del evento.';
+
+function validIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function isoDate(value) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString().slice(0, 10);
+  const text = String(value ?? '').slice(0, 10);
+  return validIsoDate(text) ? text : null;
+}
+
+function previousYearDate(value) {
+  const [year, month, day] = value.split('-').map(Number);
+  const candidate = `${String(year - 1).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return validIsoDate(candidate) ? candidate : null;
+}
+
+function absenceNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function absenceBoolean(value) {
+  if (value === null || value === undefined) return null;
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function absenceSummaryRow(row = {}) {
+  return {
+    events: absenceNumber(row.events),
+    affectedContracts: absenceNumber(row.affectedContracts),
+    sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays)
+  };
+}
+
+function absenceReasonFlags(row = {}) {
+  return {
+    isLeave: absenceBoolean(row.isLeave),
+    affectsAttendanceBonus: absenceBoolean(row.affectsAttendanceBonus),
+    generatesDiscountedDays: absenceBoolean(row.generatesDiscountedDays),
+    calendarDays: absenceBoolean(row.calendarDays)
+  };
+}
+
+function absenceFilter({ from, to, sector = '', reasonCode = '' }) {
+  const values = [from, to];
+  const conditions = ['absence.fecha >= $1::date', 'absence.fecha <= $2::date'];
+  const parameter = (value) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+  if (sector) {
+    conditions.push(`COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') = ${parameter(sector)}`);
+  }
+  if (reasonCode) conditions.push(`absence.motivo_code = ${parameter(reasonCode)}`);
+  return { where: conditions.join(' AND '), values };
+}
+
+function absenceFromSql(includeIdentity = false) {
+  return `
+    FROM grh_absences absence
+    LEFT JOIN grh_employees employee
+      ON employee.company_id = absence.company_id AND employee.legajo = absence.legajo
+    LEFT JOIN employment_contract contract
+      ON contract.source_system = 'GRH'
+     AND contract.legacy_company_id = absence.company_id
+     AND contract.legacy_legajo = absence.legajo
+    ${includeIdentity ? 'LEFT JOIN person_identity identity ON identity.id = contract.person_id' : ''}
+    LEFT JOIN grh_catalog_rows reason
+      ON reason.catalog = 'absence_reasons'
+     AND reason.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
+  `;
+}
+
+async function absenceSourceContext(sql) {
+  const [source = null] = await sql.query(`
+    /* absence:source */
+    SELECT id AS "importId", source_name AS name, source_sha256 AS sha256,
+           source_cutoff AS "sourceCutoff", completed_at AS "importedAt", status
+    FROM data_import_runs
+    WHERE status = 'completed'
+    ORDER BY completed_at DESC NULLS LAST, id DESC
+    LIMIT 1
+  `);
+  const cutoff = isoDate(source?.sourceCutoff);
+  if (!source || !cutoff || cutoff < ABSENCE_MIN_DATE) return null;
+  return { ...source, cutoff };
+}
+
+function absenceRequest(req, source, { allowBucket = false } = {}) {
+  const bucket = boundedQueryValue(req, 'bucket', 16).toLowerCase() || 'month';
+  if (allowBucket && !ABSENCE_BUCKETS.has(bucket)) {
+    return { error: { status: 400, payload: { ok: false, code: 'ABSENCE_BUCKET_INVALID', error: 'Agrupación de ausentismo inválida' } } };
+  }
+  const sourceYear = Number(source.cutoff.slice(0, 4));
+  const defaultFrom = `${String(Math.max(1990, sourceYear)).padStart(4, '0')}-01-01`;
+  const requestedFrom = boundedQueryValue(req, 'from', 10) || defaultFrom;
+  const requestedTo = boundedQueryValue(req, 'to', 10) || source.cutoff;
+  if (!validIsoDate(requestedFrom) || !validIsoDate(requestedTo)) {
+    return { error: { status: 400, payload: { ok: false, code: 'ABSENCE_DATE_INVALID', error: 'Fecha de ausentismo inválida; usá YYYY-MM-DD' } } };
+  }
+  if (requestedFrom > requestedTo) {
+    return { error: { status: 400, payload: { ok: false, code: 'ABSENCE_RANGE_INVALID', error: 'El inicio no puede ser posterior al fin' } } };
+  }
+  const effectiveFrom = requestedFrom < ABSENCE_MIN_DATE
+    ? ABSENCE_MIN_DATE
+    : requestedFrom > source.cutoff ? source.cutoff : requestedFrom;
+  const effectiveTo = requestedTo > source.cutoff
+    ? source.cutoff
+    : requestedTo < ABSENCE_MIN_DATE ? ABSENCE_MIN_DATE : requestedTo;
+  const sector = boundedQueryValue(req, 'sector', 160);
+  const reasonCode = boundedQueryValue(req, 'reasonCode', 64);
+  return {
+    bucket,
+    sector,
+    reasonCode,
+    range: {
+      requested: { from: requestedFrom, to: requestedTo },
+      effective: { from: effectiveFrom, to: effectiveTo },
+      clamped: { from: effectiveFrom !== requestedFrom, to: effectiveTo !== requestedTo }
+    }
+  };
+}
+
+async function queryAbsenceSummary(sql, filters, marker = 'summary') {
+  const scope = absenceFilter(filters);
+  const [row = {}] = await sql.query(`
+    /* absence:${marker} */
+    SELECT count(*)::int AS events,
+           count(DISTINCT contract.id)::int AS "affectedContracts",
+           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+    ${absenceFromSql()}
+    WHERE ${scope.where}
+  `, scope.values);
+  return absenceSummaryRow(row);
+}
+
+function percentChange(current, previous) {
+  if (!Number.isFinite(previous) || previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+function comparisonFor(range) {
+  if (range.effective.from.slice(0, 4) !== range.effective.to.slice(0, 4)) return null;
+  const from = previousYearDate(range.effective.from);
+  const to = previousYearDate(range.effective.to);
+  return from && to && from >= ABSENCE_MIN_DATE ? { from, to } : null;
+}
+
+export async function absenceAnalytics(sql, req) {
+  const requestedBucket = boundedQueryValue(req, 'bucket', 16).toLowerCase() || 'month';
+  if (!ABSENCE_BUCKETS.has(requestedBucket)) {
+    return { status: 400, payload: { ok: false, code: 'ABSENCE_BUCKET_INVALID', error: 'Agrupación de ausentismo inválida' } };
+  }
+  const source = await absenceSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
+  }
+  const request = absenceRequest(req, source, { allowBucket: true });
+  if (request.error) return request.error;
+  const { from, to } = request.range.effective;
+  const filters = { from, to, sector: request.sector, reasonCode: request.reasonCode };
+  const scope = absenceFilter(filters);
+  const validScope = absenceFilter({ from: ABSENCE_MIN_DATE, to: source.cutoff });
+  const interval = request.bucket === 'month' ? '1 month - 1 day' : '1 year - 1 day';
+  const priorRange = comparisonFor(request.range);
+  const comparisonPromise = priorRange
+    ? queryAbsenceSummary(sql, { ...priorRange, sector: request.sector, reasonCode: request.reasonCode }, 'comparison')
+    : Promise.resolve(null);
+
+  const [
+    summary,
+    seriesRows,
+    reasonRows,
+    sectorRows,
+    facetReasonRows,
+    facetSectorRows,
+    [qualityRow = {}],
+    previous
+  ] = await Promise.all([
+    queryAbsenceSummary(sql, filters, 'analytics-summary'),
+    sql.query(`
+      /* absence:series */
+      SELECT to_char(date_trunc('${request.bucket}', absence.fecha), 'YYYY-MM-DD') AS period,
+             count(*)::int AS events,
+             count(DISTINCT contract.id)::int AS "affectedContracts",
+             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
+             (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
+               OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
+      ${absenceFromSql()}
+      WHERE ${scope.where}
+      GROUP BY 1, 5 ORDER BY 1
+    `, scope.values),
+    sql.query(`
+      /* absence:reasons */
+      SELECT absence.motivo_code AS code,
+             COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label,
+             (reason.source_payload ->> 'isLeave')::boolean AS "isLeave",
+             (reason.source_payload ->> 'affectsAttendanceBonus')::boolean AS "affectsAttendanceBonus",
+             (reason.source_payload ->> 'generatesDiscountedDays')::boolean AS "generatesDiscountedDays",
+             (reason.source_payload ->> 'calendarDays')::boolean AS "calendarDays",
+             count(*)::int AS events,
+             count(DISTINCT contract.id)::int AS "affectedContracts",
+             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+      ${absenceFromSql()}
+      WHERE ${scope.where}
+      GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY events DESC, label
+    `, scope.values),
+    sql.query(`
+      /* absence:sectors */
+      SELECT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS label,
+             count(*)::int AS events,
+             count(DISTINCT contract.id)::int AS "affectedContracts",
+             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+      ${absenceFromSql()}
+      WHERE ${scope.where}
+      GROUP BY 1 ORDER BY events DESC, label
+    `, scope.values),
+    sql.query(`
+      /* absence:facet-reasons */
+      SELECT DISTINCT absence.motivo_code AS code,
+             COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
+      ${absenceFromSql()}
+      WHERE ${validScope.where}
+      ORDER BY label
+    `, validScope.values),
+    sql.query(`
+      /* absence:facet-sectors */
+      SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
+      ${absenceFromSql()}
+      WHERE ${validScope.where}
+      ORDER BY value
+    `, validScope.values),
+    sql.query(`
+      /* absence:quality */
+      SELECT count(*)::int AS "sourceRows",
+             count(*) FILTER (WHERE absence.fecha < $1::date)::int AS "excludedBeforeMinimum",
+             count(*) FILTER (WHERE absence.fecha > $2::date)::int AS "excludedAfterCutoff",
+             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
+                               AND (absence.motivo_code IS NULL OR btrim(absence.motivo_code) = ''))::int AS "missingReasonCode",
+             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
+                               AND absence.fecha_hasta < absence.fecha)::int AS "invertedDateRanges",
+             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
+                               AND absence.dias IS NULL)::int AS "missingSourceDeclaredDays",
+             count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
+                               AND contract.id IS NULL)::int AS "unlinkedEvents"
+      ${absenceFromSql()}
+    `, [ABSENCE_MIN_DATE, source.cutoff]),
+    comparisonPromise
+  ]);
+
+  const comparison = previous ? {
+    available: true,
+    basis: 'previous_year_same_calendar_window',
+    current: { range: request.range.effective, ...summary },
+    previous: { range: priorRange, ...previous },
+    changePercent: {
+      events: percentChange(summary.events, previous.events),
+      affectedContracts: percentChange(summary.affectedContracts, previous.affectedContracts),
+      sourceDeclaredDays: percentChange(summary.sourceDeclaredDays, previous.sourceDeclaredDays)
+    }
+  } : {
+    available: false,
+    basis: 'previous_year_same_calendar_window',
+    reason: 'La comparación exige un rango efectivo dentro de un mismo año calendario.'
+  };
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        summary,
+        series: seriesRows.map((row) => ({ ...absenceSummaryRow(row), period: isoDate(row.period), partial: row.partial === true })),
+        reasons: reasonRows.map((row) => ({
+          code: row.code ?? null,
+          label: row.label,
+          ...absenceSummaryRow(row),
+          flags: absenceReasonFlags(row)
+        })),
+        sectors: sectorRows.map((row) => ({ label: row.label, ...absenceSummaryRow(row) })),
+        comparison
+      },
+      facets: {
+        minDate: ABSENCE_MIN_DATE,
+        maxDate: source.cutoff,
+        reasons: facetReasonRows.map((row) => ({ code: row.code ?? null, label: row.label })),
+        sectors: facetSectorRows.map((row) => ({ value: row.value, label: row.value }))
+      },
+      range: request.range,
+      quality: {
+        scope: 'complete_import_snapshot',
+        sourceCutoff: source.cutoff,
+        sourceRows: absenceNumber(qualityRow.sourceRows),
+        excludedBeforeMinimum: absenceNumber(qualityRow.excludedBeforeMinimum),
+        excludedAfterCutoff: absenceNumber(qualityRow.excludedAfterCutoff),
+        missingReasonCode: absenceNumber(qualityRow.missingReasonCode),
+        invertedDateRanges: absenceNumber(qualityRow.invertedDateRanges),
+        missingSourceDeclaredDays: absenceNumber(qualityRow.missingSourceDeclaredDays),
+        unlinkedEvents: absenceNumber(qualityRow.unlinkedEvents),
+        unitSemantics: ABSENCE_UNIT_SEMANTICS,
+        sectorSemantics: ABSENCE_SECTOR_SEMANTICS
+      },
+      meta: {
+        authority: 'GRH',
+        grain: 'absence_event',
+        bucket: request.bucket,
+        filters: { sector: request.sector || null, reasonCode: request.reasonCode || null },
+        ratesAvailable: false,
+        comparisonPolicy: 'same_calendar_window_previous_year_only',
+        sectorSemantics: ABSENCE_SECTOR_SEMANTICS,
+        source: {
+          importId: source.importId,
+          name: source.name,
+          sha256: source.sha256,
+          cutoff: source.cutoff,
+          importedAt: source.importedAt,
+          status: source.status
+        }
+      }
+    }
+  };
+}
+
+export async function absenceEvents(sql, req) {
+  const source = await absenceSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
+  }
+  const request = absenceRequest(req, source);
+  if (request.error) return request.error;
+  const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
+  const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 50);
+  const filters = {
+    from: request.range.effective.from,
+    to: request.range.effective.to,
+    sector: request.sector,
+    reasonCode: request.reasonCode
+  };
+  const scope = absenceFilter(filters);
+  const dataValues = [...scope.values, limit, (page - 1) * limit];
+  const [summary, rows] = await Promise.all([
+    queryAbsenceSummary(sql, filters, 'events-summary'),
+    sql.query(`
+      /* absence:events */
+      SELECT contract.id AS "contractId", absence.company_id AS "companyId",
+             absence.legajo,
+             COALESCE(identity.full_name, employee.nombre) AS name,
+             COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS sector,
+             absence.fecha AS "eventDate", absence.fecha_hasta AS "untilDate",
+             absence.motivo_code AS "reasonCode",
+             COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS reason,
+             absence.dias AS "sourceDeclaredDays", absence.cantidad AS "sourceQuantity",
+             (reason.source_payload ->> 'isLeave')::boolean AS "isLeave",
+             (reason.source_payload ->> 'affectsAttendanceBonus')::boolean AS "affectsAttendanceBonus",
+             (reason.source_payload ->> 'generatesDiscountedDays')::boolean AS "generatesDiscountedDays",
+             (reason.source_payload ->> 'calendarDays')::boolean AS "calendarDays"
+      ${absenceFromSql(true)}
+      WHERE ${scope.where}
+      ORDER BY absence.fecha DESC, absence.company_id, absence.legajo
+      LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
+    `, dataValues)
+  ]);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: rows.map((row) => ({
+        contractId: row.contractId ?? null,
+        companyId: row.companyId ?? null,
+        legajo: row.legajo ?? null,
+        name: row.name ?? null,
+        sector: row.sector,
+        eventDate: isoDate(row.eventDate),
+        untilDate: row.untilDate ? isoDate(row.untilDate) : null,
+        reasonCode: row.reasonCode ?? null,
+        reason: row.reason,
+        sourceDeclaredDays: row.sourceDeclaredDays === null ? null : absenceNumber(row.sourceDeclaredDays),
+        sourceQuantity: row.sourceQuantity === null ? null : absenceNumber(row.sourceQuantity),
+        flags: absenceReasonFlags(row),
+        rangeIntegrity: !row.untilDate
+          ? 'until_date_not_reported'
+          : row.eventDate && isoDate(row.untilDate) < isoDate(row.eventDate)
+            ? 'inverted_source_range'
+            : 'valid_source_range'
+      })),
+      pagination: {
+        page,
+        limit,
+        total: summary.events,
+        pages: Math.max(1, Math.ceil(summary.events / limit))
+      },
+      range: request.range,
+      quality: {
+        sourceCutoff: source.cutoff,
+        unitSemantics: ABSENCE_UNIT_SEMANTICS,
+        sectorSemantics: ABSENCE_SECTOR_SEMANTICS
+      },
+      meta: {
+        authority: 'GRH',
+        grain: 'absence_event',
+        sectorSemantics: ABSENCE_SECTOR_SEMANTICS,
+        filters: {
+          sector: request.sector || null,
+          reasonCode: request.reasonCode || null
+        },
+        containsPersonalIdentifiers: true,
+        externalSharingAllowed: false,
+        excludedFields: [
+          'dni', 'cuil', 'telefono', 'email', 'domicilio', 'comentario', 'rawFields'
+        ]
+      }
+    }
+  };
+}
+
 const DIRECTORY_STATUS = new Set([
   'all', 'active', 'administrative_active', 'liquidable', 'gap',
   'inactive', 'state_error', 'unknown'
@@ -1351,6 +1773,14 @@ export default async function handler(req, res) {
     if (resource === 'structure') return send(res, 200, await structure(sql));
     if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));
     if (resource === 'payrollcontrol') return send(res, 200, await payrollControl(sql));
+    if (resource === 'absenceanalytics') {
+      const result = await absenceAnalytics(sql, req);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'absenceevents') {
+      const result = await absenceEvents(sql, req);
+      return send(res, result.status, result.payload);
+    }
     if (resource === 'employees') {
       const result = await employees(sql, req);
       return send(res, result.status, result.payload);

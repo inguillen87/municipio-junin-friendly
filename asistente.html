@@ -518,6 +518,7 @@
 
       <div class="nav-label">Herramientas</div>
       <nav class="nav" aria-label="Herramientas internas">
+        <a href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
         <a href="friendly-dashboard.html#calidad"><span class="nav-code" aria-hidden="true">CD</span><span>Calidad pública</span></a>
         <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
@@ -564,6 +565,7 @@
             <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
+            <button class="quick-button" type="button" data-prompt="Analizá los eventos administrativos de ausencia del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausencias recientes</span></button>
             <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
           </div>
         </section>
@@ -772,6 +774,33 @@
             add('Período operativo abierto', cleanText(open.month).slice(0, 10));
             add('Contratos en corrida abierta', open.contracts);
           }
+        } else if (intent === 'absence_analysis') {
+          var summary = data.summary && typeof data.summary === 'object' ? data.summary : {};
+          var effectiveRange = data.range && data.range.effective && typeof data.range.effective === 'object' ? data.range.effective : {};
+          var comparison = data.comparison && typeof data.comparison === 'object' ? data.comparison : {};
+          var change = comparison.changePercent && typeof comparison.changePercent === 'object' ? comparison.changePercent : {};
+          var topReason = Array.isArray(data.topReasons) ? data.topReasons[0] : null;
+          var topSector = Array.isArray(data.topSectors) ? data.topSectors[0] : null;
+          add('Eventos administrativos', summary.events);
+          add('Contratos laborales afectados', summary.affectedContracts);
+          add('Días declarados en GRH (no jornadas perdidas)', summary.sourceDeclaredDays);
+          if (effectiveRange.from && effectiveRange.to) add('Rango efectivo', cleanText(effectiveRange.from) + ' a ' + cleanText(effectiveRange.to));
+          if (comparison.available === true && change.events !== null && change.events !== undefined) facts.push('Variación interanual de eventos: ' + factValue(change.events) + '%');
+          if (topReason) facts.push('Motivo principal: ' + cleanText(topReason.label, 'Sin clasificar') + ' · ' + factValue(topReason.events) + ' eventos');
+          if (topSector) facts.push('Sector actual con más eventos: ' + cleanText(topSector.label, 'Sin clasificar') + ' · ' + factValue(topSector.events) + ' eventos');
+        } else if (intent === 'executive_analysis') {
+          var workforceView = data.workforce && typeof data.workforce === 'object' ? data.workforce : {};
+          var payrollView = data.payroll && typeof data.payroll === 'object' ? data.payroll : {};
+          var integrationView = data.integration && typeof data.integration === 'object' ? data.integration : {};
+          var absenceView = data.absence && typeof data.absence === 'object' ? data.absence : {};
+          var absenceSummary = absenceView.summary && typeof absenceView.summary === 'object' ? absenceView.summary : {};
+          add('Activos administrativos', workforceView.administrativeActive);
+          add('Incluidos en corrida operativa', workforceView.liquidable);
+          add('Último período cerrado', payrollView.latestClosed && cleanText(payrollView.latestClosed.month).slice(0, 10));
+          add('Cobertura de identidad', integrationView.crosswalk && integrationView.crosswalk.coveragePct !== undefined ? factValue(integrationView.crosswalk.coveragePct) + '%' : null);
+          add('Eventos administrativos de ausencia', absenceSummary.events);
+          add('Contratos afectados por ausencias', absenceSummary.affectedContracts);
+          add('Días declarados en GRH (no jornadas perdidas)', absenceSummary.sourceDeclaredDays);
         } else if (intent === 'employee_search') {
           var rows = Array.isArray(data.data) ? data.data.slice(0, 10) : [];
           rows.forEach(function (row) {

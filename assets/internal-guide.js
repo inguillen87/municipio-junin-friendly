@@ -62,6 +62,23 @@
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
       ]
     },
+    absence: {
+      sectionId: 'ausentismo', title: 'Ausentismo operativo',
+      tour: [
+        ['.page-head', 'Alcance y corte', 'La cabecera identifica la fuente GRH y el período efectivo de la consulta.'],
+        ['#filterPanel', 'Filtros verificables', 'Acotá fecha, motivo y sector antes de interpretar los resultados.'],
+        ['#summaryMetrics', 'Tres lecturas distintas', 'Eventos, legajos alcanzados y días declarados por GRH no son medidas intercambiables.'],
+        ['#trendPanel', 'Evolución del período', 'La serie muestra registros administrativos y señala períodos parciales.'],
+        ['#eventsPanel', 'Bandeja operativa', 'Desde cada fila podés continuar en la ficha laboral autorizada.'],
+        ['#qualityPanel', 'Calidad y límites', 'Revisá exclusiones y semántica antes de comunicar una conclusión.']
+      ],
+      explain: [
+        ['#filterPanel', 'Período y filtros', 'Todas las cifras de la pantalla responden al mismo rango efectivo y a los filtros visibles.'],
+        ['#summaryMetrics', 'Indicadores administrativos', 'Separa conteos de eventos, legajos y días declarados sin inferir presentismo.'],
+        ['#eventsPanel', 'Eventos', 'Lista registros nominales sólo dentro del portal interno y enlaza a la ficha laboral.'],
+        ['#qualityPanel', 'Límites de uso', 'Documenta anomalías y evita convertir la fuente en una tasa o productividad no respaldada.']
+      ]
+    },
     assistant: {
       sectionId: 'asistente', title: 'Asistente de control',
       tour: [
@@ -97,6 +114,7 @@
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';
+    if (path.indexOf('ausentismo') >= 0) return 'absence';
     if (path.indexOf('asistente') >= 0 || path === '/ia' || path === '/ia-hf') return 'assistant';
     if (path.indexOf('internal') >= 0 || path === '/rrhh' || path === '/admin') return 'portal';
     return '';
