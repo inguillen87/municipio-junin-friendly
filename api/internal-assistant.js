@@ -126,6 +126,14 @@ function foldText(value) {
     .toLowerCase();
 }
 
+function foldAssistantQuery(value) {
+  return foldText(value)
+    .replace(/\blicnecias?\b/g, 'licencias')
+    .replace(/\blicensias?\b/g, 'licencias')
+    .replace(/\bausensias?\b/g, 'ausencias')
+    .replace(/\baucencias?\b/g, 'ausencias');
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -197,9 +205,45 @@ function extractEmployeeSearch(message) {
   const match = text.match(/(?:buscar|busc[aá]|encontrar|ficha\s+de|emplead[oa]\s+)(?:a\s+)?(.+)$/i);
   if (!match) return '';
   const candidate = normalizeText(match[1], MAX_SEARCH_LENGTH)
+    .replace(/^(?:(?:a|al|la|el|una?|un)\s+)?(?:emplead[oa]|persona|legajo)\s+/i, '')
     .replace(/\b(?:por favor|en grh|en la base)\b.*$/i, '')
     .trim();
   return /^(?:empleados?|personas?|todos?|lista|directorio)$/i.test(candidate) ? '' : candidate;
+}
+
+function employeeRecordFocus(message) {
+  const text = foldAssistantQuery(message);
+  if (/\blicencias?\b/.test(text)) return 'licenses';
+  if (/\b(?:ausencias?|ausentismo|faltas?)\b/.test(text)) return 'absences';
+  return '';
+}
+
+function extractEmployeeRecordYear(message) {
+  const text = foldAssistantQuery(message);
+  const match = text.match(/\b(?:en|durante|para)\s+(?:(?:el|la)\s+)?(?:(?:ano|periodo)\s+)?((?:19|20)\d{2}|2100)\b/)
+    || text.match(/\b(?:ano|periodo)\s+((?:19|20)\d{2}|2100)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function cleanEmployeeRecordCandidate(value) {
+  const candidate = normalizeText(value, MAX_SEARCH_LENGTH)
+    .replace(/\b(?:por favor|en grh|en la base)\b.*$/i, '')
+    .replace(/\s+(?:en|durante|para)\s+(?:(?:el|la)\s+)?(?:(?:a[nñ]o|periodo)\s+)?(?:19|20)\d{2}\b.*$/i, '')
+    .replace(/[?.!,;:]+$/g, '')
+    .trim();
+  const folded = foldAssistantQuery(candidate);
+  if (!candidate || /^(?:(?:el|la|los|las|este|esta|estos|estas|ultimo|ultima|ultimos|ultimas)\s+)*(?:ano|mes|periodo|sector|motivo|rango|fecha|todos?|general|actual|hoy|202\d)\b/i.test(folded)) return '';
+  if (/^(?:el\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)(?:\s+(?:de\s+)?(?:19|20)\d{2})?$/i.test(folded)) return '';
+  if (!/[a-zA-Z\u00c0-\u024f]/.test(candidate)) return '';
+  return candidate;
+}
+
+function extractEmployeeRecordSearch(message) {
+  const text = normalizeText(message, MAX_SEARCH_LENGTH + 120);
+  const direct = text.match(/\b(?:licencias?|licnecias?|licensias?|ausencias?|ausensias?|aucencias?|ausentismo|faltas?)\s+(?:(?:actuales?|hist[oó]ricas?|registrad[ao]s?)\s+)?(?:de|del)\s+(?:(?:la|el)\s+)?(?:(?:emplead[oa]|persona)\s+)?(.+)$/i);
+  if (direct) return cleanEmployeeRecordCandidate(direct[1]);
+  const possession = text.match(/\b(?:qu[eé]\s+)?(?:licencias?|licnecias?|licensias?|ausencias?|ausensias?|aucencias?|ausentismo|faltas?)\s+(?:que\s+)?(?:tiene|tuvo|registra)\s+(.+)$/i);
+  return possession ? cleanEmployeeRecordCandidate(possession[1]) : '';
 }
 
 function absenceAnalyticsRequest(body = {}) {
@@ -223,7 +267,10 @@ export function classifyAssistantRequest(body = {}) {
   if (normalizeText(body.task, 100)) return 'task_guidance';
   if (normalizeText(body.section, 100)) return 'section_explanation';
 
-  const message = foldText(body.message);
+  const message = foldAssistantQuery(body.message);
+  const recordFocus = employeeRecordFocus(message);
+  if (recordFocus && extractLegajo(body.message)) return 'employee_detail';
+  if (recordFocus && extractEmployeeRecordSearch(body.message)) return 'employee_search';
   if (/\b(?:que significa|que quiere decir|defini(?:r|cion)|glosario|termino)\b/.test(message)) return 'glossary';
   if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar))\b/.test(message)) return 'task_guidance';
   if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
@@ -231,6 +278,7 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
+  if (/\b(?:resumen|lectura|panorama|informe|analisis)\s+(?:general\s+)?ejecutiv[oa]\b/.test(message)) return 'executive_analysis';
   if (/\b(?:calidad(?: de datos| operativa)?|dq-?01|hallazgos?|severidad|controles? de calidad|controles? de personas)\b/.test(message)) return 'quality_analysis';
   if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
@@ -639,15 +687,104 @@ function absenceAnalysisResult(result) {
   };
 }
 
-function employeeSearchResult(result, scope) {
+function assistantDirectoryPayload(payload, focus, year) {
+  const rows = (Array.isArray(payload?.data) ? payload.data : []).map((row) => ({
+    companyId: row.companyId,
+    legajo: row.legajo,
+    nombre: row.nombre,
+    fechaIngreso: row.fechaIngreso,
+    fechaEgreso: row.fechaEgreso,
+    administrativeStatus: row.administrativeStatus,
+    payrollStatus: row.payrollStatus,
+    controlState: row.controlState,
+    organizacion: row.organizacion,
+    sector: row.sector,
+    cargo: row.cargo,
+    convenio: row.convenio,
+  }));
+  return {
+    ok: payload?.ok !== false,
+    data: rows,
+    pagination: payload?.pagination,
+    scope: payload?.scope,
+    queryFocus: focus || null,
+    queryYear: year || null,
+  };
+}
+
+function assistantEmployeePayload(payload, focus, year) {
+  const row = payload?.data || {};
+  const projected = {
+    companyId: row.companyId,
+    legajo: row.legajo,
+    nombre: row.nombre,
+    fechaIngreso: row.fechaIngreso,
+    fechaEgreso: row.fechaEgreso,
+    administrativeStatus: row.administrativeStatus,
+    payrollStatus: row.payrollStatus,
+    controlState: row.controlState,
+    statusSnapshotDate: row.statusSnapshotDate,
+    organizacion: row.organizacion,
+    sector: row.sector,
+    categoria: row.categoria,
+    convenio: row.convenio,
+    cargo: row.cargo,
+  };
+  if (focus === 'licenses') {
+    projected.licencias = (Array.isArray(row.licencias) ? row.licencias : []).map((item) => ({
+      periodo: item.periodo,
+      tipo: item.tipo,
+      fechaInicio: item.fechaInicio,
+      fechaFin: item.fechaFin,
+      dias: item.dias,
+    }));
+  }
+  if (focus === 'absences') {
+    projected.ausencias = (Array.isArray(row.ausencias) ? row.ausencias : []).map((item) => ({
+      fecha: item.fecha,
+      fechaHasta: item.fechaHasta,
+      motivoCode: item.motivoCode,
+      motivo: item.motivo,
+      cantidad: item.cantidad,
+      dias: item.dias,
+    }));
+  }
+  const meta = payload?.meta || {};
+  const recordMeta = ['licenses', 'absences'].includes(focus)
+    ? {
+        absenceTotal: Number(meta.absenceTotal || 0),
+        leaveTotal: Number(meta.leaveTotal || 0),
+        absenceRowsReturned: focus === 'absences' ? projected.ausencias.length : 0,
+        leaveRowsReturned: focus === 'licenses' ? projected.licencias.length : 0,
+        relationRowsCappedAt: Number(meta.relationRowsCappedAt || 0),
+        relationRowsComplete: meta.relationRowsComplete === true,
+        leaveSourceMaxDate: dateValue(meta.leaveSourceMaxDate),
+      }
+    : {};
+  return {
+    ok: payload?.ok !== false,
+    data: projected,
+    meta: recordMeta,
+    queryFocus: focus || null,
+    queryYear: year || null,
+  };
+}
+
+function employeeSearchResult(result, scope, options = {}) {
   const total = Number(result.payload?.pagination?.total || 0);
   const shown = result.payload?.data?.length || 0;
+  const focus = options.focus === 'licenses' || options.focus === 'absences' ? options.focus : '';
+  const year = Number.isInteger(options.year) ? options.year : null;
+  const focusLabel = focus === 'licenses' ? 'licencias' : focus === 'absences' ? 'ausencias' : 'la ficha';
+  const noResults = focus
+    ? 'No encontré una coincidencia suficiente en el directorio GRH. No reemplacé tu consulta nominal por estadísticas generales: probá con apellido, legajo o una parte adicional del nombre.'
+    : 'No encontré legajos con esos criterios en el directorio canónico GRH.';
   return {
     status: result.status,
     answer: total
-      ? `Encontré ${formatNumber(total)} legajos. Muestro ${formatNumber(shown)} resultados de la consulta interna; abrí una ficha para ver su trazabilidad completa.`
-      : 'No encontré legajos con esos criterios en el directorio canónico GRH.',
-    data: result.payload,
+      ? `Encontré ${formatNumber(total)} legajos. Muestro ${formatNumber(shown)} resultados de la consulta interna; elegí el legajo correcto para ver ${focusLabel} sin mezclar vínculos laborales históricos.`
+      : noResults,
+    data: assistantDirectoryPayload(result.payload, focus, year),
     asOf: dateValue(scope.asOf),
     sources: [
       { system: 'GRH', relation: 'employment_contract', authority: 'labor_core' },
@@ -656,7 +793,7 @@ function employeeSearchResult(result, scope) {
   };
 }
 
-function employeeDetailResult(result, scope) {
+function employeeDetailResult(result, scope, options = {}) {
   if (result.status !== 200) {
     return {
       status: result.status,
@@ -667,16 +804,43 @@ function employeeDetailResult(result, scope) {
     };
   }
   const row = result.payload.data;
+  const meta = result.payload.meta || {};
+  const focus = options.focus === 'licenses' || options.focus === 'absences' ? options.focus : '';
+  const year = Number.isInteger(options.year) ? options.year : null;
+  const absenceTotal = Number(meta.absenceTotal || 0);
+  const leaveTotal = Number(meta.leaveTotal || 0);
+  const absenceRowsReturned = Array.isArray(row.ausencias) ? row.ausencias.length : 0;
+  const leaveRowsReturned = Array.isArray(row.licencias) ? row.licencias.length : 0;
+  const yearLabel = year ? ` durante ${year}` : '';
+  let answer = `Ficha interna de ${row.nombre || `legajo ${row.legajo}`}: estado administrativo ${row.administrativeStatus || 'sin clasificar'}, estado de nómina ${row.payrollStatus || 'sin clasificar'} y control ${row.controlState || 'sin clasificar'}.`;
+  if (focus === 'licenses') {
+    answer = `GRH registra ${formatNumber(leaveTotal)} licencias históricas${yearLabel} y ${formatNumber(absenceTotal)} eventos administrativos de ausencia para ${row.nombre || `el legajo ${row.legajo}`}. La consulta recuperó ${formatNumber(leaveRowsReturned)} de ${formatNumber(leaveTotal)} filas de licencia y la pantalla resume hasta 4. La tabla de licencias es un archivo legado finalizado en 2009 y no acredita una licencia vigente; revisá las fechas y el legajo antes de usar el dato.`;
+  } else if (focus === 'absences') {
+    answer = `GRH registra ${formatNumber(absenceTotal)} eventos administrativos de ausencia${yearLabel} y ${formatNumber(leaveTotal)} licencias históricas para ${row.nombre || `el legajo ${row.legajo}`}. La consulta recuperó ${formatNumber(absenceRowsReturned)} de ${formatNumber(absenceTotal)} eventos y la pantalla resume hasta 4. Son registros administrativos: no equivalen por sí solos a tasa de ausentismo, jornadas perdidas ni licencia vigente.`;
+  }
   return {
     status: 200,
-    answer: `Ficha interna de ${row.nombre || `legajo ${row.legajo}`}: estado administrativo ${row.administrativeStatus || 'sin clasificar'}, estado de nómina ${row.payrollStatus || 'sin clasificar'} y control ${row.controlState || 'sin clasificar'}.`,
-    data: result.payload,
+    answer,
+    data: assistantEmployeePayload(result.payload, focus, year),
     asOf: dateValue(row.statusSnapshotDate || scope.asOf),
     sources: [
-      { system: 'GRH', relation: 'employment_contract', authority: 'labor_core' },
-      { system: 'GRH', relation: 'employment_status_snapshot', authority: 'status_evidence' },
-      ...(row.personas?.available
-        ? [{ system: 'PERSONAS', relation: 'person_identity_assertion', authority: 'auxiliary_enrichment' }]
+      { system: 'GRH', relation: 'employment_contract', authority: 'labor_core', asOf: dateValue(scope.asOf) },
+      { system: 'GRH', relation: 'employment_status_snapshot', authority: 'status_evidence', asOf: dateValue(row.statusSnapshotDate) },
+      ...(['licenses', 'absences'].includes(focus)
+        ? [
+            {
+              system: 'GRH',
+              relation: 'grh_leaves',
+              authority: 'historical_legacy_record',
+              asOf: dateValue(meta.leaveSourceMaxDate),
+            },
+            {
+              system: 'GRH',
+              relation: 'grh_absences',
+              authority: 'administrative_event_record',
+              asOf: dateValue(scope.asOf),
+            },
+          ]
         : []),
     ],
   };
@@ -1385,7 +1549,11 @@ export function createInternalAssistantHandler(dependencies = {}) {
         } else if (intent === 'absence_analysis') {
           result = absenceAnalysisResult(await loadAbsence(sql, absenceAnalyticsRequest(body)));
         } else if (intent === 'employee_search') {
-          const search = normalizeText(body.search, MAX_SEARCH_LENGTH) || extractEmployeeSearch(message);
+          const focus = employeeRecordFocus(message);
+          const year = extractEmployeeRecordYear(message);
+          const search = normalizeText(body.search, MAX_SEARCH_LENGTH)
+            || extractEmployeeRecordSearch(message)
+            || extractEmployeeSearch(message);
           const request = {
             query: {
               search,
@@ -1397,8 +1565,10 @@ export function createInternalAssistantHandler(dependencies = {}) {
             },
           };
           const [directory, scope] = await Promise.all([searchEmployees(sql, request), loadScope(sql)]);
-          result = employeeSearchResult(directory, scope);
+          result = employeeSearchResult(directory, scope, { focus, year });
         } else if (intent === 'employee_detail') {
+          const focus = employeeRecordFocus(message);
+          const year = extractEmployeeRecordYear(message);
           const contractId = normalizeText(body.contractId, 64);
           const legajo = normalizeText(body.legajo, 64) || extractLegajo(message);
           const companyId = normalizeText(body.companyId, 32) || extractCompanyId(message);
@@ -1410,10 +1580,10 @@ export function createInternalAssistantHandler(dependencies = {}) {
             });
           }
           const [detail, scope] = await Promise.all([
-            loadEmployee(sql, { query: { contractId, legajo, companyId } }),
+            loadEmployee(sql, { query: { contractId, legajo, companyId, recordYear: year ? String(year) : '' } }),
             loadScope(sql),
           ]);
-          result = employeeDetailResult(detail, scope);
+          result = employeeDetailResult(detail, scope, { focus, year });
         } else if (intent === 'executive_analysis') {
           const [integration, payroll, scope, absence, quality] = await Promise.all([
             loadIntegration(sql),

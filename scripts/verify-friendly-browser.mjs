@@ -14,6 +14,7 @@ if ((!internalEmail || !internalPassword) && credentialFile) {
   if (!internalPassword) internalPassword = String(credential.password || '');
 }
 const navigationTimeout = Number(process.env.QA_NAVIGATION_TIMEOUT_MS || 20_000);
+const nominalLicenseQuery = (process.env.QA_NOMINAL_LICENSE_QUERY || '').trim().slice(0, 120);
 const canIssueSession = Boolean((process.env.INTERNAL_SESSION_SECRET || '').trim());
 const hasCredentials = Boolean(internalEmail && internalPassword);
 
@@ -524,6 +525,46 @@ async function verifyAuthenticatedInternal() {
     const guidanceText = await page.locator('.message.assistant .answer-text').last().innerText();
     assert.match(guidanceText, /Personas|Estructura|Ayuda/i, 'El asistente debe orientar la navegacion');
     assert.ok(await page.locator('.message.assistant .answer-links').last().count(), 'La orientación debe ofrecer un acceso navegable');
+
+    if (nominalLicenseQuery) {
+      const nominalResponse = await context.request.post(`${baseUrl}/api/internal-assistant`, {
+        data: { message: nominalLicenseQuery, enhance: true },
+      });
+      assert.equal(nominalResponse.status(), 200, 'La consulta nominal debe resolverse dentro del portal');
+      const nominalPayload = await nominalResponse.json();
+      assert.equal(nominalPayload.intent, 'employee_search');
+      assert.equal(nominalPayload.data.queryFocus, 'licenses');
+      assert.equal(nominalPayload.provider.externalProviderAttempted, false, 'Una consulta nominal no debe salir a OpenAI ni Hugging Face');
+      assert.equal(nominalPayload.privacy.nominalDataExternalized, false);
+      assert.ok(nominalPayload.data.pagination.total >= 2, 'La consulta debe conservar la desambiguación de legajos históricos');
+
+      await page.locator('#messageInput').fill(nominalLicenseQuery);
+      await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+      await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 5);
+      assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Licencias por empleado/i);
+      assert.match(await page.locator('.message.assistant .mode-badge').last().innerText(), /Consulta nominal.*local/i);
+      const licenseChoices = page.locator('.message.assistant .suggestion-button', { hasText: 'Ver licencias del legajo' });
+      assert.ok(await licenseChoices.count() >= 2, 'La UI debe pedir elegir un legajo cuando una persona tiene más de uno');
+      await licenseChoices.first().click();
+      await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 6);
+      assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Ficha y licencias históricas/i);
+      assert.match(await page.locator('.message.assistant .answer-text').last().innerText(), /licencias históricas.*archivo legado/is);
+      assert.match(await page.locator('.message.assistant .facts').last().innerText(), /Licencias históricas registradas/i);
+    }
+    const assistantMobileLayout = await page.evaluate(() => {
+      const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
+      const composer = document.querySelector('.composer')?.getBoundingClientRect();
+      const messageList = document.querySelector('.messages');
+      return {
+        sidebarHeight: sidebar?.height || 0,
+        composerVisible: Boolean(composer && composer.top >= 0 && composer.bottom <= innerHeight + 1),
+        messageListHeight: messageList?.getBoundingClientRect().height || 0,
+        viewportHeight: innerHeight,
+      };
+    });
+    assert.ok(assistantMobileLayout.sidebarHeight < 250, `La navegación móvil ocupa ${assistantMobileLayout.sidebarHeight}px`);
+    assert.equal(assistantMobileLayout.composerVisible, true, 'El compositor debe permanecer visible durante la conversación móvil');
+    assert.ok(assistantMobileLayout.messageListHeight <= assistantMobileLayout.viewportHeight * 0.65, 'La conversación móvil debe usar scroll interno acotado');
     await assertPageHealthy(page, 'Asistente mobile');
 
     await page.setViewportSize({ width: 768, height: 900 });

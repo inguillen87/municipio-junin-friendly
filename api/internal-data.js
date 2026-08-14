@@ -1784,11 +1784,17 @@ export async function employees(sql, req) {
   };
   if (search) {
     const term = parameter(`%${search}%`);
+    const nameTokens = [...new Set(search.split(/\s+/).map((token) => token.trim()).filter(Boolean))]
+      .slice(0, 8);
+    const tokenNameMatch = nameTokens.length
+      ? ` OR (${nameTokens.map((token) => `translate(lower(directory.nombre), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${parameter(`%${token}%`)}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})`
+      : '';
     conditions.push(`(
       directory.nombre ILIKE ${term}
       OR directory.legajo ILIKE ${term}
       OR directory.dni ILIKE ${term}
       OR directory.cuil ILIKE ${term}
+      ${tokenNameMatch}
     )`);
   }
   if (sector) conditions.push(`COALESCE(directory.sector, 'Sin sector informado') = ${parameter(sector)}`);
@@ -1885,6 +1891,7 @@ export async function employee(sql, req) {
   const contractId = boundedQueryValue(req, 'contractId', 64);
   const legajo = boundedQueryValue(req, 'legajo', 64);
   const companyId = boundedQueryValue(req, 'companyId', 32);
+  const recordYearText = boundedQueryValue(req, 'recordYear', 4);
   if (!contractId && !legajo) {
     return { status: 400, payload: { ok: false, code: 'EMPLOYEE_IDENTIFIER_REQUIRED', error: 'Identificador de ficha requerido' } };
   }
@@ -1894,6 +1901,10 @@ export async function employee(sql, req) {
   if (companyId && !/^-?\d+$/.test(companyId)) {
     return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa inválido' } };
   }
+  if (recordYearText && !/^(?:19\d{2}|20\d{2}|2100)$/.test(recordYearText)) {
+    return { status: 400, payload: { ok: false, code: 'EMPLOYEE_RECORD_YEAR_INVALID', error: 'Año de registros inválido' } };
+  }
+  const recordYear = recordYearText ? Number(recordYearText) : null;
   const companyIdNumber = companyId ? Number(companyId) : null;
   if (companyId && !Number.isSafeInteger(companyIdNumber)) {
     return { status: 400, payload: { ok: false, code: 'COMPANY_ID_INVALID', error: 'Identificador de empresa inválido' } };
@@ -2011,6 +2022,16 @@ export async function employee(sql, req) {
   }
   const row = rows[0];
   const relationParams = [row.companyId, row.legajo];
+  const recordFrom = recordYear ? `${recordYear}-01-01` : null;
+  const recordTo = recordYear ? `${recordYear + 1}-01-01` : null;
+  const relationFilterParams = recordYear ? [...relationParams, recordFrom, recordTo] : relationParams;
+  const countParams = recordYear
+    ? [...relationParams, row.contractId, recordFrom, recordTo]
+    : [...relationParams, row.contractId];
+  const countYearClause = recordYear ? 'AND fecha >= $4::date AND fecha < $5::date' : '';
+  const countLeaveYearClause = recordYear ? 'AND fecha_inicio >= $4::date AND fecha_inicio < $5::date' : '';
+  const relationYearClause = recordYear ? 'AND absence.fecha >= $3::date AND absence.fecha < $4::date' : '';
+  const relationLeaveYearClause = recordYear ? 'AND fecha_inicio >= $3::date AND fecha_inicio < $4::date' : '';
   const [
     [counts],
     absences,
@@ -2023,11 +2044,13 @@ export async function employee(sql, req) {
   ] = await Promise.all([
     sql.query(`
       SELECT
-        (SELECT count(*)::int FROM grh_absences WHERE company_id = $1 AND legajo = $2) AS "absenceTotal",
-        (SELECT count(*)::int FROM grh_leaves WHERE company_id = $1 AND legajo = $2) AS "leaveTotal",
+        (SELECT count(*)::int FROM grh_absences WHERE company_id = $1 AND legajo = $2 ${countYearClause}) AS "absenceTotal",
+        (SELECT count(*)::int FROM grh_leaves WHERE company_id = $1 AND legajo = $2 ${countLeaveYearClause}) AS "leaveTotal",
+        (SELECT max(fecha_inicio) FROM grh_leaves
+          WHERE fecha_inicio BETWEEN DATE '1900-01-01' AND DATE '2100-12-31') AS "leaveSourceMaxDate",
         (SELECT count(*)::int FROM grh_family WHERE company_id = $1 AND legajo = $2) AS "familyTotal",
         (SELECT count(*)::int FROM employment_movement WHERE employment_contract_id = $3::uuid) AS "movementTotal"
-    `, [...relationParams, row.contractId]),
+    `, countParams),
     sql.query(`
       SELECT absence.fecha, absence.motivo_code AS "motivoCode", catalog.label AS motivo,
              absence.cantidad, absence.dias, absence.fecha_hasta AS "fechaHasta",
@@ -2037,17 +2060,19 @@ export async function employee(sql, req) {
         ON catalog.catalog = 'absence_reasons'
        AND catalog.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
       WHERE absence.company_id = $1 AND absence.legajo = $2
+      ${relationYearClause}
       ORDER BY absence.fecha DESC
       LIMIT ${DETAIL_EVENT_LIMIT}
-    `, relationParams),
+    `, relationFilterParams),
     sql.query(`
       SELECT periodo, tipo, fecha_inicio AS "fechaInicio", fecha_fin AS "fechaFin",
              dias, observaciones, source_payload AS "rawFields"
       FROM grh_leaves
       WHERE company_id = $1 AND legajo = $2
+      ${relationLeaveYearClause}
       ORDER BY fecha_inicio DESC
       LIMIT ${DETAIL_EVENT_LIMIT}
-    `, relationParams),
+    `, relationFilterParams),
     sql.query(`
       SELECT family.family_id AS "familyId", family.nombre, family.sexo,
              family.fecha_nacimiento AS "fechaNacimiento", family.dni, family.cuil,
@@ -2178,8 +2203,10 @@ export async function employee(sql, req) {
         leaveTotal: Number(counts?.leaveTotal || 0),
         familyTotal: Number(counts?.familyTotal || 0),
         movementTotal: Number(counts?.movementTotal || 0),
+        leaveSourceMaxDate: counts?.leaveSourceMaxDate || null,
         relationRowsCappedAt: DETAIL_EVENT_LIMIT,
         movementRowsCappedAt: DETAIL_MOVEMENT_LIMIT,
+        recordYear,
         relationRowsComplete:
           Number(counts?.absenceTotal || 0) <= DETAIL_EVENT_LIMIT
           && Number(counts?.leaveTotal || 0) <= DETAIL_EVENT_LIMIT

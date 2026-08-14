@@ -445,15 +445,17 @@
       .brand { padding: 0 4px 11px; border-bottom: 0; }
       .brand small { display: none; }
       .nav-label { margin: 9px 4px 6px; }
-      .nav { display: flex; flex-wrap: wrap; gap: 6px; }
-      .nav a { flex: 1 1 120px; justify-content: center; padding: 7px 8px; }
+      .nav { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+      .nav a { flex: 0 0 auto; justify-content: center; padding: 7px 10px; }
       .side-note { display: none; }
       .topbar { padding: 12px 20px; }
       main { padding: 27px 20px 38px; }
       .page-head { grid-template-columns: 1fr; gap: 16px; }
       .assistant-layout { grid-template-columns: 1fr; }
       .context-column { grid-template-columns: repeat(2, minmax(0, 1fr)); order: -1; }
-      .messages { max-height: none; }
+      .conversation-card { display: flex; min-height: 620px; flex-direction: column; }
+      .messages { min-height: 360px; max-height: 60dvh; flex: 1 1 auto; }
+      .composer { position: sticky; bottom: 0; z-index: 4; box-shadow: 0 -7px 18px rgba(20, 48, 61, .08); }
     }
 
     @media (max-width: 640px) {
@@ -469,7 +471,8 @@
       .section-title { align-items: flex-start; flex-direction: column; gap: 2px; }
       .context-column { grid-template-columns: 1fr; }
       .conversation-head { align-items: flex-start; padding: 11px 12px; }
-      .messages { min-height: 310px; padding: 13px; }
+      .conversation-card { min-height: 570px; }
+      .messages { min-height: 320px; max-height: 58dvh; padding: 13px; }
       .empty-state { min-height: 280px; padding: 25px 12px; }
       .message-card, .message.user .message-card { width: 94%; }
       .message-header { align-items: flex-start; }
@@ -556,7 +559,7 @@
         <section class="quick-section" aria-labelledby="quickTitle">
           <div class="section-title">
             <h2 id="quickTitle">Consultas rápidas</h2>
-            <p>Podés usarlas como punto de partida y continuar la conversación.</p>
+            <p>Usalas como punto de partida; las sugerencias conservan el legajo elegido.</p>
           </div>
           <div class="quick-grid">
             <button class="quick-button" type="button" data-prompt="Soy una persona nueva en MuniControl. Explicame por dónde empezar y cómo están organizadas las secciones."><span class="quick-code" aria-hidden="true">IN</span><span>Primer ingreso</span></button>
@@ -567,6 +570,9 @@
             <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá los eventos administrativos de ausencia del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausencias recientes</span></button>
             <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
+            <button class="quick-button" type="button" data-compose="Mostrame las licencias de "><span class="quick-code" aria-hidden="true">LI</span><span>Licencias por empleado</span></button>
+            <button class="quick-button" type="button" data-prompt="Analizá las incidencias registradas de calidad por severidad, dominio y fuente, sin convertirlas en un puntaje inventado."><span class="quick-code" aria-hidden="true">DQ</span><span>Calidad operativa</span></button>
+            <button class="quick-button" type="button" data-prompt="Prepará una lectura ejecutiva de dotación, nómina, integración, ausentismo y calidad operativa. Separá hechos, límites y prioridades."><span class="quick-code" aria-hidden="true">EX</span><span>Lectura ejecutiva</span></button>
           </div>
         </section>
 
@@ -807,16 +813,37 @@
             var name = cleanText(row && row.nombre, 'Nombre no informado');
             var legajo = cleanText(row && row.legajo, 'sin número');
             var context = cleanText(row && (row.organizacion || row.sector || row.administrativeStatus), 'estado no informado');
-            facts.push(name + ' · legajo ' + legajo + ' · ' + context);
+            var status = readableCode(row && row.administrativeStatus);
+            var dates = [cleanText(row && row.fechaIngreso).slice(0, 10), cleanText(row && row.fechaEgreso).slice(0, 10)].filter(Boolean).join(' → ');
+            facts.push(name + ' · legajo ' + legajo + ' · ' + context + (status ? ' · ' + status : '') + (dates ? ' · ' + dates : ''));
           });
         } else if (intent === 'employee_detail') {
           var employee = data.data && typeof data.data === 'object' ? data.data : null;
+          var detailMeta = data.meta && typeof data.meta === 'object' ? data.meta : {};
+          var queryFocus = cleanText(data.queryFocus);
           if (employee) {
             add('Legajo', employee.legajo);
             add('Estado administrativo', readableCode(employee.administrativeStatus));
             add('Estado de nómina', readableCode(employee.payrollStatus));
             add('Organización', employee.organizacion);
             add('Sector', employee.sector);
+            add('Licencias históricas registradas', detailMeta.leaveTotal);
+            add('Eventos administrativos de ausencia', detailMeta.absenceTotal);
+            if (queryFocus === 'licenses' && Array.isArray(employee.licencias)) {
+              employee.licencias.slice(0, 4).forEach(function (row, index) {
+                var from = cleanText(row && row.fechaInicio).slice(0, 10) || 'fecha no informada';
+                var to = cleanText(row && row.fechaFin).slice(0, 10);
+                var type = cleanText(row && row.tipo, 'tipo no informado');
+                facts.push('Licencia histórica ' + (index + 1) + ': ' + from + (to ? ' a ' + to : '') + ' · ' + type);
+              });
+            }
+            if (queryFocus === 'absences' && Array.isArray(employee.ausencias)) {
+              employee.ausencias.slice(0, 4).forEach(function (row, index) {
+                var date = cleanText(row && row.fecha).slice(0, 10) || 'fecha no informada';
+                var reason = cleanText(row && (row.motivo || row.motivoCode), 'motivo no informado');
+                facts.push('Ausencia ' + (index + 1) + ': ' + date + ' · ' + reason);
+              });
+            }
           }
         }
         return facts.slice(0, intent === 'employee_search' ? 10 : 12);
@@ -829,7 +856,11 @@
           if (!item || typeof item !== 'object') return null;
           var label = cleanText(item.label || item.name || item.source || [item.system, item.relation].filter(Boolean).join(' · '));
           if (!label) return null;
-          return { label: label, asOf: cleanText(item.asOf || item.cutoff || item.corte, cleanText(fallbackCutoff)) };
+          var hasOwnCutoff = Object.prototype.hasOwnProperty.call(item, 'asOf')
+            || Object.prototype.hasOwnProperty.call(item, 'cutoff')
+            || Object.prototype.hasOwnProperty.call(item, 'corte');
+          var ownCutoff = item.asOf !== undefined ? item.asOf : (item.cutoff !== undefined ? item.cutoff : item.corte);
+          return { label: label, asOf: hasOwnCutoff ? cleanText(ownCutoff) : cleanText(fallbackCutoff) };
         }).filter(Boolean);
       }
 
@@ -869,13 +900,56 @@
             return 'Explicame cómo usar ' + cleanText(section && section.label, 'esta sección') + '.';
           });
         }
+        if (intent === 'employee_detail' && data.data && typeof data.data === 'object') {
+          var employee = data.data;
+          var detailFocus = cleanText(data.queryFocus);
+          var detailYear = Number(data.queryYear) || null;
+          var detailLegajo = cleanText(employee.legajo);
+          var detailCompany = cleanText(employee.companyId);
+          if (!detailLegajo) return [];
+          var suffix = (detailCompany ? ', empresa ' + detailCompany : '') + (detailYear ? ', en ' + detailYear : '') + '.';
+          var crossPrompt = detailFocus === 'licenses'
+            ? 'Ver ausencias del legajo ' + detailLegajo + suffix
+            : 'Ver licencias del legajo ' + detailLegajo + suffix;
+          return [crossPrompt, 'Abrir ficha del legajo ' + detailLegajo + (detailCompany ? ', empresa ' + detailCompany : '') + '.'];
+        }
         if (intent !== 'employee_search' || !Array.isArray(data.data)) return [];
+        var focus = cleanText(data.queryFocus);
+        var year = Number(data.queryYear) || null;
         return data.data.slice(0, 3).map(function (row) {
           var legajo = cleanText(row && row.legajo);
           if (!legajo) return '';
           var company = cleanText(row && row.companyId);
+          var recordSuffix = (company ? ', empresa ' + company : '') + (year ? ', en ' + year : '') + '.';
+          if (focus === 'licenses') return 'Ver licencias del legajo ' + legajo + recordSuffix;
+          if (focus === 'absences') return 'Ver ausencias del legajo ' + legajo + recordSuffix;
           return 'Abrir ficha del legajo ' + legajo + (company ? ', empresa ' + company : '') + '.';
         }).filter(Boolean);
+      }
+
+      function topicLabel(payload) {
+        var intent = cleanText(payload && (payload.intent || payload.topic));
+        var data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {};
+        var focus = cleanText(data.queryFocus);
+        if (intent === 'employee_search' && focus === 'licenses') return 'Licencias por empleado';
+        if (intent === 'employee_search' && focus === 'absences') return 'Ausencias por empleado';
+        if (intent === 'employee_detail' && focus === 'licenses') return 'Ficha y licencias históricas';
+        if (intent === 'employee_detail' && focus === 'absences') return 'Ficha y ausencias';
+        return ({
+          workforce_summary: 'Dotación municipal',
+          payroll_control: 'Control de nómina',
+          integration_quality: 'Integración de identidad',
+          quality_analysis: 'Calidad operativa',
+          absence_analysis: 'Ausentismo agregado',
+          employee_search: 'Búsqueda de empleados',
+          employee_detail: 'Ficha de empleado',
+          executive_analysis: 'Lectura ejecutiva',
+          help_navigation: 'Navegación y ayuda',
+          section_explanation: 'Explicación de sección',
+          task_guidance: 'Guía paso a paso',
+          glossary: 'Glosario municipal',
+          help: 'Ayuda'
+        })[intent] || 'Consulta municipal';
       }
 
       function normalizeAnswer(payload) {
@@ -897,7 +971,9 @@
           role: 'assistant',
           content: answer,
           mode: mode,
-          topic: cleanText(payload.topic || payload.intent, 'Consulta municipal'),
+          nominalLocal: payload.privacy && payload.privacy.nominalQueries === 'local_database_only',
+          providerLabel: providerUsed ? ({ openai: 'OpenAI', huggingface: 'HF' })[cleanText(payload.provider && payload.provider.provider).toLowerCase()] || 'IA' : '',
+          topic: topicLabel(payload),
           facts: factsFromPayload(payload),
           sources: normalizeSources(payload.sources, payload.cutoff || payload.asOf),
           suggestions: suggestionsFromPayload(payload),
@@ -924,7 +1000,12 @@
         var identity = createElement('div');
         var author = createElement('strong', '', message.role === 'user' ? 'Vos' : 'MuniControl Asistente');
         if (message.role === 'assistant') {
-          var mode = createElement('span', 'mode-badge ' + message.mode, modeLabel(message.mode));
+          var badgeLabel = message.nominalLocal
+            ? 'Consulta nominal · local'
+            : message.providerLabel
+              ? 'Asistida · ' + message.providerLabel
+              : modeLabel(message.mode);
+          var mode = createElement('span', 'mode-badge ' + message.mode, badgeLabel);
           identity.append(author, mode);
         } else {
           identity.appendChild(author);

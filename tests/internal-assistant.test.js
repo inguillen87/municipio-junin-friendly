@@ -196,6 +196,22 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ intent: 'quality_analysis' }), 'quality_analysis');
   assert.equal(classifyAssistantRequest({ message: 'Analizá los eventos administrativos de ausencia del último período' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ message: 'Buscar empleado con ausencias' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licnecias de nombre de prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'Mostrame las licencias de Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias actuales de Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias que tiene Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de la persona Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'ausencias de Nombre de Prueba en 2026' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'ausentismo de Nombre de Prueba' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias por sector en 2026' }), 'absence_analysis');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de agosto' }), 'absence_analysis');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de julio 2026' }), 'absence_analysis');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de Julio Ramírez' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'licencias de Abril González' }), 'employee_search');
+  assert.equal(classifyAssistantRequest({ message: 'Ver licencias del legajo 42, empresa 1.' }), 'employee_detail');
+  assert.equal(classifyAssistantRequest({ message: 'Ver licencias del legajo 2009, empresa 1.' }), 'employee_detail');
+  assert.equal(classifyAssistantRequest({ message: 'Prepará una lectura ejecutiva de dotación, nómina, integración, ausentismo y calidad' }), 'executive_analysis');
   assert.equal(classifyAssistantRequest({ intent: 'absence_analysis' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ search: 'Pérez' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ legajo: '42' }), 'employee_detail');
@@ -825,6 +841,113 @@ test('búsqueda y ficha nominal quedan locales aunque se solicite enhance', asyn
   assert.equal(fetchCalls, 0);
 });
 
+test('consulta nominal de licencias tolera el typo, desambigua legajos y muestra el registro histórico local', async () => {
+  let fetchCalls = 0;
+  let searchQuery;
+  const list = await post(
+    { message: 'licnecias de nombre de prueba en 2009', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('los nombres no deben salir a proveedores'); },
+      employees: async (_sql, req) => {
+        searchQuery = req.query;
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: [
+              { contractId: 'contract-1', companyId: 1, nombre: 'NOMBRE DE PRUEBA', legajo: '42', dni: 'NO_PUBLICAR', rawFields: { private: true } },
+              { contractId: 'contract-2', companyId: 2, nombre: 'NOMBRE DE PRUEBA', legajo: '84', cuil: 'NO_PUBLICAR', telefono: 'NO_PUBLICAR' },
+            ],
+            pagination: { page: 1, limit: 10, total: 2, pages: 1 },
+          },
+        };
+      },
+    },
+  );
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.payload.intent, 'employee_search');
+  assert.equal(searchQuery.search, 'nombre de prueba');
+  assert.equal(list.payload.data.queryFocus, 'licenses');
+  assert.equal(list.payload.data.queryYear, 2009);
+  assert.doesNotMatch(JSON.stringify(list.payload.data), /NO_PUBLICAR|"dni"|"cuil"|"rawFields"|"telefono"/i);
+  assert.match(list.payload.answer, /elegí el legajo correcto/i);
+  assert.equal(list.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(fetchCalls, 0);
+
+  let detailQuery;
+  const detail = await post(
+    { message: 'Ver licencias del legajo 42, empresa 1, en 2009.', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('la ficha no debe salir a proveedores'); },
+      employee: async (_sql, req) => {
+        detailQuery = req.query;
+        return ({
+        status: 200,
+        payload: {
+          ok: true,
+          data: {
+            nombre: 'NOMBRE DE PRUEBA', legajo: '42', administrativeStatus: 'inactive',
+            payrollStatus: 'not_liquidated', controlState: 'inactivo_administrativo',
+            statusSnapshotDate: '2026-08-01', personas: { available: false },
+            licencias: [
+              { fechaInicio: '2009-05-01', fechaFin: '2009-05-03', tipo: 'HISTÓRICA' },
+              { fechaInicio: '2008-07-10', fechaFin: '2008-07-11', tipo: 'HISTÓRICA' },
+              { fechaInicio: '2007-02-01', fechaFin: '2007-02-01', tipo: 'HISTÓRICA' },
+            ],
+            ausencias: [],
+            dni: 'NO_PUBLICAR', cuil: 'NO_PUBLICAR', telefono: 'NO_PUBLICAR', domicilio: 'NO_PUBLICAR',
+            familiares: [{ nombre: 'NO_PUBLICAR' }], rawFields: { private: true }, identityAssertions: [{ rawValue: 'NO_PUBLICAR' }],
+          },
+          meta: { leaveTotal: 3, absenceTotal: 41, relationRowsComplete: false, relationRowsCappedAt: 25, leaveSourceMaxDate: '2009-05-15' },
+        },
+      });
+      },
+    },
+  );
+  assert.equal(detail.statusCode, 200);
+  assert.equal(detail.payload.intent, 'employee_detail');
+  assert.equal(detail.payload.data.queryFocus, 'licenses');
+  assert.equal(detail.payload.data.queryYear, 2009);
+  assert.equal(detailQuery.recordYear, '2009');
+  assert.equal(detail.payload.data.meta.leaveTotal, 3);
+  assert.equal('dni' in detail.payload.data.data, false);
+  assert.equal('rawFields' in detail.payload.data.data, false);
+  assert.equal('familiares' in detail.payload.data.data, false);
+  assert.equal('contacto' in detail.payload.data.data, false);
+  assert.match(detail.payload.answer, /3 licencias históricas/i);
+  assert.match(detail.payload.answer, /archivo legado/i);
+  assert.ok(detail.payload.sources.some((source) => source.relation === 'grh_leaves'));
+  assert.ok(detail.payload.sources.some((source) => source.relation === 'grh_absences'));
+  assert.equal(detail.payload.sources.find((source) => source.relation === 'grh_leaves').asOf, '2009-05-15T00:00:00.000Z');
+  assert.equal(detail.payload.sources.find((source) => source.relation === 'grh_absences').asOf, '2026-08-06T15:15:21.000Z');
+  assert.equal(detail.payload.sources.some((source) => source.system === 'PERSONAS'), false);
+  assert.equal(detail.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(fetchCalls, 0);
+
+  let noYearQuery;
+  const noYear = await post(
+    { message: 'Ver licencias del legajo 2009, empresa 1.' },
+    {
+      employee: async (_sql, req) => {
+        noYearQuery = req.query;
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: { nombre: 'NOMBRE DE PRUEBA', legajo: '2009', personas: { available: false }, licencias: [], ausencias: [] },
+            meta: { leaveTotal: 0, absenceTotal: 0, leaveSourceMaxDate: '2009-05-15' },
+          },
+        };
+      },
+    },
+  );
+  assert.equal(noYear.statusCode, 200);
+  assert.equal(noYearQuery.recordYear, '');
+  assert.equal(noYear.payload.data.queryYear, null);
+});
+
 test('OpenAI Responses es primario y no intenta HF cuando responde correctamente', async () => {
   const requests = [];
   const res = await post(
@@ -1118,4 +1241,10 @@ test('la interfaz activa enriquecimiento y adapta insight y fuentes del contrato
   assert.match(html, /intent === 'executive_analysis'/);
   assert.match(html, /data\.absence/);
   assert.match(html, /Días declarados en GRH \(no jornadas perdidas\)/);
+  assert.match(html, /Licencias históricas registradas/);
+  assert.match(html, /Ver licencias del legajo/);
+  assert.match(html, /Ficha y licencias históricas/);
+  assert.match(html, /Asistida ·/);
+  assert.match(html, /Lectura ejecutiva/);
+  assert.doesNotMatch(html, /row\s*&&\s*row\.rawFields/);
 });

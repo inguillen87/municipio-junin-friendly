@@ -58,7 +58,7 @@ function mockDetailSql(matchStatus = 'matched') {
           crosswalkEvidence: { rawIdJoinUsed: false }
         }];
       }
-      if (sql.includes('AS "absenceTotal"')) return [{ absenceTotal: 0, leaveTotal: 0, familyTotal: 0, movementTotal: 0 }];
+      if (sql.includes('AS "absenceTotal"')) return [{ absenceTotal: 0, leaveTotal: 0, familyTotal: 0, movementTotal: 0, leaveSourceMaxDate: '2009-05-15' }];
       if (sql.includes('FROM grh_absences')) return [];
       if (sql.includes('FROM grh_leaves')) return [];
       if (sql.includes('FROM grh_family')) return [];
@@ -103,6 +103,35 @@ test('employees valida filtros permitidos antes de consultar Neon', async () => 
   assert.equal(queried, false);
 });
 
+test('employees busca nombres por tokens parametrizados sin depender del orden almacenado', async () => {
+  const sql = mockListSql();
+  const callsWithValues = [];
+  const baseQuery = sql.query.bind(sql);
+  sql.query = async (statement, values = []) => {
+    callsWithValues.push({ statement: String(statement), values });
+    return baseQuery(statement);
+  };
+
+  const result = await employees(sql, {
+    query: { search: 'Nombre Apellido', page: '1', limit: '10', status: 'all', crosswalk: 'all', includeFacets: '0' },
+  });
+
+  assert.equal(result.status, 200);
+  const countCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM directory'));
+  assert.ok(countCall);
+  assert.match(countCall.statement, /translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$2\).*AND translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$3\)/s);
+  assert.deepEqual(countCall.values, ['%Nombre Apellido%', '%Nombre%', '%Apellido%']);
+  assert.ok(callsWithValues.every((call) => !call.statement.includes("Nombre Apellido'")));
+
+  callsWithValues.length = 0;
+  await employees(sql, {
+    query: { search: 'Perez', page: '1', limit: '10', status: 'all', crosswalk: 'all', includeFacets: '0' },
+  });
+  const accentCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM directory'));
+  assert.match(accentCall.statement, /translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$2\)/s);
+  assert.deepEqual(accentCall.values, ['%Perez%', '%Perez%']);
+});
+
 test('employee sólo entrega PERSONAS cuando el crosswalk es matched', async () => {
   const matched = await employee(mockDetailSql('matched'), { query: { contractId: '00000000-0000-0000-0000-000000000001' } });
   assert.equal(matched.status, 200);
@@ -119,6 +148,38 @@ test('employee sólo entrega PERSONAS cuando el crosswalk es matched', async () 
   assert.equal(ambiguous.payload.data.identityAssertions.some((item) => item.sourceSystem === 'PERSONAS'), false);
   assert.equal(ambiguous.payload.data.sourceReferences.some((item) => item.sourceSystem === 'PERSONAS'), false);
   assert.match(ambiguous.payload.data.personas.reason, /candidatos/i);
+});
+
+test('employee filtra licencias y ausencias por año con parámetros y conserva el corte propio de la fuente histórica', async () => {
+  const sql = mockDetailSql('matched');
+  const calls = [];
+  const baseQuery = sql.query.bind(sql);
+  sql.query = async (statement, values = []) => {
+    calls.push({ statement: String(statement), values });
+    return baseQuery(statement);
+  };
+
+  const result = await employee(sql, {
+    query: { contractId: '00000000-0000-0000-0000-000000000001', recordYear: '2009' },
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.payload.meta.recordYear, 2009);
+  assert.equal(result.payload.meta.leaveSourceMaxDate, '2009-05-15');
+  const counts = calls.find((call) => call.statement.includes('AS "absenceTotal"'));
+  assert.match(counts.statement, /fecha >= \$4::date AND fecha < \$5::date/);
+  assert.match(counts.statement, /fecha_inicio >= \$4::date AND fecha_inicio < \$5::date/);
+  assert.deepEqual(counts.values.slice(-2), ['2009-01-01', '2010-01-01']);
+  const absenceRows = calls.find((call) => call.statement.includes('FROM grh_absences absence'));
+  assert.match(absenceRows.statement, /absence\.fecha >= \$3::date AND absence\.fecha < \$4::date/);
+  assert.deepEqual(absenceRows.values.slice(-2), ['2009-01-01', '2010-01-01']);
+
+  let queried = false;
+  const invalid = await employee({ async query() { queried = true; return []; } }, {
+    query: { legajo: '42', recordYear: '1800' },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.payload.code, 'EMPLOYEE_RECORD_YEAR_INVALID');
+  assert.equal(queried, false);
 });
 
 test('ficha interna declara directorio, filtros canónicos y secciones ricas sin JOIN por IDPERSONA', async () => {
