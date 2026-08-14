@@ -5,6 +5,7 @@ import {
   classifyAssistantRequest,
   createInternalAssistantHandler,
   getAssistantGuidanceCatalog,
+  planAssistantRequest,
 } from '../api/internal-assistant.js';
 
 const scope = { totalContracts: 2450, totalPeople: 2349, asOf: '2026-08-06T15:15:21.000Z' };
@@ -150,6 +151,12 @@ function handler(overrides = {}) {
     payrollControl: async () => payroll,
     absenceAnalytics: overrides.absenceAnalytics || (async () => absence),
     qualityOverview: overrides.qualityOverview || overrides.qualityoverview || (async () => quality),
+    summary: overrides.summary,
+    structure: overrides.structure,
+    absenceEvents: overrides.absenceEvents || overrides.absenceevents,
+    qualityIssues: overrides.qualityIssues || overrides.qualityissues,
+    importLineage: overrides.importLineage || overrides.importlineage,
+    resolveAbsenceReason: overrides.resolveAbsenceReason,
     canonicalScope: async () => scope,
     employees: overrides.employees || (async () => ({
       status: 200,
@@ -174,6 +181,8 @@ function handler(overrides = {}) {
     env: overrides.env || {},
     now: overrides.now || (() => Date.parse('2026-08-13T20:00:00Z')),
     quotaStore: overrides.quotaStore || new Map(),
+    logger: overrides.logger || { info() {} },
+    requestIdFactory: overrides.requestIdFactory || (() => 'request-test-id'),
   });
 }
 
@@ -215,6 +224,155 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ intent: 'absence_analysis' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ search: 'Pérez' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ legajo: '42' }), 'employee_detail');
+});
+
+test('plan municipal v1 clasifica los cinco recursos nuevos y extrae filtros aplicables', () => {
+  const summaryPlan = planAssistantRequest({ message: 'Resumen operativo de GRH' });
+  assert.equal(summaryPlan.version, 'municipal_query_plan.v1');
+  assert.equal(summaryPlan.intent, 'operational_summary');
+  assert.equal(summaryPlan.resource, 'summary');
+  assert.deepEqual(summaryPlan.filters, {});
+  assert.deepEqual(summaryPlan.rejectedFilters, []);
+
+  const structurePlan = planAssistantRequest({ message: 'Estructura por organización Hacienda' });
+  assert.equal(structurePlan.intent, 'structure_analysis');
+  assert.equal(structurePlan.resource, 'structure');
+  assert.equal(structurePlan.filters.organization, 'Hacienda');
+
+  const roleSingular = planAssistantRequest({ message: 'Mostrame la función Médico Clínico' });
+  assert.equal(roleSingular.intent, 'structure_analysis');
+  assert.equal(roleSingular.filters.role, 'Médico Clínico');
+
+  const rolePlural = planAssistantRequest({ message: 'Mostrame las funciones Médicas' });
+  assert.equal(rolePlural.intent, 'structure_analysis');
+  assert.equal(rolePlural.filters.role, 'Médicas');
+
+  const roleCargo = planAssistantRequest({ message: 'Mostrame el cargo Inspector' });
+  assert.equal(roleCargo.intent, 'structure_analysis');
+  assert.equal(roleCargo.filters.role, 'Inspector');
+
+  const eventPlan = planAssistantRequest({ message: 'Listá ausencias el 2026-07-10 del sector OBRERO motivo 07' });
+  assert.equal(eventPlan.intent, 'absence_event_list');
+  assert.equal(eventPlan.resource, 'absenceevents');
+  assert.equal(eventPlan.filters.from, '2026-07-10');
+  assert.equal(eventPlan.filters.to, '2026-07-10');
+  assert.equal(eventPlan.filters.sector, 'OBRERO');
+  assert.equal(eventPlan.filters.reasonCode, '07');
+  assert.equal(eventPlan.externalPolicy, 'local_only');
+
+  const qualityPlan = planAssistantRequest({ message: 'Listá errores abiertos de calidad código CUIL_INVALID' });
+  assert.equal(qualityPlan.intent, 'quality_issue_list');
+  assert.equal(qualityPlan.resource, 'qualityissues');
+  assert.equal(qualityPlan.filters.severity, 'error');
+  assert.equal(qualityPlan.filters.resolution, 'open');
+  assert.equal(qualityPlan.filters.code, 'CUIL_INVALID');
+
+  const lineagePlan = planAssistantRequest({ message: 'Último lote de importación GRH' });
+  assert.equal(lineagePlan.intent, 'import_lineage');
+  assert.equal(lineagePlan.resource, 'importlineage');
+  assert.equal(lineagePlan.filters.source, 'GRH');
+  assert.equal(lineagePlan.filters.batch, 'latest_published');
+
+  const qualityFollowUp = planAssistantRequest({
+    message: '¿Y los críticos?',
+    history: [{ role: 'assistant', conversationContext: { intent: 'quality_issue_list', domain: 'quality', filters: { source: 'GRH' } } }],
+  });
+  assert.equal(qualityFollowUp.intent, 'quality_issue_list');
+  assert.equal(qualityFollowUp.filters.source, 'GRH');
+  assert.equal(qualityFollowUp.filters.severity, 'critical');
+  assert.equal(qualityFollowUp.contextUsed.used, true);
+});
+
+test('plan de fechas distingue día exacto, desde, hasta y rango', () => {
+  const exact = planAssistantRequest({ message: 'Listame eventos de ausencia el 2026-07-10' });
+  assert.equal(exact.filters.from, '2026-07-10');
+  assert.equal(exact.filters.to, '2026-07-10');
+
+  const since = planAssistantRequest({ message: 'Listame eventos de ausencia desde 2026-07-10' });
+  assert.equal(since.filters.from, '2026-07-10');
+  assert.equal(since.filters.to, '2026-12-31');
+
+  const until = planAssistantRequest({ message: 'Listame eventos de ausencia hasta 2026-07-10' });
+  assert.equal(until.filters.from, '2026-01-01');
+  assert.equal(until.filters.to, '2026-07-10');
+
+  const range = planAssistantRequest({ message: 'Listame eventos de ausencia entre 2026-07-10 y 2026-07-15' });
+  assert.equal(range.filters.from, '2026-07-10');
+  assert.equal(range.filters.to, '2026-07-15');
+});
+
+test('follow-ups estructurados cambian de recurso y conservan sólo filtros compatibles', () => {
+  const eventSummary = planAssistantRequest({
+    message: 'Resumí estos eventos sin datos nominales.',
+    history: [{
+      role: 'assistant',
+      conversationContext: {
+        intent: 'absence_event_list',
+        domain: 'absence',
+        filters: {
+          from: '2026-01-15', to: '2026-03-20', sector: 'OBRERO', reasonCode: '07',
+        },
+      },
+    }],
+  });
+  assert.equal(eventSummary.intent, 'absence_analysis');
+  assert.equal(eventSummary.resource, 'absenceanalytics');
+  assert.deepEqual(eventSummary.filters, {
+    from: '2026-01-15',
+    to: '2026-03-20',
+    sector: 'OBRERO',
+    reasonCode: '07',
+    bucket: 'month',
+  });
+  assert.deepEqual(eventSummary.rejectedFilters, []);
+  assert.ok(eventSummary.decisions.includes('converted_nominal_event_list_to_aggregate_summary'));
+
+  const previousPeriod = planAssistantRequest({
+    message: '¿Y el mismo período del año anterior?',
+    history: [{
+      role: 'assistant',
+      conversationContext: {
+        intent: 'absence_analysis',
+        domain: 'absence',
+        filters: {
+          from: '2024-02-29', to: '2024-03-31', year: 2024, sector: 'OBRERO', bucket: 'month',
+        },
+      },
+    }],
+  });
+  assert.equal(previousPeriod.intent, 'absence_analysis');
+  assert.equal(previousPeriod.filters.from, '2023-02-28');
+  assert.equal(previousPeriod.filters.to, '2023-03-31');
+  assert.equal(previousPeriod.filters.year, 2023);
+  assert.equal(previousPeriod.filters.sector, 'OBRERO');
+  assert.ok(previousPeriod.decisions.includes('shifted_context_period_to_previous_calendar_year'));
+
+  const lineage = planAssistantRequest({
+    message: 'Mostrame el linaje.',
+    history: [{
+      role: 'assistant',
+      conversationContext: {
+        intent: 'quality_issue_list',
+        domain: 'quality',
+        filters: {
+          source: 'GRH', batch: 'latest_published', severity: 'error',
+          code: 'DATE_OUT_OF_RANGE', resolution: 'open',
+        },
+      },
+    }],
+  });
+  assert.equal(lineage.intent, 'import_lineage');
+  assert.equal(lineage.resource, 'importlineage');
+  assert.deepEqual(lineage.filters, { source: 'GRH', batch: 'latest_published' });
+  assert.deepEqual(lineage.rejectedFilters, []);
+  assert.ok(lineage.decisions.includes('switched_quality_queue_to_import_lineage'));
+  assert.ok(lineage.decisions.includes('dropped_incompatible_context_filter:severity'));
+  assert.ok(lineage.decisions.includes('dropped_incompatible_context_filter:code'));
+  assert.ok(lineage.decisions.includes('dropped_incompatible_context_filter:resolution'));
+  assert.deepEqual(lineage.contextUsed.fields.sort(), ['filters.batch', 'filters.source']);
+
+  const writtenWithoutContext = planAssistantRequest({ message: 'Mostrame el linaje de estos snapshots.' });
+  assert.equal(writtenWithoutContext.intent, 'import_lineage');
 });
 
 test('clasifica onboarding, explicación, recorridos y glosario antes que los dominios de datos', () => {
@@ -474,6 +632,7 @@ test('acepta el alias de dependencia qualityoverview sin consultar un recurso al
     getInternalSql: async () => ({ query: async () => [] }),
     qualityoverview: async () => { calls += 1; return quality; },
     env: {},
+    logger: { info() {} },
   });
   const res = responseRecorder();
   await endpoint({
@@ -553,7 +712,7 @@ test('la proyección externa de dotación conserva sólo estado y conteo', async
     state: 'licencia_sin_goce',
     records: 16,
   });
-  assert.doesNotMatch(JSON.stringify(providerBody), /source[_-]?id|observed[_-]?value|canonical[_-]?id|PERSONA LOCAL|secret/i);
+  assert.doesNotMatch(JSON.stringify(providerBody), /source[_-]?id|observed[_-]?value|canonical[_-]?id|PERSONA LOCAL|secret|error_de_estado/i);
 });
 
 test('el guard de privacidad reconoce nombres sensibles en snake_case', async () => {
@@ -721,6 +880,7 @@ test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fil
   const serialized = JSON.stringify(providerBody);
   assert.match(providerBody.messages[1].content, /"absence"/);
   assert.match(providerBody.messages[1].content, /"topReasons"/);
+  assert.doesNotMatch(serialized, /error_de_estado/i, 'el ejecutivo hereda la supresión k>=5 de estados laborales');
   assert.doesNotMatch(serialized, /PERSONA EJECUTIVA|20000000001|legajo|contractId|contract-secret/i);
   assert.equal(res.payload.provider.nominalDataSent, false);
 });
@@ -946,6 +1106,224 @@ test('consulta nominal de licencias tolera el typo, desambigua legajos y muestra
   assert.equal(noYear.statusCode, 200);
   assert.equal(noYearQuery.recordYear, '');
   assert.equal(noYear.payload.data.queryYear, null);
+});
+
+test('summary y structure usan proyecciones agregadas allowlisted sin hashes, IDs ni filas pequeñas', async () => {
+  const providerBodies = [];
+  const fetchMock = async (_url, options) => {
+    providerBodies.push(JSON.parse(options.body));
+    return { ok: true, async json() { return { output_text: 'Lectura agregada verificada.' }; } };
+  };
+  const operational = await post(
+    { message: 'Resumen operativo de GRH', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: fetchMock,
+      summary: async () => ({
+        ok: true,
+        source: { cutoff: '2026-08-06', name: 'BACKUP_PRIVADO.zip', sha256: 'HASH_NO_PUBLICAR' },
+        workforce: { historicalRecords: 2450, active: 882, inactive: 1568, sectors: [{ label: 'NO_PUBLICAR' }] },
+        absence: { totalEvents: 31572, yearly: [{ year: 2026, name: 'NO_PUBLICAR' }] },
+        related: { leaveRecords: 1200 },
+        catalogs: { sectors: 81, categories: 22, unions: 4, agreements: 12 },
+        quality: { activeWithoutSector: 5, absenceOrphans: 2, leaveOrphans: 1, flags: { private: true }, importedCounts: { private: 99 } },
+      }),
+    },
+  );
+  assert.equal(operational.statusCode, 200);
+  assert.equal(operational.payload.queryPlan.resource, 'summary');
+  assert.equal(operational.payload.data.grain, 'employment_record_by_company_and_legajo');
+  assert.equal(operational.payload.asOf, null, 'los bloques con cortes distintos no comparten un asOf inventado');
+  assert.equal(operational.payload.sources.find((item) => item.relation === 'grh_leaves').asOf, null);
+  assert.doesNotMatch(JSON.stringify(providerBodies[0]), /BACKUP_PRIVADO|HASH_NO_PUBLICAR|NO_PUBLICAR|flags|importedCounts|yearly/i);
+
+  const structure = await post(
+    { message: 'Estructura del sector OBRERO', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test' },
+      fetch: fetchMock,
+      structure: async () => ({
+        ok: true,
+        source: { cutoff: '2026-08-06', sha256: 'HASH_ESTRUCTURA_NO_PUBLICAR' },
+        coverage: {
+          historicalRecords: 2450, activeRecords: 882, inactiveRecords: 1568,
+          withOrganization: 2400, withSector: 2300, withRole: 2200,
+          organizationsObserved: 15, sectorsObserved: 81, rolesObserved: 120,
+        },
+        hierarchy: { available: false, catalogRows: 15, roots: 0, parentLinks: 0, unresolvedParentLinks: 0 },
+        organizations: [
+          { label: 'Hacienda', active: 30, inactive: 10, historical: 40, organizationIds: ['NO_PUBLICAR'] },
+          { label: 'SPLIT_PRIVADO', active: 1, inactive: 9, historical: 10 },
+        ],
+        sectors: [{ label: 'OBRERO', active: 25, historical: 30, sourceCode: 'NO_PUBLICAR' }, { label: 'MICRO', active: 2, historical: 2 }],
+        roles: [{ label: 'Inspector', active: 8, historical: 10 }],
+        catalogs: { raw: 'NO_PUBLICAR' },
+      }),
+    },
+  );
+  assert.equal(structure.statusCode, 200);
+  assert.equal(structure.payload.queryPlan.resource, 'structure');
+  assert.equal(structure.payload.data.matches.sectors.total, 1);
+  assert.match(structure.payload.answer, /cubre globalmente/i);
+  assert.match(structure.payload.answer, /coincide con 1/i);
+  assert.doesNotMatch(JSON.stringify(providerBodies[1]), /HASH_ESTRUCTURA|organizationIds|sourceCode|NO_PUBLICAR|MICRO|SPLIT_PRIVADO|catalogs/i);
+  assert.doesNotMatch(JSON.stringify(providerBodies[1]), /"activeRecords":1|"inactiveRecords":9/);
+});
+
+test('absenceevents, qualityissues e importlineage quedan locales y aplican sus filtros', async () => {
+  let externalCalls = 0;
+  let absenceQuery;
+  let qualityQuery;
+  const localOnly = {
+    env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+    fetch: async () => { externalCalls += 1; throw new Error('un recurso interno no debe externalizarse'); },
+    absenceEvents: async (_sql, req) => {
+      absenceQuery = req.query;
+      return {
+        status: 200,
+        payload: {
+          ok: true,
+          data: [{ contractId: 'contract-private', companyId: 7, legajo: '991', name: 'PERSONA NOMINAL', sector: 'OBRERO', eventDate: '2026-07-10', reasonCode: '07', reason: 'Enfermedad', sourceDeclaredDays: 2 }],
+          pagination: { page: 1, limit: 10, total: 1, pages: 1 },
+          range: { effective: { from: '2026-07-10', to: '2026-07-10' } },
+          quality: { sourceCutoff: '2026-08-06', sectorSemantics: 'Sector actual observado al corte.' },
+          meta: { filters: { sector: 'OBRERO', reasonCode: '07' }, sectorSemantics: 'Sector actual observado al corte.', externalSharingAllowed: false },
+        },
+      };
+    },
+    qualityIssues: async (_sql, req) => {
+      qualityQuery = req.query;
+      return {
+        status: 200,
+        payload: { ok: true, data: [], pagination: { page: 1, limit: 10, total: 0, pages: 1 }, filters: { source: 'PERSONAS', severity: 'error', resolution: 'open' } },
+      };
+    },
+    importLineage: async () => ({
+      status: 200,
+      payload: {
+        ok: true,
+        data: [
+          { source: 'GRH', cutoff: '2026-08-06', loadedAt: '2026-08-07', validation: 'published', sourceRowCount: 100, sourceRowCountStatus: 'reported', sha256Prefix: 'abc123', trackedIssues: 2 },
+          { source: 'GRH', cutoff: '2026-08-06', loadedAt: '2026-08-08', validation: 'published', sourceRowCount: 101, sourceRowCountStatus: 'reported', sha256Prefix: 'latest123', trackedIssues: 3 },
+          { source: 'GRH', cutoff: '2026-07-01', loadedAt: '2026-07-02', validation: 'published', sourceRowCount: 90, sourceRowCountStatus: 'reported', sha256Prefix: 'def456', trackedIssues: 1 },
+          { source: 'GRH', cutoff: null, loadedAt: '2026-09-01', validation: 'published', sourceRowCount: 102, sourceRowCountStatus: 'reported', sha256Prefix: 'nullcutoff', trackedIssues: 4 },
+          { source: 'PERSONAS', cutoff: '2026-08-01', loadedAt: '2026-08-02', validation: 'published', sourceRowCount: null, sourceRowCountStatus: 'not_reported', sha256Prefix: 'ghi789', trackedIssues: 0 },
+        ],
+        summary: { publishedBatches: 3 },
+      },
+    }),
+  };
+
+  const events = await post({ message: 'Listá ausencias el 2026-07-10 del sector OBRERO motivo 07', enhance: true }, localOnly);
+  assert.equal(events.payload.intent, 'absence_event_list');
+  assert.deepEqual(absenceQuery, { from: '2026-07-10', to: '2026-07-10', sector: 'OBRERO', reasonCode: '07', page: '1', limit: '10' });
+  assert.equal(events.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(events.payload.privacy.nominalQueries, 'local_database_only');
+  assert.match(events.payload.answer, /no equivale automáticamente a duración, jornadas perdidas, presentismo ni tasa/i);
+
+  const issues = await post({ message: 'Listá errores abiertos de calidad de PERSONAS', enhance: true }, localOnly);
+  assert.equal(issues.payload.intent, 'quality_issue_list');
+  assert.equal(qualityQuery.source, 'PERSONAS');
+  assert.equal(qualityQuery.severity, 'error');
+  assert.equal(qualityQuery.resolution, 'open');
+  assert.equal(issues.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.match(issues.payload.answer, /cero hallazgos registrados no demuestra una fuente limpia/i);
+  assert.equal(issues.payload.asOf, null);
+
+  const lineage = await post({ message: 'Último lote de importación GRH', enhance: true }, localOnly);
+  assert.equal(lineage.payload.intent, 'import_lineage');
+  assert.equal(lineage.payload.data.batches.length, 1);
+  assert.equal(lineage.payload.data.batches[0].cutoff, '2026-08-06T00:00:00.000Z');
+  assert.equal(lineage.payload.data.batches[0].loadedAt, '2026-08-08T00:00:00.000Z');
+  assert.equal(lineage.payload.data.batches[0].sha256Prefix, 'latest123');
+  assert.deepEqual(lineage.payload.data.summary, { publishedBatches: 1, reportedRowCounts: 1, notReportedRowCounts: 0, scope: 'filtered_rows' });
+  assert.equal(lineage.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(externalCalls, 0);
+});
+
+test('follow-up nominal usa sólo contexto estructurado y el log no contiene PII ni identificadores laborales', async () => {
+  const logs = [];
+  let detailQuery;
+  let externalCalls = 0;
+  const res = await post(
+    {
+      message: '¿Y sus ausencias?',
+      history: [{
+        role: 'assistant',
+        content: 'PERSONA PRIVADA legajo 991 company 7 NO_DEBE_USARSE',
+        conversationContext: {
+          intent: 'employee_detail', domain: 'employee', queryFocus: 'licenses', queryYear: 2026,
+          selectedEmployee: { companyId: '7', legajo: '991', name: 'IGNORAR' },
+          filters: { year: 2026 },
+        },
+      }],
+      enhance: true,
+    },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      logger: { info(value) { logs.push(value); } },
+      requestIdFactory: () => 'request-safe-id',
+      fetch: async () => { externalCalls += 1; throw new Error('no externalizar nominales'); },
+      employee: async (_sql, req) => {
+        detailQuery = req.query;
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            data: { companyId: 7, legajo: '991', nombre: 'PERSONA PRIVADA', ausencias: [], licencias: [] },
+            meta: { absenceTotal: 0, leaveTotal: 0 },
+          },
+        };
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'employee_detail');
+  assert.deepEqual(detailQuery, { contractId: '', legajo: '991', companyId: '7', recordYear: '2026' });
+  assert.equal(res.payload.data.queryFocus, 'absences');
+  assert.equal(res.payload.queryPlan.contextUsed.reason, 'referential_nominal_follow_up');
+  assert.deepEqual(res.payload.conversationContext.selectedEmployee, { companyId: '7', legajo: '991' });
+  assert.equal(res.payload.provider.status, 'not_allowed_for_nominal_or_unknown_intent');
+  assert.equal(externalCalls, 0);
+  assert.equal(res.payload.requestId, 'request-safe-id');
+  assert.equal(res.headers['X-Request-Id'], 'request-safe-id');
+  assert.equal(logs.length, 1);
+  const log = logs[0];
+  assert.doesNotMatch(log, /PERSONA PRIVADA|NO_DEBE_USARSE|IGNORAR|991|companyId|legajo|history|facts/i);
+  assert.match(log, /"intent":"employee_detail"/);
+  assert.match(log, /"providerStatus":"not_allowed_for_nominal_or_unknown_intent"/);
+  assert.match(log, /"name":"employee"/);
+
+  const missing = await post({ message: '¿Y sus ausencias?', history: [{ role: 'assistant', content: 'PERSONA PRIVADA 991' }] });
+  assert.equal(missing.statusCode, 409);
+  assert.equal(missing.payload.code, 'CONVERSATION_CONTEXT_REQUIRED');
+});
+
+test('motivo natural se resuelve a código homologado o pide desambiguación sin ignorar el filtro', async () => {
+  let absenceQuery;
+  const resolved = await post(
+    { message: 'Ausencias por motivo Enfermedad en 2026' },
+    {
+      resolveAbsenceReason: async () => ({ status: 'resolved', reasonCode: '07', candidates: [{ code: '07', label: 'Enfermedad' }] }),
+      absenceAnalytics: async (_sql, req) => { absenceQuery = req.query; return absence; },
+    },
+  );
+  assert.equal(resolved.statusCode, 200);
+  assert.equal(absenceQuery.reasonCode, '07');
+  assert.equal(resolved.payload.queryPlan.filters.reasonCode, '07');
+  assert.equal(Object.hasOwn(resolved.payload.queryPlan.filters, 'reason'), false);
+
+  let analyticsCalls = 0;
+  const ambiguous = await post(
+    { message: 'Ausencias por motivo Licencia en 2026' },
+    {
+      resolveAbsenceReason: async () => ({ status: 'ambiguous', candidates: [{ code: '01', label: 'Licencia anual' }, { code: '02', label: 'Licencia especial' }] }),
+      absenceAnalytics: async () => { analyticsCalls += 1; return absence; },
+    },
+  );
+  assert.equal(ambiguous.statusCode, 409);
+  assert.equal(ambiguous.payload.code, 'ABSENCE_REASON_AMBIGUOUS');
+  assert.equal(analyticsCalls, 0);
 });
 
 test('OpenAI Responses es primario y no intenta HF cuando responde correctamente', async () => {

@@ -491,6 +491,59 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Calidad operativa mobile');
 
+    const askAssistant = async (message, enhance = false) => {
+      const response = await context.request.post(`${baseUrl}/api/internal-assistant`, {
+        data: { message, enhance },
+      });
+      assert.equal(response.status(), 200, `El asistente debe resolver: ${message}`);
+      return response.json();
+    };
+
+    const operationalAssistant = await askAssistant('Dame un resumen operativo de GRH');
+    assert.equal(operationalAssistant.intent, 'operational_summary');
+    assert.equal(operationalAssistant.queryPlan.version, 'municipal_query_plan.v1');
+    assert.equal(operationalAssistant.queryPlan.resource, 'summary');
+    assert.equal(operationalAssistant.data.grain, 'employment_record_by_company_and_legajo');
+    assert.equal(operationalAssistant.data.workforce.historicalRecords, 2450);
+    assert.equal(operationalAssistant.data.workforce.activeRecords, 882);
+
+    const structureAssistant = await askAssistant('Mostrame la estructura del sector OBRERO');
+    assert.equal(structureAssistant.intent, 'structure_analysis');
+    assert.equal(structureAssistant.queryPlan.resource, 'structure');
+    assert.equal(structureAssistant.queryPlan.filters.sector, 'OBRERO');
+    assert.equal(structureAssistant.data.grain, 'employment_record_by_company_and_legajo');
+    assert.ok(structureAssistant.data.coverage.historicalRecords > 0);
+
+    const eventListAssistant = await askAssistant('Lista los eventos administrativos de ausencia de julio 2026', true);
+    assert.equal(eventListAssistant.intent, 'absence_event_list');
+    assert.equal(eventListAssistant.queryPlan.resource, 'absenceevents');
+    assert.deepEqual(
+      { from: eventListAssistant.queryPlan.filters.from, to: eventListAssistant.queryPlan.filters.to },
+      { from: '2026-07-01', to: '2026-07-31' },
+    );
+    assert.ok(eventListAssistant.data.rows.length > 0);
+    assert.equal(eventListAssistant.provider.externalProviderAttempted, false);
+    assert.equal(eventListAssistant.privacy.nominalDataExternalized, false);
+
+    const qualityListAssistant = await askAssistant('Lista los errores abiertos de calidad de GRH', true);
+    assert.equal(qualityListAssistant.intent, 'quality_issue_list');
+    assert.equal(qualityListAssistant.queryPlan.resource, 'qualityissues');
+    assert.equal(qualityListAssistant.queryPlan.filters.source, 'GRH');
+    assert.equal(qualityListAssistant.queryPlan.filters.severity, 'error');
+    assert.equal(qualityListAssistant.queryPlan.filters.resolution, 'open');
+    assert.equal(qualityListAssistant.data.rows.every((row) => row.source === 'GRH' && row.severity === 'error' && row.resolution === 'open'), true);
+    assert.equal(qualityListAssistant.provider.externalProviderAttempted, false);
+    assert.match(qualityListAssistant.answer, /snapshots publicados/i);
+
+    const lineageAssistant = await askAssistant('Mostrame el ultimo lote de importacion GRH', true);
+    assert.equal(lineageAssistant.intent, 'import_lineage');
+    assert.equal(lineageAssistant.queryPlan.resource, 'importlineage');
+    assert.equal(lineageAssistant.queryPlan.filters.source, 'GRH');
+    assert.equal(lineageAssistant.queryPlan.filters.batch, 'latest_published');
+    assert.equal(lineageAssistant.data.batches.length, 1);
+    assert.equal(lineageAssistant.data.methodology.liveSynchronization, false);
+    assert.equal(lineageAssistant.provider.externalProviderAttempted, false);
+
     await page.goto(`${baseUrl}/asistente`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
     await page.locator('#messageInput').fill('Cual es la brecha de dotacion?');
@@ -550,21 +603,61 @@ async function verifyAuthenticatedInternal() {
       assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Ficha y licencias históricas/i);
       assert.match(await page.locator('.message.assistant .answer-text').last().innerText(), /licencias históricas.*archivo legado/is);
       assert.match(await page.locator('.message.assistant .facts').last().innerText(), /Licencias históricas registradas/i);
+
+      const messagesBeforeFollowUp = await page.locator('.message.assistant .answer-text').count();
+      await page.locator('#messageInput').fill('Y sus ausencias?');
+      await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+      await page.waitForFunction((count) => document.querySelectorAll('.message.assistant .answer-text').length > count, messagesBeforeFollowUp);
+      assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Ficha y ausencias/i);
+      assert.match(await page.locator('.message.assistant .mode-badge').last().innerText(), /Consulta nominal.*local/i);
+      assert.match(await page.locator('#activeContextSummary').innerText(), /legajo/i);
+      assert.match(await page.locator('[data-query-plan]').last().textContent(), /Contexto reutilizado/i);
     }
+
+    const messagesBeforeEventFlow = await page.locator('.message.assistant .answer-text').count();
+    await page.locator('#messageInput').fill('Lista los eventos administrativos de ausencia de julio 2026');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction((count) => document.querySelectorAll('.message.assistant .answer-text').length > count, messagesBeforeEventFlow);
+    assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Eventos administrativos de ausencia/i);
+    assert.match(await page.locator('[data-query-plan]').last().textContent(), /01\/07\/2026|2026-07-01/);
+
+    const messagesBeforeAggregateClick = await page.locator('.message.assistant .answer-text').count();
+    await page.locator('.message.assistant .suggestion-button', { hasText: 'Resumir estos eventos sin datos nominales' }).last().click();
+    await page.waitForFunction((count) => document.querySelectorAll('.message.assistant .answer-text').length > count, messagesBeforeAggregateClick);
+    assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Ausentismo agregado/i);
+    assert.match(await page.locator('[data-query-plan]').last().textContent(), /01\/07\/2026|2026-07-01/);
+
+    const messagesBeforePreviousYear = await page.locator('.message.assistant .answer-text').count();
+    await page.locator('.message.assistant .suggestion-button', { hasText: 'Ver el mismo período del año anterior' }).last().click();
+    await page.waitForFunction((count) => document.querySelectorAll('.message.assistant .answer-text').length > count, messagesBeforePreviousYear);
+    assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Ausentismo agregado/i);
+    assert.match(await page.locator('[data-query-plan]').last().textContent(), /01\/07\/2025|2025-07-01/);
+
+    const messagesBeforeStructure = await page.locator('.message.assistant .answer-text').count();
+    await page.locator('#messageInput').fill('Mostrame la estructura del sector OBRERO');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction((count) => document.querySelectorAll('.message.assistant .answer-text').length > count, messagesBeforeStructure);
+    assert.match(await page.locator('.message.assistant .topic-label').last().innerText(), /Estructura observada/i);
+    assert.match(await page.locator('[data-query-plan]').last().textContent(), /Estructura|sector.*OBRERO/i);
+    assert.match(await page.locator('#activeContextChips').innerText(), /Estructura|OBRERO/i);
+
     const assistantMobileLayout = await page.evaluate(() => {
       const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect();
       const composer = document.querySelector('.composer')?.getBoundingClientRect();
       const messageList = document.querySelector('.messages');
+      const contextBar = document.querySelector('[data-conversation-context]')?.getBoundingClientRect();
       return {
         sidebarHeight: sidebar?.height || 0,
         composerVisible: Boolean(composer && composer.top >= 0 && composer.bottom <= innerHeight + 1),
         messageListHeight: messageList?.getBoundingClientRect().height || 0,
+        contextWithinViewport: Boolean(contextBar && contextBar.left >= 0 && contextBar.right <= innerWidth + 1),
         viewportHeight: innerHeight,
       };
     });
     assert.ok(assistantMobileLayout.sidebarHeight < 250, `La navegación móvil ocupa ${assistantMobileLayout.sidebarHeight}px`);
     assert.equal(assistantMobileLayout.composerVisible, true, 'El compositor debe permanecer visible durante la conversación móvil');
     assert.ok(assistantMobileLayout.messageListHeight <= assistantMobileLayout.viewportHeight * 0.65, 'La conversación móvil debe usar scroll interno acotado');
+    assert.equal(assistantMobileLayout.contextWithinViewport, true, 'El contexto activo debe caber completo en 390 px');
     await assertPageHealthy(page, 'Asistente mobile');
 
     await page.setViewportSize({ width: 768, height: 900 });

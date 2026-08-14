@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
 import * as internalData from './internal-data.js';
@@ -31,6 +33,8 @@ const DEFAULT_AI_OUTPUT_TOKENS = 320;
 const DEFAULT_HF_CALLS_PER_WINDOW = 3;
 const DEFAULT_HF_WINDOW_MS = 60_000;
 const DEFAULT_AI_TOTAL_TIMEOUT_MS = 7_000;
+const QUERY_PLAN_VERSION = 'municipal_query_plan.v1';
+const MAX_HISTORY_ITEMS = 8;
 
 const INTENTS = new Set([
   'workforce_summary',
@@ -38,6 +42,11 @@ const INTENTS = new Set([
   'integration_quality',
   'quality_analysis',
   'absence_analysis',
+  'operational_summary',
+  'structure_analysis',
+  'absence_event_list',
+  'quality_issue_list',
+  'import_lineage',
   'employee_search',
   'employee_detail',
   'executive_analysis',
@@ -62,8 +71,39 @@ const EXTERNAL_ALLOWED_INTENTS = new Set([
   'integration_quality',
   'quality_analysis',
   'absence_analysis',
+  'operational_summary',
+  'structure_analysis',
   'executive_analysis',
 ]);
+
+const NOMINAL_OR_INTERNAL_ONLY_INTENTS = new Set([
+  'employee_search',
+  'employee_detail',
+  'absence_event_list',
+  'quality_issue_list',
+  'import_lineage',
+]);
+
+const INTENT_RESOURCES = Object.freeze({
+  workforce_summary: ['integrationquality', 'canonicalscope'],
+  payroll_control: ['payrollcontrol'],
+  integration_quality: ['integrationquality', 'canonicalscope'],
+  quality_analysis: ['qualityoverview'],
+  absence_analysis: ['absenceanalytics'],
+  operational_summary: ['summary'],
+  structure_analysis: ['structure'],
+  absence_event_list: ['absenceevents'],
+  quality_issue_list: ['qualityissues'],
+  import_lineage: ['importlineage'],
+  employee_search: ['employees', 'canonicalscope'],
+  employee_detail: ['employee', 'canonicalscope'],
+  executive_analysis: ['integrationquality', 'payrollcontrol', 'canonicalscope', 'absenceanalytics', 'qualityoverview'],
+  help_navigation: ['productguidance'],
+  section_explanation: ['productguidance'],
+  task_guidance: ['productguidance'],
+  glossary: ['productguidance'],
+  help: ['productguidance'],
+});
 
 const EXTERNAL_FORBIDDEN_FIELDS = /\b(?:dni|cuil|nombre|apellido|legajo|domicilio|direcci[oó]n|tel[eé]fono|email|contract[_-]?id|source[_-]?id|canonical[_-]?id|issue[_-]?id|observed[_-]?value|import[_-]?lineage)\b/i;
 const quotaByRuntime = new Map();
@@ -132,6 +172,277 @@ function foldAssistantQuery(value) {
     .replace(/\blicensias?\b/g, 'licencias')
     .replace(/\bausensias?\b/g, 'ausencias')
     .replace(/\baucencias?\b/g, 'ausencias');
+}
+
+function isoDateOnly(value) {
+  const text = normalizeText(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return '';
+  const parsed = new Date(`${text}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === text ? text : '';
+}
+
+function safeIdentifier(value, maximum = 64) {
+  const text = normalizeText(value, maximum);
+  return text && /^[a-z0-9._:-]+$/i.test(text) ? text : '';
+}
+
+function monthRange(year, month) {
+  const from = `${year}-${String(month).padStart(2, '0')}-01`;
+  const next = new Date(Date.UTC(year, month, 1));
+  const to = new Date(next.getTime() - 86_400_000).toISOString().slice(0, 10);
+  return { from, to, year };
+}
+
+const MONTHS_ES = Object.freeze({
+  enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+  julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10,
+  noviembre: 11, diciembre: 12,
+});
+
+function dateFilters(body, message, intent) {
+  const output = {};
+  const explicitFrom = isoDateOnly(body.from);
+  const explicitTo = isoDateOnly(body.to);
+  if (explicitFrom) output.from = explicitFrom;
+  if (explicitTo) output.to = explicitTo;
+
+  const text = foldAssistantQuery(message);
+  const dates = [...text.matchAll(/\b((?:19|20)\d{2}-\d{2}-\d{2})\b/g)]
+    .map((match) => isoDateOnly(match[1]))
+    .filter(Boolean);
+  if (!output.from && dates[0]) output.from = dates[0];
+  if (!output.to && dates[1]) output.to = dates[1];
+  if (dates.length === 1) {
+    if (/\b(?:hasta|al)\s+(?:19|20)\d{2}-/.test(text) && !explicitFrom) {
+      output.to = dates[0];
+      delete output.from;
+    } else if (/\bdesde\s+(?:19|20)\d{2}-/.test(text) && !explicitTo) {
+      output.from = dates[0];
+      delete output.to;
+    } else if (!explicitFrom && !explicitTo) {
+      output.from = dates[0];
+      output.to = dates[0];
+    }
+  }
+
+  const monthMatch = text.match(new RegExp(`\\b(${Object.keys(MONTHS_ES).join('|')})\\s+(?:de\\s+)?((?:19|20)\\d{2})\\b`));
+  if (!explicitFrom && !explicitTo && monthMatch) {
+    Object.assign(output, monthRange(Number(monthMatch[2]), MONTHS_ES[monthMatch[1]]));
+  }
+
+  const yearRange = text.match(/\b(?:entre|desde)\s+((?:19|20)\d{2})\s+(?:y|hasta|a)\s+((?:19|20)\d{2})\b/);
+  if (!explicitFrom && !explicitTo && yearRange) {
+    const first = Number(yearRange[1]);
+    const second = Number(yearRange[2]);
+    output.from = `${Math.min(first, second)}-01-01`;
+    output.to = `${Math.max(first, second)}-12-31`;
+    output.yearFrom = Math.min(first, second);
+    output.yearTo = Math.max(first, second);
+  } else if (!monthMatch) {
+    const recordYear = ['employee_search', 'employee_detail'].includes(intent)
+      ? extractEmployeeRecordYear(message)
+      : Number(text.match(/\b((?:19|20)\d{2})\b/)?.[1] || 0);
+    if (recordYear >= 1900 && recordYear <= 2099) {
+      output.year = recordYear;
+      if (!output.from) output.from = `${recordYear}-01-01`;
+      if (!output.to) output.to = `${recordYear}-12-31`;
+    }
+  }
+  return output;
+}
+
+function extractLabelFilter(bodyValue, message, label, maximum = 160) {
+  const explicit = normalizeText(bodyValue, maximum);
+  if (explicit) return explicit;
+  const text = normalizeText(message, MAX_MESSAGE_LENGTH);
+  const match = text.match(new RegExp(`\\b(?:${label})\\s*(?:(?:de|por)\\s+)?[:#-]?\\s*([^,;.?!]+?)(?=\\s+(?:entre|desde|hasta|en|durante|para|motivo|c[oó]digo|severidad|estado|resoluci[oó]n)\\b|$)`, 'i'));
+  return normalizeText(match?.[1], maximum);
+}
+
+const QUALITY_CODES = new Set([
+  'CUIL_INVALID', 'CUIL_MISSING', 'DATE_ORDER_INVALID', 'DATE_OUT_OF_RANGE',
+  'SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH',
+]);
+const QUALITY_SEVERITIES = new Set(['info', 'warning', 'error', 'critical']);
+const QUALITY_RESOLUTIONS = new Set(['open', 'accepted', 'corrected', 'rejected']);
+const QUALITY_ENTITIES = new Set(['persona', 'legajo', 'artifact:calculo', 'artifact:histocal', 'artifact:legamov', 'calculo_monthly']);
+
+function naturalFilters(body, message, intent) {
+  const text = foldAssistantQuery(message);
+  const filters = { ...dateFilters(body, message, intent) };
+  const sector = extractLabelFilter(body.sector, message, 'sector');
+  const organization = extractLabelFilter(body.organization, message, 'organizaci[oó]n|repartici[oó]n');
+  const role = extractLabelFilter(body.role, message, 'cargo|funci[oó]n(?:es)?');
+  if (sector) filters.sector = sector;
+  if (organization) filters.organization = organization;
+  if (role) filters.role = role;
+
+  const explicitReasonCode = normalizeText(body.reasonCode, 64);
+  const reasonMatch = normalizeText(message).match(/\bmotivo\s*(?:c[oó]digo)?\s*[:#-]?\s*([^,;.?!]+?)(?=\s+(?:entre|desde|hasta|en|durante|para|sector)\b|$)/i);
+  if (explicitReasonCode) filters.reasonCode = explicitReasonCode;
+  else if (reasonMatch) {
+    const reason = normalizeText(reasonMatch[1], 120);
+    if (/^[a-z]?\d{1,8}$/i.test(reason)) filters.reasonCode = reason;
+    else filters.reason = reason;
+  }
+
+  const severity = normalizeText(body.severity, 16).toLowerCase()
+    || [...QUALITY_SEVERITIES].find((value) => new RegExp(`\\b${value}\\b`).test(text))
+    || ({ critica: 'critical', criticas: 'critical', critico: 'critical', criticos: 'critical', error: 'error', errores: 'error', advertencia: 'warning', advertencias: 'warning', informativa: 'info', informativas: 'info', informativo: 'info', informativos: 'info' }[
+      text.match(/\b(criticas?|criticos?|errores?|advertencias?|informativas?|informativos?)\b/)?.[1]
+    ] || '');
+  if (QUALITY_SEVERITIES.has(severity)) filters.severity = severity;
+
+  const explicitCode = normalizeText(body.code, 64).toUpperCase();
+  const messageCode = normalizeText(message).toUpperCase().match(/\b(?:C[OÓ]DIGO|CODE)\s*[:#-]?\s*([A-Z][A-Z0-9_]{2,63})\b/)?.[1]
+    || [...QUALITY_CODES].find((value) => normalizeText(message).toUpperCase().includes(value));
+  if (QUALITY_CODES.has(explicitCode)) filters.code = explicitCode;
+  else if (messageCode && QUALITY_CODES.has(messageCode)) filters.code = messageCode;
+
+  const resolution = normalizeText(body.resolution, 24).toLowerCase()
+    || ({ abierto: 'open', abiertos: 'open', aceptado: 'accepted', aceptados: 'accepted', corregido: 'corrected', corregidos: 'corrected', rechazado: 'rejected', rechazados: 'rejected' }[
+      text.match(/\b(abiertos?|aceptados?|corregidos?|rechazados?)\b/)?.[1]
+    ] || '');
+  if (QUALITY_RESOLUTIONS.has(resolution)) filters.resolution = resolution;
+
+  const entity = normalizeText(body.entity, 128).toLowerCase()
+    || normalizeText(message).match(/\bentidad\s*[:#-]?\s*([a-z0-9:_-]+)\b/i)?.[1]?.toLowerCase()
+    || '';
+  if (QUALITY_ENTITIES.has(entity)) filters.entity = entity;
+
+  if (['quality_issue_list', 'import_lineage'].includes(intent)) {
+    const source = normalizeText(body.source, 16).toUpperCase()
+      || (includesPhrase(text, 'personas') ? 'PERSONAS' : includesPhrase(text, 'grh') ? 'GRH' : '');
+    if (['GRH', 'PERSONAS'].includes(source)) filters.source = source;
+  }
+
+  if (/\b(?:ultimo|ultima)\s+(?:lote|carga|importacion|snapshot)\b/.test(text)
+      || normalizeText(body.batch, 32).toLowerCase() === 'latest_published') {
+    filters.batch = 'latest_published';
+  }
+  if (['absence_event_list', 'quality_issue_list', 'employee_search'].includes(intent)) {
+    filters.page = boundedInteger(body.page, 1, 1, 100_000);
+    filters.limit = boundedInteger(body.limit, 10, 1, 25);
+  }
+  if (intent === 'absence_analysis') filters.bucket = normalizeText(body.bucket, 16) || 'month';
+  return filters;
+}
+
+function sanitizeConversationFilters(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const output = {};
+  for (const key of ['from', 'to']) {
+    const date = isoDateOnly(value[key]);
+    if (date) output[key] = date;
+  }
+  for (const [key, maximum] of [['sector', 160], ['organization', 160], ['role', 160], ['reasonCode', 64], ['reason', 120], ['severity', 16], ['code', 64], ['entity', 128], ['resolution', 24], ['source', 16], ['batch', 32], ['bucket', 16]]) {
+    const text = normalizeText(value[key], maximum);
+    if (text) output[key] = text;
+  }
+  for (const key of ['year', 'yearFrom', 'yearTo']) {
+    const year = Number(value[key]);
+    if (Number.isInteger(year) && year >= 1900 && year <= 2100) output[key] = year;
+  }
+  return output;
+}
+
+function sanitizeConversationContext(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const selected = value.selectedEmployee || value.employee || {};
+  const companyId = safeIdentifier(selected.companyId, 32);
+  const legajo = safeIdentifier(selected.legajo, 64);
+  const contractId = safeIdentifier(selected.contractId, 64);
+  const intent = normalizeText(value.intent, 40).toLowerCase();
+  const queryFocus = ['licenses', 'absences'].includes(value.queryFocus) ? value.queryFocus : '';
+  const queryYear = Number(value.queryYear);
+  return {
+    ...(INTENTS.has(intent) ? { intent } : {}),
+    ...(normalizeText(value.domain, 40) ? { domain: normalizeText(value.domain, 40) } : {}),
+    ...(queryFocus ? { queryFocus } : {}),
+    ...(Number.isInteger(queryYear) && queryYear >= 1900 && queryYear <= 2100 ? { queryYear } : {}),
+    ...((companyId && legajo) || contractId ? {
+      selectedEmployee: {
+        ...(companyId ? { companyId } : {}),
+        ...(legajo ? { legajo } : {}),
+        ...(contractId ? { contractId } : {}),
+      },
+    } : {}),
+    filters: sanitizeConversationFilters(value.filters),
+  };
+}
+
+function conversationContextFromBody(body = {}) {
+  const direct = sanitizeConversationContext(body.conversationContext || body.context);
+  if (direct) return { value: direct, source: 'request_context' };
+  const history = Array.isArray(body.history) ? body.history.slice(-MAX_HISTORY_ITEMS).reverse() : [];
+  for (const item of history) {
+    const candidate = sanitizeConversationContext(item?.conversationContext || item?.context || item?.metadata?.conversationContext);
+    if (candidate) return { value: candidate, source: 'structured_history' };
+  }
+  return { value: null, source: null };
+}
+
+function referentialNominalFollowUp(message) {
+  const text = foldAssistantQuery(message);
+  const referential = /\b(?:sus?|del mismo|de la misma|esa persona|ese empleado|esa empleada)\b/.test(text)
+    || /^\s*(?:y|ahora)\s+(?:las?|sus?)?\s*(?:ausencias?|licencias?|ficha|detalle)\b/.test(text);
+  if (!referential) return null;
+  return {
+    focus: employeeRecordFocus(text) || (/\b(?:ficha|detalle)\b/.test(text) ? '' : null),
+  };
+}
+
+function isContextualContinuation(message) {
+  return /^\s*(?:[¿?]\s*)?(?:y|ahora|tambien|ademas)\b/.test(foldAssistantQuery(message));
+}
+
+function contextualTransform(message, context) {
+  const text = foldAssistantQuery(message);
+  if (context?.intent === 'absence_event_list'
+      && /\b(?:resumi|resume|resumen|sintetiza)\b.*\beventos?\b.*\bsin datos nominales\b/.test(text)) {
+    return {
+      intent: 'absence_analysis',
+      reason: 'aggregate_summary_from_nominal_event_context',
+      decision: 'converted_nominal_event_list_to_aggregate_summary',
+    };
+  }
+  if (context?.intent === 'quality_issue_list'
+      && /\b(?:linaje|trazabilidad)\b/.test(text)) {
+    return {
+      intent: 'import_lineage',
+      reason: 'lineage_from_quality_context',
+      decision: 'switched_quality_queue_to_import_lineage',
+    };
+  }
+  if (context?.intent && INTENTS.has(context.intent)
+      && /\b(?:mismo\s+)?periodo\b.*\bano anterior\b/.test(text)) {
+    return {
+      intent: context.intent,
+      reason: 'previous_calendar_year_period',
+      decision: 'shifted_context_period_to_previous_calendar_year',
+      shiftPreviousYear: true,
+    };
+  }
+  return null;
+}
+
+function previousCalendarYearDate(value) {
+  const date = isoDateOnly(value);
+  if (!date) return '';
+  const [year, month, day] = date.split('-').map(Number);
+  const targetYear = year - 1;
+  const lastDay = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+  return `${targetYear}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+}
+
+function previousCalendarYearFilters(filters = {}) {
+  const output = { ...filters };
+  if (filters.from) output.from = previousCalendarYearDate(filters.from);
+  if (filters.to) output.to = previousCalendarYearDate(filters.to);
+  for (const key of ['year', 'yearFrom', 'yearTo']) {
+    if (Number.isInteger(Number(filters[key]))) output[key] = Number(filters[key]) - 1;
+  }
+  return output;
 }
 
 function escapeRegExp(value) {
@@ -278,6 +589,15 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
+  if (/\b(?:linaje|trazabilidad|lotes?|cargas?|importaciones?|snapshots?)\b/.test(message)
+      && /\b(?:datos?|fuentes?|grh|personas|publicad[oa]s?|importacion|carga|lote|snapshots?)\b/.test(message)) return 'import_lineage';
+  if (/\b(?:hallazgos?|incidencias?|casos?|cola|errores?)\b/.test(message)
+      && /\b(?:calidad|severidad|codigo|critical|critico|critica|warning|error|cuil_invalid|date_)\b/.test(message)) return 'quality_issue_list';
+  if (/\b(?:listar|lista|listame|mostra|mostrame|listado|detalle|registro|ultimos?|ultimas?)\b.*\b(?:eventos?\s+(?:administrativos?\s+)?de\s+ausencia|ausencias?|faltas?)\b/.test(message)
+      || /\beventos?\s+(?:administrativos?\s+)?de\s+ausencia\b.*\b(?:sector|motivo|desde|entre|en\s+(?:19|20)\d{2})\b/.test(message)) return 'absence_event_list';
+  if (/\b(?:estructura|organigrama|organizacion(?:es)?|reparticion(?:es)?|sector(?:es)?|cargos?|funcion(?:es)?)\b/.test(message)
+      && !/\b(?:ausencias?|ausentismo|licencias?|faltas?)\b/.test(message)) return 'structure_analysis';
+  if (/\b(?:resumen|estado|inventario|panorama)\s+(?:general\s+)?(?:operativo|de\s+grh|de\s+la\s+base|de\s+datos)\b/.test(message)) return 'operational_summary';
   if (/\b(?:resumen|lectura|panorama|informe|analisis)\s+(?:general\s+)?ejecutiv[oa]\b/.test(message)) return 'executive_analysis';
   if (/\b(?:calidad(?: de datos| operativa)?|dq-?01|hallazgos?|severidad|controles? de calidad|controles? de personas)\b/.test(message)) return 'quality_analysis';
   if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
@@ -288,6 +608,207 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:analiza|analisis|explica|recomendacion|diagnostico|ejecutivo)\b/.test(message)) return 'executive_analysis';
   if (/\b(?:ayuda|guia|tutorial|aprender|orientacion)\b/.test(message)) return 'help_navigation';
   return 'help';
+}
+
+function intentDomain(intent) {
+  if (['employee_search', 'employee_detail'].includes(intent)) return 'employee';
+  if (['absence_analysis', 'absence_event_list'].includes(intent)) return 'absence';
+  if (['quality_analysis', 'quality_issue_list'].includes(intent)) return 'quality';
+  if (intent === 'structure_analysis') return 'structure';
+  if (intent === 'import_lineage') return 'lineage';
+  if (['workforce_summary', 'operational_summary'].includes(intent)) return 'workforce';
+  if (intent === 'payroll_control') return 'payroll';
+  if (intent === 'integration_quality') return 'integration';
+  if (intent === 'executive_analysis') return 'executive';
+  return 'guidance';
+}
+
+function resourceDescriptor(name) {
+  return {
+    name,
+    mode: 'read_only',
+    containsNominalData: ['absenceevents', 'employees', 'employee'].includes(name),
+  };
+}
+
+async function resolveAbsenceReason(sql, value) {
+  const reason = normalizeText(value, 120);
+  if (!reason) return { status: 'not_requested', candidates: [] };
+  const folded = foldText(reason);
+  const likeValue = folded.replace(/[\\%_]/g, '\\$&');
+  const rows = await sql.query(`
+    /* assistant:resolve-absence-reason */
+    SELECT source_payload #>> '{sourceKey,reasonCode}' AS code, label
+      FROM grh_catalog_rows
+     WHERE catalog = 'absence_reasons'
+       AND translate(lower(label), 'áéíóúüñ', 'aeiouun') LIKE $1 ESCAPE '\\'
+     GROUP BY source_payload #>> '{sourceKey,reasonCode}', label
+     ORDER BY CASE
+                WHEN translate(lower(label), 'áéíóúüñ', 'aeiouun') = $2 THEN 0
+                ELSE 1
+              END,
+              label
+     LIMIT 6
+  `, [`%${likeValue}%`, folded]);
+  const candidates = rows
+    .map((row) => ({ code: safeIdentifier(row?.code, 64), label: normalizeText(row?.label, 160) }))
+    .filter((row) => row.code && row.label);
+  if (candidates.length === 1) return { status: 'resolved', reasonCode: candidates[0].code, candidates };
+  return { status: candidates.length ? 'ambiguous' : 'not_found', candidates };
+}
+
+export function planAssistantRequest(body = {}) {
+  const message = normalizeText(body.message);
+  const explicitIntent = normalizeText(body.intent, 40).toLowerCase();
+  const contextResult = conversationContextFromBody(body);
+  const context = contextResult.value;
+  const nominalFollowUp = !explicitIntent ? referentialNominalFollowUp(message) : null;
+  const transform = !explicitIntent ? contextualTransform(message, context) : null;
+  const decisions = [];
+  let intent = classifyAssistantRequest(body);
+  let contextUsed = false;
+  let contextReason = null;
+  let missingNominalContext = false;
+
+  if (nominalFollowUp) {
+    intent = 'employee_detail';
+    const selected = context?.selectedEmployee;
+    if (selected?.companyId && selected?.legajo) {
+      contextUsed = true;
+      contextReason = 'referential_nominal_follow_up';
+      decisions.push('resolved_nominal_reference_from_structured_context');
+    } else {
+      missingNominalContext = true;
+      decisions.push('nominal_reference_requires_selected_employee');
+    }
+  } else if (transform) {
+    intent = transform.intent;
+    contextUsed = true;
+    contextReason = transform.reason;
+    decisions.push(transform.decision);
+  } else if (!explicitIntent && isContextualContinuation(message) && context?.intent
+      && INTENTS.has(context.intent) && context.intent !== 'employee_search') {
+    intent = context.intent;
+    contextUsed = true;
+    contextReason = 'aggregate_or_scoped_continuation';
+    decisions.push('continued_from_structured_context');
+  } else {
+    decisions.push(explicitIntent ? 'explicit_intent' : 'deterministic_message_classification');
+  }
+
+  const currentFilters = naturalFilters(body, message, intent);
+  const requestContextFilters = contextResult.source === 'request_context'
+    ? sanitizeConversationFilters(context?.filters)
+    : {};
+  if (!contextUsed && Object.keys(requestContextFilters).length > 0) {
+    contextUsed = true;
+    contextReason = 'explicit_filter_context';
+    decisions.push('applied_allowlisted_request_context_filters');
+  }
+  let inheritedFilters = contextUsed ? sanitizeConversationFilters(context?.filters) : {};
+  if (transform?.shiftPreviousYear) {
+    inheritedFilters = previousCalendarYearFilters(inheritedFilters);
+  }
+  const filters = { ...inheritedFilters, ...currentFilters };
+  const selected = context?.selectedEmployee;
+  const employeeIntent = ['employee_search', 'employee_detail'].includes(intent);
+  const focus = employeeIntent ? (
+    employeeRecordFocus(message)
+      || (contextUsed ? context?.queryFocus : '')
+      || normalizeText(body.queryFocus, 16)
+  ) : '';
+  const queryYear = employeeIntent ? (
+    extractEmployeeRecordYear(message)
+      || (contextUsed ? context?.queryYear : null)
+      || filters.year
+      || null
+  ) : null;
+
+  if (intent === 'employee_search') {
+    filters.search = normalizeText(body.search, MAX_SEARCH_LENGTH)
+      || extractEmployeeRecordSearch(message)
+      || extractEmployeeSearch(message);
+  }
+  if (intent === 'employee_detail') {
+    filters.contractId = safeIdentifier(body.contractId, 64) || (contextUsed ? selected?.contractId || '' : '');
+    filters.legajo = safeIdentifier(body.legajo, 64) || extractLegajo(message) || (contextUsed ? selected?.legajo || '' : '');
+    filters.companyId = safeIdentifier(body.companyId, 32) || extractCompanyId(message) || (contextUsed ? selected?.companyId || '' : '');
+  }
+  if (focus) filters.queryFocus = focus;
+  if (queryYear) {
+    filters.queryYear = queryYear;
+    filters.from = filters.from || `${queryYear}-01-01`;
+    filters.to = filters.to || `${queryYear}-12-31`;
+  }
+
+  const allowedFilters = {
+    operational_summary: [],
+    structure_analysis: ['organization', 'sector', 'role'],
+    absence_analysis: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'bucket'],
+    absence_event_list: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'page', 'limit'],
+    quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution', 'page', 'limit'],
+    import_lineage: ['source', 'batch'],
+    employee_search: ['search', 'page', 'limit', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
+    employee_detail: ['contractId', 'legajo', 'companyId', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
+  }[intent];
+  const rejectedFilters = [];
+  if (allowedFilters) {
+    for (const key of Object.keys(filters)) {
+      if (!allowedFilters.includes(key)) {
+        if (Object.hasOwn(currentFilters, key)) {
+          rejectedFilters.push(key);
+        } else {
+          decisions.push(`dropped_incompatible_context_filter:${key}`);
+        }
+        delete filters[key];
+      }
+    }
+  }
+
+  const resources = (INTENT_RESOURCES[intent] || INTENT_RESOURCES.help).map(resourceDescriptor);
+  const externalPolicy = EXTERNAL_ALLOWED_INTENTS.has(intent)
+    ? 'aggregate_allowlisted'
+    : 'local_only';
+  return {
+    version: QUERY_PLAN_VERSION,
+    intent,
+    domain: intentDomain(intent),
+    resource: resources[0]?.name || 'productguidance',
+    resources,
+    filters,
+    contextUsed: {
+      used: contextUsed,
+      source: contextUsed ? contextResult.source : null,
+      fields: contextUsed
+        ? [
+          ...(intent === 'employee_detail' && selected?.companyId ? ['selectedEmployee.companyId'] : []),
+          ...(intent === 'employee_detail' && selected?.legajo ? ['selectedEmployee.legajo'] : []),
+          ...(intent === 'employee_detail' && selected?.contractId ? ['selectedEmployee.contractId'] : []),
+          ...(context?.queryFocus ? ['queryFocus'] : []),
+          ...(context?.queryYear ? ['queryYear'] : []),
+          ...Object.keys(inheritedFilters)
+            .filter((key) => Object.hasOwn(filters, key))
+            .map((key) => `filters.${key}`),
+        ]
+        : [],
+      reason: contextReason,
+    },
+    externalPolicy,
+    decisions,
+    rejectedFilters,
+    privacy: {
+      rawHistoryContentIgnored: true,
+      structuredHistoryAccepted: true,
+      rawUserMessageSentExternally: false,
+      nominalDataExternalized: false,
+    },
+    missingNominalContext,
+  };
+}
+
+function publicQueryPlan(plan) {
+  const { missingNominalContext: _missingNominalContext, ...visible } = plan;
+  return visible;
 }
 
 async function canonicalScope(sql) {
@@ -323,6 +844,275 @@ function formatMoney(value) {
     currency: 'ARS',
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+}
+
+function operationalSummaryResult(payload = {}) {
+  const workforce = {
+    historicalRecords: qualityCount(payload.workforce?.historicalRecords),
+    activeRecords: qualityCount(payload.workforce?.active ?? payload.workforce?.activeRecords),
+    inactiveRecords: qualityCount(payload.workforce?.inactive ?? payload.workforce?.inactiveRecords),
+  };
+  const data = {
+    grain: 'employment_record_by_company_and_legajo',
+    workforce,
+    absenceEvents: qualityCount(payload.absence?.totalEvents),
+    leaveRecords: qualityCount(payload.related?.leaveRecords),
+    catalogs: {
+      sectors: qualityCount(payload.catalogs?.sectors),
+      categories: qualityCount(payload.catalogs?.categories),
+      unions: qualityCount(payload.catalogs?.unions),
+      agreements: qualityCount(payload.catalogs?.agreements),
+    },
+    quality: {
+      activeWithoutSector: qualityCount(payload.quality?.activeWithoutSector),
+      absenceOrphans: qualityCount(payload.quality?.absenceOrphans),
+      leaveOrphans: qualityCount(payload.quality?.leaveOrphans),
+    },
+    definitions: { active: 'proxy_source_without_exit_date', peopleMetricAvailable: false },
+  };
+  return {
+    answer: `El resumen operativo de GRH registra ${formatNumber(workforce.historicalRecords)} legajos por empresa, ${formatNumber(workforce.activeRecords)} activos según el proxy de fecha de egreso vacía y ${formatNumber(workforce.inactiveRecords)} inactivos. También contiene ${formatNumber(data.absenceEvents)} eventos en el registro de ausencias y ${formatNumber(data.leaveRecords)} registros de la fuente histórica legado de licencias. Estos conteos son registros laborales, no personas únicas; los tres bloques no comparten necesariamente una misma fecha de corte.`,
+    data,
+    targetPath: '/internal-dashboard#inicio',
+    relatedSections: relatedSections(['personas', 'estructura', 'ausentismo', 'calidad']),
+    asOf: null,
+    sources: [
+      { system: 'GRH', relation: 'grh_employees', authority: 'labor_source_snapshot', asOf: dateValue(payload.source?.cutoff) },
+      { system: 'GRH', relation: 'grh_absences', authority: 'raw_absence_event_register', asOf: null },
+      { system: 'GRH', relation: 'grh_leaves', authority: 'historical_legacy_leave_register', asOf: null },
+    ],
+  };
+}
+
+function structureRows(rows, filter, limit = 12) {
+  const needle = foldText(filter);
+  const matches = (Array.isArray(rows) ? rows : [])
+    .filter((row) => !needle || foldText(row?.label).includes(needle));
+  return {
+    rows: matches.slice(0, limit).map((row) => ({
+      label: normalizeText(row?.label, 160) || 'Sin clasificar',
+      historical: qualityCount(row?.historical ?? row?.value),
+      active: qualityCount(row?.active),
+      inactive: qualityCount(row?.inactive),
+    })),
+    totalMatches: matches.length,
+    shown: Math.min(matches.length, limit),
+  };
+}
+
+function structureAnalysisResult(payload = {}, filters = {}) {
+  const coverage = {
+    historicalRecords: qualityCount(payload.coverage?.historicalRecords),
+    activeRecords: qualityCount(payload.coverage?.activeRecords),
+    inactiveRecords: qualityCount(payload.coverage?.inactiveRecords),
+    withOrganization: qualityCount(payload.coverage?.withOrganization),
+    withSector: qualityCount(payload.coverage?.withSector),
+    withRole: qualityCount(payload.coverage?.withRole),
+    organizationsObserved: qualityCount(payload.coverage?.organizationsObserved),
+    sectorsObserved: qualityCount(payload.coverage?.sectorsObserved),
+    rolesObserved: qualityCount(payload.coverage?.rolesObserved),
+  };
+  const hierarchyAvailable = payload.hierarchy?.available === true;
+  const organizations = structureRows(payload.organizations, filters.organization);
+  const sectors = structureRows(payload.sectors, filters.sector);
+  const roles = structureRows(payload.roles, filters.role);
+  const data = {
+    grain: 'employment_record_by_company_and_legajo',
+    coverage,
+    hierarchy: {
+      available: hierarchyAvailable,
+      catalogRows: qualityCount(payload.hierarchy?.catalogRows),
+      roots: hierarchyAvailable ? qualityCount(payload.hierarchy?.roots) : 0,
+      parentLinks: hierarchyAvailable ? qualityCount(payload.hierarchy?.parentLinks) : 0,
+      unresolvedParentLinks: hierarchyAvailable ? qualityCount(payload.hierarchy?.unresolvedParentLinks) : 0,
+      inferred: false,
+    },
+    organizations: organizations.rows,
+    sectors: sectors.rows,
+    roles: roles.rows,
+    matches: { organizations: { total: organizations.totalMatches, shown: organizations.shown }, sectors: { total: sectors.totalMatches, shown: sectors.shown }, roles: { total: roles.totalMatches, shown: roles.shown } },
+    definitions: {
+      organization: 'literal_grh_assignment',
+      sector: 'current_observed_assignment_at_cutoff',
+      role: 'literal_grh_assignment',
+      catalogIsNotObservedAssignment: true,
+    },
+  };
+  const selectedFilter = filters.sector || filters.organization || filters.role;
+  const selectedMatches = filters.sector ? sectors : filters.organization ? organizations : filters.role ? roles : null;
+  return {
+    answer: `La estructura GRH cubre globalmente ${formatNumber(coverage.historicalRecords)} legajos por empresa: ${formatNumber(coverage.withOrganization)} con organización literal, ${formatNumber(coverage.withSector)} con sector y ${formatNumber(coverage.withRole)} con cargo.${selectedFilter ? ` El filtro “${selectedFilter}” coincide con ${formatNumber(selectedMatches?.totalMatches)} filas agregadas y se muestran ${formatNumber(selectedMatches?.shown)}.` : ''} ${hierarchyAvailable ? 'La fuente publica vínculos jerárquicos y se muestran sin completar relaciones faltantes.' : 'La fuente no publica vínculos jerárquicos suficientes; no se infiere un organigrama.'}`,
+    data,
+    targetPath: '/estructura',
+    relatedSections: relatedSections(['estructura', 'personas', 'calidad']),
+    asOf: dateValue(payload.source?.cutoff),
+    sources: [
+      { system: 'GRH', relation: 'grh_employees', authority: 'literal_organizational_assignment' },
+      { system: 'GRH', relation: 'grh_catalog_rows', authority: 'organizational_catalog' },
+    ],
+  };
+}
+
+function absenceEventListResult(result) {
+  const payload = result?.payload || {};
+  const cutoff = payload.quality?.sourceCutoff || null;
+  const sources = [
+    { system: 'GRH', relation: 'grh_absences', authority: 'absence_event_register' },
+    { system: 'GRH', relation: 'grh_catalog_rows', authority: 'absence_reason_catalog' },
+  ];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar el registro interno de eventos de ausencia.',
+      data: { code: normalizeText(payload.code, 80) || 'ABSENCE_EVENTS_UNAVAILABLE' },
+      asOf: dateValue(cutoff),
+      sources,
+    };
+  }
+  const rows = (Array.isArray(payload.data) ? payload.data : []).slice(0, 25).map((row) => ({
+    contractId: row.contractId ?? null,
+    companyId: row.companyId ?? null,
+    legajo: row.legajo ?? null,
+    name: normalizeText(row.name, 160) || null,
+    sector: normalizeText(row.sector, 160) || 'Sin sector informado',
+    eventDate: row.eventDate || null,
+    untilDate: row.untilDate || null,
+    reasonCode: row.reasonCode ?? null,
+    reason: normalizeText(row.reason, 160) || 'Sin motivo homologado',
+    sourceDeclaredDays: row.sourceDeclaredDays ?? null,
+    rangeIntegrity: normalizeText(row.rangeIntegrity, 64),
+  }));
+  return {
+    answer: `El registro interno recuperó ${formatNumber(payload.pagination?.total)} eventos administrativos de ausencia y muestra ${formatNumber(rows.length)} en esta página. La asignación sectorial es la observada al corte actual; DIAS_24 no equivale automáticamente a duración, jornadas perdidas, presentismo ni tasa.`,
+    data: {
+      rows,
+      pagination: payload.pagination,
+      range: payload.range,
+      filters: payload.meta?.filters || {},
+      methodology: {
+        grain: 'absence_event',
+        containsPersonalIdentifiers: true,
+        externalSharingAllowed: false,
+        sectorSemantics: normalizeText(payload.meta?.sectorSemantics || payload.quality?.sectorSemantics, 320),
+        sourceDeclaredDaysAreDuration: false,
+        ratesAvailable: false,
+      },
+    },
+    targetPath: '/ausentismo-control',
+    relatedSections: relatedSections(['ausentismo', 'personas', 'calidad']),
+    asOf: dateValue(cutoff),
+    sources,
+  };
+}
+
+function qualityIssueListResult(result) {
+  const payload = result?.payload || {};
+  const sources = [
+    { system: 'MUNICONTROL', relation: 'data_quality_issue', authority: 'published_snapshot_quality_register', asOf: null },
+  ];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar la cola interna de calidad.',
+      data: { code: normalizeText(payload.code, 80) || 'QUALITY_ISSUES_UNAVAILABLE' },
+      asOf: null,
+      sources,
+    };
+  }
+  const rows = (Array.isArray(payload.data) ? payload.data : []).slice(0, 25).map((row) => ({
+    issueId: safeIdentifier(row.issueId, 80) || null,
+    source: normalizeText(row.source, 32),
+    entity: normalizeText(row.entity, 128),
+    code: normalizeText(row.code, 64),
+    severity: normalizeText(row.severity, 16),
+    field: normalizeText(row.field, 80) || null,
+    resolution: normalizeText(row.resolution, 24),
+    detectedAt: dateValue(row.detectedAt),
+    resolvedAt: dateValue(row.resolvedAt),
+  }));
+  return {
+    answer: `La cola contiene ${formatNumber(payload.pagination?.total)} hallazgos registrados en snapshots publicados y muestra ${formatNumber(rows.length)} en esta página. Cero hallazgos registrados no demuestra una fuente limpia: puede significar controles no materializados o no evaluados. “Detectado” es una marca operativa del hallazgo, no la fecha de corte de la fuente ni una garantía de vigencia actual.`,
+    data: {
+      rows,
+      pagination: payload.pagination,
+      filters: payload.filters || {},
+      methodology: {
+        grain: 'data_quality_issue_across_published_snapshots',
+        externalSharingAllowed: false,
+        detectedAtIsSourceCutoff: false,
+        currentStateGuaranteed: false,
+      },
+    },
+    targetPath: '/calidad-operativa',
+    relatedSections: relatedSections(['calidad', 'integracion']),
+    asOf: null,
+    sources,
+  };
+}
+
+function latestPublishedBatches(rows) {
+  const selected = new Map();
+  for (const row of rows) {
+    const source = normalizeText(row?.source, 32) || 'UNKNOWN';
+    const current = selected.get(source);
+    const rowCutoff = Date.parse(row?.cutoff || '') || 0;
+    const currentCutoff = Date.parse(current?.cutoff || '') || 0;
+    const rowLoadedAt = Date.parse(row?.loadedAt || '') || 0;
+    const currentLoadedAt = Date.parse(current?.loadedAt || '') || 0;
+    if (!current || rowCutoff > currentCutoff
+        || (rowCutoff === currentCutoff && rowLoadedAt > currentLoadedAt)) {
+      selected.set(source, row);
+    }
+  }
+  return [...selected.values()];
+}
+
+function importLineageResult(result, filters = {}) {
+  const payload = result?.payload || {};
+  const sources = [
+    { system: 'MUNICONTROL', relation: 'source_import_batch', authority: 'published_snapshot_lineage', asOf: null },
+  ];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar la trazabilidad de importaciones.',
+      data: { code: normalizeText(payload.code, 80) || 'IMPORT_LINEAGE_UNAVAILABLE' },
+      asOf: null,
+      sources,
+    };
+  }
+  let rows = Array.isArray(payload.data) ? payload.data : [];
+  if (filters.source) rows = rows.filter((row) => normalizeText(row?.source, 32).toUpperCase() === filters.source);
+  if (filters.batch === 'latest_published') rows = latestPublishedBatches(rows);
+  const batches = rows.slice(0, 25).map((row) => ({
+    source: normalizeText(row.source, 32),
+    cutoff: dateValue(row.cutoff),
+    loadedAt: dateValue(row.loadedAt),
+    validation: normalizeText(row.validation, 32),
+    sourceRowCount: row.sourceRowCount === null ? null : qualityCount(row.sourceRowCount),
+    sourceRowCountStatus: normalizeText(row.sourceRowCountStatus, 32),
+    sha256Prefix: normalizeText(row.sha256Prefix, 12) || null,
+    trackedIssues: qualityCount(row.trackedIssues),
+    trackedIssuesStatus: normalizeText(row.trackedIssuesStatus, 48),
+  }));
+  return {
+    answer: `La trazabilidad muestra ${formatNumber(batches.length)} snapshots publicados${filters.source ? ` de ${filters.source}` : ''}. Cada lote conserva su propio corte y momento de carga; no se presenta una sincronización en vivo ni se interpreta cero hallazgos como calidad perfecta.`,
+    data: {
+      batches,
+      summary: {
+        publishedBatches: batches.length,
+        reportedRowCounts: batches.filter((row) => row.sourceRowCountStatus === 'reported').length,
+        notReportedRowCounts: batches.filter((row) => row.sourceRowCountStatus === 'not_reported').length,
+        scope: 'filtered_rows',
+      },
+      filters: { source: filters.source || null, batch: filters.batch || null },
+      methodology: { grain: 'source_import_batch', liveSynchronization: false, externalSharingAllowed: false },
+    },
+    targetPath: '/calidad-operativa',
+    relatedSections: relatedSections(['calidad', 'integracion', 'reportes']),
+    asOf: null,
+    sources,
+  };
 }
 
 function workforceResult(integration, scope) {
@@ -1010,8 +1800,79 @@ function productGuidanceResult(intent, body) {
 }
 
 function providerFacts(intent, data) {
+  if (intent === 'operational_summary') {
+    return {
+      grain: 'employment_record_by_company_and_legajo',
+      workforce: {
+        historicalRecords: qualityCount(data?.workforce?.historicalRecords),
+        activeRecords: qualityCount(data?.workforce?.activeRecords),
+        inactiveRecords: qualityCount(data?.workforce?.inactiveRecords),
+      },
+      absenceEvents: qualityCount(data?.absenceEvents),
+      leaveRecords: qualityCount(data?.leaveRecords),
+      catalogCounts: {
+        sectors: qualityCount(data?.catalogs?.sectors),
+        categories: qualityCount(data?.catalogs?.categories),
+        unions: qualityCount(data?.catalogs?.unions),
+        agreements: qualityCount(data?.catalogs?.agreements),
+      },
+      qualityCounts: {
+        activeWithoutSector: qualityCount(data?.quality?.activeWithoutSector),
+        absenceOrphans: qualityCount(data?.quality?.absenceOrphans),
+        leaveOrphans: qualityCount(data?.quality?.leaveOrphans),
+      },
+      activeDefinition: 'source_proxy_without_exit_date',
+      countsAreUniquePeople: false,
+      sharedCutoffAvailable: false,
+      absenceRegisterRangeValidated: false,
+      leaveRegisterIsHistoricalLegacy: true,
+    };
+  }
+  if (intent === 'structure_analysis') {
+    const safeRows = (rows) => (Array.isArray(rows) ? rows : [])
+      .filter((row) => {
+        const historical = qualityCount(row?.historical);
+        const active = qualityCount(row?.active);
+        const inactive = qualityCount(row?.inactive);
+        return historical >= 5
+          && [active, inactive].every((value) => value === 0 || value >= 5);
+      })
+      .slice(0, 5)
+      .map((row) => ({
+        label: normalizeText(row?.label, 160),
+        historicalRecords: qualityCount(row?.historical),
+        activeRecords: qualityCount(row?.active),
+        inactiveRecords: qualityCount(row?.inactive),
+      }));
+    return {
+      grain: 'employment_record_by_company_and_legajo',
+      globalCoverage: {
+        historicalRecords: qualityCount(data?.coverage?.historicalRecords),
+        activeRecords: qualityCount(data?.coverage?.activeRecords),
+        inactiveRecords: qualityCount(data?.coverage?.inactiveRecords),
+        withOrganization: qualityCount(data?.coverage?.withOrganization),
+        withSector: qualityCount(data?.coverage?.withSector),
+        withRole: qualityCount(data?.coverage?.withRole),
+        organizationsObserved: qualityCount(data?.coverage?.organizationsObserved),
+        sectorsObserved: qualityCount(data?.coverage?.sectorsObserved),
+        rolesObserved: qualityCount(data?.coverage?.rolesObserved),
+      },
+      topOrganizations: safeRows(data?.organizations),
+      topSectors: safeRows(data?.sectors),
+      topRoles: safeRows(data?.roles),
+      hierarchy: data?.hierarchy?.available === true ? {
+        available: true,
+        roots: qualityCount(data.hierarchy.roots),
+        parentLinks: qualityCount(data.hierarchy.parentLinks),
+        unresolvedParentLinks: qualityCount(data.hierarchy.unresolvedParentLinks),
+        inferred: false,
+      } : { available: false, inferred: false },
+      definitions: { assignmentsAreLiteral: true, catalogIsNotObservedAssignment: true },
+    };
+  }
   if (intent === 'workforce_summary') {
     const controlStates = (Array.isArray(data.gapBreakdown) ? data.gapBreakdown : [])
+      .filter((row) => qualityCount(row?.records) >= 5)
       .slice(0, 20)
       .map((row) => ({
         state: normalizeText(row?.state, 80) || 'sin_clasificar',
@@ -1184,6 +2045,8 @@ function providerStatus(provider, status, extra = {}) {
 
 function aggregateInsightTopic(intent) {
   return {
+    operational_summary: 'Explicá el resumen operativo agregado de GRH. Los conteos son legajos por empresa, no personas únicas; activo es el proxy de egreso vacío. Los bloques no comparten un corte y ausencias es un total de registro no validado por rango; licencias es una fuente histórica legado.',
+    structure_analysis: 'Explicá la cobertura estructural agregada de GRH. Organización, sector y cargo son asignaciones literales; no infieras jerarquías ni organigramas.',
     workforce_summary: 'Explicá el control agregado de dotación y su brecha operativa.',
     payroll_control: 'Explicá el estado agregado de nómina, distinguiendo cerrado publicable de abierto no publicable.',
     integration_quality: 'Explicá la calidad de integración: GRH manda en lo laboral y PERSONAS sólo enriquece identidad y territorio.',
@@ -1459,6 +2322,11 @@ function capabilitiesPayload() {
       { intent: 'integration_quality', externalEnhancement: true },
       { intent: 'quality_analysis', externalEnhancement: true },
       { intent: 'absence_analysis', externalEnhancement: true },
+      { intent: 'operational_summary', externalEnhancement: true, resource: 'summary' },
+      { intent: 'structure_analysis', externalEnhancement: true, resource: 'structure' },
+      { intent: 'absence_event_list', externalEnhancement: false, resource: 'absenceevents' },
+      { intent: 'quality_issue_list', externalEnhancement: false, resource: 'qualityissues' },
+      { intent: 'import_lineage', externalEnhancement: false, resource: 'importlineage' },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
@@ -1492,6 +2360,12 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadIntegration = dependencies.integrationQuality ?? integrationQuality;
   const loadPayroll = dependencies.payrollControl ?? payrollControl;
   const loadAbsence = dependencies.absenceAnalytics ?? absenceAnalytics;
+  const loadSummary = dependencies.summary ?? internalData.summary;
+  const loadStructure = dependencies.structure ?? internalData.structure;
+  const loadAbsenceEvents = dependencies.absenceEvents ?? dependencies.absenceevents ?? internalData.absenceEvents;
+  const loadQualityIssues = dependencies.qualityIssues ?? dependencies.qualityissues ?? internalData.qualityIssues;
+  const loadImportLineage = dependencies.importLineage ?? dependencies.importlineage ?? internalData.importLineage;
+  const resolveReason = dependencies.resolveAbsenceReason ?? resolveAbsenceReason;
   const loadQuality = dependencies.qualityOverview
     ?? dependencies.qualityoverview
     ?? internalData.qualityOverview
@@ -1507,96 +2381,213 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const now = dependencies.now ?? Date.now;
   const quotaStore = dependencies.quotaStore ?? quotaByRuntime;
+  const logger = dependencies.logger ?? console;
+  const requestIdFactory = dependencies.requestIdFactory ?? randomUUID;
 
   return async function handler(req, res) {
+    const requestId = safeIdentifier(requestIdFactory(), 80) || randomUUID();
+    const startedAt = Number(now());
+    const resourceStatuses = [];
+    let logged = false;
+    let observedIntent = 'unclassified';
+    res.setHeader('X-Request-Id', requestId);
+    const tracked = async (name, task) => {
+      try {
+        const value = await task();
+        const status = Number.isFinite(Number(value?.status))
+          ? `http_${Number(value.status)}`
+          : normalizeText(value?.status, 40) || (value?.ok === false || value?.payload?.ok === false ? 'error' : 'ok');
+        resourceStatuses.push({ name, status });
+        return value;
+      } catch (error) {
+        resourceStatuses.push({ name, status: 'error' });
+        throw error;
+      }
+    };
+    const respond = (status, payload, provider = null) => {
+      observedIntent = normalizeText(payload?.intent, 40) || observedIntent;
+      if (!logged) {
+        logged = true;
+        const endedAt = Number(now());
+        const durationMs = Number.isFinite(startedAt) && Number.isFinite(endedAt)
+          ? Math.max(0, endedAt - startedAt)
+          : 0;
+        try {
+          logger.info?.(JSON.stringify({
+            event: 'internal_assistant_request', requestId, intent: observedIntent,
+            provider: normalizeText(provider?.provider, 32) || 'local',
+            providerStatus: normalizeText(provider?.status, 64) || (status >= 400 ? 'request_error' : 'not_started'),
+            httpStatus: status, durationMs, resources: resourceStatuses,
+          }));
+        } catch {
+          // Observability must never alter the user response.
+        }
+      }
+      return send(res, status, { ...payload, requestId });
+    };
     const method = String(req.method || 'GET').toUpperCase();
     if (!['GET', 'POST'].includes(method)) {
       res.setHeader('Allow', 'GET, POST');
-      return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
+      return respond(405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
 
     const session = requireSession(req, res);
     if (!session) return;
-    if (method === 'GET') return send(res, 200, capabilitiesPayload());
+    if (method === 'GET') return respond(200, capabilitiesPayload(), providerStatus('local', 'capabilities'));
 
     if (!requestContentType(req).toLowerCase().includes('application/json')) {
-      return send(res, 415, { ok: false, code: 'JSON_REQUIRED', error: 'Se requiere application/json' });
+      return respond(415, { ok: false, code: 'JSON_REQUIRED', error: 'Se requiere application/json' });
     }
 
     try {
       const body = await readJsonBody(req);
       const message = normalizeText(body.message);
       if (!message && !body.intent && !body.search && !body.contractId && !body.legajo && !body.section && !body.task && !body.term) {
-        return send(res, 400, { ok: false, code: 'ASSISTANT_QUERY_REQUIRED', error: 'Escribí una consulta para el asistente' });
+        return respond(400, { ok: false, code: 'ASSISTANT_QUERY_REQUIRED', error: 'Escribí una consulta para el asistente' });
       }
-      const intent = classifyAssistantRequest(body);
+      const plan = planAssistantRequest(body);
+      const intent = plan.intent;
+      observedIntent = intent;
       let result;
+
+      if (plan.missingNominalContext) {
+        return respond(409, {
+          ok: false,
+          intent,
+          code: 'CONVERSATION_CONTEXT_REQUIRED',
+          error: 'Elegí primero un legajo para poder continuar con una consulta nominal.',
+          queryPlan: publicQueryPlan(plan),
+          privacy: { nominalDataExternalized: false, rawHistoryContentIgnored: true },
+        });
+      }
+      if (plan.rejectedFilters.length > 0) {
+        return respond(422, {
+          ok: false,
+          intent,
+          code: 'ASSISTANT_FILTER_UNSUPPORTED',
+          error: `La consulta incluye filtros que ${intent} no puede aplicar: ${plan.rejectedFilters.join(', ')}.`,
+          queryPlan: publicQueryPlan(plan),
+          privacy: { nominalDataExternalized: false, rawHistoryContentIgnored: true },
+        });
+      }
 
       if (GUIDANCE_INTENTS.has(intent)) {
         result = productGuidanceResult(intent, body);
+        resourceStatuses.push({ name: 'productguidance', status: 'ok' });
       } else {
         const sql = await getSql();
+        if (plan.filters.reason && !plan.filters.reasonCode
+            && ['absence_analysis', 'absence_event_list'].includes(intent)) {
+          const resolution = await tracked('absence_reason_catalog', () => resolveReason(sql, plan.filters.reason));
+          if (resolution.status !== 'resolved') {
+            return respond(409, {
+              ok: false,
+              intent,
+              code: resolution.status === 'ambiguous' ? 'ABSENCE_REASON_AMBIGUOUS' : 'ABSENCE_REASON_NOT_FOUND',
+              error: resolution.status === 'ambiguous'
+                ? 'El motivo coincide con más de un código. Elegí uno de los códigos disponibles.'
+                : 'No se encontró un código homologado para ese motivo.',
+              data: { candidates: resolution.candidates || [] },
+              queryPlan: publicQueryPlan(plan),
+              privacy: { nominalDataExternalized: false, rawHistoryContentIgnored: true },
+            });
+          }
+          plan.filters.reasonCode = resolution.reasonCode;
+          delete plan.filters.reason;
+          plan.decisions.push('resolved_reason_text_to_homologated_code');
+        }
         if (intent === 'workforce_summary') {
-          const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
+          const [integration, scope] = await Promise.all([
+            tracked('integrationquality', () => loadIntegration(sql)),
+            tracked('canonicalscope', () => loadScope(sql)),
+          ]);
           result = workforceResult(integration, scope);
         } else if (intent === 'payroll_control') {
-          result = payrollResult(await loadPayroll(sql));
+          result = payrollResult(await tracked('payrollcontrol', () => loadPayroll(sql)));
         } else if (intent === 'integration_quality') {
-          const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
+          const [integration, scope] = await Promise.all([
+            tracked('integrationquality', () => loadIntegration(sql)),
+            tracked('canonicalscope', () => loadScope(sql)),
+          ]);
           result = integrationResult(integration, scope);
         } else if (intent === 'quality_analysis') {
-          result = qualityAnalysisResult(await loadQuality(sql));
+          result = qualityAnalysisResult(await tracked('qualityoverview', () => loadQuality(sql)));
         } else if (intent === 'absence_analysis') {
-          result = absenceAnalysisResult(await loadAbsence(sql, absenceAnalyticsRequest(body)));
+          result = absenceAnalysisResult(await tracked('absenceanalytics', () => loadAbsence(sql, absenceAnalyticsRequest(plan.filters))));
+        } else if (intent === 'operational_summary') {
+          result = operationalSummaryResult(await tracked('summary', () => loadSummary(sql)));
+        } else if (intent === 'structure_analysis') {
+          result = structureAnalysisResult(await tracked('structure', () => loadStructure(sql)), plan.filters);
+        } else if (intent === 'absence_event_list') {
+          result = absenceEventListResult(await tracked('absenceevents', () => loadAbsenceEvents(sql, {
+            query: {
+              from: plan.filters.from || '', to: plan.filters.to || '',
+              sector: plan.filters.sector || '', reasonCode: plan.filters.reasonCode || '',
+              page: String(plan.filters.page), limit: String(plan.filters.limit),
+            },
+          })));
+        } else if (intent === 'quality_issue_list') {
+          result = qualityIssueListResult(await tracked('qualityissues', () => loadQualityIssues(sql, {
+            query: {
+              source: plan.filters.source || 'all', severity: plan.filters.severity || 'all',
+              entity: plan.filters.entity || 'all', code: plan.filters.code || 'all',
+              resolution: plan.filters.resolution || 'all', page: String(plan.filters.page),
+              limit: String(plan.filters.limit),
+            },
+          })));
+        } else if (intent === 'import_lineage') {
+          result = importLineageResult(await tracked('importlineage', () => loadImportLineage(sql)), plan.filters);
         } else if (intent === 'employee_search') {
-          const focus = employeeRecordFocus(message);
-          const year = extractEmployeeRecordYear(message);
-          const search = normalizeText(body.search, MAX_SEARCH_LENGTH)
-            || extractEmployeeRecordSearch(message)
-            || extractEmployeeSearch(message);
+          const focus = plan.filters.queryFocus || '';
+          const year = plan.filters.queryYear || null;
           const request = {
             query: {
-              search,
-              page: String(boundedInteger(body.page, 1, 1, 100_000)),
-              limit: String(boundedInteger(body.limit, 10, 1, 10)),
+              search: plan.filters.search || '',
+              page: String(plan.filters.page),
+              limit: String(Math.min(plan.filters.limit, 10)),
               status: normalizeText(body.status, 32) || 'all',
               crosswalk: normalizeText(body.crosswalk, 32) || 'all',
               includeFacets: '0',
             },
           };
-          const [directory, scope] = await Promise.all([searchEmployees(sql, request), loadScope(sql)]);
+          const [directory, scope] = await Promise.all([
+            tracked('employees', () => searchEmployees(sql, request)),
+            tracked('canonicalscope', () => loadScope(sql)),
+          ]);
           result = employeeSearchResult(directory, scope, { focus, year });
         } else if (intent === 'employee_detail') {
-          const focus = employeeRecordFocus(message);
-          const year = extractEmployeeRecordYear(message);
-          const contractId = normalizeText(body.contractId, 64);
-          const legajo = normalizeText(body.legajo, 64) || extractLegajo(message);
-          const companyId = normalizeText(body.companyId, 32) || extractCompanyId(message);
+          const focus = plan.filters.queryFocus || '';
+          const year = plan.filters.queryYear || null;
+          const contractId = plan.filters.contractId || '';
+          const legajo = plan.filters.legajo || '';
+          const companyId = plan.filters.companyId || '';
           if (!contractId && !legajo) {
-            return send(res, 400, {
+            return respond(400, {
               ok: false,
+              intent,
               code: 'EMPLOYEE_IDENTIFIER_REQUIRED',
               error: 'Indicá contractId o legajo para abrir una ficha; para nombres usá employee_search.',
+              queryPlan: publicQueryPlan(plan),
             });
           }
           const [detail, scope] = await Promise.all([
-            loadEmployee(sql, { query: { contractId, legajo, companyId, recordYear: year ? String(year) : '' } }),
-            loadScope(sql),
+            tracked('employee', () => loadEmployee(sql, { query: { contractId, legajo, companyId, recordYear: year ? String(year) : '' } })),
+            tracked('canonicalscope', () => loadScope(sql)),
           ]);
           result = employeeDetailResult(detail, scope, { focus, year });
         } else if (intent === 'executive_analysis') {
           const [integration, payroll, scope, absence, quality] = await Promise.all([
-            loadIntegration(sql),
-            loadPayroll(sql),
-            loadScope(sql),
+            tracked('integrationquality', () => loadIntegration(sql)),
+            tracked('payrollcontrol', () => loadPayroll(sql)),
+            tracked('canonicalscope', () => loadScope(sql)),
             Promise.resolve()
-              .then(() => loadAbsence(sql, absenceAnalyticsRequest(body)))
+              .then(() => tracked('absenceanalytics', () => loadAbsence(sql, absenceAnalyticsRequest(plan.filters))))
               .catch(() => ({
                 status: 503,
                 payload: { ok: false, code: 'ABSENCE_ANALYTICS_UNAVAILABLE', error: 'No se pudo consultar ausentismo.' },
               })),
             Promise.resolve()
-              .then(() => loadQuality(sql))
+              .then(() => tracked('qualityoverview', () => loadQuality(sql)))
               .catch(() => ({
                 status: 503,
                 payload: { ok: false, code: 'QUALITY_OVERVIEW_UNAVAILABLE', error: 'No se pudo consultar Calidad Operativa.' },
@@ -1609,7 +2600,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
       }
 
       if (result.status && result.status !== 200) {
-        return send(res, result.status, {
+        return respond(result.status, {
           ok: false,
           intent,
           answer: result.answer,
@@ -1619,6 +2610,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
           relatedSections: result.relatedSections || [],
           sources: result.sources,
           asOf: result.asOf,
+          queryPlan: publicQueryPlan(plan),
           privacy: { nominalDataExternalized: false },
         });
       }
@@ -1626,7 +2618,25 @@ export function createInternalAssistantHandler(dependencies = {}) {
       const provider = body.enhance === true
         ? await generateAggregateInsight({ intent, data: result.data, session, env, fetchImpl, now, quotaStore })
         : providerStatus('local', 'not_requested');
-      return send(res, 200, {
+      const employeeRow = intent === 'employee_detail' ? result.data?.data || {} : {};
+      const selectedCompanyId = safeIdentifier(employeeRow.companyId, 32) || plan.filters.companyId || '';
+      const selectedLegajo = safeIdentifier(employeeRow.legajo, 64) || plan.filters.legajo || '';
+      const selectedContractId = plan.filters.contractId || '';
+      const conversationContext = {
+        intent,
+        domain: plan.domain,
+        ...(plan.filters.queryFocus ? { queryFocus: plan.filters.queryFocus } : {}),
+        ...(plan.filters.queryYear ? { queryYear: plan.filters.queryYear } : {}),
+        ...(intent === 'employee_detail' && selectedCompanyId && selectedLegajo ? {
+          selectedEmployee: {
+            companyId: selectedCompanyId,
+            legajo: selectedLegajo,
+            ...(selectedContractId ? { contractId: selectedContractId } : {}),
+          },
+        } : {}),
+        filters: sanitizeConversationFilters(plan.filters),
+      };
+      return respond(200, {
         ok: true,
         intent,
         mode: provider.externalProviderUsed ? 'hybrid' : 'deterministic',
@@ -1642,28 +2652,31 @@ export function createInternalAssistantHandler(dependencies = {}) {
           asOf: Object.hasOwn(source, 'asOf') ? source.asOf : result.asOf,
         })),
         asOf: result.asOf,
+        queryPlan: publicQueryPlan(plan),
+        conversationContext,
         privacy: {
           internalSessionRequired: true,
           nominalDataExternalized: false,
           rawUserMessageSentExternally: false,
-          nominalQueries: ['employee_search', 'employee_detail'].includes(intent) ? 'local_database_only' : null,
+          nominalQueries: ['employee_search', 'employee_detail', 'absence_event_list'].includes(intent) ? 'local_database_only' : null,
+          localOnlyResource: NOMINAL_OR_INTERNAL_ONLY_INTENTS.has(intent),
           guidanceContent: GUIDANCE_INTENTS.has(intent) ? 'verified_product_catalog_only' : null,
         },
         provider,
-      });
+      }, provider);
     } catch (error) {
       if (error instanceof SyntaxError) {
-        return send(res, 400, { ok: false, code: 'INVALID_JSON', error: 'JSON inválido' });
+        return respond(400, { ok: false, code: 'INVALID_JSON', error: 'JSON inválido' });
       }
       if (error instanceof RangeError && error.message === 'request_body_too_large') {
-        return send(res, 413, { ok: false, code: 'BODY_TOO_LARGE', error: 'Solicitud demasiado grande' });
+        return respond(413, { ok: false, code: 'BODY_TOO_LARGE', error: 'Solicitud demasiado grande' });
       }
       if (error instanceof TypeError && error.message === 'request_body_invalid') {
-        return send(res, 400, { ok: false, code: 'INVALID_BODY', error: 'El cuerpo debe ser un objeto JSON' });
+        return respond(400, { ok: false, code: 'INVALID_BODY', error: 'El cuerpo debe ser un objeto JSON' });
       }
-      console.error('[internal-assistant]', error instanceof Error ? error.message : 'error desconocido');
-      return send(res, 503, {
+      return respond(503, {
         ok: false,
+        intent: observedIntent,
         code: 'INTERNAL_ASSISTANT_DATA_UNAVAILABLE',
         error: 'No se pudieron consultar los datos internos en este momento.',
       });

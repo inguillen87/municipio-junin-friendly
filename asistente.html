@@ -316,6 +316,37 @@
     .clear-button { min-height: 44px; padding: 8px 10px; background: transparent; color: var(--blue); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; font-weight: 750; }
     .clear-button:hover { background: var(--blue-soft); border-color: #c1d3de; }
 
+    .context-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      padding: 8px 16px;
+      background: #f4f8f6;
+      border-bottom: 1px solid var(--line);
+    }
+    .context-bar-copy { min-width: 0; }
+    .context-bar-copy strong { display: block; color: var(--navy); font-size: 11px; }
+    .context-bar-copy span { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .context-chips { min-width: 0; display: flex; flex: 1 1 auto; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+    .context-chip {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      background: var(--surface);
+      color: var(--green);
+      border: 1px solid #bad6ce;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 750;
+    }
+    .context-chip.neutral { color: var(--muted); border-color: var(--line); }
+    .context-clear { min-height: 36px; flex: 0 0 auto; padding: 6px 9px; background: transparent; color: var(--blue); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 800; }
+    .context-clear:hover { background: var(--blue-soft); }
+
     .messages {
       min-height: 350px;
       max-height: calc(100vh - 360px);
@@ -391,6 +422,24 @@
     .answer-links { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
     .answer-link { min-height: 44px; display: inline-flex; align-items: center; padding: 7px 10px; border: 1px solid var(--green); border-radius: 4px; color: #07534d; background: var(--green-soft); font-size: 11px; font-weight: 800; text-decoration: none; }
     .answer-link:hover, .answer-link:focus-visible { background: #d8f1ec; outline: 3px solid rgba(15,118,110,.16); outline-offset: 2px; }
+    .result-view { margin-top: 13px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+    .result-view h3 { margin: 0; color: var(--navy); font-size: 13px; }
+    .result-note { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+    .result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 10px 0 0; }
+    .result-metric { min-width: 0; padding: 8px; background: var(--surface-2); border-left: 3px solid var(--green); }
+    .result-metric dt { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .result-metric dd { margin: 2px 0 0; overflow-wrap: anywhere; color: var(--navy); font-size: 14px; font-weight: 850; }
+    .result-section { margin-top: 12px; }
+    .result-section h4 { margin: 0 0 6px; color: var(--navy); font-size: 11px; }
+    .result-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--line); }
+    .result-table { width: 100%; min-width: 510px; border-collapse: collapse; font-size: 10px; }
+    .result-table th, .result-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .result-table th { background: var(--surface-2); color: var(--muted); font-size: 9px; letter-spacing: .03em; text-transform: uppercase; }
+    .result-table tr:last-child td { border-bottom: 0; }
+    .query-plan { margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .query-plan summary { min-height: 36px; display: inline-flex; align-items: center; color: var(--blue); cursor: pointer; font-size: 10px; font-weight: 800; }
+    .query-plan-body { display: flex; flex-wrap: wrap; gap: 6px; padding: 3px 0 2px; }
+    .plan-chip { padding: 4px 7px; background: var(--blue-soft); color: var(--blue); border: 1px solid #c5d6e0; border-radius: 3px; font-size: 9px; }
 
     .thinking { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--muted); }
     .thinking-mark { display: inline-flex; gap: 3px; }
@@ -429,6 +478,15 @@
     .context-card.warning { background: var(--amber-soft); border-color: #e1cb99; }
     .context-card.warning h2 { color: #684716; }
     .context-card.warning p { color: #74531f; }
+    .context-filter-card > summary { min-height: 44px; display: flex; align-items: center; color: var(--navy); cursor: pointer; font-size: 14px; font-weight: 800; }
+    .context-filter-card > summary::marker { color: var(--green); }
+    .filter-form { display: grid; gap: 9px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .filter-field { display: grid; gap: 4px; }
+    .filter-field label { color: var(--muted); font-size: 10px; font-weight: 750; }
+    .filter-field input, .filter-field select { width: 100%; min-height: 42px; padding: 8px 9px; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 4px; font: inherit; font-size: 11px; }
+    .filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .filter-actions .button { min-width: 0; font-size: 10px; }
+    .filter-help { margin-top: 8px !important; }
 
     .error-card { width: min(560px, calc(100% - 40px)); margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); box-shadow: var(--shadow); }
     .error-card h1 { margin: 0; font-size: 22px; }
@@ -452,7 +510,7 @@
       main { padding: 27px 20px 38px; }
       .page-head { grid-template-columns: 1fr; gap: 16px; }
       .assistant-layout { grid-template-columns: 1fr; }
-      .context-column { grid-template-columns: repeat(2, minmax(0, 1fr)); order: -1; }
+      .context-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .conversation-card { display: flex; min-height: 620px; flex-direction: column; }
       .messages { min-height: 360px; max-height: 60dvh; flex: 1 1 auto; }
       .composer { position: sticky; bottom: 0; z-index: 4; box-shadow: 0 -7px 18px rgba(20, 48, 61, .08); }
@@ -472,10 +530,16 @@
       .context-column { grid-template-columns: 1fr; }
       .conversation-head { align-items: flex-start; padding: 11px 12px; }
       .conversation-card { min-height: 570px; }
+      .context-bar { align-items: stretch; flex-direction: column; gap: 7px; padding: 9px 12px; }
+      .context-bar-copy span { white-space: normal; }
+      .context-chips { width: 100%; }
+      .context-clear { width: 100%; }
       .messages { min-height: 320px; max-height: 58dvh; padding: 13px; }
       .empty-state { min-height: 280px; padding: 25px 12px; }
       .message-card, .message.user .message-card { width: 94%; }
       .message-header { align-items: flex-start; }
+      .result-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .result-view { padding: 10px; }
       .composer { padding: 12px; }
       .composer-row { grid-template-columns: 1fr; }
       .send-button { width: 100%; }
@@ -568,10 +632,14 @@
             <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
-            <button class="quick-button" type="button" data-prompt="Analizá los eventos administrativos de ausencia del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausencias recientes</span></button>
+            <button class="quick-button" type="button" data-prompt="Mostrame un resumen operativo de GRH y aclarame el grano de cada conteo."><span class="quick-code" aria-hidden="true">RS</span><span>Resumen GRH</span></button>
+            <button class="quick-button" type="button" data-prompt="Analizá la estructura, organizaciones, sectores y cargos observados en GRH sin inferir un organigrama."><span class="quick-code" aria-hidden="true">ES</span><span>Estructura observada</span></button>
+            <button class="quick-button" type="button" data-prompt="Analizá el ausentismo agregado del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausentismo agregado</span></button>
+            <button class="quick-button" type="button" data-prompt="Listá los eventos administrativos de ausencia del último período disponible."><span class="quick-code" aria-hidden="true">EV</span><span>Eventos de ausencia</span></button>
             <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
             <button class="quick-button" type="button" data-compose="Mostrame las licencias de "><span class="quick-code" aria-hidden="true">LI</span><span>Licencias por empleado</span></button>
-            <button class="quick-button" type="button" data-prompt="Analizá las incidencias registradas de calidad por severidad, dominio y fuente, sin convertirlas en un puntaje inventado."><span class="quick-code" aria-hidden="true">DQ</span><span>Calidad operativa</span></button>
+            <button class="quick-button" type="button" data-prompt="Analizá las incidencias registradas de calidad por severidad, dominio y fuente, sin convertirlas en un puntaje inventado."><span class="quick-code" aria-hidden="true">DQ</span><span>Hallazgos publicados</span></button>
+            <button class="quick-button" type="button" data-prompt="Mostrame el linaje de los snapshots publicados de datos GRH y PERSONAS."><span class="quick-code" aria-hidden="true">LN</span><span>Linaje de datos</span></button>
             <button class="quick-button" type="button" data-prompt="Prepará una lectura ejecutiva de dotación, nómina, integración, ausentismo y calidad operativa. Separá hechos, límites y prioridades."><span class="quick-code" aria-hidden="true">EX</span><span>Lectura ejecutiva</span></button>
           </div>
         </section>
@@ -579,9 +647,20 @@
         <div class="assistant-layout">
           <section class="conversation-card" aria-labelledby="conversationTitle">
             <header class="conversation-head">
-              <div><strong id="conversationTitle">Conversación de trabajo</strong><span>El historial vive sólo en esta pestaña y se elimina al recargar.</span></div>
+              <div><strong id="conversationTitle">Conversación de trabajo</strong><span>Para continuar se reutiliza sólo contexto estructurado; no se reenvían respuestas completas.</span></div>
               <button class="clear-button" id="clearButton" type="button" disabled>Limpiar</button>
             </header>
+
+            <section class="context-bar" id="contextBar" data-conversation-context aria-label="Contexto activo de la consulta">
+              <div class="context-bar-copy">
+                <strong>Contexto activo</strong>
+                <span id="activeContextSummary">Consulta libre, sin filtros heredados.</span>
+              </div>
+              <div class="context-chips" id="activeContextChips" aria-live="polite">
+                <span class="context-chip neutral">Sin filtros</span>
+              </div>
+              <button class="context-clear" id="clearContextButton" type="button" hidden>Quitar contexto</button>
+            </section>
 
             <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions text">
               <div class="empty-state" id="emptyState">
@@ -607,6 +686,100 @@
           </section>
 
           <aside class="context-column" aria-label="Criterios de la consulta">
+            <details class="context-card context-filter-card" id="contextFilters">
+              <summary>Ajustar contexto y filtros</summary>
+              <form class="filter-form" id="contextFilterForm">
+                <div class="filter-field">
+                  <label for="contextDomain">Vista de trabajo</label>
+                  <select id="contextDomain" name="domain">
+                    <option value="auto">Detectar según la pregunta</option>
+                    <option value="operational_summary">Resumen municipal</option>
+                    <option value="structure_analysis">Estructura observada</option>
+                    <option value="absence_analysis">Ausentismo agregado</option>
+                    <option value="absence_event_list">Eventos de ausencia</option>
+                    <option value="quality_analysis">Calidad agregada</option>
+                    <option value="quality_issue_list">Hallazgos registrados</option>
+                    <option value="import_lineage">Linaje de snapshots</option>
+                  </select>
+                </div>
+                <div class="filter-field" data-filter-for="absence">
+                  <label for="contextYear">Año</label>
+                  <input id="contextYear" name="year" type="number" min="1990" max="2100" inputmode="numeric" placeholder="Ejemplo: 2026">
+                </div>
+                <div class="filter-field" data-filter-for="absence">
+                  <label for="contextFrom">Desde</label>
+                  <input id="contextFrom" name="from" type="date" min="1990-01-01" max="2100-12-31">
+                </div>
+                <div class="filter-field" data-filter-for="absence">
+                  <label for="contextTo">Hasta</label>
+                  <input id="contextTo" name="to" type="date" min="1990-01-01" max="2100-12-31">
+                </div>
+                <div class="filter-field" data-filter-for="absence structure">
+                  <label for="contextSector">Sector literal / actual al corte</label>
+                  <input id="contextSector" name="sector" type="text" maxlength="160" autocomplete="off" placeholder="Nombre literal del sector">
+                </div>
+                <div class="filter-field" data-filter-for="structure">
+                  <label for="contextOrganization">Organización literal</label>
+                  <input id="contextOrganization" name="organization" type="text" maxlength="160" autocomplete="off" placeholder="Nombre observado en GRH">
+                </div>
+                <div class="filter-field" data-filter-for="structure">
+                  <label for="contextRole">Cargo literal</label>
+                  <input id="contextRole" name="role" type="text" maxlength="160" autocomplete="off" placeholder="Cargo observado en GRH">
+                </div>
+                <div class="filter-field" data-filter-for="absence">
+                  <label for="contextReason">Código de motivo</label>
+                  <input id="contextReason" name="reasonCode" type="text" maxlength="64" autocomplete="off" placeholder="Código GRH">
+                </div>
+                <div class="filter-field" data-filter-for="quality lineage">
+                  <label for="contextSource">Fuente</label>
+                  <select id="contextSource" name="source">
+                    <option value="">Todas las fuentes</option>
+                    <option value="GRH">GRH</option>
+                    <option value="PERSONAS">PERSONAS</option>
+                  </select>
+                </div>
+                <div class="filter-field" data-filter-for="quality">
+                  <label for="contextSeverity">Severidad</label>
+                  <select id="contextSeverity" name="severity">
+                    <option value="">Todas las severidades</option>
+                    <option value="critical">Crítica</option>
+                    <option value="error">Error</option>
+                    <option value="warning">Advertencia</option>
+                    <option value="info">Informativa</option>
+                  </select>
+                </div>
+                <div class="filter-field" data-filter-for="quality">
+                  <label for="contextCode">Código de control</label>
+                  <input id="contextCode" name="code" type="text" maxlength="64" autocomplete="off" placeholder="Ejemplo: CUIL_INVALID">
+                </div>
+                <div class="filter-field" data-filter-for="quality">
+                  <label for="contextEntity">Entidad controlada</label>
+                  <input id="contextEntity" name="entity" type="text" maxlength="128" autocomplete="off" placeholder="Ejemplo: legajo">
+                </div>
+                <div class="filter-field" data-filter-for="quality">
+                  <label for="contextResolution">Estado del hallazgo</label>
+                  <select id="contextResolution" name="resolution">
+                    <option value="">Todos los estados</option>
+                    <option value="open">Abierto</option>
+                    <option value="accepted">Aceptado</option>
+                    <option value="corrected">Corregido</option>
+                    <option value="rejected">Rechazado</option>
+                  </select>
+                </div>
+                <div class="filter-field" data-filter-for="lineage">
+                  <label for="contextBatch">Snapshots</label>
+                  <select id="contextBatch" name="batch">
+                    <option value="">Todos los publicados</option>
+                    <option value="latest_published">Último publicado por fuente</option>
+                  </select>
+                </div>
+                <div class="filter-actions">
+                  <button class="button primary" type="submit">Aplicar</button>
+                  <button class="button" id="resetFilterButton" type="button">Restablecer</button>
+                </div>
+              </form>
+              <p class="filter-help">Los filtros viajan como contexto estructurado. La pregunta actual siempre queda visible para que puedas revisarla.</p>
+            </details>
             <section class="context-card">
               <h2>Fuentes y autoridad</h2>
               <p>La respuesta distingue el origen y la fecha de cada evidencia.</p>
@@ -636,13 +809,56 @@
       var ASSISTANT_URL = '/api/internal-assistant';
       var LOGIN_URL = 'login.html?next=asistente.html';
       var MAX_HISTORY = 6;
+      var CONTEXT_FILTER_FIELDS = ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'organization', 'role', 'reason', 'reasonCode', 'bucket', 'source', 'severity', 'entity', 'code', 'resolution', 'batch'];
+      var CONTEXT_FILTER_LIMITS = {
+        sector: 160,
+        organization: 160,
+        role: 160,
+        reason: 120,
+        reasonCode: 64,
+        entity: 128,
+        code: 64,
+        resolution: 24,
+        source: 16,
+        severity: 16,
+        batch: 32,
+        bucket: 16
+      };
+      var LOCAL_ONLY_INTENTS = ['employee_search', 'employee_detail', 'absence_event_list', 'quality_issue_list', 'import_lineage'];
+      var INTENT_DOMAINS = {
+        operational_summary: 'summary',
+        workforce_summary: 'workforce',
+        structure_analysis: 'structure',
+        absence_analysis: 'absence',
+        absence_event_list: 'absence',
+        quality_analysis: 'quality',
+        quality_issue_list: 'quality',
+        import_lineage: 'lineage',
+        employee_search: 'employee',
+        employee_detail: 'employee'
+      };
+      var INITIAL_CONTEXT_INTENTS = {
+        inicio: 'operational_summary', resumen: 'operational_summary', estructura: 'structure_analysis',
+        ausentismo: 'absence_analysis', calidad: 'quality_analysis', personas: 'employee_search',
+        nomina: 'payroll_control', integracion: 'integration_quality'
+      };
+      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', structure: 'estructura', absence: 'ausentismo', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
+      var RESOURCE_LABELS = { summary: 'resumen GRH', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var DECISION_LABELS = {
+        explicit_intent: 'Vista elegida por el usuario',
+        deterministic_message_classification: 'Ruta determinada por la consulta',
+        applied_allowlisted_request_context_filters: 'Filtros visibles aplicados',
+        continued_from_structured_context: 'Continuación resuelta con contexto estructurado',
+        resolved_nominal_reference_from_structured_context: 'Referencia al legajo resuelta localmente',
+        nominal_reference_requires_selected_employee: 'Se requiere seleccionar un legajo'
+      };
       var contextParams = new URLSearchParams(window.location.search);
       var initialPrompt = String(contextParams.get('prompt') || sessionStorage.getItem('mjunin_assistant_prompt') || '').trim().slice(0, 900);
       var initialContext = String(contextParams.get('context') || '').trim().slice(0, 80);
       if (contextParams.get('prompt')) sessionStorage.setItem('mjunin_assistant_prompt', initialPrompt);
       var redirectIssued = false;
       var pendingController = null;
-      var state = { messages: [], busy: false, user: null };
+      var state = { messages: [], busy: false, user: null, context: null, pendingIntent: '', pendingFilters: null };
       var factNumberFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
 
       var authGate = document.getElementById('authGate');
@@ -659,6 +875,25 @@
       var clearButton = document.getElementById('clearButton');
       var composerStatus = document.getElementById('composerStatus');
       var logoutButton = document.getElementById('logoutButton');
+      var contextFilterForm = document.getElementById('contextFilterForm');
+      var contextDomain = document.getElementById('contextDomain');
+      var contextYear = document.getElementById('contextYear');
+      var contextFrom = document.getElementById('contextFrom');
+      var contextTo = document.getElementById('contextTo');
+      var contextSector = document.getElementById('contextSector');
+      var contextOrganization = document.getElementById('contextOrganization');
+      var contextRole = document.getElementById('contextRole');
+      var contextReason = document.getElementById('contextReason');
+      var contextSource = document.getElementById('contextSource');
+      var contextSeverity = document.getElementById('contextSeverity');
+      var contextCode = document.getElementById('contextCode');
+      var contextEntity = document.getElementById('contextEntity');
+      var contextResolution = document.getElementById('contextResolution');
+      var contextBatch = document.getElementById('contextBatch');
+      var activeContextSummary = document.getElementById('activeContextSummary');
+      var activeContextChips = document.getElementById('activeContextChips');
+      var clearContextButton = document.getElementById('clearContextButton');
+      var resetFilterButton = document.getElementById('resetFilterButton');
 
       function cleanText(value, fallback) {
         if (typeof value === 'string' && value.trim()) return value.trim();
@@ -673,6 +908,280 @@
 
       function readableCode(value) {
         return cleanText(value).replace(/[_-]+/g, ' ');
+      }
+
+      function readableDomain(value) {
+        var key = cleanText(value).toLowerCase();
+        return DOMAIN_LABELS[key] || readableCode(key);
+      }
+
+      function readableResource(value) {
+        var key = cleanText(value).toLowerCase();
+        return RESOURCE_LABELS[key] || readableCode(key);
+      }
+
+      function readableDecision(value) {
+        var key = cleanText(value);
+        return DECISION_LABELS[key] || readableCode(key);
+      }
+
+      function boundedText(value, maxLength) {
+        return cleanText(value).slice(0, maxLength || 100);
+      }
+
+      function normalizedYear(value) {
+        var year = Number(value);
+        return Number.isInteger(year) && year >= 1900 && year <= 2100 ? year : null;
+      }
+
+      function sanitizeFilters(value) {
+        var inputValue = value && typeof value === 'object' ? value : {};
+        var filters = {};
+        CONTEXT_FILTER_FIELDS.forEach(function (field) {
+          if (['year', 'yearFrom', 'yearTo'].includes(field)) {
+            var year = normalizedYear(inputValue[field]);
+            if (year) filters[field] = year;
+            return;
+          }
+          var item = boundedText(inputValue[field], CONTEXT_FILTER_LIMITS[field] || 64);
+          if (item) filters[field] = item;
+        });
+        return filters;
+      }
+
+      function sanitizeSelectedEmployee(value) {
+        if (!value || typeof value !== 'object') return null;
+        var companyId = boundedText(value.companyId, 32);
+        var legajo = boundedText(value.legajo, 64);
+        if (!companyId || !legajo) return null;
+        var selected = { companyId: companyId, legajo: legajo };
+        var contractId = boundedText(value.contractId, 64);
+        if (contractId) selected.contractId = contractId;
+        return selected;
+      }
+
+      function sanitizeConversationContext(value, fallbackPlan) {
+        var source = value && typeof value === 'object' ? value : {};
+        var plan = fallbackPlan && typeof fallbackPlan === 'object' ? fallbackPlan : {};
+        var intent = boundedText(source.intent || plan.intent, 48);
+        var domain = boundedText(source.domain || INTENT_DOMAINS[intent] || plan.resource, 48);
+        var filters = sanitizeFilters(source.filters || plan.filters);
+        var queryFocus = boundedText(source.queryFocus, 20);
+        var queryYear = normalizedYear(source.queryYear || filters.year);
+        var selectedEmployee = sanitizeSelectedEmployee(source.selectedEmployee);
+        if (!intent && !domain && !queryFocus && !queryYear && !selectedEmployee && !Object.keys(filters).length) return null;
+        var context = { filters: filters };
+        if (intent) context.intent = intent;
+        if (domain) context.domain = domain;
+        if (queryFocus) context.queryFocus = queryFocus;
+        if (queryYear) context.queryYear = queryYear;
+        if (selectedEmployee) context.selectedEmployee = selectedEmployee;
+        return context;
+      }
+
+      function sanitizeQueryPlan(value) {
+        if (!value || typeof value !== 'object') return null;
+        var intent = boundedText(value.intent, 48);
+        var resource = boundedText(value.resource, 48);
+        var resources = Array.isArray(value.resources) ? value.resources.slice(0, 6).map(function (item) {
+          if (!item || typeof item !== 'object') return null;
+          var name = boundedText(item.name, 48);
+          if (!name) return null;
+          return { name: name, mode: item.mode === 'read_only' ? 'read_only' : '', containsNominalData: item.containsNominalData === true };
+        }).filter(Boolean) : [];
+        var contextUsedValue = value.contextUsed && typeof value.contextUsed === 'object' ? value.contextUsed : {};
+        var fields = Array.isArray(contextUsedValue.fields)
+          ? contextUsedValue.fields.slice(0, 12).map(function (field) { return boundedText(field, 40); }).filter(function (field) {
+            return field === 'selectedEmployee.companyId' || field === 'selectedEmployee.legajo' || field === 'queryFocus' || field === 'queryYear' || /^filters\.(?:from|to|year|yearFrom|yearTo|sector|organization|role|reason|reasonCode|bucket|source|severity|entity|code|resolution|batch)$/.test(field);
+          }).slice(0, 8)
+          : [];
+        var decisions = Array.isArray(value.decisions)
+          ? value.decisions.slice(0, 6).map(function (decision) { return boundedText(decision, 140); }).filter(Boolean)
+          : [];
+        return {
+          version: boundedText(value.version, 40),
+          intent: intent,
+          resource: resource,
+          resources: resources,
+          filters: sanitizeFilters(value.filters),
+          contextUsed: {
+            used: contextUsedValue.used === true,
+            source: boundedText(contextUsedValue.source, 30),
+            fields: fields,
+            reason: boundedText(contextUsedValue.reason, 160)
+          },
+          externalPolicy: ['aggregate_allowlisted', 'local_only'].includes(value.externalPolicy) ? value.externalPolicy : '',
+          decisions: decisions
+        };
+      }
+
+      function contextLabel(field, value) {
+        var labels = {
+          from: 'Desde', to: 'Hasta', year: 'Año', yearFrom: 'Año desde', yearTo: 'Año hasta', sector: 'Sector actual', organization: 'Organización', role: 'Cargo',
+          reason: 'Motivo', reasonCode: 'Motivo', bucket: 'Agrupación', source: 'Fuente', severity: 'Severidad', entity: 'Entidad', code: 'Código', resolution: 'Estado', batch: 'Snapshot'
+        };
+        return (labels[field] || readableCode(field)) + ': ' + cleanText(value);
+      }
+
+      function renderActiveContext() {
+        activeContextChips.replaceChildren();
+        var context = state.context;
+        if (!context) {
+          activeContextSummary.textContent = 'Consulta libre, sin filtros heredados.';
+          activeContextChips.appendChild(createElement('span', 'context-chip neutral', 'Sin filtros'));
+          clearContextButton.hidden = true;
+          return;
+        }
+        var intent = boundedText(context.intent, 48);
+        var domain = boundedText(context.domain || INTENT_DOMAINS[intent], 48);
+        if (domain) activeContextChips.appendChild(createElement('span', 'context-chip', 'Vista: ' + readableDomain(domain)));
+        Object.keys(context.filters || {}).forEach(function (field) {
+          activeContextChips.appendChild(createElement('span', 'context-chip', contextLabel(field, context.filters[field])));
+        });
+        if (context.queryYear && !context.filters.year) activeContextChips.appendChild(createElement('span', 'context-chip', 'Año: ' + context.queryYear));
+        if (context.selectedEmployee) {
+          activeContextChips.appendChild(createElement('span', 'context-chip', 'Legajo ' + context.selectedEmployee.legajo + ' · empresa ' + context.selectedEmployee.companyId));
+        }
+        if (!activeContextChips.children.length) activeContextChips.appendChild(createElement('span', 'context-chip neutral', 'Contexto sin filtros'));
+        activeContextSummary.textContent = context.selectedEmployee
+          ? 'La próxima consulta conserva el legajo seleccionado y sus filtros.'
+          : 'La próxima consulta conserva la vista y los filtros visibles.';
+        clearContextButton.hidden = false;
+      }
+
+      function syncContextForm(context) {
+        var current = context || {};
+        var filters = current.filters || {};
+        var selectedIntent = cleanText(current.intent);
+        contextDomain.value = Array.from(contextDomain.options).some(function (option) { return option.value === selectedIntent; }) ? selectedIntent : 'auto';
+        contextYear.value = filters.year || current.queryYear || '';
+        contextFrom.value = filters.from || '';
+        contextTo.value = filters.to || '';
+        contextSector.value = filters.sector || '';
+        contextOrganization.value = filters.organization || '';
+        contextRole.value = filters.role || '';
+        contextReason.value = filters.reasonCode || '';
+        contextSource.value = filters.source || '';
+        contextSeverity.value = filters.severity || '';
+        contextCode.value = filters.code || '';
+        contextEntity.value = filters.entity || '';
+        contextResolution.value = filters.resolution || '';
+        contextBatch.value = filters.batch || '';
+        updateFilterVisibility();
+      }
+
+      function updateFilterVisibility() {
+        var value = contextDomain.value;
+        document.querySelectorAll('[data-filter-for]').forEach(function (field) {
+          var scopes = field.dataset.filterFor.split(/\s+/);
+          var relevant = scopes.some(function (scope) { return value.indexOf(scope + '_') === 0 || (scope === 'lineage' && value === 'import_lineage'); });
+          field.hidden = value !== 'auto' && !relevant;
+        });
+      }
+
+      function contextFromForm() {
+        var intent = contextDomain.value !== 'auto' ? contextDomain.value : '';
+        var acceptsAbsence = !intent || intent.indexOf('absence_') === 0;
+        var acceptsStructure = !intent || intent === 'structure_analysis';
+        var acceptsQuality = !intent || intent.indexOf('quality_') === 0;
+        var acceptsLineage = !intent || intent === 'import_lineage';
+        var filters = sanitizeFilters({
+          year: acceptsAbsence ? contextYear.value : '',
+          from: acceptsAbsence ? contextFrom.value : '',
+          to: acceptsAbsence ? contextTo.value : '',
+          sector: acceptsAbsence || acceptsStructure ? contextSector.value : '',
+          organization: acceptsStructure ? contextOrganization.value : '',
+          role: acceptsStructure ? contextRole.value : '',
+          reasonCode: acceptsAbsence ? contextReason.value : '',
+          source: acceptsQuality || acceptsLineage ? contextSource.value : '',
+          severity: acceptsQuality ? contextSeverity.value : '',
+          code: acceptsQuality ? contextCode.value.toUpperCase() : '',
+          entity: acceptsQuality ? contextEntity.value.toLowerCase() : '',
+          resolution: acceptsQuality ? contextResolution.value : '',
+          batch: acceptsLineage ? contextBatch.value : ''
+        });
+        if (filters.year && !filters.from && !filters.to) {
+          filters.from = filters.year + '-01-01';
+          filters.to = filters.year + '-12-31';
+        } else if (filters.from || filters.to) {
+          delete filters.year;
+        }
+        return sanitizeConversationContext({ intent: intent, domain: INTENT_DOMAINS[intent] || '', filters: filters });
+      }
+
+      function setActiveContext(value, syncForm) {
+        state.context = sanitizeConversationContext(value);
+        renderActiveContext();
+        if (syncForm !== false) syncContextForm(state.context);
+      }
+
+      function filtersForIntent(intent, value) {
+        var allowed = {
+          structure_analysis: ['sector', 'organization', 'role'],
+          absence_analysis: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'bucket'],
+          absence_event_list: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode'],
+          quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution'],
+          import_lineage: ['source', 'batch'],
+          employee_search: ['from', 'to', 'year'],
+          employee_detail: ['from', 'to', 'year']
+        }[intent] || [];
+        var filters = sanitizeFilters(value);
+        return allowed.reduce(function (selected, field) {
+          if (filters[field] !== undefined) selected[field] = filters[field];
+          return selected;
+        }, {});
+      }
+
+      function contextForIntent(intent, sourceContext, filterOverride) {
+        var source = sanitizeConversationContext(sourceContext) || { filters: {} };
+        var filters = filtersForIntent(intent, filterOverride || source.filters);
+        var target = { intent: intent, domain: INTENT_DOMAINS[intent] || '', filters: filters };
+        if (['employee_search', 'employee_detail'].includes(intent)) {
+          if (source.queryFocus) target.queryFocus = source.queryFocus;
+          if (source.queryYear) target.queryYear = source.queryYear;
+          if (source.selectedEmployee) target.selectedEmployee = source.selectedEmployee;
+        }
+        return sanitizeConversationContext(target);
+      }
+
+      function shiftDateYear(value, delta) {
+        var match = cleanText(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return '';
+        var year = Number(match[1]) + delta;
+        var month = Number(match[2]);
+        var day = Number(match[3]);
+        var lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        return [year, String(month).padStart(2, '0'), String(Math.min(day, lastDay)).padStart(2, '0')].join('-');
+      }
+
+      function previousYearContext(intent, sourceContext) {
+        var source = sanitizeConversationContext(sourceContext) || { filters: {} };
+        var filters = Object.assign({}, source.filters || {});
+        if (filters.from) filters.from = shiftDateYear(filters.from, -1);
+        if (filters.to) filters.to = shiftDateYear(filters.to, -1);
+        ['year', 'yearFrom', 'yearTo'].forEach(function (field) {
+          if (normalizedYear(filters[field])) filters[field] = Number(filters[field]) - 1;
+        });
+        return contextForIntent(intent, source, filters);
+      }
+
+      function contextWithEffectiveRange(payload) {
+        var source = sanitizeConversationContext(payload && payload.conversationContext, payload && payload.queryPlan) || { filters: {} };
+        var filters = Object.assign({}, source.filters || {});
+        var effective = payload && payload.data && payload.data.range && payload.data.range.effective || {};
+        if (!filters.from && cleanText(effective.from)) filters.from = cleanText(effective.from).slice(0, 10);
+        if (!filters.to && cleanText(effective.to)) filters.to = cleanText(effective.to).slice(0, 10);
+        return sanitizeConversationContext(Object.assign({}, source, { filters: filters }));
+      }
+
+      function contextualSuggestion(label, message, intent, context, explicitFilters) {
+        return {
+          label: boundedText(label, 110),
+          message: boundedText(message || label, 300),
+          intent: boundedText(intent, 48),
+          context: sanitizeConversationContext(context),
+          explicitFilters: explicitFilters ? sanitizeFilters(explicitFilters) : null
+        };
       }
 
       function formatTime(date) {
@@ -720,6 +1229,7 @@
           var error = new Error(cleanText(message, 'La consulta no pudo completarse.'));
           error.code = payload && payload.code ? String(payload.code) : 'REQUEST_FAILED';
           error.status = response.status;
+          error.payload = payload && typeof payload === 'object' ? payload : null;
           throw error;
         }
         return payload;
@@ -757,7 +1267,23 @@
           if (value === undefined || value === null || value === '') return;
           facts.push(label + ': ' + factValue(value));
         }
-        if (intent === 'workforce_summary') {
+        if (intent === 'operational_summary') {
+          var operationalWorkforce = data.workforce && typeof data.workforce === 'object' ? data.workforce : {};
+          add('Legajos por empresa', operationalWorkforce.historicalRecords);
+          add('Activos (proxy: egreso vacío)', operationalWorkforce.activeRecords);
+          add('Inactivos', operationalWorkforce.inactiveRecords);
+          add('Eventos administrativos de ausencia', data.absenceEvents);
+          add('Licencias históricas', data.leaveRecords);
+        } else if (intent === 'structure_analysis') {
+          var coverage = data.coverage && typeof data.coverage === 'object' ? data.coverage : {};
+          add('Cobertura global · legajos por empresa', coverage.historicalRecords);
+          add('Cobertura global · con organización literal', coverage.withOrganization);
+          add('Cobertura global · con sector observado', coverage.withSector);
+          add('Cobertura global · con cargo literal', coverage.withRole);
+          add('Organizaciones observadas', coverage.organizationsObserved);
+          add('Sectores observados', coverage.sectorsObserved);
+          if (data.hierarchy && data.hierarchy.available === false) facts.push('Organigrama: no inferible con las relaciones publicadas');
+        } else if (intent === 'workforce_summary') {
           add('Legajos históricos', data.totalContracts);
           add('Personas canónicas', data.totalPeople);
           add('Activos administrativos', data.administrativeActive);
@@ -794,6 +1320,39 @@
           if (comparison.available === true && change.events !== null && change.events !== undefined) facts.push('Variación interanual de eventos: ' + factValue(change.events) + '%');
           if (topReason) facts.push('Motivo principal: ' + cleanText(topReason.label, 'Sin clasificar') + ' · ' + factValue(topReason.events) + ' eventos');
           if (topSector) facts.push('Sector actual con más eventos: ' + cleanText(topSector.label, 'Sin clasificar') + ' · ' + factValue(topSector.events) + ' eventos');
+        } else if (intent === 'absence_event_list') {
+          var absencePagination = data.pagination && typeof data.pagination === 'object' ? data.pagination : {};
+          var absenceRange = data.range && typeof data.range === 'object' ? data.range : {};
+          var requestedRange = absenceRange.requested && typeof absenceRange.requested === 'object' ? absenceRange.requested : {};
+          var effectiveListRange = absenceRange.effective && typeof absenceRange.effective === 'object' ? absenceRange.effective : {};
+          add('Eventos recuperados', absencePagination.total);
+          if (requestedRange.from && requestedRange.to) add('Rango pedido', cleanText(requestedRange.from) + ' a ' + cleanText(requestedRange.to));
+          if (effectiveListRange.from && effectiveListRange.to) add('Rango efectivo', cleanText(effectiveListRange.from) + ' a ' + cleanText(effectiveListRange.to));
+          facts.push('Sector: asignación actual observada al corte, no sector histórico del evento');
+          facts.push('DIAS_24: valor declarado en origen; no equivale a duración, tasa, presentismo ni jornadas perdidas');
+        } else if (intent === 'quality_analysis') {
+          var issues = data.issues && typeof data.issues === 'object' ? data.issues : {};
+          add('Hallazgos registrados', issues.total);
+          add('Hallazgos abiertos', issues.open);
+          add('Críticos', issues.bySeverity && issues.bySeverity.critical);
+          add('Errores', issues.bySeverity && issues.bySeverity.error);
+          var personasTracking = data.breakdowns && Array.isArray(data.breakdowns.sources)
+            ? data.breakdowns.sources.find(function (row) { return cleanText(row && row.source).toUpperCase() === 'PERSONAS'; })
+            : null;
+          if (personasTracking && personasTracking.trackingStatus === 'controls_not_materialized') facts.push('PERSONAS: controles no materializados; no significa calidad perfecta');
+        } else if (intent === 'quality_issue_list') {
+          var qualityPagination = data.pagination && typeof data.pagination === 'object' ? data.pagination : {};
+          add('Hallazgos registrados en snapshots publicados', qualityPagination.total);
+          add('Página', qualityPagination.page);
+          facts.push('Un hallazgo no equivale a una persona o legajo afectado');
+          facts.push('La fecha de detección no es la fecha de corte de la fuente');
+          if (Number(qualityPagination.total) === 0) facts.push('Cero registrado no significa limpio: puede indicar que el control no fue evaluado o materializado');
+        } else if (intent === 'import_lineage') {
+          var lineageRows = Array.isArray(data.batches) ? data.batches : [];
+          add('Snapshots publicados mostrados', lineageRows.length);
+          add('Conteos de filas informados', lineageRows.filter(function (row) { return row && row.sourceRowCountStatus === 'reported'; }).length);
+          add('Conteos no informados', lineageRows.filter(function (row) { return row && row.sourceRowCountStatus === 'not_reported'; }).length);
+          facts.push('Snapshot publicado: no implica sincronización en vivo');
         } else if (intent === 'executive_analysis') {
           var workforceView = data.workforce && typeof data.workforce === 'object' ? data.workforce : {};
           var payrollView = data.payroll && typeof data.payroll === 'object' ? data.payroll : {};
@@ -849,6 +1408,155 @@
         return facts.slice(0, intent === 'employee_search' ? 10 : 12);
       }
 
+      function visibleMetric(label, value) {
+        if (value === undefined || value === null || value === '') return null;
+        return { label: boundedText(label, 70), value: factValue(value) };
+      }
+
+      function visibleRow(values) {
+        return values.map(function (value) { return boundedText(value === null || value === undefined ? 'No informado' : value, 180); });
+      }
+
+      function normalizeResultView(payload) {
+        var intent = cleanText(payload && (payload.intent || payload.topic));
+        var data = payload && payload.data && typeof payload.data === 'object' ? payload.data : {};
+        var view = { title: '', note: '', metrics: [], sections: [] };
+        function metrics(items) { view.metrics = items.filter(Boolean).slice(0, 9); }
+        function section(title, columns, rows) {
+          if (!rows.length) return;
+          view.sections.push({ title: boundedText(title, 70), columns: columns.map(function (column) { return boundedText(column, 50); }), rows: rows.slice(0, 8) });
+        }
+
+        if (intent === 'operational_summary') {
+          var workforce = data.workforce || {};
+          var catalogs = data.catalogs || {};
+          var quality = data.quality || {};
+          view.title = 'Resumen operativo del snapshot GRH';
+          view.note = 'Grano: un legajo por empresa. Activo es el proxy de fecha de egreso vacía; no representa personas únicas.';
+          metrics([
+            visibleMetric('Legajos por empresa', workforce.historicalRecords),
+            visibleMetric('Activos por proxy', workforce.activeRecords),
+            visibleMetric('Inactivos', workforce.inactiveRecords),
+            visibleMetric('Eventos de ausencia', data.absenceEvents),
+            visibleMetric('Licencias históricas', data.leaveRecords),
+            visibleMetric('Sectores en catálogo', catalogs.sectors),
+            visibleMetric('Activos sin sector', quality.activeWithoutSector),
+            visibleMetric('Ausencias huérfanas', quality.absenceOrphans),
+            visibleMetric('Licencias huérfanas', quality.leaveOrphans)
+          ]);
+        } else if (intent === 'structure_analysis') {
+          var coverage = data.coverage || {};
+          var structureFilters = payload.conversationContext && payload.conversationContext.filters || payload.queryPlan && payload.queryPlan.filters || {};
+          var structureMatches = data.matches || {};
+          view.title = 'Estructura observada en GRH';
+          view.note = data.hierarchy && data.hierarchy.available === true
+            ? 'La cobertura es global para GRH. Las tablas sí respetan el filtro y muestran dimensiones literales; el catálogo permanece separado.'
+            : 'La cobertura es global para GRH. Las tablas sí respetan el filtro. La fuente no permite inferir un organigrama.';
+          var structureMetrics = [
+            visibleMetric('Global · legajos por empresa', coverage.historicalRecords),
+            visibleMetric('Global · activos por proxy', coverage.activeRecords),
+            visibleMetric('Global · con organización', coverage.withOrganization),
+            visibleMetric('Global · con sector', coverage.withSector),
+            visibleMetric('Global · con cargo', coverage.withRole),
+            visibleMetric('Global · organizaciones', coverage.organizationsObserved)
+          ];
+          if (structureFilters.organization && structureMatches.organizations) {
+            structureMetrics.push(visibleMetric('Filtro organización · coincidencias', structureMatches.organizations.total));
+            structureMetrics.push(visibleMetric('Filtro organización · mostradas', structureMatches.organizations.shown));
+          }
+          if (structureFilters.sector && structureMatches.sectors) {
+            structureMetrics.push(visibleMetric('Filtro sector · coincidencias', structureMatches.sectors.total));
+            structureMetrics.push(visibleMetric('Filtro sector · mostradas', structureMatches.sectors.shown));
+          }
+          if (structureFilters.role && structureMatches.roles) {
+            structureMetrics.push(visibleMetric('Filtro cargo · coincidencias', structureMatches.roles.total));
+            structureMetrics.push(visibleMetric('Filtro cargo · mostradas', structureMatches.roles.shown));
+          }
+          metrics(structureMetrics);
+          [['Organizaciones literales', data.organizations], ['Sectores observados', data.sectors], ['Cargos literales', data.roles]].forEach(function (group) {
+            var rows = Array.isArray(group[1]) ? group[1].map(function (row) {
+              return visibleRow([row && row.label, row && row.active, row && row.historical]);
+            }) : [];
+            section(group[0], ['Asignación', 'Activos', 'Históricos'], rows);
+          });
+        } else if (intent === 'absence_analysis') {
+          var summary = data.summary || {};
+          var effectiveRange = data.range && data.range.effective || {};
+          view.title = 'Ausentismo por filtros';
+          view.note = 'Son eventos administrativos. El sector es el observado al corte y los días declarados no son una tasa ni jornadas perdidas.';
+          metrics([
+            visibleMetric('Eventos', summary.events),
+            visibleMetric('Contratos vinculados', summary.affectedContracts),
+            visibleMetric('Días declarados en origen', summary.sourceDeclaredDays),
+            visibleMetric('Desde', effectiveRange.from),
+            visibleMetric('Hasta', effectiveRange.to)
+          ]);
+          section('Motivos principales', ['Motivo', 'Eventos', 'Contratos'], (Array.isArray(data.topReasons) ? data.topReasons : data.reasons || []).slice(0, 6).map(function (row) {
+            return visibleRow([row && row.label, row && row.events, row && row.affectedContracts]);
+          }));
+          section('Sectores actuales al corte', ['Sector actual', 'Eventos', 'Contratos'], (Array.isArray(data.topSectors) ? data.topSectors : data.sectors || []).slice(0, 6).map(function (row) {
+            return visibleRow([row && row.label, row && row.events, row && row.affectedContracts]);
+          }));
+        } else if (intent === 'absence_event_list') {
+          var pagination = data.pagination || {};
+          var range = data.range || {};
+          var requested = range.requested || {};
+          var effective = range.effective || {};
+          view.title = 'Eventos administrativos recuperados';
+          view.note = 'Rango pedido: ' + (requested.from || 'no informado') + ' a ' + (requested.to || 'no informado') + '. Rango efectivo: ' + (effective.from || 'no informado') + ' a ' + (effective.to || 'no informado') + '. Sector actual al corte; DIAS_24 no equivale a duración, tasa o jornadas perdidas.';
+          metrics([
+            visibleMetric('Eventos', pagination.total),
+            visibleMetric('Página', pagination.page),
+            visibleMetric('Páginas', pagination.pages)
+          ]);
+          section('Detalle local', ['Fecha', 'Empleado / legajo', 'Motivo', 'Sector actual', 'DIAS_24'], (Array.isArray(data.rows) ? data.rows : []).map(function (row) {
+            var person = row && row.contractId
+              ? [row.name || 'Nombre no informado', row.legajo ? 'legajo ' + row.legajo : 'legajo no informado'].join(' · ')
+              : 'Evento sin contrato vinculado';
+            return visibleRow([row && row.eventDate, person, row && row.reason, row && row.sector, row && row.sourceDeclaredDays]);
+          }));
+        } else if (intent === 'quality_analysis') {
+          var issues = data.issues || {};
+          var severity = issues.bySeverity || {};
+          view.title = 'Hallazgos registrados en snapshots publicados';
+          view.note = 'Son controles registrados, no un puntaje ni una cantidad de personas afectadas. Cero controles de PERSONAS significa no evaluado.';
+          metrics([
+            visibleMetric('Total registrados', issues.total),
+            visibleMetric('Abiertos', issues.open),
+            visibleMetric('Críticos', severity.critical),
+            visibleMetric('Errores', severity.error),
+            visibleMetric('Advertencias', severity.warning),
+            visibleMetric('Códigos distintos', issues.distinctCodes)
+          ]);
+        } else if (intent === 'quality_issue_list') {
+          var listPagination = data.pagination || {};
+          view.title = 'Hallazgos registrados en snapshots publicados';
+          view.note = 'Un hallazgo no equivale a una persona o legajo. “Detectado” no es el corte de la fuente; esta vista no resuelve casos. Cero registrado no significa limpio: puede ser no evaluado.';
+          metrics([
+            visibleMetric('Hallazgos', listPagination.total),
+            visibleMetric('Página', listPagination.page),
+            visibleMetric('Páginas', listPagination.pages)
+          ]);
+          section('Detalle local', ['Fuente', 'Entidad', 'Código', 'Severidad', 'Estado', 'Detectado'], (Array.isArray(data.rows) ? data.rows : []).map(function (row) {
+            return visibleRow([row && row.source, row && row.entity, row && row.code, readableCode(row && row.severity), readableCode(row && row.resolution), row && cleanText(row.detectedAt).slice(0, 10)]);
+          }));
+        } else if (intent === 'import_lineage') {
+          var lineageRows = Array.isArray(data.batches) ? data.batches : [];
+          view.title = 'Linaje de snapshots publicados';
+          view.note = 'Corte es la fecha de la fuente; carga es el ingreso a MuniControl. Son snapshots, no sincronización en vivo. El hash visible es sólo un prefijo.';
+          metrics([
+            visibleMetric('Snapshots mostrados', lineageRows.length),
+            visibleMetric('Conteos informados', lineageRows.filter(function (row) { return row && row.sourceRowCountStatus === 'reported'; }).length),
+            visibleMetric('Conteos no informados', lineageRows.filter(function (row) { return row && row.sourceRowCountStatus === 'not_reported'; }).length)
+          ]);
+          section('Snapshots por fuente', ['Fuente', 'Corte', 'Cargado', 'Filas', 'Validación', 'Hash (prefijo)'], lineageRows.map(function (row) {
+            var rowCount = row && row.sourceRowCountStatus === 'not_reported' ? 'No informado' : row && row.sourceRowCount;
+            return visibleRow([row && row.source, row && cleanText(row.cutoff).slice(0, 10), row && cleanText(row.loadedAt).slice(0, 10), rowCount, readableCode(row && row.validation), row && cleanText(row.sha256Prefix).slice(0, 12)]);
+          }));
+        }
+        return view.title ? view : null;
+      }
+
       function normalizeSources(value, fallbackCutoff) {
         if (!Array.isArray(value)) return [];
         return value.slice(0, 8).map(function (item) {
@@ -866,7 +1574,13 @@
 
       function normalizeSuggestions(value) {
         if (!Array.isArray(value)) return [];
-        return value.slice(0, 4).map(function (item) { return cleanText(item); }).filter(Boolean);
+        return value.slice(0, 4).map(function (item) {
+          if (typeof item === 'string') return contextualSuggestion(item, item, '', null);
+          if (!item || typeof item !== 'object') return null;
+          var label = cleanText(item.label || item.text || item.message);
+          if (!label) return null;
+          return contextualSuggestion(label, item.message || item.prompt || label, item.intent, item.conversationContext || item.context);
+        }).filter(Boolean);
       }
 
       function safeInternalPath(value) {
@@ -900,6 +1614,47 @@
             return 'Explicame cómo usar ' + cleanText(section && section.label, 'esta sección') + '.';
           });
         }
+        if (intent === 'operational_summary') return [
+          contextualSuggestion('Ver estructura observada', 'Mostrame las asignaciones observadas de estructura.', 'structure_analysis', contextForIntent('structure_analysis', payload.conversationContext, {})),
+          contextualSuggestion('Analizar ausentismo', 'Analizá los eventos administrativos de ausencia.', 'absence_analysis', contextForIntent('absence_analysis', payload.conversationContext, {})),
+          contextualSuggestion('Analizar calidad', 'Analizá los hallazgos registrados de calidad.', 'quality_analysis', contextForIntent('quality_analysis', payload.conversationContext, {}))
+        ];
+        if (intent === 'structure_analysis') return [
+          contextualSuggestion('Ver sectores observados', 'Mostrame los sectores observados con estos filtros.', 'structure_analysis', contextForIntent('structure_analysis', payload.conversationContext)),
+          contextualSuggestion('Explicar cobertura global', 'Explicá la cobertura global de las asignaciones.', 'structure_analysis', contextForIntent('structure_analysis', payload.conversationContext)),
+          contextualSuggestion('Volver al resumen operativo de GRH', 'Mostrame el resumen operativo de GRH.', 'operational_summary', contextForIntent('operational_summary', payload.conversationContext, {}))
+        ];
+        if (intent === 'absence_analysis') {
+          var analysisContext = contextWithEffectiveRange(payload);
+          return [
+            contextualSuggestion('Listar eventos con estos filtros', 'Listá los eventos administrativos de ausencia con estos filtros.', 'absence_event_list', contextForIntent('absence_event_list', analysisContext)),
+            contextualSuggestion('Ver el mismo período del año anterior', 'Analizá el ausentismo agregado del período anterior.', 'absence_analysis', previousYearContext('absence_analysis', analysisContext)),
+            contextualSuggestion('Volver al resumen operativo de GRH', 'Mostrame el resumen operativo de GRH.', 'operational_summary', contextForIntent('operational_summary', analysisContext, {}))
+          ];
+        }
+        if (intent === 'absence_event_list') {
+          var absenceContext = contextWithEffectiveRange(payload);
+          return [
+            contextualSuggestion('Resumir estos eventos sin datos nominales', 'Resumí los eventos administrativos de ausencia con estos filtros.', 'absence_analysis', contextForIntent('absence_analysis', absenceContext)),
+            contextualSuggestion('Ver el mismo período del año anterior', 'Mostrame los eventos administrativos de ausencia del período anterior.', 'absence_event_list', previousYearContext('absence_event_list', absenceContext)),
+            contextualSuggestion('Volver al análisis agregado de ausentismo', 'Analizá el ausentismo agregado con estos filtros.', 'absence_analysis', contextForIntent('absence_analysis', absenceContext))
+          ];
+        }
+        if (intent === 'quality_analysis') return [
+          contextualSuggestion('Listar hallazgos registrados', 'Listá los hallazgos registrados.', 'quality_issue_list', contextForIntent('quality_issue_list', payload.conversationContext)),
+          contextualSuggestion('Ver linaje de snapshots', 'Mostrame el linaje de los snapshots publicados.', 'import_lineage', contextForIntent('import_lineage', payload.conversationContext)),
+          contextualSuggestion('Revisar controles no materializados', '¿Qué fuentes todavía no tienen controles materializados?', 'quality_analysis', contextForIntent('quality_analysis', payload.conversationContext, {}))
+        ];
+        if (intent === 'quality_issue_list') return [
+          contextualSuggestion('Ver resumen agregado de calidad', 'Analizá los hallazgos agregados de calidad sin filtros de detalle.', 'quality_analysis', contextForIntent('quality_analysis', payload.conversationContext, {})),
+          contextualSuggestion('Ver linaje de estos snapshots', 'Mostrame el linaje de los snapshots publicados.', 'import_lineage', contextForIntent('import_lineage', payload.conversationContext)),
+          contextualSuggestion('Mostrar sólo críticos abiertos', 'Mostrá sólo hallazgos críticos abiertos.', 'quality_issue_list', contextForIntent('quality_issue_list', payload.conversationContext, Object.assign({}, payload.conversationContext && payload.conversationContext.filters, { severity: 'critical', resolution: 'open' })))
+        ];
+        if (intent === 'import_lineage') return [
+          contextualSuggestion('Ver hallazgos por fuente', 'Mostrame los hallazgos registrados por fuente.', 'quality_issue_list', contextForIntent('quality_issue_list', payload.conversationContext)),
+          contextualSuggestion('Explicar corte y carga', 'Explicá la diferencia entre corte y carga.', 'import_lineage', contextForIntent('import_lineage', payload.conversationContext)),
+          contextualSuggestion('Volver al resumen operativo de GRH', 'Mostrame el resumen operativo de GRH.', 'operational_summary', contextForIntent('operational_summary', payload.conversationContext, {}))
+        ];
         if (intent === 'employee_detail' && data.data && typeof data.data === 'object') {
           var employee = data.data;
           var detailFocus = cleanText(data.queryFocus);
@@ -936,6 +1691,11 @@
         if (intent === 'employee_detail' && focus === 'licenses') return 'Ficha y licencias históricas';
         if (intent === 'employee_detail' && focus === 'absences') return 'Ficha y ausencias';
         return ({
+          operational_summary: 'Resumen operativo de GRH',
+          structure_analysis: 'Estructura observada',
+          absence_event_list: 'Eventos administrativos de ausencia',
+          quality_issue_list: 'Hallazgos registrados',
+          import_lineage: 'Linaje de snapshots',
           workforce_summary: 'Dotación municipal',
           payroll_control: 'Control de nómina',
           integration_quality: 'Integración de identidad',
@@ -957,10 +1717,15 @@
         if (payload.ok === false) throw new Error(cleanText(payload.error || payload.message, 'El asistente informó que la consulta no pudo completarse.'));
         var answer = cleanText(payload.answer || payload.response || payload.message);
         if (!answer) throw new Error('El asistente no devolvió una respuesta utilizable.');
-        var providerUsed = payload.provider && payload.provider.externalProviderUsed === true;
+        var intent = cleanText(payload.intent || payload.topic);
+        var queryPlan = sanitizeQueryPlan(payload.queryPlan);
+        var conversationContext = sanitizeConversationContext(payload.conversationContext, queryPlan);
+        var localOnly = LOCAL_ONLY_INTENTS.includes(intent) || (queryPlan && queryPlan.externalPolicy === 'local_only');
+        var providerUsed = !localOnly && payload.provider && payload.provider.externalProviderUsed === true;
         var mode = ['deterministic', 'hybrid', 'degraded'].includes(payload.mode)
           ? payload.mode
           : (providerUsed ? 'hybrid' : 'deterministic');
+        if (localOnly) mode = 'deterministic';
         var insight = cleanText(payload.insight);
         if (insight) answer += '\n\nLectura asistida: ' + insight;
         var steps = Array.isArray(payload.steps) ? payload.steps.map(function (step) { return cleanText(step); }).filter(Boolean).slice(0, 8) : [];
@@ -971,10 +1736,15 @@
           role: 'assistant',
           content: answer,
           mode: mode,
-          nominalLocal: payload.privacy && payload.privacy.nominalQueries === 'local_database_only',
+          nominalLocal: ['employee_search', 'employee_detail'].includes(intent) && (localOnly || payload.privacy && payload.privacy.nominalQueries === 'local_database_only'),
+          localOnly: localOnly,
+          localLabel: ['absence_event_list'].includes(intent) ? 'Registro nominal · local' : 'Control interno · local',
           providerLabel: providerUsed ? ({ openai: 'OpenAI', huggingface: 'HF' })[cleanText(payload.provider && payload.provider.provider).toLowerCase()] || 'IA' : '',
           topic: topicLabel(payload),
           facts: factsFromPayload(payload),
+          resultView: normalizeResultView(payload),
+          queryPlan: queryPlan,
+          conversationContext: conversationContext,
           sources: normalizeSources(payload.sources, payload.cutoff || payload.asOf),
           suggestions: suggestionsFromPayload(payload),
           links: linksFromPayload(payload),
@@ -993,6 +1763,76 @@
         return node;
       }
 
+      function createResultView(view) {
+        if (!view) return null;
+        var host = createElement('section', 'result-view');
+        host.setAttribute('aria-label', view.title);
+        host.appendChild(createElement('h3', '', view.title));
+        if (view.note) host.appendChild(createElement('p', 'result-note', view.note));
+        if (view.metrics.length) {
+          var metrics = createElement('dl', 'result-metrics');
+          view.metrics.forEach(function (metric) {
+            var item = createElement('div', 'result-metric');
+            item.append(createElement('dt', '', metric.label), createElement('dd', '', metric.value));
+            metrics.appendChild(item);
+          });
+          host.appendChild(metrics);
+        }
+        view.sections.forEach(function (section) {
+          var block = createElement('section', 'result-section');
+          block.appendChild(createElement('h4', '', section.title));
+          var wrap = createElement('div', 'result-table-wrap');
+          wrap.tabIndex = 0;
+          wrap.setAttribute('aria-label', section.title + ', tabla desplazable');
+          var table = createElement('table', 'result-table');
+          var head = document.createElement('thead');
+          var headRow = document.createElement('tr');
+          section.columns.forEach(function (column) {
+            var th = createElement('th', '', column);
+            th.scope = 'col';
+            headRow.appendChild(th);
+          });
+          head.appendChild(headRow);
+          var body = document.createElement('tbody');
+          section.rows.forEach(function (row) {
+            var tr = document.createElement('tr');
+            row.forEach(function (value) { tr.appendChild(createElement('td', '', value)); });
+            body.appendChild(tr);
+          });
+          table.append(head, body);
+          wrap.appendChild(table);
+          block.appendChild(wrap);
+          host.appendChild(block);
+        });
+        return host;
+      }
+
+      function createQueryPlan(plan) {
+        if (!plan) return null;
+        var details = createElement('details', 'query-plan');
+        details.setAttribute('data-query-plan', plan.version || 'municipal_query_plan');
+        details.appendChild(createElement('summary', '', 'Cómo se resolvió esta consulta'));
+        var body = createElement('div', 'query-plan-body');
+        if (plan.resource) body.appendChild(createElement('span', 'plan-chip', 'Recurso: ' + readableResource(plan.resource)));
+        plan.resources.forEach(function (resource) {
+          if (resource.name === plan.resource) return;
+          body.appendChild(createElement('span', 'plan-chip', 'Fuente: ' + readableResource(resource.name)));
+        });
+        body.appendChild(createElement('span', 'plan-chip', plan.externalPolicy === 'local_only' ? 'Ruta: sólo local' : 'Ruta: agregado autorizado'));
+        Object.keys(plan.filters || {}).forEach(function (field) {
+          body.appendChild(createElement('span', 'plan-chip', contextLabel(field, plan.filters[field])));
+        });
+        if (plan.contextUsed.used) {
+          var fields = plan.contextUsed.fields.length ? ' · ' + plan.contextUsed.fields.map(readableCode).join(', ') : '';
+          body.appendChild(createElement('span', 'plan-chip', 'Contexto reutilizado' + fields));
+        }
+        plan.decisions.forEach(function (decision) {
+          body.appendChild(createElement('span', 'plan-chip', readableDecision(decision)));
+        });
+        details.appendChild(body);
+        return details;
+      }
+
       function createMessage(message) {
         var wrapper = createElement('article', 'message ' + message.role);
         var card = createElement('div', 'message-card');
@@ -1002,6 +1842,8 @@
         if (message.role === 'assistant') {
           var badgeLabel = message.nominalLocal
             ? 'Consulta nominal · local'
+            : message.localOnly
+              ? message.localLabel
             : message.providerLabel
               ? 'Asistida · ' + message.providerLabel
               : modeLabel(message.mode);
@@ -1022,6 +1864,10 @@
           var facts = createElement('ul', 'facts');
           message.facts.forEach(function (fact) { facts.appendChild(createElement('li', '', fact)); });
           body.appendChild(facts);
+        }
+
+        if (message.role === 'assistant' && message.resultView) {
+          body.appendChild(createResultView(message.resultView));
         }
 
         if (message.role === 'assistant') {
@@ -1053,13 +1899,20 @@
           if (message.suggestions.length) {
             var suggestionHost = createElement('div', 'suggestions');
             message.suggestions.forEach(function (suggestion) {
-              var button = createElement('button', 'suggestion-button', suggestion);
+              var item = typeof suggestion === 'string' ? contextualSuggestion(suggestion, suggestion, '', null) : suggestion;
+              if (!item || !item.label) return;
+              var button = createElement('button', 'suggestion-button', item.label);
               button.type = 'button';
-              button.addEventListener('click', function () { submitMessage(suggestion); });
+              if (item.intent) button.dataset.intent = item.intent;
+              button.addEventListener('click', function () {
+                submitMessage(item.message, { intent: item.intent, context: item.context, explicitFilters: item.explicitFilters });
+              });
               suggestionHost.appendChild(button);
             });
             body.appendChild(suggestionHost);
           }
+
+          if (message.queryPlan) body.appendChild(createQueryPlan(message.queryPlan));
         }
 
         card.append(header, body);
@@ -1073,6 +1926,7 @@
         messages.appendChild(createMessage(message));
         clearButton.disabled = false;
         messages.scrollTop = messages.scrollHeight;
+        if (message.role === 'assistant' && message.conversationContext) setActiveContext(message.conversationContext);
       }
 
       function addThinking() {
@@ -1109,9 +1963,24 @@
       }
 
       function historyForRequest() {
-        return state.messages.slice(-MAX_HISTORY).map(function (message) {
-          return { role: message.role, content: message.content };
+        if (!state.context) return [];
+        return state.messages.filter(function (message) {
+          return message.role === 'assistant' && message.conversationContext;
+        }).slice(-MAX_HISTORY).map(function (message) {
+          return { role: 'assistant', conversationContext: message.conversationContext };
         });
+      }
+
+      function requestBody(value, previousHistory, options) {
+        var body = { message: value, history: previousHistory, enhance: true };
+        var requestOptions = options && typeof options === 'object' ? options : {};
+        var context = sanitizeConversationContext(requestOptions.context || state.context);
+        if (context) body.context = context;
+        var explicitFilters = sanitizeFilters(requestOptions.explicitFilters || state.pendingFilters);
+        Object.keys(explicitFilters).forEach(function (field) { body[field] = explicitFilters[field]; });
+        var intent = boundedText(requestOptions.intent || state.pendingIntent, 48);
+        if (intent) body.intent = intent;
+        return body;
       }
 
       function removeFailedUserMessage() {
@@ -1134,7 +2003,61 @@
         return cleanText(error && error.message, 'No se pudo completar la consulta.');
       }
 
-      async function submitMessage(rawMessage) {
+      function safeReasonCandidates(error) {
+        var rows = error && error.payload && error.payload.data && Array.isArray(error.payload.data.candidates)
+          ? error.payload.data.candidates
+          : [];
+        return rows.slice(0, 6).map(function (row) {
+          if (!row || typeof row !== 'object') return null;
+          var code = boundedText(row.code, 64);
+          var label = boundedText(row.label, 120);
+          if (!code || !/^[a-z0-9._:-]+$/i.test(code)) return null;
+          return { code: code, label: label || 'Motivo homologado' };
+        }).filter(Boolean);
+      }
+
+      function handleRecoverableError(error) {
+        if (!error || error.status !== 409 || error.code !== 'ABSENCE_REASON_AMBIGUOUS') return false;
+        var candidates = safeReasonCandidates(error);
+        if (!candidates.length) return false;
+        var payload = error.payload || {};
+        var plan = sanitizeQueryPlan(payload.queryPlan);
+        var intent = boundedText(payload.intent || plan && plan.intent, 48) || 'absence_event_list';
+        var baseContext = sanitizeConversationContext(null, plan) || state.context;
+        var suggestions = candidates.map(function (candidate) {
+          var filters = Object.assign({}, baseContext && baseContext.filters || {});
+          delete filters.reason;
+          filters.reasonCode = candidate.code;
+          return contextualSuggestion(
+            candidate.code + ' · ' + candidate.label,
+            'Consultá los eventos administrativos de ausencia para el motivo código ' + candidate.code + '.',
+            intent,
+            contextForIntent(intent, baseContext, filters),
+            { reasonCode: candidate.code }
+          );
+        });
+        addMessage({
+          role: 'assistant',
+          content: 'El motivo coincide con más de un código homologado. Elegí una opción para repetir la consulta con un filtro exacto.',
+          mode: 'deterministic',
+          nominalLocal: false,
+          localOnly: true,
+          localLabel: 'Resolución local',
+          providerLabel: '',
+          topic: 'Elegir motivo homologado',
+          facts: candidates.map(function (candidate) { return candidate.code + ': ' + candidate.label; }),
+          resultView: null,
+          queryPlan: plan,
+          conversationContext: null,
+          sources: [{ label: 'GRH · catálogo de motivos', asOf: '' }],
+          suggestions: suggestions,
+          links: [],
+          createdAt: new Date()
+        });
+        return true;
+      }
+
+      async function submitMessage(rawMessage, options) {
         var value = cleanText(rawMessage !== undefined ? rawMessage : input.value);
         if (!value || state.busy || redirectIssued) return;
         var previousHistory = historyForRequest();
@@ -1150,16 +2073,24 @@
           var payload = await requestJSON(ASSISTANT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: value, history: previousHistory, enhance: true }),
+            body: JSON.stringify(requestBody(value, previousHistory, options)),
             signal: pendingController.signal
           });
           removeThinking();
           addMessage(normalizeAnswer(payload));
+          state.pendingIntent = '';
+          state.pendingFilters = null;
           composerStatus.dataset.state = 'ready';
           composerStatus.textContent = 'Respuesta lista. Revisá fuentes y corte.';
         } catch (error) {
           removeThinking();
           if (error && error.code === 'AUTH_REQUIRED') return;
+          if (handleRecoverableError(error)) {
+            state.pendingFilters = null;
+            composerStatus.dataset.state = 'ready';
+            composerStatus.textContent = 'Elegí un código homologado para continuar.';
+            return;
+          }
           removeFailedUserMessage();
           composerStatus.dataset.state = 'error';
           composerStatus.textContent = friendlyError(error);
@@ -1177,7 +2108,7 @@
         emptyState.hidden = false;
         clearButton.disabled = true;
         composerStatus.removeAttribute('data-state');
-        composerStatus.textContent = 'Conversación eliminada de esta pestaña.';
+        composerStatus.textContent = state.context ? 'Mensajes eliminados. El contexto activo se conserva hasta que lo quites.' : 'Conversación eliminada de esta pestaña.';
         input.value = '';
         input.focus();
       }
@@ -1225,10 +2156,48 @@
           await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
         } finally {
           state.messages = [];
+          state.context = null;
+          state.pendingIntent = '';
+          state.pendingFilters = null;
           sessionStorage.removeItem('mjunin_user');
           redirectToLogin();
         }
       }
+
+      contextFilterForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var validatesDates = contextDomain.value === 'auto' || contextDomain.value.indexOf('absence_') === 0;
+        if (validatesDates && contextFrom.value && contextTo.value && contextFrom.value > contextTo.value) {
+          composerStatus.dataset.state = 'error';
+          composerStatus.textContent = 'El filtro Desde no puede ser posterior a Hasta.';
+          contextFrom.focus();
+          return;
+        }
+        var context = contextFromForm();
+        state.pendingIntent = contextDomain.value !== 'auto' ? contextDomain.value : '';
+        state.pendingFilters = context ? sanitizeFilters(context.filters) : null;
+        setActiveContext(context, false);
+        composerStatus.removeAttribute('data-state');
+        composerStatus.textContent = context ? 'Contexto aplicado. Escribí la consulta que querés resolver.' : 'Filtros restablecidos. La próxima consulta será libre.';
+        input.focus();
+      });
+      contextDomain.addEventListener('change', updateFilterVisibility);
+      resetFilterButton.addEventListener('click', function () {
+        contextFilterForm.reset();
+        state.pendingIntent = '';
+        state.pendingFilters = null;
+        setActiveContext(null);
+        composerStatus.removeAttribute('data-state');
+        composerStatus.textContent = 'Filtros y contexto restablecidos.';
+      });
+      clearContextButton.addEventListener('click', function () {
+        state.pendingIntent = '';
+        state.pendingFilters = null;
+        setActiveContext(null);
+        composerStatus.removeAttribute('data-state');
+        composerStatus.textContent = 'Contexto eliminado. La próxima consulta será libre.';
+        input.focus();
+      });
 
       form.addEventListener('submit', function (event) {
         event.preventDefault();
@@ -1254,6 +2223,10 @@
       retryButton.addEventListener('click', authenticate);
       logoutButton.addEventListener('click', logout);
 
+      var initialContextIntent = INITIAL_CONTEXT_INTENTS[cleanText(initialContext).toLowerCase()];
+      if (initialContextIntent) state.context = sanitizeConversationContext({ intent: initialContextIntent, domain: INTENT_DOMAINS[initialContextIntent] || initialContext });
+      syncContextForm(state.context);
+      renderActiveContext();
       authenticate();
     }());
   </script>

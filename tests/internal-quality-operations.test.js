@@ -219,6 +219,11 @@ test('importLineage publica dos snapshots, distingue no reportado y no interpret
   assert.equal(result.payload.data[1].sha256Prefix, 'BBBBBBBBBBBB');
   assert.equal(result.payload.meta.zeroTrackedIssuesDoesNotMeanClean, true);
   assert.doesNotMatch(JSON.stringify(result.payload), new RegExp('B'.repeat(64)));
+  const lineageCall = sql.calls.find((call) => call.marker === 'lineage');
+  assert.match(
+    lineageCall.sql,
+    /ORDER BY batch\.source_system, batch\.source_cutoff DESC NULLS LAST,\s*batch\.recorded_at DESC, batch\.id DESC/i,
+  );
 });
 
 test('el handler publica los tres recursos DQ-01', async () => {
@@ -226,4 +231,9 @@ test('el handler publica los tres recursos DQ-01', async () => {
   assert.match(source, /resource === 'qualityoverview'/);
   assert.match(source, /resource === 'qualityissues'/);
   assert.match(source, /resource === 'importlineage'/);
+  assert.match(
+    source,
+    /ORDER BY batch\.source_system, batch\.source_cutoff DESC NULLS LAST,\s*batch\.recorded_at DESC, batch\.id DESC/,
+    'el último snapshot debe desempatarse por carga e id, no por orden incidental',
+  );
 });

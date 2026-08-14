@@ -128,6 +128,25 @@ test('absenceAnalytics acota el rango al snapshot y parametriza sector/motivo', 
   assert.match(summaryCall.sql, /absence\.fecha >= \$1::date/);
 });
 
+test('absenceAnalytics rechaza rangos totalmente fuera de la cobertura sin consultar eventos de otra fecha', async () => {
+  for (const query of [
+    { from: '2030-01-01', to: '2030-12-31' },
+    { from: '1980-01-01', to: '1989-12-31' }
+  ]) {
+    const sql = fixtureSql();
+    const result = await absenceAnalytics(sql, { query });
+
+    assert.equal(result.status, 422);
+    assert.equal(result.payload.code, 'ABSENCE_RANGE_OUTSIDE_SOURCE');
+    assert.deepEqual(result.payload.range.requested, query);
+    assert.deepEqual(result.payload.range.available, {
+      from: '1990-01-01',
+      to: '2026-08-06'
+    });
+    assert.deepEqual(sql.calls.map((call) => call.marker), ['source']);
+  }
+});
+
 test('absenceAnalytics compara sólo la misma ventana calendario del año previo', async () => {
   const sql = fixtureSql();
   const result = await absenceAnalytics(sql, {

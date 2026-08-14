@@ -19,7 +19,7 @@ function positiveInteger(value, fallback, maximum) {
   return Math.min(number, maximum);
 }
 
-async function summary(sql) {
+export async function summary(sql) {
   const [totals] = await sql.query(`
     SELECT
       (SELECT count(*)::int FROM grh_employees) AS historical_records,
@@ -914,6 +914,22 @@ function absenceRequest(req, source, { allowBucket = false } = {}) {
   if (requestedFrom > requestedTo) {
     return { error: { status: 400, payload: { ok: false, code: 'ABSENCE_RANGE_INVALID', error: 'El inicio no puede ser posterior al fin' } } };
   }
+  if (requestedTo < ABSENCE_MIN_DATE || requestedFrom > source.cutoff) {
+    return {
+      error: {
+        status: 422,
+        payload: {
+          ok: false,
+          code: 'ABSENCE_RANGE_OUTSIDE_SOURCE',
+          error: `El período solicitado no intersecta la cobertura disponible (${ABSENCE_MIN_DATE} a ${source.cutoff}).`,
+          range: {
+            requested: { from: requestedFrom, to: requestedTo },
+            available: { from: ABSENCE_MIN_DATE, to: source.cutoff }
+          }
+        }
+      }
+    };
+  }
   const effectiveFrom = requestedFrom < ABSENCE_MIN_DATE
     ? ABSENCE_MIN_DATE
     : requestedFrom > source.cutoff ? source.cutoff : requestedFrom;
@@ -1614,7 +1630,8 @@ export async function importLineage(sql) {
     GROUP BY batch.id, batch.source_system, batch.source_cutoff,
              batch.recorded_at, batch.validation_state,
              batch.source_row_count, batch.source_sha256
-    ORDER BY batch.source_system, batch.source_cutoff DESC
+    ORDER BY batch.source_system, batch.source_cutoff DESC NULLS LAST,
+             batch.recorded_at DESC, batch.id DESC
   `);
   const batches = rows.map((row) => {
     const sourceRowCount = row.sourceRowCount === null || row.sourceRowCount === undefined
