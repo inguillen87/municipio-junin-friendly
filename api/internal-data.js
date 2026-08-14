@@ -1,5 +1,10 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
+import {
+  annualLeaveReference,
+  getTitleViCatalog,
+  reasonPolicyMapping,
+} from '../assets/mendoza-title-vi.js';
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -1674,6 +1679,354 @@ export async function importLineage(sql) {
   };
 }
 
+const LEAVE_ANNUAL_REASON_CODES = Object.freeze(['19', '21', '30']);
+
+async function leaveSourceContext(sql) {
+  const [source = null] = await sql.query(`
+    /* leave-normative:source */
+    SELECT run.id AS "importId", run.source_name AS name, run.source_sha256 AS sha256,
+           run.source_cutoff AS "sourceCutoff", run.completed_at AS "importedAt", run.status
+    FROM data_import_runs run
+    WHERE run.status = 'completed'
+      AND EXISTS (SELECT 1 FROM grh_absences absence WHERE absence.import_run_id = run.id)
+    ORDER BY run.completed_at DESC NULLS LAST, run.id DESC
+    LIMIT 1
+  `);
+  const cutoff = isoDate(source?.sourceCutoff);
+  if (!source || !cutoff || cutoff < ABSENCE_MIN_DATE) return null;
+  return { ...source, cutoff };
+}
+
+function sourceNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function leaveMappingRow(row = {}) {
+  return {
+    reasonCode: row.reasonCode == null ? null : String(row.reasonCode),
+    label: row.label || 'Sin etiqueta GRH',
+    sourceConfiguration: {
+      isLeave: absenceBoolean(row.isLeave),
+      monthlyLimit: sourceNumber(row.monthlyLimit),
+      annualLimit: sourceNumber(row.annualLimit),
+      calendarDays: absenceBoolean(row.calendarDays),
+      affectsAttendanceBonus: absenceBoolean(row.affectsAttendanceBonus),
+      generatesDiscountedDays: absenceBoolean(row.generatesDiscountedDays),
+      calculationMethod: row.calculationMethod || null,
+    },
+    observed: {
+      events: absenceNumber(row.events),
+      affectedContracts: absenceNumber(row.affectedContracts),
+      sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays),
+    },
+    policy: reasonPolicyMapping(row.reasonCode),
+  };
+}
+
+export async function leaveNormative(sql) {
+  const source = await leaveSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'LEAVE_SOURCE_NOT_LOADED', error: 'La fuente GRH de licencias no esta disponible' } };
+  }
+
+  const [[readiness = {}], reasonRows] = await Promise.all([
+    sql.query(`
+      /* leave-normative:readiness */
+      SELECT
+        (SELECT count(*)::int FROM grh_employees) AS "employmentRecords",
+        (SELECT count(*)::int FROM grh_employees WHERE activo) AS "activeRecords",
+        (SELECT count(*)::int FROM grh_employees WHERE activo AND fecha_ingreso IS NOT NULL) AS "activeWithHireDate",
+        (SELECT count(*)::int FROM grh_employees WHERE activo AND fecha_ingreso IS NULL) AS "activeWithoutHireDate",
+        (SELECT count(*)::int FROM grh_employees
+          WHERE activo AND fecha_ingreso IS NOT NULL
+            AND fecha_ingreso <= $1::date - interval '5 years'
+            AND COALESCE(
+              CASE
+                WHEN NULLIF(source_payload #>> '{employment,seniorityYears}', '') ~ '^-?[0-9]+(?:\\.[0-9]+)?$'
+                  THEN (source_payload #>> '{employment,seniorityYears}')::numeric
+                ELSE NULL
+              END,
+              0
+            ) = 0
+        ) AS "activeOldHireDateZeroSourceSeniority",
+        (SELECT count(*)::int FROM grh_employees
+          WHERE activo AND NULLIF(source_payload #>> '{employment,dailyHours}', '') IS NOT NULL
+        ) AS "activeWithDeclaredDailyHours",
+        (SELECT count(*)::int FROM grh_employees
+          WHERE activo AND NULLIF(source_payload #>> '{employment,monthlyHours}', '') IS NOT NULL
+        ) AS "activeWithDeclaredMonthlyHours",
+        (SELECT count(*)::int FROM grh_absences) AS "absenceSourceRows",
+        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date) AS "absenceRowsWithinCoverage",
+        (SELECT count(*)::int FROM grh_absences WHERE fecha < DATE '1990-01-01') AS "absenceRowsBeforeMinimum",
+        (SELECT count(*)::int FROM grh_absences WHERE fecha > $1::date) AS "absenceRowsAfterCutoff",
+        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha) AS "absenceInvertedRanges",
+        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')) AS "absenceMissingReason",
+        (SELECT count(*)::int FROM grh_absences absence
+          LEFT JOIN grh_employees employee USING (company_id, legajo)
+          WHERE absence.fecha BETWEEN DATE '1990-01-01' AND $1::date AND employee.legajo IS NULL
+        ) AS "absenceUnlinkedRows",
+        (SELECT count(*)::int FROM grh_leaves) AS "legacyLeaveRows",
+        (SELECT min(fecha_inicio) FROM grh_leaves WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
+        (SELECT max(fecha_inicio) FROM grh_leaves WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate",
+        (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'absence_reasons') AS "reasonCatalogRows"
+    `, [source.cutoff]),
+    sql.query(`
+      /* leave-normative:reason-mapping */
+      SELECT catalog.source_payload #>> '{sourceKey,reasonCode}' AS "reasonCode",
+             COALESCE(NULLIF(btrim(catalog.label), ''), 'Sin etiqueta GRH') AS label,
+             catalog.source_payload ->> 'isLeave' AS "isLeave",
+             catalog.source_payload ->> 'monthlyLimit' AS "monthlyLimit",
+             catalog.source_payload ->> 'annualLimit' AS "annualLimit",
+             catalog.source_payload ->> 'calendarDays' AS "calendarDays",
+             catalog.source_payload ->> 'affectsAttendanceBonus' AS "affectsAttendanceBonus",
+             catalog.source_payload ->> 'generatesDiscountedDays' AS "generatesDiscountedDays",
+             catalog.source_payload ->> 'calculationMethod' AS "calculationMethod",
+             count(absence.*)::int AS events,
+             count(DISTINCT contract.id)::int AS "affectedContracts",
+             COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+      FROM grh_catalog_rows catalog
+      LEFT JOIN grh_absences absence
+        ON absence.motivo_code = catalog.source_payload #>> '{sourceKey,reasonCode}'
+       AND absence.fecha BETWEEN DATE '1990-01-01' AND $1::date
+      LEFT JOIN employment_contract contract
+        ON contract.source_system = 'GRH'
+       AND contract.legacy_company_id = absence.company_id
+       AND contract.legacy_legajo = absence.legajo
+      WHERE catalog.catalog = 'absence_reasons'
+      GROUP BY catalog.source_key, catalog.label, catalog.source_payload
+      ORDER BY
+        CASE
+          WHEN catalog.source_payload #>> '{sourceKey,reasonCode}' ~ '^[0-9]+$'
+            THEN (catalog.source_payload #>> '{sourceKey,reasonCode}')::int
+          ELSE NULL
+        END NULLS LAST,
+        catalog.source_payload #>> '{sourceKey,reasonCode}'
+    `, [source.cutoff]),
+  ]);
+
+  const mappings = reasonRows.map(leaveMappingRow);
+  const conflictStatuses = new Set(['configuration_conflict', 'requires_version_check', 'requires_local_rule', 'unmapped']);
+  const mappingConflicts = mappings.filter((row) => conflictStatuses.has(row.policy.status)).length;
+  const catalog = getTitleViCatalog();
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        legal: catalog,
+        readiness: {
+          employment: {
+            records: absenceNumber(readiness.employmentRecords),
+            activeRecords: absenceNumber(readiness.activeRecords),
+            activeWithHireDate: absenceNumber(readiness.activeWithHireDate),
+            activeWithoutHireDate: absenceNumber(readiness.activeWithoutHireDate),
+            activeOldHireDateZeroSourceSeniority: absenceNumber(readiness.activeOldHireDateZeroSourceSeniority),
+            recognizedSeniorityStatus: 'not_homologated',
+          },
+          absences: {
+            sourceRows: absenceNumber(readiness.absenceSourceRows),
+            rowsWithinCoverage: absenceNumber(readiness.absenceRowsWithinCoverage),
+            excludedBeforeMinimum: absenceNumber(readiness.absenceRowsBeforeMinimum),
+            excludedAfterCutoff: absenceNumber(readiness.absenceRowsAfterCutoff),
+            invertedRanges: absenceNumber(readiness.absenceInvertedRanges),
+            missingReason: absenceNumber(readiness.absenceMissingReason),
+            unlinkedRows: absenceNumber(readiness.absenceUnlinkedRows),
+            sourceDeclaredDaysSemantics: ABSENCE_UNIT_SEMANTICS,
+          },
+          legacyLeaves: {
+            rows: absenceNumber(readiness.legacyLeaveRows),
+            minDate: isoDate(readiness.legacyLeaveMinDate),
+            maxDate: isoDate(readiness.legacyLeaveMaxDate),
+            status: 'historical_not_current_ledger',
+          },
+          schedules: {
+            activeWithDeclaredDailyHours: absenceNumber(readiness.activeWithDeclaredDailyHours),
+            activeWithDeclaredMonthlyHours: absenceNumber(readiness.activeWithDeclaredMonthlyHours),
+            declaredValuesStatus: 'source_master_data_not_worked_hours',
+          },
+          workedHours: {
+            status: 'not_calculable',
+            reasons: ['current_shift_assignments_unavailable', 'current_time_punches_unavailable', 'current_holiday_calendar_unavailable', 'partial_leave_intervals_unavailable'],
+          },
+          leaveBalance: {
+            status: 'not_calculable',
+            reasons: ['current_entitlement_ledger_unavailable', 'approved_case_decisions_unavailable', 'carryover_not_reconciled'],
+          },
+          reasonCatalog: {
+            rows: absenceNumber(readiness.reasonCatalogRows),
+            mappingConflicts,
+            authority: 'GRH_configuration_is_not_verified_law',
+          },
+        },
+        mappings,
+      },
+      meta: {
+        authority: ['Ley 5811 Titulo VI', 'Ley 5892', 'Ordenanza Junin 1021/2025', 'GRH'],
+        policyVersionId: catalog.version,
+        legalVerifiedAt: catalog.verifiedAt,
+        calculationPolicy: 'fail_closed',
+        legalDecisionAllowed: false,
+        containsPersonalData: false,
+        source: { importId: source.importId, name: source.name, cutoff: source.cutoff, importedAt: source.importedAt },
+      },
+    },
+  };
+}
+
+export async function leavePreview(sql, req) {
+  const source = await leaveSourceContext(sql);
+  if (!source) {
+    return { status: 503, payload: { ok: false, code: 'LEAVE_SOURCE_NOT_LOADED', error: 'La fuente GRH de licencias no esta disponible' } };
+  }
+  const companyIdText = boundedQueryValue(req, 'companyId', 32);
+  const legajo = boundedQueryValue(req, 'legajo', 64);
+  if (!companyIdText || !/^\d+$/.test(companyIdText) || !legajo) {
+    return { status: 400, payload: { ok: false, code: 'LEAVE_EMPLOYEE_REQUIRED', error: 'Selecciona una empresa y un legajo validos' } };
+  }
+  const companyId = Number(companyIdText);
+  if (!Number.isSafeInteger(companyId)) {
+    return { status: 400, payload: { ok: false, code: 'LEAVE_COMPANY_INVALID', error: 'Empresa invalida' } };
+  }
+  const catalog = getTitleViCatalog();
+  const sourceYear = Number(source.cutoff.slice(0, 4));
+  const supportedYears = catalog.applicability.supportedEvaluationYears
+    .filter((candidate) => Number.isInteger(candidate) && candidate <= sourceYear);
+  const yearText = boundedQueryValue(req, 'year', 4) || String(supportedYears.at(-1) || '');
+  if (!/^\d{4}$/.test(yearText) || !supportedYears.includes(Number(yearText))) {
+    return {
+      status: 422,
+      payload: {
+        ok: false,
+        code: 'LEAVE_YEAR_OUTSIDE_POLICY_VERSION',
+        error: supportedYears.length
+          ? `La politica normativa vigente solo habilita la evaluacion orientativa para ${supportedYears.join(', ')}`
+          : 'La politica normativa no tiene un periodo compatible con la fuente GRH',
+      },
+    };
+  }
+  const year = Number(yearText);
+  const rangeFrom = `${yearText}-01-01`;
+  const rangeTo = year === sourceYear ? source.cutoff : `${yearText}-12-31`;
+  const [employeeRow = null] = await sql.query(`
+    /* leave-preview:employee */
+    SELECT company_id AS "companyId", legajo, nombre, activo,
+           fecha_ingreso AS "hireDate", fecha_egreso AS "exitDate",
+           sector, categoria, convenio, cargo,
+           source_payload #>> '{employment,seniorityYears}' AS "sourceSeniorityYears",
+           source_payload #>> '{employment,seniorityMonths}' AS "sourceSeniorityMonths",
+           source_payload #>> '{employment,dailyHours}' AS "declaredDailyHours",
+           source_payload #>> '{employment,monthlyHours}' AS "declaredMonthlyHours"
+    FROM grh_employees
+    WHERE company_id = $1 AND legajo = $2
+    LIMIT 1
+  `, [companyId, legajo]);
+  if (!employeeRow) {
+    return { status: 404, payload: { ok: false, code: 'LEAVE_EMPLOYEE_NOT_FOUND', error: 'No se encontro el legajo solicitado' } };
+  }
+
+  const observedRows = await sql.query(`
+    /* leave-preview:observed-annual-events */
+    SELECT absence.motivo_code AS "reasonCode",
+           COALESCE(NULLIF(btrim(catalog.label), ''), 'Sin etiqueta GRH') AS label,
+           count(*)::int AS events,
+           COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
+    FROM grh_absences absence
+    LEFT JOIN grh_catalog_rows catalog
+      ON catalog.catalog = 'absence_reasons'
+     AND catalog.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
+    WHERE absence.company_id = $1 AND absence.legajo = $2
+      AND absence.fecha BETWEEN $3::date AND $4::date
+      AND absence.motivo_code = ANY($5::text[])
+      AND (absence.fecha_hasta IS NULL OR absence.fecha_hasta >= absence.fecha)
+    GROUP BY absence.motivo_code, catalog.label
+    ORDER BY absence.motivo_code
+  `, [companyId, legajo, rangeFrom, rangeTo, LEAVE_ANNUAL_REASON_CODES]);
+
+  const annualReference = annualLeaveReference({ hireDate: isoDate(employeeRow.hireDate), year });
+  const observed = observedRows.map((row) => ({
+    reasonCode: row.reasonCode,
+    label: row.label,
+    events: absenceNumber(row.events),
+    sourceDeclaredDays: absenceNumber(row.sourceDeclaredDays),
+    semantics: 'Evidencia GRH; no equivale a licencia aprobada, consumo conciliado ni saldo.',
+  }));
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        employee: {
+          companyId: employeeRow.companyId,
+          legajo: employeeRow.legajo,
+          name: employeeRow.nombre || 'Sin nombre informado',
+          activeAdministrativeProxy: employeeRow.activo === true,
+          hireDate: isoDate(employeeRow.hireDate),
+          exitDate: isoDate(employeeRow.exitDate),
+          sector: employeeRow.sector || null,
+          category: employeeRow.categoria || null,
+          agreement: employeeRow.convenio || null,
+          role: employeeRow.cargo || null,
+        },
+        evaluation: { year, referenceDate: `${yearText}-12-31`, sourceCoverageTo: rangeTo },
+        annualOrdinary: {
+          ...annualReference,
+          status: annualReference.status === 'conditional' ? 'conditional' : 'not_calculable',
+          interpretation: 'Referencia orientativa basada en fecha de ingreso GRH; no es saldo, concesion ni acto administrativo.',
+          observedGrhEvents: observed,
+          observedSourceDeclaredDays: observed.reduce((sum, row) => sum + row.sourceDeclaredDays, 0),
+          balance: null,
+          approval: null,
+        },
+        healthLeave: {
+          status: 'not_calculable',
+          reason: 'Requiere control medico, cargas familiares, recidiva, antiguedad reconocida y decision autorizada.',
+          exactFiveYearBoundaryPolicy: 'human_legal_review_required',
+        },
+        workedHours: {
+          status: 'not_calculable',
+          declaredSchedule: {
+            dailyHours: sourceNumber(employeeRow.declaredDailyHours),
+            monthlyHours: sourceNumber(employeeRow.declaredMonthlyHours),
+            semantics: 'Carga horaria declarada en el maestro GRH; no son horas efectivamente trabajadas.',
+          },
+          missingFacts: ['currentShiftAssignment', 'currentTimePunches', 'currentHolidayCalendar', 'authorizedPartialAbsences'],
+        },
+        sourceSeniority: {
+          years: sourceNumber(employeeRow.sourceSeniorityYears),
+          months: sourceNumber(employeeRow.sourceSeniorityMonths),
+          status: 'source_value_not_homologated',
+        },
+        sources: [
+          ...catalog.sources
+            .filter((item) => ['ley-5811-consolidada', 'ley-5892-estatuto-municipal', 'ordenanza-junin-1021-2025'].includes(item.id))
+            .map((item) => ({ ...item, verifiedAt: catalog.verifiedAt })),
+          {
+            id: 'grh-source-snapshot',
+            label: 'GRH - evidencia laboral y eventos registrados',
+            authority: 'Municipalidad de Junin',
+            scope: 'Fecha de ingreso y eventos GRH; no acredita antiguedad reconocida, aprobacion ni saldo',
+            status: 'source_snapshot',
+            asOf: source.cutoff,
+          },
+        ],
+      },
+      meta: {
+        authority: 'GRH + catalogo tecnico Ley 5811 Titulo VI',
+        policyVersionId: catalog.version,
+        applicabilityProfileId: 'junin-ordenanza-1021-2025-fiscal-2026-pending-category-validation',
+        engineVersion: 'annual-leave-reference.v1',
+        status: 'decision_support_only',
+        containsPersonalData: true,
+        externalSharingAllowed: false,
+        legalDecisionAllowed: false,
+        source: { importId: source.importId, cutoff: source.cutoff, importedAt: source.importedAt },
+      },
+    },
+  };
+}
+
 const DIRECTORY_STATUS = new Set([
   'all', 'active', 'administrative_active', 'liquidable', 'gap',
   'inactive', 'state_error', 'unknown'
@@ -2254,6 +2607,14 @@ export default async function handler(req, res) {
     }
     if (resource === 'absenceevents') {
       const result = await absenceEvents(sql, req);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'leavenormative') {
+      const result = await leaveNormative(sql);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'leavepreview') {
+      const result = await leavePreview(sql, req);
       return send(res, result.status, result.payload);
     }
     if (resource === 'qualityoverview') {

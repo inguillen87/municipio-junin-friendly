@@ -314,7 +314,7 @@
         ];
         $('qualityCards').innerHTML=cards.map(card=>`<article class="quality-card ${card.tone}"><div class="eyebrow">${esc(card.label)}</div><div class="value">${format(card.value)}${card.suffix||''}</div><p>${esc(card.copy)}</p></article>`).join('');
         const availability=[
-          ['Dotación agregada','Dashboard y distribuciones','verified'],['Comparación de gestiones','Altas, bajas y balance','derived'],['Eventos de ausencia','Conteos y tendencia','verified'],['Importes de nómina','Sólo control interno cerrado','internal'],['Ejecución presupuestaria','Esperar fuente oficial','unavailable'],['Licencias actuales','Histórico disponible sólo hasta 2009','unavailable']
+          ['Dotación agregada','Dashboard y distribuciones','verified'],['Comparación de gestiones','Altas, bajas y balance','derived'],['Eventos de ausencia','Conteos y tendencia','verified'],['Importes de nómina','Sólo control interno cerrado','internal'],['Control normativo de licencias','Ley 5811 + perfil Junín + evidencia GRH','internal'],['Saldos actuales de licencia','Sin ledger vigente conciliado','unavailable'],['Ejecución presupuestaria','Esperar fuente oficial','unavailable']
         ];
         const labels={verified:['Fuente verificada','real'],derived:['Derivado','derived'],internal:['Disponible interno','derived'],unavailable:['No disponible','unavailable']};
         $('availabilityRows').innerHTML=availability.map(row=>`<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td><span class="tag ${labels[row[2]][1]}">${labels[row[2]][0]}</span></td></tr>`).join('');

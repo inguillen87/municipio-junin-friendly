@@ -16,11 +16,13 @@ const shellFiles = [
   'integracion-datos.html',
   'nomina-control.html',
   'ausentismo-control.html',
+  'licencias-control.html',
   'calidad-operativa.html',
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-guide.js',
   'assets/product-guidance.js',
+  'assets/mendoza-title-vi.js',
   'datos-personales.html',
   'friendly-data.json'
 ];

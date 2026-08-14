@@ -42,6 +42,7 @@ const INTENTS = new Set([
   'integration_quality',
   'quality_analysis',
   'absence_analysis',
+  'leave_policy',
   'operational_summary',
   'structure_analysis',
   'absence_event_list',
@@ -82,6 +83,7 @@ const NOMINAL_OR_INTERNAL_ONLY_INTENTS = new Set([
   'absence_event_list',
   'quality_issue_list',
   'import_lineage',
+  'leave_policy',
 ]);
 
 const INTENT_RESOURCES = Object.freeze({
@@ -90,6 +92,7 @@ const INTENT_RESOURCES = Object.freeze({
   integration_quality: ['integrationquality', 'canonicalscope'],
   quality_analysis: ['qualityoverview'],
   absence_analysis: ['absenceanalytics'],
+  leave_policy: ['leavenormative'],
   operational_summary: ['summary'],
   structure_analysis: ['structure'],
   absence_event_list: ['absenceevents'],
@@ -259,6 +262,52 @@ function extractLabelFilter(bodyValue, message, label, maximum = 160) {
   return normalizeText(match?.[1], maximum);
 }
 
+function normalizeLeaveArticleSelector(value) {
+  const candidate = typeof value === 'number' && Number.isFinite(value) ? String(value) : value;
+  const match = foldText(candidate).match(/^\s*(\d{1,3})(?:\.\d+)?(?:\s*(bis))?\s*$/);
+  if (!match) return '';
+  const article = Number(match[1]);
+  if (!Number.isInteger(article) || article < 1 || article > 999) return '';
+  return `${article}${match[2] ? ' bis' : ''}`;
+}
+
+function leaveArticleSelectors(body = {}, message = '') {
+  const selectors = [];
+  const add = (value) => {
+    const normalized = normalizeLeaveArticleSelector(value);
+    if (normalized && !selectors.includes(normalized)) selectors.push(normalized);
+  };
+  const explicit = Array.isArray(body.articles)
+    ? body.articles
+    : normalizeText(body.articles, 240).split(/[,;]+/);
+  explicit.forEach(add);
+  add(body.article);
+
+  const text = foldAssistantQuery(message);
+  for (const range of text.matchAll(/\bart(?:iculo)?s?\.?\s*(\d{1,3})(?:\.\d+)?(?:\s*(bis))?\s*(?:a|al|hasta|-)\s*(\d{1,3})(?:\.\d+)?(?:\s*(bis))?/g)) {
+    const first = Number(range[1]);
+    const last = Number(range[3]);
+    if (range[2] || range[4] || !Number.isInteger(first) || !Number.isInteger(last)) {
+      add(`${range[1]}${range[2] ? ' bis' : ''}`);
+      add(`${range[3]}${range[4] ? ' bis' : ''}`);
+      continue;
+    }
+    const start = Math.min(first, last);
+    const end = Math.max(first, last);
+    if (end - start <= 64) {
+      for (let article = start; article <= end; article += 1) add(String(article));
+    }
+  }
+  for (const match of text.matchAll(/\bart(?:iculo)?s?\.?\s*(\d{1,3})(?:\.\d+)?(?:\s*(bis))?/g)) {
+    add(`${match[1]}${match[2] ? ' bis' : ''}`);
+  }
+  return selectors.sort((left, right) => {
+    const leftNumber = Number(left.match(/^\d+/)?.[0]);
+    const rightNumber = Number(right.match(/^\d+/)?.[0]);
+    return leftNumber - rightNumber || left.localeCompare(right, 'es');
+  });
+}
+
 const QUALITY_CODES = new Set([
   'CUIL_INVALID', 'CUIL_MISSING', 'DATE_ORDER_INVALID', 'DATE_OUT_OF_RANGE',
   'SOURCE_MONTH_MISMATCH', 'SOURCE_PERIOD_MISMATCH',
@@ -325,6 +374,10 @@ function naturalFilters(body, message, intent) {
     filters.limit = boundedInteger(body.limit, 10, 1, 25);
   }
   if (intent === 'absence_analysis') filters.bucket = normalizeText(body.bucket, 16) || 'month';
+  if (intent === 'leave_policy') {
+    const articles = leaveArticleSelectors(body, message);
+    if (articles.length) filters.articles = articles;
+  }
   return filters;
 }
 
@@ -342,6 +395,13 @@ function sanitizeConversationFilters(value) {
   for (const key of ['year', 'yearFrom', 'yearTo']) {
     const year = Number(value[key]);
     if (Number.isInteger(year) && year >= 1900 && year <= 2100) output[key] = year;
+  }
+  if (Array.isArray(value.articles)) {
+    const articles = value.articles
+      .map(normalizeLeaveArticleSelector)
+      .filter(Boolean)
+      .slice(0, 65);
+    if (articles.length) output.articles = [...new Set(articles)];
   }
   return output;
 }
@@ -480,6 +540,7 @@ function findTaskEntry(value) {
     nomina: 'controlar_nomina',
     asistente: 'consultar_asistente',
     ausentismo: 'revisar_ausentismo',
+    licencias: 'revisar_licencias_normativas',
     calidad: 'auditar_calidad',
     reportes: 'leer_reporte',
   };
@@ -600,6 +661,7 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:resumen|estado|inventario|panorama)\s+(?:general\s+)?(?:operativo|de\s+grh|de\s+la\s+base|de\s+datos)\b/.test(message)) return 'operational_summary';
   if (/\b(?:resumen|lectura|panorama|informe|analisis)\s+(?:general\s+)?ejecutiv[oa]\b/.test(message)) return 'executive_analysis';
   if (/\b(?:calidad(?: de datos| operativa)?|dq-?01|hallazgos?|severidad|controles? de calidad|controles? de personas)\b/.test(message)) return 'quality_analysis';
+  if (/\b(?:ley\s*5?811|titulo\s*(?:vi|6)|regimen\s+(?:legal\s+)?de\s+licencias|art(?:iculo)?s?\.?\s*(?:37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57|58|59|60|61|62|63|64|65)|cuantos?\s+dias?\s+(?:de\s+)?licencia\s+anual|licencia\s+anual\s+(?:por|segun)\s+antiguedad)\b/.test(message)) return 'leave_policy';
   if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
   if (/\b(?:personas|crosswalk|integracion|coincidencia|identidad|padron)\b/.test(message)) return 'integration_quality';
@@ -613,6 +675,7 @@ export function classifyAssistantRequest(body = {}) {
 function intentDomain(intent) {
   if (['employee_search', 'employee_detail'].includes(intent)) return 'employee';
   if (['absence_analysis', 'absence_event_list'].includes(intent)) return 'absence';
+  if (intent === 'leave_policy') return 'leave_policy';
   if (['quality_analysis', 'quality_issue_list'].includes(intent)) return 'quality';
   if (intent === 'structure_analysis') return 'structure';
   if (intent === 'import_lineage') return 'lineage';
@@ -745,6 +808,7 @@ export function planAssistantRequest(body = {}) {
     operational_summary: [],
     structure_analysis: ['organization', 'sector', 'role'],
     absence_analysis: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'bucket'],
+    leave_policy: ['articles'],
     absence_event_list: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'page', 'limit'],
     quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution', 'page', 'limit'],
     import_lineage: ['source', 'batch'],
@@ -1473,6 +1537,240 @@ function absenceAnalysisResult(result) {
     targetPath: '/ausentismo-control',
     relatedSections: relatedSections(['ausentismo', 'calidad']),
     asOf: dateValue(cutoff),
+    sources,
+  };
+}
+
+function leaveArticleDescriptor(selector) {
+  const normalized = normalizeLeaveArticleSelector(selector);
+  const number = Number(normalized.match(/^\d+/)?.[0]);
+  return normalized ? { selector: normalized, number, bis: /\bbis$/.test(normalized) } : null;
+}
+
+function articleExpressionMatches(expression, selector) {
+  const requested = leaveArticleDescriptor(selector);
+  const text = foldText(expression);
+  if (!requested || !text) return false;
+  const tokens = [...text.matchAll(/\b(\d{1,3})(?:\.\d+)?(?:\s*(bis))?\b/g)]
+    .map((match) => ({ number: Number(match[1]), bis: Boolean(match[2]) }));
+  if (requested.bis) {
+    return tokens.some((token) => token.number === requested.number && token.bis);
+  }
+  if (tokens.some((token) => token.number === requested.number && !token.bis)) return true;
+  const range = text.match(/\b(\d{1,3})\s+a\s+(\d{1,3})\b/);
+  if (range) {
+    const first = Number(range[1]);
+    const last = Number(range[2]);
+    if (requested.number >= Math.min(first, last) && requested.number <= Math.max(first, last)) return true;
+  }
+  const following = text.match(/\b(\d{1,3})\s+y\s+siguientes\b/);
+  return Boolean(following)
+    && requested.number >= Number(following[1])
+    && requested.number < 65;
+}
+
+function leaveProvisionView(value = {}) {
+  return {
+    id: normalizeText(value.id, 80) || null,
+    article: normalizeText(value.article, 80) || null,
+    label: normalizeText(value.label, 180) || 'Provision sin etiqueta',
+    automation: normalizeText(value.automation, 80) || null,
+    unit: normalizeText(value.unit, 80) || null,
+    summary: normalizeText(value.summary, 600) || null,
+    requiredFacts: (Array.isArray(value.requiredFacts) ? value.requiredFacts : [])
+      .map((fact) => normalizeText(fact, 100))
+      .filter(Boolean),
+  };
+}
+
+function leaveRuleView(value = {}) {
+  const ruleValue = typeof value.value === 'number'
+    ? value.value
+    : normalizeText(value.value, 400) || null;
+  return {
+    id: normalizeText(value.id, 100) || null,
+    article: normalizeText(value.article, 80) || null,
+    label: normalizeText(value.label, 220) || 'Regla sin etiqueta',
+    value: ruleValue,
+    status: normalizeText(value.status, 80) || 'not_calculable',
+    unit: normalizeText(value.unit, 80) || null,
+    manualGate: normalizeText(value.manualGate, 160) || null,
+  };
+}
+
+function annualTierView(value = {}) {
+  return {
+    minExclusiveYears: Number.isFinite(Number(value.minExclusiveYears)) ? Number(value.minExclusiveYears) : null,
+    maxInclusiveYears: value.maxInclusiveYears === null
+      ? null
+      : Number.isFinite(Number(value.maxInclusiveYears)) ? Number(value.maxInclusiveYears) : null,
+    days: Number.isFinite(Number(value.days)) ? Number(value.days) : null,
+    article: normalizeText(value.article, 40) || null,
+  };
+}
+
+function leaveRuleValueText(rule) {
+  if (rule.value === null) return 'sin valor automatico';
+  if (typeof rule.value === 'string') return rule.value;
+  const units = {
+    month: 'meses',
+    year: 'año',
+    calendar_day: 'dias corridos',
+    day_per_year: 'dias por año',
+    day_unspecified: 'dias con unidad pendiente de definicion',
+    calendar_period: 'periodo calendario',
+    minute_per_workday: 'minutos por jornada',
+    schedule_dependent: 'unidad dependiente del horario',
+  };
+  return `${Number(rule.value).toLocaleString('es-AR')} ${units[rule.unit] || rule.unit || 'unidades'}`;
+}
+
+function leaveRuleSentence(rule) {
+  const gate = rule.manualGate ? `; control manual ${rule.manualGate.replaceAll('_', ' ')}` : '';
+  return `${rule.label} (art. ${rule.article || 'sin referencia'}): ${leaveRuleValueText(rule)}; estado ${rule.status}${gate}`;
+}
+
+function leaveCatalogSelection(legal, requestedArticles) {
+  const provisions = (Array.isArray(legal.provisions) ? legal.provisions : []).map(leaveProvisionView);
+  const keyRules = (Array.isArray(legal.keyRules) ? legal.keyRules : []).map(leaveRuleView);
+  const annualLeaveTiers = (Array.isArray(legal.annualLeaveTiers) ? legal.annualLeaveTiers : []).map(annualTierView);
+  const overview = requestedArticles.length === 0;
+  const selectedProvisions = overview
+    ? provisions
+    : provisions.filter((provision) => requestedArticles.some((article) => articleExpressionMatches(provision.article, article)));
+  const selectedRules = overview
+    ? keyRules
+    : keyRules.filter((rule) => requestedArticles.some((article) => articleExpressionMatches(rule.article, article)));
+  const selectedAnnualTiers = overview || requestedArticles.includes('37') ? annualLeaveTiers : [];
+  const warnings = [];
+
+  for (const selector of requestedArticles) {
+    const requested = leaveArticleDescriptor(selector);
+    if (!requested || requested.number < 37 || requested.number > 65) {
+      warnings.push(`El articulo ${selector} esta fuera del alcance 37 a 65 interpretado por este contrato.`);
+      continue;
+    }
+    const hasProvision = selectedProvisions.some((provision) => articleExpressionMatches(provision.article, selector));
+    const hasRule = selectedRules.some((rule) => articleExpressionMatches(rule.article, selector));
+    const hasAnnualTier = selector === '37' && selectedAnnualTiers.length > 0;
+    if (selector === '44' && !hasRule) {
+      warnings.push('El articulo 44 fue solicitado, pero el catalogo recibido no contiene una regla especifica para ese articulo; no se infiere su texto, vigencia ni efecto.');
+    } else if (!hasProvision && !hasRule && !hasAnnualTier) {
+      warnings.push(`El catalogo recibido no contiene una provision ni una regla especifica para el articulo ${selector}; no se completa el vacio por inferencia.`);
+    } else if (!hasRule && !hasAnnualTier) {
+      warnings.push(`El articulo ${selector} solo esta cubierto por una provision general del catalogo; requiere validacion humana y no se calcula automaticamente.`);
+    }
+  }
+
+  return {
+    overview,
+    requestedArticles,
+    provisions: selectedProvisions,
+    keyRules: selectedRules,
+    annualLeaveTiers: selectedAnnualTiers,
+    warnings: [...new Set(warnings)],
+  };
+}
+
+function leavePolicyAnswer(selection, legal, readiness, conflictCount) {
+  if (selection.overview) {
+    const catalogScope = selection.provisions.length || selection.keyRules.length
+      ? ` El catalogo recibido expone ${formatNumber(selection.provisions.length)} provisiones y ${formatNumber(selection.keyRules.length)} reglas detalladas${selection.provisions.length ? `, incluyendo ${selection.provisions.map((provision) => provision.label).join(', ')}` : ''}.`
+      : '';
+    return `El Titulo VI de la Ley 5811 es el regimen base de licencias, pero en Junin debe aplicarse junto con la Ley 5892, la ordenanza vigente, los convenios colectivos y la categoria de revista.${catalogScope} La escala anual de referencia es 14, 21, 28 o 35 dias corridos segun antiguedad al 31 de diciembre; con menos de seis meses exige dias efectivamente trabajados. GRH contiene ${formatNumber(readiness.absences?.sourceRows)} eventos administrativos y ${formatNumber(readiness.reasonCatalog?.rows)} motivos, con ${formatNumber(conflictCount)} mapeos que requieren resolver vigencia, conflicto o norma local. No hay hoy un ledger confiable de saldos ni una fuente actual de fichadas, turnos y feriados: por eso el sistema no calcula horas trabajadas, presentismo ni una licencia aprobada.`;
+  }
+
+  const articleLabel = selection.requestedArticles.join(', ');
+  const provisionText = selection.provisions.length
+    ? ` Provisiones seleccionadas: ${selection.provisions.map((provision) => `${provision.label} (art. ${provision.article}): ${provision.summary || 'sin resumen en el catalogo'}`).join(' ')}`
+    : '';
+  const ruleText = selection.keyRules.length
+    ? ` Reglas seleccionadas: ${selection.keyRules.map(leaveRuleSentence).join('. ')}.`
+    : '';
+  const tierText = selection.annualLeaveTiers.length
+    ? ` Escala del articulo 37: ${selection.annualLeaveTiers.map((tier) => `${tier.days ?? 'sin valor'} dias (${tier.article || 'sin referencia'})`).join(', ')}.`
+    : '';
+  const exactFive = selection.keyRules.some((rule) => rule.id === 'health-exactly-5')
+    ? ' Para una antiguedad exactamente igual a 5 años, el catalogo marca el caso como no calculable por ambiguedad textual: el asistente no elige un tramo.'
+    : '';
+  const warningText = selection.warnings.length
+    ? ` Advertencias: ${selection.warnings.join(' ')}`
+    : '';
+  const version = normalizeText(legal.version, 100) || 'sin version identificada';
+  return `Consulta local del catalogo ${version} para el articulo ${articleLabel}.${provisionText}${ruleText}${tierText}${exactFive}${warningText} La referencia no concede una licencia ni reemplaza la validacion de RRHH y Asesoria Letrada.`;
+}
+
+function leavePolicyResult(result, filters = {}) {
+  const payload = result?.payload || {};
+  const sourceCutoff = payload.meta?.source?.cutoff || null;
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo consultar el catalogo normativo de licencias.',
+      data: { code: normalizeText(payload.code, 80) || 'LEAVE_POLICY_UNAVAILABLE' },
+      targetPath: '/licencias-control',
+      relatedSections: relatedSections(['ausentismo', 'calidad', 'ayuda']),
+      asOf: dateValue(sourceCutoff),
+      sources: [{ system: 'MUNICONTROL', relation: 'mendoza_title_vi_catalog', authority: 'versioned_legal_catalog' }],
+    };
+  }
+  const legal = payload.data?.legal || {};
+  const readiness = payload.data?.readiness || {};
+  const mappings = Array.isArray(payload.data?.mappings) ? payload.data.mappings : [];
+  const conflicts = mappings.filter((row) => ['configuration_conflict', 'requires_version_check', 'requires_local_rule', 'unmapped'].includes(row?.policy?.status));
+  const requestedArticles = (Array.isArray(filters.articles) ? filters.articles : [])
+    .map(normalizeLeaveArticleSelector)
+    .filter(Boolean)
+    .slice(0, 65);
+  const selection = leaveCatalogSelection(legal, [...new Set(requestedArticles)]);
+  const sources = (Array.isArray(legal.sources) ? legal.sources : []).slice(0, 10).map((source) => ({
+    system: normalizeText(source.authority, 120) || 'MENDOZA',
+    relation: normalizeText(source.id, 100) || 'legal_instrument',
+    authority: normalizeText(source.status, 100) || 'official_source',
+    url: normalizeText(source.url, 500) || null,
+    asOf: legal.verifiedAt || null,
+  }));
+  sources.push({ system: 'GRH', relation: 'grh_absences_and_reason_catalog', authority: 'administrative_evidence_only', asOf: sourceCutoff });
+  return {
+    answer: leavePolicyAnswer(selection, legal, readiness, conflicts.length),
+    data: {
+      catalogVersion: legal.version || null,
+      verifiedAt: legal.verifiedAt || null,
+      applicability: legal.applicability || {},
+      selection: {
+        scope: selection.overview ? 'title_vi_overview' : 'requested_articles',
+        requestedArticles: selection.requestedArticles,
+        matchedProvisionIds: selection.provisions.map((provision) => provision.id).filter(Boolean),
+        matchedRuleIds: selection.keyRules.map((rule) => rule.id).filter(Boolean),
+        warnings: selection.warnings,
+      },
+      provisions: selection.provisions,
+      annualLeaveTiers: selection.annualLeaveTiers,
+      keyRules: selection.keyRules,
+      readiness: {
+        employment: readiness.employment || {},
+        absences: readiness.absences || {},
+        legacyLeaves: readiness.legacyLeaves || {},
+        workedHours: readiness.workedHours || { status: 'not_calculable' },
+        leaveBalance: readiness.leaveBalance || { status: 'not_calculable' },
+        reasonCatalog: readiness.reasonCatalog || {},
+      },
+      mappingConflicts: conflicts.slice(0, 12).map((row) => ({
+        reasonCode: row.reasonCode,
+        label: normalizeText(row.label, 160),
+        status: normalizeText(row.policy?.status, 80),
+        note: normalizeText(row.policy?.note, 260),
+      })),
+      limits: [
+        'La referencia no constituye saldo, concesion, diagnostico ni acto administrativo.',
+        'Enfermedad, violencia, ART, incapacidad, tareas riesgosas y conflictos normativos requieren intervencion humana.',
+        'La configuracion motause de GRH es evidencia historica y no reemplaza la norma vigente.',
+        'El Decreto 727/1993 requiere acreditar adopcion municipal antes de tratarlo como procedimiento obligatorio en Junin.',
+      ],
+    },
+    targetPath: '/licencias-control',
+    relatedSections: relatedSections(['ausentismo', 'calidad', 'ayuda']),
+    asOf: dateValue(sourceCutoff),
     sources,
   };
 }
@@ -2322,6 +2620,7 @@ function capabilitiesPayload() {
       { intent: 'integration_quality', externalEnhancement: true },
       { intent: 'quality_analysis', externalEnhancement: true },
       { intent: 'absence_analysis', externalEnhancement: true },
+      { intent: 'leave_policy', externalEnhancement: false, resource: 'leavenormative' },
       { intent: 'operational_summary', externalEnhancement: true, resource: 'summary' },
       { intent: 'structure_analysis', externalEnhancement: true, resource: 'structure' },
       { intent: 'absence_event_list', externalEnhancement: false, resource: 'absenceevents' },
@@ -2360,6 +2659,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadIntegration = dependencies.integrationQuality ?? integrationQuality;
   const loadPayroll = dependencies.payrollControl ?? payrollControl;
   const loadAbsence = dependencies.absenceAnalytics ?? absenceAnalytics;
+  const loadLeaveNormative = dependencies.leaveNormative ?? dependencies.leavenormative ?? internalData.leaveNormative;
   const loadSummary = dependencies.summary ?? internalData.summary;
   const loadStructure = dependencies.structure ?? internalData.structure;
   const loadAbsenceEvents = dependencies.absenceEvents ?? dependencies.absenceevents ?? internalData.absenceEvents;
@@ -2514,6 +2814,11 @@ export function createInternalAssistantHandler(dependencies = {}) {
           result = qualityAnalysisResult(await tracked('qualityoverview', () => loadQuality(sql)));
         } else if (intent === 'absence_analysis') {
           result = absenceAnalysisResult(await tracked('absenceanalytics', () => loadAbsence(sql, absenceAnalyticsRequest(plan.filters))));
+        } else if (intent === 'leave_policy') {
+          result = leavePolicyResult(
+            await tracked('leavenormative', () => loadLeaveNormative(sql)),
+            plan.filters,
+          );
         } else if (intent === 'operational_summary') {
           result = operationalSummaryResult(await tracked('summary', () => loadSummary(sql)));
         } else if (intent === 'structure_analysis') {

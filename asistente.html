@@ -586,6 +586,7 @@
       <div class="nav-label">Herramientas</div>
       <nav class="nav" aria-label="Herramientas internas">
         <a href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
+        <a href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span><span>Licencias</span></a>
         <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
         <a href="calidad-operativa.html"><span class="nav-code" aria-hidden="true">DQ</span><span>Calidad operativa</span></a>
         <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
@@ -636,6 +637,7 @@
             <button class="quick-button" type="button" data-prompt="Analizá la estructura, organizaciones, sectores y cargos observados en GRH sin inferir un organigrama."><span class="quick-code" aria-hidden="true">ES</span><span>Estructura observada</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá el ausentismo agregado del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausentismo agregado</span></button>
             <button class="quick-button" type="button" data-prompt="Listá los eventos administrativos de ausencia del último período disponible."><span class="quick-code" aria-hidden="true">EV</span><span>Eventos de ausencia</span></button>
+            <button class="quick-button" type="button" data-prompt="Explicame el Título VI de la Ley 5811, su aplicación municipal en Junín y qué puede calcularse responsablemente con GRH."><span class="quick-code" aria-hidden="true">LV</span><span>Ley 5811 · Título VI</span></button>
             <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
             <button class="quick-button" type="button" data-compose="Mostrame las licencias de "><span class="quick-code" aria-hidden="true">LI</span><span>Licencias por empleado</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá las incidencias registradas de calidad por severidad, dominio y fuente, sin convertirlas en un puntaje inventado."><span class="quick-code" aria-hidden="true">DQ</span><span>Hallazgos publicados</span></button>
@@ -697,6 +699,7 @@
                     <option value="structure_analysis">Estructura observada</option>
                     <option value="absence_analysis">Ausentismo agregado</option>
                     <option value="absence_event_list">Eventos de ausencia</option>
+                    <option value="leave_policy">Licencias normativas</option>
                     <option value="quality_analysis">Calidad agregada</option>
                     <option value="quality_issue_list">Hallazgos registrados</option>
                     <option value="import_lineage">Linaje de snapshots</option>
@@ -824,13 +827,14 @@
         batch: 32,
         bucket: 16
       };
-      var LOCAL_ONLY_INTENTS = ['employee_search', 'employee_detail', 'absence_event_list', 'quality_issue_list', 'import_lineage'];
+      var LOCAL_ONLY_INTENTS = ['employee_search', 'employee_detail', 'absence_event_list', 'leave_policy', 'quality_issue_list', 'import_lineage'];
       var INTENT_DOMAINS = {
         operational_summary: 'summary',
         workforce_summary: 'workforce',
         structure_analysis: 'structure',
         absence_analysis: 'absence',
         absence_event_list: 'absence',
+        leave_policy: 'leave_policy',
         quality_analysis: 'quality',
         quality_issue_list: 'quality',
         import_lineage: 'lineage',
@@ -839,11 +843,11 @@
       };
       var INITIAL_CONTEXT_INTENTS = {
         inicio: 'operational_summary', resumen: 'operational_summary', estructura: 'structure_analysis',
-        ausentismo: 'absence_analysis', calidad: 'quality_analysis', personas: 'employee_search',
+        ausentismo: 'absence_analysis', licencias: 'leave_policy', calidad: 'quality_analysis', personas: 'employee_search',
         nomina: 'payroll_control', integracion: 'integration_quality'
       };
-      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', structure: 'estructura', absence: 'ausentismo', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
-      var RESOURCE_LABELS = { summary: 'resumen GRH', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
+      var RESOURCE_LABELS = { summary: 'resumen GRH', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
       var DECISION_LABELS = {
         explicit_intent: 'Vista elegida por el usuario',
         deterministic_message_classification: 'Ruta determinada por la consulta',
@@ -1330,6 +1334,13 @@
           if (effectiveListRange.from && effectiveListRange.to) add('Rango efectivo', cleanText(effectiveListRange.from) + ' a ' + cleanText(effectiveListRange.to));
           facts.push('Sector: asignación actual observada al corte, no sector histórico del evento');
           facts.push('DIAS_24: valor declarado en origen; no equivale a duración, tasa, presentismo ni jornadas perdidas');
+        } else if (intent === 'leave_policy') {
+          add('Versión normativa', data.catalogVersion);
+          add('Verificada al', cleanText(data.verifiedAt).slice(0, 10));
+          add('Escalas de licencia anual', Array.isArray(data.annualLeaveTiers) ? data.annualLeaveTiers.length : 0);
+          add('Reglas de control publicadas', Array.isArray(data.keyRules) ? data.keyRules.length : 0);
+          add('Mapeos GRH que requieren revisión', Array.isArray(data.mappingConflicts) ? data.mappingConflicts.length : 0);
+          facts.push('Resultado: orientación técnica; no es saldo, aprobación, diagnóstico ni acto administrativo');
         } else if (intent === 'quality_analysis') {
           var issues = data.issues && typeof data.issues === 'object' ? data.issues : {};
           add('Hallazgos registrados', issues.total);
@@ -1515,6 +1526,22 @@
               : 'Evento sin contrato vinculado';
             return visibleRow([row && row.eventDate, person, row && row.reason, row && row.sector, row && row.sourceDeclaredDays]);
           }));
+        } else if (intent === 'leave_policy') {
+          view.title = 'Ley 5811 · Título VI y aplicación municipal';
+          view.note = 'Marco versionado para orientar controles. La categoría de revista, la evidencia, el acto administrativo, los convenios y la reglamentación local siguen requiriendo validación humana.';
+          metrics([
+            visibleMetric('Versión normativa', data.catalogVersion),
+            visibleMetric('Verificada al', cleanText(data.verifiedAt).slice(0, 10)),
+            visibleMetric('Reglas publicadas', Array.isArray(data.keyRules) ? data.keyRules.length : 0),
+            visibleMetric('Mapeos GRH a revisar', Array.isArray(data.mappingConflicts) ? data.mappingConflicts.length : 0)
+          ]);
+          section('Escala anual de referencia', ['Antigüedad', 'Días corridos', 'Artículo'], (Array.isArray(data.annualLeaveTiers) ? data.annualLeaveTiers : []).map(function (tier) {
+            var upper = tier && tier.maxInclusiveYears === null ? 'más de 20 años' : 'más de ' + factValue(tier && tier.minExclusiveYears) + ' y hasta ' + factValue(tier && tier.maxInclusiveYears) + ' años';
+            return visibleRow([upper, tier && tier.days, tier && tier.article]);
+          }));
+          section('Reglas que requieren atención', ['Regla', 'Artículo', 'Estado', 'Valor'], (Array.isArray(data.selectedRules) && data.selectedRules.length ? data.selectedRules : Array.isArray(data.keyRules) ? data.keyRules : []).slice(0, 8).map(function (rule) {
+            return visibleRow([rule && rule.label, rule && rule.article, readableCode(rule && rule.status), rule && rule.value]);
+          }));
         } else if (intent === 'quality_analysis') {
           var issues = data.issues || {};
           var severity = issues.bySeverity || {};
@@ -1640,6 +1667,11 @@
             contextualSuggestion('Volver al análisis agregado de ausentismo', 'Analizá el ausentismo agregado con estos filtros.', 'absence_analysis', contextForIntent('absence_analysis', absenceContext))
           ];
         }
+        if (intent === 'leave_policy') return [
+          contextualSuggestion('Revisar licencia anual', '¿Qué establecen los artículos 37 y 38 sobre licencia anual?', 'leave_policy', contextForIntent('leave_policy', payload.conversationContext, {})),
+          contextualSuggestion('Revisar licencias especiales', '¿Qué licencias especiales contempla el artículo 50?', 'leave_policy', contextForIntent('leave_policy', payload.conversationContext, {})),
+          contextualSuggestion('Revisar licencias por salud', '¿Qué establece el artículo 40 y qué validaciones humanas exige?', 'leave_policy', contextForIntent('leave_policy', payload.conversationContext, {}))
+        ];
         if (intent === 'quality_analysis') return [
           contextualSuggestion('Listar hallazgos registrados', 'Listá los hallazgos registrados.', 'quality_issue_list', contextForIntent('quality_issue_list', payload.conversationContext)),
           contextualSuggestion('Ver linaje de snapshots', 'Mostrame el linaje de los snapshots publicados.', 'import_lineage', contextForIntent('import_lineage', payload.conversationContext)),
@@ -1701,6 +1733,7 @@
           integration_quality: 'Integración de identidad',
           quality_analysis: 'Calidad operativa',
           absence_analysis: 'Ausentismo agregado',
+          leave_policy: 'Licencias · Ley 5811 Título VI',
           employee_search: 'Búsqueda de empleados',
           employee_detail: 'Ficha de empleado',
           executive_analysis: 'Lectura ejecutiva',

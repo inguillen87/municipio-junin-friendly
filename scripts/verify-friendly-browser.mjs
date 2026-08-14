@@ -322,6 +322,14 @@ async function verifyAnonymousInternal() {
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion de ausentismo anonimo');
 
+    await page.goto(`${baseUrl}/licencias-control`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'licencias-control.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de licencias anonima');
+
     await page.goto(`${baseUrl}/calidad-operativa`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => (
       /\/login(?:\.html)?$/.test(url.pathname)
@@ -397,6 +405,26 @@ async function verifyAuthenticatedInternal() {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Estructura mobile');
+
+    const leaveResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=leavenormative`);
+    assert.equal(leaveResponse.status(), 200, 'Licencias normativas debe aceptar la sesion interna');
+    const leavePayload = await leaveResponse.json();
+    assert.equal(leavePayload.data.legal.version, 'mendoza-ley-5811-title-vi.v1');
+    assert.equal(leavePayload.data.legal.sources.length, 7);
+    assert.deepEqual(leavePayload.data.legal.applicability.supportedEvaluationYears, [2026]);
+    assert.equal(leavePayload.data.readiness.employment.records, 2450);
+    assert.equal(leavePayload.data.readiness.absences.sourceRows, 31572);
+    assert.equal(leavePayload.data.readiness.legacyLeaves.status, 'historical_not_current_ledger');
+    assert.equal(leavePayload.data.readiness.workedHours.status, 'not_calculable');
+    assert.equal(leavePayload.data.readiness.leaveBalance.status, 'not_calculable');
+
+    await page.goto(`${baseUrl}/licencias-control`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainView:not([hidden])');
+    await page.waitForFunction(() => /7/.test(document.querySelector('#sourceCount')?.textContent || ''));
+    assert.equal(await page.locator('#asOfInput').inputValue(), '2026');
+    assert.match(await page.locator('#overallDetail').innerText(), /no deben aplicarse autom[aá]ticamente|perfil municipal|condicional|valid/i);
+    assert.match(await page.locator('#limitationsList').innerText(), /horas|saldo|aprob/i);
+    await assertPageHealthy(page, 'Licencias normativas mobile');
 
     const absenceResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=absenceanalytics&from=2026-01-01&to=2026-08-06&bucket=month`);
     assert.equal(absenceResponse.status(), 200, 'Ausentismo agregado debe aceptar la sesión interna');
@@ -663,7 +691,7 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
-    assert.equal(await page.locator('#moduleGrid .module-card').count(), 11, 'El centro debe explicar las once áreas visibles');
+    assert.equal(await page.locator('#moduleGrid .module-card').count(), 12, 'El centro debe explicar las doce áreas visibles');
     assert.equal(await page.locator('#routeList [data-route]').count(), 6, 'El centro debe ofrecer recorridos por función');
     await page.locator('[data-progress-id="home"]').check();
     assert.match(await page.locator('#progressText').innerText(), /1 de 5/);
@@ -698,7 +726,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + calidad + ficha + IA + onboarding; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

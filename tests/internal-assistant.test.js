@@ -150,6 +150,7 @@ function handler(overrides = {}) {
     integrationQuality: overrides.integrationQuality || (async () => integration),
     payrollControl: async () => payroll,
     absenceAnalytics: overrides.absenceAnalytics || (async () => absence),
+    leaveNormative: overrides.leaveNormative,
     qualityOverview: overrides.qualityOverview || overrides.qualityoverview || (async () => quality),
     summary: overrides.summary,
     structure: overrides.structure,
@@ -388,11 +389,11 @@ test('clasifica onboarding, explicación, recorridos y glosario antes que los do
   assert.equal(classifyAssistantRequest({ term: 'GRH' }), 'glossary');
 });
 
-test('catálogo de ayuda expone las diez secciones reales y rutas existentes', () => {
+test('catálogo de ayuda expone las once secciones reales y rutas existentes', () => {
   const catalog = getAssistantGuidanceCatalog();
-  assert.equal(catalog.asOf, '2026-08-13T00:00:00.000Z');
+  assert.equal(catalog.asOf, '2026-08-14T00:00:00.000Z');
   assert.deepEqual(catalog.sections.map((section) => section.label), [
-    'Inicio', 'Personas', 'Estructura', 'Integración', 'Nómina', 'Asistente', 'Ausentismo', 'Calidad', 'Reportes', 'Ayuda',
+    'Inicio', 'Personas', 'Estructura', 'Integración', 'Nómina', 'Asistente', 'Ausentismo', 'Licencias normativas', 'Calidad', 'Reportes', 'Ayuda',
   ]);
   assert.equal(catalog.sections.find((section) => section.id === 'inicio').targetPath, '/internal-dashboard#inicio');
   assert.equal(catalog.sections.find((section) => section.id === 'personas').targetPath, '/internal-dashboard#legajos');
@@ -400,13 +401,14 @@ test('catálogo de ayuda expone las diez secciones reales y rutas existentes', (
   assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
   assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/ausentismo-control');
+  assert.equal(catalog.sections.find((section) => section.id === 'licencias').targetPath, '/licencias-control');
   assert.equal(catalog.sections.find((section) => section.id === 'calidad').targetPath, '/calidad-operativa');
   assert.equal(catalog.sections.find((section) => section.id === 'calidad').relatedLinks[0].targetPath, '/calidad-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'reportes').targetPath, '/reportes-rrhh');
   assert.equal(catalog.sections.find((section) => section.id === 'ayuda').targetPath, '/centro-ayuda');
   assert.equal(catalog.sections.every((section) => !('aliases' in section)), true);
-  assert.equal(catalog.tasks.length, 9);
-  assert.ok(catalog.glossary.length >= 9);
+  assert.equal(catalog.tasks.length, 10);
+  assert.ok(catalog.glossary.length >= 11);
 });
 
 test('ayuda de navegación funciona sin consultar Neon y devuelve contrato trazable', async () => {
@@ -426,8 +428,8 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
   assert.ok(res.payload.steps.length >= 3);
   assert.equal(res.payload.sources[0].system, 'MUNICONTROL');
   assert.equal(res.payload.sources[0].relation, 'section_catalog');
-  assert.equal(res.payload.sources[0].asOf, '2026-08-13T00:00:00.000Z');
-  assert.equal(res.payload.asOf, '2026-08-13T00:00:00.000Z');
+  assert.equal(res.payload.sources[0].asOf, '2026-08-14T00:00:00.000Z');
+  assert.equal(res.payload.asOf, '2026-08-14T00:00:00.000Z');
   assert.equal(res.payload.privacy.guidanceContent, 'verified_product_catalog_only');
   assert.equal(res.payload.privacy.nominalDataExternalized, false);
   assert.equal(res.payload.provider.status, 'not_allowed_for_product_guidance');
@@ -504,8 +506,8 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   const help = await post({ message: 'Soy nuevo, necesito ayuda para empezar' });
   assert.equal(help.statusCode, 200);
   assert.equal(help.payload.intent, 'help_navigation');
-  assert.equal(help.payload.data.sections.length, 10);
-  assert.equal(help.payload.relatedSections.length, 10);
+  assert.equal(help.payload.data.sections.length, 11);
+  assert.equal(help.payload.relatedSections.length, 11);
   assert.equal(help.payload.targetPath, '/centro-ayuda');
 
   const res = responseRecorder();
@@ -525,7 +527,7 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   assert.deepEqual(res.payload.providerPolicy, {
     primary: 'openai', fallback: 'huggingface', localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
   });
-  assert.equal(res.payload.guidance.sections.length, 10);
+  assert.equal(res.payload.guidance.sections.length, 11);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
 

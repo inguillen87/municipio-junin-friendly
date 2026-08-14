@@ -14,7 +14,7 @@ function publicSection(section) {
   };
 }
 
-export const GUIDANCE_AS_OF = '2026-08-13T00:00:00.000Z';
+export const GUIDANCE_AS_OF = '2026-08-14T00:00:00.000Z';
 
 export const SECTION_CATALOG = deepFreeze([
   {
@@ -65,6 +65,13 @@ export const SECTION_CATALOG = deepFreeze([
     actions: ['filtrar un período verificable', 'comparar eventos y legajos alcanzados', 'revisar motivos y sectores', 'abrir el detalle de un evento en su ficha'],
     limits: ['los días declarados por GRH no equivalen automáticamente a jornadas perdidas', 'sin turnos y fichadas actuales no existe una tasa de presentismo homologada'],
     aliases: ['ausentismo', 'ausencia', 'ausencias', 'evento de ausencia', 'eventos de ausencia'],
+  },
+  {
+    id: 'licencias', label: 'Licencias normativas', targetPath: '/licencias-control',
+    purpose: 'Contrastar el Titulo VI de la Ley 5811 con la evidencia disponible en GRH y obtener referencias condicionadas, nunca una aprobacion automatica.',
+    actions: ['consultar reglas y fuentes oficiales', 'revisar conflictos entre motivos GRH y norma', 'obtener una referencia anual condicionada por legajo', 'identificar hechos y documentos faltantes'],
+    limits: ['no calcula saldos vigentes ni autoriza licencias', 'horas trabajadas y presentismo no son calculables sin horarios, fichadas y calendario actuales', 'los casos medicos, sensibles o ambiguos requieren validacion humana'],
+    aliases: ['licencias normativas', 'ley 5811', 'titulo vi', 'regimen de licencias', 'licencia anual', 'normativa de licencias'],
   },
   {
     id: 'calidad', label: 'Calidad', targetPath: '/calidad-operativa',
@@ -127,6 +134,11 @@ export const TASK_CATALOG = deepFreeze([
     steps: ['Abrí Ausentismo desde el portal interno.', 'Elegí un período y, si corresponde, filtrá por motivo o sector.', 'Revisá por separado eventos, legajos alcanzados y días declarados por GRH.', 'Usá la bandeja para abrir la ficha laboral sin perder de vista la fuente y el corte.', 'No conviertas los valores en jornadas perdidas, productividad ni tasa de presentismo: esos indicadores no están homologados.'],
   },
   {
+    id: 'revisar_licencias_normativas', label: 'Revisar una licencia con el Titulo VI', sectionId: 'licencias',
+    aliases: ['revisar licencia', 'calcular licencia anual', 'ley 5811', 'titulo vi', 'regimen de licencias'],
+    steps: ['Abri Licencias normativas.', 'Confirma la version legal, la categoria de revista y el perfil municipal aplicable.', 'Busca el legajo si necesitas una referencia anual individual.', 'Lee por separado la escala legal, los eventos observados en GRH y los hechos faltantes.', 'No interpretes la referencia como saldo, aprobacion, diagnostico ni acto administrativo.'],
+  },
+  {
     id: 'leer_reporte', label: 'Interpretar un reporte de RRHH', sectionId: 'reportes',
     aliases: ['leer reporte', 'ver reporte', 'interpretar informe', 'analizar rrhh'],
     steps: ['Abrí Reportes.', 'Identificá el período y la fuente del análisis.', 'Revisá hallazgos, movimientos, ausencias y composición sectorial según tu pregunta.', 'Conservá los límites metodológicos; un evento de ausencia no representa días perdidos ni una tasa.'],
@@ -149,6 +161,7 @@ export const GLOSSARY = deepFreeze([
   { id: 'corrida_abierta', label: 'Corrida abierta', aliases: ['corrida abierta', 'nomina abierta', 'preliquidacion'], definition: 'Período todavía en curso. Puede usarse para control interno, pero sus importes no se presentan como KPI financiero cerrado.', relatedSectionIds: ['nomina'] },
   { id: 'dato_nominal', label: 'Dato nominal', aliases: ['dato nominal', 'datos nominales', 'informacion nominal', 'informacion personal'], definition: 'Información que identifica o describe a una persona o legajo individual. Las consultas nominales del asistente permanecen en la base local y no se envían al proveedor externo.', relatedSectionIds: ['personas', 'asistente'] },
   { id: 'evento_ausencia', label: 'Evento administrativo de ausencia', aliases: ['evento de ausencia', 'ausencia administrativa', 'dias declarados', 'día declarado'], definition: 'Registro informado por GRH para un legajo y una fecha. Su cantidad o días declarados no equivalen por sí solos a jornadas perdidas, horas no trabajadas ni tasa de presentismo.', relatedSectionIds: ['ausentismo', 'calidad'] },
+  { id: 'referencia_licencia', label: 'Referencia normativa de licencia', aliases: ['referencia de licencia', 'calculo orientativo', 'licencia normativa'], definition: 'Resultado condicionado que aplica una regla versionada a los datos disponibles y enumera lo que falta. No equivale a saldo, concesion ni acto administrativo.', relatedSectionIds: ['licencias', 'ausentismo'] },
 ]);
 
 export function getProductGuidanceCatalog() {

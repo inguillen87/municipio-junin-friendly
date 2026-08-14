@@ -1,0 +1,2375 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123247">
+  <title>Licencias normativas | MuniControl Junín</title>
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #885a18;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --red-soft: #faefed;
+      --focus: #1476a2;
+      --sidebar: 254px;
+      --radius: 6px;
+      --shadow: 0 10px 30px rgba(18, 50, 71, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    input { font: inherit; }
+
+    button,
+    a { -webkit-tap-highlight-color: transparent; }
+
+    a { color: inherit; }
+
+    button:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(20, 118, 162, 0.3);
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 200;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--navy);
+      font-weight: 800;
+      transform: translateY(-160%);
+      transition: transform 160ms ease;
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .app-shell { min-height: 100vh; }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 90;
+      display: flex;
+      width: var(--sidebar);
+      flex-direction: column;
+      overflow-y: auto;
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--navy);
+      color: #ecf5f7;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 86px;
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .brand-home {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 12px;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 5px;
+      background: #f6f1df;
+      color: var(--navy);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .brand-copy strong,
+    .brand-copy span { display: block; }
+
+    .brand-copy strong { font-size: 16px; letter-spacing: -0.02em; }
+    .brand-copy span { color: #b9ccd4; font-size: 11px; font-weight: 750; letter-spacing: 0.11em; text-transform: uppercase; }
+
+    .menu-close {
+      display: none;
+      width: 40px;
+      height: 40px;
+      margin-left: auto;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: var(--radius);
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      font-size: 22px;
+    }
+
+    .nav-wrap { padding: 18px 12px 24px; }
+
+    .nav-group + .nav-group { margin-top: 20px; }
+
+    .nav-label {
+      display: block;
+      padding: 0 10px 8px;
+      color: #83a4b3;
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .nav-link {
+      display: flex;
+      min-height: 42px;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      color: #d5e4e9;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .nav-link:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+    .nav-link[aria-current="page"] { background: #e5efbd; color: #173443; }
+
+    .nav-icon {
+      display: inline-grid;
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      place-items: center;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .sidebar-foot {
+      margin-top: auto;
+      padding: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      color: #b9ccd4;
+      font-size: 11px;
+    }
+
+    .sidebar-foot strong { display: block; margin-bottom: 4px; color: #fff; font-size: 12px; }
+
+    .nav-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      background: rgba(5, 20, 28, 0.56);
+    }
+
+    .main-shell { min-height: 100vh; margin-left: var(--sidebar); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      gap: 16px;
+      padding: 12px clamp(18px, 3vw, 40px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(242, 244, 242, 0.97);
+      backdrop-filter: blur(10px);
+    }
+
+    .menu-button {
+      display: none;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--navy);
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .topbar-title { min-width: 0; }
+    .topbar-title small { display: block; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .topbar-title strong { display: block; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    .source-chip {
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      gap: 8px;
+      max-width: 300px;
+      padding: 7px 11px;
+      border: 1px solid #b6d4ca;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: #175a53;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .source-chip::before {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border-radius: 999px;
+      background: #2f9e8b;
+      content: "";
+    }
+
+    .source-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .icon-button,
+    .button,
+    .button-secondary,
+    .button-quiet {
+      display: inline-flex;
+      min-height: 40px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .icon-button {
+      width: 42px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--navy);
+      font-size: 18px;
+    }
+
+    .button {
+      padding: 10px 16px;
+      border: 1px solid var(--navy);
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .button:hover { background: var(--navy-2); }
+
+    .button-secondary {
+      padding: 10px 16px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--navy);
+    }
+
+    .button-secondary:hover,
+    .button-quiet:hover { background: var(--surface-2); }
+
+    .button-quiet {
+      padding: 9px 13px;
+      border: 0;
+      background: transparent;
+      color: var(--navy);
+    }
+
+    button:disabled { cursor: wait; opacity: 0.58; }
+
+    .user-block {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding-left: 10px;
+      border-left: 1px solid var(--line);
+    }
+
+    .user-avatar {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .user-copy { max-width: 150px; }
+    .user-copy strong,
+    .user-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-copy strong { font-size: 12px; }
+    .user-copy span { color: var(--muted); font-size: 10px; }
+
+    main { padding: clamp(26px, 4vw, 52px) clamp(18px, 4vw, 48px) 70px; }
+
+    .content-wrap { width: min(1220px, 100%); margin: 0 auto; }
+
+    .loading-state,
+    .error-state {
+      display: grid;
+      min-height: calc(100vh - 190px);
+      place-items: center;
+    }
+
+    .state-card {
+      width: min(570px, 100%);
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .state-card h2 { margin: 0 0 8px; color: var(--navy); font: 750 26px/1.2 Georgia, "Times New Roman", serif; }
+    .state-card p { margin: 0 auto 18px; color: var(--muted); }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 18px;
+      border: 3px solid #d5e2df;
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 800ms linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    [hidden] { display: none !important; }
+
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+      gap: 28px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .eyebrow {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 790px;
+      margin: 0;
+      color: var(--navy);
+      font: 750 clamp(38px, 5vw, 62px)/0.99 Georgia, "Times New Roman", serif;
+      letter-spacing: -0.035em;
+    }
+
+    .page-lead { max-width: 720px; margin: 18px 0 0; color: #455761; font-size: 16px; }
+
+    .head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+
+    .scope-notice {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .scope-notice strong { display: block; margin-bottom: 3px; color: #704710; }
+    .scope-notice p { margin: 0; color: #745b38; font-size: 13px; }
+
+    .scope-symbol {
+      display: grid;
+      width: 28px;
+      height: 28px;
+      place-items: center;
+      border: 1px solid #d9bc83;
+      border-radius: 50%;
+      color: var(--amber);
+      font-weight: 900;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: clamp(20px, 3vw, 30px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+
+    .section-title-wrap { display: flex; min-width: 0; gap: 12px; }
+
+    .section-index {
+      display: grid;
+      width: 31px;
+      height: 31px;
+      flex: 0 0 31px;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .section h2 { margin: 0; color: var(--navy); font: 750 clamp(24px, 3vw, 32px)/1.13 Georgia, "Times New Roman", serif; }
+    .section-head p { max-width: 750px; margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+    .status-pill {
+      display: inline-flex;
+      min-height: 26px;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .status-pill::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .status-pill.is-ready { border-color: #acd0c4; background: var(--green-soft); color: var(--green); }
+    .status-pill.is-partial { border-color: #e1c68f; background: var(--amber-soft); color: var(--amber); }
+    .status-pill.is-blocked { border-color: #e2b7b1; background: var(--red-soft); color: var(--red); }
+    .status-pill.is-neutral { border-color: #bfd0dc; background: var(--blue-soft); color: var(--blue); }
+
+    .overall-grid,
+    .legal-grid,
+    .metric-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .overall-grid { grid-template-columns: 1.2fr 0.8fr; }
+    .legal-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px; }
+
+    .overview-card,
+    .legal-card,
+    .metric-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .overview-card { padding: 20px; }
+    .overview-card h3 { margin: 10px 0 6px; color: var(--navy); font-size: 19px; }
+    .overview-card p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .overview-facts { display: grid; gap: 10px; padding: 18px 20px; }
+
+    .fact-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+
+    .fact-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .fact-row span { color: var(--muted); }
+    .fact-row strong { color: var(--navy); text-align: right; }
+
+    .legal-card { min-height: 150px; padding: 18px; }
+    .legal-card-header { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
+    .legal-card small { color: var(--muted); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+    .legal-card h3 { margin: 13px 0 7px; color: var(--navy); font-size: 17px; }
+    .legal-card p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .source-list { display: grid; gap: 10px; }
+
+    .source-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .source-item h3 { margin: 0 0 4px; color: var(--navy); font-size: 15px; }
+    .source-item p { margin: 0; color: var(--muted); font-size: 12px; }
+    .source-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; color: #51636d; font-size: 11px; }
+    .source-meta span { overflow-wrap: anywhere; }
+    .source-actions { display: flex; align-items: center; }
+    .source-link { color: var(--blue); font-size: 12px; font-weight: 800; }
+
+    .metric-card { padding: 16px; }
+    .metric-card span { display: block; color: var(--muted); font-size: 11px; font-weight: 750; }
+    .metric-card strong { display: block; margin-top: 6px; color: var(--navy); font: 750 28px/1 Georgia, "Times New Roman", serif; }
+
+    .matrix-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+
+    .matrix-column {
+      min-width: 0;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-top-width: 4px;
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .matrix-column.is-calculable { border-top-color: var(--green); }
+    .matrix-column.is-conditional { border-top-color: var(--amber); }
+    .matrix-column.is-not-calculable { border-top-color: var(--red); }
+    .matrix-column h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .matrix-column > p { min-height: 38px; margin: 5px 0 14px; color: var(--muted); font-size: 11px; }
+
+    .rule-list { display: grid; gap: 10px; }
+
+    .rule-card {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .rule-card h4 { margin: 0 0 4px; color: var(--ink); font-size: 13px; }
+    .rule-card p { margin: 0; color: var(--muted); font-size: 11px; }
+    .rule-card dl { display: grid; gap: 5px; margin: 10px 0 0; }
+    .rule-card dl div { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 7px; font-size: 10px; }
+    .rule-card dt { color: var(--muted); font-weight: 750; }
+    .rule-card dd { margin: 0; overflow-wrap: anywhere; color: #3f515b; }
+
+    .empty-inline {
+      padding: 18px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+
+    table { width: 100%; min-width: 820px; border-collapse: collapse; }
+    th,
+    td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--surface-2); color: #50616b; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+    td { color: #344851; font-size: 12px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td strong { display: block; color: var(--ink); }
+    td small { display: block; margin-top: 3px; color: var(--muted); }
+
+    .conflict-list { display: grid; gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; }
+    .conflict-list li { color: var(--red); font-size: 10px; }
+
+    .readiness-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+    .readiness-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .readiness-card h3 { margin: 0 0 4px; color: var(--navy); font-size: 14px; }
+    .readiness-card p { margin: 0; color: var(--muted); font-size: 11px; }
+    .coverage { margin-top: 9px; color: #425761; font-size: 11px; font-weight: 750; }
+
+    .preview-grid { display: grid; grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr); gap: 18px; }
+
+    .preview-form-card,
+    .preview-result-card {
+      min-width: 0;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .preview-form-card h3,
+    .preview-result-card h3 { margin: 0 0 6px; color: var(--navy); font-size: 17px; }
+    .preview-form-card > p,
+    .preview-result-card > p { margin: 0 0 18px; color: var(--muted); font-size: 12px; }
+
+    .field { display: grid; gap: 6px; margin-top: 14px; }
+    .field label { color: #40545e; font-size: 11px; font-weight: 850; }
+    .field input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    .field input::placeholder { color: #8a979d; }
+    .field-help { color: var(--muted); font-size: 10px; }
+    .form-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+
+    .privacy-note {
+      margin-top: 16px;
+      padding: 11px 12px;
+      border-left: 3px solid var(--blue);
+      background: var(--blue-soft);
+      color: #466274;
+      font-size: 10px;
+    }
+
+    .preview-placeholder {
+      display: grid;
+      min-height: 290px;
+      place-items: center;
+      padding: 24px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .preview-placeholder strong { display: block; margin-bottom: 5px; color: var(--navy); }
+
+    .preview-error {
+      padding: 14px;
+      border: 1px solid #e2b7b1;
+      border-radius: var(--radius);
+      background: var(--red-soft);
+      color: #753b35;
+      font-size: 12px;
+    }
+
+    .preview-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .preview-person { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .preview-value { min-width: 120px; text-align: right; }
+    .preview-value strong { display: block; color: var(--navy); font: 750 34px/1 Georgia, "Times New Roman", serif; }
+    .preview-value span { color: var(--muted); font-size: 10px; }
+
+    .result-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+
+    .result-block { min-width: 0; }
+    .result-block h4 { margin: 0 0 8px; color: #435862; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .result-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+    .result-list li { padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: #435761; font-size: 10px; overflow-wrap: anywhere; }
+    .result-list strong { display: block; margin-bottom: 2px; color: var(--ink); font-size: 11px; }
+    .result-list.is-missing li { border-color: #e2c997; background: var(--amber-soft); color: #6f5633; }
+
+    .preview-disclaimer {
+      margin-top: 16px;
+      padding: 12px;
+      border-left: 4px solid var(--amber);
+      background: var(--amber-soft);
+      color: #6f5633;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .limitations-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .limitation-card {
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .limitation-card h3 { margin: 0 0 6px; color: var(--navy); font-size: 15px; }
+    .limitation-card p { margin: 0; color: var(--muted); font-size: 12px; }
+    .limitation-card.is-critical { border-color: #e1c68f; background: var(--amber-soft); }
+    .limitation-card.is-critical h3 { color: #704710; }
+    .limitation-card.is-critical p { color: #745b38; }
+
+    .action-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      margin-top: 28px;
+      padding: 22px;
+      border-radius: var(--radius);
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .action-strip h2 { margin: 0 0 5px; font: 750 24px/1.15 Georgia, "Times New Roman", serif; }
+    .action-strip p { margin: 0; color: #c8d9df; font-size: 12px; }
+    .action-links { display: flex; flex-wrap: wrap; gap: 9px; justify-content: flex-end; }
+    .action-links .button-secondary { border-color: rgba(255, 255, 255, 0.45); background: transparent; color: #fff; }
+    .action-links .button-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .footer-note { margin-top: 24px; color: var(--muted); font-size: 10px; text-align: center; }
+
+    @media (max-width: 1080px) {
+      .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .matrix-grid { grid-template-columns: 1fr; }
+      .matrix-column > p { min-height: 0; }
+      .preview-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 820px) {
+      body.nav-open { overflow: hidden; }
+      .sidebar { transform: translateX(-105%); transition: transform 180ms ease; }
+      body.nav-open .sidebar { transform: translateX(0); }
+      body.nav-open .nav-backdrop { display: block; }
+      .menu-close,
+      .menu-button { display: inline-grid; place-items: center; }
+      .main-shell { margin-left: 0; }
+      .topbar { min-height: 64px; padding: 10px 14px; }
+      .source-chip { max-width: 205px; }
+      .user-block,
+      #logoutButton { display: none; }
+      main { padding: 24px 14px 56px; }
+      .page-head { grid-template-columns: 1fr; align-items: start; }
+      .head-actions { justify-content: flex-start; }
+      .overall-grid,
+      .legal-grid,
+      .readiness-grid,
+      .limitations-grid { grid-template-columns: 1fr; }
+      .action-strip { grid-template-columns: 1fr; }
+      .action-links { justify-content: flex-start; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar-title { display: none; }
+      .topbar-actions { min-width: 0; gap: 7px; }
+      .source-chip { min-width: 0; max-width: calc(100vw - 132px); }
+      .icon-button { width: 40px; }
+      h1 { font-size: 40px; }
+      .page-lead { font-size: 14px; }
+      .head-actions,
+      .head-actions a { width: 100%; }
+      .section { padding: 18px 14px; }
+      .section-head { display: block; }
+      .section-head > .status-pill { margin: 12px 0 0 43px; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+      .source-item { grid-template-columns: 1fr; gap: 10px; }
+      .source-actions { justify-content: flex-start; }
+      .preview-form-card,
+      .preview-result-card { padding: 16px 13px; }
+      .result-columns { grid-template-columns: 1fr; }
+      .preview-summary { grid-template-columns: 1fr; }
+      .preview-value { text-align: left; }
+      .form-actions,
+      .form-actions button { width: 100%; }
+      .action-links,
+      .action-links a { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body data-mc-page="leave">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <a class="brand-home" href="internal-dashboard.html#inicio" aria-label="MuniControl, ir al inicio">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span class="brand-copy">
+            <strong>MuniControl</strong>
+            <span>Friendly · Junín</span>
+          </span>
+        </a>
+        <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      </div>
+
+      <nav class="nav-wrap">
+        <div class="nav-group">
+          <span class="nav-label">Operación</span>
+          <a class="nav-link" href="internal-dashboard.html#inicio"><span class="nav-icon" aria-hidden="true">⌂</span>Inicio</a>
+          <a class="nav-link" href="internal-dashboard.html#legajos"><span class="nav-icon" aria-hidden="true">P</span>Personas</a>
+          <a class="nav-link" href="estructura.html"><span class="nav-icon" aria-hidden="true">E</span>Estructura</a>
+          <a class="nav-link" href="integracion-datos.html"><span class="nav-icon" aria-hidden="true">I</span>Integración</a>
+          <a class="nav-link" href="nomina-control.html"><span class="nav-icon" aria-hidden="true">N</span>Nómina</a>
+          <a class="nav-link" href="asistente.html"><span class="nav-icon" aria-hidden="true">IA</span>Asistente</a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Herramientas</span>
+          <a class="nav-link" href="ausentismo-control.html"><span class="nav-icon" aria-hidden="true">A</span>Ausentismo</a>
+          <a class="nav-link" href="licencias-control.html" aria-current="page"><span class="nav-icon" aria-hidden="true">L</span>Licencias</a>
+          <a class="nav-link" href="reportes-rrhh.html"><span class="nav-icon" aria-hidden="true">R</span>Reportes RRHH</a>
+          <a class="nav-link" href="calidad-operativa.html"><span class="nav-icon" aria-hidden="true">C</span>Calidad operativa</a>
+          <a class="nav-link" href="modulos.html"><span class="nav-icon" aria-hidden="true">M</span>Mapa de producto</a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Aprender</span>
+          <a class="nav-link" href="centro-ayuda.html"><span class="nav-icon" aria-hidden="true">?</span>Ayuda</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot">
+        <strong>Uso interno municipal</strong>
+        Las estimaciones requieren revisión humana y respaldo documental.
+      </div>
+    </aside>
+
+    <div class="nav-backdrop" id="navBackdrop" aria-hidden="true"></div>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div class="topbar-title">
+          <small>Municipalidad de Junín · Mendoza</small>
+          <strong>Licencias normativas</strong>
+        </div>
+        <div class="topbar-actions">
+          <div class="source-chip" id="sourceChip" title="Trazabilidad del marco normativo"><span>Cargando fuentes…</span></div>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="Actualizar información" title="Actualizar">↻</button>
+          <div class="user-block" aria-label="Sesión actual">
+            <span class="user-avatar" id="userAvatar" aria-hidden="true">MJ</span>
+            <span class="user-copy"><strong id="userName">Sesión municipal</strong><span id="userRole">Acceso interno</span></span>
+          </div>
+          <button class="button-secondary" id="logoutButton" type="button">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <main id="mainContent" tabindex="-1">
+        <div class="content-wrap">
+          <section class="loading-state" id="loading" aria-live="polite">
+            <div class="state-card">
+              <div class="spinner" aria-hidden="true"></div>
+              <h2>Preparando el marco verificable</h2>
+              <p id="loadingMessage">Consultando vigencia, reglas y disponibilidad de datos.</p>
+            </div>
+          </section>
+
+          <section class="error-state" id="errorHost" hidden aria-live="assertive"></section>
+
+          <div id="mainView" hidden>
+            <header class="page-head">
+              <div>
+                <span class="eyebrow">Gestión de personas · respaldo normativo</span>
+                <h1>Licencias con reglas y evidencia separadas</h1>
+                <p class="page-lead">Una vista interna para distinguir qué permite calcular la norma, qué exige documentación o intervención humana y qué todavía no puede automatizarse con GRH.</p>
+              </div>
+              <div class="head-actions">
+                <a class="button-secondary" href="ausentismo-control.html">Ver ausentismo operativo</a>
+                <a class="button" href="asistente.html">Consultar al asistente</a>
+              </div>
+            </header>
+
+            <div class="scope-notice" role="note">
+              <span class="scope-symbol" aria-hidden="true">!</span>
+              <div>
+                <strong>Alcance de esta herramienta</strong>
+                <p>El preview es orientativo: no informa saldo disponible, no aprueba licencias y no reemplaza el acto administrativo. Las horas efectivamente trabajadas no son calculables con la evidencia GRH disponible.</p>
+              </div>
+            </div>
+
+            <section class="section" id="overallPanel" aria-labelledby="overallHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">01</span>
+                  <div>
+                    <h2 id="overallHeading">Estado de aplicación</h2>
+                    <p>Lectura conjunta del marco legal, su instrumentación municipal y la evidencia requerida para aplicarlo.</p>
+                  </div>
+                </div>
+                <span class="status-pill is-neutral" id="overallStatus">Evaluando</span>
+              </div>
+              <div class="overall-grid">
+                <article class="overview-card">
+                  <span class="status-pill is-neutral" id="overallBadge">Estado general</span>
+                  <h3 id="overallTitle">Información en preparación</h3>
+                  <p id="overallDetail">La respuesta todavía no informó una conclusión consolidada.</p>
+                </article>
+                <div class="overview-card overview-facts" aria-label="Trazabilidad principal">
+                  <div class="fact-row"><span>Vigencia legal al</span><strong id="legalAsOf">No informada</strong></div>
+                  <div class="fact-row"><span>Perfil municipal</span><strong id="municipalProfile">No informado</strong></div>
+                  <div class="fact-row"><span>Fuente GRH</span><strong id="grhCutoff">No informada</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section" id="legalPanel" aria-labelledby="legalHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">02</span>
+                  <div>
+                    <h2 id="legalHeading">Marco y vigencia</h2>
+                    <p>La existencia de una regla provincial no prueba por sí sola que el municipio la haya instrumentado ni que el legajo reúna los hechos necesarios.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="legal-grid">
+                <article class="legal-card">
+                  <div class="legal-card-header"><small>Regla provincial</small><span class="status-pill is-neutral" id="legalStatus">Sin datos</span></div>
+                  <h3 id="legalTitle">Estado legal no informado</h3>
+                  <p id="legalDetail">Se espera vigencia, autoridad y referencia verificable.</p>
+                </article>
+                <article class="legal-card">
+                  <div class="legal-card-header"><small>Instrumentación local</small><span class="status-pill is-neutral" id="municipalStatus">Sin datos</span></div>
+                  <h3 id="municipalTitle">Estado municipal no informado</h3>
+                  <p id="municipalDetail">Se esperan adhesión, reglamentación o acto municipal aplicable.</p>
+                </article>
+                <article class="legal-card">
+                  <div class="legal-card-header"><small>Aplicabilidad</small><span class="status-pill is-neutral" id="applicabilityStatus">Sin datos</span></div>
+                  <h3 id="applicabilityTitle">Perfil de aplicación no informado</h3>
+                  <p id="applicabilityDetail">La jurisdicción y el régimen deben validarse antes de calcular.</p>
+                </article>
+              </div>
+            </section>
+
+            <section class="section" id="sourcesPanel" aria-labelledby="sourcesHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">03</span>
+                  <div>
+                    <h2 id="sourcesHeading">Fuentes normativas</h2>
+                    <p>Normas, artículos, actos municipales y versiones que respaldan las reglas publicadas.</p>
+                  </div>
+                </div>
+                <span class="status-pill is-neutral" id="sourceCount">Sin fuentes</span>
+              </div>
+              <div class="source-list" id="sourcesList"></div>
+              <div class="empty-inline" id="sourceEmpty" hidden>No se publicaron fuentes verificables para este perfil. No corresponde inferir vigencia.</div>
+            </section>
+
+            <section class="section" id="matrixPanel" aria-labelledby="matrixHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">04</span>
+                  <div>
+                    <h2 id="matrixHeading">Matriz de calculabilidad</h2>
+                    <p>Cada regla se clasifica por el nivel de automatización defendible, no por conveniencia operativa.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="metric-grid" id="matrixMetrics">
+                <article class="metric-card"><span>Reglas publicadas</span><strong id="totalRules">—</strong></article>
+                <article class="metric-card"><span>Calculables</span><strong id="calculableCount">—</strong></article>
+                <article class="metric-card"><span>Condicionales</span><strong id="conditionalCount">—</strong></article>
+                <article class="metric-card"><span>No calculables</span><strong id="notCalculableCount">—</strong></article>
+              </div>
+              <div class="matrix-grid">
+                <article class="matrix-column is-calculable">
+                  <h3>Calculable</h3>
+                  <p>La norma y los hechos de entrada permiten un resultado reproducible.</p>
+                  <div class="rule-list" id="calculableList"></div>
+                  <div class="empty-inline" id="calculableEmpty" hidden>No hay reglas clasificadas como calculables.</div>
+                </article>
+                <article class="matrix-column is-conditional">
+                  <h3>Condicional</h3>
+                  <p>Requiere validar hechos, documentación o aplicación municipal.</p>
+                  <div class="rule-list" id="conditionalList"></div>
+                  <div class="empty-inline" id="conditionalEmpty" hidden>No hay reglas condicionales publicadas.</div>
+                </article>
+                <article class="matrix-column is-not-calculable">
+                  <h3>No calculable</h3>
+                  <p>No existe evidencia suficiente o el juicio no debe automatizarse.</p>
+                  <div class="rule-list" id="notCalculableList"></div>
+                  <div class="empty-inline" id="notCalculableEmpty" hidden>No hay reglas marcadas como no calculables.</div>
+                </article>
+              </div>
+            </section>
+
+            <section class="section" id="mappingPanel" aria-labelledby="mappingHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">05</span>
+                  <div>
+                    <h2 id="mappingHeading">Catálogo GRH y conflictos</h2>
+                    <p>Mapeo entre motivos registrados en GRH y políticas normativas. Los conflictos permanecen visibles para saneamiento.</p>
+                  </div>
+                </div>
+                <span class="status-pill is-neutral" id="mappingSummary">Sin mapeos</span>
+              </div>
+              <div class="table-wrap" id="mappingTableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Código GRH</th>
+                      <th scope="col">Motivo fuente</th>
+                      <th scope="col">Política propuesta</th>
+                      <th scope="col">Estado</th>
+                      <th scope="col">Evidencia / conflicto</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mappingTableBody"></tbody>
+                </table>
+              </div>
+              <div class="empty-inline" id="mappingEmpty" hidden>No hay un catálogo de mapeos publicado. Los motivos GRH no deben asociarse automáticamente.</div>
+            </section>
+
+            <section class="section" id="readinessPanel" aria-labelledby="readinessHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">06</span>
+                  <div>
+                    <h2 id="readinessHeading">Preparación de datos</h2>
+                    <p>Disponibilidad real de los hechos necesarios para ejecutar reglas y explicar resultados.</p>
+                  </div>
+                </div>
+                <span class="status-pill is-neutral" id="readinessSummary">Sin evaluación</span>
+              </div>
+              <div class="readiness-grid" id="readinessList"></div>
+              <div class="empty-inline" id="readinessEmpty" hidden>No se publicó una evaluación de preparación. La ausencia de evidencia no equivale a disponibilidad.</div>
+            </section>
+
+            <section class="section" id="previewPanel" aria-labelledby="previewHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">07</span>
+                  <div>
+                    <h2 id="previewHeading">Preview individual orientativo</h2>
+                    <p>Consulta acotada por empresa y legajo. Sólo estima licencia anual cuando existen regla aplicable y hechos suficientes.</p>
+                  </div>
+                </div>
+                <span class="status-pill is-partial">Revisión humana obligatoria</span>
+              </div>
+
+              <div class="preview-grid">
+                <form class="preview-form-card" id="previewForm" novalidate>
+                  <h3>Buscar legajo</h3>
+                  <p>Ingresá los identificadores internos exactos. No uses DNI, CUIL ni nombre.</p>
+
+                  <div class="field">
+                    <label for="companyIdInput">Empresa / jurisdicción</label>
+                    <input id="companyIdInput" name="companyId" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="32" autocomplete="off" spellcheck="false" required placeholder="Identificador numérico">
+                    <span class="field-help">Evita homónimos y mantiene el cálculo dentro de su fuente.</span>
+                  </div>
+
+                  <div class="field">
+                    <label for="legajoInput">Número de legajo</label>
+                    <input id="legajoInput" name="legajo" type="text" inputmode="text" maxlength="64" autocomplete="off" spellcheck="false" required placeholder="Ej.: 000123">
+                    <span class="field-help">La consulta no se guarda en la URL ni en el navegador.</span>
+                  </div>
+
+                  <div class="field">
+                    <label for="asOfInput">Año de evaluación</label>
+                    <input id="asOfInput" name="year" type="number" min="1990" step="1" inputmode="numeric" maxlength="4" autocomplete="off" required placeholder="AAAA" aria-describedby="evaluationYearHelp">
+                    <span class="field-help" id="evaluationYearHelp">El rango disponible se ajusta al corte real de la fuente GRH.</span>
+                  </div>
+
+                  <div class="form-actions">
+                    <button class="button" id="previewSubmit" type="submit">Calcular orientación</button>
+                    <button class="button-secondary" id="previewClear" type="button">Limpiar</button>
+                  </div>
+
+                  <div class="privacy-note">La pantalla no persiste empresa, legajo ni resultado. Al limpiar o recargar se descartan del navegador.</div>
+                </form>
+
+                <div class="preview-result-card" aria-live="polite" aria-busy="false" id="previewResultCard">
+                  <h3>Estimación orientativa de licencia anual</h3>
+                  <p>No es un saldo y no acredita derecho, consumo ni aprobación.</p>
+
+                  <div class="preview-placeholder" id="previewIntro">
+                    <div><strong>Esperando una consulta</strong>Completá empresa, legajo y año. Se mostrarán también los faltantes que impidan calcular.</div>
+                  </div>
+
+                  <div class="preview-placeholder" id="previewLoading" hidden>
+                    <div><div class="spinner" aria-hidden="true"></div><strong>Evaluando hechos y regla vigente</strong>La respuesta será orientativa y trazable.</div>
+                  </div>
+
+                  <div class="preview-error" id="previewError" hidden></div>
+
+                  <div id="previewResult" hidden>
+                    <div class="preview-summary">
+                      <div>
+                        <span class="status-pill is-neutral" id="previewStatus">Sin conclusión</span>
+                        <p class="preview-person" id="previewPerson">Legajo consultado</p>
+                        <p class="preview-person">Evaluación al <strong id="previewAsOf">—</strong></p>
+                      </div>
+                      <div class="preview-value">
+                        <strong id="previewDays">No calculable</strong>
+                        <span id="previewUnit">Días orientativos</span>
+                      </div>
+                    </div>
+
+                    <div class="result-columns">
+                      <div class="result-block">
+                        <h4>Entradas verificadas</h4>
+                        <ul class="result-list" id="previewInputs"></ul>
+                      </div>
+                      <div class="result-block">
+                        <h4>Faltantes y condiciones</h4>
+                        <ul class="result-list is-missing" id="previewMissing"></ul>
+                      </div>
+                      <div class="result-block">
+                        <h4>Trazabilidad de cálculo</h4>
+                        <ul class="result-list" id="previewTrace"></ul>
+                      </div>
+                      <div class="result-block">
+                        <h4>Fuentes aplicadas</h4>
+                        <ul class="result-list" id="previewSources"></ul>
+                      </div>
+                    </div>
+
+                    <div class="preview-disclaimer">Resultado orientativo. No es saldo disponible, aprobación, liquidación ni acto administrativo. Debe revisarse contra el legajo y la documentación respaldatoria.</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section" id="limitationsPanel" aria-labelledby="limitationsHeading">
+              <div class="section-head">
+                <div class="section-title-wrap">
+                  <span class="section-index" aria-hidden="true">08</span>
+                  <div>
+                    <h2 id="limitationsHeading">Límites de interpretación</h2>
+                    <p>Lo que el sistema no debe afirmar aunque exista un dato parcial o una regla general.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="limitations-grid" id="limitationsList">
+                <article class="limitation-card is-critical">
+                  <h3>Horas trabajadas: no calculables</h3>
+                  <p>La evidencia GRH disponible no representa un control horario vigente y completo. No se infieren horas efectivas, presentismo ni jornadas perdidas.</p>
+                </article>
+                <article class="limitation-card">
+                  <h3>Ausencia no equivale a licencia aprobada</h3>
+                  <p>Un evento registrado puede requerir documentación, acto administrativo, control médico o validación del régimen aplicable.</p>
+                </article>
+              </div>
+            </section>
+
+            <aside class="action-strip" aria-label="Continuidad del flujo">
+              <div>
+                <h2>Separar norma, evento y decisión mejora el control</h2>
+                <p>Usá Ausentismo para analizar los eventos GRH y el Asistente para explicar una regla con sus límites y fuentes.</p>
+              </div>
+              <div class="action-links">
+                <a class="button-secondary" href="ausentismo-control.html">Abrir Ausentismo</a>
+                <a class="button-secondary" href="asistente.html">Abrir Asistente</a>
+              </div>
+            </aside>
+
+            <p class="footer-note" id="generatedAt">Información interna. Corte y versión no informados.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/internal-guide.js" defer></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var DATA_URL = '/api/internal-data';
+      var LOGIN_URL = 'login.html?next=licencias-control.html';
+      var redirecting = false;
+      var previewRequestId = 0;
+      var normativeState = null;
+
+      var el = {};
+
+      function byId(id) { return document.getElementById(id); }
+
+      function cacheElements() {
+        [
+          'sidebar', 'menuButton', 'menuClose', 'navBackdrop', 'sourceChip', 'refreshButton', 'logoutButton',
+          'userName', 'userRole', 'userAvatar', 'loading', 'loadingMessage', 'errorHost', 'mainView',
+          'overallStatus', 'overallBadge', 'overallTitle', 'overallDetail', 'legalAsOf', 'municipalProfile', 'grhCutoff',
+          'legalStatus', 'legalTitle', 'legalDetail', 'municipalStatus', 'municipalTitle', 'municipalDetail',
+          'applicabilityStatus', 'applicabilityTitle', 'applicabilityDetail', 'sourceCount', 'sourcesList', 'sourceEmpty',
+          'totalRules', 'calculableCount', 'conditionalCount', 'notCalculableCount', 'calculableList', 'conditionalList',
+          'notCalculableList', 'calculableEmpty', 'conditionalEmpty', 'notCalculableEmpty', 'mappingSummary',
+          'mappingTableWrap', 'mappingTableBody', 'mappingEmpty', 'readinessSummary', 'readinessList', 'readinessEmpty',
+          'previewForm', 'companyIdInput', 'legajoInput', 'asOfInput', 'evaluationYearHelp', 'previewSubmit', 'previewClear', 'previewResultCard',
+          'previewIntro', 'previewLoading', 'previewError', 'previewResult', 'previewStatus', 'previewPerson', 'previewAsOf',
+          'previewDays', 'previewUnit', 'previewInputs', 'previewMissing', 'previewTrace', 'previewSources',
+          'limitationsList', 'generatedAt'
+        ].forEach(function (id) { el[id] = byId(id); });
+      }
+
+      function text(value, fallback) {
+        if (value === null || value === undefined) return fallback || '';
+        var output = String(value).trim();
+        return output || fallback || '';
+      }
+
+      function firstValue() {
+        for (var i = 0; i < arguments.length; i += 1) {
+          if (arguments[i] !== null && arguments[i] !== undefined && String(arguments[i]).trim() !== '') return arguments[i];
+        }
+        return null;
+      }
+
+      function asObject(value) {
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      }
+
+      function asArray(value) {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object') {
+          return Object.keys(value).map(function (key) {
+            var item = value[key];
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+              var copy = {};
+              Object.keys(item).forEach(function (itemKey) { copy[itemKey] = item[itemKey]; });
+              if (!copy.key) copy.key = key;
+              return copy;
+            }
+            return { key: key, value: item };
+          });
+        }
+        return [];
+      }
+
+      function listValues(value) {
+        if (Array.isArray(value)) return value.filter(function (item) { return item !== null && item !== undefined && String(item).trim() !== ''; });
+        if (value === null || value === undefined || value === '') return [];
+        return [value];
+      }
+
+      function normalizeCode(value) {
+        return text(value, '').toLowerCase().replace(/[\s-]+/g, '_');
+      }
+
+      function humanizeCode(value) {
+        var code = normalizeCode(value);
+        var labels = {
+          recognizedSeniority: 'Antigüedad reconocida',
+          effectiveDaysWorkedForShortService: 'Días efectivamente trabajados para antigüedad menor a seis meses',
+          municipalApplicabilityProfile: 'Perfil municipal de aplicabilidad',
+          approvedUsageAndCarryover: 'Consumos aprobados y arrastres conciliados',
+          medicalEvidence: 'Evidencia médica',
+          medicalAuthorityDecision: 'Decisión de la autoridad médica',
+          familyChargeStatus: 'Situación de cargas de familia',
+          recurrenceAssessment: 'Evaluación de recidiva',
+          eventEvidence: 'Evidencia del hecho',
+          relationshipEvidenceWhenApplicable: 'Acreditación del vínculo cuando corresponda',
+          restrictedEvidence: 'Evidencia de acceso restringido',
+          authorizedDecision: 'Decisión administrativa autorizada',
+          employmentStatus: 'Situación de revista',
+          serviceFeasibility: 'Necesidades y factibilidad del servicio',
+          applicableProvisionVersion: 'Versión normativa aplicable',
+          workScheduleAssignment: 'Asignación de turno vigente',
+          currentShiftAssignment: 'Asignación de turno vigente',
+          currentTimeClockRecords: 'Fichadas actuales',
+          currentTimePunches: 'Fichadas actuales',
+          holidayCalendar: 'Calendario laboral homologado',
+          currentHolidayCalendar: 'Calendario laboral homologado',
+          municipalRuleProfile: 'Perfil de reglas municipales',
+          authorizedPartialAbsences: 'Ausencias parciales autorizadas',
+          validEvaluationYear: 'Año de evaluación válido',
+          recognizedHireDate: 'Fecha de ingreso reconocida',
+          effectiveDaysWorked: 'Días efectivamente trabajados',
+          current_entitlement_ledger_unavailable: 'No existe un ledger vigente de derechos generados',
+          approved_case_decisions_unavailable: 'No están conciliadas las decisiones aprobadas de cada caso',
+          carryover_not_reconciled: 'Los arrastres no están conciliados',
+          current_shift_assignments_unavailable: 'No hay turnos vigentes homologados',
+          current_time_punches_unavailable: 'No hay fichadas actuales completas',
+          current_holiday_calendar_unavailable: 'No hay calendario laboral homologado',
+          partial_leave_intervals_unavailable: 'No hay intervalos parciales autorizados conciliados',
+          calendar_day: 'Días corridos',
+          calendar_window: 'Ventana calendario',
+          calendar_period: 'Período calendario',
+          day_per_year: 'Días por año',
+          minute_per_workday: 'Minutos por jornada',
+          schedule_dependent: 'Dependiente del horario',
+          rule_specific: 'Según regla específica',
+          case_specific: 'Según el caso',
+          day_unspecified: 'Unidad diaria a validar',
+          month: 'Meses',
+          year: 'Años'
+        };
+        if (labels[value]) return labels[value];
+        if (labels[code]) return labels[code];
+        if (!code) return '';
+        var readable = code.replace(/_/g, ' ');
+        return readable.charAt(0).toUpperCase() + readable.slice(1);
+      }
+
+      function normalizeStatus(value) {
+        var code = normalizeCode(value);
+        if (code.indexOf('official_') === 0 && code.indexOf('requires_') < 0 && code.indexOf('not_complete') < 0) {
+          return { key: 'ready', label: 'Fuente oficial', className: 'is-ready' };
+        }
+        if (['ready', 'verified', 'current', 'valid', 'complete', 'calculable', 'mapped', 'available', 'ok'].indexOf(code) >= 0) {
+          return { key: 'ready', label: 'Verificado', className: 'is-ready' };
+        }
+        if (code.indexOf('conditional_') === 0 || code.indexOf('official_requires_') === 0 || code.indexOf('official_local_') === 0) {
+          return { key: 'partial', label: 'Requiere revisión', className: 'is-partial' };
+        }
+        if (['partial', 'conditional', 'review', 'pending', 'unverified', 'needs_facts', 'needs_review', 'unknown', 'draft', 'candidate', 'not_homologated', 'source_value_not_homologated', 'historical_not_current_ledger', 'source_master_data_not_worked_hours', 'requires_version_check', 'restricted_human_validation', 'human_validation_required', 'mixed'].indexOf(code) >= 0) {
+          return { key: 'partial', label: 'Requiere revisión', className: 'is-partial' };
+        }
+        if (['blocked', 'missing', 'unavailable', 'error', 'conflict', 'configuration_conflict', 'requires_local_rule', 'not_calculable', 'not_calculable_with_current_grh', 'unmapped', 'invalid', 'expired'].indexOf(code) >= 0) {
+          return { key: 'blocked', label: code === 'conflict' ? 'Conflicto' : 'No disponible', className: 'is-blocked' };
+        }
+        if (['not_a_leave', 'not_title_vi_policy', 'separate_regime'].indexOf(code) >= 0) {
+          return { key: 'neutral', label: 'Régimen separado', className: 'is-neutral' };
+        }
+        return { key: 'neutral', label: value ? text(value) : 'Sin datos', className: 'is-neutral' };
+      }
+
+      function normalizeCalculability(value) {
+        var code = normalizeCode(value);
+        if (['calculable', 'verified', 'deterministic', 'ready', 'automatic'].indexOf(code) >= 0) return 'calculable';
+        if (['conditional', 'review', 'needs_facts', 'needs_review', 'partial', 'manual_review', 'human_validation_required', 'restricted_human_validation', 'mixed'].indexOf(code) >= 0) return 'conditional';
+        if (['not_calculable', 'non_calculable', 'not_calculable_with_current_grh', 'blocked', 'manual', 'unavailable', 'missing'].indexOf(code) >= 0) return 'not_calculable';
+        return 'conditional';
+      }
+
+      function normalizeMappingStatus(value) {
+        var code = normalizeCode(value);
+        if (['mapped', 'verified', 'ready', 'complete'].indexOf(code) >= 0) return { key: 'mapped', label: 'Mapeado', className: 'is-ready' };
+        if (['conflict', 'ambiguous', 'collision', 'configuration_conflict'].indexOf(code) >= 0) return { key: 'conflict', label: 'Conflicto GRH / norma', className: 'is-blocked' };
+        if (code === 'requires_local_rule') return { key: 'conflict', label: 'Falta regla local', className: 'is-blocked' };
+        if (['unmapped', 'missing', 'not_mapped'].indexOf(code) >= 0) return { key: 'unmapped', label: 'Sin mapear', className: 'is-blocked' };
+        if (code === 'requires_version_check') return { key: 'review', label: 'Verificar versión', className: 'is-partial' };
+        if (code === 'candidate') return { key: 'review', label: 'Candidato', className: 'is-partial' };
+        if (code === 'not_a_leave') return { key: 'neutral', label: 'No es licencia', className: 'is-neutral' };
+        if (code === 'not_title_vi_policy') return { key: 'neutral', label: 'Fuera del Título VI', className: 'is-neutral' };
+        if (code === 'separate_regime') return { key: 'neutral', label: 'Régimen separado', className: 'is-neutral' };
+        return { key: 'review', label: 'En revisión', className: 'is-partial' };
+      }
+
+      function setStatusPill(node, value, fallbackLabel) {
+        if (!node) return;
+        var status = normalizeStatus(value);
+        node.className = 'status-pill ' + status.className;
+        node.textContent = fallbackLabel || status.label;
+        node.dataset.status = status.key;
+      }
+
+      function formatDate(value, fallback) {
+        if (!value) return fallback || 'No informada';
+        var raw = String(value).slice(0, 10);
+        var parts = raw.split('-');
+        if (parts.length === 3 && /^\d{4}$/.test(parts[0])) return parts[2] + '/' + parts[1] + '/' + parts[0];
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) return text(value, fallback || 'No informada');
+        return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+      }
+
+      function formatDateTime(value) {
+        if (!value) return 'No informada';
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) return formatDate(value);
+        return new Intl.DateTimeFormat('es-AR', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }).format(date);
+      }
+
+      function formatValue(value) {
+        if (value === null || value === undefined || value === '') return 'No informado';
+        if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+        if (typeof value === 'number' && Number.isFinite(value)) return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value);
+        return text(value, 'No informado');
+      }
+
+      function formatCoverage(value) {
+        if (value === null || value === undefined || value === '') return '';
+        if (typeof value === 'string' && value.indexOf('%') >= 0) return value;
+        var number = Number(value);
+        if (!Number.isFinite(number)) return text(value);
+        if (number >= 0 && number <= 1) number *= 100;
+        return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(number) + '%';
+      }
+
+      function safeHttpUrl(value) {
+        if (!value) return null;
+        try {
+          var parsed = new URL(value, location.origin);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      function create(tag, className, content) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (content !== undefined && content !== null) node.textContent = String(content);
+        return node;
+      }
+
+      function clear(node) {
+        while (node && node.firstChild) node.removeChild(node.firstChild);
+      }
+
+      function normaliseFactList(value) {
+        return asArray(value).map(function (item, index) {
+          var obj = asObject(item);
+          if (Object.keys(obj).length === 0) return { key: String(index), label: text(item, 'Dato'), value: '', detail: '', status: '' };
+          return {
+            key: text(firstValue(obj.key, obj.id, obj.code), String(index)),
+            label: text(firstValue(obj.label, obj.title, obj.name, obj.key, obj.code), 'Dato'),
+            value: firstValue(obj.value, obj.result, obj.actual, obj.available),
+            detail: text(firstValue(obj.detail, obj.description, obj.note, obj.reason), ''),
+            status: text(firstValue(obj.status, obj.state), ''),
+            source: text(firstValue(obj.source, obj.authority, obj.origin), '')
+          };
+        });
+      }
+
+      function normalizeNormative(root) {
+        root = asObject(root);
+        var data = asObject(firstValue(root.data, root.result, root.payload));
+        var meta = asObject(firstValue(root.meta, data.meta));
+        var legalCatalog = asObject(data.legal);
+        var applicabilityRaw = asObject(firstValue(legalCatalog.applicability, data.applicability));
+        var sourceMeta = asObject(firstValue(meta.source, data.source));
+        var rawSources = firstValue(legalCatalog.sources, data.sources, data.legalSources, data.normativeSources, root.sources);
+        var sources = asArray(rawSources).map(function (item, index) {
+          var obj = asObject(item);
+          return {
+            id: text(firstValue(obj.id, obj.sourceId, obj.code), String(index)),
+            title: text(firstValue(obj.title, obj.label, obj.name, obj.number), 'Fuente sin título'),
+            authority: text(firstValue(obj.authority, obj.issuer, obj.organism, obj.jurisdiction), 'Autoridad no informada'),
+            reference: text([firstValue(obj.type, obj.kind), firstValue(obj.number, obj.article), obj.inciso].filter(Boolean).join(' · '), ''),
+            validFrom: firstValue(obj.validFrom, obj.effectiveFrom, obj.from),
+            validTo: firstValue(obj.validTo, obj.effectiveTo, obj.to),
+            asOf: firstValue(obj.asOf, obj.verifiedAt, obj.cutoff, legalCatalog.verifiedAt),
+            status: firstValue(obj.status, obj.state, 'unknown'),
+            url: firstValue(obj.url, obj.href, obj.sourceUrl),
+            sha256: text(firstValue(obj.sha256, obj.hash, obj.digest), ''),
+            notes: text(firstValue(obj.notes, obj.detail, obj.description, obj.scope), '')
+          };
+        });
+
+        var legalVersion = text(firstValue(legalCatalog.version, meta.policyVersionId, data.legalVersion), 'Versión no informada');
+        var legalVerifiedAt = firstValue(legalCatalog.verifiedAt, meta.legalVerifiedAt, meta.legalAsOf, data.legalAsOf);
+        var applicabilityStatus = firstValue(applicabilityRaw.status, data.applicabilityStatus, 'unknown');
+        var supportedEvaluationYears = asArray(applicabilityRaw.supportedEvaluationYears).map(Number).filter(function (value) { return Number.isInteger(value); }).sort();
+        var applicabilityRules = listValues(applicabilityRaw.rules).map(humanizeCode);
+        var missingInstruments = listValues(applicabilityRaw.missingInstruments).map(humanizeCode);
+        var legal = {
+          status: sources.length && legalVerifiedAt ? 'verified' : 'partial',
+          title: 'Ley 5811 · Título VI · ' + legalVersion,
+          detail: sources.length + ' fuente' + (sources.length === 1 ? '' : 's') + ' normativa' + (sources.length === 1 ? '' : 's') + (legalVerifiedAt ? ' · verificación al ' + formatDate(legalVerifiedAt) : ' · verificación pendiente')
+        };
+        var municipal = {
+          status: applicabilityStatus,
+          title: normalizeStatus(applicabilityStatus).key === 'ready' ? 'Instrumentación municipal verificada' : 'Instrumentación municipal incompleta',
+          detail: applicabilityRules[0] || 'Falta consolidar la reglamentación y los instrumentos locales aplicables.'
+        };
+        var applicability = {
+          status: applicabilityStatus,
+          title: normalizeStatus(applicabilityStatus).key === 'ready' ? 'Perfil Junín vigente' : 'Perfil Junín pendiente de completar',
+          detail: missingInstruments.length ? 'Instrumentos pendientes: ' + missingInstruments.join(' · ') : (applicabilityRules[1] || 'La aplicabilidad debe validarse por período y categoría.')
+        };
+
+        var provisions = asArray(legalCatalog.provisions);
+        var provisionById = {};
+        provisions.forEach(function (item) {
+          var provision = asObject(item);
+          if (provision.id) provisionById[String(provision.id)] = provision;
+        });
+        var rawRules = asArray(firstValue(legalCatalog.keyRules, data.matrix, data.calculability, data.ruleMatrix, data.rules));
+        if (!rawRules.length) rawRules = provisions;
+        var matrix = rawRules.map(function (item, index) {
+          var obj = asObject(item);
+          var linked = asObject(provisionById[text(firstValue(obj.provisionId, obj.id), '')]);
+          var conditions = listValues(firstValue(obj.conditions, obj.requirements, obj.requiredFacts, linked.requiredFacts)).map(function (value) {
+            var fact = asObject(value);
+            return humanizeCode(firstValue(fact.label, fact.title, fact.detail, value));
+          }).filter(Boolean);
+          var limitations = listValues(firstValue(obj.limitations, obj.missingFacts, obj.caveats)).map(function (value) {
+            var fact = asObject(value);
+            return humanizeCode(firstValue(fact.label, fact.title, fact.detail, value));
+          }).filter(Boolean);
+          if (obj.manualGate) limitations.push('Control humano: ' + humanizeCode(obj.manualGate));
+          return {
+            id: text(firstValue(obj.id, obj.ruleId, obj.code), String(index)),
+            code: text(firstValue(obj.code, obj.ruleCode, obj.id), ''),
+            label: text(firstValue(obj.label, obj.title, obj.name, linked.label), 'Regla sin título'),
+            category: normalizeCalculability(firstValue(obj.calculability, obj.status, obj.automation, obj.category, obj.classification, linked.automation)),
+            unit: humanizeCode(firstValue(obj.unit, obj.resultUnit, linked.unit)),
+            basis: text(firstValue(obj.legalBasis, obj.basis, obj.source, obj.article, linked.article), ''),
+            referenceValue: firstValue(obj.value, obj.referenceValue),
+            summary: text(firstValue(obj.summary, obj.description, linked.summary), ''),
+            conditions: conditions,
+            limitations: limitations
+          };
+        });
+
+        var mappings = asArray(firstValue(data.mappings, data.reasonMappings, data.catalogMappings, data.catalog)).map(function (item, index) {
+          var obj = asObject(item);
+          var policy = asObject(obj.policy);
+          var sourceConfiguration = asObject(obj.sourceConfiguration);
+          var observed = asObject(obj.observed);
+          var policyCode = text(firstValue(policy.provisionId, obj.policyCode, obj.targetCode, obj.ruleCode), '');
+          var provision = asObject(provisionById[policyCode]);
+          var statusValue = firstValue(policy.status, obj.status, obj.state, 'unmapped');
+          var conflicts = listValues(firstValue(obj.conflicts, obj.conflict, obj.issues)).map(function (value) {
+            var conflict = asObject(value);
+            return text(firstValue(conflict.label, conflict.detail, conflict.reason, value), '');
+          }).filter(Boolean);
+          if (['configuration_conflict', 'requires_local_rule', 'unmapped'].indexOf(normalizeCode(statusValue)) >= 0 && policy.note) conflicts.push(text(policy.note));
+          return {
+            id: text(firstValue(obj.id, obj.mappingId), String(index)),
+            reasonCode: text(firstValue(obj.reasonCode, obj.sourceCode, obj.code), 'Sin código'),
+            reasonLabel: text(firstValue(obj.reasonLabel, obj.sourceLabel, obj.reason, obj.label), 'Motivo sin descripción'),
+            policyCode: policyCode,
+            policyLabel: text(firstValue(obj.policyLabel, obj.targetLabel, obj.ruleLabel, provision.label), policyCode ? 'Disposición ' + policyCode : 'Sin política asociada'),
+            status: statusValue,
+            basis: text(firstValue(obj.legalBasis, obj.basis, provision.article ? 'Artículo ' + provision.article : null), ''),
+            conflicts: conflicts,
+            notes: text(firstValue(policy.note, obj.notes, obj.detail, obj.description), ''),
+            sourceConfiguration: sourceConfiguration,
+            observed: observed
+          };
+        });
+
+        function n(value) {
+          var parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function readinessFromContract(raw) {
+          raw = asObject(raw);
+          if (!Object.keys(raw).length) return [];
+          var items = [];
+          var employment = asObject(raw.employment);
+          if (Object.keys(employment).length) {
+            items.push({
+              key: 'employment', label: 'Maestro laboral y antigüedad',
+              status: n(employment.activeWithoutHireDate) > 0 || normalizeCode(employment.recognizedSeniorityStatus) !== 'verified' ? 'partial' : 'ready',
+              detail: formatValue(employment.records) + ' registros · ' + formatValue(employment.activeRecords) + ' activos administrativos · ' + formatValue(employment.activeWithHireDate) + ' activos con fecha de ingreso · ' + formatValue(employment.activeWithoutHireDate) + ' sin fecha · ' + formatValue(employment.activeOldHireDateZeroSourceSeniority) + ' con ingreso antiguo y antigüedad fuente en cero. La antigüedad fuente no está homologada.',
+              coverage: null, source: 'GRH'
+            });
+          }
+          var absences = asObject(raw.absences);
+          if (Object.keys(absences).length) {
+            var absenceIssues = n(absences.excludedBeforeMinimum) + n(absences.excludedAfterCutoff) + n(absences.invertedRanges) + n(absences.missingReason) + n(absences.unlinkedRows);
+            items.push({
+              key: 'absences', label: 'Eventos de ausentismo', status: absenceIssues ? 'partial' : 'ready',
+              detail: formatValue(absences.rowsWithinCoverage) + ' de ' + formatValue(absences.sourceRows) + ' filas dentro de cobertura · ' + formatValue(absences.excludedBeforeMinimum) + ' anteriores al mínimo · ' + formatValue(absences.excludedAfterCutoff) + ' posteriores al corte · ' + formatValue(absences.invertedRanges) + ' rangos invertidos · ' + formatValue(absences.missingReason) + ' sin motivo · ' + formatValue(absences.unlinkedRows) + ' sin vínculo. Los días son declarados GRH, no jornadas perdidas.',
+              coverage: null, source: 'GRH'
+            });
+          }
+          var legacy = asObject(raw.legacyLeaves);
+          if (Object.keys(legacy).length) {
+            items.push({
+              key: 'legacyLeaves', label: 'Licencias históricas', status: 'not_calculable',
+              detail: formatValue(legacy.rows) + ' registros entre ' + formatDate(legacy.minDate, 'fecha no informada') + ' y ' + formatDate(legacy.maxDate, 'fecha no informada') + '. Es evidencia histórica, no un ledger vigente.',
+              coverage: null, source: 'GRH histórico'
+            });
+          }
+          var schedules = asObject(raw.schedules);
+          if (Object.keys(schedules).length) {
+            items.push({
+              key: 'schedules', label: 'Carga horaria declarada', status: 'partial',
+              detail: formatValue(schedules.activeWithDeclaredDailyHours) + ' activos con horas diarias declaradas · ' + formatValue(schedules.activeWithDeclaredMonthlyHours) + ' con horas mensuales. Son datos maestros, no horas efectivamente trabajadas.',
+              coverage: null, source: 'GRH maestro'
+            });
+          }
+          var worked = asObject(raw.workedHours);
+          if (Object.keys(worked).length) {
+            items.push({
+              key: 'workedHours', label: 'Horas efectivamente trabajadas', status: firstValue(worked.status, 'not_calculable'),
+              detail: listValues(worked.reasons).map(humanizeCode).join(' · ') || 'No existe evidencia suficiente para calcular horas efectivas.',
+              coverage: null, source: 'Control no disponible'
+            });
+          }
+          var balance = asObject(raw.leaveBalance);
+          if (Object.keys(balance).length) {
+            items.push({
+              key: 'leaveBalance', label: 'Saldo de licencias', status: firstValue(balance.status, 'not_calculable'),
+              detail: listValues(balance.reasons).map(humanizeCode).join(' · ') || 'No existe un ledger vigente y conciliado.',
+              coverage: null, source: 'No disponible'
+            });
+          }
+          var catalog = asObject(raw.reasonCatalog);
+          if (Object.keys(catalog).length) {
+            items.push({
+              key: 'reasonCatalog', label: 'Catálogo de motivos GRH', status: n(catalog.mappingConflicts) ? 'partial' : 'ready',
+              detail: formatValue(catalog.rows) + ' motivos · ' + formatValue(catalog.mappingConflicts) + ' conflictos que requieren revisión. La configuración GRH no constituye ley verificada.',
+              coverage: null, source: 'GRH configuración'
+            });
+          }
+          return items;
+        }
+
+        var readinessRaw = firstValue(data.readiness, data.dataReadiness, data.requirements, data.inputReadiness);
+        var readiness = readinessFromContract(readinessRaw);
+        if (!readiness.length) {
+          readiness = normaliseFactList(readinessRaw).map(function (item) {
+            return { key: item.key, label: item.label, status: item.status || 'unknown', detail: item.detail, coverage: item.value, source: item.source };
+          });
+        }
+
+        var limitations = [];
+        if (legalCatalog.disclaimer) limitations.push({ title: 'Alcance del catálogo legal', detail: text(legalCatalog.disclaimer) });
+        listValues(firstValue(data.caveats, data.limitations, root.caveats, root.limitations)).forEach(function (item) {
+          var obj = asObject(item);
+          limitations.push({
+            title: text(firstValue(obj.title, obj.label, obj.code), 'Limitación informada'),
+            detail: text(firstValue(obj.detail, obj.description, obj.reason, obj.note, item), '')
+          });
+        });
+
+        var statuses = [legal.status, municipal.status, applicability.status].map(function (value) { return normalizeStatus(value).key; });
+        var overallStatus = statuses.indexOf('blocked') >= 0 ? 'blocked' : statuses.indexOf('partial') >= 0 || statuses.indexOf('neutral') >= 0 ? 'partial' : 'ready';
+        var authority = Array.isArray(meta.authority) ? meta.authority.join(' · ') : text(firstValue(meta.authority, data.authority), '');
+        var profileLabel = normalizeStatus(applicabilityStatus).key === 'ready' ? 'Perfil Junín verificado' : 'Perfil Junín pendiente de completar';
+        return {
+          legal: legal,
+          municipal: municipal,
+          applicability: applicability,
+          overall: {
+            status: overallStatus,
+            title: overallStatus === 'ready' ? 'Marco y perfil disponibles' : 'Marco identificado; aplicación local condicionada',
+            detail: overallStatus === 'ready' ? 'Las reglas publicadas conservan fuente, vigencia y trazabilidad.' : 'Las reglas provinciales no deben aplicarse automáticamente hasta completar el perfil municipal y los hechos de cada caso.'
+          },
+          sources: sources,
+          matrix: matrix,
+          mappings: mappings,
+          readiness: readiness,
+          limitations: limitations.filter(function (item) { return item.detail || item.title; }),
+          meta: {
+            legalAsOf: legalVerifiedAt,
+            legalVersion: legalVersion,
+            municipalAsOf: firstValue(meta.municipalAsOf, data.municipalAsOf),
+            profile: profileLabel,
+            sourceCutoff: firstValue(meta.sourceCutoff, sourceMeta.cutoff, sourceMeta.asOf, data.sourceCutoff),
+            sourceName: text(firstValue(sourceMeta.name, sourceMeta.importId), ''),
+            sourceHash: text(firstValue(sourceMeta.sha256, sourceMeta.hash), ''),
+            generatedAt: firstValue(meta.generatedAt, sourceMeta.importedAt, root.generatedAt, data.generatedAt),
+            authority: authority,
+            supportedEvaluationYears: supportedEvaluationYears
+          }
+        };
+      }
+
+      function normalisePreview(root) {
+        root = asObject(root);
+        var data = asObject(firstValue(root.data, root.result, root.payload));
+        var meta = asObject(firstValue(root.meta, data.meta));
+        var employee = asObject(firstValue(data.employee, data.person, data.contract));
+        var evaluation = asObject(data.evaluation);
+        var annual = asObject(firstValue(data.annualOrdinary, data.annualLeave, data.orientation, data.calculation));
+        var result = asObject(firstValue(annual.result, data.result));
+        var health = asObject(data.healthLeave);
+        var worked = asObject(data.workedHours);
+        var declaredSchedule = asObject(worked.declaredSchedule);
+        var sourceSeniority = asObject(data.sourceSeniority);
+        var statusValue = firstValue(annual.status, data.calculationStatus, data.status, data.outcome, result.status);
+        var statusCode = normalizeCode(statusValue);
+        var isNotCalculable = ['not_calculable', 'non_calculable', 'blocked', 'unavailable', 'missing'].indexOf(statusCode) >= 0;
+        var days = firstValue(result.value, result.days, annual.orientationDays, annual.estimatedDays, annual.days);
+        if (isNotCalculable) days = null;
+
+        function fact(label, value, detail, source) {
+          return { key: normalizeCode(label), label: label, value: value, detail: detail || '', status: '', source: source || '' };
+        }
+
+        function previewSources(value) {
+          return asArray(value).map(function (item, index) {
+            var obj = asObject(item);
+            if (Object.keys(obj).length === 0) return fact(text(item, 'Fuente'), '', '', '');
+            return {
+              key: text(firstValue(obj.id, obj.key, obj.code), String(index)),
+              label: text(firstValue(obj.title, obj.label, obj.name, obj.number), 'Fuente'),
+              value: text(firstValue(obj.article, obj.reference, obj.version, obj.scope), ''),
+              detail: text(firstValue(obj.detail, obj.description, obj.authority), ''),
+              source: ''
+            };
+          });
+        }
+
+        var inputs = normaliseFactList(firstValue(data.inputs, data.verifiedInputs, data.facts, annual.inputs));
+        if (employee.hireDate) inputs.push(fact('Fecha de ingreso GRH', formatDate(employee.hireDate), 'Dato fuente; su reconocimiento jurídico debe validarse.', 'GRH'));
+        if (employee.activeAdministrativeProxy !== undefined) inputs.push(fact('Activo administrativo (proxy)', employee.activeAdministrativeProxy ? 'Sí' : 'No', 'No equivale por sí solo a condición liquidable.', 'GRH'));
+        var employmentParts = [employee.sector, employee.category, employee.agreement, employee.role].filter(Boolean);
+        if (employmentParts.length) inputs.push(fact('Encuadre laboral informado', employmentParts.join(' · '), 'Sector · categoría · convenio · cargo, según disponibilidad.', 'GRH'));
+        if (sourceSeniority.years !== undefined || sourceSeniority.months !== undefined) {
+          inputs.push(fact('Antigüedad declarada en la fuente', formatValue(sourceSeniority.years) + ' años · ' + formatValue(sourceSeniority.months) + ' meses', 'Valor fuente no homologado; el cálculo de referencia usa la fecha de ingreso GRH.', 'GRH'));
+        }
+        if (evaluation.sourceCoverageTo) inputs.push(fact('Cobertura de evidencia', 'Hasta ' + formatDate(evaluation.sourceCoverageTo), 'Los eventos posteriores al corte no están incluidos.', 'GRH'));
+        if (declaredSchedule.dailyHours !== null && declaredSchedule.dailyHours !== undefined || declaredSchedule.monthlyHours !== null && declaredSchedule.monthlyHours !== undefined) {
+          var scheduleParts = [];
+          if (declaredSchedule.dailyHours !== null && declaredSchedule.dailyHours !== undefined) scheduleParts.push(formatValue(declaredSchedule.dailyHours) + ' h/día declaradas');
+          if (declaredSchedule.monthlyHours !== null && declaredSchedule.monthlyHours !== undefined) scheduleParts.push(formatValue(declaredSchedule.monthlyHours) + ' h/mes declaradas');
+          inputs.push(fact('Carga horaria declarada (no horas trabajadas)', scheduleParts.join(' · '), text(declaredSchedule.semantics, 'Dato maestro; no prueba horas efectivamente trabajadas.'), 'GRH'));
+        }
+
+        var missing = normaliseFactList(firstValue(data.missingFacts, data.missing, data.requirements, annual.missingFacts));
+        if (!missing.length) {
+          listValues(annual.missingFacts).forEach(function (item) { missing.push(fact(humanizeCode(item), '', 'Hecho requerido para sostener la orientación.', '')); });
+        } else {
+          missing = missing.map(function (item) { item.label = humanizeCode(item.label); return item; });
+        }
+        if (health.status) missing.push(fact('Licencias por salud: no automatizables', '', text(health.reason, 'Requieren evidencia médica, control y decisión autorizada.'), ''));
+        listValues(worked.missingFacts).forEach(function (item) { missing.push(fact('Horas trabajadas: ' + humanizeCode(item), '', 'Falta este hecho para cualquier cálculo horario.', '')); });
+
+        var trace = normaliseFactList(firstValue(data.trace, data.steps, data.calculationTrace, annual.trace));
+        if (annual.code) trace.push(fact('Código técnico del resultado', humanizeCode(annual.code), '', 'Motor normativo'));
+        if (annual.serviceYears !== undefined || annual.serviceMonths !== undefined) trace.push(fact('Antigüedad calculada a la referencia', formatValue(annual.serviceYears) + ' años · ' + formatValue(annual.serviceMonths) + ' meses', 'Derivada de la fecha de ingreso GRH; requiere homologación.', 'Motor normativo'));
+        var rule = asObject(annual.rule);
+        if (Object.keys(rule).length) {
+          var ruleParts = [];
+          if (rule.article) ruleParts.push('Artículo ' + rule.article);
+          if (rule.provisionId) ruleParts.push(humanizeCode(rule.provisionId));
+          if (rule.formula) ruleParts.push(rule.formula);
+          trace.push(fact('Regla de referencia', ruleParts.join(' · '), '', 'Catálogo Ley 5811 Título VI'));
+        }
+        if (annual.interpretation) trace.push(fact('Interpretación permitida', '', text(annual.interpretation), ''));
+        asArray(annual.observedGrhEvents).forEach(function (event) {
+          var observed = asObject(event);
+          trace.push(fact('Evento GRH ' + text(observed.reasonCode, 'sin código') + ' · ' + text(observed.label, 'sin etiqueta'), formatValue(observed.events) + ' evento(s) · ' + formatValue(observed.sourceDeclaredDays) + ' días declarados', text(observed.semantics, 'Evidencia fuente; no prueba aprobación ni saldo.'), 'GRH'));
+        });
+        if (annual.observedSourceDeclaredDays !== undefined) trace.push(fact('Total observado en GRH para motivos anuales', formatValue(annual.observedSourceDeclaredDays) + ' días declarados', 'No equivale a consumo conciliado, aprobación ni saldo.', 'GRH'));
+
+        var previewSourceList = previewSources(firstValue(data.sources, data.citations, annual.sources));
+        if (!previewSourceList.length && normativeState && normativeState.sources) previewSourceList = previewSources(normativeState.sources);
+        var caveats = [];
+        if (normalizeCode(worked.status) === 'not_calculable') caveats.push(fact('Horas efectivamente trabajadas: no calculables', '', text(declaredSchedule.semantics, 'La carga horaria declarada no representa horas efectivamente trabajadas.'), ''));
+        listValues(firstValue(data.caveats, data.limitations, annual.caveats)).forEach(function (item) {
+          var obj = asObject(item);
+          caveats.push(fact(text(firstValue(obj.label, obj.title, obj.detail, item), 'Limitación'), '', text(firstValue(obj.description, obj.reason, obj.note), ''), ''));
+        });
+        var metaSource = asObject(meta.source);
+        return {
+          status: statusValue,
+          companyId: text(firstValue(employee.companyId, data.companyId), ''),
+          legajo: text(firstValue(employee.legajo, data.legajo), ''),
+          personName: text(firstValue(employee.displayName, employee.name, employee.label), ''),
+          year: firstValue(evaluation.year, data.year),
+          asOf: firstValue(evaluation.referenceDate, annual.referenceDate, data.asOf, meta.asOf),
+          sourceCoverageTo: firstValue(evaluation.sourceCoverageTo, metaSource.cutoff),
+          days: days,
+          unit: humanizeCode(firstValue(result.unit, annual.unit, data.unit, 'calendar_day')),
+          inputs: inputs,
+          missing: missing,
+          trace: trace,
+          sources: previewSourceList,
+          caveats: caveats,
+          meta: {
+            policyVersionId: text(firstValue(meta.policyVersionId, data.policyVersionId, normativeState && normativeState.meta.legalVersion), ''),
+            applicabilityProfileId: text(firstValue(meta.applicabilityProfileId, data.applicabilityProfileId), ''),
+            engineVersion: text(firstValue(meta.engineVersion, data.engineVersion), ''),
+            inputHash: text(firstValue(meta.inputHash, data.inputHash), ''),
+            authority: text(meta.authority, ''),
+            importId: text(metaSource.importId, '')
+          }
+        };
+      }
+
+      function redirectToLogin() {
+        if (redirecting) return;
+        redirecting = true;
+        location.replace(LOGIN_URL);
+      }
+
+      async function requestJson(url, options) {
+        var response;
+        try {
+          response = await fetch(url, Object.assign({
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          }, options || {}));
+        } catch (error) {
+          var networkError = new Error('No se pudo conectar con el servicio municipal.');
+          networkError.cause = error;
+          throw networkError;
+        }
+
+        if (response.status === 401) {
+          redirectToLogin();
+          var unauthorized = new Error('Sesión vencida.');
+          unauthorized.unauthorized = true;
+          throw unauthorized;
+        }
+
+        var payload = null;
+        try { payload = await response.json(); } catch (error) { payload = null; }
+
+        if (!response.ok || (payload && payload.ok === false)) {
+          var message = payload && firstValue(payload.error, payload.message, payload.detail);
+          var requestError = new Error(text(message, 'El servicio no pudo completar la consulta.'));
+          requestError.status = response.status;
+          requestError.payload = payload;
+          throw requestError;
+        }
+
+        return payload || {};
+      }
+
+      function renderSession(payload) {
+        var root = asObject(payload);
+        var user = asObject(firstValue(root.user, root.data, root.session));
+        var name = text(firstValue(user.name, user.displayName, user.email), 'Sesión municipal');
+        var role = text(firstValue(user.role, user.profile, user.type), 'Acceso interno');
+        el.userName.textContent = name;
+        el.userRole.textContent = role;
+        var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');
+        el.userAvatar.textContent = initials || 'MJ';
+      }
+
+      function showGlobalLoading(message) {
+        el.loadingMessage.textContent = message || 'Consultando información.';
+        el.loading.hidden = false;
+        el.errorHost.hidden = true;
+        el.mainView.hidden = true;
+      }
+
+      function showGlobalError(error) {
+        if (error && error.unauthorized) return;
+        clear(el.errorHost);
+        var card = create('div', 'state-card');
+        var title = create('h2', '', 'No pudimos preparar Licencias');
+        var detail = create('p', '', text(error && error.message, 'Ocurrió un error al consultar el marco normativo.'));
+        var retry = create('button', 'button', 'Reintentar');
+        retry.type = 'button';
+        retry.id = 'globalRetryButton';
+        retry.addEventListener('click', loadPage);
+        card.appendChild(title);
+        card.appendChild(detail);
+        card.appendChild(retry);
+        el.errorHost.appendChild(card);
+        el.loading.hidden = true;
+        el.mainView.hidden = true;
+        el.errorHost.hidden = false;
+      }
+
+      function renderLegalCard(prefix, entry, defaults) {
+        entry = entry || {};
+        setStatusPill(el[prefix + 'Status'], entry.status);
+        el[prefix + 'Title'].textContent = text(entry.title, defaults.title);
+        el[prefix + 'Detail'].textContent = text(entry.detail, defaults.detail);
+      }
+
+      function renderOverview(state) {
+        var overall = state.overall;
+        var overallStatus = normalizeStatus(overall.status);
+        setStatusPill(el.overallStatus, overall.status, overallStatus.label);
+        setStatusPill(el.overallBadge, overall.status, overallStatus.label);
+
+        var defaultTitle = overallStatus.key === 'ready' ? 'Marco y evidencia disponibles' :
+          overallStatus.key === 'blocked' ? 'Aplicación bloqueada o incompleta' :
+          overallStatus.key === 'partial' ? 'Aplicación sujeta a revisión' : 'Información normativa incompleta';
+        var defaultDetail = overallStatus.key === 'ready' ? 'Las reglas publicadas conservan fuente, vigencia y trazabilidad.' :
+          'Revisá los estados, conflictos y faltantes antes de emitir una conclusión.';
+        el.overallTitle.textContent = text(overall.title, defaultTitle);
+        el.overallDetail.textContent = text(overall.detail, defaultDetail);
+        el.legalAsOf.textContent = formatDate(state.meta.legalAsOf);
+        el.municipalProfile.textContent = text(state.meta.profile, 'No informado');
+        el.grhCutoff.textContent = state.meta.sourceCutoff ? formatDate(state.meta.sourceCutoff) : text(state.meta.sourceName, 'No informada');
+
+        renderLegalCard('legal', state.legal, {
+          title: 'Estado legal no informado',
+          detail: 'Se espera vigencia, autoridad y referencia verificable.'
+        });
+        renderLegalCard('municipal', state.municipal, {
+          title: 'Estado municipal no informado',
+          detail: 'Se esperan adhesión, reglamentación o acto municipal aplicable.'
+        });
+        renderLegalCard('applicability', state.applicability, {
+          title: 'Perfil de aplicación no informado',
+          detail: 'La jurisdicción y el régimen deben validarse antes de calcular.'
+        });
+      }
+
+      function renderSources(state) {
+        clear(el.sourcesList);
+        el.sourceEmpty.hidden = state.sources.length > 0;
+        setStatusPill(el.sourceCount, state.sources.length ? 'ready' : 'missing', state.sources.length ? state.sources.length + ' fuente' + (state.sources.length === 1 ? '' : 's') : 'Sin fuentes');
+
+        state.sources.forEach(function (source) {
+          var article = create('article', 'source-item');
+          var body = create('div');
+          var title = create('h3', '', source.title);
+          var description = create('p', '', source.notes || source.authority);
+          var meta = create('div', 'source-meta');
+
+          if (source.reference) meta.appendChild(create('span', '', source.reference));
+          if (source.authority) meta.appendChild(create('span', '', 'Autoridad: ' + source.authority));
+          if (source.validFrom || source.validTo) meta.appendChild(create('span', '', 'Vigencia: ' + formatDate(source.validFrom, 'sin inicio') + ' a ' + formatDate(source.validTo, 'vigente')));
+          if (source.asOf) meta.appendChild(create('span', '', 'Verificada al ' + formatDate(source.asOf)));
+          if (source.sha256) meta.appendChild(create('span', '', 'Huella: ' + source.sha256.slice(0, 14) + (source.sha256.length > 14 ? '…' : '')));
+
+          body.appendChild(title);
+          body.appendChild(description);
+          body.appendChild(meta);
+          article.appendChild(body);
+
+          var action = create('div', 'source-actions');
+          var url = safeHttpUrl(source.url);
+          if (url) {
+            var link = create('a', 'source-link', 'Abrir fuente');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            action.appendChild(link);
+          } else {
+            var pill = create('span', 'status-pill');
+            setStatusPill(pill, source.status);
+            action.appendChild(pill);
+          }
+          article.appendChild(action);
+          el.sourcesList.appendChild(article);
+        });
+      }
+
+      function renderRule(rule, host) {
+        var card = create('article', 'rule-card');
+        card.appendChild(create('h4', '', rule.label));
+        if (rule.code) card.appendChild(create('p', '', 'Código: ' + rule.code));
+        if (rule.summary) card.appendChild(create('p', '', rule.summary));
+        var dl = create('dl');
+
+        function addDetail(label, value) {
+          if (!value) return;
+          var row = create('div');
+          row.appendChild(create('dt', '', label));
+          row.appendChild(create('dd', '', value));
+          dl.appendChild(row);
+        }
+
+        addDetail('Unidad', rule.unit);
+        addDetail('Base', rule.basis);
+        if (rule.referenceValue !== null && rule.referenceValue !== undefined && rule.referenceValue !== '') addDetail('Referencia', formatValue(rule.referenceValue));
+        addDetail('Condiciones', rule.conditions.join(' · '));
+        addDetail('Límites', rule.limitations.join(' · '));
+        if (dl.childNodes.length) card.appendChild(dl);
+        host.appendChild(card);
+      }
+
+      function renderMatrix(state) {
+        var groups = { calculable: [], conditional: [], not_calculable: [] };
+        state.matrix.forEach(function (rule) { groups[rule.category].push(rule); });
+        el.totalRules.textContent = formatValue(state.matrix.length);
+        el.calculableCount.textContent = formatValue(groups.calculable.length);
+        el.conditionalCount.textContent = formatValue(groups.conditional.length);
+        el.notCalculableCount.textContent = formatValue(groups.not_calculable.length);
+
+        [
+          { key: 'calculable', list: el.calculableList, empty: el.calculableEmpty },
+          { key: 'conditional', list: el.conditionalList, empty: el.conditionalEmpty },
+          { key: 'not_calculable', list: el.notCalculableList, empty: el.notCalculableEmpty }
+        ].forEach(function (group) {
+          clear(group.list);
+          group.empty.hidden = groups[group.key].length > 0;
+          groups[group.key].forEach(function (rule) { renderRule(rule, group.list); });
+        });
+      }
+
+      function renderMappings(state) {
+        clear(el.mappingTableBody);
+        var counts = { mapped: 0, conflict: 0, unmapped: 0, review: 0, neutral: 0 };
+        state.mappings.forEach(function (mapping) {
+          var mappingStatus = normalizeMappingStatus(mapping.status);
+          counts[mappingStatus.key] += 1;
+          var row = document.createElement('tr');
+
+          var codeCell = document.createElement('td');
+          codeCell.appendChild(create('strong', '', mapping.reasonCode));
+          row.appendChild(codeCell);
+
+          var reasonCell = document.createElement('td');
+          reasonCell.textContent = mapping.reasonLabel;
+          row.appendChild(reasonCell);
+
+          var policyCell = document.createElement('td');
+          policyCell.appendChild(create('strong', '', mapping.policyLabel));
+          if (mapping.policyCode) policyCell.appendChild(create('small', '', mapping.policyCode));
+          row.appendChild(policyCell);
+
+          var statusCell = document.createElement('td');
+          var pill = create('span', 'status-pill ' + mappingStatus.className, mappingStatus.label);
+          pill.dataset.status = mappingStatus.key;
+          statusCell.appendChild(pill);
+          row.appendChild(statusCell);
+
+          var evidenceCell = document.createElement('td');
+          if (mapping.basis) evidenceCell.appendChild(create('span', '', mapping.basis));
+          if (mapping.notes) evidenceCell.appendChild(create('small', '', mapping.notes));
+          var sourceConfiguration = asObject(mapping.sourceConfiguration);
+          var configurationParts = [];
+          if (sourceConfiguration.isLeave !== null && sourceConfiguration.isLeave !== undefined) configurationParts.push('marcado como licencia: ' + formatValue(sourceConfiguration.isLeave));
+          if (sourceConfiguration.monthlyLimit !== null && sourceConfiguration.monthlyLimit !== undefined) configurationParts.push('tope mensual GRH: ' + formatValue(sourceConfiguration.monthlyLimit));
+          if (sourceConfiguration.annualLimit !== null && sourceConfiguration.annualLimit !== undefined) configurationParts.push('tope anual GRH: ' + formatValue(sourceConfiguration.annualLimit));
+          if (sourceConfiguration.calendarDays !== null && sourceConfiguration.calendarDays !== undefined) configurationParts.push('días corridos: ' + formatValue(sourceConfiguration.calendarDays));
+          if (sourceConfiguration.affectsAttendanceBonus !== null && sourceConfiguration.affectsAttendanceBonus !== undefined) configurationParts.push('afecta presentismo: ' + formatValue(sourceConfiguration.affectsAttendanceBonus));
+          if (sourceConfiguration.generatesDiscountedDays !== null && sourceConfiguration.generatesDiscountedDays !== undefined) configurationParts.push('genera días descontados: ' + formatValue(sourceConfiguration.generatesDiscountedDays));
+          if (sourceConfiguration.calculationMethod) configurationParts.push('método configurado: ' + text(sourceConfiguration.calculationMethod));
+          if (configurationParts.length) evidenceCell.appendChild(create('small', '', 'Configuración GRH histórica: ' + configurationParts.join(' · ')));
+          var observed = asObject(mapping.observed);
+          if (Object.keys(observed).length) {
+            evidenceCell.appendChild(create('small', '', 'Observado: ' + formatValue(observed.events) + ' eventos · ' + formatValue(observed.affectedContracts) + ' legajos · ' + formatValue(observed.sourceDeclaredDays) + ' días declarados GRH (no jornadas perdidas).'));
+          }
+          if (mapping.conflicts.length) {
+            var list = create('ul', 'conflict-list');
+            mapping.conflicts.forEach(function (conflict) { list.appendChild(create('li', '', conflict)); });
+            evidenceCell.appendChild(list);
+          }
+          if (!evidenceCell.childNodes.length) evidenceCell.textContent = 'Sin evidencia informada';
+          row.appendChild(evidenceCell);
+
+          el.mappingTableBody.appendChild(row);
+        });
+
+        var label = state.mappings.length ? counts.mapped + ' verificados · ' + counts.conflict + ' conflictos · ' + counts.review + ' a revisar · ' + counts.unmapped + ' sin mapear' : 'Sin mapeos';
+        var summaryStatus = counts.conflict || counts.unmapped ? 'conflict' : counts.review ? 'partial' : state.mappings.length ? 'ready' : 'missing';
+        setStatusPill(el.mappingSummary, summaryStatus, label);
+        el.mappingTableWrap.hidden = state.mappings.length === 0;
+        el.mappingEmpty.hidden = state.mappings.length > 0;
+      }
+
+      function renderReadiness(state) {
+        clear(el.readinessList);
+        var counts = { ready: 0, partial: 0, blocked: 0, neutral: 0 };
+        state.readiness.forEach(function (item) {
+          var status = normalizeStatus(item.status);
+          counts[status.key] += 1;
+          var card = create('article', 'readiness-card');
+          var body = create('div');
+          body.appendChild(create('h3', '', item.label));
+          body.appendChild(create('p', '', item.detail || (item.source ? 'Fuente: ' + item.source : 'Sin detalle publicado.')));
+          var coverage = formatCoverage(item.coverage);
+          if (coverage) body.appendChild(create('div', 'coverage', 'Cobertura informada: ' + coverage));
+          var pill = create('span', 'status-pill ' + status.className, status.label);
+          pill.dataset.status = status.key;
+          card.appendChild(body);
+          card.appendChild(pill);
+          el.readinessList.appendChild(card);
+        });
+
+        var summaryStatus = counts.blocked ? 'blocked' : counts.partial || counts.neutral ? 'partial' : state.readiness.length ? 'ready' : 'missing';
+        var label = state.readiness.length ? counts.ready + ' disponibles · ' + (counts.partial + counts.neutral) + ' a revisar · ' + counts.blocked + ' faltantes' : 'Sin evaluación';
+        setStatusPill(el.readinessSummary, summaryStatus, label);
+        el.readinessEmpty.hidden = state.readiness.length > 0;
+      }
+
+      function renderLimitations(state) {
+        var existing = el.limitationsList.querySelectorAll('[data-api-limitation]');
+        Array.prototype.forEach.call(existing, function (node) { node.remove(); });
+        state.limitations.forEach(function (item) {
+          var card = create('article', 'limitation-card');
+          card.dataset.apiLimitation = 'true';
+          card.appendChild(create('h3', '', item.title));
+          card.appendChild(create('p', '', item.detail || 'Sin detalle adicional.'));
+          el.limitationsList.appendChild(card);
+        });
+      }
+
+      function renderMeta(state) {
+        var labelParts = [];
+        if (state.meta.authority) labelParts.push(state.meta.authority);
+        if (state.meta.sourceName) labelParts.push(state.meta.sourceName);
+        if (state.meta.sourceCutoff) labelParts.push('corte ' + formatDate(state.meta.sourceCutoff));
+        el.sourceChip.querySelector('span').textContent = labelParts.length ? labelParts.join(' · ') : 'Fuentes sin corte informado';
+        el.sourceChip.title = state.meta.sourceHash ? 'Huella de fuente: ' + state.meta.sourceHash : 'Trazabilidad del marco normativo';
+
+        var generated = state.meta.generatedAt ? 'Actualizado ' + formatDateTime(state.meta.generatedAt) : 'Fecha de actualización no informada';
+        var legal = state.meta.legalAsOf ? ' · vigencia verificada al ' + formatDate(state.meta.legalAsOf) : '';
+        el.generatedAt.textContent = 'Información interna. ' + generated + legal + '.';
+      }
+
+      function setEvaluationYearBounds(state) {
+        var currentYear = new Date().getFullYear();
+        var cutoff = state && state.meta ? state.meta.sourceCutoff : null;
+        var cutoffYear = cutoff && /^\d{4}/.test(String(cutoff)) ? Number(String(cutoff).slice(0, 4)) : currentYear;
+        var supportedYears = state && state.meta && Array.isArray(state.meta.supportedEvaluationYears) ? state.meta.supportedEvaluationYears.filter(function (year) { return year <= cutoffYear; }) : [];
+        var maximumYear = supportedYears.length ? supportedYears[supportedYears.length - 1] : Number.isInteger(cutoffYear) && cutoffYear >= 1990 ? Math.min(cutoffYear, currentYear) : currentYear;
+        var minimumYear = supportedYears.length ? supportedYears[0] : 1990;
+        el.asOfInput.min = String(minimumYear);
+        el.asOfInput.max = String(maximumYear);
+        el.asOfInput.dataset.supportedYears = supportedYears.join(',');
+        var selected = Number(el.asOfInput.value);
+        if (!Number.isInteger(selected) || selected < minimumYear || selected > maximumYear || supportedYears.length && supportedYears.indexOf(selected) < 0) el.asOfInput.value = String(maximumYear);
+        el.evaluationYearHelp.textContent = supportedYears.length === 1
+          ? 'La política normativa versionada habilita únicamente ' + supportedYears[0] + '; evidencia GRH hasta ' + (cutoff ? formatDate(cutoff) : 'el corte informado') + '.'
+          : 'Años disponibles: ' + minimumYear + ' a ' + maximumYear + '. El último año queda limitado al corte ' + (cutoff ? formatDate(cutoff) : 'de la fuente') + '.';
+      }
+
+      function renderNormative(state) {
+        normativeState = state;
+        setEvaluationYearBounds(state);
+        renderOverview(state);
+        renderSources(state);
+        renderMatrix(state);
+        renderMappings(state);
+        renderReadiness(state);
+        renderLimitations(state);
+        renderMeta(state);
+        el.loading.hidden = true;
+        el.errorHost.hidden = true;
+        el.mainView.hidden = false;
+      }
+
+      function resetPreviewView() {
+        previewRequestId += 1;
+        el.previewIntro.hidden = false;
+        el.previewLoading.hidden = true;
+        el.previewError.hidden = true;
+        el.previewResult.hidden = true;
+        el.previewResultCard.setAttribute('aria-busy', 'false');
+        el.previewSubmit.disabled = false;
+        clear(el.previewInputs);
+        clear(el.previewMissing);
+        clear(el.previewTrace);
+        clear(el.previewSources);
+      }
+
+      function showPreviewLoading() {
+        el.previewIntro.hidden = true;
+        el.previewError.hidden = true;
+        el.previewResult.hidden = true;
+        el.previewLoading.hidden = false;
+        el.previewResultCard.setAttribute('aria-busy', 'true');
+        el.previewSubmit.disabled = true;
+      }
+
+      function showPreviewError(error) {
+        el.previewLoading.hidden = true;
+        el.previewIntro.hidden = true;
+        el.previewResult.hidden = true;
+        el.previewError.hidden = false;
+        el.previewResultCard.setAttribute('aria-busy', 'false');
+        el.previewSubmit.disabled = false;
+        if (error && [501, 503].indexOf(error.status) >= 0) {
+          el.previewError.textContent = 'El preview orientativo todavía no está disponible. El marco normativo general permanece consultable.';
+        } else {
+          el.previewError.textContent = text(error && error.message, 'No se pudo completar la evaluación orientativa.');
+        }
+      }
+
+      function appendFactItems(host, items, emptyLabel) {
+        clear(host);
+        if (!items.length) {
+          var empty = create('li', '', emptyLabel);
+          host.appendChild(empty);
+          return;
+        }
+        items.forEach(function (item) {
+          var li = create('li');
+          li.appendChild(create('strong', '', item.label));
+          var details = [];
+          if (item.value !== null && item.value !== undefined && item.value !== '') details.push(formatValue(item.value));
+          if (item.detail) details.push(item.detail);
+          if (item.source) details.push('Fuente: ' + item.source);
+          li.appendChild(document.createTextNode(details.join(' · ') || 'Sin detalle adicional'));
+          host.appendChild(li);
+        });
+      }
+
+      function renderPreview(result, requested) {
+        var status = normalizeStatus(result.status);
+        var resultCode = normalizeCode(result.status);
+        var canShowDays = result.days !== null && result.days !== undefined && result.days !== '' &&
+          ['not_calculable', 'non_calculable', 'blocked', 'missing', 'unavailable'].indexOf(resultCode) < 0;
+
+        setStatusPill(el.previewStatus, result.status, status.label);
+        var identity = result.personName ? result.personName + ' · legajo ' + (result.legajo || requested.legajo) : 'Legajo ' + (result.legajo || requested.legajo);
+        el.previewPerson.textContent = identity;
+        el.previewAsOf.textContent = formatDate(result.asOf || (requested.year + '-12-31'));
+        el.previewDays.textContent = canShowDays ? formatValue(result.days) : 'No calculable';
+        el.previewUnit.textContent = canShowDays ? text(result.unit, 'días orientativos') : 'Faltan hechos o validaciones';
+
+        appendFactItems(el.previewInputs, result.inputs, 'No se informaron entradas verificadas.');
+        appendFactItems(el.previewMissing, result.missing.concat(result.caveats), result.status ? 'No se informaron faltantes adicionales.' : 'El backend no informó una conclusión.');
+
+        var trace = result.trace.slice();
+        if (result.meta.policyVersionId) trace.push({ label: 'Versión de política', value: result.meta.policyVersionId, detail: '', source: '' });
+        if (result.meta.applicabilityProfileId) trace.push({ label: 'Perfil de aplicación', value: result.meta.applicabilityProfileId, detail: '', source: '' });
+        if (result.meta.engineVersion) trace.push({ label: 'Versión del motor', value: result.meta.engineVersion, detail: '', source: '' });
+        if (result.meta.inputHash) trace.push({ label: 'Huella de entrada', value: result.meta.inputHash.slice(0, 18) + (result.meta.inputHash.length > 18 ? '…' : ''), detail: '', source: '' });
+        appendFactItems(el.previewTrace, trace, 'No se publicó una traza de cálculo.');
+        appendFactItems(el.previewSources, result.sources, 'No se informaron fuentes para esta orientación.');
+
+        el.previewLoading.hidden = true;
+        el.previewIntro.hidden = true;
+        el.previewError.hidden = true;
+        el.previewResult.hidden = false;
+        el.previewResultCard.setAttribute('aria-busy', 'false');
+        el.previewSubmit.disabled = false;
+      }
+
+      function validatePreviewInputs() {
+        var companyId = el.companyIdInput.value.trim();
+        var legajo = el.legajoInput.value.trim();
+        var year = el.asOfInput.value.trim();
+        if (!companyId || !legajo || !year) {
+          el.previewError.textContent = 'Completá empresa, legajo y año de evaluación.';
+          el.previewError.hidden = false;
+          el.previewIntro.hidden = true;
+          return null;
+        }
+        if (!/^\d{1,32}$/.test(companyId) || !Number.isSafeInteger(Number(companyId))) {
+          el.previewError.textContent = 'La empresa debe ser un identificador numérico válido.';
+          el.previewError.hidden = false;
+          el.previewIntro.hidden = true;
+          return null;
+        }
+        if (!/^[A-Za-z0-9._\/-]{1,64}$/.test(legajo)) {
+          el.previewError.textContent = 'Usá únicamente identificadores internos válidos, sin nombres ni documentos.';
+          el.previewError.hidden = false;
+          el.previewIntro.hidden = true;
+          return null;
+        }
+        var minimumYear = Number(el.asOfInput.min || 1990);
+        var maximumYear = Number(el.asOfInput.max || new Date().getFullYear());
+        var supportedYears = text(el.asOfInput.dataset.supportedYears, '').split(',').filter(Boolean).map(Number);
+        if (!/^\d{4}$/.test(year) || Number(year) < minimumYear || Number(year) > maximumYear || supportedYears.length && supportedYears.indexOf(Number(year)) < 0) {
+          el.previewError.textContent = supportedYears.length ? 'La política normativa disponible sólo permite evaluar ' + supportedYears.join(', ') + '.' : 'Ingresá un año entre ' + minimumYear + ' y ' + maximumYear + ', según el corte GRH.';
+          el.previewError.hidden = false;
+          el.previewIntro.hidden = true;
+          return null;
+        }
+        return { companyId: companyId, legajo: legajo, year: year };
+      }
+
+      async function submitPreview(event) {
+        event.preventDefault();
+        var requested = validatePreviewInputs();
+        if (!requested) return;
+        var requestId = ++previewRequestId;
+        showPreviewLoading();
+        var params = new URLSearchParams({
+          resource: 'leavepreview',
+          companyId: requested.companyId,
+          legajo: requested.legajo,
+          year: requested.year
+        });
+        try {
+          var payload = await requestJson(DATA_URL + '?' + params.toString());
+          if (requestId !== previewRequestId) return;
+          renderPreview(normalisePreview(payload), requested);
+        } catch (error) {
+          if (requestId !== previewRequestId || (error && error.unauthorized)) return;
+          showPreviewError(error);
+        }
+      }
+
+      function clearPreview() {
+        el.previewForm.reset();
+        setDefaultYear();
+        resetPreviewView();
+        el.companyIdInput.focus();
+      }
+
+      function setDefaultYear() {
+        if (el.asOfInput.value) return;
+        var maximumYear = Number(el.asOfInput.max || new Date().getFullYear());
+        el.asOfInput.value = String(maximumYear);
+      }
+
+      async function loadPage() {
+        showGlobalLoading('Consultando vigencia, reglas y disponibilidad de datos.');
+        resetPreviewView();
+        try {
+          var auth = await requestJson(AUTH_URL);
+          renderSession(auth);
+          var payload = await requestJson(DATA_URL + '?resource=leavenormative');
+          renderNormative(normalizeNormative(payload));
+        } catch (error) {
+          showGlobalError(error);
+        }
+      }
+
+      async function logout() {
+        el.logoutButton.disabled = true;
+        try {
+          await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        } catch (error) {
+          /* El cierre local continúa aunque falle la respuesta. */
+        }
+        try { sessionStorage.removeItem('mjunin_user'); } catch (error) { /* Sin almacenamiento disponible. */ }
+        redirectToLogin();
+      }
+
+      function openMenu() {
+        document.body.classList.add('nav-open');
+        el.menuButton.setAttribute('aria-expanded', 'true');
+        el.menuClose.focus();
+      }
+
+      function closeMenu(restoreFocus) {
+        document.body.classList.remove('nav-open');
+        el.menuButton.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) el.menuButton.focus();
+      }
+
+      function bindEvents() {
+        el.menuButton.addEventListener('click', openMenu);
+        el.menuClose.addEventListener('click', function () { closeMenu(true); });
+        el.navBackdrop.addEventListener('click', function () { closeMenu(true); });
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true);
+        });
+        el.refreshButton.addEventListener('click', loadPage);
+        el.logoutButton.addEventListener('click', logout);
+        el.previewForm.addEventListener('submit', submitPreview);
+        el.previewClear.addEventListener('click', clearPreview);
+      }
+
+      function init() {
+        cacheElements();
+        bindEvents();
+        setDefaultYear();
+        loadPage();
+      }
+
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+      else init();
+    }());
+  </script>
+</body>
+</html>
