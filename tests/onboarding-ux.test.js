@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import vm from 'node:vm';
+import { GLOSSARY, SECTION_CATALOG, TASK_CATALOG } from '../assets/product-guidance.js';
+
+const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+
+test('el centro de aprendizaje es interno, accesible y no confunde perfiles con permisos', () => {
+  const html = read('centro-ayuda.html');
+  assert.match(html, /\/api\/internal-auth/);
+  assert.match(html, /login\.html\?next=centro-ayuda\.html/);
+  assert.match(html, /No modifica permisos|no roles de seguridad/i);
+  assert.match(html, /no presume un organigrama normativo/i);
+  assert.equal((html.match(/class="module-card"/g) || []).length, 11);
+  assert.equal((html.match(/class="route-card"/g) || []).length, 6);
+  assert.equal((html.match(/data-progress-id=/g) || []).length, 5);
+  assert.match(html, /id="assistantHelpLink"/);
+  assert.match(html, /sessionStorage/);
+  assert.doesNotMatch(html, /localStorage/);
+  for (const section of SECTION_CATALOG) assert.match(html, new RegExp(section.label, 'i'), `falta explicar ${section.label}`);
+  for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (!/\bsrc\s*=/.test(match[1])) new vm.Script(match[2], { filename: 'centro-ayuda.html' });
+  }
+});
+
+test('el contrato de aprendizaje cubre la navegación, las tareas y el glosario vigentes', () => {
+  assert.equal(SECTION_CATALOG.length, 10);
+  assert.equal(TASK_CATALOG.length, 9);
+  assert.equal(GLOSSARY.length, 9);
+  assert.equal(new Set(SECTION_CATALOG.map((section) => section.id)).size, SECTION_CATALOG.length);
+  assert.equal(new Set(TASK_CATALOG.map((task) => task.id)).size, TASK_CATALOG.length);
+  for (const task of TASK_CATALOG) assert.ok(SECTION_CATALOG.some((section) => section.id === task.sectionId), `tarea huérfana ${task.id}`);
+});
+
+test('la guía contextual aísla progreso por sesión y cumple el contrato modal', () => {
+  const guide = read('assets/internal-guide.js');
+  new vm.Script(guide, { filename: 'assets/internal-guide.js' });
+  assert.match(guide, /sessionScope\(\)/);
+  assert.match(guide, /import\('\.\/product-guidance\.js'\)/, 'la UI debe consumir el catálogo canónico');
+  assert.match(guide, /sessionStorage/);
+  assert.doesNotMatch(guide, /localStorage/);
+  assert.match(guide, /function trapFocus/);
+  assert.match(guide, /aria-modal/);
+  assert.match(guide, /\.inert = true/);
+  assert.match(guide, /data-mc-open-guide/);
+  assert.match(guide, /target\.querySelector\('\.mc-explain-button'\)/);
+  assert.doesNotMatch(guide, /documento|cuil|domicilio|salario/i, 'la persistencia de ayuda no debe modelar PII');
+});
+
+test('todas las vistas internas principales cargan una sola guía compartida', () => {
+  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
+    const html = read(file);
+    assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
+    assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);
+  }
+});
+
+test('el asistente presenta onboarding, pasos y navegación interna segura', () => {
+  const html = read('asistente.html');
+  assert.match(html, /Primer ingreso/);
+  assert.match(html, /Guía de secciones/);
+  assert.match(html, /payload\.steps/);
+  assert.match(html, /payload\.targetPath/);
+  assert.match(html, /payload\.relatedSections/);
+  assert.match(html, /function safeInternalPath/);
+  assert.match(html, /createElement\('a', 'answer-link'/);
+});

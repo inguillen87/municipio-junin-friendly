@@ -38,6 +38,7 @@ test_prisma.js
 !integracion-datos.html
 !nomina-control.html
 !asistente.html
+!centro-ayuda.html
 
 # Excluir endpoints legacy uno por uno. No usar `api/**`: Vercel no vuelve a
 # incluir de forma fiable los archivos negados y dejaría las APIs internas en 404.

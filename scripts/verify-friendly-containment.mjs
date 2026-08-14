@@ -16,6 +16,8 @@ assert.equal(rewrites.get('/organigrama'), '/estructura.html');
 assert.equal(rewrites.get('/integracion-datos'), '/integracion-datos.html');
 assert.equal(rewrites.get('/nomina-control'), '/nomina-control.html');
 assert.equal(rewrites.get('/asistente'), '/asistente.html');
+assert.equal(rewrites.get('/centro-ayuda'), '/centro-ayuda.html');
+assert.equal(rewrites.get('/ayuda'), '/centro-ayuda.html');
 assert.ok(config.functions['api/internal-auth.js'], 'falta publicar autenticación interna');
 assert.ok(config.functions['api/internal-data.js'], 'falta publicar API interna');
 assert.ok(config.functions['api/internal-assistant.js'], 'falta publicar asistente interno');
@@ -33,7 +35,7 @@ for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', 
   assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
 }
 
-for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
+for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'centro-ayuda.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;
@@ -46,6 +48,14 @@ const internalDashboard = read('internal-dashboard.html');
 assert.match(internalDashboard, /\/api\/internal-auth/, 'el panel debe validar la sesión interna');
 assert.match(internalDashboard, /\/api\/internal-data/, 'el panel debe consultar la API interna');
 assert.doesNotMatch(internalDashboard, /<input[^>]+(?:email|password)[^>]+value\s*=/i, 'las credenciales internas no deben estar embebidas');
+const internalGuide = read('assets/internal-guide.js');
+assert.match(internalGuide, /sessionStorage/, 'la guía debe aislar el progreso a la sesión activa');
+assert.doesNotMatch(internalGuide, /localStorage/, 'la guía no debe compartir progreso entre empleados del mismo navegador');
+assert.match(internalGuide, /product-guidance\.js/, 'la guía debe consumir el catálogo de producto compartido');
+assert.match(read('api/internal-assistant.js'), /product-guidance\.js/, 'la IA debe consumir el mismo catálogo de producto');
+for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html']) {
+  assert.match(read(file), /assets\/internal-guide\.js/, `${file} debe cargar la ayuda contextual compartida`);
+}
 for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js', 'api/internal-assistant.js']) {
   assert.doesNotMatch(ignore, new RegExp(`^${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `${file} no debe estar excluido de Vercel`);
 }

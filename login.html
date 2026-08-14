@@ -440,6 +440,21 @@
       text-align: center;
     }
 
+    .first-access-link {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+      color: var(--navy-700);
+      font-size: 12px;
+      font-weight: 750;
+      text-align: center;
+      text-underline-offset: 3px;
+    }
+
+    .first-access-link:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
+
     .site-footer {
       border-top: 1px solid var(--line);
       background: #e5ebee;
@@ -621,6 +636,7 @@
             <span class="button-label">Ingresar al portal interno</span>
             <span class="loading-indicator" aria-hidden="true"></span>
           </button>
+          <a class="first-access-link" href="login.html?next=centro-ayuda.html">Soy nuevo: iniciar el recorrido después de ingresar</a>
           <p class="access-status" id="accessStatus" role="status" aria-live="polite"></p>
         </form>
 
@@ -714,7 +730,7 @@
           btnLabel.textContent = 'Accediendo al portal interno';
           setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
           var next = new URLSearchParams(window.location.search).get('next');
-          var allowedNext = ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html'];
+          var allowedNext = ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'asistente.html', 'centro-ayuda.html'];
           window.location.href = allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
         return;
       } catch (error) {

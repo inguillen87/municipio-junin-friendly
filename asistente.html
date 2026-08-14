@@ -388,6 +388,9 @@
     .suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
     .suggestion-button { min-height: 44px; padding: 7px 10px; background: var(--surface); color: var(--blue); border: 1px solid #c5d6e0; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 750; }
     .suggestion-button:hover { background: var(--blue-soft); }
+    .answer-links { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .answer-link { min-height: 44px; display: inline-flex; align-items: center; padding: 7px 10px; border: 1px solid var(--green); border-radius: 4px; color: #07534d; background: var(--green-soft); font-size: 11px; font-weight: 800; text-decoration: none; }
+    .answer-link:hover, .answer-link:focus-visible { background: #d8f1ec; outline: 3px solid rgba(15,118,110,.16); outline-offset: 2px; }
 
     .thinking { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--muted); }
     .thinking-mark { display: inline-flex; gap: 3px; }
@@ -481,8 +484,9 @@
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
     }
   </style>
+  <script src="assets/internal-guide.js" defer></script>
 </head>
-<body>
+<body data-mc-page="assistant">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
 
   <section class="auth-gate" id="authGate" aria-live="polite">
@@ -554,6 +558,8 @@
             <p>Podés usarlas como punto de partida y continuar la conversación.</p>
           </div>
           <div class="quick-grid">
+            <button class="quick-button" type="button" data-prompt="Soy una persona nueva en MuniControl. Explicame por dónde empezar y cómo están organizadas las secciones."><span class="quick-code" aria-hidden="true">IN</span><span>Primer ingreso</span></button>
+            <button class="quick-button" type="button" data-prompt="¿Qué hace cada sección de MuniControl y cuándo debería usarla?"><span class="quick-code" aria-hidden="true">GU</span><span>Guía de secciones</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es la dotación administrativa y liquidable actual? Explicá la diferencia."><span class="quick-code" aria-hidden="true">DO</span><span>Dotación actual</span></button>
             <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
@@ -622,6 +628,10 @@
       var ASSISTANT_URL = '/api/internal-assistant';
       var LOGIN_URL = 'login.html?next=asistente.html';
       var MAX_HISTORY = 6;
+      var contextParams = new URLSearchParams(window.location.search);
+      var initialPrompt = String(contextParams.get('prompt') || sessionStorage.getItem('mjunin_assistant_prompt') || '').trim().slice(0, 900);
+      var initialContext = String(contextParams.get('context') || '').trim().slice(0, 80);
+      if (contextParams.get('prompt')) sessionStorage.setItem('mjunin_assistant_prompt', initialPrompt);
       var redirectIssued = false;
       var pendingController = null;
       var state = { messages: [], busy: false, user: null };
@@ -799,11 +809,37 @@
         return value.slice(0, 4).map(function (item) { return cleanText(item); }).filter(Boolean);
       }
 
+      function safeInternalPath(value) {
+        var path = cleanText(value);
+        if (!path || path.charAt(0) !== '/' || path.indexOf('//') === 0 || /[\s\\]/.test(path)) return '';
+        return path.slice(0, 240);
+      }
+
+      function linksFromPayload(payload) {
+        var links = [];
+        var targetPath = safeInternalPath(payload.targetPath);
+        if (targetPath) links.push({ label: 'Abrir sección sugerida', path: targetPath });
+        if (Array.isArray(payload.relatedSections)) {
+          payload.relatedSections.slice(0, 4).forEach(function (section) {
+            var path = safeInternalPath(section && section.targetPath);
+            var label = cleanText(section && section.label);
+            if (path && label && !links.some(function (item) { return item.path === path; })) links.push({ label: label, path: path });
+          });
+        }
+        return links.slice(0, 4);
+      }
+
       function suggestionsFromPayload(payload) {
         var explicit = normalizeSuggestions(payload.suggestions);
         if (explicit.length) return explicit;
         var intent = cleanText(payload.intent || payload.topic);
         var data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+        var related = Array.isArray(payload.relatedSections) ? payload.relatedSections : [];
+        if (related.length && ['help_navigation', 'section_explanation', 'task_guidance', 'glossary', 'help'].includes(intent)) {
+          return related.slice(0, 4).map(function (section) {
+            return 'Explicame cómo usar ' + cleanText(section && section.label, 'esta sección') + '.';
+          });
+        }
         if (intent !== 'employee_search' || !Array.isArray(data.data)) return [];
         return data.data.slice(0, 3).map(function (row) {
           var legajo = cleanText(row && row.legajo);
@@ -824,6 +860,10 @@
           : (providerUsed ? 'hybrid' : 'deterministic');
         var insight = cleanText(payload.insight);
         if (insight) answer += '\n\nLectura asistida: ' + insight;
+        var steps = Array.isArray(payload.steps) ? payload.steps.map(function (step) { return cleanText(step); }).filter(Boolean).slice(0, 8) : [];
+        if (steps.length) answer += '\n\nPaso a paso:\n' + steps.map(function (step, index) { return (index + 1) + '. ' + step; }).join('\n');
+        var targetPath = cleanText(payload.targetPath);
+        if (targetPath && targetPath.charAt(0) === '/') answer += '\n\nContinuar en: ' + targetPath;
         return {
           role: 'assistant',
           content: answer,
@@ -832,6 +872,7 @@
           facts: factsFromPayload(payload),
           sources: normalizeSources(payload.sources, payload.cutoff || payload.asOf),
           suggestions: suggestionsFromPayload(payload),
+          links: linksFromPayload(payload),
           createdAt: new Date()
         };
       }
@@ -887,6 +928,17 @@
           }
           sourceBlock.appendChild(sourceList);
           body.appendChild(sourceBlock);
+
+          if (message.links.length) {
+            var linkHost = createElement('nav', 'answer-links');
+            linkHost.setAttribute('aria-label', 'Continuar en la plataforma');
+            message.links.forEach(function (link) {
+              var anchor = createElement('a', 'answer-link', link.label);
+              anchor.href = link.path;
+              linkHost.appendChild(anchor);
+            });
+            body.appendChild(linkHost);
+          }
 
           if (message.suggestions.length) {
             var suggestionHost = createElement('div', 'suggestions');
@@ -1045,6 +1097,11 @@
           document.getElementById('userLabel').textContent = user.name + (user.role ? ' · ' + user.role : '');
           authGate.hidden = true;
           app.hidden = false;
+          if (initialPrompt) {
+            input.value = initialPrompt;
+            composerStatus.textContent = 'Consulta preparada desde ' + (initialContext ? readableCode(initialContext) : 'la ayuda contextual') + '. Revisala y presioná Consultar.';
+            sessionStorage.removeItem('mjunin_assistant_prompt');
+          }
           input.focus();
         } catch (error) {
           showGateError(error);

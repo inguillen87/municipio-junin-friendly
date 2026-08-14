@@ -6,6 +6,13 @@ import {
   integrationQuality,
   payrollControl,
 } from './internal-data.js';
+import {
+  GLOSSARY,
+  GUIDANCE_AS_OF,
+  SECTION_CATALOG,
+  TASK_CATALOG,
+  getProductGuidanceCatalog,
+} from '../assets/product-guidance.js';
 
 const MAX_BODY_BYTES = 12 * 1024;
 const MAX_MESSAGE_LENGTH = 1_200;
@@ -25,6 +32,18 @@ const INTENTS = new Set([
   'employee_search',
   'employee_detail',
   'executive_analysis',
+  'help_navigation',
+  'section_explanation',
+  'task_guidance',
+  'glossary',
+  'help',
+]);
+
+const GUIDANCE_INTENTS = new Set([
+  'help_navigation',
+  'section_explanation',
+  'task_guidance',
+  'glossary',
   'help',
 ]);
 
@@ -95,6 +114,64 @@ function foldText(value) {
     .toLowerCase();
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function includesPhrase(text, phrase) {
+  const normalized = foldText(phrase);
+  if (!normalized) return false;
+  return new RegExp(`(?:^|[^a-z0-9])${escapeRegExp(normalized)}(?:$|[^a-z0-9])`, 'i').test(text);
+}
+
+function findCatalogEntry(catalog, value) {
+  const text = foldText(value);
+  if (!text) return null;
+  return catalog
+    .flatMap((entry) => entry.aliases.map((alias) => ({ entry, alias: foldText(alias) })))
+    .filter(({ alias }) => includesPhrase(text, alias))
+    .sort((left, right) => right.alias.length - left.alias.length)[0]?.entry || null;
+}
+
+function findTaskEntry(value) {
+  const exact = findCatalogEntry(TASK_CATALOG, value);
+  if (exact) return exact;
+  const text = foldText(value);
+  const section = findCatalogEntry(SECTION_CATALOG, text);
+  if (!section) return null;
+  if (section.id === 'personas' && includesPhrase(text, 'ficha')) {
+    return TASK_CATALOG.find((task) => task.id === 'revisar_ficha') || null;
+  }
+  const defaultTaskBySection = {
+    personas: 'buscar_empleado',
+    estructura: 'explorar_estructura',
+    integracion: 'revisar_integracion',
+    nomina: 'controlar_nomina',
+    asistente: 'consultar_asistente',
+    ausentismo: 'revisar_ausentismo',
+    calidad: 'auditar_calidad',
+    reportes: 'leer_reporte',
+  };
+  return TASK_CATALOG.find((task) => task.id === defaultTaskBySection[section.id]) || null;
+}
+
+function publicSection(section) {
+  if (!section) return null;
+  const { aliases: _aliases, ...visible } = section;
+  return { ...visible, actions: [...visible.actions], limits: [...visible.limits] };
+}
+
+function relatedSections(ids = []) {
+  return ids
+    .map((id) => SECTION_CATALOG.find((section) => section.id === id))
+    .filter(Boolean)
+    .map((section) => ({ id: section.id, label: section.label, targetPath: section.targetPath }));
+}
+
+export function getAssistantGuidanceCatalog() {
+  return getProductGuidanceCatalog();
+}
+
 function extractLegajo(message) {
   return normalizeText(message).match(/\blegajo\s*(?:n[°ºo.]?\s*)?[:#-]?\s*(\d{1,20})\b/i)?.[1] || '';
 }
@@ -118,14 +195,22 @@ export function classifyAssistantRequest(body = {}) {
   if (explicit && INTENTS.has(explicit)) return explicit;
   if (body.contractId || body.legajo) return 'employee_detail';
   if (normalizeText(body.search, MAX_SEARCH_LENGTH)) return 'employee_search';
+  if (normalizeText(body.term, 100)) return 'glossary';
+  if (normalizeText(body.task, 100)) return 'task_guidance';
+  if (normalizeText(body.section, 100)) return 'section_explanation';
 
   const message = foldText(body.message);
+  if (/\b(?:que significa|que quiere decir|defini(?:r|cion)|glosario|termino)\b/.test(message)) return 'glossary';
+  if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar))\b/.test(message)) return 'task_guidance';
+  if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
+  if (/\b(?:donde (?:esta|encuentro|veo|puedo)|como (?:llego|entro)|ir a|navegacion|navegar|menu|secciones|pantallas|onboarding|soy nuev[oa]|primer ingreso)\b/.test(message)) return 'help_navigation';
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
   if (/\b(?:personas|crosswalk|integracion|coincidencia|identidad|padron)\b/.test(message)) return 'integration_quality';
   if (/\b(?:dotacion|activos?|liquidables?|brecha|plantel|cuantos?|882|854)\b/.test(message)) return 'workforce_summary';
   if (/\b(?:buscar|busca|encontrar|empleados?|directorio|ficha)\b/.test(message)) return 'employee_search';
   if (/\b(?:analiza|analisis|explica|recomendacion|diagnostico|ejecutivo)\b/.test(message)) return 'executive_analysis';
+  if (/\b(?:ayuda|guia|tutorial|aprender|orientacion)\b/.test(message)) return 'help_navigation';
   return 'help';
 }
 
@@ -298,6 +383,130 @@ function executiveResult(integration, payroll, scope) {
   };
 }
 
+function guidanceSource(relation) {
+  return [{ system: 'MUNICONTROL', relation, authority: 'verified_product_contract' }];
+}
+
+function guidanceQuery(body = {}) {
+  return [body.message, body.section, body.task, body.term]
+    .map((value) => normalizeText(value, MAX_MESSAGE_LENGTH))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function helpNavigationResult(body = {}) {
+  const matchedSection = findCatalogEntry(SECTION_CATALOG, guidanceQuery(body));
+  const section = matchedSection?.id === 'ayuda' ? null : matchedSection;
+  if (section) {
+    const visible = publicSection(section);
+    return {
+      answer: `${section.label} está en el menú principal. ${section.purpose}`,
+      data: { section: visible },
+      steps: [`Abrí ${section.label} desde el menú principal.`, `Usá esta ruta directa: ${section.targetPath}.`, 'Antes de actuar, revisá los límites visibles de la sección.'],
+      targetPath: section.targetPath,
+      relatedSections: relatedSections([section.id, 'ayuda'].filter((id, index, ids) => ids.indexOf(id) === index)),
+      asOf: GUIDANCE_AS_OF,
+      sources: guidanceSource('section_catalog'),
+    };
+  }
+  const sections = SECTION_CATALOG.map(publicSection);
+  return {
+    answer: 'El recorrido principal está organizado en Inicio, Personas, Estructura, Integración, Nómina, Asistente, Ausentismo, Calidad, Reportes y Ayuda. Decime qué tarea necesitás realizar y te indico la ruta exacta sin asumir permisos ni funciones inexistentes.',
+    data: { sections },
+    steps: ['Elegí la tarea que querés resolver.', 'Abrí la sección sugerida desde el menú.', 'Revisá fuente, fecha de corte y límites antes de usar el resultado.'],
+    targetPath: '/centro-ayuda',
+    relatedSections: relatedSections(SECTION_CATALOG.map((item) => item.id)),
+    asOf: GUIDANCE_AS_OF,
+    sources: guidanceSource('section_catalog'),
+  };
+}
+
+function sectionExplanationResult(body = {}) {
+  const section = findCatalogEntry(SECTION_CATALOG, guidanceQuery(body));
+  if (!section) {
+    return {
+      answer: 'Puedo explicar Inicio, Personas, Estructura, Integración, Nómina, Asistente, Ausentismo, Calidad, Reportes o Ayuda. Indicá el nombre de la sección para describir sólo funciones verificadas.',
+      data: { sections: SECTION_CATALOG.map(({ id, label, targetPath }) => ({ id, label, targetPath })) },
+      steps: [],
+      targetPath: '/centro-ayuda#modulos',
+      relatedSections: relatedSections(SECTION_CATALOG.map((item) => item.id)),
+      asOf: GUIDANCE_AS_OF,
+      sources: guidanceSource('section_catalog'),
+    };
+  }
+  return {
+    answer: `${section.label}: ${section.purpose} Acciones disponibles: ${section.actions.join('; ')}. Límites: ${section.limits.join('; ')}.`,
+    data: { section: publicSection(section) },
+    steps: [`Abrí ${section.label}.`, 'Elegí una de las acciones disponibles.', 'Leé los límites de la vista antes de interpretar o comunicar el resultado.'],
+    targetPath: section.targetPath,
+    relatedSections: relatedSections([section.id, 'ayuda'].filter((id, index, ids) => ids.indexOf(id) === index)),
+    asOf: GUIDANCE_AS_OF,
+    sources: guidanceSource('section_catalog'),
+  };
+}
+
+function taskGuidanceResult(body = {}) {
+  const task = findTaskEntry(guidanceQuery(body));
+  if (!task) {
+    return {
+      answer: 'Puedo guiarte para buscar un empleado, revisar una ficha, explorar la estructura, controlar nómina, revisar la integración, revisar ausentismo, auditar calidad, interpretar reportes o usar el asistente. Indicá una de esas tareas para recibir pasos concretos.',
+      data: {
+        tasks: TASK_CATALOG.map(({ id, label, sectionId, steps }) => ({ id, label, sectionId, steps })),
+      },
+      steps: ['Describí la tarea con un verbo y un objeto; por ejemplo: “cómo buscar un empleado”.', 'Seguí el recorrido devuelto y verificá los límites de la sección de destino.'],
+      targetPath: '/centro-ayuda#tareas',
+      relatedSections: relatedSections(SECTION_CATALOG.map((item) => item.id)),
+      asOf: GUIDANCE_AS_OF,
+      sources: guidanceSource('task_catalog'),
+    };
+  }
+  const section = SECTION_CATALOG.find((item) => item.id === task.sectionId);
+  return {
+    answer: `${task.label}: seguí estos ${task.steps.length} pasos. El recorrido describe la interfaz disponible y no ejecuta cambios administrativos.`,
+    data: {
+      task: { id: task.id, label: task.label, sectionId: task.sectionId },
+      section: publicSection(section),
+    },
+    steps: [...task.steps],
+    targetPath: section?.targetPath || '/asistente',
+    relatedSections: relatedSections([task.sectionId, 'ayuda']),
+    asOf: GUIDANCE_AS_OF,
+    sources: guidanceSource('task_catalog'),
+  };
+}
+
+function glossaryResult(body = {}) {
+  const term = findCatalogEntry(GLOSSARY, guidanceQuery(body));
+  if (!term) {
+    return {
+      answer: 'El glosario disponible incluye GRH, PERSONAS, crosswalk, legajo, activo administrativo, activo liquidable, corrida cerrada, corrida abierta y dato nominal. Indicá un término para ver su definición y las secciones relacionadas.',
+      data: { terms: GLOSSARY.map(({ id, label }) => ({ id, label })) },
+      steps: [],
+      targetPath: '/centro-ayuda#glosario',
+      relatedSections: relatedSections(['ayuda', 'calidad']),
+      asOf: GUIDANCE_AS_OF,
+      sources: guidanceSource('municipal_glossary'),
+    };
+  }
+  const sections = relatedSections(term.relatedSectionIds);
+  return {
+    answer: `${term.label}: ${term.definition}`,
+    data: { term: { id: term.id, label: term.label, definition: term.definition } },
+    steps: [],
+    targetPath: sections[0]?.targetPath || '/asistente',
+    relatedSections: sections,
+    asOf: GUIDANCE_AS_OF,
+    sources: guidanceSource('municipal_glossary'),
+  };
+}
+
+function productGuidanceResult(intent, body) {
+  if (intent === 'section_explanation') return sectionExplanationResult(body);
+  if (intent === 'task_guidance') return taskGuidanceResult(body);
+  if (intent === 'glossary') return glossaryResult(body);
+  return helpNavigationResult(body);
+}
+
 function providerFacts(intent, data) {
   if (intent === 'workforce_summary') {
     return {
@@ -383,6 +592,7 @@ function providerStatus(status, extra = {}) {
 }
 
 async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
+  if (GUIDANCE_INTENTS.has(intent)) return providerStatus('not_allowed_for_product_guidance');
   if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('not_allowed_for_nominal_or_unknown_intent');
   const token = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
   if (!token) return providerStatus('not_configured');
@@ -478,7 +688,16 @@ function capabilitiesPayload() {
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
+      { intent: 'help_navigation', externalEnhancement: false },
+      { intent: 'section_explanation', externalEnhancement: false },
+      { intent: 'task_guidance', externalEnhancement: false },
+      { intent: 'glossary', externalEnhancement: false },
     ],
+    guidance: {
+      asOf: GUIDANCE_AS_OF,
+      sections: SECTION_CATALOG.map(({ id, label, targetPath }) => ({ id, label, targetPath })),
+      policy: 'verified_product_catalog_only',
+    },
     privacy: {
       nominalQueries: 'local_database_only',
       externalProvider: 'aggregate_verified_facts_only',
@@ -518,65 +737,64 @@ export function createInternalAssistantHandler(dependencies = {}) {
     try {
       const body = await readJsonBody(req);
       const message = normalizeText(body.message);
-      if (!message && !body.intent && !body.search && !body.contractId && !body.legajo) {
+      if (!message && !body.intent && !body.search && !body.contractId && !body.legajo && !body.section && !body.task && !body.term) {
         return send(res, 400, { ok: false, code: 'ASSISTANT_QUERY_REQUIRED', error: 'Escribí una consulta para el asistente' });
       }
       const intent = classifyAssistantRequest(body);
-      const sql = await getSql();
       let result;
 
-      if (intent === 'workforce_summary') {
-        const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
-        result = workforceResult(integration, scope);
-      } else if (intent === 'payroll_control') {
-        result = payrollResult(await loadPayroll(sql));
-      } else if (intent === 'integration_quality') {
-        const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
-        result = integrationResult(integration, scope);
-      } else if (intent === 'employee_search') {
-        const search = normalizeText(body.search, MAX_SEARCH_LENGTH) || extractEmployeeSearch(message);
-        const request = {
-          query: {
-            search,
-            page: String(boundedInteger(body.page, 1, 1, 100_000)),
-            limit: String(boundedInteger(body.limit, 10, 1, 10)),
-            status: normalizeText(body.status, 32) || 'all',
-            crosswalk: normalizeText(body.crosswalk, 32) || 'all',
-            includeFacets: '0',
-          },
-        };
-        const [directory, scope] = await Promise.all([searchEmployees(sql, request), loadScope(sql)]);
-        result = employeeSearchResult(directory, scope);
-      } else if (intent === 'employee_detail') {
-        const contractId = normalizeText(body.contractId, 64);
-        const legajo = normalizeText(body.legajo, 64) || extractLegajo(message);
-        const companyId = normalizeText(body.companyId, 32) || extractCompanyId(message);
-        if (!contractId && !legajo) {
-          return send(res, 400, {
-            ok: false,
-            code: 'EMPLOYEE_IDENTIFIER_REQUIRED',
-            error: 'Indicá contractId o legajo para abrir una ficha; para nombres usá employee_search.',
-          });
-        }
-        const [detail, scope] = await Promise.all([
-          loadEmployee(sql, { query: { contractId, legajo, companyId } }),
-          loadScope(sql),
-        ]);
-        result = employeeDetailResult(detail, scope);
-      } else if (intent === 'executive_analysis') {
-        const [integration, payroll, scope] = await Promise.all([
-          loadIntegration(sql),
-          loadPayroll(sql),
-          loadScope(sql),
-        ]);
-        result = executiveResult(integration, payroll, scope);
+      if (GUIDANCE_INTENTS.has(intent)) {
+        result = productGuidanceResult(intent, body);
       } else {
-        result = {
-          answer: 'Puedo consultar dotación, brecha 882/854, nómina cerrada y abierta, integración GRH–PERSONAS, buscar empleados y abrir fichas internas. Para una ficha por nombre usá “buscar” y para una ficha exacta indicá el legajo.',
-          data: { capabilities: capabilitiesPayload().capabilities },
-          asOf: null,
-          sources: [{ system: 'MUNICONTROL', relation: 'assistant_capabilities', authority: 'product_contract' }],
-        };
+        const sql = await getSql();
+        if (intent === 'workforce_summary') {
+          const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
+          result = workforceResult(integration, scope);
+        } else if (intent === 'payroll_control') {
+          result = payrollResult(await loadPayroll(sql));
+        } else if (intent === 'integration_quality') {
+          const [integration, scope] = await Promise.all([loadIntegration(sql), loadScope(sql)]);
+          result = integrationResult(integration, scope);
+        } else if (intent === 'employee_search') {
+          const search = normalizeText(body.search, MAX_SEARCH_LENGTH) || extractEmployeeSearch(message);
+          const request = {
+            query: {
+              search,
+              page: String(boundedInteger(body.page, 1, 1, 100_000)),
+              limit: String(boundedInteger(body.limit, 10, 1, 10)),
+              status: normalizeText(body.status, 32) || 'all',
+              crosswalk: normalizeText(body.crosswalk, 32) || 'all',
+              includeFacets: '0',
+            },
+          };
+          const [directory, scope] = await Promise.all([searchEmployees(sql, request), loadScope(sql)]);
+          result = employeeSearchResult(directory, scope);
+        } else if (intent === 'employee_detail') {
+          const contractId = normalizeText(body.contractId, 64);
+          const legajo = normalizeText(body.legajo, 64) || extractLegajo(message);
+          const companyId = normalizeText(body.companyId, 32) || extractCompanyId(message);
+          if (!contractId && !legajo) {
+            return send(res, 400, {
+              ok: false,
+              code: 'EMPLOYEE_IDENTIFIER_REQUIRED',
+              error: 'Indicá contractId o legajo para abrir una ficha; para nombres usá employee_search.',
+            });
+          }
+          const [detail, scope] = await Promise.all([
+            loadEmployee(sql, { query: { contractId, legajo, companyId } }),
+            loadScope(sql),
+          ]);
+          result = employeeDetailResult(detail, scope);
+        } else if (intent === 'executive_analysis') {
+          const [integration, payroll, scope] = await Promise.all([
+            loadIntegration(sql),
+            loadPayroll(sql),
+            loadScope(sql),
+          ]);
+          result = executiveResult(integration, payroll, scope);
+        } else {
+          result = productGuidanceResult('help', body);
+        }
       }
 
       if (result.status && result.status !== 200) {
@@ -585,6 +803,9 @@ export function createInternalAssistantHandler(dependencies = {}) {
           intent,
           answer: result.answer,
           data: result.data,
+          steps: result.steps || [],
+          targetPath: result.targetPath || null,
+          relatedSections: result.relatedSections || [],
           sources: result.sources,
           asOf: result.asOf,
           privacy: { nominalDataExternalized: false },
@@ -602,6 +823,9 @@ export function createInternalAssistantHandler(dependencies = {}) {
         answer: result.answer,
         insight: provider.insight || null,
         data: result.data,
+        steps: result.steps || [],
+        targetPath: result.targetPath || null,
+        relatedSections: result.relatedSections || [],
         sources: result.sources.map((source) => ({ ...source, asOf: result.asOf })),
         asOf: result.asOf,
         privacy: {
@@ -609,6 +833,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
           nominalDataExternalized: false,
           rawUserMessageSentExternally: false,
           nominalQueries: ['employee_search', 'employee_detail'].includes(intent) ? 'local_database_only' : null,
+          guidanceContent: GUIDANCE_INTENTS.has(intent) ? 'verified_product_catalog_only' : null,
         },
         provider,
       });

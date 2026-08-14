@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123247">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Centro de ayuda y recorridos de aprendizaje para el portal interno de MuniControl.">
+  <title>Centro de ayuda | MuniControl</title>
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #805819;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --focus: #1476a2;
+      --sidebar: 254px;
+      --radius: 5px;
+      --shadow: 0 8px 22px rgba(20, 48, 61, .07);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { min-width: 320px; scroll-behavior: smooth; background: var(--canvas); }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 1000;
+      transform: translateY(-160%);
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 13px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .gate-card {
+      width: min(440px, 100%);
+      padding: 31px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--navy);
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .gate-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 4px;
+      font: 900 20px/1 Georgia, serif;
+    }
+    .gate-card h1 { margin: 17px 0 6px; color: var(--navy); font-size: 21px; }
+    .gate-card p { margin: 0; color: var(--muted); }
+    .loader {
+      width: 23px;
+      height: 23px;
+      margin: 21px auto 0;
+      border: 3px solid var(--line);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 18px;
+      overflow-y: auto;
+      background: var(--navy);
+      color: #e9f1f4;
+      border-right: 1px solid #21475c;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 24px;
+      color: inherit;
+      border-bottom: 1px solid #315166;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: #f8f5ec;
+      color: var(--navy);
+      border: 1px solid #aebdc2;
+      border-radius: 3px;
+      font: 800 21px/1 Georgia, serif;
+    }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .01em; }
+    .brand small { display: block; margin-top: 2px; color: #a8c0cb; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .nav-label { margin: 24px 9px 8px; color: #8fabb8; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      color: #c9d8df;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .nav a:hover { color: #fff; border-color: #416175; }
+    .nav a[aria-current="page"] { color: #102e3f; background: #f8f5ec; border-color: #f8f5ec; font-weight: 800; }
+    .nav-code {
+      width: 25px;
+      height: 25px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #88a7b5;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 8px;
+      font-weight: 850;
+      letter-spacing: .04em;
+    }
+    .nav a[aria-current="page"] .nav-code { color: var(--green); }
+    .side-note {
+      margin-top: auto;
+      padding: 14px;
+      background: #173b50;
+      color: #b8cbd3;
+      border: 1px solid #31576c;
+      border-radius: var(--radius);
+      font-size: 11px;
+    }
+    .side-note strong { display: block; margin-bottom: 5px; color: #fff; }
+
+    .workspace { min-width: 0; }
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 34px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .top-context { min-width: 0; }
+    .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .crumb a { min-height: 44px; display: inline-flex; align-items: center; color: var(--green); font-weight: 800; text-decoration: none; }
+    .crumb a:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .top-title { margin-top: 2px; overflow: hidden; color: var(--navy); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .user-label { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .session-chip {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid #b9d8ce;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+    .button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      background: var(--surface);
+      color: var(--navy);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 750;
+      text-decoration: none;
+    }
+    .button:hover { background: var(--surface-2); border-color: var(--navy-2); }
+    .button.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .button.primary:hover { background: var(--navy-2); }
+    .button.quiet { background: transparent; color: var(--blue); }
+    .button:disabled { cursor: not-allowed; opacity: .58; }
+
+    main { width: min(1440px, 100%); margin: 0 auto; padding: 32px 34px 54px; }
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+      gap: 30px;
+      align-items: end;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(31px, 5vw, 48px); line-height: 1.04; letter-spacing: -.035em; }
+    .lead { max-width: 790px; margin: 13px 0 0; color: var(--muted); font-size: 15px; }
+    .progress-card { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
+    .progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .progress-head strong { color: var(--navy); }
+    .progress-head span { color: var(--green); font-size: 12px; font-weight: 850; }
+    .progress-track { height: 8px; margin: 11px 0 8px; overflow: hidden; background: #e0e6e3; border-radius: 2px; }
+    .progress-track span { display: block; width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
+    .progress-card p { margin: 0; color: var(--muted); font-size: 11px; }
+    .progress-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+    .finder {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 310px);
+      gap: 12px;
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--navy); font-size: 11px; font-weight: 800; }
+    input, select {
+      width: 100%;
+      min-height: 46px;
+      padding: 9px 11px;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+    }
+    input::placeholder { color: #7c8a90; }
+    .search-status { grid-column: 1 / -1; min-height: 20px; margin: 0; color: var(--muted); font-size: 11px; }
+
+    .section { margin-top: 26px; scroll-margin-top: 20px; }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 11px; }
+    .section-head h2 { margin: 0; color: var(--navy); font-size: 19px; }
+    .section-head p { max-width: 670px; margin: 0; color: var(--muted); font-size: 11px; text-align: right; }
+    .route-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .route-card, .module-card, .task-card, .glossary-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .route-card { min-height: 246px; display: flex; flex-direction: column; padding: 17px; }
+    .route-card[aria-current="true"] { border-color: var(--green); box-shadow: inset 0 3px 0 var(--green); }
+    .card-code {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .05em;
+    }
+    .route-card h3, .module-card h3, .task-card h3 { margin: 11px 0 5px; color: var(--navy); font-size: 15px; }
+    .route-card p, .module-card p, .task-card p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .route-steps { display: grid; gap: 6px; margin: 13px 0 16px; padding: 0; list-style: none; counter-reset: route; }
+    .route-steps li { display: flex; gap: 7px; color: var(--ink); font-size: 11px; }
+    .route-steps li::before { counter-increment: route; content: counter(route); width: 18px; height: 18px; display: grid; place-items: center; flex: 0 0 auto; background: var(--green-soft); color: var(--green); border-radius: 2px; font-size: 9px; font-weight: 900; }
+    .route-card .button { width: 100%; margin-top: auto; }
+
+    .learning-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+    .checklist { display: grid; gap: 8px; }
+    .check-row {
+      min-height: 74px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .check-row input { width: 21px; min-height: 21px; accent-color: var(--green); }
+    .check-row label { cursor: pointer; }
+    .check-row label strong { display: block; color: var(--navy); font-size: 13px; }
+    .check-row label span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .check-row:has(input:checked) { background: var(--green-soft); border-color: #b9d8ce; }
+    .check-row:has(input:checked) label strong { text-decoration: line-through; text-decoration-color: #76918b; }
+    .privacy-note { padding: 17px; background: var(--blue-soft); border: 1px solid #c8d9e3; border-radius: var(--radius); }
+    .privacy-note h3 { margin: 0 0 6px; color: var(--navy); font-size: 14px; }
+    .privacy-note p { margin: 0; color: #4d6878; font-size: 11px; }
+    .privacy-note dl { margin: 14px 0 0; }
+    .privacy-note div { padding: 8px 0; border-top: 1px solid #d6e2e8; }
+    .privacy-note dt { color: var(--navy); font-size: 10px; font-weight: 850; }
+    .privacy-note dd { margin: 2px 0 0; color: #4d6878; font-size: 10px; }
+
+    .module-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .module-card { min-height: 218px; display: flex; flex-direction: column; padding: 17px; }
+    .module-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .module-type { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .module-card ul { display: grid; gap: 5px; margin: 12px 0 15px; padding-left: 17px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .module-card .button { margin-top: auto; align-self: flex-start; }
+
+    .task-list { display: grid; gap: 9px; }
+    .task-card { overflow: hidden; }
+    .task-card summary { min-height: 60px; display: flex; align-items: center; gap: 12px; padding: 13px 16px; color: var(--navy); cursor: pointer; font-weight: 800; list-style: none; }
+    .task-card summary::-webkit-details-marker { display: none; }
+    .task-card summary::before { content: "+"; width: 26px; height: 26px; display: grid; place-items: center; flex: 0 0 auto; color: var(--green); border: 1px solid #b9d8ce; border-radius: 3px; }
+    .task-card[open] summary::before { content: "−"; }
+    .task-card[open] summary { border-bottom: 1px solid var(--line); }
+    .task-body { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 18px; padding: 16px; }
+    .task-body ol { display: grid; gap: 9px; margin: 0; padding-left: 22px; }
+    .task-body li { padding-left: 4px; }
+    .task-body li strong { color: var(--navy); }
+    .task-tip { padding: 13px; background: var(--amber-soft); color: #694b1c; border: 1px solid #e1ce9e; font-size: 11px; }
+    .task-tip strong { display: block; margin-bottom: 4px; }
+
+    .assistant-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 21px; background: var(--navy); color: #fff; border: 1px solid #0b2939; border-radius: var(--radius); }
+    .assistant-panel h2 { margin: 0; font-size: 19px; }
+    .assistant-panel p { max-width: 780px; margin: 7px 0 0; color: #bfd0d7; font-size: 12px; }
+    .assistant-prompts { display: flex; flex-wrap: wrap; gap: 6px; margin: 13px 0 0; padding: 0; list-style: none; }
+    .assistant-prompts li { padding: 6px 8px; background: #173e53; color: #d6e2e7; border: 1px solid #3b5f72; border-radius: 3px; font-size: 10px; }
+    .assistant-panel .button { background: #f8f5ec; color: var(--navy); border-color: #f8f5ec; }
+
+    .glossary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .glossary-card { padding: 14px; }
+    .glossary-card dt { color: var(--navy); font-weight: 850; }
+    .glossary-card dd { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .no-results { padding: 34px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); text-align: center; }
+    .no-results strong { display: block; margin-bottom: 4px; color: var(--navy); }
+
+    .error-card { width: min(560px, calc(100% - 40px)); margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); box-shadow: var(--shadow); }
+    .error-card h1 { margin: 0; color: var(--navy); font-size: 22px; }
+    .error-card p { margin: 8px 0 17px; color: var(--muted); }
+
+    @media (max-width: 1180px) {
+      .route-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .module-grid, .glossary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 920px) {
+      .app { display: block; }
+      .sidebar { position: static; width: 100%; height: auto; min-height: 0; padding: 13px 16px; }
+      .brand { padding: 0 4px 11px; border-bottom: 0; }
+      .nav-label, .side-note { display: none; }
+      .nav { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 4px; }
+      .nav a { min-width: max-content; }
+      .nav[aria-label="Navegación principal"] { flex-wrap: wrap; overflow: visible; }
+      .nav[aria-label="Navegación principal"] a { flex: 1 1 108px; justify-content: center; }
+      .topbar { padding: 11px 18px; }
+      .page-head, .learning-layout { grid-template-columns: 1fr; }
+      .progress-card { max-width: 590px; }
+      .task-body { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      main { padding: 25px 14px 44px; }
+      .topbar { align-items: flex-start; }
+      .session-chip { display: none; }
+      .user-label { max-width: 180px; }
+      .finder, .route-grid, .module-grid, .glossary-grid { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .section-head p { margin-top: 4px; text-align: left; }
+      .assistant-panel { grid-template-columns: 1fr; }
+      .assistant-panel .button { width: 100%; }
+      .check-row { grid-template-columns: auto minmax(0, 1fr); }
+      .check-row > .button { grid-column: 2; justify-self: start; }
+    }
+    @media (max-width: 410px) {
+      .sidebar { padding-inline: 10px; }
+      .topbar { padding-inline: 12px; }
+      .top-title { max-width: 165px; }
+      .top-actions .button { padding-inline: 8px; font-size: 10px; }
+      h1 { font-size: 31px; }
+      .route-card, .module-card { min-height: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <section class="auth-gate" id="authGate" aria-live="polite">
+    <div class="gate-card">
+      <div class="gate-mark" aria-hidden="true">M</div>
+      <h1 id="gateTitle">Verificando sesión</h1>
+      <p id="gateMessage">Estamos confirmando tu acceso al centro de ayuda.</p>
+      <div class="loader" id="gateLoader" aria-hidden="true"></div>
+      <button class="button" id="retryButton" type="button" hidden>Reintentar</button>
+    </div>
+  </section>
+
+  <div class="app" id="app" hidden>
+    <aside class="sidebar" aria-label="Navegación interna">
+      <a class="brand" href="internal-dashboard.html" aria-label="MuniControl, inicio interno">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><strong>MuniControl</strong><small>Junín · portal interno</small></span>
+      </a>
+
+      <div class="nav-label">Operación interna</div>
+      <nav class="nav" aria-label="Navegación principal">
+        <a href="internal-dashboard.html"><span class="nav-code" aria-hidden="true">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span><span>Personas</span></a>
+        <a href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span><span>Asistente</span></a>
+        <a href="centro-ayuda.html" aria-current="page"><span class="nav-code" aria-hidden="true">AY</span><span>Ayuda</span></a>
+      </nav>
+
+      <div class="nav-label">Herramientas</div>
+      <nav class="nav" aria-label="Herramientas internas">
+        <a href="internal-dashboard.html#ausentismo"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
+        <a href="calidad-datos.html"><span class="nav-code" aria-hidden="true">CD</span><span>Calidad</span></a>
+        <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a href="friendly-dashboard.html"><span class="nav-code" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
+        <a href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
+      </nav>
+
+      <div class="side-note">
+        <strong>Aprendizaje sin evaluación</strong>
+        Este recorrido orienta el uso del portal. No modifica permisos, legajos ni datos municipales.
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="top-context">
+          <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Centro de ayuda</span></nav>
+          <div class="top-title">Aprendizaje y asistencia de uso</div>
+          <span class="user-label" id="userLabel">Portal interno</span>
+        </div>
+        <div class="top-actions">
+          <span class="session-chip">Progreso de esta sesión</span>
+          <button class="button" id="logoutButton" type="button">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <main id="contenido">
+        <section class="page-head" aria-labelledby="pageTitle">
+          <div>
+            <p class="eyebrow">Ingreso acompañado</p>
+            <h1 id="pageTitle">Centro de ayuda</h1>
+            <p class="lead">Conocé qué hace cada sección, seguí un recorrido según tu tarea y resolvé operaciones frecuentes sin depender de conocer de antemano la estructura del sistema.</p>
+          </div>
+          <div class="progress-card" aria-labelledby="progressTitle">
+            <div class="progress-head"><strong id="progressTitle">Tu recorrido inicial</strong><span id="progressText">0 de 5</span></div>
+            <div class="progress-track" role="progressbar" id="progressBar" aria-labelledby="progressTitle" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><span id="progressFill"></span></div>
+            <p>Se guarda únicamente qué pasos marcaste durante esta sesión de la pestaña.</p>
+            <div class="progress-actions"><button class="button quiet" id="resetProgress" type="button">Reiniciar progreso</button></div>
+          </div>
+        </section>
+
+        <section class="finder" aria-labelledby="finderTitle">
+          <div class="field">
+            <label id="finderTitle" for="helpSearch">Buscar en la ayuda</label>
+            <input id="helpSearch" type="search" placeholder="Ejemplo: legajo, nómina, ausencia o integración" autocomplete="off" aria-describedby="searchStatus">
+          </div>
+          <div class="field">
+            <label for="roleSelect">Recorrido sugerido</label>
+            <select id="roleSelect">
+              <option value="all">Ver todos los recorridos</option>
+              <option value="consulta">Consulta general</option>
+              <option value="rrhh">Personal y RRHH</option>
+              <option value="responsable">Responsables de área</option>
+              <option value="nomina">Control de nómina</option>
+              <option value="datos">Datos y auditoría</option>
+              <option value="direccion">Dirección y conducción</option>
+            </select>
+          </div>
+          <p class="search-status" id="searchStatus" role="status" aria-live="polite">Todos los contenidos están visibles.</p>
+        </section>
+
+        <section class="section" id="rutas" aria-labelledby="routesTitle">
+          <header class="section-head"><h2 id="routesTitle">Rutas de aprendizaje</h2><p>Son orientaciones de uso, no roles de seguridad ni definiciones de la estructura municipal.</p></header>
+          <div class="route-grid" id="routeList">
+            <article class="route-card" data-help-item data-route="consulta" data-search="consulta general inicio estructura asistente orientación">
+              <span class="card-code" aria-hidden="true">CG</span><h3>Consulta general</h3><p>Para reconocer el portal y encontrar información sin editar fuentes.</p>
+              <ol class="route-steps"><li>Revisar el Inicio</li><li>Entender Estructura</li><li>Consultar al Asistente</li></ol>
+              <a class="button" href="internal-dashboard.html">Comenzar en Inicio</a>
+            </article>
+            <article class="route-card" data-help-item data-route="rrhh" data-search="personal recursos humanos rrhh personas legajos ausentismo reportes">
+              <span class="card-code" aria-hidden="true">RH</span><h3>Personal y RRHH</h3><p>Para localizar legajos y revisar antecedentes laborales disponibles.</p>
+              <ol class="route-steps"><li>Buscar una persona</li><li>Leer su ficha</li><li>Revisar ausentismo y reportes</li></ol>
+              <a class="button" href="internal-dashboard.html#legajos">Ir a Personas</a>
+            </article>
+            <article class="route-card" data-help-item data-route="responsable" data-search="responsable área sector organización estructura dotación personas">
+              <span class="card-code" aria-hidden="true">RA</span><h3>Responsables de área</h3><p>Para comprender asignaciones organizacionales y ubicar personal.</p>
+              <ol class="route-steps"><li>Explorar Estructura</li><li>Revisar Personas</li><li>Verificar fuentes y corte</li></ol>
+              <a class="button" href="estructura.html">Ir a Estructura</a>
+            </article>
+            <article class="route-card" data-help-item data-route="nomina" data-search="control nómina liquidación activo liquidable conciliación integración reportes">
+              <span class="card-code" aria-hidden="true">CN</span><h3>Control de nómina</h3><p>Para revisar períodos, estados y diferencias que requieren control.</p>
+              <ol class="route-steps"><li>Abrir Nómina</li><li>Interpretar la brecha</li><li>Consultar Integración</li></ol>
+              <a class="button" href="nomina-control.html">Ir a Nómina</a>
+            </article>
+            <article class="route-card" data-help-item data-route="datos" data-search="datos auditoría calidad integración crosswalk trazabilidad sistemas">
+              <span class="card-code" aria-hidden="true">DA</span><h3>Datos y auditoría</h3><p>Para verificar cobertura, procedencia y límites antes de utilizar una conclusión.</p>
+              <ol class="route-steps"><li>Revisar Integración</li><li>Auditar Calidad</li><li>Consultar reglas al Asistente</li></ol>
+              <a class="button" href="integracion-datos.html">Comenzar en Integración</a>
+            </article>
+            <article class="route-card" data-help-item data-route="direccion" data-search="dirección conducción responsables funcionarios tablero ejecutivo reportes estructura">
+              <span class="card-code" aria-hidden="true">DC</span><h3>Dirección y conducción</h3><p>Para obtener una lectura agregada y reconocer cuándo hace falta bajar al detalle autorizado.</p>
+              <ol class="route-steps"><li>Leer el Centro ejecutivo</li><li>Contrastar Reportes RRHH</li><li>Ubicar áreas en Estructura</li></ol>
+              <a class="button" href="friendly-dashboard.html">Abrir Centro ejecutivo</a>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="primeros-pasos" aria-labelledby="stepsTitle">
+          <header class="section-head"><h2 id="stepsTitle">Primeros pasos</h2><p>Marcá cada paso cuando lo hayas realizado. No se registra una calificación ni se envía el progreso al servidor.</p></header>
+          <div class="learning-layout">
+            <div class="checklist" id="onboardingChecklist">
+              <div class="check-row" data-help-item data-search="inicio tablero resumen indicadores corte">
+                <input id="step-home" type="checkbox" data-progress-id="home"><label for="step-home"><strong>Reconocer el Inicio</strong><span>Ubicá la navegación principal, el corte de datos y los accesos rápidos.</span></label><a class="button" href="internal-dashboard.html">Abrir</a>
+              </div>
+              <div class="check-row" data-help-item data-search="personas buscar legajo ficha empleado filtros">
+                <input id="step-people" type="checkbox" data-progress-id="people"><label for="step-people"><strong>Buscar un legajo</strong><span>Probá el buscador de Personas y abrí una ficha para conocer sus secciones.</span></label><a class="button" href="internal-dashboard.html#legajos">Abrir</a>
+              </div>
+              <div class="check-row" data-help-item data-search="estructura organización sector cargo grh">
+                <input id="step-structure" type="checkbox" data-progress-id="structure"><label for="step-structure"><strong>Leer la Estructura</strong><span>Diferenciá organización, sector y cargo según lo informado por GRH.</span></label><a class="button" href="estructura.html">Abrir</a>
+              </div>
+              <div class="check-row" data-help-item data-search="nómina período activo administrativo liquidable brecha control">
+                <input id="step-payroll" type="checkbox" data-progress-id="payroll"><label for="step-payroll"><strong>Entender el control de Nómina</strong><span>Identificá el período observado y la diferencia entre estados administrativos y liquidables.</span></label><a class="button" href="nomina-control.html">Abrir</a>
+              </div>
+              <div class="check-row" data-help-item data-search="asistente ia pregunta fuentes corte explicación ayuda">
+                <input id="step-assistant" type="checkbox" data-progress-id="assistant"><label for="step-assistant"><strong>Hacer una consulta asistida</strong><span>Pedí una explicación y comprobá siempre las fuentes y el corte informados.</span></label><a class="button" href="asistente.html">Abrir</a>
+              </div>
+            </div>
+            <aside class="privacy-note" aria-labelledby="privacyTitle">
+              <h3 id="privacyTitle">Qué guarda este recorrido</h3>
+              <p>El progreso es una ayuda visual temporal. No forma parte del legajo ni reemplaza una capacitación formal del área.</p>
+              <dl>
+                <div><dt>Se guarda</dt><dd>Identificadores técnicos de pasos completados y el recorrido elegido.</dd></div>
+                <div><dt>No se guarda</dt><dd>Nombre, DNI, CUIL, legajo, consultas ni respuestas del asistente.</dd></div>
+                <div><dt>Dónde</dt><dd>En esta sesión de la pestaña; se elimina al cerrarla y también se puede borrar desde esta página.</dd></div>
+              </dl>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section" id="modulos" aria-labelledby="modulesTitle">
+          <header class="section-head"><h2 id="modulesTitle">Qué hace cada sección</h2><p>Usá este mapa antes de ingresar a un módulo. Las vistas respetan la información y el corte disponible en sus fuentes.</p></header>
+          <div class="module-grid" id="moduleGrid">
+            <article class="module-card" data-help-item data-search="inicio tablero resumen indicadores accesos"><div class="module-meta"><span class="card-code" aria-hidden="true">IN</span><span class="module-type">Orientación</span></div><h3>Inicio</h3><p>Punto de entrada al portal interno.</p><ul><li>Resume los controles principales.</li><li>Concentra accesos a las áreas de trabajo.</li><li>Muestra contexto y corte cuando están disponibles.</li></ul><a class="button" href="internal-dashboard.html">Abrir Inicio</a></article>
+            <article class="module-card" data-help-item data-search="personas empleados legajo ficha identidad laboral ausencias movimientos"><div class="module-meta"><span class="card-code" aria-hidden="true">PE</span><span class="module-type">Consulta nominal</span></div><h3>Personas</h3><p>Directorio y ficha laboral de los registros disponibles.</p><ul><li>Busca por los criterios habilitados.</li><li>Separa información laboral y enriquecimiento validado.</li><li>Conserva trazabilidad de fuente.</li></ul><a class="button" href="internal-dashboard.html#legajos">Abrir Personas</a></article>
+            <article class="module-card" data-help-item data-search="estructura organización sector cargo catálogo asignaciones grh"><div class="module-meta"><span class="card-code" aria-hidden="true">ES</span><span class="module-type">Lectura organizacional</span></div><h3>Estructura</h3><p>Agrupa asignaciones organizacionales informadas por GRH.</p><ul><li>Explora organizaciones y sectores.</li><li>Consulta cargos y catálogos.</li><li>No presume un organigrama normativo.</li></ul><a class="button" href="estructura.html">Abrir Estructura</a></article>
+            <article class="module-card" data-help-item data-search="integración grh personas coincidencia crosswalk ambigua identidad calidad"><div class="module-meta"><span class="card-code" aria-hidden="true">IC</span><span class="module-type">Calidad de identidad</span></div><h3>Integración</h3><p>Explica cómo se vinculan GRH y el padrón PERSONAS.</p><ul><li>Distingue coincidencias confirmadas.</li><li>Señala casos ambiguos o sin coincidencia.</li><li>No une identidades por el IDPERSONA de origen.</li></ul><a class="button" href="integracion-datos.html">Abrir Integración</a></article>
+            <article class="module-card" data-help-item data-search="nómina liquidación período activo administrativo liquidable brecha conciliación"><div class="module-meta"><span class="card-code" aria-hidden="true">NO</span><span class="module-type">Control laboral</span></div><h3>Nómina</h3><p>Compara estados y períodos de liquidación disponibles.</p><ul><li>Diferencia activo administrativo y liquidable.</li><li>Expone brechas para revisión.</li><li>Identifica el carácter cerrado o abierto del período.</li></ul><a class="button" href="nomina-control.html">Abrir Nómina</a></article>
+            <article class="module-card" data-help-item data-search="asistente ia bot preguntas fuentes corte explicar ayuda legajo"><div class="module-meta"><span class="card-code" aria-hidden="true">IA</span><span class="module-type">Consulta guiada</span></div><h3>Asistente</h3><p>Responde consultas sobre la información habilitada del portal.</p><ul><li>Ayuda a interpretar términos y controles.</li><li>Informa fuentes y corte de la respuesta.</li><li>No reemplaza una decisión administrativa.</li></ul><a class="button" href="asistente.html">Abrir Asistente</a></article>
+            <article class="module-card" data-help-item data-search="ausentismo ausencia licencia historial personas"><div class="module-meta"><span class="card-code" aria-hidden="true">AU</span><span class="module-type">Seguimiento laboral</span></div><h3>Ausentismo</h3><p>Acceso a la lectura de ausencias disponible en el portal.</p><ul><li>Presenta registros según la fuente.</li><li>Debe leerse junto con su período.</li><li>No completa motivos no informados.</li></ul><a class="button" href="internal-dashboard.html#ausentismo">Abrir Ausentismo</a></article>
+            <article class="module-card" data-help-item data-search="calidad datos auditoría excepciones reglas trazabilidad"><div class="module-meta"><span class="card-code" aria-hidden="true">CA</span><span class="module-type">Control de evidencia</span></div><h3>Calidad de datos</h3><p>Expone controles, excepciones y reglas de lectura del corte.</p><ul><li>Distingue dato directo y derivado.</li><li>Documenta anomalías sin ocultarlas.</li><li>Conserva límites antes de comunicar resultados.</li></ul><a class="button" href="calidad-datos.html">Abrir Calidad</a></article>
+            <article class="module-card" data-help-item data-search="reportes rrhh informe recursos humanos descargar"><div class="module-meta"><span class="card-code" aria-hidden="true">IR</span><span class="module-type">Informes</span></div><h3>Reportes RRHH</h3><p>Concentra los informes laborales disponibles para consulta.</p><ul><li>Permite identificar el alcance del informe.</li><li>Conserva el contexto de los datos.</li><li>Debe validarse el corte antes de compartir.</li></ul><a class="button" href="reportes-rrhh.html">Abrir Reportes</a></article>
+            <article class="module-card" data-help-item data-search="centro ejecutivo tablero público agregado indicadores gestión"><div class="module-meta"><span class="card-code" aria-hidden="true">CE</span><span class="module-type">Vista agregada</span></div><h3>Centro ejecutivo</h3><p>Presenta indicadores institucionales sin fichas individuales.</p><ul><li>Resume dotación y evolución.</li><li>Expone corte y metodología.</li><li>No reemplaza la consulta nominal autorizada.</li></ul><a class="button" href="friendly-dashboard.html">Abrir Centro ejecutivo</a></article>
+            <article class="module-card" data-help-item data-search="mapa producto módulos estado alcance plataforma"><div class="module-meta"><span class="card-code" aria-hidden="true">MP</span><span class="module-type">Alcance</span></div><h3>Mapa de producto</h3><p>Describe las capacidades visibles de la plataforma.</p><ul><li>Ubica módulos y accesos.</li><li>Ayuda a reconocer el alcance actual.</li><li>No reemplaza las fuentes operativas.</li></ul><a class="button" href="modulos.html">Abrir Mapa</a></article>
+          </div>
+        </section>
+
+        <section class="section" id="tareas" aria-labelledby="tasksTitle">
+          <header class="section-head"><h2 id="tasksTitle">Tareas frecuentes, paso a paso</h2><p>Las instrucciones explican la navegación. La disponibilidad de datos depende de la sesión y de la fuente consultada.</p></header>
+          <div class="task-list" id="taskList">
+            <details class="task-card" data-help-item data-search="buscar empleado persona legajo ficha filtros">
+              <summary>Buscar una persona y abrir su ficha</summary><div class="task-body"><ol><li>Entrá a <strong>Personas</strong> desde la navegación.</li><li>Escribí el nombre o identificador admitido en el buscador.</li><li>Aplicá filtros sólo si necesitás acotar resultados.</li><li>Elegí el registro correcto y abrí su ficha.</li><li>Revisá estado, fuente y trazabilidad antes de usar el dato.</li></ol><aside class="task-tip"><strong>Si no aparece</strong>Quitá filtros, revisá la escritura y confirmá si el registro pertenece al alcance de GRH.</aside></div>
+            </details>
+            <details class="task-card" data-help-item data-search="nómina brecha activos administrativos liquidables período conciliación">
+              <summary>Interpretar la brecha de nómina</summary><div class="task-body"><ol><li>Abrí <strong>Nómina</strong>.</li><li>Confirmá el período y si la corrida figura cerrada o abierta.</li><li>Compará activo administrativo con activo liquidable.</li><li>Revisá la clasificación de los casos que explican la diferencia.</li><li>Volvé a la ficha del legajo si necesitás contexto individual.</li></ol><aside class="task-tip"><strong>Lectura correcta</strong>Una diferencia es un control para revisar; no demuestra por sí sola un error de liquidación.</aside></div>
+            </details>
+            <details class="task-card" data-help-item data-search="estructura organización sector cargo área asignación">
+              <summary>Ubicar una organización o sector</summary><div class="task-body"><ol><li>Abrí <strong>Estructura</strong>.</li><li>Elegí la vista de organizaciones, sectores o catálogos.</li><li>Buscá la denominación o código disponible.</li><li>Revisá cobertura y recuentos asociados.</li><li>Tomá la denominación como una asignación de fuente, no como organigrama normativo.</li></ol><aside class="task-tip"><strong>Antes de concluir</strong>Un nombre literal puede reflejar una carga histórica. Contrastá el corte y la fuente.</aside></div>
+            </details>
+            <details class="task-card" data-help-item data-search="integración personas grh coincidencia ambigua sin coincidencia identidad">
+              <summary>Comprender el estado de integración de una identidad</summary><div class="task-body"><ol><li>Abrí <strong>Integración</strong> para conocer las reglas generales.</li><li>Diferenciá coincidencia confirmada, caso ambiguo y sin coincidencia.</li><li>En una ficha, revisá si el enriquecimiento PERSONAS está validado.</li><li>No asocies identidades por compartir el mismo IDPERSONA de origen.</li><li>Usá la trazabilidad para reconocer qué sistema aportó cada dato.</li></ol><aside class="task-tip"><strong>Regla central</strong>GRH es la fuente laboral. PERSONAS aporta datos auxiliares únicamente cuando la vinculación está validada.</aside></div>
+            </details>
+            <details class="task-card" data-help-item data-search="asistente ia bot preguntar explicación fuentes corte respuesta">
+              <summary>Pedir ayuda al Asistente y verificar la respuesta</summary><div class="task-body"><ol><li>Abrí <strong>Asistente</strong>.</li><li>Formulá una pregunta concreta sobre el portal o los datos habilitados.</li><li>Leé la explicación y los hechos presentados por separado.</li><li>Comprobá las fuentes y el corte indicados.</li><li>Abrí el módulo correspondiente si necesitás validar o profundizar.</li></ol><aside class="task-tip"><strong>Uso responsable</strong>El Asistente orienta y resume. No reemplaza una resolución, autorización ni procedimiento formal.</aside></div>
+            </details>
+          </div>
+        </section>
+
+        <section class="section assistant-panel" aria-labelledby="assistantHelpTitle" data-help-item data-search="asistente ia ayuda aprender módulo dónde qué significa">
+          <div><h2 id="assistantHelpTitle">Ayuda asistida dentro del portal</h2><p>Cuando una explicación está ligada a datos, el Asistente debe mostrar la fuente y el corte. Para aprender a navegar, podés formular preguntas directas como estas:</p><ul class="assistant-prompts"><li>¿Qué diferencia hay entre activo administrativo y liquidable?</li><li>¿Qué significa un caso ambiguo en Integración?</li><li>¿Dónde busco la ficha de un legajo?</li></ul></div>
+          <a class="button" id="assistantHelpLink" href="asistente.html">Consultar al Asistente</a>
+        </section>
+
+        <section class="section" id="glosario" aria-labelledby="glossaryTitle">
+          <header class="section-head"><h2 id="glossaryTitle">Glosario municipal y de datos</h2><p>Definiciones de lectura utilizadas por la plataforma; no reemplazan normas ni actos administrativos.</p></header>
+          <dl class="glossary-grid" id="glossaryList">
+            <div class="glossary-card" data-help-item data-search="legajo contrato relación laboral"><dt>Legajo</dt><dd>Registro de una relación laboral en GRH. Una persona puede tener más de un legajo histórico.</dd></div>
+            <div class="glossary-card" data-help-item data-search="persona identidad canónica"><dt>Persona</dt><dd>Identidad laboral consolidada sin reemplazar los identificadores originales de cada fuente.</dd></div>
+            <div class="glossary-card" data-help-item data-search="grh fuente central laboral"><dt>GRH</dt><dd>Fuente central de la plataforma para personas laborales, legajos, movimientos, ausencias y liquidaciones.</dd></div>
+            <div class="glossary-card" data-help-item data-search="personas padrón auxiliar domicilio identidad territorio"><dt>PERSONAS</dt><dd>Padrón auxiliar para enriquecer identidad, domicilio y territorio cuando la coincidencia está validada.</dd></div>
+            <div class="glossary-card" data-help-item data-search="activo administrativo fecha egreso"><dt>Activo administrativo</dt><dd>Clasificación basada en la situación administrativa disponible; no equivale automáticamente a haber sido liquidado.</dd></div>
+            <div class="glossary-card" data-help-item data-search="activo liquidable nómina corrida"><dt>Activo liquidable</dt><dd>Legajo incluido en el alcance operativo de la liquidación observada para un período.</dd></div>
+            <div class="glossary-card" data-help-item data-search="corte datos fecha período"><dt>Corte de datos</dt><dd>Fecha o período hasta el que una vista puede sostener sus resultados con la fuente disponible.</dd></div>
+            <div class="glossary-card" data-help-item data-search="crosswalk puente identidad vinculación"><dt>Crosswalk de persona</dt><dd>Tabla puente versionada que conserva cómo se vincula una identidad entre GRH y PERSONAS.</dd></div>
+            <div class="glossary-card" data-help-item data-search="coincidencia confirmada match identidad"><dt>Coincidencia confirmada</dt><dd>Vinculación que alcanzó evidencia suficiente según las reglas de identidad definidas.</dd></div>
+            <div class="glossary-card" data-help-item data-search="ambiguo coincidencia revisión identidad"><dt>Caso ambiguo</dt><dd>Vinculación con más de una alternativa o evidencia insuficiente; requiere saneamiento asistido.</dd></div>
+            <div class="glossary-card" data-help-item data-search="trazabilidad fuente origen sha identificador"><dt>Trazabilidad</dt><dd>Información que permite reconocer sistema de origen, identificadores preservados y contexto de importación.</dd></div>
+            <div class="glossary-card" data-help-item data-search="dato derivado proxy cálculo interpretación"><dt>Dato derivado</dt><dd>Resultado calculado a partir de la fuente. Debe distinguirse de un campo registrado directamente.</dd></div>
+          </dl>
+        </section>
+
+        <div class="no-results" id="noResults" role="status" hidden><strong>No encontramos coincidencias</strong>Probá con un término más general o limpiá el buscador.</div>
+        <p class="visually-hidden" id="liveStatus" aria-live="polite"></p>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var LOGIN_URL = 'login.html?next=centro-ayuda.html';
+      var STORAGE_PREFIX = 'municontrol:onboarding:v1:';
+      var storageKey = STORAGE_PREFIX + 'anonymous';
+      var progressIds = ['home', 'people', 'structure', 'payroll', 'assistant'];
+      var redirectIssued = false;
+
+      function byId(id) { return document.getElementById(id); }
+      function normalize(value) {
+        return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
+      }
+      function scopeToken(value) {
+        var identity = normalize(value || 'anonymous');
+        var hash = 2166136261;
+        for (var index = 0; index < identity.length; index += 1) {
+          hash ^= identity.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(36);
+      }
+      function redirectToLogin() {
+        if (redirectIssued) return;
+        redirectIssued = true;
+        sessionStorage.removeItem(storageKey);
+        location.replace(LOGIN_URL);
+      }
+      async function requestJSON(url, options) {
+        var response = await fetch(url, Object.assign({ credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }, options || {}));
+        var payload = await response.json().catch(function () { return null; });
+        if (response.status === 401) {
+          redirectToLogin();
+          var authError = new Error('AUTH_REQUIRED');
+          authError.code = 'AUTH_REQUIRED';
+          throw authError;
+        }
+        if (!response.ok || !payload) throw new Error('No se pudo verificar la sesión.');
+        return payload;
+      }
+      function readProgress() {
+        try {
+          var saved = JSON.parse(sessionStorage.getItem(storageKey) || '{}');
+          return {
+            completed: Array.isArray(saved.completed) ? saved.completed.filter(function (id) { return progressIds.includes(id); }) : [],
+            route: ['all', 'consulta', 'rrhh', 'responsable', 'nomina', 'datos', 'direccion'].includes(saved.route) ? saved.route : 'all'
+          };
+        } catch (_) {
+          return { completed: [], route: 'all' };
+        }
+      }
+      function writeProgress(value) {
+        try { sessionStorage.setItem(storageKey, JSON.stringify(value)); } catch (_) { /* El recorrido puede funcionar sin persistencia. */ }
+      }
+      function currentProgress() {
+        return {
+          completed: Array.from(document.querySelectorAll('[data-progress-id]:checked')).map(function (input) { return input.dataset.progressId; }),
+          route: byId('roleSelect').value
+        };
+      }
+      function updateProgress(announce) {
+        var state = currentProgress();
+        var total = progressIds.length;
+        var done = state.completed.length;
+        var percent = Math.round((done / total) * 100);
+        byId('progressText').textContent = done + ' de ' + total;
+        byId('progressBar').setAttribute('aria-valuenow', String(done));
+        byId('progressFill').style.width = percent + '%';
+        writeProgress(state);
+        if (announce) byId('liveStatus').textContent = 'Progreso actualizado: ' + done + ' de ' + total + ' pasos completados.';
+      }
+      function applyFilters(announce) {
+        var query = normalize(byId('helpSearch').value);
+        var route = byId('roleSelect').value;
+        var items = Array.from(document.querySelectorAll('[data-help-item]'));
+        var visible = 0;
+        items.forEach(function (item) {
+          var textMatch = !query || normalize(item.dataset.search + ' ' + item.textContent).includes(query);
+          var routeMatch = !item.dataset.route || route === 'all' || item.dataset.route === route;
+          item.hidden = !(textMatch && routeMatch);
+          if (!item.hidden) visible += 1;
+          if (item.classList.contains('route-card')) item.setAttribute('aria-current', route !== 'all' && item.dataset.route === route ? 'true' : 'false');
+        });
+        document.querySelectorAll('.section').forEach(function (section) {
+          if (section.classList.contains('assistant-panel')) return;
+          var children = section.querySelectorAll('[data-help-item]');
+          if (children.length) section.hidden = !Array.from(children).some(function (item) { return !item.hidden; });
+        });
+        byId('noResults').hidden = visible > 0;
+        var message = query || route !== 'all'
+          ? visible + ' contenidos coinciden con los filtros.'
+          : 'Todos los contenidos están visibles.';
+        byId('searchStatus').textContent = message;
+        if (announce) byId('liveStatus').textContent = message;
+        updateProgress(false);
+      }
+      function restoreProgress() {
+        var saved = readProgress();
+        document.querySelectorAll('[data-progress-id]').forEach(function (input) { input.checked = saved.completed.includes(input.dataset.progressId); });
+        byId('roleSelect').value = saved.route;
+        updateProgress(false);
+        applyFilters(false);
+      }
+      function resetProgress() {
+        var shouldReset = window.confirm('¿Querés borrar el progreso de esta sesión?');
+        if (!shouldReset) return;
+        document.querySelectorAll('[data-progress-id]').forEach(function (input) { input.checked = false; });
+        byId('roleSelect').value = 'all';
+        writeProgress({ completed: [], route: 'all' });
+        updateProgress(true);
+        applyFilters(false);
+      }
+      function showGateError(error) {
+        if (error && error.code === 'AUTH_REQUIRED') return;
+        byId('gateTitle').textContent = 'No se pudo verificar la sesión';
+        byId('gateMessage').textContent = error && error.message ? error.message : 'El centro de ayuda no está disponible.';
+        byId('gateLoader').hidden = true;
+        byId('retryButton').hidden = false;
+      }
+      async function authenticate() {
+        byId('gateTitle').textContent = 'Verificando sesión';
+        byId('gateMessage').textContent = 'Estamos confirmando tu acceso al centro de ayuda.';
+        byId('gateLoader').hidden = false;
+        byId('retryButton').hidden = true;
+        try {
+          var payload = await requestJSON(AUTH_URL);
+          if (payload.authenticated === false || !payload.user) return redirectToLogin();
+          var name = payload.user.name || payload.user.email || 'Usuario interno';
+          storageKey = STORAGE_PREFIX + scopeToken(payload.user.email || payload.user.name);
+          byId('userLabel').textContent = name + (payload.user.role ? ' · ' + payload.user.role : '');
+          restoreProgress();
+          byId('authGate').hidden = true;
+          byId('app').hidden = false;
+          byId('helpSearch').focus();
+        } catch (error) { showGateError(error); }
+      }
+      async function logout() {
+        byId('logoutButton').disabled = true;
+        try { await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin', cache: 'no-store' }); }
+        finally { sessionStorage.removeItem('mjunin_user'); redirectToLogin(); }
+      }
+
+      document.querySelectorAll('[data-progress-id]').forEach(function (input) { input.addEventListener('change', function () { updateProgress(true); }); });
+      byId('helpSearch').addEventListener('input', function () { applyFilters(true); });
+      byId('roleSelect').addEventListener('change', function () { applyFilters(true); });
+      byId('resetProgress').addEventListener('click', resetProgress);
+      byId('retryButton').addEventListener('click', authenticate);
+      byId('logoutButton').addEventListener('click', logout);
+      authenticate();
+    }());
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   classifyAssistantRequest,
   createInternalAssistantHandler,
+  getAssistantGuidanceCatalog,
 } from '../api/internal-assistant.js';
 
 const scope = { totalContracts: 2450, totalPeople: 2349, asOf: '2026-08-06T15:15:21.000Z' };
@@ -59,7 +60,7 @@ function responseRecorder() {
 function handler(overrides = {}) {
   return createInternalAssistantHandler({
     requireInternalSession: overrides.requireInternalSession || (() => ({ id: 'user-1', email: 'usuario@example.test' })),
-    getInternalSql: async () => ({ query: async () => [] }),
+    getInternalSql: overrides.getInternalSql || (async () => ({ query: async () => [] })),
     integrationQuality: async () => integration,
     payrollControl: async () => payroll,
     canonicalScope: async () => scope,
@@ -106,6 +107,141 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ message: '¿Cómo viene el crosswalk con PERSONAS?' }), 'integration_quality');
   assert.equal(classifyAssistantRequest({ search: 'Pérez' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ legajo: '42' }), 'employee_detail');
+});
+
+test('clasifica onboarding, explicación, recorridos y glosario antes que los dominios de datos', () => {
+  assert.equal(classifyAssistantRequest({ message: '¿Dónde encuentro Calidad?' }), 'help_navigation');
+  assert.equal(classifyAssistantRequest({ message: '¿Qué hace la sección Nómina?' }), 'section_explanation');
+  assert.equal(classifyAssistantRequest({ message: '¿Cómo hago para buscar un empleado?' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ message: '¿Cómo reviso la nómina?' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ message: '¿Cómo usar el asistente?' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ message: '¿Cómo revisar ausentismo?' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ message: '¿Qué significa activo liquidable?' }), 'glossary');
+  assert.equal(classifyAssistantRequest({ section: 'Estructura' }), 'section_explanation');
+  assert.equal(classifyAssistantRequest({ task: 'revisar crosswalk' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ term: 'GRH' }), 'glossary');
+});
+
+test('catálogo de ayuda expone las diez secciones reales y rutas existentes', () => {
+  const catalog = getAssistantGuidanceCatalog();
+  assert.equal(catalog.asOf, '2026-08-13T00:00:00.000Z');
+  assert.deepEqual(catalog.sections.map((section) => section.label), [
+    'Inicio', 'Personas', 'Estructura', 'Integración', 'Nómina', 'Asistente', 'Ausentismo', 'Calidad', 'Reportes', 'Ayuda',
+  ]);
+  assert.equal(catalog.sections.find((section) => section.id === 'inicio').targetPath, '/internal-dashboard#inicio');
+  assert.equal(catalog.sections.find((section) => section.id === 'personas').targetPath, '/internal-dashboard#legajos');
+  assert.equal(catalog.sections.find((section) => section.id === 'estructura').targetPath, '/estructura');
+  assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
+  assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
+  assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/internal-dashboard#ausentismo');
+  assert.equal(catalog.sections.find((section) => section.id === 'calidad').targetPath, '/calidad-datos');
+  assert.equal(catalog.sections.find((section) => section.id === 'reportes').targetPath, '/reportes-rrhh');
+  assert.equal(catalog.sections.find((section) => section.id === 'ayuda').targetPath, '/centro-ayuda');
+  assert.equal(catalog.sections.every((section) => !('aliases' in section)), true);
+  assert.equal(catalog.tasks.length, 9);
+  assert.ok(catalog.glossary.length >= 9);
+});
+
+test('ayuda de navegación funciona sin consultar Neon y devuelve contrato trazable', async () => {
+  let fetchCalls = 0;
+  const res = await post(
+    { message: '¿Dónde encuentro Calidad?', enhance: true },
+    {
+      getInternalSql: async () => { throw new Error('la guía no debe depender de Neon'); },
+      env: { HF_TOKEN: 'hf_test' },
+      fetch: async () => { fetchCalls += 1; throw new Error('la guía no debe salir a HF'); },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'help_navigation');
+  assert.equal(res.payload.targetPath, '/calidad-datos');
+  assert.equal(res.payload.data.section.label, 'Calidad');
+  assert.ok(res.payload.steps.length >= 3);
+  assert.equal(res.payload.sources[0].system, 'MUNICONTROL');
+  assert.equal(res.payload.sources[0].relation, 'section_catalog');
+  assert.equal(res.payload.sources[0].asOf, '2026-08-13T00:00:00.000Z');
+  assert.equal(res.payload.asOf, '2026-08-13T00:00:00.000Z');
+  assert.equal(res.payload.privacy.guidanceContent, 'verified_product_catalog_only');
+  assert.equal(res.payload.privacy.nominalDataExternalized, false);
+  assert.equal(res.payload.provider.status, 'not_allowed_for_product_guidance');
+  assert.equal(fetchCalls, 0);
+
+  const absence = await post(
+    { message: '¿Dónde encuentro Ausentismo?' },
+    { getInternalSql: async () => { throw new Error('la navegación no debe consultar Neon'); } },
+  );
+  assert.equal(absence.payload.intent, 'help_navigation');
+  assert.equal(absence.payload.targetPath, '/internal-dashboard#ausentismo');
+  assert.equal(absence.payload.data.section.label, 'Ausentismo');
+});
+
+test('explica cada sección sin prometer edición, autorización o permisos', async () => {
+  const res = await post({ message: '¿Qué hace la sección Nómina?' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'section_explanation');
+  assert.equal(res.payload.targetPath, '/nomina-control');
+  assert.equal(res.payload.data.section.label, 'Nómina');
+  assert.match(res.payload.answer, /corridas cerradas y abiertas/i);
+  assert.match(res.payload.answer, /no publica como KPI financiero una corrida abierta/i);
+  assert.doesNotMatch(res.payload.answer, /podés (?:aprobar|editar|autorizar|liquidar)/i);
+  assert.deepEqual(res.payload.relatedSections.map((section) => section.id), ['nomina', 'ayuda']);
+});
+
+test('guía tareas con pasos y destino sin ejecutar cambios administrativos', async () => {
+  const search = await post({ message: '¿Cómo hago para buscar un empleado?' });
+  assert.equal(search.statusCode, 200);
+  assert.equal(search.payload.intent, 'task_guidance');
+  assert.equal(search.payload.data.task.id, 'buscar_empleado');
+  assert.equal(search.payload.targetPath, '/internal-dashboard#legajos');
+  assert.equal(search.payload.steps.length, 4);
+  assert.match(search.payload.steps[1], /apellido, número de legajo o documento/i);
+  assert.match(search.payload.answer, /no ejecuta cambios administrativos/i);
+
+  const integrationHelp = await post({ intent: 'task_guidance', task: 'revisar crosswalk' });
+  assert.equal(integrationHelp.payload.data.task.id, 'revisar_integracion');
+  assert.equal(integrationHelp.payload.targetPath, '/integracion-datos');
+  assert.match(integrationHelp.payload.steps.at(-1), /GRH conserva la autoridad laboral/i);
+
+  const payrollHelp = await post({ message: '¿Cómo reviso la nómina?' });
+  assert.equal(payrollHelp.payload.data.task.id, 'controlar_nomina');
+  assert.equal(payrollHelp.payload.targetPath, '/nomina-control');
+
+  const absenceHelp = await post({ message: '¿Cómo revisar ausentismo?' });
+  assert.equal(absenceHelp.payload.data.task.id, 'revisar_ausentismo');
+  assert.equal(absenceHelp.payload.targetPath, '/internal-dashboard#ausentismo');
+  assert.match(absenceHelp.payload.steps.at(-1), /No conviertas eventos en días perdidos, duración ni tasa/i);
+});
+
+test('glosario define términos sensibles con límites y secciones relacionadas', async () => {
+  const liquidable = await post({ message: '¿Qué significa activo liquidable?' });
+  assert.equal(liquidable.statusCode, 200);
+  assert.equal(liquidable.payload.intent, 'glossary');
+  assert.equal(liquidable.payload.data.term.id, 'activo_liquidable');
+  assert.match(liquidable.payload.answer, /no es sinónimo automático de activo administrativo/i);
+  assert.equal(liquidable.payload.targetPath, '/nomina-control');
+  assert.deepEqual(liquidable.payload.relatedSections.map((section) => section.id), ['nomina', 'integracion']);
+
+  const personas = await post({ intent: 'glossary', term: 'PERSONAS' });
+  assert.equal(personas.payload.data.term.id, 'personas_auxiliar');
+  assert.match(personas.payload.answer, /No reemplaza GRH/i);
+});
+
+test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nuevas', async () => {
+  const help = await post({ message: 'Soy nuevo, necesito ayuda para empezar' });
+  assert.equal(help.statusCode, 200);
+  assert.equal(help.payload.intent, 'help_navigation');
+  assert.equal(help.payload.data.sections.length, 10);
+  assert.equal(help.payload.relatedSections.length, 10);
+  assert.equal(help.payload.targetPath, '/centro-ayuda');
+
+  const res = responseRecorder();
+  await handler()({ method: 'GET', headers: {} }, res);
+  assert.equal(res.statusCode, 200);
+  for (const intent of ['help_navigation', 'section_explanation', 'task_guidance', 'glossary']) {
+    assert.ok(res.payload.capabilities.some((capability) => capability.intent === intent));
+  }
+  assert.equal(res.payload.guidance.sections.length, 10);
+  assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
 
 test('exige sesión interna antes de leer cuerpo o consultar datos', async () => {

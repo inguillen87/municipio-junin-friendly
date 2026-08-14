@@ -285,6 +285,14 @@ async function verifyAnonymousInternal() {
     await page.waitForSelector('#loginForm');
     assert.equal(await page.locator('#app').count(), 0, 'La estructura anonima no debe quedar renderizada');
     await assertPageHealthy(page, 'Redireccion de estructura anonima');
+
+    await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'centro-ayuda.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de ayuda anonima');
   } finally {
     await context.close();
   }
@@ -307,6 +315,20 @@ async function verifyAuthenticatedInternal() {
     assert.match(await page.locator('#kpiActive [data-value]').innerText(), /882/);
     assert.match(await page.locator('#kpiAbsence [data-value]').innerText(), /31[.\s]?572/);
     assert.notEqual((await page.locator('#userName').innerText()).trim(), 'Cargando…');
+    await page.waitForSelector('[data-mc-open-guide]');
+    assert.equal(await page.locator('a[href*="centro-ayuda"]').count() > 0, true, 'El portal debe enlazar el centro de ayuda');
+    const guideTrigger = page.locator('[data-mc-open-guide]');
+    await guideTrigger.click();
+    await page.waitForSelector('.mc-guide-drawer[aria-modal="true"]');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.locator('.mc-guide-drawer').evaluate((drawer) => drawer.contains(document.activeElement)), true, 'La ayuda debe contener el foco');
+    await page.keyboard.press('Escape');
+    assert.equal(await guideTrigger.evaluate((button) => button === document.activeElement), true, 'La ayuda debe devolver el foco al disparador');
+    await guideTrigger.click();
+    await page.locator('[data-mc-start-tour]').click();
+    await page.waitForSelector('.mc-tour-card[aria-modal="true"]');
+    await page.keyboard.press('Escape');
+    assert.equal(await guideTrigger.evaluate((button) => button === document.activeElement), true, 'El recorrido debe devolver el foco al disparador');
     await assertPageHealthy(page, 'Portal interno desktop');
 
     await page.locator('[data-view="legajos"]').click();
@@ -341,7 +363,33 @@ async function verifyAuthenticatedInternal() {
     assert.match(assistantText, /854/);
     assert.match(assistantText, /28/);
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH/i, 'El asistente debe mostrar una fuente GRH real');
+
+    await page.locator('#messageInput').fill('Soy nuevo, por donde empiezo?');
+    await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
+    await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 2);
+    const guidanceText = await page.locator('.message.assistant .answer-text').last().innerText();
+    assert.match(guidanceText, /Personas|Estructura|Ayuda/i, 'El asistente debe orientar la navegacion');
+    assert.ok(await page.locator('.message.assistant .answer-links').last().count(), 'La orientación debe ofrecer un acceso navegable');
     await assertPageHealthy(page, 'Asistente mobile');
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#app:not([hidden])');
+    assert.equal(await page.locator('#moduleGrid .module-card').count(), 11, 'El centro debe explicar las once áreas visibles');
+    assert.equal(await page.locator('#routeList [data-route]').count(), 6, 'El centro debe ofrecer recorridos por función');
+    await page.locator('[data-progress-id="home"]').check();
+    assert.match(await page.locator('#progressText').innerText(), /1 de 5/);
+    await page.locator('#helpSearch').fill('nomina');
+    assert.match(await page.locator('#searchStatus').innerText(), /contenidos coinciden/i);
+    assert.ok(await page.locator('#assistantHelpLink').count(), 'El centro debe enlazar ayuda IA');
+    await assertPageHealthy(page, 'Centro de ayuda tablet');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const activeHelpVisible = await page.locator('nav[aria-label="Navegación principal"] [aria-current="page"]').evaluate((link) => {
+      const rect = link.getBoundingClientRect();
+      return rect.left >= 0 && rect.right <= innerWidth;
+    });
+    assert.equal(activeHelpVisible, true, 'Ayuda debe permanecer visible en la navegación móvil');
+    await assertPageHealthy(page, 'Centro de ayuda mobile');
 
     await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#appShell:not([hidden])');
@@ -362,7 +410,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (multipagina publica + portal nominal + estructura protegida; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ayuda contextual + asistente + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

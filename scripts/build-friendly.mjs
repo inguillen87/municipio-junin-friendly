@@ -16,6 +16,9 @@ const shellFiles = [
   'integracion-datos.html',
   'nomina-control.html',
   'asistente.html',
+  'centro-ayuda.html',
+  'assets/internal-guide.js',
+  'assets/product-guidance.js',
   'datos-personales.html',
   'friendly-data.json'
 ];
