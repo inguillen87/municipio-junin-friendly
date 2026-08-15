@@ -6,7 +6,7 @@
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },
     "api/internal-data.js": { "maxDuration": 20 },
-    "api/internal-assistant.js": { "maxDuration": 15 }
+    "api/internal-assistant.js": { "maxDuration": 25 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
@@ -47,6 +47,7 @@
     { "source": "/estructura", "destination": "/estructura.html" },
     { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
     { "source": "/nomina-control", "destination": "/nomina-control.html" },
+    { "source": "/gestion-comparativa", "destination": "/gestion-comparativa.html" },
     { "source": "/ausentismo-control", "destination": "/ausentismo-control.html" },
     { "source": "/licencias-control", "destination": "/licencias-control.html" },
     { "source": "/calidad-operativa", "destination": "/calidad-operativa.html" },
@@ -158,6 +159,14 @@
     },
     {
       "source": "/nomina-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/gestion-comparativa",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/gestion-comparativa.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

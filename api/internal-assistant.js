@@ -50,6 +50,7 @@ const INTENTS = new Set([
   'import_lineage',
   'employee_search',
   'employee_detail',
+  'management_comparison',
   'executive_analysis',
   'help_navigation',
   'section_explanation',
@@ -72,6 +73,7 @@ const EXTERNAL_ALLOWED_INTENTS = new Set([
   'integration_quality',
   'quality_analysis',
   'absence_analysis',
+  'management_comparison',
   'operational_summary',
   'structure_analysis',
   'executive_analysis',
@@ -100,6 +102,7 @@ const INTENT_RESOURCES = Object.freeze({
   import_lineage: ['importlineage'],
   employee_search: ['employees', 'canonicalscope'],
   employee_detail: ['employee', 'canonicalscope'],
+  management_comparison: ['managementanalytics'],
   executive_analysis: ['integrationquality', 'payrollcontrol', 'canonicalscope', 'absenceanalytics', 'qualityoverview'],
   help_navigation: ['productguidance'],
   section_explanation: ['productguidance'],
@@ -647,6 +650,13 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar))\b/.test(message)) return 'task_guidance';
   if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
   if (/\b(?:donde (?:esta|encuentro|veo|puedo)|como (?:llego|entro)|ir a|navegacion|navegar|menu|secciones|pantallas|onboarding|soy nuev[oa]|primer ingreso)\b/.test(message)) return 'help_navigation';
+  if (/\b(?:comparar|compara|compare|comparame|comparativa|comparacion)\b[^.?!]*\bgestiones?\b/.test(message)
+      || /\b(?:comparar|compara|compare|comparame)\b[^.?!]*\bgestion\b[^.?!]*\banterior\b/.test(message)
+      || /\bgestiones?\b[^.?!]*\b(?:actual|anterior|comparar|compara|comparativa|comparacion|versus|vs|contra)\b/.test(message)
+      || /\bgestion\s+(?:actual|vigente)\s+(?:versus|vs|contra|y|con)\s+(?:la\s+)?(?:gestion\s+)?anterior\b/.test(message)
+      || /\b(?:ano\s*)?[1-4]\s+(?:de\s+(?:la\s+)?)?gestion\b/.test(message)
+      || /\b(?:primer|primero|segundo|tercer|tercero|cuarto)\s+ano\s+de\s+(?:la\s+)?gestion\b/.test(message)
+      || /\bano\s+por\s+ano\b[^.?!]*\bgestiones?\b/.test(message)) return 'management_comparison';
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
@@ -676,6 +686,7 @@ function intentDomain(intent) {
   if (['employee_search', 'employee_detail'].includes(intent)) return 'employee';
   if (['absence_analysis', 'absence_event_list'].includes(intent)) return 'absence';
   if (intent === 'leave_policy') return 'leave_policy';
+  if (intent === 'management_comparison') return 'management';
   if (['quality_analysis', 'quality_issue_list'].includes(intent)) return 'quality';
   if (intent === 'structure_analysis') return 'structure';
   if (intent === 'import_lineage') return 'lineage';
@@ -812,6 +823,7 @@ export function planAssistantRequest(body = {}) {
     absence_event_list: ['from', 'to', 'year', 'yearFrom', 'yearTo', 'sector', 'reason', 'reasonCode', 'page', 'limit'],
     quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution', 'page', 'limit'],
     import_lineage: ['source', 'batch'],
+    management_comparison: [],
     employee_search: ['search', 'page', 'limit', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
     employee_detail: ['contractId', 'legajo', 'companyId', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
   }[intent];
@@ -1934,6 +1946,137 @@ function employeeDetailResult(result, scope, options = {}) {
   };
 }
 
+function managementNumeric(value, fallback = null) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function managementDate(value) {
+  const text = normalizeText(value, 32);
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : null;
+}
+
+function managementMetricView(value = {}) {
+  return {
+    range: {
+      from: managementDate(value?.range?.from),
+      to: managementDate(value?.range?.to),
+    },
+    elapsedDays: qualityCount(value.elapsedDays),
+    partial: value.partial === true,
+    future: value.future === true,
+    hires: qualityCount(value.hires),
+    hirePersons: qualityCount(value.hirePersons),
+    exits: qualityCount(value.exits),
+    exitPersons: qualityCount(value.exitPersons),
+    balance: managementNumeric(value.balance, 0),
+    absenceEvents: qualityCount(value.absenceEvents),
+    affectedContracts: qualityCount(value.affectedContracts),
+    sourceDeclaredDays: managementNumeric(value.sourceDeclaredDays, 0),
+  };
+}
+
+function managementPayrollView(value = {}) {
+  return {
+    range: {
+      from: managementDate(value?.range?.from),
+      to: managementDate(value?.range?.to),
+    },
+    expectedMonths: qualityCount(value.expectedMonths),
+    closedMonths: qualityCount(value.closedMonths),
+    contractMonths: qualityCount(value.contractMonths),
+    averageLiquidated: managementNumeric(value.averageLiquidated, 0),
+    totalEvents: qualityCount(value.totalEvents),
+    alignedEvents: qualityCount(value.alignedEvents),
+    excludedEvents: qualityCount(value.excludedEvents),
+    affectedAlignedContracts: qualityCount(value.affectedAlignedContracts),
+    eventsPer100ContractMonths: managementNumeric(value.eventsPer100ContractMonths, 0),
+  };
+}
+
+function managementComparisonResult(result) {
+  const payload = result?.payload || {};
+  const sourceCutoff = managementDate(payload.meta?.sourceCutoff);
+  const sources = [
+    { system: 'GRH', relation: 'employment_contract', authority: 'labor_movement_dates', asOf: sourceCutoff },
+    { system: 'GRH', relation: 'payroll_monthly_fact', authority: 'closed_contract_month_denominator', asOf: sourceCutoff },
+    { system: 'GRH', relation: 'grh_absences', authority: 'administrative_absence_events', asOf: sourceCutoff },
+  ];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo construir una comparación homogénea entre gestiones.',
+      data: { code: normalizeText(payload.code, 80) || 'MANAGEMENT_COMPARISON_UNAVAILABLE' },
+      targetPath: '/gestion-comparativa',
+      relatedSections: relatedSections(['gestiones', 'reportes']),
+      asOf: sourceCutoff,
+      sources,
+    };
+  }
+
+  const previous = managementMetricView(payload.data?.periods?.previousComparable);
+  const current = managementMetricView(payload.data?.periods?.current);
+  const previousPayroll = managementPayrollView(payload.data?.payrollComparison?.previous);
+  const currentPayroll = managementPayrollView(payload.data?.payrollComparison?.current);
+  const elapsedDays = qualityCount(payload.data?.comparison?.elapsedDays || current.elapsedDays);
+  const managementYears = (Array.isArray(payload.data?.managementYears) ? payload.data.managementYears : [])
+    .slice(0, 4)
+    .map((row) => ({
+      index: qualityCount(row?.index),
+      previous: managementMetricView(row?.previous),
+      current: row?.current ? managementMetricView(row.current) : null,
+      currentStatus: normalizeText(row?.currentStatus, 24) || 'unknown',
+      comparableToCurrent: row?.comparableToCurrent === true,
+    }));
+  const calendarYears = (Array.isArray(payload.data?.calendarYears) ? payload.data.calendarYears : [])
+    .slice(0, 12)
+    .map((row) => ({ year: qualityCount(row?.year), transition: row?.transition === true, ...managementMetricView(row) }));
+  const budget = payload.data?.budget || {};
+  const answer = `La comparación homogénea usa ${formatNumber(elapsedDays)} días exactos para cada gestión. En ese tramo, la gestión anterior registra ${formatNumber(previous.hires)} altas, ${formatNumber(previous.exits)} bajas y balance ${formatNumber(previous.balance)}; la gestión actual registra ${formatNumber(current.hires)} altas, ${formatNumber(current.exits)} bajas y balance ${formatNumber(current.balance)}. En meses completos con liquidación cerrada, hay ${formatNumber(previousPayroll.eventsPer100ContractMonths)} frente a ${formatNumber(currentPayroll.eventsPer100ContractMonths)} eventos administrativos por cada 100 contrato-mes. Esta medida no es tasa de ausentismo, presentismo ni jornadas perdidas.${current.partial ? ' La gestión actual permanece parcial al corte.' : ''}`;
+  return {
+    answer,
+    data: {
+      periods: { previousComparable: previous, current },
+      comparison: {
+        basis: 'same_elapsed_days',
+        elapsedDays,
+        changePercent: {
+          hires: managementNumeric(payload.data?.comparison?.changePercent?.hires),
+          exits: managementNumeric(payload.data?.comparison?.changePercent?.exits),
+          balance: managementNumeric(payload.data?.comparison?.changePercent?.balance),
+        },
+      },
+      managementYears,
+      calendarYears,
+      payrollComparison: {
+        basis: 'same_complete_closed_payroll_months',
+        unit: 'events_per_100_closed_payroll_contract_months',
+        previous: previousPayroll,
+        current: currentPayroll,
+        alignedEventChangePercent: managementNumeric(payload.data?.payrollComparison?.alignedEventChangePercent),
+        eventsPer100ChangePercent: managementNumeric(payload.data?.payrollComparison?.rateChangePercent),
+      },
+      budget: {
+        available: budget.available === true,
+        status: normalizeText(budget.status, 64) || 'source_not_loaded',
+        reason: normalizeText(budget.reason, 240) || null,
+      },
+      methodology: {
+        authority: normalizeText(payload.meta?.authority, 32) || 'GRH',
+        grain: normalizeText(payload.meta?.grain, 160) || 'employment_contract',
+        currentPeriodPartial: payload.meta?.currentPeriodPartial === true,
+        absenceMetricSemantics: normalizeText(payload.meta?.absenceMetricSemantics, 320),
+        monetaryComparisonAvailable: payload.meta?.monetaryComparisonAvailable === true,
+      },
+    },
+    targetPath: '/gestion-comparativa',
+    relatedSections: relatedSections(['gestiones', 'reportes', 'nomina', 'ausentismo']),
+    asOf: sourceCutoff,
+    sources,
+  };
+}
+
 function executiveResult(integration, payroll, scope, absence, quality) {
   const workforce = workforceResult(integration, scope);
   const payrollView = payrollResult(payroll);
@@ -2294,6 +2437,60 @@ function providerFacts(intent, data) {
       },
     };
   }
+  if (intent === 'management_comparison') {
+    const previous = data?.periods?.previousComparable;
+    const current = data?.periods?.current;
+    const previousPayroll = data?.payrollComparison?.previous;
+    const currentPayroll = data?.payrollComparison?.current;
+    if (!previous || !current || !previousPayroll || !currentPayroll) return null;
+    return {
+      grain: 'aggregate_management_window',
+      comparisonBasis: 'same_elapsed_days',
+      elapsedDays: qualityCount(data?.comparison?.elapsedDays),
+      previousManagement: {
+        range: aggregateRange(previous.range),
+        hires: qualityCount(previous.hires),
+        exits: qualityCount(previous.exits),
+        balance: managementNumeric(previous.balance, 0),
+        absenceEvents: qualityCount(previous.absenceEvents),
+        affectedContracts: qualityCount(previous.affectedContracts),
+      },
+      currentManagement: {
+        range: aggregateRange(current.range),
+        partial: current.partial === true,
+        hires: qualityCount(current.hires),
+        exits: qualityCount(current.exits),
+        balance: managementNumeric(current.balance, 0),
+        absenceEvents: qualityCount(current.absenceEvents),
+        affectedContracts: qualityCount(current.affectedContracts),
+      },
+      closedPayrollExposure: {
+        basis: 'same_complete_closed_payroll_months',
+        unit: 'administrative_events_per_100_closed_payroll_contract_months',
+        previous: {
+          closedMonths: qualityCount(previousPayroll.closedMonths),
+          contractMonths: qualityCount(previousPayroll.contractMonths),
+          alignedEvents: qualityCount(previousPayroll.alignedEvents),
+          affectedContracts: qualityCount(previousPayroll.affectedAlignedContracts),
+          eventsPer100ContractMonths: managementNumeric(previousPayroll.eventsPer100ContractMonths, 0),
+        },
+        current: {
+          closedMonths: qualityCount(currentPayroll.closedMonths),
+          contractMonths: qualityCount(currentPayroll.contractMonths),
+          alignedEvents: qualityCount(currentPayroll.alignedEvents),
+          affectedContracts: qualityCount(currentPayroll.affectedAlignedContracts),
+          eventsPer100ContractMonths: managementNumeric(currentPayroll.eventsPer100ContractMonths, 0),
+        },
+      },
+      constraints: {
+        absenceRateAvailable: false,
+        presentismAvailable: false,
+        workedHoursAvailable: false,
+        monetaryComparisonAvailable: data?.methodology?.monetaryComparisonAvailable === true,
+        smallSectorBreakdownsShared: false,
+      },
+    };
+  }
   if (intent === 'executive_analysis') {
     return {
       workforce: providerFacts('workforce_summary', data.workforce),
@@ -2350,6 +2547,7 @@ function aggregateInsightTopic(intent) {
     integration_quality: 'Explicá la calidad de integración: GRH manda en lo laboral y PERSONAS sólo enriquece identidad y territorio.',
     quality_analysis: 'Explicá los hallazgos agregados de calidad por severidad, dominio, crosswalk y estado de seguimiento. No inventes un score ni una fecha de corte. Controles PERSONAS no materializados significa no evaluado, no calidad perfecta.',
     absence_analysis: 'Explicá los eventos administrativos de ausencia, su comparación homogénea y sus límites metodológicos. No los conviertas en tasa, presentismo, productividad ni jornadas perdidas.',
+    management_comparison: 'Explicá la comparación agregada entre gestiones sobre exactamente la misma cantidad de días. Diferenciá altas, bajas, balance y eventos administrativos por 100 contrato-mes con liquidación cerrada. Nunca llames tasa a esa medida, no infieras causas y no extrapoles el período parcial.',
     executive_analysis: 'Redactá una lectura ejecutiva breve de dotación, nómina, integración, ausentismo y calidad operativa. Priorizá controles accionables, no inventes causas, score ni fecha de corte, y no conviertas eventos de ausencia en tasas, presentismo, productividad ni jornadas perdidas.',
   }[intent];
 }
@@ -2506,6 +2704,17 @@ function providerAttempt(result) {
 async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
   if (GUIDANCE_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_product_guidance');
   if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_nominal_or_unknown_intent');
+  if (intent === 'management_comparison') {
+    const cohorts = [
+      data?.periods?.previousComparable?.affectedContracts,
+      data?.periods?.current?.affectedContracts,
+      data?.payrollComparison?.previous?.affectedAlignedContracts,
+      data?.payrollComparison?.current?.affectedAlignedContracts,
+    ].map(Number);
+    if (cohorts.some((value) => !Number.isFinite(value) || value < 5)) {
+      return providerStatus('local', 'suppressed_small_cohort', { minimumAffectedContracts: 5 });
+    }
+  }
   const absenceAffectedContracts = intent === 'absence_analysis'
     ? Number(data?.summary?.affectedContracts || 0)
     : intent === 'executive_analysis'
@@ -2626,6 +2835,7 @@ function capabilitiesPayload() {
       { intent: 'absence_event_list', externalEnhancement: false, resource: 'absenceevents' },
       { intent: 'quality_issue_list', externalEnhancement: false, resource: 'qualityissues' },
       { intent: 'import_lineage', externalEnhancement: false, resource: 'importlineage' },
+      { intent: 'management_comparison', externalEnhancement: true, resource: 'managementanalytics' },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
@@ -2665,6 +2875,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadAbsenceEvents = dependencies.absenceEvents ?? dependencies.absenceevents ?? internalData.absenceEvents;
   const loadQualityIssues = dependencies.qualityIssues ?? dependencies.qualityissues ?? internalData.qualityIssues;
   const loadImportLineage = dependencies.importLineage ?? dependencies.importlineage ?? internalData.importLineage;
+  const loadManagement = dependencies.managementAnalytics ?? dependencies.managementanalytics ?? internalData.managementAnalytics;
   const resolveReason = dependencies.resolveAbsenceReason ?? resolveAbsenceReason;
   const loadQuality = dependencies.qualityOverview
     ?? dependencies.qualityoverview
@@ -2842,6 +3053,8 @@ export function createInternalAssistantHandler(dependencies = {}) {
           })));
         } else if (intent === 'import_lineage') {
           result = importLineageResult(await tracked('importlineage', () => loadImportLineage(sql)), plan.filters);
+        } else if (intent === 'management_comparison') {
+          result = managementComparisonResult(await tracked('managementanalytics', () => loadManagement(sql)));
         } else if (intent === 'employee_search') {
           const focus = plan.filters.queryFocus || '';
           const year = plan.filters.queryYear || null;

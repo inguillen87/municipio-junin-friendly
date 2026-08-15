@@ -585,6 +585,7 @@
 
       <div class="nav-label">Herramientas</div>
       <nav class="nav" aria-label="Herramientas internas">
+        <a href="gestion-comparativa.html"><span class="nav-code" aria-hidden="true">GE</span><span>Gestiones</span></a>
         <a href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <a href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span><span>Licencias</span></a>
         <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
@@ -613,7 +614,7 @@
           <div>
             <p class="eyebrow">Consulta asistida</p>
             <h1 id="pageTitle">Preguntá sobre la gestión municipal</h1>
-            <p class="lead">Obtené respuestas claras sobre dotación, legajos, nómina e integración. Cada resultado informa su fuente, fecha de corte y nivel de procesamiento.</p>
+            <p class="lead">Obtené respuestas claras sobre dotación, legajos, gestiones, nómina, ausencias e integración. Cada resultado informa su fuente, fecha de corte y nivel de procesamiento.</p>
           </div>
           <div class="trust-panel">
             <strong>Primero evidencia, después explicación</strong>
@@ -632,6 +633,7 @@
             <button class="quick-button" type="button" data-prompt="¿Cuál es la dotación administrativa y liquidable actual? Explicá la diferencia."><span class="quick-code" aria-hidden="true">DO</span><span>Dotación actual</span></button>
             <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
+            <button class="quick-button" type="button" data-prompt="Compará la gestión actual con la anterior usando exactamente el mismo tiempo transcurrido. Mostrá altas, bajas, balance y eventos por 100 contrato-mes cerrados."><span class="quick-code" aria-hidden="true">CG</span><span>Comparar gestiones</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
             <button class="quick-button" type="button" data-prompt="Mostrame un resumen operativo de GRH y aclarame el grano de cada conteo."><span class="quick-code" aria-hidden="true">RS</span><span>Resumen GRH</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá la estructura, organizaciones, sectores y cargos observados en GRH sin inferir un organigrama."><span class="quick-code" aria-hidden="true">ES</span><span>Estructura observada</span></button>
@@ -697,6 +699,7 @@
                     <option value="auto">Detectar según la pregunta</option>
                     <option value="operational_summary">Resumen municipal</option>
                     <option value="structure_analysis">Estructura observada</option>
+                    <option value="management_comparison">Comparar gestiones</option>
                     <option value="absence_analysis">Ausentismo agregado</option>
                     <option value="absence_event_list">Eventos de ausencia</option>
                     <option value="leave_policy">Licencias normativas</option>
@@ -831,6 +834,7 @@
       var INTENT_DOMAINS = {
         operational_summary: 'summary',
         workforce_summary: 'workforce',
+        management_comparison: 'management',
         structure_analysis: 'structure',
         absence_analysis: 'absence',
         absence_event_list: 'absence',
@@ -844,10 +848,10 @@
       var INITIAL_CONTEXT_INTENTS = {
         inicio: 'operational_summary', resumen: 'operational_summary', estructura: 'structure_analysis',
         ausentismo: 'absence_analysis', licencias: 'leave_policy', calidad: 'quality_analysis', personas: 'employee_search',
-        nomina: 'payroll_control', integracion: 'integration_quality'
+        nomina: 'payroll_control', integracion: 'integration_quality', gestiones: 'management_comparison'
       };
-      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
-      var RESOURCE_LABELS = { summary: 'resumen GRH', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', management: 'comparación de gestiones', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
+      var RESOURCE_LABELS = { summary: 'resumen GRH', managementanalytics: 'comparativa homogénea de gestiones', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
       var DECISION_LABELS = {
         explicit_intent: 'Vista elegida por el usuario',
         deterministic_message_classification: 'Ruta determinada por la consulta',
@@ -1310,6 +1314,19 @@
             add('Período operativo abierto', cleanText(open.month).slice(0, 10));
             add('Contratos en corrida abierta', open.contracts);
           }
+        } else if (intent === 'management_comparison') {
+          var managementPrevious = data.periods && data.periods.previousComparable || {};
+          var managementCurrent = data.periods && data.periods.current || {};
+          var managementPayroll = data.payrollComparison || {};
+          var managementPreviousPayroll = managementPayroll.previous || {};
+          var managementCurrentPayroll = managementPayroll.current || {};
+          add('Ventana homogénea', data.comparison && data.comparison.elapsedDays ? factValue(data.comparison.elapsedDays) + ' días exactos' : null);
+          add('Gestión anterior · altas / bajas / balance', [managementPrevious.hires, managementPrevious.exits, managementPrevious.balance].map(factValue).join(' / '));
+          add('Gestión actual · altas / bajas / balance', [managementCurrent.hires, managementCurrent.exits, managementCurrent.balance].map(factValue).join(' / '));
+          add('Anterior · eventos por 100 contrato-mes', managementPreviousPayroll.eventsPer100ContractMonths);
+          add('Actual · eventos por 100 contrato-mes', managementCurrentPayroll.eventsPer100ContractMonths);
+          facts.push('La medida por 100 contrato-mes no es tasa de ausentismo, presentismo ni jornadas perdidas');
+          if (managementCurrent.partial === true) facts.push('Gestión actual: período parcial al corte de GRH');
         } else if (intent === 'absence_analysis') {
           var summary = data.summary && typeof data.summary === 'object' ? data.summary : {};
           var effectiveRange = data.range && data.range.effective && typeof data.range.effective === 'object' ? data.range.effective : {};
@@ -1490,6 +1507,36 @@
             }) : [];
             section(group[0], ['Asignación', 'Activos', 'Históricos'], rows);
           });
+        } else if (intent === 'management_comparison') {
+          var comparison = data.comparison || {};
+          var periods = data.periods || {};
+          var previousManagement = periods.previousComparable || {};
+          var currentManagement = periods.current || {};
+          var managementPayroll = data.payrollComparison || {};
+          var previousExposure = managementPayroll.previous || {};
+          var currentExposure = managementPayroll.current || {};
+          view.title = 'Gestiones sobre una ventana equivalente';
+          view.note = 'Las altas, bajas y balances corresponden a legajos por empresa. Los eventos por 100 contrato-mes usan sólo meses con liquidación cerrada: no son una tasa de ausentismo, presentismo ni jornadas perdidas.';
+          metrics([
+            visibleMetric('Días comparados', comparison.elapsedDays),
+            visibleMetric('Anterior · altas', previousManagement.hires),
+            visibleMetric('Anterior · bajas', previousManagement.exits),
+            visibleMetric('Anterior · balance', previousManagement.balance),
+            visibleMetric('Actual · altas', currentManagement.hires),
+            visibleMetric('Actual · bajas', currentManagement.exits),
+            visibleMetric('Actual · balance', currentManagement.balance),
+            visibleMetric('Anterior · eventos / 100 contrato-mes', previousExposure.eventsPer100ContractMonths),
+            visibleMetric('Actual · eventos / 100 contrato-mes', currentExposure.eventsPer100ContractMonths)
+          ]);
+          section('Comparación por año de gestión', ['Año', 'Gestión anterior', 'Gestión actual', 'Estado'], (Array.isArray(data.managementYears) ? data.managementYears : []).map(function (row) {
+            var previous = row && row.previous || {};
+            var current = row && row.current || null;
+            var previousText = factValue(previous.hires) + ' altas · ' + factValue(previous.exits) + ' bajas · balance ' + factValue(previous.balance);
+            var currentText = current
+              ? factValue(current.hires) + ' altas · ' + factValue(current.exits) + ' bajas · balance ' + factValue(current.balance)
+              : 'Aún no transcurrido';
+            return visibleRow([row && row.index, previousText, currentText, readableCode(row && row.currentStatus)]);
+          }));
         } else if (intent === 'absence_analysis') {
           var summary = data.summary || {};
           var effectiveRange = data.range && data.range.effective || {};
@@ -1651,6 +1698,12 @@
           contextualSuggestion('Explicar cobertura global', 'Explicá la cobertura global de las asignaciones.', 'structure_analysis', contextForIntent('structure_analysis', payload.conversationContext)),
           contextualSuggestion('Volver al resumen operativo de GRH', 'Mostrame el resumen operativo de GRH.', 'operational_summary', contextForIntent('operational_summary', payload.conversationContext, {}))
         ];
+        if (intent === 'management_comparison') return [
+          contextualSuggestion('Comparar año por año', 'Compará año por año la gestión actual con la anterior.', 'management_comparison', contextForIntent('management_comparison', payload.conversationContext, {})),
+          contextualSuggestion('Ver el primer año de gestión', 'Mostrame el año 1 de gestión para ambos períodos.', 'management_comparison', contextForIntent('management_comparison', payload.conversationContext, {})),
+          contextualSuggestion('Analizar ausentismo agregado', 'Analizá los eventos administrativos de ausencia y sus límites.', 'absence_analysis', contextForIntent('absence_analysis', payload.conversationContext, {})),
+          contextualSuggestion('Revisar nómina cerrada', 'Mostrame el último control de nómina cerrada.', 'payroll_control', contextForIntent('payroll_control', payload.conversationContext, {}))
+        ];
         if (intent === 'absence_analysis') {
           var analysisContext = contextWithEffectiveRange(payload);
           return [
@@ -1729,6 +1782,7 @@
           quality_issue_list: 'Hallazgos registrados',
           import_lineage: 'Linaje de snapshots',
           workforce_summary: 'Dotación municipal',
+          management_comparison: 'Comparación de gestiones',
           payroll_control: 'Control de nómina',
           integration_quality: 'Integración de identidad',
           quality_analysis: 'Calidad operativa',

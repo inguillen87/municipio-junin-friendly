@@ -314,6 +314,14 @@ async function verifyAnonymousInternal() {
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion de ayuda anonima');
 
+    await page.goto(`${baseUrl}/gestion-comparativa`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'gestion-comparativa.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de gestiones anonima');
+
     await page.goto(`${baseUrl}/ausentismo-control`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => (
       /\/login(?:\.html)?$/.test(url.pathname)
@@ -405,6 +413,49 @@ async function verifyAuthenticatedInternal() {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Estructura mobile');
+
+    const managementResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=managementanalytics`);
+    assert.equal(managementResponse.status(), 200, 'La comparativa de gestiones debe aceptar la sesion interna');
+    const managementPayload = await managementResponse.json();
+    assert.deepEqual(managementPayload.data.periods.previousComparable.range, { from: '2019-12-10', to: '2022-08-07' });
+    assert.deepEqual(managementPayload.data.periods.current.range, { from: '2023-12-09', to: '2026-08-06' });
+    assert.equal(managementPayload.data.periods.previousComparable.elapsedDays, 972);
+    assert.equal(managementPayload.data.periods.current.elapsedDays, 972);
+    assert.deepEqual(
+      {
+        previous: [managementPayload.data.periods.previousComparable.hires, managementPayload.data.periods.previousComparable.exits],
+        current: [managementPayload.data.periods.current.hires, managementPayload.data.periods.current.exits],
+      },
+      { previous: [217, 173], current: [281, 232] },
+    );
+    assert.equal(managementPayload.data.calendarYears.find((row) => row.year === 2019).hires, 4);
+    assert.equal(managementPayload.data.calendarYears.find((row) => row.year === 2019).exits, 4);
+    assert.equal(managementPayload.data.payrollComparison.previous.contractMonths, 24117);
+    assert.equal(managementPayload.data.payrollComparison.current.contractMonths, 24892);
+    assert.equal(managementPayload.data.payrollComparison.previous.alignedEvents, 3244);
+    assert.equal(managementPayload.data.payrollComparison.current.alignedEvents, 5728);
+    assert.equal(managementPayload.data.payrollComparison.previous.eventsPer100ContractMonths, 13.45);
+    assert.equal(managementPayload.data.payrollComparison.current.eventsPer100ContractMonths, 23.01);
+    assert.equal(managementPayload.data.sectors.mapping.id, 'garden_sector_family_v1');
+    assert.equal(managementPayload.data.sectors.mapping.reversible, true);
+    assert.equal(managementPayload.data.budget.available, false);
+    assert.equal(managementPayload.quality.reconciliations.equalElapsedDays, true);
+    assert.equal(managementPayload.meta.containsPersonalData, false);
+
+    await page.goto(`${baseUrl}/gestion-comparativa`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainView:not([hidden])');
+    await page.waitForFunction(() => /972/.test(document.querySelector('#periodRail')?.textContent || ''));
+    assert.match(await page.locator('#movementLedger').innerText(), /217/);
+    assert.match(await page.locator('#movementLedger').innerText(), /281/);
+    assert.match(await page.locator('#absencePairs').innerText(), /13[,.]45/);
+    assert.match(await page.locator('#absencePairs').innerText(), /23[,.]01/);
+    assert.match(await page.locator('#mappingNote').innerText(), /jardines|agrupaci[oó]n|homolog/i);
+    assert.match(await page.locator('#budgetCard').innerText(), /no disponible|fuente|pendiente|GRH no contiene/i);
+    assert.match(await page.locator('#qualityList').innerText(), /concili|cobertura|ambig|sin tipo/i);
+    await assertPageHealthy(page, 'Comparativa de gestiones mobile');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await assertPageHealthy(page, 'Comparativa de gestiones desktop');
 
     const leaveResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=leavenormative`);
     assert.equal(leaveResponse.status(), 200, 'Licencias normativas debe aceptar la sesion interna');
@@ -541,6 +592,18 @@ async function verifyAuthenticatedInternal() {
     assert.equal(structureAssistant.queryPlan.filters.sector, 'OBRERO');
     assert.equal(structureAssistant.data.grain, 'employment_record_by_company_and_legajo');
     assert.ok(structureAssistant.data.coverage.historicalRecords > 0);
+
+    const managementAssistant = await askAssistant('Compará la gestión actual con la anterior usando el mismo tiempo transcurrido');
+    assert.equal(managementAssistant.intent, 'management_comparison');
+    assert.equal(managementAssistant.queryPlan.resource, 'managementanalytics');
+    assert.equal(managementAssistant.data.comparison.elapsedDays, 972);
+    assert.equal(managementAssistant.data.periods.previousComparable.hires, 217);
+    assert.equal(managementAssistant.data.periods.current.hires, 281);
+    assert.equal(managementAssistant.data.payrollComparison.previous.eventsPer100ContractMonths, 13.45);
+    assert.equal(managementAssistant.data.payrollComparison.current.eventsPer100ContractMonths, 23.01);
+    assert.match(managementAssistant.answer, /no es tasa de ausentismo/i);
+    assert.equal(managementAssistant.targetPath, '/gestion-comparativa');
+    assert.equal(managementAssistant.privacy.nominalDataExternalized, false);
 
     const eventListAssistant = await askAssistant('Lista los eventos administrativos de ausencia de julio 2026', true);
     assert.equal(eventListAssistant.intent, 'absence_event_list');
@@ -691,7 +754,7 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
-    assert.equal(await page.locator('#moduleGrid .module-card').count(), 12, 'El centro debe explicar las doce áreas visibles');
+    assert.equal(await page.locator('#moduleGrid .module-card').count(), 13, 'El centro debe explicar las trece áreas visibles');
     assert.equal(await page.locator('#routeList [data-route]').count(), 6, 'El centro debe ofrecer recorridos por función');
     await page.locator('[data-progress-id="home"]').check();
     assert.match(await page.locator('#progressText').innerText(), /1 de 5/);
@@ -726,7 +789,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + gestiones + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

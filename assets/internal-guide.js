@@ -62,6 +62,40 @@
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
       ]
     },
+    management: {
+      sectionId: 'gestiones', title: 'Comparación de gestiones',
+      tour: [
+        ['.page-head', 'Regla de comparación', 'La cabecera explica por qué la lectura principal usa la misma cantidad de días para ambas gestiones.'],
+        ['#periodRail', 'Períodos exactos', 'Confirmá fechas, duración y carácter parcial antes de comparar cifras.'],
+        ['#movementLedger', 'Movimientos registrales', 'Altas, bajas y balance se cuentan al grano legajo por empresa; no son personas únicas.'],
+        ['#managementYearChart', 'Años de gestión', 'Cada año comienza en la fecha real del mandato. El tramo parcial se compara sólo contra igual cantidad de días.'],
+        ['#payrollPanel', 'Base normalizada', 'Los eventos se relacionan con contrato-mes liquidado y cerrado, sin presentarlos como tasa de ausentismo.'],
+        ['#breakdownPanel', 'Sectores y jardines', 'Alterná etiquetas originales y una agrupación analítica reversible sin modificar GRH.'],
+        ['#sourcePanel', 'Evidencia y límites', 'Revisá reconciliaciones, cobertura y dominios todavía sin fuente.']
+      ],
+      explain: [
+        ['#movementLedger', 'Altas, bajas y balance', 'Describe movimientos de legajos dentro de períodos equivalentes; no mide eficiencia ni calidad de gobierno.'],
+        ['#payrollPanel', 'Eventos por contrato-mes', 'Usa sólo meses cerrados completos para construir un denominador comparable.'],
+        ['#breakdownPanel', 'Agrupación sectorial', 'La vista Jardines consolida claves explícitas y permite volver a las etiquetas literales.'],
+        ['#sourcePanel', 'Fuente y calidad', 'Documenta el corte GRH, exclusiones y las verificaciones que deben cerrar.']
+      ]
+    },
+    leave: {
+      sectionId: 'licencias', title: 'Licencias normativas',
+      tour: [
+        ['.page-head', 'Decisión asistida', 'La pantalla separa regla legal, evidencia GRH y hechos todavía no disponibles.'],
+        ['#legalPanel', 'Marco aplicable', 'Verificá la norma, el perfil municipal y el estado de aplicabilidad antes de calcular.'],
+        ['#mappingPanel', 'Motivos GRH', 'Los motivos observados se mapean con política explícita; una etiqueta no concede una licencia.'],
+        ['#readinessPanel', 'Preparación de datos', 'Cada bloque indica si el sistema puede calcular, orientar o debe esperar evidencia.'],
+        ['#previewPanel', 'Referencia por legajo', 'La simulación es condicionada y no reemplaza saldo, aprobación ni acto administrativo.'],
+        ['#limitationsPanel', 'Límites', 'Revisá fuentes faltantes y controles humanos antes de usar el resultado.']
+      ],
+      explain: [
+        ['#legalPanel', 'Norma y alcance', 'Muestra la fuente legal versionada y su relación con el régimen municipal.'],
+        ['#readinessPanel', 'Estado de cálculo', 'Distingue lo calculable de aquello que requiere fichadas, turnos, calendario o validación.'],
+        ['#previewPanel', 'Referencia individual', 'Aplica una regla a los datos disponibles sin afirmar saldo vigente ni autorización.']
+      ]
+    },
     absence: {
       sectionId: 'ausentismo', title: 'Ausentismo operativo',
       tour: [
@@ -130,6 +164,8 @@
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';
+    if (path.indexOf('gestion-comparativa') >= 0) return 'management';
+    if (path.indexOf('licencias-control') >= 0) return 'leave';
     if (path.indexOf('ausentismo') >= 0) return 'absence';
     if (path.indexOf('calidad-operativa') >= 0) return 'quality';
     if (path.indexOf('asistente') >= 0 || path === '/ia' || path === '/ia-hf') return 'assistant';

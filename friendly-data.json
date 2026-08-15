@@ -64,7 +64,7 @@
       "partial": true
     },
     "yearly": [
-      { "year": 2019, "hires": 74, "exits": 58 },
+      { "year": 2019, "hires": 4, "exits": 4, "partial": true },
       { "year": 2020, "hires": 54, "exits": 41 },
       { "year": 2021, "hires": 72, "exits": 70 },
       { "year": 2022, "hires": 99, "exits": 82 },

@@ -14,7 +14,7 @@ function publicSection(section) {
   };
 }
 
-export const GUIDANCE_AS_OF = '2026-08-14T00:00:00.000Z';
+export const GUIDANCE_AS_OF = '2026-08-15T00:00:00.000Z';
 
 export const SECTION_CATALOG = deepFreeze([
   {
@@ -51,6 +51,13 @@ export const SECTION_CATALOG = deepFreeze([
     actions: ['distinguir la última corrida cerrada de la abierta', 'revisar la conciliación', 'consultar el historial controlado'],
     limits: ['no publica como KPI financiero una corrida abierta', 'los importes históricos son nominales y no incorporan IPC'],
     aliases: ['nomina', 'liquidacion', 'liquidaciones', 'haberes', 'sueldo', 'salario', 'corrida', 'corridas'],
+  },
+  {
+    id: 'gestiones', label: 'Comparar gestiones', targetPath: '/gestion-comparativa',
+    purpose: 'Comparar dos períodos de gobierno con la misma cantidad de días, años de gestión y meses de nómina cerrada respaldados por GRH.',
+    actions: ['contrastar altas, bajas y balance registral', 'comparar años de gestión equivalentes', 'revisar eventos por contrato-mes cerrado', 'alternar sectores literales y la agrupación reversible de jardines'],
+    limits: ['la gestión actual es parcial y no se anualiza ni proyecta', 'los eventos por 100 contrato-mes no son una tasa de ausentismo', 'presupuesto y ejecución permanecen pendientes hasta recibir una fuente oficial'],
+    aliases: ['gestion', 'gestiones', 'comparar gestiones', 'gestion anterior', 'gestion actual', 'periodos de gobierno'],
   },
   {
     id: 'asistente', label: 'Asistente', targetPath: '/asistente',
@@ -139,6 +146,11 @@ export const TASK_CATALOG = deepFreeze([
     steps: ['Abri Licencias normativas.', 'Confirma la version legal, la categoria de revista y el perfil municipal aplicable.', 'Busca el legajo si necesitas una referencia anual individual.', 'Lee por separado la escala legal, los eventos observados en GRH y los hechos faltantes.', 'No interpretes la referencia como saldo, aprobacion, diagnostico ni acto administrativo.'],
   },
   {
+    id: 'comparar_gestiones', label: 'Comparar gestiones con períodos equivalentes', sectionId: 'gestiones',
+    aliases: ['comparar gestiones', 'gestion actual versus anterior', 'comparar mandatos', 'año de gestion'],
+    steps: ['Abrí Comparar gestiones.', 'Confirmá el corte GRH y que ambas ventanas comparables tengan la misma cantidad de días.', 'Leé por separado altas, bajas y balance al grano legajo por empresa.', 'Compará los años de gestión; el año parcial sólo se contrasta contra igual cantidad de días.', 'Para ausencias usá eventos por 100 contrato-mes cerrados, nunca tasa de presentismo o productividad.', 'Alterná la vista literal y Jardines; la agrupación es analítica, reversible y no modifica GRH.'],
+  },
+  {
     id: 'leer_reporte', label: 'Interpretar un reporte de RRHH', sectionId: 'reportes',
     aliases: ['leer reporte', 'ver reporte', 'interpretar informe', 'analizar rrhh'],
     steps: ['Abrí Reportes.', 'Identificá el período y la fuente del análisis.', 'Revisá hallazgos, movimientos, ausencias y composición sectorial según tu pregunta.', 'Conservá los límites metodológicos; un evento de ausencia no representa días perdidos ni una tasa.'],
@@ -162,6 +174,8 @@ export const GLOSSARY = deepFreeze([
   { id: 'dato_nominal', label: 'Dato nominal', aliases: ['dato nominal', 'datos nominales', 'informacion nominal', 'informacion personal'], definition: 'Información que identifica o describe a una persona o legajo individual. Las consultas nominales del asistente permanecen en la base local y no se envían al proveedor externo.', relatedSectionIds: ['personas', 'asistente'] },
   { id: 'evento_ausencia', label: 'Evento administrativo de ausencia', aliases: ['evento de ausencia', 'ausencia administrativa', 'dias declarados', 'día declarado'], definition: 'Registro informado por GRH para un legajo y una fecha. Su cantidad o días declarados no equivalen por sí solos a jornadas perdidas, horas no trabajadas ni tasa de presentismo.', relatedSectionIds: ['ausentismo', 'calidad'] },
   { id: 'referencia_licencia', label: 'Referencia normativa de licencia', aliases: ['referencia de licencia', 'calculo orientativo', 'licencia normativa'], definition: 'Resultado condicionado que aplica una regla versionada a los datos disponibles y enumera lo que falta. No equivale a saldo, concesion ni acto administrativo.', relatedSectionIds: ['licencias', 'ausentismo'] },
+  { id: 'anio_gestion', label: 'Año de gestión', aliases: ['año de gestion', 'ano de gestion', 'año de mandato'], definition: 'Ventana anual contada desde la fecha exacta de inicio de una gestión. Evita que un año calendario de transición mezcle dos gobiernos.', relatedSectionIds: ['gestiones'] },
+  { id: 'contrato_mes', label: 'Contrato-mes liquidado', aliases: ['contrato mes', 'contrato-mes', 'legajo mes'], definition: 'Unidad formada por un legajo y un mes con liquidación cerrada. Se usa como denominador comparable de eventos registrados; no equivale a horas trabajadas ni presentismo.', relatedSectionIds: ['gestiones', 'nomina', 'ausentismo'] },
 ]);
 
 export function getProductGuidanceCatalog() {

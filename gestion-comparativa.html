@@ -1,0 +1,1561 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123247">
+  <meta name="color-scheme" content="light">
+  <title>Comparación de gestiones | MuniControl Junín</title>
+  <meta name="description" content="Comparación interna de gestiones municipales con períodos, métricas y fuentes verificables del sistema GRH.">
+  <style>
+    :root {
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --ink: #18252d;
+      --muted: #61717a;
+      --canvas: #f2f4f2;
+      --surface: #ffffff;
+      --surface-2: #f7f8f7;
+      --line: #d7dfdc;
+      --line-strong: #b9c7c3;
+      --green: #176f64;
+      --green-soft: #eaf5f1;
+      --blue: #315f82;
+      --blue-soft: #edf4f8;
+      --amber: #885a18;
+      --amber-soft: #fbf3df;
+      --red: #95463d;
+      --red-soft: #faefed;
+      --focus: #1476a2;
+      --sidebar: 254px;
+      --radius: 6px;
+      --shadow: 0 10px 30px rgba(18, 50, 71, .08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { background: var(--canvas); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
+    }
+    body.nav-open { overflow: hidden; }
+    button, select, a { font: inherit; -webkit-tap-highlight-color: transparent; }
+    button { color: inherit; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid rgba(20, 118, 162, .32); outline-offset: 2px; }
+
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 300;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--navy);
+      font-weight: 850;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .app { min-height: 100vh; }
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 90;
+      display: flex;
+      width: var(--sidebar);
+      flex-direction: column;
+      overflow-y: auto;
+      border-right: 1px solid rgba(255, 255, 255, .12);
+      background: var(--navy);
+      color: #ecf5f7;
+    }
+    .brand {
+      display: flex;
+      min-height: 86px;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, .12);
+    }
+    .brand-home {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 12px;
+      color: inherit;
+      text-decoration: none;
+    }
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .48);
+      border-radius: 4px;
+      background: #f8f5ec;
+      color: var(--navy);
+      font: 800 24px/1 Georgia, "Times New Roman", serif;
+    }
+    .brand-copy strong, .brand-copy span { display: block; }
+    .brand-copy strong { color: #ecf5f7; font-size: 16px; letter-spacing: -.02em; }
+    .brand-copy span { color: #b9ccd4; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .menu-close {
+      display: none;
+      width: 42px;
+      height: 42px;
+      margin-left: auto;
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: var(--radius);
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      font-size: 22px;
+    }
+    .nav-wrap { padding: 18px 12px 24px; }
+    .nav-group + .nav-group { margin-top: 19px; }
+    .nav-label {
+      display: block;
+      padding: 0 10px 8px;
+      color: #83a4b3;
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .nav-link {
+      display: flex;
+      min-height: 42px;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #d5e4e9;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .nav-link:hover { border-color: #416175; color: #fff; }
+    .nav-link[aria-current="page"] { border-color: #f8f5ec; background: #f8f5ec; color: var(--navy); font-weight: 850; }
+    .nav-code {
+      display: inline-grid;
+      width: 25px;
+      height: 25px;
+      flex: 0 0 25px;
+      place-items: center;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      color: #8eb0bd;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .035em;
+    }
+    .nav-link[aria-current="page"] .nav-code { color: var(--green); }
+    .sidebar-foot {
+      margin-top: auto;
+      padding: 16px;
+      border-top: 1px solid rgba(255, 255, 255, .12);
+      color: #b9ccd4;
+      font-size: 11px;
+    }
+    .sidebar-foot strong { display: block; margin-bottom: 4px; color: #fff; font-size: 12px; }
+    .nav-backdrop { display: none; }
+
+    .main-shell { min-height: 100vh; margin-left: var(--sidebar); }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      gap: 16px;
+      padding: 12px clamp(18px, 3vw, 40px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(242, 244, 242, .97);
+      backdrop-filter: blur(10px);
+    }
+    .menu-button {
+      display: none;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--navy);
+      cursor: pointer;
+      font-size: 20px;
+    }
+    .topbar-title { min-width: 0; }
+    .topbar-title small { display: block; color: var(--muted); font-size: 10px; font-weight: 750; }
+    .topbar-title strong { display: block; overflow: hidden; color: var(--navy); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-actions { display: flex; min-width: 0; align-items: center; gap: 9px; margin-left: auto; }
+    .source-chip {
+      display: inline-flex;
+      min-height: 36px;
+      max-width: 300px;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid #b6d4ca;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: #175a53;
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .source-chip::before { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #2f9e8b; content: ""; }
+    .source-chip.warning { border-color: #e1c68f; background: var(--amber-soft); color: var(--amber); }
+    .source-chip.warning::before { background: var(--amber); }
+    .source-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .button, .button-secondary, .icon-button {
+      display: inline-flex;
+      min-height: 42px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .button { padding: 9px 15px; border: 1px solid var(--navy); background: var(--navy); color: #fff; }
+    .button:hover { background: var(--navy-2); }
+    .button-secondary { padding: 9px 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--navy); }
+    .button-secondary:hover { background: var(--surface-2); }
+    .icon-button { width: 42px; padding: 0; border: 1px solid var(--line-strong); background: var(--surface); color: var(--navy); font-size: 18px; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .user-block { display: flex; align-items: center; gap: 9px; padding-left: 10px; border-left: 1px solid var(--line); }
+    .user-avatar { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 50%; background: var(--navy); color: #fff; font-size: 11px; font-weight: 900; }
+    .user-copy { max-width: 150px; }
+    .user-copy strong, .user-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-copy strong { font-size: 11px; }
+    .user-copy span { color: var(--muted); font-size: 9px; }
+
+    main { padding: clamp(26px, 4vw, 50px) clamp(18px, 4vw, 46px) 72px; }
+    .content-wrap { width: min(1240px, 100%); margin: 0 auto; }
+    .loading-state, .error-state { display: grid; min-height: calc(100vh - 190px); place-items: center; }
+    .state-card { width: min(570px, 100%); padding: 28px; border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: var(--radius); background: var(--surface); text-align: center; box-shadow: var(--shadow); }
+    .error-state .state-card { border-top-color: var(--red); }
+    .state-card h1 { margin: 0 0 8px; color: var(--navy); font: 750 28px/1.15 Georgia, "Times New Roman", serif; }
+    .state-card p { margin: 0 auto 18px; color: var(--muted); }
+    .spinner { width: 34px; height: 34px; margin: 0 auto 18px; border: 3px solid #d5e2df; border-top-color: var(--green); border-radius: 50%; animation: spin 800ms linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .page-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
+      gap: 28px;
+      align-items: end;
+      padding-bottom: 27px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .eyebrow { margin: 0 0 8px; color: var(--green); font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { max-width: 820px; margin: 0; color: var(--navy); font: 750 clamp(38px, 5vw, 62px)/.99 Georgia, "Times New Roman", serif; letter-spacing: -.035em; }
+    .page-lead { max-width: 760px; margin: 17px 0 0; color: #455761; font-size: 15px; }
+    .status-panel { padding: 17px; border: 1px solid var(--line); border-top: 4px solid var(--amber); border-radius: var(--radius); background: var(--surface); }
+    .status-panel strong { display: block; color: var(--navy); font-size: 14px; }
+    .status-panel p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+
+    .partial-notice {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+      padding: 15px 17px;
+      border: 1px solid #dfca99;
+      border-left: 4px solid var(--amber);
+      border-radius: var(--radius);
+      background: var(--amber-soft);
+      color: #654813;
+    }
+    .partial-notice-mark { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #d9bc83; border-radius: 50%; font-weight: 900; }
+    .partial-notice strong { display: block; color: #5b3e12; }
+    .partial-notice p { margin: 2px 0 0; font-size: 12px; }
+
+    .section { margin-top: 30px; scroll-margin-top: 92px; }
+    .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 13px; }
+    .section-head h2 { margin: 3px 0 0; color: var(--navy); font: 750 clamp(24px, 3vw, 31px)/1.1 Georgia, "Times New Roman", serif; letter-spacing: -.018em; }
+    .section-head p { max-width: 760px; margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .section-index { color: var(--green); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .status-pill { display: inline-flex; min-height: 27px; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+    .status-pill::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .status-pill.ready { border-color: #acd0c4; background: var(--green-soft); color: var(--green); }
+    .status-pill.partial { border-color: #e1c68f; background: var(--amber-soft); color: var(--amber); }
+    .status-pill.context { border-color: #bfd0dc; background: var(--blue-soft); color: var(--blue); }
+    .status-pill.unavailable { border-color: #e2b7b1; background: var(--red-soft); color: var(--red); }
+
+    .control-panel { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .control-grid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto; gap: 12px; align-items: end; }
+    .field { min-width: 0; display: grid; gap: 6px; }
+    .field label { color: var(--navy); font-size: 10px; font-weight: 850; letter-spacing: .035em; text-transform: uppercase; }
+    .field select { width: 100%; min-height: 44px; padding: 8px 34px 8px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: #fff; color: var(--ink); }
+    .control-actions { display: flex; gap: 8px; }
+    .control-summary { margin: 14px 0 0; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+
+    .period-rail { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+    .period-card { min-width: 0; padding: 20px; border-top: 4px solid var(--blue); }
+    .period-card + .period-card { border-left: 1px solid var(--line-strong); border-top-color: var(--green); }
+    .period-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .period-card h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .period-range { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .period-facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 17px 0 0; padding: 0; }
+    .period-facts div { min-width: 92px; }
+    .period-facts dt { color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .period-facts dd { margin: 3px 0 0; color: var(--navy); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .ledger { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+    .ledger-row { display: grid; grid-template-columns: minmax(210px, 1.35fr) repeat(3, minmax(130px, .65fr)); min-height: 76px; border-bottom: 1px solid var(--line); }
+    .ledger-row:last-child { border-bottom: 0; }
+    .ledger-row > * { min-width: 0; padding: 15px 17px; border-left: 1px solid var(--line); }
+    .ledger-row > *:first-child { border-left: 0; }
+    .ledger-head { min-height: 45px; background: var(--surface-2); color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+    .ledger-head > * { display: flex; align-items: center; }
+    .metric-name strong { display: block; color: var(--navy); font-size: 13px; }
+    .metric-name span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .metric-cell { display: flex; flex-direction: column; justify-content: center; }
+    .metric-cell strong { color: var(--navy); font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+    .metric-cell span { margin-top: 5px; color: var(--muted); font-size: 9px; }
+    .metric-cell.delta strong { font-size: 18px; }
+    .metric-cell.delta.unavailable strong { color: var(--muted); font-size: 12px; }
+
+    .panel { min-width: 0; padding: 19px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .panel-head h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .panel-head p { max-width: 680px; margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .panel-control { min-width: 178px; }
+    .panel-control label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .panel-control select { width: 100%; min-height: 40px; padding: 7px 30px 7px 9px; border: 1px solid var(--line-strong); border-radius: 4px; background: #fff; color: var(--ink); }
+
+    .year-chart { display: grid; gap: 15px; }
+    .year-row { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 16px; align-items: center; }
+    .year-label { color: var(--navy); font-size: 11px; font-weight: 850; }
+    .year-label small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; font-weight: 650; }
+    .year-bars { display: grid; gap: 7px; }
+    .bar-line { display: grid; grid-template-columns: 92px minmax(0, 1fr) 64px; gap: 9px; align-items: center; }
+    .bar-series { overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { height: 12px; overflow: hidden; border: 1px solid #d4dcda; background: #edf1ef; }
+    .bar-fill { display: block; width: var(--bar-width, 0%); height: 100%; min-width: 0; background: var(--blue); }
+    .bar-line.current .bar-fill { background: var(--green); }
+    .bar-line.exit .bar-fill { border: 1px solid var(--amber); background: var(--amber-soft); }
+    .bar-value { color: var(--navy); font-size: 10px; font-weight: 850; text-align: right; font-variant-numeric: tabular-nums; }
+    .chart-empty { padding: 26px; border: 1px dashed var(--line-strong); color: var(--muted); text-align: center; }
+    .chart-footnote { margin: 16px 0 0; color: var(--muted); font-size: 10px; }
+
+    .domain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .domain-panel { min-width: 0; padding: 19px; border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: var(--radius); background: var(--surface); }
+    .domain-panel.absence { border-top-color: var(--green); }
+    .domain-panel h3 { margin: 0; color: var(--navy); font-size: 17px; }
+    .domain-panel > p { margin: 5px 0 16px; color: var(--muted); font-size: 11px; }
+    .pair-list { margin: 0; }
+    .pair-row { display: grid; grid-template-columns: minmax(130px, 1fr) repeat(2, minmax(85px, .6fr)); gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); }
+    .pair-row dt { color: var(--muted); font-size: 10px; font-weight: 750; }
+    .pair-row dd { margin: 0; color: var(--navy); font-size: 12px; font-weight: 850; text-align: right; font-variant-numeric: tabular-nums; }
+    .pair-head { padding-top: 0; border-top: 0; color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+    .pair-head span:not(:first-child) { text-align: right; }
+    .basis-note { margin: 15px 0 0; padding: 11px 12px; border-left: 3px solid var(--amber); background: var(--amber-soft); color: #664915; font-size: 10px; }
+
+    .breakdown-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+    .segment-fieldset { margin: 0; padding: 0; border: 0; }
+    .segment-fieldset legend { margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .segment-control { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-strong); border-radius: 4px; background: #fff; }
+    .segment-control label { position: relative; min-width: 138px; }
+    .segment-control input { position: absolute; opacity: 0; pointer-events: none; }
+    .segment-control span { display: grid; min-height: 40px; place-items: center; padding: 8px 11px; color: var(--muted); font-size: 10px; font-weight: 800; cursor: pointer; }
+    .segment-control label + label span { border-left: 1px solid var(--line-strong); }
+    .segment-control input:checked + span { background: var(--navy); color: #fff; }
+    .segment-control input:focus-visible + span { outline: 3px solid rgba(20, 118, 162, .32); outline-offset: 2px; }
+    .segment-control input:disabled + span { cursor: not-allowed; opacity: .48; }
+    .mapping-note { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); background: var(--blue-soft); color: #315469; font-size: 10px; }
+    .sector-bars { display: grid; gap: 17px; }
+    .sector-row { min-width: 0; }
+    .sector-name { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--ink); font-size: 10px; }
+    .sector-name strong { min-width: 0; overflow: hidden; color: var(--navy); text-overflow: ellipsis; white-space: nowrap; }
+    .sector-name span { flex: 0 0 auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .sector-pair { display: grid; grid-template-columns: 78px minmax(0, 1fr) 62px; gap: 8px; align-items: center; }
+    .sector-pair + .sector-pair { margin-top: 5px; }
+    .sector-series { color: var(--muted); font-size: 9px; font-weight: 800; }
+    .sector-track { height: 9px; border: 1px solid #d4dcda; background: #edf1ef; }
+    .sector-fill { display: block; width: var(--bar-width, 0%); height: 100%; background: var(--blue); }
+    .sector-pair.current .sector-fill { background: var(--green); }
+    .sector-value { color: var(--navy); font-size: 9px; font-weight: 850; text-align: right; font-variant-numeric: tabular-nums; }
+    .exact-details { margin-top: 18px; border-top: 1px solid var(--line); }
+    .exact-details summary { min-height: 44px; display: flex; align-items: center; color: var(--navy); font-size: 11px; font-weight: 850; cursor: pointer; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { padding: 10px 11px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--surface-2); color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+    th.numeric, td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .budget-card { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 22px; border: 1px solid var(--line); border-left: 5px solid var(--amber); border-radius: var(--radius); background: var(--surface); }
+    .budget-mark { display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid #d8c18c; border-radius: 50%; background: var(--amber-soft); color: var(--amber); font: 800 15px/1 Georgia, serif; }
+    .budget-card h3 { margin: 0; color: var(--navy); font-size: 17px; }
+    .budget-card p { max-width: 760px; margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .budget-meta { margin-top: 9px; color: var(--amber); font-size: 10px; font-weight: 800; }
+    .budget-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .budget-fact { padding: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+    .budget-fact span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+    .budget-fact strong { display: block; margin-top: 5px; color: var(--navy); font-size: 16px; }
+
+    .evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .evidence-panel { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .evidence-panel h3 { margin: 0 0 12px; color: var(--navy); font-size: 15px; }
+    .definition-list { margin: 0; }
+    .definition-list > div { display: grid; grid-template-columns: minmax(115px, .48fr) minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+    .definition-list > div:first-child { border-top: 0; }
+    .definition-list dt { color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+    .definition-list dd { margin: 0; overflow-wrap: anywhere; color: var(--navy); font-size: 11px; font-weight: 750; }
+    .quality-list { margin: 0; padding: 0; list-style: none; }
+    .quality-list li { padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+    .quality-list li:first-child { border-top: 0; }
+    .quality-list strong { display: block; margin-bottom: 2px; color: var(--navy); font-size: 10px; }
+    footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+
+    @media (max-width: 1080px) {
+      .control-grid { grid-template-columns: 1fr 1fr; }
+      .control-actions { grid-column: 1 / -1; justify-content: flex-end; }
+      .ledger-row { grid-template-columns: minmax(190px, 1.15fr) repeat(3, minmax(115px, .62fr)); }
+    }
+
+    @media (max-width: 820px) {
+      .sidebar { width: min(310px, calc(100vw - 48px)); transform: translateX(-105%); transition: transform 180ms ease; box-shadow: 18px 0 45px rgba(4, 23, 34, .24); }
+      body.nav-open .sidebar { transform: translateX(0); }
+      body.nav-open .nav-backdrop { position: fixed; inset: 0; z-index: 80; display: block; background: rgba(4, 20, 31, .52); }
+      .menu-close { display: inline-grid; place-items: center; }
+      .brand { padding-right: 12px; }
+      .main-shell { margin-left: 0; }
+      .topbar { min-height: 64px; padding: 10px 14px; }
+      .menu-button { display: inline-grid; place-items: center; }
+      .source-chip { max-width: 220px; }
+      .user-block, #logoutButton { display: none; }
+      main { padding: 24px 16px 56px; }
+      .page-head { grid-template-columns: 1fr; align-items: start; }
+      .period-rail, .domain-grid, .evidence-grid { grid-template-columns: 1fr; }
+      .period-card + .period-card { border-top-color: var(--green); border-left: 0; }
+      .ledger-row { grid-template-columns: minmax(170px, 1.1fr) repeat(3, minmax(105px, .65fr)); }
+      .budget-card { grid-template-columns: 58px minmax(0, 1fr); }
+      .budget-card > .status-pill { grid-column: 2; justify-self: start; }
+    }
+
+    @media (max-width: 620px) {
+      .topbar { gap: 8px; }
+      .topbar-title { display: none; }
+      .topbar-actions { flex: 1 1 auto; gap: 6px; }
+      .source-chip { min-width: 0; max-width: none; flex: 1 1 auto; }
+      .icon-button { flex: 0 0 42px; }
+      .topbar-actions > .button-secondary { display: none; }
+      h1 { font-size: 39px; }
+      .page-lead { font-size: 14px; }
+      .section-head { display: block; }
+      .section-head > .status-pill { margin-top: 10px; }
+      .control-grid { grid-template-columns: 1fr; }
+      .control-actions { grid-column: auto; display: grid; grid-template-columns: 1fr 1fr; }
+      .control-actions button { width: 100%; }
+      .period-card { padding: 17px 14px; }
+      .ledger { border: 0; background: transparent; }
+      .ledger-head { display: none; }
+      .ledger-row { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+      .ledger-row > * { padding: 12px 13px; border-left: 0; }
+      .ledger-row .metric-name { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+      .ledger-row .metric-cell { border-left: 1px solid var(--line); }
+      .ledger-row .metric-cell:nth-child(2) { border-left: 0; }
+      .ledger-row .metric-cell.delta { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
+      .metric-cell::before { display: block; margin-bottom: 6px; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; content: attr(data-label); }
+      .metric-cell strong { font-size: 22px; }
+      .panel { padding: 16px 13px; }
+      .panel-head { display: block; }
+      .panel-control { margin-top: 12px; }
+      .year-row { grid-template-columns: 1fr; gap: 7px; }
+      .bar-line { grid-template-columns: 74px minmax(0, 1fr) 55px; gap: 6px; }
+      .pair-row { grid-template-columns: minmax(110px, 1fr) repeat(2, minmax(72px, .7fr)); }
+      .breakdown-controls { display: grid; grid-template-columns: 1fr; }
+      .segment-control { display: grid; width: 100%; }
+      .segment-control label { min-width: 0; }
+      .sector-name { display: block; }
+      .sector-name strong { display: block; white-space: normal; }
+      .sector-name span { display: block; margin-top: 2px; }
+      .sector-pair { grid-template-columns: 66px minmax(0, 1fr) 52px; gap: 6px; }
+      .budget-card { grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 17px 14px; }
+      .budget-mark { width: 42px; height: 42px; }
+      .budget-facts { grid-template-columns: 1fr; }
+      .definition-list > div { grid-template-columns: 1fr; gap: 3px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+
+    @media print {
+      .sidebar, .topbar, .control-panel, .nav-backdrop, .button, .button-secondary { display: none !important; }
+      .main-shell { margin-left: 0; }
+      main { padding: 0; }
+      .section, .panel, .domain-panel, .period-card, .budget-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body data-mc-page="management">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <a class="brand-home" href="internal-dashboard.html#inicio" aria-label="MuniControl, ir al inicio">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span class="brand-copy"><strong>MuniControl</strong><span>Friendly · Junín</span></span>
+        </a>
+        <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      </div>
+
+      <nav class="nav-wrap" aria-label="Navegación principal">
+        <div class="nav-group">
+          <span class="nav-label">Operación</span>
+          <a class="nav-link" href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">IN</span>Inicio</a>
+          <a class="nav-link" href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span>Personas</a>
+          <a class="nav-link" href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span>Estructura</a>
+          <a class="nav-link" href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span>Integración</a>
+          <a class="nav-link" href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span>Nómina</a>
+          <a class="nav-link" href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span>Asistente</a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Herramientas</span>
+          <a class="nav-link" href="gestion-comparativa.html" aria-current="page"><span class="nav-code" aria-hidden="true">GE</span>Gestiones</a>
+          <a class="nav-link" href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span>Ausentismo</a>
+          <a class="nav-link" href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span>Licencias</a>
+          <a class="nav-link" href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span>Reportes RRHH</a>
+          <a class="nav-link" href="calidad-operativa.html"><span class="nav-code" aria-hidden="true">DQ</span>Calidad operativa</a>
+          <a class="nav-link" href="modulos.html"><span class="nav-code" aria-hidden="true">MP</span>Mapa de producto</a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Aprender</span>
+          <a class="nav-link" href="centro-ayuda.html"><span class="nav-code" aria-hidden="true">AY</span>Ayuda</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot">
+        <strong>Comparación con evidencia</strong>
+        Los períodos parciales y las diferencias de cobertura permanecen visibles.
+      </div>
+    </aside>
+
+    <div class="nav-backdrop" id="navBackdrop" aria-hidden="true"></div>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div class="topbar-title"><small>MuniControl / Análisis</small><strong>Comparación de gestiones</strong></div>
+        <div class="topbar-actions">
+          <span class="source-chip warning" id="sourceChip" role="status"><span>GRH · verificando corte</span></span>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="Actualizar datos" title="Actualizar datos">↻</button>
+          <div class="user-block" aria-label="Sesión actual">
+            <span class="user-avatar" id="userAvatar" aria-hidden="true">MJ</span>
+            <span class="user-copy"><strong id="userName">Sesión municipal</strong><span id="userRole">Acceso interno</span></span>
+          </div>
+          <button class="button-secondary" id="logoutButton" type="button">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <main id="mainContent" tabindex="-1">
+        <div class="content-wrap">
+          <section class="loading-state" id="loading" aria-live="polite">
+            <div class="state-card">
+              <div class="spinner" aria-hidden="true"></div>
+              <h1>Preparando la comparación</h1>
+              <p id="loadingMessage">Verificamos la sesión y consultamos el corte agregado de GRH.</p>
+            </div>
+          </section>
+
+          <section class="error-state" id="errorHost" hidden aria-live="assertive"></section>
+
+          <div id="mainView" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Planeamiento y RRHH · GRH como autoridad laboral</p>
+                <h1>Dos gestiones, una base temporal comparable</h1>
+                <p class="page-lead">Movimientos, nómina y ausentismo se presentan con períodos exactos, grano explícito y controles que evitan convertir diferencias registrales en conclusiones de desempeño.</p>
+              </div>
+              <aside class="status-panel" id="overallStatus" aria-live="polite">
+                <strong id="overallTitle">Corte en preparación</strong>
+                <p id="overallDetail">La API informará si la gestión actual y sus últimos períodos están completos.</p>
+              </aside>
+            </header>
+
+            <div class="partial-notice" id="partialNotice" role="note">
+              <span class="partial-notice-mark" aria-hidden="true">!</span>
+              <div><strong>La gestión actual está abierta</strong><p id="partialNoticeText">No se anualizan ni proyectan cifras. La diferencia sólo se calcula cuando ambos lados abarcan la misma cantidad de días.</p></div>
+            </div>
+
+            <section class="section" id="scopePanel" aria-labelledby="scopeTitle">
+              <div class="section-head">
+                <div><span class="section-index">01 · Alcance</span><h2 id="scopeTitle">Cómo querés comparar</h2><p>La vista equivalente es la única habilitada para leer diferencias. La gestión completa aporta contexto con duraciones distintas.</p></div>
+                <span class="status-pill context" id="scopeBadge">Configuración local</span>
+              </div>
+              <form class="control-panel" id="comparisonForm">
+                <div class="control-grid">
+                  <div class="field"><label for="comparisonMode">Ventana de comparación</label><select id="comparisonMode" name="mode"><option value="equivalent">Mismo tiempo transcurrido</option><option value="full">Gestión anterior completa</option></select></div>
+                  <div class="field"><label for="timeBasis">Lectura año a año</label><select id="timeBasis" name="basis"><option value="management">Año de gestión</option><option value="calendar">Año calendario · contexto</option></select></div>
+                  <div class="control-actions"><button class="button-secondary" id="resetFilters" type="button">Restablecer</button><button class="button" id="applyFilters" type="submit">Aplicar</button></div>
+                </div>
+                <p class="control-summary" id="controlSummary">La comparación usará el mismo tiempo transcurrido y años contados desde el inicio de cada gestión.</p>
+              </form>
+            </section>
+
+            <section class="section" id="comparisonPanel" aria-labelledby="comparisonTitle">
+              <div class="section-head">
+                <div><span class="section-index">02 · Comparación directa</span><h2 id="comparisonTitle">Períodos y movimientos</h2><p>Altas y bajas cuentan registros laborales; las personas distintas se informan como contexto cuando la fuente las entrega.</p></div>
+                <span class="status-pill partial" id="comparisonBadge">Verificando</span>
+              </div>
+              <div class="period-rail" id="periodRail" aria-label="Períodos comparados"></div>
+              <div class="ledger" id="movementLedger" style="margin-top:12px" aria-label="Comparación de movimientos">
+                <div class="ledger-row ledger-head" aria-hidden="true"><div>Indicador</div><div>Gestión anterior</div><div>Gestión actual</div><div>Diferencia</div></div>
+              </div>
+            </section>
+
+            <section class="section" id="yearsPanel" aria-labelledby="yearsTitle">
+              <div class="section-head">
+                <div><span class="section-index">03 · Evolución</span><h2 id="yearsTitle">Año por año</h2><p id="yearsDescription">Cada año se alinea desde la fecha de inicio de su gestión. Un tramo parcial se compara únicamente con el mismo tramo anterior.</p></div>
+                <span class="status-pill context" id="yearsBadge">Base temporal</span>
+              </div>
+              <article class="panel" id="managementYearChart">
+                <div class="panel-head">
+                  <div><h3 id="yearChartTitle">Movimientos por año de gestión</h3><p id="yearChartNote">Seleccioná altas o bajas; la longitud de las barras usa una misma escala.</p></div>
+                  <div class="panel-control" id="yearMetricField"><label for="yearMetric">Indicador</label><select id="yearMetric"><option value="hires">Altas registrales</option><option value="exits">Bajas registrales</option></select></div>
+                </div>
+                <div class="year-chart" id="yearChart" role="list" aria-labelledby="yearChartTitle"></div>
+                <div class="visually-hidden"><table aria-label="Datos exactos del gráfico año a año"><thead id="yearAccessibleHead"></thead><tbody id="yearAccessibleRows"></tbody></table></div>
+                <p class="chart-footnote" id="yearFootnote">Los años incompletos permanecen marcados y no se proyectan.</p>
+              </article>
+            </section>
+
+            <section class="section" id="normalizedPanel" aria-labelledby="normalizedTitle">
+              <div class="section-head">
+                <div><span class="section-index">04 · Base comparable</span><h2 id="normalizedTitle">Nómina y eventos sobre base comparable</h2><p>Los conteos brutos se acompañan con meses cerrados, contratos-mes y el cociente descriptivo publicado por la API cuando su denominador es válido.</p></div>
+                <span class="status-pill context" id="normalizedBadge">Verificando base</span>
+              </div>
+              <div class="domain-grid">
+                <article class="domain-panel" id="payrollPanel" aria-labelledby="payrollTitle"><h3 id="payrollTitle">Nómina liquidada</h3><p id="payrollBasis">La base de comparación será informada por la API.</p><div id="payrollPairs"></div><div class="basis-note" id="payrollNote">Sólo se incluyen meses que cumplen el estado de cierre publicado.</div></article>
+                <article class="domain-panel absence" aria-labelledby="absenceTitle"><h3 id="absenceTitle">Ausentismo registrado</h3><p>Eventos administrativos del mismo alcance. Los días declarados no equivalen a jornadas perdidas.</p><div id="absencePairs"></div><div class="basis-note" id="absenceNote">El cociente descriptivo requiere contratos-mes válidos; no es una tasa de ausentismo y no representa presentismo ni productividad.</div></article>
+              </div>
+            </section>
+
+            <section class="section" id="sectorsPanel" aria-labelledby="sectorsTitle">
+              <div class="section-head">
+                <div><span class="section-index">05 · Composición</span><h2 id="sectorsTitle">Sectores y familias</h2><p>La lectura literal preserva las etiquetas GRH. La consolidada sólo se habilita si existe un mapeo explícito y versionado.</p></div>
+                <span class="status-pill context" id="sectorBadge">Verificando agrupación</span>
+              </div>
+              <article class="panel" id="breakdownPanel">
+                <div class="panel-head">
+                  <div><h3 id="sectorChartTitle">Distribución comparada</h3><p>Se muestran las categorías con mayor volumen actual; el detalle exacto conserva todas las filas recibidas.</p></div>
+                  <div class="breakdown-controls">
+                    <fieldset class="segment-fieldset"><legend>Agrupación</legend><div class="segment-control"><label><input type="radio" name="grouping" value="literal" checked><span>Fuente literal</span></label><label><input id="consolidatedGrouping" type="radio" name="grouping" value="consolidated"><span>Familias homologadas</span></label></div></fieldset>
+                    <div class="panel-control"><label for="sectorMetric">Medida</label><select id="sectorMetric"><option value="contractMonths">Contratos-mes</option><option value="events">Eventos de ausencia</option></select></div>
+                  </div>
+                </div>
+                <p class="mapping-note" id="mappingNote">Consultando disponibilidad y cobertura del mapeo.</p>
+                <div class="sector-bars" id="sectorBars" role="list" aria-labelledby="sectorChartTitle"></div>
+                <details class="exact-details"><summary>Ver detalle exacto de categorías</summary><div class="table-wrap"><table><thead><tr><th>Categoría</th><th class="numeric">Anterior · contratos-mes</th><th class="numeric">Actual · contratos-mes</th><th class="numeric">Anterior · eventos</th><th class="numeric">Actual · eventos</th></tr></thead><tbody id="sectorRows"></tbody></table></div></details>
+              </article>
+            </section>
+
+            <section class="section" id="budgetPanel" aria-labelledby="budgetTitle">
+              <div class="section-head"><div><span class="section-index">06 · Próximo dominio</span><h2 id="budgetTitle">Presupuesto y ejecución</h2><p>Este bloque sólo publica cifras cuando existe una fuente presupuestaria oficial con período y definición conciliados.</p></div></div>
+              <article class="budget-card" id="budgetCard"><span class="budget-mark" aria-hidden="true">$</span><div><h3 id="budgetCardTitle">Verificando disponibilidad</h3><p id="budgetMessage">La API indicará si el dominio presupuestario está listo.</p><div class="budget-meta" id="budgetMeta"></div><div class="budget-facts" id="budgetFacts" hidden></div></div><span class="status-pill context" id="budgetBadge">Consultando</span></article>
+            </section>
+
+            <section class="section" id="sourcePanel" aria-labelledby="sourceTitle">
+              <div class="section-head">
+                <div><span class="section-index">07 · Evidencia</span><h2 id="sourceTitle">Fuente, calidad y límites</h2><p>Estos datos forman parte del resultado y deben acompañar cualquier comunicación institucional.</p></div>
+                <span class="status-pill context" id="qualityBadge">Verificando</span>
+              </div>
+              <div class="evidence-grid">
+                <article class="evidence-panel"><h3>Trazabilidad</h3><dl class="definition-list" id="sourceFacts"></dl></article>
+                <article class="evidence-panel"><h3>Controles y salvedades</h3><ul class="quality-list" id="qualityList"></ul></article>
+              </div>
+            </section>
+
+            <footer id="footerSource">Uso interno · Fuente y corte pendientes de confirmación.</footer>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/internal-guide.js" defer></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var DATA_URL = '/api/internal-data?resource=managementanalytics';
+      var LOGIN_URL = 'login.html?next=gestion-comparativa.html';
+      var redirecting = false;
+      var authenticated = false;
+      var requestSequence = 0;
+      var integerFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      var decimalFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      var ratioFormat = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var dateFormat = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      var state = { mode: 'equivalent', basis: 'management', yearMetric: 'hires', grouping: 'literal', sectorMetric: 'contractMonths', analytics: null };
+
+      function byId(id) { return document.getElementById(id); }
+      function asObject(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+      function asArray(value) { return Array.isArray(value) ? value : []; }
+      function text(value, fallback) { return typeof value === 'string' && value.trim() ? value.trim() : (fallback || ''); }
+      function finite(value) { var number = Number(value); return value !== null && value !== '' && Number.isFinite(number) ? number : null; }
+      function nonNegative(value) { var number = finite(value); return number !== null && number >= 0 ? number : null; }
+      function firstValue() {
+        for (var index = 0; index < arguments.length; index += 1) {
+          var value = arguments[index];
+          if (value !== undefined && value !== null && value !== '') return value;
+        }
+        return null;
+      }
+      function booleanValue(value) {
+        if (value === true || value === false) return value;
+        if (typeof value === 'string') {
+          if (/^(true|yes|si|sí|partial|parcial|open|abierto)$/i.test(value)) return true;
+          if (/^(false|no|closed|cerrado|complete|completo)$/i.test(value)) return false;
+        }
+        return null;
+      }
+      function create(tag, className, content) {
+        var node = document.createElement(tag);
+        if (className) node.className = className;
+        if (content !== undefined && content !== null) node.textContent = String(content);
+        return node;
+      }
+      function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+      function formatInteger(value) { var number = finite(value); return number === null ? 'No informado' : integerFormat.format(number); }
+      function formatDecimal(value) { var number = finite(value); return number === null ? 'No informado' : decimalFormat.format(number); }
+      function formatRatio(value) { var number = finite(value); return number === null ? 'No informado' : ratioFormat.format(number); }
+      function formatSigned(value) { var number = finite(value); return number === null ? 'No informado' : (number > 0 ? '+' : '') + integerFormat.format(number); }
+      function safeDate(value) {
+        var raw = text(value);
+        if (!raw) return 'No informada';
+        var match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return raw;
+        var date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+        return Number.isNaN(date.getTime()) ? raw : dateFormat.format(date);
+      }
+      function readableStatus(value) {
+        var original = text(value);
+        var normalized = original.toLowerCase().replace(/[\s-]+/g, '_');
+        var labels = {
+          same_complete_closed_payroll_months: 'Mismos meses completos de nómina cerrada',
+          same_elapsed_days: 'Misma cantidad de días transcurridos',
+          equivalent_elapsed_days: 'Misma cantidad de días transcurridos',
+          previous_year_same_calendar_window: 'Misma ventana calendario del año anterior',
+          events_per_100_closed_payroll_contract_months: 'Eventos por 100 contratos-mes cerrados',
+          analytical_grouping: 'Agrupación analítica',
+          source_not_loaded: 'Fuente no cargada',
+          source_pending: 'Fuente pendiente',
+          not_loaded: 'No cargado', not_imported: 'Sin importar',
+          not_available: 'No disponible', unavailable: 'No disponible',
+          available: 'Disponible', published: 'Publicado', verified: 'Verificado', ready: 'Disponible',
+          incompatible: 'Incompatible', needs_review: 'Requiere revisión', reconciled: 'Conciliado',
+          complete: 'Completo', closed: 'Cerrado', open: 'Abierto',
+          partial: 'Parcial', future: 'Período futuro', versioned: 'Versionado',
+          conditional: 'Condicional', not_calculable: 'No calculable',
+          historical_not_current_ledger: 'Registro histórico, no vigente',
+          source_value_not_homologated: 'Valor de fuente sin homologar',
+          source_snapshot: 'Fotografía de la fuente', decision_support_only: 'Sólo apoyo a la decisión',
+          absence_event: 'Evento administrativo de ausencia', employment_contract: 'Legajo laboral',
+          data_quality_issue: 'Hallazgo de calidad', source_import_batch: 'Lote de importación',
+          employment_record_by_company_and_legajo: 'Legajo por empresa',
+          'employment_contract (legajo por empresa)': 'Legajo laboral por empresa',
+          aggregated_management_period: 'Período de gestión agregado'
+        };
+        if (labels[original]) return labels[original];
+        if (labels[normalized]) return labels[normalized];
+        var raw = original.replace(/[_-]+/g, ' ');
+        if (!raw) return 'No informado';
+        return raw.charAt(0).toUpperCase() + raw.slice(1);
+      }
+      function readableKey(value) {
+        var labels = {
+          status: 'Estado', state: 'Estado', coverage: 'Cobertura', coveragePct: 'Cobertura',
+          source: 'Fuente', sourceCutoff: 'Corte de fuente', cutoff: 'Corte', generatedAt: 'Actualización',
+          schemaVersion: 'Versión de contrato', grain: 'Grano', version: 'Versión', basis: 'Base',
+          limitations: 'Limitaciones', warnings: 'Advertencias', comparable: 'Comparabilidad',
+          mapping: 'Agrupación', payroll: 'Nómina', absences: 'Ausentismo', periods: 'Períodos',
+          contracts: 'Legajos históricos', personsWithContract: 'Personas con legajo',
+          missingValidStartDate: 'Legajos sin ingreso válido', absenceRows: 'Eventos de ausencia',
+          absenceBeforeCoverage: 'Ausencias anteriores a cobertura', absenceAfterCutoff: 'Ausencias posteriores al corte',
+          invertedAbsenceRanges: 'Rangos de ausencia invertidos', unlinkedAbsences: 'Ausencias sin legajo vinculado',
+          movementRows: 'Movimientos de legajo', movementsWithoutType: 'Movimientos sin tipo',
+          lastClosedPayrollPeriod: 'Última nómina cerrada', latestOpenPayrollPeriod: 'Última nómina abierta',
+          reconciliations: 'Conciliaciones', equalElapsedDays: 'Misma cantidad de días',
+          periodHiresToCalendar: 'Altas conciliadas con años calendario', periodExitsToCalendar: 'Bajas conciliadas con años calendario',
+          previousSectorContractMonths: 'Contratos-mes anteriores conciliados', currentSectorContractMonths: 'Contratos-mes actuales conciliados',
+          previousSectorEvents: 'Eventos anteriores conciliados', currentSectorEvents: 'Eventos actuales conciliados'
+        };
+        if (labels[value]) return labels[value];
+        return String(value || '').replace(/([a-záéíóúñ])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, function (letter) { return letter.toUpperCase(); });
+      }
+      function describeValue(value) {
+        if (value === null || value === undefined || value === '') return 'No informado';
+        if (value === true) return 'Sí';
+        if (value === false) return 'No';
+        if (typeof value === 'number') return Number.isInteger(value) ? integerFormat.format(value) : decimalFormat.format(value);
+        if (typeof value === 'string') return readableStatus(value);
+        if (Array.isArray(value)) return value.length ? value.map(describeValue).join(' · ') : 'Sin observaciones';
+        var object = asObject(value);
+        var entries = Object.keys(object).slice(0, 8).map(function (key) { return readableKey(key) + ': ' + describeValue(object[key]); });
+        return entries.length ? entries.join(' · ') : 'No informado';
+      }
+
+      function normalizeRange(value, parent) {
+        var row = asObject(value);
+        var root = asObject(parent);
+        return {
+          from: text(firstValue(row.from, row.start, row.startDate, root.from, root.start, root.startDate)),
+          to: text(firstValue(row.to, row.end, row.endDate, root.to, root.end, root.endDate))
+        };
+      }
+
+      function normalizePeriod(value, label) {
+        var row = asObject(value);
+        var metrics = asObject(firstValue(row.metrics, row.summary, row.totals));
+        var range = normalizeRange(firstValue(row.range, row.period, row.window), row);
+        function metric() {
+          var keys = Array.prototype.slice.call(arguments);
+          for (var index = 0; index < keys.length; index += 1) {
+            var found = firstValue(row[keys[index]], metrics[keys[index]]);
+            if (found !== null) return finite(found);
+          }
+          return null;
+        }
+        return {
+          label: text(firstValue(row.label, row.name, row.title), label),
+          range: range,
+          elapsedDays: nonNegative(firstValue(row.elapsedDays, row.days, row.durationDays)),
+          partial: booleanValue(firstValue(row.partial, row.isPartial, row.status)) === true,
+          hires: metric('hires', 'entries', 'altas'),
+          hirePersons: metric('hirePersons', 'personsHired', 'uniqueHirePersons'),
+          exits: metric('exits', 'leavers', 'bajas'),
+          exitPersons: metric('exitPersons', 'personsExited', 'uniqueExitPersons'),
+          balance: metric('balance', 'netMovement', 'net'),
+          absenceEvents: metric('absenceEvents', 'events', 'totalAbsenceEvents'),
+          affectedContracts: metric('affectedContracts', 'absenceContracts', 'uniqueContracts'),
+          sourceDeclaredDays: metric('sourceDeclaredDays', 'declaredDays', 'daysDeclared')
+        };
+      }
+
+      function normalizeManagementYears(value) {
+        return asArray(value).map(function (item, index) {
+          var row = asObject(item);
+          return {
+            index: firstValue(nonNegative(row.index), nonNegative(row.managementYear), index + 1),
+            label: text(firstValue(row.label, row.name)),
+            previous: normalizePeriod(firstValue(row.previous, row.previousManagement), 'Gestión anterior'),
+            current: normalizePeriod(firstValue(row.current, row.currentManagement), 'Gestión actual'),
+            comparableToCurrent: booleanValue(firstValue(row.comparableToCurrent, row.comparable)),
+            currentStatus: text(firstValue(row.currentStatus, row.status))
+          };
+        });
+      }
+
+      function normalizeCalendarYears(value) {
+        return asArray(value).map(function (item) {
+          var row = asObject(item);
+          var hasPair = Boolean(row.previous || row.current || row.previousManagement || row.currentManagement);
+          return {
+            year: firstValue(nonNegative(row.year), text(row.label)),
+            label: text(row.label),
+            management: text(firstValue(row.management, row.managementLabel, row.gestion)),
+            transition: booleanValue(firstValue(row.transition, row.isTransition)) === true,
+            partial: booleanValue(firstValue(row.partial, row.isPartial, row.status)) === true,
+            period: normalizePeriod(row, ''),
+            previous: hasPair ? normalizePeriod(firstValue(row.previous, row.previousManagement), 'Gestión anterior') : null,
+            current: hasPair ? normalizePeriod(firstValue(row.current, row.currentManagement), 'Gestión actual') : null
+          };
+        });
+      }
+
+      function normalizePayrollSide(value) {
+        var row = asObject(value);
+        return {
+          expectedMonths: nonNegative(firstValue(row.expectedMonths, row.monthsExpected)),
+          closedMonths: nonNegative(firstValue(row.closedMonths, row.monthsClosed)),
+          contractMonths: nonNegative(firstValue(row.contractMonths, row.liquidatedContractMonths)),
+          averageLiquidated: nonNegative(firstValue(row.averageLiquidated, row.averageContracts, row.avgLiquidated)),
+          events: nonNegative(firstValue(row.alignedEvents, row.events, row.totalEvents, row.absenceEvents)),
+          eventsPer100ContractMonths: nonNegative(firstValue(row.eventsPer100ContractMonths, row.eventRate, row.normalizedEvents))
+        };
+      }
+
+      function normalizePayroll(value) {
+        var row = asObject(value);
+        return {
+          basis: text(firstValue(row.basis, row.comparisonBasis, row.definition)),
+          monthsExpected: nonNegative(firstValue(row.monthsExpected, row.expectedMonths)),
+          previous: normalizePayrollSide(firstValue(row.previous, row.previousManagement)),
+          current: normalizePayrollSide(firstValue(row.current, row.currentManagement))
+        };
+      }
+
+      function normalizeSectorRow(value) {
+        var row = asObject(value);
+        return {
+          label: text(firstValue(row.label, row.name, row.sector, row.family)),
+          previousContractMonths: nonNegative(firstValue(row.previousContractMonths, row.previous && row.previous.contractMonths)),
+          currentContractMonths: nonNegative(firstValue(row.currentContractMonths, row.current && row.current.contractMonths)),
+          previousEvents: nonNegative(firstValue(row.previousEvents, row.previous && row.previous.events)),
+          currentEvents: nonNegative(firstValue(row.currentEvents, row.current && row.current.events))
+        };
+      }
+
+      function normalizeSectors(value) {
+        var row = asObject(value);
+        return {
+          literal: asArray(firstValue(row.literal, row.source, row.rows)).map(normalizeSectorRow).filter(function (item) { return item.label; }),
+          consolidated: asArray(firstValue(row.consolidated, row.homologated, row.families)).map(normalizeSectorRow).filter(function (item) { return item.label; }),
+          mapping: asObject(firstValue(row.mapping, row.map, row.mappingStatus))
+        };
+      }
+
+      function normalizeAnalytics(payload) {
+        var root = asObject(payload);
+        var data = asObject(firstValue(root.data, root.result, root.analytics));
+        if (!Object.keys(data).length) data = root;
+        var periods = asObject(firstValue(data.periods, data.managementPeriods));
+        var meta = asObject(firstValue(root.meta, data.meta, root.metadata));
+        return {
+          periods: {
+            previousFull: normalizePeriod(firstValue(periods.previousFull, periods.previous, data.previousFull), 'Gestión anterior completa'),
+            previousComparable: normalizePeriod(firstValue(periods.previousComparable, periods.previousEquivalent, data.previousComparable), 'Gestión anterior comparable'),
+            current: normalizePeriod(firstValue(periods.current, data.current), 'Gestión actual')
+          },
+          managementYears: normalizeManagementYears(firstValue(data.managementYears, data.byManagementYear)),
+          calendarYears: normalizeCalendarYears(firstValue(data.calendarYears, data.byCalendarYear)),
+          payroll: normalizePayroll(firstValue(data.payrollComparison, data.payroll)),
+          sectors: normalizeSectors(firstValue(data.sectors, data.sectorComparison)),
+          budget: asObject(firstValue(data.budget, data.budgetExecution)),
+          quality: asObject(firstValue(data.quality, root.quality, data.dataQuality, data.controls)),
+          meta: meta
+        };
+      }
+
+      function redirectToLogin() {
+        if (redirecting) return;
+        redirecting = true;
+        location.replace(LOGIN_URL);
+      }
+
+      async function requestJson(url, options) {
+        var response;
+        try {
+          response = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { Accept: 'application/json' } }, options || {}));
+        } catch (error) {
+          throw new Error('No se pudo conectar con el servicio municipal.');
+        }
+        if (response.status === 401) {
+          redirectToLogin();
+          var unauthorized = new Error('Sesión vencida.');
+          unauthorized.unauthorized = true;
+          throw unauthorized;
+        }
+        var payload = null;
+        try { payload = await response.json(); } catch (error) { payload = null; }
+        if (!response.ok || (payload && payload.ok === false)) {
+          var message = payload && firstValue(payload.error, payload.message, payload.detail);
+          throw new Error(text(message, 'El servicio no pudo completar la consulta.'));
+        }
+        return payload || {};
+      }
+
+      function renderSession(payload) {
+        var root = asObject(payload);
+        var user = asObject(firstValue(root.user, root.data && root.data.user, root.data, root.session));
+        var name = text(firstValue(user.name, user.displayName, user.email), 'Sesión municipal');
+        var role = text(firstValue(user.role, user.profile, user.type), 'Acceso interno');
+        byId('userName').textContent = name;
+        byId('userRole').textContent = role;
+        var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');
+        byId('userAvatar').textContent = initials || 'MJ';
+      }
+
+      function showLoading(message) {
+        byId('loadingMessage').textContent = message || 'Consultando información.';
+        byId('loading').hidden = false;
+        byId('errorHost').hidden = true;
+        byId('mainView').hidden = true;
+      }
+
+      function showError(error) {
+        if (error && error.unauthorized) return;
+        var host = byId('errorHost');
+        clear(host);
+        var card = create('div', 'state-card');
+        card.append(create('h1', '', 'No pudimos preparar la comparación'));
+        card.append(create('p', '', text(error && error.message, 'La fuente interna no está disponible.')));
+        var retry = create('button', 'button', 'Reintentar');
+        retry.type = 'button';
+        retry.addEventListener('click', function () { if (authenticated) loadData(); else loadPage(); });
+        card.append(retry);
+        host.append(card);
+        byId('loading').hidden = true;
+        byId('mainView').hidden = true;
+        host.hidden = false;
+      }
+
+      function selectedPrevious() {
+        var analytics = state.analytics;
+        if (!analytics) return normalizePeriod({}, 'Gestión anterior');
+        if (state.mode === 'full') return analytics.periods.previousFull;
+        var comparable = analytics.periods.previousComparable;
+        var hasComparable = comparable.range.from || comparable.range.to || comparable.elapsedDays !== null || comparable.hires !== null;
+        return hasComparable ? comparable : analytics.periods.previousFull;
+      }
+
+      function statusClass(period, contextual) {
+        if (period.partial) return 'partial';
+        return contextual ? 'context' : 'ready';
+      }
+
+      function renderPeriodCard(period, title, contextual) {
+        var article = create('article', 'period-card');
+        var head = create('div', 'period-card-head');
+        head.append(create('h3', '', title));
+        var badge = create('span', 'status-pill ' + statusClass(period, contextual), period.partial ? 'Parcial' : (contextual ? 'Contexto' : 'Comparable'));
+        head.append(badge);
+        var range = create('span', 'period-range', safeDate(period.range.from) + ' — ' + safeDate(period.range.to));
+        var facts = create('dl', 'period-facts');
+        [['Duración', period.elapsedDays, 'días'], ['Altas', period.hires, 'registros'], ['Bajas', period.exits, 'registros']].forEach(function (item) {
+          var wrap = create('div');
+          wrap.append(create('dt', '', item[0]));
+          wrap.append(create('dd', '', formatInteger(item[1]) + (item[1] === null ? '' : ' ' + item[2])));
+          facts.append(wrap);
+        });
+        article.append(head, range, facts);
+        return article;
+      }
+
+      function renderPeriods() {
+        var previous = selectedPrevious();
+        var current = state.analytics.periods.current;
+        var fullContext = state.mode === 'full';
+        var rail = byId('periodRail');
+        clear(rail);
+        rail.append(renderPeriodCard(previous, fullContext ? 'Gestión anterior completa' : 'Gestión anterior comparable', fullContext));
+        rail.append(renderPeriodCard(current, 'Gestión actual', false));
+        byId('comparisonBadge').className = 'status-pill ' + (fullContext ? 'context' : 'ready');
+        byId('comparisonBadge').textContent = fullContext ? 'Duraciones distintas' : 'Mismo tiempo transcurrido';
+      }
+
+      function ledgerRow(label, note, previousValue, currentValue, previousContext, currentContext, deltaAllowed, signedValues) {
+        var row = create('div', 'ledger-row');
+        var name = create('div', 'metric-name');
+        name.append(create('strong', '', label));
+        name.append(create('span', '', note));
+        function valueCell(value, context, dataLabel) {
+          var cell = create('div', 'metric-cell');
+          cell.dataset.label = dataLabel;
+          cell.append(create('strong', '', signedValues ? formatSigned(value) : formatInteger(value)));
+          cell.append(create('span', '', context || 'Registros laborales'));
+          return cell;
+        }
+        var previousCell = valueCell(previousValue, previousContext, 'Gestión anterior');
+        var currentCell = valueCell(currentValue, currentContext, 'Gestión actual');
+        var deltaCell = create('div', 'metric-cell delta' + (deltaAllowed ? '' : ' unavailable'));
+        deltaCell.dataset.label = 'Diferencia';
+        if (!deltaAllowed) {
+          deltaCell.append(create('strong', '', 'No comparable'));
+          deltaCell.append(create('span', '', 'Las duraciones difieren'));
+        } else {
+          var delta = previousValue !== null && currentValue !== null ? currentValue - previousValue : null;
+          deltaCell.append(create('strong', '', formatSigned(delta)));
+          deltaCell.append(create('span', '', 'Actual menos anterior'));
+        }
+        row.append(name, previousCell, currentCell, deltaCell);
+        return row;
+      }
+
+      function personContext(value, singular, plural) {
+        if (value === null) return 'Personas distintas no informadas';
+        return formatInteger(value) + ' ' + (value === 1 ? singular : plural);
+      }
+
+      function renderMovementLedger() {
+        var previous = selectedPrevious();
+        var current = state.analytics.periods.current;
+        var ledger = byId('movementLedger');
+        while (ledger.children.length > 1) ledger.removeChild(ledger.lastChild);
+        var deltaAllowed = state.mode === 'equivalent' && previous.elapsedDays !== null && current.elapsedDays !== null && previous.elapsedDays === current.elapsedDays;
+        ledger.append(
+          ledgerRow('Altas registrales', 'Contratos con fecha de ingreso dentro del período.', previous.hires, current.hires, personContext(previous.hirePersons, 'persona', 'personas'), personContext(current.hirePersons, 'persona', 'personas'), deltaAllowed, false),
+          ledgerRow('Bajas registrales', 'Contratos con fecha de egreso dentro del período.', previous.exits, current.exits, personContext(previous.exitPersons, 'persona', 'personas'), personContext(current.exitPersons, 'persona', 'personas'), deltaAllowed, false),
+          ledgerRow('Balance registral', 'Altas menos bajas; no equivale a dotación final menos inicial.', previous.balance, current.balance, 'Resultado derivado', 'Resultado derivado', deltaAllowed, true)
+        );
+        if (state.mode === 'equivalent' && !deltaAllowed) {
+          byId('comparisonBadge').className = 'status-pill partial';
+          byId('comparisonBadge').textContent = 'Ventanas sin conciliar';
+        }
+      }
+
+      function yearValue(period, metric) { return period && finite(period[metric]); }
+
+      function addBarLine(host, label, value, maximum, className) {
+        var line = create('div', 'bar-line ' + (className || ''));
+        line.append(create('span', 'bar-series', label));
+        var track = create('span', 'bar-track');
+        var fill = create('span', 'bar-fill');
+        var width = value === null || maximum <= 0 ? 0 : Math.max(1.5, value / maximum * 100);
+        fill.style.setProperty('--bar-width', width.toFixed(1) + '%');
+        track.append(fill);
+        line.append(track, create('span', 'bar-value', formatInteger(value)));
+        host.append(line);
+      }
+
+      function managementYearRows() {
+        var metric = state.yearMetric;
+        return state.analytics.managementYears.map(function (row) {
+          return {
+            label: row.label || 'Año ' + row.index,
+            note: row.currentStatus ? readableStatus(row.currentStatus) : (row.comparableToCurrent === false ? 'Sin tramo comparable' : ''),
+            previous: yearValue(row.previous, metric),
+            current: yearValue(row.current, metric),
+            comparable: row.comparableToCurrent
+          };
+        });
+      }
+
+      function renderManagementYears() {
+        var rows = managementYearRows();
+        var host = byId('yearChart');
+        var tbody = byId('yearAccessibleRows');
+        var thead = byId('yearAccessibleHead');
+        clear(host); clear(tbody); clear(thead);
+        var headRow = create('tr');
+        ['Año de gestión', 'Gestión anterior', 'Gestión actual', 'Estado'].forEach(function (label) { headRow.append(create('th', '', label)); });
+        thead.append(headRow);
+        if (!rows.length) { host.append(create('div', 'chart-empty', 'La API no informó años de gestión.')); return; }
+        var maximum = Math.max.apply(null, rows.reduce(function (values, row) { return values.concat([row.previous || 0, row.current || 0]); }, [1]));
+        rows.forEach(function (row) {
+          var visual = create('div', 'year-row');
+          visual.setAttribute('role', 'listitem');
+          var label = create('div', 'year-label', row.label);
+          if (row.note) label.append(create('small', '', row.note));
+          var bars = create('div', 'year-bars');
+          addBarLine(bars, 'Anterior', row.previous, maximum, 'previous');
+          addBarLine(bars, 'Actual', row.current, maximum, 'current');
+          visual.append(label, bars);
+          host.append(visual);
+          var tr = create('tr');
+          [row.label, formatInteger(row.previous), formatInteger(row.current), row.note || (row.comparable === false ? 'No comparable' : 'Comparable')].forEach(function (value) { tr.append(create('td', '', value)); });
+          tbody.append(tr);
+        });
+      }
+
+      function renderCalendarYears() {
+        var rows = state.analytics.calendarYears;
+        var host = byId('yearChart');
+        var tbody = byId('yearAccessibleRows');
+        var thead = byId('yearAccessibleHead');
+        clear(host); clear(tbody); clear(thead);
+        var headRow = create('tr');
+        ['Año calendario', 'Altas', 'Bajas', 'Contexto'].forEach(function (label) { headRow.append(create('th', '', label)); });
+        thead.append(headRow);
+        if (!rows.length) { host.append(create('div', 'chart-empty', 'La API no informó años calendario.')); return; }
+        var maximum = Math.max.apply(null, rows.reduce(function (values, row) { return values.concat([row.period.hires || 0, row.period.exits || 0]); }, [1]));
+        rows.forEach(function (row) {
+          var labelText = row.label || String(row.year || 'Año sin informar');
+          var context = [row.management, row.transition ? 'Año de transición' : '', row.partial ? 'Parcial' : ''].filter(Boolean).join(' · ');
+          var visual = create('div', 'year-row');
+          visual.setAttribute('role', 'listitem');
+          var label = create('div', 'year-label', labelText);
+          if (context) label.append(create('small', '', context));
+          var bars = create('div', 'year-bars');
+          addBarLine(bars, 'Altas', row.period.hires, maximum, 'current');
+          addBarLine(bars, 'Bajas', row.period.exits, maximum, 'exit');
+          visual.append(label, bars);
+          host.append(visual);
+          var tr = create('tr');
+          [labelText, formatInteger(row.period.hires), formatInteger(row.period.exits), context || 'Año calendario'].forEach(function (value) { tr.append(create('td', '', value)); });
+          tbody.append(tr);
+        });
+      }
+
+      function renderYears() {
+        var calendar = state.basis === 'calendar';
+        byId('yearMetricField').hidden = calendar;
+        byId('yearChartTitle').textContent = calendar ? 'Altas y bajas por año calendario' : 'Movimientos por año de gestión';
+        byId('yearsDescription').textContent = calendar
+          ? 'El año calendario puede cruzar más de una gestión y se presenta sólo como contexto administrativo.'
+          : 'Cada año se alinea desde la fecha de inicio de su gestión. Un tramo parcial se compara únicamente con el mismo tramo anterior.';
+        byId('yearChartNote').textContent = calendar
+          ? 'Las barras comparten escala; los años parciales permanecen marcados.'
+          : 'Seleccioná altas o bajas; la longitud de las barras usa una misma escala.';
+        byId('yearsBadge').className = 'status-pill ' + (calendar ? 'partial' : 'context');
+        byId('yearsBadge').textContent = calendar ? 'Contexto, no equivalencia' : 'Año de gestión';
+        if (calendar) renderCalendarYears(); else renderManagementYears();
+      }
+
+      function renderPairList(host, rows, previousLabel, currentLabel) {
+        clear(host);
+        var dl = create('dl', 'pair-list');
+        var header = create('div', 'pair-row pair-head');
+        header.append(create('span', '', 'Indicador'), create('span', '', previousLabel), create('span', '', currentLabel));
+        dl.append(header);
+        rows.forEach(function (row) {
+          var item = create('div', 'pair-row');
+          item.append(create('dt', '', row.label), create('dd', '', row.format(row.previous)), create('dd', '', row.format(row.current)));
+          dl.append(item);
+        });
+        host.append(dl);
+      }
+
+      function renderNormalized() {
+        var payroll = state.analytics.payroll;
+        var comparable = state.analytics.periods.previousComparable;
+        var hasComparable = comparable.range.from || comparable.range.to || comparable.elapsedDays !== null || comparable.absenceEvents !== null;
+        var previous = hasComparable ? comparable : selectedPrevious();
+        var current = state.analytics.periods.current;
+        byId('payrollBasis').textContent = payroll.basis ? readableStatus(payroll.basis) : 'La API no informó la definición de la base de nómina.';
+        renderPairList(byId('payrollPairs'), [
+          { label: 'Meses esperados', previous: payroll.previous.expectedMonths, current: payroll.current.expectedMonths, format: formatInteger },
+          { label: 'Meses cerrados', previous: payroll.previous.closedMonths, current: payroll.current.closedMonths, format: formatInteger },
+          { label: 'Contratos-mes', previous: payroll.previous.contractMonths, current: payroll.current.contractMonths, format: formatInteger },
+          { label: 'Promedio liquidado', previous: payroll.previous.averageLiquidated, current: payroll.current.averageLiquidated, format: formatDecimal }
+        ], 'Anterior', 'Actual');
+        var expected = payroll.monthsExpected === null ? '' : ' Meses esperados por ventana: ' + formatInteger(payroll.monthsExpected) + '.';
+        byId('payrollNote').textContent = 'Sólo se incluyen cierres que cumplen el contrato publicado.' + expected;
+        renderPairList(byId('absencePairs'), [
+          { label: 'Eventos registrados', previous: previous.absenceEvents, current: current.absenceEvents, format: formatInteger },
+          { label: 'Eventos con base de nómina', previous: payroll.previous.events, current: payroll.current.events, format: formatInteger },
+          { label: 'Legajos afectados', previous: previous.affectedContracts, current: current.affectedContracts, format: formatInteger },
+          { label: 'Días declarados GRH', previous: previous.sourceDeclaredDays, current: current.sourceDeclaredDays, format: formatDecimal },
+          { label: 'Eventos / 100 contratos-mes', previous: payroll.previous.eventsPer100ContractMonths, current: payroll.current.eventsPer100ContractMonths, format: formatRatio }
+        ], 'Anterior', 'Actual');
+        var normalizedAvailable = payroll.previous.eventsPer100ContractMonths !== null && payroll.current.eventsPer100ContractMonths !== null;
+        byId('normalizedBadge').className = 'status-pill ' + (normalizedAvailable ? 'ready' : 'partial');
+        byId('normalizedBadge').textContent = normalizedAvailable ? 'Denominador disponible' : 'Cociente no disponible';
+      }
+
+      function mappingSummary(mapping, consolidatedAvailable) {
+        var status = readableStatus(firstValue(mapping.status, mapping.state));
+        var version = text(firstValue(mapping.version, mapping.versionId, mapping.mappingVersion, mapping.id));
+        var coverage = finite(firstValue(mapping.coveragePct, mapping.coveragePercent, mapping.coverage));
+        var coverageObject = asObject(mapping.coverage);
+        var pieces = [];
+        if (status !== 'No informado') pieces.push(status);
+        if (version) pieces.push('versión ' + version);
+        if (coverage !== null) pieces.push('cobertura ' + decimalFormat.format(coverage <= 1 ? coverage * 100 : coverage) + '%');
+        if (asArray(coverageObject.sourceLabels).length) pieces.push(formatInteger(coverageObject.sourceLabels.length) + ' etiquetas fuente');
+        if (!pieces.length) pieces.push(consolidatedAvailable ? 'Mapeo consolidado disponible' : 'No hay mapeo consolidado publicado');
+        return pieces.join(' · ');
+      }
+
+      function sectorValues(row) {
+        return state.sectorMetric === 'events'
+          ? { previous: row.previousEvents, current: row.currentEvents }
+          : { previous: row.previousContractMonths, current: row.currentContractMonths };
+      }
+
+      function renderSectors() {
+        var sectors = state.analytics.sectors;
+        var consolidatedAvailable = sectors.consolidated.length > 0;
+        byId('consolidatedGrouping').disabled = !consolidatedAvailable;
+        if (state.grouping === 'consolidated' && !consolidatedAvailable) {
+          state.grouping = 'literal';
+          document.querySelector('input[name="grouping"][value="literal"]').checked = true;
+        }
+        var rows = state.grouping === 'consolidated' ? sectors.consolidated : sectors.literal;
+        var mappingText = mappingSummary(sectors.mapping, consolidatedAvailable);
+        var mappingWarning = text(sectors.mapping.warning);
+        byId('mappingNote').textContent = (state.grouping === 'consolidated' ? 'Familias homologadas: ' : 'Fuente literal: ') + mappingText + '. ' + (mappingWarning ? mappingWarning + ' ' : '') + 'Las categorías sin mapeo deben permanecer visibles. La distribución conserva la ventana comparable publicada por la API.';
+        byId('sectorBadge').className = 'status-pill ' + (state.grouping === 'consolidated' ? 'ready' : 'context');
+        byId('sectorBadge').textContent = state.grouping === 'consolidated' ? 'Mapeo explícito' : 'Etiquetas GRH';
+        var ordered = rows.slice().sort(function (a, b) {
+          var av = sectorValues(a); var bv = sectorValues(b);
+          return (bv.current || 0) - (av.current || 0) || (bv.previous || 0) - (av.previous || 0) || a.label.localeCompare(b.label, 'es');
+        });
+        var visible = ordered.slice(0, 10);
+        var maximum = Math.max.apply(null, visible.reduce(function (values, row) { var pair = sectorValues(row); return values.concat([pair.previous || 0, pair.current || 0]); }, [1]));
+        var host = byId('sectorBars');
+        clear(host);
+        if (!visible.length) {
+          host.append(create('div', 'chart-empty', 'La API no informó categorías para esta agrupación.'));
+        } else {
+          visible.forEach(function (row) {
+            var pair = sectorValues(row);
+            var item = create('div', 'sector-row');
+            item.setAttribute('role', 'listitem');
+            var name = create('div', 'sector-name');
+            name.append(create('strong', '', row.label));
+            name.append(create('span', '', formatInteger(pair.previous) + ' → ' + formatInteger(pair.current)));
+            item.append(name);
+            [['Anterior', pair.previous, ''], ['Actual', pair.current, 'current']].forEach(function (bar) {
+              var line = create('div', 'sector-pair ' + bar[2]);
+              line.append(create('span', 'sector-series', bar[0]));
+              var track = create('span', 'sector-track');
+              var fill = create('span', 'sector-fill');
+              var width = bar[1] === null ? 0 : Math.max(1.5, bar[1] / maximum * 100);
+              fill.style.setProperty('--bar-width', width.toFixed(1) + '%');
+              track.append(fill);
+              line.append(track, create('span', 'sector-value', formatInteger(bar[1])));
+              item.append(line);
+            });
+            host.append(item);
+          });
+        }
+        var table = byId('sectorRows');
+        clear(table);
+        ordered.forEach(function (row) {
+          var tr = create('tr');
+          [row.label, formatInteger(row.previousContractMonths), formatInteger(row.currentContractMonths), formatInteger(row.previousEvents), formatInteger(row.currentEvents)].forEach(function (value, index) {
+            tr.append(create('td', index ? 'numeric' : '', value));
+          });
+          table.append(tr);
+        });
+      }
+
+      function budgetAvailable(budget) {
+        var explicit = booleanValue(firstValue(budget.available, budget.isAvailable, budget.ready));
+        if (explicit !== null) return explicit;
+        return /^(ready|available|published|verified)$/i.test(text(firstValue(budget.status, budget.state)));
+      }
+
+      function renderBudget() {
+        var budget = state.analytics.budget;
+        var available = budgetAvailable(budget);
+        var title = text(firstValue(budget.title, budget.label), available ? 'Fuente presupuestaria disponible' : 'Fuente presupuestaria pendiente');
+        var message = text(firstValue(budget.message, budget.detail, budget.reason, budget.explanation), available
+          ? 'La API informó disponibilidad. Revisá fuente, período y definición antes de interpretar las cifras.'
+          : 'No se publican cifras hasta incorporar y conciliar una fuente oficial de presupuesto y ejecución.');
+        var requiredValue = firstValue(budget.requiredSource, budget.sourceRequired, budget.nextStep, budget.nextSourceContract, budget.source);
+        var required = Array.isArray(requiredValue) ? requiredValue.join(', ') : text(requiredValue);
+        byId('budgetCardTitle').textContent = title;
+        byId('budgetMessage').textContent = message;
+        byId('budgetMeta').textContent = required ? 'Fuente o próximo paso: ' + required : '';
+        byId('budgetBadge').className = 'status-pill ' + (available ? 'ready' : 'unavailable');
+        byId('budgetBadge').textContent = available ? 'Fuente informada' : 'No cargado';
+        var facts = byId('budgetFacts');
+        clear(facts);
+        facts.hidden = true;
+      }
+
+      function metaValue(meta, keys) {
+        for (var index = 0; index < keys.length; index += 1) {
+          var value = meta[keys[index]];
+          if (value !== null && value !== undefined && value !== '') return value;
+        }
+        return null;
+      }
+
+      function renderEvidence() {
+        var meta = state.analytics.meta;
+        var cutoff = metaValue(meta, ['sourceCutoff', 'cutoff', 'snapshotAt', 'asOf']);
+        var source = text(metaValue(meta, ['source', 'dataset', 'authority']), 'GRH municipal');
+        var generated = metaValue(meta, ['generatedAt', 'updatedAt', 'publishedAt', 'loadedAt']);
+        var facts = [
+          ['Fuente', source],
+          ['Corte', safeDate(cutoff)],
+          ['Actualización', generated ? safeDate(generated) : 'No informada'],
+          ['Grano', describeValue(metaValue(meta, ['grain', 'dataGrain']))],
+          ['Versión', describeValue(metaValue(meta, ['schemaVersion', 'version', 'contractVersion']))],
+          ['Datos personales', meta.containsPersonalData === false ? 'No contiene' : describeValue(meta.containsPersonalData)]
+        ];
+        var sourceFacts = byId('sourceFacts');
+        clear(sourceFacts);
+        facts.forEach(function (item) {
+          var row = create('div');
+          row.append(create('dt', '', item[0]), create('dd', '', item[1]));
+          sourceFacts.append(row);
+        });
+        var quality = state.analytics.quality;
+        var qualityList = byId('qualityList');
+        clear(qualityList);
+        var entries = Object.keys(quality).filter(function (key) { return !/^meta$/i.test(key); });
+        if (!entries.length) {
+          var missing = create('li');
+          missing.append(create('strong', '', 'Controles no informados'), document.createTextNode('La API no publicó salvedades de calidad para este recurso.'));
+          qualityList.append(missing);
+        } else {
+          entries.slice(0, 16).forEach(function (key) {
+            var item = create('li');
+            item.append(create('strong', '', readableKey(key)), document.createTextNode(describeValue(quality[key])));
+            qualityList.append(item);
+          });
+        }
+        [['Semántica de ausentismo', meta.absenceMetricSemantics], ['Semántica sectorial', meta.sectorSemantics]].forEach(function (entry) {
+          if (!text(entry[1])) return;
+          var item = create('li');
+          item.append(create('strong', '', entry[0]), document.createTextNode(text(entry[1])));
+          qualityList.append(item);
+        });
+        byId('qualityBadge').className = 'status-pill ' + (entries.length ? 'ready' : 'partial');
+        byId('qualityBadge').textContent = entries.length ? 'Controles publicados' : 'Sin controles';
+        var sourceChip = byId('sourceChip');
+        sourceChip.className = 'source-chip';
+        sourceChip.querySelector('span').textContent = source + ' · corte ' + safeDate(cutoff);
+        byId('overallTitle').textContent = 'Corte ' + safeDate(cutoff);
+        byId('overallDetail').textContent = state.analytics.periods.current.partial
+          ? 'La gestión actual está abierta. Se usa una ventana equivalente y no se proyectan meses faltantes.'
+          : 'El estado del período actual fue informado como completo por la fuente.';
+        byId('footerSource').textContent = 'Uso interno · ' + source + ' · corte ' + safeDate(cutoff) + ' · comparación descriptiva, no causal.';
+      }
+
+      function updateUrl() {
+        var url = new URL(location.href);
+        if (state.mode !== 'equivalent') url.searchParams.set('mode', state.mode); else url.searchParams.delete('mode');
+        if (state.basis !== 'management') url.searchParams.set('basis', state.basis); else url.searchParams.delete('basis');
+        if (state.grouping !== 'literal') url.searchParams.set('grouping', state.grouping); else url.searchParams.delete('grouping');
+        if (state.sectorMetric !== 'contractMonths') url.searchParams.set('measure', state.sectorMetric); else url.searchParams.delete('measure');
+        history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+      }
+
+      function renderControlSummary() {
+        byId('controlSummary').textContent = state.mode === 'equivalent'
+          ? (state.basis === 'management'
+            ? 'Mismo tiempo transcurrido · años alineados desde el inicio de cada gestión · diferencias habilitadas sólo si los días concilian.'
+            : 'Mismo tiempo transcurrido · años calendario como contexto; un año puede cruzar dos gestiones.')
+          : (state.basis === 'management'
+            ? 'Gestión anterior completa frente a gestión actual abierta · sin diferencia directa por duración desigual.'
+            : 'Gestión completa y años calendario · lectura contextual sin equivalencia temporal.');
+      }
+
+      function renderAll() {
+        renderControlSummary();
+        renderPeriods();
+        renderMovementLedger();
+        renderYears();
+        renderNormalized();
+        renderSectors();
+        renderBudget();
+        renderEvidence();
+        byId('partialNotice').hidden = !state.analytics.periods.current.partial;
+        byId('mainView').hidden = false;
+        byId('loading').hidden = true;
+        byId('errorHost').hidden = true;
+        document.title = 'Comparación de gestiones | MuniControl Junín';
+      }
+
+      function hydrateStateFromUrl() {
+        var params = new URLSearchParams(location.search);
+        if (params.get('mode') === 'full') state.mode = 'full';
+        if (params.get('basis') === 'calendar') state.basis = 'calendar';
+        if (params.get('grouping') === 'consolidated') state.grouping = 'consolidated';
+        if (params.get('measure') === 'events') state.sectorMetric = 'events';
+        byId('comparisonMode').value = state.mode;
+        byId('timeBasis').value = state.basis;
+        byId('sectorMetric').value = state.sectorMetric;
+        var grouping = document.querySelector('input[name="grouping"][value="' + state.grouping + '"]');
+        if (grouping) grouping.checked = true;
+      }
+
+      async function loadData() {
+        if (redirecting) return;
+        var requestId = ++requestSequence;
+        showLoading('Consultamos períodos, nómina, ausentismo y composición con el mismo contrato agregado.');
+        byId('refreshButton').disabled = true;
+        try {
+          var payload = await requestJson(DATA_URL);
+          if (requestId !== requestSequence || redirecting) return;
+          state.analytics = normalizeAnalytics(payload);
+          renderAll();
+        } catch (error) {
+          if (requestId === requestSequence) showError(error);
+        } finally {
+          if (requestId === requestSequence) byId('refreshButton').disabled = false;
+        }
+      }
+
+      async function loadPage() {
+        if (redirecting) return;
+        showLoading('Verificamos tu sesión antes de consultar la fuente laboral.');
+        try {
+          var auth = await requestJson(AUTH_URL);
+          if (redirecting) return;
+          renderSession(auth);
+          authenticated = true;
+          await loadData();
+        } catch (error) {
+          showError(error);
+        }
+      }
+
+      async function logout() {
+        byId('logoutButton').disabled = true;
+        try { await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json' } }); } catch (error) { /* cierre local */ }
+        try { sessionStorage.removeItem('mjunin_user'); } catch (error) { /* no disponible */ }
+        redirectToLogin();
+      }
+
+      function openMenu() {
+        document.body.classList.add('nav-open');
+        byId('menuButton').setAttribute('aria-expanded', 'true');
+        byId('menuClose').focus();
+      }
+
+      function closeMenu(restoreFocus) {
+        var wasOpen = document.body.classList.contains('nav-open');
+        document.body.classList.remove('nav-open');
+        byId('menuButton').setAttribute('aria-expanded', 'false');
+        if (restoreFocus && wasOpen) byId('menuButton').focus();
+      }
+
+      function trapMenuFocus(event) {
+        if (event.key !== 'Tab' || !document.body.classList.contains('nav-open') || window.innerWidth > 820) return;
+        var focusable = Array.from(byId('sidebar').querySelectorAll('a[href], button:not([disabled])')).filter(function (node) { return node.getClientRects().length > 0; });
+        if (!focusable.length) return;
+        var first = focusable[0]; var last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+
+      hydrateStateFromUrl();
+      byId('comparisonForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        state.mode = byId('comparisonMode').value === 'full' ? 'full' : 'equivalent';
+        state.basis = byId('timeBasis').value === 'calendar' ? 'calendar' : 'management';
+        updateUrl();
+        if (state.analytics) { renderControlSummary(); renderPeriods(); renderMovementLedger(); renderYears(); renderNormalized(); }
+      });
+      byId('resetFilters').addEventListener('click', function () {
+        state.mode = 'equivalent'; state.basis = 'management';
+        byId('comparisonMode').value = state.mode; byId('timeBasis').value = state.basis;
+        updateUrl();
+        if (state.analytics) { renderControlSummary(); renderPeriods(); renderMovementLedger(); renderYears(); renderNormalized(); }
+      });
+      byId('yearMetric').addEventListener('change', function () { state.yearMetric = this.value === 'exits' ? 'exits' : 'hires'; if (state.analytics) renderYears(); });
+      document.querySelectorAll('input[name="grouping"]').forEach(function (input) { input.addEventListener('change', function () { if (!this.checked) return; state.grouping = this.value; updateUrl(); if (state.analytics) renderSectors(); }); });
+      byId('sectorMetric').addEventListener('change', function () { state.sectorMetric = this.value === 'events' ? 'events' : 'contractMonths'; updateUrl(); if (state.analytics) renderSectors(); });
+      byId('refreshButton').addEventListener('click', function () { if (authenticated) loadData(); else loadPage(); });
+      byId('logoutButton').addEventListener('click', logout);
+      byId('menuButton').addEventListener('click', openMenu);
+      byId('menuClose').addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); closeMenu(true); });
+      byId('navBackdrop').addEventListener('click', function () { closeMenu(true); });
+      byId('sidebar').querySelectorAll('a.nav-link').forEach(function (link) { link.addEventListener('click', function () { closeMenu(false); }); });
+      document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && document.body.classList.contains('nav-open')) { event.preventDefault(); closeMenu(true); return; } trapMenuFocus(event); });
+      window.addEventListener('resize', function () { if (window.innerWidth > 820) closeMenu(false); });
+
+      loadPage();
+    }());
+  </script>
+</body>
+</html>

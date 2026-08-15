@@ -15,6 +15,7 @@ const shellFiles = [
   'estructura.html',
   'integracion-datos.html',
   'nomina-control.html',
+  'gestion-comparativa.html',
   'ausentismo-control.html',
   'licencias-control.html',
   'calidad-operativa.html',

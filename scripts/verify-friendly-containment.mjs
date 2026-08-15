@@ -15,6 +15,7 @@ assert.equal(rewrites.get('/reportes'), '/reportes-rrhh.html');
 assert.equal(rewrites.get('/organigrama'), '/estructura.html');
 assert.equal(rewrites.get('/integracion-datos'), '/integracion-datos.html');
 assert.equal(rewrites.get('/nomina-control'), '/nomina-control.html');
+assert.equal(rewrites.get('/gestion-comparativa'), '/gestion-comparativa.html');
 assert.equal(rewrites.get('/ausentismo-control'), '/ausentismo-control.html');
 assert.equal(rewrites.get('/licencias-control'), '/licencias-control.html');
 assert.equal(rewrites.get('/calidad-operativa'), '/calidad-operativa.html');
@@ -33,12 +34,13 @@ const ignore = read('.vercelignore');
 for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/rrhh.js', 'api/lib/db.js', '*.html', 'lookups.json', 'transcripts_audios.json', 'quick-seed.js', 'test_prisma.js']) assert.ok(ignore.includes(pattern));
 assert.doesNotMatch(ignore, /^sw\.js$/m, 'el service worker PWA debe llegar al build de Vercel');
 assert.doesNotMatch(ignore, /^manifest\.webmanifest$/m, 'el manifiesto PWA debe llegar al build de Vercel');
+assert.match(ignore, /^!gestion-comparativa\.html$/m, 'la comparación de gestiones debe llegar al build de Vercel');
 const gitIgnore = read('.gitignore');
 for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
   assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
 }
 
-for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
+for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;
@@ -56,7 +58,7 @@ assert.match(internalGuide, /sessionStorage/, 'la guía debe aislar el progreso 
 assert.doesNotMatch(internalGuide, /localStorage/, 'la guía no debe compartir progreso entre empleados del mismo navegador');
 assert.match(internalGuide, /product-guidance\.js/, 'la guía debe consumir el catálogo de producto compartido');
 assert.match(read('api/internal-assistant.js'), /product-guidance\.js/, 'la IA debe consumir el mismo catálogo de producto');
-for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html']) {
+for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html']) {
   assert.match(read(file), /assets\/internal-guide\.js/, `${file} debe cargar la ayuda contextual compartida`);
 }
 assert.match(read('api/internal-data.js'), /mendoza-title-vi\.js/, 'la API de licencias debe consumir el catalogo normativo versionado');
@@ -65,6 +67,7 @@ assert.match(read('modulos.html'), /href="licencias-control\.html"/, 'el mapa de
 assert.match(read('friendly-dashboard.html'), /Control normativo de licencias/, 'el tablero publico debe distinguir control normativo de saldos vigentes');
 assert.match(read('asistente.html'), /value="leave_policy"/, 'el asistente debe ofrecer la consulta normativa explícita');
 assert.match(read('login.html'), /licencias-control\.html/, 'el acceso interno debe permitir volver al módulo de Licencias');
+assert.match(read('login.html'), /gestion-comparativa\.html/, 'el acceso interno debe permitir volver a la comparación de gestiones');
 for (const file of ['api/friendly-policy.js', 'api/internal-auth.js', 'api/internal-data.js', 'api/internal-assistant.js']) {
   assert.doesNotMatch(ignore, new RegExp(`^${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `${file} no debe estar excluido de Vercel`);
 }

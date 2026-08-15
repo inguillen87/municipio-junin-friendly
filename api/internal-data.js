@@ -2027,6 +2027,595 @@ export async function leavePreview(sql, req) {
   };
 }
 
+const MANAGEMENT_PREVIOUS = Object.freeze({
+  id: 'previous_full',
+  label: 'Gestión anterior',
+  from: '2019-12-10',
+  to: '2023-12-08',
+});
+const MANAGEMENT_CURRENT = Object.freeze({
+  id: 'current',
+  label: 'Gestión actual',
+  from: '2023-12-09',
+  expectedTo: '2027-12-08',
+});
+const MANAGEMENT_GARDEN_SECTOR_CODES = new Set([
+  '17', '18', '19', '20', '21', '22', '23', '24', '25',
+  '26', '27', '31', '33', '36', '37', '38', '39', '40',
+]);
+
+function managementUtc(value) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function managementIso(value) {
+  return value.toISOString().slice(0, 10);
+}
+
+function managementAddDays(value, days) {
+  const date = managementUtc(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return managementIso(date);
+}
+
+function managementAddYears(value, years) {
+  const date = managementUtc(value);
+  date.setUTCFullYear(date.getUTCFullYear() + years);
+  return managementIso(date);
+}
+
+function managementInclusiveDays(from, to) {
+  return Math.floor((managementUtc(to) - managementUtc(from)) / 86400000) + 1;
+}
+
+function managementCompleteMonthRange(from, to) {
+  const first = managementUtc(from);
+  if (first.getUTCDate() !== 1) {
+    first.setUTCMonth(first.getUTCMonth() + 1, 1);
+  }
+  const afterLast = managementUtc(to);
+  afterLast.setUTCDate(afterLast.getUTCDate() + 1);
+  const last = new Date(Date.UTC(afterLast.getUTCFullYear(), afterLast.getUTCMonth(), 0));
+  if (first > last) return null;
+  return { from: managementIso(first), to: managementIso(last) };
+}
+
+function managementMonthCount(from, to) {
+  const start = managementUtc(from);
+  const end = managementUtc(to);
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12
+    + end.getUTCMonth() - start.getUTCMonth() + 1;
+}
+
+function managementWindowSql(windows) {
+  const values = [];
+  const placeholders = windows.map((window) => {
+    values.push(window.id, window.from, window.to);
+    const offset = values.length - 2;
+    return `($${offset}::text, $${offset + 1}::date, $${offset + 2}::date)`;
+  });
+  return { values, sql: placeholders.join(',\n        ') };
+}
+
+function managementNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function managementMetric(row = {}, window = {}) {
+  const hires = managementNumber(row.hires);
+  const exits = managementNumber(row.exits);
+  return {
+    range: { from: window.from || isoDate(row.from), to: window.to || isoDate(row.to) },
+    elapsedDays: managementInclusiveDays(window.from || isoDate(row.from), window.to || isoDate(row.to)),
+    partial: Boolean(window.partial),
+    future: Boolean(window.future),
+    hires,
+    hirePersons: managementNumber(row.hirePersons),
+    exits,
+    exitPersons: managementNumber(row.exitPersons),
+    balance: hires - exits,
+    absenceEvents: managementNumber(row.absenceEvents),
+    affectedContracts: managementNumber(row.affectedContracts),
+    sourceDeclaredDays: managementNumber(row.sourceDeclaredDays),
+  };
+}
+
+function managementPercent(current, previous) {
+  return previous === 0 ? null : Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+function managementSectorProjection(rows, grouping) {
+  const projected = new Map();
+  for (const row of rows) {
+    const garden = String(row.companyId ?? '') === '101'
+      && MANAGEMENT_GARDEN_SECTOR_CODES.has(String(row.sectorCode ?? ''));
+    const label = grouping === 'garden_sector_family_v1' && garden
+      ? 'Sectores de jardines'
+      : String(row.label || 'Sin clasificación sectorial');
+    const target = projected.get(label) || {
+      label,
+      previousContractMonths: 0,
+      currentContractMonths: 0,
+      previousEvents: 0,
+      currentEvents: 0,
+      previousAffectedContracts: 0,
+      currentAffectedContracts: 0,
+      sourceLabels: new Set(),
+      qualityStates: new Set(),
+    };
+    target.previousContractMonths += managementNumber(row.previousContractMonths);
+    target.currentContractMonths += managementNumber(row.currentContractMonths);
+    target.previousEvents += managementNumber(row.previousEvents);
+    target.currentEvents += managementNumber(row.currentEvents);
+    target.previousAffectedContracts += managementNumber(row.previousAffectedContracts);
+    target.currentAffectedContracts += managementNumber(row.currentAffectedContracts);
+    target.sourceLabels.add(String(row.label || 'Sin clasificación sectorial'));
+    target.qualityStates.add(String(row.quality || 'unknown'));
+    projected.set(label, target);
+  }
+  return [...projected.values()]
+    .map((row) => ({
+      label: row.label,
+      previousContractMonths: row.previousContractMonths,
+      currentContractMonths: row.currentContractMonths,
+      previousEvents: row.previousEvents,
+      currentEvents: row.currentEvents,
+      previousAffectedContracts: row.previousAffectedContracts,
+      currentAffectedContracts: row.currentAffectedContracts,
+      previousEventsPer100ContractMonths: row.previousContractMonths
+        ? Math.round((row.previousEvents / row.previousContractMonths) * 10000) / 100
+        : null,
+      currentEventsPer100ContractMonths: row.currentContractMonths
+        ? Math.round((row.currentEvents / row.currentContractMonths) * 10000) / 100
+        : null,
+      sourceLabels: [...row.sourceLabels].sort((a, b) => a.localeCompare(b, 'es')),
+      quality: row.qualityStates.size === 1 ? [...row.qualityStates][0] : 'mixed',
+    }))
+    .sort((a, b) => (b.currentContractMonths + b.previousContractMonths)
+      - (a.currentContractMonths + a.previousContractMonths) || a.label.localeCompare(b.label, 'es'));
+}
+
+/**
+ * Compara dos gestiones con ventanas exactas y una base temporal equivalente.
+ * El contrato es agregado: no publica nombres, documentos ni identificadores de legajo.
+ */
+export async function managementAnalytics(sql) {
+  const [source = null] = await sql.query(`
+    /* management:source */
+    SELECT id AS "batchId", source_cutoff AS "sourceCutoff",
+           recorded_at AS "loadedAt", validation_state AS status
+    FROM source_import_batch
+    WHERE source_system = 'GRH' AND validation_state = 'published'
+    ORDER BY source_cutoff DESC, recorded_at DESC, id DESC
+    LIMIT 1
+  `);
+  const cutoff = isoDate(source?.sourceCutoff);
+  if (!source || !cutoff || cutoff < MANAGEMENT_CURRENT.from) {
+    return {
+      status: 503,
+      payload: { ok: false, code: 'MANAGEMENT_SOURCE_NOT_LOADED', error: 'La fuente GRH comparable no está disponible.' },
+    };
+  }
+
+  const currentTo = cutoff < MANAGEMENT_CURRENT.expectedTo ? cutoff : MANAGEMENT_CURRENT.expectedTo;
+  const currentDays = managementInclusiveDays(MANAGEMENT_CURRENT.from, currentTo);
+  const previousComparableTo = managementAddDays(MANAGEMENT_PREVIOUS.from, currentDays - 1) < MANAGEMENT_PREVIOUS.to
+    ? managementAddDays(MANAGEMENT_PREVIOUS.from, currentDays - 1)
+    : MANAGEMENT_PREVIOUS.to;
+  const periodWindows = [
+    { ...MANAGEMENT_PREVIOUS, partial: false },
+    {
+      id: 'previous_comparable', label: 'Gestión anterior a igual antigüedad',
+      from: MANAGEMENT_PREVIOUS.from, to: previousComparableTo, partial: false,
+    },
+    {
+      id: MANAGEMENT_CURRENT.id, label: MANAGEMENT_CURRENT.label,
+      from: MANAGEMENT_CURRENT.from, to: currentTo,
+      partial: currentTo < MANAGEMENT_CURRENT.expectedTo,
+    },
+  ];
+
+  const managementYearWindows = [];
+  const managementYearPairs = [];
+  for (let index = 0; index < 4; index += 1) {
+    const previousFrom = managementAddYears(MANAGEMENT_PREVIOUS.from, index);
+    const previousNaturalTo = managementAddDays(managementAddYears(previousFrom, 1), -1);
+    const previousFullTo = previousNaturalTo < MANAGEMENT_PREVIOUS.to ? previousNaturalTo : MANAGEMENT_PREVIOUS.to;
+    const currentFrom = managementAddYears(MANAGEMENT_CURRENT.from, index);
+    if (currentFrom > currentTo) {
+      const previousId = `management-year-previous-${index + 1}`;
+      managementYearWindows.push({ id: previousId, from: previousFrom, to: previousFullTo, partial: false });
+      managementYearPairs.push({ index: index + 1, previousId, currentId: null, currentStatus: 'future' });
+      continue;
+    }
+    const currentNaturalTo = managementAddDays(managementAddYears(currentFrom, 1), -1);
+    const currentYearTo = currentNaturalTo < currentTo ? currentNaturalTo : currentTo;
+    const elapsed = managementInclusiveDays(currentFrom, currentYearTo);
+    const previousComparableYearTo = managementAddDays(previousFrom, elapsed - 1) < previousFullTo
+      ? managementAddDays(previousFrom, elapsed - 1)
+      : previousFullTo;
+    const previousId = `management-year-previous-${index + 1}`;
+    const currentId = `management-year-current-${index + 1}`;
+    managementYearWindows.push(
+      { id: previousId, from: previousFrom, to: previousComparableYearTo, partial: previousComparableYearTo < previousFullTo },
+      { id: currentId, from: currentFrom, to: currentYearTo, partial: currentYearTo < currentNaturalTo },
+    );
+    managementYearPairs.push({ index: index + 1, previousId, currentId, currentStatus: currentYearTo < currentNaturalTo ? 'partial' : 'complete' });
+  }
+
+  const calendarWindows = [];
+  for (let year = 2019; year <= Number(currentTo.slice(0, 4)); year += 1) {
+    const naturalFrom = `${year}-01-01`;
+    const naturalTo = `${year}-12-31`;
+    calendarWindows.push({
+      id: `calendar-${year}`,
+      year,
+      from: naturalFrom < MANAGEMENT_PREVIOUS.from ? MANAGEMENT_PREVIOUS.from : naturalFrom,
+      to: naturalTo > currentTo ? currentTo : naturalTo,
+      partial: naturalFrom < MANAGEMENT_PREVIOUS.from || naturalTo > currentTo,
+      transition: year === 2023,
+    });
+  }
+
+  const metricWindows = [...periodWindows, ...managementYearWindows, ...calendarWindows];
+  const metricScope = managementWindowSql(metricWindows);
+  const payrollPrevious = managementCompleteMonthRange(MANAGEMENT_PREVIOUS.from, previousComparableTo);
+  const payrollCurrent = managementCompleteMonthRange(MANAGEMENT_CURRENT.from, currentTo);
+
+  const [metricRows, payrollRows, sectorRawRows, [quality = {}]] = await Promise.all([
+    sql.query(`
+      /* management:metrics */
+      WITH windows(id, date_from, date_to) AS (
+        VALUES ${metricScope.sql}
+      )
+      SELECT period.id, period.date_from AS "from", period.date_to AS "to",
+             (SELECT count(*)::int FROM employment_contract contract
+               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS hires,
+             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
+               WHERE contract.start_date BETWEEN period.date_from AND period.date_to) AS "hirePersons",
+             (SELECT count(*)::int FROM employment_contract contract
+               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS exits,
+             (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
+               WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS "exitPersons",
+             (SELECT count(*)::int FROM grh_absences absence
+               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "absenceEvents",
+             (SELECT count(DISTINCT contract.id)::int
+                FROM grh_absences absence
+                JOIN employment_contract contract
+                  ON contract.legacy_company_id = absence.company_id
+                 AND contract.legacy_legajo = absence.legajo
+               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "affectedContracts",
+             (SELECT COALESCE(sum(absence.dias), 0)::numeric FROM grh_absences absence
+               WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "sourceDeclaredDays"
+      FROM windows period
+    `, metricScope.values),
+    sql.query(`
+      /* management:payroll-comparison */
+      WITH windows(window_key, from_date, to_date) AS (
+        VALUES ('previous'::text, $1::date, $2::date),
+               ('current'::text, $3::date, $4::date)
+      ), contract_month AS (
+        SELECT fact.employment_contract_id,
+               date_trunc('month', fact.payroll_date)::date AS period_month
+        FROM payroll_monthly_fact fact
+        JOIN payroll_run run ON run.id = fact.payroll_run_id
+        WHERE run.closure_status = 'closed' AND fact.net_payable IS NOT NULL
+          AND (fact.payroll_date BETWEEN $1::date AND $2::date
+            OR fact.payroll_date BETWEEN $3::date AND $4::date)
+        GROUP BY fact.employment_contract_id, date_trunc('month', fact.payroll_date)::date
+      ), denominator AS (
+        SELECT period.window_key, count(*)::int AS "contractMonths",
+               count(DISTINCT contract_month.period_month)::int AS "closedMonths"
+        FROM windows period
+        JOIN contract_month ON contract_month.period_month
+          BETWEEN date_trunc('month', period.from_date)::date AND date_trunc('month', period.to_date)::date
+        GROUP BY period.window_key
+      ), numerator AS (
+        SELECT period.window_key, count(*)::int AS "totalEvents",
+               count(*) FILTER (WHERE contract_month.employment_contract_id IS NOT NULL)::int AS "alignedEvents",
+               count(*) FILTER (WHERE contract_month.employment_contract_id IS NULL)::int AS "excludedEvents",
+               count(DISTINCT contract.id) FILTER (WHERE contract_month.employment_contract_id IS NOT NULL)::int
+                 AS "affectedAlignedContracts"
+        FROM windows period
+        JOIN grh_absences absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        LEFT JOIN employment_contract contract
+          ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
+        LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
+          AND contract_month.period_month = date_trunc('month', absence.fecha)::date
+        GROUP BY period.window_key
+      )
+      SELECT denominator.window_key AS id, denominator."contractMonths", denominator."closedMonths",
+             numerator."totalEvents", numerator."alignedEvents", numerator."excludedEvents",
+             numerator."affectedAlignedContracts",
+             round(denominator."contractMonths"::numeric / NULLIF(denominator."closedMonths", 0), 1)
+               AS "averageLiquidated",
+             round(100 * numerator."alignedEvents"::numeric / NULLIF(denominator."contractMonths", 0), 2)
+               AS "eventsPer100ContractMonths"
+      FROM denominator JOIN numerator USING (window_key)
+      ORDER BY denominator.window_key
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
+    sql.query(`
+      /* management:sectors */
+      WITH windows(window_key, from_date, to_date) AS (
+        VALUES ('previous'::text, $1::date, $2::date),
+               ('current'::text, $3::date, $4::date)
+      ), contract_month_raw AS (
+        SELECT fact.employment_contract_id,
+               date_trunc('month', fact.payroll_date)::date AS period_month,
+               count(DISTINCT fact.dominant_sector_source_id)::int AS sector_code_count,
+               CASE WHEN count(DISTINCT fact.dominant_sector_source_id) = 1
+                 THEN min(fact.dominant_sector_source_id) END AS sector_code
+        FROM payroll_monthly_fact fact
+        JOIN payroll_run run ON run.id = fact.payroll_run_id
+        WHERE run.closure_status = 'closed' AND fact.net_payable IS NOT NULL
+          AND (fact.payroll_date BETWEEN $1::date AND $2::date
+            OR fact.payroll_date BETWEEN $3::date AND $4::date)
+        GROUP BY fact.employment_contract_id, date_trunc('month', fact.payroll_date)::date
+      ), contract_month AS (
+        SELECT raw.employment_contract_id, raw.period_month,
+               contract.legacy_company_id AS company_id, raw.sector_code,
+               CASE WHEN raw.sector_code_count > 1 THEN 'quality:ambiguous_sector'
+                    WHEN raw.sector_code_count = 0 THEN 'quality:missing_sector'
+                    WHEN catalog.source_key IS NULL THEN concat('unmatched:', contract.legacy_company_id, ':', raw.sector_code)
+                    ELSE concat('sector:', contract.legacy_company_id, ':', raw.sector_code) END AS sector_key,
+               CASE WHEN raw.sector_code_count > 1 THEN 'Sector ambiguo en el mes'
+                    WHEN raw.sector_code_count = 0 THEN 'Sin sector en la liquidación'
+                    WHEN catalog.source_key IS NULL THEN concat('Sector sin catálogo (', raw.sector_code, ')')
+                    ELSE catalog.source_payload ->> 'name' END AS sector_label,
+               CASE WHEN raw.sector_code_count > 1 THEN 'ambiguous'
+                    WHEN raw.sector_code_count = 0 THEN 'missing'
+                    WHEN catalog.source_key IS NULL THEN 'unmatched_catalog' ELSE 'matched' END AS sector_quality
+        FROM contract_month_raw raw
+        JOIN employment_contract contract ON contract.id = raw.employment_contract_id
+        LEFT JOIN grh_catalog_rows catalog ON catalog.catalog = 'sectors'
+          AND catalog.source_payload #>> '{sourceKey,companyCode}' = contract.legacy_company_id::text
+          AND catalog.source_payload #>> '{sourceKey,sectorCode}' = raw.sector_code
+      ), denominator AS (
+        SELECT period.window_key, contract_month.sector_key, contract_month.sector_label,
+               contract_month.company_id, contract_month.sector_code, contract_month.sector_quality,
+               count(*)::int AS contract_months
+        FROM windows period JOIN contract_month ON contract_month.period_month
+          BETWEEN date_trunc('month', period.from_date)::date AND date_trunc('month', period.to_date)::date
+        GROUP BY period.window_key, contract_month.sector_key, contract_month.sector_label,
+                 contract_month.company_id, contract_month.sector_code, contract_month.sector_quality
+      ), event_rows AS (
+        SELECT period.window_key,
+               contract.id AS employment_contract_id,
+               CASE WHEN contract.id IS NULL THEN 'quality:unlinked_contract'
+                    WHEN contract_month.employment_contract_id IS NULL THEN 'quality:no_closed_payroll_contract_month'
+                    ELSE contract_month.sector_key END AS sector_key,
+               CASE WHEN contract.id IS NULL THEN 'Evento sin contrato canónico'
+                    WHEN contract_month.employment_contract_id IS NULL THEN 'Evento sin contrato-mes liquidado cerrado'
+                    ELSE contract_month.sector_label END AS sector_label,
+               contract_month.company_id, contract_month.sector_code,
+               CASE WHEN contract.id IS NULL THEN 'unlinked_contract'
+                    WHEN contract_month.employment_contract_id IS NULL THEN 'no_closed_payroll_contract_month'
+                    ELSE contract_month.sector_quality END AS sector_quality
+        FROM windows period
+        JOIN grh_absences absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        LEFT JOIN employment_contract contract
+          ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
+        LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
+          AND contract_month.period_month = date_trunc('month', absence.fecha)::date
+      ), numerator AS (
+        SELECT window_key, sector_key, sector_label, company_id, sector_code, sector_quality,
+               count(*)::int AS absence_events,
+               count(DISTINCT employment_contract_id)::int AS affected_contracts
+        FROM event_rows
+        GROUP BY window_key, sector_key, sector_label, company_id, sector_code, sector_quality
+      ), keys AS (
+        SELECT window_key, sector_key FROM denominator
+        UNION SELECT window_key, sector_key FROM numerator
+      )
+      SELECT keys.window_key AS window, keys.sector_key AS "sectorKey",
+             COALESCE(denominator.sector_label, numerator.sector_label) AS label,
+             COALESCE(denominator.company_id, numerator.company_id) AS "companyId",
+             COALESCE(denominator.sector_code, numerator.sector_code) AS "sectorCode",
+             COALESCE(denominator.sector_quality, numerator.sector_quality) AS quality,
+             COALESCE(denominator.contract_months, 0)::int AS "contractMonths",
+             COALESCE(numerator.absence_events, 0)::int AS events,
+             COALESCE(numerator.affected_contracts, 0)::int AS "affectedContracts"
+      FROM keys
+      LEFT JOIN denominator USING (window_key, sector_key)
+      LEFT JOIN numerator USING (window_key, sector_key)
+      ORDER BY keys.window_key, "contractMonths" DESC, label
+    `, [payrollPrevious.from, payrollPrevious.to, payrollCurrent.from, payrollCurrent.to]),
+    sql.query(`
+      /* management:quality */
+      SELECT (SELECT count(*)::int FROM employment_contract) AS "contracts",
+             (SELECT count(DISTINCT person_id)::int FROM employment_contract) AS "personsWithContract",
+             (SELECT count(*)::int FROM employment_contract WHERE start_date IS NULL) AS "missingValidStartDate",
+             (SELECT count(*)::int FROM grh_absences) AS "absenceRows",
+             (SELECT count(*)::int FROM grh_absences WHERE fecha < DATE '1990-01-01') AS "absenceBeforeCoverage",
+             (SELECT count(*)::int FROM grh_absences WHERE fecha > $1::date) AS "absenceAfterCutoff",
+             (SELECT count(*)::int FROM grh_absences WHERE fecha_hasta < fecha) AS "invertedAbsenceRanges",
+             (SELECT count(*)::int FROM grh_absences absence LEFT JOIN employment_contract contract
+                ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
+               WHERE contract.id IS NULL) AS "unlinkedAbsences",
+             (SELECT count(*)::int FROM employment_movement) AS "movementRows",
+             (SELECT count(*)::int FROM employment_movement WHERE movement_type IS NULL) AS "movementsWithoutType",
+             (SELECT max(payroll_date) FROM payroll_run WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
+             (SELECT max(payroll_date) FROM payroll_run WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
+    `, [cutoff]),
+  ]);
+
+  const metrics = new Map(metricRows.map((row) => [row.id, row]));
+  const windowById = new Map(metricWindows.map((window) => [window.id, window]));
+  const metricFor = (id) => managementMetric(metrics.get(id), windowById.get(id));
+  const previousFull = metricFor('previous_full');
+  const previousComparable = metricFor('previous_comparable');
+  const current = metricFor('current');
+  const managementYears = managementYearPairs.map((pair) => ({
+    index: pair.index,
+    previous: metricFor(pair.previousId),
+    current: pair.currentId ? metricFor(pair.currentId) : null,
+    currentStatus: pair.currentStatus,
+    comparableToCurrent: Boolean(pair.currentId),
+  }));
+  const calendarYears = calendarWindows.map((window) => ({
+    year: window.year,
+    ...metricFor(window.id),
+    transition: window.transition,
+  }));
+  const payroll = Object.fromEntries(payrollRows.map((row) => [row.id, {
+    range: row.id === 'previous' ? payrollPrevious : payrollCurrent,
+    expectedMonths: row.id === 'previous'
+      ? managementMonthCount(payrollPrevious.from, payrollPrevious.to)
+      : managementMonthCount(payrollCurrent.from, payrollCurrent.to),
+    closedMonths: managementNumber(row.closedMonths),
+    contractMonths: managementNumber(row.contractMonths),
+    averageLiquidated: managementNumber(row.averageLiquidated),
+    totalEvents: managementNumber(row.totalEvents),
+    alignedEvents: managementNumber(row.alignedEvents),
+    excludedEvents: managementNumber(row.excludedEvents),
+    affectedAlignedContracts: managementNumber(row.affectedAlignedContracts),
+    eventsPer100ContractMonths: managementNumber(row.eventsPer100ContractMonths),
+  }]));
+
+  const sectorsByKey = new Map();
+  for (const row of sectorRawRows) {
+    const key = row.sectorKey;
+    const target = sectorsByKey.get(key) || {
+      label: row.label,
+      companyId: row.companyId,
+      sectorCode: row.sectorCode,
+      quality: row.quality,
+      previousContractMonths: 0,
+      currentContractMonths: 0,
+      previousEvents: 0,
+      currentEvents: 0,
+      previousAffectedContracts: 0,
+      currentAffectedContracts: 0,
+    };
+    const prefix = row.window === 'previous' ? 'previous' : 'current';
+    target[`${prefix}ContractMonths`] += managementNumber(row.contractMonths);
+    target[`${prefix}Events`] += managementNumber(row.events);
+    target[`${prefix}AffectedContracts`] += managementNumber(row.affectedContracts);
+    sectorsByKey.set(key, target);
+  }
+  const sectorRows = [...sectorsByKey.values()];
+  const literalSectors = managementSectorProjection(sectorRows, 'literal');
+  const consolidatedSectors = managementSectorProjection(sectorRows, 'garden_sector_family_v1');
+  const gardenSectorRows = sectorRows.filter((row) => String(row.companyId ?? '') === '101'
+    && MANAGEMENT_GARDEN_SECTOR_CODES.has(String(row.sectorCode ?? '')));
+  const gardenCoverage = {
+    previousContractMonths: gardenSectorRows.reduce((sum, row) => sum + row.previousContractMonths, 0),
+    currentContractMonths: gardenSectorRows.reduce((sum, row) => sum + row.currentContractMonths, 0),
+    sourceLabels: [...new Set(gardenSectorRows.map((row) => row.label))].sort((a, b) => a.localeCompare(b, 'es')),
+  };
+  const sectorQuality = {
+    previousAmbiguousContractMonths: sectorRows
+      .filter((row) => row.quality === 'ambiguous')
+      .reduce((sum, row) => sum + row.previousContractMonths, 0),
+    currentAmbiguousContractMonths: sectorRows
+      .filter((row) => row.quality === 'ambiguous')
+      .reduce((sum, row) => sum + row.currentContractMonths, 0),
+    previousEventsWithoutClosedContractMonth: sectorRows
+      .filter((row) => ['unlinked_contract', 'no_closed_payroll_contract_month'].includes(row.quality))
+      .reduce((sum, row) => sum + row.previousEvents, 0),
+    currentEventsWithoutClosedContractMonth: sectorRows
+      .filter((row) => ['unlinked_contract', 'no_closed_payroll_contract_month'].includes(row.quality))
+      .reduce((sum, row) => sum + row.currentEvents, 0),
+  };
+  const previousAligned = payroll.previous?.alignedEvents || 0;
+  const currentAligned = payroll.current?.alignedEvents || 0;
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        periods: { previousFull, previousComparable, current },
+        comparison: {
+          basis: 'same_elapsed_days',
+          elapsedDays: current.elapsedDays,
+          changePercent: {
+            hires: managementPercent(current.hires, previousComparable.hires),
+            exits: managementPercent(current.exits, previousComparable.exits),
+            balance: managementPercent(current.balance, previousComparable.balance),
+          },
+        },
+        managementYears,
+        calendarYears,
+        payrollComparison: {
+          basis: 'same_complete_closed_payroll_months',
+          unit: 'events_per_100_closed_payroll_contract_months',
+          previous: payroll.previous,
+          current: payroll.current,
+          alignedEventChangePercent: managementPercent(currentAligned, previousAligned),
+          rateChangePercent: managementPercent(
+            payroll.current?.eventsPer100ContractMonths || 0,
+            payroll.previous?.eventsPer100ContractMonths || 0,
+          ),
+        },
+        sectors: {
+          literal: literalSectors,
+          consolidated: consolidatedSectors,
+          mapping: {
+            id: 'garden_sector_family_v1',
+            label: 'Sectores de jardines',
+            status: 'analytical_grouping',
+            companyId: 101,
+            sourceSectorCodes: [...MANAGEMENT_GARDEN_SECTOR_CODES],
+            coverage: gardenCoverage,
+            reversible: true,
+            warning: 'Agrupa códigos de sector de jardines; no representa a todo el personal asignado a áreas de jardines.',
+          },
+          quality: sectorQuality,
+        },
+        budget: {
+          status: 'source_not_loaded',
+          available: false,
+          label: 'Presupuesto y ejecución',
+          reason: 'GRH no contiene crédito, modificaciones, compromiso, devengado ni pagado.',
+          nextSourceContract: ['presupuesto vigente', 'modificaciones', 'compromiso', 'devengado', 'pagado'],
+        },
+      },
+      quality: {
+        contracts: managementNumber(quality.contracts),
+        personsWithContract: managementNumber(quality.personsWithContract),
+        missingValidStartDate: managementNumber(quality.missingValidStartDate),
+        absenceRows: managementNumber(quality.absenceRows),
+        absenceBeforeCoverage: managementNumber(quality.absenceBeforeCoverage),
+        absenceAfterCutoff: managementNumber(quality.absenceAfterCutoff),
+        invertedAbsenceRanges: managementNumber(quality.invertedAbsenceRanges),
+        unlinkedAbsences: managementNumber(quality.unlinkedAbsences),
+        movementRows: managementNumber(quality.movementRows),
+        movementsWithoutType: managementNumber(quality.movementsWithoutType),
+        lastClosedPayrollPeriod: isoDate(quality.lastClosedPayrollPeriod),
+        latestOpenPayrollPeriod: isoDate(quality.latestOpenPayrollPeriod),
+        reconciliations: {
+          equalElapsedDays: previousComparable.elapsedDays === current.elapsedDays,
+          periodHiresToCalendar: calendarYears.reduce((sum, row) => sum + row.hires, 0)
+            === previousFull.hires + current.hires,
+          periodExitsToCalendar: calendarYears.reduce((sum, row) => sum + row.exits, 0)
+            === previousFull.exits + current.exits,
+          previousSectorContractMonths: literalSectors.reduce((sum, row) => sum + row.previousContractMonths, 0)
+            === (payroll.previous?.contractMonths || 0),
+          currentSectorContractMonths: literalSectors.reduce((sum, row) => sum + row.currentContractMonths, 0)
+            === (payroll.current?.contractMonths || 0),
+          previousSectorEvents: literalSectors.reduce((sum, row) => sum + row.previousEvents, 0)
+            === (payroll.previous?.totalEvents || 0),
+          currentSectorEvents: literalSectors.reduce((sum, row) => sum + row.currentEvents, 0)
+            === (payroll.current?.totalEvents || 0),
+        },
+      },
+      meta: {
+        authority: 'GRH',
+        grain: 'employment_contract (legajo por empresa)',
+        sourceCutoff: cutoff,
+        loadedAt: source.loadedAt,
+        containsPersonalData: false,
+        currentPeriodPartial: current.partial,
+        monetaryComparisonAvailable: false,
+        absenceMetricSemantics: 'Eventos administrativos registrados por 100 contrato-mes liquidados y cerrados; no es tasa de ausentismo, presentismo ni jornadas perdidas.',
+        sectorSemantics: 'Sector temporal dominante de la liquidación cerrada del mismo contrato-mes; ambigüedades y eventos sin denominador permanecen visibles.',
+      },
+    },
+  };
+}
+
 const DIRECTORY_STATUS = new Set([
   'all', 'active', 'administrative_active', 'liquidable', 'gap',
   'inactive', 'state_error', 'unknown'
@@ -2615,6 +3204,10 @@ export default async function handler(req, res) {
     }
     if (resource === 'leavepreview') {
       const result = await leavePreview(sql, req);
+      return send(res, result.status, result.payload);
+    }
+    if (resource === 'managementanalytics') {
+      const result = await managementAnalytics(sql);
       return send(res, result.status, result.payload);
     }
     if (resource === 'qualityoverview') {
