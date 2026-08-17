@@ -25,14 +25,14 @@ const MAX_PROVIDER_OUTPUT_CHARS = 4_000;
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
 const DEFAULT_OPENAI_REASONING_EFFORT = 'minimal';
-const DEFAULT_OPENAI_TIMEOUT_MS = 4_000;
+const DEFAULT_OPENAI_TIMEOUT_MS = 7_000;
 const HF_ROUTER_URL = 'https://router.huggingface.co/v1/chat/completions';
 const DEFAULT_HF_MODEL = 'openai/gpt-oss-120b:fastest';
-const DEFAULT_HF_TIMEOUT_MS = 6_000;
+const DEFAULT_HF_TIMEOUT_MS = 5_000;
 const DEFAULT_AI_OUTPUT_TOKENS = 320;
 const DEFAULT_HF_CALLS_PER_WINDOW = 3;
 const DEFAULT_HF_WINDOW_MS = 60_000;
-const DEFAULT_AI_TOTAL_TIMEOUT_MS = 7_000;
+const DEFAULT_AI_TOTAL_TIMEOUT_MS = 12_000;
 const QUERY_PLAN_VERSION = 'municipal_query_plan.v1';
 const MAX_HISTORY_ITEMS = 8;
 
@@ -2519,7 +2519,8 @@ function consumeRuntimeQuota(key, env, now, quotaStore) {
 function providerStatus(provider, status, extra = {}) {
   const externalProviderAttempted = new Set([
     'used', 'upstream_rate_limited', 'unavailable', 'invalid_response', 'timeout', 'error',
-    'incomplete', 'incomplete_max_output_tokens',
+    'invalid_api_key', 'access_denied', 'insufficient_quota', 'incomplete',
+    'incomplete_max_output_tokens',
   ]).has(status) && provider !== 'local';
   return {
     provider,
@@ -2531,6 +2532,10 @@ function providerStatus(provider, status, extra = {}) {
     status,
     model: null,
     usage: null,
+    httpStatus: null,
+    elapsedMs: null,
+    requestId: null,
+    errorCode: null,
     externalProviderAttempted,
     externalProviderUsed: status === 'used',
     nominalDataSent: false,
@@ -2585,6 +2590,97 @@ function openAIReasoningEffort(model, env) {
   return /^gpt-5-mini(?:-|$)/i.test(model) ? DEFAULT_OPENAI_REASONING_EFFORT : null;
 }
 
+function providerElapsedMs(startedAt, clock) {
+  const endedAt = Number(clock());
+  return Number.isFinite(startedAt) && Number.isFinite(endedAt)
+    ? Math.max(0, Math.round(endedAt - startedAt))
+    : 0;
+}
+
+function responseHeader(response, name) {
+  if (typeof response?.headers?.get === 'function') return response.headers.get(name) || '';
+  const headers = response?.headers;
+  if (!headers || typeof headers !== 'object') return '';
+  const match = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase());
+  return match ? headers[match] : '';
+}
+
+function providerRequestId(response) {
+  return safeIdentifier(
+    responseHeader(response, 'x-request-id')
+      || responseHeader(response, 'request-id')
+      || responseHeader(response, 'x-amzn-requestid'),
+    120,
+  ) || null;
+}
+
+async function providerErrorCode(response, fallback) {
+  try {
+    const payload = await response.json();
+    const code = safeIdentifier(
+      payload?.error?.code
+        || payload?.error?.type
+        || payload?.code
+        || payload?.type,
+      80,
+    );
+    return code || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function classifyProviderHttpStatus(httpStatus, errorCode) {
+  if (httpStatus === 401) return 'invalid_api_key';
+  if (httpStatus === 403) return 'access_denied';
+  if (httpStatus === 429) {
+    return errorCode === 'insufficient_quota' ? 'insufficient_quota' : 'upstream_rate_limited';
+  }
+  if (httpStatus === 408) return 'timeout';
+  if (httpStatus >= 500) return 'unavailable';
+  return 'error';
+}
+
+function providerHttpErrorFallback(httpStatus) {
+  if (httpStatus === 401) return 'invalid_api_key';
+  if (httpStatus === 403) return 'access_denied';
+  if (httpStatus === 429) return 'rate_limit_exceeded';
+  if (httpStatus === 408) return 'request_timeout';
+  if (httpStatus >= 500) return 'upstream_unavailable';
+  return `http_${httpStatus}`;
+}
+
+function providerTransportErrorCode(error) {
+  return safeIdentifier(error?.code, 80) || (error?.name === 'AbortError' ? 'request_timeout' : 'transport_error');
+}
+
+function huggingFaceOutputText(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return normalizeText(content, MAX_PROVIDER_OUTPUT_CHARS);
+  if (!Array.isArray(content)) return '';
+  const parts = [];
+  for (const part of content) {
+    if (typeof part === 'string') {
+      const text = normalizeText(part, MAX_PROVIDER_OUTPUT_CHARS);
+      if (text) parts.push(text);
+      continue;
+    }
+    if (!part || typeof part !== 'object') continue;
+    const type = normalizeText(part.type, 40).toLowerCase();
+    if (type && type !== 'text' && type !== 'output_text') continue;
+    const text = normalizeText(
+      typeof part.text === 'string' ? part.text : part.text?.value,
+      MAX_PROVIDER_OUTPUT_CHARS,
+    );
+    if (text) parts.push(text);
+  }
+  return normalizeText(parts.join('\n'), MAX_PROVIDER_OUTPUT_CHARS);
+}
+
+function isGptOssModel(model) {
+  return /(?:^|\/)gpt-oss(?:[-/:]|$)/i.test(model);
+}
+
 async function requestOpenAIInsight({
   token,
   model,
@@ -2594,9 +2690,11 @@ async function requestOpenAIInsight({
   maxTokens,
   timeoutMs,
   fetchImpl,
+  clock,
 }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Number(clock());
   try {
     const response = await fetchImpl(OPENAI_RESPONSES_URL, {
       method: 'POST',
@@ -2614,48 +2712,92 @@ async function requestOpenAIInsight({
       }),
       signal: controller.signal,
     });
+    const httpStatus = Number(response.status) || (response.ok ? 200 : null);
+    const requestId = providerRequestId(response);
     if (!response.ok) {
-      const status = response.status === 429
-        ? 'upstream_rate_limited'
-        : response.status === 408
-          ? 'timeout'
-          : response.status >= 500
-            ? 'unavailable'
-            : 'error';
-      return providerStatus('openai', status, { model, reasoningEffort });
+      const errorCode = await providerErrorCode(response, providerHttpErrorFallback(httpStatus));
+      return providerStatus('openai', classifyProviderHttpStatus(httpStatus, errorCode), {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode,
+      });
     }
-    const payload = await response.json();
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      return providerStatus('openai', 'invalid_response', {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode: 'invalid_json',
+      });
+    }
     const usage = openAIUsage(payload);
     if (payload?.status === 'incomplete') {
       const incompleteReason = normalizeText(payload?.incomplete_details?.reason, 80) || 'unknown';
       return providerStatus(
         'openai',
         incompleteReason === 'max_output_tokens' ? 'incomplete_max_output_tokens' : 'incomplete',
-        { model, reasoningEffort, usage, incompleteReason },
+        {
+          model,
+          reasoningEffort,
+          usage,
+          incompleteReason,
+          httpStatus,
+          elapsedMs: providerElapsedMs(startedAt, clock),
+          requestId,
+          errorCode: safeIdentifier(incompleteReason, 80) || 'incomplete',
+        },
       );
     }
     const insight = openAIOutputText(payload);
-    if (!insight) return providerStatus('openai', 'invalid_response', { model, reasoningEffort, usage });
+    if (!insight) {
+      return providerStatus('openai', 'invalid_response', {
+        model,
+        reasoningEffort,
+        usage,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode: 'missing_output_text',
+      });
+    }
     return providerStatus('openai', 'used', {
       model,
       reasoningEffort,
       insight,
       usage,
+      httpStatus,
+      elapsedMs: providerElapsedMs(startedAt, clock),
+      requestId,
     });
   } catch (error) {
     return providerStatus(
       'openai',
       error?.name === 'AbortError' ? 'timeout' : 'unavailable',
-      { model, reasoningEffort },
+      {
+        model,
+        reasoningEffort,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        errorCode: providerTransportErrorCode(error),
+      },
     );
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function requestHuggingFaceInsight({ token, model, topic, serializedFacts, maxTokens, timeoutMs, fetchImpl }) {
+async function requestHuggingFaceInsight({ token, model, topic, serializedFacts, maxTokens, timeoutMs, fetchImpl, clock }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Number(clock());
+  const reasoningEffort = isGptOssModel(model) ? 'minimal' : null;
   try {
     const response = await fetchImpl(HF_ROUTER_URL, {
       method: 'POST',
@@ -2672,18 +2814,66 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
         max_tokens: maxTokens,
         temperature: 0.2,
         stream: false,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       }),
       signal: controller.signal,
     });
+    const httpStatus = Number(response.status) || (response.ok ? 200 : null);
+    const requestId = providerRequestId(response);
     if (!response.ok) {
-      return providerStatus('huggingface', response.status === 429 ? 'upstream_rate_limited' : 'unavailable', { model });
+      const errorCode = await providerErrorCode(response, providerHttpErrorFallback(httpStatus));
+      return providerStatus('huggingface', classifyProviderHttpStatus(httpStatus, errorCode), {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode,
+      });
     }
-    const payload = await response.json();
-    const insight = normalizeText(payload?.choices?.[0]?.message?.content, MAX_PROVIDER_OUTPUT_CHARS);
-    if (!insight) return providerStatus('huggingface', 'invalid_response', { model });
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      return providerStatus('huggingface', 'invalid_response', {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode: 'invalid_json',
+      });
+    }
+    const finishReason = normalizeText(payload?.choices?.[0]?.finish_reason, 80).toLowerCase();
+    if (finishReason === 'length') {
+      return providerStatus('huggingface', 'incomplete_max_output_tokens', {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode: 'max_output_tokens',
+        incompleteReason: 'max_output_tokens',
+      });
+    }
+    const insight = huggingFaceOutputText(payload);
+    if (!insight) {
+      return providerStatus('huggingface', 'invalid_response', {
+        model,
+        reasoningEffort,
+        httpStatus,
+        elapsedMs: providerElapsedMs(startedAt, clock),
+        requestId,
+        errorCode: 'missing_content',
+      });
+    }
     return providerStatus('huggingface', 'used', {
       model,
+      reasoningEffort,
       insight,
+      httpStatus,
+      elapsedMs: providerElapsedMs(startedAt, clock),
+      requestId,
       usage: payload?.usage ? {
         promptTokens: Number(payload.usage.prompt_tokens || 0),
         completionTokens: Number(payload.usage.completion_tokens || 0),
@@ -2691,14 +2881,27 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
       } : null,
     });
   } catch (error) {
-    return providerStatus('huggingface', error?.name === 'AbortError' ? 'timeout' : 'unavailable', { model });
+    return providerStatus('huggingface', error?.name === 'AbortError' ? 'timeout' : 'unavailable', {
+      model,
+      reasoningEffort,
+      elapsedMs: providerElapsedMs(startedAt, clock),
+      errorCode: providerTransportErrorCode(error),
+    });
   } finally {
     clearTimeout(timeout);
   }
 }
 
 function providerAttempt(result) {
-  return { provider: result.provider, status: result.status, model: result.model || null };
+  return {
+    provider: result.provider,
+    status: result.status,
+    model: result.model || null,
+    httpStatus: result.httpStatus ?? null,
+    elapsedMs: result.elapsedMs ?? null,
+    requestId: result.requestId || null,
+    errorCode: result.errorCode || null,
+  };
 }
 
 async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
@@ -2732,7 +2935,7 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
 
   const openAIToken = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY.trim() : '';
   const hfToken = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
-  if (!openAIToken && !hfToken) return providerStatus('local', 'not_configured');
+  if (!openAIToken) return providerStatus('local', 'primary_not_configured');
 
   const quota = consumeRuntimeQuota(String(session.id || session.email), env, now(), quotaStore);
   if (!quota.allowed) {
@@ -2752,9 +2955,9 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
     64,
     320,
   );
-  const totalTimeoutMs = boundedInteger(env.AI_ASSISTANT_TIMEOUT_MS, DEFAULT_AI_TOTAL_TIMEOUT_MS, 2_000, 8_000);
-  const openAIRequestedTimeout = boundedInteger(env.OPENAI_ASSISTANT_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS, 1_000, 8_000);
-  const hfRequestedTimeout = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 8_000);
+  const totalTimeoutMs = boundedInteger(env.AI_ASSISTANT_TIMEOUT_MS, DEFAULT_AI_TOTAL_TIMEOUT_MS, 2_000, 12_000);
+  const openAIRequestedTimeout = boundedInteger(env.OPENAI_ASSISTANT_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS, 1_000, 7_000);
+  const hfRequestedTimeout = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 5_000);
   const openAITimeoutMs = openAIToken && hfToken
     ? Math.min(openAIRequestedTimeout, Math.max(1_000, totalTimeoutMs - 1_000))
     : Math.min(openAIRequestedTimeout, totalTimeoutMs);
@@ -2766,6 +2969,8 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
     maxCallsPerRequest,
     maxOutputTokens: maxTokens,
     totalTimeoutMs,
+    openAITimeoutMs,
+    huggingFaceTimeoutMs: hfToken ? hfTimeoutMs : null,
     runtimeCallsPerWindow: quota.limit,
     runtimeWindowSeconds: Math.round(quota.windowMs / 1000),
   };
@@ -2782,6 +2987,7 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
       maxTokens,
       timeoutMs: openAITimeoutMs,
       fetchImpl,
+      clock: now,
     });
     attempts.push(providerAttempt(openAIResult));
     if (openAIResult.status === 'used' || openAIResult.status.startsWith('incomplete')) {
@@ -2802,6 +3008,7 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
       maxTokens,
       timeoutMs: hfTimeoutMs,
       fetchImpl,
+      clock: now,
     });
     attempts.push(providerAttempt(hfResult));
     return {
@@ -2852,6 +3059,7 @@ function capabilitiesPayload() {
     providerPolicy: {
       primary: 'openai',
       fallback: 'huggingface',
+      fallbackRequiresPrimaryAttempt: true,
       localDeterministicFallback: true,
       maximumExternalAttemptsPerRequest: 2,
     },
@@ -2928,7 +3136,23 @@ export function createInternalAssistantHandler(dependencies = {}) {
             event: 'internal_assistant_request', requestId, intent: observedIntent,
             provider: normalizeText(provider?.provider, 32) || 'local',
             providerStatus: normalizeText(provider?.status, 64) || (status >= 400 ? 'request_error' : 'not_started'),
-            httpStatus: status, durationMs, resources: resourceStatuses,
+            httpStatus: status,
+            durationMs,
+            providerTelemetry: {
+              httpStatus: Number.isFinite(Number(provider?.httpStatus)) ? Number(provider.httpStatus) : null,
+              elapsedMs: Number.isFinite(Number(provider?.elapsedMs)) ? Math.max(0, Math.round(Number(provider.elapsedMs))) : null,
+              requestId: safeIdentifier(provider?.requestId, 120) || null,
+              errorCode: safeIdentifier(provider?.errorCode, 80) || null,
+            },
+            providerAttempts: (Array.isArray(provider?.attempts) ? provider.attempts.slice(0, 2) : []).map((attempt) => ({
+              provider: normalizeText(attempt?.provider, 32) || 'unknown',
+              status: normalizeText(attempt?.status, 64) || 'unknown',
+              httpStatus: Number.isFinite(Number(attempt?.httpStatus)) ? Number(attempt.httpStatus) : null,
+              elapsedMs: Number.isFinite(Number(attempt?.elapsedMs)) ? Math.max(0, Math.round(Number(attempt.elapsedMs))) : null,
+              requestId: safeIdentifier(attempt?.requestId, 120) || null,
+              errorCode: safeIdentifier(attempt?.errorCode, 80) || null,
+            })),
+            resources: resourceStatuses,
           }));
         } catch {
           // Observability must never alter the user response.

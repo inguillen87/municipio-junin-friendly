@@ -526,7 +526,8 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
     { intent: 'quality_analysis', externalEnhancement: true },
   );
   assert.deepEqual(res.payload.providerPolicy, {
-    primary: 'openai', fallback: 'huggingface', localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
+    primary: 'openai', fallback: 'huggingface', fallbackRequiresPrimaryAttempt: true,
+    localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
   });
   assert.equal(res.payload.guidance.sections.length, 12);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
@@ -806,8 +807,9 @@ test('el proveedor externo de ausentismo recibe rankings agregados y nunca filas
     { intent: 'absence_analysis', enhance: true },
     {
       absenceAnalytics: async () => payloadWithNominalTrap,
-      env: { HF_TOKEN: 'hf_test' },
-      fetch: async (_url, options) => {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url, options) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
         providerBody = JSON.parse(options.body);
         return { ok: true, async json() { return { choices: [{ message: { content: 'Lectura agregada de ausentismo.' } }] }; } };
       },
@@ -864,8 +866,9 @@ test('el análisis ejecutivo incluye ausentismo agregado y excluye cualquier fil
         absenceQuery = req.query;
         return payloadWithNominalTrap;
       },
-      env: { HF_TOKEN: 'hf_test' },
-      fetch: async (_url, options) => {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url, options) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
         providerBody = JSON.parse(options.body);
         return { ok: true, async json() { return { choices: [{ message: { content: 'Lectura ejecutiva agregada.' } }] }; } };
       },
@@ -1375,12 +1378,109 @@ test('OpenAI Responses es primario y no intenta HF cuando responde correctamente
   assert.deepEqual(res.payload.provider.usage, {
     promptTokens: 90, completionTokens: 18, totalTokens: 108, reasoningTokens: 0,
   });
-  assert.deepEqual(res.payload.provider.attempts, [{ provider: 'openai', status: 'used', model: 'gpt-5-mini' }]);
+  assert.deepEqual(res.payload.provider.attempts, [{
+    provider: 'openai', status: 'used', model: 'gpt-5-mini',
+    httpStatus: 200, elapsedMs: 0, requestId: null, errorCode: null,
+  }]);
   assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
   assert.equal(res.payload.provider.limits.maxOutputTokens, 320);
   assert.equal(res.payload.provider.limits.timeoutMs, 4000);
   assert.equal(res.payload.provider.limits.totalTimeoutMs, 8000);
+  assert.equal(res.payload.provider.limits.openAITimeoutMs, 4000);
+  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 4000);
   assert.equal(res.payload.privacy.rawUserMessageSentExternally, false);
+});
+
+test('OpenAI clasifica errores HTTP y publica sólo telemetría segura del proveedor', async () => {
+  const cases = [
+    { httpStatus: 401, code: 'invalid_api_key', status: 'invalid_api_key' },
+    { httpStatus: 403, code: 'project_access_denied', status: 'access_denied' },
+    { httpStatus: 429, code: 'rate_limit_exceeded', status: 'upstream_rate_limited' },
+    { httpStatus: 429, code: 'insufficient_quota', status: 'insufficient_quota' },
+    { httpStatus: 503, code: 'server_error', status: 'unavailable' },
+  ];
+
+  for (const expected of cases) {
+    const ticks = [0, 1, 100, 137, 200];
+    const logs = [];
+    const res = await post(
+      { intent: 'workforce_summary', enhance: true },
+      {
+        env: { OPENAI_API_KEY: 'openai_secret_test' },
+        now: () => ticks.shift() ?? 200,
+        requestIdFactory: () => 'internal-safe-id',
+        logger: { info(value) { logs.push(value); } },
+        fetch: async () => ({
+          ok: false,
+          status: expected.httpStatus,
+          headers: { get(name) { return name === 'x-request-id' ? 'upstream-safe-id' : null; } },
+          async json() {
+            return {
+              error: {
+                code: expected.code,
+                message: 'NO_PUBLICAR openai_secret_test sk-private-key',
+              },
+            };
+          },
+        }),
+      },
+    );
+
+    assert.equal(res.payload.provider.provider, 'openai');
+    assert.equal(res.payload.provider.status, expected.status);
+    assert.equal(res.payload.provider.httpStatus, expected.httpStatus);
+    assert.equal(res.payload.provider.elapsedMs, 37);
+    assert.equal(res.payload.provider.requestId, 'upstream-safe-id');
+    assert.equal(res.payload.provider.errorCode, expected.code);
+    assert.deepEqual(res.payload.provider.attempts[0], {
+      provider: 'openai', status: expected.status, model: 'gpt-5-mini',
+      httpStatus: expected.httpStatus, elapsedMs: 37, requestId: 'upstream-safe-id', errorCode: expected.code,
+    });
+    const serializedProvider = JSON.stringify(res.payload.provider);
+    assert.doesNotMatch(serializedProvider, /NO_PUBLICAR|openai_secret_test|sk-private-key|message/i);
+    assert.equal(logs.length, 1);
+    const log = JSON.parse(logs[0]);
+    assert.deepEqual(log.providerTelemetry, {
+      httpStatus: expected.httpStatus,
+      elapsedMs: 37,
+      requestId: 'upstream-safe-id',
+      errorCode: expected.code,
+    });
+    assert.deepEqual(log.providerAttempts, [{
+      provider: 'openai',
+      status: expected.status,
+      httpStatus: expected.httpStatus,
+      elapsedMs: 37,
+      requestId: 'upstream-safe-id',
+      errorCode: expected.code,
+    }]);
+    assert.doesNotMatch(logs[0], /NO_PUBLICAR|openai_secret_test|sk-private-key/i);
+  }
+});
+
+test('el presupuesto predeterminado reserva 7 s para OpenAI y 5 s para el único fallback', async () => {
+  const urls = [];
+  const res = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url) => {
+        urls.push(url);
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
+        return { ok: true, async json() { return { choices: [{ message: { content: 'Fallback agregado.' } }] }; } };
+      },
+    },
+  );
+
+  assert.deepEqual(urls, [
+    'https://api.openai.com/v1/responses',
+    'https://router.huggingface.co/v1/chat/completions',
+  ]);
+  assert.equal(res.payload.provider.provider, 'huggingface');
+  assert.equal(res.payload.provider.limits.totalTimeoutMs, 12000);
+  assert.equal(res.payload.provider.limits.openAITimeoutMs, 7000);
+  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 5000);
+  assert.equal(res.payload.provider.limits.timeoutMs, 5000);
 });
 
 test('OpenAI Responses acepta texto anidado y aplica el valor predeterminado de 320 tokens', async () => {
@@ -1447,7 +1547,10 @@ test('una respuesta OpenAI incompleta queda explícita y no dispara un segundo p
   assert.equal(res.payload.insight, null, 'no debe publicar una salida truncada');
   assert.equal(Object.hasOwn(res.payload.provider, 'fallbackFrom'), false);
   assert.deepEqual(res.payload.provider.attempts, [
-    { provider: 'openai', status: 'incomplete_max_output_tokens', model: 'gpt-5-mini' },
+    {
+      provider: 'openai', status: 'incomplete_max_output_tokens', model: 'gpt-5-mini',
+      httpStatus: 200, elapsedMs: 0, requestId: null, errorCode: 'max_output_tokens',
+    },
   ]);
   assert.deepEqual(res.payload.provider.usage, {
     promptTokens: 100, completionTokens: 320, totalTokens: 420, reasoningTokens: 280,
@@ -1456,10 +1559,12 @@ test('una respuesta OpenAI incompleta queda explícita y no dispara un segundo p
 
 test('una falla de OpenAI habilita un único fallback agregado a Hugging Face', async () => {
   const requests = [];
+  const logs = [];
   const res = await post(
     { intent: 'payroll_control', message: 'Analizá PERSONA LOCAL', enhance: true },
     {
       env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      logger: { info(value) { logs.push(value); } },
       fetch: async (url, options) => {
         requests.push({ url, options });
         if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 429 };
@@ -1481,10 +1586,30 @@ test('una falla de OpenAI habilita un único fallback agregado a Hugging Face', 
   assert.equal(res.payload.provider.status, 'used');
   assert.deepEqual(res.payload.provider.fallbackFrom, { provider: 'openai', status: 'upstream_rate_limited' });
   assert.deepEqual(res.payload.provider.attempts, [
-    { provider: 'openai', status: 'upstream_rate_limited', model: 'gpt-5-mini' },
-    { provider: 'huggingface', status: 'used', model: 'openai/gpt-oss-120b:fastest' },
+    {
+      provider: 'openai', status: 'upstream_rate_limited', model: 'gpt-5-mini',
+      httpStatus: 429, elapsedMs: 0, requestId: null, errorCode: 'rate_limit_exceeded',
+    },
+    {
+      provider: 'huggingface', status: 'used', model: 'openai/gpt-oss-120b:fastest',
+      httpStatus: 200, elapsedMs: 0, requestId: null, errorCode: null,
+    },
   ]);
   assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
+  assert.equal(res.payload.provider.limits.totalTimeoutMs, 12000);
+  assert.equal(res.payload.provider.limits.openAITimeoutMs, 7000);
+  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 5000);
+  assert.equal(logs.length, 1);
+  assert.deepEqual(JSON.parse(logs[0]).providerAttempts, [
+    {
+      provider: 'openai', status: 'upstream_rate_limited', httpStatus: 429,
+      elapsedMs: 0, requestId: null, errorCode: 'rate_limit_exceeded',
+    },
+    {
+      provider: 'huggingface', status: 'used', httpStatus: 200,
+      elapsedMs: 0, requestId: null, errorCode: null,
+    },
+  ]);
   const serializedRequests = JSON.stringify(requests.map((request) => JSON.parse(request.options.body)));
   assert.doesNotMatch(serializedRequests, /PERSONA LOCAL|Analizá PERSONA/i);
 });
@@ -1495,12 +1620,14 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
     { intent: 'workforce_summary', message: 'Dame una lectura ejecutiva', enhance: true },
     {
       env: {
+        OPENAI_API_KEY: 'openai_test',
         HF_TOKEN: 'hf_secret_test',
         HF_MODEL: 'Qwen/test-model',
         HF_ASSISTANT_MAX_TOKENS: '180',
         HF_ASSISTANT_TIMEOUT_MS: '2500',
       },
       fetch: async (url, options) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
         request = { url, options };
         return {
           ok: true,
@@ -1524,13 +1651,122 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
   assert.equal(providerBody.model, 'Qwen/test-model');
   assert.equal(providerBody.max_tokens, 180);
   assert.equal(providerBody.temperature, 0.2);
+  assert.equal(Object.hasOwn(providerBody, 'reasoning_effort'), false, 'un modelo Qwen no debe recibir el parámetro de gpt-oss');
   const serialized = JSON.stringify(providerBody);
   assert.doesNotMatch(serialized, /PERSONA LOCAL|00000000|usuario@example\.test/i);
   assert.doesNotMatch(providerBody.messages[1].content, /Dame una lectura ejecutiva/i, 'no debe enviar el mensaje crudo');
   assert.equal(res.payload.privacy.rawUserMessageSentExternally, false);
-  assert.equal(res.payload.provider.limits.maxCallsPerRequest, 1);
+  assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
   assert.equal(res.payload.provider.limits.maxOutputTokens, 180);
   assert.equal(res.payload.provider.limits.timeoutMs, 2500);
+});
+
+test('HF tolera content por partes, usa minimal sólo para gpt-oss e ignora todo reasoning_content', async () => {
+  let hfBody;
+  const res = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url, options) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
+        hfBody = JSON.parse(options.body);
+        return {
+          ok: true,
+          status: 200,
+          headers: { get(name) { return name === 'x-request-id' ? 'hf-safe-id' : null; } },
+          async json() {
+            return {
+              choices: [{
+                finish_reason: 'stop',
+                message: {
+                  reasoning_content: 'RAZONAMIENTO_PRIVADO_NO_PUBLICAR',
+                  content: [
+                    { type: 'reasoning', text: 'PARTE_RAZONAMIENTO_NO_PUBLICAR' },
+                    { type: 'text', text: 'Primera conclusión verificada.' },
+                    { type: 'output_text', text: { value: 'Segunda conclusión verificada.' } },
+                  ],
+                },
+              }],
+            };
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(hfBody.model, 'openai/gpt-oss-120b:fastest');
+  assert.equal(hfBody.reasoning_effort, 'minimal');
+  assert.equal(res.payload.provider.reasoningEffort, 'minimal');
+  assert.equal(res.payload.insight, 'Primera conclusión verificada. Segunda conclusión verificada.');
+  assert.equal(res.payload.provider.requestId, 'hf-safe-id');
+  assert.doesNotMatch(JSON.stringify(res.payload.provider), /RAZONAMIENTO_PRIVADO|PARTE_RAZONAMIENTO|reasoning_content/i);
+});
+
+test('HF trata finish_reason length como salida incompleta y nunca publica texto parcial ni razonamiento', async () => {
+  const res = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return {
+              choices: [{
+                finish_reason: 'length',
+                message: {
+                  content: 'TEXTO_PARCIAL_NO_PUBLICAR',
+                  reasoning_content: 'RAZONAMIENTO_NO_PUBLICAR',
+                },
+              }],
+            };
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(res.payload.provider.provider, 'huggingface');
+  assert.equal(res.payload.provider.status, 'incomplete_max_output_tokens');
+  assert.equal(res.payload.provider.incompleteReason, 'max_output_tokens');
+  assert.equal(res.payload.provider.errorCode, 'max_output_tokens');
+  assert.equal(res.payload.provider.externalProviderUsed, false);
+  assert.equal(res.payload.insight, null);
+  assert.doesNotMatch(JSON.stringify(res.payload.provider), /TEXTO_PARCIAL|RAZONAMIENTO_NO_PUBLICAR|reasoning_content/i);
+});
+
+test('HF clasifica fallas del fallback sin filtrar mensajes de error', async () => {
+  const cases = [
+    { httpStatus: 401, status: 'invalid_api_key', code: 'invalid_api_key' },
+    { httpStatus: 403, status: 'access_denied', code: 'access_denied' },
+    { httpStatus: 429, status: 'upstream_rate_limited', code: 'rate_limit_exceeded' },
+    { httpStatus: 502, status: 'unavailable', code: 'upstream_error' },
+  ];
+  for (const expected of cases) {
+    const res = await post(
+      { intent: 'workforce_summary', enhance: true },
+      {
+        env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+        fetch: async (url) => {
+          if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
+          return {
+            ok: false,
+            status: expected.httpStatus,
+            async json() {
+              return { error: { code: expected.code, message: 'HF_SECRET_MESSAGE_NO_PUBLICAR' } };
+            },
+          };
+        },
+      },
+    );
+    assert.equal(res.payload.provider.provider, 'huggingface');
+    assert.equal(res.payload.provider.status, expected.status);
+    assert.equal(res.payload.provider.httpStatus, expected.httpStatus);
+    assert.equal(res.payload.provider.errorCode, expected.code);
+    assert.doesNotMatch(JSON.stringify(res.payload.provider), /HF_SECRET_MESSAGE_NO_PUBLICAR|message/i);
+  }
 });
 
 test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurado', async () => {
@@ -1538,8 +1774,9 @@ test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurad
   const res = await post(
     { intent: 'workforce_summary', enhance: true },
     {
-      env: { HF_TOKEN: 'hf_test' },
-      fetch: async (_url, options) => {
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
+      fetch: async (url, options) => {
+        if (url === 'https://api.openai.com/v1/responses') return { ok: false, status: 503 };
         providerBody = JSON.parse(options.body);
         return { ok: true, async json() { return { choices: [{ message: { content: 'Lectura agregada.' } }] }; } };
       },
@@ -1548,19 +1785,29 @@ test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurad
   assert.equal(res.payload.mode, 'hybrid');
   assert.equal(res.payload.provider.provider, 'huggingface');
   assert.equal(providerBody.model, 'openai/gpt-oss-120b:fastest');
+  assert.equal(providerBody.reasoning_effort, 'minimal');
 });
 
-test('una caída o falta de configuración de HF no rompe la respuesta local', async () => {
-  const missing = await post({ intent: 'workforce_summary', enhance: true });
+test('la falta del proveedor primario o una caída del fallback no rompe la respuesta local', async () => {
+  let standaloneHfCalls = 0;
+  const missing = await post(
+    { intent: 'workforce_summary', enhance: true },
+    {
+      env: { HF_TOKEN: 'hf_without_primary' },
+      fetch: async () => { standaloneHfCalls += 1; throw new Error('HF no debe funcionar como proveedor primario'); },
+    },
+  );
   assert.equal(missing.statusCode, 200);
   assert.equal(missing.payload.provider.provider, 'local');
-  assert.equal(missing.payload.provider.status, 'not_configured');
+  assert.equal(missing.payload.provider.status, 'primary_not_configured');
+  assert.equal(missing.payload.provider.externalProviderAttempted, false);
+  assert.equal(standaloneHfCalls, 0);
   assert.equal(missing.payload.data.gap, 28);
 
   const down = await post(
     { intent: 'workforce_summary', enhance: true },
     {
-      env: { HF_TOKEN: 'hf_test' },
+      env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
       fetch: async () => ({ ok: false, status: 503 }),
     },
   );
@@ -1577,11 +1824,11 @@ test('el cupo por runtime bloquea llamadas repetidas sin afectar datos', async (
   let fetchCalls = 0;
   const quotaStore = new Map();
   const overrides = {
-    env: { HF_TOKEN: 'hf_test', HF_ASSISTANT_CALLS_PER_WINDOW: '1' },
+    env: { OPENAI_API_KEY: 'openai_test', HF_ASSISTANT_CALLS_PER_WINDOW: '1' },
     quotaStore,
     fetch: async () => {
       fetchCalls += 1;
-      return { ok: true, async json() { return { choices: [{ message: { content: 'ok' } }] }; } };
+      return { ok: true, async json() { return { output_text: 'ok' }; } };
     },
   };
   const first = await post({ intent: 'workforce_summary', enhance: true }, overrides);
