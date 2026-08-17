@@ -35,9 +35,14 @@ for (const pattern of ['.new_token.txt', 'data-rrhh/', 'api/rrhh.js', 'api/lib/d
 assert.doesNotMatch(ignore, /^sw\.js$/m, 'el service worker PWA debe llegar al build de Vercel');
 assert.doesNotMatch(ignore, /^manifest\.webmanifest$/m, 'el manifiesto PWA debe llegar al build de Vercel');
 assert.match(ignore, /^!gestion-comparativa\.html$/m, 'la comparación de gestiones debe llegar al build de Vercel');
-const gitIgnore = read('.gitignore');
-for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
-  assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
+const gitIgnoreUrl = new URL('../.gitignore', import.meta.url);
+if (fs.existsSync(gitIgnoreUrl)) {
+  const gitIgnore = fs.readFileSync(gitIgnoreUrl, 'utf8');
+  for (const pattern of ['.new_token.txt', 'data-rrhh/', 'rrhh-data/', 'prisma/', '*.db', '*.sql']) {
+    assert.ok(gitIgnore.includes(pattern), `git debe ignorar ${pattern}`);
+  }
+} else {
+  assert.equal(process.env.VERCEL, '1', '.gitignore sólo puede faltar dentro del build aislado de Vercel');
 }
 
 for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
