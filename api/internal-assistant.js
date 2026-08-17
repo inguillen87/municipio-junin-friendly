@@ -23,16 +23,16 @@ const MAX_MESSAGE_LENGTH = 1_200;
 const MAX_SEARCH_LENGTH = 100;
 const MAX_PROVIDER_OUTPUT_CHARS = 4_000;
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
-const DEFAULT_OPENAI_REASONING_EFFORT = 'minimal';
-const DEFAULT_OPENAI_TIMEOUT_MS = 7_000;
+const DEFAULT_OPENAI_MODEL = 'gpt-5.4-mini';
+const DEFAULT_OPENAI_REASONING_EFFORT = 'none';
+const DEFAULT_OPENAI_TIMEOUT_MS = 10_000;
 const HF_ROUTER_URL = 'https://router.huggingface.co/v1/chat/completions';
 const DEFAULT_HF_MODEL = 'openai/gpt-oss-120b:fastest';
-const DEFAULT_HF_TIMEOUT_MS = 5_000;
+const DEFAULT_HF_TIMEOUT_MS = 4_000;
 const DEFAULT_AI_OUTPUT_TOKENS = 320;
 const DEFAULT_HF_CALLS_PER_WINDOW = 3;
 const DEFAULT_HF_WINDOW_MS = 60_000;
-const DEFAULT_AI_TOTAL_TIMEOUT_MS = 12_000;
+const DEFAULT_AI_TOTAL_TIMEOUT_MS = 14_000;
 const QUERY_PLAN_VERSION = 'municipal_query_plan.v1';
 const MAX_HISTORY_ITEMS = 8;
 
@@ -113,7 +113,8 @@ const INTENT_RESOURCES = Object.freeze({
 
 const EXTERNAL_FORBIDDEN_FIELDS = /\b(?:dni|cuil|nombre|apellido|legajo|domicilio|direcci[oó]n|tel[eé]fono|email|contract[_-]?id|source[_-]?id|canonical[_-]?id|issue[_-]?id|observed[_-]?value|import[_-]?lineage)\b/i;
 const quotaByRuntime = new Map();
-const OPENAI_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const OPENAI_REASONING_EFFORTS_54 = new Set(['none', 'low', 'medium', 'high', 'xhigh']);
+const OPENAI_REASONING_EFFORTS_5_MINI = new Set(['minimal', 'low', 'medium', 'high']);
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -2586,8 +2587,15 @@ function openAIUsage(payload) {
 
 function openAIReasoningEffort(model, env) {
   const configured = normalizeText(env.OPENAI_REASONING_EFFORT, 16).toLowerCase();
-  if (OPENAI_REASONING_EFFORTS.has(configured)) return configured;
-  return /^gpt-5-mini(?:-|$)/i.test(model) ? DEFAULT_OPENAI_REASONING_EFFORT : null;
+  if (/^gpt-5\.4-mini(?:-|$)/i.test(model)) {
+    return OPENAI_REASONING_EFFORTS_54.has(configured)
+      ? configured
+      : DEFAULT_OPENAI_REASONING_EFFORT;
+  }
+  if (/^gpt-5-mini(?:-|$)/i.test(model)) {
+    return OPENAI_REASONING_EFFORTS_5_MINI.has(configured) ? configured : 'minimal';
+  }
+  return null;
 }
 
 function providerElapsedMs(startedAt, clock) {
@@ -2675,10 +2683,6 @@ function huggingFaceOutputText(payload) {
     if (text) parts.push(text);
   }
   return normalizeText(parts.join('\n'), MAX_PROVIDER_OUTPUT_CHARS);
-}
-
-function isGptOssModel(model) {
-  return /(?:^|\/)gpt-oss(?:[-/:]|$)/i.test(model);
 }
 
 async function requestOpenAIInsight({
@@ -2797,7 +2801,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Number(clock());
-  const reasoningEffort = isGptOssModel(model) ? 'minimal' : null;
   try {
     const response = await fetchImpl(HF_ROUTER_URL, {
       method: 'POST',
@@ -2814,7 +2817,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
         max_tokens: maxTokens,
         temperature: 0.2,
         stream: false,
-        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       }),
       signal: controller.signal,
     });
@@ -2824,7 +2826,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
       const errorCode = await providerErrorCode(response, providerHttpErrorFallback(httpStatus));
       return providerStatus('huggingface', classifyProviderHttpStatus(httpStatus, errorCode), {
         model,
-        reasoningEffort,
         httpStatus,
         elapsedMs: providerElapsedMs(startedAt, clock),
         requestId,
@@ -2837,7 +2838,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
     } catch {
       return providerStatus('huggingface', 'invalid_response', {
         model,
-        reasoningEffort,
         httpStatus,
         elapsedMs: providerElapsedMs(startedAt, clock),
         requestId,
@@ -2848,7 +2848,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
     if (finishReason === 'length') {
       return providerStatus('huggingface', 'incomplete_max_output_tokens', {
         model,
-        reasoningEffort,
         httpStatus,
         elapsedMs: providerElapsedMs(startedAt, clock),
         requestId,
@@ -2860,7 +2859,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
     if (!insight) {
       return providerStatus('huggingface', 'invalid_response', {
         model,
-        reasoningEffort,
         httpStatus,
         elapsedMs: providerElapsedMs(startedAt, clock),
         requestId,
@@ -2869,7 +2867,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
     }
     return providerStatus('huggingface', 'used', {
       model,
-      reasoningEffort,
       insight,
       httpStatus,
       elapsedMs: providerElapsedMs(startedAt, clock),
@@ -2883,7 +2880,6 @@ async function requestHuggingFaceInsight({ token, model, topic, serializedFacts,
   } catch (error) {
     return providerStatus('huggingface', error?.name === 'AbortError' ? 'timeout' : 'unavailable', {
       model,
-      reasoningEffort,
       elapsedMs: providerElapsedMs(startedAt, clock),
       errorCode: providerTransportErrorCode(error),
     });
@@ -2955,9 +2951,9 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
     64,
     320,
   );
-  const totalTimeoutMs = boundedInteger(env.AI_ASSISTANT_TIMEOUT_MS, DEFAULT_AI_TOTAL_TIMEOUT_MS, 2_000, 12_000);
-  const openAIRequestedTimeout = boundedInteger(env.OPENAI_ASSISTANT_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS, 1_000, 7_000);
-  const hfRequestedTimeout = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 5_000);
+  const totalTimeoutMs = boundedInteger(env.AI_ASSISTANT_TIMEOUT_MS, DEFAULT_AI_TOTAL_TIMEOUT_MS, 2_000, 14_000);
+  const openAIRequestedTimeout = boundedInteger(env.OPENAI_ASSISTANT_TIMEOUT_MS, DEFAULT_OPENAI_TIMEOUT_MS, 1_000, 10_000);
+  const hfRequestedTimeout = boundedInteger(env.HF_ASSISTANT_TIMEOUT_MS, DEFAULT_HF_TIMEOUT_MS, 1_000, 4_000);
   const openAITimeoutMs = openAIToken && hfToken
     ? Math.min(openAIRequestedTimeout, Math.max(1_000, totalTimeoutMs - 1_000))
     : Math.min(openAIRequestedTimeout, totalTimeoutMs);

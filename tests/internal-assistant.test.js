@@ -1364,22 +1364,22 @@ test('OpenAI Responses es primario y no intenta HF cuando responde correctamente
   assert.equal(requests[0].url, 'https://api.openai.com/v1/responses');
   assert.equal(requests[0].options.headers.Authorization, 'Bearer openai_secret_test');
   const providerBody = JSON.parse(requests[0].options.body);
-  assert.equal(providerBody.model, 'gpt-5-mini');
+  assert.equal(providerBody.model, 'gpt-5.4-mini');
   assert.equal(providerBody.store, false);
   assert.equal(providerBody.max_output_tokens, 320, 'el tope debe limitar cualquier configuración mayor');
-  assert.deepEqual(providerBody.reasoning, { effort: 'minimal' });
+  assert.deepEqual(providerBody.reasoning, { effort: 'none' });
   assert.match(providerBody.input, /"operationalGap":28/);
   assert.doesNotMatch(providerBody.input, /Dame una lectura|PERSONA LOCAL/i);
   assert.equal(res.payload.provider.provider, 'openai');
   assert.equal(res.payload.provider.name, 'openai_responses');
   assert.equal(res.payload.provider.status, 'used');
-  assert.equal(res.payload.provider.model, 'gpt-5-mini');
-  assert.equal(res.payload.provider.reasoningEffort, 'minimal');
+  assert.equal(res.payload.provider.model, 'gpt-5.4-mini');
+  assert.equal(res.payload.provider.reasoningEffort, 'none');
   assert.deepEqual(res.payload.provider.usage, {
     promptTokens: 90, completionTokens: 18, totalTokens: 108, reasoningTokens: 0,
   });
   assert.deepEqual(res.payload.provider.attempts, [{
-    provider: 'openai', status: 'used', model: 'gpt-5-mini',
+    provider: 'openai', status: 'used', model: 'gpt-5.4-mini',
     httpStatus: 200, elapsedMs: 0, requestId: null, errorCode: null,
   }]);
   assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
@@ -1433,7 +1433,7 @@ test('OpenAI clasifica errores HTTP y publica sólo telemetría segura del prove
     assert.equal(res.payload.provider.requestId, 'upstream-safe-id');
     assert.equal(res.payload.provider.errorCode, expected.code);
     assert.deepEqual(res.payload.provider.attempts[0], {
-      provider: 'openai', status: expected.status, model: 'gpt-5-mini',
+      provider: 'openai', status: expected.status, model: 'gpt-5.4-mini',
       httpStatus: expected.httpStatus, elapsedMs: 37, requestId: 'upstream-safe-id', errorCode: expected.code,
     });
     const serializedProvider = JSON.stringify(res.payload.provider);
@@ -1458,7 +1458,7 @@ test('OpenAI clasifica errores HTTP y publica sólo telemetría segura del prove
   }
 });
 
-test('el presupuesto predeterminado reserva 7 s para OpenAI y 5 s para el único fallback', async () => {
+test('el presupuesto predeterminado reserva 10 s para OpenAI y 4 s para el único fallback', async () => {
   const urls = [];
   const res = await post(
     { intent: 'workforce_summary', enhance: true },
@@ -1477,18 +1477,18 @@ test('el presupuesto predeterminado reserva 7 s para OpenAI y 5 s para el único
     'https://router.huggingface.co/v1/chat/completions',
   ]);
   assert.equal(res.payload.provider.provider, 'huggingface');
-  assert.equal(res.payload.provider.limits.totalTimeoutMs, 12000);
-  assert.equal(res.payload.provider.limits.openAITimeoutMs, 7000);
-  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 5000);
-  assert.equal(res.payload.provider.limits.timeoutMs, 5000);
+  assert.equal(res.payload.provider.limits.totalTimeoutMs, 14000);
+  assert.equal(res.payload.provider.limits.openAITimeoutMs, 10000);
+  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 4000);
+  assert.equal(res.payload.provider.limits.timeoutMs, 4000);
 });
 
-test('OpenAI Responses acepta texto anidado y aplica el valor predeterminado de 320 tokens', async () => {
+test('OpenAI Responses conserva minimal para gpt-5-mini configurado y aplica 320 tokens', async () => {
   let providerBody;
   const res = await post(
     { intent: 'integration_quality', enhance: true },
     {
-      env: { OPENAI_API_KEY: 'openai_test' },
+      env: { OPENAI_API_KEY: 'openai_test', OPENAI_MODEL: 'gpt-5-mini' },
       fetch: async (_url, options) => {
         providerBody = JSON.parse(options.body);
         return {
@@ -1504,10 +1504,36 @@ test('OpenAI Responses acepta texto anidado y aplica el valor predeterminado de 
   assert.equal(res.payload.provider.provider, 'openai');
   assert.equal(res.payload.provider.status, 'used');
   assert.equal(res.payload.insight, 'GRH conserva la autoridad laboral.');
+  assert.equal(providerBody.model, 'gpt-5-mini');
   assert.equal(providerBody.max_output_tokens, 320);
   assert.deepEqual(providerBody.reasoning, { effort: 'minimal' });
+  assert.equal(res.payload.provider.reasoningEffort, 'minimal');
   assert.equal(res.payload.provider.limits.maxCallsPerRequest, 1);
   assert.equal(res.payload.provider.usage, null);
+});
+
+test('OpenAI ignora minimal heredado cuando el modelo gpt-5.4-mini no lo admite', async () => {
+  let providerBody;
+  const res = await post(
+    { intent: 'integration_quality', enhance: true },
+    {
+      env: { OPENAI_API_KEY: 'openai_test', OPENAI_REASONING_EFFORT: 'minimal' },
+      fetch: async (_url, options) => {
+        providerBody = JSON.parse(options.body);
+        return {
+          ok: true,
+          async json() {
+            return { output: [{ content: [{ type: 'output_text', text: 'Respuesta compatible.' }] }] };
+          },
+        };
+      },
+    },
+  );
+
+  assert.equal(providerBody.model, 'gpt-5.4-mini');
+  assert.deepEqual(providerBody.reasoning, { effort: 'none' });
+  assert.equal(res.payload.provider.reasoningEffort, 'none');
+  assert.equal(res.payload.provider.status, 'used');
 });
 
 test('una respuesta OpenAI incompleta queda explícita y no dispara un segundo proveedor', async () => {
@@ -1548,7 +1574,7 @@ test('una respuesta OpenAI incompleta queda explícita y no dispara un segundo p
   assert.equal(Object.hasOwn(res.payload.provider, 'fallbackFrom'), false);
   assert.deepEqual(res.payload.provider.attempts, [
     {
-      provider: 'openai', status: 'incomplete_max_output_tokens', model: 'gpt-5-mini',
+      provider: 'openai', status: 'incomplete_max_output_tokens', model: 'gpt-5.4-mini',
       httpStatus: 200, elapsedMs: 0, requestId: null, errorCode: 'max_output_tokens',
     },
   ]);
@@ -1587,7 +1613,7 @@ test('una falla de OpenAI habilita un único fallback agregado a Hugging Face', 
   assert.deepEqual(res.payload.provider.fallbackFrom, { provider: 'openai', status: 'upstream_rate_limited' });
   assert.deepEqual(res.payload.provider.attempts, [
     {
-      provider: 'openai', status: 'upstream_rate_limited', model: 'gpt-5-mini',
+      provider: 'openai', status: 'upstream_rate_limited', model: 'gpt-5.4-mini',
       httpStatus: 429, elapsedMs: 0, requestId: null, errorCode: 'rate_limit_exceeded',
     },
     {
@@ -1596,9 +1622,9 @@ test('una falla de OpenAI habilita un único fallback agregado a Hugging Face', 
     },
   ]);
   assert.equal(res.payload.provider.limits.maxCallsPerRequest, 2);
-  assert.equal(res.payload.provider.limits.totalTimeoutMs, 12000);
-  assert.equal(res.payload.provider.limits.openAITimeoutMs, 7000);
-  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 5000);
+  assert.equal(res.payload.provider.limits.totalTimeoutMs, 14000);
+  assert.equal(res.payload.provider.limits.openAITimeoutMs, 10000);
+  assert.equal(res.payload.provider.limits.huggingFaceTimeoutMs, 4000);
   assert.equal(logs.length, 1);
   assert.deepEqual(JSON.parse(logs[0]).providerAttempts, [
     {
@@ -1651,7 +1677,7 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
   assert.equal(providerBody.model, 'Qwen/test-model');
   assert.equal(providerBody.max_tokens, 180);
   assert.equal(providerBody.temperature, 0.2);
-  assert.equal(Object.hasOwn(providerBody, 'reasoning_effort'), false, 'un modelo Qwen no debe recibir el parámetro de gpt-oss');
+  assert.equal(Object.hasOwn(providerBody, 'reasoning_effort'), false, 'HF Router no debe recibir el parámetro incompatible');
   const serialized = JSON.stringify(providerBody);
   assert.doesNotMatch(serialized, /PERSONA LOCAL|00000000|usuario@example\.test/i);
   assert.doesNotMatch(providerBody.messages[1].content, /Dame una lectura ejecutiva/i, 'no debe enviar el mensaje crudo');
@@ -1661,7 +1687,7 @@ test('HF Router recibe sólo hechos agregados, con timeout y tope de tokens', as
   assert.equal(res.payload.provider.limits.timeoutMs, 2500);
 });
 
-test('HF tolera content por partes, usa minimal sólo para gpt-oss e ignora todo reasoning_content', async () => {
+test('HF tolera content por partes sin reasoning_effort e ignora todo reasoning_content', async () => {
   let hfBody;
   const res = await post(
     { intent: 'workforce_summary', enhance: true },
@@ -1695,8 +1721,8 @@ test('HF tolera content por partes, usa minimal sólo para gpt-oss e ignora todo
   );
 
   assert.equal(hfBody.model, 'openai/gpt-oss-120b:fastest');
-  assert.equal(hfBody.reasoning_effort, 'minimal');
-  assert.equal(res.payload.provider.reasoningEffort, 'minimal');
+  assert.equal(Object.hasOwn(hfBody, 'reasoning_effort'), false);
+  assert.equal(Object.hasOwn(res.payload.provider, 'reasoningEffort'), false);
   assert.equal(res.payload.insight, 'Primera conclusión verificada. Segunda conclusión verificada.');
   assert.equal(res.payload.provider.requestId, 'hf-safe-id');
   assert.doesNotMatch(JSON.stringify(res.payload.provider), /RAZONAMIENTO_PRIVADO|PARTE_RAZONAMIENTO|reasoning_content/i);
@@ -1785,7 +1811,7 @@ test('usa un modelo oficial de baja latencia cuando HF_MODEL no está configurad
   assert.equal(res.payload.mode, 'hybrid');
   assert.equal(res.payload.provider.provider, 'huggingface');
   assert.equal(providerBody.model, 'openai/gpt-oss-120b:fastest');
-  assert.equal(providerBody.reasoning_effort, 'minimal');
+  assert.equal(Object.hasOwn(providerBody, 'reasoning_effort'), false);
 });
 
 test('la falta del proveedor primario o una caída del fallback no rompe la respuesta local', async () => {
