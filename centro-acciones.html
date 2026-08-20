@@ -1175,7 +1175,9 @@
         el.actionEmpty.hidden = rows.length > 0;
         el.actionQueue.hidden = rows.length === 0;
         var total = state.pageInfo.total;
-        el.actionResultCount.textContent = rows.length + ' acción' + (rows.length === 1 ? '' : 'es') + ' visible' + (rows.length === 1 ? '' : 's') + (total !== null && total !== undefined ? ' · ' + total + ' en el alcance' : ' en esta página');
+        el.actionResultCount.textContent = rows.length
+          + (rows.length === 1 ? ' acción visible' : ' acciones visibles')
+          + (total !== null && total !== undefined ? ' · ' + total + ' en el alcance' : ' en esta página');
         el.pageScopeLabel.textContent = 'Vista: ' + ({ mine: 'Mis solicitudes', area: 'Mi área', authorized: 'Todo mi alcance', closed: 'Cerradas' }[state.activeView] || 'Bandeja');
         rows.forEach(function (action) {
           var row = create('tr');
