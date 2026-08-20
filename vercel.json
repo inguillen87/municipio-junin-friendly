@@ -7,6 +7,7 @@
     "api/internal-auth.js": { "maxDuration": 10 },
     "api/internal-data.js": { "maxDuration": 20 },
     "api/internal-actions.js": { "maxDuration": 20 },
+    "api/internal-admin.js": { "maxDuration": 20 },
     "api/internal-assistant.js": { "maxDuration": 25 }
   },
   "rewrites": [
@@ -43,6 +44,7 @@
     { "source": "/internal", "destination": "/internal-dashboard.html" },
     { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
     { "source": "/centro-acciones", "destination": "/centro-acciones.html" },
+    { "source": "/administracion-plataforma", "destination": "/administracion-plataforma.html" },
     { "source": "/modulos", "destination": "/modulos.html" },
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
     { "source": "/calidad-datos", "destination": "/calidad-datos.html" },
@@ -69,7 +71,7 @@
     { "source": "/importar", "destination": "/datos-personales.html" },
     { "source": "/upload", "destination": "/datos-personales.html" },
     { "source": "/ingest", "destination": "/datos-personales.html" },
-    { "source": "/admin", "destination": "/internal-dashboard.html" },
+    { "source": "/admin", "destination": "/administracion-plataforma.html" },
     { "source": "/auditoria", "destination": "/datos-personales.html" },
 
     { "source": "/", "destination": "/friendly-dashboard.html" },
@@ -154,6 +156,14 @@
     },
     {
       "source": "/centro-acciones.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/administracion-plataforma",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/administracion-plataforma.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

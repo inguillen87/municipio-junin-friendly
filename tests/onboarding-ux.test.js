@@ -25,7 +25,7 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
 });
 
 test('el contrato de aprendizaje cubre la navegación, las tareas y el glosario vigentes', () => {
-  assert.equal(SECTION_CATALOG.length, 14);
+  assert.equal(SECTION_CATALOG.length, 15);
   assert.equal(TASK_CATALOG.length, 13);
   assert.equal(GLOSSARY.length, 15);
   assert.equal(new Set(SECTION_CATALOG.map((section) => section.id)).size, SECTION_CATALOG.length);

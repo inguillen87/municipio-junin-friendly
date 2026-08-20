@@ -19,6 +19,7 @@ database/
 !scripts/canonical-promote-current-grh.sql
 !scripts/migrations/002-canonical-integration.sql
 !scripts/migrations/003-action-center.sql
+!scripts/migrations/004-tenant-iam-control-plane.sql
 data-rrhh/
 prisma/
 css/
@@ -32,6 +33,7 @@ test_prisma.js
 !friendly-dashboard.html
 !internal-dashboard.html
 !centro-acciones.html
+!administracion-plataforma.html
 !datos-personales.html
 !modulos.html
 !reportes-rrhh.html

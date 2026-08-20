@@ -9,6 +9,8 @@
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
     "db:actions:schema": "node --env-file=.env.local scripts/apply-action-center-schema.mjs",
     "db:actions:verify-live": "node scripts/verify-action-center-live.mjs --confirm-isolated-branch",
+    "db:iam:schema": "node --env-file=.env.local scripts/apply-tenant-iam-schema.mjs",
+    "db:iam:bootstrap": "node --env-file=.env.local scripts/bootstrap-tenant-iam.mjs",
     "db:canonical:schema": "node --env-file=.env.local scripts/apply-canonical-schema.mjs",
     "db:canonical:promote-grh": "node --env-file=.env.local scripts/promote-canonical-grh.mjs",
     "db:canonical:import-grh-core": "node --env-file=.env.local scripts/import-grh-core-canonical.mjs",

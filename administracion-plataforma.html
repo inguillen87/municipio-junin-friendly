@@ -1,0 +1,1922 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="same-origin">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#123247">
+  <title>Administración de plataforma | MuniControl</title>
+  <meta name="description" content="Administración multi-gobierno, identidades y controles operativos de MuniControl.">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --navy-3: #0b2637;
+      --teal: #0f766e;
+      --teal-dark: #0b5b55;
+      --canvas: #eef2f0;
+      --surface: #ffffff;
+      --surface-2: #f6f8f7;
+      --surface-3: #edf4f2;
+      --ink: #132e3d;
+      --muted: #5f7480;
+      --line: #d5dfe1;
+      --line-strong: #aebfc4;
+      --amber: #9a610e;
+      --amber-bg: #fff7e7;
+      --red: #973b3b;
+      --red-bg: #fff1f0;
+      --green: #19705e;
+      --green-bg: #edf8f4;
+      --blue: #245c7a;
+      --blue-bg: #edf5f9;
+      --shadow: 0 18px 48px rgba(9, 30, 43, .17);
+      --sidebar: 258px;
+      --radius: 6px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--canvas); scroll-behavior: smooth; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; color: var(--ink); background: var(--canvas); font-size: 14px; line-height: 1.45; }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, .3);
+      outline-offset: 2px;
+    }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+    .skip-link { position: fixed; z-index: 10000; top: 8px; left: 8px; padding: 10px 14px; color: #fff; background: var(--navy); border-radius: 4px; transform: translateY(-160%); }
+    .skip-link:focus { transform: translateY(0); }
+
+    .auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .gate-card { width: min(460px, 100%); padding: 30px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .gate-mark { width: 54px; height: 54px; display: inline-grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-family: Georgia, serif; font-size: 26px; }
+    .gate-card h1 { margin: 18px 0 8px; color: var(--navy); font-size: 25px; letter-spacing: -.02em; }
+    .gate-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+    .spinner { width: 28px; height: 28px; margin: 22px auto 0; border: 3px solid #dbe4e6; border-top-color: var(--teal); border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar { position: sticky; z-index: 80; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 22px 16px; overflow-y: auto; color: #dce8ed; background: var(--navy); border-right: 1px solid #274c61; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 20px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .brand-home { display: flex; align-items: center; gap: 11px; min-width: 0; color: #fff; text-decoration: none; }
+    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; color: var(--navy); background: #f7f4eb; border-radius: 3px; font-family: Georgia, serif; font-size: 23px; }
+    .brand-copy { min-width: 0; }
+    .brand-copy strong, .brand-copy span { display: block; }
+    .brand-copy strong { font-size: 14px; }
+    .brand-copy span { margin-top: 2px; color: #a9c2cd; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .menu-close { width: 44px; height: 44px; display: none; place-items: center; flex: 0 0 auto; color: #fff; background: transparent; border: 1px solid #557486; border-radius: 4px; cursor: pointer; font-size: 22px; }
+    .nav-wrap { display: grid; gap: 22px; margin-top: 20px; }
+    .nav-group { display: grid; gap: 4px; }
+    .nav-label { margin: 0 9px 7px; color: #8fabb8; font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    .nav-link { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: #c7d7de; background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; text-align: left; text-decoration: none; font-size: 13px; font-weight: 720; }
+    .nav-link:hover { color: #fff; border-color: #3d6073; background: rgba(255,255,255,.035); }
+    .nav-link[aria-current="page"] { color: var(--navy-3); background: #f8f5ec; border-color: #f8f5ec; }
+    .nav-code { width: 27px; height: 27px; display: inline-grid; place-items: center; flex: 0 0 auto; color: #8fabb8; border: 1px solid currentColor; border-radius: 3px; font-size: 10px; font-weight: 850; letter-spacing: .03em; }
+    .nav-link[aria-current="page"] .nav-code { color: var(--teal); }
+    .sidebar-foot { margin-top: auto; padding: 16px 10px 2px; color: #9fb7c2; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; line-height: 1.5; }
+    .sidebar-foot strong { display: block; margin-bottom: 3px; color: #fff; }
+    .nav-backdrop { display: none; }
+
+    .workspace { min-width: 0; }
+    .topbar { position: sticky; z-index: 55; top: 0; min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 10px 26px; background: rgba(255,255,255,.97); border-bottom: 1px solid var(--line); backdrop-filter: blur(10px); }
+    .topbar-left, .topbar-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .topbar-context { min-width: 0; }
+    .menu-button { width: 44px; height: 44px; display: none; place-items: center; flex: 0 0 auto; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-size: 18px; }
+    .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .crumb a { color: var(--teal-dark); }
+    .top-title { display: block; margin-top: 2px; overflow: hidden; color: var(--navy); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .tenant-switcher { min-width: 218px; max-width: 340px; min-height: 46px; display: grid; grid-template-columns: 27px minmax(0,1fr) 18px; gap: 8px; align-items: center; padding: 6px 9px; color: var(--navy); background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; text-align: left; }
+    .tenant-switcher:hover { background: #fff; border-color: var(--teal); }
+    .tenant-switcher-code { width: 27px; height: 27px; display: grid; place-items: center; color: var(--teal-dark); background: #fff; border: 1px solid #9fc5bf; border-radius: 3px; font-size: 9px; font-weight: 900; }
+    .tenant-switcher-copy { min-width: 0; }
+    .tenant-switcher-copy small, .tenant-switcher-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tenant-switcher-copy small { color: var(--muted); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .tenant-switcher-copy strong { margin-top: 1px; font-size: 12px; }
+    .session { max-width: 220px; display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 9px; align-items: center; padding: 5px 9px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 4px; }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--navy-2); border-radius: 3px; font-size: 10px; font-weight: 850; }
+    .session strong, .session span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session strong { color: var(--navy); font-size: 12px; }
+    .session span { margin-top: 2px; color: var(--muted); font-size: 11px; }
+
+    .button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 800; text-decoration: none; }
+    .button:hover:not(:disabled) { border-color: var(--navy-2); background: var(--surface-2); }
+    .button.primary { color: #fff; background: var(--teal); border-color: var(--teal); }
+    .button.primary:hover:not(:disabled) { background: var(--teal-dark); border-color: var(--teal-dark); }
+    .button.danger { color: var(--red); border-color: #d9afac; }
+    .button.danger:hover:not(:disabled) { background: var(--red-bg); }
+    .button.quiet { background: transparent; }
+    .button:disabled { color: #81929a; background: #edf1f2; border-color: #d9e0e2; cursor: not-allowed; opacity: .78; }
+
+    .context-banner { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 26px; color: #2d4b58; background: var(--surface-3); border-bottom: 1px solid #bdd5d1; font-size: 11px; }
+    .context-banner strong { color: var(--navy); }
+    .context-banner span { overflow-wrap: anywhere; }
+    .context-status { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-weight: 800; }
+    .context-status::before { content: ""; width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
+    .context-status.is-blocked::before { background: var(--amber); }
+
+    .main { padding: 30px clamp(18px, 3.4vw, 46px) calc(52px + var(--safe-bottom)); }
+    .content { width: min(1500px, 100%); margin: 0 auto; }
+    .view[hidden] { display: none; }
+    .page-head { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 28px; align-items: end; padding-bottom: 24px; border-bottom: 1px solid var(--line-strong); }
+    .eyebrow { margin: 0 0 8px; color: var(--teal-dark); font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(30px, 4.3vw, 46px); font-weight: 790; line-height: 1.04; letter-spacing: -.035em; }
+    .page-lead { max-width: 820px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .head-actions { display: flex; gap: 9px; }
+
+    .summary-rail { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin: 18px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .summary-rail > div { min-width: 0; padding: 14px 16px; border-right: 1px solid var(--line); }
+    .summary-rail > div:last-child { border-right: 0; }
+    .summary-rail dt { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .summary-rail dd { margin: 5px 0 0; color: var(--navy); font-size: 23px; font-weight: 790; font-variant-numeric: tabular-nums; }
+    .summary-rail small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+
+    .panel { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .panel-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 18px 20px 15px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; color: var(--navy); font-size: 20px; letter-spacing: -.02em; }
+    .panel-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .panel-body { padding: 18px 20px; }
+    .toolbar { display: grid; grid-template-columns: minmax(220px,1fr) minmax(150px,.4fr) auto; gap: 10px; align-items: end; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+    .field { min-width: 0; }
+    .field label, .field-label { display: block; margin-bottom: 5px; color: var(--navy); font-size: 11px; font-weight: 800; }
+    .input, .select, .textarea { width: 100%; min-height: 44px; padding: 10px; color: var(--ink); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 13px; }
+    .textarea { min-height: 92px; resize: vertical; }
+    .input:disabled, .select:disabled, .textarea:disabled { color: #536971; background: #edf1f2; border-color: #d4dddf; cursor: not-allowed; opacity: 1; }
+    .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .field-error { display: block; margin-top: 5px; color: var(--red); font-size: 11px; font-weight: 750; }
+    .table-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 11px; }
+    .table-meta strong { color: var(--navy); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--navy); background: var(--surface-2); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    td { color: #2c4653; font-size: 13px; }
+    tbody tr[data-open-row] { cursor: pointer; }
+    tbody tr[data-open-row]:hover, tbody tr[data-open-row]:focus-within { background: #f7faf9; }
+    .cell-title { display: block; color: var(--navy); font-weight: 800; }
+    .cell-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+    .state-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 5px 8px; color: #36515f; background: #eef2f3; border: 1px solid #cfdadc; border-radius: 999px; font-size: 10px; font-weight: 850; white-space: nowrap; }
+    .state-pill::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; background: #71868f; border-radius: 50%; }
+    .state-pill.is-ok { color: #155d4e; background: var(--green-bg); border-color: #a9d6c9; }
+    .state-pill.is-ok::before { background: var(--green); }
+    .state-pill.is-attention { color: #7a500e; background: var(--amber-bg); border-color: #e4c68e; }
+    .state-pill.is-attention::before { background: var(--amber); }
+    .state-pill.is-danger { color: #883333; background: var(--red-bg); border-color: #dfb0ad; }
+    .state-pill.is-danger::before { background: var(--red); }
+    .state-pill.is-info { color: #235974; background: var(--blue-bg); border-color: #b7d1df; }
+    .state-pill.is-info::before { background: var(--blue); }
+    .row-button { min-height: 44px; padding: 8px 10px; }
+    .empty-state, .loading-state, .error-state { margin: 16px 20px 20px; padding: 28px 20px; text-align: center; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+    .empty-state strong, .loading-state strong, .error-state strong { display: block; color: var(--navy); font-size: 13px; }
+    .empty-state p, .loading-state p, .error-state p { max-width: 680px; margin: 6px auto 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .error-state { background: var(--red-bg); border-style: solid; border-color: #dfb0ad; }
+    .error-state strong { color: var(--red); }
+
+    .governance-strip { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; align-items: center; margin: 18px 0; padding: 13px 15px; color: #244351; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: var(--radius); }
+    .governance-strip.is-blocked { background: var(--amber-bg); border-color: #e3c78f; border-left-color: var(--amber); }
+    .governance-strip strong { display: block; color: var(--navy); font-size: 13px; }
+    .governance-strip p { margin: 3px 0 0; color: #526b75; font-size: 12px; }
+    .governance-strip.is-blocked p { color: #72531a; }
+    .governance-facts { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .tabs { display: flex; gap: 4px; padding: 7px; overflow-x: auto; background: var(--surface-2); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+    .tab { min-height: 44px; padding: 8px 12px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .tab[aria-selected="true"] { color: var(--navy); background: #fff; border-color: var(--line-strong); }
+    .access-layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(320px,.75fr); gap: 18px; align-items: start; margin-top: 18px; }
+    .access-layout .panel { margin-top: 0; }
+    .capability-list { display: grid; gap: 0; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+    .capability-row { min-height: 60px; display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 10px; align-items: start; padding: 11px; border-bottom: 1px solid var(--line); }
+    .capability-row:last-child { border-bottom: 0; }
+    .capability-row input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--teal); }
+    .capability-row strong, .capability-row span { display: block; }
+    .capability-row strong { color: var(--navy); font-size: 12px; overflow-wrap: anywhere; }
+    .capability-row span { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .effective-box { margin-top: 13px; padding: 12px; color: #2f4e59; background: var(--surface-3); border: 1px solid #bdd5d1; border-radius: 4px; font-size: 12px; line-height: 1.5; }
+    .effective-box strong { color: var(--navy); }
+    .conflict-box { margin-top: 12px; padding: 12px; color: #6c4e18; background: var(--amber-bg); border: 1px solid #e3c78f; border-left: 4px solid var(--amber); border-radius: 4px; font-size: 12px; line-height: 1.5; }
+    .conflict-box.is-danger { color: #7e3333; background: var(--red-bg); border-color: #dcaeaa; border-left-color: var(--red); }
+    .conflict-box strong { display: block; margin-bottom: 4px; color: inherit; }
+    .conflict-box ul { margin: 5px 0 0; padding-left: 18px; }
+    .facts { display: grid; gap: 0; margin: 0; }
+    .facts > div { display: grid; grid-template-columns: minmax(130px,.45fr) minmax(0,1fr); gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .facts > div:last-child { border-bottom: 0; }
+    .facts dt { color: var(--muted); font-size: 12px; }
+    .facts dd { margin: 0; overflow-wrap: anywhere; color: var(--navy); font-size: 13px; font-weight: 750; }
+    .control-list { border-top: 1px solid var(--line); }
+    .control-row { display: grid; grid-template-columns: minmax(220px,1.1fr) minmax(180px,.7fr) minmax(220px,1fr); gap: 18px; padding: 17px 20px; border-bottom: 1px solid var(--line); }
+    .control-row h3 { margin: 0; color: var(--navy); font-size: 15px; }
+    .control-row p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .control-value { color: var(--navy); font-size: 12px; font-weight: 800; }
+    .control-value span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 500; }
+    .assignment-form { display: grid; grid-template-columns: minmax(150px,1fr) auto; gap: 8px; align-items: end; }
+
+    dialog { width: min(920px, calc(100vw - 34px)); max-width: 920px; max-height: calc(100dvh - 34px); padding: 0; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 28px 80px rgba(9,30,43,.28); }
+    dialog::backdrop { background: rgba(6,25,37,.58); backdrop-filter: blur(2px); }
+    .dialog-shell { max-height: calc(100dvh - 36px); display: flex; flex-direction: column; }
+    .dialog-head { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px 22px; background: #fff; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 3px 0 0; color: var(--navy); font-size: 23px; letter-spacing: -.025em; }
+    .dialog-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .dialog-close { width: 44px; height: 44px; padding: 0; flex: 0 0 auto; font-size: 21px; }
+    .dialog-body { min-height: 0; padding: 20px 22px calc(24px + var(--safe-bottom)); overflow-y: auto; }
+    .dialog-footer { position: sticky; z-index: 2; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 22px calc(13px + var(--safe-bottom)); background: rgba(255,255,255,.98); border-top: 1px solid var(--line); }
+    .dialog-actions { display: flex; gap: 8px; margin-left: auto; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .field.full { grid-column: 1/-1; }
+    .dialog-note { margin: 0 0 15px; padding: 12px; color: #36515f; background: var(--surface-2); border-left: 4px solid var(--teal); font-size: 12px; line-height: 1.5; }
+    .tenant-options { display: grid; gap: 4px; margin-top: 13px; }
+    .tenant-option { width: 100%; min-height: 58px; display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; text-align: left; }
+    .tenant-option:hover, .tenant-option[aria-current="true"] { background: var(--surface-3); border-color: #9fc5bf; }
+    .tenant-option-code { width: 32px; height: 32px; display: grid; place-items: center; color: var(--teal-dark); background: #fff; border: 1px solid #9fc5bf; border-radius: 3px; font-size: 9px; font-weight: 900; }
+    .tenant-option strong, .tenant-option small { display: block; }
+    .tenant-option strong { color: var(--navy); font-size: 13px; }
+    .tenant-option small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .tenant-option-state { color: var(--muted); font-size: 10px; font-weight: 750; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .detail-section { padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .detail-section h3 { margin: 0 0 10px; color: var(--navy); font-size: 15px; }
+
+    .toast-region { position: fixed; z-index: 1000; right: 20px; bottom: calc(20px + var(--safe-bottom)); width: min(390px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
+    .toast { padding: 12px 14px; color: #fff; background: var(--navy); border-left: 4px solid #64b9a9; border-radius: 4px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; }
+    .toast.error { background: #6f2e2e; border-left-color: #efaaa5; }
+    .footer-note { margin: 18px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+    @media (max-width: 1180px) {
+      .access-layout { grid-template-columns: 1fr; }
+      .control-row { grid-template-columns: minmax(200px,1fr) minmax(180px,.7fr); }
+      .control-row > :last-child { grid-column: 1/-1; }
+    }
+
+    @media (max-width: 960px) {
+      .tenant-switcher { min-width: 190px; }
+      .topbar-context { display: none; }
+      .summary-rail { grid-template-columns: 1fr 1fr; }
+      .summary-rail > div:nth-child(2) { border-right: 0; }
+      .summary-rail > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    }
+
+    @media (max-width: 820px) {
+      .app-shell { display: block; }
+      .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, calc(100vw - 44px)); height: 100dvh; transform: translateX(-105%); transition: transform 180ms ease; box-shadow: 18px 0 44px rgba(5,25,37,.26); }
+      body.nav-open .sidebar { transform: translateX(0); }
+      .menu-close { display: grid; }
+      .nav-backdrop { position: fixed; z-index: 70; inset: 0; display: block; background: rgba(7,26,38,.52); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+      body.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+      .menu-button { display: grid; }
+      .topbar { min-height: 64px; padding: 9px 13px; }
+      .tenant-switcher { min-width: 0; max-width: 250px; flex: 1; }
+      .topbar-actions > .button { display: none; }
+      .session { max-width: 54px; display: block; padding: 4px; border: 0; background: transparent; }
+      .session-copy { display: none; }
+      .context-banner { padding: 8px 13px; }
+      .main { padding: 22px 14px calc(42px + var(--safe-bottom)); }
+      .page-head { grid-template-columns: 1fr; gap: 15px; }
+      .head-actions { width: 100%; }
+      .head-actions .button { flex: 1; }
+      .toolbar { grid-template-columns: 1fr 1fr; padding: 13px; }
+      .toolbar .field:first-child { grid-column: 1/-1; }
+      .panel-head, .panel-body, .table-meta { padding-left: 13px; padding-right: 13px; }
+      .governance-strip { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      h1 { font-size: 32px; }
+      .context-banner { align-items: flex-start; flex-direction: column; gap: 3px; }
+      .summary-rail { grid-template-columns: 1fr; }
+      .summary-rail > div { border-right: 0; border-bottom: 1px solid var(--line); }
+      .summary-rail > div:last-child { border-bottom: 0; }
+      .toolbar { grid-template-columns: 1fr; }
+      .toolbar .field:first-child { grid-column: auto; }
+      .panel-head { align-items: stretch; flex-direction: column; }
+      .panel-head > .button { width: 100%; }
+      .table-wrap { padding: 0 11px 11px; overflow: visible; }
+      table, thead, tbody, tr, td { display: block; width: 100%; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+      tbody { display: grid; gap: 0; }
+      tbody tr[data-open-row], tbody tr[data-list-row] { padding: 11px 0; background: #fff; border-bottom: 1px solid var(--line); }
+      td { display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid #e6ecec; }
+      td::before { content: attr(data-label); color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+      td:last-child { border-bottom: 0; }
+      td:last-child::before { content: ""; }
+      .row-button { width: 100%; }
+      .control-row { grid-template-columns: 1fr; gap: 11px; padding-left: 13px; padding-right: 13px; }
+      .control-row > :last-child { grid-column: auto; }
+      .assignment-form { grid-template-columns: 1fr; }
+      dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+      .dialog-shell { height: 100dvh; max-height: 100dvh; }
+      .dialog-head { padding: 14px; }
+      .dialog-body { padding: 15px 14px calc(24px + var(--safe-bottom)); }
+      .dialog-footer { padding: 11px 14px calc(11px + var(--safe-bottom)); }
+      .dialog-footer { align-items: stretch; flex-direction: column; }
+      .dialog-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+      .form-grid, .detail-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .facts > div { grid-template-columns: 1fr; gap: 4px; }
+      .tenant-option { grid-template-columns: 34px minmax(0,1fr); }
+      .tenant-option-state { grid-column: 2; }
+    }
+
+    @media (max-width: 390px) {
+      .main { padding-left: 10px; padding-right: 10px; }
+      .tenant-switcher-code { display: none; }
+      .tenant-switcher { grid-template-columns: minmax(0,1fr) 18px; max-width: none; }
+      .tenant-switcher-copy small { display: none; }
+      .page-lead { font-size: 13px; }
+      .dialog-actions { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+
+    @media print {
+      .sidebar, .topbar, .context-banner, .head-actions, .toolbar, .tabs, dialog, .toast-region, .button { display: none !important; }
+      .app-shell { display: block; }
+      .main { padding: 0; }
+      body { background: #fff; }
+      .panel, .summary-rail { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body data-mc-page="platform-admin">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <section class="auth-gate" id="authGate" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <span class="gate-mark" aria-hidden="true">M</span>
+      <h1 id="gateTitle">Verificando administración</h1>
+      <p id="gateMessage" role="status" aria-live="polite">Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.</p>
+      <div class="spinner" id="gateSpinner" aria-hidden="true"></div>
+      <button class="button primary" id="retryAuth" type="button" hidden>Reintentar</button>
+    </div>
+  </section>
+
+  <div class="app-shell" id="platformAdminShell" hidden>
+    <aside class="sidebar" id="adminSidebar" aria-label="Administración de plataforma">
+      <div class="brand">
+        <a class="brand-home" href="internal-dashboard.html#inicio" aria-label="MuniControl, operación interna">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span class="brand-copy"><strong>MuniControl</strong><span>Administración global</span></span>
+        </a>
+        <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      </div>
+
+      <nav class="nav-wrap" aria-label="Secciones administrativas">
+        <div class="nav-group">
+          <span class="nav-label">Plataforma</span>
+          <button class="nav-link" type="button" data-admin-view="portfolio" aria-current="page"><span class="nav-code" aria-hidden="true">CA</span>Cartera institucional</button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-label">Identidad y acceso</span>
+          <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
+          <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+        </div>
+        <div class="nav-group">
+          <span class="nav-label">Gobierno y riesgo</span>
+          <button class="nav-link" type="button" data-admin-view="audit"><span class="nav-code" aria-hidden="true">AU</span>Auditoría</button>
+          <a class="nav-link" href="centro-acciones.html"><span class="nav-code" aria-hidden="true">AC</span>Centro de acciones</a>
+          <a class="nav-link" href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">OP</span>Volver a operación</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot"><strong>Control explícito</strong>El rol, el tenant y cada capacidad efectiva son verificados por el backend.</div>
+    </aside>
+    <div class="nav-backdrop" id="navBackdrop" aria-hidden="true"></div>
+
+    <div class="workspace" id="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="adminSidebar" aria-expanded="false">☰</button>
+          <button class="tenant-switcher" id="tenantSwitcher" type="button" aria-haspopup="dialog" aria-controls="tenantSwitcherDialog" aria-expanded="false">
+            <span class="tenant-switcher-code" id="tenantSwitcherCode" aria-hidden="true">PL</span>
+            <span class="tenant-switcher-copy"><small>Ámbito activo</small><strong id="tenantSwitcherLabel">Plataforma completa</strong></span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+          <div class="topbar-context">
+            <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span id="breadcrumbCurrent" aria-current="page">Cartera institucional</span></nav>
+            <strong class="top-title" id="topViewTitle">Administración multi-gobierno</strong>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="session" aria-label="Sesión actual">
+            <span class="avatar" id="userAvatar" aria-hidden="true">MG</span>
+            <span class="session-copy"><strong id="userName">Sesión administrativa</strong><span id="userRole">Verificando rol</span></span>
+          </div>
+          <button class="button quiet" id="refreshButton" type="button">Actualizar</button>
+          <button class="button quiet danger" id="logoutButton" type="button">Salir</button>
+        </div>
+      </header>
+
+      <div class="context-banner" id="tenantContextBanner" role="status" aria-live="polite">
+        <span><strong>Ámbito:</strong> <span id="contextScope">verificando</span> · <strong>Fuente:</strong> <span id="contextSource">sin consultar</span></span>
+        <span class="context-status is-blocked" id="contextReadiness">Mutaciones bloqueadas</span>
+      </div>
+
+      <main class="main" id="mainContent" tabindex="-1">
+        <div class="content">
+          <section class="view" id="portfolioView" data-view-panel="portfolio" aria-labelledby="portfolioTitle">
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Plataforma · relación institucional</p>
+                <h1 id="portfolioTitle">Cartera de gobiernos</h1>
+                <p class="page-lead">Seguimiento de tenants, implementación y compromisos con evidencia. Un estado ausente permanece como no informado.</p>
+              </div>
+              <div class="head-actions"><button class="button primary" id="createTenantButton" type="button" disabled>Crear gobierno</button></div>
+            </header>
+
+            <dl class="summary-rail" id="portfolioSummary" aria-label="Resumen de cartera">
+              <div><dt>Gobiernos informados</dt><dd id="metricTenants">—</dd><small id="metricTenantsNote">Esperando fuente</small></div>
+              <div><dt>Requieren atención</dt><dd id="metricAttention">—</dd><small id="metricAttentionNote">Sin cálculo local</small></div>
+              <div><dt>Revisiones vencidas</dt><dd id="metricReviews">—</dd><small id="metricReviewsNote">Sin cálculo local</small></div>
+              <div><dt>Alertas de seguridad</dt><dd id="metricSecurity">—</dd><small id="metricSecurityNote">Sin cálculo local</small></div>
+            </dl>
+
+            <section class="panel" aria-labelledby="tenantTableTitle">
+              <header class="panel-head"><div><h2 id="tenantTableTitle">Cartera institucional</h2><p>Gobiernos retornados por la API administrativa para esta sesión.</p></div></header>
+              <form class="toolbar" id="tenantFilters" role="search" autocomplete="off">
+                <div class="field"><label for="tenantSearch">Buscar en esta página</label><input class="input" id="tenantSearch" type="search" maxlength="100" placeholder="Gobierno o jurisdicción"></div>
+                <div class="field"><label for="tenantStatusFilter">Estado</label><select class="select" id="tenantStatusFilter"><option value="">Todos los informados</option></select></div>
+                <button class="button" id="clearTenantFilters" type="button">Limpiar</button>
+              </form>
+              <div class="table-meta"><span id="tenantResultCount" role="status" aria-live="polite">Preparando cartera…</span><span id="portfolioCutoff">Corte no informado</span></div>
+              <div class="loading-state" id="tenantLoading"><strong>Consultando gobiernos autorizados</strong><p>No se muestran tenants hasta recibir una respuesta válida.</p><div class="spinner" aria-hidden="true"></div></div>
+              <div class="error-state" id="tenantError" role="alert" hidden><strong>No pudimos consultar la cartera</strong><p id="tenantErrorMessage">El servicio administrativo no está disponible.</p></div>
+              <div class="empty-state" id="tenantEmpty" hidden><strong>La API no informó gobiernos</strong><p>No completamos la cartera con municipios ficticios. Actualizá o revisá la configuración administrativa.</p></div>
+              <div class="table-wrap" id="tenantTableWrap" hidden tabindex="0" role="region" aria-labelledby="tenantTableTitle">
+                <table id="tenantTable">
+                  <caption class="sr-only">Gobiernos visibles para la sesión administrativa</caption>
+                  <thead><tr><th>Gobierno</th><th>Implementación</th><th>Estado</th><th>Fuente y corte</th><th>Próximo compromiso</th><th><span class="sr-only">Abrir</span></th></tr></thead>
+                  <tbody id="tenantRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" id="accessView" data-view-panel="access" aria-labelledby="accessTitle" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Identidad · menor privilegio</p>
+                <h1 id="accessTitle">Usuarios y accesos</h1>
+                <p class="page-lead">Usuarios activos, invitaciones y capacidades efectivas explicadas por tenant. La interfaz no deriva permisos desde el nombre del rol.</p>
+              </div>
+              <div class="head-actions"><button class="button primary" id="inviteUserButton" type="button" disabled>Crear usuario mediante invitación</button></div>
+            </header>
+
+            <section class="governance-strip is-blocked" id="accessGovernance" aria-labelledby="accessGovernanceTitle">
+              <div><strong id="accessGovernanceTitle">Gobernanza sin verificar</strong><p id="accessGovernanceMessage">Las mutaciones siguen bloqueadas hasta verificar segregación de funciones y auditoría.</p></div>
+              <div class="governance-facts" id="governanceFacts"></div>
+            </section>
+
+            <div class="access-layout">
+              <section class="panel" aria-labelledby="userTableTitle">
+                <header class="panel-head"><div><h2 id="userTableTitle">Directorio autorizado</h2><p>Usuarios e invitaciones informados por el backend.</p></div></header>
+                <div class="tabs" id="userStatusTabs" role="tablist" aria-label="Estado de usuarios">
+                  <button class="tab" type="button" role="tab" data-user-status="" aria-selected="true">Todos</button>
+                  <button class="tab" type="button" role="tab" data-user-status="active" aria-selected="false">Activos</button>
+                  <button class="tab" type="button" role="tab" data-user-status="pending" aria-selected="false">Pendientes</button>
+                  <button class="tab" type="button" role="tab" data-user-status="suspended" aria-selected="false">Suspendidos</button>
+                </div>
+                <form class="toolbar" id="userFilters" role="search" autocomplete="off">
+                  <div class="field"><label for="userSearch">Buscar en esta página</label><input class="input" id="userSearch" type="search" maxlength="100" placeholder="Nombre o email visible"></div>
+                  <div class="field"><label for="userRoleFilter">Rol</label><select class="select" id="userRoleFilter"><option value="">Todos</option></select></div>
+                  <button class="button" id="clearUserFilters" type="button">Limpiar</button>
+                </form>
+                <div class="table-meta"><span id="userResultCount" role="status" aria-live="polite">Preparando usuarios…</span><span id="userCutoff">Corte no informado</span></div>
+                <div class="loading-state" id="userLoading"><strong>Consultando usuarios autorizados</strong><p>El directorio se completa únicamente con la API.</p><div class="spinner" aria-hidden="true"></div></div>
+                <div class="error-state" id="userError" role="alert" hidden><strong>No pudimos consultar usuarios</strong><p id="userErrorMessage">El servicio administrativo no está disponible.</p></div>
+                <div class="empty-state" id="userEmpty" hidden><strong>No hay usuarios en este alcance</strong><p>No se agregan identidades de ejemplo ni se infieren vínculos con legajos.</p></div>
+                <div class="table-wrap" id="userTableWrap" hidden tabindex="0" role="region" aria-labelledby="userTableTitle">
+                  <table id="userTable">
+                    <caption class="sr-only">Usuarios e invitaciones visibles</caption>
+                    <thead><tr><th>Usuario</th><th>Tenant</th><th>Rol</th><th>Estado</th><th>Seguridad</th><th><span class="sr-only">Abrir</span></th></tr></thead>
+                    <tbody id="userRows"></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <aside class="panel" aria-labelledby="roleMatrixTitle">
+                <header class="panel-head"><div><h2 id="roleMatrixTitle">Matriz de capacidades</h2><p>Lectura del catálogo efectivo publicado por el backend.</p></div></header>
+                <div class="panel-body">
+                  <div class="field"><label for="roleMatrixRole">Rol</label><select class="select" id="roleMatrixRole"><option value="">Seleccioná un rol informado</option></select></div>
+                  <div class="capability-list" id="roleCapabilityMatrix" aria-live="polite"></div>
+                  <div class="effective-box" id="roleEffectiveSummary"><strong>Sin rol seleccionado.</strong> No se presume ninguna capacidad.</div>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="view" id="controlsView" data-view-panel="controls" aria-labelledby="controlsTitle" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Políticas · responsabilidades incompatibles</p>
+                <h1 id="controlsTitle">Controles exclusivos</h1>
+                <p class="page-lead">Responsables nominales para operaciones sensibles. Una exclusividad no informada permanece vacante y no se asigna automáticamente.</p>
+              </div>
+            </header>
+
+            <section class="governance-strip is-blocked" id="controlGovernance" aria-labelledby="controlGovernanceTitle">
+              <div><strong id="controlGovernanceTitle">Asignaciones bloqueadas</strong><p id="controlGovernanceMessage">Seleccioná un tenant y esperá los controles verificados del backend.</p></div>
+            </section>
+
+            <section class="panel" aria-labelledby="policyControlTitle">
+              <header class="panel-head"><div><h2 id="policyControlTitle">Responsables y separación de tareas</h2><p>Las denominaciones locales se vinculan a una capacidad canónica auditable.</p></div></header>
+              <div class="control-list" id="policyControlTable">
+                <article class="control-row" data-control-key="time.overtime.enter" data-exclusive-assignment="true">
+                  <div><h3>Mayor esfuerzo / Horas extra</h3><p>Capacidad canónica: <strong>time.overtime.enter</strong>. Quien carga no debe aprobar ni liquidar su propia novedad.</p></div>
+                  <div class="control-value" id="overtimeAssignee">Sin responsable informado<span id="overtimeAssignmentSource">Esperando fuente administrativa.</span></div>
+                  <form class="assignment-form" id="overtimeAssignmentForm">
+                    <div class="field"><label for="overtimeAssigneeSelect">Responsable elegible</label><select class="select" id="overtimeAssigneeSelect" disabled><option value="">Sin personas elegibles informadas</option></select></div>
+                    <button class="button primary" id="assignOvertimeButton" type="submit" disabled>Asignar</button>
+                  </form>
+                </article>
+                <article class="control-row" data-control-key="absence.approve">
+                  <div><h3>Licencias y ausencias</h3><p>Creación, revisión, aprobación e impacto en liquidación deben permanecer diferenciados.</p></div>
+                  <div class="control-value" id="absenceControlState">No informado<span id="absenceControlSource">La API todavía no publicó este control.</span></div>
+                  <div class="effective-box" id="absenceControlExplanation"><strong>Fail-closed.</strong> La pantalla no habilita decisiones de licencias desde un catálogo incompleto.</div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" id="auditView" data-view-panel="audit" aria-labelledby="auditTitle" hidden>
+            <header class="page-head">
+              <div>
+                <p class="eyebrow">Gobierno · evidencia append-only</p>
+                <h1 id="auditTitle">Auditoría administrativa</h1>
+                <p class="page-lead">Eventos de identidad, tenants y controles retornados por el backend. No se reconstruyen acciones faltantes en el navegador.</p>
+              </div>
+            </header>
+
+            <section class="panel" aria-labelledby="auditTableTitle">
+              <header class="panel-head"><div><h2 id="auditTableTitle">Eventos visibles</h2><p>Actor, operación, ámbito, resultado y correlación.</p></div></header>
+              <form class="toolbar" id="auditFilters" role="search" autocomplete="off">
+                <div class="field"><label for="auditSearch">Buscar en esta página</label><input class="input" id="auditSearch" type="search" maxlength="100" placeholder="Actor, recurso o correlación"></div>
+                <div class="field"><label for="auditEventFilter">Evento</label><select class="select" id="auditEventFilter"><option value="">Todos</option></select></div>
+                <button class="button" id="clearAuditFilters" type="button">Limpiar</button>
+              </form>
+              <div class="table-meta"><span id="auditResultCount" role="status" aria-live="polite">Preparando auditoría…</span><span id="auditCutoff">Corte no informado</span></div>
+              <div class="loading-state" id="auditLoading"><strong>Consultando eventos autorizados</strong><p>No se muestra una bitácora sintética.</p><div class="spinner" aria-hidden="true"></div></div>
+              <div class="error-state" id="auditError" role="alert" hidden><strong>No pudimos consultar auditoría</strong><p id="auditErrorMessage">El servicio administrativo no está disponible.</p></div>
+              <div class="empty-state" id="auditEmpty" hidden><strong>No hay eventos informados</strong><p>La ausencia de eventos no se interpreta como ausencia de actividad.</p></div>
+              <div class="table-wrap" id="auditTableWrap" hidden tabindex="0" role="region" aria-labelledby="auditTableTitle">
+                <table id="auditTable">
+                  <caption class="sr-only">Eventos de auditoría visibles</caption>
+                  <thead><tr><th>Fecha</th><th>Actor</th><th>Evento</th><th>Ámbito</th><th>Resultado</th><th>Correlación</th></tr></thead>
+                  <tbody id="auditRows"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <p class="footer-note">Uso restringido · No se almacenan contraseñas, tokens de invitación, búsquedas ni datos personales en URL, localStorage o caché offline. Toda mutación exige autorización efectiva del backend.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="tenantSwitcherDialog" aria-labelledby="tenantSwitcherTitle">
+    <div class="dialog-shell">
+      <header class="dialog-head"><div><p class="eyebrow">Ámbito de trabajo</p><h2 id="tenantSwitcherTitle">Cambiar contexto</h2><p>La autorización se vuelve a consultar al cambiar de gobierno.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantSwitcherDialog" aria-label="Cerrar selector">×</button></header>
+      <div class="dialog-body">
+        <div class="field"><label for="tenantOptionSearch">Buscar gobierno autorizado</label><input class="input" id="tenantOptionSearch" type="search" maxlength="100" autocomplete="off"></div>
+        <div class="tenant-options" id="tenantOptions" aria-live="polite"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="tenantDetailDialog" aria-labelledby="tenantDetailTitle">
+    <div class="dialog-shell">
+      <header class="dialog-head"><div><p class="eyebrow">Gobierno autorizado</p><h2 id="tenantDetailTitle">Detalle de implementación</h2><p id="tenantDetailSubtitle">Fuente no informada.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantDetailDialog" aria-label="Cerrar detalle">×</button></header>
+      <div class="dialog-body" id="tenantDetailBody"></div>
+      <footer class="dialog-footer"><span class="field-help">Los campos ausentes se muestran como no informados.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="tenantDetailDialog">Cerrar</button><button class="button primary" id="openTenantContextButton" type="button">Abrir gobierno</button></div></footer>
+    </div>
+  </dialog>
+
+  <dialog id="inviteUserDialog" aria-labelledby="inviteUserTitle">
+    <form class="dialog-shell" id="inviteUserForm" novalidate autocomplete="off">
+      <header class="dialog-head"><div><p class="eyebrow">Identidad nominal</p><h2 id="inviteUserTitle">Crear usuario mediante invitación</h2><p>Se envía una invitación; esta pantalla no crea ni revela contraseñas.</p></div><button class="button dialog-close" type="button" data-close-dialog="inviteUserDialog" aria-label="Cerrar invitación">×</button></header>
+      <div class="dialog-body">
+        <p class="dialog-note">El rol propone capacidades, pero el backend decide el acceso efectivo y vuelve a validar conflictos.</p>
+        <div class="form-grid">
+          <div class="field"><label for="inviteName">Nombre completo</label><input class="input" id="inviteName" name="displayName" maxlength="120" required autocomplete="name"><span class="field-error" id="inviteNameError" hidden></span></div>
+          <div class="field"><label for="inviteEmail">Email institucional</label><input class="input" id="inviteEmail" name="email" type="email" maxlength="254" required autocomplete="email"><span class="field-error" id="inviteEmailError" hidden></span></div>
+          <div class="field"><label for="inviteTenant">Gobierno</label><select class="select" id="inviteTenant" name="tenantId" required></select><span class="field-error" id="inviteTenantError" hidden></span></div>
+          <div class="field"><label for="inviteRole">Rol</label><select class="select" id="inviteRole" name="role" required></select><span class="field-error" id="inviteRoleError" hidden></span></div>
+          <div class="field full"><span class="field-label" id="inviteCapabilityLabel">Capacidades solicitadas</span><div class="capability-list" id="inviteCapabilityMatrix" role="group" aria-labelledby="inviteCapabilityLabel"></div></div>
+        </div>
+        <div class="effective-box" id="inviteEffectiveSummary"><strong>Sin acceso propuesto.</strong> Seleccioná gobierno y rol.</div>
+        <div class="conflict-box" id="inviteConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
+      </div>
+      <footer class="dialog-footer"><span class="field-help" id="inviteMutationHint">Operación bloqueada.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="inviteUserDialog">Cancelar</button><button class="button primary" id="sendInviteButton" type="submit" disabled>Enviar invitación</button></div></footer>
+    </form>
+  </dialog>
+
+  <dialog id="userDetailDialog" aria-labelledby="userDetailTitle">
+    <form class="dialog-shell" id="userAccessForm" novalidate>
+      <header class="dialog-head"><div><p class="eyebrow">Acceso efectivo</p><h2 id="userDetailTitle">Detalle de usuario</h2><p id="userDetailSubtitle">Consultando asignación.</p></div><button class="button dialog-close" type="button" data-close-dialog="userDetailDialog" aria-label="Cerrar usuario">×</button></header>
+      <div class="dialog-body">
+        <div class="detail-grid">
+          <section class="detail-section"><h3>Identidad y membresía</h3><dl class="facts" id="userDetailFacts"></dl></section>
+          <section class="detail-section"><h3>Acceso propuesto</h3><div class="field"><label for="userAccessRole">Rol</label><select class="select" id="userAccessRole"></select></div><div class="capability-list" id="userAccessCapabilities"></div><div class="field" style="margin-top:13px"><label for="userAccessReason">Motivo del cambio</label><textarea class="textarea" id="userAccessReason" maxlength="500" required placeholder="Justificación administrativa verificable"></textarea><span class="field-help">Obligatorio; queda asociado a los overrides de capacidades.</span></div></section>
+        </div>
+        <div class="effective-box" id="userEffectiveSummary"><strong>Sin información efectiva.</strong></div>
+        <div class="conflict-box" id="userConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
+      </div>
+      <footer class="dialog-footer"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
+    </form>
+  </dialog>
+
+  <dialog id="createTenantDialog" aria-labelledby="createTenantTitle">
+    <form class="dialog-shell" id="createTenantForm" novalidate autocomplete="off">
+      <header class="dialog-head"><div><p class="eyebrow">Alta gobernada</p><h2 id="createTenantTitle">Crear gobierno</h2><p>El alta no habilita usuarios ni datos por sí sola.</p></div><button class="button dialog-close" type="button" data-close-dialog="createTenantDialog" aria-label="Cerrar alta">×</button></header>
+      <div class="dialog-body">
+        <div class="form-grid">
+          <div class="field"><label for="newTenantName">Nombre legal</label><input class="input" id="newTenantName" maxlength="255" required></div>
+          <div class="field"><label for="newTenantShortName">Nombre corto</label><input class="input" id="newTenantShortName" maxlength="120" required></div>
+          <div class="field"><label for="newTenantLevel">Tipo de gobierno</label><select class="select" id="newTenantLevel" required><option value="">Seleccionar</option><option value="municipality">Municipalidad</option><option value="province">Provincia</option><option value="national">Nacional</option><option value="agency">Organismo</option><option value="sandbox">Entorno de demostración</option></select></div>
+          <div class="field"><label for="newTenantJurisdiction">Jurisdicción</label><input class="input" id="newTenantJurisdiction" maxlength="120" required></div>
+          <div class="field full"><label for="newTenantSlug">Identificador técnico</label><input class="input" id="newTenantSlug" maxlength="80" pattern="[a-z0-9-]+" placeholder="municipio-ejemplo-provincia"><span class="field-help">Sólo minúsculas, números y guiones. Debe validarlo el backend.</span></div>
+        </div>
+        <div class="conflict-box" id="createTenantGate"><strong>Operación bloqueada</strong><span>Esperando autorización y auditoría verificadas.</span></div>
+      </div>
+      <footer class="dialog-footer"><span class="field-help">No se precargan gobiernos ficticios.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="createTenantDialog">Cancelar</button><button class="button primary" id="confirmCreateTenant" type="submit" disabled>Crear gobierno</button></div></footer>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <noscript><section class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>La administración verifica el ámbito y las capacidades mediante la API interna.</p></div></section></noscript>
+
+  <script src="assets/internal-guide.js" defer></script>
+  <script>
+  (function () {
+    'use strict';
+
+    var AUTH_URL = '/api/internal-auth';
+    var ADMIN_URL = '/api/internal-admin';
+    var REQUEST_TIMEOUT_MS = 16000;
+    var KNOWN_JUNIN = Object.freeze({
+      id: 'municipio-junin-mendoza',
+      slug: 'municipio-junin-mendoza',
+      name: 'Municipalidad de Junín',
+      jurisdiction: 'Junín, Mendoza',
+      governmentLevel: 'Municipal',
+      apiBacked: false
+    });
+
+    var state = {
+      user: null,
+      context: { mode: 'platform', tenantId: '', label: 'Plataforma completa' },
+      tenants: [],
+      roles: [],
+      capabilities: [],
+      users: [],
+      audit: [],
+      allowedCommands: new Set(),
+      controls: { sodReady: false, auditReady: false },
+      sodRules: [],
+      metrics: {},
+      source: {},
+      exclusive: null,
+      operationalControls: [],
+      selectedUser: null,
+      selectedTenant: null,
+      activeView: 'portfolio',
+      userStatus: '',
+      loadVersion: 0,
+      loading: false
+    };
+
+    var ids = [
+      'authGate','gateTitle','gateMessage','gateSpinner','retryAuth','platformAdminShell','adminSidebar','workspace',
+      'menuButton','menuClose','navBackdrop','tenantSwitcher','tenantSwitcherCode','tenantSwitcherLabel','tenantContextBanner',
+      'contextScope','contextSource','contextReadiness','breadcrumbCurrent','topViewTitle','userAvatar','userName','userRole',
+      'refreshButton','logoutButton','portfolioView','accessView','controlsView','auditView','createTenantButton',
+      'metricTenants','metricTenantsNote','metricAttention','metricAttentionNote','metricReviews','metricReviewsNote',
+      'metricSecurity','metricSecurityNote','tenantFilters','tenantSearch','tenantStatusFilter','clearTenantFilters',
+      'tenantResultCount','portfolioCutoff','tenantLoading','tenantError','tenantErrorMessage','tenantEmpty','tenantTableWrap',
+      'tenantRows','inviteUserButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
+      'userStatusTabs','userFilters','userSearch','userRoleFilter','clearUserFilters','userResultCount','userCutoff',
+      'userLoading','userError','userErrorMessage','userEmpty','userTableWrap','userRows','roleMatrixRole',
+      'roleCapabilityMatrix','roleEffectiveSummary','controlGovernance','controlGovernanceTitle','controlGovernanceMessage',
+      'overtimeAssignee','overtimeAssignmentSource','overtimeAssignmentForm','overtimeAssigneeSelect','assignOvertimeButton',
+      'absenceControlState','absenceControlSource','absenceControlExplanation','auditFilters','auditSearch','auditEventFilter',
+      'clearAuditFilters','auditResultCount','auditCutoff','auditLoading','auditError','auditErrorMessage','auditEmpty',
+      'auditTableWrap','auditRows','tenantSwitcherDialog','tenantOptionSearch','tenantOptions','tenantDetailDialog',
+      'tenantDetailTitle','tenantDetailSubtitle','tenantDetailBody','openTenantContextButton','inviteUserDialog','inviteUserForm',
+      'inviteName','inviteEmail','inviteTenant','inviteRole','inviteCapabilityMatrix','inviteEffectiveSummary','inviteConflictBox',
+      'inviteMutationHint','sendInviteButton','inviteNameError','inviteEmailError','inviteTenantError','inviteRoleError',
+      'userDetailDialog','userAccessForm','userDetailTitle','userDetailSubtitle','userDetailFacts','userAccessRole',
+      'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','updateAccessButton',
+      'createTenantDialog','createTenantForm','newTenantName','newTenantShortName','newTenantLevel','newTenantJurisdiction','newTenantSlug',
+      'createTenantGate','confirmCreateTenant','toastRegion','mainContent'
+    ];
+    var el = {};
+    ids.forEach(function (id) { el[id] = document.getElementById(id); });
+
+    function isObject(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+    function list(value) { return Array.isArray(value) ? value : []; }
+    function text(value, fallback) {
+      if (typeof value === 'string' || typeof value === 'number') {
+        var normalized = String(value).trim();
+        return normalized || (fallback || '');
+      }
+      return fallback || '';
+    }
+    function first() {
+      for (var index = 0; index < arguments.length; index += 1) {
+        var value = arguments[index];
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return undefined;
+    }
+    function firstObject() {
+      for (var index = 0; index < arguments.length; index += 1) {
+        if (isObject(arguments[index])) return arguments[index];
+      }
+      return {};
+    }
+    function roots(payload) {
+      var values = [];
+      [payload, payload && payload.data, payload && payload.result, payload && payload.payload].forEach(function (value) {
+        if (isObject(value) && values.indexOf(value) === -1) values.push(value);
+      });
+      return values;
+    }
+    function findArray(payload, names) {
+      var candidates = roots(payload);
+      for (var r = 0; r < candidates.length; r += 1) {
+        for (var n = 0; n < names.length; n += 1) {
+          if (Array.isArray(candidates[r][names[n]])) return candidates[r][names[n]];
+        }
+      }
+      return [];
+    }
+    function findObject(payload, names) {
+      var candidates = roots(payload);
+      for (var r = 0; r < candidates.length; r += 1) {
+        for (var n = 0; n < names.length; n += 1) {
+          if (isObject(candidates[r][names[n]])) return candidates[r][names[n]];
+        }
+      }
+      return {};
+    }
+    function explicitBoolean(values) {
+      for (var index = 0; index < values.length; index += 1) {
+        if (values[index] === true) return true;
+        if (values[index] === false) return false;
+      }
+      return false;
+    }
+    function finiteNumber(value) {
+      var number = Number(value);
+      return Number.isFinite(number) && number >= 0 ? number : null;
+    }
+    function node(tag, className, value) {
+      var element = document.createElement(tag);
+      if (className) element.className = className;
+      if (value !== undefined && value !== null) element.textContent = String(value);
+      return element;
+    }
+    function clear(element) { while (element && element.firstChild) element.firstChild.remove(); }
+    function initials(value) {
+      var parts = text(value).split(/\s+/).filter(Boolean);
+      return (parts.slice(0, 2).map(function (part) { return part.charAt(0); }).join('') || 'MG').toUpperCase();
+    }
+    function titleize(value) {
+      return text(value).replace(/[._-]+/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+    }
+    function normalizeSearch(value) {
+      return text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    }
+    function formatDate(value, withTime) {
+      if (!value) return 'No informado';
+      var date = new Date(value);
+      if (Number.isNaN(date.getTime())) return text(value, 'No informado');
+      var options = withTime
+        ? { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }
+        : { dateStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' };
+      try { return new Intl.DateTimeFormat('es-AR', options).format(date); }
+      catch (_) { return date.toISOString(); }
+    }
+    function statusTone(value) {
+      var normalized = normalizeSearch(value);
+      if (/operativ|activ|ready|aprob|success|ok|complet/.test(normalized)) return 'is-ok';
+      if (/bloque|suspend|deneg|revoc|error|critical|fall/.test(normalized)) return 'is-danger';
+      if (/atencion|pend|riesgo|warning|invite|observ/.test(normalized)) return 'is-attention';
+      if (/pilot|progreso|config|info|implement/.test(normalized)) return 'is-info';
+      return '';
+    }
+    function pill(label, tone) {
+      var span = node('span', 'state-pill' + (tone ? ' ' + tone : ''), label || 'No informado');
+      return span;
+    }
+    function setText(element, value, fallback) { if (element) element.textContent = text(value, fallback || ''); }
+    function showToast(message, isError) {
+      var toast = node('div', 'toast' + (isError ? ' error' : ''), message);
+      el.toastRegion.appendChild(toast);
+      window.setTimeout(function () { toast.remove(); }, 5200);
+    }
+
+    function redirectToLogin() {
+      var next = window.location.pathname + window.location.search + window.location.hash;
+      window.location.replace('login.html?next=' + encodeURIComponent(next));
+    }
+
+    async function requestJson(url, options) {
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+      var requestOptions = Object.assign({
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal
+      }, options || {});
+      try {
+        var response = await fetch(url, requestOptions);
+        var payload = null;
+        if (response.status !== 204) {
+          var raw = await response.text();
+          if (raw) {
+            try { payload = JSON.parse(raw); }
+            catch (_) { payload = null; }
+          }
+        }
+        if (response.status === 401) {
+          var unauthorized = new Error('La sesión interna venció o no es válida.');
+          unauthorized.unauthorized = true;
+          redirectToLogin();
+          throw unauthorized;
+        }
+        if (!response.ok) {
+          var message = text(first(payload && payload.error, payload && payload.message), 'La operación administrativa no está disponible.');
+          var error = new Error(message);
+          error.status = response.status;
+          error.code = text(payload && payload.code);
+          throw error;
+        }
+        return payload || {};
+      } catch (error) {
+        if (error && error.name === 'AbortError') {
+          var timeoutError = new Error('La consulta superó el tiempo de espera.');
+          timeoutError.status = 408;
+          throw timeoutError;
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    function contextQuery(resource, tenantId) {
+      var params = new URLSearchParams({ resource: resource });
+      if (tenantId) params.set('tenantId', tenantId);
+      return ADMIN_URL + '?' + params.toString();
+    }
+
+    function commandKey() {
+      if (!window.crypto || typeof window.crypto.randomUUID !== 'function') {
+        throw new Error('Este navegador no puede generar una clave idempotente segura.');
+      }
+      return window.crypto.randomUUID();
+    }
+
+    async function postCommand(command, payload, expectedVersion) {
+      var body = { command: command, payload: payload || {} };
+      if (expectedVersion !== undefined && expectedVersion !== null) body.expectedVersion = expectedVersion;
+      return requestJson(ADMIN_URL, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': commandKey()
+        },
+        body: JSON.stringify(body)
+      });
+    }
+
+    function normalizeTenant(row) {
+      row = firstObject(row);
+      var source = firstObject(row.source, row.evidence, row.dataSource);
+      var implementation = firstObject(row.implementation, row.health, row.readiness);
+      var dimensions = list(first(implementation.dimensions, row.implementationDimensions, row.dimensions)).map(function (dimension) {
+        dimension = firstObject(dimension);
+        return {
+          key: text(first(dimension.key, dimension.code, dimension.id)),
+          label: text(first(dimension.label, dimension.name, dimension.title), 'Dimensión sin nombre'),
+          status: text(first(dimension.status, dimension.state), 'No informado'),
+          source: text(first(dimension.source, dimension.sourceLabel), 'No informada'),
+          updatedAt: first(dimension.updatedAt, dimension.capturedAt, dimension.cutoff),
+          owner: text(first(dimension.owner, dimension.responsible), 'No informado')
+        };
+      });
+      var id = text(first(row.id, row.tenantId, row.tenant_id, row.slug, row.key));
+      return {
+        id: id,
+        slug: text(first(row.slug, row.key, id)),
+        name: text(first(row.name, row.displayName, row.officialName, row.legalName, row.shortName, row.label), id || 'Gobierno sin nombre'),
+        jurisdiction: text(first(row.jurisdiction, row.province, row.region, row.location), 'No informada'),
+        governmentLevel: text(first(row.governmentLevel, row.level, row.type, row.kind), 'No informado'),
+        implementationStage: text(first(implementation.stage, row.implementationStage, row.stage), 'No informado'),
+        status: text(first(implementation.status, row.healthStatus, row.status), 'No informado'),
+        source: text(first(source.label, source.name, row.sourceLabel, row.source), 'No informada'),
+        cutoff: first(source.cutoff, source.capturedAt, row.cutoff, row.updatedAt),
+        nextCommitment: text(first(row.nextCommitment, row.nextMilestone, row.nextAction, implementation.nextMilestone), 'No informado'),
+        nextCommitmentAt: first(row.nextCommitmentAt, row.nextMilestoneAt, row.nextActionAt, implementation.nextMilestoneAt),
+        owner: text(first(row.ownerName, row.implementationOwner, implementation.owner), 'No informado'),
+        dimensions: dimensions,
+        apiBacked: true,
+        raw: row
+      };
+    }
+
+    function normalizeCapability(value, roleKey) {
+      var row = typeof value === 'string' ? { key: value } : firstObject(value);
+      var key = text(first(row.key, row.code, row.id, row.capability));
+      if (!key) return null;
+      var conflicts = list(first(row.conflictsWith, row.conflicts, row.incompatibleWith)).map(function (item) {
+        return text(typeof item === 'string' ? item : firstObject(item).key);
+      }).filter(Boolean);
+      return {
+        key: key,
+        label: text(first(row.label, row.name, row.title), titleize(key)),
+        description: text(first(row.description, row.help, row.explanation), 'Capacidad publicada por el backend.'),
+        conflictsWith: conflicts,
+        roleKey: roleKey || ''
+      };
+    }
+
+    function normalizeRoles(payload) {
+      var values = findArray(payload, ['roles','roleCatalog','availableRoles']);
+      if (!values.length) {
+        var objectCatalog = findObject(payload, ['roles','roleCatalog']);
+        values = Object.keys(objectCatalog).map(function (key) {
+          var value = objectCatalog[key];
+          return isObject(value) ? Object.assign({ key: key }, value) : { key: key, label: text(value, titleize(key)) };
+        });
+      }
+      return values.map(function (value) {
+        var row = typeof value === 'string' ? { key: value } : firstObject(value);
+        var key = text(first(row.key, row.code, row.id, row.role));
+        if (!key) return null;
+        var caps = list(first(row.capabilities, row.permissions, row.grants)).map(function (capability) {
+          return normalizeCapability(capability, key);
+        }).filter(Boolean);
+        return {
+          key: key,
+          label: text(first(row.label, row.name, row.title), titleize(key)),
+          description: text(first(row.description, row.help), 'Rol informado por el backend.'),
+          scopeKind: text(first(row.scopeKind, row.scope, row.scope_kind), 'unknown'),
+          capabilities: caps,
+          protected: row.protected === true,
+          raw: row
+        };
+      }).filter(Boolean);
+    }
+
+    function mergeCapabilities(payload, roles) {
+      var catalog = findArray(payload, ['capabilityCatalog','capabilitiesCatalog','availableCapabilities']).map(function (value) {
+        return normalizeCapability(value, '');
+      }).filter(Boolean);
+      var byKey = new Map();
+      catalog.concat(roles.reduce(function (all, role) { return all.concat(role.capabilities); }, [])).forEach(function (capability) {
+        if (!byKey.has(capability.key)) byKey.set(capability.key, capability);
+        else {
+          var existing = byKey.get(capability.key);
+          existing.conflictsWith = Array.from(new Set(existing.conflictsWith.concat(capability.conflictsWith)));
+        }
+      });
+      return Array.from(byKey.values()).sort(function (a, b) { return a.label.localeCompare(b.label, 'es'); });
+    }
+
+    function normalizeAllowedCommands(payload) {
+      var commands = new Set();
+      var candidates = [];
+      roots(payload).forEach(function (root) {
+        candidates.push(root.allowedCommands, root.commands, root.commandAvailability);
+        if (isObject(root.authorization)) candidates.push(root.authorization.allowedCommands, root.authorization.commands);
+      });
+      candidates.forEach(function (candidate) {
+        if (Array.isArray(candidate)) {
+          candidate.forEach(function (entry) {
+            var key = text(typeof entry === 'string' ? entry : firstObject(entry).key);
+            var allowed = typeof entry === 'string' || firstObject(entry).allowed === true || firstObject(entry).enabled === true;
+            if (key && allowed) commands.add(key);
+          });
+        } else if (isObject(candidate)) {
+          Object.keys(candidate).forEach(function (key) {
+            var value = candidate[key];
+            if (value === true || (isObject(value) && (value.allowed === true || value.enabled === true))) commands.add(key);
+          });
+        }
+      });
+      return commands;
+    }
+
+    function normalizeControls(payload) {
+      var controls = findObject(payload, ['controls','governance','readiness']);
+      var sod = firstObject(controls.sod, controls.segregationOfDuties, findObject(payload, ['sod','segregationOfDuties']));
+      var audit = firstObject(controls.audit, findObject(payload, ['auditControl']));
+      return {
+        sodReady: explicitBoolean([controls.sodReady, controls.sodVerified, sod.ready, sod.verified]),
+        auditReady: explicitBoolean([controls.auditReady, controls.auditVerified, audit.ready, audit.verified]),
+        invitationGatewayReady: explicitBoolean([controls.invitationGatewayReady]),
+        tenantDataPlaneReady: explicitBoolean([controls.tenantDataPlaneReady])
+      };
+    }
+
+    function normalizeSodRules(payload) {
+      var rules = findArray(payload, ['sodRules','segregationRules','conflictRules']);
+      var controls = findObject(payload, ['controls','governance']);
+      if (!rules.length && Array.isArray(controls.sodRules)) rules = controls.sodRules;
+      return rules.map(function (value) {
+        var row = firstObject(value);
+        var left = text(first(row.left, row.capabilityA, row.first, list(row.capabilities)[0]));
+        var right = text(first(row.right, row.capabilityB, row.second, list(row.capabilities)[1]));
+        if (!left || !right) return null;
+        return {
+          left: left,
+          right: right,
+          reason: text(first(row.reason, row.description, row.label), 'Capacidades incompatibles según la política informada.')
+        };
+      }).filter(Boolean);
+    }
+
+    function normalizeUser(row) {
+      row = firstObject(row);
+      var membership = firstObject(row.membership, row.tenantMembership, row.access);
+      var security = firstObject(row.security, row.authentication);
+      var role = firstObject(row.roleDetail, membership.role);
+      var capabilityValues = list(first(row.effectiveCapabilities, row.capabilities, membership.capabilities));
+      var capabilities = capabilityValues.map(function (value) {
+        return text(typeof value === 'string' ? value : firstObject(value).key);
+      }).filter(Boolean);
+      var eligible = list(first(row.eligibleCapabilities, membership.eligibleCapabilities)).map(function (value) {
+        return text(typeof value === 'string' ? value : firstObject(value).key);
+      }).filter(Boolean);
+      var status = text(first(membership.status, row.status, row.state), row.pending === true ? 'pending' : 'unknown');
+      return {
+        id: text(first(row.id, row.userId, row.user_id, row.email)),
+        membershipId: text(first(membership.id, row.membershipId, row.membership_id, row.id)),
+        displayName: text(first(row.displayName, row.name, row.fullName), 'Nombre no informado'),
+        email: text(row.email).toLowerCase(),
+        tenantId: text(first(membership.tenantId, row.tenantId, row.tenant_id)),
+        tenantName: text(first(membership.tenantName, row.tenantName, row.tenant), 'No informado'),
+        roleKey: text(first(role.key, membership.roleKey, row.roleKey, typeof row.role === 'string' ? row.role : '')),
+        roleLabel: text(first(role.label, membership.roleLabel, row.roleLabel), titleize(first(role.key, membership.roleKey, row.roleKey, typeof row.role === 'string' ? row.role : '')) || 'No informado'),
+        status: status,
+        mfa: first(security.mfaEnabled, row.mfaEnabled, row.mfa),
+        lastAccessAt: first(security.lastAccessAt, row.lastAccessAt, row.lastSignInAt),
+        employmentLinked: first(row.employmentLinked, row.hasEmployeeLink, membership.employmentLinked),
+        capabilities: capabilities,
+        eligibleCapabilities: eligible,
+        version: first(membership.version, row.version),
+        raw: row
+      };
+    }
+
+    function normalizeAuditEvent(row) {
+      row = firstObject(row);
+      var actor = firstObject(row.actor);
+      var scope = firstObject(row.scope, row.context);
+      return {
+        id: text(first(row.id, row.eventId, row.correlationId, Math.random())),
+        occurredAt: first(row.occurredAt, row.createdAt, row.timestamp, row.at),
+        actor: text(first(actor.displayName, actor.email, row.actorEmail, row.actor), 'Sistema'),
+        actorRole: text(first(actor.role, row.actorRole)),
+        event: text(first(row.eventType, row.event, row.action, row.command), 'Evento no informado'),
+        resource: text(first(row.resourceLabel, row.resourceType, row.resource), 'No informado'),
+        tenantId: text(first(scope.tenantId, row.tenantId)),
+        tenant: text(first(scope.tenantName, row.tenantName, row.tenantId, scope.tenantId), 'Plataforma'),
+        outcome: text(first(row.outcome, row.result, row.status), 'No informado'),
+        correlationId: text(first(row.correlationId, row.requestId, row.traceId), 'No informado')
+      };
+    }
+
+    function normalizeExclusive(payload, requestedTenantId) {
+      var assignments = findArray(payload, ['exclusiveAssignments','exclusiveCapabilities','exclusiveResponsibles']);
+      var selected = assignments.find(function (entry) {
+        var item = firstObject(entry);
+        var key = text(item.capabilityKey || item.capability);
+        return key === 'time.overtime.enter' && (!requestedTenantId || text(item.tenantId) === requestedTenantId);
+      });
+      selected = firstObject(selected);
+      var assignee = firstObject(selected.assignee, selected.user, selected.responsible);
+      var eligibleValues = list(first(selected.eligibleAssignees, selected.eligibleUsers));
+      var eligible = eligibleValues.map(function (value) {
+        var row = typeof value === 'string' ? { id: value } : firstObject(value);
+        return {
+          id: text(first(row.id, row.userId, row.email)),
+          displayName: text(first(row.displayName, row.name), 'Nombre no informado'),
+          email: text(row.email),
+          tenantId: text(first(row.tenantId, selected.tenantId))
+        };
+      }).filter(function (user) { return user.id; });
+      return {
+        capabilityKey: 'time.overtime.enter',
+        tenantId: text(first(selected.tenantId, requestedTenantId, state.context.tenantId)),
+        membershipId: text(first(selected.membershipId, assignee.membershipId)),
+        assigneeId: text(first(assignee.id, assignee.userId, selected.assigneeId)),
+        assigneeName: text(first(assignee.displayName, assignee.name, selected.assigneeName)),
+        assigneeEmail: text(first(assignee.email, selected.assigneeEmail)),
+        eligibleAssignees: eligible,
+        version: first(selected.version, selected.assignmentVersion),
+        source: text(first(selected.sourceLabel, selected.source), 'No informada'),
+        verified: Boolean(text(first(selected.capabilityKey, selected.capability)) === 'time.overtime.enter')
+      };
+    }
+
+    function normalizeOperationalControls(payload) {
+      return findArray(payload, ['operationalControls','policyControls']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          key: text(first(row.key, row.capabilityKey, row.code)),
+          label: text(first(row.label, row.name)),
+          status: text(first(row.status, row.state), 'No informado'),
+          explanation: text(first(row.explanation, row.description), 'Sin explicación informada.'),
+          source: text(first(row.sourceLabel, row.source), 'No informada')
+        };
+      }).filter(function (control) { return control.key; });
+    }
+
+    function normalizeSource(payload) {
+      var root = roots(payload)[0] || {};
+      var source = firstObject(root.source, root.evidence, root.meta && root.meta.source);
+      var meta = firstObject(root.meta);
+      return {
+        label: text(first(source.label, source.name, root.sourceLabel, meta.source), 'API administrativa'),
+        cutoff: first(source.cutoff, source.capturedAt, root.cutoff, root.updatedAt, meta.cutoff)
+      };
+    }
+
+    function normalizeMetrics(payload) {
+      var metrics = findObject(payload, ['metrics','summary','counts']);
+      return {
+        tenants: finiteNumber(first(metrics.tenants, metrics.tenantCount, metrics.totalTenants)),
+        attention: finiteNumber(first(metrics.attention, metrics.attentionCount, metrics.tenantsRequiringAttention)),
+        reviews: finiteNumber(first(metrics.overdueAccessReviews, metrics.reviewsOverdue, metrics.pendingReviews)),
+        security: finiteNumber(first(metrics.securityAlerts, metrics.openSecurityAlerts, metrics.alerts))
+      };
+    }
+
+    function normalizeBootstrap(payload, requestedTenantId) {
+      var root = roots(payload)[0] || {};
+      var user = firstObject(root.user, root.principal, root.session && root.session.user);
+      var context = firstObject(root.context, root.tenantContext, root.scope);
+      var tenants = findArray(payload, ['tenants','governments','organizations']).map(normalizeTenant).filter(function (tenant) { return tenant.id; });
+      var roles = normalizeRoles(payload);
+      var tenantId = text(first(context.tenantId, context.id, requestedTenantId));
+      var selected = tenants.find(function (tenant) { return tenant.id === tenantId; });
+      var mode = text(first(context.mode, context.level), tenantId ? 'tenant' : 'platform').toLowerCase();
+      return {
+        user: {
+          id: text(first(user.id, user.userId, user.email)),
+          displayName: text(first(user.displayName, user.name, user.email), 'Usuario administrativo'),
+          email: text(user.email),
+          role: text(first(user.role, user.roleLabel, user.platformRole), 'Rol no informado')
+        },
+        context: {
+          mode: tenantId || mode === 'tenant' ? 'tenant' : 'platform',
+          tenantId: tenantId,
+          label: text(first(context.label, context.tenantName, selected && selected.name), tenantId ? (selected ? selected.name : 'Gobierno seleccionado') : 'Plataforma completa'),
+          environment: text(first(context.environment, root.environment), 'Entorno no informado'),
+          tenantAwareGateway: explicitBoolean([context.tenantAwareGateway])
+        },
+        tenants: tenants,
+        roles: roles,
+        capabilities: mergeCapabilities(payload, roles),
+        commands: normalizeAllowedCommands(payload),
+        controls: normalizeControls(payload),
+        sodRules: normalizeSodRules(payload),
+        metrics: normalizeMetrics(payload),
+        source: normalizeSource(payload),
+        exclusive: normalizeExclusive(payload, tenantId),
+        operationalControls: normalizeOperationalControls(payload)
+      };
+    }
+
+    function canCommand(command) { return state.allowedCommands.has(command); }
+    function governanceReady(needsSod) {
+      return state.controls.auditReady === true && (!needsSod || state.controls.sodReady === true);
+    }
+    function mutationAllowed(command, needsSod) {
+      return canCommand(command) && governanceReady(needsSod) && !state.loading;
+    }
+
+    function roleByKey(key) { return state.roles.find(function (role) { return role.key === key; }) || null; }
+    function tenantById(id) { return state.tenants.find(function (tenant) { return tenant.id === id; }) || (id === KNOWN_JUNIN.id ? KNOWN_JUNIN : null); }
+    function capabilityByKey(key) {
+      return state.capabilities.find(function (capability) { return capability.key === key; }) || normalizeCapability(key, '');
+    }
+    function roleCapabilityKeys(roleKey) {
+      var role = roleByKey(roleKey);
+      return role ? role.capabilities.map(function (capability) { return capability.key; }) : [];
+    }
+
+    function sodConflicts(selectedKeys) {
+      var selected = selectedKeys instanceof Set ? selectedKeys : new Set(selectedKeys || []);
+      var conflicts = [];
+      state.sodRules.forEach(function (rule) {
+        if (selected.has(rule.left) && selected.has(rule.right)) conflicts.push(rule.reason + ' (' + rule.left + ' / ' + rule.right + ')');
+      });
+      selected.forEach(function (key) {
+        var capability = capabilityByKey(key);
+        capability.conflictsWith.forEach(function (other) {
+          if (selected.has(other)) conflicts.push('Las capacidades ' + key + ' y ' + other + ' son incompatibles.');
+        });
+      });
+      return Array.from(new Set(conflicts));
+    }
+
+    function capabilityKeysFrom(container) {
+      return Array.from(container.querySelectorAll('input[data-capability-key]:checked')).map(function (input) { return input.dataset.capabilityKey; });
+    }
+
+    function renderCapabilityList(container, selectedKeys, editable, prefix) {
+      clear(container);
+      var selected = new Set(selectedKeys || []);
+      var tenantKeys = new Set(state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).reduce(function (all, role) {
+        return all.concat(role.capabilities.map(function (capability) { return capability.key; }));
+      }, []));
+      var catalog = String(prefix || '').indexOf('roleMatrix') === 0
+        ? state.capabilities.slice()
+        : state.capabilities.filter(function (capability) { return tenantKeys.has(capability.key); });
+      selected.forEach(function (key) {
+        if (!catalog.some(function (capability) { return capability.key === key; })) catalog.push(capabilityByKey(key));
+      });
+      if (!catalog.length) {
+        container.appendChild(node('div', 'empty-state', 'El backend no informó un catálogo de capacidades.'));
+        return;
+      }
+      catalog.forEach(function (capability, index) {
+        var label = node('label', 'capability-row');
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.name = prefix || 'capability';
+        input.value = capability.key;
+        input.dataset.capabilityKey = capability.key;
+        input.checked = selected.has(capability.key);
+        input.disabled = !editable;
+        input.setAttribute('aria-describedby', (prefix || 'cap') + 'Help' + index);
+        var copy = node('span');
+        copy.appendChild(node('strong', '', capability.label));
+        var help = node('span', '', capability.description + ' · ' + capability.key);
+        help.id = (prefix || 'cap') + 'Help' + index;
+        copy.appendChild(help);
+        label.append(input, copy);
+        container.appendChild(label);
+      });
+    }
+
+    function populateSelect(select, items, placeholder, valueKey, labelKey) {
+      var previous = select.value;
+      clear(select);
+      var option = node('option', '', placeholder);
+      option.value = '';
+      select.appendChild(option);
+      items.forEach(function (item) {
+        var itemOption = node('option', '', text(item[labelKey]));
+        itemOption.value = text(item[valueKey]);
+        select.appendChild(itemOption);
+      });
+      if (Array.from(select.options).some(function (item) { return item.value === previous; })) select.value = previous;
+    }
+
+    function renderSession() {
+      setText(el.userName, state.user && state.user.displayName, 'Usuario administrativo');
+      setText(el.userRole, state.user && state.user.role, 'Rol no informado');
+      setText(el.userAvatar, initials(state.user && state.user.displayName));
+    }
+
+    function renderContext() {
+      var platform = state.context.mode === 'platform' || !state.context.tenantId;
+      setText(el.tenantSwitcherLabel, platform ? 'Plataforma completa' : state.context.label);
+      setText(el.tenantSwitcherCode, platform ? 'PL' : initials(state.context.label));
+      setText(el.contextScope, (platform ? 'Plataforma completa' : state.context.label) + ' · ' + state.context.environment);
+      setText(el.contextSource, state.source.label + (state.source.cutoff ? ' · corte ' + formatDate(state.source.cutoff, false) : ' · corte no informado'));
+      var ready = state.controls.sodReady && state.controls.auditReady;
+      el.contextReadiness.textContent = ready
+        ? (state.controls.tenantDataPlaneReady ? 'Gobernanza verificada' : 'Control plane verificado · data plane pendiente')
+        : 'Mutaciones bloqueadas';
+      el.contextReadiness.classList.toggle('is-blocked', !ready || !state.controls.tenantDataPlaneReady);
+      renderTenantOptions();
+    }
+
+    function switcherTenants() {
+      var values = state.tenants.slice();
+      var hasJunin = values.some(function (tenant) {
+        return tenant.id === KNOWN_JUNIN.id || /junin/.test(normalizeSearch(tenant.name)) && /mendoza/.test(normalizeSearch(tenant.jurisdiction));
+      });
+      if (!hasJunin) values.push(KNOWN_JUNIN);
+      return values;
+    }
+
+    function renderTenantOptions() {
+      var query = normalizeSearch(el.tenantOptionSearch.value);
+      clear(el.tenantOptions);
+      var options = [{ id: '', name: 'Plataforma completa', jurisdiction: 'Administración multi-gobierno', governmentLevel: 'Plataforma', apiBacked: true }].concat(switcherTenants());
+      options.filter(function (tenant) {
+        return !query || normalizeSearch([tenant.name, tenant.jurisdiction, tenant.governmentLevel].join(' ')).includes(query);
+      }).forEach(function (tenant) {
+        var button = node('button', 'tenant-option');
+        button.type = 'button';
+        button.dataset.tenantOption = tenant.id;
+        button.setAttribute('aria-current', String((state.context.tenantId || '') === tenant.id));
+        button.appendChild(node('span', 'tenant-option-code', tenant.id ? initials(tenant.name) : 'PL'));
+        var copy = node('span');
+        copy.appendChild(node('strong', '', tenant.name));
+        copy.appendChild(node('small', '', tenant.jurisdiction + ' · ' + tenant.governmentLevel));
+        button.appendChild(copy);
+        button.appendChild(node('span', 'tenant-option-state', tenant.apiBacked === false ? 'Contexto municipal' : 'Autorizado'));
+        el.tenantOptions.appendChild(button);
+      });
+    }
+
+    function metric(element, noteElement, value, note) {
+      element.textContent = value === null || value === undefined ? '—' : String(value);
+      noteElement.textContent = value === null || value === undefined ? 'No informado por la API' : note;
+    }
+
+    function renderMetrics() {
+      if (state.context.mode === 'tenant' && state.context.tenantId) {
+        metric(el.metricTenants, el.metricTenantsNote, null, '');
+        metric(el.metricAttention, el.metricAttentionNote, null, '');
+        metric(el.metricReviews, el.metricReviewsNote, null, '');
+        metric(el.metricSecurity, el.metricSecurityNote, null, '');
+        [el.metricTenantsNote, el.metricAttentionNote, el.metricReviewsNote, el.metricSecurityNote].forEach(function (item) { item.textContent = 'Agregado global oculto en contexto tenant'; });
+        return;
+      }
+      metric(el.metricTenants, el.metricTenantsNote, state.metrics.tenants, 'Total publicado por la API');
+      metric(el.metricAttention, el.metricAttentionNote, state.metrics.attention, 'Estado publicado por la API');
+      metric(el.metricReviews, el.metricReviewsNote, state.metrics.reviews, 'Revisiones informadas vencidas');
+      metric(el.metricSecurity, el.metricSecurityNote, state.metrics.security, 'Alertas abiertas informadas');
+    }
+
+    function renderTenantFilters() {
+      var statuses = Array.from(new Set(state.tenants.map(function (tenant) { return tenant.status; }).filter(Boolean))).sort();
+      var previous = el.tenantStatusFilter.value;
+      clear(el.tenantStatusFilter);
+      var all = node('option', '', 'Todos los informados'); all.value = ''; el.tenantStatusFilter.appendChild(all);
+      statuses.forEach(function (status) { var option = node('option', '', status); option.value = status; el.tenantStatusFilter.appendChild(option); });
+      if (statuses.includes(previous)) el.tenantStatusFilter.value = previous;
+    }
+
+    function renderTenants() {
+      renderTenantFilters();
+      clear(el.tenantRows);
+      var query = normalizeSearch(el.tenantSearch.value);
+      var status = el.tenantStatusFilter.value;
+      var scopedTenants = state.context.mode === 'tenant' && state.context.tenantId
+        ? state.tenants.filter(function (tenant) { return tenant.id === state.context.tenantId; }) : state.tenants;
+      var visible = scopedTenants.filter(function (tenant) {
+        var matchesQuery = !query || normalizeSearch([tenant.name, tenant.jurisdiction, tenant.governmentLevel].join(' ')).includes(query);
+        return matchesQuery && (!status || tenant.status === status);
+      });
+      el.tenantLoading.hidden = true;
+      el.tenantError.hidden = true;
+      el.tenantEmpty.hidden = visible.length > 0;
+      el.tenantTableWrap.hidden = visible.length === 0;
+      el.tenantResultCount.textContent = visible.length + (visible.length === 1 ? ' gobierno visible' : ' gobiernos visibles') + (visible.length !== scopedTenants.length ? ' de ' + scopedTenants.length : '');
+      el.portfolioCutoff.textContent = state.source.cutoff ? 'Corte ' + formatDate(state.source.cutoff, false) : 'Corte no informado';
+      visible.forEach(function (tenant) {
+        var row = node('tr');
+        row.dataset.openRow = tenant.id;
+        var government = node('td'); government.dataset.label = 'Gobierno';
+        government.append(node('span', 'cell-title', tenant.name), node('span', 'cell-sub', tenant.governmentLevel + ' · ' + tenant.jurisdiction));
+        var stage = node('td'); stage.dataset.label = 'Implementación'; stage.textContent = tenant.implementationStage;
+        var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.appendChild(pill(tenant.status, statusTone(tenant.status)));
+        var source = node('td'); source.dataset.label = 'Fuente y corte';
+        source.append(node('span', 'cell-title', tenant.source), node('span', 'cell-sub', tenant.cutoff ? formatDate(tenant.cutoff, false) : 'Corte no informado'));
+        var commitment = node('td'); commitment.dataset.label = 'Próximo compromiso';
+        commitment.append(node('span', 'cell-title', tenant.nextCommitment), node('span', 'cell-sub', tenant.nextCommitmentAt ? formatDate(tenant.nextCommitmentAt, false) : 'Fecha no informada'));
+        var action = node('td'); action.dataset.label = '';
+        var button = node('button', 'button row-button', 'Abrir detalle'); button.type = 'button'; button.dataset.openTenant = tenant.id; action.appendChild(button);
+        row.append(government, stage, statusCell, source, commitment, action);
+        el.tenantRows.appendChild(row);
+      });
+    }
+
+    function fact(term, value) {
+      var wrap = node('div'); wrap.append(node('dt', '', term), node('dd', '', value || 'No informado')); return wrap;
+    }
+
+    function openTenantDetail(tenantId) {
+      var tenant = tenantById(tenantId);
+      if (!tenant || tenant.apiBacked === false) return;
+      state.selectedTenant = tenant;
+      el.tenantDetailTitle.textContent = tenant.name;
+      el.tenantDetailSubtitle.textContent = tenant.source + ' · ' + (tenant.cutoff ? formatDate(tenant.cutoff, false) : 'corte no informado');
+      clear(el.tenantDetailBody);
+      var grid = node('div', 'detail-grid');
+      var identity = node('section', 'detail-section');
+      identity.appendChild(node('h3', '', 'Contexto institucional'));
+      var identityFacts = node('dl', 'facts');
+      identityFacts.append(fact('Nivel', tenant.governmentLevel), fact('Jurisdicción', tenant.jurisdiction), fact('Responsable', tenant.owner), fact('Etapa', tenant.implementationStage), fact('Estado', tenant.status), fact('Próximo compromiso', tenant.nextCommitment + (tenant.nextCommitmentAt ? ' · ' + formatDate(tenant.nextCommitmentAt, false) : '')));
+      identity.appendChild(identityFacts);
+      var dimensions = node('section', 'detail-section');
+      dimensions.appendChild(node('h3', '', 'Salud de implementación'));
+      if (!tenant.dimensions.length) dimensions.appendChild(node('p', 'field-help', 'La API no informó dimensiones de implementación.'));
+      else {
+        var dimensionFacts = node('dl', 'facts');
+        tenant.dimensions.forEach(function (dimension) {
+          dimensionFacts.appendChild(fact(dimension.label, dimension.status + ' · ' + dimension.source + (dimension.updatedAt ? ' · ' + formatDate(dimension.updatedAt, false) : '')));
+        });
+        dimensions.appendChild(dimensionFacts);
+      }
+      grid.append(identity, dimensions);
+      el.tenantDetailBody.appendChild(grid);
+      el.openTenantContextButton.disabled = state.loading;
+      openDialog(el.tenantDetailDialog);
+    }
+
+    function normalizeUserStatus(value) {
+      var normalized = normalizeSearch(value);
+      if (/activ|enabled|acept/.test(normalized)) return 'active';
+      if (/pend|invite|invita/.test(normalized)) return 'pending';
+      if (/suspend|revoc|disabled|inactiv/.test(normalized)) return 'suspended';
+      return 'unknown';
+    }
+
+    function renderGovernance() {
+      var ready = state.controls.sodReady && state.controls.auditReady;
+      el.accessGovernance.classList.toggle('is-blocked', !ready);
+      el.accessGovernanceTitle.textContent = ready ? 'Controles administrativos verificados' : 'Mutaciones bloqueadas';
+      el.accessGovernanceMessage.textContent = ready
+        ? 'La API informó segregación de funciones y auditoría listas; cada comando conserva su autorización propia.'
+        : 'Falta confirmación explícita de segregación de funciones o auditoría. La interfaz permanece en lectura.';
+      clear(el.governanceFacts);
+      el.governanceFacts.append(pill('SoD ' + (state.controls.sodReady ? 'lista' : 'bloqueada'), state.controls.sodReady ? 'is-ok' : 'is-attention'));
+      el.governanceFacts.append(pill('Auditoría ' + (state.controls.auditReady ? 'lista' : 'bloqueada'), state.controls.auditReady ? 'is-ok' : 'is-attention'));
+      el.governanceFacts.append(pill('Invitaciones ' + (state.controls.invitationGatewayReady ? 'activas' : 'sólo preparadas'), state.controls.invitationGatewayReady ? 'is-ok' : 'is-attention'));
+      el.inviteUserButton.disabled = !mutationAllowed('invite_user', true) || !state.roles.length || !state.tenants.length;
+      el.createTenantButton.disabled = !mutationAllowed('create_tenant', false);
+      el.createTenantGate.classList.toggle('is-danger', !mutationAllowed('create_tenant', false));
+      el.createTenantGate.querySelector('strong').textContent = mutationAllowed('create_tenant', false) ? 'Alta autorizada' : 'Operación bloqueada';
+      el.createTenantGate.querySelector('span').textContent = mutationAllowed('create_tenant', false) ? 'El backend volverá a validar el alta y registrará el evento.' : 'Falta comando explícito o auditoría verificada.';
+      el.confirmCreateTenant.disabled = !mutationAllowed('create_tenant', false);
+    }
+
+    function renderRoleOptions() {
+      var roleItems = state.roles.map(function (role) { return { key: role.key, label: role.label }; });
+      var tenantRoleItems = state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).map(function (role) { return { key: role.key, label: role.label }; });
+      populateSelect(el.roleMatrixRole, roleItems, 'Seleccioná un rol informado', 'key', 'label');
+      populateSelect(el.userRoleFilter, tenantRoleItems, 'Todos', 'key', 'label');
+      populateSelect(el.inviteRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
+      populateSelect(el.userAccessRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
+      populateSelect(el.inviteTenant, state.tenants.map(function (tenant) { return { id: tenant.id, label: tenant.name }; }), 'Seleccionar gobierno', 'id', 'label');
+      if (state.context.tenantId && state.tenants.some(function (tenant) { return tenant.id === state.context.tenantId; })) el.inviteTenant.value = state.context.tenantId;
+      renderRoleMatrix();
+    }
+
+    function renderRoleMatrix() {
+      var role = roleByKey(el.roleMatrixRole.value);
+      renderCapabilityList(el.roleCapabilityMatrix, role ? roleCapabilityKeys(role.key) : [], false, 'roleMatrixCapability');
+      if (!role) el.roleEffectiveSummary.innerHTML = '<strong>Sin rol seleccionado.</strong> No se presume ninguna capacidad.';
+      else {
+        clear(el.roleEffectiveSummary);
+        el.roleEffectiveSummary.append(node('strong', '', role.label + '. '), document.createTextNode(role.description + ' La API informó ' + role.capabilities.length + ' capacidades para este rol.'));
+      }
+    }
+
+    function renderUsers() {
+      clear(el.userRows);
+      var query = normalizeSearch(el.userSearch.value);
+      var role = el.userRoleFilter.value;
+      var scopedUsers = state.context.mode === 'tenant' && state.context.tenantId
+        ? state.users.filter(function (user) { return user.tenantId === state.context.tenantId; }) : state.users;
+      var visible = scopedUsers.filter(function (user) {
+        var normalizedStatus = normalizeUserStatus(user.status);
+        var matchesStatus = !state.userStatus || normalizedStatus === state.userStatus;
+        var matchesRole = !role || user.roleKey === role;
+        var matchesQuery = !query || normalizeSearch([user.displayName, user.email, user.tenantName, user.roleLabel].join(' ')).includes(query);
+        return matchesStatus && matchesRole && matchesQuery;
+      });
+      el.userLoading.hidden = true;
+      el.userError.hidden = true;
+      el.userEmpty.hidden = visible.length > 0;
+      el.userTableWrap.hidden = visible.length === 0;
+      el.userResultCount.textContent = visible.length + (visible.length === 1 ? ' identidad visible' : ' identidades visibles') + (visible.length !== scopedUsers.length ? ' de ' + scopedUsers.length : '');
+      el.userCutoff.textContent = state.source.cutoff ? 'Corte ' + formatDate(state.source.cutoff, false) : 'Corte no informado';
+      visible.forEach(function (user) {
+        var userTenant = tenantById(user.tenantId);
+        if (userTenant) user.tenantName = userTenant.name;
+        var userRole = roleByKey(user.roleKey);
+        if (userRole) user.roleLabel = userRole.label;
+        var row = node('tr'); row.dataset.openRow = user.id; row.dataset.listRow = 'user';
+        var identity = node('td'); identity.dataset.label = 'Usuario'; identity.append(node('span', 'cell-title', user.displayName), node('span', 'cell-sub', user.email || 'Email no informado'));
+        var tenant = node('td'); tenant.dataset.label = 'Tenant'; tenant.textContent = user.tenantName;
+        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades informadas'));
+        var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.appendChild(pill(user.status, statusTone(user.status)));
+        var security = node('td'); security.dataset.label = 'Seguridad';
+        security.append(node('span', 'cell-title', user.mfa === true ? 'MFA verificado' : user.mfa === false ? 'MFA no verificado' : 'MFA no informado'), node('span', 'cell-sub', user.lastAccessAt ? 'Último acceso ' + formatDate(user.lastAccessAt, true) : 'Último acceso no informado'));
+        var action = node('td'); action.dataset.label = ''; var button = node('button', 'button row-button', 'Ver acceso'); button.type = 'button'; button.dataset.openUser = user.id; action.appendChild(button);
+        row.append(identity, tenant, roleCell, statusCell, security, action);
+        el.userRows.appendChild(row);
+      });
+    }
+
+    function renderUserFacts(user) {
+      clear(el.userDetailFacts);
+      el.userDetailFacts.append(fact('Nombre', user.displayName), fact('Email', user.email), fact('Tenant', user.tenantName), fact('Estado', user.status), fact('Vínculo con legajo', user.employmentLinked === true ? 'Verificado' : user.employmentLinked === false ? 'No vinculado' : 'No informado'), fact('MFA', user.mfa === true ? 'Verificado' : user.mfa === false ? 'No verificado' : 'No informado'), fact('Último acceso', user.lastAccessAt ? formatDate(user.lastAccessAt, true) : 'No informado'));
+    }
+
+    function updateUserAccessGate() {
+      var user = state.selectedUser;
+      if (!user) return;
+      var selected = capabilityKeysFrom(el.userAccessCapabilities);
+      var conflicts = sodConflicts(new Set(selected));
+      var reasonReady = el.userAccessReason.value.trim().length >= 3;
+      var versionReady = Number.isSafeInteger(Number(user.version)) && Number(user.version) >= 1;
+      var ready = mutationAllowed('update_access', true) && conflicts.length === 0 && Boolean(el.userAccessRole.value) && reasonReady && Boolean(user.membershipId) && versionReady;
+      el.updateAccessButton.disabled = !ready;
+      clear(el.userEffectiveSummary);
+      el.userEffectiveSummary.append(node('strong', '', (roleByKey(el.userAccessRole.value) || {}).label || 'Rol no informado'));
+      el.userEffectiveSummary.appendChild(document.createTextNode(' · ' + selected.length + ' capacidades solicitadas · tenant ' + user.tenantName + '. El backend define el acceso final.'));
+      renderConflictBox(el.userConflictBox, conflicts, mutationAllowed('update_access', true));
+      var self = state.user && user.email && state.user.email && user.email.toLowerCase() === state.user.email.toLowerCase();
+      el.suspendMembershipButton.disabled = !mutationAllowed('suspend_membership', false) || !user.membershipId || !versionReady || self || normalizeUserStatus(user.status) === 'suspended';
+    }
+
+    function openUserDetail(userId) {
+      var user = state.users.find(function (item) { return item.id === userId; });
+      if (!user) return;
+      state.selectedUser = user;
+      el.userAccessReason.value = '';
+      el.userDetailTitle.textContent = user.displayName;
+      el.userDetailSubtitle.textContent = user.email || 'Email no informado';
+      renderUserFacts(user);
+      el.userAccessRole.value = user.roleKey;
+      renderCapabilityList(el.userAccessCapabilities, user.capabilities, mutationAllowed('update_access', true), 'userAccessCapability');
+      updateUserAccessGate();
+      openDialog(el.userDetailDialog);
+    }
+
+    function renderConflictBox(box, conflicts, commandReady) {
+      clear(box);
+      var governanceOk = state.controls.sodReady && state.controls.auditReady;
+      box.classList.toggle('is-danger', conflicts.length > 0 || !governanceOk);
+      if (!governanceOk) {
+        box.append(node('strong', '', 'Validación bloqueada'), node('span', '', 'La API no confirmó segregación de funciones y auditoría.'));
+      } else if (conflicts.length) {
+        box.appendChild(node('strong', '', 'Conflictos de segregación'));
+        var ul = node('ul'); conflicts.forEach(function (message) { ul.appendChild(node('li', '', message)); }); box.appendChild(ul);
+      } else if (!commandReady) {
+        box.append(node('strong', '', 'Sin autorización de cambio'), node('span', '', 'La sesión puede revisar la propuesta, pero el backend no habilitó este comando.'));
+      } else {
+        box.classList.remove('is-danger');
+        box.append(node('strong', '', 'Sin conflictos informados'), node('span', '', 'El backend volverá a validar rol, alcance y SoD antes de aplicar.'));
+      }
+    }
+
+    function updateInviteCapabilities(fromRole) {
+      if (fromRole) renderCapabilityList(el.inviteCapabilityMatrix, roleCapabilityKeys(el.inviteRole.value), false, 'inviteCapability');
+      var selected = capabilityKeysFrom(el.inviteCapabilityMatrix);
+      var conflicts = sodConflicts(new Set(selected));
+      var role = roleByKey(el.inviteRole.value);
+      var tenant = tenantById(el.inviteTenant.value);
+      clear(el.inviteEffectiveSummary);
+      if (!role || !tenant) el.inviteEffectiveSummary.append(node('strong', '', 'Sin acceso propuesto.'), document.createTextNode(' Seleccioná gobierno y rol.'));
+      else el.inviteEffectiveSummary.append(node('strong', '', role.label + '. '), document.createTextNode(selected.length + ' capacidades solicitadas para ' + tenant.name + '. El backend define el acceso efectivo.'));
+      renderConflictBox(el.inviteConflictBox, conflicts, mutationAllowed('invite_user', true));
+      var valid = mutationAllowed('invite_user', true) && role && tenant && selected.length > 0 && conflicts.length === 0 && el.inviteName.value.trim() && el.inviteEmail.validity.valid && el.inviteEmail.value.trim();
+      el.sendInviteButton.disabled = !valid;
+      el.inviteMutationHint.textContent = valid
+        ? (state.controls.invitationGatewayReady ? 'La invitación requiere aceptación; no se genera una contraseña visible.' : 'La invitación quedará preparada e inactiva hasta certificar el gateway; no crea credenciales.')
+        : 'Completá los campos y resolvé los bloqueos de gobernanza.';
+    }
+
+    function showFieldError(input, errorElement, message) {
+      errorElement.textContent = message || '';
+      errorElement.hidden = !message;
+      input.setAttribute('aria-invalid', String(Boolean(message)));
+    }
+
+    function validateInviteForm() {
+      var name = el.inviteName.value.trim();
+      var email = el.inviteEmail.value.trim().toLowerCase();
+      var tenantId = el.inviteTenant.value;
+      var role = el.inviteRole.value;
+      showFieldError(el.inviteName, el.inviteNameError, name.length >= 3 ? '' : 'Ingresá un nombre nominal válido.');
+      showFieldError(el.inviteEmail, el.inviteEmailError, el.inviteEmail.validity.valid && email ? '' : 'Ingresá un email institucional válido.');
+      showFieldError(el.inviteTenant, el.inviteTenantError, tenantId ? '' : 'Seleccioná un gobierno informado.');
+      showFieldError(el.inviteRole, el.inviteRoleError, role ? '' : 'Seleccioná un rol informado.');
+      var capabilities = capabilityKeysFrom(el.inviteCapabilityMatrix);
+      var conflicts = sodConflicts(new Set(capabilities));
+      return { valid: Boolean(name.length >= 3 && email && el.inviteEmail.validity.valid && tenantId && role && capabilities.length && !conflicts.length && mutationAllowed('invite_user', true)), name: name, email: email, tenantId: tenantId, role: role, capabilities: capabilities };
+    }
+
+    function renderControls() {
+      var tenantMode = state.context.mode === 'tenant' && Boolean(state.context.tenantId);
+      var assignment = state.exclusive || normalizeExclusive({}, state.context.tenantId);
+      var candidates = state.users.filter(function (user) {
+        return user.membershipId && user.tenantId === state.context.tenantId
+          && normalizeUserStatus(user.status) === 'active'
+          && user.capabilities.includes('time.overtime.enter');
+      });
+      var canAssign = tenantMode && mutationAllowed('assign_exclusive_capability', true) && candidates.length > 0 && !assignment.membershipId;
+      el.controlGovernance.classList.toggle('is-blocked', !canAssign);
+      el.controlGovernanceTitle.textContent = canAssign ? 'Asignación exclusiva gobernada' : 'Asignaciones bloqueadas';
+      el.controlGovernanceMessage.textContent = !tenantMode
+        ? 'Seleccioná un gobierno para consultar responsables nominales.'
+        : canAssign ? 'La API confirmó exclusividad, SoD y auditoría para este tenant.' : 'Falta autorización explícita, elegibilidad o verificación de controles del backend.';
+
+      var assignedUser = assignment.membershipId ? state.users.find(function (user) { return user.membershipId === assignment.membershipId; }) : null;
+      el.overtimeAssignee.textContent = assignedUser ? assignedUser.displayName : (assignment.assigneeName || 'Sin responsable informado');
+      var assignedEmail = assignedUser ? assignedUser.email : assignment.assigneeEmail;
+      var sourceSpan = node('span', '', assignedEmail ? assignedEmail + ' · fuente ' + assignment.source : 'No se inventó una persona responsable.');
+      el.overtimeAssignee.appendChild(sourceSpan);
+      clear(el.overtimeAssigneeSelect);
+      var placeholder = node('option', '', candidates.length ? 'Seleccionar responsable elegible' : 'Sin personas elegibles informadas'); placeholder.value = ''; el.overtimeAssigneeSelect.appendChild(placeholder);
+      candidates.forEach(function (user) {
+        var option = node('option', '', user.displayName + (user.email ? ' · ' + user.email : ''));
+        option.value = user.membershipId;
+        option.dataset.version = String(user.version || '');
+        el.overtimeAssigneeSelect.appendChild(option);
+      });
+      el.overtimeAssigneeSelect.disabled = !canAssign;
+      el.assignOvertimeButton.disabled = true;
+      var absence = state.operationalControls.find(function (control) { return /absence|licen/.test(normalizeSearch(control.key + ' ' + control.label)); });
+      el.absenceControlState.textContent = absence ? absence.status : 'No informado';
+      el.absenceControlState.appendChild(node('span', '', absence ? 'Fuente ' + absence.source : 'La API todavía no publicó este control.'));
+      clear(el.absenceControlExplanation);
+      el.absenceControlExplanation.append(node('strong', '', absence ? 'Control publicado. ' : 'Fail-closed. '), document.createTextNode(absence ? absence.explanation : 'La pantalla no habilita decisiones de licencias desde un catálogo incompleto.'));
+    }
+
+    function renderAuditFilters() {
+      var events = Array.from(new Set(state.audit.map(function (event) { return event.event; }).filter(Boolean))).sort();
+      var previous = el.auditEventFilter.value;
+      clear(el.auditEventFilter); var all = node('option', '', 'Todos'); all.value = ''; el.auditEventFilter.appendChild(all);
+      events.forEach(function (event) { var option = node('option', '', event); option.value = event; el.auditEventFilter.appendChild(option); });
+      if (events.includes(previous)) el.auditEventFilter.value = previous;
+    }
+
+    function renderAudit() {
+      renderAuditFilters();
+      clear(el.auditRows);
+      var query = normalizeSearch(el.auditSearch.value);
+      var filter = el.auditEventFilter.value;
+      var scopedAudit = state.context.mode === 'tenant' && state.context.tenantId
+        ? state.audit.filter(function (event) { return event.tenantId === state.context.tenantId; }) : state.audit;
+      var visible = scopedAudit.filter(function (event) {
+        return (!filter || event.event === filter) && (!query || normalizeSearch([event.actor, event.actorRole, event.event, event.resource, event.tenant, event.correlationId].join(' ')).includes(query));
+      });
+      el.auditLoading.hidden = true;
+      el.auditError.hidden = true;
+      el.auditEmpty.hidden = visible.length > 0;
+      el.auditTableWrap.hidden = visible.length === 0;
+      el.auditResultCount.textContent = visible.length + (visible.length === 1 ? ' evento visible' : ' eventos visibles') + (visible.length !== scopedAudit.length ? ' de ' + scopedAudit.length : '');
+      el.auditCutoff.textContent = state.source.cutoff ? 'Corte ' + formatDate(state.source.cutoff, true) : 'Corte no informado';
+      visible.forEach(function (event) {
+        var row = node('tr'); row.dataset.listRow = 'audit';
+        var date = node('td', '', formatDate(event.occurredAt, true)); date.dataset.label = 'Fecha';
+        var actor = node('td'); actor.dataset.label = 'Actor'; actor.append(node('span', 'cell-title', event.actor), node('span', 'cell-sub', event.actorRole || 'Rol no informado'));
+        var eventCell = node('td'); eventCell.dataset.label = 'Evento'; eventCell.append(node('span', 'cell-title', event.event), node('span', 'cell-sub', event.resource));
+        var tenant = node('td', '', event.tenant); tenant.dataset.label = 'Ámbito';
+        var outcome = node('td'); outcome.dataset.label = 'Resultado'; outcome.appendChild(pill(event.outcome, statusTone(event.outcome)));
+        var correlation = node('td', 'cell-sub', event.correlationId); correlation.dataset.label = 'Correlación';
+        row.append(date, actor, eventCell, tenant, outcome, correlation); el.auditRows.appendChild(row);
+      });
+    }
+
+    function renderAll() {
+      renderSession();
+      renderContext();
+      renderMetrics();
+      renderTenants();
+      renderGovernance();
+      renderRoleOptions();
+      renderUsers();
+      renderControls();
+      renderAudit();
+    }
+
+    async function loadBootstrap(requestedTenantId, version) {
+      var payload = await requestJson(contextQuery('bootstrap', requestedTenantId));
+      if (version !== state.loadVersion) return false;
+      var normalized = normalizeBootstrap(payload, requestedTenantId);
+      state.user = normalized.user;
+      state.context = normalized.context;
+      state.tenants = normalized.tenants;
+      state.roles = normalized.roles;
+      state.capabilities = normalized.capabilities;
+      state.allowedCommands = normalized.commands;
+      state.controls = normalized.controls;
+      state.sodRules = normalized.sodRules;
+      state.metrics = normalized.metrics;
+      state.source = normalized.source;
+      state.exclusive = normalized.exclusive;
+      state.operationalControls = normalized.operationalControls;
+      return true;
+    }
+
+    async function loadUsers(requestedTenantId, version) {
+      try {
+        var payload = await requestJson(contextQuery('users', requestedTenantId));
+        if (version !== state.loadVersion) return;
+        state.users = findArray(payload, ['users','items','memberships','invitations']).map(normalizeUser).filter(function (user) { return user.id; });
+        var source = normalizeSource(payload);
+        if (source.cutoff) state.source.cutoff = source.cutoff;
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        state.users = [];
+        el.userLoading.hidden = true; el.userError.hidden = false; el.userEmpty.hidden = true; el.userTableWrap.hidden = true;
+        el.userErrorMessage.textContent = error.message;
+      }
+    }
+
+    async function loadAudit(requestedTenantId, version) {
+      try {
+        var payload = await requestJson(contextQuery('audit', requestedTenantId));
+        if (version !== state.loadVersion) return;
+        state.audit = findArray(payload, ['events','audit','items','auditEvents']).map(normalizeAuditEvent);
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        state.audit = [];
+        el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditEmpty.hidden = true; el.auditTableWrap.hidden = true;
+        el.auditErrorMessage.textContent = error.message;
+      }
+    }
+
+    function setLoading(value) {
+      state.loading = value;
+      if (value) {
+        el.tenantLoading.hidden = false; el.tenantError.hidden = true; el.tenantEmpty.hidden = true; el.tenantTableWrap.hidden = true;
+        el.userLoading.hidden = false; el.userError.hidden = true; el.userEmpty.hidden = true; el.userTableWrap.hidden = true;
+        el.auditLoading.hidden = false; el.auditError.hidden = true; el.auditEmpty.hidden = true; el.auditTableWrap.hidden = true;
+      }
+      el.refreshButton.disabled = value;
+      el.tenantSwitcher.disabled = value;
+    }
+
+    async function loadAll(requestedTenantId) {
+      var version = ++state.loadVersion;
+      setLoading(true);
+      try {
+        var loaded = await loadBootstrap(requestedTenantId || '', version);
+        if (!loaded || version !== state.loadVersion) return;
+        renderSession(); renderContext(); renderMetrics(); renderGovernance(); renderRoleOptions(); renderControls();
+        await Promise.all([loadUsers(requestedTenantId || '', version), loadAudit(requestedTenantId || '', version)]);
+        if (version !== state.loadVersion) return;
+        renderAll();
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        el.tenantLoading.hidden = true; el.tenantError.hidden = false; el.tenantErrorMessage.textContent = error.message;
+        el.userLoading.hidden = true; el.userError.hidden = false; el.userErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
+        el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
+        throw error;
+      } finally {
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); }
+      }
+    }
+
+    function openDialog(dialog) {
+      if (!dialog || dialog.open) return;
+      dialog.showModal();
+      var focusable = dialog.querySelector('input:not([disabled]),select:not([disabled]),button:not([disabled])');
+      if (focusable) window.setTimeout(function () { focusable.focus(); }, 0);
+    }
+    function closeDialog(dialog) { if (dialog && dialog.open) dialog.close(); }
+
+    function showView(view) {
+      var titles = {
+        portfolio: ['Cartera institucional','Administración multi-gobierno'],
+        access: ['Usuarios y accesos','Identidad y menor privilegio'],
+        controls: ['Controles exclusivos','Responsabilidades operativas'],
+        audit: ['Auditoría','Evidencia administrativa']
+      };
+      if (!titles[view]) return;
+      state.activeView = view;
+      document.querySelectorAll('[data-view-panel]').forEach(function (panel) { panel.hidden = panel.dataset.viewPanel !== view; });
+      document.querySelectorAll('[data-admin-view]').forEach(function (button) {
+        if (button.dataset.adminView === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+      });
+      el.breadcrumbCurrent.textContent = titles[view][0]; el.topViewTitle.textContent = titles[view][1];
+      closeMenu(false); el.mainContent.focus();
+    }
+
+    function openMenu() { document.body.classList.add('nav-open'); el.menuButton.setAttribute('aria-expanded', 'true'); el.workspace.inert = true; el.menuClose.focus(); }
+    function closeMenu(restore) { document.body.classList.remove('nav-open'); el.menuButton.setAttribute('aria-expanded', 'false'); el.workspace.inert = false; if (restore) el.menuButton.focus(); }
+    function trapMenuFocus(event) {
+      if (!document.body.classList.contains('nav-open') || event.key !== 'Tab') return;
+      var focusable = Array.from(el.adminSidebar.querySelectorAll('a[href],button:not([disabled])'));
+      if (!focusable.length) return;
+      var firstNode = focusable[0], lastNode = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === firstNode) { event.preventDefault(); lastNode.focus(); }
+      else if (!event.shiftKey && document.activeElement === lastNode) { event.preventDefault(); firstNode.focus(); }
+    }
+
+    async function switchContext(tenantId) {
+      closeDialog(el.tenantSwitcherDialog); el.tenantSwitcher.setAttribute('aria-expanded', 'false');
+      closeDialog(el.tenantDetailDialog);
+      try { await loadAll(tenantId || ''); showToast(tenantId ? 'Ámbito cambiado y autorización actualizada.' : 'Ámbito global actualizado.'); }
+      catch (error) { showToast(error.message, true); }
+    }
+
+    async function runCommand(command, payload, expectedVersion, button, successMessage, dialog) {
+      if (!mutationAllowed(command, command === 'invite_user' || command === 'update_access' || command === 'assign_exclusive_capability')) {
+        showToast('El backend no habilitó esta operación con controles suficientes.', true); return;
+      }
+      button.disabled = true;
+      try {
+        await postCommand(command, payload, expectedVersion);
+        if (dialog) closeDialog(dialog);
+        showToast(successMessage);
+        await loadAll(state.context.tenantId || '');
+      } catch (error) { showToast(error.message, true); }
+      finally { renderGovernance(); renderControls(); }
+    }
+
+    async function authenticate() {
+      el.gateTitle.textContent = 'Verificando administración'; el.gateMessage.textContent = 'Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.'; el.gateSpinner.hidden = false; el.retryAuth.hidden = true;
+      try {
+        var authPayload = await requestJson(AUTH_URL);
+        var authRoot = roots(authPayload)[0] || {};
+        var authUser = firstObject(authRoot.user, authRoot.session && authRoot.session.user);
+        if (!text(first(authUser.id, authUser.email))) { redirectToLogin(); return; }
+        await loadAll('');
+        el.authGate.hidden = true; el.platformAdminShell.hidden = false;
+      } catch (error) {
+        if (error.unauthorized) return;
+        el.gateTitle.textContent = 'No pudimos abrir la administración';
+        el.gateMessage.textContent = error.status === 403 ? 'Tu sesión no tiene alcance administrativo global.' : error.message;
+        el.gateSpinner.hidden = true; el.retryAuth.hidden = false; el.retryAuth.focus();
+      }
+    }
+
+    function bindEvents() {
+      el.retryAuth.addEventListener('click', authenticate);
+      el.menuButton.addEventListener('click', openMenu); el.menuClose.addEventListener('click', function () { closeMenu(true); }); el.navBackdrop.addEventListener('click', function () { closeMenu(true); });
+      document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
+      document.querySelectorAll('[data-admin-view]').forEach(function (button) { button.addEventListener('click', function () { showView(button.dataset.adminView); }); });
+      el.tenantSwitcher.addEventListener('click', function () { renderTenantOptions(); openDialog(el.tenantSwitcherDialog); el.tenantSwitcher.setAttribute('aria-expanded', 'true'); });
+      el.tenantOptionSearch.addEventListener('input', renderTenantOptions);
+      el.tenantOptions.addEventListener('click', function (event) { var option = event.target.closest('[data-tenant-option]'); if (option) switchContext(option.dataset.tenantOption || ''); });
+      document.querySelectorAll('[data-close-dialog]').forEach(function (button) { button.addEventListener('click', function () { var dialog = document.getElementById(button.dataset.closeDialog); closeDialog(dialog); if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
+      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () { if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
+      el.refreshButton.addEventListener('click', function () { loadAll(state.context.tenantId || '').catch(function (error) { showToast(error.message, true); }); });
+      el.logoutButton.addEventListener('click', async function () { try { await requestJson(AUTH_URL, { method: 'DELETE' }); } catch (_) {} window.location.replace('login.html'); });
+      el.tenantSearch.addEventListener('input', renderTenants); el.tenantStatusFilter.addEventListener('change', renderTenants);
+      el.clearTenantFilters.addEventListener('click', function () { el.tenantSearch.value = ''; el.tenantStatusFilter.value = ''; renderTenants(); el.tenantSearch.focus(); });
+      el.tenantRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-tenant]'); if (button) openTenantDetail(button.dataset.openTenant); });
+      el.openTenantContextButton.addEventListener('click', function () { if (state.selectedTenant) switchContext(state.selectedTenant.id); });
+      el.createTenantButton.addEventListener('click', function () { el.createTenantForm.reset(); openDialog(el.createTenantDialog); });
+      el.createTenantForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var name = el.newTenantName.value.trim(), shortName = el.newTenantShortName.value.trim(), level = el.newTenantLevel.value, jurisdiction = el.newTenantJurisdiction.value.trim(), slug = el.newTenantSlug.value.trim();
+        if (!name || !shortName || !level || !jurisdiction || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { showToast('Revisá los datos obligatorios del gobierno.', true); return; }
+        runCommand('create_tenant', { slug: slug, legalName: name, shortName: shortName, kind: level, jurisdiction: jurisdiction }, null, el.confirmCreateTenant, 'Gobierno enviado para alta.', el.createTenantDialog);
+      });
+      el.inviteUserButton.addEventListener('click', function () {
+        el.inviteUserForm.reset(); renderRoleOptions(); renderCapabilityList(el.inviteCapabilityMatrix, [], false, 'inviteCapability'); updateInviteCapabilities(false); openDialog(el.inviteUserDialog);
+      });
+      el.inviteRole.addEventListener('change', function () { updateInviteCapabilities(true); }); el.inviteTenant.addEventListener('change', function () { updateInviteCapabilities(false); });
+      [el.inviteName, el.inviteEmail].forEach(function (input) { input.addEventListener('input', function () { updateInviteCapabilities(false); }); });
+      el.inviteCapabilityMatrix.addEventListener('change', function () { updateInviteCapabilities(false); });
+      el.inviteUserForm.addEventListener('submit', function (event) {
+        event.preventDefault(); var result = validateInviteForm(); if (!result.valid) { updateInviteCapabilities(false); showToast('La invitación sigue bloqueada o incompleta.', true); return; }
+        runCommand('invite_user', { tenantId: result.tenantId, email: result.email, displayName: result.name, roleKey: result.role }, null, el.sendInviteButton, state.controls.invitationGatewayReady ? 'Invitación creada sin exponer credenciales.' : 'Invitación preparada; el gateway todavía no emite credenciales.', el.inviteUserDialog);
+      });
+      el.userSearch.addEventListener('input', renderUsers); el.userRoleFilter.addEventListener('change', renderUsers);
+      el.clearUserFilters.addEventListener('click', function () { el.userSearch.value = ''; el.userRoleFilter.value = ''; state.userStatus = ''; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (tab) { tab.setAttribute('aria-selected', String(tab.dataset.userStatus === '')); }); renderUsers(); el.userSearch.focus(); });
+      el.userStatusTabs.addEventListener('click', function (event) { var tab = event.target.closest('[data-user-status]'); if (!tab) return; state.userStatus = tab.dataset.userStatus; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (item) { item.setAttribute('aria-selected', String(item === tab)); }); renderUsers(); });
+      el.userRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-user]'); if (button) openUserDetail(button.dataset.openUser); });
+      el.roleMatrixRole.addEventListener('change', renderRoleMatrix);
+      el.userAccessRole.addEventListener('change', function () { renderCapabilityList(el.userAccessCapabilities, roleCapabilityKeys(el.userAccessRole.value), mutationAllowed('update_access', true), 'userAccessCapability'); updateUserAccessGate(); });
+      el.userAccessCapabilities.addEventListener('change', updateUserAccessGate);
+      el.userAccessReason.addEventListener('input', updateUserAccessGate);
+      el.userAccessForm.addEventListener('submit', function (event) {
+        event.preventDefault(); var user = state.selectedUser; if (!user || el.updateAccessButton.disabled) return;
+        var selected = new Set(capabilityKeysFrom(el.userAccessCapabilities));
+        var roleBase = new Set(roleCapabilityKeys(el.userAccessRole.value));
+        var allowCapabilities = Array.from(selected).filter(function (key) { return !roleBase.has(key); });
+        var denyCapabilities = Array.from(roleBase).filter(function (key) { return !selected.has(key); });
+        runCommand('update_access', { membershipId: user.membershipId, roleKey: el.userAccessRole.value, allowCapabilities: allowCapabilities, denyCapabilities: denyCapabilities, reason: el.userAccessReason.value.trim() }, user.version, el.updateAccessButton, 'Acceso actualizado y enviado a auditoría.', el.userDetailDialog);
+      });
+      el.suspendMembershipButton.addEventListener('click', function () {
+        var user = state.selectedUser; if (!user || el.suspendMembershipButton.disabled) return;
+        if (!window.confirm('¿Suspender la membresía de ' + user.displayName + '? El backend volverá a validar esta decisión.')) return;
+        runCommand('suspend_membership', { membershipId: user.membershipId }, user.version, el.suspendMembershipButton, 'Membresía suspendida.', el.userDetailDialog);
+      });
+      el.overtimeAssigneeSelect.addEventListener('change', function () { el.assignOvertimeButton.disabled = !el.overtimeAssigneeSelect.value || !mutationAllowed('assign_exclusive_capability', true) || !state.exclusive || state.exclusive.verified !== true; });
+      el.overtimeAssignmentForm.addEventListener('submit', function (event) {
+        event.preventDefault(); var membershipId = el.overtimeAssigneeSelect.value; if (!membershipId || el.assignOvertimeButton.disabled) return;
+        var candidate = state.users.find(function (user) { return user.membershipId === membershipId; });
+        if (!candidate || !candidate.version) { showToast('La versión de la membresía no está informada.', true); return; }
+        runCommand('assign_exclusive_capability', { membershipId: membershipId, capabilityKey: 'time.overtime.enter' }, candidate.version, el.assignOvertimeButton, 'Responsable exclusivo actualizado.', null);
+      });
+      el.auditSearch.addEventListener('input', renderAudit); el.auditEventFilter.addEventListener('change', renderAudit);
+      el.clearAuditFilters.addEventListener('click', function () { el.auditSearch.value = ''; el.auditEventFilter.value = ''; renderAudit(); el.auditSearch.focus(); });
+    }
+
+    bindEvents();
+    authenticate();
+  }());
+  </script>
+</body>
+</html>

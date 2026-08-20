@@ -13,6 +13,7 @@ const shellFiles = [
   'calidad-datos.html',
   'internal-dashboard.html',
   'centro-acciones.html',
+  'administracion-plataforma.html',
   'estructura.html',
   'integracion-datos.html',
   'nomina-control.html',

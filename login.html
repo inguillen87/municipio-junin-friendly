@@ -730,7 +730,7 @@
           btnLabel.textContent = 'Accediendo al portal interno';
           setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
           var next = new URLSearchParams(window.location.search).get('next');
-          var allowedNext = ['internal-dashboard.html', 'centro-acciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
+          var allowedNext = ['internal-dashboard.html', 'centro-acciones.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
           window.location.href = allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
         return;
       } catch (error) {

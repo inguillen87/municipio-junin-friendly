@@ -39,6 +39,13 @@ export const SECTION_CATALOG = deepFreeze([
     aliases: ['acciones', 'centro de acciones', 'solicitud', 'solicitudes', 'tramite interno', 'licencia operativa', 'aprobar licencia'],
   },
   {
+    id: 'administracion', label: 'Administración de plataforma', targetPath: '/administracion-plataforma',
+    purpose: 'Administrar gobiernos incorporados, usuarios, roles, permisos y responsables exclusivos con alcance y auditoría explícitos.',
+    actions: ['seleccionar el ámbito de plataforma o un gobierno', 'preparar una invitación sin contraseña compartida', 'asignar un rol y ajustar capacidades permitidas', 'revisar conflictos y trazabilidad'],
+    limits: ['el rol de plataforma no concede facultades operativas dentro de RR.HH., Tesorería o Nómina', 'las cuentas preparadas permanecen sin acceso hasta completar activación y controles tenant-aware', 'las capacidades críticas conservan doble control y no pueden combinarse por conveniencia'],
+    aliases: ['administracion', 'administracion de plataforma', 'usuarios', 'roles', 'permisos', 'tenants', 'gobiernos', 'superadmin'],
+  },
+  {
     id: 'estructura', label: 'Estructura', targetPath: '/estructura',
     purpose: 'Explorar asignaciones agregadas de organizaciones, sectores, cargos y catálogos de GRH.',
     actions: ['buscar una asignación', 'filtrar grupos activos o inactivos', 'alternar entre organizaciones, sectores y catálogos'],

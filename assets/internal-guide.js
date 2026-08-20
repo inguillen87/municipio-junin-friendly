@@ -78,6 +78,24 @@
         ['#actionWizard', 'Solicitud de licencia', 'Registra días o minutos solicitados; no infiere horas trabajadas, saldo ni liquidación.']
       ]
     },
+    platformAdmin: {
+      sectionId: 'administracion', title: 'Administración de plataforma',
+      tour: [
+        ['#tenantSwitcher', 'Ámbito activo', 'Confirmá si estás administrando la plataforma completa o un gobierno específico antes de cambiar accesos.'],
+        ['#tenantContextBanner', 'Contexto efectivo', 'Esta franja conserva gobierno, entorno y rol efectivo durante toda la tarea.'],
+        ['#userTable', 'Usuarios y acceso', 'Cada usuario muestra estado, rol, alcance y acceso efectivo; una invitación preparada todavía no habilita el ingreso.'],
+        ['#effectiveAccessDialog', 'Permisos explicados', 'Las casillas se traducen en capacidades técnicas, origen, alcance y restricciones verificables.'],
+        ['#policyControlTable', 'Funciones exclusivas', 'Las horas extra o Mayor esfuerzo admiten un titular primario y una delegación temporal auditada, nunca cuentas compartidas.'],
+        ['#auditTable', 'Auditoría', 'Toda asignación, revocación o suspensión queda como un evento append-only.']
+      ],
+      explain: [
+        ['#tenantSwitcher', 'Selector de ámbito', 'Evita operar accidentalmente sobre otro gobierno y nunca amplía el alcance devuelto por el backend.'],
+        ['#userTable', 'Identidades', 'Separa cuenta, tenant, rol y vínculo laboral; no crea contraseñas compartidas.'],
+        ['#roleTable', 'Roles y capacidades', 'Una plantilla acelera la configuración, mientras las excepciones permanecen visibles y auditables.'],
+        ['#policyControlTable', 'Segregación', 'Expone incompatibilidades y responsabilidades exclusivas antes de guardar.'],
+        ['#auditTable', 'Trazabilidad', 'Permite reconstruir quién cambió qué, en qué ámbito y con qué resultado.']
+      ]
+    },
     management: {
       sectionId: 'gestiones', title: 'Comparación de gestiones',
       tour: [
@@ -197,6 +215,7 @@
   function inferPage() {
     var path = window.location.pathname.toLowerCase();
     if (path.indexOf('centro-acciones') >= 0) return 'actions';
+    if (path.indexOf('administracion-plataforma') >= 0 || path === '/admin') return 'platformAdmin';
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';
@@ -206,7 +225,7 @@
     if (path.indexOf('ausentismo') >= 0) return 'absence';
     if (path.indexOf('calidad-operativa') >= 0) return 'quality';
     if (path.indexOf('asistente') >= 0 || path === '/ia' || path === '/ia-hf') return 'assistant';
-    if (path.indexOf('internal') >= 0 || path === '/rrhh' || path === '/admin') return 'portal';
+    if (path.indexOf('internal') >= 0 || path === '/rrhh') return 'portal';
     return '';
   }
 
