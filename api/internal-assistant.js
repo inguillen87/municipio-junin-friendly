@@ -169,11 +169,32 @@ function normalizeText(value, maximum = MAX_MESSAGE_LENGTH) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maximum) : '';
 }
 
+const UNICODE_DECIMAL_ZEROES = Object.freeze([
+  0x0030, 0x0660, 0x06f0, 0x0966, 0x09e6, 0x0a66, 0x0ae6, 0x0b66,
+  0x0be6, 0x0c66, 0x0ce6, 0x0d66, 0x0de6, 0x0e50, 0x0ed0, 0x0f20,
+  0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
+  0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0,
+  0xa9f0, 0xaa50, 0xabf0, 0xff10,
+]);
+
+function normalizeUnicodeDecimalDigits(value) {
+  return value.replace(/\p{Nd}/gu, (digit) => {
+    const point = digit.codePointAt(0);
+    const zero = UNICODE_DECIMAL_ZEROES.find((candidate) => point >= candidate && point <= candidate + 9);
+    return zero === undefined ? digit : String(point - zero);
+  });
+}
+
 function foldText(value) {
-  return normalizeText(value)
+  return normalizeUnicodeDecimalDigits(normalizeText(value).normalize('NFKC'))
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[⁄∕／]/g, '/')
+    .replace(/[‐‑‒–—―−]/g, '-')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[аɑ]/g, 'a')
+    .replace(/[οо]/g, 'o');
 }
 
 function foldAssistantQuery(value) {
@@ -261,29 +282,163 @@ function dateFilters(body, message, intent) {
   return output;
 }
 
-function budgetFiscalYear(body = {}, message = '') {
-  const explicit = [body.fiscalYear, body.year]
-    .map((value) => Number(value))
-    .find((value) => Number.isInteger(value) && value >= 1900 && value <= 2100);
-  if (explicit) return explicit;
-
-  const text = foldAssistantQuery(message)
-    .replace(/\bordenanza\s+(?:n(?:ro|[º°])?\.?\s*)?(?:1021|1\.021)(?:\s*(?:\/|de)\s*(?:19|20)\d{2})?\b/g, ' ');
-  const match = text.match(/\b((?:19|20)\d{2})\b/);
-  const year = Number(match?.[1] || 0);
-  return year >= 1900 && year <= 2100 ? year : null;
+function structuredIntegerField(body, key, minimum, maximum, pattern) {
+  if (!Object.hasOwn(body, key)) return { provided: false, valid: false, value: null };
+  const raw = body[key];
+  const value = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string' && pattern.test(raw.trim())
+      ? Number(raw.trim())
+      : Number.NaN;
+  const valid = Number.isInteger(value) && value >= minimum && value <= maximum;
+  return { provided: true, valid, value: valid ? value : null };
 }
 
-function budgetOrdinanceReference(message = '') {
-  const match = foldAssistantQuery(message).match(
-    /\bordenanza\s+(?:n(?:ro|[º°])?\.?\s*)?(?:1021|1\.021)\b(?:\s*(?:\/|de)\s*((?:19|20)\d{2}))?/,
-  );
-  if (!match) return { mentioned: false, instrumentYear: null };
-  const instrumentYear = Number(match[1] || 0);
-  return {
-    mentioned: true,
-    instrumentYear: instrumentYear >= 1900 && instrumentYear <= 2100 ? instrumentYear : null,
+function budgetFiscalYearAnalysis(message = '', analysis = municipalOrdinanceReferenceAnalysis(message)) {
+  let text = analysis.text;
+  for (const reference of [...analysis.references].sort((left, right) => right.start - left.start)) {
+    text = `${text.slice(0, reference.start)}${' '.repeat(reference.end - reference.start)}${text.slice(reference.end)}`;
+  }
+  const years = [];
+  let invalid = false;
+  const add = (value) => {
+    if (value === undefined || value === null || value === '') return;
+    const year = Number(String(value).replace(/[.,\s]/g, ''));
+    if (Number.isInteger(year)) years.push(year);
   };
+  for (const match of text.matchAll(/(?<!\d)(\d{4}|\d\.\d{3})(?!\d)/g)) {
+    const year = Number(match[1].replace('.', ''));
+    if (year >= 1800 && year <= 2999) add(year);
+  }
+  const contextPattern = /\b(?:presupuestos?|ejercicio(?:\s+(?:fiscal|presupuestario))?|periodo(?:\s+(?:fiscal|presupuestario))?|vigencia|vigente)(?:\s+(?:municipal(?:es)?|aprobados?|para|el|del|de|en|correspondiente|a|al|durante|fiscal|presupuestario|entre|contra|versus|con|ejercicio|periodo|ano))*\s*[:=,-]?\s*(\d+(?:[., ]\d+)*)/g;
+  for (const match of text.matchAll(contextPattern)) {
+    const token = match[1];
+    if (/^(?:\d{4}|\d[., ]\d{3})$/.test(token)) add(token);
+    else invalid = true;
+  }
+  for (const match of text.matchAll(/\b(dos\s+mil(?:\s+[a-z]+)?)\b/g)) {
+    if (match[1] === 'dos mil veinticinco') add(2025);
+    else if (match[1] === 'dos mil veintiseis') add(2026);
+    else invalid = true;
+  }
+  for (const match of text.matchAll(/\b(veinti[a-z]+)\b(?!\s+(?:millones?|mil|pesos?|ars|unidades?))/g)) {
+    if (match[1] === 'veinticinco') add(2025);
+    else if (match[1] === 'veintiseis') add(2026);
+    else invalid = true;
+  }
+  return { years: [...new Set(years)], invalid };
+}
+
+function municipalOrdinanceReferenceAnalysis(message = '') {
+  const text = foldAssistantQuery(message);
+  const leadPattern = /(?:\bordenanzas?\b|\bords?(?:\.|\b))(?:\s+municipal(?:es)?)?\s*(?:(?:numeros?|n(?:ro|um)|n\.?[º°o]|n)\.?(?=\s|\d)\s*)?/g;
+  const referenceEnd = String.raw`(?!\s*(?:[\/_-]\s*\w|\.\s*\d|\.[a-z]|(?:bis|ter|quater|v\d+|version\s*\d+|rev(?:ision)?\w*|anexos?|incisos?)\b))(?=$|[\s,;:?!]|\.(?=\s|$))`;
+  const referencePattern = new RegExp(String.raw`^(\d{1,6}(?:\.\d{3})?)(?:(?:\s*(?:\/|-|de(?:l)?(?:\s+ano)?|ano)\s*((?:19|20)\d{2})${referenceEnd})|(?!\s*(?:\/|-|de(?:l)?(?:\s+ano)?|ano)))\b`);
+  const continuationPattern = new RegExp(String.raw`^\s*(?:,|;|y(?:\s+tambien)?|e|o|ademas\s+de|tambien|junto\s+con|mas|asimismo)\s*(?:(?:la|las|el|los)\s+)?(?:(?:ordenanzas?\b|ords?(?:\.|\b))\s*)?(?:municipal(?:es)?\s*)?(?:(?:numeros?|n(?:ro|um)|n\.?[º°o]|n)\.?(?=\s|\d)\s*)?(\d{1,6}(?:\.\d{3})?)(?:(?:\s*(?:\/|-|de(?:l)?(?:\s+ano)?|ano)\s*((?:19|20)\d{2})${referenceEnd})|(?!\s*(?:\/|-|de(?:l)?(?:\s+ano)?|ano)))\b`);
+  const references = [];
+  let hasUnparsedReference = false;
+  const addReference = (match, start, end) => {
+    const instrumentNumber = Number(String(match[1] || '').replace(/\./g, ''));
+    const instrumentYear = Number(match[2] || 0);
+    const reference = {
+      instrumentNumber: Number.isInteger(instrumentNumber) ? instrumentNumber : null,
+      instrumentYear: instrumentYear >= 1900 && instrumentYear <= 2100 ? instrumentYear : null,
+      start,
+      end,
+    };
+    if (!references.some((row) => row.start === reference.start && row.end === reference.end)) {
+      references.push(reference);
+    }
+  };
+
+  for (const lead of text.matchAll(leadPattern)) {
+    const firstStart = lead.index;
+    let cursor = lead.index + lead[0].length;
+    const first = text.slice(cursor).match(referencePattern);
+    if (!first) {
+      if (/^\d{1,6}(?:\.\d{3})?/.test(text.slice(cursor))) hasUnparsedReference = true;
+      continue;
+    }
+    cursor += first[0].length;
+    addReference(first, firstStart, cursor);
+
+    while (cursor < text.length) {
+      const continuation = text.slice(cursor).match(continuationPattern);
+      if (!continuation) break;
+      const continuationStart = cursor;
+      cursor += continuation[0].length;
+      addReference(continuation, continuationStart, cursor);
+    }
+  }
+
+  if (references.some((reference) => reference.instrumentNumber === 1021 && !reference.instrumentYear)) {
+    hasUnparsedReference = true;
+  }
+  const unsupportedReferenceQualifier = /^\s*(?:[,;:]?\s*|\(\s*)(?:bis|ter|quater|v\d+|version\s*\d+|rev(?:ision)?\w*|anexos?|incisos?)\b/;
+  if (references.some((reference) => unsupportedReferenceQualifier.test(text.slice(reference.end)))) {
+    hasUnparsedReference = true;
+  }
+  if (/(?:\bdecretos?\b|\bd(?:to|cto|ec|ecr)s?\.?(?=\s|$)|\bresolucion(?:es)?\b|\bres(?:ol)?s?\.?(?=\s|$)|\bdisposicion(?:es)?\b|\bdisps?\.?(?=\s|$)|\bcircular(?:es)?\b|\bacuerdos?\b(?=\s+\d)|\bactos?\b|\bedictos?\b|\binstrumentos?\b|\bexpedientes?\b|\breglamentos?\b|\bnormas?\b|\bley(?:es)?\b|\bordza\.?(?=\s|$)|\b0rdenanz|\bordenanz@)/.test(text)) {
+    hasUnparsedReference = true;
+  }
+
+  let residual = text;
+  for (const reference of [...references].sort((left, right) => right.start - left.start)) {
+    residual = `${residual.slice(0, reference.start)}${' '.repeat(reference.end - reference.start)}${residual.slice(reference.end)}`;
+  }
+  const hasUnnormalizedDecimalDigit = [...residual.matchAll(/\p{Nd}/gu)]
+    .some((match) => match[0].codePointAt(0) > 0x7f);
+  const hasConfusableScript = /[\p{Script=Cyrillic}\p{Script=Greek}]/u.test(residual);
+  const sourceCuePattern = /\b(?:segun|conforme\s+a|fuente|source|origen|documento|referencia|ref\.?|de\s+acuerdo\s+con|aprobado\s+por|en\s+virtud\s+de)\b/g;
+  for (const cue of text.matchAll(sourceCuePattern)) {
+    const cueEnd = cue.index + cue[0].length;
+    const linkedReference = references.some((reference) => {
+      if (reference.start < cueEnd || reference.start - cueEnd > 48) return false;
+      const between = text.slice(cueEnd, reference.start);
+      return /^\s*[:#-]?\s*(?:(?:oficial|municipal)\s+)?(?:es\s+)?(?:(?:la|las|el|los)\s+)?$/.test(between);
+    });
+    if (!linkedReference) {
+      hasUnparsedReference = true;
+      break;
+    }
+  }
+  const apparentReferencePattern = /(?:\b(?:ordenanzas?|ords?(?:\.|\b))|\b(?:numeros?|n(?:ro|um)|n\.?[º°o]|n)\.?\s*\d{1,6}|(?<!\d)\d{1,6}(?:\.\d{3})?\s*(?:\/|-)\s*[^\s,;?!]+|\b(?:segun|conforme\s+a|fuente|source|origen|documento|referencia|ref\.?|de\s+acuerdo\s+con|aprobado\s+por|en\s+virtud\s+de)\s*[:#-]?\s*(?:(?:la|las|el|los)\s+)?\d{1,6}\b|\b(?:ademas\s+de|tambien|junto\s+(?:con|a)|mas|asimismo)\s+(?:(?:la|las|el|los)\s+)?\d{1,6}\b|\b(?:la|las)\s+\d{1,6}\b)/;
+  if (hasUnnormalizedDecimalDigit || hasConfusableScript || apparentReferencePattern.test(residual)) {
+    hasUnparsedReference = true;
+  }
+
+  return { text, references, hasUnparsedReference };
+}
+
+function municipalOrdinanceReferences(message = '') {
+  return municipalOrdinanceReferenceAnalysis(message).references
+    .map(({ instrumentNumber, instrumentYear }) => ({ instrumentNumber, instrumentYear }));
+}
+
+function hasCompetingBudgetDomain(message = '') {
+  return /\b(?:familiar(?:es)?|personal(?:es)?|licitacion(?:es)?|prestamos?|proyectos?|obras?|cotizacion(?:es)?|contratacion(?:es)?|compras?|eventos?|capacitacion(?:es)?|expedientes?|proveedor(?:es)?|contratos?)\b/.test(foldAssistantQuery(message));
+}
+
+function isMunicipalBudgetQuery(message, ordinances = municipalOrdinanceReferences(message)) {
+  const competingDomain = hasCompetingBudgetDomain(message);
+  const budgetNoun = /\bpresupuestos?\b/.test(message);
+  const explicitSourceContext = /\bordenanzas?\b|\b(?:segun|conforme\s+a|fuente|source|origen|documento|referencia|ref\.?|de\s+acuerdo\s+con|aprobado\s+por|en\s+virtud\s+de)\b/.test(message);
+  const supportedOrdinance = ordinances.some((ordinance) => ordinance.instrumentNumber === 1021
+    && (!ordinance.instrumentYear || ordinance.instrumentYear === 2025));
+  if (competingDomain) return budgetNoun && explicitSourceContext && !supportedOrdinance;
+  if (supportedOrdinance) return true;
+
+  if (budgetNoun && explicitSourceContext) return true;
+  const fiscalTokenScope = /\bpresupuestos?(?:\s+(?:municipal(?:es)?|aprobados?|para|el|del|de|en|correspondiente|a|al|durante|fiscal|presupuestario|entre|contra|versus|con|ejercicio|periodo|ano))*\s*[:=,-]?\s*(?:\d+(?:[., ]\d+)*|dos\s+mil\s+\w+|veinti[a-z]+)/.test(message);
+  const yearOrFiscalScope = fiscalTokenScope
+    || /(?:\bmunicipal(?:es)?\b|\baprobados?\b|\bejercicio\b|\bfiscal\b|\bperiodo\b|\bvigencia\b|\bvigente\b|\bcorrespondiente\b)/.test(message);
+  const genericBudgetQuestion = /^(?:(?:cual|cuanto)\s+(?:es\s+)?|(?:mostra|mostrame|explica|explicame|ver|consultar)\s+)?(?:el\s+)?presupuesto\s*[?!.]*$/.test(message);
+  if (budgetNoun && !competingDomain && (yearOrFiscalScope || genericBudgetQuestion)) return true;
+
+  const annualFinancialTerm = /\b(?:credito\s+presupuestario|gastos?\s+aprobados?|recursos\s+estimados?|financiamiento\s+estimado|ejecucion\s+presupuestaria)\b/.test(message);
+  const municipalAnnualContext = /\b(?:municipal(?:es)?|municipio|presupuestos?|ordenanzas?|ejercicio|fiscal)\b/.test(message)
+    || /\b(?:18|19|20|21|22)\d{2}\b/.test(message);
+  return annualFinancialTerm && municipalAnnualContext && !competingDomain;
 }
 
 function extractLabelFilter(bodyValue, message, label, maximum = 160) {
@@ -351,12 +506,64 @@ const QUALITY_ENTITIES = new Set(['persona', 'legajo', 'artifact:calculo', 'arti
 function naturalFilters(body, message, intent) {
   const text = foldAssistantQuery(message);
   if (intent === 'budget_approved') {
-    const fiscalYear = budgetFiscalYear(body, message);
-    const ordinance = budgetOrdinanceReference(message);
+    const ordinanceAnalysis = municipalOrdinanceReferenceAnalysis(message);
+    const messageFiscalAnalysis = budgetFiscalYearAnalysis(message, ordinanceAnalysis);
+    const explicitFiscalYear = structuredIntegerField(body, 'fiscalYear', 1900, 2100, /^\d{4}$/);
+    const explicitYearAlias = structuredIntegerField(body, 'year', 1900, 2100, /^\d{4}$/);
+    const fiscalYearInvalid = (explicitFiscalYear.provided && !explicitFiscalYear.valid)
+      || (explicitYearAlias.provided && !explicitYearAlias.valid)
+      || messageFiscalAnalysis.invalid;
+    const explicitFiscalYears = [...new Set([
+      ...(explicitFiscalYear.valid ? [explicitFiscalYear.value] : []),
+      ...(explicitYearAlias.valid ? [explicitYearAlias.value] : []),
+    ])];
+    const messageFiscalYears = ordinanceAnalysis.hasUnparsedReference
+      ? []
+      : messageFiscalAnalysis.years;
+    const allFiscalYears = [...new Set([...explicitFiscalYears, ...messageFiscalYears])];
+    const fiscalYearConflict = explicitFiscalYears.length > 1
+      || messageFiscalYears.length > 1
+      || allFiscalYears.length > 1;
+    const fiscalYear = explicitFiscalYears[0] ?? messageFiscalYears[0] ?? null;
+    const ordinances = ordinanceAnalysis.references;
+    const messageWrongNumber = ordinances.find((ordinance) => ordinance.instrumentNumber !== 1021);
+    const messageWrongYear = ordinances.find((ordinance) => ordinance.instrumentNumber === 1021
+      && ordinance.instrumentYear && ordinance.instrumentYear !== 2025);
+    const explicitNumber = structuredIntegerField(body, 'instrumentNumber', 0, 999_999, /^\d{1,6}$/);
+    const explicitYear = structuredIntegerField(body, 'instrumentYear', 1900, 2100, /^\d{4}$/);
+    const explicitReferenceFlagInvalid = Object.hasOwn(body, 'instrumentReferenceUnparsed')
+      && typeof body.instrumentReferenceUnparsed !== 'boolean';
+    const instrumentTypeProvided = Object.hasOwn(body, 'instrumentType');
+    const instrumentType = typeof body.instrumentType === 'string' ? foldText(body.instrumentType) : '';
+    const instrumentTypeInvalid = instrumentTypeProvided
+      && !['ordenanza', 'ordenanza municipal'].includes(instrumentType);
+    const structuredReferenceIncomplete = explicitNumber.provided !== explicitYear.provided
+      || (instrumentTypeProvided && (!explicitNumber.provided || !explicitYear.provided));
+    const unsupportedStructuredLegalObject = Object.hasOwn(body, 'legalInstrument');
+    const selectedNumber = messageWrongNumber?.instrumentNumber
+      ?? (explicitNumber.valid ? explicitNumber.value : null);
+    const selectedYear = messageWrongYear?.instrumentYear
+      ?? (explicitYear.valid ? explicitYear.value : null);
     return {
-      ...(fiscalYear ? { fiscalYear } : {}),
-      ...(ordinance.instrumentYear && ordinance.instrumentYear !== 2025
-        ? { instrumentYear: ordinance.instrumentYear }
+      ...(hasCompetingBudgetDomain(message) ? { budgetScopeUnsupported: true } : {}),
+      ...(fiscalYear !== null ? { fiscalYear } : {}),
+      ...(fiscalYearInvalid ? { fiscalYearInvalid: true } : {}),
+      ...(fiscalYearConflict ? { fiscalYearConflict: true } : {}),
+      ...(ordinanceAnalysis.hasUnparsedReference
+          || body.instrumentReferenceUnparsed === true
+          || explicitReferenceFlagInvalid
+          || instrumentTypeInvalid
+          || structuredReferenceIncomplete
+          || unsupportedStructuredLegalObject
+          || (explicitNumber.provided && !explicitNumber.valid)
+          || (explicitYear.provided && !explicitYear.valid)
+        ? { instrumentReferenceUnparsed: true }
+        : {}),
+      ...(selectedNumber !== null
+        ? { instrumentNumber: selectedNumber }
+        : {}),
+      ...(selectedYear !== null
+        ? { instrumentYear: selectedYear }
         : {}),
     };
   }
@@ -683,7 +890,7 @@ export function classifyAssistantRequest(body = {}) {
   if (normalizeText(body.section, 100)) return 'section_explanation';
 
   const message = foldAssistantQuery(body.message);
-  const budgetOrdinance = budgetOrdinanceReference(message);
+  const budgetOrdinances = municipalOrdinanceReferences(message);
   const recordFocus = employeeRecordFocus(message);
   if (recordFocus && extractLegajo(body.message)) return 'employee_detail';
   if (recordFocus && extractEmployeeRecordSearch(body.message)) return 'employee_search';
@@ -698,8 +905,7 @@ export function classifyAssistantRequest(body = {}) {
       || /\b(?:ano\s*)?[1-4]\s+(?:de\s+(?:la\s+)?)?gestion\b/.test(message)
       || /\b(?:primer|primero|segundo|tercer|tercero|cuarto)\s+ano\s+de\s+(?:la\s+)?gestion\b/.test(message)
       || /\bano\s+por\s+ano\b[^.?!]*\bgestiones?\b/.test(message)) return 'management_comparison';
-  if ((budgetOrdinance.mentioned && (!budgetOrdinance.instrumentYear || budgetOrdinance.instrumentYear === 2025))
-      || /\b(?:presupuesto(?:\s+municipal)?|presupuesto\s+aprobado|credito\s+presupuestario|gastos?\s+aprobados?|recursos\s+estimados?|financiamiento\s+estimado|ejecucion\s+presupuestaria)\b/.test(message)) return 'budget_approved';
+  if (isMunicipalBudgetQuery(message, budgetOrdinances)) return 'budget_approved';
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
@@ -868,7 +1074,10 @@ export function planAssistantRequest(body = {}) {
     quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution', 'page', 'limit'],
     import_lineage: ['source', 'batch'],
     management_comparison: [],
-    budget_approved: ['fiscalYear', 'instrumentYear'],
+    budget_approved: [
+      'fiscalYear', 'fiscalYearInvalid', 'fiscalYearConflict',
+      'instrumentNumber', 'instrumentYear', 'instrumentReferenceUnparsed', 'budgetScopeUnsupported',
+    ],
     employee_search: ['search', 'page', 'limit', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
     employee_detail: ['contractId', 'legajo', 'companyId', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
   }[intent];
@@ -3335,6 +3544,16 @@ export function createInternalAssistantHandler(dependencies = {}) {
 
     try {
       const body = await readJsonBody(req);
+      if (Object.hasOwn(body, 'message') && typeof body.message !== 'string') {
+        return respond(422, { ok: false, code: 'ASSISTANT_MESSAGE_INVALID', error: 'El mensaje debe ser texto.' });
+      }
+      if (typeof body.message === 'string' && body.message.length > MAX_MESSAGE_LENGTH) {
+        return respond(413, {
+          ok: false,
+          code: 'ASSISTANT_MESSAGE_TOO_LONG',
+          error: `El mensaje supera el máximo de ${MAX_MESSAGE_LENGTH} caracteres.`,
+        });
+      }
       const message = normalizeText(body.message);
       if (!message && !body.intent && !body.search && !body.contractId && !body.legajo && !body.section && !body.task && !body.term) {
         return respond(400, { ok: false, code: 'ASSISTANT_QUERY_REQUIRED', error: 'Escribí una consulta para el asistente' });
@@ -3369,9 +3588,60 @@ export function createInternalAssistantHandler(dependencies = {}) {
         result = productGuidanceResult(intent, body);
         resourceStatuses.push({ name: 'productguidance', status: 'ok' });
       } else if (intent === 'budget_approved') {
-        const fiscalYear = Number(plan.filters.fiscalYear || 2026);
-        const instrumentYear = Number(plan.filters.instrumentYear || 2025);
-        result = instrumentYear !== 2025
+        const fiscalYear = Number(plan.filters.fiscalYear ?? 2026);
+        const instrumentNumber = Number(plan.filters.instrumentNumber ?? 1021);
+        const instrumentYear = Number(plan.filters.instrumentYear ?? 2025);
+        result = plan.filters.fiscalYearInvalid
+          ? {
+            status: 422,
+            answer: 'El ejercicio presupuestario debe indicarse como un año de cuatro dígitos.',
+            data: { code: 'BUDGET_FISCAL_YEAR_INVALID', availableFiscalYears: [2026] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : plan.filters.fiscalYearConflict
+          ? {
+            status: 422,
+            answer: 'La consulta contiene dos ejercicios presupuestarios distintos. Indicá uno solo antes de consultar importes.',
+            data: { code: 'BUDGET_FISCAL_YEAR_CONFLICT', availableFiscalYears: [2026] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : plan.filters.instrumentReferenceUnparsed
+          ? {
+            status: 422,
+            answer: 'La referencia de ordenanza no se pudo validar con certeza. Indicá el número y el año completos antes de consultar importes.',
+            data: { code: 'BUDGET_INSTRUMENT_REFERENCE_UNRECOGNIZED', availableInstrumentReferences: ['1021/2025'] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : plan.filters.budgetScopeUnsupported
+          ? {
+            status: 422,
+            answer: 'La fuente cargada corresponde al presupuesto anual municipal, no a presupuestos de obras, compras, proyectos, contratos, eventos ni ámbitos personales.',
+            data: { code: 'BUDGET_SCOPE_UNAVAILABLE', availableScope: 'annual_municipal_approved_budget' },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : instrumentNumber !== 1021
+          ? {
+            status: 422,
+            answer: `La fuente cargada es la Ordenanza 1021/2025; la Ordenanza ${instrumentNumber} no corresponde a este presupuesto.`,
+            data: { code: 'BUDGET_INSTRUMENT_NUMBER_MISMATCH', requestedInstrumentNumber: instrumentNumber, availableInstrumentNumbers: [1021] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : instrumentYear !== 2025
           ? {
             status: 422,
             answer: `La fuente cargada es la Ordenanza 1021/2025; la referencia 1021/${instrumentYear} no corresponde a este presupuesto.`,
