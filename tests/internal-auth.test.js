@@ -19,6 +19,10 @@ import {
   serializeInternalSessionCookie,
   verifyInternalSessionToken,
 } from '../lib/internal-session.js';
+import {
+  IDENTITY_SESSION_COOKIE,
+  issueIdentitySessionToken,
+} from '../lib/internal-identity-crypto.js';
 
 const TEST_SECRET = 'unit-test-only-internal-session-secret';
 const TEST_NOW = 1_700_000_000_000;
@@ -150,7 +154,7 @@ test('get/requireInternalSession reutiliza la cookie y falla cerrado', () => {
   assert.match(headers['Set-Cookie'], /Max-Age=0/);
 });
 
-test('endpoint GET lee la sesion y DELETE la cierra sin consultar DB', async (t) => {
+test('endpoint GET obliga migrar la sesion legacy y DELETE limpia ambas cookies', async (t) => {
   const previousSecret = process.env.INTERNAL_SESSION_SECRET;
   process.env.INTERNAL_SESSION_SECRET = TEST_SECRET;
   t.after(() => {
@@ -165,55 +169,125 @@ test('endpoint GET lee la sesion y DELETE la cierra sin consultar DB', async (t)
     headers: { cookie: `${INTERNAL_SESSION_COOKIE}=${encodeURIComponent(token)}` },
   }, getResponse);
 
-  assert.equal(getResponse.statusCode, 200);
-  assert.equal(getResponse.payload.authenticated, true);
-  assert.equal(getResponse.payload.user.email, 'admin@example.test');
-  assert.equal(getResponse.payload.user.name, 'admin@example.test');
+  assert.equal(getResponse.statusCode, 401);
+  assert.equal(getResponse.payload.code, 'IDENTITY_SESSION_UPGRADE_REQUIRED');
 
   const deleteResponse = createMockResponse();
   await internalAuthHandler({ method: 'DELETE', headers: {} }, deleteResponse);
   assert.equal(deleteResponse.statusCode, 200);
   assert.equal(deleteResponse.payload.authenticated, false);
-  assert.match(deleteResponse.headers['Set-Cookie'], /Max-Age=0/);
+  assert.equal(Array.isArray(deleteResponse.headers['Set-Cookie']), true);
+  assert.equal(deleteResponse.headers['Set-Cookie'].length, 2);
+  assert.ok(deleteResponse.headers['Set-Cookie'].every((value) => /Max-Age=0/.test(value)));
 });
 
-test('endpoint POST conserva display_name en la sesion y GET lo recupera', async (t) => {
-  const previousSecret = process.env.INTERNAL_SESSION_SECRET;
-  process.env.INTERNAL_SESSION_SECRET = TEST_SECRET;
-  t.after(() => {
-    if (previousSecret === undefined) delete process.env.INTERNAL_SESSION_SECRET;
-    else process.env.INTERNAL_SESSION_SECRET = previousSecret;
-  });
-
-  const passwordHash = await hashInternalPassword('clave sintetica');
+test('endpoint GET reconoce v2 y DELETE confirma revocacion antes de limpiar', async () => {
+  const sessionId = '11111111-1111-4111-8111-111111111111';
+  const token = issueIdentitySessionToken({
+    id: sessionId,
+    email: 'marcelo@example.test',
+    version: 2,
+    identityVersion: 3,
+  }, { secret: TEST_SECRET });
+  let revoked = null;
   const handler = createInternalAuthHandler({
-    async findInternalUserByEmail(email) {
-      assert.equal(email, 'marcelo@example.test');
+    env: { IDENTITY_APP_ORIGIN: 'https://friendly.example.test' },
+    identitySecrets: () => ({ sessionSecret: TEST_SECRET }),
+    getTenantIdentitySql: async () => ({ kind: 'runtime' }),
+    requireCompatibleInternalAccess: async (_req, _res, options) => {
+      assert.equal(options.allowLegacy, false);
       return {
-        id: email,
-        email,
-        display_name: 'Marcelo QA',
-        password_hash: passwordHash,
-        role: 'ADMIN_INTERNO',
+        mode: 'managed',
+        session: {
+          id: sessionId,
+          email: 'marcelo@example.test',
+          version: 2,
+          identityVersion: 3,
+          expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        },
+        principal: {
+          user: { email: 'marcelo@example.test', name: 'Marcelo QA' },
+          platform: { roles: ['PLATFORM_OWNER'] },
+          tenant: null,
+        },
       };
     },
+    revokeIdentitySessionForLogout: async (value) => { revoked = value; return { revoked: true }; },
+    randomUUID: () => '22222222-2222-4222-8222-222222222222',
   });
-  const loginResponse = createMockResponse();
-  await handler({
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: { email: 'Marcelo@Example.test', password: 'clave sintetica' },
-  }, loginResponse);
 
-  assert.equal(loginResponse.statusCode, 200);
-  assert.equal(loginResponse.payload.user.name, 'Marcelo QA');
-  assert.match(loginResponse.headers['Set-Cookie'], new RegExp(`^${INTERNAL_SESSION_COOKIE}=`));
-
-  const sessionResponse = createMockResponse();
+  const getResponse = createMockResponse();
   await handler({
     method: 'GET',
-    headers: { cookie: loginResponse.headers['Set-Cookie'] },
-  }, sessionResponse);
-  assert.equal(sessionResponse.statusCode, 200);
-  assert.equal(sessionResponse.payload.user.name, 'Marcelo QA');
+    headers: { cookie: `${IDENTITY_SESSION_COOKIE}=${encodeURIComponent(token)}` },
+  }, getResponse);
+  assert.equal(getResponse.statusCode, 200);
+  assert.equal(getResponse.payload.sessionVersion, 2);
+  assert.equal(getResponse.payload.user.name, 'Marcelo QA');
+  assert.equal(getResponse.payload.user.role, 'PLATFORM_OWNER');
+
+  const logoutResponse = createMockResponse();
+  await handler({
+    method: 'DELETE',
+    headers: {
+      cookie: `${IDENTITY_SESSION_COOKIE}=${encodeURIComponent(token)}`,
+      origin: 'https://friendly.example.test',
+    },
+  }, logoutResponse);
+  assert.equal(logoutResponse.statusCode, 200);
+  assert.equal(revoked.session.id, sessionId);
+  assert.equal(revoked.idempotencyKey, '22222222-2222-4222-8222-222222222222');
+  assert.equal(logoutResponse.headers['Set-Cookie'].length, 2);
+});
+
+test('logout rechaza otro origen, limpia cookies y no intenta revocar', async () => {
+  let revocations = 0;
+  const handler = createInternalAuthHandler({
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://friendly.example.test' },
+    revokeIdentitySessionForLogout: async () => { revocations += 1; },
+  });
+  const res = createMockResponse();
+  await handler({ method: 'DELETE', headers: { origin: 'https://evil.example' } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'IDENTITY_ORIGIN_FORBIDDEN');
+  assert.equal(revocations, 0);
+  assert.equal(res.headers['Set-Cookie'].length, 2);
+});
+
+test('logout limpia el navegador aunque la revocacion server-side no pueda confirmarse', async () => {
+  const sessionId = '11111111-1111-4111-8111-111111111111';
+  const token = issueIdentitySessionToken({
+    id: sessionId, email: 'marcelo@example.test', version: 2, identityVersion: 3,
+  }, { secret: TEST_SECRET });
+  const handler = createInternalAuthHandler({
+    env: { IDENTITY_APP_ORIGIN: 'https://friendly.example.test' },
+    identitySecrets: () => ({ sessionSecret: TEST_SECRET }),
+    getTenantIdentitySql: async () => ({}),
+    revokeIdentitySessionForLogout: async () => { throw new Error('database unavailable'); },
+    logger: { error() {} },
+  });
+  const res = createMockResponse();
+  await handler({
+    method: 'DELETE',
+    headers: {
+      origin: 'https://friendly.example.test',
+      cookie: `${IDENTITY_SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    },
+  }, res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.payload.code, 'IDENTITY_LOGOUT_UNAVAILABLE');
+  assert.equal(res.headers['Set-Cookie'].length, 2);
+  assert.ok(res.headers['Set-Cookie'].every((value) => /Max-Age=0/.test(value)));
+});
+
+test('endpoint POST legacy no emite cookies y dirige al login seguro', async () => {
+  const response = createMockResponse();
+  await createInternalAuthHandler()({
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: { email: 'marcelo@example.test', password: 'no-se-procesa' },
+  }, response);
+  assert.equal(response.statusCode, 410);
+  assert.equal(response.payload.code, 'IDENTITY_LOGIN_REQUIRED');
+  assert.equal(response.headers['Set-Cookie'], undefined);
 });

@@ -1,0 +1,798 @@
+import { randomUUID } from 'node:crypto';
+
+import { hashInternalPassword, verifyInternalPassword } from '../lib/internal-password.js';
+import {
+  getInternalSession,
+  parseCookieHeader,
+  serializeClearedInternalSessionCookie,
+} from '../lib/internal-session.js';
+import {
+  IDENTITY_FLOW_TTL_SECONDS,
+  IDENTITY_INVITATION_TTL_SECONDS,
+  IDENTITY_SESSION_COOKIE,
+  IDENTITY_SESSION_TTL_SECONDS,
+  createFlowToken,
+  createInvitationCode,
+  createRecoveryCodes,
+  createTotpEnrollment,
+  decryptMfaSecret,
+  encryptMfaSecret,
+  hashIdentitySecret,
+  identitySecrets,
+  issueIdentitySessionToken,
+  matchTotpStep,
+  normalizeInvitationCode,
+  normalizeRecoveryCode,
+  serializeClearedIdentitySessionCookie,
+  serializeIdentitySessionCookie,
+  totpEnrollmentFromSecret,
+  verifyIdentitySessionToken,
+} from '../lib/internal-identity-crypto.js';
+import {
+  IdentityGatewayError,
+  applyTenantIdentityCommand,
+  getLegacySessionPolicy,
+  getTenantIdentityCommandReplay,
+  getTenantIdentitySql,
+  getTenantIdentityView,
+  identityGatewayDatabaseError,
+  lookupTenantIdentity,
+  normalizeIdentityDatabaseCommand,
+  recordIdentityChallengeAttempt,
+  resolveTenantIdentityAccess,
+  revokeIdentitySessionForLogout,
+  takeIdentityRateLimit,
+} from '../lib/internal-identity-access.js';
+
+const MAX_BODY_BYTES = 16 * 1024;
+const DUMMY_PASSWORD_HASH = 'scrypt$16384$8$1$R0dHR0dHR0dHR0dHR0dHRw$sCqc4_u2rJULQEkXAuvGyxs8APXfS0S3tj1-cWJAPYxQTt6ZXmFC5D3-SRBZSsBAjgWf6AMEXQnmA4nn7G1KJg';
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function header(req, name) {
+  const value = typeof req?.headers?.get === 'function'
+    ? req.headers.get(name)
+    : (req?.headers?.[name] ?? req?.headers?.[name.toLowerCase()]);
+  return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+}
+
+function responseHeaders(res) {
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Vary', 'Cookie, Origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+}
+
+function send(res, status, payload) {
+  responseHeaders(res);
+  return res.status(status).json(payload);
+}
+
+function fail(code, status, message) {
+  throw new IdentityGatewayError(code, status, message);
+}
+
+function failMfaAttempt(attempt) {
+  const expected = Number(attempt?.version);
+  const remaining = Number(attempt?.remainingAttempts);
+  const details = {
+    ...(Number.isSafeInteger(expected) && expected > 0 ? { expectedVersion: expected } : {}),
+    ...(Number.isSafeInteger(remaining) && remaining >= 0 ? { remainingAttempts: remaining } : {}),
+  };
+  if (attempt?.locked === true) {
+    throw new IdentityGatewayError('IDENTITY_FLOW_LOCKED', 423, 'Flujo bloqueado', details);
+  }
+  throw new IdentityGatewayError('IDENTITY_MFA_INVALID', 401, 'Codigo invalido', details);
+}
+
+function trustedOrigin(env) {
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate) fail('IDENTITY_ORIGIN_NOT_CONFIGURED', 503, 'Origen canonico no configurado');
+  try { return new URL(candidate).origin; } catch {
+    fail('IDENTITY_ORIGIN_NOT_CONFIGURED', 503, 'Origen canonico no configurado');
+  }
+  return '';
+}
+
+function certifiedReleaseSha(env) {
+  const value = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(value)) {
+    fail('IDENTITY_RELEASE_NOT_CERTIFIED', 503, 'La version activa no esta certificada');
+  }
+  return value;
+}
+
+function assertSameOrigin(req, env) {
+  const origin = header(req, 'origin').trim();
+  if (!origin || origin !== trustedOrigin(env)) fail('IDENTITY_ORIGIN_FORBIDDEN', 403, 'Origen no permitido');
+  const fetchSite = header(req, 'sec-fetch-site').trim().toLowerCase();
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
+    fail('IDENTITY_ORIGIN_FORBIDDEN', 403, 'Origen no permitido');
+  }
+}
+
+async function readBody(req) {
+  const declared = Number.parseInt(header(req, 'content-length'), 10);
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) fail('IDENTITY_BODY_TOO_LARGE', 413, 'Solicitud demasiado grande');
+  let value = req?.body;
+  if (Buffer.isBuffer(value)) value = value.toString('utf8');
+  if (typeof value === 'string') {
+    if (Buffer.byteLength(value, 'utf8') > MAX_BODY_BYTES) fail('IDENTITY_BODY_TOO_LARGE', 413, 'Solicitud demasiado grande');
+    try { value = JSON.parse(value); } catch { fail('IDENTITY_JSON_INVALID', 400, 'JSON invalido'); }
+  }
+  if (value === undefined && typeof req?.[Symbol.asyncIterator] === 'function') {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      const buffer = Buffer.from(chunk);
+      size += buffer.length;
+      if (size > MAX_BODY_BYTES) fail('IDENTITY_BODY_TOO_LARGE', 413, 'Solicitud demasiado grande');
+      chunks.push(buffer);
+    }
+    try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { fail('IDENTITY_JSON_INVALID', 400, 'JSON invalido'); }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('IDENTITY_PAYLOAD_INVALID', 400, 'Solicitud invalida');
+  if (Buffer.byteLength(JSON.stringify(value), 'utf8') > MAX_BODY_BYTES) fail('IDENTITY_BODY_TOO_LARGE', 413, 'Solicitud demasiado grande');
+  const unexpected = Object.keys(value).find((key) => !['command', 'payload', 'expectedVersion'].includes(key));
+  if (unexpected || typeof value.command !== 'string' || !value.payload || typeof value.payload !== 'object'
+      || Array.isArray(value.payload)) fail('IDENTITY_PAYLOAD_INVALID', 400, 'Solicitud invalida');
+  return value;
+}
+
+function queryResource(req) {
+  const value = req?.query?.resource;
+  if (Array.isArray(value)) fail('IDENTITY_QUERY_INVALID', 400, 'Recurso ambiguo');
+  return String(value || 'bootstrap').trim().toLowerCase();
+}
+
+function email(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return normalized.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(normalized) ? normalized : '';
+}
+
+function password(value) {
+  return typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= 1024 ? value : '';
+}
+
+function assertPasswordPolicy(value) {
+  const bytes = Buffer.byteLength(value, 'utf8');
+  if (value.length < 12 || bytes > 256) fail('IDENTITY_PASSWORD_POLICY', 422, 'La contrasena debe tener entre 12 y 256 caracteres');
+}
+
+function exactPayload(payload, allowed) {
+  const set = new Set(allowed);
+  if (Object.keys(payload).some((key) => !set.has(key))) fail('IDENTITY_FIELD_UNSUPPORTED', 400, 'Campo no soportado');
+}
+
+function nowDate(dependencies) {
+  const value = (dependencies.now ?? Date.now)();
+  return value instanceof Date ? value : new Date(value);
+}
+
+function futureIso(now, seconds) {
+  return new Date(now.getTime() + (seconds * 1000)).toISOString();
+}
+
+function requestCookie(req) {
+  return header(req, 'cookie');
+}
+
+function secureCookie(env) {
+  return env?.NODE_ENV === 'production' || env?.VERCEL_ENV === 'production' || env?.VERCEL_ENV === 'preview';
+}
+
+function ipApprox(req) {
+  const raw = header(req, 'x-vercel-forwarded-for').split(',')[0].trim();
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(raw)) {
+    const parts = raw.split('.').map(Number);
+    if (parts.every((part) => part >= 0 && part <= 255)) return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+  }
+  if (/^[a-f0-9:]+$/i.test(raw) && raw.includes(':')) {
+    const groups = raw.toLowerCase().split(':').filter(Boolean).slice(0, 3);
+    if (groups.length) return `${groups.join(':')}::/48`;
+  }
+  return null;
+}
+
+function deviceLabel(req) {
+  const agent = header(req, 'user-agent').toLowerCase();
+  const browser = agent.includes('edg/') ? 'Edge'
+    : agent.includes('firefox/') ? 'Firefox'
+      : agent.includes('chrome/') ? 'Chrome'
+        : agent.includes('safari/') ? 'Safari' : 'Navegador';
+  return /mobile|android|iphone/.test(agent) ? `${browser} movil` : browser;
+}
+
+function idempotency(req, generator, required = false) {
+  const value = header(req, 'idempotency-key').trim().toLowerCase();
+  if (value) {
+    if (!UUID_V4.test(value)) fail('IDENTITY_IDEMPOTENCY_REQUIRED', 428, 'Idempotency-Key UUIDv4 es obligatorio');
+    return value;
+  }
+  if (required) fail('IDENTITY_IDEMPOTENCY_REQUIRED', 428, 'Idempotency-Key UUIDv4 es obligatorio');
+  return generator();
+}
+
+function expectedVersion(body, required = false) {
+  if (body.expectedVersion == null) {
+    if (required) fail('IDENTITY_VERSION_REQUIRED', 428, 'expectedVersion es obligatorio');
+    return null;
+  }
+  const value = Number(body.expectedVersion);
+  if (!Number.isSafeInteger(value) || value < 1) fail('IDENTITY_VERSION_REQUIRED', 428, 'expectedVersion es obligatorio');
+  return value;
+}
+
+function activeTenantFromContext(context) {
+  if (!context || typeof context !== 'object' || Array.isArray(context)) {
+    fail('IDENTITY_CONTEXT_FORBIDDEN', 403, 'Contexto invalido');
+  }
+  const kind = String(context.kind || '');
+  if (kind === 'platform') return null;
+  if (kind === 'tenant' && /^[0-9a-f-]{36}$/i.test(String(context.tenantId || ''))) {
+    return String(context.tenantId).toLowerCase();
+  }
+  fail('IDENTITY_CONTEXT_FORBIDDEN', 403, 'Contexto invalido');
+  return undefined;
+}
+
+function sessionPayload(session) {
+  return {
+    id: session.id, version: session.version, authLevel: session.authLevel,
+    expiresAt: session.expiresAt, tenantId: session.tenantId, source: session.source,
+  };
+}
+
+function setSessionCookie(res, registeredSession, secrets, env, now) {
+  const ttlSeconds = Math.max(60, Math.floor((new Date(registeredSession.expiresAt).getTime() - now.getTime()) / 1000));
+  const token = issueIdentitySessionToken({
+    id: registeredSession.id, email: registeredSession.email,
+    version: registeredSession.version, identityVersion: registeredSession.identityVersion,
+  }, { secret: secrets.sessionSecret, now, ttlSeconds });
+  res.setHeader('Set-Cookie', [
+    serializeIdentitySessionCookie(token),
+    serializeClearedInternalSessionCookie({ secure: secureCookie(env) }),
+  ]);
+}
+
+function clearAllIdentityCookies(res, env) {
+  res.setHeader('Set-Cookie', [
+    serializeClearedIdentitySessionCookie(),
+    serializeClearedInternalSessionCookie({ secure: secureCookie(env) }),
+  ]);
+}
+
+async function rateLimit(sql, scope, identifier, req, secrets) {
+  const accountBucket = hashIdentitySecret(`${scope}|account|${identifier || 'anonymous'}`, secrets.tokenPepper);
+  const ipBucket = hashIdentitySecret(`${scope}|trusted-ip|${ipApprox(req) || 'unavailable'}`, secrets.tokenPepper);
+  const [accountResult, ipResult] = await Promise.all([
+    takeIdentityRateLimit(sql, `${scope}.account`, accountBucket, { limit: 6, windowSeconds: 300, blockSeconds: 900 }),
+    takeIdentityRateLimit(sql, `${scope}.ip`, ipBucket, { limit: 30, windowSeconds: 300, blockSeconds: 900 }),
+  ]);
+  if (accountResult.allowed !== true || ipResult.allowed !== true) {
+    const error = new IdentityGatewayError('IDENTITY_RATE_LIMITED', 429, 'Demasiados intentos');
+    error.retryAfter = Math.max(Number(accountResult.retryAfterSeconds || 0), Number(ipResult.retryAfterSeconds || 0), 60);
+    throw error;
+  }
+}
+
+function newSessionPayload(req, now, generator, activeTenantId = undefined) {
+  return {
+    sessionId: generator(), ...(activeTenantId !== undefined ? { activeTenantId } : {}),
+    sessionExpiresAt: futureIso(now, IDENTITY_SESSION_TTL_SECONDS),
+    device: deviceLabel(req), ipApprox: ipApprox(req),
+  };
+}
+
+function invitationCodeFor(invitationId, idempotencyKey, secrets) {
+  const entropy = Buffer.from(hashIdentitySecret(
+    `invitation-code|${invitationId}|${idempotencyKey}`,
+    secrets.tokenPepper,
+  ), 'hex');
+  return createInvitationCode((size) => entropy.subarray(0, size));
+}
+
+function assertCompletedFlowReplay(flow, requestKey, expectedPurpose, expectedAuthLevel = null) {
+  if (flow?.status !== 'consumed') return null;
+  if (flow.purpose !== expectedPurpose || flow.completionIdempotencyKey !== requestKey
+      || !flow.completedSession
+      || (expectedAuthLevel && flow.completedSession.authLevel !== expectedAuthLevel)) {
+    fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+  }
+  return flow.completedSession;
+}
+
+async function currentIdentity(req, sql, secrets, env, options = {}) {
+  const cookies = parseCookieHeader(requestCookie(req));
+  const v2Present = Object.hasOwn(cookies, IDENTITY_SESSION_COOKIE);
+  if (v2Present) {
+    const session = verifyIdentitySessionToken(cookies[IDENTITY_SESSION_COOKIE], { secret: secrets.sessionSecret, now: options.now });
+    if (!session) fail('IDENTITY_SESSION_INVALID', 401, 'No autorizado');
+    const principal = await resolveTenantIdentityAccess(sql, session, { requiredCapabilities: [] });
+    if (!principal) fail('IDENTITY_SESSION_INVALID', 401, 'No autorizado');
+    return { kind: 'v2', session, principal };
+  }
+  if (!options.allowLegacy) fail('IDENTITY_SESSION_REQUIRED', 401, 'No autorizado');
+  const legacy = getInternalSession(req, { secret: secrets.sessionSecret, now: options.now });
+  if (!legacy) fail('IDENTITY_SESSION_REQUIRED', 401, 'No autorizado');
+  const policy = await getLegacySessionPolicy(sql, legacy.email);
+  if (!policy?.legacySessionAllowed) fail('IDENTITY_UPGRADE_REQUIRED', 401, 'La sesion debe actualizarse');
+  return { kind: 'v1', session: legacy, principal: null, policy };
+}
+
+function assertPlatformCapability(identity, capability) {
+  const capabilities = identity?.principal?.platform?.capabilities;
+  if (identity?.kind !== 'v2' || identity?.principal?.tenant !== null
+      || !Array.isArray(capabilities) || !capabilities.includes(capability)
+      || identity.session?.identityVersion == null) fail('IDENTITY_FORBIDDEN', 403, 'No autorizado');
+}
+
+async function apply(sql, actorEmail, command, payload, options) {
+  const normalized = normalizeIdentityDatabaseCommand(command, payload, options);
+  return applyTenantIdentityCommand(sql, actorEmail, normalized);
+}
+
+export function createInternalIdentityHandler(dependencies = {}) {
+  const env = dependencies.env ?? process.env;
+  const getSql = dependencies.getTenantIdentitySql ?? getTenantIdentitySql;
+  const generator = dependencies.randomUUID ?? randomUUID;
+  const deliverInvitation = dependencies.deliverInvitation;
+
+  return async function handler(req, res) {
+    const method = String(req?.method || 'GET').toUpperCase();
+    try {
+      responseHeaders(res);
+      if (!['GET', 'POST'].includes(method)) {
+        res.setHeader('Allow', 'GET, POST');
+        return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Metodo no permitido' });
+      }
+      if (method === 'POST') {
+        assertSameOrigin(req, env);
+        if (header(req, 'content-type').split(';', 1)[0].trim().toLowerCase() !== 'application/json') {
+          fail('IDENTITY_JSON_REQUIRED', 415, 'Se requiere application/json');
+        }
+      }
+      const body = method === 'POST' ? await readBody(req) : null;
+      const secrets = dependencies.identitySecrets ?? identitySecrets(env);
+      const sql = await getSql(env);
+      const now = nowDate(dependencies);
+
+      if (method === 'GET') {
+        const resource = queryResource(req);
+        const identity = await currentIdentity(req, sql, secrets, env, { allowLegacy: resource !== 'invitations', now });
+        if (resource === 'invitations') assertPlatformCapability(identity, 'platform.users.read');
+        const view = await getTenantIdentityView(sql, identity.session.email,
+          identity.kind === 'v2' ? identity.session.id : null, resource, 100);
+        return send(res, 200, {
+          ok: true,
+          ...(resource === 'bootstrap' ? {
+            access: identity.kind === 'v2' ? identity.principal : {
+              mode: 'legacy_upgrade', legacySessionAllowed: true, upgradeRequired: false,
+            },
+          } : {}),
+          ...view,
+        });
+      }
+
+      const { command, payload } = body;
+
+      if (command === 'login') {
+        exactPayload(payload, ['email', 'password']);
+        const normalizedEmail = email(payload.email);
+        const suppliedPassword = password(payload.password);
+        await rateLimit(sql, 'identity.login', normalizedEmail || 'invalid-email', req, secrets);
+        const login = normalizedEmail ? await lookupTenantIdentity(sql, 'login', normalizedEmail) : null;
+        const passwordMatches = await verifyInternalPassword(suppliedPassword || 'invalid-password', login?.passwordHash || DUMMY_PASSWORD_HASH);
+        if (!normalizedEmail || !suppliedPassword || !login || !passwordMatches) {
+          fail('IDENTITY_AUTH_FAILED', 401, 'Credenciales incorrectas');
+        }
+        if (!Array.isArray(login.contexts) || login.contexts.length === 0) fail('IDENTITY_CONTEXT_FORBIDDEN', 403, 'No hay contextos habilitados');
+        const flowToken = createFlowToken(dependencies.randomBytes);
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const expiresAt = futureIso(now, IDENTITY_FLOW_TTL_SECONDS);
+        const result = await apply(sql, login.email, 'begin_login_context', { flowHash, expiresAt }, {
+          idempotencyKey: generator(), expectedVersion: null,
+        });
+        return send(res, 202, {
+          ok: true, code: 'CONTEXT_REQUIRED', flowToken,
+          expectedVersion: result.version, expiresAt: result.expiresAt,
+          contexts: login.contexts,
+        });
+      }
+
+      if (command === 'select_context') {
+        exactPayload(payload, ['flowToken', 'context']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        const requestKey = idempotency(req, generator, true);
+        const activeTenantId = activeTenantFromContext(payload.context);
+        if (flow?.status === 'consumed') {
+          if (flow.purpose !== 'login_context' || flow.completionIdempotencyKey !== requestKey
+              || !flow.completedSession
+              || (flow.requestedTenantId || null) !== activeTenantId
+              || (flow.completedSession.tenantId || null) !== activeTenantId) {
+            fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+          }
+          setSessionCookie(res, flow.completedSession, secrets, env, now);
+          return send(res, 200, { ok: true, replayed: true, session: sessionPayload(flow.completedSession) });
+        }
+        if (flow?.purpose === 'login_mfa' || flow?.purpose === 'login_enrollment') {
+          if (flow.selectionIdempotencyKey !== requestKey
+              || (flow.requestedTenantId || null) !== activeTenantId) {
+            fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+          }
+          if (flow.purpose === 'login_mfa') {
+            return send(res, 202, { ok: true, code: 'MFA_REQUIRED', challenge: {
+              flowToken, expectedVersion: flow.version, expiresAt: flow.expiresAt,
+            } });
+          }
+          const pendingSecret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
+          if (!pendingSecret) fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+          return send(res, 202, {
+            ok: true, code: 'MFA_ENROLLMENT_REQUIRED',
+            flow: { flowToken, expectedVersion: flow.version, expiresAt: flow.expiresAt },
+            mfaEnrollment: totpEnrollmentFromSecret(flow.email, pendingSecret),
+          });
+        }
+        if (flow?.purpose !== 'login_context' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        const enrollment = createTotpEnrollment(flow.email, { random: dependencies.randomBytes });
+        const result = await apply(sql, flow.email, 'select_login_context', {
+          flowHash,
+          mfaSecretCiphertext: encryptMfaSecret(enrollment.manualKey, secrets.encryptionKey, { random: dependencies.randomBytes }),
+          ...newSessionPayload(req, now, generator, activeTenantId),
+        }, {
+          idempotencyKey: requestKey, expectedVersion: expectedVersion(body, true),
+        });
+        if (result.mfaRequired) {
+          return send(res, 202, { ok: true, code: 'MFA_REQUIRED', challenge: {
+            flowToken, expectedVersion: result.version, expiresAt: result.expiresAt,
+          } });
+        }
+        if (result.mfaEnrollmentRequired) {
+          return send(res, 202, {
+            ok: true, code: 'MFA_ENROLLMENT_REQUIRED',
+            flow: { flowToken, expectedVersion: result.version, expiresAt: result.expiresAt },
+            mfaEnrollment: enrollment,
+          });
+        }
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 200, { ok: true, session: sessionPayload(result.session) });
+      }
+
+      if (command === 'complete_login_mfa_enrollment') {
+        exactPayload(payload, ['flowToken', 'totpCode']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const requestKey = idempotency(req, generator, true);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        const replaySession = assertCompletedFlowReplay(flow, requestKey, 'login_enrollment', 'mfa');
+        if (replaySession) {
+          setSessionCookie(res, replaySession, secrets, env, now);
+          return send(res, 200, { ok: true, replayed: true, session: sessionPayload(replaySession),
+            recoveryCodes: [], recoveryCodesAlreadyIssued: true });
+        }
+        if (flow?.purpose !== 'login_enrollment' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        await rateLimit(sql, 'identity.mfa_enrollment', flow.email, req, secrets);
+        const secret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
+        const totpStep = secret ? matchTotpStep(secret, payload.totpCode, { now }) : null;
+        if (totpStep === null) {
+          failMfaAttempt(await recordIdentityChallengeAttempt(sql, flowHash, false, null));
+        }
+        const recoveryCodes = createRecoveryCodes(dependencies.randomBytes);
+        const result = await apply(sql, flow.email, 'complete_login_enrollment', {
+          flowHash, totpStep,
+          recoveryCodeHashes: recoveryCodes.map((value) => hashIdentitySecret(normalizeRecoveryCode(value), secrets.tokenPepper)),
+          ...newSessionPayload(req, now, generator),
+        }, {
+          idempotencyKey: requestKey, expectedVersion: expectedVersion(body, true),
+        });
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 200, { ok: true, session: sessionPayload(result.session), recoveryCodes });
+      }
+
+      if (command === 'verify_mfa' || command === 'recover_mfa') {
+        exactPayload(payload, command === 'verify_mfa' ? ['flowToken', 'totpCode'] : ['flowToken', 'recoveryCode']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const requestKey = idempotency(req, generator, true);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        const replaySession = assertCompletedFlowReplay(flow, requestKey, 'login_mfa',
+          command === 'verify_mfa' ? 'mfa' : 'recovery');
+        if (replaySession) {
+          setSessionCookie(res, replaySession, secrets, env, now);
+          return send(res, 200, { ok: true, replayed: true, session: sessionPayload(replaySession) });
+        }
+        if (flow?.purpose !== 'login_mfa' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        await rateLimit(sql, 'identity.mfa', flow.email, req, secrets);
+        let totpStep = null;
+        let recoveryCodeHash = null;
+        if (command === 'verify_mfa') {
+          const secret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
+          totpStep = secret ? matchTotpStep(secret, payload.totpCode, { now }) : null;
+          if (totpStep === null) {
+            failMfaAttempt(await recordIdentityChallengeAttempt(sql, flowHash, false, null));
+          }
+        } else {
+          const recovery = normalizeRecoveryCode(payload.recoveryCode);
+          if (!recovery) {
+            failMfaAttempt(await recordIdentityChallengeAttempt(sql, flowHash, false, null));
+          }
+          recoveryCodeHash = hashIdentitySecret(recovery, secrets.tokenPepper);
+        }
+        try {
+          const result = await apply(sql, flow.email, 'complete_login_mfa', {
+            flowHash, ...(totpStep === null ? { recoveryCodeHash } : { totpStep }),
+            ...newSessionPayload(req, now, generator),
+          }, {
+            idempotencyKey: requestKey, expectedVersion: expectedVersion(body, true),
+          });
+          setSessionCookie(res, result.session, secrets, env, now);
+          return send(res, 200, { ok: true, session: sessionPayload(result.session) });
+        } catch (error) {
+          if (command === 'recover_mfa' && String(error?.message || '').includes('IDENTITY_MFA_REQUIRED')) {
+            const attempt = await recordIdentityChallengeAttempt(sql, flowHash, false, null);
+            failMfaAttempt(attempt);
+          }
+          throw error;
+        }
+      }
+
+      if (command === 'begin_activation') {
+        exactPayload(payload, ['invitationCode']);
+        const releaseSha = certifiedReleaseSha(env);
+        const code = normalizeInvitationCode(payload.invitationCode);
+        const codeHash = code ? hashIdentitySecret(code, secrets.tokenPepper) : hashIdentitySecret('invalid-invitation-code', secrets.tokenPepper);
+        await rateLimit(sql, 'identity.activation', codeHash, req, secrets);
+        const invitation = code ? await lookupTenantIdentity(sql, 'invitation', '', codeHash, { releaseSha }) : null;
+        if (!invitation) fail('IDENTITY_CODE_INVALID_OR_EXPIRED', 401, 'Codigo invalido o vencido');
+        const flowToken = createFlowToken(dependencies.randomBytes);
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const expiresAt = futureIso(now, IDENTITY_FLOW_TTL_SECONDS);
+        const enrollment = invitation.requiresMfa ? createTotpEnrollment(invitation.email, { random: dependencies.randomBytes }) : null;
+        const result = await apply(sql, invitation.email, 'begin_activation', {
+          invitationId: invitation.invitationId, codeHash, flowHash,
+          mfaSecretCiphertext: enrollment ? encryptMfaSecret(enrollment.manualKey, secrets.encryptionKey, { random: dependencies.randomBytes }) : null,
+          expiresAt, releaseSha,
+        }, { idempotencyKey: generator(), expectedVersion: invitation.invitationVersion });
+        return send(res, 200, {
+          ok: true, flowToken, expectedVersion: result.version,
+          expiresAt: result.expiresAt, requiresMfa: invitation.requiresMfa,
+          ...(enrollment ? { mfaEnrollment: enrollment } : {}),
+          tenant: invitation.tenant, roleKey: invitation.roleKey,
+        });
+      }
+
+      if (command === 'complete_activation') {
+        exactPayload(payload, ['flowToken', 'password', 'totpCode']);
+        const releaseSha = certifiedReleaseSha(env);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const requestKey = idempotency(req, generator, true);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash, { releaseSha });
+        const replaySession = assertCompletedFlowReplay(flow, requestKey, 'activation');
+        if (replaySession) {
+          setSessionCookie(res, replaySession, secrets, env, now);
+          return send(res, 200, { ok: true, replayed: true, session: sessionPayload(replaySession),
+            recoveryCodes: [], recoveryCodesAlreadyIssued: true });
+        }
+        if (flow?.purpose !== 'activation' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        const suppliedPassword = password(payload.password);
+        assertPasswordPolicy(suppliedPassword);
+        let totpStep = null;
+        if (flow.mfaSecretCiphertext) {
+          const mfaSecret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
+          totpStep = mfaSecret ? matchTotpStep(mfaSecret, payload.totpCode, { now }) : null;
+          if (totpStep === null) {
+            failMfaAttempt(await recordIdentityChallengeAttempt(sql, flowHash, false, null));
+          }
+        }
+        const recoveryCodes = flow.mfaSecretCiphertext ? createRecoveryCodes(dependencies.randomBytes) : [];
+        const result = await apply(sql, flow.email, 'complete_activation', {
+          flowHash, passwordHash: await hashInternalPassword(suppliedPassword),
+          recoveryCodeHashes: recoveryCodes.map((value) => hashIdentitySecret(normalizeRecoveryCode(value), secrets.tokenPepper)),
+          ...(totpStep === null ? {} : { totpStep }), ...newSessionPayload(req, now, generator), releaseSha,
+        }, {
+          idempotencyKey: requestKey, expectedVersion: expectedVersion(body, true),
+        });
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 201, { ok: true, session: sessionPayload(result.session), recoveryCodes });
+      }
+
+      if (command === 'begin_mfa_enrollment') {
+        exactPayload(payload, ['currentPassword']);
+        const identity = await currentIdentity(req, sql, secrets, env, { allowLegacy: true, now });
+        await rateLimit(sql, 'identity.reauth', identity.session.email, req, secrets);
+        const login = await lookupTenantIdentity(sql, 'login', identity.session.email);
+        const matches = await verifyInternalPassword(password(payload.currentPassword) || 'invalid-password', login?.passwordHash || DUMMY_PASSWORD_HASH);
+        if (!login || !matches) fail('IDENTITY_REAUTH_FAILED', 401, 'No se pudo revalidar la identidad');
+        const enrollment = createTotpEnrollment(identity.session.email, { random: dependencies.randomBytes });
+        const flowToken = createFlowToken(dependencies.randomBytes);
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const expiresAt = futureIso(now, IDENTITY_FLOW_TTL_SECONDS);
+        const result = await apply(sql, identity.session.email, 'begin_mfa_enrollment', {
+          flowHash, mfaSecretCiphertext: encryptMfaSecret(enrollment.manualKey, secrets.encryptionKey, { random: dependencies.randomBytes }),
+          expiresAt,
+        }, { idempotencyKey: idempotency(req, generator, true), expectedVersion: null });
+        return send(res, 200, { ok: true, flowToken, expectedVersion: result.version,
+          expiresAt: result.expiresAt, mfaEnrollment: enrollment });
+      }
+
+      if (command === 'complete_mfa_enrollment') {
+        exactPayload(payload, ['flowToken', 'totpCode']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const requestKey = idempotency(req, generator, true);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        const replaySession = assertCompletedFlowReplay(flow, requestKey, 'mfa_enrollment', 'mfa');
+        if (replaySession) {
+          setSessionCookie(res, replaySession, secrets, env, now);
+          return send(res, 200, { ok: true, replayed: true, session: sessionPayload(replaySession),
+            recoveryCodes: [], recoveryCodesAlreadyIssued: true });
+        }
+        const identity = await currentIdentity(req, sql, secrets, env, { allowLegacy: true, now });
+        if (flow?.purpose !== 'mfa_enrollment' || flow.status !== 'pending'
+            || flow.email !== identity.session.email) {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        const mfaSecret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
+        const totpStep = mfaSecret ? matchTotpStep(mfaSecret, payload.totpCode, { now }) : null;
+        if (totpStep === null) {
+          failMfaAttempt(await recordIdentityChallengeAttempt(sql, flowHash, false, null));
+        }
+        const recoveryCodes = createRecoveryCodes(dependencies.randomBytes);
+        const activeTenantId = identity.kind === 'v2' ? identity.principal?.tenant?.id || null : null;
+        const result = await apply(sql, identity.session.email, 'complete_mfa_enrollment', {
+          flowHash, totpStep,
+          recoveryCodeHashes: recoveryCodes.map((value) => hashIdentitySecret(normalizeRecoveryCode(value), secrets.tokenPepper)),
+          ...newSessionPayload(req, now, generator, activeTenantId),
+        }, {
+          idempotencyKey: requestKey, expectedVersion: expectedVersion(body, true),
+        });
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 200, { ok: true, session: sessionPayload(result.session), recoveryCodes });
+      }
+
+      if (command === 'revoke_session') {
+        exactPayload(payload, ['sessionId']);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        const result = await apply(sql, identity.session.email, 'revoke_session', {
+          sessionId: String(payload.sessionId || ''),
+        }, {
+          idempotencyKey: idempotency(req, generator, true), expectedVersion: expectedVersion(body, true),
+        });
+        if (payload.sessionId === identity.session.id) {
+          clearAllIdentityCookies(res, env);
+        }
+        return send(res, 200, { ok: true, ...result });
+      }
+
+      if (command === 'switch_context') {
+        exactPayload(payload, ['context']);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        const activeTenantId = activeTenantFromContext(payload.context);
+        const suppliedVersion = expectedVersion(body, true);
+        if (suppliedVersion !== identity.session.version) {
+          fail('IDENTITY_VERSION_CONFLICT', 409, 'El registro cambio; actualiza y reintenta');
+        }
+        const switched = newSessionPayload(req, now, generator, activeTenantId);
+        switched.sessionExpiresAt = new Date(Math.min(
+          new Date(switched.sessionExpiresAt).getTime(), identity.session.expiresAt * 1000,
+        )).toISOString();
+        const result = await apply(sql, identity.session.email, 'switch_context', {
+          currentSessionId: identity.session.id,
+          newSessionId: switched.sessionId,
+          activeTenantId,
+          sessionExpiresAt: switched.sessionExpiresAt,
+          device: switched.device,
+          ipApprox: switched.ipApprox,
+        }, {
+          idempotencyKey: idempotency(req, generator, true), expectedVersion: suppliedVersion,
+        });
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 200, { ok: true, session: sessionPayload(result.session) });
+      }
+
+      if (command === 'logout') {
+        exactPayload(payload, []);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        try {
+          const result = await revokeIdentitySessionForLogout({
+            sql, session: identity.session, idempotencyKey: idempotency(req, generator, true),
+          });
+          clearAllIdentityCookies(res, env);
+          return send(res, 200, { ok: true, authenticated: false, ...result });
+        } catch (error) {
+          clearAllIdentityCookies(res, env);
+          throw error;
+        }
+      }
+
+      if (command === 'issue_invitation') {
+        exactPayload(payload, ['invitationId']);
+        if (typeof deliverInvitation !== 'function') fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+        const releaseSha = certifiedReleaseSha(env);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        assertPlatformCapability(identity, 'platform.users.invite');
+        const issueKey = idempotency(req, generator, true);
+        const delivery = await lookupTenantIdentity(sql, 'invitation_delivery', String(payload.invitationId || ''), '', { releaseSha });
+        const replay = await getTenantIdentityCommandReplay(sql, identity.session.email, issueKey, releaseSha);
+        if (replay && replay.command !== 'issue_invitation') {
+          fail('IDENTITY_IDEMPOTENCY_REUSED', 409, 'Idempotency-Key reutilizada');
+        }
+        if (replay && delivery.deliveryStatus === 'delivered') {
+          if (replay.result.deliveryAttemptId !== delivery.deliveryAttemptId) {
+            fail('IDENTITY_DELIVERY_ATTEMPT_STALE', 409, 'El intento de entrega fue reemplazado');
+          }
+          return send(res, 202, { ok: true, invitation: {
+            ...replay.result.invitation, status: 'issued', version: delivery.version,
+            delivery: { ...replay.result.invitation.delivery, status: 'delivered' },
+          }, replayed: true });
+        }
+        if (replay && replay.result.deliveryAttemptId !== delivery.deliveryAttemptId) {
+          fail('IDENTITY_DELIVERY_ATTEMPT_STALE', 409, 'El intento de entrega fue reemplazado');
+        }
+        if (replay && delivery.deliveryStatus !== 'pending') {
+          fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+        }
+        const code = invitationCodeFor(delivery.invitationId, issueKey, secrets);
+        const result = replay?.result || await apply(sql, identity.session.email, 'issue_invitation', {
+          invitationId: delivery.invitationId,
+          deliveryAttemptId: generator(),
+          codeHash: hashIdentitySecret(normalizeInvitationCode(code), secrets.tokenPepper),
+          expiresAt: futureIso(now, IDENTITY_INVITATION_TTL_SECONDS), releaseSha,
+        }, { idempotencyKey: issueKey, expectedVersion: expectedVersion(body, true) });
+        const deliveryAttemptId = String(result.deliveryAttemptId || '').toLowerCase();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(deliveryAttemptId)) {
+          fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+        }
+        try {
+          await deliverInvitation({
+            to: delivery.email, code, expiresAt: result.invitation.delivery.expiresAt,
+            tenantName: delivery.tenant?.name,
+            activationUrl: `${trustedOrigin(env)}/activar-cuenta`,
+            deliveryAttempt: Object.freeze({
+              invitationId: delivery.invitationId, id: deliveryAttemptId,
+            }),
+          });
+        } catch {
+          await apply(sql, identity.session.email, 'delivery_failed', {
+            invitationId: delivery.invitationId, deliveryAttemptId,
+          }, { idempotencyKey: generator(), expectedVersion: result.invitation.version }).catch(() => undefined);
+          fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+        }
+        const confirmed = await apply(sql, identity.session.email, 'confirm_delivery', {
+          invitationId: delivery.invitationId, deliveryAttemptId, releaseSha,
+        }, { idempotencyKey: generator(), expectedVersion: result.invitation.version });
+        return send(res, 202, { ok: true, invitation: confirmed.invitation,
+          replayed: result.replayed === true });
+      }
+
+      fail('IDENTITY_COMMAND_INVALID', 400, 'Comando no permitido');
+    } catch (error) {
+      const mapped = error instanceof IdentityGatewayError ? error : identityGatewayDatabaseError(error);
+      if (mapped) {
+        if (mapped.retryAfter) res.setHeader('Retry-After', String(mapped.retryAfter));
+        return send(res, mapped.status, { ok: false, code: mapped.code, error: mapped.message,
+          ...(mapped.details || {}) });
+      }
+      if (error?.code === 'INTERNAL_AUTH_NOT_CONFIGURED' || error?.code === 'IDENTITY_DATABASE_ROLE_REQUIRED') {
+        return send(res, 503, { ok: false, code: 'IDENTITY_GATEWAY_NOT_CONFIGURED', error: 'Gateway de identidad no configurado' });
+      }
+      console.error('[internal-identity]', error instanceof Error ? error.name : 'error');
+      return send(res, 503, { ok: false, code: 'IDENTITY_GATEWAY_UNAVAILABLE', error: 'Gateway de identidad no disponible' });
+    }
+  };
+}
+
+export default createInternalIdentityHandler();

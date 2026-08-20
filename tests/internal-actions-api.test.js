@@ -78,7 +78,9 @@ test('cuenta DB inactiva falla 401 aunque la sesión HMAC siga vigente', async (
 });
 
 test('mutaciones exigen same-origin, JSON e Idempotency-Key en Preview/Production', async () => {
-  const handler = createInternalActionsHandler(dependencies({ env: { VERCEL_ENV: 'production' } }));
+  const handler = createInternalActionsHandler(dependencies({
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+  }));
 
   const noOrigin = response();
   await handler({ method: 'POST', headers: { 'content-type': 'application/json' }, body: {} }, noOrigin);
@@ -110,12 +112,36 @@ test('mutaciones exigen same-origin, JSON e Idempotency-Key en Preview/Productio
   assert.equal(spoofedForwardedHost.statusCode, 403);
   assert.equal(spoofedForwardedHost.payload.code, 'ACTION_ORIGIN_INVALID');
 
+  const reflectedHostAttack = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://evil.example', host: 'evil.example',
+      'sec-fetch-site': 'same-origin', 'content-type': 'application/json',
+    },
+    body: {},
+  }, reflectedHostAttack);
+  assert.equal(reflectedHostAttack.statusCode, 403);
+  assert.equal(reflectedHostAttack.payload.code, 'ACTION_ORIGIN_INVALID');
+
+  const crossSite = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://municipio.example', host: 'municipio.example',
+      'sec-fetch-site': 'cross-site', 'content-type': 'application/json',
+    },
+    body: {},
+  }, crossSite);
+  assert.equal(crossSite.statusCode, 403);
+  assert.equal(crossSite.payload.code, 'ACTION_ORIGIN_INVALID');
+
   const noKey = response();
   await handler({
     method: 'POST',
     headers: {
       origin: 'https://municipio.example', host: 'municipio.example',
-      'x-forwarded-proto': 'https', 'content-type': 'application/json',
+      'x-forwarded-proto': 'https', 'sec-fetch-site': 'same-origin', 'content-type': 'application/json',
     },
     body: { caseType: 'leave_request', command: 'create', payload: {} },
   }, noKey);

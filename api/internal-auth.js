@@ -1,18 +1,23 @@
-import { verifyInternalPassword } from '../lib/internal-password.js';
-import { findInternalUserByEmail } from '../lib/internal-neon.js';
-import {
-  InternalAuthConfigurationError,
-  clearInternalSessionCookie,
-  getInternalSessionSecret,
-  issueInternalSessionToken,
-  requireInternalSession,
-  setInternalSessionCookie,
-  verifyInternalSessionToken,
-} from '../lib/internal-session.js';
+import { randomUUID } from 'node:crypto';
 
-const MAX_BODY_BYTES = 16 * 1024;
-const MAX_EMAIL_LENGTH = 254;
-const MAX_PASSWORD_BYTES = 4096;
+import {
+  parseCookieHeader,
+  serializeClearedInternalSessionCookie,
+} from '../lib/internal-session.js';
+import {
+  IDENTITY_SESSION_COOKIE,
+  identitySecrets,
+  serializeClearedIdentitySessionCookie,
+  verifyIdentitySessionToken,
+} from '../lib/internal-identity-crypto.js';
+import {
+  getTenantIdentitySql,
+  revokeIdentitySessionForLogout,
+} from '../lib/internal-identity-access.js';
+import {
+  hasManagedIdentityCookie,
+  requireCompatibleInternalAccess,
+} from '../lib/internal-access-gateway.js';
 
 function sendJson(res, statusCode, payload) {
   return res.status(statusCode).json(payload);
@@ -24,137 +29,124 @@ function setResponseHeaders(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 }
 
-function requestContentType(req) {
-  if (typeof req?.headers?.get === 'function') return req.headers.get('content-type') || '';
-  return req?.headers?.['content-type'] || req?.headers?.['Content-Type'] || '';
-}
-
-async function readJsonBody(req) {
-  if (req.body != null) {
-    if (Buffer.isBuffer(req.body)) {
-      if (req.body.length > MAX_BODY_BYTES) throw new RangeError('request_body_too_large');
-      return JSON.parse(req.body.toString('utf8'));
-    }
-    if (typeof req.body === 'string') {
-      if (Buffer.byteLength(req.body, 'utf8') > MAX_BODY_BYTES) {
-        throw new RangeError('request_body_too_large');
-      }
-      return JSON.parse(req.body);
-    }
-    if (typeof req.body === 'object') return req.body;
-  }
-
-  if (typeof req?.[Symbol.asyncIterator] !== 'function') return {};
-  const chunks = [];
-  let totalBytes = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.from(chunk);
-    totalBytes += buffer.length;
-    if (totalBytes > MAX_BODY_BYTES) throw new RangeError('request_body_too_large');
-    chunks.push(buffer);
-  }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-}
-
-function normalizeCredentials(body) {
-  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const password = typeof body?.password === 'string' ? body.password : '';
-  const validEmail = email.length > 3
-    && email.length <= MAX_EMAIL_LENGTH
-    && /^[^\s@]+@[^\s@]+$/.test(email);
-  const validPassword = password.length > 0
-    && Buffer.byteLength(password, 'utf8') <= MAX_PASSWORD_BYTES;
-  return validEmail && validPassword ? { email, password } : null;
-}
-
-function sessionResponse(session) {
+function managedSessionResponse(access) {
+  const user = access.principal?.user || {};
+  const tenant = access.principal?.tenant || null;
+  const platformRoles = Array.isArray(access.principal?.platform?.roles)
+    ? access.principal.platform.roles
+    : [];
   return {
     ok: true,
     authenticated: true,
+    sessionVersion: 2,
     user: {
-      id: session.id,
-      email: session.email,
-      name: String(session.name || session.email).trim(),
-      role: session.role,
+      id: access.session.id,
+      email: user.email || access.session.email,
+      name: String(user.name || user.email || access.session.email).trim(),
+      role: tenant?.roleKey || platformRoles[0] || 'ACCESO_INTERNO',
     },
-    expiresAt: new Date(session.expiresAt * 1000).toISOString(),
+    access: {
+      context: tenant ? 'tenant' : 'platform',
+      tenant: tenant ? { id: tenant.id, slug: tenant.slug, roleKey: tenant.roleKey } : null,
+      platformRoles,
+    },
+    expiresAt: new Date(access.session.expiresAt * 1000).toISOString(),
   };
 }
 
-function identityFromRow(row) {
-  const id = String(row?.id ?? '').trim();
-  const email = String(row?.email ?? '').trim().toLowerCase();
-  const displayName = String(row?.display_name ?? '').trim();
-  const role = String(row?.role ?? '').trim();
-  if (!id || !email || !role || typeof row?.password_hash !== 'string') return null;
-  return { id, email, displayName, role, passwordHash: row.password_hash };
+function requestCookie(req) {
+  if (typeof req?.headers?.get === 'function') return req.headers.get('cookie') || '';
+  return req?.headers?.cookie || req?.headers?.Cookie || '';
+}
+
+function secureCookie(env) {
+  return env?.NODE_ENV === 'production' || env?.VERCEL_ENV === 'production' || env?.VERCEL_ENV === 'preview';
+}
+
+function assertLogoutOrigin(req, env) {
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate && !secureCookie(env)) return;
+  let expected;
+  try { expected = new URL(candidate).origin; } catch { expected = ''; }
+  const supplied = typeof req?.headers?.get === 'function'
+    ? req.headers.get('origin') || ''
+    : req?.headers?.origin || req?.headers?.Origin || '';
+  if (!expected || supplied !== expected) {
+    const error = new Error('logout_origin_forbidden');
+    error.code = 'IDENTITY_ORIGIN_FORBIDDEN';
+    throw error;
+  }
+}
+
+function clearAllSessionCookies(res, env) {
+  res.setHeader('Set-Cookie', [
+    serializeClearedIdentitySessionCookie({ secure: true }),
+    serializeClearedInternalSessionCookie({ secure: secureCookie(env) }),
+  ]);
 }
 
 export function createInternalAuthHandler(dependencies = {}) {
-  const findUserByEmail = dependencies.findInternalUserByEmail ?? findInternalUserByEmail;
+  const env = dependencies.env ?? process.env;
+  const getIdentitySql = dependencies.getTenantIdentitySql ?? getTenantIdentitySql;
+  const getSecrets = dependencies.identitySecrets ?? identitySecrets;
+  const requireAccess = dependencies.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess;
+  const revokeSession = dependencies.revokeIdentitySessionForLogout ?? revokeIdentitySessionForLogout;
+  const generator = dependencies.randomUUID ?? randomUUID;
+  const logger = dependencies.logger ?? console;
 
   return async function handler(req, res) {
   setResponseHeaders(res);
   const method = String(req.method || 'GET').toUpperCase();
 
   if (method === 'DELETE') {
-    clearInternalSessionCookie(res);
+    let revocationError = null;
+    try {
+      assertLogoutOrigin(req, env);
+      if (hasManagedIdentityCookie(req)) {
+        const secrets = getSecrets(env);
+        const token = parseCookieHeader(requestCookie(req))[IDENTITY_SESSION_COOKIE];
+        const session = verifyIdentitySessionToken(token, { secret: secrets.sessionSecret });
+        if (session) {
+          const sql = await getIdentitySql(env);
+          await revokeSession({ sql, session, idempotencyKey: generator() });
+        }
+      }
+    } catch (error) {
+      revocationError = error;
+    } finally {
+      clearAllSessionCookies(res, env);
+    }
+    if (revocationError) {
+      if (revocationError.code === 'IDENTITY_ORIGIN_FORBIDDEN') {
+        return sendJson(res, 403, { ok: false, code: revocationError.code, error: 'Origen no permitido' });
+      }
+      logger.error('[internal-auth] logout:', revocationError instanceof Error ? revocationError.name : 'error');
+      return sendJson(res, 503, {
+        ok: false,
+        code: 'IDENTITY_LOGOUT_UNAVAILABLE',
+        error: 'No se pudo confirmar la revocacion de la sesion',
+      });
+    }
     return sendJson(res, 200, { ok: true, authenticated: false });
   }
 
   if (method === 'GET') {
-    const session = requireInternalSession(req, res);
-    if (!session) return;
-    return sendJson(res, 200, sessionResponse(session));
+    const access = await requireAccess(req, res, { env, allowLegacy: false });
+    if (!access) return undefined;
+    return sendJson(res, 200, managedSessionResponse(access));
   }
 
   if (method !== 'POST') {
     res.setHeader('Allow', 'GET, POST, DELETE');
     return sendJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Metodo no permitido' });
   }
-
-  const contentType = requestContentType(req);
-  if (!contentType.toLowerCase().includes('application/json')) {
-    return sendJson(res, 415, { ok: false, code: 'JSON_REQUIRED', error: 'Se requiere application/json' });
-  }
-
-  try {
-    const secret = getInternalSessionSecret();
-    const credentials = normalizeCredentials(await readJsonBody(req));
-    if (!credentials) {
-      return sendJson(res, 400, { ok: false, code: 'INVALID_CREDENTIALS_INPUT', error: 'Email y password requeridos' });
-    }
-
-    const row = await findUserByEmail(credentials.email);
-    const identity = identityFromRow(row);
-    const passwordMatches = identity
-      ? await verifyInternalPassword(credentials.password, identity.passwordHash)
-      : false;
-
-    if (!identity || !passwordMatches) {
-      return sendJson(res, 401, { ok: false, code: 'INVALID_CREDENTIALS', error: 'Credenciales incorrectas' });
-    }
-
-    const token = issueInternalSessionToken({ ...identity, name: identity.displayName }, { secret });
-    setInternalSessionCookie(res, token);
-    const session = verifyInternalSessionToken(token, { secret });
-    if (!session) return;
-    return sendJson(res, 200, sessionResponse(session));
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      return sendJson(res, 400, { ok: false, code: 'INVALID_JSON', error: 'JSON invalido' });
-    }
-    if (error instanceof RangeError && error.message === 'request_body_too_large') {
-      return sendJson(res, 413, { ok: false, code: 'BODY_TOO_LARGE', error: 'Solicitud demasiado grande' });
-    }
-    if (error instanceof InternalAuthConfigurationError) {
-      return sendJson(res, 503, { ok: false, code: error.code, error: 'Autenticacion interna no configurada' });
-    }
-
-    console.error('[internal-auth] Error:', error instanceof Error ? error.message : 'desconocido');
-    return sendJson(res, 500, { ok: false, code: 'INTERNAL_AUTH_ERROR', error: 'No se pudo iniciar sesion' });
-  }
+  return sendJson(res, 410, {
+    ok: false,
+    code: 'IDENTITY_LOGIN_REQUIRED',
+    error: 'Usa el acceso seguro con seleccion de contexto y MFA',
+    login: '/login.html',
+  });
   };
 }
 

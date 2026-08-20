@@ -1,5 +1,7 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import { capabilitiesForActionCenter } from '../lib/internal-resource-access.js';
 import {
   loadInternalPrincipal,
   publicPrincipal,
@@ -61,23 +63,40 @@ function productionLike(env) {
     || env?.VERCEL_ENV === 'preview';
 }
 
+function trustedOrigin(env) {
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate) {
+    if (productionLike(env)) fail('ACTION_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+    return '';
+  }
+  try {
+    return new URL(candidate).origin;
+  } catch {
+    fail('ACTION_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+  }
+  return '';
+}
+
 function assertSameOrigin(req, env) {
   const origin = firstHeader(req, 'origin').trim();
+  const fetchSite = firstHeader(req, 'sec-fetch-site').trim().toLowerCase();
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
+    fail('ACTION_ORIGIN_INVALID', 403, 'Origen de solicitud no permitido');
+  }
   if (!origin) {
     if (productionLike(env)) fail('ACTION_ORIGIN_REQUIRED', 403, 'Origen de solicitud no permitido');
     return;
   }
-  const host = firstHeader(req, 'host').trim().toLowerCase();
-  let actual;
+  const expected = trustedOrigin(env);
+  if (!expected) return;
+  let actual = '';
   try {
-    actual = new URL(origin);
+    actual = new URL(origin).origin;
   } catch {
     fail('ACTION_ORIGIN_INVALID', 403, 'Origen de solicitud no permitido');
   }
-  const expectedProtocol = productionLike(env) ? 'https:' : 'http:';
-  if (!host
-      || actual.protocol.toLowerCase() !== expectedProtocol
-      || actual.host.toLowerCase() !== host) {
+  if (actual !== expected) {
     fail('ACTION_ORIGIN_INVALID', 403, 'Origen de solicitud no permitido');
   }
 }
@@ -213,6 +232,13 @@ export async function getActionCenterSql(env = process.env) {
 export function createInternalActionsHandler(dependencies = {}) {
   const getSql = dependencies.getInternalSql ?? getActionCenterSql;
   const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
+  const requireAccess = dependencies.requireCompatibleInternalAccess
+    ?? (dependencies.requireInternalSession
+      ? async (req, res) => {
+        const session = requireSession(req, res, dependencies.sessionOptions || {});
+        return session ? { mode: 'legacy', session, principal: null } : null;
+      }
+      : requireCompatibleInternalAccess);
   const loadPrincipal = dependencies.loadInternalPrincipal ?? loadInternalPrincipal;
   const bootstrap = dependencies.getActionBootstrap ?? getActionBootstrap;
   const list = dependencies.listLeaveCases ?? listLeaveCases;
@@ -234,8 +260,16 @@ export function createInternalActionsHandler(dependencies = {}) {
         assertJsonContentType(req);
       }
 
-      const session = requireSession(req, res, dependencies.sessionOptions || {});
-      if (!session) return undefined;
+      const access = await requireAccess(req, res, {
+        env,
+        requiredCapabilities: capabilitiesForActionCenter(),
+        requireDataPlaneReady: true,
+        requireCertifiedDataBinding: true,
+        allowLegacy: false,
+        legacySessionOptions: dependencies.sessionOptions || {},
+      });
+      if (!access) return undefined;
+      const session = access.session;
       const sql = await getSql(env);
       const principal = await loadPrincipal(sql, session);
       if (!principal) {

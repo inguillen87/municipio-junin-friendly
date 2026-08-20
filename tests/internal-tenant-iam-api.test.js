@@ -114,18 +114,64 @@ test('GET bootstrap expone el contrato esperado sin confiar en el rol del cookie
   assert.equal(res.headers.Vary, 'Cookie');
 });
 
+test('administración global exige contexto Plataforma aunque el usuario conserve capabilities globales', async () => {
+  let sqlCalls = 0;
+  const handler = createInternalAdminHandler(dependencies({
+    requireCompatibleInternalAccess: async () => ({
+      mode: 'managed',
+      session: { email: 'owner@example.test' },
+      principal: {
+        tenant: { id: TENANT_ID, slug: 'junin-mendoza' },
+        platform: { capabilities: ['platform.users.manage'] },
+      },
+    }),
+    getInternalAdminSql: async () => { sqlCalls += 1; return {}; },
+  }));
+  const res = response();
+  await handler({ method: 'GET', headers: {}, query: { resource: 'bootstrap' } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'IDENTITY_PLATFORM_CONTEXT_REQUIRED');
+  assert.equal(sqlCalls, 0);
+});
+
 test('POST prepara invitación inactiva y aplica same-origin, JSON e idempotencia', async () => {
-  const handler = createInternalAdminHandler(dependencies({ env: { VERCEL_ENV: 'production' } }));
+  const handler = createInternalAdminHandler(dependencies({
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+  }));
   const noOrigin = response();
   await handler({ method: 'POST', headers: { 'content-type': 'application/json' }, body: {} }, noOrigin);
   assert.equal(noOrigin.statusCode, 403);
+
+  const reflectedHostAttack = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://evil.example', host: 'evil.example',
+      'sec-fetch-site': 'same-origin', 'content-type': 'application/json', 'idempotency-key': KEY,
+    },
+    body: {},
+  }, reflectedHostAttack);
+  assert.equal(reflectedHostAttack.statusCode, 403);
+  assert.equal(reflectedHostAttack.payload.code, 'INTERNAL_ADMIN_ORIGIN_INVALID');
+
+  const crossSite = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://municipio.example', host: 'municipio.example',
+      'sec-fetch-site': 'cross-site', 'content-type': 'application/json', 'idempotency-key': KEY,
+    },
+    body: {},
+  }, crossSite);
+  assert.equal(crossSite.statusCode, 403);
+  assert.equal(crossSite.payload.code, 'INTERNAL_ADMIN_ORIGIN_INVALID');
 
   const res = response();
   await handler({
     method: 'POST',
     headers: {
       origin: 'https://municipio.example', host: 'municipio.example',
-      'content-type': 'application/json', 'idempotency-key': KEY,
+      'sec-fetch-site': 'same-origin', 'content-type': 'application/json', 'idempotency-key': KEY,
     },
     body: {
       command: 'invite_user',

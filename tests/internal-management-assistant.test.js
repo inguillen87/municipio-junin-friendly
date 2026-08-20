@@ -89,11 +89,28 @@ function managementFixture({ smallCohort = false } = {}) {
 
 function endpoint(overrides = {}) {
   return createInternalAssistantHandler({
-    requireInternalSession: () => ({ id: 'user-management', email: 'usuario@example.test' }),
+    requireCompatibleInternalAccess: async () => ({
+      mode: 'managed',
+      session: { id: 'session-management', email: 'usuario@example.invalid' },
+      principal: {
+        user: { email: 'usuario@example.invalid' },
+        tenant: {
+          id: '00000000-0000-4000-8000-000000000301',
+          effectiveCapabilities: ['assistant.use', 'management.analytics.read'],
+        },
+      },
+    }),
     getInternalSql: async () => ({ query: async () => [] }),
+    getTenantIdentitySql: async () => ({ query: async () => [] }),
+    takeIdentityRateLimit: async () => ({ allowed: true, remaining: 5 }),
     managementAnalytics: overrides.managementAnalytics || (async () => managementFixture()),
     fetch: overrides.fetch || (async () => { throw new Error('fetch inesperado'); }),
-    env: overrides.env || {},
+    env: {
+      AI_ASSISTANT_EXTERNAL_ENRICHMENT_ENABLED: 'true',
+      AI_ASSISTANT_DURABLE_QUOTA_CERTIFIED: 'true',
+      AI_ASSISTANT_QUOTA_PEPPER: 'management-assistant-test-pepper-32-bytes',
+      ...(overrides.env || {}),
+    },
     quotaStore: new Map(),
     now: () => Date.parse('2026-08-15T12:00:00Z'),
     logger: { info() {} },

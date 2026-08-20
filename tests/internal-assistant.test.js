@@ -134,6 +134,42 @@ const quality = {
   },
 };
 
+const TEST_IDENTITY_CAPABILITIES = Object.freeze([
+  'assistant.use',
+  'workforce.summary.read',
+  'workforce.structure.read',
+  'workforce.employee.read',
+  'payroll.read',
+  'absence.analytics.read',
+  'absence.nominal.read',
+  'leave.policy.read',
+  'leave.preview.read',
+  'management.analytics.read',
+  'quality.read',
+  'lineage.read',
+  'budget.approved.read',
+]);
+
+const TEST_EXTERNAL_ENV = Object.freeze({
+  AI_ASSISTANT_EXTERNAL_ENRICHMENT_ENABLED: 'true',
+  AI_ASSISTANT_DURABLE_QUOTA_CERTIFIED: 'true',
+  AI_ASSISTANT_QUOTA_PEPPER: 'assistant-test-quota-pepper-32-bytes-minimum',
+});
+
+function managedAccess() {
+  return {
+    mode: 'managed',
+    session: { id: 'session-test', email: 'usuario@example.invalid' },
+    principal: {
+      user: { email: 'usuario@example.invalid' },
+      tenant: {
+        id: '00000000-0000-4000-8000-000000000101',
+        effectiveCapabilities: [...TEST_IDENTITY_CAPABILITIES],
+      },
+    },
+  };
+}
+
 function responseRecorder() {
   return {
     headers: {}, statusCode: null, payload: null,
@@ -145,8 +181,10 @@ function responseRecorder() {
 
 function handler(overrides = {}) {
   return createInternalAssistantHandler({
-    requireInternalSession: overrides.requireInternalSession || (() => ({ id: 'user-1', email: 'usuario@example.test' })),
+    requireCompatibleInternalAccess: overrides.requireCompatibleInternalAccess || (async () => managedAccess()),
     getInternalSql: overrides.getInternalSql || (async () => ({ query: async () => [] })),
+    getTenantIdentitySql: overrides.getTenantIdentitySql || (async () => ({ query: async () => [] })),
+    takeIdentityRateLimit: overrides.takeIdentityRateLimit || (async () => ({ allowed: true, remaining: 10 })),
     integrationQuality: overrides.integrationQuality || (async () => integration),
     payrollControl: async () => payroll,
     absenceAnalytics: overrides.absenceAnalytics || (async () => absence),
@@ -179,7 +217,7 @@ function handler(overrides = {}) {
       },
     })),
     fetch: overrides.fetch || (async () => { throw new Error('fetch inesperado'); }),
-    env: overrides.env || {},
+    env: { ...TEST_EXTERNAL_ENV, ...(overrides.env || {}) },
     now: overrides.now || (() => Date.parse('2026-08-13T20:00:00Z')),
     quotaStore: overrides.quotaStore || new Map(),
     logger: overrides.logger || { info() {} },
@@ -530,6 +568,10 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   );
   assert.deepEqual(res.payload.providerPolicy, {
     primary: 'openai', fallback: 'huggingface', fallbackRequiresPrimaryAttempt: true,
+    externalEnhancementRequiresManagedIdentity: true,
+    durableQuotaRequired: true,
+    durableQuotaBuckets: ['tenant_user', 'tenant'],
+    durableQuotaCertificationRequired: true,
     localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
   });
   assert.equal(res.payload.guidance.sections.length, 15);

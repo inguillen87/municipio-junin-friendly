@@ -1,7 +1,17 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import {
+  getTenantIdentitySql,
+  takeIdentityRateLimit,
+} from '../lib/internal-identity-access.js';
+import {
+  TENANT_DATA_CAPABILITIES,
+  capabilitiesForAssistantIntent,
+  principalHasCapabilities,
+} from '../lib/internal-resource-access.js';
 import * as internalData from './internal-data.js';
 import {
   absenceAnalytics,
@@ -33,6 +43,11 @@ const DEFAULT_AI_OUTPUT_TOKENS = 320;
 const DEFAULT_HF_CALLS_PER_WINDOW = 3;
 const DEFAULT_HF_WINDOW_MS = 60_000;
 const DEFAULT_AI_TOTAL_TIMEOUT_MS = 14_000;
+const DEFAULT_AI_USER_CALLS_PER_WINDOW = 3;
+const DEFAULT_AI_TENANT_CALLS_PER_WINDOW = 50;
+const DEFAULT_AI_DURABLE_WINDOW_SECONDS = 60;
+const DEFAULT_AI_DURABLE_BLOCK_SECONDS = 60;
+const MIN_AI_QUOTA_PEPPER_BYTES = 32;
 const QUERY_PLAN_VERSION = 'municipal_query_plan.v1';
 const MAX_HISTORY_ITEMS = 8;
 
@@ -2886,6 +2901,133 @@ function consumeRuntimeQuota(key, env, now, quotaStore) {
   return { allowed: true, limit, windowMs };
 }
 
+function enabledFlag(value) {
+  return String(value ?? '').trim().toLowerCase() === 'true';
+}
+
+function durableExternalQuotaConfig(env) {
+  return Object.freeze({
+    userLimit: boundedInteger(
+      env.AI_ASSISTANT_USER_CALLS_PER_WINDOW,
+      DEFAULT_AI_USER_CALLS_PER_WINDOW,
+      1,
+      20,
+    ),
+    tenantLimit: boundedInteger(
+      env.AI_ASSISTANT_TENANT_CALLS_PER_WINDOW,
+      DEFAULT_AI_TENANT_CALLS_PER_WINDOW,
+      1,
+      100,
+    ),
+    windowSeconds: boundedInteger(
+      env.AI_ASSISTANT_QUOTA_WINDOW_SECONDS,
+      DEFAULT_AI_DURABLE_WINDOW_SECONDS,
+      10,
+      3_600,
+    ),
+    blockSeconds: boundedInteger(
+      env.AI_ASSISTANT_QUOTA_BLOCK_SECONDS,
+      DEFAULT_AI_DURABLE_BLOCK_SECONDS,
+      10,
+      3_600,
+    ),
+  });
+}
+
+function durableQuotaBucket(pepper, kind, tenantId, userEmail = '') {
+  return createHmac('sha256', pepper)
+    .update('municontrol.assistant.external-quota.v1\0', 'utf8')
+    .update(kind, 'utf8')
+    .update('\0', 'utf8')
+    .update(tenantId, 'utf8')
+    .update('\0', 'utf8')
+    .update(userEmail, 'utf8')
+    .digest('hex');
+}
+
+function safeQuotaRetryAfter(result) {
+  const value = Number(result?.retryAfterSeconds);
+  return Number.isFinite(value) ? Math.min(86_400, Math.max(1, Math.ceil(value))) : null;
+}
+
+async function consumeDurableExternalQuota({
+  access,
+  env,
+  getIdentitySql,
+  takeRateLimit,
+}) {
+  if (!enabledFlag(env.AI_ASSISTANT_EXTERNAL_ENRICHMENT_ENABLED)) {
+    return { allowed: false, status: 'external_enrichment_disabled' };
+  }
+  if (!enabledFlag(env.AI_ASSISTANT_DURABLE_QUOTA_CERTIFIED)) {
+    return { allowed: false, status: 'durable_quota_not_certified' };
+  }
+  if (access?.mode !== 'managed') {
+    return { allowed: false, status: 'managed_identity_required' };
+  }
+
+  const tenantId = String(access?.principal?.tenant?.id || '').trim().toLowerCase();
+  const userEmail = String(access?.principal?.user?.email || '').trim().toLowerCase();
+  const pepper = typeof env.AI_ASSISTANT_QUOTA_PEPPER === 'string'
+    ? env.AI_ASSISTANT_QUOTA_PEPPER.trim()
+    : '';
+  if (!tenantId || !userEmail || Buffer.byteLength(pepper, 'utf8') < MIN_AI_QUOTA_PEPPER_BYTES) {
+    return { allowed: false, status: 'durable_quota_not_configured' };
+  }
+
+  const config = durableExternalQuotaConfig(env);
+  const optionsFor = (limit) => ({
+    limit,
+    windowSeconds: config.windowSeconds,
+    blockSeconds: config.blockSeconds,
+  });
+  const userBucket = durableQuotaBucket(pepper, 'tenant-user', tenantId, userEmail);
+  const tenantBucket = durableQuotaBucket(pepper, 'tenant', tenantId);
+
+  try {
+    const sql = await getIdentitySql(env);
+    if (!sql || typeof sql.query !== 'function') {
+      return { allowed: false, status: 'durable_quota_unavailable' };
+    }
+    const userResult = await takeRateLimit(
+      sql,
+      'assistant_external_user',
+      userBucket,
+      optionsFor(config.userLimit),
+    );
+    if (userResult?.allowed !== true) {
+      return {
+        allowed: false,
+        status: userResult?.allowed === false
+          ? 'durable_user_rate_limited'
+          : 'durable_quota_unavailable',
+        retryAfterSeconds: safeQuotaRetryAfter(userResult),
+        config,
+      };
+    }
+
+    const tenantResult = await takeRateLimit(
+      sql,
+      'assistant_external_tenant',
+      tenantBucket,
+      optionsFor(config.tenantLimit),
+    );
+    if (tenantResult?.allowed !== true) {
+      return {
+        allowed: false,
+        status: tenantResult?.allowed === false
+          ? 'durable_tenant_rate_limited'
+          : 'durable_quota_unavailable',
+        retryAfterSeconds: safeQuotaRetryAfter(tenantResult),
+        config,
+      };
+    }
+    return { allowed: true, config, runtimeBucket: userBucket };
+  } catch {
+    return { allowed: false, status: 'durable_quota_unavailable', config };
+  }
+}
+
 function providerStatus(provider, status, extra = {}) {
   const externalProviderAttempted = new Set([
     'used', 'upstream_rate_limited', 'unavailable', 'invalid_response', 'timeout', 'error',
@@ -3270,7 +3412,17 @@ function providerAttempt(result) {
   };
 }
 
-async function generateAggregateInsight({ intent, data, session, env, fetchImpl, now, quotaStore }) {
+async function generateAggregateInsight({
+  intent,
+  data,
+  access,
+  env,
+  fetchImpl,
+  now,
+  quotaStore,
+  getIdentitySql,
+  takeRateLimit,
+}) {
   if (GUIDANCE_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_product_guidance');
   if (!EXTERNAL_ALLOWED_INTENTS.has(intent)) return providerStatus('local', 'not_allowed_for_nominal_or_unknown_intent');
   if (intent === 'management_comparison') {
@@ -3303,7 +3455,30 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
   const hfToken = typeof env.HF_TOKEN === 'string' ? env.HF_TOKEN.trim() : '';
   if (!openAIToken) return providerStatus('local', 'primary_not_configured');
 
-  const quota = consumeRuntimeQuota(String(session.id || session.email), env, now(), quotaStore);
+  const durableQuota = await consumeDurableExternalQuota({
+    access,
+    env,
+    getIdentitySql,
+    takeRateLimit,
+  });
+  if (!durableQuota.allowed) {
+    return providerStatus('local', durableQuota.status, {
+      durableQuotaRequired: true,
+      ...(durableQuota.retryAfterSeconds
+        ? { retryAfterSeconds: durableQuota.retryAfterSeconds }
+        : {}),
+      ...(durableQuota.config ? {
+        limits: {
+          durableUserCallsPerWindow: durableQuota.config.userLimit,
+          durableTenantCallsPerWindow: durableQuota.config.tenantLimit,
+          durableWindowSeconds: durableQuota.config.windowSeconds,
+          durableBlockSeconds: durableQuota.config.blockSeconds,
+        },
+      } : {}),
+    });
+  }
+
+  const quota = consumeRuntimeQuota(durableQuota.runtimeBucket, env, now(), quotaStore);
   if (!quota.allowed) {
     return providerStatus('local', 'runtime_rate_limited', {
       limit: quota.limit,
@@ -3339,6 +3514,10 @@ async function generateAggregateInsight({ intent, data, session, env, fetchImpl,
     huggingFaceTimeoutMs: hfToken ? hfTimeoutMs : null,
     runtimeCallsPerWindow: quota.limit,
     runtimeWindowSeconds: Math.round(quota.windowMs / 1000),
+    durableUserCallsPerWindow: durableQuota.config.userLimit,
+    durableTenantCallsPerWindow: durableQuota.config.tenantLimit,
+    durableWindowSeconds: durableQuota.config.windowSeconds,
+    durableBlockSeconds: durableQuota.config.blockSeconds,
   };
   const attempts = [];
   let openAIResult = null;
@@ -3427,6 +3606,10 @@ function capabilitiesPayload() {
       primary: 'openai',
       fallback: 'huggingface',
       fallbackRequiresPrimaryAttempt: true,
+      externalEnhancementRequiresManagedIdentity: true,
+      durableQuotaRequired: true,
+      durableQuotaBuckets: ['tenant_user', 'tenant'],
+      durableQuotaCertificationRequired: true,
       localDeterministicFallback: true,
       maximumExternalAttemptsPerRequest: 2,
     },
@@ -3441,6 +3624,13 @@ function capabilitiesPayload() {
 export function createInternalAssistantHandler(dependencies = {}) {
   const getSql = dependencies.getInternalSql ?? getInternalSql;
   const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
+  const requireAccess = dependencies.requireCompatibleInternalAccess
+    ?? (dependencies.requireInternalSession
+      ? async (req, res) => {
+        const session = requireSession(req, res);
+        return session ? { mode: 'legacy', session, principal: null } : null;
+      }
+      : requireCompatibleInternalAccess);
   const loadIntegration = dependencies.integrationQuality ?? integrationQuality;
   const loadPayroll = dependencies.payrollControl ?? payrollControl;
   const loadAbsence = dependencies.absenceAnalytics ?? absenceAnalytics;
@@ -3468,6 +3658,8 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const now = dependencies.now ?? Date.now;
   const quotaStore = dependencies.quotaStore ?? quotaByRuntime;
+  const getIdentitySqlForQuota = dependencies.getTenantIdentitySql ?? getTenantIdentitySql;
+  const takeRateLimitForQuota = dependencies.takeIdentityRateLimit ?? takeIdentityRateLimit;
   const logger = dependencies.logger ?? console;
   const requestIdFactory = dependencies.requestIdFactory ?? randomUUID;
 
@@ -3534,8 +3726,14 @@ export function createInternalAssistantHandler(dependencies = {}) {
       return respond(405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
 
-    const session = requireSession(req, res);
-    if (!session) return;
+    const access = await requireAccess(req, res, {
+      env,
+      requiredCapabilities: [TENANT_DATA_CAPABILITIES.ASSISTANT_USE],
+      requireDataPlaneReady: true,
+      requireCertifiedDataBinding: true,
+      allowLegacy: false,
+    });
+    if (!access) return;
     if (method === 'GET') return respond(200, capabilitiesPayload(), providerStatus('local', 'capabilities'));
 
     if (!requestContentType(req).toLowerCase().includes('application/json')) {
@@ -3561,6 +3759,18 @@ export function createInternalAssistantHandler(dependencies = {}) {
       const plan = planAssistantRequest(body);
       const intent = plan.intent;
       observedIntent = intent;
+      const intentCapabilities = capabilitiesForAssistantIntent(intent);
+      if (!intentCapabilities
+          || (access.mode === 'managed'
+            && !principalHasCapabilities(access.principal, intentCapabilities))) {
+        return respond(403, {
+          ok: false,
+          intent,
+          code: 'IDENTITY_CAPABILITY_REQUIRED',
+          error: 'No tenés permisos para consultar ese dominio.',
+          privacy: { nominalDataExternalized: false, rawHistoryContentIgnored: true },
+        });
+      }
       let result;
 
       if (plan.missingNominalContext) {
@@ -3811,7 +4021,17 @@ export function createInternalAssistantHandler(dependencies = {}) {
       }
 
       const provider = body.enhance === true
-        ? await generateAggregateInsight({ intent, data: result.data, session, env, fetchImpl, now, quotaStore })
+        ? await generateAggregateInsight({
+          intent,
+          data: result.data,
+          access,
+          env,
+          fetchImpl,
+          now,
+          quotaStore,
+          getIdentitySql: getIdentitySqlForQuota,
+          takeRateLimit: takeRateLimitForQuota,
+        })
         : providerStatus('local', 'not_requested');
       const employeeRow = intent === 'employee_detail' ? result.data?.data || {} : {};
       const selectedCompanyId = safeIdentifier(employeeRow.companyId, 32) || plan.filters.companyId || '';

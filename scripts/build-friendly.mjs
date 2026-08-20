@@ -7,6 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
   'login.html',
+  'activar-cuenta.html',
+  'seguridad-cuenta.html',
   'friendly-dashboard.html',
   'modulos.html',
   'reportes-rrhh.html',
@@ -25,6 +27,7 @@ const shellFiles = [
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-guide.js',
+  'assets/identity-security.css',
   'assets/product-guidance.js',
   'assets/mendoza-title-vi.js',
   'assets/junin-budget-2026.js',

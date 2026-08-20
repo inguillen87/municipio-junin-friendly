@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#08283a">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="description" content="Seguridad, segundo factor y sesiones de la cuenta institucional.">
+  <title>Seguridad de cuenta | MuniControl</title>
+  <link rel="stylesheet" href="/assets/identity-security.css">
+</head>
+<body>
+  <a class="skip-link" href="#securityWorkspace">Saltar a seguridad</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="internal-dashboard.html" aria-label="Volver al portal interno de MuniControl">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><span class="brand-name">MuniControl</span><span class="brand-place">Friendly · Identidad institucional</span></span>
+      </a>
+      <p class="header-context">Centro de seguridad</p>
+    </div>
+  </header>
+
+  <main id="securityWorkspace" tabindex="-1">
+    <div class="security-layout">
+      <section class="context-panel" aria-labelledby="pageTitle">
+        <p class="eyebrow">Cuenta · control personal</p>
+        <h1 id="pageTitle">Tu acceso, explicado y verificable.</h1>
+        <p class="lead">Revisá el ámbito institucional informado por el servidor, protegé la cuenta con MFA y cerrá sesiones que ya no reconozcas.</p>
+        <ul class="boundary-list" aria-label="Límites del centro de seguridad">
+          <li><strong>Permisos de solo lectura</strong><span>El tenant, el rol y las capacidades vienen de la política vigente. No se pueden ampliar desde esta pantalla.</span></li>
+          <li><strong>Sesiones revocables</strong><span>Se muestra una descripción normalizada y una ubicación aproximada; nunca la IP completa ni el user-agent crudo.</span></li>
+          <li><strong>Recuperación limitada</strong><span>Los códigos ya emitidos no pueden volver a visualizarse. Si se agotan, interviene un administrador autorizado.</span></li>
+        </ul>
+      </section>
+
+      <div>
+        <section class="card" id="loadingCard" aria-labelledby="loadingTitle">
+          <div class="card-body"><div class="loading"><span class="spinner" aria-hidden="true"></span><strong id="loadingTitle">Verificando sesión y políticas de seguridad…</strong></div></div>
+        </section>
+
+        <div class="notice error" id="fatalError" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
+
+        <div id="securityContent" hidden>
+          <section class="card" aria-labelledby="accessTitle">
+            <header class="card-head"><h2 id="accessTitle">Identidad y alcance efectivo</h2><p>Proyección de solo lectura publicada por la API de identidad para esta sesión.</p></header>
+            <div class="card-body">
+              <dl class="identity-summary" id="identitySummary"></dl>
+              <p class="field-label" style="margin-top:20px">Capacidades efectivas</p>
+              <ul class="capability-list" id="capabilityList"></ul>
+              <div class="notice warning" id="accessBoundary" style="margin-top:20px;margin-bottom:0"><strong>Sin capacidades informadas.</strong> El sistema no presume permisos cuando falta el contrato de acceso.</div>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="mfaTitle">
+            <header class="card-head"><h2 id="mfaTitle">Segundo factor</h2><p>Verificación adicional obligatoria para funciones privilegiadas o restringidas.</p></header>
+            <div class="card-body">
+              <div class="notice" id="mfaState"><strong>Estado pendiente.</strong> Esperando la política de la cuenta.</div>
+              <div id="mfaOverview">
+                <dl class="identity-summary" id="mfaFacts"></dl>
+                <div class="button-row"><button class="button primary" id="startMfaButton" type="button" disabled>Configurar segundo factor</button></div>
+              </div>
+
+              <form id="mfaPasswordForm" autocomplete="off" novalidate hidden>
+                <div class="notice warning"><strong>Reautenticación requerida.</strong> Confirmá la contraseña actual para iniciar una configuración efímera.</div>
+                <div class="field">
+                  <label for="currentPassword">Contraseña actual</label>
+                  <input class="input" id="currentPassword" type="password" maxlength="128" autocomplete="current-password" required>
+                </div>
+                <div class="button-row"><button class="button quiet" data-cancel-mfa type="button">Cancelar</button><button class="button primary" id="beginMfaButton" type="submit">Continuar</button></div>
+              </form>
+
+              <form id="mfaCodeForm" autocomplete="off" novalidate hidden>
+                <div class="manual-key">
+                  <strong>Clave de configuración manual</strong>
+                  <code id="accountManualMfaKey" aria-label="Clave manual de autenticación"></code>
+                  <p>Agregala a tu aplicación autenticadora. No se copia, descarga ni guarda automáticamente.</p>
+                </div>
+                <div class="field">
+                  <label for="accountTotp">Código de seis dígitos</label>
+                  <input class="input code" id="accountTotp" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required>
+                </div>
+                <div class="button-row"><button class="button quiet" data-cancel-mfa type="button">Cancelar</button><button class="button primary" id="completeMfaButton" type="submit">Verificar y activar MFA</button></div>
+              </form>
+
+              <section id="mfaRecoverySection" aria-labelledby="mfaRecoveryTitle" hidden>
+                <div class="notice warning"><strong id="mfaRecoveryTitle">Códigos de recuperación: única visualización.</strong> Guardalos fuera de este dispositivo. Cada código sirve una sola vez.</div>
+                <ul class="recovery-codes" id="accountRecoveryCodes"></ul>
+                <label class="notice" style="display:block;margin-top:18px"><input id="accountRecoveryConfirmed" type="checkbox"> Confirmo que guardé los códigos en un lugar seguro.</label>
+                <div class="button-row"><button class="button primary" id="finishMfaButton" type="button" disabled>Finalizar configuración</button></div>
+              </section>
+              <p class="status-line" id="mfaStatus" role="status" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="sessionsTitle">
+            <header class="card-head"><h2 id="sessionsTitle">Sesiones activas</h2><p>Dispositivos autorizados informados por el registro central. Revocar una sesión exige versión vigente y queda auditado.</p></header>
+            <div class="card-body">
+              <div class="notice warning" id="sessionRegistryBlocked" hidden><strong>Registro no disponible.</strong> La revocación permanece bloqueada hasta que el backend confirme el registro central.</div>
+              <ul class="session-list" id="sessionList"></ul>
+              <div class="empty" id="sessionEmpty" hidden>No hay sesiones activas informadas. La pantalla no reconstruye sesiones faltantes.</div>
+              <p class="status-line" id="sessionStatus" role="status" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <div class="button-row"><a class="button" href="internal-dashboard.html">Volver al portal</a><button class="button danger" id="logoutButton" type="button">Cerrar esta sesión</button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><span><strong>MuniControl</strong> · Seguridad de cuenta</span><span>Fuente: registro de identidad y autorización vigente</span></div></footer>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var IDENTITY_URL = '/api/internal-identity';
+    var REQUEST_TIMEOUT_MS = 16000;
+    var account = { security: null, access: null, sessions: [] };
+    var mfaFlow = null;
+    var mfaBeginIdempotencyKey = '';
+    var mfaCompleteIdempotencyKey = '';
+    var recoveryValues = [];
+    var revokeKeys = new Map();
+
+    var loadingCard = document.getElementById('loadingCard');
+    var fatalError = document.getElementById('fatalError');
+    var securityContent = document.getElementById('securityContent');
+    var mfaPasswordForm = document.getElementById('mfaPasswordForm');
+    var mfaCodeForm = document.getElementById('mfaCodeForm');
+    var mfaRecoverySection = document.getElementById('mfaRecoverySection');
+    var currentPassword = document.getElementById('currentPassword');
+    var accountTotp = document.getElementById('accountTotp');
+    var accountManualMfaKey = document.getElementById('accountManualMfaKey');
+
+    function text(value, fallback) { return typeof value === 'string' && value.trim() ? value.trim() : (fallback || ''); }
+    function formatDate(value) {
+      if (!value) return 'No informado';
+      var date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'No informado';
+      return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(date);
+    }
+    function commandKey() {
+      if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw new Error('Este navegador no puede completar una operación segura.');
+      return window.crypto.randomUUID();
+    }
+    function redirectToLogin() { window.location.replace('login.html?next=seguridad-cuenta.html'); }
+    function errorMessage(error) {
+      if (error && error.code === 'IDENTITY_RATE_LIMITED') return 'Se alcanzó el límite de intentos. Esperá unos minutos antes de volver a probar.';
+      if (error && error.code === 'IDENTITY_REAUTH_FAILED') return 'No se pudo confirmar la contraseña actual.';
+      if (error && error.code === 'IDENTITY_MFA_ALREADY_ENROLLED') return 'La cuenta ya tiene un segundo factor activo. Actualizá el estado antes de continuar.';
+      if (error && error.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED') return 'La configuración venció. Iniciá nuevamente el proceso.';
+      if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos y la configuración fue bloqueada. Iniciá nuevamente.';
+      if (error && error.code === 'IDENTITY_MFA_INVALID') return 'El código del segundo factor no es válido o ya venció.' + (Number.isSafeInteger(error.remainingAttempts) ? ' Quedan ' + error.remainingAttempts + ' intentos.' : '');
+      if (error && error.code === 'IDENTITY_VERSION_CONFLICT') return 'El recurso cambió mientras lo revisabas. Actualizá la página antes de volver a intentar.';
+      return 'La operación de seguridad no está disponible en este momento.';
+    }
+
+    async function requestJson(url, options) {
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+      try {
+        var response = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: controller.signal }, options || {}));
+        var data = {};
+        var raw = response.status === 204 ? '' : await response.text();
+        if (raw) { try { data = JSON.parse(raw); } catch (_) { data = {}; } }
+        if (response.status === 401 && text(data.code) === 'IDENTITY_SESSION_REQUIRED') { redirectToLogin(); var unauthorized = new Error('unauthorized'); unauthorized.code = 'IDENTITY_SESSION_REQUIRED'; throw unauthorized; }
+        if (!response.ok) {
+          var error = new Error('identity_request_failed'); error.code = text(data.code); error.status = response.status;
+          var nextVersion = Number(data.expectedVersion); var attempts = Number(data.remainingAttempts);
+          if (Number.isSafeInteger(nextVersion) && nextVersion > 0) error.expectedVersion = nextVersion;
+          if (Number.isSafeInteger(attempts) && attempts >= 0) error.remainingAttempts = attempts;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error && error.name === 'AbortError') { var timeoutError = new Error('timeout'); timeoutError.code = 'IDENTITY_TIMEOUT'; throw timeoutError; }
+        throw error;
+      } finally { window.clearTimeout(timeout); }
+    }
+
+    function postCommand(command, payload, options) {
+      var body = { command: command, payload: payload || {} };
+      if (options && Number.isSafeInteger(options.expectedVersion)) body.expectedVersion = options.expectedVersion;
+      var headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+      if (options && options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+      return requestJson(IDENTITY_URL, { method: 'POST', headers: headers, body: JSON.stringify(body) });
+    }
+
+    function appendFact(container, label, value) {
+      var wrapper = document.createElement('div');
+      var term = document.createElement('dt'); var description = document.createElement('dd');
+      term.textContent = label; description.textContent = value;
+      wrapper.append(term, description); container.appendChild(wrapper);
+    }
+
+    function renderAccess(bootstrap) {
+      var access = bootstrap && bootstrap.access && typeof bootstrap.access === 'object' ? bootstrap.access : {};
+      var tenant = access.tenant && typeof access.tenant === 'object' ? access.tenant : {};
+      var user = bootstrap && bootstrap.user && typeof bootstrap.user === 'object' ? bootstrap.user : {};
+      account.access = access;
+      var summary = document.getElementById('identitySummary'); summary.replaceChildren();
+      appendFact(summary, 'Cuenta', text(user.displayName, text(user.email, 'Sesión autenticada')));
+      appendFact(summary, 'Gobierno', text(tenant.slug, text(tenant.id, 'Ámbito no informado')));
+      appendFact(summary, 'Rol de tenant', text(tenant.roleKey, 'No informado'));
+      appendFact(summary, 'Rol de plataforma', Array.isArray(access.platformRoles) && access.platformRoles.length ? access.platformRoles.join(', ') : 'Sin rol global informado');
+      var capabilities = Array.isArray(tenant.capabilities) ? tenant.capabilities.filter(function (value) { return typeof value === 'string' && value.trim(); }) : [];
+      var list = document.getElementById('capabilityList'); list.replaceChildren();
+      capabilities.forEach(function (value) { var item = document.createElement('li'); item.textContent = value; list.appendChild(item); });
+      document.getElementById('accessBoundary').hidden = capabilities.length > 0;
+    }
+
+    function renderMfa() {
+      var security = account.security || {};
+      var enrolled = security.mfaEnrolled === true;
+      var required = security.mfaRequired === true;
+      var state = document.getElementById('mfaState');
+      state.className = 'notice ' + (enrolled ? 'success' : required ? 'warning' : '');
+      state.replaceChildren();
+      var strong = document.createElement('strong');
+      strong.textContent = enrolled ? 'MFA activo.' : required ? 'MFA obligatorio pendiente.' : 'MFA disponible.';
+      state.append(strong, document.createTextNode(enrolled ? ' El factor fue verificado por el registro central.' : required ? ' Las funciones privilegiadas permanecen bloqueadas hasta completar la configuración.' : ' Podés agregar protección adicional a esta cuenta.'));
+      var facts = document.getElementById('mfaFacts'); facts.replaceChildren();
+      appendFact(facts, 'Política', required ? 'Obligatorio' : 'Opcional');
+      appendFact(facts, 'Factor', enrolled ? 'Activo' : 'No inscrito');
+      appendFact(facts, 'Códigos restantes', Number.isSafeInteger(Number(security.recoveryCodesRemaining)) ? String(Number(security.recoveryCodesRemaining)) : 'No informado');
+      appendFact(facts, 'Recuperación', 'Los códigos no se pueden volver a mostrar');
+      document.getElementById('startMfaButton').disabled = enrolled;
+      document.getElementById('startMfaButton').textContent = enrolled ? 'Segundo factor activo' : 'Configurar segundo factor';
+    }
+
+    function renderSessions() {
+      var registryReady = account.security && account.security.sessionRegistryReady === true;
+      var list = document.getElementById('sessionList'); list.replaceChildren();
+      document.getElementById('sessionRegistryBlocked').hidden = registryReady;
+      var sessions = registryReady ? account.sessions.filter(function (session) { return session && session.status === 'active' && text(session.id); }) : [];
+      sessions.forEach(function (session) {
+        var item = document.createElement('li'); item.className = 'session-item';
+        var copy = document.createElement('div');
+        var heading = document.createElement('h3'); heading.textContent = text(session.device, 'Dispositivo no informado');
+        if (session.current === true) { var pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = 'Esta sesión'; heading.appendChild(pill); }
+        var details = document.createElement('p');
+        details.textContent = 'Ubicación aproximada: ' + text(session.ipApprox, 'No informada') + ' · Última actividad: ' + formatDate(session.lastSeenAt) + ' · Vence: ' + formatDate(session.expiresAt);
+        copy.append(heading, details);
+        var button = document.createElement('button'); button.className = 'button danger'; button.type = 'button'; button.textContent = session.current === true ? 'Cerrar sesión' : 'Revocar';
+        button.dataset.revokeSession = session.id; button.dataset.sessionVersion = String(session.version); button.dataset.currentSession = String(session.current === true);
+        button.disabled = !Number.isSafeInteger(Number(session.version));
+        item.append(copy, button); list.appendChild(item);
+      });
+      document.getElementById('sessionEmpty').hidden = sessions.length > 0 || !registryReady;
+    }
+
+    async function loadSecurity() {
+      loadingCard.hidden = false; fatalError.hidden = true; securityContent.hidden = true;
+      try {
+        var responses = await Promise.all([
+          requestJson(IDENTITY_URL + '?resource=bootstrap'),
+          requestJson(IDENTITY_URL + '?resource=sessions')
+        ]);
+        var bootstrap = responses[0] || {}; var sessionPayload = responses[1] || {};
+        var security = sessionPayload.security && typeof sessionPayload.security === 'object' ? sessionPayload.security : bootstrap.security;
+        if (!security || typeof security !== 'object') throw new Error('invalid_security_contract');
+        account.security = security;
+        account.sessions = Array.isArray(sessionPayload.sessions) ? sessionPayload.sessions : [];
+        renderAccess(bootstrap); renderMfa(); renderSessions();
+        loadingCard.hidden = true; securityContent.hidden = false;
+        document.getElementById('securityWorkspace').focus({ preventScroll: true });
+      } catch (error) {
+        if (error && error.code === 'IDENTITY_SESSION_REQUIRED') return;
+        loadingCard.hidden = true; fatalError.textContent = 'No pudimos verificar la política de seguridad. No se habilitó ninguna operación.'; fatalError.hidden = false; fatalError.focus();
+      }
+    }
+
+    function wipeMfaFlow() {
+      mfaFlow = null; mfaBeginIdempotencyKey = ''; mfaCompleteIdempotencyKey = ''; recoveryValues = [];
+      currentPassword.value = ''; accountTotp.value = ''; accountManualMfaKey.textContent = '';
+      document.getElementById('accountRecoveryCodes').replaceChildren();
+      document.getElementById('accountRecoveryConfirmed').checked = false;
+      document.getElementById('finishMfaButton').disabled = true;
+      mfaPasswordForm.hidden = true; mfaCodeForm.hidden = true; mfaRecoverySection.hidden = true;
+      document.getElementById('mfaOverview').hidden = false;
+      document.getElementById('mfaStatus').textContent = '';
+    }
+
+    document.getElementById('startMfaButton').addEventListener('click', function () {
+      wipeMfaFlow(); clearMfaError(); document.getElementById('mfaOverview').hidden = true; mfaPasswordForm.hidden = false; currentPassword.focus();
+    });
+    function clearMfaError() { document.getElementById('mfaStatus').textContent = ''; }
+    document.querySelectorAll('[data-cancel-mfa]').forEach(function (button) { button.addEventListener('click', wipeMfaFlow); });
+
+    mfaPasswordForm.addEventListener('submit', async function (event) {
+      event.preventDefault(); clearMfaError();
+      if (!currentPassword.value) { document.getElementById('mfaStatus').textContent = 'Ingresá la contraseña actual.'; currentPassword.focus(); return; }
+      var button = document.getElementById('beginMfaButton'); button.disabled = true;
+      mfaBeginIdempotencyKey = mfaBeginIdempotencyKey || commandKey();
+      try {
+        var result = await postCommand('begin_mfa_enrollment', { currentPassword: currentPassword.value }, { idempotencyKey: mfaBeginIdempotencyKey });
+        currentPassword.value = '';
+        if (!result || typeof result.flowToken !== 'string' || !Number.isSafeInteger(Number(result.expectedVersion)) || !result.mfaEnrollment || typeof result.mfaEnrollment.manualKey !== 'string') throw new Error('invalid_mfa_contract');
+        mfaFlow = { token: result.flowToken, version: Number(result.expectedVersion), expiresAt: result.expiresAt };
+        mfaCompleteIdempotencyKey = commandKey();
+        accountManualMfaKey.textContent = result.mfaEnrollment.manualKey;
+        mfaPasswordForm.hidden = true; mfaCodeForm.hidden = false; accountTotp.focus();
+      } catch (error) {
+        currentPassword.value = '';
+        document.getElementById('mfaStatus').textContent = errorMessage(error);
+        currentPassword.focus();
+      } finally { button.disabled = false; }
+    });
+
+    mfaCodeForm.addEventListener('submit', async function (event) {
+      event.preventDefault(); clearMfaError();
+      var code = accountTotp.value.trim();
+      if (!mfaFlow || !mfaFlow.token) { document.getElementById('mfaStatus').textContent = 'La configuración ya no está disponible. Iniciá nuevamente.'; return; }
+      if (!/^\d{6}$/.test(code)) { document.getElementById('mfaStatus').textContent = 'Ingresá el código de seis dígitos.'; accountTotp.focus(); return; }
+      var button = document.getElementById('completeMfaButton'); button.disabled = true;
+      try {
+        var result = await postCommand('complete_mfa_enrollment', { flowToken: mfaFlow.token, totpCode: code }, { expectedVersion: mfaFlow.version, idempotencyKey: mfaCompleteIdempotencyKey });
+        var codes = Array.isArray(result.recoveryCodes) ? result.recoveryCodes.filter(function (value) { return typeof value === 'string' && value; }) : [];
+        accountTotp.value = ''; accountManualMfaKey.textContent = ''; mfaFlow = null; mfaCompleteIdempotencyKey = ''; mfaBeginIdempotencyKey = '';
+        mfaCodeForm.hidden = true;
+        if (!codes.length) { wipeMfaFlow(); await loadSecurity(); return; }
+        recoveryValues = codes.slice();
+        var list = document.getElementById('accountRecoveryCodes'); list.replaceChildren();
+        recoveryValues.forEach(function (value) { var item = document.createElement('li'); item.textContent = value; list.appendChild(item); });
+        mfaRecoverySection.hidden = false; document.getElementById('accountRecoveryConfirmed').focus();
+      } catch (error) {
+        var message = errorMessage(error);
+        if (error && error.code === 'IDENTITY_MFA_INVALID' && mfaFlow && Number.isSafeInteger(error.expectedVersion)) {
+          mfaFlow.version = error.expectedVersion;
+          mfaCompleteIdempotencyKey = commandKey();
+        }
+        if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+          wipeMfaFlow(); document.getElementById('mfaStatus').textContent = message; document.getElementById('startMfaButton').focus(); return;
+        }
+        accountTotp.value = ''; document.getElementById('mfaStatus').textContent = message; accountTotp.focus();
+      } finally { button.disabled = false; }
+    });
+
+    document.getElementById('accountRecoveryConfirmed').addEventListener('change', function (event) { document.getElementById('finishMfaButton').disabled = !event.target.checked; });
+    document.getElementById('finishMfaButton').addEventListener('click', async function () { wipeMfaFlow(); await loadSecurity(); });
+
+    document.getElementById('sessionList').addEventListener('click', async function (event) {
+      var button = event.target.closest('[data-revoke-session]'); if (!button || button.disabled) return;
+      var sessionId = button.dataset.revokeSession; var version = Number(button.dataset.sessionVersion); var isCurrent = button.dataset.currentSession === 'true';
+      if (!sessionId || !Number.isSafeInteger(version)) return;
+      if (!window.confirm(isCurrent ? '¿Cerrar esta sesión ahora?' : '¿Revocar la sesión seleccionada?')) return;
+      button.disabled = true; document.getElementById('sessionStatus').textContent = 'Revocando sesión…';
+      try {
+        var key = revokeKeys.get(sessionId) || commandKey(); revokeKeys.set(sessionId, key);
+        await postCommand('revoke_session', { sessionId: sessionId }, { expectedVersion: version, idempotencyKey: key });
+        revokeKeys.delete(sessionId);
+        if (isCurrent) { try { sessionStorage.removeItem('mjunin_user'); } catch (_) {} window.location.replace('login.html'); return; }
+        document.getElementById('sessionStatus').textContent = 'Sesión revocada y registrada.';
+        await loadSecurity();
+      } catch (error) { document.getElementById('sessionStatus').textContent = errorMessage(error); button.disabled = false; }
+    });
+
+    document.getElementById('logoutButton').addEventListener('click', async function () {
+      var button = document.getElementById('logoutButton'); button.disabled = true;
+      try { await postCommand('logout', {}, { idempotencyKey: commandKey() }); } catch (_) {}
+      try { sessionStorage.removeItem('mjunin_user'); } catch (_) {}
+      window.location.replace('login.html');
+    });
+
+    window.addEventListener('pagehide', wipeMfaFlow);
+    loadSecurity();
+  }());
+  </script>
+</body>
+</html>

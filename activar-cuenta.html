@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#08283a">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="description" content="Activación segura de una cuenta institucional de MuniControl.">
+  <title>Activar cuenta | MuniControl</title>
+  <link rel="stylesheet" href="/assets/identity-security.css">
+</head>
+<body>
+  <a class="skip-link" href="#activationCard">Saltar a la activación</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="login.html" aria-label="Volver al acceso de MuniControl">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span><span class="brand-name">MuniControl</span><span class="brand-place">Friendly · Identidad institucional</span></span>
+      </a>
+      <p class="header-context">Activación de cuenta</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="security-layout">
+      <section class="context-panel" aria-labelledby="pageTitle">
+        <p class="eyebrow">Primer acceso · verificación nominal</p>
+        <h1 id="pageTitle">Tu cuenta empieza con controles claros.</h1>
+        <p class="lead">La invitación habilita un recorrido de una sola vez. El gobierno, el rol y las capacidades provienen del registro administrativo; esta pantalla no permite modificarlos.</p>
+        <ul class="boundary-list" aria-label="Controles de activación">
+          <li><strong>Código por canal autorizado</strong><span>Ingresalo manualmente. MuniControl no recibe códigos ni tokens desde la dirección del navegador.</span></li>
+          <li><strong>MFA para funciones sensibles</strong><span>Los perfiles privilegiados deben verificar un segundo factor antes de quedar activos.</span></li>
+          <li><strong>Sin contraseñas visibles</strong><span>La contraseña viaja únicamente al endpoint de identidad y nunca se guarda en el navegador.</span></li>
+        </ul>
+      </section>
+
+      <section class="card" id="activationCard" aria-labelledby="activationTitle">
+        <ol class="step-list" aria-label="Progreso de activación">
+          <li class="is-current" id="stepCode" aria-current="step">1 · Verificar código</li>
+          <li id="stepCredentials">2 · Proteger cuenta</li>
+          <li id="stepComplete">3 · Finalizar</li>
+        </ol>
+        <header class="card-head">
+          <h2 id="activationTitle">Activar cuenta institucional</h2>
+          <p id="activationDescription">Usá el código de un solo uso recibido por el canal institucional informado.</p>
+        </header>
+
+        <div class="card-body">
+          <div class="notice error" id="activationError" role="alert" aria-live="assertive" hidden></div>
+
+          <form id="codeForm" novalidate autocomplete="off">
+            <div class="field">
+              <label for="invitationCode">Código de invitación</label>
+              <input class="input code" id="invitationCode" name="invitationCode" type="password" maxlength="256" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" required aria-describedby="codeHelp">
+              <p class="help" id="codeHelp">El enlace de acceso es genérico. Si recibiste un enlace que contiene el código, no lo uses y comunicalo al administrador.</p>
+            </div>
+            <div class="button-row">
+              <a class="button quiet" href="login.html">Volver al acceso</a>
+              <button class="button primary" id="verifyCodeButton" type="submit">Verificar invitación</button>
+            </div>
+            <p class="status-line" id="codeStatus" role="status" aria-live="polite"></p>
+          </form>
+
+          <form id="credentialsForm" novalidate autocomplete="off" hidden>
+            <div class="notice success"><strong>Invitación verificada.</strong> El acceso permanece inactivo hasta completar este paso.</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="newPassword">Nueva contraseña</label>
+                <input class="input" id="newPassword" name="newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required aria-describedby="passwordHelp">
+                <p class="help" id="passwordHelp">Usá una frase de al menos 12 caracteres que no reutilices en otros servicios.</p>
+              </div>
+              <div class="field">
+                <label for="confirmPassword">Confirmar contraseña</label>
+                <input class="input" id="confirmPassword" name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required>
+              </div>
+              <div class="field full" id="mfaEnrollmentBlock" hidden>
+                <div class="notice warning"><strong>Segundo factor obligatorio.</strong> Agregá la clave en tu aplicación autenticadora y después ingresá el código vigente.</div>
+                <div class="manual-key">
+                  <strong>Clave de configuración manual</strong>
+                  <code id="manualMfaKey" aria-label="Clave manual de autenticación"></code>
+                  <p>No se descarga ni se copia automáticamente. La clave desaparecerá al salir o completar el proceso.</p>
+                </div>
+                <label for="activationTotp">Código de seis dígitos</label>
+                <input class="input code" id="activationTotp" name="activationTotp" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" aria-describedby="totpHelp">
+                <p class="help" id="totpHelp">Ingresá el código actual de tu aplicación autenticadora.</p>
+              </div>
+            </div>
+            <div class="button-row">
+              <button class="button quiet" id="cancelActivationButton" type="button">Cancelar de forma segura</button>
+              <button class="button primary" id="completeActivationButton" type="submit">Activar cuenta</button>
+            </div>
+            <p class="status-line" id="credentialsStatus" role="status" aria-live="polite"></p>
+          </form>
+
+          <section id="recoverySection" aria-labelledby="recoveryTitle" hidden>
+            <div class="notice warning"><strong id="recoveryTitle">Códigos de recuperación: única visualización.</strong> Guardalos fuera de este dispositivo. Cada código puede utilizarse una sola vez; MuniControl sólo conserva su verificación criptográfica.</div>
+            <ul class="recovery-codes" id="recoveryCodes" aria-label="Códigos de recuperación"></ul>
+            <label class="notice" style="display:block;margin-top:18px">
+              <input id="recoveryConfirmed" type="checkbox"> Confirmo que guardé los códigos en un lugar seguro.
+            </label>
+            <div class="button-row">
+              <button class="button primary" id="finishRecoveryButton" type="button" disabled>Continuar al portal</button>
+            </div>
+          </section>
+
+          <section id="completeSection" aria-labelledby="completeTitle" hidden>
+            <div class="notice success"><strong id="completeTitle">Cuenta activada.</strong> La sesión fue emitida por el servidor. El acceso efectivo se volverá a comprobar al abrir cada herramienta.</div>
+            <div class="button-row">
+              <a class="button" href="seguridad-cuenta.html">Revisar seguridad</a>
+              <a class="button primary" href="internal-dashboard.html">Abrir portal interno</a>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><span><strong>MuniControl</strong> · Activación institucional</span><span>Sin códigos, contraseñas ni tokens en URL o almacenamiento web</span></div></footer>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var IDENTITY_URL = '/api/internal-identity';
+    var REQUEST_TIMEOUT_MS = 16000;
+    var activationFlow = null;
+    var activationIdempotencyKey = '';
+    var recoveryValues = [];
+
+    var codeForm = document.getElementById('codeForm');
+    var credentialsForm = document.getElementById('credentialsForm');
+    var recoverySection = document.getElementById('recoverySection');
+    var completeSection = document.getElementById('completeSection');
+    var invitationCode = document.getElementById('invitationCode');
+    var verifyCodeButton = document.getElementById('verifyCodeButton');
+    var completeActivationButton = document.getElementById('completeActivationButton');
+    var newPassword = document.getElementById('newPassword');
+    var confirmPassword = document.getElementById('confirmPassword');
+    var activationTotp = document.getElementById('activationTotp');
+    var mfaEnrollmentBlock = document.getElementById('mfaEnrollmentBlock');
+    var manualMfaKey = document.getElementById('manualMfaKey');
+    var activationError = document.getElementById('activationError');
+
+    function setStep(active) {
+      ['stepCode', 'stepCredentials', 'stepComplete'].forEach(function (id, index) {
+        var item = document.getElementById(id);
+        var number = index + 1;
+        item.classList.toggle('is-current', number === active);
+        item.classList.toggle('is-complete', number < active);
+        if (number === active) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
+      });
+    }
+
+    function clearError() { activationError.hidden = true; activationError.textContent = ''; }
+    function showError(message) { activationError.textContent = message; activationError.hidden = false; activationError.focus(); }
+    function commandKey() {
+      if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw new Error('Este navegador no puede completar una operación segura.');
+      return window.crypto.randomUUID();
+    }
+    function errorMessage(error) {
+      if (error && error.code === 'IDENTITY_RATE_LIMITED') return 'Se alcanzó el límite de intentos. Esperá unos minutos antes de volver a probar.';
+      if (error && error.code === 'IDENTITY_VERSION_CONFLICT') return 'La invitación cambió durante el proceso. Volvé a iniciarlo con un código vigente.';
+      if (error && ['IDENTITY_CODE_INVALID_OR_EXPIRED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) return 'El código o el proceso ya no es válido. Solicitá una nueva emisión al administrador.';
+      if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos del segundo factor. El proceso fue bloqueado; iniciá nuevamente con una invitación vigente.';
+      if (error && error.code === 'IDENTITY_MFA_INVALID') return 'El código del segundo factor no es válido o ya venció.' + (Number.isSafeInteger(error.remainingAttempts) ? ' Quedan ' + error.remainingAttempts + ' intentos.' : '');
+      return 'No pudimos completar la activación de forma segura. Intentá nuevamente o contactá al administrador.';
+    }
+
+    async function requestIdentity(command, payload, options) {
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+      var headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+      if (options && options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+      var body = { command: command, payload: payload || {} };
+      if (options && Number.isSafeInteger(options.expectedVersion)) body.expectedVersion = options.expectedVersion;
+      try {
+        var response = await fetch(IDENTITY_URL, { method: 'POST', credentials: 'same-origin', headers: headers, body: JSON.stringify(body), signal: controller.signal });
+        var data = {};
+        var raw = await response.text();
+        if (raw) { try { data = JSON.parse(raw); } catch (_) { data = {}; } }
+        if (!response.ok) {
+          var error = new Error('identity_request_failed');
+          error.code = typeof data.code === 'string' ? data.code : '';
+          error.status = response.status;
+          var nextVersion = Number(data.expectedVersion);
+          var attempts = Number(data.remainingAttempts);
+          if (Number.isSafeInteger(nextVersion) && nextVersion > 0) error.expectedVersion = nextVersion;
+          if (Number.isSafeInteger(attempts) && attempts >= 0) error.remainingAttempts = attempts;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error && error.name === 'AbortError') {
+          var timeoutError = new Error('identity_timeout'); timeoutError.code = 'IDENTITY_TIMEOUT'; throw timeoutError;
+        }
+        throw error;
+      } finally { window.clearTimeout(timeout); }
+    }
+
+    function wipeFlow() {
+      activationFlow = null;
+      activationIdempotencyKey = '';
+      recoveryValues = [];
+      invitationCode.value = '';
+      newPassword.value = '';
+      confirmPassword.value = '';
+      activationTotp.value = '';
+      manualMfaKey.textContent = '';
+      document.getElementById('recoveryCodes').replaceChildren();
+    }
+
+    codeForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      clearError();
+      var code = invitationCode.value.trim();
+      if (!code) { showError('Ingresá el código recibido por el canal institucional.'); invitationCode.focus(); return; }
+      verifyCodeButton.disabled = true;
+      document.getElementById('codeStatus').textContent = 'Verificando invitación…';
+      try {
+        var result = await requestIdentity('begin_activation', { invitationCode: code });
+        invitationCode.value = '';
+        if (!result || typeof result.flowToken !== 'string' || !Number.isSafeInteger(Number(result.expectedVersion)) || !result.expiresAt) throw new Error('invalid_contract');
+        activationFlow = {
+          token: result.flowToken,
+          version: Number(result.expectedVersion),
+          expiresAt: result.expiresAt,
+          requiresMfa: result.requiresMfa === true,
+          manualKey: result.mfaEnrollment && typeof result.mfaEnrollment.manualKey === 'string' ? result.mfaEnrollment.manualKey : ''
+        };
+        if (activationFlow.requiresMfa && !activationFlow.manualKey) throw new Error('invalid_mfa_contract');
+        activationIdempotencyKey = commandKey();
+        mfaEnrollmentBlock.hidden = !activationFlow.requiresMfa;
+        activationTotp.required = activationFlow.requiresMfa;
+        manualMfaKey.textContent = activationFlow.manualKey;
+        codeForm.hidden = true;
+        credentialsForm.hidden = false;
+        setStep(2);
+        document.getElementById('activationDescription').textContent = 'Definí la contraseña y, cuando corresponda, verificá el segundo factor antes del vencimiento informado.';
+        document.getElementById('credentialsStatus').textContent = 'Proceso vigente hasta ' + new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(activationFlow.expiresAt)) + '.';
+        newPassword.focus();
+      } catch (error) {
+        invitationCode.value = '';
+        showError(errorMessage(error));
+      } finally {
+        verifyCodeButton.disabled = false;
+        document.getElementById('codeStatus').textContent = '';
+      }
+    });
+
+    credentialsForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      clearError();
+      if (!activationFlow || !activationFlow.token) { showError('El proceso de activación ya no está disponible. Volvé a verificar la invitación.'); return; }
+      if (newPassword.value.length < 12) { showError('La contraseña debe tener al menos 12 caracteres.'); newPassword.focus(); return; }
+      if (newPassword.value !== confirmPassword.value) { showError('Las contraseñas no coinciden.'); confirmPassword.focus(); return; }
+      var totp = activationTotp.value.trim();
+      if (activationFlow.requiresMfa && !/^\d{6}$/.test(totp)) { showError('Ingresá el código de seis dígitos de tu aplicación autenticadora.'); activationTotp.focus(); return; }
+      completeActivationButton.disabled = true;
+      document.getElementById('credentialsStatus').textContent = 'Activando la cuenta y registrando la sesión…';
+      try {
+        var payload = { flowToken: activationFlow.token, password: newPassword.value };
+        if (activationFlow.requiresMfa) payload.totpCode = totp;
+        var result = await requestIdentity('complete_activation', payload, { expectedVersion: activationFlow.version, idempotencyKey: activationIdempotencyKey });
+        var returnedCodes = Array.isArray(result.recoveryCodes) ? result.recoveryCodes.filter(function (value) { return typeof value === 'string' && value.length > 0; }) : [];
+        credentialsForm.hidden = true;
+        setStep(3);
+        activationFlow = null;
+        activationIdempotencyKey = '';
+        newPassword.value = ''; confirmPassword.value = ''; activationTotp.value = ''; manualMfaKey.textContent = '';
+        if (returnedCodes.length) {
+          recoveryValues = returnedCodes.slice();
+          var list = document.getElementById('recoveryCodes');
+          list.replaceChildren();
+          recoveryValues.forEach(function (value) { var item = document.createElement('li'); item.textContent = value; list.appendChild(item); });
+          recoverySection.hidden = false;
+          document.getElementById('recoveryConfirmed').focus();
+        } else {
+          completeSection.hidden = false;
+          completeSection.querySelector('a').focus();
+        }
+      } catch (error) {
+        if (error && error.code === 'IDENTITY_MFA_INVALID' && activationFlow && Number.isSafeInteger(error.expectedVersion)) {
+          activationFlow.version = error.expectedVersion;
+          activationIdempotencyKey = commandKey();
+        }
+        if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+          var lockedMessage = errorMessage(error);
+          wipeFlow();
+          credentialsForm.hidden = true; codeForm.hidden = false; setStep(1);
+          document.getElementById('activationDescription').textContent = 'Usá un nuevo código de un solo uso recibido por el canal institucional informado.';
+          showError(lockedMessage); invitationCode.focus(); return;
+        }
+        newPassword.value = ''; confirmPassword.value = ''; activationTotp.value = '';
+        showError(errorMessage(error));
+        newPassword.focus();
+      } finally {
+        completeActivationButton.disabled = false;
+        document.getElementById('credentialsStatus').textContent = '';
+      }
+    });
+
+    document.getElementById('cancelActivationButton').addEventListener('click', function () { wipeFlow(); window.location.replace('login.html'); });
+    document.getElementById('recoveryConfirmed').addEventListener('change', function (event) { document.getElementById('finishRecoveryButton').disabled = !event.target.checked; });
+    document.getElementById('finishRecoveryButton').addEventListener('click', function () {
+      recoveryValues = [];
+      document.getElementById('recoveryCodes').replaceChildren();
+      recoverySection.hidden = true;
+      completeSection.hidden = false;
+      completeSection.querySelector('a').focus();
+    });
+    window.addEventListener('pagehide', wipeFlow);
+    invitationCode.focus();
+  }());
+  </script>
+</body>
+</html>

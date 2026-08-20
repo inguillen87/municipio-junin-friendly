@@ -1,5 +1,6 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireInternalSession } from '../lib/internal-session.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
   InternalAdminError,
   applyInternalAdminCommand,
@@ -10,6 +11,12 @@ import {
 
 const MAX_BODY_BYTES = 16 * 1024;
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
+const PLATFORM_ADMIN_CAPABILITIES = Object.freeze([
+  'platform.tenants.manage',
+  'platform.crm.manage',
+  'platform.users.manage',
+  'platform.roles.manage',
+]);
 let cachedUrl = null;
 let cachedSqlPromise = null;
 
@@ -46,18 +53,37 @@ function send(res, status, payload) {
   return res.status(status).json(payload);
 }
 
+function trustedOrigin(env) {
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate) {
+    if (productionLike(env)) {
+      throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+    }
+    return '';
+  }
+  try { return new URL(candidate).origin; } catch {
+    throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+  }
+}
+
 function assertSameOrigin(req, env) {
   const origin = header(req, 'origin').trim();
+  const fetchSite = header(req, 'sec-fetch-site').trim().toLowerCase();
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
+    throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
+  }
   if (!origin) {
     if (productionLike(env)) throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_REQUIRED', 403, 'Origen requerido');
     return;
   }
-  let parsed;
-  try { parsed = new URL(origin); } catch {
+  const expected = trustedOrigin(env);
+  if (!expected) return;
+  let actual = '';
+  try { actual = new URL(origin).origin; } catch {
     throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
   }
-  const protocol = productionLike(env) ? 'https:' : 'http:';
-  if (parsed.protocol.toLowerCase() !== protocol || parsed.host.toLowerCase() !== header(req, 'host').toLowerCase()) {
+  if (actual !== expected) {
     throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
   }
 }
@@ -142,6 +168,13 @@ export async function getInternalAdminSql(env = process.env) {
 
 export function createInternalAdminHandler(dependencies = {}) {
   const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
+  const requireAccess = dependencies.requireCompatibleInternalAccess
+    ?? (dependencies.requireInternalSession
+      ? async (req, res) => {
+        const session = requireSession(req, res, dependencies.sessionOptions || {});
+        return session ? { mode: 'legacy', session, principal: null } : null;
+      }
+      : requireCompatibleInternalAccess);
   const getSql = dependencies.getInternalAdminSql ?? getInternalAdminSql;
   const loadView = dependencies.getInternalAdminView ?? getInternalAdminView;
   const applyCommand = dependencies.applyInternalAdminCommand ?? applyInternalAdminCommand;
@@ -160,8 +193,22 @@ export function createInternalAdminHandler(dependencies = {}) {
           throw new InternalAdminError('INTERNAL_ADMIN_JSON_REQUIRED', 415, 'Se requiere application/json');
         }
       }
-      const session = requireSession(req, res, dependencies.sessionOptions || {});
-      if (!session) return undefined;
+      const access = await requireAccess(req, res, {
+        env,
+        requiredCapabilities: PLATFORM_ADMIN_CAPABILITIES,
+        capabilityMode: 'any',
+        allowLegacy: false,
+        legacySessionOptions: dependencies.sessionOptions || {},
+      });
+      if (!access) return undefined;
+      if (access.mode === 'managed' && access.principal?.tenant) {
+        return send(res, 403, {
+          ok: false,
+          code: 'IDENTITY_PLATFORM_CONTEXT_REQUIRED',
+          error: 'Cambiá al contexto Plataforma para administrar municipios y usuarios',
+        });
+      }
+      const session = access.session;
       const sql = await getSql(env);
       if (method === 'GET') {
         const resource = queryValue(req, 'resource', 'bootstrap');

@@ -1,5 +1,6 @@
 import { getInternalSql } from '../lib/internal-neon.js';
-import { requireInternalSession } from '../lib/internal-session.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
 import {
   annualLeaveReference,
   getTitleViCatalog,
@@ -3452,68 +3453,88 @@ export async function employee(sql, req) {
   };
 }
 
-export default async function handler(req, res) {
-  if (String(req.method || 'GET').toUpperCase() !== 'GET') {
-    res.setHeader('Allow', 'GET');
-    return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
-  }
-  const session = requireInternalSession(req, res);
-  if (!session) return;
+export function createInternalDataHandler(dependencies = {}) {
+  const requireAccess = dependencies.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess;
+  const getSql = dependencies.getInternalSql ?? getInternalSql;
 
-  try {
-    const resource = queryValue(req, 'resource', 'summary').toLowerCase();
-    if (resource === 'budgetapproved') {
-      const result = budgetApproved();
-      return send(res, result.status, result.payload);
+  return async function handler(req, res) {
+    if (String(req.method || 'GET').toUpperCase() !== 'GET') {
+      res.setHeader('Allow', 'GET');
+      return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
-    const sql = await getInternalSql();
-    if (resource === 'summary') return send(res, 200, await summary(sql));
-    if (resource === 'structure') return send(res, 200, await structure(sql));
-    if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));
-    if (resource === 'payrollcontrol') return send(res, 200, await payrollControl(sql));
-    if (resource === 'absenceanalytics') {
-      const result = await absenceAnalytics(sql, req);
-      return send(res, result.status, result.payload);
+    try {
+      const resource = queryValue(req, 'resource', 'summary').toLowerCase();
+      const requiredCapabilities = capabilitiesForInternalDataResource(resource);
+      const access = await requireAccess(req, res, {
+        env: dependencies.env ?? process.env,
+        requiredCapabilities: requiredCapabilities ?? [],
+        requireDataPlaneReady: true,
+        requireCertifiedDataBinding: true,
+        allowLegacy: false,
+      });
+      if (!access) return undefined;
+      if (!requiredCapabilities) {
+        return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
+      }
+      if (resource === 'budgetapproved') {
+        const result = budgetApproved();
+        return send(res, result.status, result.payload);
+      }
+      const sql = await getSql();
+      if (resource === 'summary') return send(res, 200, await summary(sql));
+      if (resource === 'structure') return send(res, 200, await structure(sql));
+      if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));
+      if (resource === 'payrollcontrol') return send(res, 200, await payrollControl(sql));
+      if (resource === 'absenceanalytics') {
+        const result = await absenceAnalytics(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'absenceevents') {
+        const result = await absenceEvents(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'leavenormative') {
+        const result = await leaveNormative(sql);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'leavepreview') {
+        const result = await leavePreview(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'managementanalytics') {
+        const result = await managementAnalytics(sql);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'qualityoverview') {
+        const result = await qualityOverview(sql);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'qualityissues') {
+        const result = await qualityIssues(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'importlineage') {
+        const result = await importLineage(sql);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'employees') {
+        const result = await employees(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'employee') {
+        const result = await employee(sql, req);
+        return send(res, result.status, result.payload);
+      }
+      return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      const errorCode = typeof error?.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(error.code)
+        ? error.code
+        : 'INTERNAL_DATA_ERROR';
+      console.error('[internal-data]', { name: errorName, code: errorCode });
+      return send(res, 503, { ok: false, code: 'INTERNAL_DATA_UNAVAILABLE', error: 'La base interna no está disponible.' });
     }
-    if (resource === 'absenceevents') {
-      const result = await absenceEvents(sql, req);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'leavenormative') {
-      const result = await leaveNormative(sql);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'leavepreview') {
-      const result = await leavePreview(sql, req);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'managementanalytics') {
-      const result = await managementAnalytics(sql);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'qualityoverview') {
-      const result = await qualityOverview(sql);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'qualityissues') {
-      const result = await qualityIssues(sql, req);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'importlineage') {
-      const result = await importLineage(sql);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'employees') {
-      const result = await employees(sql, req);
-      return send(res, result.status, result.payload);
-    }
-    if (resource === 'employee') {
-      const result = await employee(sql, req);
-      return send(res, result.status, result.payload);
-    }
-    return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
-  } catch (error) {
-    console.error('[internal-data]', error instanceof Error ? error.message : 'error desconocido');
-    return send(res, 503, { ok: false, code: 'INTERNAL_DATA_UNAVAILABLE', error: 'La base interna no está disponible.' });
-  }
+  };
 }
+
+export default createInternalDataHandler();

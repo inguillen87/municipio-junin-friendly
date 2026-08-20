@@ -5,6 +5,7 @@
   "functions": {
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },
+    "api/internal-identity.js": { "maxDuration": 20 },
     "api/internal-data.js": { "maxDuration": 20 },
     "api/internal-actions.js": { "maxDuration": 20 },
     "api/internal-admin.js": { "maxDuration": 20 },
@@ -41,6 +42,8 @@
     { "source": "/rrhh-data/:path*", "destination": "/api/friendly-policy" },
 
     { "source": "/login", "destination": "/login.html" },
+    { "source": "/activar-cuenta", "destination": "/activar-cuenta.html" },
+    { "source": "/seguridad-cuenta", "destination": "/seguridad-cuenta.html" },
     { "source": "/internal", "destination": "/internal-dashboard.html" },
     { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
     { "source": "/centro-acciones", "destination": "/centro-acciones.html" },
@@ -136,6 +139,26 @@
     },
     {
       "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/activar-cuenta",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/activar-cuenta.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/seguridad-cuenta",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/seguridad-cuenta.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/assets/identity-security.css",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

@@ -38,6 +38,10 @@ const NEVER_INTERCEPT_PREFIXES = Object.freeze([
 const NEVER_INTERCEPT_PATHS = new Set([
   '/login',
   '/login.html',
+  '/activar-cuenta',
+  '/activar-cuenta.html',
+  '/seguridad-cuenta',
+  '/seguridad-cuenta.html',
   '/rrhh',
   '/rrhh-sync',
   '/estructura',
@@ -68,6 +72,7 @@ const NEVER_INTERCEPT_PATHS = new Set([
   '/centro-ayuda.html',
   '/ayuda',
   '/assets/internal-guide.js',
+  '/assets/identity-security.css',
   '/assets/product-guidance.js',
   '/assets/mendoza-title-vi.js',
   '/assets/junin-budget-2026.js',
