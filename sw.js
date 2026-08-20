@@ -48,6 +48,8 @@ const NEVER_INTERCEPT_PATHS = new Set([
   '/integracion-datos.html',
   '/nomina-control',
   '/nomina-control.html',
+  '/centro-acciones',
+  '/centro-acciones.html',
   '/gestion-comparativa',
   '/gestion-comparativa.html',
   '/presupuesto-control',

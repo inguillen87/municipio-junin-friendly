@@ -18,6 +18,7 @@ database/
 !scripts/extract_grh_core.py
 !scripts/canonical-promote-current-grh.sql
 !scripts/migrations/002-canonical-integration.sql
+!scripts/migrations/003-action-center.sql
 data-rrhh/
 prisma/
 css/
@@ -30,6 +31,7 @@ test_prisma.js
 !login.html
 !friendly-dashboard.html
 !internal-dashboard.html
+!centro-acciones.html
 !datos-personales.html
 !modulos.html
 !reportes-rrhh.html

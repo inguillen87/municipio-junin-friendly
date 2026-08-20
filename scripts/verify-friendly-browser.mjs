@@ -15,6 +15,7 @@ if ((!internalEmail || !internalPassword) && credentialFile) {
 }
 const navigationTimeout = Number(process.env.QA_NAVIGATION_TIMEOUT_MS || 20_000);
 const nominalLicenseQuery = (process.env.QA_NOMINAL_LICENSE_QUERY || '').trim().slice(0, 120);
+const actionsEmail = (process.env.QA_ACTIONS_EMAIL || '').trim().slice(0, 254);
 const canIssueSession = Boolean((process.env.INTERNAL_SESSION_SECRET || '').trim());
 const hasCredentials = Boolean(internalEmail && internalPassword);
 
@@ -72,7 +73,10 @@ function isOwnUrl(value) {
 function isInternalApi(value) {
   try {
     const pathname = new URL(value, baseUrl).pathname;
-    return pathname === '/api/internal-auth' || pathname === '/api/internal-data' || pathname === '/api/internal-assistant';
+    return pathname === '/api/internal-auth'
+      || pathname === '/api/internal-data'
+      || pathname === '/api/internal-actions'
+      || pathname === '/api/internal-assistant';
   } catch {
     return false;
   }
@@ -83,7 +87,7 @@ async function newPage(viewport, options = {}) {
   if (options.authenticated === true && !hasCredentials) {
     const token = issueInternalSessionToken({
       id: 'qa-browser-session',
-      email: 'qa-browser@local.invalid',
+      email: actionsEmail || 'qa-browser@local.invalid',
       displayName: 'QA navegador',
       role: 'qa',
     });
@@ -286,6 +290,9 @@ async function verifyAnonymousInternal() {
     const dataResponse = await context.request.get(`${baseUrl}/api/internal-data`);
     assert.equal(dataResponse.status(), 401, 'La API nominal debe rechazar el acceso anonimo');
 
+    const actionsResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap`);
+    assert.equal(actionsResponse.status(), 401, 'La API de acciones debe rechazar el acceso anonimo');
+
     const assistantResponse = await context.request.post(`${baseUrl}/api/internal-assistant`, {
       data: { message: 'dotación' },
     });
@@ -299,6 +306,14 @@ async function verifyAnonymousInternal() {
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion interna anonima');
     assertNoBrowserIssues('Redireccion interna anonima');
+
+    await page.goto(`${baseUrl}/centro-acciones`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'centro-acciones.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de acciones anonima');
 
     await page.goto(`${baseUrl}/estructura`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => /\/login(?:\.html)?$/.test(url.pathname));
@@ -399,6 +414,48 @@ async function verifyAuthenticatedInternal() {
     await page.keyboard.press('Escape');
     assert.equal(await guideTrigger.evaluate((button) => button === document.activeElement), true, 'El recorrido debe devolver el foco al disparador');
     await assertPageHealthy(page, 'Portal interno desktop');
+
+    if (actionsEmail || hasCredentials) {
+      const actionsBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap`);
+      assert.equal(actionsBootstrapResponse.status(), 200, 'Centro de acciones debe aceptar una identidad DB-authoritative');
+      const actionsBootstrap = await actionsBootstrapResponse.json();
+      const actionCapabilities = new Set(actionsBootstrap.principal?.capabilities || []);
+      const actionSubjects = actionsBootstrap.options?.subjects || [];
+      const actionReasons = actionsBootstrap.options?.reasons || [];
+
+      await page.goto(`${baseUrl}/centro-acciones`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#appShell:not([hidden])');
+      await page.waitForFunction(() => document.querySelector('#actionLoading')?.hidden === true);
+      assert.equal(await page.locator('#actionError').isHidden(), true, 'La bandeja de acciones no debe degradar a error');
+      const canCreateAction = [
+        'action.self.create', 'action.area.create', 'action.all.manage',
+      ].some((capability) => actionCapabilities.has(capability));
+      if (canCreateAction && actionSubjects.length && actionReasons.length) {
+        assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con sujeto, motivo y capability explícitos');
+        await page.locator('#createActionButton').click();
+        await page.waitForSelector('#actionWizard[open]');
+        assert.equal(await page.locator('#actionLeaveType option').count() > 1, true, 'El catálogo GRH debe alimentar el selector de licencias');
+        await page.locator('#closeWizard').click();
+      }
+      const firstAction = page.locator('#actionRows [data-open-action]').first();
+      if (await firstAction.count()) {
+        await firstAction.click();
+        await page.waitForSelector('#actionDialog[open]');
+        await page.waitForFunction(() => document.querySelector('#actionDialogBody')?.getAttribute('aria-busy') === 'false');
+        const timelineAdapted = await page.locator('#actionDialogBody .timeline').evaluate((timeline) => (
+          timeline.querySelectorAll('li').length > 0
+          && !/Actividad registrada\s*Actor registrado/i.test(timeline.innerText)
+        ));
+        assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
+        await page.locator('#closeActionDialog').click();
+      }
+      await assertPageHealthy(page, 'Centro de acciones desktop');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await assertPageHealthy(page, 'Centro de acciones mobile');
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#appShell:not([hidden])');
+    }
 
     await page.locator('[data-view="legajos"]').click();
     await page.waitForSelector('#employeeRows [data-legajo]');
@@ -811,7 +868,7 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
-    assert.equal(await page.locator('#moduleGrid .module-card').count(), 14, 'El centro debe explicar las catorce áreas visibles');
+    assert.equal(await page.locator('#moduleGrid .module-card').count(), 15, 'El centro debe explicar las quince áreas visibles');
     assert.equal(await page.locator('#routeList [data-route]').count(), 6, 'El centro debe ofrecer recorridos por función');
     await page.locator('[data-progress-id="home"]').check();
     assert.match(await page.locator('#progressText').innerText(), /1 de 5/);
@@ -846,7 +903,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
-  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + gestiones + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
+  console.log('Friendly browser QA: OK (plataforma pública + portal nominal + acciones + gestiones + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();
 }

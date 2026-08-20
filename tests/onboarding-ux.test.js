@@ -12,7 +12,7 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
   assert.match(html, /login\.html\?next=centro-ayuda\.html/);
   assert.match(html, /No modifica permisos|no roles de seguridad/i);
   assert.match(html, /no presume un organigrama normativo/i);
-  assert.equal((html.match(/class="module-card"/g) || []).length, 14);
+  assert.equal((html.match(/class="module-card"/g) || []).length, 15);
   assert.equal((html.match(/class="route-card"/g) || []).length, 6);
   assert.equal((html.match(/data-progress-id=/g) || []).length, 5);
   assert.match(html, /id="assistantHelpLink"/);
@@ -25,9 +25,9 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
 });
 
 test('el contrato de aprendizaje cubre la navegación, las tareas y el glosario vigentes', () => {
-  assert.equal(SECTION_CATALOG.length, 13);
-  assert.equal(TASK_CATALOG.length, 12);
-  assert.equal(GLOSSARY.length, 14);
+  assert.equal(SECTION_CATALOG.length, 14);
+  assert.equal(TASK_CATALOG.length, 13);
+  assert.equal(GLOSSARY.length, 15);
   assert.equal(new Set(SECTION_CATALOG.map((section) => section.id)).size, SECTION_CATALOG.length);
   assert.equal(new Set(TASK_CATALOG.map((task) => task.id)).size, TASK_CATALOG.length);
   for (const task of TASK_CATALOG) assert.ok(SECTION_CATALOG.some((section) => section.id === task.sectionId), `tarea huérfana ${task.id}`);
@@ -46,17 +46,31 @@ test('la guía contextual aísla progreso por sesión y cumple el contrato modal
   assert.match(guide, /data-mc-open-guide/);
   assert.match(guide, /target\.querySelector\('\.mc-explain-button'\)/);
   assert.match(guide, /budget:\s*\{[\s\S]*?sectionId:\s*'presupuesto'/);
+  assert.match(guide, /actions:\s*\{[\s\S]*?sectionId:\s*'acciones'/);
   assert.match(guide, /presupuesto-control'[\s\S]*?return 'budget'/);
   assert.match(guide, /\['\.execution-panel', 'Ejecución pendiente'/);
   assert.doesNotMatch(guide, /documento|cuil|domicilio|salario/i, 'la persistencia de ayuda no debe modelar PII');
 });
 
 test('todas las vistas internas principales cargan una sola guía compartida', () => {
-  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
+  for (const file of ['internal-dashboard.html', 'centro-acciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
     const html = read(file);
     assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
     assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);
   }
+});
+
+test('el Centro de acciones es descubrible y conserva límites transaccionales explícitos', () => {
+  for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'centro-ayuda.html']) {
+    assert.match(read(file), /href="centro-acciones\.html"[^>]*>[\s\S]*?Centro de acciones[\s\S]*?<\/a>/, `${file} debe enlazar Centro de acciones`);
+  }
+
+  const actions = read('centro-acciones.html');
+  assert.match(actions, /data-mc-page="actions"/);
+  assert.match(actions, /href="centro-acciones\.html"\s+aria-current="page"/);
+  assert.match(actions, /login\.html\?next=centro-acciones\.html/);
+  assert.match(actions, /no calcula|no calculable|sin supuestos/i);
+  assert.match(actions, /assets\/internal-guide\.js/);
 });
 
 test('el presupuesto aprobado es descubrible desde las herramientas internas', () => {

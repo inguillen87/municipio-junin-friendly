@@ -12,6 +12,7 @@ const shellFiles = [
   'reportes-rrhh.html',
   'calidad-datos.html',
   'internal-dashboard.html',
+  'centro-acciones.html',
   'estructura.html',
   'integracion-datos.html',
   'nomina-control.html',

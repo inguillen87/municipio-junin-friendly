@@ -6,6 +6,7 @@
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },
     "api/internal-data.js": { "maxDuration": 20 },
+    "api/internal-actions.js": { "maxDuration": 20 },
     "api/internal-assistant.js": { "maxDuration": 25 }
   },
   "rewrites": [
@@ -41,6 +42,7 @@
     { "source": "/login", "destination": "/login.html" },
     { "source": "/internal", "destination": "/internal-dashboard.html" },
     { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
+    { "source": "/centro-acciones", "destination": "/centro-acciones.html" },
     { "source": "/modulos", "destination": "/modulos.html" },
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
     { "source": "/calidad-datos", "destination": "/calidad-datos.html" },
@@ -144,6 +146,14 @@
     },
     {
       "source": "/internal-dashboard.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/centro-acciones",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/centro-acciones.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

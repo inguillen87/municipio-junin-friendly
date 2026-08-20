@@ -5,7 +5,7 @@
   var PAGE_KEY = document.body.getAttribute('data-mc-page') || inferPage();
   var PAGES = {
     portal: {
-      sectionId: 'inicio', taskSectionIds: ['personas', 'ausentismo', 'calidad'], title: 'Portal interno',
+      sectionId: 'inicio', taskSectionIds: ['personas', 'acciones', 'ausentismo', 'calidad'], title: 'Portal interno',
       tour: [
         ['.primary-nav', 'Recorrido principal', 'Estas son las áreas operativas. La sección activa permanece visible también en móvil.'],
         ['.suite-links', 'Herramientas de análisis', 'Ausentismo, calidad y reportes complementan la operación sin mezclar funciones.'],
@@ -60,6 +60,22 @@
         ['.notice', 'Estado de corrida', 'Evita tratar una preliquidación como resultado financiero definitivo.'],
         ['#reconciliationTitle', 'Conciliación', 'Comprueba que los totales explícitos de GRH cierren dentro de tolerancia.'],
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
+      ]
+    },
+    actions: {
+      sectionId: 'acciones', title: 'Centro de acciones',
+      tour: [
+        ['.page-head', 'Alcance de la sesión', 'Confirmá las capacidades vigentes antes de crear, revisar o decidir una solicitud.'],
+        ['#summaryMetrics', 'Bandeja operativa', 'Los indicadores resumen únicamente los casos visibles para tu alcance actual.'],
+        ['#actionFilters', 'Filtros de trabajo', 'Acotá la bandeja sin incluir datos personales en la URL ni en el almacenamiento local.'],
+        ['#actionQueue', 'Solicitudes', 'Cada caso conserva estado, versión, responsable y próxima acción permitida.'],
+        ['#actionDialog', 'Detalle e historial', 'La línea de tiempo es inmutable; una corrección se registra como un nuevo evento.'],
+        ['#actionWizard', 'Nueva solicitud', 'El asistente de carga separa lo solicitado de cualquier saldo, jornada o impacto salarial todavía no homologado.']
+      ],
+      explain: [
+        ['#summaryMetrics', 'Resumen operativo', 'Cuenta solicitudes dentro del alcance de la sesión, no toda la administración.'],
+        ['#actionQueue', 'Bandeja', 'Permite continuar sólo con los comandos autorizados y la versión vigente del caso.'],
+        ['#actionWizard', 'Solicitud de licencia', 'Registra días o minutos solicitados; no infiere horas trabajadas, saldo ni liquidación.']
       ]
     },
     management: {
@@ -180,6 +196,7 @@
 
   function inferPage() {
     var path = window.location.pathname.toLowerCase();
+    if (path.indexOf('centro-acciones') >= 0) return 'actions';
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';

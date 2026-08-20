@@ -1,0 +1,1539 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="same-origin">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#123247">
+  <title>Centro de acciones | MuniControl</title>
+  <meta name="description" content="Bandeja interna de solicitudes y decisiones trazables de la Municipalidad de Junín.">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #123247;
+      --navy-2: #1b465e;
+      --navy-3: #0b2637;
+      --teal: #0f766e;
+      --teal-dark: #0b5b55;
+      --canvas: #eef2f0;
+      --surface: #ffffff;
+      --surface-2: #f6f8f7;
+      --surface-3: #edf4f2;
+      --ink: #132e3d;
+      --muted: #5f7480;
+      --line: #d5dfe1;
+      --line-strong: #aebfc4;
+      --amber: #a8670b;
+      --amber-bg: #fff7e7;
+      --red: #a33d3d;
+      --red-bg: #fff1f0;
+      --green: #19705e;
+      --green-bg: #edf8f4;
+      --blue: #245c7a;
+      --blue-bg: #edf5f9;
+      --shadow: 0 16px 38px rgba(14, 41, 55, .12);
+      --sidebar: 258px;
+      --radius: 6px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--canvas); scroll-behavior: smooth; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; color: var(--ink); background: var(--canvas); font-size: 14px; line-height: 1.45; }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid rgba(15, 118, 110, .25);
+      outline-offset: 2px;
+    }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+    .skip-link { position: fixed; z-index: 10000; top: 8px; left: 8px; padding: 10px 14px; color: #fff; background: var(--navy); border-radius: 4px; transform: translateY(-160%); }
+    .skip-link:focus { transform: translateY(0); }
+
+    .auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .gate-card { width: min(430px, 100%); padding: 30px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .gate-mark { width: 54px; height: 54px; display: inline-grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-family: Georgia, serif; font-size: 26px; }
+    .gate-card h1 { margin: 18px 0 8px; color: var(--navy); font-size: 25px; letter-spacing: -.02em; }
+    .gate-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .spinner { width: 28px; height: 28px; margin: 22px auto 0; border: 3px solid #dbe4e6; border-top-color: var(--teal); border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+    .sidebar { position: sticky; z-index: 80; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 22px 16px; overflow-y: auto; color: #dce8ed; background: var(--navy); border-right: 1px solid #274c61; }
+    .brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 20px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .brand-home { display: flex; align-items: center; gap: 11px; min-width: 0; color: #fff; text-decoration: none; }
+    .brand-mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; color: var(--navy); background: #f7f4eb; border-radius: 3px; font-family: Georgia, serif; font-size: 23px; }
+    .brand-copy { min-width: 0; }
+    .brand-copy strong, .brand-copy span { display: block; }
+    .brand-copy strong { font-size: 14px; }
+    .brand-copy span { margin-top: 2px; color: #a9c2cd; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .menu-close { width: 44px; height: 44px; display: none; place-items: center; flex: 0 0 auto; color: #fff; background: transparent; border: 1px solid #557486; border-radius: 4px; cursor: pointer; font-size: 22px; }
+    .nav-wrap { display: grid; gap: 22px; margin-top: 20px; }
+    .nav-group { display: grid; gap: 4px; }
+    .nav-label { margin: 0 9px 7px; color: #8fabb8; font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    .nav-link { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: #c7d7de; border: 1px solid transparent; border-radius: 4px; text-decoration: none; font-size: 13px; font-weight: 720; }
+    .nav-link:hover { color: #fff; border-color: #3d6073; background: rgba(255,255,255,.035); }
+    .nav-link[aria-current="page"] { color: var(--navy-3); background: #f8f5ec; border-color: #f8f5ec; }
+    .nav-code { width: 27px; height: 27px; display: inline-grid; place-items: center; flex: 0 0 auto; color: #8fabb8; border: 1px solid currentColor; border-radius: 3px; font-size: 10px; font-weight: 850; letter-spacing: .03em; }
+    .nav-link[aria-current="page"] .nav-code { color: var(--teal); }
+    .nav-badge { min-width: 22px; margin-left: auto; padding: 2px 6px; color: #fff; background: #337669; border-radius: 999px; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .sidebar-foot { margin-top: auto; padding: 16px 10px 2px; color: #9fb7c2; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; line-height: 1.5; }
+    .sidebar-foot strong { display: block; margin-bottom: 3px; color: #fff; }
+    .nav-backdrop { display: none; }
+
+    .workspace { min-width: 0; }
+    .topbar { position: sticky; z-index: 55; top: 0; min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 11px 26px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(10px); }
+    .topbar-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .topbar-context { min-width: 0; }
+    .menu-button { width: 44px; height: 44px; display: none; place-items: center; flex: 0 0 auto; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-size: 18px; }
+    .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .crumb a { color: var(--teal-dark); }
+    .top-title { display: block; margin-top: 2px; overflow: hidden; color: var(--navy); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-actions { display: flex; align-items: center; gap: 9px; }
+    .session { max-width: 230px; display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 9px; align-items: center; padding: 5px 9px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 4px; }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--navy-2); border-radius: 3px; font-size: 10px; font-weight: 850; }
+    .session strong, .session span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session strong { color: var(--navy); font-size: 12px; }
+    .session span { margin-top: 2px; color: var(--muted); font-size: 11px; }
+
+    .button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; color: var(--navy); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 800; text-decoration: none; }
+    .button:hover:not(:disabled) { border-color: var(--navy-2); background: var(--surface-2); }
+    .button.primary { color: #fff; background: var(--teal); border-color: var(--teal); }
+    .button.primary:hover:not(:disabled) { background: var(--teal-dark); border-color: var(--teal-dark); }
+    .button.danger { color: var(--red); border-color: #d9afac; }
+    .button.danger:hover:not(:disabled) { background: var(--red-bg); }
+    .button.quiet { min-height: 44px; padding: 8px 10px; background: transparent; }
+    .button:disabled { color: #81929a; background: #edf1f2; border-color: #d9e0e2; cursor: not-allowed; opacity: .75; }
+
+    .main { padding: 30px clamp(18px, 3.4vw, 46px) calc(52px + var(--safe-bottom)); }
+    .content { width: min(1500px, 100%); margin: 0 auto; }
+    .page-head { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 28px; align-items: end; padding-bottom: 24px; border-bottom: 1px solid var(--line-strong); }
+    .eyebrow { margin: 0 0 8px; color: var(--teal-dark); font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--navy); font-size: clamp(30px, 4.6vw, 47px); font-weight: 790; line-height: 1.04; letter-spacing: -.035em; }
+    .page-lead { max-width: 790px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .head-actions { display: flex; gap: 9px; }
+
+    .permission-strip { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: center; margin: 18px 0; padding: 14px 16px; color: #244351; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: var(--radius); }
+    .permission-strip strong { display: block; color: var(--navy); font-size: 13px; }
+    .permission-strip p { margin: 3px 0 0; color: #526b75; font-size: 12px; line-height: 1.45; }
+    .source-chip { max-width: 330px; padding: 7px 10px; overflow: hidden; color: var(--teal-dark); background: #fff; border: 1px solid #b9d2ce; border-radius: 4px; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 11px; margin: 18px 0; }
+    .metrics[hidden] { display: none; }
+    .metric { min-height: 118px; padding: 17px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--line-strong); border-radius: var(--radius); }
+    .metric[data-tone="urgent"] { border-top-color: var(--amber); }
+    .metric[data-tone="attention"] { border-top-color: var(--red); }
+    .metric[data-tone="done"] { border-top-color: var(--green); }
+    .metric span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 9px; color: var(--navy); font-size: 30px; font-weight: 790; font-variant-numeric: tabular-nums; line-height: 1; }
+    .metric small { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+
+    .queue-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .queue-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 19px 20px 15px; border-bottom: 1px solid var(--line); }
+    .queue-head h2 { margin: 0; color: var(--navy); font-size: 20px; letter-spacing: -.02em; }
+    .queue-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .view-tabs { display: flex; gap: 4px; padding: 7px; overflow-x: auto; background: var(--surface-2); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+    .view-tab { min-height: 44px; padding: 8px 12px; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .view-tab[aria-selected="true"] { color: var(--navy); background: #fff; border-color: var(--line-strong); }
+    .filters { display: grid; grid-template-columns: minmax(190px,1.6fr) repeat(2,minmax(125px,.7fr)) auto; gap: 10px; align-items: end; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+    .field { min-width: 0; }
+    .field label, .field-label { display: block; margin-bottom: 5px; color: var(--navy); font-size: 11px; font-weight: 800; }
+    .input, .select, .textarea { width: 100%; min-height: 44px; padding: 10px; color: var(--ink); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 13px; }
+    .input:disabled, .select:disabled, .textarea:disabled { color: #536971; background: #edf1f2; border-color: #d4dddf; cursor: not-allowed; opacity: 1; }
+    .textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
+    .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .field-error { display: block; margin-top: 5px; color: var(--red); font-size: 11px; font-weight: 700; }
+    .filter-actions { display: flex; gap: 7px; }
+    .queue-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 20px; color: var(--muted); font-size: 12px; }
+    .queue-meta strong { color: var(--navy); }
+    .table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--navy); background: var(--surface-2); font-size: 11px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    td { color: #2c4653; font-size: 13px; }
+    tbody tr[data-action-row] { cursor: pointer; }
+    tbody tr[data-action-row]:hover, tbody tr[data-action-row]:focus-within { background: #f7faf9; }
+    .cell-title { display: block; color: var(--navy); font-size: 13px; font-weight: 800; }
+    .cell-sub { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .open-row { min-height: 44px; padding: 8px 10px; }
+    .state-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 5px 8px; color: #36515f; background: #eef2f3; border: 1px solid #cfdadc; border-radius: 999px; font-size: 11px; font-weight: 850; white-space: nowrap; }
+    .state-pill::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; background: #71868f; border-radius: 50%; }
+    .state-pill.is-pending { color: #7a500e; background: var(--amber-bg); border-color: #e4c68e; }
+    .state-pill.is-pending::before { background: var(--amber); }
+    .state-pill.is-approved { color: #155d4e; background: var(--green-bg); border-color: #a9d6c9; }
+    .state-pill.is-approved::before { background: var(--green); }
+    .state-pill.is-rejected { color: #883333; background: var(--red-bg); border-color: #dfb0ad; }
+    .state-pill.is-rejected::before { background: var(--red); }
+    .state-pill.is-progress { color: #235974; background: var(--blue-bg); border-color: #b7d1df; }
+    .state-pill.is-progress::before { background: var(--blue); }
+    .priority { display: inline-flex; align-items: center; gap: 5px; font-weight: 750; }
+    .priority::before { content: ""; width: 7px; height: 7px; background: #71868f; border-radius: 2px; }
+    .priority.high::before, .priority.urgent::before { background: var(--red); }
+    .priority.medium::before { background: var(--amber); }
+    .empty-state, .loading-state, .error-state { margin: 16px 20px 20px; padding: 30px 20px; text-align: center; background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+    .empty-state strong, .loading-state strong, .error-state strong { display: block; color: var(--navy); font-size: 13px; }
+    .empty-state p, .loading-state p, .error-state p { max-width: 620px; margin: 6px auto 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .error-state { color: var(--red); background: var(--red-bg); border-style: solid; border-color: #dfb0ad; }
+    .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 13px 20px; border-top: 1px solid var(--line); }
+    .pagination span { color: var(--muted); font-size: 11px; }
+
+    dialog { width: min(960px, calc(100vw - 34px)); max-width: 960px; max-height: calc(100dvh - 34px); padding: 0; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 28px 80px rgba(9,30,43,.28); }
+    dialog::backdrop { background: rgba(6,25,37,.58); backdrop-filter: blur(2px); }
+    .dialog-shell { max-height: calc(100dvh - 36px); display: flex; flex-direction: column; }
+    .dialog-head { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px 22px; background: #fff; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 3px 0 0; color: var(--navy); font-size: 23px; letter-spacing: -.025em; }
+    .dialog-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .dialog-close { width: 44px; height: 44px; padding: 0; flex: 0 0 auto; font-size: 21px; }
+    .dialog-body { min-height: 0; padding: 20px 22px calc(24px + var(--safe-bottom)); overflow-y: auto; }
+    .detail-banner { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 16px; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: var(--radius); }
+    .detail-banner strong { display: block; color: var(--navy); font-size: 14px; }
+    .detail-banner p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .detail-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+    .detail-section { margin-top: 14px; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .detail-section:first-child { margin-top: 0; }
+    .detail-section h3 { margin: 0; color: var(--navy); font-size: 15px; }
+    .section-copy { margin: 4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .facts { display: grid; gap: 0; margin: 0; }
+    .facts > div { display: grid; grid-template-columns: minmax(120px,.45fr) minmax(0,1fr); gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .facts > div:last-child { border-bottom: 0; }
+    .facts dt { color: var(--muted); font-size: 12px; }
+    .facts dd { margin: 0; overflow-wrap: anywhere; color: var(--navy); font-size: 13px; font-weight: 750; }
+    .gate-list, .evidence-list, .timeline { margin: 0; padding: 0; list-style: none; }
+    .gate-list li { position: relative; margin-top: 8px; padding: 10px 11px 10px 31px; color: #644a1f; background: var(--amber-bg); border: 1px solid #e8ce9e; border-radius: 4px; font-size: 12px; line-height: 1.45; }
+    .gate-list li::before { content: "!"; position: absolute; top: 9px; left: 11px; width: 14px; height: 14px; display: grid; place-items: center; color: #fff; background: var(--amber); border-radius: 50%; font-size: 8px; font-weight: 900; }
+    .evidence-list li { margin-top: 8px; padding: 10px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .evidence-list strong, .evidence-list span { display: block; }
+    .evidence-list strong { color: var(--navy); font-size: 13px; }
+    .evidence-list span { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .timeline { position: relative; padding-left: 18px; }
+    .timeline::before { content: ""; position: absolute; top: 8px; bottom: 8px; left: 5px; width: 1px; background: var(--line-strong); }
+    .timeline li { position: relative; padding: 0 0 17px 10px; }
+    .timeline li:last-child { padding-bottom: 0; }
+    .timeline li::before { content: ""; position: absolute; top: 4px; left: -17px; width: 9px; height: 9px; background: #fff; border: 2px solid var(--teal); border-radius: 50%; }
+    .timeline strong { display: block; color: var(--navy); font-size: 13px; }
+    .timeline time, .timeline span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .command-panel { margin-top: 15px; padding: 15px; background: var(--surface-3); border: 1px solid #bdd5d1; border-radius: var(--radius); }
+    .command-panel h3 { margin: 0; color: var(--navy); font-size: 15px; }
+    .command-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .decision-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid #bdd5d1; }
+    .checkbox { display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 9px; align-items: start; margin-top: 10px; color: #36515f; font-size: 12px; line-height: 1.45; }
+    .checkbox input { width: 17px; height: 17px; margin: 0; accent-color: var(--teal); }
+    .decision-warning { margin: 10px 0 0; padding: 10px; color: #624713; background: var(--amber-bg); border-left: 3px solid var(--amber); font-size: 12px; line-height: 1.45; }
+
+    .wizard-dialog { width: min(780px, calc(100vw - 34px)); max-width: 780px; }
+    .stepper { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-bottom: 18px; }
+    .step { min-height: 44px; display: flex; align-items: center; gap: 7px; padding: 8px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; font-size: 11px; font-weight: 800; }
+    .step span { width: 20px; height: 20px; display: grid; place-items: center; flex: 0 0 auto; color: var(--muted); background: #fff; border: 1px solid var(--line-strong); border-radius: 50%; }
+    .step.is-current { color: var(--navy); background: var(--surface-3); border-color: #96bdb7; }
+    .step.is-current span, .step.is-done span { color: #fff; background: var(--teal); border-color: var(--teal); }
+    .wizard-panel h3 { margin: 0; color: var(--navy); font-size: 18px; letter-spacing: -.02em; }
+    .wizard-panel > p { margin: 6px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .field.full { grid-column: 1/-1; }
+    .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .segment { position: relative; }
+    .segment input { position: absolute; opacity: 0; pointer-events: none; }
+    .segment label { min-height: 52px; display: flex; align-items: center; justify-content: center; padding: 9px 10px; color: var(--muted); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; text-align: center; font-size: 12px; font-weight: 800; }
+    .segment input:checked + label { color: var(--teal-dark); background: var(--surface-3); border: 2px solid var(--teal); }
+    .segment input:focus-visible + label { outline: 3px solid rgba(15,118,110,.22); outline-offset: 2px; }
+    .segment input:disabled + label { color: #7a8c93; background: #edf1f2; border-color: #d4dddf; cursor: not-allowed; }
+    .honesty-note { margin-top: 14px; padding: 12px; color: #614918; background: var(--amber-bg); border: 1px solid #e3c78f; border-left: 4px solid var(--amber); border-radius: 4px; font-size: 12px; line-height: 1.5; }
+    .review-card { padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
+    .review-card h4 { margin: 0 0 8px; color: var(--navy); font-size: 14px; }
+    .wizard-footer { position: sticky; z-index: 2; bottom: 0; display: flex; justify-content: space-between; gap: 12px; padding: 14px 22px calc(14px + var(--safe-bottom)); background: rgba(255,255,255,.98); border-top: 1px solid var(--line); }
+    .wizard-footer > div { display: flex; gap: 8px; }
+
+    .toast-region { position: fixed; z-index: 1000; right: 20px; bottom: calc(20px + var(--safe-bottom)); width: min(380px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
+    .toast { padding: 12px 14px; color: #fff; background: var(--navy); border-left: 4px solid #64b9a9; border-radius: 4px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; }
+    .toast.error { background: #6f2e2e; border-left-color: #efaaa5; }
+    .footer-note { margin: 18px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+    @media (max-width: 1120px) {
+      .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .filters { grid-template-columns: 1.4fr repeat(2,1fr); }
+      .filters .field:nth-of-type(4), .filter-actions { grid-column: auto; }
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 820px) {
+      .app-shell { display: block; }
+      .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, calc(100vw - 44px)); height: 100dvh; transform: translateX(-105%); transition: transform 180ms ease; box-shadow: 18px 0 44px rgba(5,25,37,.26); }
+      body.nav-open .sidebar { transform: translateX(0); }
+      .menu-close { display: grid; }
+      .nav-backdrop { position: fixed; z-index: 70; inset: 0; display: block; background: rgba(7,26,38,.52); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
+      body.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+      .menu-button { display: grid; }
+      .topbar { min-height: 64px; padding: 9px 13px; }
+      .session { max-width: 170px; }
+      .topbar-actions > .button { display: none; }
+      .main { padding: 22px 14px calc(42px + var(--safe-bottom)); }
+      .page-head { grid-template-columns: 1fr; gap: 15px; }
+      .head-actions { width: 100%; }
+      .head-actions .button { flex: 1; }
+      .permission-strip { grid-template-columns: 1fr; gap: 9px; }
+      .source-chip { max-width: 100%; }
+      .filters { grid-template-columns: 1fr 1fr; padding: 13px; }
+      .filters .field:first-child { grid-column: 1/-1; }
+      .queue-head, .queue-meta, .pagination { padding-left: 13px; padding-right: 13px; }
+    }
+
+    @media (max-width: 620px) {
+      .topbar-context .crumb { display: none; }
+      .session { grid-template-columns: 30px minmax(0,1fr); padding: 4px 6px; }
+      .avatar { width: 28px; height: 28px; }
+      h1 { font-size: 32px; }
+      .metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .metric { min-height: 105px; padding: 13px; }
+      .metric strong { font-size: 26px; }
+      .queue-head { display: block; }
+      .queue-head .button { width: 100%; margin-top: 12px; }
+      .filters { grid-template-columns: 1fr; }
+      .filters .field:first-child { grid-column: auto; }
+      .filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .table-wrap { padding: 0 12px 12px; overflow: visible; border-top: 0; }
+      table, thead, tbody, tr, td { display: block; width: 100%; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+      tbody { display: grid; gap: 9px; }
+      tbody tr[data-action-row] { padding: 12px; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 4px; }
+      td { display: grid; grid-template-columns: 102px minmax(0,1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+      td::before { content: attr(data-label); color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+      td:last-child { border-bottom: 0; }
+      td:last-child::before { content: ""; }
+      .open-row { width: 100%; }
+      .pagination { justify-content: space-between; }
+      dialog, .wizard-dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+      .dialog-shell { height: 100dvh; max-height: 100dvh; }
+      .dialog-head { padding: 14px; }
+      .dialog-body { padding: 15px 14px calc(24px + var(--safe-bottom)); }
+      .facts > div { grid-template-columns: 1fr; gap: 4px; }
+      .stepper { grid-template-columns: repeat(4, minmax(38px,1fr)); }
+      .step { justify-content: center; padding: 6px; }
+      .step strong { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .wizard-footer { padding: 11px 14px calc(11px + var(--safe-bottom)); }
+      .wizard-footer .button { min-width: 0; padding-left: 10px; padding-right: 10px; }
+      .command-actions { display: grid; grid-template-columns: 1fr; }
+      .command-actions .button { width: 100%; }
+    }
+
+    @media (max-width: 390px) {
+      .main { padding-left: 10px; padding-right: 10px; }
+      .metrics { grid-template-columns: 1fr; }
+      .metric { min-height: 92px; }
+      .page-lead { font-size: 13px; }
+      .session .session-copy { display: none; }
+      .session { display: block; padding: 4px; border: 0; background: transparent; }
+      .wizard-footer { display: grid; grid-template-columns: 1fr; }
+      .wizard-footer > div { display: grid; grid-template-columns: 1fr 1fr; }
+      .wizard-footer > .button { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+
+    @media print {
+      .sidebar, .topbar, .head-actions, .filters, .view-tabs, .pagination, .button, dialog, .toast-region { display: none !important; }
+      .app-shell { display: block; }
+      .main { padding: 0; }
+      body { background: #fff; }
+      .queue-panel, .metric { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body data-mc-page="actions">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+
+  <section class="auth-gate" id="authGate" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <span class="gate-mark" aria-hidden="true">M</span>
+      <h1 id="gateTitle">Verificando sesión</h1>
+      <p id="gateMessage" role="status" aria-live="polite">Confirmamos tu acceso antes de consultar acciones internas.</p>
+      <div class="spinner" id="gateSpinner" aria-hidden="true"></div>
+      <button class="button primary" id="retryAuth" type="button" hidden>Reintentar</button>
+    </div>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar" id="sidebar" aria-label="Navegación interna">
+      <div class="brand">
+        <a class="brand-home" href="internal-dashboard.html#inicio" aria-label="MuniControl, inicio interno">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span class="brand-copy"><strong>MuniControl</strong><span>Friendly · Junín</span></span>
+        </a>
+        <button class="menu-close" id="menuClose" type="button" aria-label="Cerrar menú">×</button>
+      </div>
+
+      <nav class="nav-wrap" aria-label="Secciones internas">
+        <div class="nav-group">
+          <span class="nav-label">Operación</span>
+          <a class="nav-link" href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">IN</span>Inicio</a>
+          <a class="nav-link" href="internal-dashboard.html#legajos"><span class="nav-code" aria-hidden="true">PE</span>Personas</a>
+          <a class="nav-link" href="centro-acciones.html" aria-current="page"><span class="nav-code" aria-hidden="true">AC</span>Centro de acciones</a>
+          <a class="nav-link" href="estructura.html"><span class="nav-code" aria-hidden="true">ES</span>Estructura</a>
+          <a class="nav-link" href="integracion-datos.html"><span class="nav-code" aria-hidden="true">IC</span>Integración</a>
+          <a class="nav-link" href="nomina-control.html"><span class="nav-code" aria-hidden="true">NO</span>Nómina</a>
+          <a class="nav-link" href="asistente.html"><span class="nav-code" aria-hidden="true">IA</span>Asistente</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-label">Control</span>
+          <a class="nav-link" href="gestion-comparativa.html"><span class="nav-code" aria-hidden="true">GE</span>Gestiones</a>
+          <a class="nav-link" href="presupuesto-control.html"><span class="nav-code" aria-hidden="true">PR</span>Presupuesto</a>
+          <a class="nav-link" href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span>Ausentismo</a>
+          <a class="nav-link" href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span>Licencias</a>
+          <a class="nav-link" href="calidad-operativa.html"><span class="nav-code" aria-hidden="true">DQ</span>Calidad operativa</a>
+        </div>
+        <div class="nav-group">
+          <span class="nav-label">Aprender</span>
+          <a class="nav-link" href="centro-ayuda.html"><span class="nav-code" aria-hidden="true">AY</span>Centro de ayuda</a>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot"><strong>Operación con evidencia</strong>Las decisiones requieren capacidad explícita, versión vigente y trazabilidad.</div>
+    </aside>
+    <div class="nav-backdrop" id="navBackdrop" aria-hidden="true"></div>
+
+    <div class="workspace" id="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <div class="topbar-context">
+            <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span aria-current="page">Centro de acciones</span></nav>
+            <strong class="top-title">Solicitudes y decisiones trazables</strong>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="session" aria-label="Sesión actual">
+            <span class="avatar" id="userAvatar" aria-hidden="true">MJ</span>
+            <span class="session-copy"><strong id="userName">Sesión municipal</strong><span id="userRole">Acceso interno</span></span>
+          </div>
+          <button class="button quiet" id="refreshButton" type="button">Actualizar</button>
+          <button class="button quiet danger" id="logoutButton" type="button">Salir</button>
+        </div>
+      </header>
+
+      <main class="main" id="mainContent" tabindex="-1">
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <p class="eyebrow">Operación municipal · decisiones trazables</p>
+              <h1>Centro de acciones</h1>
+              <p class="page-lead">Creá, revisá y resolvé solicitudes con evidencia, versión vigente y trazabilidad. Cada decisión conserva quién actuó, cuándo y con qué fuente.</p>
+            </div>
+            <div class="head-actions">
+              <button class="button primary" id="createActionButton" type="button" disabled>Nueva solicitud</button>
+            </div>
+          </header>
+
+          <section class="permission-strip" aria-labelledby="permissionTitle">
+            <div><strong id="permissionTitle">Alcance de tu sesión</strong><p id="permissionSummary">Consultando capacidades explícitas del backend.</p></div>
+            <span class="source-chip" id="sourceChip">Fuente operativa · verificando</span>
+          </section>
+
+          <section class="metrics" id="actionMetrics" aria-label="Resumen de la bandeja" hidden>
+            <article class="metric" id="metricObservedCard"><span>Observadas</span><strong id="metricObserved">—</strong><small id="metricObservedNote">Con documentación o validación pendiente.</small></article>
+            <article class="metric" id="metricClosedCard" data-tone="done"><span>Cerradas en 30 días</span><strong id="metricClosed">—</strong><small id="metricClosedNote">Sólo si la API informa el período.</small></article>
+          </section>
+
+          <section class="queue-panel" aria-labelledby="queueTitle">
+            <header class="queue-head">
+              <div><h2 id="queueTitle">Bandeja de trabajo</h2><p>La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
+              <button class="button" id="queueCreateButton" type="button" disabled>Crear solicitud</button>
+            </header>
+
+            <div class="view-tabs" id="actionViews" role="tablist" aria-label="Alcance de la bandeja">
+              <button class="view-tab" type="button" role="tab" data-action-view="mine" aria-selected="true">Mis solicitudes</button>
+              <button class="view-tab" type="button" role="tab" data-action-view="area" aria-selected="false" hidden>Mi área</button>
+              <button class="view-tab" type="button" role="tab" data-action-view="authorized" aria-selected="false" hidden>Todo mi alcance</button>
+              <button class="view-tab" type="button" role="tab" data-action-view="closed" aria-selected="false">Cerradas</button>
+            </div>
+
+            <form class="filters" id="actionFilters" role="search" autocomplete="off">
+              <div class="field">
+                <label for="actionSearch">Buscar en esta página</label>
+                <input class="input" id="actionSearch" type="search" maxlength="100" placeholder="Número, tipo o persona visible" autocomplete="off">
+                <span class="field-help">La búsqueda queda en memoria y no se envía en la URL.</span>
+              </div>
+              <div class="field"><label for="actionTypeFilter">Tipo</label><select class="select" id="actionTypeFilter"><option value="">Todos</option></select></div>
+              <div class="field"><label for="actionStatusFilter">Estado</label><select class="select" id="actionStatusFilter"><option value="">Todos</option></select></div>
+              <div class="filter-actions"><button class="button primary" type="submit">Aplicar</button><button class="button" id="clearActionFilters" type="button">Limpiar</button></div>
+            </form>
+
+            <div class="queue-meta"><span id="actionResultCount" role="status" aria-live="polite">Preparando bandeja…</span><span id="pageScopeLabel">Sin datos cargados</span></div>
+
+            <div class="loading-state" id="actionLoading" aria-live="polite"><strong>Consultando acciones autorizadas</strong><p>La bandeja se completa únicamente con el alcance informado por el backend.</p><div class="spinner" aria-hidden="true"></div></div>
+            <div class="error-state" id="actionError" role="alert" hidden><strong>No pudimos abrir la bandeja</strong><p id="actionErrorMessage">El servicio de acciones no está disponible.</p><button class="button" id="retryActions" type="button">Reintentar</button></div>
+            <div class="empty-state" id="actionEmpty" hidden><strong>No hay acciones en este alcance</strong><p>Podés revisar las cerradas o crear una solicitud si tu perfil lo permite.</p></div>
+
+            <div class="table-wrap" id="actionQueue" hidden tabindex="0" role="region" aria-labelledby="queueTitle">
+              <table>
+                <caption class="sr-only">Acciones municipales disponibles para la sesión actual</caption>
+                <thead><tr><th>Número</th><th>Tipo y persona</th><th>Estado</th><th>Próxima acción</th><th><span class="sr-only">Abrir</span></th></tr></thead>
+                <tbody id="actionRows"></tbody>
+              </table>
+            </div>
+
+            <nav class="pagination" aria-label="Paginación de acciones">
+              <button class="button" id="previousPage" type="button" disabled>Anterior</button>
+              <span id="pageStatus">Página actual</span>
+              <button class="button" id="nextPage" type="button" disabled>Siguiente</button>
+            </nav>
+          </section>
+
+          <p class="footer-note">Uso interno · Esta pantalla no almacena personas, búsquedas ni expedientes en URL, localStorage o caché offline. La referencia normativa orienta; toda decisión administrativa exige capacidad y confirmación humana.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="actionDialog" aria-labelledby="actionDialogTitle">
+    <div class="dialog-shell">
+      <header class="dialog-head">
+        <div><p class="eyebrow">Detalle autorizado</p><h2 id="actionDialogTitle">Consultando acción</h2><p id="actionDialogSubtitle">Cargando estado y trazabilidad.</p></div>
+        <button class="button dialog-close" id="closeActionDialog" type="button" aria-label="Cerrar detalle">×</button>
+      </header>
+      <div class="dialog-body" id="actionDialogBody" aria-live="polite" aria-busy="true"></div>
+    </div>
+  </dialog>
+
+  <dialog class="wizard-dialog" id="actionWizard" aria-labelledby="wizardTitle">
+    <form class="dialog-shell" id="actionWizardForm" novalidate autocomplete="off">
+      <header class="dialog-head">
+        <div><p class="eyebrow">Gestión de personas</p><h2 id="wizardTitle">Nueva solicitud de licencia</h2><p id="wizardSubtitle">El borrador no concede una licencia ni modifica nómina.</p></div>
+        <button class="button dialog-close" id="closeWizard" type="button" aria-label="Cerrar formulario">×</button>
+      </header>
+      <div class="dialog-body">
+        <div class="stepper" role="list" aria-label="Progreso del formulario">
+          <div class="step is-current" role="listitem" aria-current="step" data-wizard-step-indicator="1"><span>1</span><strong>Persona</strong></div>
+          <div class="step" role="listitem" data-wizard-step-indicator="2"><span>2</span><strong>Período</strong></div>
+          <div class="step" role="listitem" data-wizard-step-indicator="3"><span>3</span><strong>Evidencia</strong></div>
+          <div class="step" role="listitem" data-wizard-step-indicator="4"><span>4</span><strong>Revisión</strong></div>
+        </div>
+
+        <section class="wizard-panel" data-action-step="1">
+          <h3>Persona y motivo</h3><p>Elegí exclusivamente entre los legajos que el backend habilita para tu sesión.</p>
+          <div class="form-grid">
+            <div class="field full"><label for="actionEmployeeSearch">Buscar dentro de los legajos autorizados</label><input class="input" id="actionEmployeeSearch" type="search" maxlength="100" autocomplete="off" aria-controls="actionEmployee" aria-describedby="actionEmployeeSearchStatus" placeholder="Nombre, legajo o sector visible"><span class="field-help" id="actionEmployeeSearchStatus" role="status" aria-live="polite">La búsqueda se realiza localmente y no se envía en la URL.</span></div>
+            <div class="field full"><label for="actionEmployee">Persona / legajo autorizado</label><select class="select" id="actionEmployee" name="beneficiaryContractId" required><option value="">Seleccionar</option></select><span class="field-help">Los identificadores permanecen en el cuerpo cifrado de la solicitud; nunca se agregan a la URL.</span><span class="field-error" id="actionEmployeeError" hidden></span></div>
+            <div class="field full"><label for="actionLeaveType">Tipo de licencia</label><select class="select" id="actionLeaveType" name="reasonCode" required><option value="">Seleccionar motivo</option></select><span class="field-help" id="leaveTypeHelp">El catálogo y la versión de política deben ser informados por el backend.</span><span class="field-error" id="actionLeaveTypeError" hidden></span></div>
+            <div class="field full"><label for="actionConfidentiality">Confidencialidad gobernada</label><select class="select" id="actionConfidentiality" name="confidentiality" aria-describedby="actionConfidentialityHelp actionConfidentialityError" disabled><option value="standard">Estándar</option><option value="restricted">Restringida</option></select><span class="field-help" id="actionConfidentialityHelp" role="status" aria-live="polite">Seleccioná persona y motivo. El nivel se determina con la política vigente y el alcance autorizado; no se modifica manualmente.</span><span class="field-error" id="actionConfidentialityError" hidden></span></div>
+          </div>
+        </section>
+
+        <section class="wizard-panel" data-action-step="2" hidden>
+          <h3>Período solicitado</h3><p>Registramos el intervalo solicitado. Esta pantalla no calcula saldo, horas trabajadas ni impacto salarial.</p>
+          <div class="field full">
+            <span class="field-label">Modalidad</span>
+            <div class="segmented">
+              <div class="segment"><input id="durationDays" name="durationMode" type="radio" value="calendar_day" aria-describedby="durationGate actionDurationModeError" checked><label for="durationDays">Días completos</label></div>
+              <div class="segment"><input id="durationMinutes" name="durationMode" type="radio" value="minute" aria-describedby="durationGate actionDurationModeError" disabled><label for="durationMinutes">Franja horaria</label></div>
+            </div>
+            <span class="field-error" id="actionDurationModeError" hidden></span>
+          </div>
+          <div class="form-grid" style="margin-top:13px">
+            <div class="field"><label for="actionStartDate">Desde</label><input class="input" id="actionStartDate" name="startsOn" type="date" required><span class="field-error" id="actionStartDateError" hidden></span></div>
+            <div class="field"><label for="actionEndDate">Hasta</label><input class="input" id="actionEndDate" name="endsOn" type="date" required><span class="field-error" id="actionEndDateError" hidden></span></div>
+            <div class="field" id="startTimeField" hidden><label for="actionStartTime">Hora desde</label><input class="input" id="actionStartTime" name="startsAtLocal" type="time" step="60"><span class="field-error" id="actionStartTimeError" hidden></span></div>
+            <div class="field" id="endTimeField" hidden><label for="actionEndTime">Hora hasta</label><input class="input" id="actionEndTime" name="endsAtLocal" type="time" step="60"><span class="field-error" id="actionEndTimeError" hidden></span></div>
+          </div>
+          <div class="honesty-note" id="durationGate">Los días informados son un período solicitado, no un saldo disponible ni una licencia aprobada.</div>
+        </section>
+
+        <section class="wizard-panel" data-action-step="3" hidden>
+          <h3>Respaldo y observación</h3><p>La evidencia se verifica durante la revisión. Los archivos se incorporan únicamente cuando el backend entregue una carga privada y trazable.</p>
+          <div class="form-grid">
+            <div class="field full"><span class="field-label">Estado de evidencia</span><div class="review-card"><strong>Pendiente de verificación</strong><span class="field-help">No se declara ni valida evidencia al crear el borrador. El estado se registra al decidir, con confirmación humana.</span></div></div>
+            <div class="field full"><label for="actionEmployeeNote">Observación del solicitante</label><textarea class="textarea" id="actionEmployeeNote" maxlength="1000" placeholder="Describí únicamente lo necesario para tramitar la solicitud." aria-describedby="employeeNoteHelp"></textarea><span class="field-help" id="employeeNoteHelp">No ingreses diagnósticos ni información sensible. Los casos restringidos no admiten una nota general.</span></div>
+          </div>
+          <div class="honesty-note">La pantalla no sube archivos a servicios públicos ni conserva el texto en el navegador. La observación se envía solamente al confirmar el borrador.</div>
+        </section>
+
+        <section class="wizard-panel" data-action-step="4" hidden>
+          <h3>Revisar antes de crear</h3><p>El resultado será un borrador versionado. Luego deberá enviarse a revisión mediante una acción separada.</p>
+          <div class="review-card"><h4>Resumen del borrador</h4><dl class="facts" id="wizardReview"></dl></div>
+          <label class="checkbox"><input id="actionConfirmTruth" type="checkbox"><span>Confirmo que revisé persona, motivo y período. Comprendo que el sistema no calculó saldo, horas efectivamente trabajadas ni recibo de sueldo.</span></label>
+          <span class="field-error" id="actionConfirmError" hidden></span>
+          <div class="honesty-note">Crear un borrador no aprueba la licencia, no genera un acto administrativo y no envía novedades a nómina.</div>
+        </section>
+      </div>
+      <footer class="wizard-footer">
+        <button class="button" id="wizardCancel" type="button">Cancelar</button>
+        <div><button class="button" id="wizardBack" type="button" hidden>Anterior</button><button class="button primary" id="wizardNext" type="button">Continuar</button><button class="button primary" id="wizardSubmit" type="submit" hidden>Crear borrador</button></div>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript><section class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>El Centro de acciones verifica permisos y consulta el backend interno en tiempo real.</p></div></section></noscript>
+
+  <script src="assets/internal-guide.js" defer></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var AUTH_URL = '/api/internal-auth';
+      var ACTIONS_URL = '/api/internal-actions';
+      var LOGIN_URL = 'login.html?next=centro-acciones.html';
+      var MAX_REASON_LENGTH = 1000;
+      var SAFE_CASE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
+      var STATUS_LABELS = {
+        draft: 'Borrador', submitted: 'Enviada', supervisor_review: 'Revisión de jefatura',
+        hr_review: 'Revisión de RRHH', evidence_required: 'Requiere documentación',
+        approved: 'Aprobada administrativamente', payroll_pending: 'Pendiente de nómina',
+        payroll_applied: 'Aplicada en nómina', closed: 'Cerrada', rejected: 'Rechazada',
+        cancelled: 'Cancelada', canceled: 'Cancelada', observed: 'Observada', pending: 'Pendiente',
+        in_review: 'En revisión'
+      };
+      var TYPE_LABELS = { leave_request: 'Solicitud de licencia' };
+      var COMMAND_LABELS = {
+        submit: 'Enviar a revisión', approve: 'Aprobar licencia', reject: 'Rechazar',
+        cancel: 'Cancelar solicitud', update_draft: 'Editar borrador'
+      };
+      var EVENT_LABELS = {
+        created: 'Solicitud creada',
+        draft_updated: 'Borrador actualizado',
+        submitted: 'Solicitud enviada a revisión',
+        approved: 'Licencia aprobada administrativamente',
+        rejected: 'Solicitud rechazada',
+        cancelled: 'Solicitud cancelada'
+      };
+      var ROLE_LABELS = {
+        EMPLEADO: 'Empleado/a',
+        JEFE_AREA: 'Jefatura de área',
+        RRHH_OPERADOR: 'Operación de RRHH',
+        RRHH_APROBADOR: 'Aprobación de RRHH',
+        CONTADOR: 'Contaduría',
+        TESORERIA: 'Tesorería',
+        AUDITOR: 'Auditoría',
+        INTENDENTE: 'Intendencia',
+        GOBERNADOR: 'Gobernación',
+        ADMIN_INTERNO: 'Administración interna'
+      };
+      var CAPABILITY_LABELS = {
+        'action.self.create': 'crear solicitudes propias',
+        'action.self.update': 'editar borradores propios',
+        'action.self.submit': 'enviar solicitudes propias',
+        'action.self.cancel': 'cancelar solicitudes propias',
+        'action.area.create': 'crear solicitudes para legajos del área',
+        'action.area.update': 'editar borradores del área',
+        'action.area.submit': 'enviar solicitudes del área',
+        'action.area.cancel_pending': 'cancelar solicitudes pendientes del área',
+        'action.self.read': 'consultar solicitudes propias',
+        'action.area.read': 'consultar acciones del área',
+        'action.area.decide': 'decidir acciones del área',
+        'action.area.cancel_approved': 'cancelar licencias aprobadas del área',
+        'action.all.read': 'consultar el alcance general autorizado',
+        'action.all.manage': 'administrar y decidir el alcance general',
+        'action.aggregate.read': 'consultar indicadores agregados',
+        'action.audit.read': 'auditar el historial',
+        'action.restricted.read': 'consultar casos restringidos autorizados',
+        'action.restricted.decide': 'decidir casos restringidos autorizados',
+        'action.payroll.read': 'consultar novedades aprobadas para nómina',
+        'actions:create:self': 'crear solicitudes propias',
+        'actions:create:employee': 'crear solicitudes para legajos autorizados',
+        'actions:read:assigned': 'consultar acciones asignadas',
+        'actions:read:area': 'consultar acciones del área',
+        'actions:read:authorized': 'consultar el alcance autorizado',
+        'actions:review:supervisor': 'revisar como responsable de área',
+        'actions:review:hr': 'revisar desde RRHH',
+        'actions:approve:leave': 'aprobar licencias',
+        'actions:apply:payroll': 'aplicar novedades autorizadas a nómina',
+        'actions:read:executive': 'consultar indicadores ejecutivos',
+        'actions:audit': 'auditar el historial'
+      };
+
+      var state = {
+        user: null,
+        capabilities: new Set(),
+        bootstrap: null,
+        actions: [],
+        visibleActions: [],
+        activeView: 'mine',
+        pageInfo: {},
+        currentPage: 1,
+        selected: null,
+        wizardStep: 1,
+        editing: null,
+        lastFocus: null,
+        redirecting: false
+      };
+      var MUTATION_KEY_STORAGE = 'municontrol.action-idempotency.v1';
+      var MUTATION_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+
+      function loadPendingMutationKeys() {
+        var result = new Map();
+        try {
+          var stored = JSON.parse(window.sessionStorage.getItem(MUTATION_KEY_STORAGE) || '{}');
+          array(stored.entries).forEach(function (entry) {
+            var fingerprint = text(entry && entry.fingerprint);
+            var key = text(entry && entry.key);
+            var savedAt = Number(entry && entry.savedAt);
+            if (/^sha256-[0-9a-f]{64}$/.test(fingerprint) && /^[0-9a-f-]{36}$/i.test(key) && Number.isFinite(savedAt) && Date.now() - savedAt < MUTATION_KEY_TTL_MS) result.set(fingerprint, { key: key, savedAt: savedAt });
+          });
+        } catch (_) { /* El flujo sigue en memoria si el navegador bloquea sessionStorage. */ }
+        return result;
+      }
+
+      function persistPendingMutationKeys() {
+        try {
+          var entries = Array.from(pendingMutationKeys, function (entry) { return { fingerprint: entry[0], key: entry[1].key, savedAt: entry[1].savedAt }; }).filter(function (entry) { return entry.fingerprint.startsWith('sha256-'); });
+          if (entries.length) window.sessionStorage.setItem(MUTATION_KEY_STORAGE, JSON.stringify({ version: 1, entries: entries }));
+          else window.sessionStorage.removeItem(MUTATION_KEY_STORAGE);
+        } catch (_) { /* Nunca se bloquea la operación por almacenamiento del navegador. */ }
+      }
+
+      var pendingMutationKeys = loadPendingMutationKeys();
+
+      var el = {};
+      function byId(id) { return document.getElementById(id); }
+      function text(value, fallback) { var result = value === null || value === undefined ? '' : String(value).trim(); return result || (fallback || ''); }
+      function object(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+      function array(value) { return Array.isArray(value) ? value : []; }
+      function first() { for (var index = 0; index < arguments.length; index += 1) { var value = arguments[index]; if (value !== undefined && value !== null && value !== '') return value; } return null; }
+      function integer(value) { if (value === null || value === undefined || value === '') return null; var number = Number(value); return Number.isFinite(number) && number >= 0 ? Math.trunc(number) : null; }
+      function bool(value) { return value === true || value === 'true' || value === 1 || value === '1'; }
+      function lower(value) { return text(value).toLowerCase(); }
+      function create(tag, className, content) { var node = document.createElement(tag); if (className) node.className = className; if (content !== undefined) node.textContent = content; return node; }
+      function clear(node) { if (node) node.replaceChildren(); }
+      function firstObject() { for (var index = 0; index < arguments.length; index += 1) { var value = arguments[index]; if (value && typeof value === 'object' && !Array.isArray(value)) return value; } return {}; }
+      function firstArray() { for (var index = 0; index < arguments.length; index += 1) { if (Array.isArray(arguments[index])) return arguments[index]; } return []; }
+      function unwrap(payload) { var root = object(payload); return firstObject(root.data, root.result, root.payload, root); }
+
+      function normalizeDate(value) {
+        var raw = text(value);
+        if (!raw) return null;
+        var parsed = new Date(raw);
+        if (Number.isNaN(parsed.getTime())) {
+          var dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!dateOnly) return null;
+          parsed = new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+        }
+        return parsed;
+      }
+
+      var dateFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+      var dateTimeFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      var numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+      function formatDate(value) { var date = normalizeDate(value); return date ? dateFormatter.format(date).replace(/\./g, '') : 'No informada'; }
+      function formatDateTime(value) { var date = normalizeDate(value); return date ? dateTimeFormatter.format(date).replace(/\./g, '') : 'No informada'; }
+      function formatNumber(value) { var parsed = integer(value); return parsed === null ? '—' : numberFormatter.format(parsed); }
+      function titleCase(value) { return text(value).replaceAll('_', ' ').replace(/\b\w/g, function (character) { return character.toUpperCase(); }); }
+      function statusLabel(value) { var key = lower(value); return STATUS_LABELS[key] || titleCase(key) || 'Estado no informado'; }
+      function typeLabel(value) { var key = lower(value); return TYPE_LABELS[key] || titleCase(key) || 'Acción'; }
+      function statusClass(value) {
+        var key = lower(value);
+        if (['approved','payroll_applied','closed'].includes(key)) return 'is-approved';
+        if (['rejected','cancelled','canceled'].includes(key)) return 'is-rejected';
+        if (['submitted','supervisor_review','hr_review','in_review','payroll_pending'].includes(key)) return 'is-progress';
+        if (['evidence_required','observed','pending'].includes(key)) return 'is-pending';
+        return '';
+      }
+
+      function idempotencyKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        var bytes = new Uint8Array(16);
+        window.crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        var hex = Array.from(bytes, function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+        return hex.slice(0,8) + '-' + hex.slice(8,12) + '-' + hex.slice(12,16) + '-' + hex.slice(16,20) + '-' + hex.slice(20);
+      }
+
+      function redirectToLogin() {
+        if (state.redirecting) return;
+        state.redirecting = true;
+        window.location.replace(LOGIN_URL);
+      }
+
+      async function requestJson(url, options) {
+        var settings = options || {};
+        var headers = Object.assign({ Accept: 'application/json', 'Cache-Control': 'no-store' }, settings.headers || {});
+        var response;
+        try {
+          response = await fetch(url, Object.assign({}, settings, { credentials: 'same-origin', cache: 'no-store', headers: headers }));
+        } catch (cause) {
+          var networkError = new Error('No se pudo conectar con el servicio municipal.');
+          networkError.cause = cause;
+          throw networkError;
+        }
+        if (response.status === 401) {
+          redirectToLogin();
+          var unauthorized = new Error('La sesión venció.');
+          unauthorized.unauthorized = true;
+          unauthorized.status = 401;
+          throw unauthorized;
+        }
+        var payload = null;
+        if (response.status !== 204) { try { payload = await response.json(); } catch (_) { payload = null; } }
+        if (!response.ok || (payload && payload.ok === false)) {
+          var detail = first(payload && payload.error, payload && payload.message, payload && payload.detail);
+          if (detail && typeof detail === 'object') detail = first(detail.message, detail.detail, detail.code);
+          var error = new Error(text(detail, 'La API no pudo completar la operación.'));
+          error.status = response.status;
+          error.payload = payload;
+          throw error;
+        }
+        return payload || {};
+      }
+
+      function actionGet(resource, parameters) {
+        var url = new URL(ACTIONS_URL, window.location.origin);
+        url.searchParams.set('resource', resource);
+        Object.entries(parameters || {}).forEach(function (entry) {
+          var value = entry[1];
+          if (value !== null && value !== undefined && value !== '') url.searchParams.set(entry[0], String(value));
+        });
+        return requestJson(url.pathname + url.search);
+      }
+
+      function stableMutationValue(value) {
+        if (Array.isArray(value)) return value.map(stableMutationValue);
+        if (value && typeof value === 'object') return Object.keys(value).sort().reduce(function (result, key) { result[key] = stableMutationValue(value[key]); return result; }, {});
+        return value;
+      }
+
+      async function mutationFingerprint(method, body) {
+        var serialized = JSON.stringify({ method: method, body: stableMutationValue(body) });
+        if (window.crypto && window.crypto.subtle && typeof window.TextEncoder === 'function') {
+          var digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(serialized));
+          return 'sha256-' + Array.from(new Uint8Array(digest), function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+        }
+        var hash = 2166136261;
+        for (var index = 0; index < serialized.length; index += 1) { hash ^= serialized.charCodeAt(index); hash = Math.imul(hash, 16777619); }
+        return 'fnv1a-' + (hash >>> 0).toString(16).padStart(8, '0');
+      }
+
+      async function actionCommand(method, body) {
+        var fingerprint = await mutationFingerprint(method, body);
+        var pending = pendingMutationKeys.get(fingerprint);
+        var key = pending && pending.key;
+        if (!key) {
+          key = idempotencyKey();
+          if (pendingMutationKeys.size >= 32) pendingMutationKeys.delete(pendingMutationKeys.keys().next().value);
+          pendingMutationKeys.set(fingerprint, { key: key, savedAt: Date.now() });
+          persistPendingMutationKeys();
+        }
+        try {
+          var result = await requestJson(ACTIONS_URL, {
+            method: method,
+            headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+            body: JSON.stringify(body)
+          });
+          pendingMutationKeys.delete(fingerprint);
+          persistPendingMutationKeys();
+          return result;
+        } catch (error) {
+          var status = error && Number(error.status);
+          var transient = status === 408 || status === 425 || status === 429 || status >= 500;
+          if (Number.isFinite(status) && !transient) {
+            pendingMutationKeys.delete(fingerprint);
+            persistPendingMutationKeys();
+          }
+          throw error;
+        }
+      }
+
+      function normalizeCapabilities(root) {
+        var source = firstArray(root.capabilities, root.permissions, root.principal && root.principal.capabilities, root.access && root.access.capabilities, root.session && root.session.capabilities);
+        return new Set(source.map(function (item) { return lower(typeof item === 'object' ? first(item.id, item.code, item.name) : item); }).filter(Boolean));
+      }
+
+      function normalizeOption(item, fallbackValue) {
+        if (typeof item === 'string') return { value: item, label: titleCase(item) };
+        var row = object(item);
+        var confidentiality = lower(row.confidentiality);
+        return {
+          value: text(first(row.value, row.id, row.code, row.key, row.reasonCode, row.leaveTypeCode, fallbackValue)),
+          label: text(first(row.label, row.name, row.title, row.displayName, row.reasonLabel, row.leaveTypeLabel), titleCase(first(row.value, row.id, row.code, row.reasonCode, row.leaveTypeCode, fallbackValue))),
+          policyVersionId: text(first(row.policyVersionId, row.policyVersion, row.version)),
+          policyRuleId: text(first(row.policyRuleId, row.ruleId)),
+          supportsMinutes: row.supportsMinutes === undefined ? null : bool(row.supportsMinutes),
+          confidentiality: confidentiality === 'standard' || confidentiality === 'restricted' ? confidentiality : '',
+          note: text(first(row.note, row.description, row.help))
+        };
+      }
+
+      function normalizeSubject(item) {
+        var row = object(item);
+        var contract = firstObject(row.contract, row.employment, row);
+        var value = text(first(row.value, row.contractId, row.beneficiaryContractId, row.id, contract.id));
+        var name = text(first(row.label, row.displayName, row.name, row.nombre, contract.displayName, contract.name));
+        var legajo = text(first(row.legajo, row.employeeNumber, contract.legajo));
+        var area = text(first(row.area, row.sector, contract.area, contract.sector));
+        var label = name || 'Legajo autorizado';
+        if (legajo) label += ' · legajo ' + legajo;
+        if (area) label += ' · ' + area;
+        var allowedConfidentialities = firstArray(row.allowedConfidentialities, contract.allowedConfidentialities)
+          .map(lower)
+          .filter(function (value, index, values) { return (value === 'standard' || value === 'restricted') && values.indexOf(value) === index; });
+        return { value: value, label: label, allowedConfidentialities: allowedConfidentialities };
+      }
+
+      function normalizeViewOption(item) {
+        if(typeof item==='string')return {id:lower(item),label:titleCase(item),basis:''};
+        var row=object(item);
+        var id=lower(first(row.id,row.value,row.code));
+        return {id:id,label:text(first(row.label,row.name),titleCase(id)),basis:text(row.basis)};
+      }
+
+      function normalizeBootstrap(payload, authUser) {
+        var root = unwrap(payload);
+        var options = firstObject(root.options, root.catalogs, root.bootstrap);
+        var contract = firstObject(root.contract, options.contract);
+        var user = firstObject(root.user, root.principal, root.session && root.session.user, authUser);
+        var subjects = firstArray(root.employeeOptions, root.subjects, root.employees, root.beneficiaries, options.employees, options.subjects).map(normalizeSubject).filter(function (item) { return item.value; });
+        var reasons = firstArray(root.leaveTypes, root.leaveReasons, root.reasonOptions, options.leaveTypes, options.leaveReasons, options.reasons).map(function (item, index) { return normalizeOption(item, 'reason-' + index); }).filter(function (item) { return item.value; });
+        var actionTypes = firstArray(root.actionTypes, root.caseTypes, options.actionTypes, options.caseTypes, contract.caseTypes).map(normalizeOption);
+        if (!actionTypes.length) actionTypes = [{ value: 'leave_request', label: 'Solicitud de licencia' }];
+        var statuses = firstArray(root.statuses, root.actionStatuses, options.statuses, contract.statuses).map(normalizeOption);
+        var listCapabilities=firstObject(options.listCapabilities,root.listCapabilities,contract.listCapabilities);
+        var views = firstArray(root.views, root.availableViews, options.views, listCapabilities.views).map(normalizeViewOption).filter(function(item){return item.id;});
+        if(!views.length)views=[{id:'mine',label:'Mis solicitudes',basis:'beneficiary_contract'}];
+        var source = firstObject(root.source, root.meta && root.meta.source, payload.meta && payload.meta.source);
+        return {
+          user: {
+            id: text(first(user.id, user.userId, authUser && authUser.id)),
+            name: text(first(user.name, user.displayName, user.email, authUser && authUser.name), 'Usuario interno'),
+            role: text(first(user.role, user.profile, authUser && authUser.role), 'Acceso interno')
+          },
+          capabilities: normalizeCapabilities(root), subjects: subjects, reasons: reasons,
+          subjectsTruncated: bool(first(options.subjectsTruncated, root.subjectsTruncated)),
+          approvalEvidenceByConfidentiality: firstObject(contract.approvalEvidenceByConfidentiality, root.approvalEvidenceByConfidentiality),
+          actionTypes: actionTypes, statuses: statuses, views: views,
+          defaultView: lower(first(options.defaultView,root.defaultView,listCapabilities.defaultView,'mine')),
+          listCapabilities: listCapabilities,
+          facets: firstObject(options.facets,root.facets),
+          policyVersionId: text(first(root.policyVersionId, root.leavePolicyVersionId, options.policyVersionId, contract.leavePolicyVersionId)),
+          source: {
+            label: text(first(source.label, source.name, source.system), 'Fuente operativa'),
+            cutoff: first(source.cutoff, source.asOf, source.updatedAt),
+            version: text(first(source.version, source.batchId, source.policyVersionId))
+          },
+          metrics: firstObject(root.metrics, root.summary, root.counts)
+        };
+      }
+
+      function normalizeAction(item) {
+        var row = firstObject(item.action, item.case, item);
+        var subject = firstObject(row.subject, row.beneficiary, row.employee);
+        var id = text(first(row.id, row.caseId, row.actionId));
+        return {
+          id: id,
+          displayId: text(first(row.displayId, row.number, row.caseNumber, row.reference), id || 'Sin número'),
+          type: lower(first(row.type, row.caseType, row.actionType, 'leave_request')),
+          title: text(first(row.title, row.label, row.summary)),
+          subjectName: text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad reservada'),
+          subjectContractId: text(first(subject.contractId, subject.id, row.beneficiaryContractId)),
+          status: lower(first(row.status, row.state, 'pending')),
+          stage: text(first(row.stage, row.currentStage, row.workflowStage)),
+          updatedAt: first(row.updatedAt, row.modifiedAt, row.lastActivityAt, row.timestamps && row.timestamps.updatedAt),
+          version: integer(first(row.version, row.lockVersion, row.expectedVersion)),
+          nextAction: text(first(row.nextActionLabel, row.nextAction, row.pendingAction)),
+          confidentiality: lower(first(row.confidentiality, 'standard')),
+          raw: row
+        };
+      }
+
+      function normalizeList(payload) {
+        var directData = payload && payload.data;
+        var root = Array.isArray(directData) ? directData : unwrap(payload);
+        var items = Array.isArray(root) ? root : firstArray(root.items, root.actions, root.cases, root.results, root.rows, directData);
+        var rootPage = root && !Array.isArray(root) && typeof root.page === 'object' ? root.page : null;
+        var pageInfo = firstObject(root && root.pageInfo, root && root.pagination, rootPage, payload && payload.pageInfo, payload && payload.pagination, payload && payload.meta && payload.meta.pagination);
+        var page = integer(first(pageInfo.page, pageInfo.currentPage));
+        var pages = integer(first(pageInfo.pages, pageInfo.totalPages, pageInfo.pageCount));
+        return {
+          items: items.map(normalizeAction).filter(function (item) { return item.id && SAFE_CASE_ID.test(item.id); }),
+          pageInfo: {
+            total: integer(first(pageInfo.total, pageInfo.totalItems, root && root.total, payload && payload.total)),
+            page: page,
+            pages: pages,
+            limit: integer(first(pageInfo.limit, pageInfo.pageSize, pageInfo.perPage))
+          },
+          metrics: firstObject(root && root.metrics, root && root.summary, root && root.counts, payload && payload.metrics, payload && payload.summary, payload && payload.counts)
+        };
+      }
+
+      function normalizeTimeline(item) {
+        var row = object(item);
+        var eventType = lower(first(row.eventType, row.type, row.command));
+        var actor = firstObject(row.actor);
+        var actorRole = text(first(actor.role, row.actorRole));
+        return {
+          id: text(first(row.id, row.eventId)),
+          eventType: eventType,
+          label: EVENT_LABELS[eventType] || text(first(row.label, row.title, row.eventLabel), eventType ? 'Evento de auditoría · ' + titleCase(eventType.replace(/_/g,' ')) : 'Evento de auditoría sin tipo informado'),
+          caseVersion: integer(first(row.caseVersion, row.version)),
+          fromStatus: lower(first(row.fromStatus, row.previousStatus, row.from)),
+          toStatus: lower(first(row.toStatus, row.status, row.to)),
+          actor: {
+            email: text(first(actor.email, row.actorEmail, row.actorName, row.performedBy, row.userName)),
+            role: actorRole
+          },
+          createdAt: first(row.occurredAt, row.createdAt, row.timestamp),
+          note: text(first(row.note, row.reason, row.comment))
+        };
+      }
+
+      function normalizeEvidence(item) {
+        var row = object(item);
+        return {
+          id: text(first(row.id, row.evidenceId)),
+          label: text(first(row.label, row.fileName, row.name, row.type), 'Evidencia registrada'),
+          status: text(first(row.status, row.validationStatus, row.scanStatus), 'Estado no informado'),
+          createdAt: first(row.createdAt, row.uploadedAt),
+          hash: text(first(row.sha256, row.hash)),
+          size: integer(first(row.size, row.bytes))
+        };
+      }
+
+      function normalizeDetail(payload) {
+        var root = unwrap(payload);
+        var row = firstObject(root.action, root.case, root);
+        var base = normalizeAction(row);
+        var request = firstObject(row.request, row.payload, row.details);
+        var leave = firstObject(row.leave, row.leaveRequest, request.leave, request);
+        var allowed = firstArray(root.allowedCommands, row.allowedCommands, payload && payload.allowedCommands, root.commands, row.commands, payload && payload.commands).map(function (item) { return lower(typeof item === 'object' ? first(item.command, item.id, item.code) : item); }).filter(Boolean);
+        var gates = firstArray(leave.gates, leave.blockers, row.gates, root.gates, payload && payload.gates).map(function (item) { return text(typeof item === 'object' ? first(item.label, item.message, item.reason, item.code) : item); }).filter(Boolean);
+        return Object.assign(base, {
+          description: text(first(row.description, row.note, row.employeeNote, request.employeeNote)),
+          leave: {
+            mode: lower(first(leave.durationUnit, leave.mode, leave.unit)),
+            reasonCode: text(first(leave.reasonCode, leave.leaveTypeCode, leave.typeCode)),
+            reasonLabel: text(first(leave.reasonLabel, leave.leaveTypeLabel, leave.typeLabel)),
+            startsOn: first(leave.startsOn, leave.startDate, leave.from),
+            endsOn: first(leave.endsOn, leave.endDate, leave.to),
+            startsAtLocal: text(first(leave.startsAtLocal, leave.startTime)),
+            endsAtLocal: text(first(leave.endsAtLocal, leave.endTime)),
+            timezone: text(first(leave.timezone, leave.timeZone, 'America/Argentina/Mendoza')),
+            policyVersionId: text(first(leave.policyVersionId, row.policyVersionId)),
+            policyRuleId: text(first(leave.policyRuleId, row.policyRuleId)),
+            calculationStatus: lower(first(leave.calculationStatus, leave.readiness, row.calculationStatus, 'not_calculable')),
+            evidenceStatus: lower(first(leave.evidenceStatus, row.evidenceStatus, 'not_provided')),
+            gates: gates
+          },
+          evidence: firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence),
+          timeline: firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(normalizeTimeline),
+          allowedCommands: allowed
+        });
+      }
+
+      function cacheElements() {
+        ['authGate','gateTitle','gateMessage','gateSpinner','retryAuth','appShell','sidebar','menuButton','menuClose','navBackdrop','workspace',
+          'userAvatar','userName','userRole','refreshButton','logoutButton','permissionSummary','sourceChip','createActionButton','queueCreateButton',
+          'actionMetrics','metricObservedCard','metricClosedCard','metricObserved','metricClosed','actionViews','actionFilters','actionSearch',
+          'actionTypeFilter','actionStatusFilter','clearActionFilters','actionResultCount','pageScopeLabel','actionLoading',
+          'actionError','actionErrorMessage','retryActions','actionEmpty','actionQueue','actionRows','previousPage','nextPage','pageStatus',
+          'actionDialog','actionDialogTitle','actionDialogSubtitle','closeActionDialog','actionDialogBody','actionWizard','actionWizardForm',
+          'wizardTitle','wizardSubtitle','closeWizard','actionEmployeeSearch','actionEmployeeSearchStatus','actionEmployee','actionLeaveType','leaveTypeHelp','actionConfidentiality','actionConfidentialityHelp','actionConfidentialityError','durationDays',
+          'durationMinutes','startTimeField','endTimeField','actionStartDate','actionEndDate','actionStartTime','actionEndTime','durationGate','actionDurationModeError',
+          'actionEmployeeNote','employeeNoteHelp','wizardReview','actionConfirmTruth','actionConfirmError','wizardCancel','wizardBack','wizardNext',
+          'wizardSubmit','toastRegion'].forEach(function (id) { el[id] = byId(id); });
+      }
+
+      function hasCapability() {
+        for (var index = 0; index < arguments.length; index += 1) if (state.capabilities.has(lower(arguments[index]))) return true;
+        return false;
+      }
+
+      function canCreate() { return hasCapability('action.self.create', 'action.area.create', 'action.all.manage', 'actions:create:self', 'actions:create:employee'); }
+
+      function renderSession(user) {
+        el.userName.textContent = user.name;
+        el.userRole.textContent = user.role;
+        var initials = user.name.split(/\s+/).filter(Boolean).slice(0,2).map(function (part) { return part.charAt(0).toUpperCase(); }).join('');
+        el.userAvatar.textContent = initials || 'MJ';
+      }
+
+      function renderCapabilities() {
+        var labels = Array.from(new Set(Array.from(state.capabilities).map(function (capability) { return CAPABILITY_LABELS[capability]; }).filter(Boolean)));
+        var role = state.bootstrap.user.role;
+        el.permissionSummary.textContent = labels.length ? role + ' · Puede ' + labels.join(', ') + '.' : role + ' · Sólo se habilitan las operaciones informadas explícitamente por el backend.';
+        var enabled = canCreate() && state.bootstrap.subjects.length > 0 && state.bootstrap.reasons.length > 0;
+        el.createActionButton.disabled = !enabled;
+        el.queueCreateButton.disabled = !enabled;
+        var reason = !canCreate() ? 'Tu sesión no tiene capacidad para crear solicitudes.' : !state.bootstrap.subjects.length ? 'El backend no informó legajos habilitados.' : !state.bootstrap.reasons.length ? 'El backend no informó el catálogo de licencias.' : '';
+        el.createActionButton.title = reason;
+        el.queueCreateButton.title = reason;
+        var source = state.bootstrap.source;
+        el.sourceChip.textContent = source.label + (source.cutoff ? ' · corte ' + formatDate(source.cutoff) : '') + (source.version ? ' · ' + source.version : '');
+
+        var availableViews=new Map(state.bootstrap.views.map(function(view){return [view.id,view];}));
+        el.actionViews.querySelectorAll('[data-action-view]').forEach(function(tab){var option=availableViews.get(tab.dataset.actionView);tab.hidden=!option;if(option&&option.label)tab.textContent=option.label;});
+        var defaultView=availableViews.has(state.bootstrap.defaultView)?state.bootstrap.defaultView:(state.bootstrap.views[0]&&state.bootstrap.views[0].id)||'mine';
+        state.activeView=defaultView;
+        el.actionViews.querySelectorAll('[data-action-view]').forEach(function(tab){tab.setAttribute('aria-selected',String(!tab.hidden&&tab.dataset.actionView===state.activeView));});
+      }
+
+      function fillSelect(select, options, placeholder) {
+        clear(select);
+        var firstOption = create('option', '', placeholder);
+        firstOption.value = '';
+        select.appendChild(firstOption);
+        options.forEach(function (option) {
+          var node = create('option', '', option.label);
+          node.value = option.value;
+          if (option.policyVersionId) node.dataset.policyVersionId = option.policyVersionId;
+          if (option.policyRuleId) node.dataset.policyRuleId = option.policyRuleId;
+          if (option.supportsMinutes !== null) node.dataset.supportsMinutes = String(option.supportsMinutes);
+          if (option.confidentiality) node.dataset.confidentiality = option.confidentiality;
+          if (option.allowedConfidentialities) node.dataset.allowedConfidentialities = option.allowedConfidentialities.join(',');
+          if (option.note) node.dataset.note = option.note;
+          select.appendChild(node);
+        });
+      }
+
+      function renderSubjectOptions(query, forcedValue) {
+        var all = state.bootstrap.subjects;
+        var needle = lower(query).slice(0, 100);
+        var maximum = 100;
+        var options = all;
+        var placeholder = 'Seleccionar persona autorizada';
+        if (all.length > maximum && needle.length < 2 && !forcedValue) {
+          options = [];
+          placeholder = 'Escribí al menos 2 caracteres';
+        } else if (needle) {
+          options = all.filter(function (item) { return lower(item.label).includes(needle); }).slice(0, maximum);
+        } else {
+          options = all.slice(0, maximum);
+        }
+        if (forcedValue && !options.some(function (item) { return item.value === forcedValue; })) {
+          var selected = all.find(function (item) { return item.value === forcedValue; });
+          if (selected) options = [selected].concat(options.filter(function (item) { return item.value !== forcedValue; })).slice(0, maximum);
+        }
+        fillSelect(el.actionEmployee, options, placeholder);
+        if (forcedValue) el.actionEmployee.value = forcedValue;
+        else if (all.length === 1) el.actionEmployee.value = all[0].value;
+        var message;
+        var truncation = state.bootstrap.subjectsTruncated ? ' El backend limitó el catálogo recibido; si falta un legajo, solicitá ampliar el alcance.' : '';
+        if (all.length > maximum && needle.length < 2 && !forcedValue) message = all.length + ' legajos autorizados recibidos. Escribí al menos 2 caracteres; la búsqueda se procesa sólo en esta página y no se envía al servidor.' + truncation;
+        else if (needle && !options.length) message = 'No hay coincidencias dentro de tus legajos autorizados.';
+        else message = options.length + ' de ' + all.length + ' legajos autorizados recibidos visibles. La búsqueda es local y no se guarda.' + truncation;
+        el.actionEmployeeSearchStatus.textContent = message;
+      }
+
+      function renderCatalogs() {
+        renderSubjectOptions('', state.bootstrap.subjects.length === 1 ? state.bootstrap.subjects[0].value : '');
+        fillSelect(el.actionLeaveType, state.bootstrap.reasons, 'Seleccionar motivo');
+        var actionTypes=state.bootstrap.actionTypes.map(function(option){return Object.assign({},option,{label:typeLabel(option.value)});});
+        fillSelect(el.actionTypeFilter, actionTypes, 'Todos los tipos');
+        var statuses = state.bootstrap.statuses.length ? state.bootstrap.statuses : Object.keys(STATUS_LABELS).map(function (key) { return { value: key, label: STATUS_LABELS[key] }; });
+        statuses=statuses.map(function(option){return Object.assign({},option,{label:STATUS_LABELS[lower(option.value)]||option.label});});
+        fillSelect(el.actionStatusFilter, statuses, 'Todos los estados');
+      }
+
+      function metricValue(metrics, aliases) {
+        for (var index = 0; index < aliases.length; index += 1) {
+          var value = metrics[aliases[index]];
+          if (integer(value) !== null) return integer(value);
+        }
+        return null;
+      }
+
+      function renderMetrics(metrics) {
+        metrics = object(metrics);
+        var observed = metricValue(metrics, ['observed','evidenceRequired','needsEvidence']);
+        var closed = metricValue(metrics, ['closedLast30Days','closed30Days','recentlyClosed']);
+        el.metricObserved.textContent = formatNumber(observed);
+        el.metricClosed.textContent = formatNumber(closed);
+        el.metricObservedCard.hidden=observed===null;
+        el.metricClosedCard.hidden=closed===null;
+        el.actionMetrics.hidden=observed===null&&closed===null;
+      }
+
+      function filterActions() {
+        var query = lower(el.actionSearch.value).slice(0,100);
+        var type = lower(el.actionTypeFilter.value);
+        var status = lower(el.actionStatusFilter.value);
+        state.visibleActions = state.actions.filter(function (action) {
+          var haystack = lower([action.displayId, action.title, action.subjectName, typeLabel(action.type), statusLabel(action.status)].join(' '));
+          return (!query || haystack.includes(query)) && (!type || action.type === type) && (!status || action.status === status);
+        });
+        renderQueue();
+      }
+
+      function appendCell(row, label, content) {
+        var cell = create('td');
+        cell.dataset.label = label;
+        if (content instanceof Node) cell.appendChild(content); else cell.textContent = content;
+        row.appendChild(cell);
+      }
+
+      function renderQueue() {
+        clear(el.actionRows);
+        var rows = state.visibleActions;
+        el.actionLoading.hidden = true;
+        el.actionError.hidden = true;
+        el.actionEmpty.hidden = rows.length > 0;
+        el.actionQueue.hidden = rows.length === 0;
+        var total = state.pageInfo.total;
+        el.actionResultCount.textContent = rows.length + ' acción' + (rows.length === 1 ? '' : 'es') + ' visible' + (rows.length === 1 ? '' : 's') + (total !== null && total !== undefined ? ' · ' + total + ' en el alcance' : ' en esta página');
+        el.pageScopeLabel.textContent = 'Vista: ' + ({ mine: 'Mis solicitudes', area: 'Mi área', authorized: 'Todo mi alcance', closed: 'Cerradas' }[state.activeView] || 'Bandeja');
+        rows.forEach(function (action) {
+          var row = create('tr');
+          row.dataset.actionRow = action.id;
+          row.tabIndex = -1;
+          var number = create('div'); number.append(create('strong','cell-title',action.displayId), create('span','cell-sub', action.updatedAt ? 'Act. ' + formatDateTime(action.updatedAt) : 'Sin actualización informada'));
+          appendCell(row, 'Número', number);
+          var subject = create('div'); subject.append(create('strong','cell-title', action.title || typeLabel(action.type)), create('span','cell-sub',action.subjectName));
+          appendCell(row, 'Tipo y persona', subject);
+          appendCell(row, 'Estado', create('span','state-pill ' + statusClass(action.status),statusLabel(action.status)));
+          appendCell(row, 'Próxima acción', action.nextAction || action.stage || 'No informada');
+          var open = create('button','button open-row','Abrir'); open.type = 'button'; open.dataset.openAction = action.id; open.setAttribute('aria-label','Abrir ' + action.displayId);
+          appendCell(row, 'Abrir', open);
+          row.addEventListener('dblclick', function () { openAction(action.id); });
+          el.actionRows.appendChild(row);
+        });
+        var numericPrevious = state.pageInfo.page !== null && state.pageInfo.page !== undefined && state.pageInfo.page > 1;
+        var numericNext = state.pageInfo.page !== null && state.pageInfo.page !== undefined && state.pageInfo.pages !== null && state.pageInfo.pages !== undefined && state.pageInfo.page < state.pageInfo.pages;
+        el.previousPage.disabled = !numericPrevious;
+        el.nextPage.disabled = !numericNext;
+        el.pageStatus.textContent = state.pageInfo.page !== null && state.pageInfo.page !== undefined ? 'Página ' + state.pageInfo.page + (state.pageInfo.pages !== null && state.pageInfo.pages !== undefined ? ' de ' + state.pageInfo.pages : '') : 'Página actual';
+      }
+
+      function setQueueLoading() {
+        el.actionLoading.hidden = false;
+        el.actionError.hidden = true;
+        el.actionEmpty.hidden = true;
+        el.actionQueue.hidden = true;
+      }
+
+      function showQueueError(error) {
+        if (error && error.unauthorized) return;
+        el.actionLoading.hidden = true;
+        el.actionQueue.hidden = true;
+        el.actionEmpty.hidden = true;
+        el.actionError.hidden = false;
+        el.actionErrorMessage.textContent = text(error && error.message, 'El servicio de acciones no está disponible.');
+      }
+
+      async function loadActions(options) {
+        var settings = options || {};
+        setQueueLoading();
+        var parameters = { view: state.activeView };
+        parameters.page = integer(first(settings.page, state.currentPage, 1)) || 1;
+        parameters.limit = state.pageInfo.limit || 25;
+        if (el.actionTypeFilter.value) parameters.type = el.actionTypeFilter.value;
+        if (el.actionStatusFilter.value) parameters.status = el.actionStatusFilter.value;
+        try {
+          var payload = await actionGet('list', parameters);
+          var normalized = normalizeList(payload);
+          state.actions = normalized.items;
+          state.pageInfo = normalized.pageInfo;
+          state.currentPage = normalized.pageInfo.page || integer(settings.page) || state.currentPage || 1;
+          renderMetrics(Object.keys(normalized.metrics).length ? normalized.metrics : state.bootstrap.metrics);
+          filterActions();
+        } catch (error) { showQueueError(error); }
+      }
+
+      function fact(label, value) { var wrapper = create('div'); wrapper.append(create('dt','',label), create('dd','',text(value,'No informado'))); return wrapper; }
+
+      function auditActorLabel(actor) {
+        var record=object(actor);
+        var role=text(record.role).toUpperCase();
+        var roleLabel=ROLE_LABELS[role]||text(record.role);
+        var email=text(record.email);
+        if(roleLabel&&email)return roleLabel+' · '+email;
+        if(roleLabel)return roleLabel;
+        if(email)return 'Usuario interno · '+email;
+        return 'Identidad reservada por el alcance autorizado';
+      }
+
+      function periodLabel(leave) {
+        var base = formatDate(leave.startsOn) + ' → ' + formatDate(leave.endsOn);
+        if (leave.mode === 'minute') base += ' · ' + text(leave.startsAtLocal,'—') + ' a ' + text(leave.endsAtLocal,'—');
+        return base;
+      }
+
+      function capabilityForCommand(command) {
+        if (command === 'approve') return hasCapability('action.area.decide','action.all.manage','actions:approve:leave');
+        if (command === 'reject') return hasCapability('action.area.decide','action.all.manage','actions:review:hr','actions:approve:leave');
+        if (command === 'submit') return hasCapability('action.self.submit','action.area.submit','action.all.manage','actions:create:self','actions:create:employee');
+        if (command === 'cancel') return hasCapability('action.self.cancel','action.area.cancel_pending','action.area.cancel_approved','action.all.manage','actions:create:self','actions:create:employee','actions:review:hr');
+        if (command === 'update_draft') return hasCapability('action.self.update','action.area.update','action.all.manage','actions:create:self','actions:create:employee');
+        return false;
+      }
+
+      function commandAllowed(detail, command) { return detail.allowedCommands.includes(command) && capabilityForCommand(command); }
+
+      function approvalEvidenceOptions(detail) {
+        var configured = state.bootstrap.approvalEvidenceByConfidentiality;
+        var confidentiality = lower(detail && detail.confidentiality) || 'standard';
+        var allowed = array(configured[confidentiality]).map(lower).filter(function (value) { return value === 'verified' || value === 'not_required'; });
+        if (!allowed.length) allowed = confidentiality === 'restricted' ? ['verified'] : ['verified', 'not_required'];
+        if (confidentiality === 'restricted') allowed = allowed.filter(function (value) { return value === 'verified'; });
+        return Array.from(new Set(allowed));
+      }
+
+      function renderCommandPanel(detail) {
+        var panel = create('section','command-panel');
+        panel.append(create('h3','','Decisión disponible'), create('p','section-copy','Los botones requieren permiso explícito del backend y capacidad de la sesión.'));
+        var actions = create('div','command-actions');
+        ['update_draft','submit','approve','reject','cancel'].forEach(function (command) {
+          if (!commandAllowed(detail, command)) return;
+          var button = create('button','button ' + (command === 'approve' || command === 'submit' ? 'primary' : command === 'reject' || command === 'cancel' ? 'danger' : ''),COMMAND_LABELS[command]);
+          button.type = 'button'; button.dataset.actionCommand = command;
+          actions.appendChild(button);
+        });
+        if (!actions.children.length) {
+          var noAction = create('div','decision-warning','Esta sesión no tiene una decisión habilitada para el estado actual. El rol visible no otorga permisos por sí solo.');
+          panel.appendChild(noAction);
+        } else panel.appendChild(actions);
+        var formHost = create('div'); formHost.id = 'decisionFormHost'; panel.appendChild(formHost);
+        return panel;
+      }
+
+      function renderActionDetail(detail) {
+        state.selected = detail;
+        el.actionDialogTitle.textContent = detail.displayId;
+        el.actionDialogSubtitle.textContent = typeLabel(detail.type) + ' · ' + detail.subjectName;
+        clear(el.actionDialogBody);
+        var banner = create('div','detail-banner');
+        var bannerCopy = create('div'); bannerCopy.append(create('strong','',detail.title || typeLabel(detail.type)), create('p','',detail.nextAction || detail.stage || 'Próxima acción no informada'));
+        banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
+        el.actionDialogBody.appendChild(banner);
+
+        var grid = create('div','detail-grid');
+        var left = create('div');
+        var request = create('section','detail-section');
+        request.append(create('h3','','Solicitud'), create('p','section-copy','Datos autorizados de la acción. No constituyen un cálculo de saldo, horas trabajadas ni sueldo.'));
+        var requestFacts = create('dl','facts');
+        requestFacts.append(fact('Persona',detail.subjectName), fact('Tipo',typeLabel(detail.type)), fact('Período solicitado',periodLabel(detail.leave)), fact('Modalidad',detail.leave.mode === 'minute' ? 'Franja horaria solicitada' : 'Días calendario solicitados'), fact('Motivo',detail.leave.reasonLabel || detail.leave.reasonCode), fact('Confidencialidad',titleCase(detail.confidentiality)), fact('Versión',detail.version === null ? 'No informada' : String(detail.version)));
+        request.appendChild(requestFacts);
+        if (detail.description) request.appendChild(create('p','decision-warning','Observación registrada: ' + detail.description));
+        left.appendChild(request);
+
+        var gatesSection = create('section','detail-section'); gatesSection.append(create('h3','','Gates de cálculo y decisión'), create('p','section-copy','Los faltantes permanecen visibles y no se convierten en aprobaciones.'));
+        var gates = detail.leave.gates.slice();
+        if (!gates.length && detail.leave.calculationStatus !== 'calculable') gates.push('Saldo vigente, horas efectivamente trabajadas e impacto salarial no fueron calculados por esta pantalla.');
+        var gateList = create('ul','gate-list'); gates.forEach(function (gate) { gateList.appendChild(create('li','',gate)); }); gatesSection.appendChild(gateList); left.appendChild(gatesSection);
+
+        var evidenceSection = create('section','detail-section'); evidenceSection.append(create('h3','','Evidencia'), create('p','section-copy','Metadatos privados recibidos del backend; no se generan enlaces públicos.'));
+        var evidenceList = create('ul','evidence-list');
+        if (!detail.evidence.length) evidenceList.appendChild(create('li','','No hay evidencia publicada para esta sesión.'));
+        detail.evidence.forEach(function (item) { var node = create('li'); node.append(create('strong','',item.label), create('span','',item.status + (item.createdAt ? ' · ' + formatDateTime(item.createdAt) : '') + (item.hash ? ' · huella ' + item.hash.slice(0,12) + '…' : ''))); evidenceList.appendChild(node); });
+        evidenceSection.appendChild(evidenceList); left.appendChild(evidenceSection);
+
+        var right = create('div');
+        var control = create('section','detail-section'); control.append(create('h3','','Control administrativo'), create('p','section-copy','La referencia legal orienta el análisis; aprobar constituye una decisión administrativa.'));
+        var controlFacts = create('dl','facts'); controlFacts.append(fact('Estado',statusLabel(detail.status)), fact('Etapa',detail.stage || 'No informada'), fact('Política',detail.leave.policyVersionId || 'No informada'), fact('Regla',detail.leave.policyRuleId || 'No informada'), fact('Estado de cálculo',titleCase(detail.leave.calculationStatus)), fact('Evidencia',titleCase(detail.leave.evidenceStatus))); control.appendChild(controlFacts); right.appendChild(control);
+
+        var timelineSection = create('section','detail-section'); timelineSection.append(create('h3','','Historial'), create('p','section-copy','Eventos de auditoría informados por el backend.'));
+        var timeline = create('ol','timeline');
+        if (!detail.timeline.length) timeline.appendChild(create('li','','El backend no informó eventos de historial.'));
+        detail.timeline.forEach(function (event) { var item = create('li'); var transition = event.fromStatus || event.toStatus ? [event.fromStatus ? statusLabel(event.fromStatus) : '', event.toStatus ? statusLabel(event.toStatus) : ''].filter(Boolean).join(' → ') : ''; item.append(create('strong','',event.label), create('time','',formatDateTime(event.createdAt)), create('span','',auditActorLabel(event.actor))); if (transition) item.appendChild(create('span','',transition)); if (event.caseVersion!==null) item.appendChild(create('span','','Versión del caso: '+event.caseVersion)); if (event.note) item.appendChild(create('span','',event.note)); timeline.appendChild(item); });
+        timelineSection.appendChild(timeline); right.appendChild(timelineSection);
+        grid.append(left,right); el.actionDialogBody.appendChild(grid);
+        el.actionDialogBody.appendChild(renderCommandPanel(detail));
+        el.actionDialogBody.setAttribute('aria-busy','false');
+      }
+
+      async function openAction(id) {
+        if (!SAFE_CASE_ID.test(text(id))) { toast('El identificador de la acción no es válido.','error'); return; }
+        state.lastFocus = document.activeElement;
+        el.actionDialogTitle.textContent = 'Consultando acción'; el.actionDialogSubtitle.textContent = 'Cargando estado y trazabilidad.';
+        clear(el.actionDialogBody); var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
+        if (!el.actionDialog.open) el.actionDialog.showModal();
+        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ id: id }))); }
+        catch (error) { if (error.unauthorized) return; clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',error.message)); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false'); }
+      }
+
+      function closeActionDialog() { if (el.actionDialog.open) el.actionDialog.close(); if (state.lastFocus && typeof state.lastFocus.focus === 'function') state.lastFocus.focus(); }
+
+      function renderDetailRefreshFailure(caseId,error) {
+        state.selected=null;
+        el.actionDialogTitle.textContent='Acción registrada';
+        el.actionDialogSubtitle.textContent='El comprobante fue recibido, pero el detalle vigente no pudo actualizarse.';
+        clear(el.actionDialogBody);
+        var failed=create('div','error-state');
+        failed.append(create('strong','','Actualización pendiente'),create('p','',text(error&&error.message,'No pudimos consultar nuevamente el estado y el historial.')));
+        var retry=create('button','button primary','Reintentar detalle');retry.type='button';retry.addEventListener('click',function(){openAction(caseId);});
+        failed.appendChild(retry);el.actionDialogBody.appendChild(failed);el.actionDialogBody.setAttribute('aria-busy','false');
+      }
+
+      function showDecisionForm(command) {
+        var detail = state.selected;
+        if (!detail || !commandAllowed(detail,command)) { toast('La decisión no está habilitada para esta sesión.','error'); return; }
+        if (command === 'update_draft') { closeActionDialog(); openWizard(detail); return; }
+        var host = byId('decisionFormHost'); clear(host);
+        var form = create('form','decision-form'); form.dataset.commandForm = command;
+        var title = create('h3','',COMMAND_LABELS[command]); var copy = create('p','section-copy',command === 'approve' ? 'Confirmá evidencia y validación manual. La aprobación quedará registrada con tu identidad y versión.' : 'La operación quedará registrada en el historial inmutable.'); form.append(title,copy);
+        if (command === 'approve') {
+          var evidenceField = create('div','field'); evidenceField.append(create('label','','Estado de evidencia')); var select = create('select','select'); select.id='decisionEvidenceStatus'; var evidenceLabels={verified:'Verificada',not_required:'No requerida según regla'}; approvalEvidenceOptions(detail).forEach(function (value) { var node=create('option','',evidenceLabels[value]); node.value=value; select.appendChild(node); }); evidenceField.appendChild(select); if(detail.confidentiality==='restricted')evidenceField.appendChild(create('span','field-help','Los casos restringidos exigen evidencia verificada; “No requerida” no está habilitada.')); form.appendChild(evidenceField);
+          var confirmation = create('label','checkbox'); var checkbox = create('input'); checkbox.type='checkbox'; checkbox.id='manualValidationConfirmed'; confirmation.append(checkbox,create('span','','Confirmo que realicé la validación manual exigida y que mi sesión posee autoridad administrativa para esta decisión.')); form.appendChild(confirmation);
+        }
+        var reason = null;
+        if (command !== 'submit') {
+          var reasonField=create('div','field'); reasonField.style.marginTop='11px'; var reasonLabel=create('label','','Fundamento obligatorio'); reasonLabel.htmlFor='decisionReason'; reason=create('textarea','textarea'); reason.id='decisionReason'; reason.maxLength=MAX_REASON_LENGTH; reason.minLength=3; reason.required=true; reason.placeholder='Indicá un fundamento de al menos 3 caracteres.'; reasonField.append(reasonLabel,reason); form.appendChild(reasonField);
+        }
+        var warning=create('div','decision-warning', command === 'submit' ? 'Enviar inicia la revisión; no aprueba la licencia ni modifica nómina.' : command === 'approve' ? 'Aprobar es una decisión administrativa, no una recomendación de IA.' : 'La acción no elimina el historial ni la evidencia.'); form.appendChild(warning);
+        var actions=create('div','command-actions'); var cancel=create('button','button','Volver'); cancel.type='button'; cancel.addEventListener('click',function(){clear(host);}); var confirm=create('button','button ' + (command==='approve'||command==='submit'?'primary':'danger'),'Confirmar ' + COMMAND_LABELS[command].toLowerCase()); confirm.type='submit'; actions.append(cancel,confirm); form.appendChild(actions);
+        form.addEventListener('submit',function(event){event.preventDefault();executeTransition(command,form);}); host.appendChild(form); (reason || form.querySelector('button[type="submit"]')).focus();
+      }
+
+      async function executeTransition(command, form) {
+        var detail=state.selected; if(!detail || detail.version===null){toast('El backend no informó la versión esperada. La transición fue bloqueada.','error');return;}
+        var reason=text(form.querySelector('#decisionReason') && form.querySelector('#decisionReason').value).slice(0,MAX_REASON_LENGTH);
+        if(command!=='submit' && reason.length<3){toast('Indicá un fundamento de al menos 3 caracteres.','error');return;}
+        var body={caseType:'leave_request',command:command,caseId:detail.id,expectedVersion:detail.version};
+        if(command!=='submit') body.reason=reason;
+        if(command==='approve'){
+          var confirmed=form.querySelector('#manualValidationConfirmed').checked;
+          if(!confirmed){toast('La aprobación exige confirmar la validación manual.','error');return;}
+          body.evidenceStatus=form.querySelector('#decisionEvidenceStatus').value; body.manualValidationConfirmed=true;
+        }
+        var submit=form.querySelector('button[type="submit"]'); submit.disabled=true; submit.setAttribute('aria-busy','true');
+        var transitionRecorded=false;
+        try { await actionCommand('POST',body); transitionRecorded=true; toast('Acción registrada con trazabilidad.'); var next=normalizeDetail(await actionGet('detail',{id:detail.id})); renderActionDetail(next); await loadActions(); }
+        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else{toast(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message,'error');if(error.status===409)openAction(detail.id);}}}
+        finally{submit.disabled=false;submit.removeAttribute('aria-busy');}
+      }
+
+      function selectedReason() {
+        var option=el.actionLeaveType.options[el.actionLeaveType.selectedIndex];
+        if(!option)return {};
+        var supportsMinutes=option.getAttribute('data-supports-minutes');
+        return {
+          code:option.value,
+          label:option.textContent,
+          policyVersionId:text(option.dataset.policyVersionId,state.bootstrap.policyVersionId),
+          policyRuleId:text(option.dataset.policyRuleId),
+          supportsMinutes:supportsMinutes===null?null:supportsMinutes==='true',
+          confidentiality:lower(option.dataset.confidentiality),
+          note:text(option.dataset.note)
+        };
+      }
+
+      function minuteDurationAllowed(reason) {
+        return Boolean(reason&&reason.code==='13'&&reason.supportsMinutes===true);
+      }
+
+      function selectedSubject() {
+        var value=el.actionEmployee.value;
+        var subject=state.bootstrap.subjects.find(function(item){return item.value===value;});
+        if(subject)return subject;
+        var option=el.actionEmployee.options[el.actionEmployee.selectedIndex];
+        return option&&option.value?{
+          value:option.value,
+          label:option.textContent,
+          allowedConfidentialities:text(option.dataset.allowedConfidentialities).split(',').map(lower).filter(Boolean)
+        }:{};
+      }
+
+      function confidentialityDecision() {
+        var reason=selectedReason();
+        var subject=selectedSubject();
+        if(!reason.code||!subject.value)return {valid:false,value:reason.confidentiality||'standard',message:'Seleccioná persona y motivo. El nivel se determinará con la política vigente y el alcance autorizado.',error:''};
+        if(reason.confidentiality!=='standard'&&reason.confidentiality!=='restricted')return {valid:false,value:'standard',message:'El catálogo no informó el tratamiento de confidencialidad de este motivo.',error:'No se puede crear el borrador: falta la confidencialidad gobernada del motivo.'};
+        var allowed=array(subject.allowedConfidentialities).map(lower);
+        if(!allowed.includes(reason.confidentiality))return {valid:false,value:reason.confidentiality,message:'La combinación seleccionada no está habilitada para tu alcance.',error:'Este beneficiario no admite el nivel exigido por el motivo. Elegí otra combinación o solicitá revisión de permisos.'};
+        return {
+          valid:true,
+          value:reason.confidentiality,
+          message:reason.confidentiality==='restricted'
+            ? 'Tratamiento restringido obligatorio por el motivo y autorizado para este beneficiario. La nota general queda deshabilitada.'
+            : 'Tratamiento estándar definido por el motivo y autorizado para este beneficiario. El nivel no se modifica manualmente.',
+          error:''
+        };
+      }
+
+      function wizardValue() { var reason=selectedReason(); var confidentiality=confidentialityDecision(); var mode=el.durationMinutes.checked?'minute':'calendar_day'; return {beneficiaryContractId:el.actionEmployee.value,reasonCode:reason.code,reasonLabel:reason.label,policyVersionId:reason.policyVersionId,policyRuleId:reason.policyRuleId,startsOn:el.actionStartDate.value,endsOn:el.actionEndDate.value,startsAtLocal:mode==='minute'?el.actionStartTime.value:'',endsAtLocal:mode==='minute'?el.actionEndTime.value:'',durationUnit:mode,confidentiality:confidentiality.value,employeeNote:text(el.actionEmployeeNote.value).slice(0,1000)}; }
+      function errorFor(id,message){var node=byId(id);node.textContent=message||'';node.hidden=!message;}
+      function validateStep(step){var value=wizardValue();var valid=true;if(step===1){var confidentiality=confidentialityDecision();updateConfidentiality();errorFor('actionEmployeeError',value.beneficiaryContractId?'':'Elegí una persona autorizada.');errorFor('actionLeaveTypeError',value.reasonCode?'':'Elegí un tipo de licencia.');valid=Boolean(value.beneficiaryContractId&&value.reasonCode&&value.policyVersionId&&confidentiality.valid);if(value.reasonCode&&!value.policyVersionId){errorFor('actionLeaveTypeError','El backend no informó una versión de política. El borrador fue bloqueado.');valid=false;}}
+        if(step===2){var reason=selectedReason();var invalidMinutes=value.durationUnit==='minute'&&!minuteDurationAllowed(reason);errorFor('actionDurationModeError',invalidMinutes?'La franja horaria no está habilitada para este motivo. Elegí días completos.':'');errorFor('actionStartDateError',value.startsOn?'':'Indicá la fecha inicial.');errorFor('actionEndDateError',value.endsOn?'':'Indicá la fecha final.');valid=Boolean(value.startsOn&&value.endsOn&&!invalidMinutes);if(valid&&value.endsOn<value.startsOn){errorFor('actionEndDateError','La fecha final no puede ser anterior a la inicial.');valid=false;}if(value.durationUnit==='minute'&&!invalidMinutes){if(valid&&value.startsOn!==value.endsOn){errorFor('actionEndDateError','Una solicitud por minutos debe comenzar y terminar el mismo día.');valid=false;}errorFor('actionStartTimeError',value.startsAtLocal?'':'Indicá la hora inicial.');errorFor('actionEndTimeError',value.endsAtLocal?'':'Indicá la hora final.');valid=valid&&Boolean(value.startsAtLocal&&value.endsAtLocal);if(valid&&value.endsAtLocal<=value.startsAtLocal){errorFor('actionEndTimeError','La hora final debe ser posterior a la inicial.');valid=false;}}}
+        if(step===4){errorFor('actionConfirmError',el.actionConfirmTruth.checked?'':'Confirmá la revisión antes de crear el borrador.');valid=el.actionConfirmTruth.checked;}return valid;}
+
+      function updateDurationFields(){var reason=selectedReason();var enabled=minuteDurationAllowed(reason);if(!enabled&&el.durationMinutes.checked){el.durationDays.checked=true;el.actionStartTime.value='';el.actionEndTime.value='';}el.durationMinutes.disabled=!enabled;el.durationMinutes.setAttribute('aria-disabled',String(!enabled));el.durationMinutes.title=enabled?'Este motivo admite una franja horaria solicitada.':'El catálogo vigente no habilita minutos para este motivo.';var minutes=enabled&&el.durationMinutes.checked;el.startTimeField.hidden=!minutes;el.endTimeField.hidden=!minutes;el.actionStartTime.required=minutes;el.actionEndTime.required=minutes;if(!minutes){errorFor('actionStartTimeError','');errorFor('actionEndTimeError','');errorFor('actionDurationModeError','');}if(!reason.code){el.durationGate.textContent='Seleccioná un motivo para conocer las modalidades habilitadas por la política vigente.';}else if(!enabled){el.durationGate.textContent='Según el catálogo normativo, este motivo sólo admite días completos. La franja horaria está reservada al motivo de lactancia habilitado por la política.';}else if(minutes){el.durationGate.textContent='La franja es un intervalo solicitado. Sin horario asignado, fichadas y calendario homologado, el sistema no calcula minutos laborables ni impacto salarial.';}else{el.durationGate.textContent='Este motivo admite días completos o franja horaria. El período informado sigue siendo una solicitud, no un saldo ni una licencia aprobada.';}}
+
+      function updateConfidentiality(){var decision=confidentialityDecision();el.actionConfidentiality.value=decision.value==='restricted'?'restricted':'standard';el.actionConfidentiality.disabled=true;el.actionConfidentialityHelp.textContent=decision.message;errorFor('actionConfidentialityError',decision.error);var restricted=decision.value==='restricted';if(restricted)el.actionEmployeeNote.value='';el.actionEmployeeNote.disabled=restricted;el.employeeNoteHelp.textContent=restricted?'Los casos restringidos no admiten una nota general. La evidencia sensible debe circular por el canal documental autorizado.':'No ingreses diagnósticos ni información sensible. Los casos restringidos no admiten una nota general.';}
+
+      function renderWizardReview(){var value=wizardValue();var employee=el.actionEmployee.options[el.actionEmployee.selectedIndex];clear(el.wizardReview);el.wizardReview.append(fact('Persona',employee?employee.textContent:'No seleccionada'),fact('Motivo',value.reasonLabel||'No seleccionado'),fact('Período',formatDate(value.startsOn)+' → '+formatDate(value.endsOn)+(value.durationUnit==='minute'?' · '+value.startsAtLocal+' a '+value.endsAtLocal:'')),fact('Modalidad',value.durationUnit==='minute'?'Franja horaria solicitada':'Días calendario solicitados'),fact('Política',value.policyVersionId||'No informada'),fact('Evidencia','Pendiente de verificación'),fact('Confidencialidad',titleCase(value.confidentiality)));}
+
+      function showWizardStep(step){state.wizardStep=Math.min(4,Math.max(1,step));document.querySelectorAll('[data-action-step]').forEach(function(panel){panel.hidden=Number(panel.dataset.actionStep)!==state.wizardStep;});document.querySelectorAll('[data-wizard-step-indicator]').forEach(function(indicator){var number=Number(indicator.dataset.wizardStepIndicator);var current=number===state.wizardStep;indicator.classList.toggle('is-current',current);indicator.classList.toggle('is-done',number<state.wizardStep);if(current)indicator.setAttribute('aria-current','step');else indicator.removeAttribute('aria-current');});el.wizardBack.hidden=state.wizardStep===1;el.wizardNext.hidden=state.wizardStep===4;el.wizardSubmit.hidden=state.wizardStep!==4;if(state.wizardStep===4)renderWizardReview();var active=el.actionWizard.querySelector('[data-action-step="'+state.wizardStep+'"]');var focusable=active&&active.querySelector('select,input,textarea,button');if(focusable&&el.actionWizard.open)window.setTimeout(function(){if(el.actionWizard.open)focusable.focus();},0);}
+
+      function resetWizard(){el.actionWizardForm.reset();el.actionEmployeeSearch.value='';renderSubjectOptions('',state.bootstrap.subjects.length===1?state.bootstrap.subjects[0].value:'');el.actionEmployeeNote.value='';el.actionConfidentiality.value='standard';el.durationDays.checked=true;el.actionConfirmTruth.checked=false;['actionEmployeeError','actionLeaveTypeError','actionConfidentialityError','actionDurationModeError','actionStartDateError','actionEndDateError','actionStartTimeError','actionEndTimeError','actionConfirmError'].forEach(function(id){errorFor(id,'');});state.editing=null;el.wizardTitle.textContent='Nueva solicitud de licencia';el.wizardSubtitle.textContent='El borrador no concede una licencia ni modifica nómina.';el.wizardSubmit.textContent='Crear borrador';updateDurationFields();updateConfidentiality();showWizardStep(1);}
+
+      function openWizard(detail){if(!canCreate()){toast('Tu sesión no puede crear o editar solicitudes.','error');return;}if(!state.bootstrap.subjects.length||!state.bootstrap.reasons.length){toast('Faltan legajos o motivos habilitados por el backend.','error');return;}state.lastFocus=document.activeElement;resetWizard();if(detail){state.editing=detail;el.wizardTitle.textContent='Editar borrador';el.wizardSubtitle.textContent='Los cambios requieren la versión vigente y no envían la solicitud a revisión.';el.wizardSubmit.textContent='Guardar borrador';renderSubjectOptions('',detail.subjectContractId);el.actionEmployee.value=detail.subjectContractId;el.actionLeaveType.value=detail.leave.reasonCode;el.actionConfidentiality.value=detail.confidentiality;el.actionStartDate.value=text(detail.leave.startsOn).slice(0,10);el.actionEndDate.value=text(detail.leave.endsOn).slice(0,10);el.durationMinutes.checked=detail.leave.mode==='minute';el.durationDays.checked=detail.leave.mode!=='minute';el.actionStartTime.value=detail.leave.startsAtLocal;el.actionEndTime.value=detail.leave.endsAtLocal;el.actionEmployeeNote.value=detail.description;updateDurationFields();updateConfidentiality();}el.actionWizard.showModal();window.setTimeout(function(){if(!el.actionWizard.open)return;(state.bootstrap.subjects.length>100?el.actionEmployeeSearch:el.actionEmployee).focus();},0);}
+      function closeWizard(){if(el.actionWizard.open)el.actionWizard.close();resetWizard();if(state.lastFocus&&typeof state.lastFocus.focus==='function')state.lastFocus.focus();}
+
+      async function submitWizard(event){event.preventDefault();if(!validateStep(1)){showWizardStep(1);return;}if(!validateStep(2)){showWizardStep(2);return;}if(!validateStep(4))return;var confidentiality=confidentialityDecision();var reason=selectedReason();var value=wizardValue();if(!confidentiality.valid){toast('La confidencialidad exigida no está autorizada para esta combinación. No se envió información.','error');showWizardStep(1);return;}if(value.durationUnit==='minute'&&!minuteDurationAllowed(reason)){toast('La política vigente no habilita una franja horaria para este motivo. No se envió información.','error');showWizardStep(2);return;}var payload={beneficiaryContractId:value.beneficiaryContractId,reasonCode:value.reasonCode,policyVersionId:value.policyVersionId,startsOn:value.startsOn,endsOn:value.endsOn,durationUnit:value.durationUnit,confidentiality:confidentiality.value};if(value.policyRuleId)payload.policyRuleId=value.policyRuleId;if(value.durationUnit==='minute'){payload.startsAtLocal=value.startsAtLocal;payload.endsAtLocal=value.endsAtLocal;}if(value.employeeNote)payload.employeeNote=value.employeeNote;var body={caseType:'leave_request',command:state.editing?'update_draft':'create',payload:payload};var method='POST';if(state.editing){if(state.editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}body.caseId=state.editing.id;body.expectedVersion=state.editing.version;method='PATCH';}
+        el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);toast(state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.');closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message,'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
+
+      function toast(message,type){var node=create('div','toast'+(type==='error'?' error':''),message);el.toastRegion.appendChild(node);window.setTimeout(function(){if(node.parentNode)node.remove();},4600);}
+
+      function openMenu(){document.body.classList.add('nav-open');el.menuButton.setAttribute('aria-expanded','true');el.workspace.inert=true;el.menuClose.focus();}
+      function closeMenu(restore){document.body.classList.remove('nav-open');el.menuButton.setAttribute('aria-expanded','false');el.workspace.inert=false;if(restore)el.menuButton.focus();}
+      function trapMenuFocus(event){if(!document.body.classList.contains('nav-open')||event.key!=='Tab')return;var focusable=Array.from(el.sidebar.querySelectorAll('a[href],button:not([disabled])')).filter(function(node){return !node.hidden;});if(!focusable.length)return;var firstNode=focusable[0],lastNode=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===firstNode){event.preventDefault();lastNode.focus();}else if(!event.shiftKey&&document.activeElement===lastNode){event.preventDefault();firstNode.focus();}}
+
+      async function logout(){el.logoutButton.disabled=true;try{await fetch(AUTH_URL,{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'}});}catch(_){/* El cierre local continúa. */}redirectToLogin();}
+
+      async function authenticate(){el.gateTitle.textContent='Verificando sesión';el.gateMessage.textContent='Confirmamos tu acceso antes de consultar acciones internas.';el.gateSpinner.hidden=false;el.retryAuth.hidden=true;try{var auth=await requestJson(AUTH_URL);var authRoot=unwrap(auth);var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}var bootstrapPayload=await actionGet('bootstrap');state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});state.capabilities=state.bootstrap.capabilities;state.user=state.bootstrap.user;renderSession(state.user);renderCapabilities();renderCatalogs();renderMetrics(state.bootstrap.metrics);el.authGate.hidden=true;el.appShell.hidden=false;await loadActions();}catch(error){if(error.unauthorized)return;el.gateTitle.textContent='No pudimos abrir el Centro de acciones';el.gateMessage.textContent=text(error.message,'No se pudo conectar con el servicio interno.');el.gateSpinner.hidden=true;el.retryAuth.hidden=false;el.retryAuth.focus();}}
+
+      function resetPagination() {
+        state.currentPage = 1;
+      }
+
+      function bindEvents() {
+        el.retryAuth.addEventListener('click', authenticate);
+        el.retryActions.addEventListener('click', function () { loadActions(); });
+        el.refreshButton.addEventListener('click', function () { loadActions(); });
+        el.logoutButton.addEventListener('click', logout);
+        el.menuButton.addEventListener('click', openMenu);
+        el.menuClose.addEventListener('click', function () { closeMenu(true); });
+        el.navBackdrop.addEventListener('click', function () { closeMenu(true); });
+        el.sidebar.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', function () { closeMenu(false); }); });
+        document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
+        [el.createActionButton, el.queueCreateButton].forEach(function (button) { button.addEventListener('click', function () { openWizard(); }); });
+        el.actionViews.addEventListener('click', function (event) {
+          var tab = event.target.closest('[data-action-view]');
+          if (!tab || tab.hidden) return;
+          state.activeView = tab.dataset.actionView;
+          resetPagination();
+          el.actionViews.querySelectorAll('[data-action-view]').forEach(function (node) { node.setAttribute('aria-selected', String(node === tab)); });
+          loadActions({ page: 1 });
+        });
+        el.actionFilters.addEventListener('submit', function (event) { event.preventDefault(); resetPagination(); loadActions({ page: 1 }); });
+        el.actionSearch.addEventListener('input', filterActions);
+        el.clearActionFilters.addEventListener('click', function () {
+          el.actionSearch.value = '';
+          el.actionTypeFilter.value = '';
+          el.actionStatusFilter.value = '';
+          resetPagination();
+          loadActions({ page: 1 });
+        });
+        el.actionRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-action]'); if (button) openAction(button.dataset.openAction); });
+        el.previousPage.addEventListener('click', function () {
+          if (state.pageInfo.page > 1) loadActions({ page: state.pageInfo.page - 1 });
+        });
+        el.nextPage.addEventListener('click', function () {
+          if (state.pageInfo.page && state.pageInfo.pages && state.pageInfo.page < state.pageInfo.pages) loadActions({ page: state.pageInfo.page + 1 });
+        });
+        el.closeActionDialog.addEventListener('click', closeActionDialog);
+        el.actionDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeActionDialog(); });
+        el.actionDialogBody.addEventListener('click', function (event) { var button = event.target.closest('[data-action-command]'); if (button) showDecisionForm(button.dataset.actionCommand); });
+        el.closeWizard.addEventListener('click', closeWizard);
+        el.wizardCancel.addEventListener('click', closeWizard);
+        el.actionWizard.addEventListener('cancel', function (event) { event.preventDefault(); closeWizard(); });
+        el.wizardBack.addEventListener('click', function () { showWizardStep(state.wizardStep - 1); });
+        el.wizardNext.addEventListener('click', function () { if (validateStep(state.wizardStep)) showWizardStep(state.wizardStep + 1); });
+        el.actionWizardForm.addEventListener('submit', submitWizard);
+        el.actionEmployeeSearch.addEventListener('input', function () { renderSubjectOptions(el.actionEmployeeSearch.value, ''); updateConfidentiality(); });
+        el.actionEmployee.addEventListener('change', updateConfidentiality);
+        [el.durationDays, el.durationMinutes].forEach(function (input) { input.addEventListener('change', updateDurationFields); });
+        el.actionLeaveType.addEventListener('change', function () { var reason = selectedReason(); el.leaveTypeHelp.textContent = reason.note || 'La versión normativa proviene del backend y quedará asociada al borrador.'; updateDurationFields(); updateConfidentiality(); });
+      }
+
+      function init(){cacheElements();bindEvents();authenticate();}
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+    })();
+  </script>
+</body>
+</html>

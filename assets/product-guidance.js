@@ -32,6 +32,13 @@ export const SECTION_CATALOG = deepFreeze([
     aliases: ['persona', 'personas', 'empleado', 'empleados', 'legajo', 'legajos', 'directorio'],
   },
   {
+    id: 'acciones', label: 'Centro de acciones', targetPath: '/centro-acciones',
+    purpose: 'Crear, enviar y resolver solicitudes administrativas con permisos explícitos, control de versión e historial inmutable.',
+    actions: ['crear una solicitud de licencia', 'consultar la bandeja autorizada', 'enviar un borrador', 'revisar o decidir cuando la sesión tiene esa capacidad'],
+    limits: ['la aprobación siempre requiere una decisión humana autorizada', 'no calcula saldos, horas trabajadas ni impacto salarial sin libros y reglas homologados', 'una aprobación en MuniControl no implica aplicación automática en GRH o nómina'],
+    aliases: ['acciones', 'centro de acciones', 'solicitud', 'solicitudes', 'tramite interno', 'licencia operativa', 'aprobar licencia'],
+  },
+  {
     id: 'estructura', label: 'Estructura', targetPath: '/estructura',
     purpose: 'Explorar asignaciones agregadas de organizaciones, sectores, cargos y catálogos de GRH.',
     actions: ['buscar una asignación', 'filtrar grupos activos o inactivos', 'alternar entre organizaciones, sectores y catálogos'],
@@ -123,6 +130,11 @@ export const TASK_CATALOG = deepFreeze([
     steps: ['Buscá primero el legajo en Personas.', 'Confirmá la identidad usando la información visible en el resultado.', 'Abrí la ficha y recorré estado, organización, ausencias, movimientos y trazabilidad disponibles.', 'Si un dato falta o está marcado como ambiguo, conservá esa limitación y validalo en la fuente administrativa correspondiente.'],
   },
   {
+    id: 'gestionar_solicitud_licencia', label: 'Gestionar una solicitud de licencia', sectionId: 'acciones',
+    aliases: ['crear solicitud de licencia', 'gestionar licencia', 'enviar licencia', 'aprobar licencia', 'centro de acciones'],
+    steps: ['Abrí Centro de acciones.', 'Confirmá el alcance y las capacidades de tu sesión.', 'Elegí el legajo, el motivo y la modalidad por día o por minutos solicitados.', 'Revisá los controles faltantes: el sistema no completa saldos, jornadas ni documentación con supuestos.', 'Enviá la solicitud y seguí su historial.', 'Si te corresponde decidir, verificá evidencia, regla y segregación antes de aprobar o rechazar.'],
+  },
+  {
     id: 'explorar_estructura', label: 'Explorar la estructura municipal', sectionId: 'estructura',
     aliases: ['explorar estructura', 'buscar sector', 'buscar organizacion', 'ver organigrama', 'ver cargos'],
     steps: ['Abrí Estructura.', 'Elegí Organizaciones, Sectores o Cargos y catálogos.', 'Usá la búsqueda y el filtro de situación para acotar los grupos.', 'Leé las definiciones de la vista antes de interpretar relaciones jerárquicas.'],
@@ -189,6 +201,7 @@ export const GLOSSARY = deepFreeze([
   { id: 'anio_gestion', label: 'Año de gestión', aliases: ['año de gestion', 'ano de gestion', 'año de mandato'], definition: 'Ventana anual contada desde la fecha exacta de inicio de una gestión. Evita que un año calendario de transición mezcle dos gobiernos.', relatedSectionIds: ['gestiones'] },
   { id: 'contrato_mes', label: 'Contrato-mes liquidado', aliases: ['contrato mes', 'contrato-mes', 'legajo mes'], definition: 'Unidad formada por un legajo y un mes con liquidación cerrada. Se usa como denominador comparable de eventos registrados; no equivale a horas trabajadas ni presentismo.', relatedSectionIds: ['gestiones', 'nomina', 'ausentismo'] },
   { id: 'presupuesto_aprobado', label: 'Presupuesto aprobado', aliases: ['presupuesto aprobado', 'credito aprobado', 'presupuesto 2026'], definition: 'Autorización anual de gastos y estimación de recursos y financiamiento fijada por ordenanza. No equivale a ejecución: para medir desvíos hacen falta modificaciones, compromiso, devengado y pagado de una fuente oficial.', relatedSectionIds: ['presupuesto', 'gestiones'] },
+  { id: 'caso_administrativo', label: 'Caso administrativo', aliases: ['caso administrativo', 'solicitud administrativa', 'expediente de accion'], definition: 'Unidad operativa con responsable, estado, versión e historial inmutable. Registra decisiones humanas; no modifica por sí sola la fuente GRH ni sustituye un acto administrativo externo.', relatedSectionIds: ['acciones', 'licencias'] },
 ]);
 
 export function getProductGuidanceCatalog() {
