@@ -51,6 +51,7 @@ const INTENTS = new Set([
   'employee_search',
   'employee_detail',
   'management_comparison',
+  'budget_approved',
   'executive_analysis',
   'help_navigation',
   'section_explanation',
@@ -86,6 +87,7 @@ const NOMINAL_OR_INTERNAL_ONLY_INTENTS = new Set([
   'quality_issue_list',
   'import_lineage',
   'leave_policy',
+  'budget_approved',
 ]);
 
 const INTENT_RESOURCES = Object.freeze({
@@ -103,6 +105,7 @@ const INTENT_RESOURCES = Object.freeze({
   employee_search: ['employees', 'canonicalscope'],
   employee_detail: ['employee', 'canonicalscope'],
   management_comparison: ['managementanalytics'],
+  budget_approved: ['budgetapproved'],
   executive_analysis: ['integrationquality', 'payrollcontrol', 'canonicalscope', 'absenceanalytics', 'qualityoverview'],
   help_navigation: ['productguidance'],
   section_explanation: ['productguidance'],
@@ -258,6 +261,31 @@ function dateFilters(body, message, intent) {
   return output;
 }
 
+function budgetFiscalYear(body = {}, message = '') {
+  const explicit = [body.fiscalYear, body.year]
+    .map((value) => Number(value))
+    .find((value) => Number.isInteger(value) && value >= 1900 && value <= 2100);
+  if (explicit) return explicit;
+
+  const text = foldAssistantQuery(message)
+    .replace(/\bordenanza\s+(?:n(?:ro|[º°])?\.?\s*)?(?:1021|1\.021)(?:\s*(?:\/|de)\s*(?:19|20)\d{2})?\b/g, ' ');
+  const match = text.match(/\b((?:19|20)\d{2})\b/);
+  const year = Number(match?.[1] || 0);
+  return year >= 1900 && year <= 2100 ? year : null;
+}
+
+function budgetOrdinanceReference(message = '') {
+  const match = foldAssistantQuery(message).match(
+    /\bordenanza\s+(?:n(?:ro|[º°])?\.?\s*)?(?:1021|1\.021)\b(?:\s*(?:\/|de)\s*((?:19|20)\d{2}))?/,
+  );
+  if (!match) return { mentioned: false, instrumentYear: null };
+  const instrumentYear = Number(match[1] || 0);
+  return {
+    mentioned: true,
+    instrumentYear: instrumentYear >= 1900 && instrumentYear <= 2100 ? instrumentYear : null,
+  };
+}
+
 function extractLabelFilter(bodyValue, message, label, maximum = 160) {
   const explicit = normalizeText(bodyValue, maximum);
   if (explicit) return explicit;
@@ -322,7 +350,18 @@ const QUALITY_ENTITIES = new Set(['persona', 'legajo', 'artifact:calculo', 'arti
 
 function naturalFilters(body, message, intent) {
   const text = foldAssistantQuery(message);
-  const filters = { ...dateFilters(body, message, intent) };
+  if (intent === 'budget_approved') {
+    const fiscalYear = budgetFiscalYear(body, message);
+    const ordinance = budgetOrdinanceReference(message);
+    return {
+      ...(fiscalYear ? { fiscalYear } : {}),
+      ...(ordinance.instrumentYear && ordinance.instrumentYear !== 2025
+        ? { instrumentYear: ordinance.instrumentYear }
+        : {}),
+    };
+  }
+  const dateSelection = dateFilters(body, message, intent);
+  const filters = { ...dateSelection };
   const sector = extractLabelFilter(body.sector, message, 'sector');
   const organization = extractLabelFilter(body.organization, message, 'organizaci[oó]n|repartici[oó]n');
   const role = extractLabelFilter(body.role, message, 'cargo|funci[oó]n(?:es)?');
@@ -644,6 +683,7 @@ export function classifyAssistantRequest(body = {}) {
   if (normalizeText(body.section, 100)) return 'section_explanation';
 
   const message = foldAssistantQuery(body.message);
+  const budgetOrdinance = budgetOrdinanceReference(message);
   const recordFocus = employeeRecordFocus(message);
   if (recordFocus && extractLegajo(body.message)) return 'employee_detail';
   if (recordFocus && extractEmployeeRecordSearch(body.message)) return 'employee_search';
@@ -658,6 +698,8 @@ export function classifyAssistantRequest(body = {}) {
       || /\b(?:ano\s*)?[1-4]\s+(?:de\s+(?:la\s+)?)?gestion\b/.test(message)
       || /\b(?:primer|primero|segundo|tercer|tercero|cuarto)\s+ano\s+de\s+(?:la\s+)?gestion\b/.test(message)
       || /\bano\s+por\s+ano\b[^.?!]*\bgestiones?\b/.test(message)) return 'management_comparison';
+  if ((budgetOrdinance.mentioned && (!budgetOrdinance.instrumentYear || budgetOrdinance.instrumentYear === 2025))
+      || /\b(?:presupuesto(?:\s+municipal)?|presupuesto\s+aprobado|credito\s+presupuestario|gastos?\s+aprobados?|recursos\s+estimados?|financiamiento\s+estimado|ejecucion\s+presupuestaria)\b/.test(message)) return 'budget_approved';
   if (/\b(?:ficha|detalle)\b/.test(message) && /\blegajo\b/.test(message)) return 'employee_detail';
   if (/\b(?:buscar|busca|encontrar|ficha)\b.*\b(?:emplead[oa]s?|personas?|legajos?)\b/.test(message)
       || /\b(?:emplead[oa]s?|personas?|legajos?)\b.*\b(?:buscar|busca|encontrar|ficha)\b/.test(message)) return 'employee_search';
@@ -688,6 +730,7 @@ function intentDomain(intent) {
   if (['absence_analysis', 'absence_event_list'].includes(intent)) return 'absence';
   if (intent === 'leave_policy') return 'leave_policy';
   if (intent === 'management_comparison') return 'management';
+  if (intent === 'budget_approved') return 'budget';
   if (['quality_analysis', 'quality_issue_list'].includes(intent)) return 'quality';
   if (intent === 'structure_analysis') return 'structure';
   if (intent === 'import_lineage') return 'lineage';
@@ -825,6 +868,7 @@ export function planAssistantRequest(body = {}) {
     quality_issue_list: ['source', 'severity', 'entity', 'code', 'resolution', 'page', 'limit'],
     import_lineage: ['source', 'batch'],
     management_comparison: [],
+    budget_approved: ['fiscalYear', 'instrumentYear'],
     employee_search: ['search', 'page', 'limit', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
     employee_detail: ['contractId', 'legajo', 'companyId', 'queryFocus', 'queryYear', 'from', 'to', 'year'],
   }[intent];
@@ -1996,6 +2040,92 @@ function managementPayrollView(value = {}) {
   };
 }
 
+function assistantBudgetMoney(value) {
+  const text = normalizeText(value, 40);
+  return /^(?:0|[1-9][0-9]*)\.[0-9]{2}$/.test(text) ? text : null;
+}
+
+function budgetApprovedResult(result) {
+  const payload = result?.payload || {};
+  const cutoff = managementDate(payload.data?.source?.cutoff || payload.meta?.sourceCutoff);
+  const sources = [{
+    system: 'HCD Junín',
+    relation: 'Ordenanza 1021/2025',
+    authority: 'approved_municipal_budget',
+    asOf: cutoff,
+  }];
+  if (result?.status !== 200 || payload.ok !== true) {
+    return {
+      status: result?.status || 503,
+      answer: payload.error || 'No se pudo validar la fuente oficial del presupuesto aprobado.',
+      data: { code: normalizeText(payload.code, 80) || 'BUDGET_APPROVED_UNAVAILABLE' },
+      targetPath: '/presupuesto-control',
+      relatedSections: relatedSections(['presupuesto', 'gestiones']),
+      asOf: cutoff,
+      sources,
+    };
+  }
+
+  const data = payload.data || {};
+  const approved = data.approved || {};
+  const expenditures = assistantBudgetMoney(approved.expenditures);
+  const resources = assistantBudgetMoney(approved.resources);
+  const financing = assistantBudgetMoney(approved.financing);
+  const jurisdictions = (Array.isArray(approved.breakdowns?.expenditures) ? approved.breakdowns.expenditures : [])
+    .slice(0, 10)
+    .map((row) => ({
+      code: normalizeText(row?.code, 20),
+      label: normalizeText(row?.label, 160),
+      amount: assistantBudgetMoney(row?.amount),
+    }))
+    .filter((row) => row.label && row.amount);
+  if (!expenditures || !resources || !financing) {
+    return {
+      status: 503,
+      answer: 'La fuente oficial no entregó importes con el contrato decimal esperado.',
+      data: { code: 'BUDGET_APPROVED_INVALID' },
+      targetPath: '/presupuesto-control',
+      relatedSections: relatedSections(['presupuesto', 'gestiones']),
+      asOf: cutoff,
+      sources,
+    };
+  }
+
+  return {
+    answer: `La Ordenanza 1021/2025 fija para 2026 un gasto aprobado de ${formatMoney(expenditures)}, con recursos estimados por ${formatMoney(resources)} y financiamiento estimado por ${formatMoney(financing)}. Recursos más financiamiento reconcilian exactamente con el gasto, al igual que las dos jurisdicciones publicadas. Son pesos nominales aprobados: la fuente no contiene modificaciones, compromiso, devengado ni pagado, por lo que no corresponde calcular ejecución, porcentajes ni desvíos.`,
+    data: {
+      fiscalYear: qualityCount(data.fiscalYear),
+      currency: { code: 'ARS', basis: 'nominal' },
+      approved: { expenditures, resources, financing, jurisdictions },
+      explicitAppropriations: data.approved?.explicitAppropriations || null,
+      staffingEstablishment: approved.staffingEstablishment || null,
+      execution: {
+        available: data.execution?.available === true,
+        status: normalizeText(data.execution?.status, 80) || 'source_not_loaded',
+      },
+      reconciliations: {
+        funding: payload.quality?.reconciliations?.resourcesPlusFinancingEqualsExpenditures === true,
+        jurisdictions: payload.quality?.reconciliations?.expenseJurisdictionsEqualExpenditures === true,
+      },
+      source: {
+        instrument: normalizeText(data.source?.legalInstrument?.number, 40),
+        title: normalizeText(data.source?.title, 240),
+        url: /^https:\/\//i.test(String(data.source?.url || '')) ? String(data.source.url) : null,
+        pageCount: qualityCount(data.source?.pageCount),
+      },
+      methodology: {
+        grain: normalizeText(payload.meta?.grain, 80),
+        executionLoaded: false,
+        annexBreakdownAvailable: false,
+      },
+    },
+    targetPath: '/presupuesto-control',
+    relatedSections: relatedSections(['presupuesto', 'gestiones']),
+    asOf: cutoff,
+    sources,
+  };
+}
+
 function managementComparisonResult(result) {
   const payload = result?.payload || {};
   const sourceCutoff = managementDate(payload.meta?.sourceCutoff);
@@ -2492,6 +2622,36 @@ function providerFacts(intent, data) {
       },
     };
   }
+  if (intent === 'budget_approved') {
+    if (!data?.approved || !data?.reconciliations) return null;
+    return {
+      fiscalYear: qualityCount(data.fiscalYear),
+      currency: 'ARS_nominal',
+      approved: {
+        expenditures: assistantBudgetMoney(data.approved.expenditures),
+        estimatedResources: assistantBudgetMoney(data.approved.resources),
+        estimatedFinancing: assistantBudgetMoney(data.approved.financing),
+        jurisdictions: (Array.isArray(data.approved.jurisdictions) ? data.approved.jurisdictions : [])
+          .slice(0, 5)
+          .map((row) => ({ label: normalizeText(row?.label, 160), amount: assistantBudgetMoney(row?.amount) }))
+          .filter((row) => row.label && row.amount),
+      },
+      reconciliations: {
+        resourcesPlusFinancingEqualsExpenditures: data.reconciliations.funding === true,
+        jurisdictionsEqualExpenditures: data.reconciliations.jurisdictions === true,
+      },
+      execution: {
+        available: data.execution?.available === true,
+        status: normalizeText(data.execution?.status, 80) || 'source_not_loaded',
+      },
+      constraints: {
+        executionRateAvailable: false,
+        varianceAvailable: false,
+        annexBreakdownAvailable: false,
+        inflationAdjusted: false,
+      },
+    };
+  }
   if (intent === 'executive_analysis') {
     return {
       workforce: providerFacts('workforce_summary', data.workforce),
@@ -2554,6 +2714,7 @@ function aggregateInsightTopic(intent) {
     quality_analysis: 'Explicá los hallazgos agregados de calidad por severidad, dominio, crosswalk y estado de seguimiento. No inventes un score ni una fecha de corte. Controles PERSONAS no materializados significa no evaluado, no calidad perfecta.',
     absence_analysis: 'Explicá los eventos administrativos de ausencia, su comparación homogénea y sus límites metodológicos. No los conviertas en tasa, presentismo, productividad ni jornadas perdidas.',
     management_comparison: 'Explicá la comparación agregada entre gestiones sobre exactamente la misma cantidad de días. Diferenciá altas, bajas, balance y eventos administrativos por 100 contrato-mes con liquidación cerrada. Nunca llames tasa a esa medida, no infieras causas y no extrapoles el período parcial.',
+    budget_approved: 'Explicá el presupuesto municipal 2026 aprobado por ordenanza. Diferenciá gasto, recursos y financiamiento; señalá las reconciliaciones exactas. No lo llames ejecución y no calcules porcentajes, desvíos, compromiso, devengado ni pagado porque esas fuentes no están cargadas.',
     executive_analysis: 'Redactá una lectura ejecutiva breve de dotación, nómina, integración, ausentismo y calidad operativa. Priorizá controles accionables, no inventes causas, score ni fecha de corte, y no conviertas eventos de ausencia en tasas, presentismo, productividad ni jornadas perdidas.',
   }[intent];
 }
@@ -3039,6 +3200,7 @@ function capabilitiesPayload() {
       { intent: 'quality_issue_list', externalEnhancement: false, resource: 'qualityissues' },
       { intent: 'import_lineage', externalEnhancement: false, resource: 'importlineage' },
       { intent: 'management_comparison', externalEnhancement: true, resource: 'managementanalytics' },
+      { intent: 'budget_approved', externalEnhancement: false, resource: 'budgetapproved' },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
@@ -3080,6 +3242,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadQualityIssues = dependencies.qualityIssues ?? dependencies.qualityissues ?? internalData.qualityIssues;
   const loadImportLineage = dependencies.importLineage ?? dependencies.importlineage ?? internalData.importLineage;
   const loadManagement = dependencies.managementAnalytics ?? dependencies.managementanalytics ?? internalData.managementAnalytics;
+  const loadBudget = dependencies.budgetApproved ?? dependencies.budgetapproved ?? internalData.budgetApproved;
   const resolveReason = dependencies.resolveAbsenceReason ?? resolveAbsenceReason;
   const loadQuality = dependencies.qualityOverview
     ?? dependencies.qualityoverview
@@ -3205,6 +3368,30 @@ export function createInternalAssistantHandler(dependencies = {}) {
       if (GUIDANCE_INTENTS.has(intent)) {
         result = productGuidanceResult(intent, body);
         resourceStatuses.push({ name: 'productguidance', status: 'ok' });
+      } else if (intent === 'budget_approved') {
+        const fiscalYear = Number(plan.filters.fiscalYear || 2026);
+        const instrumentYear = Number(plan.filters.instrumentYear || 2025);
+        result = instrumentYear !== 2025
+          ? {
+            status: 422,
+            answer: `La fuente cargada es la Ordenanza 1021/2025; la referencia 1021/${instrumentYear} no corresponde a este presupuesto.`,
+            data: { code: 'BUDGET_INSTRUMENT_YEAR_MISMATCH', requestedInstrumentYear: instrumentYear, availableInstrumentYears: [2025] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          }
+          : fiscalYear === 2026
+          ? budgetApprovedResult(await tracked('budgetapproved', () => loadBudget()))
+          : {
+            status: 422,
+            answer: `La fuente presupuestaria oficial cargada corresponde al ejercicio 2026, no a ${fiscalYear}.`,
+            data: { code: 'BUDGET_FISCAL_YEAR_UNAVAILABLE', requestedFiscalYear: fiscalYear, availableFiscalYears: [2026] },
+            targetPath: '/presupuesto-control',
+            relatedSections: relatedSections(['presupuesto', 'gestiones']),
+            asOf: null,
+            sources: [],
+          };
       } else {
         const sql = await getSql();
         if (plan.filters.reason && !plan.filters.reasonCode

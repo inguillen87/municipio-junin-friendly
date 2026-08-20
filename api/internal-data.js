@@ -5,6 +5,7 @@ import {
   getTitleViCatalog,
   reasonPolicyMapping,
 } from '../assets/mendoza-title-vi.js';
+import { JUNIN_BUDGET_2026 } from '../assets/junin-budget-2026.js';
 
 function send(res, status, payload) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -22,6 +23,255 @@ function positiveInteger(value, fallback, maximum) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number) || number < 1) return fallback;
   return Math.min(number, maximum);
+}
+
+function budgetCents(value) {
+  if (typeof value !== 'string') return null;
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  const fraction = String(match[2] || '').padEnd(2, '0');
+  return (BigInt(match[1]) * 100n) + BigInt(fraction || '0');
+}
+
+function budgetMoney(cents) {
+  const integer = cents / 100n;
+  const fraction = String(cents % 100n).padStart(2, '0');
+  return `${integer}.${fraction}`;
+}
+
+function budgetText(value, maximum = 200) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text && text.length <= maximum ? text : null;
+}
+
+function invalidBudgetSource() {
+  return {
+    status: 503,
+    payload: {
+      ok: false,
+      code: 'BUDGET_SOURCE_INVALID',
+      error: 'La fuente oficial del presupuesto aprobado no superó la validación de integridad.',
+    },
+  };
+}
+
+function budgetBreakdown(section, expectedTotal) {
+  if (!section || !Array.isArray(section.items)) return null;
+  const codes = new Set();
+  let total = 0n;
+  const data = [];
+  for (const row of section.items) {
+    const code = budgetText(row?.code, 32);
+    const label = budgetText(row?.label, 160);
+    const cents = budgetCents(row?.amount);
+    if (!code || !label || cents === null || codes.has(code)) return null;
+    codes.add(code);
+    total += cents;
+    const article = budgetText(row?.article, 20);
+    data.push({ code, label, amount: budgetMoney(cents), ...(article ? { article } : {}) });
+  }
+  const listedTotal = budgetCents(section.listedTotal);
+  return {
+    data,
+    total,
+    listedTotal,
+    reconciles: total === expectedTotal && listedTotal === total,
+    sourceCoverage: budgetText(section.coverage, 120),
+  };
+}
+
+function budgetExplicitAppropriations(source) {
+  const definitions = [
+    ['capitalAppropriations', source?.capitalAppropriations],
+    ['capitalTransfers', source?.capitalTransfers],
+    ['otherExplicitAppropriations', source?.otherExplicitAppropriations],
+  ];
+  const normalized = {};
+  for (const [key, section] of definitions) {
+    const expected = budgetCents(section?.listedTotal);
+    if (expected === null) return null;
+    const breakdown = budgetBreakdown(section, expected);
+    if (!breakdown?.reconciles || !breakdown.sourceCoverage) return null;
+    normalized[key] = {
+      coverage: 'non_exhaustive_budget_classification',
+      sourceCoverage: breakdown.sourceCoverage,
+      listedTotal: budgetMoney(expected),
+      items: breakdown.data,
+    };
+  }
+  return normalized;
+}
+
+function budgetStaffingRows(rows) {
+  if (!Array.isArray(rows)) return null;
+  const codes = new Set();
+  const allowedUnits = new Set(['position', 'teaching_hour', 'contracted_staff']);
+  const normalized = [];
+  for (const row of rows) {
+    const code = budgetText(row?.code, 60);
+    const label = budgetText(row?.label, 180);
+    const unit = budgetText(row?.unit, 40);
+    const article = budgetText(row?.article, 20);
+    if (!code || !label || !allowedUnits.has(unit) || !article || codes.has(code)) return null;
+    if (!Number.isSafeInteger(row?.quantity) || row.quantity < 0) return null;
+    if (row.declaredTeachingHoursPerPosition !== undefined
+      && (!Number.isSafeInteger(row.declaredTeachingHoursPerPosition)
+        || row.declaredTeachingHoursPerPosition < 1)) return null;
+    codes.add(code);
+    normalized.push({
+      code,
+      label,
+      quantity: row.quantity,
+      unit,
+      article,
+      ...(row.declaredTeachingHoursPerPosition === undefined
+        ? {}
+        : { declaredTeachingHoursPerPosition: row.declaredTeachingHoursPerPosition }),
+    });
+  }
+  return normalized;
+}
+
+function budgetStaffingEstablishment(section) {
+  const departmentExecutive = budgetStaffingRows(section?.departmentExecutive);
+  const deliberativeCouncil = budgetStaffingRows(section?.deliberativeCouncil);
+  const coverage = budgetText(section?.coverage, 120);
+  const reasonNotAdditive = budgetText(section?.reasonNotAdditive, 260);
+  if (section?.additive !== false || !coverage || !reasonNotAdditive
+    || !departmentExecutive || !deliberativeCouncil) return null;
+  return {
+    coverage,
+    additive: false,
+    reasonNotAdditive,
+    departmentExecutive,
+    deliberativeCouncil,
+  };
+}
+
+/**
+ * Publishes the official initial 2026 budget at annual aggregate grain.
+ *
+ * Money is parsed and reconciled in integer cents. The response intentionally
+ * omits inferred percentages and keeps every execution-stage amount null until
+ * an official execution source is loaded.
+ */
+export function budgetApproved(source = JUNIN_BUDGET_2026) {
+  const sourceMeta = source?.source || {};
+  const measurement = source?.measurement || {};
+  const totals = source?.totals || {};
+  const expenditures = budgetCents(totals.approvedExpenditures);
+  const resources = budgetCents(totals.estimatedResources);
+  const financing = budgetCents(totals.estimatedFinancing);
+  const fiscalYear = Number(sourceMeta.fiscalYear);
+  const documentDate = budgetText(sourceMeta.approvalDate, 10);
+  const sourceUrl = budgetText(sourceMeta.url, 500);
+  const sourceSha256 = budgetText(sourceMeta.file?.sha256, 64);
+  const jurisdiction = budgetBreakdown(source?.expenseByJurisdiction, expenditures);
+  const explicitAppropriations = budgetExplicitAppropriations(source);
+  const staffingEstablishment = budgetStaffingEstablishment(source?.staffingEstablishment);
+
+  const structurallyValid = expenditures !== null
+    && resources !== null
+    && financing !== null
+    && fiscalYear === 2026
+    && /^\d{4}-\d{2}-\d{2}$/.test(documentDate || '')
+    && /^https:\/\//i.test(sourceUrl || '')
+    && /^[a-f0-9]{64}$/i.test(sourceSha256 || '')
+    && budgetText(sourceMeta.authority, 160)
+    && budgetText(sourceMeta.normalizedInstrumentNumber, 40)
+    && budgetText(sourceMeta.title, 240)
+    && measurement.currency === 'ARS'
+    && measurement.priceBasis === 'nominal'
+    && measurement.grain === 'approved_budget_ordinance_visible_article'
+    && measurement.status === 'approved_budget_only'
+    && measurement.executionStatus === 'source_not_loaded'
+    && measurement.modificationStatus === 'source_not_loaded'
+    && sourceMeta.file?.annexSheetsPresent === false
+    && jurisdiction?.sourceCoverage === 'complete_articles_4_and_5'
+    && jurisdiction !== null
+    && explicitAppropriations !== null
+    && staffingEstablishment !== null;
+  if (!structurallyValid) return invalidBudgetSource();
+
+  const fundingTotal = resources + financing;
+  if (fundingTotal !== expenditures || !jurisdiction.reconciles) return invalidBudgetSource();
+
+  const approvedExpenditures = budgetMoney(expenditures);
+  const estimatedResources = budgetMoney(resources);
+  const estimatedFinancing = budgetMoney(financing);
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: {
+        fiscalYear,
+        currency: { code: 'ARS', basis: 'nominal', unit: 'pesos' },
+        source: {
+          id: budgetText(sourceMeta.id, 120),
+          name: budgetText(sourceMeta.authority, 160),
+          title: budgetText(sourceMeta.title, 240),
+          url: sourceUrl,
+          legalInstrument: { type: 'Ordenanza', number: budgetText(sourceMeta.normalizedInstrumentNumber, 40) },
+          approvedOn: documentDate,
+          cutoff: documentDate,
+          pageCount: Number.isSafeInteger(sourceMeta.file?.pageCount) ? sourceMeta.file.pageCount : null,
+          sha256: sourceSha256.toLowerCase(),
+          verifiedAt: budgetText(sourceMeta.verifiedAt, 40),
+        },
+        approved: {
+          expenditures: approvedExpenditures,
+          resources: estimatedResources,
+          financing: estimatedFinancing,
+          fundingTotal: budgetMoney(fundingTotal),
+          breakdowns: {
+            expenditures: jurisdiction.data,
+            resources: [],
+            financing: [],
+          },
+          breakdownCoverage: {
+            expenditures: 'exhaustive',
+            resources: 'not_available',
+            financing: 'not_available',
+          },
+          explicitAppropriations,
+          staffingEstablishment,
+        },
+        execution: {
+          status: 'source_not_loaded',
+          available: false,
+          modifiedBudget: null,
+          committed: null,
+          accrued: null,
+          paid: null,
+          executionRate: null,
+          variance: null,
+        },
+      },
+      quality: {
+        reconciliations: {
+          resourcesPlusFinancingEqualsExpenditures: true,
+          expenseJurisdictionsEqualExpenditures: true,
+        },
+        monetaryArithmetic: 'integer_cents',
+        sourceDocumentSha256Available: true,
+      },
+      meta: {
+        authority: budgetText(sourceMeta.authority, 160),
+        grain: 'approved_initial_budget',
+        sourceCutoff: documentDate,
+        status: 'approved_budget_only',
+        containsPersonalData: false,
+        monetaryValuesRepresentation: 'decimal_string_2_places',
+        methodology: 'Valores literales de la ordenanza oficial; reconciliación exacta en centavos enteros.',
+        caveats: [
+          'Montos nominales en pesos argentinos; no están ajustados por inflación.',
+          'La fuente verificada publica presupuesto inicial aprobado, no ejecución presupuestaria.',
+          'No se publican porcentajes, desvíos ni semáforos sin una fuente oficial de ejecución.',
+          'El desglose por recursos y financiamiento no está incluido en las páginas verificadas del documento.',
+        ],
+      },
+    },
+  };
 }
 
 export async function summary(sql) {
@@ -2125,6 +2375,39 @@ function managementPercent(current, previous) {
   return previous === 0 ? null : Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
+function managementBudgetProjection() {
+  const result = budgetApproved();
+  if (result.status !== 200) {
+    return {
+      status: 'approved_budget_source_invalid',
+      available: false,
+      label: 'Presupuesto aprobado',
+      reason: 'La fuente oficial no superó la validación de integridad.',
+      detailPath: '/presupuesto-control',
+    };
+  }
+  const { data } = result.payload;
+  return {
+    status: 'approved_budget_loaded',
+    available: true,
+    label: `Presupuesto aprobado ${data.fiscalYear}`,
+    fiscalYear: data.fiscalYear,
+    currency: data.currency,
+    approvedExpenditures: data.approved.expenditures,
+    source: {
+      title: data.source.title,
+      legalInstrument: data.source.legalInstrument,
+      cutoff: data.source.cutoff,
+      url: data.source.url,
+    },
+    execution: {
+      status: data.execution.status,
+      available: data.execution.available,
+    },
+    detailPath: '/presupuesto-control',
+  };
+}
+
 function managementSectorProjection(rows, grouping) {
   const projected = new Map();
   for (const row of rows) {
@@ -2564,13 +2847,7 @@ export async function managementAnalytics(sql) {
           },
           quality: sectorQuality,
         },
-        budget: {
-          status: 'source_not_loaded',
-          available: false,
-          label: 'Presupuesto y ejecución',
-          reason: 'GRH no contiene crédito, modificaciones, compromiso, devengado ni pagado.',
-          nextSourceContract: ['presupuesto vigente', 'modificaciones', 'compromiso', 'devengado', 'pagado'],
-        },
+        budget: managementBudgetProjection(),
       },
       quality: {
         contracts: managementNumber(quality.contracts),
@@ -3184,8 +3461,12 @@ export default async function handler(req, res) {
   if (!session) return;
 
   try {
-    const sql = await getInternalSql();
     const resource = queryValue(req, 'resource', 'summary').toLowerCase();
+    if (resource === 'budgetapproved') {
+      const result = budgetApproved();
+      return send(res, result.status, result.payload);
+    }
+    const sql = await getInternalSql();
     if (resource === 'summary') return send(res, 200, await summary(sql));
     if (resource === 'structure') return send(res, 200, await structure(sql));
     if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));

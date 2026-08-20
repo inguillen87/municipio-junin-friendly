@@ -80,6 +80,25 @@
         ['#sourcePanel', 'Fuente y calidad', 'Documenta el corte GRH, exclusiones y las verificaciones que deben cerrar.']
       ]
     },
+    budget: {
+      sectionId: 'presupuesto', title: 'Presupuesto aprobado',
+      tour: [
+        ['.page-head', 'Ejercicio y fuente', 'Confirmá el ejercicio fiscal, la ordenanza y la fecha de aprobación antes de usar cualquier importe.'],
+        ['.summary-ledger', 'Ecuación presupuestaria', 'Gastos aprobados, recursos estimados y financiamiento se presentan por separado y concilian en centavos.'],
+        ['#breakdownStack', 'Cobertura publicada', 'Las jurisdicciones y desagregaciones sólo se muestran cuando están explícitas en la publicación oficial disponible.'],
+        ['#appropriationsStack', 'Autorizaciones específicas', 'Estos importes provienen de artículos concretos y no constituyen una clasificación exhaustiva del presupuesto.'],
+        ['#staffingLedger', 'Planta autorizada', 'Cargos, horas cátedra y contratos conservan unidades distintas; no deben sumarse entre sí.'],
+        ['.execution-panel', 'Ejecución pendiente', 'La plataforma no calcula avance, desvío, compromiso, devengado ni pagado hasta incorporar una fuente transaccional oficial.'],
+        ['.evidence-grid', 'Evidencia y límites', 'Revisá huella, corte, reconciliaciones y anexos faltantes antes de comunicar el resultado.']
+      ],
+      explain: [
+        ['.summary-ledger', 'Presupuesto aprobado', 'Resume el crédito inicial aprobado por ordenanza sin confundirlo con ejecución corriente.'],
+        ['#breakdownStack', 'Desagregaciones', 'Distingue totales exhaustivos de partidas explícitas y cobertura documental parcial.'],
+        ['#staffingLedger', 'Planta', 'Mantiene separadas las unidades heterogéneas declaradas por la norma.'],
+        ['.execution-panel', 'Estado de ejecución', 'Explica por qué todavía no existen porcentajes de avance ni desvíos verificables.'],
+        ['.evidence-grid', 'Trazabilidad', 'Conserva fuente oficial, fecha de corte, controles y limitaciones junto a las cifras.']
+      ]
+    },
     leave: {
       sectionId: 'licencias', title: 'Licencias normativas',
       tour: [
@@ -165,6 +184,7 @@
     if (path.indexOf('integracion') >= 0) return 'integration';
     if (path.indexOf('nomina') >= 0) return 'payroll';
     if (path.indexOf('gestion-comparativa') >= 0) return 'management';
+    if (path.indexOf('presupuesto-control') >= 0) return 'budget';
     if (path.indexOf('licencias-control') >= 0) return 'leave';
     if (path.indexOf('ausentismo') >= 0) return 'absence';
     if (path.indexOf('calidad-operativa') >= 0) return 'quality';

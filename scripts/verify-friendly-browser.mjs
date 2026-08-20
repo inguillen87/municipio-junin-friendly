@@ -322,6 +322,14 @@ async function verifyAnonymousInternal() {
     await page.waitForSelector('#loginForm');
     await assertPageHealthy(page, 'Redireccion de gestiones anonima');
 
+    await page.goto(`${baseUrl}/presupuesto-control`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((url) => (
+      /\/login(?:\.html)?$/.test(url.pathname)
+      && url.searchParams.get('next') === 'presupuesto-control.html'
+    ));
+    await page.waitForSelector('#loginForm');
+    await assertPageHealthy(page, 'Redireccion de presupuesto anonima');
+
     await page.goto(`${baseUrl}/ausentismo-control`, { waitUntil: 'domcontentloaded' });
     await page.waitForURL((url) => (
       /\/login(?:\.html)?$/.test(url.pathname)
@@ -438,7 +446,10 @@ async function verifyAuthenticatedInternal() {
     assert.equal(managementPayload.data.payrollComparison.current.eventsPer100ContractMonths, 23.01);
     assert.equal(managementPayload.data.sectors.mapping.id, 'garden_sector_family_v1');
     assert.equal(managementPayload.data.sectors.mapping.reversible, true);
-    assert.equal(managementPayload.data.budget.available, false);
+    assert.equal(managementPayload.data.budget.available, true);
+    assert.equal(managementPayload.data.budget.status, 'approved_budget_loaded');
+    assert.equal(managementPayload.data.budget.approvedExpenditures, '31854092000.00');
+    assert.equal(managementPayload.data.budget.execution.available, false);
     assert.equal(managementPayload.quality.reconciliations.equalElapsedDays, true);
     assert.equal(managementPayload.meta.containsPersonalData, false);
 
@@ -450,12 +461,47 @@ async function verifyAuthenticatedInternal() {
     assert.match(await page.locator('#absencePairs').innerText(), /13[,.]45/);
     assert.match(await page.locator('#absencePairs').innerText(), /23[,.]01/);
     assert.match(await page.locator('#mappingNote').innerText(), /jardines|agrupaci[oó]n|homolog/i);
-    assert.match(await page.locator('#budgetCard').innerText(), /no disponible|fuente|pendiente|GRH no contiene/i);
+    assert.match(await page.locator('#budgetCard').innerText(), /31[.\s]?854[.\s]?092[.\s]?000|Aprobado disponible/i);
+    assert.match(await page.locator('#budgetCard').innerText(), /ejecución.*pendiente|fuente pendiente/is);
     assert.match(await page.locator('#qualityList').innerText(), /concili|cobertura|ambig|sin tipo/i);
     await assertPageHealthy(page, 'Comparativa de gestiones mobile');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await assertPageHealthy(page, 'Comparativa de gestiones desktop');
+
+    const budgetResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=budgetapproved`);
+    assert.equal(budgetResponse.status(), 200, 'Presupuesto aprobado debe aceptar la sesión interna');
+    const budgetPayload = await budgetResponse.json();
+    assert.equal(budgetPayload.data.fiscalYear, 2026);
+    assert.equal(budgetPayload.data.approved.expenditures, '31854092000.00');
+    assert.equal(budgetPayload.data.approved.resources, '27700964239.13');
+    assert.equal(budgetPayload.data.approved.financing, '4153127760.87');
+    assert.equal(budgetPayload.quality.reconciliations.resourcesPlusFinancingEqualsExpenditures, true);
+    assert.equal(budgetPayload.quality.reconciliations.expenseJurisdictionsEqualExpenditures, true);
+    assert.equal(budgetPayload.data.execution.available, false);
+    assert.equal(budgetPayload.data.execution.status, 'source_not_loaded');
+
+    await page.goto(`${baseUrl}/presupuesto-control`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#mainView:not([hidden])');
+    await page.waitForFunction(() => /31[.\s]?854[.\s]?092[.\s]?000/.test(document.querySelector('#expendituresValue')?.textContent || ''));
+    assert.match(await page.locator('#resourcesValue').innerText(), /27[.\s]?700[.\s]?964[.\s]?239/);
+    assert.match(await page.locator('#financingValue').innerText(), /4[.\s]?153[.\s]?127[.\s]?760/);
+    assert.match(await page.locator('#executionHeading').innerText(), /fuente.*pendiente/i);
+    assert.match(await page.locator('#executionBadge').innerText(), /Fuente no cargada|No cargado/i);
+    await page.waitForSelector('[data-mc-open-guide]');
+    await page.locator('[data-mc-open-guide]').click();
+    await page.waitForSelector('.mc-guide-drawer');
+    assert.match(await page.locator('.mc-guide-drawer').innerText(), /Presupuesto aprobado|Ejecución pendiente/i);
+    await page.locator('.mc-guide-close').click();
+    await assertPageHealthy(page, 'Presupuesto aprobado desktop');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#menuButton').click();
+    assert.equal(await page.locator('#mobileLogoutButton').isVisible(), true, 'Presupuesto móvil debe ofrecer cierre de sesión');
+    const mobileLogoutBox = await page.locator('#mobileLogoutButton').boundingBox();
+    assert.ok(mobileLogoutBox && mobileLogoutBox.height >= 44, 'Cerrar sesión móvil debe tener un target de al menos 44 px');
+    await page.locator('#menuClose').click();
+    await assertPageHealthy(page, 'Presupuesto aprobado mobile');
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     const leaveResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=leavenormative`);
     assert.equal(leaveResponse.status(), 200, 'Licencias normativas debe aceptar la sesion interna');
@@ -604,6 +650,17 @@ async function verifyAuthenticatedInternal() {
     assert.match(managementAssistant.answer, /no es tasa de ausentismo/i);
     assert.equal(managementAssistant.targetPath, '/gestion-comparativa');
     assert.equal(managementAssistant.privacy.nominalDataExternalized, false);
+
+    const budgetAssistant = await askAssistant('¿Cuál es el presupuesto municipal aprobado para 2026 y qué falta para medir ejecución?');
+    assert.equal(budgetAssistant.intent, 'budget_approved');
+    assert.equal(budgetAssistant.queryPlan.resource, 'budgetapproved');
+    assert.equal(budgetAssistant.data.approved.expenditures, '31854092000.00');
+    assert.equal(budgetAssistant.data.approved.resources, '27700964239.13');
+    assert.equal(budgetAssistant.data.approved.financing, '4153127760.87');
+    assert.equal(budgetAssistant.data.execution.available, false);
+    assert.match(budgetAssistant.answer, /no corresponde calcular ejecución, porcentajes ni desvíos/i);
+    assert.equal(budgetAssistant.targetPath, '/presupuesto-control');
+    assert.equal(budgetAssistant.privacy.nominalDataExternalized, false);
 
     const eventListAssistant = await askAssistant('Lista los eventos administrativos de ausencia de julio 2026', true);
     assert.equal(eventListAssistant.intent, 'absence_event_list');
@@ -754,7 +811,7 @@ async function verifyAuthenticatedInternal() {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto(`${baseUrl}/centro-ayuda`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
-    assert.equal(await page.locator('#moduleGrid .module-card').count(), 13, 'El centro debe explicar las trece áreas visibles');
+    assert.equal(await page.locator('#moduleGrid .module-card').count(), 14, 'El centro debe explicar las catorce áreas visibles');
     assert.equal(await page.locator('#routeList [data-route]').count(), 6, 'El centro debe ofrecer recorridos por función');
     await page.locator('[data-progress-id="home"]').check();
     assert.match(await page.locator('#progressText').innerText(), /1 de 5/);

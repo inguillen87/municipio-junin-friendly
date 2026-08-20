@@ -48,6 +48,7 @@
     { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
     { "source": "/nomina-control", "destination": "/nomina-control.html" },
     { "source": "/gestion-comparativa", "destination": "/gestion-comparativa.html" },
+    { "source": "/presupuesto-control", "destination": "/presupuesto-control.html" },
     { "source": "/ausentismo-control", "destination": "/ausentismo-control.html" },
     { "source": "/licencias-control", "destination": "/licencias-control.html" },
     { "source": "/calidad-operativa", "destination": "/calidad-operativa.html" },
@@ -170,6 +171,14 @@
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
+      "source": "/presupuesto-control",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/presupuesto-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
       "source": "/ausentismo-control",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
@@ -223,6 +232,10 @@
     },
     {
       "source": "/assets/mendoza-title-vi.js",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/assets/junin-budget-2026.js",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

@@ -14,7 +14,7 @@ function publicSection(section) {
   };
 }
 
-export const GUIDANCE_AS_OF = '2026-08-15T00:00:00.000Z';
+export const GUIDANCE_AS_OF = '2026-08-20T00:00:00.000Z';
 
 export const SECTION_CATALOG = deepFreeze([
   {
@@ -56,8 +56,15 @@ export const SECTION_CATALOG = deepFreeze([
     id: 'gestiones', label: 'Comparar gestiones', targetPath: '/gestion-comparativa',
     purpose: 'Comparar dos períodos de gobierno con la misma cantidad de días, años de gestión y meses de nómina cerrada respaldados por GRH.',
     actions: ['contrastar altas, bajas y balance registral', 'comparar años de gestión equivalentes', 'revisar eventos por contrato-mes cerrado', 'alternar sectores literales y la agrupación reversible de jardines'],
-    limits: ['la gestión actual es parcial y no se anualiza ni proyecta', 'los eventos por 100 contrato-mes no son una tasa de ausentismo', 'presupuesto y ejecución permanecen pendientes hasta recibir una fuente oficial'],
+    limits: ['la gestión actual es parcial y no se anualiza ni proyecta', 'los eventos por 100 contrato-mes no son una tasa de ausentismo', 'el presupuesto aprobado está disponible en su módulo; la ejecución permanece pendiente de una fuente oficial'],
     aliases: ['gestion', 'gestiones', 'comparar gestiones', 'gestion anterior', 'gestion actual', 'periodos de gobierno'],
+  },
+  {
+    id: 'presupuesto', label: 'Presupuesto', targetPath: '/presupuesto-control',
+    purpose: 'Consultar el presupuesto municipal 2026 aprobado por la Ordenanza 1021/2025 y reconciliar sus totales explícitos con la fuente oficial.',
+    actions: ['revisar gasto, recursos y financiamiento aprobados', 'contrastar las dos jurisdicciones', 'consultar inversiones y destinos expresamente cuantificados', 'abrir la ordenanza oficial'],
+    limits: ['no informa compromiso, devengado, pagado ni ejecución corriente', 'los desgloses de la ordenanza no reemplazan las planillas anexas que la fuente publicada no incorpora', 'todos los importes son pesos nominales aprobados para 2026'],
+    aliases: ['presupuesto', 'presupuesto 2026', 'ordenanza 1021', 'gastos', 'recursos', 'financiamiento', 'ejecucion presupuestaria'],
   },
   {
     id: 'asistente', label: 'Asistente', targetPath: '/asistente',
@@ -151,6 +158,11 @@ export const TASK_CATALOG = deepFreeze([
     steps: ['Abrí Comparar gestiones.', 'Confirmá el corte GRH y que ambas ventanas comparables tengan la misma cantidad de días.', 'Leé por separado altas, bajas y balance al grano legajo por empresa.', 'Compará los años de gestión; el año parcial sólo se contrasta contra igual cantidad de días.', 'Para ausencias usá eventos por 100 contrato-mes cerrados, nunca tasa de presentismo o productividad.', 'Alterná la vista literal y Jardines; la agrupación es analítica, reversible y no modifica GRH.'],
   },
   {
+    id: 'revisar_presupuesto_aprobado', label: 'Revisar el presupuesto aprobado', sectionId: 'presupuesto',
+    aliases: ['revisar presupuesto', 'presupuesto 2026', 'ordenanza 1021', 'ver recursos', 'ver financiamiento', 'ejecucion presupuestaria'],
+    steps: ['Abrí Presupuesto.', 'Confirmá ejercicio, ordenanza, moneda y fuente oficial.', 'Reconciliá gasto aprobado con recursos más financiamiento.', 'Revisá jurisdicciones y partidas expresamente cuantificadas sin asumir que forman un anexo exhaustivo.', 'No calcules desvíos de ejecución hasta cargar compromiso, devengado y pagado desde una fuente oficial versionada.'],
+  },
+  {
     id: 'leer_reporte', label: 'Interpretar un reporte de RRHH', sectionId: 'reportes',
     aliases: ['leer reporte', 'ver reporte', 'interpretar informe', 'analizar rrhh'],
     steps: ['Abrí Reportes.', 'Identificá el período y la fuente del análisis.', 'Revisá hallazgos, movimientos, ausencias y composición sectorial según tu pregunta.', 'Conservá los límites metodológicos; un evento de ausencia no representa días perdidos ni una tasa.'],
@@ -176,6 +188,7 @@ export const GLOSSARY = deepFreeze([
   { id: 'referencia_licencia', label: 'Referencia normativa de licencia', aliases: ['referencia de licencia', 'calculo orientativo', 'licencia normativa'], definition: 'Resultado condicionado que aplica una regla versionada a los datos disponibles y enumera lo que falta. No equivale a saldo, concesion ni acto administrativo.', relatedSectionIds: ['licencias', 'ausentismo'] },
   { id: 'anio_gestion', label: 'Año de gestión', aliases: ['año de gestion', 'ano de gestion', 'año de mandato'], definition: 'Ventana anual contada desde la fecha exacta de inicio de una gestión. Evita que un año calendario de transición mezcle dos gobiernos.', relatedSectionIds: ['gestiones'] },
   { id: 'contrato_mes', label: 'Contrato-mes liquidado', aliases: ['contrato mes', 'contrato-mes', 'legajo mes'], definition: 'Unidad formada por un legajo y un mes con liquidación cerrada. Se usa como denominador comparable de eventos registrados; no equivale a horas trabajadas ni presentismo.', relatedSectionIds: ['gestiones', 'nomina', 'ausentismo'] },
+  { id: 'presupuesto_aprobado', label: 'Presupuesto aprobado', aliases: ['presupuesto aprobado', 'credito aprobado', 'presupuesto 2026'], definition: 'Autorización anual de gastos y estimación de recursos y financiamiento fijada por ordenanza. No equivale a ejecución: para medir desvíos hacen falta modificaciones, compromiso, devengado y pagado de una fuente oficial.', relatedSectionIds: ['presupuesto', 'gestiones'] },
 ]);
 
 export function getProductGuidanceCatalog() {

@@ -586,6 +586,7 @@
       <div class="nav-label">Herramientas</div>
       <nav class="nav" aria-label="Herramientas internas">
         <a href="gestion-comparativa.html"><span class="nav-code" aria-hidden="true">GE</span><span>Gestiones</span></a>
+        <a href="presupuesto-control.html"><span class="nav-code" aria-hidden="true">PR</span><span>Presupuesto</span></a>
         <a href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span><span>Ausentismo</span></a>
         <a href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span><span>Licencias</span></a>
         <a href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
@@ -634,6 +635,7 @@
             <button class="quick-button" type="button" data-prompt="Explicá la brecha entre los 882 legajos administrativos y los 854 liquidables."><span class="quick-code" aria-hidden="true">BR</span><span>Brecha 882 / 854</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cuál es el estado de la nómina y qué período puede publicarse?"><span class="quick-code" aria-hidden="true">NO</span><span>Control de nómina</span></button>
             <button class="quick-button" type="button" data-prompt="Compará la gestión actual con la anterior usando exactamente el mismo tiempo transcurrido. Mostrá altas, bajas, balance y eventos por 100 contrato-mes cerrados."><span class="quick-code" aria-hidden="true">CG</span><span>Comparar gestiones</span></button>
+            <button class="quick-button" type="button" data-prompt="¿Cuál es el presupuesto municipal aprobado para 2026? Separá gasto, recursos y financiamiento, y aclarame qué falta para medir ejecución."><span class="quick-code" aria-hidden="true">PR</span><span>Presupuesto 2026</span></button>
             <button class="quick-button" type="button" data-prompt="¿Cómo está la integración entre GRH y PERSONAS? Informá vinculados, ambiguos y no vinculados."><span class="quick-code" aria-hidden="true">IC</span><span>Integración de identidad</span></button>
             <button class="quick-button" type="button" data-prompt="Mostrame un resumen operativo de GRH y aclarame el grano de cada conteo."><span class="quick-code" aria-hidden="true">RS</span><span>Resumen GRH</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá la estructura, organizaciones, sectores y cargos observados en GRH sin inferir un organigrama."><span class="quick-code" aria-hidden="true">ES</span><span>Estructura observada</span></button>
@@ -700,6 +702,7 @@
                     <option value="operational_summary">Resumen municipal</option>
                     <option value="structure_analysis">Estructura observada</option>
                     <option value="management_comparison">Comparar gestiones</option>
+                    <option value="budget_approved">Presupuesto aprobado</option>
                     <option value="absence_analysis">Ausentismo agregado</option>
                     <option value="absence_event_list">Eventos de ausencia</option>
                     <option value="leave_policy">Licencias normativas</option>
@@ -835,6 +838,7 @@
         operational_summary: 'summary',
         workforce_summary: 'workforce',
         management_comparison: 'management',
+        budget_approved: 'budget',
         structure_analysis: 'structure',
         absence_analysis: 'absence',
         absence_event_list: 'absence',
@@ -848,10 +852,10 @@
       var INITIAL_CONTEXT_INTENTS = {
         inicio: 'operational_summary', resumen: 'operational_summary', estructura: 'structure_analysis',
         ausentismo: 'absence_analysis', licencias: 'leave_policy', calidad: 'quality_analysis', personas: 'employee_search',
-        nomina: 'payroll_control', integracion: 'integration_quality', gestiones: 'management_comparison'
+        nomina: 'payroll_control', integracion: 'integration_quality', gestiones: 'management_comparison', presupuesto: 'budget_approved'
       };
-      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', management: 'comparación de gestiones', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
-      var RESOURCE_LABELS = { summary: 'resumen GRH', managementanalytics: 'comparativa homogénea de gestiones', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', management: 'comparación de gestiones', budget: 'presupuesto aprobado', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
+      var RESOURCE_LABELS = { summary: 'resumen GRH', managementanalytics: 'comparativa homogénea de gestiones', budgetapproved: 'presupuesto aprobado 2026', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
       var DECISION_LABELS = {
         explicit_intent: 'Vista elegida por el usuario',
         deterministic_message_classification: 'Ruta determinada por la consulta',
@@ -912,6 +916,12 @@
       function factValue(value) {
         var number = typeof value === 'number' ? value : Number(value);
         return Number.isFinite(number) ? factNumberFormat.format(number) : cleanText(value);
+      }
+
+      function budgetMoneyValue(value) {
+        var number = typeof value === 'number' ? value : Number(value);
+        if (!Number.isFinite(number)) return cleanText(value);
+        return 'ARS ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number);
       }
 
       function readableCode(value) {
@@ -1327,6 +1337,16 @@
           add('Actual · eventos por 100 contrato-mes', managementCurrentPayroll.eventsPer100ContractMonths);
           facts.push('La medida por 100 contrato-mes no es tasa de ausentismo, presentismo ni jornadas perdidas');
           if (managementCurrent.partial === true) facts.push('Gestión actual: período parcial al corte de GRH');
+        } else if (intent === 'budget_approved') {
+          var approvedBudget = data.approved && typeof data.approved === 'object' ? data.approved : {};
+          add('Ejercicio', data.fiscalYear);
+          if (approvedBudget.expenditures) facts.push('Gasto aprobado: ' + budgetMoneyValue(approvedBudget.expenditures));
+          if (approvedBudget.resources) facts.push('Recursos estimados: ' + budgetMoneyValue(approvedBudget.resources));
+          if (approvedBudget.financing) facts.push('Financiamiento estimado: ' + budgetMoneyValue(approvedBudget.financing));
+          facts.push(data.reconciliations && data.reconciliations.funding === true
+            ? 'Recursos + financiamiento = gasto aprobado: conciliado exactamente'
+            : 'Conciliación financiera: no verificada');
+          facts.push('Ejecución, modificaciones, compromiso, devengado y pagado: fuente no cargada');
         } else if (intent === 'absence_analysis') {
           var summary = data.summary && typeof data.summary === 'object' ? data.summary : {};
           var effectiveRange = data.range && data.range.effective && typeof data.range.effective === 'object' ? data.range.effective : {};
@@ -1537,6 +1557,22 @@
               : 'Aún no transcurrido';
             return visibleRow([row && row.index, previousText, currentText, readableCode(row && row.currentStatus)]);
           }));
+        } else if (intent === 'budget_approved') {
+          var approvedBudget = data.approved || {};
+          var executionBudget = data.execution || {};
+          view.title = 'Presupuesto municipal aprobado 2026';
+          view.note = 'Importes nominales aprobados por la Ordenanza 1021/2025. No representan ejecución y no permiten calcular desvíos, compromiso, devengado ni pagado.';
+          metrics([
+            visibleMetric('Gasto aprobado', budgetMoneyValue(approvedBudget.expenditures)),
+            visibleMetric('Recursos estimados', budgetMoneyValue(approvedBudget.resources)),
+            visibleMetric('Financiamiento estimado', budgetMoneyValue(approvedBudget.financing)),
+            visibleMetric('Ejecución', executionBudget.available === true ? 'Disponible' : 'Fuente no cargada'),
+            visibleMetric('Recursos + financiamiento', data.reconciliations && data.reconciliations.funding === true ? 'Conciliado' : 'No verificado'),
+            visibleMetric('Jurisdicciones', data.reconciliations && data.reconciliations.jurisdictions === true ? 'Conciliadas' : 'No verificadas')
+          ]);
+          section('Gasto por jurisdicción', ['Jurisdicción', 'Importe aprobado'], (Array.isArray(approvedBudget.jurisdictions) ? approvedBudget.jurisdictions : []).map(function (row) {
+            return visibleRow([row && row.label, budgetMoneyValue(row && row.amount)]);
+          }));
         } else if (intent === 'absence_analysis') {
           var summary = data.summary || {};
           var effectiveRange = data.range && data.range.effective || {};
@@ -1704,6 +1740,11 @@
           contextualSuggestion('Analizar ausentismo agregado', 'Analizá los eventos administrativos de ausencia y sus límites.', 'absence_analysis', contextForIntent('absence_analysis', payload.conversationContext, {})),
           contextualSuggestion('Revisar nómina cerrada', 'Mostrame el último control de nómina cerrada.', 'payroll_control', contextForIntent('payroll_control', payload.conversationContext, {}))
         ];
+        if (intent === 'budget_approved') return [
+          contextualSuggestion('Explicar la conciliación', 'Explicá cómo reconcilian recursos, financiamiento y gasto aprobado.', 'budget_approved', contextForIntent('budget_approved', payload.conversationContext, {})),
+          contextualSuggestion('Qué falta para medir ejecución', '¿Qué fuentes faltan para calcular ejecución, compromiso, devengado, pagado y desvíos?', 'budget_approved', contextForIntent('budget_approved', payload.conversationContext, {})),
+          contextualSuggestion('Abrir comparación de gestiones', 'Compará la gestión actual con la anterior sobre una base temporal equivalente.', 'management_comparison', contextForIntent('management_comparison', payload.conversationContext, {}))
+        ];
         if (intent === 'absence_analysis') {
           var analysisContext = contextWithEffectiveRange(payload);
           return [
@@ -1783,6 +1824,7 @@
           import_lineage: 'Linaje de snapshots',
           workforce_summary: 'Dotación municipal',
           management_comparison: 'Comparación de gestiones',
+          budget_approved: 'Presupuesto aprobado 2026',
           payroll_control: 'Control de nómina',
           integration_quality: 'Integración de identidad',
           quality_analysis: 'Calidad operativa',

@@ -16,6 +16,7 @@ const shellFiles = [
   'integracion-datos.html',
   'nomina-control.html',
   'gestion-comparativa.html',
+  'presupuesto-control.html',
   'ausentismo-control.html',
   'licencias-control.html',
   'calidad-operativa.html',
@@ -24,6 +25,7 @@ const shellFiles = [
   'assets/internal-guide.js',
   'assets/product-guidance.js',
   'assets/mendoza-title-vi.js',
+  'assets/junin-budget-2026.js',
   'datos-personales.html',
   'friendly-data.json'
 ];

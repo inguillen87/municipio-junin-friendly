@@ -186,8 +186,13 @@ test('la homologación reversible de jardines conserva totales y claves compuest
 
 test('managementAnalytics publica sólo agregados y declara dominios ausentes', async () => {
   const result = await managementAnalytics(fixtureSql());
-  assert.equal(result.payload.data.budget.status, 'source_not_loaded');
-  assert.equal(result.payload.data.budget.available, false);
+  assert.equal(result.payload.data.budget.status, 'approved_budget_loaded');
+  assert.equal(result.payload.data.budget.available, true);
+  assert.equal(result.payload.data.budget.fiscalYear, 2026);
+  assert.equal(result.payload.data.budget.approvedExpenditures, '31854092000.00');
+  assert.equal(result.payload.data.budget.execution.status, 'source_not_loaded');
+  assert.equal(result.payload.data.budget.execution.available, false);
+  assert.equal(result.payload.data.budget.detailPath, '/presupuesto-control');
   assert.equal(result.payload.meta.containsPersonalData, false);
   assert.equal(result.payload.meta.authority, 'GRH');
   assert.match(result.payload.meta.grain, /employment_contract/);

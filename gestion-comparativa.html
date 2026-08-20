@@ -543,6 +543,7 @@
         <div class="nav-group">
           <span class="nav-label">Herramientas</span>
           <a class="nav-link" href="gestion-comparativa.html" aria-current="page"><span class="nav-code" aria-hidden="true">GE</span>Gestiones</a>
+          <a class="nav-link" href="presupuesto-control.html"><span class="nav-code" aria-hidden="true">PR</span>Presupuesto</a>
           <a class="nav-link" href="ausentismo-control.html"><span class="nav-code" aria-hidden="true">AU</span>Ausentismo</a>
           <a class="nav-link" href="licencias-control.html"><span class="nav-code" aria-hidden="true">LI</span>Licencias</a>
           <a class="nav-link" href="reportes-rrhh.html"><span class="nav-code" aria-hidden="true">IR</span>Reportes RRHH</a>
@@ -682,7 +683,7 @@
             </section>
 
             <section class="section" id="budgetPanel" aria-labelledby="budgetTitle">
-              <div class="section-head"><div><span class="section-index">06 · Próximo dominio</span><h2 id="budgetTitle">Presupuesto y ejecución</h2><p>Este bloque sólo publica cifras cuando existe una fuente presupuestaria oficial con período y definición conciliados.</p></div></div>
+              <div class="section-head"><div><span class="section-index">06 · Dominio financiero</span><h2 id="budgetTitle">Presupuesto y ejecución</h2><p>El presupuesto aprobado se publica con fuente y conciliación propias. La ejecución permanece separada hasta incorporar una fuente transaccional oficial.</p></div></div>
               <article class="budget-card" id="budgetCard"><span class="budget-mark" aria-hidden="true">$</span><div><h3 id="budgetCardTitle">Verificando disponibilidad</h3><p id="budgetMessage">La API indicará si el dominio presupuestario está listo.</p><div class="budget-meta" id="budgetMeta"></div><div class="budget-facts" id="budgetFacts" hidden></div></div><span class="status-pill context" id="budgetBadge">Consultando</span></article>
             </section>
 
@@ -753,6 +754,7 @@
       function formatDecimal(value) { var number = finite(value); return number === null ? 'No informado' : decimalFormat.format(number); }
       function formatRatio(value) { var number = finite(value); return number === null ? 'No informado' : ratioFormat.format(number); }
       function formatSigned(value) { var number = finite(value); return number === null ? 'No informado' : (number > 0 ? '+' : '') + integerFormat.format(number); }
+      function formatBudgetMoney(value) { var number = finite(value); return number === null ? 'No informado' : 'ARS ' + new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number); }
       function safeDate(value) {
         var raw = text(value);
         if (!raw) return 'No informada';
@@ -1337,7 +1339,7 @@
       function budgetAvailable(budget) {
         var explicit = booleanValue(firstValue(budget.available, budget.isAvailable, budget.ready));
         if (explicit !== null) return explicit;
-        return /^(ready|available|published|verified)$/i.test(text(firstValue(budget.status, budget.state)));
+        return /^(ready|available|published|verified|approved_budget_loaded)$/i.test(text(firstValue(budget.status, budget.state)));
       }
 
       function renderBudget() {
@@ -1345,18 +1347,36 @@
         var available = budgetAvailable(budget);
         var title = text(firstValue(budget.title, budget.label), available ? 'Fuente presupuestaria disponible' : 'Fuente presupuestaria pendiente');
         var message = text(firstValue(budget.message, budget.detail, budget.reason, budget.explanation), available
-          ? 'La API informó disponibilidad. Revisá fuente, período y definición antes de interpretar las cifras.'
+          ? 'La Ordenanza 1021/2025 informa el presupuesto inicial aprobado. La ejecución permanece separada hasta incorporar una fuente oficial de modificaciones, compromiso, devengado y pagado.'
           : 'No se publican cifras hasta incorporar y conciliar una fuente oficial de presupuesto y ejecución.');
         var requiredValue = firstValue(budget.requiredSource, budget.sourceRequired, budget.nextStep, budget.nextSourceContract, budget.source);
         var required = Array.isArray(requiredValue) ? requiredValue.join(', ') : text(requiredValue);
         byId('budgetCardTitle').textContent = title;
         byId('budgetMessage').textContent = message;
-        byId('budgetMeta').textContent = required ? 'Fuente o próximo paso: ' + required : '';
+        var source = asObject(budget.source);
+        var instrument = asObject(source.legalInstrument);
+        var sourceText = [text(instrument.type), text(instrument.number)].filter(Boolean).join(' ');
+        byId('budgetMeta').textContent = available
+          ? [sourceText, source.cutoff ? 'aprobado el ' + safeDate(source.cutoff) : '', 'Detalle en Presupuesto'].filter(Boolean).join(' · ')
+          : (required ? 'Fuente o próximo paso: ' + required : 'Pendiente de fuente oficial conciliada');
         byId('budgetBadge').className = 'status-pill ' + (available ? 'ready' : 'unavailable');
-        byId('budgetBadge').textContent = available ? 'Fuente informada' : 'No cargado';
+        byId('budgetBadge').textContent = available ? 'Aprobado disponible' : 'No cargado';
         var facts = byId('budgetFacts');
         clear(facts);
-        facts.hidden = true;
+        if (available) {
+          [
+            ['Gasto aprobado ' + text(budget.fiscalYear), formatBudgetMoney(budget.approvedExpenditures)],
+            ['Ejecución', budget.execution && budget.execution.available === true ? 'Disponible' : 'Fuente pendiente'],
+            ['Alcance', 'Presupuesto inicial aprobado']
+          ].forEach(function (item) {
+            var fact = create('div', 'budget-fact');
+            fact.append(create('span', '', item[0]), create('strong', '', item[1]));
+            facts.append(fact);
+          });
+          facts.hidden = false;
+        } else {
+          facts.hidden = true;
+        }
       }
 
       function metaValue(meta, keys) {
