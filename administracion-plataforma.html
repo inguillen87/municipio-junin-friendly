@@ -1797,7 +1797,9 @@
         if (button.dataset.adminView === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
       el.breadcrumbCurrent.textContent = titles[view][0]; el.topViewTitle.textContent = titles[view][1];
-      closeMenu(false); el.mainContent.focus();
+      closeMenu(false);
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      el.mainContent.focus({ preventScroll: true });
     }
 
     function openMenu() { document.body.classList.add('nav-open'); el.menuButton.setAttribute('aria-expanded', 'true'); el.workspace.inert = true; el.menuClose.focus(); }

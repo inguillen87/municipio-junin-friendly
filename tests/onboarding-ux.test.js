@@ -53,11 +53,18 @@ test('la guía contextual aísla progreso por sesión y cumple el contrato modal
 });
 
 test('todas las vistas internas principales cargan una sola guía compartida', () => {
-  for (const file of ['internal-dashboard.html', 'centro-acciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
+  for (const file of ['internal-dashboard.html', 'administracion-plataforma.html', 'centro-acciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
     const html = read(file);
     assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
     assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);
   }
+});
+
+test('la administración global conserva el encabezado visible al cambiar de sección', () => {
+  const html = read('administracion-plataforma.html');
+  assert.match(html, /window\.scrollTo\(\{ top: 0, left: 0, behavior: 'auto' \}\)/);
+  assert.match(html, /mainContent\.focus\(\{ preventScroll: true \}\)/);
+  assert.doesNotMatch(html, /mainContent\.focus\(\);/);
 });
 
 test('el Centro de acciones es descubrible y conserva límites transaccionales explícitos', () => {
