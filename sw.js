@@ -26,11 +26,16 @@ const PUBLIC_NAVIGATION_FALLBACKS = new Map([
   ['/', '/friendly-dashboard.html'],
   ['/dashboard', '/friendly-dashboard.html'],
   ['/inicio', '/friendly-dashboard.html'],
+  ['/friendly-dashboard.html', '/friendly-dashboard.html'],
   ['/modulos', '/modulos.html'],
+  ['/modulos.html', '/modulos.html'],
   ['/reportes', '/reportes-rrhh.html'],
   ['/reportes-rrhh', '/reportes-rrhh.html'],
+  ['/reportes-rrhh.html', '/reportes-rrhh.html'],
   ['/calidad-datos', '/calidad-datos.html'],
-  ['/control-horario-readiness', '/control-horario-readiness.html']
+  ['/calidad-datos.html', '/calidad-datos.html'],
+  ['/control-horario-readiness', '/control-horario-readiness.html'],
+  ['/control-horario-readiness.html', '/control-horario-readiness.html']
 ]);
 
 const NEVER_INTERCEPT_PREFIXES = Object.freeze([

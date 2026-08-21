@@ -176,6 +176,16 @@ test('service worker ofrece fallback sólo para navegaciones públicas conocidas
   };
   assert.equal(typeof dispatchFetch(worker, attendanceNavigation)?.then, 'function');
 
+  for (const path of ['/friendly-dashboard.html', '/modulos.html', '/reportes-rrhh.html', '/calidad-datos.html', '/control-horario-readiness.html']) {
+    const exactPublicNavigation = {
+      method: 'GET',
+      url: `https://friendly.example${path}`,
+      mode: 'navigate',
+      headers: new Headers()
+    };
+    assert.equal(typeof dispatchFetch(worker, exactPublicNavigation)?.then, 'function', `falta fallback exacto para ${path}`);
+  }
+
   const unknownNavigation = {
     method: 'GET',
     url: 'https://friendly.example/persona/123',
@@ -193,24 +203,26 @@ test('service worker ofrece fallback sólo para navegaciones públicas conocidas
   assert.equal(dispatchFetch(worker, authorizedStatic), undefined);
 });
 
-test('fallback offline sólo consulta el caché público activo', async () => {
-  const offlineHtml = new Response('<h1>Control horario offline</h1>', {
-    status: 200,
-    headers: { 'content-type': 'text/html; charset=utf-8' }
-  });
-  const worker = bootWorker({
-    cachedResponses: { '/control-horario-readiness.html': offlineHtml },
-    fetchImpl: async () => { throw new Error('sin conexión'); }
-  });
-  const request = {
-    method: 'GET',
-    url: 'https://friendly.example/control-horario-readiness',
-    mode: 'navigate',
-    headers: new Headers()
-  };
+test('fallback offline limpio y exacto sólo consultan el caché público activo', async () => {
+  for (const path of ['/control-horario-readiness', '/control-horario-readiness.html']) {
+    const offlineHtml = new Response('<h1>Control horario offline</h1>', {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' }
+    });
+    const worker = bootWorker({
+      cachedResponses: { '/control-horario-readiness.html': offlineHtml },
+      fetchImpl: async () => { throw new Error('sin conexión'); }
+    });
+    const request = {
+      method: 'GET',
+      url: `https://friendly.example${path}`,
+      mode: 'navigate',
+      headers: new Headers()
+    };
 
-  const response = await dispatchFetch(worker, request);
-  assert.match(await response.text(), /Control horario offline/);
+    const response = await dispatchFetch(worker, request);
+    assert.match(await response.text(), /Control horario offline/);
+  }
 });
 
 test('service worker respeta no-store y activa actualizaciones sólo por orden explícita', async () => {
