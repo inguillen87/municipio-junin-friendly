@@ -23,10 +23,18 @@ import {
   transitionOvertimeCase,
   updateOvertimeDraft,
 } from '../lib/internal-overtime-workflow.js';
+import {
+  TIME_SOURCE_CASE_TYPE,
+  TIME_SOURCE_REGISTRY_CONTRACT,
+  applyTimeSourceCommand,
+  getTimeSourceBootstrap,
+  listTimeSources,
+  readTimeSource,
+} from '../lib/internal-time-source-registry.js';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const CASE_TYPE = 'leave_request';
-const CASE_TYPES = new Set([CASE_TYPE, OVERTIME_CASE_TYPE]);
+const CASE_TYPES = new Set([CASE_TYPE, OVERTIME_CASE_TYPE, TIME_SOURCE_CASE_TYPE]);
 const MUTATION_METHODS = new Set(['POST', 'PATCH']);
 const ACTIONS_RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -61,6 +69,12 @@ function queryValue(req, name, fallback = '') {
     return String(value[0] ?? fallback);
   }
   return String(value ?? fallback);
+}
+
+function assertQueryKeys(req, allowed) {
+  const keys = Object.keys(req?.query || {});
+  const extra = keys.find((key) => !allowed.has(key));
+  if (extra) fail('ACTION_QUERY_INVALID', 400, `Parámetro no permitido: ${extra}`);
 }
 
 function fail(code, status, message) {
@@ -281,6 +295,10 @@ export function createInternalActionsHandler(dependencies = {}) {
   const overtimeCreate = dependencies.createOvertimeCase ?? createOvertimeCase;
   const overtimeUpdate = dependencies.updateOvertimeDraft ?? updateOvertimeDraft;
   const overtimeTransition = dependencies.transitionOvertimeCase ?? transitionOvertimeCase;
+  const timeSourceBootstrap = dependencies.getTimeSourceBootstrap ?? getTimeSourceBootstrap;
+  const timeSourceList = dependencies.listTimeSources ?? listTimeSources;
+  const timeSourceDetail = dependencies.readTimeSource ?? readTimeSource;
+  const timeSourceApply = dependencies.applyTimeSourceCommand ?? applyTimeSourceCommand;
   const env = dependencies.env ?? process.env;
 
   return async function internalActionsHandler(req, res) {
@@ -295,9 +313,15 @@ export function createInternalActionsHandler(dependencies = {}) {
         assertJsonContentType(req);
       }
 
+      const preloadedBody = MUTATION_METHODS.has(method) ? await requestBody(req) : null;
+      const requestedCaseType = method === 'GET'
+        ? exactCaseType(queryValue(req, 'caseType', CASE_TYPE))
+        : exactCaseType(preloadedBody.caseType);
+      const isTimeSource = requestedCaseType === TIME_SOURCE_CASE_TYPE;
+
       const access = await requireAccess(req, res, {
         env,
-        requiredCapabilities: capabilitiesForActionCenter(),
+        requiredCapabilities: isTimeSource ? ['time.source.read'] : capabilitiesForActionCenter(),
         requireDataPlaneReady: true,
         requireCertifiedDataBinding: true,
         allowLegacy: false,
@@ -317,10 +341,37 @@ export function createInternalActionsHandler(dependencies = {}) {
       const sql = await getSql(env);
 
       if (method === 'GET') {
-        const caseType = queryValue(req, 'caseType', CASE_TYPE);
-        exactCaseType(caseType);
+        const caseType = requestedCaseType;
         const isOvertime = caseType === OVERTIME_CASE_TYPE;
         const resource = queryValue(req, 'resource', 'bootstrap');
+        if (isTimeSource) {
+          if (resource === 'bootstrap') {
+            assertQueryKeys(req, new Set(['caseType', 'resource']));
+            const result = await timeSourceBootstrap(sql, access.principal, tenantSession);
+            const { principal, ...payload } = result;
+            return send(res, 200, { ok: true, caseType, ...payload });
+          }
+          if (resource === 'list') {
+            assertQueryKeys(req, new Set(['caseType', 'resource', 'domain', 'status', 'page', 'limit']));
+            const result = await timeSourceList(sql, access.principal, {
+              domain: queryValue(req, 'domain', ''),
+              status: queryValue(req, 'status', ''),
+              page: queryValue(req, 'page', '1'),
+              limit: queryValue(req, 'limit', '20'),
+            }, tenantSession);
+            const { principal, ...payload } = result;
+            return send(res, 200, { ok: true, caseType, ...payload });
+          }
+          if (resource === 'detail') {
+            assertQueryKeys(req, new Set(['caseType', 'resource', 'id']));
+            const result = await timeSourceDetail(
+              sql, access.principal, queryValue(req, 'id'), tenantSession,
+            );
+            const { principal, ...payload } = result;
+            return send(res, 200, { ok: true, caseType, ...payload });
+          }
+          fail('ACTION_RESOURCE_INVALID', 400, 'resource no soportado');
+        }
         if (resource === 'bootstrap') {
           const result = await (isOvertime ? overtimeBootstrap : bootstrap)(
             sql, access.principal, tenantSession,
@@ -369,9 +420,27 @@ export function createInternalActionsHandler(dependencies = {}) {
         fail('ACTION_RESOURCE_INVALID', 400, 'resource no soportado');
       }
 
-      const body = await requestBody(req);
+      const body = preloadedBody;
       const caseType = exactCaseType(body.caseType);
       const isOvertime = caseType === OVERTIME_CASE_TYPE;
+      if (caseType === TIME_SOURCE_CASE_TYPE) {
+        if ((body.command === 'update_draft' && method !== 'PATCH')
+            || (body.command !== 'update_draft' && method !== 'POST')) {
+          fail('ACTION_COMMAND_INVALID', 400, 'Método incompatible con el comando temporal');
+        }
+        const key = idempotencyKey(req);
+        const result = await timeSourceApply(
+          sql, access.principal, tenantSession, body, key,
+        );
+        if (result.replayed) res.setHeader('Idempotency-Replayed', 'true');
+        return send(res, body.command === 'create_draft' ? 201 : 200, {
+          ok: true,
+          caseType,
+          replayed: Boolean(result.replayed),
+          historical: Boolean(result.historical),
+          data: result.data,
+        });
+      }
       if (method === 'POST' && body.command === 'search_subjects') {
         if (Object.keys(body).some((keyName) => !['caseType', 'command', 'payload'].includes(keyName))
             || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)
@@ -445,7 +514,10 @@ export function createInternalActionsHandler(dependencies = {}) {
     } catch (error) {
       const safeError = error instanceof ActionCenterError ? error : safeUnexpectedError(error);
       if (safeError) {
-        if (safeError.code === 'ACTION_SESSION_BUSY') res.setHeader('Retry-After', '1');
+        if (safeError.code === 'ACTION_SESSION_BUSY'
+            || safeError.code === 'TIME_SOURCE_SESSION_BUSY') {
+          res.setHeader('Retry-After', '1');
+        }
         return send(res, safeError.status, {
           ok: false,
           code: safeError.code,
@@ -465,4 +537,4 @@ export function createInternalActionsHandler(dependencies = {}) {
 
 export default createInternalActionsHandler();
 
-export { ACTION_CENTER_CONTRACT, OVERTIME_ACTION_CONTRACT };
+export { ACTION_CENTER_CONTRACT, OVERTIME_ACTION_CONTRACT, TIME_SOURCE_REGISTRY_CONTRACT };

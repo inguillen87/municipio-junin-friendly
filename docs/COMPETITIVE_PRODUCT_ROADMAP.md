@@ -40,24 +40,25 @@ Las fuentes de Argentina y GovTech LATAM aportan contexto institucional; no se u
 
 La comparación no asigna puntajes numéricos porque las fuentes públicas tienen distinto nivel de detalle. Un ranking con esos datos produciría precisión ficticia.
 
-### 1.2 Corte de evidencia del foundation 005–009A
+### 1.2 Corte de evidencia del foundation 005–009A y del control temporal 010A
 
-El foundation transversal de identidad y operaciones llegó hasta la migración 009A. Este cierre significa **implementado y verificado en local y en una rama Neon QA descartable**; no significa desplegado, habilitado ni probado con usuarios en Producción. Tampoco convierte en completas las capacidades funcionales que todavía carecen de fuente, calendario o reglas homologadas.
+El foundation transversal de identidad y operaciones llegó hasta la migración 009A. Ese corte quedó **implementado y verificado en local y en una rama Neon QA descartable**. La migración 010A agrega en local un registro gobernado de metadatos y readiness de fuentes temporales, pero su apply/reapply PostgreSQL aislado sigue pendiente porque el entorno no acreditó la confirmación de rama descartable exigida por el gate. Ninguno de los dos cortes está desplegado, habilitado ni probado con usuarios en Producción.
 
 | Entorno | Evidencia alcanzada | Límite explícito |
 |---|---|---|
-| **Local** | Identidad tenant v2 ligada a sesión, MFA y ACL/capability; lecturas y escrituras de Actions gobernadas; ingreso de declaraciones de mayor esfuerzo; administración de onboarding, vínculo laboral y scopes ligada a sesión, versión y tenant. Pruebas de contratos, rechazos e idempotencia acompañan las migraciones 005–009A. | Es evidencia de implementación. No prueba correo/entrega real, operación humana sostenida, integración de fichadas, reglas laborales homologadas ni comportamiento del artefacto desplegado. |
-| **Neon QA descartable** | Aplicación y reaplicación controlada de la migración, aislamiento tenant, accesos por funciones permitidas, lifecycle administrativo y replays/revocaciones adversariales sobre una rama aislada. Los fixtures del control plane son sintéticos y los datos fuente protegidos se mantuvieron sólo de lectura. | No es staging permanente ni Producción; la rama se elimina al terminar la validación y sus fixtures no representan personas, decisiones ni resultados municipales. |
-| **Producción** | **No desplegada para este corte.** | No hay habilitación de identidad v2/MFA/ACL, Actions gobernadas, intake de mayor esfuerzo ni administración lifecycle 009A que pueda declararse operativa en Producción. Hace falta desplegar el mismo artefacto autorizado, aplicar la migración y ejecutar smoke/adversariales remotos antes de cambiar este estado. |
+| **Local** | Identidad tenant v2 ligada a sesión, MFA y ACL/capability; Actions read/write; intake de mayor esfuerzo; lifecycle 009A; y registro 010A de contratos de metadatos para cinco dependencias temporales. 010A controla tenant, binding, SoD, maker-checker, replay, vigencia, privacidad y readiness, y mantiene evaluación, asistencia, nómina y mutación GRH en `false`. | Es evidencia de implementación y browser contractual con API interceptada. No prueba fuentes temporales reales, compilación PostgreSQL 010A, correo/entrega real, reglas laborales homologadas ni comportamiento del artefacto desplegado. |
+| **Neon QA descartable** | 009A: aplicación/reaplicación, aislamiento tenant, allowlist de funciones y adversariales lifecycle sobre rama aislada. 010A: **pendiente**; el preflight abortó antes de conectar porque faltó la confirmación exacta de entorno descartable. | La evidencia 009A no se reutiliza para certificar 010A. La futura QA 010A debe probar fresh apply/reapply, ACL efectiva, replay, overlap, recertificación, carreras y rollback sin tocar Producción. |
+| **Producción** | **No desplegada para estos cortes.** | No hay identidad v2/Actions/lifecycle 009A ni registro temporal 010A que pueda declararse operativo. Hace falta desplegar bytes autorizados, aplicar sus migraciones y ejecutar smoke/adversariales remotos antes de cambiar este estado. |
 
 Capacidades concretas cerradas en el foundation:
 
 - identidad v2 resuelta por tenant, sesión, MFA y capability, con superficies legacy basadas sólo en email cerradas;
 - Centro de acciones con lecturas y escrituras gobernadas, contexto tenant explícito, control de versión, idempotencia y motivo auditable;
 - intake de mayor esfuerzo que registra la declaración como `pending_time_rules`: no calcula horas, adicional salarial ni resultado de nómina;
-- lifecycle/onboarding administrativo ligado a sesión privilegiada, MFA, release y tenant para crear el tenant con política cerrada, consultar/vincular/revocar legajo y reemplazar scopes sin borrar el historial.
+- lifecycle/onboarding administrativo ligado a sesión privilegiada, MFA, release y tenant para crear el tenant con política cerrada, consultar/vincular/revocar legajo y reemplazar scopes sin borrar el historial;
+- registro 010A de metadatos temporales versionados para turnos, fichadas, calendario/feriados, reglas municipales y eventos administrativos, sin URL, archivos, credenciales, localizadores externos ni campos nominales en HTTP.
 
-Siguen deliberadamente cerrados los conectores y la operación de turnos, fichadas, feriados, calendarios, reglas temporales y excepciones. También siguen cerrados el cálculo, la preliquidación, la publicación y el posting hacia payroll. La siguiente fase competitiva debe resolver primero ese contrato temporal con datos aprobados; no se inferirán horarios, marcaciones ni montos.
+El inventario no encontró fuentes homologadas de turnos asignados, fichadas, feriados/calendario laboral ni reglas municipales. Las horas diarias/mensuales del maestro GRH y 31.572 eventos administrativos de ausencia son señales reales pero insuficientes: no contienen turnos ni hora de marcación y no se reinterpretan como tales. Siguen cerrados los conectores, la evaluación, las excepciones calculadas, la preliquidación, la publicación y el posting hacia payroll.
 
 ## 2. Lectura honesta del mercado
 
@@ -65,7 +66,7 @@ Siguen deliberadamente cerrados los conectores y la operación de turnos, fichad
 |---|---|---|---|
 | Legajos y estructura | [CIVITAS](https://civitas.com.ar/software-recursos-humanos/) declara RRHH centralizado; [Intervan](https://intervan.com.ar/recursos-humanos/) documenta legajo, estructura, puestos e historial; [SIGeMi](https://sigemi.com.ar/personal/) documenta legajos, novedades, accidentes, asistencia y capacitación. | **Parcial avanzado**: núcleo GRH laboral real, estructura, identidad y calidad. | Convertir GRH en fuente interoperable y reconciliada, no reemplazarla a ciegas. |
 | Licencias y ausencias | CIVITAS declara incidencias y licencias; Intervan documenta tipos configurables, saldos y reportes; SIGeMi documenta licencias reglamentarias y parametrizadas; [Oracle](https://docs.oracle.com/en/cloud/saas/human-resources/fautl/how-absences-are-handled-when-integrated-with-time-and-labor.html) integra solicitud, aprobación, saldo y transferencia a tiempo/nómina. | **Parcial avanzado**: Título VI versionado, analítica y primer workflow gobernado. | Completar ledger de saldos, turnos, fichadas, feriados, documentación y resolución humana antes de calcular disponibilidad. |
-| Asistencia y turnos | CIVITAS declara QR, PIN, facial y geolocalización; SIGeMi importa relojes y genera tardanzas/ausencias; [Tyler](https://www.tylertech.com/products/time-attendance) documenta horarios, overtime, autoservicio, aprobaciones móviles e integración con nómina; [Oracle](https://www.oracle.com/human-capital-management/human-resources/) documenta scheduling, time tracking y reglas laborales. | **Parcial de intake; operación faltante**: una declaración de mayor esfuerzo puede ingresar gobernada como `pending_time_rules`, pero no existen aún fuentes homologadas de turnos/fichadas ni motor de calendario, reglas y excepciones. | Construir primero calendarios, turnos y reglas versionadas; después sumar conectores de reloj/CSV/API mediante staging. Biometría sólo con evaluación legal, privacidad y alternativa no biométrica. |
+| Asistencia y turnos | CIVITAS declara QR, PIN, facial y geolocalización; SIGeMi importa relojes y genera tardanzas/ausencias; [Tyler](https://www.tylertech.com/products/time-attendance) documenta horarios, overtime, autoservicio, aprobaciones móviles e integración con nómina; [Oracle](https://www.oracle.com/human-capital-management/human-resources/) documenta scheduling, time tracking y reglas laborales. | **Parcial gobernado; operación faltante**: intake de mayor esfuerzo en `pending_time_rules` y registry 010A de metadatos/readiness implementado localmente. Las cinco dependencias siguen ausentes o parciales; no hay fuentes homologadas ni motor de evaluación. | Ejecutar QA PostgreSQL 010A; después cargar contratos de fuentes aprobadas, calendarios, turnos y reglas versionadas. Recién entonces sumar staging/conectores y simulación. Biometría requiere evaluación legal, privacidad y alternativa no biométrica. |
 | Nómina | CIVITAS declara convenios, Ganancias y automatización; Intervan documenta fórmulas, simulaciones, controles, ARCA/ANSES/bancos y asientos; [SIGeMi](https://sigemi.com.ar/sueldos/) documenta novedades y liquidaciones; [Oracle](https://docs.oracle.com/en/cloud/saas/human-resources/fapcd/overview-of-time-and-absence-data-for-payroll.html) documenta la transferencia reconciliable de tiempo/ausencias a nómina. | **Parcial analítico**: corridas GRH cerradas y reconciliadas. Cálculo, publicación y posting siguen cerrados. | Construir preliquidación explicable; no recalcular, publicar ni postear sueldos hasta homologar conceptos, reglas, interfaces y casos dorados. |
 | Recibo y autoservicio | CIVITAS declara recibo y firma digital; Intervan documenta recibos, licencias, saldos, fichadas e incidencias en autogestión. | **Faltante**. | Entrega verificable, consentimiento/firma compatible, constancia y acceso mínimo por empleado. |
 | Identidad, roles y auditoría | [SIGeMi](https://sigemi.com.ar/producto/) declara roles y auditoría de modificaciones; [OpenGov](https://opengov.com/) declara controles de acceso y audit trails en su plataforma. Las páginas públicas no prueban aislamiento multi-tenant ni segregación de funciones. | **Parcial avanzado**: identity gateway v2, MFA, ACL/capabilities, sesiones revocables, Actions read/write y lifecycle administrativo tenant-aware implementados y verificados en local/Neon QA descartable; no desplegados en Producción. | Completar entrega/recuperación y rate limits operativos, desplegar el mismo artefacto autorizado y probar aislamiento/revocación en el entorno remoto antes de activar cuentas reales. |
@@ -181,7 +182,11 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 
 **Aceptación de producto aún pendiente:** ninguna cuenta activada puede leer otro tenant; revocar membresía/sesión surte efecto en la siguiente solicitud; replays y fuerza bruta fallan cerrados; auditoría no guarda secretos. Estos criterios deben repetirse sobre el mismo artefacto desplegado antes de llamar completa a la capacidad.
 
-### S006 — Motor versionado de calendario, turnos y reglas de tiempo — **siguiente fase competitiva**
+### S006 / 010A–010C — Tiempo explicable por capas — **010A local; 010B siguiente fase competitiva**
+
+**010A implementado localmente:** registro tenant-aware de metadatos y readiness para cinco dominios; workflow borrador–presentado–aprobado/rechazado–retirado/cancelado; SoD por persona, maker-checker, replay histórico, auditoría acotada y proyección sin PII/localizadores. La UI y el browser contractual pasaron en escritorio/móvil y tres zonas horarias. El apply/reapply PostgreSQL 010A sigue pendiente y no hay contratos de fuentes municipales cargados.
+
+**010B siguiente:** catálogo temporal versionado y fuentes efectivamente aprobadas. **010C posterior:** conectores, reconciliación, simulación y ledger de excepciones; ningún cálculo o posting se adelanta.
 
 - Registro de fuentes aprobadas: dueño, período, cobertura, zona horaria, formato, corte y estado de homologación; una fuente ausente permanece ausente.
 - Catálogo versionado de calendarios, feriados, turnos, tolerancias y reglas por tenant, convenio, vigencia y prioridad, con estados borrador–aprobada–retirada.
@@ -193,7 +198,7 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 - Aprobación de mayor esfuerzo separada del cálculo y de cualquier impacto posterior; payroll/posting continúa deshabilitado.
 - Geolocalización sólo para funciones justificadas y con minimización; reconocimiento facial fuera del alcance inicial hasta evaluación normativa, DPIA y alternativa no biométrica.
 
-**Aceptación:** cada minuto calculado reconcilia contra una asignación de turno, calendario, fichadas, regla versionada y excepción/decisión; el resultado se reproduce con las mismas entradas. Una entrada incompleta produce `pending_time_rules` o excepción explícita, nunca presentismo, ausencia, hora extra ni monto inventado.
+**Aceptación final de S006:** cada minuto calculado reconcilia contra una asignación de turno, calendario, fichadas, regla versionada y excepción/decisión; el resultado se reproduce con las mismas entradas. 010A sólo acepta metadatos gobernados y conserva todos los flags operativos cerrados. Una entrada incompleta produce `pending_time_rules` o excepción explícita, nunca presentismo, ausencia, hora extra ni monto inventado.
 
 ### S007 — Licencias operativas completas
 
@@ -273,16 +278,15 @@ La migración técnica **009A de lifecycle no equivale al sprint funcional S009*
 
 ## 6. Orden de ejecución inmediato
 
-1. Congelar el cierre técnico 005–009A con evidencia local y de Neon QA descartable, eliminar los fixtures al terminar y conservar Producción sin cambios hasta una autorización de despliegue separada.
-2. Convertir S006 en contratos de aceptación trazables: fuente, tenant, contrato/persona, calendario, turno, regla/versionado, excepción, rol, motivo, resultado y prueba negativa.
-3. Inventariar y conseguir aprobación sobre las fuentes reales de turnos, relojes/fichadas, feriados y reglas de mayor esfuerzo de Junín. Registrar cobertura y ausencias; no completar huecos con datos sintéticos.
-4. Implementar el catálogo versionado de calendario, turnos y reglas en una rama aislada, inicialmente sin cálculo ni escritura a GRH/payroll.
+1. Ejecutar la migración 010A exacta en una rama Neon QA descartable acreditada: fresh apply/reapply, ACL, rollback, replay, overlap, recertificación, carreras y fingerprints protegidos. No reutilizar la evidencia 009A.
+2. Conseguir aprobación y contratos de fuente reales para turnos, relojes/fichadas, feriados/calendario y reglas de mayor esfuerzo. Registrar cobertura y ausencias; no completar huecos con datos sintéticos.
+3. Implementar 010B: catálogo versionado de calendario, turnos, tolerancias, reglas y asignaciones temporales, inicialmente sin cálculo ni escritura a GRH/payroll.
+4. Incorporar en 010C un conector de fichadas sólo cuando exista fuente aprobada, usando staging, deduplicación, cuarentena y reconciliación.
 5. Agregar simulación determinista y ledger de excepciones; probar vigencias, prioridades, cambio de turno, falta de entrada, solapamientos, rechazo, corrección y concurrencia.
-6. Incorporar un conector de fichadas sólo cuando exista fuente aprobada, usando staging, deduplicación, cuarentena y reconciliación. Hasta entonces, los casos de mayor esfuerzo quedan en `pending_time_rules`.
-7. Habilitar revisión/aprobación temporal sólo después de reconciliar cada minuto. Mantener cálculo salarial, publicación y posting de payroll cerrados.
-8. Completar S007 usando el Centro de acciones y adelantar el autoservicio mínimo del empleado: solicitud, saldo, estado y constancia.
-9. Recién después iniciar S008; no calcular recibos productivos con reglas inferidas. En paralelo, acordar el formato oficial de ejecución presupuestaria para el sprint funcional S009.
-10. Actualizar este benchmark al cerrar cada sprint y después de cualquier demo contractual de un competidor; una demo observada debe registrarse separada de lo publicado.
+6. Habilitar revisión/aprobación temporal sólo después de reconciliar cada minuto. Mantener cálculo salarial, publicación y posting de payroll cerrados.
+7. Completar S007 usando el Centro de acciones y adelantar el autoservicio mínimo del empleado: solicitud, saldo, estado y constancia.
+8. Recién después iniciar S008; no calcular recibos productivos con reglas inferidas. En paralelo, acordar el formato oficial de ejecución presupuestaria para el sprint funcional S009.
+9. Actualizar este benchmark al cerrar cada sprint y después de cualquier demo contractual de un competidor; una demo observada debe registrarse separada de lo publicado.
 
 ## 7. Límites no negociables
 

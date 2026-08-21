@@ -13,6 +13,7 @@ assert.equal(rewrites.get('/activar-cuenta'), '/activar-cuenta.html');
 assert.equal(rewrites.get('/seguridad-cuenta'), '/seguridad-cuenta.html');
 assert.equal(rewrites.get('/rrhh'), '/internal-dashboard.html');
 assert.equal(rewrites.get('/centro-acciones'), '/centro-acciones.html');
+assert.equal(rewrites.get('/fuentes-tiempo'), '/fuentes-tiempo.html');
 assert.equal(rewrites.get('/administracion-plataforma'), '/administracion-plataforma.html');
 assert.equal(rewrites.get('/admin'), '/administracion-plataforma.html');
 assert.equal(rewrites.get('/modulos'), '/modulos.html');
@@ -46,6 +47,7 @@ assert.doesNotMatch(ignore, /^manifest\.webmanifest$/m, 'el manifiesto PWA debe 
 assert.match(ignore, /^!gestion-comparativa\.html$/m, 'la comparación de gestiones debe llegar al build de Vercel');
 assert.match(ignore, /^!presupuesto-control\.html$/m, 'el presupuesto aprobado debe llegar al build de Vercel');
 assert.match(ignore, /^!centro-acciones\.html$/m, 'el Centro de acciones debe llegar al build de Vercel');
+assert.match(ignore, /^!fuentes-tiempo\.html$/m, 'la gobernanza temporal debe llegar al build de Vercel');
 assert.match(ignore, /^!administracion-plataforma\.html$/m, 'la administración de plataforma debe llegar al build de Vercel');
 assert.match(ignore, /^!activar-cuenta\.html$/m, 'la activación segura debe llegar al build de Vercel');
 assert.match(ignore, /^!seguridad-cuenta\.html$/m, 'el Centro de seguridad debe llegar al build de Vercel');
@@ -63,7 +65,7 @@ if (fs.existsSync(gitIgnoreUrl)) {
   assert.equal(process.env.VERCEL, '1', '.gitignore sólo puede faltar dentro del build aislado de Vercel');
 }
 
-for (const file of ['login.html', 'activar-cuenta.html', 'seguridad-cuenta.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'centro-acciones.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
+for (const file of ['login.html', 'activar-cuenta.html', 'seguridad-cuenta.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;

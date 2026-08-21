@@ -684,8 +684,21 @@ async function collectRuntimeAclEvidence(client) {
   };
 }
 
-export async function verifyTenantLifecycleFinalAcl(client) {
+export async function verifyTenantLifecycleBaseEvidence(client) {
   validateTenantLifecycleEvidence(await collectEvidence(client));
+}
+
+export async function verifyTenantLifecycleFinalAcl(client) {
+  const future = await client.query(
+    'SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1) AS installed',
+    ['010-governed-time-source-registry'],
+  );
+  if (rows(future)[0]?.installed === true) {
+    const { verifyTimeSourceFinalAcl } = await import('./apply-governed-time-source-registry-schema.mjs');
+    await verifyTimeSourceFinalAcl(client);
+    return;
+  }
+  await verifyTenantLifecycleBaseEvidence(client);
   validateTenantLifecycleRuntimeAclEvidence(await collectRuntimeAclEvidence(client));
 }
 
