@@ -117,7 +117,7 @@
     .eyebrow { margin: 0 0 8px; color: var(--teal-dark); font-size: 10px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
     h1 { margin: 0; color: var(--navy); font-size: clamp(30px, 4.6vw, 47px); font-weight: 790; line-height: 1.04; letter-spacing: -.035em; }
     .page-lead { max-width: 790px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
-    .head-actions { display: flex; gap: 9px; }
+    .head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 
     .permission-strip { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; align-items: center; margin: 18px 0; padding: 14px 16px; color: #244351; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: var(--radius); }
     .permission-strip strong { display: block; color: var(--navy); font-size: 13px; }
@@ -225,7 +225,7 @@
     .command-panel h3 { margin: 0; color: var(--navy); font-size: 15px; }
     .command-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .decision-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid #bdd5d1; }
-    .checkbox { display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 9px; align-items: start; margin-top: 10px; color: #36515f; font-size: 12px; line-height: 1.45; }
+    .checkbox { min-height: 44px; display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 9px; align-items: start; margin-top: 10px; padding: 7px 0; color: #36515f; font-size: 12px; line-height: 1.45; }
     .checkbox input { width: 17px; height: 17px; margin: 0; accent-color: var(--teal); }
     .decision-warning { margin: 10px 0 0; padding: 10px; color: #624713; background: var(--amber-bg); border-left: 3px solid var(--amber); font-size: 12px; line-height: 1.45; }
 
@@ -247,6 +247,19 @@
     .segment input:focus-visible + label { outline: 3px solid rgba(15,118,110,.22); outline-offset: 2px; }
     .segment input:disabled + label { color: #7a8c93; background: #edf1f2; border-color: #d4dddf; cursor: not-allowed; }
     .honesty-note { margin-top: 14px; padding: 12px; color: #614918; background: var(--amber-bg); border: 1px solid #e3c78f; border-left: 4px solid var(--amber); border-radius: 4px; font-size: 12px; line-height: 1.5; }
+    .readiness-card { margin-top: 14px; padding: 15px; color: #244351; background: var(--blue-bg); border: 1px solid #b7d1df; border-left: 4px solid var(--blue); border-radius: var(--radius); }
+    .readiness-card h4 { margin: 0; color: var(--navy); font-size: 14px; }
+    .readiness-card > p { margin: 5px 0 0; color: #526b75; font-size: 12px; line-height: 1.5; }
+    .readiness-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+    .readiness-fact { min-height: 72px; padding: 10px 11px; background: rgba(255,255,255,.78); border: 1px solid #c8dce5; border-radius: 4px; }
+    .readiness-fact span, .readiness-fact strong { display: block; }
+    .readiness-fact span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .readiness-fact strong { margin-top: 6px; color: var(--navy); font-size: 13px; }
+    .missing-list { margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; list-style: none; }
+    .missing-list li { position: relative; min-height: 44px; display: flex; align-items: center; padding: 8px 10px 8px 30px; color: #644a1f; background: var(--amber-bg); border: 1px solid #e3c78f; border-radius: 4px; font-size: 11px; font-weight: 750; }
+    .missing-list li::before { content: "!"; position: absolute; left: 10px; width: 13px; height: 13px; display: grid; place-items: center; color: #fff; background: var(--amber); border-radius: 50%; font-size: 8px; }
+    .authority-note { margin-bottom: 14px; padding: 12px 14px; color: #275468; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: 4px; font-size: 12px; line-height: 1.5; }
+    .authority-note strong { display: block; margin-bottom: 3px; color: var(--navy); }
     .review-card { padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); }
     .review-card h4 { margin: 0 0 8px; color: var(--navy); font-size: 14px; }
     .wizard-footer { position: sticky; z-index: 2; bottom: 0; display: flex; justify-content: space-between; gap: 12px; padding: 14px 22px calc(14px + var(--safe-bottom)); background: rgba(255,255,255,.98); border-top: 1px solid var(--line); }
@@ -324,6 +337,7 @@
       .subject-search-control .button { width: 100%; }
       .wizard-footer { padding: 11px 14px calc(11px + var(--safe-bottom)); }
       .wizard-footer .button { min-width: 0; padding-left: 10px; padding-right: 10px; }
+      .readiness-grid, .missing-list { grid-template-columns: 1fr; }
       .command-actions { display: grid; grid-template-columns: 1fr; }
       .command-actions .button { width: 100%; }
     }
@@ -338,6 +352,8 @@
       .wizard-footer { display: grid; grid-template-columns: 1fr; }
       .wizard-footer > div { display: grid; grid-template-columns: 1fr 1fr; }
       .wizard-footer > .button { width: 100%; }
+      .head-actions { width: 100%; display: grid; grid-template-columns: 1fr; }
+      .head-actions .button { width: 100%; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -434,6 +450,7 @@
               <p class="page-lead">Creá, revisá y resolvé solicitudes con evidencia, versión vigente y trazabilidad. Cada decisión conserva quién actuó, cuándo y con qué fuente.</p>
             </div>
             <div class="head-actions">
+              <button class="button" id="createOvertimeButton" type="button" disabled hidden>Cargar mayor esfuerzo</button>
               <button class="button primary" id="createActionButton" type="button" disabled>Nueva solicitud</button>
             </div>
           </header>
@@ -450,8 +467,8 @@
 
           <section class="queue-panel" aria-labelledby="queueTitle">
             <header class="queue-head">
-              <div><h2 id="queueTitle">Bandeja de trabajo</h2><p>La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
-              <button class="button" id="queueCreateButton" type="button" disabled>Crear solicitud</button>
+              <div><h2 id="queueTitle">Bandeja de trabajo</h2><p id="queueSubtitle">La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
+              <div class="head-actions"><button class="button" id="queueOvertimeButton" type="button" disabled hidden>Cargar mayor esfuerzo</button><button class="button" id="queueCreateButton" type="button" disabled>Crear solicitud</button></div>
             </header>
 
             <div class="view-tabs" id="actionViews" role="tablist" aria-label="Alcance de la bandeja">
@@ -576,6 +593,49 @@
     </form>
   </dialog>
 
+  <dialog class="wizard-dialog" id="overtimeWizard" aria-labelledby="overtimeWizardTitle">
+    <form class="dialog-shell" id="overtimeWizardForm" novalidate autocomplete="off">
+      <header class="dialog-head">
+        <div><p class="eyebrow">Tesorería · responsabilidad exclusiva</p><h2 id="overtimeWizardTitle">Registrar mayor esfuerzo</h2><p id="overtimeWizardSubtitle">Declaración operativa versionada. No calcula, liquida ni publica una novedad salarial.</p></div>
+        <button class="button dialog-close" id="closeOvertimeWizard" type="button" aria-label="Cerrar formulario de mayor esfuerzo">×</button>
+      </header>
+      <div class="dialog-body">
+        <div class="authority-note" id="overtimeAuthorityStatus" role="status" aria-live="polite"><strong>Autoridad en verificación</strong>La carga sólo se habilita cuando el backend confirma capacidad y asignación exclusiva vigentes.</div>
+
+        <section class="wizard-panel" aria-labelledby="overtimeDeclarationTitle">
+          <h3 id="overtimeDeclarationTitle">Declaración de tiempo adicional</h3><p>Seleccioná una persona dentro del alcance gobernado e informá únicamente fecha, minutos declarados y motivo operativo.</p>
+          <div class="form-grid">
+            <div class="field full" id="overtimeEmployeeSearchField"><label for="overtimeEmployeeSearch">Buscar personas dentro de tu alcance</label><div class="subject-search-control"><input class="input" id="overtimeEmployeeSearch" type="search" minlength="2" maxlength="50" autocomplete="off" autocapitalize="none" spellcheck="false" aria-controls="overtimeEmployee" aria-describedby="overtimeEmployeeSearchStatus" placeholder="Nombre, legajo o sector"><button class="button" id="overtimeEmployeeSearchButton" type="button" disabled>Buscar</button></div><span class="field-help" id="overtimeEmployeeSearchStatus" role="status" aria-live="polite">Ingresá al menos 2 caracteres. La búsqueda se envía por POST sólo al pulsar Buscar; no aparece en la URL ni se guarda.</span></div>
+            <div class="field full"><label for="overtimeEmployee">Persona / legajo autorizado</label><select class="select" id="overtimeEmployee" name="beneficiaryContractId" required><option value="">Seleccionar</option></select><span class="field-help">La persona queda vinculada al borrador y no puede cambiarse durante la edición.</span><span class="field-error" id="overtimeEmployeeError" hidden></span></div>
+            <div class="field"><label for="overtimeWorkDate">Fecha trabajada declarada</label><input class="input" id="overtimeWorkDate" name="workDate" type="date" required><span class="field-help">La fecha se declara; todavía no se concilia contra fichadas.</span><span class="field-error" id="overtimeWorkDateError" hidden></span></div>
+            <div class="field"><label for="overtimeDeclaredMinutes">Minutos declarados</label><input class="input" id="overtimeDeclaredMinutes" name="declaredMinutes" type="number" inputmode="numeric" min="1" max="1440" step="1" required placeholder="Ej.: 120"><span class="field-help">Número entero entre 1 y 1.440. No se convierte en importe.</span><span class="field-error" id="overtimeDeclaredMinutesError" hidden></span></div>
+            <div class="field full"><label for="overtimeReason">Motivo gobernado</label><select class="select" id="overtimeReason" name="reasonCode" required><option value="">Seleccionar motivo</option></select><span class="field-help">Catálogo operativo provisional informado por el backend.</span><span class="field-error" id="overtimeReasonError" hidden></span></div>
+            <div class="field"><label for="overtimePolicyVersion">Versión de política</label><input class="input" id="overtimePolicyVersion" name="policyVersionId" type="text" value="junin-mayor-esfuerzo-intake.v1" readonly aria-readonly="true"></div>
+            <div class="field"><label for="overtimeConfidentiality">Confidencialidad</label><input class="input" id="overtimeConfidentiality" type="text" value="Restringida" readonly aria-readonly="true"></div>
+          </div>
+        </section>
+
+        <section class="readiness-card" aria-labelledby="overtimeReadinessTitle">
+          <h4 id="overtimeReadinessTitle">Límite transaccional de esta fase</h4><p>Contaduría podrá validar la declaración como pendiente de reglas horarias. Esa validación no aprueba horas liquidables ni impacta recibos.</p>
+          <div class="readiness-grid">
+            <div class="readiness-fact" data-calculated="false"><span>Cálculo</span><strong>No realizado</strong></div>
+            <div class="readiness-fact" data-amount="null"><span>Importe</span><strong>No disponible</strong></div>
+            <div class="readiness-fact" data-attendance-reconciled="false"><span>Asistencia conciliada</span><strong>No</strong></div>
+            <div class="readiness-fact"><span>Destino tras validación</span><strong>Pendiente de reglas horarias</strong></div>
+          </div>
+          <ul class="missing-list" aria-label="Fuentes aún no homologadas"><li>Turnos asignados</li><li>Fichadas de ingreso y egreso</li><li>Feriados y calendario laboral</li><li>Reglas horarias y salariales</li></ul>
+        </section>
+
+        <label class="checkbox"><input id="overtimeConfirmTruth" type="checkbox"><span>Confirmo que revisé persona, fecha, minutos y motivo. Comprendo que esta declaración no está conciliada, calculada ni incorporada a nómina.</span></label>
+        <span class="field-error" id="overtimeConfirmError" hidden></span>
+      </div>
+      <footer class="wizard-footer">
+        <button class="button" id="overtimeCancel" type="button">Cancelar</button>
+        <button class="button primary" id="overtimeSubmit" type="submit">Crear borrador</button>
+      </footer>
+    </form>
+  </dialog>
+
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
   <noscript><section class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>El Centro de acciones verifica permisos y consulta el backend interno en tiempo real.</p></div></section></noscript>
@@ -590,15 +650,16 @@
       var LOGIN_URL = 'login.html?next=centro-acciones.html';
       var MAX_REASON_LENGTH = 1000;
       var SAFE_CASE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
+      var OVERTIME_POLICY_VERSION = 'junin-mayor-esfuerzo-intake.v1';
       var STATUS_LABELS = {
         draft: 'Borrador', submitted: 'Enviada', supervisor_review: 'Revisión de jefatura',
         hr_review: 'Revisión de RRHH', evidence_required: 'Requiere documentación',
         approved: 'Aprobada administrativamente', payroll_pending: 'Pendiente de nómina',
         payroll_applied: 'Aplicada en nómina', closed: 'Cerrada', rejected: 'Rechazada',
-        cancelled: 'Cancelada', canceled: 'Cancelada', observed: 'Observada', pending: 'Pendiente',
+        pending_time_rules: 'Pendiente de reglas horarias', cancelled: 'Cancelada', canceled: 'Cancelada', observed: 'Observada', pending: 'Pendiente',
         in_review: 'En revisión'
       };
-      var TYPE_LABELS = { leave_request: 'Solicitud de licencia' };
+      var TYPE_LABELS = { leave_request: 'Solicitud de licencia', overtime_entry: 'Declaración de mayor esfuerzo' };
       var COMMAND_LABELS = {
         submit: 'Enviar a revisión', approve: 'Aprobar licencia', reject: 'Rechazar',
         cancel: 'Cancelar solicitud', update_draft: 'Editar borrador'
@@ -609,7 +670,12 @@
         submitted: 'Solicitud enviada a revisión',
         approved: 'Licencia aprobada administrativamente',
         rejected: 'Solicitud rechazada',
+        pending_time_rules: 'Declaración validada; reglas horarias pendientes',
         cancelled: 'Solicitud cancelada'
+      };
+      var OVERTIME_COMMAND_LABELS = {
+        submit: 'Enviar a Contaduría', approve: 'Validar declaración', reject: 'Rechazar declaración',
+        cancel: 'Cancelar declaración', update_draft: 'Editar borrador'
       };
       var ROLE_LABELS = {
         EMPLEADO: 'Empleado/a',
@@ -642,7 +708,10 @@
         'leave.request.audit.read': 'auditar el historial',
         'leave.request.restricted.read': 'consultar casos restringidos autorizados',
         'leave.request.restricted.decide': 'decidir casos restringidos autorizados',
-        'leave.request.payroll.read': 'consultar novedades aprobadas para nómina'
+        'leave.request.payroll.read': 'consultar novedades aprobadas para nómina',
+        'time.overtime.read': 'consultar declaraciones de mayor esfuerzo',
+        'time.overtime.enter': 'cargar mayor esfuerzo como responsable exclusivo/a',
+        'time.overtime.approve': 'validar mayor esfuerzo con separación de funciones'
       };
 
       var state = {
@@ -661,6 +730,12 @@
         initialReasons: [],
         subjectSearchController: null,
         subjectSearchSequence: 0,
+        overtime: null,
+        overtimeUnavailableReason: '',
+        overtimeInitialSubjects: [],
+        overtimeSubjectSearchController: null,
+        overtimeSubjectSearchSequence: 0,
+        overtimeEditing: null,
         lastFocus: null,
         redirecting: false
       };
@@ -735,7 +810,7 @@
         if (['approved','payroll_applied','closed'].includes(key)) return 'is-approved';
         if (['rejected','cancelled','canceled'].includes(key)) return 'is-rejected';
         if (['submitted','supervisor_review','hr_review','in_review','payroll_pending'].includes(key)) return 'is-progress';
-        if (['evidence_required','observed','pending'].includes(key)) return 'is-pending';
+        if (['evidence_required','observed','pending','pending_time_rules'].includes(key)) return 'is-pending';
         return '';
       }
 
@@ -756,10 +831,15 @@
         if (state.subjectSearchController) state.subjectSearchController.abort();
         state.subjectSearchController = null;
         if (el.actionEmployeeSearch) el.actionEmployeeSearch.value = '';
+        state.overtimeSubjectSearchSequence += 1;
+        if (state.overtimeSubjectSearchController) state.overtimeSubjectSearchController.abort();
+        state.overtimeSubjectSearchController = null;
+        if (el.overtimeEmployeeSearch) el.overtimeEmployeeSearch.value = '';
         if (state.bootstrap) {
           state.bootstrap.subjects = state.initialSubjects.slice();
           state.bootstrap.reasons = state.initialReasons.slice();
         }
+        if (state.overtime) state.overtime.subjects = state.overtimeInitialSubjects.slice();
         window.location.replace(LOGIN_URL);
       }
 
@@ -825,6 +905,19 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             caseType: 'leave_request',
+            command: 'search_subjects',
+            payload: { query: query }
+          }),
+          signal: signal
+        });
+      }
+
+      function actionOvertimeSubjectSearch(query, signal) {
+        return requestJson(ACTIONS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caseType: 'overtime_entry',
             command: 'search_subjects',
             payload: { query: query }
           }),
@@ -968,24 +1061,89 @@
         };
       }
 
+      function normalizeOvertimeReason(item) {
+        var row = object(item);
+        return {
+          value: text(first(row.reasonCode, row.value, row.code)),
+          label: text(first(row.label, row.name), titleCase(first(row.reasonCode, row.value, row.code))),
+          governanceStatus: lower(first(row.governanceStatus, row.status))
+        };
+      }
+
+      function normalizeOvertimeDecisionReason(item) {
+        var row = object(item);
+        return {
+          value: text(first(row.decisionReasonCode, row.value, row.code)),
+          label: text(first(row.label, row.name), titleCase(first(row.decisionReasonCode, row.value, row.code))),
+          allowedCommands: firstArray(row.allowedCommands).map(lower).filter(function (command) { return ['approve','reject','cancel'].includes(command); })
+        };
+      }
+
+      function normalizeOvertimeBootstrap(payload) {
+        var root = unwrap(payload);
+        var feature = firstObject(root.feature);
+        var contract = firstObject(root.contract);
+        var options = firstObject(root.options);
+        var policyVersionId = text(first(feature.policyVersionId, contract.policyVersionId)) === OVERTIME_POLICY_VERSION ? OVERTIME_POLICY_VERSION : '';
+        var source = firstObject(root.source);
+        return {
+          contract: {
+            caseType: lower(contract.caseType) === 'overtime_entry' ? 'overtime_entry' : '',
+            policyVersionId: text(contract.policyVersionId) === OVERTIME_POLICY_VERSION ? OVERTIME_POLICY_VERSION : '',
+            confidentiality: lower(contract.confidentiality) === 'restricted' ? 'restricted' : '',
+            calculated: contract.calculated === false ? false : null,
+            posted: contract.posted === false ? false : null,
+            payrollMutation: contract.payrollMutation === false ? false : null,
+            minuteMin: integer(contract.declaredMinutes && contract.declaredMinutes.min),
+            minuteMax: integer(contract.declaredMinutes && contract.declaredMinutes.max)
+          },
+          feature: {
+            caseType: lower(feature.caseType) === 'overtime_entry' ? 'overtime_entry' : '',
+            policyVersionId: policyVersionId,
+            governanceStatus: lower(feature.governanceStatus),
+            canEnter: feature.canEnter === true,
+            canDecide: feature.canDecide === true,
+            calculated: feature.calculated === false ? false : null,
+            posted: feature.posted === false ? false : null
+          },
+          subjects: firstArray(options.subjects).map(normalizeSubject).filter(function (item) { return item.value; }).slice(0,50),
+          subjectsTruncated: options.subjectsTruncated === true,
+          reasons: firstArray(options.reasons).map(normalizeOvertimeReason).filter(function (item) { return item.value && item.governanceStatus === 'operational_provisional'; }),
+          decisionReasons: firstArray(options.decisionReasons).map(normalizeOvertimeDecisionReason).filter(function (item) { return item.value && item.allowedCommands.length; }),
+          statuses: firstArray(options.statuses).map(lower).filter(function (status) { return ['draft','submitted','pending_time_rules','rejected','cancelled'].includes(status); }),
+          source: {
+            label: text(first(source.label, source.name), 'Fuente operativa'),
+            cutoff: first(source.cutoff, source.asOf),
+            version: text(first(source.version, source.batchId))
+          }
+        };
+      }
+
+      function isNominalProjection(value) { return value === 'nominal' || value === 'restricted_nominal'; }
+
       function normalizeAction(item, projectionCeiling) {
         var row = firstObject(item.action, item.case, item);
         var id = text(first(row.id, row.caseId, row.actionId));
-        var projection = lower(row.projection) === 'nominal' && projectionCeiling !== 'payroll' ? 'nominal' : 'payroll';
-        var subject = projection === 'nominal' ? firstObject(row.subject, row.beneficiary, row.employee) : {};
+        var caseType = lower(first(row.type, row.caseType, row.actionType, 'leave_request'));
+        var rawProjection = lower(row.projection);
+        var projection = caseType === 'overtime_entry' && rawProjection === 'restricted_nominal' && projectionCeiling !== 'payroll'
+          ? 'restricted_nominal'
+          : rawProjection === 'nominal' && projectionCeiling !== 'payroll' ? 'nominal' : 'payroll';
+        var nominal = isNominalProjection(projection);
+        var subject = nominal ? firstObject(row.subject, row.beneficiary, row.employee) : {};
         return {
           id: id,
           displayId: text(first(row.displayId, row.number, row.caseNumber, row.reference), id || 'Sin número'),
-          type: lower(first(row.type, row.caseType, row.actionType, 'leave_request')),
-          title: projection === 'nominal' ? text(first(row.title, row.label, row.summary)) : '',
+          type: caseType,
+          title: nominal ? text(first(row.title, row.label, row.summary)) : '',
           projection: projection,
-          subjectName: projection === 'nominal' ? text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad no informada') : '',
-          subjectContractId: projection === 'nominal' ? text(first(subject.contractId, subject.id, row.beneficiaryContractId)) : '',
+          subjectName: nominal ? text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad no informada') : '',
+          subjectContractId: nominal ? text(first(subject.contractId, subject.id, row.beneficiaryContractId)) : '',
           status: lower(first(row.status, row.state, 'pending')),
-          stage: projection === 'nominal' ? text(first(row.stage, row.currentStage, row.workflowStage)) : '',
+          stage: nominal ? text(first(row.stage, row.currentStage, row.workflowStage)) : '',
           updatedAt: first(row.updatedAt, row.modifiedAt, row.lastActivityAt, row.timestamps && row.timestamps.updatedAt),
           version: integer(first(row.version, row.lockVersion, row.expectedVersion)),
-          nextAction: projection === 'nominal' ? text(first(row.nextActionLabel, row.nextAction, row.pendingAction)) : '',
+          nextAction: nominal ? text(first(row.nextActionLabel, row.nextAction, row.pendingAction)) : '',
           confidentiality: lower(first(row.confidentiality, 'standard'))
         };
       }
@@ -993,7 +1151,7 @@
       function normalizeList(payload) {
         var directData = payload && payload.data;
         var root = Array.isArray(directData) ? directData : unwrap(payload);
-        var items = Array.isArray(root) ? root : firstArray(root.items, root.actions, root.cases, root.results, root.rows, directData);
+        var items = Array.isArray(root) ? root : firstArray(root.items, root.actions, root.cases, root.records, root.results, root.rows, directData);
         var rootPage = root && !Array.isArray(root) && typeof root.page === 'object' ? root.page : null;
         var pageInfo = firstObject(root && root.pageInfo, root && root.pagination, rootPage, payload && payload.pageInfo, payload && payload.pagination, payload && payload.meta && payload.meta.pagination);
         var page = integer(first(pageInfo.page, pageInfo.currentPage));
@@ -1031,6 +1189,22 @@
         };
       }
 
+      function normalizeOvertimeTimeline(item) {
+        var row = object(item);
+        var eventType = lower(first(row.eventType, row.type, row.command));
+        var actor = firstObject(row.actor);
+        return {
+          id: text(first(row.id, row.eventId)),
+          eventType: eventType,
+          label: EVENT_LABELS[eventType] || (eventType ? 'Evento de auditoría · ' + titleCase(eventType) : 'Evento de auditoría'),
+          caseVersion: integer(first(row.caseVersion, row.version)),
+          fromStatus: lower(first(row.fromStatus, row.previousStatus, row.from)),
+          toStatus: lower(first(row.toStatus, row.status, row.to)),
+          actor: { role: text(first(actor.role, row.actorRole)) },
+          createdAt: first(row.occurredAt, row.createdAt, row.timestamp)
+        };
+      }
+
       function normalizeEvidence(item) {
         var row = object(item);
         return {
@@ -1045,13 +1219,15 @@
 
       function normalizeDetail(payload, projectionCeiling) {
         var root = unwrap(payload);
-        var row = firstObject(root.action, root.case, root);
+        var row = firstObject(root.action, root.case, root.record, root);
         var base = normalizeAction(row, projectionCeiling);
         var request = firstObject(row.request, row.payload, row.details);
         var leave = firstObject(row.leave, row.leaveRequest, request.leave, request);
-        var nominal = base.projection === 'nominal';
+        var nominal = isNominalProjection(base.projection);
         var allowed = nominal ? firstArray(root.allowedCommands, row.allowedCommands, payload && payload.allowedCommands, root.commands, row.commands, payload && payload.commands).map(function (item) { return lower(typeof item === 'object' ? first(item.command, item.id, item.code) : item); }).filter(Boolean) : [];
         var gates = nominal ? firstArray(leave.gates, leave.blockers, row.gates, root.gates, payload && payload.gates).map(function (item) { return text(typeof item === 'object' ? first(item.label, item.message, item.reason, item.code) : item); }).filter(Boolean) : [];
+        var overtimePayload = base.type === 'overtime_entry' ? firstObject(row.payload, row.overtime, request) : {};
+        var payrollImpact = base.type === 'overtime_entry' ? firstObject(row.payrollImpact) : {};
         var normalized = Object.assign(base, {
           description: nominal ? text(first(row.description, row.note, row.employeeNote, request.employeeNote)) : '',
           decidedAt: first(row.timestamps && row.timestamps.decidedAt, row.decidedAt),
@@ -1071,23 +1247,39 @@
             gates: gates
           },
           evidence: nominal ? firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence) : [],
-          timeline: nominal ? firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(normalizeTimeline) : [],
-          allowedCommands: allowed
+          timeline: nominal ? firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(base.type === 'overtime_entry' ? normalizeOvertimeTimeline : normalizeTimeline) : [],
+          allowedCommands: allowed,
+          overtime: base.type === 'overtime_entry' ? {
+            workDate: text(overtimePayload.workDate),
+            declaredMinutes: integer(overtimePayload.declaredMinutes),
+            reasonCode: text(overtimePayload.reasonCode),
+            reasonLabel: text(first(overtimePayload.reasonLabel, overtimePayload.label)),
+            policyVersionId: text(row.policyVersionId) === OVERTIME_POLICY_VERSION ? OVERTIME_POLICY_VERSION : '',
+            calculated: payrollImpact.calculated === false ? false : null,
+            amount: payrollImpact.amount === null ? null : undefined,
+            rate: payrollImpact.rate === null ? null : undefined,
+            posted: payrollImpact.posted === false ? false : null,
+            attendanceReconciled: payrollImpact.attendanceReconciled === false ? false : null,
+            decision: firstObject(row.decision),
+            cancellation: firstObject(row.cancellation),
+            timestamps: firstObject(row.timestamps)
+          } : null
         });
         return normalized;
       }
 
       function cacheElements() {
         ['authGate','gateTitle','gateMessage','gateSpinner','retryAuth','appShell','sidebar','menuButton','menuClose','navBackdrop','workspace',
-          'userAvatar','userName','userRole','refreshButton','logoutButton','permissionSummary','sourceChip','createActionButton','queueCreateButton',
-          'actionMetrics','metricObservedCard','metricClosedCard','metricObserved','metricClosed','actionViews','actionFilters','actionSearch',
+          'userAvatar','userName','userRole','refreshButton','logoutButton','permissionSummary','sourceChip','createActionButton','queueCreateButton','createOvertimeButton','queueOvertimeButton',
+          'actionMetrics','metricObservedCard','metricClosedCard','metricObserved','metricClosed','queueTitle','queueSubtitle','actionViews','actionFilters','actionSearch',
           'actionTypeFilter','actionStatusFilter','clearActionFilters','actionResultCount','pageScopeLabel','actionLoading',
           'actionError','actionErrorMessage','retryActions','actionEmpty','actionQueue','actionRows','previousPage','nextPage','pageStatus',
           'actionDialog','actionDialogTitle','actionDialogSubtitle','closeActionDialog','actionDialogBody','actionWizard','actionWizardForm',
           'wizardTitle','wizardSubtitle','closeWizard','actionEmployeeSearchField','actionEmployeeSearch','actionEmployeeSearchButton','actionEmployeeSearchStatus','actionEmployee','actionLeaveType','leaveTypeHelp','actionConfidentiality','actionConfidentialityHelp','actionConfidentialityError','durationDays',
           'durationMinutes','startTimeField','endTimeField','actionStartDate','actionEndDate','actionStartTime','actionEndTime','durationGate','actionDurationModeError',
           'actionEmployeeNote','employeeNoteHelp','wizardReview','actionConfirmTruth','actionConfirmError','wizardCancel','wizardBack','wizardNext',
-          'wizardSubmit','toastRegion'].forEach(function (id) { el[id] = byId(id); });
+          'wizardSubmit','overtimeWizard','overtimeWizardForm','overtimeWizardTitle','overtimeWizardSubtitle','closeOvertimeWizard','overtimeAuthorityStatus',
+          'overtimeEmployeeSearchField','overtimeEmployeeSearch','overtimeEmployeeSearchButton','overtimeEmployeeSearchStatus','overtimeEmployee','overtimeWorkDate','overtimeDeclaredMinutes','overtimeReason','overtimePolicyVersion','overtimeConfidentiality','overtimeConfirmTruth','overtimeConfirmError','overtimeCancel','overtimeSubmit','toastRegion'].forEach(function (id) { el[id] = byId(id); });
       }
 
       function hasCapability() {
@@ -1097,6 +1289,32 @@
 
       function canCreate() { return hasCapability('leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage'); }
       function canSearchSubjects() { return hasCapability('leave.request.area.create', 'leave.request.all.manage'); }
+      function hasOvertimeContract() {
+        return Boolean(state.overtime
+          && state.overtime.contract.caseType === 'overtime_entry'
+          && state.overtime.contract.policyVersionId === OVERTIME_POLICY_VERSION
+          && state.overtime.contract.confidentiality === 'restricted'
+          && state.overtime.contract.calculated === false
+          && state.overtime.contract.posted === false
+          && state.overtime.contract.payrollMutation === false
+          && state.overtime.contract.minuteMin === 1
+          && state.overtime.contract.minuteMax === 1440
+          && state.overtime.feature.caseType === 'overtime_entry'
+          && state.overtime.feature.policyVersionId === OVERTIME_POLICY_VERSION
+          && state.overtime.feature.calculated === false
+          && state.overtime.feature.posted === false);
+      }
+      function canReadOvertime() { return hasOvertimeContract() && hasCapability('time.overtime.read'); }
+      function canEnterOvertime() {
+        return canReadOvertime()
+          && hasCapability('time.overtime.enter')
+          && state.overtime.feature.canEnter === true;
+      }
+      function canDecideOvertime() {
+        return canReadOvertime()
+          && hasCapability('time.overtime.approve')
+          && state.overtime.feature.canDecide === true;
+      }
 
       function renderSession(user) {
         el.userName.textContent = user.name;
@@ -1108,7 +1326,9 @@
       function renderCapabilities() {
         var labels = Array.from(new Set(Array.from(state.capabilities).map(function (capability) { return CAPABILITY_LABELS[capability]; }).filter(Boolean)));
         var role = state.bootstrap.user.role;
-        el.permissionSummary.textContent = labels.length ? role + ' · Puede ' + labels.join(', ') + '.' : role + ' · Sólo se habilitan las operaciones informadas explícitamente por el backend.';
+        var permissionCopy = labels.length ? role + ' · Puede ' + labels.join(', ') + '.' : role + ' · Sólo se habilitan las operaciones informadas explícitamente por el backend.';
+        if (hasCapability('time.overtime.read') && !state.overtime && state.overtimeUnavailableReason) permissionCopy += ' Mayor esfuerzo permanece bloqueado: ' + state.overtimeUnavailableReason;
+        el.permissionSummary.textContent = permissionCopy;
         var hasSubjectRoute = state.initialSubjects.length > 0 || canSearchSubjects();
         var hasReasonRoute = state.bootstrap.reasons.length > 0 || canSearchSubjects();
         var enabled = canCreate() && hasSubjectRoute && hasReasonRoute;
@@ -1119,6 +1339,19 @@
         el.queueCreateButton.title = reason;
         el.actionEmployeeSearch.disabled = !canSearchSubjects();
         el.actionEmployeeSearchButton.disabled = !canSearchSubjects() || text(el.actionEmployeeSearch.value).length < 2;
+        var overtimeVisible = canReadOvertime();
+        var overtimeEnabled = canEnterOvertime() && state.overtime.reasons.length > 0;
+        [el.createOvertimeButton, el.queueOvertimeButton].forEach(function (button) {
+          button.hidden = !overtimeVisible;
+          button.disabled = !overtimeEnabled;
+          button.title = !overtimeVisible
+            ? 'La sesión no tiene lectura explícita de mayor esfuerzo.'
+            : !canEnterOvertime()
+              ? 'La carga exige capacidad y responsabilidad exclusiva vigentes.'
+              : !state.overtime.reasons.length
+                ? 'El backend no informó el catálogo operativo gobernado.'
+                : '';
+        });
         var source = state.bootstrap.source;
         el.sourceChip.textContent = source.label + (source.cutoff ? ' · corte ' + formatDate(source.cutoff) : '') + (source.version ? ' · ' + source.version : '');
 
@@ -1266,13 +1499,147 @@
         }
       }
 
+      function cancelOvertimeSubjectSearch() {
+        state.overtimeSubjectSearchSequence += 1;
+        if (state.overtimeSubjectSearchController) state.overtimeSubjectSearchController.abort();
+        state.overtimeSubjectSearchController = null;
+        if (el.overtimeEmployeeSearchStatus) el.overtimeEmployeeSearchStatus.removeAttribute('aria-busy');
+      }
+
+      function renderOvertimeSubjectOptions(forcedValue, statusMessage) {
+        var subjects = state.overtime ? state.overtime.subjects.slice(0,50) : [];
+        fillSelect(el.overtimeEmployee, subjects, subjects.length ? 'Seleccionar persona autorizada' : 'Buscá una persona autorizada');
+        if (forcedValue && subjects.some(function (subject) { return subject.value === forcedValue; })) el.overtimeEmployee.value = forcedValue;
+        if (statusMessage) el.overtimeEmployeeSearchStatus.textContent = statusMessage;
+        else if (subjects.length) el.overtimeEmployeeSearchStatus.textContent = subjects.length + (subjects.length === 1 ? ' persona autorizada disponible.' : ' personas autorizadas disponibles.') + (state.overtime.subjectsTruncated ? ' Refiná la búsqueda para ver más.' : '');
+        else el.overtimeEmployeeSearchStatus.textContent = canEnterOvertime()
+          ? 'Ingresá al menos 2 caracteres y pulsá Buscar. La consulta no aparece en la URL ni se guarda.'
+          : 'La búsqueda permanece bloqueada porque falta la responsabilidad exclusiva vigente.';
+      }
+
+      function renderOvertimeAuthority() {
+        if (!el.overtimeAuthorityStatus) return;
+        clear(el.overtimeAuthorityStatus);
+        var authorized = canEnterOvertime();
+        el.overtimeAuthorityStatus.append(
+          create('strong','',authorized ? 'Responsabilidad exclusiva confirmada' : 'Carga bloqueada'),
+          document.createTextNode(authorized
+            ? ' El backend confirmó capacidad y asignación exclusiva vigentes para esta sesión.'
+            : ' La interfaz exige lectura, capacidad de ingreso, política exacta y asignación exclusiva activas.')
+        );
+        var editing = Boolean(state.overtimeEditing);
+        el.overtimeEmployeeSearch.disabled = !authorized || editing;
+        el.overtimeEmployeeSearchButton.disabled = !authorized || editing || text(el.overtimeEmployeeSearch.value).length < 2;
+        el.overtimeEmployee.disabled = !authorized || editing;
+        [el.overtimeWorkDate,el.overtimeDeclaredMinutes,el.overtimeReason,el.overtimeConfirmTruth].forEach(function (field) { field.disabled = !authorized; });
+        el.overtimeSubmit.disabled = !authorized;
+      }
+
+      function renderOvertimeCatalogs(forcedSubject) {
+        var reasons = state.overtime ? state.overtime.reasons : [];
+        fillSelect(el.overtimeReason, reasons, reasons.length ? 'Seleccionar motivo' : 'Catálogo no disponible');
+        renderOvertimeSubjectOptions(forcedSubject || '');
+        el.overtimePolicyVersion.value = state.overtime ? state.overtime.feature.policyVersionId : OVERTIME_POLICY_VERSION;
+        renderOvertimeAuthority();
+      }
+
+      async function searchAuthorizedOvertimeSubjects() {
+        var query=text(el.overtimeEmployeeSearch.value);
+        if(!canEnterOvertime()){
+          el.overtimeEmployeeSearch.value='';
+          renderOvertimeAuthority();
+          toast('La carga exige responsabilidad exclusiva vigente. La búsqueda fue descartada.','error');
+          return;
+        }
+        if(query.length<2||query.length>50){
+          el.overtimeEmployeeSearchStatus.textContent='Ingresá entre 2 y 50 caracteres para buscar.';
+          el.overtimeEmployeeSearch.focus();
+          return;
+        }
+        var previousSubjects=state.overtime.subjects.slice();
+        var previousReasons=state.overtime.reasons.slice();
+        var previousDecisions=state.overtime.decisionReasons.slice();
+        var previousValue=el.overtimeEmployee.value;
+        cancelOvertimeSubjectSearch();
+        var sequence=state.overtimeSubjectSearchSequence;
+        var controller=typeof AbortController==='function'?new AbortController():null;
+        state.overtimeSubjectSearchController=controller;
+        el.overtimeEmployeeSearchButton.disabled=true;
+        el.overtimeEmployeeSearchStatus.setAttribute('aria-busy','true');
+        el.overtimeEmployeeSearchStatus.textContent='Buscando dentro del alcance exclusivo…';
+        try{
+          var normalized=normalizeOvertimeBootstrap(await actionOvertimeSubjectSearch(query,controller&&controller.signal));
+          if((controller&&controller.signal.aborted)||sequence!==state.overtimeSubjectSearchSequence)return;
+          state.overtime=normalized;
+          if(!hasOvertimeContract()||!canEnterOvertime()){
+            state.overtime.subjects=[];
+            renderOvertimeCatalogs('');
+            toast('La responsabilidad exclusiva cambió. La búsqueda y la carga fueron bloqueadas.','error');
+            return;
+          }
+          renderOvertimeCatalogs('');
+        }catch(error){
+          if((controller&&controller.signal.aborted)||sequence!==state.overtimeSubjectSearchSequence)return;
+          var accessDenied=error.unauthorized||Number(error.status)===403;
+          var actionBusy=isActionBusy(error);
+          state.overtime.subjects=actionBusy?previousSubjects:state.overtimeInitialSubjects.slice();
+          state.overtime.reasons=previousReasons;
+          state.overtime.decisionReasons=previousDecisions;
+          if(accessDenied)state.overtime.feature.canEnter=false;
+          el.overtimeEmployeeSearch.value=accessDenied?'':query;
+          renderOvertimeSubjectOptions(actionBusy?previousValue:'',actionBusy
+            ?ACTION_BUSY_COPY
+            :accessDenied
+              ?'La responsabilidad exclusiva ya no está vigente. La búsqueda fue descartada.'
+              :'No pudimos completar la búsqueda. La consulta no se guardó; podés reintentar.');
+          renderOvertimeAuthority();
+          renderCapabilities();
+          if(!error.unauthorized)toast(actionBusy?ACTION_BUSY_COPY:error.message,'error');
+        }finally{
+          if(sequence===state.overtimeSubjectSearchSequence){
+            state.overtimeSubjectSearchController=null;
+            el.overtimeEmployeeSearchStatus.removeAttribute('aria-busy');
+            el.overtimeEmployeeSearchButton.disabled=!canEnterOvertime()||Boolean(state.overtimeEditing)||text(el.overtimeEmployeeSearch.value).length<2;
+          }
+        }
+      }
+
+      function selectedCaseType() {
+        return el.actionTypeFilter.value === 'overtime_entry' && canReadOvertime() ? 'overtime_entry' : 'leave_request';
+      }
+
+      function renderStatusCatalog(forcedValue) {
+        var overtimeMode = selectedCaseType() === 'overtime_entry';
+        var sourceStatuses = overtimeMode && state.overtime
+          ? state.overtime.statuses.map(function (status) { return { value: status, label: statusLabel(status) }; })
+          : state.bootstrap.statuses.length ? state.bootstrap.statuses : Object.keys(STATUS_LABELS).map(function (key) { return { value: key, label: STATUS_LABELS[key] }; });
+        var statuses = sourceStatuses.map(function(option){return Object.assign({},option,{label:STATUS_LABELS[lower(option.value)]||option.label});});
+        fillSelect(el.actionStatusFilter, statuses, 'Todos los estados');
+        if (forcedValue && statuses.some(function (option) { return option.value === forcedValue; })) el.actionStatusFilter.value = forcedValue;
+      }
+
+      function renderOperationMode() {
+        var overtimeMode = selectedCaseType() === 'overtime_entry';
+        el.actionViews.hidden = overtimeMode;
+        el.queueTitle.textContent = overtimeMode ? 'Mayor esfuerzo' : 'Bandeja de trabajo';
+        el.queueSubtitle.textContent = overtimeMode
+          ? 'Declaraciones restringidas de Tesorería y validaciones independientes de Contaduría.'
+          : 'La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.';
+        if (overtimeMode) el.actionMetrics.hidden = true;
+      }
+
       function renderCatalogs() {
         resetSubjectCandidates(state.initialSubjects.length === 1 ? state.initialSubjects[0].value : '');
+        var previousType = el.actionTypeFilter.value;
         var actionTypes=state.bootstrap.actionTypes.map(function(option){return Object.assign({},option,{label:typeLabel(option.value)});});
-        fillSelect(el.actionTypeFilter, actionTypes, 'Todos los tipos');
-        var statuses = state.bootstrap.statuses.length ? state.bootstrap.statuses : Object.keys(STATUS_LABELS).map(function (key) { return { value: key, label: STATUS_LABELS[key] }; });
-        statuses=statuses.map(function(option){return Object.assign({},option,{label:STATUS_LABELS[lower(option.value)]||option.label});});
-        fillSelect(el.actionStatusFilter, statuses, 'Todos los estados');
+        if (canReadOvertime() && !actionTypes.some(function (option) { return option.value === 'overtime_entry'; })) actionTypes.push({ value: 'overtime_entry', label: typeLabel('overtime_entry') });
+        fillSelect(el.actionTypeFilter, actionTypes, 'Elegí un tipo de operación');
+        var hasLeaveCapability = Array.from(state.capabilities).some(function (capability) { return capability.startsWith('leave.request.'); });
+        var defaultType = canReadOvertime() && !hasLeaveCapability ? 'overtime_entry' : 'leave_request';
+        el.actionTypeFilter.value = actionTypes.some(function (option) { return option.value === previousType; }) ? previousType : defaultType;
+        if (!el.actionTypeFilter.value && actionTypes.length) el.actionTypeFilter.value = actionTypes[0].value;
+        renderStatusCatalog('');
+        renderOperationMode();
       }
 
       function metricValue(metrics, aliases) {
@@ -1323,7 +1690,9 @@
         el.actionResultCount.textContent = rows.length
           + (rows.length === 1 ? ' acción visible' : ' acciones visibles')
           + (total !== null && total !== undefined ? ' · ' + total + ' en el alcance' : ' en esta página');
-        el.pageScopeLabel.textContent = 'Vista: ' + ({ mine: 'Mis solicitudes', area: 'Mi área', authorized: 'Todo mi alcance', closed: 'Cerradas' }[state.activeView] || 'Bandeja');
+        el.pageScopeLabel.textContent = selectedCaseType() === 'overtime_entry'
+          ? 'Operación: Mayor esfuerzo'
+          : 'Vista: ' + ({ mine: 'Mis solicitudes', area: 'Mi área', authorized: 'Todo mi alcance', closed: 'Cerradas' }[state.activeView] || 'Bandeja');
         rows.forEach(function (action) {
           var row = create('tr');
           row.dataset.actionRow = action.id;
@@ -1334,12 +1703,14 @@
           var subject = create('div');
           subject.append(
             create('strong','cell-title', action.title || typeLabel(action.type)),
-            create('span','cell-sub', action.projection === 'nominal' ? action.subjectName : 'Proyección mínima para nómina · sin identidad nominal')
+            create('span','cell-sub', isNominalProjection(action.projection)
+              ? action.subjectName + (action.projection === 'restricted_nominal' ? ' · acceso restringido' : '')
+              : 'Proyección mínima para nómina · sin identidad nominal')
           );
           appendCell(row, 'Tipo y alcance', subject);
           appendCell(row, 'Estado', create('span','state-pill ' + statusClass(action.status),statusLabel(action.status)));
-          appendCell(row, 'Próxima acción', action.projection === 'nominal'
-            ? (action.nextAction || action.stage || 'No informada')
+          appendCell(row, 'Próxima acción', isNominalProjection(action.projection)
+            ? (action.type === 'overtime_entry' ? overtimeNextAction(action.status) : action.nextAction || action.stage || 'No informada')
             : action.status === 'approved' ? 'Controlar novedad aprobada' : 'Controlar el estado informado');
           var open = create('button','button open-row','Abrir'); open.type = 'button'; open.dataset.openAction = action.id; open.setAttribute('aria-label','Abrir ' + action.displayId);
           appendCell(row, 'Abrir', open);
@@ -1380,10 +1751,12 @@
       async function loadActions(options) {
         var settings = options || {};
         setQueueLoading();
-        var parameters = { view: state.activeView };
+        var caseType = selectedCaseType();
+        var parameters = { caseType: caseType };
+        if (caseType === 'leave_request') parameters.view = state.activeView;
         parameters.page = integer(first(settings.page, state.currentPage, 1)) || 1;
         parameters.limit = state.pageInfo.limit || 25;
-        if (el.actionTypeFilter.value) parameters.type = el.actionTypeFilter.value;
+        if (caseType === 'leave_request') parameters.type = 'leave_request';
         if (el.actionStatusFilter.value) parameters.status = el.actionStatusFilter.value;
         try {
           var payload = await actionGet('list', parameters);
@@ -1391,7 +1764,8 @@
           state.actions = normalized.items;
           state.pageInfo = normalized.pageInfo;
           state.currentPage = normalized.pageInfo.page || integer(settings.page) || state.currentPage || 1;
-          renderMetrics(Object.keys(normalized.metrics).length ? normalized.metrics : state.bootstrap.metrics);
+          if (caseType === 'leave_request') renderMetrics(Object.keys(normalized.metrics).length ? normalized.metrics : state.bootstrap.metrics);
+          else el.actionMetrics.hidden = true;
           filterActions();
         } catch (error) { showQueueError(error); }
       }
@@ -1409,13 +1783,34 @@
         return 'Identidad reservada por el alcance autorizado';
       }
 
+      function overtimeActorLabel(actor) {
+        var role=text(object(actor).role).toUpperCase();
+        return ROLE_LABELS[role] || text(object(actor).role,'Rol interno reservado');
+      }
+
       function periodLabel(leave) {
         var base = formatDate(leave.startsOn) + ' → ' + formatDate(leave.endsOn);
         if (leave.mode === 'minute') base += ' · ' + text(leave.startsAtLocal,'—') + ' a ' + text(leave.endsAtLocal,'—');
         return base;
       }
 
-      function capabilityForCommand(command) {
+      function overtimeNextAction(status) {
+        var normalized = lower(status);
+        if (normalized === 'draft') return 'Completar o enviar a Contaduría';
+        if (normalized === 'submitted') return 'Validación independiente de Contaduría';
+        if (normalized === 'pending_time_rules') return 'Esperar turnos, fichadas, feriados y reglas homologadas';
+        if (normalized === 'rejected') return 'Declaración rechazada · sin impacto';
+        if (normalized === 'cancelled') return 'Declaración cancelada · sin impacto';
+        return 'Estado operativo no informado';
+      }
+
+      function capabilityForCommand(detail, command) {
+        if (detail && detail.type === 'overtime_entry') {
+          if (command === 'update_draft' || command === 'submit') return detail.status === 'draft' && canEnterOvertime();
+          if (command === 'cancel') return ['draft','submitted'].includes(detail.status) && canEnterOvertime();
+          if (command === 'approve' || command === 'reject') return detail.status === 'submitted' && canDecideOvertime();
+          return false;
+        }
         if (command === 'approve') return hasCapability('leave.request.area.decide','leave.request.all.manage');
         if (command === 'reject') return hasCapability('leave.request.area.decide','leave.request.all.manage');
         if (command === 'submit') return hasCapability('leave.request.self.submit','leave.request.area.submit','leave.request.all.manage');
@@ -1424,7 +1819,7 @@
         return false;
       }
 
-      function commandAllowed(detail, command) { return detail.allowedCommands.includes(command) && capabilityForCommand(command); }
+      function commandAllowed(detail, command) { return detail.allowedCommands.includes(command) && capabilityForCommand(detail, command); }
 
       function approvalEvidenceOptions(detail) {
         var configured = state.bootstrap.approvalEvidenceByConfidentiality;
@@ -1437,11 +1832,14 @@
 
       function renderCommandPanel(detail) {
         var panel = create('section','command-panel');
-        panel.append(create('h3','','Decisión disponible'), create('p','section-copy','Los botones requieren permiso explícito del backend y capacidad de la sesión.'));
+        panel.append(create('h3','','Decisión disponible'), create('p','section-copy',detail.type === 'overtime_entry'
+          ? 'Cada botón exige allowedCommands vigente, capacidad explícita y, para la carga, responsabilidad exclusiva activa.'
+          : 'Los botones requieren permiso explícito del backend y capacidad de la sesión.'));
         var actions = create('div','command-actions');
         ['update_draft','submit','approve','reject','cancel'].forEach(function (command) {
           if (!commandAllowed(detail, command)) return;
-          var button = create('button','button ' + (command === 'approve' || command === 'submit' ? 'primary' : command === 'reject' || command === 'cancel' ? 'danger' : ''),COMMAND_LABELS[command]);
+          var label = detail.type === 'overtime_entry' ? OVERTIME_COMMAND_LABELS[command] : COMMAND_LABELS[command];
+          var button = create('button','button ' + (command === 'approve' || command === 'submit' ? 'primary' : command === 'reject' || command === 'cancel' ? 'danger' : ''),label);
           button.type = 'button'; button.dataset.actionCommand = command;
           actions.appendChild(button);
         });
@@ -1491,7 +1889,135 @@
         el.actionDialogBody.setAttribute('aria-busy','false');
       }
 
+      function overtimeDetailContractValid(detail) {
+        var overtime = detail && detail.overtime;
+        return Boolean(detail
+          && detail.type === 'overtime_entry'
+          && detail.projection === 'restricted_nominal'
+          && detail.confidentiality === 'restricted'
+          && overtime
+          && overtime.policyVersionId === OVERTIME_POLICY_VERSION
+          && /^\d{4}-\d{2}-\d{2}$/.test(overtime.workDate)
+          && Number.isInteger(overtime.declaredMinutes)
+          && overtime.declaredMinutes >= 1
+          && overtime.declaredMinutes <= 1440
+          && overtime.reasonCode
+          && overtime.calculated === false
+          && overtime.amount === null
+          && overtime.rate === null
+          && overtime.posted === false
+          && overtime.attendanceReconciled === false);
+      }
+
+      function appendOvertimeReadiness(target) {
+        var section = create('section','detail-section');
+        section.append(create('h3','','Preparación de cálculo'), create('p','section-copy','La declaración conserva los límites exactos informados por el backend. No existe importe calculado ni novedad de nómina.'));
+        var facts = create('dl','facts');
+        facts.append(
+          fact('Cálculo','No realizado'),
+          fact('Importe','No disponible'),
+          fact('Asistencia conciliada','No'),
+          fact('Publicada en nómina','No')
+        );
+        section.appendChild(facts);
+        var missing = create('ul','gate-list');
+        ['Turnos asignados no homologados.','Fichadas de ingreso y egreso no conciliadas.','Feriados y calendario laboral no homologados.','Reglas horarias y salariales no homologadas.'].forEach(function (gate) { missing.appendChild(create('li','',gate)); });
+        section.appendChild(missing);
+        target.appendChild(section);
+      }
+
+      function overtimeEventLabel(event) {
+        var labels = {
+          created: 'Declaración creada', draft_updated: 'Borrador actualizado',
+          submitted: 'Declaración enviada a Contaduría', pending_time_rules: 'Contaduría validó la declaración',
+          rejected: 'Contaduría rechazó la declaración', cancelled: 'Declaración cancelada'
+        };
+        return labels[event.eventType] || event.label;
+      }
+
+      function renderOvertimeDetail(detail) {
+        state.selected = detail;
+        el.actionDialogTitle.textContent = detail.displayId;
+        el.actionDialogSubtitle.textContent = 'Mayor esfuerzo · tratamiento restringido';
+        clear(el.actionDialogBody);
+        el.actionDialogBody.dataset.projection = 'restricted_nominal';
+
+        if (!overtimeDetailContractValid(detail)) {
+          var blocked = create('div','error-state');
+          blocked.append(create('strong','','Detalle bloqueado por contrato incompleto'), create('p','','El backend no confirmó política, confidencialidad o límites de no-cálculo. No se mostraron comandos ni datos parciales.'));
+          el.actionDialogBody.appendChild(blocked);
+          el.actionDialogBody.setAttribute('aria-busy','false');
+          return;
+        }
+
+        var banner = create('div','detail-banner');
+        var bannerCopy = create('div');
+        bannerCopy.append(create('strong','','Declaración de mayor esfuerzo'), create('p','',overtimeNextAction(detail.status)));
+        banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
+        el.actionDialogBody.appendChild(banner);
+        el.actionDialogBody.appendChild(create('p','projection-note','Acceso nominal restringido: la identidad sólo se muestra porque esta sesión posee lectura explícita de mayor esfuerzo. La declaración no incluye tarifa, importe ni cálculo salarial.'));
+
+        var grid = create('div','detail-grid');
+        var left = create('div');
+        var declaration = create('section','detail-section');
+        declaration.append(create('h3','','Declaración registrada'), create('p','section-copy','Datos operativos declarados por Tesorería bajo responsabilidad exclusiva.'));
+        var declarationFacts = create('dl','facts');
+        declarationFacts.append(
+          fact('Persona',detail.subjectName),
+          fact('Fecha declarada',formatDate(detail.overtime.workDate)),
+          fact('Minutos declarados',numberFormatter.format(detail.overtime.declaredMinutes)),
+          fact('Motivo',detail.overtime.reasonLabel || detail.overtime.reasonCode),
+          fact('Confidencialidad','Restringida'),
+          fact('Política',detail.overtime.policyVersionId),
+          fact('Versión',detail.version === null ? 'No informada' : String(detail.version))
+        );
+        declaration.appendChild(declarationFacts);
+        left.appendChild(declaration);
+        appendOvertimeReadiness(left);
+
+        var right = create('div');
+        var control = create('section','detail-section');
+        control.append(create('h3','','Control independiente'), create('p','section-copy','Contaduría valida o rechaza con una identidad distinta de quien preparó la declaración.'));
+        var decisionLabel = text(first(detail.overtime.decision.label, detail.overtime.decision.decisionReasonCode));
+        var cancellationLabel = text(first(detail.overtime.cancellation.label, detail.overtime.cancellation.decisionReasonCode));
+        var controlFacts = create('dl','facts');
+        controlFacts.append(
+          fact('Estado',statusLabel(detail.status)),
+          fact('Próxima etapa',overtimeNextAction(detail.status)),
+          fact('Evidencia',titleCase(detail.leave.evidenceStatus)),
+          fact('Fundamento de decisión',decisionLabel || 'No informado'),
+          fact('Fundamento de cancelación',cancellationLabel || 'No informado'),
+          fact('Actualizada',formatDateTime(first(detail.overtime.timestamps.updatedAt, detail.updatedAt)))
+        );
+        control.appendChild(controlFacts);
+        right.appendChild(control);
+
+        var timelineSection = create('section','detail-section');
+        timelineSection.append(create('h3','','Historial mínimo'), create('p','section-copy','Eventos, rol actuante, estado y versión recibidos del backend. No se muestran identificadores internos de sesión.'));
+        var timeline = create('ol','timeline');
+        if (!detail.timeline.length) timeline.appendChild(create('li','','El backend no informó eventos de historial.'));
+        detail.timeline.forEach(function (event) {
+          var item = create('li');
+          var transition = event.fromStatus || event.toStatus ? [event.fromStatus ? statusLabel(event.fromStatus) : '', event.toStatus ? statusLabel(event.toStatus) : ''].filter(Boolean).join(' → ') : '';
+          item.append(create('strong','',overtimeEventLabel(event)), create('time','',formatDateTime(event.createdAt)), create('span','',overtimeActorLabel(event.actor)));
+          if (transition) item.appendChild(create('span','',transition));
+          if (event.caseVersion !== null) item.appendChild(create('span','','Versión del caso: ' + event.caseVersion));
+          timeline.appendChild(item);
+        });
+        timelineSection.appendChild(timeline);
+        right.appendChild(timelineSection);
+
+        grid.append(left,right);
+        el.actionDialogBody.appendChild(grid);
+        el.actionDialogBody.appendChild(renderCommandPanel(detail));
+        el.actionDialogBody.setAttribute('aria-busy','false');
+      }
+
       function renderActionDetail(detail) {
+        if (detail.type === 'overtime_entry') {
+          renderOvertimeDetail(detail);
+          return;
+        }
         if (detail.projection !== 'nominal') {
           renderPayrollDetail(detail);
           return;
@@ -1541,7 +2067,7 @@
         el.actionDialogBody.setAttribute('aria-busy','false');
       }
 
-      async function openAction(id) {
+      async function openAction(id, caseTypeHint) {
         if (!SAFE_CASE_ID.test(text(id))) { toast('El identificador de la acción no es válido.','error'); return; }
         var summary = state.actions.find(function (action) { return action.id === id; });
         var projectionCeiling = summary && summary.projection;
@@ -1550,7 +2076,8 @@
         el.actionDialogTitle.textContent = 'Consultando acción'; el.actionDialogSubtitle.textContent = 'Cargando estado y trazabilidad.';
         clear(el.actionDialogBody); delete el.actionDialogBody.dataset.projection; var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
         if (!el.actionDialog.open) el.actionDialog.showModal();
-        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ id: id }), projectionCeiling)); }
+        var caseType = caseTypeHint === 'overtime_entry' || (summary && summary.type === 'overtime_entry') ? 'overtime_entry' : 'leave_request';
+        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ caseType: caseType, id: id }), projectionCeiling)); }
         catch (error) { if (error.unauthorized) return; if (isActionBusy(error) && previousDetail) { renderActionDetail(previousDetail); toast(ACTION_BUSY_COPY,'error'); return; } clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',isActionBusy(error)?ACTION_BUSY_COPY:error.message)); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false'); }
       }
 
@@ -1570,38 +2097,92 @@
       function showDecisionForm(command) {
         var detail = state.selected;
         if (!detail || !commandAllowed(detail,command)) { toast('La decisión no está habilitada para esta sesión.','error'); return; }
-        if (command === 'update_draft') { closeActionDialog(); openWizard(detail); return; }
+        if (command === 'update_draft') { closeActionDialog(); if(detail.type==='overtime_entry')openOvertimeWizard(detail);else openWizard(detail); return; }
         var host = byId('decisionFormHost'); clear(host);
         var form = create('form','decision-form'); form.dataset.commandForm = command;
-        var title = create('h3','',COMMAND_LABELS[command]); var copy = create('p','section-copy',command === 'approve' ? 'Confirmá evidencia y validación manual. La aprobación quedará registrada con tu identidad y versión.' : 'La operación quedará registrada en el historial inmutable.'); form.append(title,copy);
+        var overtime=detail.type==='overtime_entry';
+        var label=overtime?OVERTIME_COMMAND_LABELS[command]:COMMAND_LABELS[command];
+        var title = create('h3','',label);
+        var copy = create('p','section-copy',overtime
+          ? command==='approve'
+            ? 'Contaduría confirma evidencia y validación humana. El resultado quedará pendiente de reglas horarias.'
+            : 'La operación se registra con versión y separación de funciones; no calcula ni publica nómina.'
+          : command === 'approve' ? 'Confirmá evidencia y validación manual. La aprobación quedará registrada con tu identidad y versión.' : 'La operación quedará registrada en el historial inmutable.');
+        form.append(title,copy);
         if (command === 'approve') {
-          var evidenceField = create('div','field'); evidenceField.append(create('label','','Estado de evidencia')); var select = create('select','select'); select.id='decisionEvidenceStatus'; var evidenceLabels={verified:'Verificada',not_required:'No requerida según regla'}; approvalEvidenceOptions(detail).forEach(function (value) { var node=create('option','',evidenceLabels[value]); node.value=value; select.appendChild(node); }); evidenceField.appendChild(select); if(detail.confidentiality==='restricted')evidenceField.appendChild(create('span','field-help','Los casos restringidos exigen evidencia verificada; “No requerida” no está habilitada.')); form.appendChild(evidenceField);
-          var confirmation = create('label','checkbox'); var checkbox = create('input'); checkbox.type='checkbox'; checkbox.id='manualValidationConfirmed'; confirmation.append(checkbox,create('span','','Confirmo que realicé la validación manual exigida y que mi sesión posee autoridad administrativa para esta decisión.')); form.appendChild(confirmation);
+          var evidenceField = create('div','field');
+          evidenceField.append(create('span','field-label','Estado de evidencia'));
+          if(overtime){
+            evidenceField.append(create('div','review-card','Verificada por Contaduría'),create('span','field-help','La validación de mayor esfuerzo exige evidencia verificada; no admite “no requerida”.'));
+          }else{
+            var select = create('select','select'); select.id='decisionEvidenceStatus'; var evidenceLabels={verified:'Verificada',not_required:'No requerida según regla'}; approvalEvidenceOptions(detail).forEach(function (value) { var node=create('option','',evidenceLabels[value]); node.value=value; select.appendChild(node); }); evidenceField.appendChild(select); if(detail.confidentiality==='restricted')evidenceField.appendChild(create('span','field-help','Los casos restringidos exigen evidencia verificada; “No requerida” no está habilitada.'));
+          }
+          form.appendChild(evidenceField);
+          var confirmation = create('label','checkbox'); var checkbox = create('input'); checkbox.type='checkbox'; checkbox.id='manualValidationConfirmed'; confirmation.append(checkbox,create('span','',overtime
+            ? 'Confirmo que Contaduría verificó la documentación y que soy una persona distinta de quien preparó esta declaración.'
+            : 'Confirmo que realicé la validación manual exigida y que mi sesión posee autoridad administrativa para esta decisión.')); form.appendChild(confirmation);
         }
         var reason = null;
         if (command !== 'submit') {
-          var reasonField=create('div','field'); reasonField.style.marginTop='11px'; var reasonLabel=create('label','','Fundamento obligatorio'); reasonLabel.htmlFor='decisionReason'; reason=create('textarea','textarea'); reason.id='decisionReason'; reason.maxLength=MAX_REASON_LENGTH; reason.minLength=3; reason.required=true; reason.placeholder='Indicá un fundamento de al menos 3 caracteres.'; reasonField.append(reasonLabel,reason); form.appendChild(reasonField);
+          var reasonField=create('div','field'); reasonField.style.marginTop='11px';
+          var reasonLabel=create('label','','Fundamento obligatorio');
+          if(overtime){
+            var options=state.overtime?state.overtime.decisionReasons.filter(function(item){return item.allowedCommands.includes(command);}):[];
+            if(!options.length){toast('El backend no informó fundamentos gobernados para esta decisión.','error');return;}
+            reason=create('select','select'); reason.id='overtimeDecisionReason'; reason.required=true;
+            fillSelect(reason,options,'Seleccionar fundamento gobernado');
+            reasonLabel.htmlFor='overtimeDecisionReason';
+            reasonField.append(reasonLabel,reason,create('span','field-help','Se envía únicamente el código gobernado; no se incorpora texto libre al expediente.'));
+          }else{
+            reason=create('textarea','textarea'); reason.id='decisionReason'; reason.maxLength=MAX_REASON_LENGTH; reason.minLength=3; reason.required=true; reason.placeholder='Indicá un fundamento de al menos 3 caracteres.';
+            reasonLabel.htmlFor='decisionReason';
+            reasonField.append(reasonLabel,reason);
+          }
+          form.appendChild(reasonField);
         }
-        var warning=create('div','decision-warning', command === 'submit' ? 'Enviar inicia la revisión; no aprueba la licencia ni modifica nómina.' : command === 'approve' ? 'Aprobar es una decisión administrativa, no una recomendación de IA.' : 'La acción no elimina el historial ni la evidencia.'); form.appendChild(warning);
-        var actions=create('div','command-actions'); var cancel=create('button','button','Volver'); cancel.type='button'; cancel.addEventListener('click',function(){clear(host);}); var confirm=create('button','button ' + (command==='approve'||command==='submit'?'primary':'danger'),'Confirmar ' + COMMAND_LABELS[command].toLowerCase()); confirm.type='submit'; actions.append(cancel,confirm); form.appendChild(actions);
+        var warning=create('div','decision-warning',overtime
+          ? command==='submit'
+            ? 'Enviar inicia la revisión de Contaduría. No valida horas ni modifica nómina.'
+            : command==='approve'
+              ? 'Validar lleva el caso a “Pendiente de reglas horarias”; no calcula importe ni habilita publicación.'
+              : 'La operación conserva el historial y no produce impacto salarial.'
+          : command === 'submit' ? 'Enviar inicia la revisión; no aprueba la licencia ni modifica nómina.' : command === 'approve' ? 'Aprobar es una decisión administrativa, no una recomendación de IA.' : 'La acción no elimina el historial ni la evidencia.'); form.appendChild(warning);
+        var actions=create('div','command-actions'); var cancel=create('button','button','Volver'); cancel.type='button'; cancel.addEventListener('click',function(){clear(host);}); var confirm=create('button','button ' + (command==='approve'||command==='submit'?'primary':'danger'),'Confirmar ' + label.toLowerCase()); confirm.type='submit'; actions.append(cancel,confirm); form.appendChild(actions);
         form.addEventListener('submit',function(event){event.preventDefault();executeTransition(command,form);}); host.appendChild(form); (reason || form.querySelector('button[type="submit"]')).focus();
       }
 
       async function executeTransition(command, form) {
         var detail=state.selected; if(!detail || detail.version===null){toast('El backend no informó la versión esperada. La transición fue bloqueada.','error');return;}
-        var reason=text(form.querySelector('#decisionReason') && form.querySelector('#decisionReason').value).slice(0,MAX_REASON_LENGTH);
-        if(command!=='submit' && reason.length<3){toast('Indicá un fundamento de al menos 3 caracteres.','error');return;}
-        var body={caseType:'leave_request',command:command,caseId:detail.id,expectedVersion:detail.version};
-        if(command!=='submit') body.reason=reason;
-        if(command==='approve'){
-          var confirmed=form.querySelector('#manualValidationConfirmed').checked;
-          if(!confirmed){toast('La aprobación exige confirmar la validación manual.','error');return;}
-          body.evidenceStatus=form.querySelector('#decisionEvidenceStatus').value; body.manualValidationConfirmed=true;
+        var overtime=detail.type==='overtime_entry';
+        var body={caseType:overtime?'overtime_entry':'leave_request',command:command,caseId:detail.id,expectedVersion:detail.version};
+        if(overtime){
+          if(!detail.allowedCommands.includes(command)||!capabilityForCommand(detail,command)){toast('El comando ya no está habilitado. Actualizá el detalle.','error');return;}
+          if(command!=='submit'){
+            var decisionReasonCode=text(form.querySelector('#overtimeDecisionReason')&&form.querySelector('#overtimeDecisionReason').value);
+            var governed=Boolean(state.overtime&&state.overtime.decisionReasons.some(function(item){return item.value===decisionReasonCode&&item.allowedCommands.includes(command);}));
+            if(!governed){toast('Elegí un fundamento gobernado vigente.','error');return;}
+            body.decisionReasonCode=decisionReasonCode;
+          }
+          if(command==='approve'){
+            var overtimeConfirmed=form.querySelector('#manualValidationConfirmed').checked;
+            if(!overtimeConfirmed){toast('La validación exige confirmación humana de Contaduría.','error');return;}
+            body.evidenceStatus='verified';
+            body.manualValidationConfirmed=true;
+          }
+        }else{
+          var reason=text(form.querySelector('#decisionReason') && form.querySelector('#decisionReason').value).slice(0,MAX_REASON_LENGTH);
+          if(command!=='submit' && reason.length<3){toast('Indicá un fundamento de al menos 3 caracteres.','error');return;}
+          if(command!=='submit') body.reason=reason;
+          if(command==='approve'){
+            var confirmed=form.querySelector('#manualValidationConfirmed').checked;
+            if(!confirmed){toast('La aprobación exige confirmar la validación manual.','error');return;}
+            body.evidenceStatus=form.querySelector('#decisionEvidenceStatus').value; body.manualValidationConfirmed=true;
+          }
         }
         var submit=form.querySelector('button[type="submit"]'); submit.disabled=true; submit.setAttribute('aria-busy','true');
         var transitionRecorded=false;
-        try { await actionCommand('POST',body); transitionRecorded=true; toast('Acción registrada con trazabilidad.'); var next=normalizeDetail(await actionGet('detail',{id:detail.id})); renderActionDetail(next); await loadActions(); }
-        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else{toast(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message,'error');if(error.status===409)openAction(detail.id);}}}
+        try { await actionCommand('POST',body); transitionRecorded=true; toast(overtime?'Declaración actualizada con trazabilidad.':'Acción registrada con trazabilidad.'); var next=normalizeDetail(await actionGet('detail',{caseType:body.caseType,id:detail.id})); renderActionDetail(next); await loadActions(); }
+        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else{toast(overtime?overtimeCommandError(error):(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message),'error');if(error.status===409)openAction(detail.id);}}}
         finally{submit.disabled=false;submit.removeAttribute('aria-busy');}
       }
 
@@ -1745,6 +2326,163 @@
       }
       function closeWizard(){if(el.actionWizard.open)el.actionWizard.close();resetWizard();if(state.lastFocus&&typeof state.lastFocus.focus==='function')state.lastFocus.focus();}
 
+      function canonicalOvertimeDate(value) {
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+        var parts=value.split('-').map(Number);
+        var date=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]));
+        return date.getUTCFullYear()===parts[0]&&date.getUTCMonth()===parts[1]-1&&date.getUTCDate()===parts[2];
+      }
+
+      function overtimeValue() {
+        var rawMinutes=text(el.overtimeDeclaredMinutes.value);
+        var selected=state.overtime&&state.overtime.reasons.find(function(reason){return reason.value===el.overtimeReason.value;});
+        return {
+          beneficiaryContractId:el.overtimeEmployee.value,
+          workDate:el.overtimeWorkDate.value,
+          declaredMinutes:/^[1-9]\d*$/.test(rawMinutes)?Number(rawMinutes):null,
+          reasonCode:selected?selected.value:'',
+          reasonLabel:selected?selected.label:'',
+          policyVersionId:el.overtimePolicyVersion.value
+        };
+      }
+
+      function validateOvertimeForm() {
+        var value=overtimeValue();
+        var subjectAllowed=Boolean(state.overtime&&state.overtime.subjects.some(function(subject){return subject.value===value.beneficiaryContractId;}));
+        var reasonAllowed=Boolean(state.overtime&&state.overtime.reasons.some(function(reason){return reason.value===value.reasonCode;}));
+        errorFor('overtimeEmployeeError',subjectAllowed?'':'Elegí una persona autorizada por la búsqueda vigente.');
+        errorFor('overtimeWorkDateError',canonicalOvertimeDate(value.workDate)?'':'Indicá una fecha válida en formato calendario.');
+        errorFor('overtimeDeclaredMinutesError',Number.isInteger(value.declaredMinutes)&&value.declaredMinutes>=1&&value.declaredMinutes<=1440?'':'Ingresá un entero entre 1 y 1.440 minutos.');
+        errorFor('overtimeReasonError',reasonAllowed?'':'Elegí un motivo del catálogo gobernado vigente.');
+        errorFor('overtimeConfirmError',el.overtimeConfirmTruth.checked?'':'Confirmá la revisión y los límites de esta declaración.');
+        var contractAllowed=canEnterOvertime()&&value.policyVersionId===OVERTIME_POLICY_VERSION;
+        if(!contractAllowed)renderOvertimeAuthority();
+        return Boolean(contractAllowed&&subjectAllowed&&canonicalOvertimeDate(value.workDate)
+          &&Number.isInteger(value.declaredMinutes)&&value.declaredMinutes>=1&&value.declaredMinutes<=1440
+          &&reasonAllowed&&el.overtimeConfirmTruth.checked);
+      }
+
+      function resetOvertimeWizard() {
+        cancelOvertimeSubjectSearch();
+        el.overtimeWizardForm.reset();
+        el.overtimeEmployeeSearch.value='';
+        state.overtimeEditing=null;
+        if(state.overtime)state.overtime.subjects=state.overtimeInitialSubjects.slice();
+        el.overtimePolicyVersion.value=state.overtime?state.overtime.feature.policyVersionId:OVERTIME_POLICY_VERSION;
+        el.overtimeConfidentiality.value='Restringida';
+        el.overtimeWizardTitle.textContent='Registrar mayor esfuerzo';
+        el.overtimeWizardSubtitle.textContent='Declaración operativa versionada. No calcula, liquida ni publica una novedad salarial.';
+        el.overtimeSubmit.textContent='Crear borrador';
+        ['overtimeEmployeeError','overtimeWorkDateError','overtimeDeclaredMinutesError','overtimeReasonError','overtimeConfirmError'].forEach(function(id){errorFor(id,'');});
+        renderOvertimeCatalogs('');
+      }
+
+      function openOvertimeWizard(detail) {
+        if(!canEnterOvertime()){
+          toast('La carga exige capacidad y responsabilidad exclusiva vigentes.','error');
+          return;
+        }
+        if(!state.overtime.reasons.length){
+          toast('El backend no informó motivos gobernados para mayor esfuerzo.','error');
+          return;
+        }
+        state.lastFocus=document.activeElement;
+        resetOvertimeWizard();
+        if(detail){
+          if(detail.type!=='overtime_entry'||!overtimeDetailContractValid(detail)||!commandAllowed(detail,'update_draft')){
+            toast('El borrador no permite edición bajo la autoridad vigente.','error');
+            return;
+          }
+          state.overtimeEditing=detail;
+          el.overtimeWizardTitle.textContent='Editar mayor esfuerzo';
+          el.overtimeWizardSubtitle.textContent='La persona queda fija. Guardar conserva el estado borrador y exige la versión vigente.';
+          el.overtimeSubmit.textContent='Guardar borrador';
+          var editingSubject=normalizeSubject({
+            contractId:detail.subjectContractId,
+            displayName:detail.subjectName,
+            accessBasis:'exclusive_entry'
+          });
+          state.overtime.subjects=[editingSubject];
+          renderOvertimeCatalogs(detail.subjectContractId);
+          el.overtimeEmployee.value=detail.subjectContractId;
+          el.overtimeWorkDate.value=detail.overtime.workDate;
+          el.overtimeDeclaredMinutes.value=String(detail.overtime.declaredMinutes);
+          el.overtimeReason.value=detail.overtime.reasonCode;
+        }
+        renderOvertimeAuthority();
+        el.overtimeWizard.showModal();
+        window.setTimeout(function(){
+          if(!el.overtimeWizard.open)return;
+          if(detail)el.overtimeWorkDate.focus();
+          else el.overtimeEmployeeSearch.focus();
+        },0);
+      }
+
+      function closeOvertimeWizard() {
+        if(el.overtimeWizard.open)el.overtimeWizard.close();
+        resetOvertimeWizard();
+        if(state.lastFocus&&typeof state.lastFocus.focus==='function')state.lastFocus.focus();
+      }
+
+      function overtimeCommandError(error) {
+        if(isActionBusy(error))return ACTION_BUSY_COPY;
+        if(error&&error.code==='OVERTIME_EXCLUSIVE_REQUIRED')return 'La responsabilidad exclusiva cambió. La carga quedó bloqueada y no se guardaron cambios.';
+        if(error&&error.code==='OVERTIME_REASON_NOT_AVAILABLE')return 'El motivo dejó de estar disponible. Actualizá el catálogo antes de reintentar.';
+        if(error&&error.code==='OVERTIME_DUPLICATE_ACTIVE')return 'Ya existe una declaración activa para esa persona y fecha.';
+        if(error&&error.code==='ACTION_SEPARATION_OF_DUTIES')return 'La persona que preparó la carga no puede validarla. Debe intervenir otra identidad de Contaduría.';
+        if(error&&error.status===409)return 'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.';
+        return text(error&&error.message,'No se pudo registrar la declaración.');
+      }
+
+      async function submitOvertimeWizard(event) {
+        event.preventDefault();
+        if(!validateOvertimeForm()){
+          toast('Revisá los campos marcados. No se envió información.','error');
+          return;
+        }
+        var value=overtimeValue();
+        var editing=state.overtimeEditing;
+        var payload={
+          workDate:value.workDate,
+          declaredMinutes:value.declaredMinutes,
+          reasonCode:value.reasonCode,
+          policyVersionId:OVERTIME_POLICY_VERSION
+        };
+        var body={caseType:'overtime_entry',command:editing?'update_draft':'create',payload:payload};
+        var method=editing?'PATCH':'POST';
+        if(editing){
+          if(editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}
+          body.caseId=editing.id;
+          body.expectedVersion=editing.version;
+        }else body.payload=Object.assign({beneficiaryContractId:value.beneficiaryContractId},payload);
+        el.overtimeSubmit.disabled=true;
+        el.overtimeSubmit.setAttribute('aria-busy','true');
+        try{
+          var response=await actionCommand(method,body);
+          var receipt=unwrap(response);
+          var caseId=text(first(receipt.id,receipt.caseId));
+          toast(editing?'Borrador de mayor esfuerzo actualizado.':'Borrador de mayor esfuerzo creado. Aún no fue enviado a Contaduría.');
+          closeOvertimeWizard();
+          el.actionTypeFilter.value='overtime_entry';
+          el.actionStatusFilter.value='';
+          renderStatusCatalog('');
+          renderOperationMode();
+          resetPagination();
+          await loadActions({page:1});
+          if(caseId)openAction(caseId,'overtime_entry');
+        }catch(error){
+          if(!error.unauthorized){
+            if(error.code==='OVERTIME_EXCLUSIVE_REQUIRED'&&state.overtime)state.overtime.feature.canEnter=false;
+            renderOvertimeAuthority();
+            renderCapabilities();
+            toast(overtimeCommandError(error),'error');
+          }
+        }finally{
+          el.overtimeSubmit.removeAttribute('aria-busy');
+          if(el.overtimeWizard.open)renderOvertimeAuthority();
+        }
+      }
+
       async function submitWizard(event){event.preventDefault();if(!validateStep(1)){showWizardStep(1);return;}if(!validateStep(2)){showWizardStep(2);return;}if(!validateStep(4))return;var confidentiality=confidentialityDecision();var reason=selectedReason();var value=wizardValue();if(!confidentiality.valid){toast('La confidencialidad exigida no está autorizada para esta combinación. No se envió información.','error');showWizardStep(1);return;}if(value.durationUnit==='minute'&&!minuteDurationAllowed(reason)){toast('La política vigente no habilita una franja horaria para este motivo. No se envió información.','error');showWizardStep(2);return;}var payload={beneficiaryContractId:value.beneficiaryContractId,reasonCode:value.reasonCode,policyVersionId:value.policyVersionId,startsOn:value.startsOn,endsOn:value.endsOn,durationUnit:value.durationUnit,confidentiality:confidentiality.value};if(value.policyRuleId)payload.policyRuleId=value.policyRuleId;if(value.durationUnit==='minute'){payload.startsAtLocal=value.startsAtLocal;payload.endsAtLocal=value.endsAtLocal;}if(value.employeeNote)payload.employeeNote=value.employeeNote;var body={caseType:'leave_request',command:state.editing?'update_draft':'create',payload:payload};var method='POST';if(state.editing){if(state.editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}body.caseId=state.editing.id;body.expectedVersion=state.editing.version;method='PATCH';}
         el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);toast(state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.');closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(isActionBusy(error)?ACTION_BUSY_COPY:(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message),'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
 
@@ -1756,7 +2494,61 @@
 
       async function logout(){el.logoutButton.disabled=true;try{await fetch(AUTH_URL,{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'}});}catch(_){/* El cierre local continúa. */}redirectToLogin();}
 
-      async function authenticate(){el.gateTitle.textContent='Verificando sesión';el.gateMessage.textContent='Confirmamos tu acceso antes de consultar acciones internas.';el.gateSpinner.hidden=false;el.retryAuth.hidden=true;try{var auth=await requestJson(AUTH_URL);var authRoot=unwrap(auth);var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}var bootstrapPayload=await actionGet('bootstrap',{caseType:'leave_request'});state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});state.initialSubjects=state.bootstrap.subjects.slice(0,50);state.initialReasons=state.bootstrap.reasons.slice();state.capabilities=state.bootstrap.capabilities;state.user=state.bootstrap.user;renderSession(state.user);renderCapabilities();renderCatalogs();renderMetrics(state.bootstrap.metrics);el.authGate.hidden=true;el.appShell.hidden=false;await loadActions();}catch(error){if(error.unauthorized)return;el.gateTitle.textContent='No pudimos abrir el Centro de acciones';el.gateMessage.textContent=text(error.message,'No se pudo conectar con el servicio interno.');el.gateSpinner.hidden=true;el.retryAuth.hidden=false;el.retryAuth.focus();}}
+      async function authenticate() {
+        el.gateTitle.textContent='Verificando sesión';
+        el.gateMessage.textContent='Confirmamos tu acceso antes de consultar acciones internas.';
+        el.gateSpinner.hidden=false;
+        el.retryAuth.hidden=true;
+        try {
+          var auth=await requestJson(AUTH_URL);
+          var authRoot=unwrap(auth);
+          var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);
+          if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}
+          var bootstrapPayload=await actionGet('bootstrap',{caseType:'leave_request'});
+          state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});
+          state.initialSubjects=state.bootstrap.subjects.slice(0,50);
+          state.initialReasons=state.bootstrap.reasons.slice();
+          state.capabilities=state.bootstrap.capabilities;
+          state.overtime=null;
+          state.overtimeInitialSubjects=[];
+          state.overtimeUnavailableReason='';
+          if(hasCapability('time.overtime.read')){
+            try{
+              var overtimePayload=await actionGet('bootstrap',{caseType:'overtime_entry'});
+              var overtimeCapabilities=normalizeCapabilities(overtimePayload);
+              overtimeCapabilities.forEach(function(capability){state.capabilities.add(capability);});
+              state.overtime=normalizeOvertimeBootstrap(overtimePayload);
+              if(!hasOvertimeContract()){
+                state.overtime=null;
+                state.overtimeUnavailableReason='el backend no confirmó el contrato completo de no-cálculo.';
+              }else{
+                state.overtimeInitialSubjects=state.overtime.subjects.slice(0,50);
+              }
+            }catch(overtimeError){
+              if(overtimeError.unauthorized)return;
+              state.overtime=null;
+              state.overtimeUnavailableReason=text(overtimeError.message,'la función todavía no está disponible para este municipio.');
+            }
+          }
+          state.user=state.bootstrap.user;
+          renderSession(state.user);
+          renderCapabilities();
+          renderCatalogs();
+          renderOvertimeCatalogs();
+          renderMetrics(state.bootstrap.metrics);
+          renderOperationMode();
+          el.authGate.hidden=true;
+          el.appShell.hidden=false;
+          await loadActions();
+        }catch(error){
+          if(error.unauthorized)return;
+          el.gateTitle.textContent='No pudimos abrir el Centro de acciones';
+          el.gateMessage.textContent=text(error.message,'No se pudo conectar con el servicio interno.');
+          el.gateSpinner.hidden=true;
+          el.retryAuth.hidden=false;
+          el.retryAuth.focus();
+        }
+      }
 
       function resetPagination() {
         state.currentPage = 1;
@@ -1773,6 +2565,7 @@
         el.sidebar.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', function () { closeMenu(false); }); });
         document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
         [el.createActionButton, el.queueCreateButton].forEach(function (button) { button.addEventListener('click', function () { openWizard(); }); });
+        [el.createOvertimeButton, el.queueOvertimeButton].forEach(function (button) { button.addEventListener('click', function () { openOvertimeWizard(); }); });
         el.actionViews.addEventListener('click', function (event) {
           var tab = event.target.closest('[data-action-view]');
           if (!tab || tab.hidden) return;
@@ -1783,10 +2576,19 @@
         });
         el.actionFilters.addEventListener('submit', function (event) { event.preventDefault(); resetPagination(); loadActions({ page: 1 }); });
         el.actionSearch.addEventListener('input', filterActions);
+        el.actionTypeFilter.addEventListener('change', function () {
+          el.actionStatusFilter.value='';
+          renderStatusCatalog('');
+          renderOperationMode();
+          resetPagination();
+          loadActions({page:1});
+        });
         el.clearActionFilters.addEventListener('click', function () {
           el.actionSearch.value = '';
-          el.actionTypeFilter.value = '';
+          el.actionTypeFilter.value = Array.from(el.actionTypeFilter.options).some(function(option){return option.value==='leave_request';}) ? 'leave_request' : 'overtime_entry';
           el.actionStatusFilter.value = '';
+          renderStatusCatalog('');
+          renderOperationMode();
           resetPagination();
           loadActions({ page: 1 });
         });
@@ -1825,6 +2627,21 @@
         el.actionEmployee.addEventListener('change', updateConfidentiality);
         [el.durationDays, el.durationMinutes].forEach(function (input) { input.addEventListener('change', updateDurationFields); });
         el.actionLeaveType.addEventListener('change', function () { var reason = selectedReason(); el.leaveTypeHelp.textContent = reason.note || 'La versión normativa proviene del backend y quedará asociada al borrador.'; updateDurationFields(); updateConfidentiality(); });
+        el.closeOvertimeWizard.addEventListener('click', closeOvertimeWizard);
+        el.overtimeCancel.addEventListener('click', closeOvertimeWizard);
+        el.overtimeWizard.addEventListener('cancel', function(event){event.preventDefault();closeOvertimeWizard();});
+        el.overtimeWizardForm.addEventListener('submit', submitOvertimeWizard);
+        el.overtimeEmployeeSearch.addEventListener('input',function(){
+          cancelOvertimeSubjectSearch();
+          var query=text(el.overtimeEmployeeSearch.value).slice(0,50);
+          if(state.overtime)state.overtime.subjects=state.overtimeInitialSubjects.slice();
+          renderOvertimeSubjectOptions('',query.length<2
+            ?'Ingresá al menos 2 caracteres antes de buscar.'
+            :'Pulsá Buscar para consultar de forma privada dentro del alcance exclusivo.');
+          el.overtimeEmployeeSearchButton.disabled=!canEnterOvertime()||Boolean(state.overtimeEditing)||query.length<2;
+        });
+        el.overtimeEmployeeSearch.addEventListener('keydown',function(event){if(event.key==='Enter'&&!event.isComposing){event.preventDefault();searchAuthorizedOvertimeSubjects();}});
+        el.overtimeEmployeeSearchButton.addEventListener('click',searchAuthorizedOvertimeSubjects);
       }
 
       function init(){cacheElements();bindEvents();authenticate();}

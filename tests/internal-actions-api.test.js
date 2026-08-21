@@ -476,3 +476,119 @@ test('PATCH sólo admite update_draft y limita cuerpos a 16 KiB', async () => {
   assert.equal(tooLarge.statusCode, 413);
   assert.equal(tooLarge.payload.code, 'ACTION_BODY_TOO_LARGE');
 });
+
+test('overtime_entry despacha bootstrap/list/detail sólo a fachadas dedicadas', async () => {
+  const calls = [];
+  const shared = dependencies({
+    getOvertimeBootstrap: async () => {
+      calls.push('bootstrap');
+      return { principal: principal(), feature: { canEnter: true }, options: { subjects: [] } };
+    },
+    listOvertimeCases: async () => {
+      calls.push('list');
+      return { principal: principal(), data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } };
+    },
+    readOvertimeCase: async () => {
+      calls.push('detail');
+      return { principal: principal(), data: { id: 'overtime-1' }, timeline: [], allowedCommands: [] };
+    },
+  });
+  for (const query of [
+    { caseType: 'overtime_entry', resource: 'bootstrap' },
+    { caseType: 'overtime_entry', resource: 'list' },
+    { caseType: 'overtime_entry', resource: 'detail', id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+  ]) {
+    const res = response();
+    await createInternalActionsHandler(shared)({ method: 'GET', query, headers: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload.caseType, 'overtime_entry');
+  }
+  assert.deepEqual(calls, ['bootstrap', 'list', 'detail']);
+});
+
+test('overtime create exige body exacto y responde recibo sin impacto salarial', async () => {
+  let received;
+  const handler = createInternalActionsHandler(dependencies({
+    createOvertimeCase: async (...args) => {
+      received = args;
+      return {
+        replayed: false,
+        data: { id: 'overtime-1', status: 'draft', version: 1,
+          payrollImpact: { amount: null, calculated: false, posted: false } },
+      };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: { caseType: 'overtime_entry', command: 'create', payload: {
+      beneficiaryContractId: '11111111-1111-4111-8111-111111111111',
+      workDate: '2026-08-20', declaredMinutes: 73, reasonCode: 'service_continuity',
+    } },
+  }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.caseType, 'overtime_entry');
+  assert.equal(res.payload.data.payrollImpact.posted, false);
+  assert.equal(received[3], IDEMPOTENCY_KEY);
+
+  const invalid = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: { caseType: 'overtime_entry', command: 'create', reason: 'texto libre', payload: {} },
+  }, invalid);
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.payload.code, 'ACTION_COMMAND_INVALID');
+});
+
+test('overtime approve preserva envelope gobernado y nunca usa handler de licencias', async () => {
+  let overtimeCalls = 0;
+  let leaveCalls = 0;
+  const handler = createInternalActionsHandler(dependencies({
+    transitionLeaveCase: async () => { leaveCalls += 1; throw new Error('no debe llamarse'); },
+    transitionOvertimeCase: async (_sql, _principal, command, caseId, body) => {
+      overtimeCalls += 1;
+      assert.equal(command, 'approve');
+      assert.equal(caseId, 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+      assert.equal(body.evidenceStatus, 'verified');
+      return { replayed: false, data: { id: caseId, status: 'pending_time_rules', version: 3 } };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: {
+      caseType: 'overtime_entry', command: 'approve',
+      caseId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', expectedVersion: 2,
+      decisionReasonCode: 'validated_documentation', evidenceStatus: 'verified',
+      manualValidationConfirmed: true,
+    },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.status, 'pending_time_rules');
+  assert.equal(overtimeCalls, 1);
+  assert.equal(leaveCalls, 0);
+});
+
+test('search_subjects overtime sigue siendo lectura POST sin Idempotency-Key', async () => {
+  let subjectQuery;
+  const handler = createInternalActionsHandler(dependencies({
+    getOvertimeBootstrap: async (_sql, _identity, _session, query) => {
+      subjectQuery = query;
+      return { principal: principal(), feature: { canEnter: true }, options: { subjects: [] } };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: { caseType: 'overtime_entry', command: 'search_subjects', payload: { query: 'tesorería' } },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(subjectQuery, 'tesorería');
+  assert.equal(res.payload.caseType, 'overtime_entry');
+});

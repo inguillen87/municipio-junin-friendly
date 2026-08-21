@@ -422,6 +422,23 @@ async function verifyAuthenticatedInternal() {
       const actionCapabilities = new Set(actionsBootstrap.principal?.capabilities || []);
       const actionSubjects = actionsBootstrap.options?.subjects || [];
       const actionReasons = actionsBootstrap.options?.reasons || [];
+      const canReadOvertime = actionCapabilities.has('time.overtime.read');
+      let overtimeBootstrap = null;
+      if (canReadOvertime) {
+        const overtimeBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap&caseType=overtime_entry`);
+        assert.equal(overtimeBootstrapResponse.status(), 200, 'Mayor esfuerzo debe aceptar la identidad autorizada');
+        overtimeBootstrap = await overtimeBootstrapResponse.json();
+        assert.equal(overtimeBootstrap.caseType, 'overtime_entry');
+        assert.equal(overtimeBootstrap.contract?.policyVersionId, 'junin-mayor-esfuerzo-intake.v1');
+        assert.equal(overtimeBootstrap.contract?.confidentiality, 'restricted');
+        assert.equal(overtimeBootstrap.contract?.calculated, false);
+        assert.equal(overtimeBootstrap.contract?.posted, false);
+        assert.equal(overtimeBootstrap.contract?.payrollMutation, false);
+        assert.deepEqual(overtimeBootstrap.contract?.declaredMinutes, { min: 1, max: 1440 });
+        assert.equal(overtimeBootstrap.feature?.calculated, false);
+        assert.equal(overtimeBootstrap.feature?.posted, false);
+        for (const capability of overtimeBootstrap.principal?.capabilities || []) actionCapabilities.add(capability);
+      }
 
       await page.goto(`${baseUrl}/centro-acciones`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#appShell:not([hidden])');
@@ -493,6 +510,78 @@ async function verifyAuthenticatedInternal() {
           assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
         }
         await page.locator('#closeActionDialog').click();
+      }
+      if (canReadOvertime) {
+        const overtimeOption = page.locator('#actionTypeFilter option[value="overtime_entry"]');
+        assert.equal(await overtimeOption.count(), 1, 'Mayor esfuerzo debe ser descubrible como operación separada');
+        assert.equal(await page.locator('#createOvertimeButton').isHidden(), false, 'La lectura explícita debe descubrir la operación');
+        const hasGovernedOvertimeReason = (overtimeBootstrap.options?.reasons || []).some((reason) => (
+          reason?.governanceStatus === 'operational_provisional'
+        ));
+        const canEnterOvertime = overtimeBootstrap.feature?.canEnter === true
+          && actionCapabilities.has('time.overtime.enter')
+          && hasGovernedOvertimeReason;
+        assert.equal(await page.locator('#createOvertimeButton').isEnabled(), canEnterOvertime, 'La carga debe exigir capacidad y responsabilidad exclusiva');
+        if (canEnterOvertime) {
+          await page.locator('#createOvertimeButton').click();
+          await page.waitForSelector('#overtimeWizard[open]');
+          assert.equal(await page.locator('#overtimeDeclaredMinutes').getAttribute('min'), '1');
+          assert.equal(await page.locator('#overtimeDeclaredMinutes').getAttribute('max'), '1440');
+          assert.equal(await page.locator('#overtimePolicyVersion').inputValue(), 'junin-mayor-esfuerzo-intake.v1');
+          assert.equal(await page.locator('#overtimeConfidentiality').inputValue(), 'Restringida');
+          assert.equal(await page.locator('#overtimeWizard [data-calculated="false"]').count(), 1);
+          assert.equal(await page.locator('#overtimeWizard [data-amount="null"]').count(), 1);
+          assert.equal(await page.locator('#overtimeWizard [data-attendance-reconciled="false"]').count(), 1);
+          const overtimeSearchRequestPromise = page.waitForRequest((request) => (
+            request.method() === 'POST'
+            && new URL(request.url()).pathname === '/api/internal-actions'
+            && /"caseType"\s*:\s*"overtime_entry"/.test(request.postData() || '')
+            && /"command"\s*:\s*"search_subjects"/.test(request.postData() || '')
+          ));
+          const overtimeSearchResponsePromise = page.waitForResponse((response) => (
+            response.request().method() === 'POST'
+            && new URL(response.url()).pathname === '/api/internal-actions'
+            && /"caseType"\s*:\s*"overtime_entry"/.test(response.request().postData() || '')
+            && /"command"\s*:\s*"search_subjects"/.test(response.request().postData() || '')
+          ));
+          await page.locator('#overtimeEmployeeSearch').fill('ad');
+          await page.locator('#overtimeEmployeeSearchButton').click();
+          const overtimeSearchRequest = await overtimeSearchRequestPromise;
+          const overtimeSearchResponse = await overtimeSearchResponsePromise;
+          assert.equal(new URL(overtimeSearchRequest.url()).search, '', 'La búsqueda de mayor esfuerzo no debe filtrar PII en la URL');
+          assert.deepEqual(overtimeSearchRequest.postDataJSON(), {
+            caseType: 'overtime_entry', command: 'search_subjects', payload: { query: 'ad' },
+          });
+          assert.equal(overtimeSearchRequest.headers()['idempotency-key'], undefined, 'La búsqueda read-only no debe usar idempotencia');
+          assert.equal(overtimeSearchResponse.status(), 200);
+          await page.locator('#closeOvertimeWizard').click();
+        }
+
+        const overtimeListResponsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return response.request().method() === 'GET'
+            && url.pathname === '/api/internal-actions'
+            && url.searchParams.get('resource') === 'list'
+            && url.searchParams.get('caseType') === 'overtime_entry';
+        });
+        await page.locator('#actionTypeFilter').selectOption('overtime_entry');
+        const overtimeListResponse = await overtimeListResponsePromise;
+        assert.equal(overtimeListResponse.status(), 200, 'La bandeja de mayor esfuerzo debe cargar sin vistas heredadas');
+        const overtimeListUrl = new URL(overtimeListResponse.url());
+        assert.equal(overtimeListUrl.searchParams.has('view'), false, 'Mayor esfuerzo no debe enviar view de licencias');
+        await page.waitForFunction(() => document.querySelector('#actionLoading')?.hidden === true);
+        assert.equal(await page.locator('#actionViews').isHidden(), true, 'Las vistas de licencia no se reutilizan para mayor esfuerzo');
+
+        const firstOvertime = page.locator('#actionRows [data-open-action]').first();
+        if (await firstOvertime.count()) {
+          await firstOvertime.click();
+          await page.waitForSelector('#actionDialog[open]');
+          await page.waitForFunction(() => document.querySelector('#actionDialogBody')?.getAttribute('aria-busy') === 'false');
+          assert.equal(await page.locator('#actionDialogBody').getAttribute('data-projection'), 'restricted_nominal');
+          assert.match(await page.locator('#actionDialogBody').innerText(), /No realizado[\s\S]*No disponible[\s\S]*Asistencia conciliada[\s\S]*No/);
+          assert.equal((await page.locator('#actionDialogBody .timeline').innerText()).includes('@'), false, 'El historial de mayor esfuerzo no debe renderizar emails derivados');
+          await page.locator('#closeActionDialog').click();
+        }
       }
       await assertPageHealthy(page, 'Centro de acciones desktop');
       await page.setViewportSize({ width: 390, height: 844 });

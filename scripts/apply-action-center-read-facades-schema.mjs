@@ -441,8 +441,17 @@ async function collectRuntimeAclEvidence(client) {
 }
 
 export async function verifyActionReadFinalAcl(client) {
+  const newer = await client.query(
+    'SELECT 1 FROM schema_migrations WHERE version = $1',
+    ['008-governed-overtime-actions'],
+  );
+  if (newer.rowCount) {
+    const { verifyOvertimeFinalAcl } = await import('./apply-governed-overtime-actions-schema.mjs');
+    return verifyOvertimeFinalAcl(client);
+  }
   validateActionReadEvidence(await collectEvidence(client));
   validateActionReadRuntimeAclEvidence(await collectRuntimeAclEvidence(client));
+  return undefined;
 }
 
 async function main() {

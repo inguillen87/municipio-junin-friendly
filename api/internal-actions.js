@@ -13,9 +13,20 @@ import {
   transitionLeaveCase,
   updateLeaveDraft,
 } from '../lib/internal-leave-workflow.js';
+import {
+  OVERTIME_ACTION_CONTRACT,
+  OVERTIME_CASE_TYPE,
+  createOvertimeCase,
+  getOvertimeBootstrap,
+  listOvertimeCases,
+  readOvertimeCase,
+  transitionOvertimeCase,
+  updateOvertimeDraft,
+} from '../lib/internal-overtime-workflow.js';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const CASE_TYPE = 'leave_request';
+const CASE_TYPES = new Set([CASE_TYPE, OVERTIME_CASE_TYPE]);
 const MUTATION_METHODS = new Set(['POST', 'PATCH']);
 const ACTIONS_RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -152,7 +163,7 @@ async function requestBody(req) {
 }
 
 function exactCaseType(value) {
-  if (value !== CASE_TYPE) fail('ACTION_CASE_TYPE_INVALID', 400, 'caseType no soportado');
+  if (!CASE_TYPES.has(value)) fail('ACTION_CASE_TYPE_INVALID', 400, 'caseType no soportado');
   return value;
 }
 
@@ -264,6 +275,12 @@ export function createInternalActionsHandler(dependencies = {}) {
   const create = dependencies.createLeaveCase ?? createLeaveCase;
   const update = dependencies.updateLeaveDraft ?? updateLeaveDraft;
   const transition = dependencies.transitionLeaveCase ?? transitionLeaveCase;
+  const overtimeBootstrap = dependencies.getOvertimeBootstrap ?? getOvertimeBootstrap;
+  const overtimeList = dependencies.listOvertimeCases ?? listOvertimeCases;
+  const overtimeDetail = dependencies.readOvertimeCase ?? readOvertimeCase;
+  const overtimeCreate = dependencies.createOvertimeCase ?? createOvertimeCase;
+  const overtimeUpdate = dependencies.updateOvertimeDraft ?? updateOvertimeDraft;
+  const overtimeTransition = dependencies.transitionOvertimeCase ?? transitionOvertimeCase;
   const env = dependencies.env ?? process.env;
 
   return async function internalActionsHandler(req, res) {
@@ -302,9 +319,12 @@ export function createInternalActionsHandler(dependencies = {}) {
       if (method === 'GET') {
         const caseType = queryValue(req, 'caseType', CASE_TYPE);
         exactCaseType(caseType);
+        const isOvertime = caseType === OVERTIME_CASE_TYPE;
         const resource = queryValue(req, 'resource', 'bootstrap');
         if (resource === 'bootstrap') {
-          const result = await bootstrap(sql, access.principal, tenantSession);
+          const result = await (isOvertime ? overtimeBootstrap : bootstrap)(
+            sql, access.principal, tenantSession,
+          );
           const { principal, ...payload } = result;
           return send(res, 200, {
             ok: true,
@@ -316,15 +336,22 @@ export function createInternalActionsHandler(dependencies = {}) {
         if (resource === 'list') {
           const type = queryValue(req, 'type', '').trim();
           if (type) exactCaseType(type);
+          if (type && type !== caseType) {
+            fail('ACTION_CASE_TYPE_INVALID', 400, 'type y caseType deben coincidir');
+          }
           const due = queryValue(req, 'due', '').trim();
           const cursor = queryValue(req, 'cursor', '').trim();
           if (due) fail('ACTION_DUE_FILTER_UNSUPPORTED', 400, 'No existe un vencimiento autoritativo para filtrar');
           if (cursor) fail('ACTION_CURSOR_UNSUPPORTED', 400, 'La paginación disponible usa page y limit');
-          const result = await list(sql, access.principal, {
+          const selectedView = queryValue(req, 'view', isOvertime ? '' : 'mine');
+          if (isOvertime && selectedView) {
+            fail('ACTION_VIEW_INVALID', 400, 'Mayor esfuerzo no admite vistas heredadas de licencias');
+          }
+          const result = await (isOvertime ? overtimeList : list)(sql, access.principal, {
             page: queryValue(req, 'page', '1'),
             limit: queryValue(req, 'limit', '20'),
             status: queryValue(req, 'status', ''),
-            view: queryValue(req, 'view', 'mine'),
+            view: selectedView || 'mine',
             caseType: type || caseType,
             due,
             cursor,
@@ -333,7 +360,9 @@ export function createInternalActionsHandler(dependencies = {}) {
           return send(res, 200, { ok: true, caseType, ...payload });
         }
         if (resource === 'detail') {
-          const result = await detail(sql, access.principal, queryValue(req, 'id'), tenantSession);
+          const result = await (isOvertime ? overtimeDetail : detail)(
+            sql, access.principal, queryValue(req, 'id'), tenantSession,
+          );
           const { principal: governedPrincipal, ...payload } = result;
           return send(res, 200, { ok: true, caseType, ...payload });
         }
@@ -341,7 +370,8 @@ export function createInternalActionsHandler(dependencies = {}) {
       }
 
       const body = await requestBody(req);
-      exactCaseType(body.caseType);
+      const caseType = exactCaseType(body.caseType);
+      const isOvertime = caseType === OVERTIME_CASE_TYPE;
       if (method === 'POST' && body.command === 'search_subjects') {
         if (Object.keys(body).some((keyName) => !['caseType', 'command', 'payload'].includes(keyName))
             || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)
@@ -349,11 +379,13 @@ export function createInternalActionsHandler(dependencies = {}) {
             || typeof body.payload.query !== 'string') {
           fail('ACTION_SUBJECT_QUERY_INVALID', 400, 'La búsqueda de legajos es inválida');
         }
-        const result = await bootstrap(sql, access.principal, tenantSession, body.payload.query);
+        const result = await (isOvertime ? overtimeBootstrap : bootstrap)(
+          sql, access.principal, tenantSession, body.payload.query,
+        );
         const { principal, ...payload } = result;
         return send(res, 200, {
           ok: true,
-          caseType: CASE_TYPE,
+          caseType,
           principal: publicPrincipal(principal),
           ...payload,
         });
@@ -373,7 +405,12 @@ export function createInternalActionsHandler(dependencies = {}) {
         if (body.command !== 'update_draft') {
           fail('ACTION_COMMAND_INVALID', 400, 'PATCH sólo admite update_draft');
         }
-        result = await update(
+        if (isOvertime && Object.keys(body).some((name) => ![
+          'caseType', 'command', 'caseId', 'expectedVersion', 'payload',
+        ].includes(name))) {
+          fail('ACTION_COMMAND_INVALID', 400, 'El comando contiene campos no permitidos');
+        }
+        result = await (isOvertime ? overtimeUpdate : update)(
           sql,
           principal,
           body.caseId,
@@ -383,10 +420,17 @@ export function createInternalActionsHandler(dependencies = {}) {
           tenantSession,
         );
       } else if (body.command === 'create') {
-        result = await create(sql, principal, body.payload, key, tenantSession);
+        if (isOvertime && Object.keys(body).some((name) => !['caseType', 'command', 'payload'].includes(name))) {
+          fail('ACTION_COMMAND_INVALID', 400, 'El comando contiene campos no permitidos');
+        }
+        result = await (isOvertime ? overtimeCreate : create)(
+          sql, principal, body.payload, key, tenantSession,
+        );
         status = 201;
       } else if (['submit', 'approve', 'reject', 'cancel'].includes(body.command)) {
-        result = await transition(sql, principal, body.command, body.caseId, body, key, tenantSession);
+        result = await (isOvertime ? overtimeTransition : transition)(
+          sql, principal, body.command, body.caseId, body, key, tenantSession,
+        );
       } else {
         fail('ACTION_COMMAND_INVALID', 400, 'Comando no permitido');
       }
@@ -394,7 +438,7 @@ export function createInternalActionsHandler(dependencies = {}) {
       if (result.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return send(res, status, {
         ok: true,
-        caseType: CASE_TYPE,
+        caseType,
         replayed: Boolean(result.replayed),
         data: result.data,
       });
@@ -421,4 +465,4 @@ export function createInternalActionsHandler(dependencies = {}) {
 
 export default createInternalActionsHandler();
 
-export { ACTION_CENTER_CONTRACT };
+export { ACTION_CENTER_CONTRACT, OVERTIME_ACTION_CONTRACT };
