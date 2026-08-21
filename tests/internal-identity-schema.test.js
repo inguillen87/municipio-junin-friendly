@@ -136,6 +136,9 @@ test('runtime tiene solo facades SECURITY DEFINER y aplicador valida ACL', async
   assert.doesNotMatch(apply, /\b(?:FROM|JOIN)\s+pg_constraint\s+constraint\b/i);
   assert.match(apply, /FROM pg_constraint constraint_row/);
   assert.match(apply, /migracion \$\{MIGRATION_VERSION\} sentencia \$\{index \+ 1\}/);
+  assert.match(apply, /ACTION_AUTHORITY_MIGRATION_VERSION/);
+  assert.match(apply, /no puede aplicarse después de/);
+  assert.doesNotMatch(apply, /GRANT EXECUTE ON FUNCTION tenant_iam_(?:admin_view|apply_command)/);
   assert.doesNotThrow(() => validateTenantIdentityEvidence(validEvidence()));
   const broken = validEvidence(); broken.triggers[0].enabled = 'D';
   assert.throws(() => validateTenantIdentityEvidence(broken), /trigger identity/);

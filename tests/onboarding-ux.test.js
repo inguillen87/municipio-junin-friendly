@@ -78,6 +78,14 @@ test('el Centro de acciones es descubrible y conserva límites transaccionales e
   assert.match(actions, /login\.html\?next=centro-acciones\.html/);
   assert.match(actions, /no calcula|no calculable|sin supuestos/i);
   assert.match(actions, /assets\/internal-guide\.js/);
+  assert.match(actions, /leave\.request\.self\.create/);
+  assert.match(actions, /leave\.request\.area\.decide/);
+  assert.match(actions, /leave\.request\.all\.manage/);
+  assert.doesNotMatch(actions, /['"]action\.(?:self|area|all|aggregate|audit|restricted|payroll)\./);
+  assert.doesNotMatch(actions, /actions:(?:create|read|review|approve|apply|audit)/);
+  for (const match of actions.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (!/\bsrc\s*=/.test(match[1])) new vm.Script(match[2], { filename: 'centro-acciones.html' });
+  }
 });
 
 test('el presupuesto aprobado es descubrible desde las herramientas internas', () => {

@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   TENANT_IAM_SCHEMA_CONTRACT,
+  tenantIamRuntimeAclProfile,
   validateTenantIamEvidence,
 } from '../scripts/apply-tenant-iam-schema.mjs';
 import { bootstrapConfiguration } from '../scripts/bootstrap-tenant-iam.mjs';
@@ -157,6 +158,22 @@ test('aplicador usa conexión directa, checksum, lock y verificación semántica
   const broken = validEvidence();
   broken.trigger.enabled = 'D';
   assert.throws(() => validateTenantIamEvidence(broken), /append-only/);
+});
+
+test('revalidación 004 es version-aware y nunca reotorga facades email-only tras 006', async () => {
+  const before = tenantIamRuntimeAclProfile(false);
+  const after = tenantIamRuntimeAclProfile(true);
+  assert.deepEqual(before.allowed, [
+    'public.tenant_iam_admin_view(text,text,integer)',
+    'public.tenant_iam_apply_command(text,text,uuid,text,integer,jsonb)',
+  ]);
+  assert.deepEqual(after.allowed, [
+    'public.tenant_iam_admin_view_v2(text,uuid,integer,text,integer)',
+    'public.tenant_iam_apply_command_v2(text,uuid,integer,text,uuid,text,integer,jsonb)',
+  ]);
+  assert.equal(after.signatures.includes('public.tenant_iam_admin_view(text,text,integer)'), true);
+  const source = await readFile(applyUrl, 'utf8');
+  assert.match(source, /no puede aplicarse después de/);
 });
 
 test('bootstrap exige email exacto, no crea cuentas ni cambia rol operativo legado', async () => {

@@ -619,36 +619,25 @@
         ADMIN_INTERNO: 'Administración interna'
       };
       var CAPABILITY_LABELS = {
-        'action.self.create': 'crear solicitudes propias',
-        'action.self.update': 'editar borradores propios',
-        'action.self.submit': 'enviar solicitudes propias',
-        'action.self.cancel': 'cancelar solicitudes propias',
-        'action.area.create': 'crear solicitudes para legajos del área',
-        'action.area.update': 'editar borradores del área',
-        'action.area.submit': 'enviar solicitudes del área',
-        'action.area.cancel_pending': 'cancelar solicitudes pendientes del área',
-        'action.self.read': 'consultar solicitudes propias',
-        'action.area.read': 'consultar acciones del área',
-        'action.area.decide': 'decidir acciones del área',
-        'action.area.cancel_approved': 'cancelar licencias aprobadas del área',
-        'action.all.read': 'consultar el alcance general autorizado',
-        'action.all.manage': 'administrar y decidir el alcance general',
-        'action.aggregate.read': 'consultar indicadores agregados',
-        'action.audit.read': 'auditar el historial',
-        'action.restricted.read': 'consultar casos restringidos autorizados',
-        'action.restricted.decide': 'decidir casos restringidos autorizados',
-        'action.payroll.read': 'consultar novedades aprobadas para nómina',
-        'actions:create:self': 'crear solicitudes propias',
-        'actions:create:employee': 'crear solicitudes para legajos autorizados',
-        'actions:read:assigned': 'consultar acciones asignadas',
-        'actions:read:area': 'consultar acciones del área',
-        'actions:read:authorized': 'consultar el alcance autorizado',
-        'actions:review:supervisor': 'revisar como responsable de área',
-        'actions:review:hr': 'revisar desde RRHH',
-        'actions:approve:leave': 'aprobar licencias',
-        'actions:apply:payroll': 'aplicar novedades autorizadas a nómina',
-        'actions:read:executive': 'consultar indicadores ejecutivos',
-        'actions:audit': 'auditar el historial'
+        'leave.request.self.create': 'crear solicitudes propias',
+        'leave.request.self.update': 'editar borradores propios',
+        'leave.request.self.submit': 'enviar solicitudes propias',
+        'leave.request.self.cancel': 'cancelar solicitudes propias',
+        'leave.request.area.create': 'crear solicitudes para legajos del área',
+        'leave.request.area.update': 'editar borradores del área',
+        'leave.request.area.submit': 'enviar solicitudes del área',
+        'leave.request.area.cancel_pending': 'cancelar solicitudes pendientes del área',
+        'leave.request.self.read': 'consultar solicitudes propias',
+        'leave.request.area.read': 'consultar acciones del área',
+        'leave.request.area.decide': 'decidir acciones del área',
+        'leave.request.area.cancel_approved': 'cancelar licencias aprobadas del área',
+        'leave.request.all.read': 'consultar el alcance general autorizado',
+        'leave.request.all.manage': 'administrar y decidir el alcance general',
+        'leave.request.aggregate.read': 'consultar indicadores agregados',
+        'leave.request.audit.read': 'auditar el historial',
+        'leave.request.restricted.read': 'consultar casos restringidos autorizados',
+        'leave.request.restricted.decide': 'decidir casos restringidos autorizados',
+        'leave.request.payroll.read': 'consultar novedades aprobadas para nómina'
       };
 
       var state = {
@@ -1045,7 +1034,7 @@
         return false;
       }
 
-      function canCreate() { return hasCapability('action.self.create', 'action.area.create', 'action.all.manage', 'actions:create:self', 'actions:create:employee'); }
+      function canCreate() { return hasCapability('leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage'); }
 
       function renderSession(user) {
         el.userName.textContent = user.name;
@@ -1257,11 +1246,11 @@
       }
 
       function capabilityForCommand(command) {
-        if (command === 'approve') return hasCapability('action.area.decide','action.all.manage','actions:approve:leave');
-        if (command === 'reject') return hasCapability('action.area.decide','action.all.manage','actions:review:hr','actions:approve:leave');
-        if (command === 'submit') return hasCapability('action.self.submit','action.area.submit','action.all.manage','actions:create:self','actions:create:employee');
-        if (command === 'cancel') return hasCapability('action.self.cancel','action.area.cancel_pending','action.area.cancel_approved','action.all.manage','actions:create:self','actions:create:employee','actions:review:hr');
-        if (command === 'update_draft') return hasCapability('action.self.update','action.area.update','action.all.manage','actions:create:self','actions:create:employee');
+        if (command === 'approve') return hasCapability('leave.request.area.decide','leave.request.all.manage');
+        if (command === 'reject') return hasCapability('leave.request.area.decide','leave.request.all.manage');
+        if (command === 'submit') return hasCapability('leave.request.self.submit','leave.request.area.submit','leave.request.all.manage');
+        if (command === 'cancel') return hasCapability('leave.request.self.cancel','leave.request.area.cancel_pending','leave.request.area.cancel_approved','leave.request.all.manage');
+        if (command === 'update_draft') return hasCapability('leave.request.self.update','leave.request.area.update','leave.request.all.manage');
         return false;
       }
 

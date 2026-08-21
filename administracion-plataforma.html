@@ -242,6 +242,44 @@
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .detail-section { padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
     .detail-section h3 { margin: 0 0 10px; color: var(--navy); font-size: 15px; }
+    #userDetailDialog { width: min(1180px, calc(100vw - 34px)); max-width: 1180px; }
+    .access-boundary { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; align-items: center; margin-bottom: 15px; padding: 13px 15px; color: #254754; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: var(--radius); }
+    .access-boundary.is-blocked { color: #704d16; background: var(--amber-bg); border-color: #e3c78f; border-left-color: var(--amber); }
+    .boundary-mark { width: 38px; height: 38px; display: grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-size: 11px; font-weight: 900; letter-spacing: .04em; }
+    .access-boundary strong, .access-boundary span { display: block; }
+    .access-boundary strong { color: var(--navy); font-size: 13px; }
+    .access-boundary span { margin-top: 3px; font-size: 11px; line-height: 1.45; }
+    .boundary-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .operational-workbench { margin-top: 15px; padding: 17px; background: #f8faf9; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+    .workbench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+    .workbench-head h3 { margin: 0; color: var(--navy); font-size: 18px; letter-spacing: -.02em; }
+    .workbench-head p { max-width: 760px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .operational-grid { display: grid; grid-template-columns: minmax(300px,.72fr) minmax(440px,1.28fr); gap: 14px; margin-top: 14px; }
+    .operational-card { min-width: 0; padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .operational-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .operational-card h4 { margin: 0; color: var(--navy); font-size: 15px; }
+    .operational-card-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .binding-summary { margin-bottom: 13px; padding: 11px; color: #36515f; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .binding-summary strong, .binding-summary span { display: block; }
+    .binding-summary strong { color: var(--navy); font-size: 12px; }
+    .binding-summary span { margin-top: 3px; font-size: 11px; line-height: 1.45; }
+    .compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .compact-grid .full { grid-column: 1/-1; }
+    .inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    .inline-actions .button { flex: 0 0 auto; }
+    .operation-gate { margin-top: 11px; padding: 10px 11px; color: #6c4e18; background: var(--amber-bg); border: 1px solid #e3c78f; border-radius: 4px; font-size: 11px; line-height: 1.45; }
+    .operation-gate.is-ready { color: #155d4e; background: var(--green-bg); border-color: #a9d6c9; }
+    .scope-builder { padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .scope-builder-grid { display: grid; grid-template-columns: 1.25fr 1fr .8fr; gap: 9px; align-items: end; }
+    .scope-builder-grid .scope-wide { grid-column: span 2; }
+    .scope-draft-list { display: grid; gap: 7px; margin-top: 12px; }
+    .scope-draft-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 10px 11px; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 4px; }
+    .scope-draft-row.is-invalid { background: var(--red-bg); border-color: #e4b9b5; border-left-color: var(--red); }
+    .scope-draft-row strong, .scope-draft-row span { display: block; }
+    .scope-draft-row strong { color: var(--navy); font-size: 12px; }
+    .scope-draft-row span { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .scope-draft-row .button { min-height: 38px; padding: 7px 9px; }
+    .scope-empty { padding: 16px 12px; color: var(--muted); background: #fff; border: 1px dashed var(--line-strong); border-radius: 4px; text-align: center; font-size: 11px; line-height: 1.45; }
 
     .toast-region { position: fixed; z-index: 1000; right: 20px; bottom: calc(20px + var(--safe-bottom)); width: min(390px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
     .toast { padding: 12px 14px; color: #fff; background: var(--navy); border-left: 4px solid #64b9a9; border-radius: 4px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; }
@@ -252,6 +290,7 @@
       .access-layout { grid-template-columns: 1fr; }
       .control-row { grid-template-columns: minmax(200px,1fr) minmax(180px,.7fr); }
       .control-row > :last-child { grid-column: 1/-1; }
+      .operational-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 960px) {
@@ -284,6 +323,10 @@
       .toolbar .field:first-child { grid-column: 1/-1; }
       .panel-head, .panel-body, .table-meta { padding-left: 13px; padding-right: 13px; }
       .governance-strip { grid-template-columns: 1fr; }
+      .access-boundary { grid-template-columns: 38px minmax(0,1fr); }
+      .boundary-facts { grid-column: 1/-1; justify-content: flex-start; }
+      .scope-builder-grid { grid-template-columns: 1fr 1fr; }
+      .scope-builder-grid .scope-wide { grid-column: 1/-1; }
     }
 
     @media (max-width: 620px) {
@@ -310,6 +353,7 @@
       .control-row > :last-child { grid-column: auto; }
       .assignment-form { grid-template-columns: 1fr; }
       dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+      #userDetailDialog { width: 100vw; max-width: none; }
       .dialog-shell { height: 100dvh; max-height: 100dvh; }
       .dialog-head { padding: 14px; }
       .dialog-body { padding: 15px 14px calc(24px + var(--safe-bottom)); }
@@ -321,6 +365,13 @@
       .facts > div { grid-template-columns: 1fr; gap: 4px; }
       .tenant-option { grid-template-columns: 34px minmax(0,1fr); }
       .tenant-option-state { grid-column: 2; }
+      .operational-workbench { padding: 12px; }
+      .workbench-head { flex-direction: column; }
+      .compact-grid, .scope-builder-grid { grid-template-columns: 1fr; }
+      .compact-grid .full, .scope-builder-grid .scope-wide { grid-column: auto; }
+      .inline-actions { display: grid; grid-template-columns: 1fr; }
+      .scope-draft-row { grid-template-columns: 1fr; }
+      .scope-draft-row .button { width: 100%; }
     }
 
     @media (max-width: 390px) {
@@ -330,6 +381,7 @@
       .tenant-switcher-copy small { display: none; }
       .page-lead { font-size: 13px; }
       .dialog-actions { grid-template-columns: 1fr; }
+      #userDetailDialog .dialog-actions { grid-template-columns: 1fr 1fr; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -620,15 +672,62 @@
   </dialog>
 
   <dialog id="userDetailDialog" aria-labelledby="userDetailTitle">
-    <form class="dialog-shell" id="userAccessForm" novalidate>
+    <form class="dialog-shell" id="userAccessForm" novalidate autocomplete="off">
       <header class="dialog-head"><div><p class="eyebrow">Acceso efectivo</p><h2 id="userDetailTitle">Detalle de usuario</h2><p id="userDetailSubtitle">Consultando asignación.</p></div><button class="button dialog-close" type="button" data-close-dialog="userDetailDialog" aria-label="Cerrar usuario">×</button></header>
       <div class="dialog-body">
+        <section class="access-boundary is-blocked" id="operationalBoundary" aria-labelledby="operationalBoundaryTitle">
+          <span class="boundary-mark" aria-hidden="true">IAM</span>
+          <div><strong id="operationalBoundaryTitle">Administrar acceso no habilita operar</strong><span id="operationalBoundaryMessage">El vínculo con legajo, cada capacidad y cada alcance territorial deben estar informados y autorizados por separado.</span></div>
+          <div class="boundary-facts" id="operationalBoundaryFacts"></div>
+        </section>
         <div class="detail-grid">
           <section class="detail-section"><h3>Identidad y membresía</h3><dl class="facts" id="userDetailFacts"></dl></section>
           <section class="detail-section"><h3>Acceso propuesto</h3><div class="field"><label for="userAccessRole">Rol</label><select class="select" id="userAccessRole"></select></div><div class="capability-list" id="userAccessCapabilities"></div><div class="field" style="margin-top:13px"><label for="userAccessReason">Motivo del cambio</label><textarea class="textarea" id="userAccessReason" maxlength="500" required placeholder="Justificación administrativa verificable"></textarea><span class="field-help">Obligatorio; queda asociado a los overrides de capacidades.</span></div></section>
         </div>
         <div class="effective-box" id="userEffectiveSummary"><strong>Sin información efectiva.</strong></div>
         <div class="conflict-box" id="userConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
+
+        <section class="operational-workbench" aria-labelledby="operationalWorkbenchTitle">
+          <header class="workbench-head">
+            <div><h3 id="operationalWorkbenchTitle">Identidad laboral y alcances</h3><p>Configuración tenant-owned. Ningún rol administrativo hereda acceso a licencias, ausencias o mayor esfuerzo. Los cambios se vuelven a validar en PostgreSQL y quedan auditados.</p></div>
+            <span class="state-pill is-attention" id="operationalWorkbenchState">Bloqueado</span>
+          </header>
+          <div class="operational-grid">
+            <section class="operational-card" aria-labelledby="employmentLinkTitle">
+              <header class="operational-card-head"><div><h4 id="employmentLinkTitle">Vínculo con legajo</h4><p>Define únicamente la relación self del usuario dentro de este gobierno y esta fuente GRH.</p></div><span class="state-pill" id="employmentLinkState">No informado</span></header>
+              <div class="binding-summary" id="employmentLinkSummary"><strong>Sin vínculo verificado</strong><span>No se infiere un legajo desde el nombre o el email.</span></div>
+              <div class="field"><label for="employmentLookupQuery">Buscar en GRH protegida</label><div class="compact-grid"><input class="input" id="employmentLookupQuery" type="search" minlength="3" maxlength="80" placeholder="Legajo o nombre" autocomplete="off"><button class="button" id="employmentLookupButton" type="button" disabled>Buscar</button></div><span class="field-help">El criterio se envía por POST, no aparece en la URL y se descarta al cerrar.</span></div>
+              <div class="field" style="margin-top:10px"><label for="employmentCandidateSelect">Coincidencia autorizada</label><select class="select" id="employmentCandidateSelect" disabled><option value="">Sin búsqueda autorizada</option></select><span class="field-help" id="employmentCandidateHelp">Máximo 20 resultados devueltos por el backend.</span></div>
+              <div class="compact-grid" style="margin-top:10px">
+                <div class="field"><label for="employmentReasonCode">Tipo de cambio</label><select class="select" id="employmentReasonCode" disabled><option value="">Catálogo no informado</option></select></div>
+                <div class="field"><label for="employmentReason">Fundamento</label><textarea class="textarea" id="employmentReason" maxlength="500" placeholder="Motivo verificable" disabled></textarea></div>
+              </div>
+              <div class="inline-actions"><button class="button primary" id="linkEmploymentButton" type="button" disabled>Vincular legajo</button><button class="button danger" id="revokeEmploymentButton" type="button" disabled>Revocar vínculo</button></div>
+              <div class="operation-gate" id="employmentOperationGate" role="status" aria-live="polite">Esperando autorización, versión y fuente certificada.</div>
+            </section>
+
+            <section class="operational-card" aria-labelledby="actionScopesTitle">
+              <header class="operational-card-head"><div><h4 id="actionScopesTitle">Alcances por capacidad</h4><p>Una capacidad sin alcance no autoriza casos. Cada alcance pertenece al tenant, al binding y a una operación exacta.</p></div><span class="state-pill" id="actionScopeCount">0 alcances</span></header>
+              <div class="scope-builder">
+                <div class="scope-builder-grid">
+                  <div class="field scope-wide"><label for="scopeCapability">Capacidad operativa</label><select class="select" id="scopeCapability" disabled><option value="">Sin capacidades elegibles</option></select></div>
+                  <div class="field"><label for="scopeSourceBinding">Fuente certificada</label><select class="select" id="scopeSourceBinding" disabled><option value="">Sin binding verificado</option></select></div>
+                  <div class="field"><label for="scopeLevel">Nivel</label><select class="select" id="scopeLevel" disabled><option value="">Seleccionar</option><option value="company">Toda la empresa vinculada</option><option value="organization">Organización</option><option value="sector">Sector</option></select></div>
+                  <div class="field"><label for="scopeOrganization">Organización</label><select class="select" id="scopeOrganization" disabled><option value="">No corresponde</option></select></div>
+                  <div class="field"><label for="scopeSector">Sector</label><select class="select" id="scopeSector" disabled><option value="">No corresponde</option></select></div>
+                  <button class="button" id="addScopeButton" type="button" disabled>Agregar alcance</button>
+                </div>
+              </div>
+              <div class="scope-draft-list" id="scopeDraftList" aria-live="polite"><div class="scope-empty">El backend no informó alcances activos.</div></div>
+              <div class="compact-grid" style="margin-top:12px">
+                <div class="field"><label for="scopeReasonCode">Tipo de cambio</label><select class="select" id="scopeReasonCode" disabled><option value="">Catálogo no informado</option></select></div>
+                <div class="field"><label for="scopeReason">Fundamento</label><textarea class="textarea" id="scopeReason" maxlength="500" placeholder="Motivo verificable" disabled></textarea></div>
+              </div>
+              <div class="inline-actions"><button class="button primary" id="saveScopesButton" type="button" disabled>Guardar alcances</button></div>
+              <div class="operation-gate" id="scopeOperationGate" role="status" aria-live="polite">Los alcances permanecen en lectura hasta recibir catálogo y comando explícitos.</div>
+            </section>
+          </div>
+        </section>
       </div>
       <footer class="dialog-footer"><div class="dialog-actions"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><button class="button" id="issueInvitationButton" type="button" disabled>Emitir invitación</button></div><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
     </form>
@@ -688,6 +787,9 @@
       source: {},
       exclusive: null,
       operationalControls: [],
+      operationalCatalog: { sourceBindings: [], scopeCapabilities: [], organizations: [], sectors: [], reasonCodes: [] },
+      employmentCandidates: [],
+      scopeDraft: [],
       selectedUser: null,
       selectedTenant: null,
       activeView: 'portfolio',
@@ -717,6 +819,11 @@
       'inviteMutationHint','sendInviteButton','inviteNameError','inviteEmailError','inviteTenantError','inviteRoleError',
       'userDetailDialog','userAccessForm','userDetailTitle','userDetailSubtitle','userDetailFacts','userAccessRole',
       'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','issueInvitationButton','updateAccessButton',
+      'operationalBoundary','operationalBoundaryTitle','operationalBoundaryMessage','operationalBoundaryFacts','operationalWorkbenchState',
+      'employmentLinkState','employmentLinkSummary','employmentLookupQuery','employmentLookupButton','employmentCandidateSelect','employmentCandidateHelp',
+      'employmentReasonCode','employmentReason','linkEmploymentButton','revokeEmploymentButton','employmentOperationGate',
+      'actionScopeCount','scopeCapability','scopeSourceBinding','scopeLevel','scopeOrganization','scopeSector','addScopeButton',
+      'scopeDraftList','scopeReasonCode','scopeReason','saveScopesButton','scopeOperationGate',
       'createTenantDialog','createTenantForm','newTenantName','newTenantShortName','newTenantLevel','newTenantJurisdiction','newTenantSlug',
       'createTenantGate','confirmCreateTenant','toastRegion','mainContent'
     ];
@@ -1065,6 +1172,132 @@
       }).filter(Boolean);
     }
 
+    function authorityVersion() {
+      for (var index = 0; index < arguments.length; index += 1) {
+        var value = Number(arguments[index]);
+        if (Number.isSafeInteger(value) && value >= 1) return value;
+      }
+      return null;
+    }
+
+    function normalizeEmploymentLink(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var source = firstObject(row.sourceBinding, row.binding);
+      var contractId = text(first(row.employmentContractId, row.contractId));
+      var declaredStatus = text(first(row.status, row.state)).toLowerCase();
+      var status = ['linked', 'unlinked', 'stale'].includes(declaredStatus)
+        ? declaredStatus : (contractId ? 'linked' : 'unlinked');
+      return {
+        status: status,
+        version: authorityVersion(row.version, row.authorityVersion),
+        employmentContractId: contractId,
+        sourceBindingId: text(first(row.sourceBindingId, source.id)),
+        legajo: text(first(row.legajo, row.employeeNumber)),
+        displayName: text(first(row.displayName, row.employeeName, row.name)),
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name))
+      };
+    }
+
+    function normalizeOperationalScope(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var level = text(first(row.scopeLevel, row.level)).toLowerCase();
+      if (!['company', 'organization', 'sector'].includes(level)) return null;
+      var normalized = {
+        id: text(row.id),
+        capabilityKey: text(first(row.capabilityKey, row.capability)),
+        sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+        scopeLevel: level,
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name)),
+        active: row.active !== false
+      };
+      if (!normalized.capabilityKey || !normalized.sourceBindingId) return null;
+      if (level === 'organization' && !normalized.organizationUnitSourceId) return null;
+      if (level === 'sector' && (!normalized.organizationUnitSourceId || !normalized.sectorSourceId)) return null;
+      return normalized;
+    }
+
+    function normalizeOperationalAccess(value) {
+      var row = firstObject(value);
+      return {
+        version: authorityVersion(row.version, row.authorityVersion),
+        scopes: list(first(row.scopes, row.actionScopes)).map(normalizeOperationalScope).filter(function (scope) {
+          return scope && scope.active;
+        })
+      };
+    }
+
+    function normalizeOperationalCatalog(payload) {
+      var catalog = findObject(payload, ['operationalCatalog','operationalAccessCatalog']);
+      var sourceBindings = list(first(catalog.sourceBindings, catalog.bindings)).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id),
+          system: text(first(row.system, row.sourceSystem), 'GRH').toUpperCase(),
+          databaseLabel: text(first(row.databaseLabel, row.sourceDatabaseLabel), 'Fuente municipal'),
+          companyId: text(first(row.companyId, row.sourceCompanyId)),
+          verified: row.verified === true
+        };
+      }).filter(function (binding) { return binding.id && binding.system === 'GRH' && binding.companyId && binding.verified; });
+      var scopeCapabilities = list(first(catalog.scopeCapabilities, catalog.capabilities)).map(function (value) {
+        return normalizeCapability(value, '');
+      }).filter(Boolean);
+      var organizations = list(first(catalog.organizations, catalog.organizationUnits)).map(function (value) {
+        var row = firstObject(value);
+        return {
+          sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+          sourceId: text(first(row.sourceId, row.id)),
+          label: text(first(row.label, row.name), 'Organización sin nombre')
+        };
+      }).filter(function (item) { return item.sourceBindingId && item.sourceId; });
+      var sectors = list(catalog.sectors).map(function (value) {
+        var row = firstObject(value);
+        return {
+          sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+          organizationUnitSourceId: text(first(row.organizationUnitSourceId, row.organizationId)),
+          sourceId: text(first(row.sourceId, row.id)),
+          label: text(first(row.label, row.name), 'Sector sin nombre')
+        };
+      }).filter(function (item) { return item.sourceBindingId && item.organizationUnitSourceId && item.sourceId; });
+      var reasonCodes = list(first(catalog.reasonCodes, catalog.changeReasons)).map(function (value) {
+        var row = typeof value === 'string' ? { key: value } : firstObject(value);
+        return { key: text(first(row.key, row.code)), label: text(first(row.label, row.name), titleize(first(row.key, row.code))) };
+      }).filter(function (item) { return item.key; });
+      return {
+        sourceBindings: sourceBindings,
+        scopeCapabilities: scopeCapabilities,
+        organizations: organizations,
+        sectors: sectors,
+        reasonCodes: reasonCodes
+      };
+    }
+
+    function normalizeEmploymentCandidate(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var candidate = {
+        employmentContractId: text(first(row.employmentContractId, row.contractId)),
+        sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+        legajo: text(first(row.legajo, row.employeeNumber)),
+        displayName: text(first(row.displayName, row.name), 'Nombre no informado'),
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name))
+      };
+      return candidate.employmentContractId && candidate.sourceBindingId ? candidate : null;
+    }
+
     function normalizeUser(row) {
       row = firstObject(row);
       var membership = firstObject(row.membership, row.tenantMembership, row.access);
@@ -1081,9 +1314,14 @@
         return text(typeof value === 'string' ? value : firstObject(value).key);
       }).filter(Boolean);
       var status = text(first(membership.status, row.status, row.state), row.pending === true ? 'pending' : 'unknown');
+      var version = authorityVersion(membership.version, row.version);
+      var operationalMembershipId = text(first(membership.id, row.membershipId, row.membership_id));
+      var employmentLink = normalizeEmploymentLink(first(row.employmentLink, membership.employmentLink));
+      var operationalAccess = normalizeOperationalAccess(first(row.operationalAccess, membership.operationalAccess));
       return {
         id: text(first(row.id, row.userId, row.user_id, row.email)),
         membershipId: text(first(membership.id, row.membershipId, row.membership_id, row.id)),
+        operationalMembershipId: operationalMembershipId,
         displayName: text(first(row.displayName, row.name, row.fullName), 'Nombre no informado'),
         email: text(row.email).toLowerCase(),
         tenantId: text(first(membership.tenantId, row.tenantId, row.tenant_id)),
@@ -1093,7 +1331,9 @@
         status: status,
         mfa: first(security.mfaEnabled, row.mfaEnabled, row.mfa),
         lastAccessAt: first(security.lastAccessAt, row.lastAccessAt, row.lastSignInAt),
-        employmentLinked: first(row.employmentLinked, row.hasEmployeeLink, membership.employmentLinked),
+        employmentLinked: employmentLink.status === 'linked' ? true : employmentLink.status === 'unlinked' ? false : null,
+        employmentLink: employmentLink,
+        operationalAccess: operationalAccess,
         invitation: {
           id: text(first(invitation.id, row.invitationId)),
           status: text(invitation.status, 'not_applicable').toLowerCase(),
@@ -1105,8 +1345,7 @@
         },
         capabilities: capabilities,
         eligibleCapabilities: eligible,
-        version: first(membership.version, row.version),
-        raw: row
+        version: version
       };
     }
 
@@ -1254,7 +1493,8 @@
         metrics: normalizeMetrics(payload),
         source: normalizeSource(payload),
         exclusive: normalizeExclusive(payload, tenantId),
-        operationalControls: normalizeOperationalControls(payload)
+        operationalControls: normalizeOperationalControls(payload),
+        operationalCatalog: normalizeOperationalCatalog(payload)
       };
     }
 
@@ -1585,10 +1825,14 @@
         var row = node('tr'); row.dataset.openRow = user.id; row.dataset.listRow = 'user';
         var identity = node('td'); identity.dataset.label = 'Usuario'; identity.append(node('span', 'cell-title', user.displayName), node('span', 'cell-sub', user.email || 'Email no informado'));
         var tenant = node('td'); tenant.dataset.label = 'Tenant'; tenant.textContent = user.tenantName;
-        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades informadas'));
+        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades · ' + user.operationalAccess.scopes.length + ' alcances'));
         var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.append(pill(user.status, statusTone(user.status)), node('span', 'cell-sub', 'Invitación: ' + invitationDetail(user.invitation)));
         var security = node('td'); security.dataset.label = 'Seguridad';
-        security.append(node('span', 'cell-title', user.mfa === true ? 'MFA verificado' : user.mfa === false ? 'MFA no verificado' : 'MFA no informado'), node('span', 'cell-sub', user.lastAccessAt ? 'Último acceso ' + formatDate(user.lastAccessAt, true) : 'Último acceso no informado'));
+        security.append(
+          node('span', 'cell-title', user.mfa === true ? 'MFA verificado' : user.mfa === false ? 'MFA no verificado' : 'MFA no informado'),
+          node('span', 'cell-sub', user.employmentLink.status === 'linked' ? 'Legajo vinculado' : user.employmentLink.status === 'stale' ? 'Vínculo laboral a revisar' : 'Sin vínculo laboral'),
+          node('span', 'cell-sub', user.lastAccessAt ? 'Último acceso ' + formatDate(user.lastAccessAt, true) : 'Último acceso no informado')
+        );
         var action = node('td'); action.dataset.label = ''; var button = node('button', 'button row-button', 'Ver acceso'); button.type = 'button'; button.dataset.openUser = user.id; action.appendChild(button);
         row.append(identity, tenant, roleCell, statusCell, security, action);
         el.userRows.appendChild(row);
@@ -1600,11 +1844,264 @@
       el.userDetailFacts.append(fact('Nombre', user.displayName), fact('Email', user.email), fact('Tenant', user.tenantName), fact('Membresía', user.status), fact('Invitación', invitationDetail(user.invitation)), fact('Entrega', user.invitation.deliveryStatus), fact('Vínculo con legajo', user.employmentLinked === true ? 'Verificado' : user.employmentLinked === false ? 'No vinculado' : 'No informado'), fact('MFA', user.mfa === true ? 'Verificado' : user.mfa === false ? 'No verificado' : 'No informado'), fact('Último acceso', user.lastAccessAt ? formatDate(user.lastAccessAt, true) : 'No informado'));
     }
 
+    function administrativeOnlyRole(roleKey) {
+      return ['PLATFORM_OWNER', 'TENANT_ADMIN', 'ADMIN_INTERNO', 'INTERNAL_ADMIN'].includes(text(roleKey).toUpperCase());
+    }
+
+    function bindingById(bindingId) {
+      return state.operationalCatalog.sourceBindings.find(function (binding) { return binding.id === bindingId; }) || null;
+    }
+
+    function operationalCapabilityByKey(key) {
+      return state.operationalCatalog.scopeCapabilities.find(function (capability) { return capability.key === key; }) || null;
+    }
+
+    function operationalContextReady(user) {
+      return Boolean(
+        user && user.operationalMembershipId
+        && state.context.mode === 'tenant'
+        && state.context.tenantId
+        && state.context.tenantId === user.tenantId
+        && normalizeUserStatus(user.status) === 'active'
+        && state.controls.tenantDataPlaneReady === true
+        && state.operationalCatalog.sourceBindings.length > 0
+        && !administrativeOnlyRole(user.roleKey)
+      );
+    }
+
+    function operationalBlockedReason(user) {
+      if (!user || !user.operationalMembershipId) return 'La API no informó una membresía tenant explícita; los usuarios legacy permanecen cerrados.';
+      if (state.context.mode !== 'tenant' || !state.context.tenantId || state.context.tenantId !== user.tenantId) return 'Abrí el gobierno exacto antes de administrar identidad laboral.';
+      if (normalizeUserStatus(user.status) !== 'active') return 'La membresía debe estar activa.';
+      if (administrativeOnlyRole(user.roleKey)) return 'Los roles exclusivamente administrativos administran identidades, pero no operan casos laborales.';
+      if (state.controls.tenantDataPlaneReady !== true) return 'El plano de datos del gobierno todavía no está certificado.';
+      if (!state.operationalCatalog.sourceBindings.length) return 'La API no informó un binding GRH verificado.';
+      return '';
+    }
+
+    function bindingLabel(bindingId) {
+      var binding = bindingById(bindingId);
+      if (!binding) return 'Fuente no informada';
+      return binding.system + ' · ' + binding.databaseLabel + (binding.companyId ? ' · empresa ' + binding.companyId : '');
+    }
+
+    function scopeIdentity(scope) {
+      return [scope.capabilityKey, scope.sourceBindingId, scope.scopeLevel, scope.organizationUnitSourceId || '', scope.sectorSourceId || ''].join('|');
+    }
+
+    function scopeAreaLabel(scope) {
+      if (scope.scopeLevel === 'company') return 'Toda la empresa del binding';
+      if (scope.scopeLevel === 'organization') return scope.organizationLabel || 'Organización ' + scope.organizationUnitSourceId;
+      return (scope.sectorLabel || 'Sector ' + scope.sectorSourceId) + ' · ' + (scope.organizationLabel || 'organización ' + scope.organizationUnitSourceId);
+    }
+
+    function scopeCatalogIssue(scope, user) {
+      if (!bindingById(scope.sourceBindingId)) return 'El binding ya no está certificado para este tenant.';
+      if (!operationalCapabilityByKey(scope.capabilityKey)) return 'La capacidad no pertenece al catálogo operativo informado.';
+      if (!user.capabilities.includes(scope.capabilityKey)) return 'La membresía ya no posee esta capacidad efectiva.';
+      if (scope.scopeLevel === 'organization') {
+        var organization = state.operationalCatalog.organizations.some(function (item) {
+          return item.sourceBindingId === scope.sourceBindingId && item.sourceId === scope.organizationUnitSourceId;
+        });
+        if (!organization) return 'La organización ya no pertenece al catálogo del binding.';
+      }
+      if (scope.scopeLevel === 'sector') {
+        var sector = state.operationalCatalog.sectors.some(function (item) {
+          return item.sourceBindingId === scope.sourceBindingId
+            && item.organizationUnitSourceId === scope.organizationUnitSourceId
+            && item.sourceId === scope.sectorSourceId;
+        });
+        if (!sector) return 'El sector ya no pertenece al catálogo del binding.';
+      }
+      return '';
+    }
+
+    function renderReasonSelect(select) {
+      populateSelect(select, state.operationalCatalog.reasonCodes, 'Seleccionar motivo tipificado', 'key', 'label');
+    }
+
+    function renderEmploymentCandidates() {
+      var previous = el.employmentCandidateSelect.value;
+      clear(el.employmentCandidateSelect);
+      var placeholder = node('option', '', state.employmentCandidates.length ? 'Seleccionar coincidencia' : 'Sin resultados autorizados');
+      placeholder.value = '';
+      el.employmentCandidateSelect.appendChild(placeholder);
+      state.employmentCandidates.forEach(function (candidate) {
+        var option = node('option', '', candidate.displayName + (candidate.legajo ? ' · legajo ' + candidate.legajo : '') + (candidate.sectorLabel ? ' · ' + candidate.sectorLabel : ''));
+        option.value = candidate.employmentContractId;
+        el.employmentCandidateSelect.appendChild(option);
+      });
+      if (state.employmentCandidates.some(function (candidate) { return candidate.employmentContractId === previous; })) el.employmentCandidateSelect.value = previous;
+      el.employmentCandidateHelp.textContent = state.employmentCandidates.length
+        ? state.employmentCandidates.length + (state.employmentCandidates.length === 1 ? ' coincidencia efímera informada.' : ' coincidencias efímeras informadas.')
+        : 'Máximo 20 resultados; el navegador no conserva la búsqueda.';
+    }
+
+    function renderOperationalBoundary(user) {
+      var ready = operationalContextReady(user);
+      var administrative = administrativeOnlyRole(user.roleKey);
+      var linkVerified = user.employmentLink.status === 'linked' && Boolean(bindingById(user.employmentLink.sourceBindingId));
+      el.operationalBoundary.classList.toggle('is-blocked', !ready);
+      el.operationalBoundaryTitle.textContent = administrative ? 'Rol administrativo separado de la operación' : ready ? 'Frontera operativa identificada' : 'Administrar acceso no habilita operar';
+      el.operationalBoundaryMessage.textContent = administrative
+        ? 'Este rol no puede recibir vínculo con legajo ni alcances operativos. Para operar se requiere otra membresía funcional explícita.'
+        : ready ? 'Tenant, membresía y fuente están identificados. Cada comando será revalidado por capacidad y alcance exactos.' : operationalBlockedReason(user);
+      clear(el.operationalBoundaryFacts);
+      el.operationalBoundaryFacts.append(
+        pill('Membresía ' + normalizeUserStatus(user.status), normalizeUserStatus(user.status) === 'active' ? 'is-ok' : 'is-attention'),
+        pill('Legajo ' + (linkVerified ? 'vinculado' : user.employmentLink.status === 'linked' || user.employmentLink.status === 'stale' ? 'a revisar' : 'sin vínculo'), linkVerified ? 'is-ok' : 'is-attention'),
+        pill(user.operationalAccess.scopes.length + (user.operationalAccess.scopes.length === 1 ? ' alcance' : ' alcances'), user.operationalAccess.scopes.length ? 'is-info' : 'is-attention')
+      );
+      el.operationalWorkbenchState.textContent = ready ? 'Tenant verificado' : 'Bloqueado';
+      el.operationalWorkbenchState.className = 'state-pill ' + (ready ? 'is-ok' : 'is-attention');
+    }
+
+    function renderEmploymentLink(user) {
+      var link = user.employmentLink;
+      var linked = link.status === 'linked';
+      var bindingVerified = linked && Boolean(bindingById(link.sourceBindingId));
+      var stale = link.status === 'stale' || (linked && !bindingVerified);
+      el.employmentLinkState.textContent = stale ? 'Revisión requerida' : linked ? 'Vinculado' : 'Sin vínculo';
+      el.employmentLinkState.className = 'state-pill ' + (stale ? 'is-danger' : linked ? 'is-ok' : 'is-attention');
+      clear(el.employmentLinkSummary);
+      if (linked) {
+        el.employmentLinkSummary.append(
+          node('strong', '', (link.displayName || user.displayName) + (link.legajo ? ' · legajo ' + link.legajo : '')),
+          node('span', '', bindingVerified ? bindingLabel(link.sourceBindingId) : 'Binding no certificado para este tenant'),
+          node('span', '', [link.organizationLabel, link.sectorLabel].filter(Boolean).join(' · ') || 'Área no informada')
+        );
+      } else {
+        el.employmentLinkSummary.append(node('strong', '', link.status === 'stale' ? 'El vínculo informado no es utilizable' : 'Sin vínculo verificado'), node('span', '', 'No se infiere un legajo desde el nombre o el email.'));
+      }
+      renderReasonSelect(el.employmentReasonCode);
+      renderEmploymentCandidates();
+    }
+
+    function eligibleScopeCapabilities(user) {
+      var effective = new Set(user.capabilities);
+      return state.operationalCatalog.scopeCapabilities.filter(function (capability) { return effective.has(capability.key); });
+    }
+
+    function renderScopeBuilder(user) {
+      populateSelect(el.scopeCapability, eligibleScopeCapabilities(user), 'Seleccionar capacidad efectiva', 'key', 'label');
+      var bindings = state.operationalCatalog.sourceBindings.map(function (binding) {
+        return { id: binding.id, label: bindingLabel(binding.id) };
+      });
+      populateSelect(el.scopeSourceBinding, bindings, 'Seleccionar binding GRH', 'id', 'label');
+      if (!el.scopeSourceBinding.value && bindings.length === 1) el.scopeSourceBinding.value = bindings[0].id;
+      var organizations = state.operationalCatalog.organizations.filter(function (item) { return item.sourceBindingId === el.scopeSourceBinding.value; });
+      populateSelect(el.scopeOrganization, organizations, 'Seleccionar organización', 'sourceId', 'label');
+      var sectors = state.operationalCatalog.sectors.filter(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value && item.organizationUnitSourceId === el.scopeOrganization.value;
+      });
+      populateSelect(el.scopeSector, sectors, 'Seleccionar sector', 'sourceId', 'label');
+      var level = el.scopeLevel.value;
+      el.scopeOrganization.disabled = level === 'company' || !level;
+      el.scopeSector.disabled = level !== 'sector';
+    }
+
+    function renderScopeDraft(user) {
+      clear(el.scopeDraftList);
+      el.actionScopeCount.textContent = state.scopeDraft.length + (state.scopeDraft.length === 1 ? ' alcance' : ' alcances');
+      el.actionScopeCount.className = 'state-pill ' + (state.scopeDraft.length ? 'is-info' : 'is-attention');
+      if (!state.scopeDraft.length) {
+        el.scopeDraftList.appendChild(node('div', 'scope-empty', 'Sin alcances activos. La capacidad por sí sola no autoriza casos.'));
+        return;
+      }
+      state.scopeDraft.forEach(function (scope, index) {
+        var issue = scopeCatalogIssue(scope, user);
+        var row = node('div', 'scope-draft-row' + (issue ? ' is-invalid' : ''));
+        var copy = node('div');
+        var capability = operationalCapabilityByKey(scope.capabilityKey);
+        copy.append(
+          node('strong', '', capability ? capability.label : scope.capabilityKey),
+          node('span', '', scopeAreaLabel(scope) + ' · ' + bindingLabel(scope.sourceBindingId)),
+          issue ? node('span', '', 'Revisión obligatoria: ' + issue) : node('span', '', 'Alcance tenant-owned verificado contra el catálogo informado.')
+        );
+        var remove = node('button', 'button danger', 'Quitar');
+        remove.type = 'button';
+        remove.dataset.removeScopeIndex = String(index);
+        remove.disabled = !operationalContextReady(user) || !mutationAllowed('replace_action_scopes', true);
+        row.append(copy, remove);
+        el.scopeDraftList.appendChild(row);
+      });
+    }
+
+    function sameScopeDraft(user) {
+      var current = user.operationalAccess.scopes.map(scopeIdentity).sort();
+      var draft = state.scopeDraft.map(scopeIdentity).sort();
+      return current.length === draft.length && current.every(function (value, index) { return value === draft[index]; });
+    }
+
+    function updateOperationalGates() {
+      var user = state.selectedUser;
+      if (!user) return;
+      var baseReady = operationalContextReady(user) && governanceReady(true) && !state.loading;
+      var version = authorityVersion(user.operationalAccess.version);
+      var reasonCode = el.employmentReasonCode.value;
+      var reasonReady = el.employmentReason.value.trim().length >= 3;
+      var selectedCandidate = state.employmentCandidates.find(function (candidate) { return candidate.employmentContractId === el.employmentCandidateSelect.value; });
+      var candidateBindingReady = selectedCandidate && Boolean(bindingById(selectedCandidate.sourceBindingId));
+      var canLookup = baseReady && canCommand('lookup_employment');
+      var canLink = baseReady && canCommand('link_employment') && version && reasonCode && reasonReady && candidateBindingReady;
+      var canRevoke = baseReady && canCommand('revoke_employment_link') && version && reasonCode && reasonReady && user.employmentLink.status === 'linked';
+      el.employmentLookupQuery.disabled = !canLookup;
+      el.employmentLookupButton.disabled = !canLookup || el.employmentLookupQuery.value.trim().length < 3;
+      el.employmentCandidateSelect.disabled = !baseReady || !state.employmentCandidates.length;
+      el.employmentReasonCode.disabled = !baseReady || !state.operationalCatalog.reasonCodes.length || (!canCommand('link_employment') && !canCommand('revoke_employment_link'));
+      el.employmentReason.disabled = el.employmentReasonCode.disabled;
+      el.linkEmploymentButton.disabled = !canLink;
+      el.linkEmploymentButton.textContent = user.employmentLink.status === 'linked' ? 'Cambiar vínculo' : 'Vincular legajo';
+      el.revokeEmploymentButton.disabled = !canRevoke;
+      el.employmentOperationGate.classList.toggle('is-ready', Boolean(canLink || canRevoke));
+      el.employmentOperationGate.textContent = !baseReady ? operationalBlockedReason(user)
+        : !canCommand('link_employment') && !canCommand('revoke_employment_link') ? 'El backend no publicó comandos de vínculo para esta sesión.'
+        : !version ? 'La versión de autoridad no está informada.'
+        : 'Elegí un motivo tipificado, fundamentá el cambio y seleccioná una coincidencia autorizada.';
+
+      var scopeReady = baseReady && canCommand('replace_action_scopes');
+      var level = el.scopeLevel.value;
+      var scopeShapeReady = Boolean(el.scopeCapability.value && el.scopeSourceBinding.value && level
+        && (level === 'company' || el.scopeOrganization.value)
+        && (level !== 'sector' || el.scopeSector.value));
+      el.scopeCapability.disabled = !scopeReady || !eligibleScopeCapabilities(user).length;
+      el.scopeSourceBinding.disabled = !scopeReady || !state.operationalCatalog.sourceBindings.length;
+      el.scopeLevel.disabled = !scopeReady;
+      if (!scopeReady) { el.scopeOrganization.disabled = true; el.scopeSector.disabled = true; }
+      el.addScopeButton.disabled = !scopeReady || !scopeShapeReady;
+      renderReasonSelect(el.scopeReasonCode);
+      el.scopeReasonCode.disabled = !scopeReady || !state.operationalCatalog.reasonCodes.length;
+      el.scopeReason.disabled = el.scopeReasonCode.disabled;
+      var scopeReasonReady = el.scopeReasonCode.value && el.scopeReason.value.trim().length >= 3;
+      var changed = !sameScopeDraft(user);
+      var invalidScopes = state.scopeDraft.filter(function (scope) { return scopeCatalogIssue(scope, user); });
+      el.saveScopesButton.disabled = !scopeReady || !version || !scopeReasonReady || !changed || invalidScopes.length > 0;
+      el.scopeOperationGate.classList.toggle('is-ready', scopeReady && Boolean(version));
+      el.scopeOperationGate.textContent = !baseReady ? operationalBlockedReason(user)
+        : !canCommand('replace_action_scopes') ? 'El backend no publicó replace_action_scopes para esta sesión.'
+        : !eligibleScopeCapabilities(user).length ? 'La membresía no tiene capacidades operativas elegibles; no se pueden fabricar alcances.'
+        : !version ? 'La versión del agregado de autoridad operativa no está informada; no se usa la versión legacy de membresía.'
+        : invalidScopes.length ? 'Quitá los alcances que ya no pertenecen al binding, área o capacidad efectiva informados.'
+        : changed ? 'Borrador local pendiente. PostgreSQL volverá a validar capability, binding, área y SoD.' : 'Los alcances coinciden con la versión informada por el backend.';
+    }
+
+    function renderOperationalWorkbench(user) {
+      renderOperationalBoundary(user);
+      renderEmploymentLink(user);
+      renderScopeBuilder(user);
+      renderScopeDraft(user);
+      updateOperationalGates();
+    }
+
     function updateUserAccessGate() {
       var user = state.selectedUser;
       if (!user) return;
       var selected = capabilityKeysFrom(el.userAccessCapabilities);
       var conflicts = sodConflicts(new Set(selected));
+      var selectedRoleAdministrative = administrativeOnlyRole(el.userAccessRole.value);
+      var operationalKeys = new Set(state.operationalCatalog.scopeCapabilities.map(function (capability) { return capability.key; }));
+      var selectedOperational = selected.filter(function (key) { return operationalKeys.has(key) || /^(?:leave\.request|time\.overtime|absence|employee\.record)\./.test(key); });
+      if (selectedRoleAdministrative && selectedOperational.length) conflicts.push('Un rol administrativo no puede conservar capacidades operativas: ' + selectedOperational.join(', ') + '.');
       var reasonReady = el.userAccessReason.value.trim().length >= 3;
       var versionReady = Number.isSafeInteger(Number(user.version)) && Number(user.version) >= 1;
       var ready = mutationAllowed('update_access', true) && conflicts.length === 0 && Boolean(el.userAccessRole.value) && reasonReady && Boolean(user.membershipId) && versionReady;
@@ -1624,13 +2121,27 @@
       var user = state.users.find(function (item) { return item.id === userId; });
       if (!user) return;
       state.selectedUser = user;
+      state.employmentCandidates = [];
+      state.scopeDraft = user.operationalAccess.scopes.map(function (scope) { return Object.assign({}, scope); });
       el.userAccessReason.value = '';
+      el.employmentLookupQuery.value = '';
+      el.employmentCandidateSelect.value = '';
+      el.employmentReasonCode.value = '';
+      el.employmentReason.value = '';
+      el.scopeCapability.value = '';
+      el.scopeSourceBinding.value = '';
+      el.scopeLevel.value = '';
+      el.scopeOrganization.value = '';
+      el.scopeSector.value = '';
+      el.scopeReasonCode.value = '';
+      el.scopeReason.value = '';
       el.userDetailTitle.textContent = user.displayName;
       el.userDetailSubtitle.textContent = user.email || 'Email no informado';
       renderUserFacts(user);
       el.userAccessRole.value = user.roleKey;
       renderCapabilityList(el.userAccessCapabilities, user.capabilities, mutationAllowed('update_access', true), 'userAccessCapability');
       updateUserAccessGate();
+      renderOperationalWorkbench(user);
       openDialog(el.userDetailDialog);
     }
 
@@ -1789,6 +2300,7 @@
       state.source = normalized.source;
       state.exclusive = normalized.exclusive;
       state.operationalControls = normalized.operationalControls;
+      state.operationalCatalog = normalized.operationalCatalog;
       return true;
     }
 
@@ -1906,12 +2418,127 @@
     async function switchContext(tenantId) {
       closeDialog(el.tenantSwitcherDialog); el.tenantSwitcher.setAttribute('aria-expanded', 'false');
       closeDialog(el.tenantDetailDialog);
+      state.employmentCandidates = [];
+      state.scopeDraft = [];
       try { await loadAll(tenantId || ''); showToast(tenantId ? 'Ámbito cambiado y autorización actualizada.' : 'Ámbito global actualizado.'); }
       catch (error) { showToast(error.message, true); }
     }
 
+    async function lookupEmploymentCandidates() {
+      var user = state.selectedUser;
+      var query = el.employmentLookupQuery.value.trim();
+      if (!user || el.employmentLookupButton.disabled || query.length < 3) return;
+      el.employmentLookupButton.disabled = true;
+      el.employmentCandidateHelp.textContent = 'Consultando coincidencias autorizadas…';
+      el.employmentLookupQuery.value = '';
+      try {
+        var payload = await requestJson(ADMIN_URL, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': commandKey() },
+          body: JSON.stringify({
+            command: 'lookup_employment',
+            payload: { tenantId: user.tenantId, membershipId: user.operationalMembershipId, query: query, limit: 20 }
+          })
+        });
+        var verifiedBindings = new Set(state.operationalCatalog.sourceBindings.map(function (binding) { return binding.id; }));
+        state.employmentCandidates = findArray(payload, ['candidates','items']).map(normalizeEmploymentCandidate).filter(function (candidate) {
+          return candidate && verifiedBindings.has(candidate.sourceBindingId);
+        }).slice(0, 20);
+        renderEmploymentCandidates();
+        showToast(state.employmentCandidates.length ? 'Coincidencias protegidas actualizadas.' : 'El backend no informó coincidencias.');
+      } catch (error) {
+        state.employmentCandidates = [];
+        renderEmploymentCandidates();
+        showToast(error.message, true);
+      } finally {
+        updateOperationalGates();
+      }
+    }
+
+    function addScopeDraft() {
+      var user = state.selectedUser;
+      if (!user || el.addScopeButton.disabled) return;
+      var organization = state.operationalCatalog.organizations.find(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value && item.sourceId === el.scopeOrganization.value;
+      });
+      var sector = state.operationalCatalog.sectors.find(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value
+          && item.organizationUnitSourceId === el.scopeOrganization.value
+          && item.sourceId === el.scopeSector.value;
+      });
+      var scope = normalizeOperationalScope({
+        capabilityKey: el.scopeCapability.value,
+        sourceBindingId: el.scopeSourceBinding.value,
+        scopeLevel: el.scopeLevel.value,
+        organizationUnitSourceId: el.scopeLevel.value === 'company' ? null : el.scopeOrganization.value,
+        organizationLabel: organization && organization.label,
+        sectorSourceId: el.scopeLevel.value === 'sector' ? el.scopeSector.value : null,
+        sectorLabel: sector && sector.label,
+        active: true
+      });
+      if (!scope) { showToast('Completá el alcance exacto.', true); return; }
+      if (state.scopeDraft.some(function (existing) { return scopeIdentity(existing) === scopeIdentity(scope); })) {
+        showToast('Ese alcance ya está incluido.', true); return;
+      }
+      state.scopeDraft.push(scope);
+      renderScopeDraft(user);
+      updateOperationalGates();
+    }
+
+    function linkSelectedEmployment() {
+      var user = state.selectedUser;
+      var candidate = user && state.employmentCandidates.find(function (item) { return item.employmentContractId === el.employmentCandidateSelect.value; });
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !candidate || !version || el.linkEmploymentButton.disabled) return;
+      runCommand('link_employment', {
+        membershipId: user.operationalMembershipId,
+        employmentContractId: candidate.employmentContractId,
+        sourceBindingId: candidate.sourceBindingId,
+        reasonCode: el.employmentReasonCode.value,
+        reason: el.employmentReason.value.trim()
+      }, version, el.linkEmploymentButton, user.employmentLink.status === 'linked' ? 'Vínculo laboral actualizado.' : 'Vínculo laboral registrado.', el.userDetailDialog);
+    }
+
+    function revokeSelectedEmployment() {
+      var user = state.selectedUser;
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !version || el.revokeEmploymentButton.disabled) return;
+      if (!window.confirm('¿Revocar el vínculo laboral actual? La membresía conservará sólo los accesos que el backend considere válidos.')) return;
+      runCommand('revoke_employment_link', {
+        membershipId: user.operationalMembershipId,
+        reasonCode: el.employmentReasonCode.value,
+        reason: el.employmentReason.value.trim()
+      }, version, el.revokeEmploymentButton, 'Vínculo laboral revocado.', el.userDetailDialog);
+    }
+
+    function saveActionScopes() {
+      var user = state.selectedUser;
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !version || el.saveScopesButton.disabled) return;
+      if (!state.scopeDraft.length && user.operationalAccess.scopes.length
+          && !window.confirm('¿Dejar la membresía sin alcances operativos? Ninguna capacidad podrá actuar sobre casos.')) return;
+      runCommand('replace_action_scopes', {
+        membershipId: user.operationalMembershipId,
+        scopes: state.scopeDraft.map(function (scope) {
+          return {
+            capabilityKey: scope.capabilityKey,
+            sourceBindingId: scope.sourceBindingId,
+            scopeLevel: scope.scopeLevel,
+            ...(scope.scopeLevel === 'company' ? {} : { organizationUnitSourceId: scope.organizationUnitSourceId }),
+            ...(scope.scopeLevel === 'sector' ? { sectorSourceId: scope.sectorSourceId } : {})
+          };
+        }),
+        reasonCode: el.scopeReasonCode.value,
+        reason: el.scopeReason.value.trim()
+      }, version, el.saveScopesButton, 'Alcances operativos actualizados.', el.userDetailDialog);
+    }
+
+    function commandNeedsSod(command) {
+      return ['invite_user', 'issue_invitation', 'update_access', 'assign_exclusive_capability', 'link_employment', 'revoke_employment_link', 'replace_action_scopes'].includes(command);
+    }
+
     async function runCommand(command, payload, expectedVersion, button, successMessage, dialog) {
-      if (!mutationAllowed(command, command === 'invite_user' || command === 'issue_invitation' || command === 'update_access' || command === 'assign_exclusive_capability')) {
+      if (!mutationAllowed(command, commandNeedsSod(command))) {
         showToast('El backend no habilitó esta operación con controles suficientes.', true); return;
       }
       button.disabled = true;
@@ -1950,7 +2577,17 @@
       el.tenantOptionSearch.addEventListener('input', renderTenantOptions);
       el.tenantOptions.addEventListener('click', function (event) { var option = event.target.closest('[data-tenant-option]'); if (option) switchContext(option.dataset.tenantOption || ''); });
       document.querySelectorAll('[data-close-dialog]').forEach(function (button) { button.addEventListener('click', function () { var dialog = document.getElementById(button.dataset.closeDialog); closeDialog(dialog); if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
-      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () { if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
+      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () {
+        if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false');
+        if (dialog === el.userDetailDialog) {
+          state.employmentCandidates = [];
+          state.scopeDraft = [];
+          state.selectedUser = null;
+          el.employmentLookupQuery.value = '';
+          el.employmentReason.value = '';
+          el.scopeReason.value = '';
+        }
+      }); });
       el.refreshButton.addEventListener('click', function () { loadAll(state.context.tenantId || '').catch(function (error) { showToast(error.message, true); }); });
       el.logoutButton.addEventListener('click', async function () { try { await requestJson(AUTH_URL, { method: 'DELETE' }); } catch (_) {} window.location.replace('login.html'); });
       el.tenantSearch.addEventListener('input', renderTenants); el.tenantStatusFilter.addEventListener('change', renderTenants);
@@ -1982,6 +2619,32 @@
       el.userAccessRole.addEventListener('change', function () { renderCapabilityList(el.userAccessCapabilities, roleCapabilityKeys(el.userAccessRole.value), mutationAllowed('update_access', true), 'userAccessCapability'); updateUserAccessGate(); });
       el.userAccessCapabilities.addEventListener('change', updateUserAccessGate);
       el.userAccessReason.addEventListener('input', updateUserAccessGate);
+      el.employmentLookupQuery.addEventListener('input', updateOperationalGates);
+      el.employmentLookupQuery.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); lookupEmploymentCandidates(); } });
+      el.employmentLookupButton.addEventListener('click', lookupEmploymentCandidates);
+      el.employmentCandidateSelect.addEventListener('change', updateOperationalGates);
+      el.employmentReasonCode.addEventListener('change', updateOperationalGates);
+      el.employmentReason.addEventListener('input', updateOperationalGates);
+      el.linkEmploymentButton.addEventListener('click', linkSelectedEmployment);
+      el.revokeEmploymentButton.addEventListener('click', revokeSelectedEmployment);
+      [el.scopeCapability, el.scopeSourceBinding, el.scopeLevel, el.scopeOrganization].forEach(function (select) {
+        select.addEventListener('change', function () { var user = state.selectedUser; if (!user) return; renderScopeBuilder(user); updateOperationalGates(); });
+      });
+      el.scopeSector.addEventListener('change', updateOperationalGates);
+      el.addScopeButton.addEventListener('click', addScopeDraft);
+      el.scopeDraftList.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-remove-scope-index]');
+        var user = state.selectedUser;
+        if (!button || !user || button.disabled) return;
+        var index = Number(button.dataset.removeScopeIndex);
+        if (!Number.isSafeInteger(index) || index < 0 || index >= state.scopeDraft.length) return;
+        state.scopeDraft.splice(index, 1);
+        renderScopeDraft(user);
+        updateOperationalGates();
+      });
+      el.scopeReasonCode.addEventListener('change', updateOperationalGates);
+      el.scopeReason.addEventListener('input', updateOperationalGates);
+      el.saveScopesButton.addEventListener('click', saveActionScopes);
       el.userAccessForm.addEventListener('submit', function (event) {
         event.preventDefault(); var user = state.selectedUser; if (!user || el.updateAccessButton.disabled) return;
         var selected = new Set(capabilityKeysFrom(el.userAccessCapabilities));

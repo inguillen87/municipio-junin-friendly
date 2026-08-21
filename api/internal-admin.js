@@ -1,5 +1,4 @@
 import { getInternalSql } from '../lib/internal-neon.js';
-import { requireInternalSession } from '../lib/internal-session.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
   InternalAdminError,
@@ -167,14 +166,8 @@ export async function getInternalAdminSql(env = process.env) {
 }
 
 export function createInternalAdminHandler(dependencies = {}) {
-  const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
   const requireAccess = dependencies.requireCompatibleInternalAccess
-    ?? (dependencies.requireInternalSession
-      ? async (req, res) => {
-        const session = requireSession(req, res, dependencies.sessionOptions || {});
-        return session ? { mode: 'legacy', session, principal: null } : null;
-      }
-      : requireCompatibleInternalAccess);
+    ?? requireCompatibleInternalAccess;
   const getSql = dependencies.getInternalAdminSql ?? getInternalAdminSql;
   const loadView = dependencies.getInternalAdminView ?? getInternalAdminView;
   const applyCommand = dependencies.applyInternalAdminCommand ?? applyInternalAdminCommand;
@@ -201,7 +194,7 @@ export function createInternalAdminHandler(dependencies = {}) {
         legacySessionOptions: dependencies.sessionOptions || {},
       });
       if (!access) return undefined;
-      if (access.mode === 'managed' && access.principal?.tenant) {
+      if (access.mode !== 'managed' || access.principal?.tenant) {
         return send(res, 403, {
           ok: false,
           code: 'IDENTITY_PLATFORM_CONTEXT_REQUIRED',
@@ -213,12 +206,12 @@ export function createInternalAdminHandler(dependencies = {}) {
       if (method === 'GET') {
         const resource = queryValue(req, 'resource', 'bootstrap');
         const limit = Number(queryValue(req, 'limit', '100'));
-        const result = await loadView(sql, session.email, resource, limit);
+        const result = await loadView(sql, session, resource, limit);
         return send(res, 200, { ok: true, ...result });
       }
       const body = await readBody(req);
       const command = normalizeInternalAdminCommand(body, header(req, 'idempotency-key').trim());
-      const result = await applyCommand(sql, session.email, command);
+      const result = await applyCommand(sql, session, command);
       return send(res, command.command === 'create_tenant' || command.command === 'invite_user' ? 201 : 200, {
         ok: true, ...result,
       });

@@ -1,9 +1,8 @@
 import { getInternalSql } from '../lib/internal-neon.js';
-import { requireInternalSession } from '../lib/internal-session.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForActionCenter } from '../lib/internal-resource-access.js';
 import {
-  loadInternalPrincipal,
+  loadTenantActionPrincipal,
   publicPrincipal,
 } from '../lib/internal-rbac.js';
 import {
@@ -21,6 +20,8 @@ const MAX_BODY_BYTES = 16 * 1024;
 const CASE_TYPE = 'leave_request';
 const MUTATION_METHODS = new Set(['POST', 'PATCH']);
 const ACTIONS_RUNTIME_ROLE = 'municontrol_actions_runtime_app';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RELEASE_SHA_PATTERN = /^[a-f0-9]{40}$/i;
 let cachedActionsDatabaseUrl = null;
 let cachedActionsSqlPromise = null;
 
@@ -163,6 +164,29 @@ function idempotencyKey(req) {
   return value;
 }
 
+export function actionMutationSession(access, env = process.env) {
+  const sessionId = String(access?.session?.id || '').trim().toLowerCase();
+  const sessionEmail = String(access?.session?.email || '').trim().toLowerCase();
+  const principalEmail = String(access?.principal?.user?.email || '').trim().toLowerCase();
+  const sessionVersion = Number(access?.session?.version);
+  if (access?.mode !== 'managed' || !UUID_PATTERN.test(sessionId)
+      || !sessionEmail || sessionEmail !== principalEmail
+      || !Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+    fail('ACTION_SESSION_INVALID', 401, 'La sesión operativa ya no es válida');
+  }
+  const releaseSha = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
+  const certifiedSha = String(access?.principal?.tenant?.certifiedReleaseSha || '').trim().toLowerCase();
+  if (!RELEASE_SHA_PATTERN.test(releaseSha) || releaseSha !== certifiedSha) {
+    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada para operar');
+  }
+  return Object.freeze({
+    id: sessionId,
+    email: sessionEmail,
+    version: sessionVersion,
+    releaseSha,
+  });
+}
+
 function safeUnexpectedError(error) {
   if (error?.code === 'ACTION_DATABASE_ROLE_REQUIRED') {
     return new ActionCenterError(
@@ -231,15 +255,9 @@ export async function getActionCenterSql(env = process.env) {
 
 export function createInternalActionsHandler(dependencies = {}) {
   const getSql = dependencies.getInternalSql ?? getActionCenterSql;
-  const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
   const requireAccess = dependencies.requireCompatibleInternalAccess
-    ?? (dependencies.requireInternalSession
-      ? async (req, res) => {
-        const session = requireSession(req, res, dependencies.sessionOptions || {});
-        return session ? { mode: 'legacy', session, principal: null } : null;
-      }
-      : requireCompatibleInternalAccess);
-  const loadPrincipal = dependencies.loadInternalPrincipal ?? loadInternalPrincipal;
+    ?? requireCompatibleInternalAccess;
+  const loadPrincipal = dependencies.loadTenantActionPrincipal ?? loadTenantActionPrincipal;
   const bootstrap = dependencies.getActionBootstrap ?? getActionBootstrap;
   const list = dependencies.listLeaveCases ?? listLeaveCases;
   const detail = dependencies.readLeaveCase ?? readLeaveCase;
@@ -269,14 +287,25 @@ export function createInternalActionsHandler(dependencies = {}) {
         legacySessionOptions: dependencies.sessionOptions || {},
       });
       if (!access) return undefined;
-      const session = access.session;
-      const sql = await getSql(env);
-      const principal = await loadPrincipal(sql, session);
-      if (!principal) {
-        return send(res, 401, {
+      if (access.mode !== 'managed'
+          || access.principal?.tenant?.source !== 'membership'
+          || !access.principal?.tenant?.membershipId) {
+        return send(res, 403, {
           ok: false,
-          code: 'INTERNAL_USER_INACTIVE',
-          error: 'La cuenta interna no está activa',
+          code: 'ACTION_TENANT_MEMBERSHIP_REQUIRED',
+          error: 'El Centro de Acciones exige una membresía municipal activa',
+        });
+      }
+      const mutationSession = MUTATION_METHODS.has(method)
+        ? actionMutationSession(access, env)
+        : null;
+      const sql = await getSql(env);
+      const principal = await loadPrincipal(sql, access.principal);
+      if (!principal) {
+        return send(res, 403, {
+          ok: false,
+          code: 'ACTION_TENANT_AUTHORITY_REQUIRED',
+          error: 'La membresía no tiene autoridad operativa vigente',
         });
       }
 
@@ -334,12 +363,13 @@ export function createInternalActionsHandler(dependencies = {}) {
           body.payload,
           body.expectedVersion,
           key,
+          mutationSession,
         );
       } else if (body.command === 'create') {
-        result = await create(sql, principal, body.payload, key);
+        result = await create(sql, principal, body.payload, key, mutationSession);
         status = 201;
       } else if (['submit', 'approve', 'reject', 'cancel'].includes(body.command)) {
-        result = await transition(sql, principal, body.command, body.caseId, body, key);
+        result = await transition(sql, principal, body.command, body.caseId, body, key, mutationSession);
       } else {
         fail('ACTION_COMMAND_INVALID', 400, 'Comando no permitido');
       }

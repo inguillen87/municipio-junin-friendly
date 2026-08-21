@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  actionMutationSession,
   assertActionCenterRuntimeIdentity,
   createInternalActionsHandler,
   getActionCenterSql,
@@ -9,6 +10,8 @@ import {
 import { capabilitiesForRole } from '../lib/internal-rbac.js';
 
 const IDEMPOTENCY_KEY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SESSION_ID = '99999999-9999-4999-8999-999999999999';
+const RELEASE_SHA = 'a'.repeat(40);
 
 function response() {
   return {
@@ -22,24 +25,43 @@ function response() {
 }
 
 function principal(overrides = {}) {
+  const capabilities = capabilitiesForRole('EMPLEADO');
+  capabilities.add('actions.read');
   return {
     id: 'user-1',
     email: 'actor@junin.gob.ar',
     displayName: 'Actor',
     role: 'EMPLEADO',
-    capabilities: capabilitiesForRole('EMPLEADO'),
+    capabilities,
     employmentContractId: '11111111-1111-4111-8111-111111111111',
+    tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    membershipId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    sourceBindingId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    sourceCompanyId: 101,
+    sourceDatabase: 'grh_junin',
     areaScopes: [],
     ...overrides,
   };
 }
 
 function dependencies(overrides = {}) {
-  return {
-    env: { NODE_ENV: 'test' },
-    requireInternalSession: () => ({ id: 'session-1', email: 'actor@junin.gob.ar', role: 'ADMIN_INTERNO' }),
+  const defaults = {
+    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    requireCompatibleInternalAccess: async () => ({
+      mode: 'managed',
+      session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
+      principal: {
+        user: { email: 'actor@junin.gob.ar' },
+        tenant: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          membershipId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          source: 'membership',
+          certifiedReleaseSha: RELEASE_SHA,
+        },
+      },
+    }),
     getInternalSql: async () => ({ fake: true }),
-    loadInternalPrincipal: async () => principal(),
+    loadTenantActionPrincipal: async () => principal(),
     getActionBootstrap: async () => ({
       contract: { caseTypes: ['leave_request'] },
       source: { label: 'GRH canónica', cutoff: '2026-08-19T23:00:00Z', version: 'snapshot publicado' },
@@ -50,7 +72,11 @@ function dependencies(overrides = {}) {
     createLeaveCase: async () => ({ data: { id: 'case-1', status: 'draft', version: 1 }, replayed: false }),
     updateLeaveDraft: async () => ({ data: { id: 'case-1', status: 'draft', version: 2 }, replayed: false }),
     transitionLeaveCase: async () => ({ data: { id: 'case-1', status: 'submitted', version: 2 }, replayed: true }),
+  };
+  return {
+    ...defaults,
     ...overrides,
+    env: { ...defaults.env, ...(overrides.env || {}) },
   };
 }
 
@@ -62,19 +88,38 @@ test('bootstrap publica capabilities canónicas y opciones sin depender del rol 
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.ok, true);
   assert.equal(res.payload.principal.role, 'EMPLEADO');
-  assert.equal(res.payload.principal.capabilities.includes('action.self.create'), true);
+  assert.equal(res.payload.principal.capabilities.includes('leave.request.self.create'), true);
   assert.deepEqual(res.payload.options, { subjects: [], reasons: [] });
   assert.equal(res.payload.source.label, 'GRH canónica');
   assert.match(res.headers['Cache-Control'], /no-store/);
   assert.equal(res.headers.Vary, 'Cookie');
 });
 
-test('cuenta DB inactiva falla 401 aunque la sesión HMAC siga vigente', async () => {
+test('membresía sin autoridad tenant falla 403 aunque la sesión siga vigente', async () => {
   const res = response();
-  const handler = createInternalActionsHandler(dependencies({ loadInternalPrincipal: async () => null }));
+  const handler = createInternalActionsHandler(dependencies({ loadTenantActionPrincipal: async () => null }));
   await handler({ method: 'GET', query: {}, headers: {} }, res);
-  assert.equal(res.statusCode, 401);
-  assert.equal(res.payload.code, 'INTERNAL_USER_INACTIVE');
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'ACTION_TENANT_AUTHORITY_REQUIRED');
+});
+
+test('contexto platform y binding legacy nunca ingresan al Centro de Acciones', async () => {
+  for (const tenant of [null, {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    membershipId: null,
+    source: 'legacy_explicit',
+  }]) {
+    const res = response();
+    const handler = createInternalActionsHandler(dependencies({
+      requireCompatibleInternalAccess: async () => ({
+        mode: 'managed', session: { id: 'session-1' },
+        principal: { user: { email: 'marcelo@example.test' }, tenant },
+      }),
+    }));
+    await handler({ method: 'GET', query: {}, headers: {} }, res);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.payload.code, 'ACTION_TENANT_MEMBERSHIP_REQUIRED');
+  }
 });
 
 test('mutaciones exigen same-origin, JSON e Idempotency-Key en Preview/Production', async () => {
@@ -279,6 +324,49 @@ test('POST create usa el único endpoint y responde 201 con recibo mínimo', asy
   assert.equal(res.payload.data.status, 'draft');
   assert.equal(calls.length, 1);
   assert.equal(calls[0][3], IDEMPOTENCY_KEY);
+});
+
+test('mutación toma SID/version sólo de access.session y SHA sólo del release certificado', async () => {
+  let receivedSession;
+  const handler = createInternalActionsHandler(dependencies({
+    createLeaveCase: async (_sql, _principal, _payload, _key, session) => {
+      receivedSession = session;
+      return { data: { id: 'case-1', status: 'draft', version: 1 }, replayed: false };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY },
+    body: {
+      caseType: 'leave_request', command: 'create', payload: {},
+      actorSessionId: '11111111-1111-4111-8111-111111111111',
+      releaseSha: 'f'.repeat(40),
+    },
+  }, res);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(receivedSession, {
+    id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3, releaseSha: RELEASE_SHA,
+  });
+
+  const baseAccess = {
+    mode: 'managed',
+    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
+    principal: {
+      user: { email: 'actor@junin.gob.ar' },
+      tenant: { certifiedReleaseSha: RELEASE_SHA },
+    },
+  };
+  assert.throws(
+    () => actionMutationSession({
+      ...baseAccess, session: { ...baseAccess.session, email: 'otro@junin.gob.ar' },
+    }, { VERCEL_GIT_COMMIT_SHA: RELEASE_SHA }),
+    (error) => error.code === 'ACTION_SESSION_INVALID' && error.status === 401,
+  );
+  assert.throws(
+    () => actionMutationSession(baseAccess, { VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) }),
+    (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
+  );
 });
 
 test('replay de transición conserva éxito y marca la respuesta', async () => {

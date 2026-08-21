@@ -105,6 +105,39 @@ test('administración diferencia preparación, emisión y aceptación', () => {
   assert.doesNotMatch(html, /token de invitación[^\n]+(?:localStorage|sessionStorage)/i);
 });
 
+test('administración laboral queda tenant-bound, versionada y cerrada sin contrato backend', () => {
+  const html = parseInlineScripts('administracion-plataforma.html');
+
+  for (const contract of [
+    'operationalCatalog', 'sourceBindings', 'databaseLabel', 'companyId',
+    'employmentLink', 'operationalAccess', 'operationalMembershipId',
+    'lookup_employment', 'link_employment', 'revoke_employment_link',
+    'replace_action_scopes', 'capabilityKey', 'sourceBindingId', 'scopeLevel',
+    'organizationUnitSourceId', 'sectorSourceId', 'reasonCode',
+  ]) assert.match(html, new RegExp(contract), `falta contrato laboral ${contract}`);
+
+  assert.match(html, /var canLookup = baseReady && canCommand\('lookup_employment'\)/);
+  assert.match(html, /canCommand\('link_employment'\)/);
+  assert.match(html, /canCommand\('revoke_employment_link'\)/);
+  assert.match(html, /canCommand\('replace_action_scopes'\)/);
+  assert.match(html, /user && user\.operationalMembershipId/);
+  assert.match(html, /authorityVersion\(user\.operationalAccess\.version\)/);
+  assert.doesNotMatch(html, /authorityVersion\(user\.operationalAccess\.version,[^)]*(?:employmentLink|user\.version)/);
+  assert.match(html, /binding\.companyId && binding\.verified/);
+  assert.match(html, /scopeCatalogIssue/);
+  assert.match(html, /administrativeOnlyRole/);
+  for (const role of ['PLATFORM_OWNER', 'TENANT_ADMIN', 'ADMIN_INTERNO']) assert.match(html, new RegExp(role));
+
+  assert.match(html, /type="search"[^>]+autocomplete="off"/);
+  assert.match(html, /method:\s*'POST'[\s\S]+command:\s*'lookup_employment'[\s\S]+query:\s*query,\s*limit:\s*20/);
+  assert.match(html, /el\.employmentLookupQuery\.value = ''/);
+  assert.doesNotMatch(html, /params\.set\(['"](?:query|legajo|name|email|employmentContractId)['"]/i);
+  assert.doesNotMatch(html, /(?:localStorage|sessionStorage)\.(?:setItem|getItem)/);
+  assert.match(html, /@media \(max-width: 390px\)/);
+  assert.match(html, /#userDetailDialog \{ width: 100vw; max-width: none; \}/);
+  assert.match(html, /#userDetailDialog \.dialog-actions \{ grid-template-columns: 1fr 1fr; \}/);
+});
+
 test('shell de identidad conserva controles táctiles y layout móvil institucional', () => {
   const css = read('assets/identity-security.css');
   assert.match(css, /\.button\s*\{[\s\S]*?min-height:\s*46px/);

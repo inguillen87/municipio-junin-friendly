@@ -428,7 +428,7 @@ async function verifyAuthenticatedInternal() {
       await page.waitForFunction(() => document.querySelector('#actionLoading')?.hidden === true);
       assert.equal(await page.locator('#actionError').isHidden(), true, 'La bandeja de acciones no debe degradar a error');
       const canCreateAction = [
-        'action.self.create', 'action.area.create', 'action.all.manage',
+        'leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage',
       ].some((capability) => actionCapabilities.has(capability));
       if (canCreateAction && actionSubjects.length && actionReasons.length) {
         assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con sujeto, motivo y capability explícitos');
