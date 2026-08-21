@@ -7,6 +7,7 @@ import { directCanonicalDatabaseUrl } from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 const MIGRATION_VERSION = '003-action-center';
+const READ_FACADE_MIGRATION_VERSION = '007-action-center-read-facades';
 const MIGRATION_URL = new URL('./migrations/003-action-center.sql', import.meta.url);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const EXPECTED_TABLES = Object.freeze([
@@ -674,6 +675,12 @@ async function verifyRuntimeAcl(client) {
   }
 }
 
+async function verifyVersionedRuntimeAcl(client, readFacadesApplied) {
+  if (!readFacadesApplied) return verifyRuntimeAcl(client);
+  const { verifyActionReadFinalAcl } = await import('./apply-action-center-read-facades-schema.mjs');
+  return verifyActionReadFinalAcl(client);
+}
+
 async function main() {
   const migration = await readFile(MIGRATION_URL, 'utf8');
   const checksum = createHash('sha256').update(migration).digest('hex');
@@ -697,12 +704,20 @@ async function main() {
       'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1',
       [MIGRATION_VERSION],
     );
+    const readFacades = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1',
+      [READ_FACADE_MIGRATION_VERSION],
+    );
+    const readFacadesApplied = readFacades.rowCount > 0;
+    if (readFacadesApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${READ_FACADE_MIGRATION_VERSION}`);
+    }
     if (existing.rowCount) {
       if (existing.rows[0].checksum_sha256.trim() !== checksum) {
         throw new Error(`Drift detectado: ${MIGRATION_VERSION} ya existe con otro SHA-256`);
       }
       await verifySchema(client);
-      await verifyRuntimeAcl(client);
+      await verifyVersionedRuntimeAcl(client, readFacadesApplied);
       await client.query('COMMIT');
       console.log(`${MIGRATION_VERSION}: ya aplicada y verificada`);
       return;
@@ -710,7 +725,7 @@ async function main() {
 
     for (const statement of statements) await client.query(statement);
     await verifySchema(client);
-    await verifyRuntimeAcl(client);
+    await verifyVersionedRuntimeAcl(client, false);
     await client.query(
       'INSERT INTO schema_migrations (version, checksum_sha256) VALUES ($1, $2)',
       [MIGRATION_VERSION, checksum],

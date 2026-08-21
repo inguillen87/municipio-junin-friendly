@@ -1,16 +1,14 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForActionCenter } from '../lib/internal-resource-access.js';
-import {
-  loadTenantActionPrincipal,
-  publicPrincipal,
-} from '../lib/internal-rbac.js';
+import { publicPrincipal } from '../lib/internal-rbac.js';
 import {
   ACTION_CENTER_CONTRACT,
   ActionCenterError,
   createLeaveCase,
   getActionBootstrap,
   listLeaveCases,
+  loadTenantActionContext,
   readLeaveCase,
   transitionLeaveCase,
   updateLeaveDraft,
@@ -257,7 +255,9 @@ export function createInternalActionsHandler(dependencies = {}) {
   const getSql = dependencies.getInternalSql ?? getActionCenterSql;
   const requireAccess = dependencies.requireCompatibleInternalAccess
     ?? requireCompatibleInternalAccess;
-  const loadPrincipal = dependencies.loadTenantActionPrincipal ?? loadTenantActionPrincipal;
+  const loadPrincipal = dependencies.loadTenantActionContext
+    ?? dependencies.loadTenantActionPrincipal
+    ?? loadTenantActionContext;
   const bootstrap = dependencies.getActionBootstrap ?? getActionBootstrap;
   const list = dependencies.listLeaveCases ?? listLeaveCases;
   const detail = dependencies.readLeaveCase ?? readLeaveCase;
@@ -296,30 +296,21 @@ export function createInternalActionsHandler(dependencies = {}) {
           error: 'El Centro de Acciones exige una membresía municipal activa',
         });
       }
-      const mutationSession = MUTATION_METHODS.has(method)
-        ? actionMutationSession(access, env)
-        : null;
+      const tenantSession = actionMutationSession(access, env);
       const sql = await getSql(env);
-      const principal = await loadPrincipal(sql, access.principal);
-      if (!principal) {
-        return send(res, 403, {
-          ok: false,
-          code: 'ACTION_TENANT_AUTHORITY_REQUIRED',
-          error: 'La membresía no tiene autoridad operativa vigente',
-        });
-      }
 
       if (method === 'GET') {
         const caseType = queryValue(req, 'caseType', CASE_TYPE);
         exactCaseType(caseType);
         const resource = queryValue(req, 'resource', 'bootstrap');
         if (resource === 'bootstrap') {
-          const result = await bootstrap(sql, principal);
+          const result = await bootstrap(sql, access.principal, tenantSession);
+          const { principal, ...payload } = result;
           return send(res, 200, {
             ok: true,
             caseType,
             principal: publicPrincipal(principal),
-            ...result,
+            ...payload,
           });
         }
         if (resource === 'list') {
@@ -329,7 +320,7 @@ export function createInternalActionsHandler(dependencies = {}) {
           const cursor = queryValue(req, 'cursor', '').trim();
           if (due) fail('ACTION_DUE_FILTER_UNSUPPORTED', 400, 'No existe un vencimiento autoritativo para filtrar');
           if (cursor) fail('ACTION_CURSOR_UNSUPPORTED', 400, 'La paginación disponible usa page y limit');
-          const result = await list(sql, principal, {
+          const result = await list(sql, access.principal, {
             page: queryValue(req, 'page', '1'),
             limit: queryValue(req, 'limit', '20'),
             status: queryValue(req, 'status', ''),
@@ -337,18 +328,44 @@ export function createInternalActionsHandler(dependencies = {}) {
             caseType: type || caseType,
             due,
             cursor,
-          });
-          return send(res, 200, { ok: true, caseType, ...result });
+          }, tenantSession);
+          const { principal: governedPrincipal, ...payload } = result;
+          return send(res, 200, { ok: true, caseType, ...payload });
         }
         if (resource === 'detail') {
-          const result = await detail(sql, principal, queryValue(req, 'id'));
-          return send(res, 200, { ok: true, caseType, ...result });
+          const result = await detail(sql, access.principal, queryValue(req, 'id'), tenantSession);
+          const { principal: governedPrincipal, ...payload } = result;
+          return send(res, 200, { ok: true, caseType, ...payload });
         }
         fail('ACTION_RESOURCE_INVALID', 400, 'resource no soportado');
       }
 
       const body = await requestBody(req);
       exactCaseType(body.caseType);
+      if (method === 'POST' && body.command === 'search_subjects') {
+        if (Object.keys(body).some((keyName) => !['caseType', 'command', 'payload'].includes(keyName))
+            || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)
+            || Object.keys(body.payload).some((keyName) => keyName !== 'query')
+            || typeof body.payload.query !== 'string') {
+          fail('ACTION_SUBJECT_QUERY_INVALID', 400, 'La búsqueda de legajos es inválida');
+        }
+        const result = await bootstrap(sql, access.principal, tenantSession, body.payload.query);
+        const { principal, ...payload } = result;
+        return send(res, 200, {
+          ok: true,
+          caseType: CASE_TYPE,
+          principal: publicPrincipal(principal),
+          ...payload,
+        });
+      }
+      const principal = await loadPrincipal(sql, access.principal, tenantSession);
+      if (!principal) {
+        return send(res, 403, {
+          ok: false,
+          code: 'ACTION_TENANT_AUTHORITY_REQUIRED',
+          error: 'La membresía no tiene autoridad operativa vigente',
+        });
+      }
       const key = idempotencyKey(req);
       let result;
       let status = 200;
@@ -363,13 +380,13 @@ export function createInternalActionsHandler(dependencies = {}) {
           body.payload,
           body.expectedVersion,
           key,
-          mutationSession,
+          tenantSession,
         );
       } else if (body.command === 'create') {
-        result = await create(sql, principal, body.payload, key, mutationSession);
+        result = await create(sql, principal, body.payload, key, tenantSession);
         status = 201;
       } else if (['submit', 'approve', 'reject', 'cancel'].includes(body.command)) {
-        result = await transition(sql, principal, body.command, body.caseId, body, key, mutationSession);
+        result = await transition(sql, principal, body.command, body.caseId, body, key, tenantSession);
       } else {
         fail('ACTION_COMMAND_INVALID', 400, 'Comando no permitido');
       }
@@ -384,6 +401,7 @@ export function createInternalActionsHandler(dependencies = {}) {
     } catch (error) {
       const safeError = error instanceof ActionCenterError ? error : safeUnexpectedError(error);
       if (safeError) {
+        if (safeError.code === 'ACTION_SESSION_BUSY') res.setHeader('Retry-After', '1');
         return send(res, safeError.status, {
           ok: false,
           code: safeError.code,

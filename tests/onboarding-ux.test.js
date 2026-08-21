@@ -88,6 +88,78 @@ test('el Centro de acciones es descubrible y conserva límites transaccionales e
   }
 });
 
+test('el Centro de acciones busca sujetos por body efímero y trata nómina como proyección mínima', () => {
+  const actions = read('centro-acciones.html');
+  assert.match(actions, /id="actionEmployeeSearch"[^>]*minlength="2"[^>]*maxlength="50"[^>]*autocomplete="off"[^>]*spellcheck="false"/);
+
+  const searchStart = actions.indexOf('function actionSubjectSearch');
+  const searchEnd = actions.indexOf('\n      function stableMutationValue', searchStart);
+  assert.ok(searchStart > 0 && searchEnd > searchStart, 'debe existir un cliente aislado para búsqueda de sujetos');
+  const searchContract = actions.slice(searchStart, searchEnd);
+  assert.match(searchContract, /requestJson\(ACTIONS_URL/);
+  assert.match(searchContract, /method:\s*'POST'/);
+  assert.match(searchContract, /'Content-Type':\s*'application\/json'/);
+  assert.match(searchContract, /command:\s*'search_subjects'/);
+  assert.match(searchContract, /payload:\s*\{\s*query:\s*query\s*\}/);
+  assert.doesNotMatch(searchContract, /Idempotency-Key|searchParams|URLSearchParams|localStorage|sessionStorage|console\./);
+  const searchRuntimeStart = actions.indexOf('async function searchAuthorizedSubjects');
+  const searchRuntimeEnd = actions.indexOf('\n      function renderCatalogs', searchRuntimeStart);
+  assert.ok(searchRuntimeStart > 0 && searchRuntimeEnd > searchRuntimeStart, 'debe existir el ciclo de vida efímero de búsqueda');
+  const searchRuntime = actions.slice(searchRuntimeStart, searchRuntimeEnd);
+  assert.match(searchRuntime, /state\.bootstrap\.subjects = actionBusy \? previousSubjects : state\.initialSubjects\.slice\(\)/);
+  assert.match(searchRuntime, /state\.bootstrap\.reasons = actionBusy \? previousReasons : state\.initialReasons\.slice\(\)/);
+  assert.match(searchRuntime, /var accessDenied = error\.unauthorized \|\| Number\(error\.status\) === 403/);
+  assert.match(searchRuntime, /el\.actionEmployeeSearch\.value = accessDenied \? '' : query/);
+  assert.doesNotMatch(searchRuntime, /localStorage|sessionStorage|console\./);
+
+  assert.match(actions, /var projection = lower\(row\.projection\) === 'nominal' && projectionCeiling !== 'payroll' \? 'nominal' : 'payroll'/);
+  assert.match(actions, /var subject = projection === 'nominal' \? firstObject\(row\.subject, row\.beneficiary, row\.employee\) : \{\}/);
+  assert.match(actions, /normalizeDetail\(await actionGet\('detail',\{ id: id \}\), projectionCeiling\)/);
+  const detailStart = actions.indexOf('function normalizeDetail');
+  const detailEnd = actions.indexOf('\n      function cacheElements', detailStart);
+  assert.ok(detailStart > 0 && detailEnd > detailStart, 'debe normalizar el detalle según su proyección');
+  const detailNormalizer = actions.slice(detailStart, detailEnd);
+  assert.match(detailNormalizer, /var nominal = base\.projection === 'nominal'/);
+  assert.match(detailNormalizer, /description:\s*nominal\s*\?/);
+  assert.match(detailNormalizer, /evidence:\s*nominal\s*\?/);
+  assert.match(detailNormalizer, /timeline:\s*nominal\s*\?/);
+  assert.match(detailNormalizer, /var allowed = nominal \?/);
+  assert.match(detailNormalizer, /var gates = nominal \?/);
+  assert.match(actions, /state\.bootstrap\.subjects = normalized\.subjects\.slice\(0, 50\)[\s\S]*state\.bootstrap\.reasons = normalized\.reasons\.slice\(\)/);
+  assert.match(actions, /var hasReasonRoute = state\.bootstrap\.reasons\.length > 0 \|\| canSearchSubjects\(\)/);
+  assert.match(actions, /function redirectToLogin\(\)[\s\S]*state\.subjectSearchController\.abort\(\)[\s\S]*el\.actionEmployeeSearch\.value = ''/);
+  const payrollStart = actions.indexOf('function renderPayrollDetail');
+  const payrollEnd = actions.indexOf('\n      function renderActionDetail', payrollStart);
+  assert.ok(payrollStart > 0 && payrollEnd > payrollStart, 'debe existir un renderer exclusivo de nómina');
+  const payrollRenderer = actions.slice(payrollStart, payrollEnd);
+  assert.match(payrollRenderer, /Proyección mínima autorizada para nómina/);
+  assert.match(payrollRenderer, /no contiene identidad, legajo, sector, notas, actores, historial ni comandos/);
+  assert.doesNotMatch(payrollRenderer, /subjectName|timeline|renderCommandPanel|allowedCommands|auditActorLabel/);
+});
+
+test('el Centro de acciones reintenta contención una vez sin redirigir ni perder el formulario', () => {
+  const actions = read('centro-acciones.html');
+  assert.match(actions, /var MAX_ACTION_BUSY_RETRIES = 1/);
+  assert.match(actions, /var ACTION_BUSY_COPY = 'Estamos terminando un cambio de acceso\. Conservamos lo que ingresaste;/);
+  const requestStart = actions.indexOf('async function requestJson');
+  const requestEnd = actions.indexOf('\n      function actionGet', requestStart);
+  const requestContract = actions.slice(requestStart, requestEnd);
+  assert.match(requestContract, /response\.status === 401[\s\S]*redirectToLogin\(\)/);
+  assert.match(requestContract, /response\.status === 409 && payload && payload\.code === 'ACTION_SESSION_BUSY'/);
+  assert.match(requestContract, /actionBusyAttempt < MAX_ACTION_BUSY_RETRIES/);
+  assert.match(requestContract, /responseHeader\(response, 'Retry-After'\)/);
+  assert.match(requestContract, /actionBusyAttempt: actionBusyAttempt \+ 1/);
+  assert.equal((requestContract.match(/redirectToLogin\(\)/g) || []).length, 1, 'busy no debe redirigir');
+
+  const commandStart = actions.indexOf('async function actionCommand');
+  const commandEnd = actions.indexOf('\n      function normalizeCapabilities', commandStart);
+  const commandContract = actions.slice(commandStart, commandEnd);
+  assert.match(commandContract, /var transient = isActionBusy\(error\)/, 'busy conserva Idempotency-Key');
+  assert.match(actions, /var previousSubjects = state\.bootstrap\.subjects\.slice\(\)/);
+  assert.match(actions, /state\.bootstrap\.subjects = actionBusy \? previousSubjects/);
+  assert.match(actions, /toast\(isActionBusy\(error\)\?ACTION_BUSY_COPY:/);
+});
+
 test('el presupuesto aprobado es descubrible desde las herramientas internas', () => {
   for (const file of ['internal-dashboard.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'centro-ayuda.html']) {
     assert.match(read(file), /href="presupuesto-control\.html"[^>]*>[\s\S]*?Presupuesto[\s\S]*?<\/a>/, `${file} debe enlazar Presupuesto`);

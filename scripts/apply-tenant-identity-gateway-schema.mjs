@@ -8,6 +8,7 @@ import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 const MIGRATION_VERSION = '005-tenant-identity-gateway';
 const ACTION_AUTHORITY_MIGRATION_VERSION = '006-tenant-action-authority';
+const READ_FACADE_MIGRATION_VERSION = '007-action-center-read-facades';
 const MIGRATION_URL = new URL('./migrations/005-tenant-identity-gateway.sql', import.meta.url);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 
@@ -268,8 +269,15 @@ async function main() {
     const actionAuthority = await client.query(
       'SELECT 1 FROM schema_migrations WHERE version = $1', [ACTION_AUTHORITY_MIGRATION_VERSION],
     );
+    const readFacades = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1', [READ_FACADE_MIGRATION_VERSION],
+    );
+    const readFacadesApplied = readFacades.rowCount > 0;
     if (actionAuthority.rowCount > 0 && !existing.rowCount) {
       throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${ACTION_AUTHORITY_MIGRATION_VERSION}`);
+    }
+    if (readFacadesApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${READ_FACADE_MIGRATION_VERSION}`);
     }
     if (existing.rowCount && existing.rows[0].checksum_sha256.trim() !== checksum) {
       throw new Error(`Drift detectado: ${MIGRATION_VERSION}`);
@@ -290,6 +298,10 @@ async function main() {
     }
     validateTenantIdentityEvidence(await collectEvidence(client));
     await verifyRuntimeAcl(client);
+    if (readFacadesApplied) {
+      const { verifyActionReadFinalAcl } = await import('./apply-action-center-read-facades-schema.mjs');
+      await verifyActionReadFinalAcl(client);
+    }
     await client.query('COMMIT');
     console.log(existing.rowCount
       ? `${MIGRATION_VERSION}: ya aplicada y verificada`

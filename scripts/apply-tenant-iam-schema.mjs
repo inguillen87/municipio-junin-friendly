@@ -8,6 +8,7 @@ import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 const MIGRATION_VERSION = '004-tenant-iam-control-plane';
 const ACTION_AUTHORITY_MIGRATION_VERSION = '006-tenant-action-authority';
+const READ_FACADE_MIGRATION_VERSION = '007-action-center-read-facades';
 const MIGRATION_URL = new URL('./migrations/004-tenant-iam-control-plane.sql', import.meta.url);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const LEGACY_ADMIN_VIEW_SIGNATURE = 'public.tenant_iam_admin_view(text,text,integer)';
@@ -231,8 +232,15 @@ async function main() {
       'SELECT 1 FROM schema_migrations WHERE version = $1', [ACTION_AUTHORITY_MIGRATION_VERSION],
     );
     const actionAuthorityApplied = actionAuthority.rowCount > 0;
+    const readFacades = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1', [READ_FACADE_MIGRATION_VERSION],
+    );
+    const readFacadesApplied = readFacades.rowCount > 0;
     if (actionAuthorityApplied && !existing.rowCount) {
       throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${ACTION_AUTHORITY_MIGRATION_VERSION}`);
+    }
+    if (readFacadesApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${READ_FACADE_MIGRATION_VERSION}`);
     }
     if (existing.rowCount && existing.rows[0].checksum_sha256.trim() !== checksum) {
       throw new Error(`Drift detectado: ${MIGRATION_VERSION} ya existe con otro SHA-256`);
@@ -246,6 +254,10 @@ async function main() {
     }
     validateTenantIamEvidence(await collectEvidence(client));
     await verifyRuntimeAcl(client, actionAuthorityApplied);
+    if (readFacadesApplied) {
+      const { verifyActionReadFinalAcl } = await import('./apply-action-center-read-facades-schema.mjs');
+      await verifyActionReadFinalAcl(client);
+    }
     await client.query('COMMIT');
     console.log(existing.rowCount
       ? `${MIGRATION_VERSION}: ya aplicada y verificada`

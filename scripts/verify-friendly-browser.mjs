@@ -416,7 +416,7 @@ async function verifyAuthenticatedInternal() {
     await assertPageHealthy(page, 'Portal interno desktop');
 
     if (actionsEmail || hasCredentials) {
-      const actionsBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap`);
+      const actionsBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap&caseType=leave_request`);
       assert.equal(actionsBootstrapResponse.status(), 200, 'Centro de acciones debe aceptar una identidad DB-authoritative');
       const actionsBootstrap = await actionsBootstrapResponse.json();
       const actionCapabilities = new Set(actionsBootstrap.principal?.capabilities || []);
@@ -430,23 +430,68 @@ async function verifyAuthenticatedInternal() {
       const canCreateAction = [
         'leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage',
       ].some((capability) => actionCapabilities.has(capability));
-      if (canCreateAction && actionSubjects.length && actionReasons.length) {
-        assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con sujeto, motivo y capability explícitos');
+      const canSearchActionSubjects = [
+        'leave.request.area.create', 'leave.request.all.manage',
+      ].some((capability) => actionCapabilities.has(capability));
+      const hasActionSubjectRoute = actionSubjects.length > 0 || canSearchActionSubjects;
+      const hasActionReasonRoute = actionReasons.length > 0 || canSearchActionSubjects;
+      if (canCreateAction && hasActionSubjectRoute && hasActionReasonRoute) {
+        assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con una ruta explícita hacia sujetos y motivos autorizados');
         await page.locator('#createActionButton').click();
         await page.waitForSelector('#actionWizard[open]');
-        assert.equal(await page.locator('#actionLeaveType option').count() > 1, true, 'El catálogo GRH debe alimentar el selector de licencias');
+        if (actionReasons.length) assert.equal(await page.locator('#actionLeaveType option').count() > 1, true, 'El catálogo GRH propio debe alimentar el selector de licencias');
+        else assert.equal(await page.locator('#actionLeaveType').isDisabled(), true, 'Sin legajo propio, los motivos deben esperar la búsqueda gobernada');
+        if (canSearchActionSubjects) {
+          const subjectRequestPromise = page.waitForRequest((request) => (
+            request.method() === 'POST'
+            && new URL(request.url()).pathname === '/api/internal-actions'
+            && /"command"\s*:\s*"search_subjects"/.test(request.postData() || '')
+          ));
+          const subjectResponsePromise = page.waitForResponse((response) => (
+            response.request().method() === 'POST'
+            && new URL(response.url()).pathname === '/api/internal-actions'
+            && /"command"\s*:\s*"search_subjects"/.test(response.request().postData() || '')
+          ));
+          await page.locator('#actionEmployeeSearch').fill('ad');
+          await page.locator('#actionEmployeeSearchButton').click();
+          const subjectRequest = await subjectRequestPromise;
+          const subjectResponse = await subjectResponsePromise;
+          const subjectUrl = new URL(subjectRequest.url());
+          assert.equal(subjectUrl.search, '', 'La búsqueda nominal no debe incluir datos en query string');
+          assert.deepEqual(subjectRequest.postDataJSON(), {
+            caseType: 'leave_request', command: 'search_subjects', payload: { query: 'ad' },
+          });
+          assert.equal(subjectRequest.headers()['idempotency-key'], undefined, 'Una búsqueda read-only no debe consumir claves de idempotencia');
+          assert.equal(subjectResponse.status(), 200, 'La búsqueda efímera debe responder con el contrato gobernado');
+          const searchedBootstrap = await subjectResponse.json();
+          await page.waitForFunction(() => document.querySelector('#actionEmployeeSearchStatus')?.getAttribute('aria-busy') !== 'true');
+          const searchedReasons = searchedBootstrap.options?.reasons || [];
+          if (searchedReasons.length) assert.equal(await page.locator('#actionLeaveType option').count(), searchedReasons.length + 1, 'La búsqueda debe reemplazar el catálogo con motivos reautorizados');
+        }
         await page.locator('#closeWizard').click();
       }
       const firstAction = page.locator('#actionRows [data-open-action]').first();
       if (await firstAction.count()) {
+        const listProjection = await firstAction.locator('xpath=ancestor::tr[1]').getAttribute('data-projection');
         await firstAction.click();
         await page.waitForSelector('#actionDialog[open]');
         await page.waitForFunction(() => document.querySelector('#actionDialogBody')?.getAttribute('aria-busy') === 'false');
-        const timelineAdapted = await page.locator('#actionDialogBody .timeline').evaluate((timeline) => (
-          timeline.querySelectorAll('li').length > 0
-          && !/Actividad registrada\s*Actor registrado/i.test(timeline.innerText)
-        ));
-        assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
+        const projection = await page.locator('#actionDialogBody').getAttribute('data-projection');
+        assert.ok(['nominal', 'payroll'].includes(projection), 'El detalle debe declarar la proyección autorizada');
+        if (listProjection === 'payroll') assert.equal(projection, 'payroll', 'Un detalle nunca debe elevar una fila limitada a nómina hacia identidad nominal');
+        if (projection === 'payroll') {
+          assert.equal(await page.locator('#actionDialogBody .projection-note').count(), 1, 'Nómina debe explicar su proyección mínima');
+          assert.equal(await page.locator('#actionDialogBody .timeline').count(), 0, 'Nómina nunca debe renderizar historial nominal');
+          assert.equal(await page.locator('#actionDialogBody .command-panel').count(), 0, 'Nómina nunca debe renderizar comandos administrativos');
+          const payrollLabels = await page.locator('#actionDialogBody dt').allTextContents();
+          assert.equal(payrollLabels.some((label) => /^(?:Persona|Legajo|Sector)$/i.test(label.trim())), false, 'Nómina no debe construir campos de identidad');
+        } else {
+          const timelineAdapted = await page.locator('#actionDialogBody .timeline').evaluate((timeline) => (
+            timeline.querySelectorAll('li').length > 0
+            && !/Actividad registrada\s*Actor registrado/i.test(timeline.innerText)
+          ));
+          assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
+        }
         await page.locator('#closeActionDialog').click();
       }
       await assertPageHealthy(page, 'Centro de acciones desktop');

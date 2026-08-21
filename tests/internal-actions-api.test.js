@@ -8,6 +8,7 @@ import {
   getActionCenterSql,
 } from '../api/internal-actions.js';
 import { capabilitiesForRole } from '../lib/internal-rbac.js';
+import { ActionCenterError } from '../lib/internal-leave-workflow.js';
 
 const IDEMPOTENCY_KEY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const SESSION_ID = '99999999-9999-4999-8999-999999999999';
@@ -61,14 +62,15 @@ function dependencies(overrides = {}) {
       },
     }),
     getInternalSql: async () => ({ fake: true }),
-    loadTenantActionPrincipal: async () => principal(),
+    loadTenantActionContext: async () => principal(),
     getActionBootstrap: async () => ({
+      principal: principal(),
       contract: { caseTypes: ['leave_request'] },
       source: { label: 'GRH canónica', cutoff: '2026-08-19T23:00:00Z', version: 'snapshot publicado' },
       options: { subjects: [], reasons: [] },
     }),
-    listLeaveCases: async () => ({ data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }),
-    readLeaveCase: async () => ({ data: { id: 'case-1' }, timeline: [], allowedCommands: [] }),
+    listLeaveCases: async () => ({ principal: principal(), data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }),
+    readLeaveCase: async () => ({ principal: principal(), data: { id: 'case-1' }, timeline: [], allowedCommands: [] }),
     createLeaveCase: async () => ({ data: { id: 'case-1', status: 'draft', version: 1 }, replayed: false }),
     updateLeaveDraft: async () => ({ data: { id: 'case-1', status: 'draft', version: 2 }, replayed: false }),
     transitionLeaveCase: async () => ({ data: { id: 'case-1', status: 'submitted', version: 2 }, replayed: true }),
@@ -97,10 +99,32 @@ test('bootstrap publica capabilities canónicas y opciones sin depender del rol 
 
 test('membresía sin autoridad tenant falla 403 aunque la sesión siga vigente', async () => {
   const res = response();
-  const handler = createInternalActionsHandler(dependencies({ loadTenantActionPrincipal: async () => null }));
+  const handler = createInternalActionsHandler(dependencies({
+    getActionBootstrap: async () => {
+      throw new ActionCenterError(
+        'ACTION_TENANT_AUTHORITY_REQUIRED', 403, 'La membresía no tiene autoridad operativa vigente',
+      );
+    },
+  }));
   await handler({ method: 'GET', query: {}, headers: {} }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(res.payload.code, 'ACTION_TENANT_AUTHORITY_REQUIRED');
+});
+
+test('contención transitoria responde 409 con retry y nunca simula cierre de sesión', async () => {
+  const res = response();
+  const handler = createInternalActionsHandler(dependencies({
+    getActionBootstrap: async () => {
+      throw new ActionCenterError(
+        'ACTION_SESSION_BUSY', 409, 'El acceso se está actualizando; reintentá en un momento',
+      );
+    },
+  }));
+  await handler({ method: 'GET', query: {}, headers: {} }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.payload.code, 'ACTION_SESSION_BUSY');
+  assert.equal(res.headers['Retry-After'], '1');
+  assert.notEqual(res.statusCode, 401);
 });
 
 test('contexto platform y binding legacy nunca ingresan al Centro de Acciones', async () => {
@@ -324,6 +348,45 @@ test('POST create usa el único endpoint y responde 201 con recibo mínimo', asy
   assert.equal(res.payload.data.status, 'draft');
   assert.equal(calls.length, 1);
   assert.equal(calls[0][3], IDEMPOTENCY_KEY);
+});
+
+test('search_subjects es lectura POST efímera, sin idempotencia y con body exacto', async () => {
+  const searches = [];
+  const handler = createInternalActionsHandler(dependencies({
+    env: { VERCEL_ENV: 'preview', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+    getActionBootstrap: async (_sql, _identity, session, query) => {
+      searches.push({ session, query });
+      return {
+        principal: principal(), contract: { caseTypes: ['leave_request'] },
+        source: { label: 'GRH canónica', cutoff: null, version: 'snapshot publicado' },
+        options: { subjects: [], reasons: [] },
+      };
+    },
+  }));
+  const headers = {
+    origin: 'https://municipio.example',
+    'sec-fetch-site': 'same-origin',
+    'content-type': 'application/json',
+  };
+  const ok = response();
+  await handler({
+    method: 'POST', headers,
+    body: { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'tesorería' } },
+  }, ok);
+  assert.equal(ok.statusCode, 200);
+  assert.equal(searches[0].query, 'tesorería');
+  assert.equal(searches[0].session.id, SESSION_ID);
+
+  for (const body of [
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 10 } },
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'rrhh', extra: true } },
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'rrhh' }, extra: true },
+  ]) {
+    const invalid = response();
+    await handler({ method: 'POST', headers, body }, invalid);
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.payload.code, 'ACTION_SUBJECT_QUERY_INVALID');
+  }
 });
 
 test('mutación toma SID/version sólo de access.session y SHA sólo del release certificado', async () => {

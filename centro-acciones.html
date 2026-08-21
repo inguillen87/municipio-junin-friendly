@@ -149,6 +149,8 @@
     .textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
     .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
     .field-error { display: block; margin-top: 5px; color: var(--red); font-size: 11px; font-weight: 700; }
+    .subject-search-control { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+    .subject-search-control .button { min-width: 88px; }
     .filter-actions { display: flex; gap: 7px; }
     .queue-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 20px; color: var(--muted); font-size: 12px; }
     .queue-meta strong { color: var(--navy); }
@@ -199,6 +201,7 @@
     .detail-section:first-child { margin-top: 0; }
     .detail-section h3 { margin: 0; color: var(--navy); font-size: 15px; }
     .section-copy { margin: 4px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .projection-note { margin: 0 0 14px; padding: 12px 14px; color: #275468; background: var(--blue-bg); border: 1px solid #b7d1df; border-left: 4px solid var(--blue); border-radius: 4px; font-size: 12px; line-height: 1.5; }
     .facts { display: grid; gap: 0; margin: 0; }
     .facts > div { display: grid; grid-template-columns: minmax(120px,.45fr) minmax(0,1fr); gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
     .facts > div:last-child { border-bottom: 0; }
@@ -317,6 +320,8 @@
       .step strong { display: none; }
       .form-grid { grid-template-columns: 1fr; }
       .field.full { grid-column: auto; }
+      .subject-search-control { grid-template-columns: 1fr; }
+      .subject-search-control .button { width: 100%; }
       .wizard-footer { padding: 11px 14px calc(11px + var(--safe-bottom)); }
       .wizard-footer .button { min-width: 0; padding-left: 10px; padding-right: 10px; }
       .command-actions { display: grid; grid-template-columns: 1fr; }
@@ -476,7 +481,7 @@
             <div class="table-wrap" id="actionQueue" hidden tabindex="0" role="region" aria-labelledby="queueTitle">
               <table>
                 <caption class="sr-only">Acciones municipales disponibles para la sesión actual</caption>
-                <thead><tr><th>Número</th><th>Tipo y persona</th><th>Estado</th><th>Próxima acción</th><th><span class="sr-only">Abrir</span></th></tr></thead>
+                <thead><tr><th>Número</th><th>Tipo y alcance</th><th>Estado</th><th>Próxima acción</th><th><span class="sr-only">Abrir</span></th></tr></thead>
                 <tbody id="actionRows"></tbody>
               </table>
             </div>
@@ -521,7 +526,7 @@
         <section class="wizard-panel" data-action-step="1">
           <h3>Persona y motivo</h3><p>Elegí exclusivamente entre los legajos que el backend habilita para tu sesión.</p>
           <div class="form-grid">
-            <div class="field full"><label for="actionEmployeeSearch">Buscar dentro de los legajos autorizados</label><input class="input" id="actionEmployeeSearch" type="search" maxlength="100" autocomplete="off" aria-controls="actionEmployee" aria-describedby="actionEmployeeSearchStatus" placeholder="Nombre, legajo o sector visible"><span class="field-help" id="actionEmployeeSearchStatus" role="status" aria-live="polite">La búsqueda se realiza localmente y no se envía en la URL.</span></div>
+            <div class="field full" id="actionEmployeeSearchField"><label for="actionEmployeeSearch">Buscar personas dentro de tu alcance</label><div class="subject-search-control"><input class="input" id="actionEmployeeSearch" type="search" minlength="2" maxlength="50" autocomplete="off" autocapitalize="none" spellcheck="false" aria-controls="actionEmployee" aria-describedby="actionEmployeeSearchStatus" placeholder="Nombre, legajo o sector"><button class="button" id="actionEmployeeSearchButton" type="button" disabled>Buscar</button></div><span class="field-help" id="actionEmployeeSearchStatus" role="status" aria-live="polite">Ingresá al menos 2 caracteres. La consulta se envía en forma privada sólo al pulsar Buscar; no aparece en la URL ni se guarda.</span></div>
             <div class="field full"><label for="actionEmployee">Persona / legajo autorizado</label><select class="select" id="actionEmployee" name="beneficiaryContractId" required><option value="">Seleccionar</option></select><span class="field-help">Los identificadores permanecen en el cuerpo cifrado de la solicitud; nunca se agregan a la URL.</span><span class="field-error" id="actionEmployeeError" hidden></span></div>
             <div class="field full"><label for="actionLeaveType">Tipo de licencia</label><select class="select" id="actionLeaveType" name="reasonCode" required><option value="">Seleccionar motivo</option></select><span class="field-help" id="leaveTypeHelp">El catálogo y la versión de política deben ser informados por el backend.</span><span class="field-error" id="actionLeaveTypeError" hidden></span></div>
             <div class="field full"><label for="actionConfidentiality">Confidencialidad gobernada</label><select class="select" id="actionConfidentiality" name="confidentiality" aria-describedby="actionConfidentialityHelp actionConfidentialityError" disabled><option value="standard">Estándar</option><option value="restricted">Restringida</option></select><span class="field-help" id="actionConfidentialityHelp" role="status" aria-live="polite">Seleccioná persona y motivo. El nivel se determina con la política vigente y el alcance autorizado; no se modifica manualmente.</span><span class="field-error" id="actionConfidentialityError" hidden></span></div>
@@ -652,11 +657,17 @@
         selected: null,
         wizardStep: 1,
         editing: null,
+        initialSubjects: [],
+        initialReasons: [],
+        subjectSearchController: null,
+        subjectSearchSequence: 0,
         lastFocus: null,
         redirecting: false
       };
       var MUTATION_KEY_STORAGE = 'municontrol.action-idempotency.v1';
       var MUTATION_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+      var MAX_ACTION_BUSY_RETRIES = 1;
+      var ACTION_BUSY_COPY = 'Estamos terminando un cambio de acceso. Conservamos lo que ingresaste; reintentá en un momento.';
 
       function loadPendingMutationKeys() {
         var result = new Map();
@@ -696,6 +707,7 @@
       function firstObject() { for (var index = 0; index < arguments.length; index += 1) { var value = arguments[index]; if (value && typeof value === 'object' && !Array.isArray(value)) return value; } return {}; }
       function firstArray() { for (var index = 0; index < arguments.length; index += 1) { if (Array.isArray(arguments[index])) return arguments[index]; } return []; }
       function unwrap(payload) { var root = object(payload); return firstObject(root.data, root.result, root.payload, root); }
+      function responseHeader(response, name) { return response && response.headers && typeof response.headers.get === 'function' ? text(response.headers.get(name)) : ''; }
 
       function normalizeDate(value) {
         var raw = text(value);
@@ -740,15 +752,26 @@
       function redirectToLogin() {
         if (state.redirecting) return;
         state.redirecting = true;
+        state.subjectSearchSequence += 1;
+        if (state.subjectSearchController) state.subjectSearchController.abort();
+        state.subjectSearchController = null;
+        if (el.actionEmployeeSearch) el.actionEmployeeSearch.value = '';
+        if (state.bootstrap) {
+          state.bootstrap.subjects = state.initialSubjects.slice();
+          state.bootstrap.reasons = state.initialReasons.slice();
+        }
         window.location.replace(LOGIN_URL);
       }
 
       async function requestJson(url, options) {
         var settings = options || {};
+        var actionBusyAttempt = Number(settings.actionBusyAttempt) || 0;
         var headers = Object.assign({ Accept: 'application/json', 'Cache-Control': 'no-store' }, settings.headers || {});
+        var fetchSettings = Object.assign({}, settings, { credentials: 'same-origin', cache: 'no-store', headers: headers });
+        delete fetchSettings.actionBusyAttempt;
         var response;
         try {
-          response = await fetch(url, Object.assign({}, settings, { credentials: 'same-origin', cache: 'no-store', headers: headers }));
+          response = await fetch(url, fetchSettings);
         } catch (cause) {
           var networkError = new Error('No se pudo conectar con el servicio municipal.');
           networkError.cause = cause;
@@ -763,16 +786,28 @@
         }
         var payload = null;
         if (response.status !== 204) { try { payload = await response.json(); } catch (_) { payload = null; } }
+        if (response.status === 409 && payload && payload.code === 'ACTION_SESSION_BUSY'
+            && actionBusyAttempt < MAX_ACTION_BUSY_RETRIES) {
+          var retryAfterSeconds = Number(responseHeader(response, 'Retry-After')) || 1;
+          var retryDelay = Math.min(1000, Math.max(250, retryAfterSeconds * 1000));
+          await new Promise(function (resolve) { window.setTimeout(resolve, retryDelay); });
+          return requestJson(url, Object.assign({}, settings, { actionBusyAttempt: actionBusyAttempt + 1 }));
+        }
         if (!response.ok || (payload && payload.ok === false)) {
           var detail = first(payload && payload.error, payload && payload.message, payload && payload.detail);
           if (detail && typeof detail === 'object') detail = first(detail.message, detail.detail, detail.code);
           var error = new Error(text(detail, 'La API no pudo completar la operación.'));
           error.status = response.status;
+          error.code = text(payload && payload.code);
+          error.actionBusy = error.code === 'ACTION_SESSION_BUSY';
+          error.retryAfter = Number(responseHeader(response, 'Retry-After')) || null;
           error.payload = payload;
           throw error;
         }
         return payload || {};
       }
+
+      function isActionBusy(error) { return Boolean(error && (error.actionBusy || error.code === 'ACTION_SESSION_BUSY')); }
 
       function actionGet(resource, parameters) {
         var url = new URL(ACTIONS_URL, window.location.origin);
@@ -782,6 +817,19 @@
           if (value !== null && value !== undefined && value !== '') url.searchParams.set(entry[0], String(value));
         });
         return requestJson(url.pathname + url.search);
+      }
+
+      function actionSubjectSearch(query, signal) {
+        return requestJson(ACTIONS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caseType: 'leave_request',
+            command: 'search_subjects',
+            payload: { query: query }
+          }),
+          signal: signal
+        });
       }
 
       function stableMutationValue(value) {
@@ -822,7 +870,7 @@
           return result;
         } catch (error) {
           var status = error && Number(error.status);
-          var transient = status === 408 || status === 425 || status === 429 || status >= 500;
+          var transient = isActionBusy(error) || status === 408 || status === 425 || status === 429 || status >= 500;
           if (Number.isFinite(status) && !transient) {
             pendingMutationKeys.delete(fingerprint);
             persistPendingMutationKeys();
@@ -864,7 +912,16 @@
         var allowedConfidentialities = firstArray(row.allowedConfidentialities, contract.allowedConfidentialities)
           .map(lower)
           .filter(function (value, index, values) { return (value === 'standard' || value === 'restricted') && values.indexOf(value) === index; });
-        return { value: value, label: label, allowedConfidentialities: allowedConfidentialities };
+        var accessBasis = lower(first(row.accessBasis, contract.accessBasis));
+        return {
+          value: value,
+          label: label,
+          displayName: name,
+          legajo: legajo,
+          sector: area,
+          accessBasis: accessBasis === 'self' ? 'self' : 'authorized_scope',
+          allowedConfidentialities: allowedConfidentialities
+        };
       }
 
       function normalizeViewOption(item) {
@@ -911,24 +968,25 @@
         };
       }
 
-      function normalizeAction(item) {
+      function normalizeAction(item, projectionCeiling) {
         var row = firstObject(item.action, item.case, item);
-        var subject = firstObject(row.subject, row.beneficiary, row.employee);
         var id = text(first(row.id, row.caseId, row.actionId));
+        var projection = lower(row.projection) === 'nominal' && projectionCeiling !== 'payroll' ? 'nominal' : 'payroll';
+        var subject = projection === 'nominal' ? firstObject(row.subject, row.beneficiary, row.employee) : {};
         return {
           id: id,
           displayId: text(first(row.displayId, row.number, row.caseNumber, row.reference), id || 'Sin número'),
           type: lower(first(row.type, row.caseType, row.actionType, 'leave_request')),
-          title: text(first(row.title, row.label, row.summary)),
-          subjectName: text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad reservada'),
-          subjectContractId: text(first(subject.contractId, subject.id, row.beneficiaryContractId)),
+          title: projection === 'nominal' ? text(first(row.title, row.label, row.summary)) : '',
+          projection: projection,
+          subjectName: projection === 'nominal' ? text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad no informada') : '',
+          subjectContractId: projection === 'nominal' ? text(first(subject.contractId, subject.id, row.beneficiaryContractId)) : '',
           status: lower(first(row.status, row.state, 'pending')),
-          stage: text(first(row.stage, row.currentStage, row.workflowStage)),
+          stage: projection === 'nominal' ? text(first(row.stage, row.currentStage, row.workflowStage)) : '',
           updatedAt: first(row.updatedAt, row.modifiedAt, row.lastActivityAt, row.timestamps && row.timestamps.updatedAt),
           version: integer(first(row.version, row.lockVersion, row.expectedVersion)),
-          nextAction: text(first(row.nextActionLabel, row.nextAction, row.pendingAction)),
-          confidentiality: lower(first(row.confidentiality, 'standard')),
-          raw: row
+          nextAction: projection === 'nominal' ? text(first(row.nextActionLabel, row.nextAction, row.pendingAction)) : '',
+          confidentiality: lower(first(row.confidentiality, 'standard'))
         };
       }
 
@@ -985,16 +1043,18 @@
         };
       }
 
-      function normalizeDetail(payload) {
+      function normalizeDetail(payload, projectionCeiling) {
         var root = unwrap(payload);
         var row = firstObject(root.action, root.case, root);
-        var base = normalizeAction(row);
+        var base = normalizeAction(row, projectionCeiling);
         var request = firstObject(row.request, row.payload, row.details);
         var leave = firstObject(row.leave, row.leaveRequest, request.leave, request);
-        var allowed = firstArray(root.allowedCommands, row.allowedCommands, payload && payload.allowedCommands, root.commands, row.commands, payload && payload.commands).map(function (item) { return lower(typeof item === 'object' ? first(item.command, item.id, item.code) : item); }).filter(Boolean);
-        var gates = firstArray(leave.gates, leave.blockers, row.gates, root.gates, payload && payload.gates).map(function (item) { return text(typeof item === 'object' ? first(item.label, item.message, item.reason, item.code) : item); }).filter(Boolean);
-        return Object.assign(base, {
-          description: text(first(row.description, row.note, row.employeeNote, request.employeeNote)),
+        var nominal = base.projection === 'nominal';
+        var allowed = nominal ? firstArray(root.allowedCommands, row.allowedCommands, payload && payload.allowedCommands, root.commands, row.commands, payload && payload.commands).map(function (item) { return lower(typeof item === 'object' ? first(item.command, item.id, item.code) : item); }).filter(Boolean) : [];
+        var gates = nominal ? firstArray(leave.gates, leave.blockers, row.gates, root.gates, payload && payload.gates).map(function (item) { return text(typeof item === 'object' ? first(item.label, item.message, item.reason, item.code) : item); }).filter(Boolean) : [];
+        var normalized = Object.assign(base, {
+          description: nominal ? text(first(row.description, row.note, row.employeeNote, request.employeeNote)) : '',
+          decidedAt: first(row.timestamps && row.timestamps.decidedAt, row.decidedAt),
           leave: {
             mode: lower(first(leave.durationUnit, leave.mode, leave.unit)),
             reasonCode: text(first(leave.reasonCode, leave.leaveTypeCode, leave.typeCode)),
@@ -1010,10 +1070,11 @@
             evidenceStatus: lower(first(leave.evidenceStatus, row.evidenceStatus, 'not_provided')),
             gates: gates
           },
-          evidence: firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence),
-          timeline: firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(normalizeTimeline),
+          evidence: nominal ? firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence) : [],
+          timeline: nominal ? firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(normalizeTimeline) : [],
           allowedCommands: allowed
         });
+        return normalized;
       }
 
       function cacheElements() {
@@ -1023,7 +1084,7 @@
           'actionTypeFilter','actionStatusFilter','clearActionFilters','actionResultCount','pageScopeLabel','actionLoading',
           'actionError','actionErrorMessage','retryActions','actionEmpty','actionQueue','actionRows','previousPage','nextPage','pageStatus',
           'actionDialog','actionDialogTitle','actionDialogSubtitle','closeActionDialog','actionDialogBody','actionWizard','actionWizardForm',
-          'wizardTitle','wizardSubtitle','closeWizard','actionEmployeeSearch','actionEmployeeSearchStatus','actionEmployee','actionLeaveType','leaveTypeHelp','actionConfidentiality','actionConfidentialityHelp','actionConfidentialityError','durationDays',
+          'wizardTitle','wizardSubtitle','closeWizard','actionEmployeeSearchField','actionEmployeeSearch','actionEmployeeSearchButton','actionEmployeeSearchStatus','actionEmployee','actionLeaveType','leaveTypeHelp','actionConfidentiality','actionConfidentialityHelp','actionConfidentialityError','durationDays',
           'durationMinutes','startTimeField','endTimeField','actionStartDate','actionEndDate','actionStartTime','actionEndTime','durationGate','actionDurationModeError',
           'actionEmployeeNote','employeeNoteHelp','wizardReview','actionConfirmTruth','actionConfirmError','wizardCancel','wizardBack','wizardNext',
           'wizardSubmit','toastRegion'].forEach(function (id) { el[id] = byId(id); });
@@ -1035,6 +1096,7 @@
       }
 
       function canCreate() { return hasCapability('leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage'); }
+      function canSearchSubjects() { return hasCapability('leave.request.area.create', 'leave.request.all.manage'); }
 
       function renderSession(user) {
         el.userName.textContent = user.name;
@@ -1047,12 +1109,16 @@
         var labels = Array.from(new Set(Array.from(state.capabilities).map(function (capability) { return CAPABILITY_LABELS[capability]; }).filter(Boolean)));
         var role = state.bootstrap.user.role;
         el.permissionSummary.textContent = labels.length ? role + ' · Puede ' + labels.join(', ') + '.' : role + ' · Sólo se habilitan las operaciones informadas explícitamente por el backend.';
-        var enabled = canCreate() && state.bootstrap.subjects.length > 0 && state.bootstrap.reasons.length > 0;
+        var hasSubjectRoute = state.initialSubjects.length > 0 || canSearchSubjects();
+        var hasReasonRoute = state.bootstrap.reasons.length > 0 || canSearchSubjects();
+        var enabled = canCreate() && hasSubjectRoute && hasReasonRoute;
         el.createActionButton.disabled = !enabled;
         el.queueCreateButton.disabled = !enabled;
-        var reason = !canCreate() ? 'Tu sesión no tiene capacidad para crear solicitudes.' : !state.bootstrap.subjects.length ? 'El backend no informó legajos habilitados.' : !state.bootstrap.reasons.length ? 'El backend no informó el catálogo de licencias.' : '';
+        var reason = !canCreate() ? 'Tu sesión no tiene capacidad para crear solicitudes.' : !hasSubjectRoute ? 'No existe un legajo propio habilitado ni alcance para buscar otras personas.' : !hasReasonRoute ? 'El backend no informó el catálogo de licencias.' : '';
         el.createActionButton.title = reason;
         el.queueCreateButton.title = reason;
+        el.actionEmployeeSearch.disabled = !canSearchSubjects();
+        el.actionEmployeeSearchButton.disabled = !canSearchSubjects() || text(el.actionEmployeeSearch.value).length < 2;
         var source = state.bootstrap.source;
         el.sourceChip.textContent = source.label + (source.cutoff ? ' · corte ' + formatDate(source.cutoff) : '') + (source.version ? ' · ' + source.version : '');
 
@@ -1081,38 +1147,127 @@
         });
       }
 
-      function renderSubjectOptions(query, forcedValue) {
-        var all = state.bootstrap.subjects;
-        var needle = lower(query).slice(0, 100);
-        var maximum = 100;
-        var options = all;
-        var placeholder = 'Seleccionar persona autorizada';
-        if (all.length > maximum && needle.length < 2 && !forcedValue) {
-          options = [];
-          placeholder = 'Escribí al menos 2 caracteres';
-        } else if (needle) {
-          options = all.filter(function (item) { return lower(item.label).includes(needle); }).slice(0, maximum);
+      function renderReasonOptions(forcedValue) {
+        fillSelect(el.actionLeaveType, state.bootstrap.reasons, state.bootstrap.reasons.length ? 'Seleccionar motivo' : 'Buscá y elegí una persona para cargar motivos autorizados');
+        if (forcedValue && state.bootstrap.reasons.some(function (item) { return item.value === forcedValue; })) el.actionLeaveType.value = forcedValue;
+        el.actionLeaveType.disabled = !state.bootstrap.reasons.length;
+        var reason = selectedReason();
+        el.leaveTypeHelp.textContent = reason.note || (state.bootstrap.reasons.length
+          ? 'La versión normativa proviene del backend y quedará asociada al borrador.'
+          : 'Los motivos se habilitan únicamente después de seleccionar una persona autorizada.');
+        updateDurationFields();
+      }
+
+      function cancelSubjectSearch() {
+        state.subjectSearchSequence += 1;
+        if (state.subjectSearchController) state.subjectSearchController.abort();
+        state.subjectSearchController = null;
+        el.actionEmployeeSearchStatus.removeAttribute('aria-busy');
+      }
+
+      function renderSubjectOptions(forcedValue, statusMessage) {
+        var options = state.bootstrap.subjects.slice(0, 50);
+        fillSelect(el.actionEmployee, options, options.length ? 'Seleccionar persona autorizada' : 'Sin personas seleccionadas');
+        if (forcedValue && options.some(function (item) { return item.value === forcedValue; })) el.actionEmployee.value = forcedValue;
+        else if (!forcedValue && options.length === 1) el.actionEmployee.value = options[0].value;
+        if (statusMessage) {
+          el.actionEmployeeSearchStatus.textContent = statusMessage;
+          return;
+        }
+        if (!canSearchSubjects()) {
+          el.actionEmployeeSearchStatus.textContent = options.length
+            ? 'Tu legajo vinculado está disponible. Esta sesión no tiene alcance para buscar otras personas.'
+            : 'No existe un legajo propio habilitado para esta sesión.';
+        } else if (options.length) {
+          el.actionEmployeeSearchStatus.textContent = 'Tu legajo vinculado está disponible. Para gestionar otra persona autorizada, ingresá al menos 2 caracteres y pulsá Buscar.';
         } else {
-          options = all.slice(0, maximum);
+          el.actionEmployeeSearchStatus.textContent = 'Ingresá al menos 2 caracteres y pulsá Buscar. La consulta no aparece en la URL ni se guarda.';
         }
-        if (forcedValue && !options.some(function (item) { return item.value === forcedValue; })) {
-          var selected = all.find(function (item) { return item.value === forcedValue; });
-          if (selected) options = [selected].concat(options.filter(function (item) { return item.value !== forcedValue; })).slice(0, maximum);
+      }
+
+      function resetSubjectCandidates(forcedValue) {
+        cancelSubjectSearch();
+        state.bootstrap.subjects = state.initialSubjects.slice();
+        state.bootstrap.reasons = state.initialReasons.slice();
+        state.bootstrap.subjectsTruncated = false;
+        renderSubjectOptions(forcedValue || '');
+        renderReasonOptions('');
+        el.actionEmployeeSearchButton.disabled = !canSearchSubjects() || text(el.actionEmployeeSearch.value).length < 2;
+      }
+
+      async function searchAuthorizedSubjects() {
+        var query = text(el.actionEmployeeSearch.value).replace(/\s+/g, ' ').slice(0, 50);
+        el.actionEmployeeSearch.value = query;
+        if (!canSearchSubjects()) {
+          el.actionEmployeeSearchStatus.textContent = 'Esta sesión no tiene alcance para buscar otras personas.';
+          return;
         }
-        fillSelect(el.actionEmployee, options, placeholder);
-        if (forcedValue) el.actionEmployee.value = forcedValue;
-        else if (all.length === 1) el.actionEmployee.value = all[0].value;
-        var message;
-        var truncation = state.bootstrap.subjectsTruncated ? ' El backend limitó el catálogo recibido; si falta un legajo, solicitá ampliar el alcance.' : '';
-        if (all.length > maximum && needle.length < 2 && !forcedValue) message = all.length + ' legajos autorizados recibidos. Escribí al menos 2 caracteres; la búsqueda se procesa sólo en esta página y no se envía al servidor.' + truncation;
-        else if (needle && !options.length) message = 'No hay coincidencias dentro de tus legajos autorizados.';
-        else message = options.length + ' de ' + all.length + ' legajos autorizados recibidos visibles. La búsqueda es local y no se guarda.' + truncation;
-        el.actionEmployeeSearchStatus.textContent = message;
+        if (query.length < 2) {
+          resetSubjectCandidates('');
+          el.actionEmployeeSearchStatus.textContent = 'Ingresá al menos 2 caracteres antes de buscar.';
+          return;
+        }
+
+        cancelSubjectSearch();
+        var sequence = state.subjectSearchSequence;
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        var previousSubjects = state.bootstrap.subjects.slice();
+        var previousReasons = state.bootstrap.reasons.slice();
+        var previousSubjectValue = text(el.actionEmployee.value);
+        state.subjectSearchController = controller;
+        el.actionEmployeeSearchButton.disabled = true;
+        el.actionEmployeeSearchStatus.setAttribute('aria-busy', 'true');
+        el.actionEmployeeSearchStatus.textContent = 'Buscando sólo dentro de tu alcance autorizado…';
+        state.bootstrap.subjects = [];
+        state.bootstrap.reasons = [];
+        renderSubjectOptions('', 'Buscando sólo dentro de tu alcance autorizado…');
+        renderReasonOptions('');
+        updateConfidentiality();
+        try {
+          var payload = await actionSubjectSearch(query, controller && controller.signal);
+          if (sequence !== state.subjectSearchSequence) return;
+          var normalized = normalizeBootstrap(payload, state.user);
+          state.bootstrap.subjects = normalized.subjects.slice(0, 50);
+          state.bootstrap.reasons = normalized.reasons.slice();
+          state.bootstrap.subjectsTruncated = normalized.subjectsTruncated;
+          var count = state.bootstrap.subjects.length;
+          var message = count
+            ? count + (count === 1 ? ' persona autorizada encontrada.' : ' personas autorizadas encontradas.')
+            : 'No hay coincidencias autorizadas. Probá con otro nombre, legajo o sector.';
+          if (normalized.subjectsTruncated) message += ' Se muestran los primeros 50 resultados; refiná la búsqueda.';
+          if (count && !state.bootstrap.reasons.length) message += ' No existe un catálogo de motivos habilitado para estas personas.';
+          renderSubjectOptions(count === 1 ? state.bootstrap.subjects[0].value : '', message);
+          renderReasonOptions('');
+          updateConfidentiality();
+        } catch (error) {
+          if ((controller && controller.signal.aborted) || sequence !== state.subjectSearchSequence) return;
+          var accessDenied = error.unauthorized || Number(error.status) === 403;
+          var actionBusy = isActionBusy(error);
+          state.bootstrap.subjects = actionBusy ? previousSubjects : state.initialSubjects.slice();
+          state.bootstrap.reasons = actionBusy ? previousReasons : state.initialReasons.slice();
+          el.actionEmployeeSearch.value = accessDenied ? '' : query;
+          if (accessDenied) el.actionEmployeeSearch.disabled = true;
+          renderSubjectOptions(actionBusy ? previousSubjectValue : (state.initialSubjects.length === 1 ? state.initialSubjects[0].value : ''), actionBusy
+            ? ACTION_BUSY_COPY
+            : accessDenied
+            ? 'El acceso ya no habilita esta búsqueda. La consulta fue descartada.'
+            : state.initialSubjects.length
+              ? 'No pudimos completar la búsqueda. Tu legajo propio sigue disponible y la consulta no se guardó; podés reintentar.'
+              : 'No pudimos completar la búsqueda. La consulta no se guardó; podés reintentar.');
+          renderReasonOptions('');
+          updateConfidentiality();
+          if (!error.unauthorized) toast(actionBusy ? ACTION_BUSY_COPY : error.message, 'error');
+        } finally {
+          if (sequence === state.subjectSearchSequence) {
+            state.subjectSearchController = null;
+            el.actionEmployeeSearchStatus.removeAttribute('aria-busy');
+            el.actionEmployeeSearchButton.disabled = !canSearchSubjects() || text(el.actionEmployeeSearch.value).length < 2;
+          }
+        }
       }
 
       function renderCatalogs() {
-        renderSubjectOptions('', state.bootstrap.subjects.length === 1 ? state.bootstrap.subjects[0].value : '');
-        fillSelect(el.actionLeaveType, state.bootstrap.reasons, 'Seleccionar motivo');
+        resetSubjectCandidates(state.initialSubjects.length === 1 ? state.initialSubjects[0].value : '');
         var actionTypes=state.bootstrap.actionTypes.map(function(option){return Object.assign({},option,{label:typeLabel(option.value)});});
         fillSelect(el.actionTypeFilter, actionTypes, 'Todos los tipos');
         var statuses = state.bootstrap.statuses.length ? state.bootstrap.statuses : Object.keys(STATUS_LABELS).map(function (key) { return { value: key, label: STATUS_LABELS[key] }; });
@@ -1172,13 +1327,20 @@
         rows.forEach(function (action) {
           var row = create('tr');
           row.dataset.actionRow = action.id;
+          row.dataset.projection = action.projection;
           row.tabIndex = -1;
           var number = create('div'); number.append(create('strong','cell-title',action.displayId), create('span','cell-sub', action.updatedAt ? 'Act. ' + formatDateTime(action.updatedAt) : 'Sin actualización informada'));
           appendCell(row, 'Número', number);
-          var subject = create('div'); subject.append(create('strong','cell-title', action.title || typeLabel(action.type)), create('span','cell-sub',action.subjectName));
-          appendCell(row, 'Tipo y persona', subject);
+          var subject = create('div');
+          subject.append(
+            create('strong','cell-title', action.title || typeLabel(action.type)),
+            create('span','cell-sub', action.projection === 'nominal' ? action.subjectName : 'Proyección mínima para nómina · sin identidad nominal')
+          );
+          appendCell(row, 'Tipo y alcance', subject);
           appendCell(row, 'Estado', create('span','state-pill ' + statusClass(action.status),statusLabel(action.status)));
-          appendCell(row, 'Próxima acción', action.nextAction || action.stage || 'No informada');
+          appendCell(row, 'Próxima acción', action.projection === 'nominal'
+            ? (action.nextAction || action.stage || 'No informada')
+            : action.status === 'approved' ? 'Controlar novedad aprobada' : 'Controlar el estado informado');
           var open = create('button','button open-row','Abrir'); open.type = 'button'; open.dataset.openAction = action.id; open.setAttribute('aria-label','Abrir ' + action.displayId);
           appendCell(row, 'Abrir', open);
           row.addEventListener('dblclick', function () { openAction(action.id); });
@@ -1201,10 +1363,18 @@
       function showQueueError(error) {
         if (error && error.unauthorized) return;
         el.actionLoading.hidden = true;
+        if (isActionBusy(error) && state.actions.length) {
+          el.actionError.hidden = true;
+          el.actionQueue.hidden = false;
+          toast(ACTION_BUSY_COPY, 'error');
+          return;
+        }
         el.actionQueue.hidden = true;
         el.actionEmpty.hidden = true;
         el.actionError.hidden = false;
-        el.actionErrorMessage.textContent = text(error && error.message, 'El servicio de acciones no está disponible.');
+        el.actionErrorMessage.textContent = isActionBusy(error)
+          ? ACTION_BUSY_COPY
+          : text(error && error.message, 'El servicio de acciones no está disponible.');
       }
 
       async function loadActions(options) {
@@ -1283,11 +1453,54 @@
         return panel;
       }
 
+      function renderPayrollDetail(detail) {
+        state.selected = detail;
+        el.actionDialogTitle.textContent = detail.displayId;
+        el.actionDialogSubtitle.textContent = 'Proyección mínima autorizada para nómina';
+        clear(el.actionDialogBody);
+        el.actionDialogBody.dataset.projection = 'payroll';
+
+        var banner = create('div','detail-banner');
+        var bannerCopy = create('div');
+        bannerCopy.append(
+          create('strong','',detail.status === 'approved' ? 'Novedad aprobada para control de nómina' : 'Novedad disponible para control de nómina'),
+          create('p','','Sólo se muestran los campos operativos autorizados para esta función.')
+        );
+        banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
+        el.actionDialogBody.appendChild(banner);
+        el.actionDialogBody.appendChild(create('p','projection-note','Privacidad por función: esta proyección no contiene identidad, legajo, sector, notas, actores, historial ni comandos administrativos.'));
+
+        var request = create('section','detail-section');
+        request.append(create('h3','','Datos de la novedad'), create('p','section-copy','Información mínima para controlar el impacto pendiente. Esta pantalla todavía no calcula importes ni modifica recibos.'));
+        var facts = create('dl','facts');
+        facts.append(
+          fact('Tipo',typeLabel(detail.type)),
+          fact('Estado',statusLabel(detail.status)),
+          fact('Período solicitado',periodLabel(detail.leave)),
+          fact('Modalidad',detail.leave.mode === 'minute' ? 'Franja horaria solicitada' : 'Días calendario solicitados'),
+          fact('Motivo',detail.leave.reasonLabel || detail.leave.reasonCode),
+          fact('Política',detail.leave.policyVersionId || 'No informada'),
+          fact('Regla',detail.leave.policyRuleId || 'No informada'),
+          fact('Evidencia',titleCase(detail.leave.evidenceStatus)),
+          fact('Decidida',formatDateTime(detail.decidedAt)),
+          fact('Actualizada',formatDateTime(detail.updatedAt)),
+          fact('Versión',detail.version === null ? 'No informada' : String(detail.version))
+        );
+        request.appendChild(facts);
+        el.actionDialogBody.appendChild(request);
+        el.actionDialogBody.setAttribute('aria-busy','false');
+      }
+
       function renderActionDetail(detail) {
+        if (detail.projection !== 'nominal') {
+          renderPayrollDetail(detail);
+          return;
+        }
         state.selected = detail;
         el.actionDialogTitle.textContent = detail.displayId;
         el.actionDialogSubtitle.textContent = typeLabel(detail.type) + ' · ' + detail.subjectName;
         clear(el.actionDialogBody);
+        el.actionDialogBody.dataset.projection = 'nominal';
         var banner = create('div','detail-banner');
         var bannerCopy = create('div'); bannerCopy.append(create('strong','',detail.title || typeLabel(detail.type)), create('p','',detail.nextAction || detail.stage || 'Próxima acción no informada'));
         banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
@@ -1330,12 +1543,15 @@
 
       async function openAction(id) {
         if (!SAFE_CASE_ID.test(text(id))) { toast('El identificador de la acción no es válido.','error'); return; }
+        var summary = state.actions.find(function (action) { return action.id === id; });
+        var projectionCeiling = summary && summary.projection;
+        var previousDetail = state.selected && state.selected.id === id ? state.selected : null;
         state.lastFocus = document.activeElement;
         el.actionDialogTitle.textContent = 'Consultando acción'; el.actionDialogSubtitle.textContent = 'Cargando estado y trazabilidad.';
-        clear(el.actionDialogBody); var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
+        clear(el.actionDialogBody); delete el.actionDialogBody.dataset.projection; var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
         if (!el.actionDialog.open) el.actionDialog.showModal();
-        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ id: id }))); }
-        catch (error) { if (error.unauthorized) return; clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',error.message)); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false'); }
+        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ id: id }), projectionCeiling)); }
+        catch (error) { if (error.unauthorized) return; if (isActionBusy(error) && previousDetail) { renderActionDetail(previousDetail); toast(ACTION_BUSY_COPY,'error'); return; } clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',isActionBusy(error)?ACTION_BUSY_COPY:error.message)); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false'); }
       }
 
       function closeActionDialog() { if (el.actionDialog.open) el.actionDialog.close(); if (state.lastFocus && typeof state.lastFocus.focus === 'function') state.lastFocus.focus(); }
@@ -1385,7 +1601,7 @@
         var submit=form.querySelector('button[type="submit"]'); submit.disabled=true; submit.setAttribute('aria-busy','true');
         var transitionRecorded=false;
         try { await actionCommand('POST',body); transitionRecorded=true; toast('Acción registrada con trazabilidad.'); var next=normalizeDetail(await actionGet('detail',{id:detail.id})); renderActionDetail(next); await loadActions(); }
-        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else{toast(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message,'error');if(error.status===409)openAction(detail.id);}}}
+        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else{toast(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message,'error');if(error.status===409)openAction(detail.id);}}}
         finally{submit.disabled=false;submit.removeAttribute('aria-busy');}
       }
 
@@ -1451,13 +1667,86 @@
 
       function showWizardStep(step){state.wizardStep=Math.min(4,Math.max(1,step));document.querySelectorAll('[data-action-step]').forEach(function(panel){panel.hidden=Number(panel.dataset.actionStep)!==state.wizardStep;});document.querySelectorAll('[data-wizard-step-indicator]').forEach(function(indicator){var number=Number(indicator.dataset.wizardStepIndicator);var current=number===state.wizardStep;indicator.classList.toggle('is-current',current);indicator.classList.toggle('is-done',number<state.wizardStep);if(current)indicator.setAttribute('aria-current','step');else indicator.removeAttribute('aria-current');});el.wizardBack.hidden=state.wizardStep===1;el.wizardNext.hidden=state.wizardStep===4;el.wizardSubmit.hidden=state.wizardStep!==4;if(state.wizardStep===4)renderWizardReview();var active=el.actionWizard.querySelector('[data-action-step="'+state.wizardStep+'"]');var focusable=active&&active.querySelector('select,input,textarea,button');if(focusable&&el.actionWizard.open)window.setTimeout(function(){if(el.actionWizard.open)focusable.focus();},0);}
 
-      function resetWizard(){el.actionWizardForm.reset();el.actionEmployeeSearch.value='';renderSubjectOptions('',state.bootstrap.subjects.length===1?state.bootstrap.subjects[0].value:'');el.actionEmployeeNote.value='';el.actionConfidentiality.value='standard';el.durationDays.checked=true;el.actionConfirmTruth.checked=false;['actionEmployeeError','actionLeaveTypeError','actionConfidentialityError','actionDurationModeError','actionStartDateError','actionEndDateError','actionStartTimeError','actionEndTimeError','actionConfirmError'].forEach(function(id){errorFor(id,'');});state.editing=null;el.wizardTitle.textContent='Nueva solicitud de licencia';el.wizardSubtitle.textContent='El borrador no concede una licencia ni modifica nómina.';el.wizardSubmit.textContent='Crear borrador';updateDurationFields();updateConfidentiality();showWizardStep(1);}
+      function resetWizard(){
+        cancelSubjectSearch();
+        el.actionWizardForm.reset();
+        el.actionEmployeeSearch.value='';
+        el.actionEmployeeSearchField.hidden=false;
+        el.actionEmployee.disabled=false;
+        resetSubjectCandidates(state.initialSubjects.length===1?state.initialSubjects[0].value:'');
+        el.actionEmployeeNote.value='';
+        el.actionConfidentiality.value='standard';
+        el.durationDays.checked=true;
+        el.actionConfirmTruth.checked=false;
+        ['actionEmployeeError','actionLeaveTypeError','actionConfidentialityError','actionDurationModeError','actionStartDateError','actionEndDateError','actionStartTimeError','actionEndTimeError','actionConfirmError'].forEach(function(id){errorFor(id,'');});
+        state.editing=null;
+        el.wizardTitle.textContent='Nueva solicitud de licencia';
+        el.wizardSubtitle.textContent='El borrador no concede una licencia ni modifica nómina.';
+        el.wizardSubmit.textContent='Crear borrador';
+        updateDurationFields();
+        updateConfidentiality();
+        showWizardStep(1);
+      }
 
-      function openWizard(detail){if(!canCreate()){toast('Tu sesión no puede crear o editar solicitudes.','error');return;}if(!state.bootstrap.subjects.length||!state.bootstrap.reasons.length){toast('Faltan legajos o motivos habilitados por el backend.','error');return;}state.lastFocus=document.activeElement;resetWizard();if(detail){state.editing=detail;el.wizardTitle.textContent='Editar borrador';el.wizardSubtitle.textContent='Los cambios requieren la versión vigente y no envían la solicitud a revisión.';el.wizardSubmit.textContent='Guardar borrador';renderSubjectOptions('',detail.subjectContractId);el.actionEmployee.value=detail.subjectContractId;el.actionLeaveType.value=detail.leave.reasonCode;el.actionConfidentiality.value=detail.confidentiality;el.actionStartDate.value=text(detail.leave.startsOn).slice(0,10);el.actionEndDate.value=text(detail.leave.endsOn).slice(0,10);el.durationMinutes.checked=detail.leave.mode==='minute';el.durationDays.checked=detail.leave.mode!=='minute';el.actionStartTime.value=detail.leave.startsAtLocal;el.actionEndTime.value=detail.leave.endsAtLocal;el.actionEmployeeNote.value=detail.description;updateDurationFields();updateConfidentiality();}el.actionWizard.showModal();window.setTimeout(function(){if(!el.actionWizard.open)return;(state.bootstrap.subjects.length>100?el.actionEmployeeSearch:el.actionEmployee).focus();},0);}
+      function openWizard(detail){
+        if(!canCreate()){toast('Tu sesión no puede crear o editar solicitudes.','error');return;}
+        if(!detail&&!state.bootstrap.reasons.length&&!canSearchSubjects()){toast('Falta el catálogo de motivos habilitado por el backend.','error');return;}
+        if(!detail&&!state.initialSubjects.length&&!canSearchSubjects()){toast('No existe una persona habilitada para esta sesión.','error');return;}
+        state.lastFocus=document.activeElement;
+        resetWizard();
+        if(detail){
+          if(detail.projection!=='nominal'||!detail.subjectContractId){toast('Esta proyección no habilita edición nominal.','error');return;}
+          state.editing=detail;
+          el.wizardTitle.textContent='Editar borrador';
+          el.wizardSubtitle.textContent='La persona queda fija. Los cambios requieren la versión vigente y no envían la solicitud a revisión.';
+          el.wizardSubmit.textContent='Guardar borrador';
+          var existing=state.initialSubjects.find(function(item){return item.value===detail.subjectContractId;});
+          var editingSubject=existing||normalizeSubject({
+            contractId:detail.subjectContractId,
+            displayName:detail.subjectName,
+            allowedConfidentialities:[detail.confidentiality],
+            accessBasis:'authorized_scope'
+          });
+          state.bootstrap.subjects=[editingSubject];
+          renderSubjectOptions(detail.subjectContractId,'La persona del borrador no puede cambiarse durante la edición.');
+          el.actionEmployee.value=detail.subjectContractId;
+          el.actionEmployee.disabled=true;
+          el.actionEmployeeSearchField.hidden=true;
+          if(!state.bootstrap.reasons.some(function(item){return item.value===detail.leave.reasonCode;})&&detail.leave.reasonCode){
+            state.bootstrap.reasons.push(normalizeOption({
+              value:detail.leave.reasonCode,
+              label:detail.leave.reasonLabel||detail.leave.reasonCode,
+              policyVersionId:detail.leave.policyVersionId,
+              policyRuleId:detail.leave.policyRuleId,
+              confidentiality:detail.confidentiality,
+              supportsMinutes:detail.leave.mode==='minute'
+            }));
+          }
+          renderReasonOptions(detail.leave.reasonCode);
+          el.actionLeaveType.value=detail.leave.reasonCode;
+          el.actionConfidentiality.value=detail.confidentiality;
+          el.actionStartDate.value=text(detail.leave.startsOn).slice(0,10);
+          el.actionEndDate.value=text(detail.leave.endsOn).slice(0,10);
+          el.durationMinutes.checked=detail.leave.mode==='minute';
+          el.durationDays.checked=detail.leave.mode!=='minute';
+          el.actionStartTime.value=detail.leave.startsAtLocal;
+          el.actionEndTime.value=detail.leave.endsAtLocal;
+          el.actionEmployeeNote.value=detail.description;
+          updateDurationFields();
+          updateConfidentiality();
+        }
+        el.actionWizard.showModal();
+        window.setTimeout(function(){
+          if(!el.actionWizard.open)return;
+          if(!detail&&canSearchSubjects()&&!state.initialSubjects.length)el.actionEmployeeSearch.focus();
+          else if(detail)el.actionLeaveType.focus();
+          else el.actionEmployee.focus();
+        },0);
+      }
       function closeWizard(){if(el.actionWizard.open)el.actionWizard.close();resetWizard();if(state.lastFocus&&typeof state.lastFocus.focus==='function')state.lastFocus.focus();}
 
       async function submitWizard(event){event.preventDefault();if(!validateStep(1)){showWizardStep(1);return;}if(!validateStep(2)){showWizardStep(2);return;}if(!validateStep(4))return;var confidentiality=confidentialityDecision();var reason=selectedReason();var value=wizardValue();if(!confidentiality.valid){toast('La confidencialidad exigida no está autorizada para esta combinación. No se envió información.','error');showWizardStep(1);return;}if(value.durationUnit==='minute'&&!minuteDurationAllowed(reason)){toast('La política vigente no habilita una franja horaria para este motivo. No se envió información.','error');showWizardStep(2);return;}var payload={beneficiaryContractId:value.beneficiaryContractId,reasonCode:value.reasonCode,policyVersionId:value.policyVersionId,startsOn:value.startsOn,endsOn:value.endsOn,durationUnit:value.durationUnit,confidentiality:confidentiality.value};if(value.policyRuleId)payload.policyRuleId=value.policyRuleId;if(value.durationUnit==='minute'){payload.startsAtLocal=value.startsAtLocal;payload.endsAtLocal=value.endsAtLocal;}if(value.employeeNote)payload.employeeNote=value.employeeNote;var body={caseType:'leave_request',command:state.editing?'update_draft':'create',payload:payload};var method='POST';if(state.editing){if(state.editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}body.caseId=state.editing.id;body.expectedVersion=state.editing.version;method='PATCH';}
-        el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);toast(state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.');closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message,'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
+        el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);toast(state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.');closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(isActionBusy(error)?ACTION_BUSY_COPY:(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message),'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
 
       function toast(message,type){var node=create('div','toast'+(type==='error'?' error':''),message);el.toastRegion.appendChild(node);window.setTimeout(function(){if(node.parentNode)node.remove();},4600);}
 
@@ -1467,7 +1756,7 @@
 
       async function logout(){el.logoutButton.disabled=true;try{await fetch(AUTH_URL,{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'}});}catch(_){/* El cierre local continúa. */}redirectToLogin();}
 
-      async function authenticate(){el.gateTitle.textContent='Verificando sesión';el.gateMessage.textContent='Confirmamos tu acceso antes de consultar acciones internas.';el.gateSpinner.hidden=false;el.retryAuth.hidden=true;try{var auth=await requestJson(AUTH_URL);var authRoot=unwrap(auth);var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}var bootstrapPayload=await actionGet('bootstrap');state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});state.capabilities=state.bootstrap.capabilities;state.user=state.bootstrap.user;renderSession(state.user);renderCapabilities();renderCatalogs();renderMetrics(state.bootstrap.metrics);el.authGate.hidden=true;el.appShell.hidden=false;await loadActions();}catch(error){if(error.unauthorized)return;el.gateTitle.textContent='No pudimos abrir el Centro de acciones';el.gateMessage.textContent=text(error.message,'No se pudo conectar con el servicio interno.');el.gateSpinner.hidden=true;el.retryAuth.hidden=false;el.retryAuth.focus();}}
+      async function authenticate(){el.gateTitle.textContent='Verificando sesión';el.gateMessage.textContent='Confirmamos tu acceso antes de consultar acciones internas.';el.gateSpinner.hidden=false;el.retryAuth.hidden=true;try{var auth=await requestJson(AUTH_URL);var authRoot=unwrap(auth);var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}var bootstrapPayload=await actionGet('bootstrap',{caseType:'leave_request'});state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});state.initialSubjects=state.bootstrap.subjects.slice(0,50);state.initialReasons=state.bootstrap.reasons.slice();state.capabilities=state.bootstrap.capabilities;state.user=state.bootstrap.user;renderSession(state.user);renderCapabilities();renderCatalogs();renderMetrics(state.bootstrap.metrics);el.authGate.hidden=true;el.appShell.hidden=false;await loadActions();}catch(error){if(error.unauthorized)return;el.gateTitle.textContent='No pudimos abrir el Centro de acciones';el.gateMessage.textContent=text(error.message,'No se pudo conectar con el servicio interno.');el.gateSpinner.hidden=true;el.retryAuth.hidden=false;el.retryAuth.focus();}}
 
       function resetPagination() {
         state.currentPage = 1;
@@ -1517,7 +1806,22 @@
         el.wizardBack.addEventListener('click', function () { showWizardStep(state.wizardStep - 1); });
         el.wizardNext.addEventListener('click', function () { if (validateStep(state.wizardStep)) showWizardStep(state.wizardStep + 1); });
         el.actionWizardForm.addEventListener('submit', submitWizard);
-        el.actionEmployeeSearch.addEventListener('input', function () { renderSubjectOptions(el.actionEmployeeSearch.value, ''); updateConfidentiality(); });
+        el.actionEmployeeSearch.addEventListener('input', function () {
+          cancelSubjectSearch();
+          var query=text(el.actionEmployeeSearch.value).slice(0,50);
+          state.bootstrap.subjects=state.initialSubjects.slice();
+          state.bootstrap.reasons=state.initialReasons.slice();
+          renderSubjectOptions(state.initialSubjects.length===1?state.initialSubjects[0].value:'', query.length<2
+            ? 'Ingresá al menos 2 caracteres antes de buscar.'
+            : 'Pulsá Buscar para consultar de forma privada dentro de tu alcance.');
+          renderReasonOptions('');
+          el.actionEmployeeSearchButton.disabled=!canSearchSubjects()||query.length<2;
+          updateConfidentiality();
+        });
+        el.actionEmployeeSearch.addEventListener('keydown', function (event) {
+          if(event.key==='Enter'&&!event.isComposing){event.preventDefault();searchAuthorizedSubjects();}
+        });
+        el.actionEmployeeSearchButton.addEventListener('click', searchAuthorizedSubjects);
         el.actionEmployee.addEventListener('change', updateConfidentiality);
         [el.durationDays, el.durationMinutes].forEach(function (input) { input.addEventListener('change', updateDurationFields); });
         el.actionLeaveType.addEventListener('change', function () { var reason = selectedReason(); el.leaveTypeHelp.textContent = reason.note || 'La versión normativa proviene del backend y quedará asociada al borrador.'; updateDurationFields(); updateConfidentiality(); });

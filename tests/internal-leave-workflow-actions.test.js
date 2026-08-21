@@ -47,6 +47,33 @@ function principal(role, overrides = {}) {
   };
 }
 
+function identityFor(actor) {
+  return {
+    user: { email: actor.email },
+    tenant: {
+      id: actor.tenantId,
+      membershipId: actor.membershipId,
+      source: 'membership',
+    },
+  };
+}
+
+function facadePrincipal(actor) {
+  return {
+    email: actor.email,
+    displayName: actor.displayName || actor.email,
+    roleKey: actor.role,
+    tenantId: actor.tenantId,
+    membershipId: actor.membershipId,
+    sourceBindingId: actor.sourceBindingId,
+    sourceCompanyId: actor.sourceCompanyId,
+    sourceDatabase: actor.sourceDatabase,
+    employmentContractId: actor.employmentContractId,
+    capabilities: [...actor.capabilities, 'actions.read'],
+    areaScopes: actor.areaScopes,
+  };
+}
+
 function annualPayload(overrides = {}) {
   return {
     beneficiaryContractId: SELF_CONTRACT,
@@ -237,8 +264,9 @@ test('SID, versión de sesión y release forman parte de la idempotencia de muta
   assert.equal(new Set(hashes).size, sessions.length);
 });
 
-test('update oculta IDOR antes de validar payload y preserva versión normativa/confidencialidad', async () => {
-  const hiddenSql = { async query() { return [caseRecord({ beneficiaryContractId: OTHER_CONTRACT })]; } };
+test('update usa routing facade IDOR-safe y preserva versión normativa/confidencialidad', async () => {
+  const actor = principal('EMPLEADO');
+  const hiddenSql = { async query() { return [{ result: { principal: facadePrincipal(actor), routing: null } }]; } };
   await assert.rejects(
     updateLeaveDraft(
       hiddenSql,
@@ -256,7 +284,10 @@ test('update oculta IDOR antes de validar payload y preserva versión normativa/
   const updateSql = {
     async query(statement, values) {
       calls.push({ statement, values });
-      if (statement.includes('FROM action_case action')) return [caseRecord({ confidentiality: 'restricted' })];
+      if (statement.includes('action_center_tenant_routing_v2')) return [{ result: {
+        principal: facadePrincipal(actor),
+        routing: caseRecord({ confidentiality: 'restricted' }),
+      } }];
       return [{ caseId: CASE_ID, caseNumber: '14', status: 'draft', version: 2, replayed: false }];
     },
   };
@@ -276,32 +307,11 @@ test('update oculta IDOR antes de validar payload y preserva versión normativa/
   assert.equal(calls[1].values[14], POLICY_VERSION);
   assert.equal(calls[1].values[15], 'restricted');
 
-  const replayHashes = [];
-  for (const confidentiality of ['standard', 'restricted']) {
-    const replaySql = {
-      async query(statement, values) {
-        if (statement.includes('FROM action_case action')) return [caseRecord({ confidentiality })];
-        replayHashes.push(values[11]);
-        return [{ caseId: CASE_ID, caseNumber: '14', status: 'draft', version: 2, replayed: true }];
-      },
-    };
-    await updateLeaveDraft(
-      replaySql,
-      principal('EMPLEADO'),
-      CASE_ID,
-      {
-        reasonCode: '19', policyRuleId: 'annual-ordinary',
-        startsOn: '2026-11-01', endsOn: '2026-11-02', durationUnit: 'calendar_day',
-      },
-      1,
-      IDEMPOTENCY_KEY,
-      ACTION_SESSION,
-    );
-  }
-  assert.equal(replayHashes[0], replayHashes[1]);
+  assert.match(calls[0].statement, /action_center_tenant_routing_v2/);
+  assert.equal(calls[0].values[1], ACTION_SESSION.id);
 });
 
-test('detail devuelve timeline append-only y no ofrece decidir sin vínculo o con SoD', async () => {
+test('detail consume una única facade, timeline allowlisted y comandos gobernados', async () => {
   const submitted = caseRecord({
     beneficiaryContractId: OTHER_CONTRACT,
     status: 'submitted',
@@ -310,13 +320,20 @@ test('detail devuelve timeline append-only y no ofrece decidir sin vínculo o co
     version: 2,
   });
   const sql = {
-    async query(statement) {
-      if (statement.includes('FROM action_case action')) return [submitted];
-      return [{
-        id: '1', caseVersion: 1, eventType: 'created', fromStatus: null, toStatus: 'draft',
-        actorEmail: 'empleado@junin.gob.ar', actorRole: 'EMPLEADO', metadata: { command: 'create' },
-        occurredAt: '2026-08-20T09:00:00Z',
-      }];
+    async query(statement, values) {
+      assert.match(statement, /action_center_tenant_detail_v2/);
+      assert.deepEqual(values.slice(1, 6), [ACTION_SESSION.id, 3, ACTION_SESSION.releaseSha, TENANT_ID, MEMBERSHIP_ID]);
+      return [{ result: {
+        principal: facadePrincipal(approver),
+        record: { ...submitted, projection: 'nominal' },
+        timeline: [{
+          id: '1', caseVersion: 1, eventType: 'created', fromStatus: null, toStatus: 'draft',
+          actorEmail: 'empleado@junin.gob.ar', actorRole: 'EMPLEADO',
+          metadata: { command: 'create', reasonPresent: false },
+          occurredAt: '2026-08-20T09:00:00Z',
+        }],
+        allowedCommands: ['approve', 'reject'],
+      } }];
     },
   };
   const scope = [
@@ -324,7 +341,7 @@ test('detail devuelve timeline append-only y no ofrece decidir sin vínculo o co
     { capabilityKey: 'leave.request.area.decide', scopeLevel: 'company', companyId: 1 },
   ];
   const approver = principal('RRHH_APROBADOR', { areaScopes: scope });
-  const detail = await readLeaveCase(sql, approver, CASE_ID);
+  const detail = await readLeaveCase(sql, identityFor(approver), CASE_ID, ACTION_SESSION);
   assert.equal(detail.data.subject.contractId, OTHER_CONTRACT);
   assert.equal(detail.timeline.length, 1);
   assert.deepEqual(detail.allowedCommands, ['approve', 'reject']);
@@ -335,100 +352,74 @@ test('detail devuelve timeline append-only y no ofrece decidir sin vínculo o co
   assert.equal(allowedCommandsForCase(creator, submitted).includes('approve'), false);
 });
 
-test('detail reautoriza el registro completo y corta un cambio standard a restricted antes del timeline', async () => {
-  let timelineQueries = 0;
-  const sql = {
-    async query(statement) {
-      if (statement.includes('FROM action_case action') && !statement.includes('JOIN employment_contract')) {
-        return [caseRecord({ beneficiaryContractId: OTHER_CONTRACT, confidentiality: 'standard' })];
-      }
-      if (statement.includes('FROM action_case action') && statement.includes('JOIN employment_contract')) {
-        return [caseRecord({ beneficiaryContractId: OTHER_CONTRACT, confidentiality: 'restricted' })];
-      }
-      timelineQueries += 1;
-      return [];
-    },
-  };
+test('detail IDOR devuelve 404 sin serializar principal', async () => {
   const operator = principal('RRHH_OPERADOR', {
     areaScopes: [{ capabilityKey: 'leave.request.area.read', scopeLevel: 'company', companyId: 1 }],
   });
-
   await assert.rejects(
-    readLeaveCase(sql, operator, CASE_ID),
+    readLeaveCase({
+      async query() {
+        return [{ result: { principal: facadePrincipal(operator), record: null, timeline: [], allowedCommands: [] } }];
+      },
+    }, identityFor(operator), CASE_ID, ACTION_SESSION),
     (error) => error.code === 'ACTION_CASE_NOT_FOUND' && error.status === 404,
   );
-  assert.equal(timelineQueries, 0);
 });
 
-test('detail por PAYROLL_READ usa proyección mínima y nunca consulta detalle nominal ni timeline', async () => {
+test('detail PAYROLL_READ conserva proyección mínima sin sujeto, actores, nota ni timeline', async () => {
   const statements = [];
-  const routing = caseRecord({ beneficiaryContractId: OTHER_CONTRACT, status: 'approved' });
+  const accountant = principal('CONTADOR');
   const payroll = {
-    id: CASE_ID, caseNumber: '14', tenantId: TENANT_ID, sourceBindingId: BINDING_ID,
-    caseType: 'leave_request', companyId: 1, status: 'approved', confidentiality: 'standard',
-    policyVersionId: POLICY_VERSION, payload: annualPayload(), evidenceStatus: 'verified',
-    version: 3, createdAt: '2026-08-20T09:00:00Z', updatedAt: '2026-08-20T10:00:00Z',
-    decidedAt: '2026-08-20T10:00:00Z',
+    id: CASE_ID, caseNumber: '14', caseType: 'leave_request', status: 'approved',
+    confidentiality: 'standard', policyVersionId: POLICY_VERSION,
+    payload: { reasonCode: '19', startsOn: '2026-09-01', endsOn: '2026-09-02', durationUnit: 'calendar_day' },
+    evidenceStatus: 'verified', version: 3, updatedAt: '2026-08-20T10:00:00Z',
+    decidedAt: '2026-08-20T10:00:00Z', projection: 'payroll',
   };
   const sql = {
     async query(statement) {
       statements.push(statement);
-      if (statement.includes("action.status = 'approved'")) return [payroll];
-      return [routing];
+      return [{ result: {
+        principal: facadePrincipal(accountant), record: payroll,
+        timeline: [], allowedCommands: [],
+      } }];
     },
   };
-  const detail = await readLeaveCase(sql, principal('CONTADOR'), CASE_ID);
-  assert.equal(statements.length, 2);
-  assert.equal(statements.some((statement) => statement.includes('JOIN employment_contract')), false);
-  assert.equal(statements.some((statement) => statement.includes('FROM action_case_event')), false);
+  const detail = await readLeaveCase(sql, identityFor(accountant), CASE_ID, ACTION_SESSION);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0], /action_center_tenant_detail_v2/);
   assert.deepEqual(detail.timeline, []);
   assert.deepEqual(detail.allowedCommands, []);
   assert.equal(Object.hasOwn(detail.data, 'subject'), false);
   assert.equal(Object.hasOwn(detail.data, 'beneficiaryContractId'), false);
   assert.equal(Object.hasOwn(detail.data, 'actors'), false);
+  assert.equal(Object.hasOwn(detail.data.payload, 'employeeNote'), false);
+  assert.equal(detail.data.projection, 'payroll');
 });
 
-test('bootstrap sólo expone sujetos autorizados y motivos gobernados sin DNI/CUIL', async () => {
-  const statements = [];
+test('bootstrap usa facade session-bound, máximo 50 y no expone DNI/CUIL', async () => {
+  const actor = principal('EMPLEADO');
   const sql = {
-    async query(statement) {
-      statements.push(statement);
-      if (statement.includes('FROM employment_contract contract')) {
-        return [
-          {
-            beneficiaryContractId: SELF_CONTRACT,
-            companyId: 1,
-            organizationUnitSourceId: 'org-1',
-            sectorSourceId: 'sector-1',
-            displayName: 'Empleado Ejemplo',
-            legajo: '100',
-            sector: 'Administración',
-            dni: 'no-debe-salir',
-          },
-          {
-            beneficiaryContractId: OTHER_CONTRACT,
-            companyId: 2,
-            organizationUnitSourceId: 'org-2',
-            sectorSourceId: 'sector-2',
-            displayName: 'Fuera de alcance',
-            legajo: '200',
-            sector: 'Otra',
-          },
-        ];
-      }
-      if (statement.includes('FROM source_import_batch')) {
-        assert.match(statement, /source_system = 'GRH'/);
-        assert.doesNotMatch(statement, /source_system = 'PERSONAS'/);
-        return [{ cutoff: '2026-08-19T23:00:00Z' }];
-      }
-      return [
-        { sourceKey: '19', label: 'Días adeudados' },
-        { sourceKey: '4', label: 'Matrimonio' },
-        { sourceKey: '999', label: 'Sin mapa' },
-      ];
+    async query(statement, values) {
+      assert.match(statement, /action_center_tenant_bootstrap_v2/);
+      assert.equal(values[6], null);
+      return [{ result: {
+        principal: facadePrincipal(actor),
+        source: { label: 'GRH canónica', cutoff: '2026-08-19T23:00:00Z', version: 'snapshot publicado' },
+        subjects: [{
+          contractId: SELF_CONTRACT, displayName: 'Empleado Ejemplo', legajo: '100',
+          sector: 'Administración', allowedConfidentialities: ['standard', 'restricted'], accessBasis: 'self',
+        }],
+        subjectsTruncated: false,
+        reasonRows: [
+          { sourceKey: '19', label: 'Días adeudados' },
+          { sourceKey: '4', label: 'Matrimonio' },
+          { sourceKey: '999', label: 'Sin mapa' },
+        ],
+      } }];
     },
   };
-  const result = await getActionBootstrap(sql, principal('EMPLEADO'));
+  const result = await getActionBootstrap(sql, identityFor(actor), ACTION_SESSION);
 
   assert.equal(result.options.subjects.length, 1);
   assert.deepEqual(result.options.subjects[0].allowedConfidentialities, ['standard', 'restricted']);
@@ -439,159 +430,80 @@ test('bootstrap sólo expone sujetos autorizados y motivos gobernados sin DNI/CU
   assert.deepEqual(result.source, {
     label: 'GRH canónica', cutoff: '2026-08-19T23:00:00Z', version: 'snapshot publicado',
   });
-  assert.equal(statements.some((statement) => /contract\.id = \$1::uuid/.test(statement)), true);
-  const subjectQuery = statements.find((statement) => statement.includes('FROM employment_contract contract'));
-  assert.match(subjectQuery, /contract\.source_system = 'GRH'/);
-  assert.match(subjectQuery, /batch\.id = contract\.source_batch_id/);
-  assert.match(subjectQuery, /batch\.source_system = 'GRH'/);
-  assert.match(subjectQuery, /batch\.source_database = \$2/);
-  assert.match(subjectQuery, /batch\.validation_state = 'published'/);
-  const reasonQuery = statements.find((statement) => statement.includes('FROM grh_catalog_rows'));
-  assert.match(reasonQuery, /source_key::jsonb\s*->>\s*'reasonCode'/);
-
-  let executiveQueries = 0;
-  const executive = await getActionBootstrap({
-    async query() { executiveQueries += 1; return []; },
-  }, principal('INTENDENTE', { employmentContractId: null }));
-  assert.equal(executiveQueries, 1);
-  assert.deepEqual(executive.options.subjects, []);
-  assert.deepEqual(executive.options.reasons, []);
+  await assert.rejects(
+    getActionBootstrap(sql, identityFor(actor), ACTION_SESSION, 'x'),
+    (error) => error.code === 'ACTION_SUBJECT_QUERY_INVALID',
+  );
 });
 
-test('list usa alias seguros y devuelve summary sin notas ni correos', async () => {
-  const statements = [];
+test('lock NOWAIT se mapea como contención reintentable y no como sesión inválida', async () => {
+  const actor = principal('EMPLEADO');
   const sql = {
-    async query(statement) {
-      statements.push(statement);
-      if (statement.includes('count(*)')) return [{ total: 1 }];
-      return [caseRecord({
-        beneficiaryContractId: OTHER_CONTRACT,
-        payload: { ...annualPayload(), employeeNote: 'privada' },
-      })];
-    },
+    async query() { throw new Error('P0001: ACTION_SESSION_BUSY'); },
   };
-  const result = await listLeaveCases(sql, principal('AUDITOR'), { page: 1, limit: 20 });
-  assert.equal(result.data.length, 1);
-  assert.equal(Object.hasOwn(result.data[0].payload, 'employeeNote'), false);
-  assert.equal(Object.hasOwn(result.data[0], 'actors'), false);
-  assert.match(statements[0], /FROM action_case action/);
-  assert.match(statements[1], /FROM action_case action[\s\S]+action\.case_type/);
-  assert.match(statements[1], /action\.payload - 'employeeNote' AS payload/);
-  assert.doesNotMatch(statements[1], /created_by_user_email|decision_reason|cancellation_reason/);
+  await assert.rejects(
+    getActionBootstrap(sql, identityFor(actor), ACTION_SESSION),
+    (error) => error.code === 'ACTION_SESSION_BUSY' && error.status === 409,
+  );
 });
 
-test('list mixta proyecta nominal por registro y minimiza los casos accesibles sólo por nómina', async () => {
-  const statements = [];
-  const sql = {
-    async query(statement) {
-      statements.push(statement);
-      if (statement.includes('count(*)')) return [{ total: 2 }];
-      return [
-        caseRecord({ beneficiaryContractId: SELF_CONTRACT, status: 'approved', nominalProjection: true }),
-        caseRecord({ beneficiaryContractId: null, status: 'approved', nominalProjection: false,
-          subjectDisplayName: null, subjectLegajo: null, subjectSector: null }),
-      ];
-    },
-  };
+test('list consume un envelope único, proyecta nominal/payroll y no devuelve notas', async () => {
   const actor = principal('EMPLEADO', {
-    capabilities: new Set([
-      ...capabilitiesForRole('EMPLEADO'),
-      'leave.request.payroll.read',
-    ]),
+    capabilities: new Set([...capabilitiesForRole('EMPLEADO'), 'leave.request.payroll.read']),
   });
-  const result = await listLeaveCases(sql, actor, { view: 'authorized' });
-  assert.equal(Object.hasOwn(result.data[0], 'subject'), true);
+  const sql = {
+    async query(statement) {
+      assert.match(statement, /action_center_tenant_list_v2/);
+      return [{ result: {
+        principal: facadePrincipal(actor), total: 2, page: 1, limit: 20,
+        records: [
+          { ...caseRecord(), projection: 'nominal', nominalProjection: true },
+          {
+            id: OTHER_CONTRACT, caseNumber: '15', caseType: 'leave_request', status: 'approved',
+            confidentiality: 'standard', policyVersionId: POLICY_VERSION,
+            payload: { reasonCode: '19', startsOn: '2026-10-01', endsOn: '2026-10-02', durationUnit: 'calendar_day' },
+            evidenceStatus: 'verified', updatedAt: '2026-08-20T10:00:00Z', version: 3,
+            projection: 'payroll', nominalProjection: false,
+          },
+        ],
+      } }];
+    },
+  };
+  const result = await listLeaveCases(sql, identityFor(actor), { view: 'authorized' }, ACTION_SESSION);
+  assert.equal(result.data.length, 2);
+  assert.equal(Object.hasOwn(result.data[0].payload, 'employeeNote'), false);
+  assert.equal(result.data[0].projection, 'nominal');
   assert.equal(Object.hasOwn(result.data[1], 'subject'), false);
   assert.equal(Object.hasOwn(result.data[1], 'beneficiaryContractId'), false);
-  assert.match(statements[1], /AS "nominalProjection"/);
-  assert.match(statements[1], /CASE WHEN/);
+  assert.equal(result.data[1].projection, 'payroll');
+  assert.equal(result.pagination.total, 2);
 });
 
-test('list aplica vistas mine, area, authorized y closed con predicados parametrizados', async () => {
-  async function run(actor, options) {
-    const calls = [];
-    const sql = {
-      async query(statement, values) {
-        calls.push({ statement, values });
-        return statement.includes('count(*)') ? [{ total: 0 }] : [];
-      },
-    };
-    const result = await listLeaveCases(sql, actor, options);
-    return { calls, result };
-  }
-
-  const mine = await run(principal('EMPLEADO'), {
-    view: 'mine', caseType: 'leave_request', page: 2, limit: 10,
-  });
-  assert.match(mine.calls[0].statement, /action\.beneficiary_contract_id = \$4::uuid/);
-  assert.deepEqual(mine.calls[0].values, ['leave_request', TENANT_ID, BINDING_ID, SELF_CONTRACT]);
-  assert.equal(mine.result.pagination.mode, 'page');
-  assert.equal(mine.result.facets.view.selected, 'mine');
-  assert.equal(mine.result.capabilities.pagination.cursor, false);
-  assert.equal(mine.result.capabilities.fields.assignedTo.supported, false);
-
-  const area = await run(principal('JEFE_AREA', {
-    sourceCompanyId: 7,
-    areaScopes: [{ capabilityKey: 'leave.request.area.read', scopeLevel: 'sector', companyId: 7, organizationUnitSourceId: 'org-7', sectorSourceId: 'sector-7' }],
-  }), { view: 'area' });
-  assert.match(area.calls[0].statement, /action\.company_id = \$4::bigint/);
-  assert.match(area.calls[0].statement, /action\.sector_source_id = \$5/);
-  assert.match(area.calls[0].statement, /action\.organization_unit_source_id = \$6/);
-  assert.match(area.calls[0].statement, /action\.confidentiality = 'standard'/);
-  assert.deepEqual(area.calls[0].values, ['leave_request', TENANT_ID, BINDING_ID, 7, 'sector-7', 'org-7']);
-
-  const authorized = await run(principal('AUDITOR'), { view: 'authorized' });
-  assert.match(authorized.calls[0].statement, /action\.confidentiality = 'standard'/);
-  assert.equal(authorized.result.facets.view.selected, 'authorized');
-
-  const closed = await run(principal('AUDITOR'), { view: 'closed' });
-  assert.match(closed.calls[0].statement, /action\.status IN \('rejected', 'cancelled'\)/);
-  assert.deepEqual(closed.result.facets.status.available, ['rejected', 'cancelled']);
-  assert.equal(closed.result.facets.due.supported, false);
-  assert.equal(closed.result.facets.assignee.supported, false);
-});
-
-test('list falla cerrado para vista, tipo, due y cursor no soportados', async () => {
+test('list falla antes de SQL para filtros y paginación no canónicos', async () => {
   let queries = 0;
   const sql = { async query() { queries += 1; return []; } };
+  const actor = principal('EMPLEADO');
   await assert.rejects(
-    listLeaveCases(sql, principal('EMPLEADO'), { view: 'authorized' }),
-    (error) => error.code === 'ACTION_VIEW_FORBIDDEN' && error.status === 403,
-  );
-  await assert.rejects(
-    listLeaveCases(sql, principal('EMPLEADO'), { view: 'invented' }),
+    listLeaveCases(sql, identityFor(actor), { view: 'invented' }, ACTION_SESSION),
     (error) => error.code === 'ACTION_VIEW_INVALID' && error.status === 400,
   );
   await assert.rejects(
-    listLeaveCases(sql, principal('EMPLEADO'), { caseType: 'payroll_change' }),
+    listLeaveCases(sql, identityFor(actor), { caseType: 'payroll_change' }, ACTION_SESSION),
     (error) => error.code === 'ACTION_CASE_TYPE_INVALID' && error.status === 400,
   );
   await assert.rejects(
-    listLeaveCases(sql, principal('EMPLEADO'), { due: 'today' }),
+    listLeaveCases(sql, identityFor(actor), { due: 'today' }, ACTION_SESSION),
     (error) => error.code === 'ACTION_DUE_FILTER_UNSUPPORTED' && error.status === 400,
   );
   await assert.rejects(
-    listLeaveCases(sql, principal('EMPLEADO'), { cursor: 'opaque' }),
+    listLeaveCases(sql, identityFor(actor), { cursor: 'opaque' }, ACTION_SESSION),
     (error) => error.code === 'ACTION_CURSOR_UNSUPPORTED' && error.status === 400,
   );
+  for (const options of [{ limit: '51' }, { limit: '1.5' }, { page: '0' }, { page: '201' }, { page: '01' }]) {
+    await assert.rejects(
+      listLeaveCases(sql, identityFor(actor), options, ACTION_SESSION),
+      (error) => error.code === 'ACTION_PAGINATION_INVALID' && error.status === 400,
+    );
+  }
   assert.equal(queries, 0);
-});
-
-test('administrador sin vínculo no recibe sujetos ni comandos mutantes', async () => {
-  let queries = 0;
-  const actor = principal('ADMIN_INTERNO', { employmentContractId: null });
-  const bootstrap = await getActionBootstrap({
-    async query(statement) {
-      queries += 1;
-      if (statement.includes('FROM source_import_batch')) return [{ cutoff: '2026-08-20T00:00:00Z' }];
-      return [];
-    },
-  }, actor);
-  assert.equal(queries, 1);
-  assert.deepEqual(bootstrap.options.subjects, []);
-  assert.deepEqual(bootstrap.options.reasons, []);
-  assert.equal(bootstrap.options.defaultView, 'mine');
-  assert.equal(bootstrap.options.listCapabilities.filters.due.supported, false);
-  assert.equal(bootstrap.options.listCapabilities.fields.assignedTo.supported, false);
-  assert.deepEqual(allowedCommandsForCase(actor, caseRecord({ status: 'submitted' })), []);
 });

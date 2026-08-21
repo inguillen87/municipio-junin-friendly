@@ -9,6 +9,7 @@
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
     "db:actions:schema": "node --env-file=.env.local scripts/apply-action-center-schema.mjs",
     "db:actions:authority:schema": "node --env-file=.env.local scripts/apply-tenant-action-authority-schema.mjs",
+    "db:actions:read-facades:schema": "node --env-file=.env.local scripts/apply-action-center-read-facades-schema.mjs",
     "db:actions:verify-live": "node scripts/verify-action-center-live.mjs --confirm-isolated-branch",
     "db:iam:schema": "node --env-file=.env.local scripts/apply-tenant-iam-schema.mjs",
     "db:iam:bootstrap": "node --env-file=.env.local scripts/bootstrap-tenant-iam.mjs",

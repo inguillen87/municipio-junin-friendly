@@ -7,6 +7,7 @@ import { directCanonicalDatabaseUrl } from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 const MIGRATION_VERSION = '006-tenant-action-authority';
+const READ_FACADE_MIGRATION_VERSION = '007-action-center-read-facades';
 const MIGRATION_URL = new URL('./migrations/006-tenant-action-authority.sql', import.meta.url);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 
@@ -20,6 +21,13 @@ const IAM_ADMIN_VIEW_V2_SIGNATURE = 'public.tenant_iam_admin_view_v2(text,uuid,i
 const IAM_ADMIN_APPLY_V2_SIGNATURE = 'public.tenant_iam_apply_command_v2(text,uuid,integer,text,uuid,text,integer,jsonb)';
 const IAM_ADMIN_VIEW_LEGACY_SIGNATURE = 'public.tenant_iam_admin_view(text,text,integer)';
 const IAM_ADMIN_APPLY_LEGACY_SIGNATURE = 'public.tenant_iam_apply_command(text,text,uuid,text,integer,jsonb)';
+const READ_FACADE_SIGNATURES = Object.freeze([
+  'public.action_center_context_v2(text,uuid,integer,text,uuid,uuid)',
+  'public.action_center_tenant_bootstrap_v2(text,uuid,integer,text,uuid,uuid,text)',
+  'public.action_center_tenant_list_v2(text,uuid,integer,text,uuid,uuid,text,text,text,integer,integer)',
+  'public.action_center_tenant_detail_v2(text,uuid,integer,text,uuid,uuid,uuid)',
+  'public.action_center_tenant_routing_v2(text,uuid,integer,text,uuid,uuid,uuid)',
+]);
 
 const TRIGGER_CONTRACT = Object.freeze({
   tenant_action_authority_event_append_only: Object.freeze({
@@ -467,22 +475,25 @@ async function collectEvidence(client) {
   };
 }
 
-export function validateTenantActionRuntimeAclEvidence(evidence) {
+export function validateTenantActionRuntimeAclEvidence(evidence, readFacadesApplied = false) {
   const contract = TENANT_ACTION_SCHEMA_CONTRACT;
+  const runtimeFunctions = readFacadesApplied
+    ? [...contract.runtimeFunctions.filter((signature) => signature !== RESOLVE_SIGNATURE), ...READ_FACADE_SIGNATURES]
+    : contract.runtimeFunctions;
   const functions = Array.isArray(evidence?.functions) ? evidence.functions : [];
   const expectedFunctions = [...new Set([
-    ...contract.runtimeFunctions, ...contract.forbiddenRuntimeFunctions,
+    ...runtimeFunctions, ...contract.forbiddenRuntimeFunctions, RESOLVE_SIGNATURE,
   ])];
   for (const signature of expectedFunctions) {
     const row = exactlyOneByName(functions, signature, 'ACL función');
-    const expected = contract.runtimeFunctions.includes(signature);
+    const expected = runtimeFunctions.includes(signature);
     if (row.execute !== expected) throw new Error(`ACL function action tenant incorrecta: ${signature}`);
   }
 
   const relations = Array.isArray(evidence?.relations) ? evidence.relations : [];
   for (const resource of DIRECT_RUNTIME_RELATIONS) {
     const row = exactlyOneByName(relations, resource, 'ACL relación');
-    const expectedSelect = ['action_case', 'action_case_event'].includes(resource);
+    const expectedSelect = !readFacadesApplied && ['action_case', 'action_case_event'].includes(resource);
     if (row.canSelect !== expectedSelect || row.canInsert || row.canUpdate || row.canDelete) {
       throw new Error(`ACL directa insegura action tenant: ${resource}`);
     }
@@ -506,16 +517,19 @@ export function validateTenantActionRuntimeAclEvidence(evidence) {
   const requiredColumns = new Map((evidence?.requiredColumns || [])
     .map((row) => [`${row.resource}.${row.columnName}`, row.canSelect]));
   for (const key of REQUIRED_RUNTIME_COLUMNS) {
-    if (requiredColumns.get(key) !== true) {
-      throw new Error(`runtime no puede leer columna tenant requerida: ${key}`);
+    if (requiredColumns.get(key) !== !readFacadesApplied) {
+      throw new Error(readFacadesApplied
+        ? `runtime conserva columna tenant directa después de 007: ${key}`
+        : `runtime no puede leer columna tenant requerida: ${key}`);
     }
   }
 }
 
-async function verifyRuntimeAcl(client) {
+async function verifyRuntimeAcl(client, readFacadesApplied = false) {
   const contract = TENANT_ACTION_SCHEMA_CONTRACT;
   const aclFunctions = [...new Set([
     ...contract.runtimeFunctions, ...contract.forbiddenRuntimeFunctions,
+    ...(readFacadesApplied ? READ_FACADE_SIGNATURES : []),
   ])];
   const functions = await client.query(`
     SELECT signature AS name,
@@ -563,7 +577,7 @@ async function verifyRuntimeAcl(client) {
     functions: rows(functions), relations: rows(relations),
     sequence: rows(sequence)[0], globalColumns: rows(globalColumns),
     requiredColumns: rows(requiredColumns),
-  });
+  }, readFacadesApplied);
 }
 
 async function main() {
@@ -579,6 +593,13 @@ async function main() {
     const existing = await client.query(
       'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1', [MIGRATION_VERSION],
     );
+    const readFacades = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1', [READ_FACADE_MIGRATION_VERSION],
+    );
+    const readFacadesApplied = readFacades.rowCount > 0;
+    if (readFacadesApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${READ_FACADE_MIGRATION_VERSION}`);
+    }
     if (existing.rowCount && existing.rows[0].checksum_sha256.trim() !== checksum) {
       throw new Error(`Drift detectado: ${MIGRATION_VERSION}`);
     }
@@ -599,7 +620,11 @@ async function main() {
       );
     }
     validateTenantActionEvidence(await collectEvidence(client));
-    await verifyRuntimeAcl(client);
+    await verifyRuntimeAcl(client, readFacadesApplied);
+    if (readFacadesApplied) {
+      const { verifyActionReadFinalAcl } = await import('./apply-action-center-read-facades-schema.mjs');
+      await verifyActionReadFinalAcl(client);
+    }
     await client.query('COMMIT');
     console.log(existing.rowCount
       ? `${MIGRATION_VERSION}: ya aplicada y verificada`
