@@ -1,0 +1,92 @@
+{
+  "contractVersion": "1.0.0",
+  "contractId": "junin-attendance-readiness-public.v1",
+  "evidenceStatus": "discovered_not_homologated",
+  "observedAt": "2026-08-21",
+  "tenant": "municipio-junin-mendoza",
+  "privacy": {
+    "containsPersonalDataInSources": true,
+    "publicManifestContainsRowValues": false,
+    "publicBoundary": "aggregate_counts_non_personal_device_metadata_and_artifact_fingerprints_only"
+  },
+  "sources": [
+    {
+      "sourceKey": "grh_mariadb_backup",
+      "label": "Backup GRH",
+      "sourceCutoff": "2026-08-19T15:00:00-03:00",
+      "sha256": "BCED0B174AAB977B085FC977723F7EDD8FB9E473ADCFBE237070E8ECEF982AA7",
+      "extractionRule": "safe_logical_dump_profile_of_ddl_and_insert_tuple_counts_without_persisting_values",
+      "facts": {
+        "tables": 257,
+        "columns": 2980,
+        "rows": 6586360,
+        "shifts": 30,
+        "schedules": 32,
+        "tolerances": 9,
+        "shiftAssignments": 574,
+        "expectedWorkdays": 163634,
+        "punches": 958,
+        "holidays": 55,
+        "preEvents": 873,
+        "attendanceCoverage": "primarily_2000_2012"
+      }
+    },
+    {
+      "sourceKey": "employee_area_roster",
+      "label": "Padrón de áreas",
+      "sheet": "Sheet1",
+      "range": "A1:C388",
+      "sha256": "23F7A50CC903A601C5EDBD00427F51B35FF618F9366B0F290BAB30EC0ABDF21A",
+      "extractionRule": "bounded_aggregate_scan_without_persisting_row_values",
+      "facts": {
+        "rows": 387,
+        "uniqueIdentifiers": 387,
+        "areaLabels": 39,
+        "identifierSemantics": "pending_municipal_confirmation"
+      }
+    },
+    {
+      "sourceKey": "marking_points",
+      "label": "Puntos de marcación",
+      "sheet": "Hoja1",
+      "range": "A1:K17",
+      "sha256": "2897FEADC03E15C7246F126556D76DE7231B9F651975CC15C0C889D9BB2470B9",
+      "extractionRule": "bounded_aggregate_scan_without_publishing_coordinates_or_responsibles",
+      "facts": {
+        "points": 13,
+        "deviceFamilies": 3,
+        "extractionModes": 2,
+        "deviceFamilyBreakdownPublic": false,
+        "extractionModeBreakdownPublic": false,
+        "channelByModelAccredited": false
+      }
+    },
+    {
+      "sourceKey": "organization_chart",
+      "label": "Organigrama",
+      "sheet": "Hoja1",
+      "range": "A1:F50",
+      "sha256": "583233646AFC8EE73B085417772DED2676FF445AE1B39A33383844C0A2560CD3",
+      "extractionRule": "bounded_aggregate_scan_without_publishing_responsible_names",
+      "facts": {
+        "rows": 49,
+        "uniqueAreas": 49,
+        "secretariatLabels": 5
+      }
+    }
+  ],
+  "crosswalk": {
+    "exactRosterOrganizationMatches": 39,
+    "organizationLabelsWithoutRosterEvidence": 10,
+    "exactPointOrganizationMatches": 11,
+    "pointLabelsRequiringAliasReview": 15,
+    "automaticAliasResolution": false
+  },
+  "releaseLimits": {
+    "current2026RulesApproved": false,
+    "liveClockConnectorsEnabled": false,
+    "attendanceMinutesCalculated": false,
+    "payrollPostingEnabled": false,
+    "grhWritesEnabled": false
+  }
+}

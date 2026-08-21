@@ -12,7 +12,7 @@ function pngDimensions(file) {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
-function bootWorker({ responseHeaders = {} } = {}) {
+function bootWorker({ responseHeaders = {}, cachedResponses = {}, fetchImpl } = {}) {
   const listeners = new Map();
   const added = [];
   const deleted = [];
@@ -22,6 +22,10 @@ function bootWorker({ responseHeaders = {} } = {}) {
   const activeCacheName = 'municontrol-friendly-public-test-version';
   const cache = {
     async addAll(urls) { added.push(...Array.from(urls)); },
+    async match(request) {
+      const key = typeof request === 'string' ? request : new URL(request.url).pathname;
+      return cachedResponses[key];
+    },
     async put(key, response) { puts.push({ key, response }); }
   };
   const caches = {
@@ -30,15 +34,15 @@ function bootWorker({ responseHeaders = {} } = {}) {
       return cache;
     },
     async keys() {
-      return ['unrelated-cache', 'municontrol-friendly-public-old-version', activeCacheName];
+      return ['unrelated-cache', 'municontrol-junin-v2', 'municontrol-friendly-public-old-version', activeCacheName];
     },
     async delete(name) { deleted.push(name); return true; },
-    async match() { return undefined; }
+    async match() { throw new Error('el worker no debe buscar en cachés globales o legacy'); }
   };
   const context = vm.createContext({
     caches,
     console,
-    fetch: async () => new Response('ok', { status: 200, headers: responseHeaders }),
+    fetch: fetchImpl || (async () => new Response('ok', { status: 200, headers: responseHeaders })),
     Headers,
     Map,
     Object,
@@ -102,7 +106,7 @@ test('service worker precachea sólo el shell público agregado', async () => {
   worker.listeners.get('install')({ waitUntil(value) { installPromise = value; } });
   await installPromise;
 
-  for (const expected of ['/friendly-dashboard.html', '/friendly-data.json', '/manifest.webmanifest']) {
+  for (const expected of ['/friendly-dashboard.html', '/control-horario-readiness.html', '/attendance-readiness-evidence.v1.json', '/friendly-data.json', '/manifest.webmanifest']) {
     assert.ok(worker.added.includes(expected), `falta precachear ${expected}`);
   }
   for (const forbidden of ['/api/internal-data', '/api/internal-actions', '/api/internal-assistant', '/internal-dashboard.html', '/centro-acciones.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/gestion-comparativa.html', '/presupuesto-control.html', '/ausentismo-control.html', '/licencias-control.html', '/calidad-operativa.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/mendoza-title-vi.js', '/assets/junin-budget-2026.js']) {
@@ -164,6 +168,14 @@ test('service worker ofrece fallback sólo para navegaciones públicas conocidas
   };
   assert.equal(typeof dispatchFetch(worker, safeNavigation)?.then, 'function');
 
+  const attendanceNavigation = {
+    method: 'GET',
+    url: 'https://friendly.example/control-horario-readiness',
+    mode: 'navigate',
+    headers: new Headers()
+  };
+  assert.equal(typeof dispatchFetch(worker, attendanceNavigation)?.then, 'function');
+
   const unknownNavigation = {
     method: 'GET',
     url: 'https://friendly.example/persona/123',
@@ -179,6 +191,26 @@ test('service worker ofrece fallback sólo para navegaciones públicas conocidas
     headers: new Headers({ authorization: 'Bearer redacted' })
   };
   assert.equal(dispatchFetch(worker, authorizedStatic), undefined);
+});
+
+test('fallback offline sólo consulta el caché público activo', async () => {
+  const offlineHtml = new Response('<h1>Control horario offline</h1>', {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' }
+  });
+  const worker = bootWorker({
+    cachedResponses: { '/control-horario-readiness.html': offlineHtml },
+    fetchImpl: async () => { throw new Error('sin conexión'); }
+  });
+  const request = {
+    method: 'GET',
+    url: 'https://friendly.example/control-horario-readiness',
+    mode: 'navigate',
+    headers: new Headers()
+  };
+
+  const response = await dispatchFetch(worker, request);
+  assert.match(await response.text(), /Control horario offline/);
 });
 
 test('service worker respeta no-store y activa actualizaciones sólo por orden explícita', async () => {
@@ -200,12 +232,12 @@ test('service worker respeta no-store y activa actualizaciones sólo por orden e
   let activatePromise;
   worker.listeners.get('activate')({ waitUntil(value) { activatePromise = value; } });
   await activatePromise;
-  assert.deepEqual(worker.deleted, ['municontrol-friendly-public-old-version']);
+  assert.deepEqual(worker.deleted, ['municontrol-junin-v2', 'municontrol-friendly-public-old-version']);
   assert.equal(worker.claimCalls, 1);
 });
 
 test('los puntos de entrada enlazan el manifiesto y registran el worker', () => {
-  for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html']) {
+  for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'control-horario-readiness.html']) {
     const html = read(file);
     assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/, `${file} debe enlazar el manifiesto`);
     assert.match(html, /<link rel="apple-touch-icon" href="\/assets\/pwa\/icon-180\.png">/, `${file} debe publicar icono iOS`);
@@ -226,6 +258,8 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(ignore, /^!gestion-comparativa\.html$/m);
   assert.match(ignore, /^!presupuesto-control\.html$/m);
   assert.match(ignore, /^!centro-acciones\.html$/m);
+  assert.match(ignore, /^!control-horario-readiness\.html$/m);
+  assert.match(ignore, /^!attendance-readiness-evidence\.v1\.json$/m);
   assert.match(ignore, /^!scripts\/migrations\/003-action-center\.sql$/m);
 
   const vercel = JSON.parse(read('vercel.json'));
@@ -233,6 +267,7 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(headers.get('/sw.js').get('Cache-Control'), /no-cache/);
   assert.equal(headers.get('/sw.js').get('Service-Worker-Allowed'), '/');
   assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
+  assert.match(headers.get('/attendance-readiness-evidence.v1.json').get('Cache-Control'), /max-age=300/);
   for (const route of ['/api/(.*)', '/internal', '/internal-dashboard.html', '/centro-acciones', '/centro-acciones.html', '/estructura', '/datos-personales.html', '/nomina-control', '/gestion-comparativa', '/gestion-comparativa.html', '/presupuesto-control', '/presupuesto-control.html', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/junin-budget-2026.js', '/admin']) {
     assert.match(headers.get(route).get('Cache-Control'), /no-store/, `${route} debe impedir cache compartido`);
   }

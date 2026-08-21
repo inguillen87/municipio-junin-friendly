@@ -33,6 +33,8 @@ test_prisma.js
 !friendly-dashboard.html
 !internal-dashboard.html
 !centro-acciones.html
+!control-horario-readiness.html
+!attendance-readiness-evidence.v1.json
 !administracion-plataforma.html
 !datos-personales.html
 !modulos.html

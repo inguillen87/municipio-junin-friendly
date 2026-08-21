@@ -4,6 +4,7 @@
 const CACHE_VERSION = '__PWA_CACHE_VERSION__';
 const CACHE_PREFIX = 'municontrol-friendly-public-';
 const STATIC_CACHE = `${CACHE_PREFIX}${CACHE_VERSION}`;
+const LEGACY_CACHE_NAMES = new Set(['municontrol-junin-v2']);
 
 // Sólo contenido público, agregado y sin identidad personal.
 const PRECACHE_URLS = Object.freeze([
@@ -11,6 +12,8 @@ const PRECACHE_URLS = Object.freeze([
   '/modulos.html',
   '/reportes-rrhh.html',
   '/calidad-datos.html',
+  '/control-horario-readiness.html',
+  '/attendance-readiness-evidence.v1.json',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',
@@ -26,7 +29,8 @@ const PUBLIC_NAVIGATION_FALLBACKS = new Map([
   ['/modulos', '/modulos.html'],
   ['/reportes', '/reportes-rrhh.html'],
   ['/reportes-rrhh', '/reportes-rrhh.html'],
-  ['/calidad-datos', '/calidad-datos.html']
+  ['/calidad-datos', '/calidad-datos.html'],
+  ['/control-horario-readiness', '/control-horario-readiness.html']
 ]);
 
 const NEVER_INTERCEPT_PREFIXES = Object.freeze([
@@ -107,7 +111,10 @@ self.addEventListener('activate', (event) => {
     const names = await caches.keys();
     await Promise.all(
       names
-        .filter((name) => name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
+        .filter((name) => (
+          (name.startsWith(CACHE_PREFIX) && name !== STATIC_CACHE)
+          || LEGACY_CACHE_NAMES.has(name)
+        ))
         .map((name) => caches.delete(name))
     );
     await self.clients.claim();
@@ -133,7 +140,8 @@ self.addEventListener('fetch', (event) => {
       try {
         return await fetch(request);
       } catch {
-        return (await caches.match(fallback)) || Response.error();
+        const cache = await caches.open(STATIC_CACHE);
+        return (await cache.match(fallback)) || Response.error();
       }
     })());
     return;
@@ -141,12 +149,12 @@ self.addEventListener('fetch', (event) => {
 
   if (!isExplicitPublicStatic(url.pathname)) return;
   event.respondWith((async () => {
-    const cached = await caches.match(request, { ignoreSearch: true });
+    const cache = await caches.open(STATIC_CACHE);
+    const cached = await cache.match(request, { ignoreSearch: true });
     if (cached) return cached;
 
     const response = await fetch(request);
     if (responseMayBeStored(response)) {
-      const cache = await caches.open(STATIC_CACHE);
       await cache.put(url.pathname, response.clone());
     }
     return response;
