@@ -563,6 +563,31 @@
                 </div>
               </aside>
             </div>
+
+            <section class="panel" id="platformOwnerPanel" aria-labelledby="platformOwnerTitle" style="margin-top:18px">
+              <header class="panel-head"><div><h2 id="platformOwnerTitle">Propietarios globales</h2><p>El alta o la baja de un propietario requiere una solicitud y la decisión de otra persona propietaria. Nunca concede acceso laboral por tenant.</p></div></header>
+              <div class="panel-body">
+                <div class="governance-strip is-blocked" id="platformOwnerGate" aria-live="polite">
+                  <div><strong id="platformOwnerGateTitle">Gobierno global sin verificar</strong><p id="platformOwnerGateMessage">Esperando conteo, MFA y control de doble aprobación informados por PostgreSQL.</p></div>
+                  <div class="governance-facts" id="platformOwnerFacts"></div>
+                </div>
+                <form class="toolbar" id="platformOwnerGrantForm" autocomplete="off" style="margin-top:16px">
+                  <div class="field"><label for="platformOwnerCandidate">Cuenta activa con MFA</label><select class="select" id="platformOwnerCandidate"><option value="">Seleccionar persona elegible</option></select></div>
+                  <div class="field"><label for="platformOwnerRequestReason">Fundamento de la solicitud</label><textarea class="textarea" id="platformOwnerRequestReason" minlength="3" maxlength="500" placeholder="Motivo administrativo verificable"></textarea></div>
+                  <button class="button primary" id="requestPlatformOwnerGrant" type="submit" disabled>Solicitar alta global</button>
+                </form>
+                <div class="table-meta"><span id="platformOwnerCount">Sin propietarios verificados</span><span>Rol global sin herencia tenant</span></div>
+                <div class="table-wrap" tabindex="0" role="region" aria-labelledby="platformOwnerTitle">
+                  <table><caption class="sr-only">Propietarios globales visibles</caption><thead><tr><th>Persona</th><th>MFA</th><th>Versión</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="platformOwnerRows"></tbody></table>
+                </div>
+                <h3 style="margin:22px 0 8px;color:var(--navy)">Solicitudes de cambio</h3>
+                <div class="field"><label for="platformOwnerDecisionReason">Fundamento de la decisión</label><textarea class="textarea" id="platformOwnerDecisionReason" minlength="3" maxlength="500" placeholder="Obligatorio para aprobar o rechazar"></textarea></div>
+                <div class="empty-state" id="platformOwnerRequestEmpty"><strong>Sin solicitudes globales.</strong><p>No se infieren aprobaciones ni cambios fuera de la auditoría.</p></div>
+                <div class="table-wrap" id="platformOwnerRequestWrap" tabindex="0" role="region" aria-label="Solicitudes globales" hidden>
+                  <table><caption class="sr-only">Solicitudes de propietario global</caption><thead><tr><th>Objetivo</th><th>Cambio</th><th>Solicitante</th><th>Estado</th><th>Decisión</th></tr></thead><tbody id="platformOwnerRequestRows"></tbody></table>
+                </div>
+              </div>
+            </section>
           </section>
 
           <section class="view" id="controlsView" data-view-panel="controls" aria-labelledby="controlsTitle" hidden>
@@ -788,6 +813,10 @@
       exclusive: null,
       operationalControls: [],
       operationalCatalog: { sourceBindings: [], scopeCapabilities: [], organizations: [], sectors: [], reasonCodes: [] },
+      platformGovernance: {
+        owners: [], eligibleUsers: [], requests: [],
+        controls: { activeOwnerCount: 0, makerCheckerReady: false, lastOwnerProtected: false }
+      },
       employmentCandidates: [],
       scopeDraft: [],
       selectedUser: null,
@@ -816,6 +845,10 @@
       'userStatusTabs','userFilters','userSearch','userRoleFilter','clearUserFilters','userResultCount','userCutoff',
       'userLoading','userError','userErrorMessage','userEmpty','userTableWrap','userRows','roleMatrixRole',
       'roleCapabilityMatrix','roleEffectiveSummary','controlGovernance','controlGovernanceTitle','controlGovernanceMessage',
+      'platformOwnerPanel','platformOwnerGate','platformOwnerGateTitle','platformOwnerGateMessage','platformOwnerFacts',
+      'platformOwnerGrantForm','platformOwnerCandidate','platformOwnerRequestReason','requestPlatformOwnerGrant',
+      'platformOwnerCount','platformOwnerRows','platformOwnerDecisionReason','platformOwnerRequestEmpty',
+      'platformOwnerRequestWrap','platformOwnerRequestRows',
       'overtimeAssignee','overtimeAssignmentSource','overtimeAssignmentForm','overtimeAssigneeSelect','assignOvertimeButton',
       'absenceControlState','absenceControlSource','absenceControlExplanation','auditFilters','auditSearch','auditEventFilter',
       'clearAuditFilters','auditResultCount','auditCutoff','auditLoading','auditError','auditErrorMessage','auditEmpty',
@@ -1504,6 +1537,60 @@
       };
     }
 
+    function normalizePlatformGovernance(payload) {
+      var root = roots(payload)[0] || {};
+      var controls = firstObject(root.controls, root.governance);
+      var owners = findArray(payload, ['owners','assignments']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          email: text(row.email).toLowerCase(),
+          displayName: text(first(row.displayName, row.name, row.email), 'Persona sin nombre'),
+          active: row.active === true,
+          version: authorityVersion(row.version),
+          mfaEnrolled: row.mfaEnrolled === true,
+          grantedAt: row.grantedAt,
+          revokedAt: row.revokedAt
+        };
+      }).filter(function (owner) { return owner.email && owner.version; });
+      var eligibleUsers = findArray(payload, ['eligibleUsers','candidates']).map(function (value) {
+        var row = firstObject(value);
+        var assignmentVersion = Number(row.assignmentVersion);
+        return {
+          email: text(row.email).toLowerCase(),
+          displayName: text(first(row.displayName, row.name, row.email), 'Persona sin nombre'),
+          assignmentVersion: Number.isSafeInteger(assignmentVersion) && assignmentVersion >= 0 ? assignmentVersion : null,
+          mfaEnrolled: row.mfaEnrolled === true,
+          previouslyRevoked: row.previouslyRevoked === true
+        };
+      }).filter(function (candidate) { return candidate.email && candidate.assignmentVersion !== null && candidate.mfaEnrolled; });
+      var requests = findArray(payload, ['requests','items']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id), targetEmail: text(row.targetEmail).toLowerCase(),
+          targetDisplayName: text(first(row.targetDisplayName, row.targetEmail), 'Persona no informada'),
+          action: text(row.action).toLowerCase(), status: text(row.status).toLowerCase(),
+          reason: text(row.reason), requestedByEmail: text(row.requestedByEmail).toLowerCase(),
+          requestedByDisplayName: text(first(row.requestedByDisplayName, row.requestedByEmail), 'Solicitante no informado'),
+          requestedAt: row.requestedAt, decidedByEmail: text(row.decidedByEmail).toLowerCase(),
+          decisionReason: text(row.decisionReason), decidedAt: row.decidedAt,
+          version: authorityVersion(row.version),
+          expectedAssignmentVersion: Number(row.expectedAssignmentVersion)
+        };
+      }).filter(function (request) { return request.id && request.targetEmail && request.version; });
+      return {
+        currentActorEmail: text(first(root.currentActorEmail, state.user && state.user.email)).toLowerCase(),
+        owners: owners, eligibleUsers: eligibleUsers, requests: requests,
+        controls: {
+          activeOwnerCount: Math.max(0, finiteNumber(controls.activeOwnerCount) || 0),
+          makerCheckerReady: controls.makerCheckerReady === true,
+          lastOwnerProtected: controls.lastOwnerProtected === true,
+          selfApprovalBlocked: controls.selfApprovalBlocked === true,
+          mfaRequiredForGrant: controls.mfaRequiredForGrant === true,
+          auditReady: controls.auditReady === true
+        }
+      };
+    }
+
     function canCommand(command) { return state.allowedCommands.has(command); }
     function governanceReady(needsSod) {
       return state.controls.auditReady === true && (!needsSod || state.controls.sodReady === true);
@@ -1802,6 +1889,97 @@
         clear(el.roleEffectiveSummary);
         el.roleEffectiveSummary.append(node('strong', '', role.label + '. '), document.createTextNode(role.description + ' La API informó ' + role.capabilities.length + ' capacidades para este rol.'));
       }
+    }
+
+    function platformGovernanceCommandReady(command, decision) {
+      var controls = state.platformGovernance.controls || {};
+      return canCommand(command) && controls.auditReady === true
+        && controls.lastOwnerProtected === true
+        && (!decision || controls.makerCheckerReady === true)
+        && !state.loading;
+    }
+
+    function renderPlatformGovernance() {
+      var governance = state.platformGovernance;
+      var controls = governance.controls || {};
+      var activeOwners = governance.owners.filter(function (owner) { return owner.active; });
+      var actorEmail = text(first(governance.currentActorEmail, state.user && state.user.email)).toLowerCase();
+      var onlineReady = controls.makerCheckerReady === true && controls.auditReady === true
+        && controls.lastOwnerProtected === true;
+      el.platformOwnerGate.classList.toggle('is-blocked', !onlineReady);
+      el.platformOwnerGate.classList.toggle('is-ready', onlineReady);
+      el.platformOwnerGateTitle.textContent = onlineReady ? 'Doble control global verificado' : 'Bootstrap secundario pendiente';
+      el.platformOwnerGateMessage.textContent = onlineReady
+        ? 'Una persona propone y otra decide. PostgreSQL protege al último propietario y revoca sesiones globales al aprobar una baja.'
+        : 'Con un único propietario, el alta del segundo sólo puede realizarse por el procedimiento break-glass auditado; nunca por autoaprobación.';
+      clear(el.platformOwnerFacts);
+      el.platformOwnerFacts.append(
+        pill(String(controls.activeOwnerCount || 0) + ' propietarios activos', activeOwners.length > 1 ? 'is-ok' : 'is-attention'),
+        pill('Último owner ' + (controls.lastOwnerProtected ? 'protegido' : 'sin verificar'), controls.lastOwnerProtected ? 'is-ok' : 'is-danger'),
+        pill('Auditoría ' + (controls.auditReady ? 'lista' : 'bloqueada'), controls.auditReady ? 'is-ok' : 'is-danger')
+      );
+
+      var selectedCandidate = el.platformOwnerCandidate.value;
+      clear(el.platformOwnerCandidate);
+      var placeholder = node('option', '', 'Seleccionar persona elegible'); placeholder.value = ''; el.platformOwnerCandidate.appendChild(placeholder);
+      governance.eligibleUsers.forEach(function (candidate) {
+        var option = node('option', '', candidate.displayName + ' · ' + candidate.email);
+        option.value = candidate.email; option.dataset.assignmentVersion = String(candidate.assignmentVersion);
+        el.platformOwnerCandidate.appendChild(option);
+      });
+      if (governance.eligibleUsers.some(function (candidate) { return candidate.email === selectedCandidate; })) el.platformOwnerCandidate.value = selectedCandidate;
+      var grantReasonReady = el.platformOwnerRequestReason.value.trim().length >= 3;
+      el.requestPlatformOwnerGrant.disabled = !onlineReady
+        || !platformGovernanceCommandReady('request_platform_owner_grant', false)
+        || !el.platformOwnerCandidate.value || !grantReasonReady;
+
+      clear(el.platformOwnerRows);
+      el.platformOwnerCount.textContent = activeOwners.length + (activeOwners.length === 1 ? ' propietario activo' : ' propietarios activos');
+      governance.owners.forEach(function (owner) {
+        var row = node('tr');
+        var person = node('td'); person.dataset.label = 'Persona'; person.append(node('span', 'cell-title', owner.displayName), node('span', 'cell-sub', owner.email));
+        var mfa = node('td'); mfa.dataset.label = 'MFA'; mfa.appendChild(pill(owner.mfaEnrolled ? 'Activo' : 'No verificado', owner.mfaEnrolled ? 'is-ok' : 'is-danger'));
+        var version = node('td', 'cell-sub', owner.version ? 'v' + owner.version : 'No informada'); version.dataset.label = 'Versión';
+        var status = node('td'); status.dataset.label = 'Estado'; status.appendChild(pill(owner.active ? 'Activo' : 'Revocado', owner.active ? 'is-ok' : 'is-danger'));
+        var action = node('td'); action.dataset.label = 'Acción';
+        var revoke = node('button', 'button danger', 'Solicitar baja'); revoke.type = 'button'; revoke.dataset.requestOwnerRevoke = owner.email; revoke.dataset.assignmentVersion = String(owner.version || '');
+        revoke.disabled = !owner.active || !owner.version || !onlineReady
+          || !platformGovernanceCommandReady('request_platform_owner_revoke', false)
+          || el.platformOwnerRequestReason.value.trim().length < 3
+          || (activeOwners.length === 2 && owner.email !== actorEmail);
+        if (activeOwners.length === 2 && owner.email !== actorEmail) revoke.title = 'Con dos propietarios, cada persona solicita su propia baja y la otra la aprueba.';
+        action.appendChild(revoke); row.append(person, mfa, version, status, action); el.platformOwnerRows.appendChild(row);
+      });
+
+      var visibleRequests = governance.requests.slice();
+      el.platformOwnerRequestEmpty.hidden = visibleRequests.length > 0;
+      el.platformOwnerRequestWrap.hidden = visibleRequests.length === 0;
+      clear(el.platformOwnerRequestRows);
+      var decisionReasonReady = el.platformOwnerDecisionReason.value.trim().length >= 3;
+      visibleRequests.forEach(function (request) {
+        var row = node('tr');
+        var target = node('td'); target.dataset.label = 'Objetivo'; target.append(node('span', 'cell-title', request.targetDisplayName), node('span', 'cell-sub', request.targetEmail));
+        var change = node('td'); change.dataset.label = 'Cambio'; change.append(node('span', 'cell-title', request.action === 'grant' ? 'Otorgar PLATFORM_OWNER' : 'Revocar PLATFORM_OWNER'), node('span', 'cell-sub', request.reason || 'Sin fundamento visible'));
+        var maker = node('td'); maker.dataset.label = 'Solicitante'; maker.append(node('span', 'cell-title', request.requestedByDisplayName), node('span', 'cell-sub', formatDate(request.requestedAt, true)));
+        var status = node('td'); status.dataset.label = 'Estado'; status.appendChild(pill(titleize(request.status), statusTone(request.status)));
+        var decision = node('td'); decision.dataset.label = 'Decisión';
+        if (request.status === 'pending') {
+          var sameMaker = actorEmail && actorEmail === request.requestedByEmail;
+          var selfRevoke = request.action === 'revoke' && actorEmail === request.targetEmail;
+          var approve = node('button', 'button primary', 'Aprobar'); approve.type = 'button'; approve.dataset.approveOwnerRequest = request.id; approve.dataset.requestVersion = String(request.version || '');
+          approve.disabled = sameMaker || selfRevoke || !decisionReasonReady
+            || !platformGovernanceCommandReady('approve_platform_owner_change', true);
+          var reject = node('button', 'button', 'Rechazar'); reject.type = 'button'; reject.dataset.rejectOwnerRequest = request.id; reject.dataset.requestVersion = String(request.version || '');
+          reject.disabled = sameMaker || !decisionReasonReady
+            || !platformGovernanceCommandReady('reject_platform_owner_change', true);
+          decision.append(approve, reject);
+          if (sameMaker) decision.appendChild(node('span', 'cell-sub', 'Debe decidir otra persona.'));
+          else if (selfRevoke) decision.appendChild(node('span', 'cell-sub', 'No podés aprobar tu propia baja.'));
+        } else {
+          decision.append(node('span', 'cell-title', request.decidedByEmail || 'Decisión registrada'), node('span', 'cell-sub', request.decisionReason || 'Fundamento protegido'));
+        }
+        row.append(target, change, maker, status, decision); el.platformOwnerRequestRows.appendChild(row);
+      });
     }
 
     function renderUsers() {
@@ -2310,6 +2488,7 @@
       renderTenants();
       renderGovernance();
       renderRoleOptions();
+      renderPlatformGovernance();
       renderUsers();
       renderControls();
       renderAudit();
@@ -2362,6 +2541,24 @@
       }
     }
 
+    async function loadPlatformGovernance(version) {
+      try {
+        var payload = await requestJson(contextQuery('platform_owners', ''));
+        if (version !== state.loadVersion) return;
+        state.platformGovernance = normalizePlatformGovernance(payload);
+        list(payload.allowedCommands).forEach(function (command) {
+          if (typeof command === 'string' && command) state.allowedCommands.add(command);
+        });
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        state.platformGovernance = {
+          currentActorEmail: text(state.user && state.user.email).toLowerCase(),
+          owners: [], eligibleUsers: [], requests: [],
+          controls: { activeOwnerCount: 0, makerCheckerReady: false, lastOwnerProtected: false, auditReady: false }
+        };
+      }
+    }
+
     async function loadAudit(requestedTenantId, version) {
       try {
         var payload = await requestJson(contextQuery('audit', requestedTenantId));
@@ -2393,7 +2590,7 @@
         var loaded = await loadBootstrap(requestedTenantId || '', version);
         if (!loaded || version !== state.loadVersion) return;
         renderSession(); renderContext(); renderMetrics(); renderGovernance(); renderRoleOptions(); renderControls();
-        await Promise.all([loadUsers(requestedTenantId || '', version), loadInvitations(version), loadAudit(requestedTenantId || '', version)]);
+        await Promise.all([loadUsers(requestedTenantId || '', version), loadInvitations(version), loadPlatformGovernance(version), loadAudit(requestedTenantId || '', version)]);
         if (version !== state.loadVersion) return;
         applyInvitationProjection();
         renderAll();
@@ -2404,7 +2601,7 @@
         el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
         throw error;
       } finally {
-        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); }
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); renderPlatformGovernance(); }
       }
     }
 
@@ -2647,6 +2844,42 @@
       el.userStatusTabs.addEventListener('click', function (event) { var tab = event.target.closest('[data-user-status]'); if (!tab) return; state.userStatus = tab.dataset.userStatus; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (item) { item.setAttribute('aria-selected', String(item === tab)); }); renderUsers(); });
       el.userRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-user]'); if (button) openUserDetail(button.dataset.openUser); });
       el.roleMatrixRole.addEventListener('change', renderRoleMatrix);
+      [el.platformOwnerCandidate, el.platformOwnerRequestReason, el.platformOwnerDecisionReason].forEach(function (control) {
+        control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'input', renderPlatformGovernance);
+      });
+      el.platformOwnerGrantForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var candidate = state.platformGovernance.eligibleUsers.find(function (item) { return item.email === el.platformOwnerCandidate.value; });
+        var reason = el.platformOwnerRequestReason.value.trim();
+        if (!candidate || reason.length < 3 || el.requestPlatformOwnerGrant.disabled) return;
+        runCommand('request_platform_owner_grant', {
+          targetEmail: candidate.email, reason: reason
+        }, candidate.assignmentVersion, el.requestPlatformOwnerGrant, 'Solicitud global preparada para doble aprobación.', null);
+      });
+      el.platformOwnerRows.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-request-owner-revoke]');
+        if (!button || button.disabled) return;
+        var reason = el.platformOwnerRequestReason.value.trim();
+        var version = Number(button.dataset.assignmentVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        if (!window.confirm('¿Preparar la solicitud de baja global? La baja no se aplica hasta que otra persona propietaria la apruebe.')) return;
+        runCommand('request_platform_owner_revoke', {
+          targetEmail: button.dataset.requestOwnerRevoke, reason: reason
+        }, version, button, 'Solicitud de baja global preparada.', null);
+      });
+      el.platformOwnerRequestRows.addEventListener('click', function (event) {
+        var approve = event.target.closest('[data-approve-owner-request]');
+        var reject = event.target.closest('[data-reject-owner-request]');
+        var button = approve || reject;
+        if (!button || button.disabled) return;
+        var reason = el.platformOwnerDecisionReason.value.trim();
+        var version = Number(button.dataset.requestVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        var command = approve ? 'approve_platform_owner_change' : 'reject_platform_owner_change';
+        var requestId = approve ? button.dataset.approveOwnerRequest : button.dataset.rejectOwnerRequest;
+        runCommand(command, { requestId: requestId, reason: reason }, version, button,
+          approve ? 'Cambio global aprobado y auditado.' : 'Solicitud global rechazada y auditada.', null);
+      });
       el.userAccessRole.addEventListener('change', function () { renderCapabilityList(el.userAccessCapabilities, roleCapabilityKeys(el.userAccessRole.value), mutationAllowed('update_access', true), 'userAccessCapability'); updateUserAccessGate(); });
       el.userAccessCapabilities.addEventListener('change', updateUserAccessGate);
       el.userAccessReason.addEventListener('input', updateUserAccessGate);

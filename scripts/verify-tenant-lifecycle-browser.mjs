@@ -196,6 +196,32 @@ export function buildTenantLifecycleUsersFixture() {
   };
 }
 
+export function buildTenantLifecyclePlatformOwnersFixture() {
+  return {
+    ok: true,
+    currentActorEmail: FIXTURE.ownerEmail,
+    owners: [{
+      email: FIXTURE.ownerEmail,
+      displayName: 'Platform Owner UI QA',
+      roleKey: 'PLATFORM_OWNER',
+      active: true,
+      version: 1,
+      mfaEnrolled: true,
+    }],
+    eligibleUsers: [],
+    requests: [],
+    allowedCommands: [],
+    controls: {
+      activeOwnerCount: 1,
+      makerCheckerReady: false,
+      lastOwnerProtected: true,
+      selfApprovalBlocked: true,
+      mfaRequiredForGrant: true,
+      auditReady: true,
+    },
+  };
+}
+
 export function expectedTenantLifecycleRevokeBody() {
   return {
     command: 'revoke_employment_link',
@@ -289,6 +315,11 @@ function routeApiRequest(route, evidence) {
     if (resource === 'audit' && hasOnlyExpectedQuery(url, resource, true)) {
       evidence.auditGets += 1;
       return route.fulfill(jsonResponse({ ok: true, events: [] }));
+    }
+    if (resource === 'platform_owners' && hasOnlyExpectedQuery(url, resource, false)
+        && !tenantId) {
+      evidence.platformOwnerGets += 1;
+      return route.fulfill(jsonResponse(buildTenantLifecyclePlatformOwnersFixture()));
     }
   }
 
@@ -387,6 +418,7 @@ async function verifyViewport(browser, config, viewport) {
     userGets: 0,
     auditGets: 0,
     identityGets: 0,
+    platformOwnerGets: 0,
     unexpectedApiRequests: 0,
     revokeRequests: [],
   };
@@ -461,6 +493,7 @@ async function verifyViewport(browser, config, viewport) {
     assert.ok(evidence.userGets >= 2, 'TENANT_LIFECYCLE_BROWSER_USERS_NOT_REFRESHED');
     assert.ok(evidence.auditGets >= 2, 'TENANT_LIFECYCLE_BROWSER_AUDIT_NOT_REFRESHED');
     assert.ok(evidence.identityGets >= 2, 'TENANT_LIFECYCLE_BROWSER_INVITATIONS_NOT_INTERCEPTED');
+    assert.ok(evidence.platformOwnerGets >= 2, 'TENANT_LIFECYCLE_BROWSER_PLATFORM_OWNERS_NOT_INTERCEPTED');
     assert.equal(evidence.unexpectedApiRequests, 0, 'TENANT_LIFECYCLE_BROWSER_UNEXPECTED_API');
 
     await assertStorageEmpty(page);

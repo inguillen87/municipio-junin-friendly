@@ -1,0 +1,1640 @@
+{
+  "manifestVersion": "1.0.0",
+  "manifestId": "grh-junin-mariadb-to-municontrol.v1",
+  "status": "discovered",
+  "minimumSchemaMigration": "011-versioned-time-catalog",
+  "source": {
+    "system": "GRH",
+    "database": "grh_junin",
+    "engine": "MariaDB 10.3 / MySQL logical SQL",
+    "format": "mariadb_dump",
+    "container": "gzip",
+    "snapshot": {
+      "fileName": "grh_junin.backup_2026081915_plataforma.sql.gz",
+      "sha256": "bced0b174aab977b085fc977723f7edd8fb9e473adcfbe237070e8ecef982aa7",
+      "fullProfileSha256": "04b1739a441b65cbf8f703dc92e262ddfe32114485b08f90e7172e57b2886e0d",
+      "logicalRowCount": 6586360,
+      "dumpCompletedLocal": "2026-08-19 15:17:09",
+      "timezoneEvidence": "not_encoded_in_dump_header"
+    },
+    "authority": "customer_supplied_municipal_operational_source",
+    "tenantBinding": {
+      "sourceTable": "empresa",
+      "sourceColumns": ["CODI_01"],
+      "targetEntity": "platform_tenant_source_binding",
+      "resolution": "certified_binding_required",
+      "autoProvisionTenant": false
+    }
+  },
+  "privacy": {
+    "containsPersonalData": true,
+    "rowValuesEmbedded": false,
+    "processingPurposes": [
+      "municipal_human_resources_administration",
+      "employment_and_organizational_management",
+      "attendance_planning_and_control",
+      "leave_and_absence_management",
+      "payroll_reconciliation_and_explainability",
+      "source_quality_and_migration_governance"
+    ],
+    "authorizationBoundary": "Procesar solo para el municipio/tenant certificado y para usuarios con membresia, capability y alcance de area vigentes; PLATFORM_OWNER no hereda acceso nominal.",
+    "outputPolicy": "Los importadores pueden procesar valores personales dentro del plano de datos tenant-bound; logs, fixtures, manifiestos, reportes agregados y errores no deben emitir valores personales.",
+    "minimization": "Materializar solo campos necesarios para el caso de uso autorizado; conservar evidencia fuente con acceso restringido y trazabilidad de lote.",
+    "credentialPolicy": "Identidades de acceso, contrasenas y MFA no provienen de este backup y no se almacenan en este manifiesto."
+  },
+  "requiredDomains": [
+    "tenant",
+    "identity",
+    "employment",
+    "organization",
+    "time_catalog",
+    "time_assignment",
+    "time_expectation",
+    "time_punch",
+    "administrative_event",
+    "payroll"
+  ],
+  "keyEncoding": {
+    "sourceSystem": "GRH",
+    "delimiter": ":",
+    "escape": "percent_encode_utf8_before_join",
+    "tenantKey": "CODI_01",
+    "employmentKey": "CODI_01:LEGA_12",
+    "personKey": "IDPERSONA",
+    "nullPolicy": "quarantine_if_any_required_key_component_is_null",
+    "mutationPolicy": "source keys are immutable provenance; canonical UUIDs are resolved through source_xref or certified tenant binding"
+  },
+  "entities": [
+    {
+      "id": "tenant.municipality",
+      "domain": "tenant",
+      "purpose": "Vincular la empresa municipal fuente con un tenant ya aprobado sin crear tenants por inferencia.",
+      "source": {
+        "table": "empresa",
+        "expectedRowCount": 1,
+        "primaryKey": ["CODI_01"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "NOMB_01", "type": "varchar(55)", "role": "display_label"},
+          {"name": "CUIT_01", "type": "varchar(13)", "role": "tax_identifier"},
+          {"name": "DOMI_01", "type": "varchar(55)", "role": "organization_address"},
+          {"name": "LOCA_01", "type": "varchar(55)", "role": "organization_locality"},
+          {"name": "email", "type": "varchar(255)", "role": "organization_contact"}
+        ]
+      },
+      "keyStrategy": {
+        "sourceColumns": ["CODI_01"],
+        "canonicalKey": "certified platform_tenant_source_binding(source_system=GRH, company_source_id=CODI_01)",
+        "tenantScoped": true,
+        "collisionPolicy": "abort if company key resolves to zero or multiple active tenant bindings"
+      },
+      "target": {"entity": "platform_tenant_source_binding", "materialization": "existing", "writeMode": "resolve_only_no_auto_create"},
+      "dataClassification": {"personalData": false, "level": "restricted_tenant_metadata", "categories": ["municipal_identity", "tax_identifier", "contact"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["platform.tenants.read", "time.source.read"], "enforcementGate": "certified tenant binding before any nominal row"},
+      "freshness": {"classification": "snapshot_current", "operationalUse": "binding_evidence_only", "notes": "El corte es 2026-08-19; los datos registrales requieren confirmacion municipal antes de actualizarlos."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "platform_tenant_source_binding.source_company_id", "transform": "unsigned_integer_to_text", "classification": "tenant_key"},
+        {"sourceColumn": "NOMB_01", "targetField": "platform_tenant.display_name_candidate", "transform": "trim_preserve_utf8_review", "classification": "organization_metadata"},
+        {"sourceColumn": "CUIT_01", "targetField": "tenant_assertion.tax_identifier", "transform": "digits_only_validate_review", "classification": "restricted_identifier"},
+        {"sourceColumn": "DOMI_01", "targetField": "tenant_assertion.address", "transform": "transcode_to_utf8_preserve_raw_in_staging", "classification": "restricted_contact"},
+        {"sourceColumn": "LOCA_01", "targetField": "tenant_assertion.locality", "transform": "transcode_to_utf8_trim", "classification": "restricted_contact"},
+        {"sourceColumn": "email", "targetField": "tenant_assertion.email", "transform": "trim_lowercase_validate_or_quarantine", "classification": "restricted_contact"}
+      ]
+    },
+    {
+      "id": "identity.person",
+      "domain": "identity",
+      "purpose": "Gestionar identidad y contacto de la persona vinculada a uno o mas legajos municipales con procedencia verificable.",
+      "source": {
+        "table": "persona",
+        "expectedRowCount": 2349,
+        "primaryKey": ["IDPERSONA"],
+        "columns": [
+          {"name": "IDPERSONA", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_hint"},
+          {"name": "NOMB_12", "type": "varchar(100)", "role": "full_name"},
+          {"name": "CUIL_12", "type": "varchar(12)", "role": "cuil"},
+          {"name": "NUDO_12", "type": "int(10) unsigned", "role": "document_number"},
+          {"name": "CODI_47", "type": "int(10) unsigned", "role": "document_type"},
+          {"name": "FENA_12", "type": "date", "role": "birth_date"},
+          {"name": "SEXO_12", "type": "varchar(15)", "role": "sex_code"},
+          {"name": "EMIA_12", "type": "varchar(100)", "role": "email"},
+          {"name": "TELE_12", "type": "varchar(50)", "role": "phone"},
+          {"name": "DOMI_12", "type": "varchar(100)", "role": "address"},
+          {"name": "IDLOCALIDAD", "type": "int(10) unsigned", "role": "locality_key"}
+        ]
+      },
+      "keyStrategy": {
+        "sourceColumns": ["IDPERSONA"],
+        "canonicalKey": "source_xref(GRH,persona,IDPERSONA)->person_identity.id; CUIL/DNI are assertions, never blind upsert keys",
+        "tenantScoped": true,
+        "collisionPolicy": "duplicate or invalid CUIL/DNI enters manual identity review; never merge solely by name"
+      },
+      "target": {"entity": "person_identity + person_identity_assertion + source_xref", "materialization": "existing", "writeMode": "append_staging_then_governed_promote"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_identity", "categories": ["name", "national_identifier", "birth_date", "sex", "contact", "address"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+employment_contract+organization", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "certified binding, tenant membership, employment link and area scope; maker-checker for promotion"},
+      "freshness": {"classification": "snapshot_current_unknown_per_attribute", "operationalUse": "candidate_master_with_assertion_provenance", "notes": "El dump es actual; vigencia de correo, telefono y domicilio debe evaluarse por atributo y no por fecha del archivo."},
+      "mappings": [
+        {"sourceColumn": "IDPERSONA", "targetField": "source_xref.source_id", "transform": "unsigned_integer_to_text", "classification": "source_identifier"},
+        {"sourceColumn": "CODI_01", "targetField": "source_xref.tenant_binding", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "NOMB_12", "targetField": "person_identity_assertion.full_name", "transform": "transcode_utf8_trim_preserve_source", "classification": "pii_name"},
+        {"sourceColumn": "CUIL_12", "targetField": "person_identity_assertion.cuil", "transform": "digits_only_validate_checksum_or_quarantine", "classification": "pii_national_identifier"},
+        {"sourceColumn": "NUDO_12", "targetField": "person_identity_assertion.dni", "transform": "unsigned_integer_to_digits_validate_or_quarantine", "classification": "pii_national_identifier"},
+        {"sourceColumn": "CODI_47", "targetField": "person_identity_assertion.document_type", "transform": "resolve_tipodoc_catalog_or_review", "classification": "pii_identifier_metadata"},
+        {"sourceColumn": "FENA_12", "targetField": "person_identity_assertion.birth_date", "transform": "iso_date_validate_1900_to_cutoff_or_quarantine", "classification": "pii_birth_date"},
+        {"sourceColumn": "SEXO_12", "targetField": "person_identity_assertion.sex_code", "transform": "trim_map_versioned_catalog_preserve_unknown", "classification": "pii_demographic"},
+        {"sourceColumn": "EMIA_12", "targetField": "person_identity_assertion.email", "transform": "trim_lowercase_validate_or_quarantine", "classification": "pii_contact"},
+        {"sourceColumn": "TELE_12", "targetField": "person_identity_assertion.phone", "transform": "trim_preserve_country_uncertainty", "classification": "pii_contact"},
+        {"sourceColumn": "DOMI_12", "targetField": "person_identity_assertion.address", "transform": "transcode_utf8_trim", "classification": "pii_address"},
+        {"sourceColumn": "IDLOCALIDAD", "targetField": "person_identity_assertion.locality", "transform": "resolve_localidad_catalog_or_review", "classification": "pii_address"}
+      ]
+    },
+    {
+      "id": "employment.contract",
+      "domain": "employment",
+      "purpose": "Representar el legajo y su relacion laboral, estado y ubicacion organizacional con clave municipal estable.",
+      "source": {
+        "table": "legajo",
+        "expectedRowCount": 2450,
+        "primaryKey": ["CODI_01", "LEGA_12"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_key"},
+          {"name": "IDPERSONA", "type": "int(10) unsigned", "role": "person_fk"},
+          {"name": "FING_12", "type": "date", "role": "start_date"},
+          {"name": "FEGR_12", "type": "date", "role": "end_date"},
+          {"name": "CODI_02", "type": "int(10) unsigned", "role": "agreement_fk"},
+          {"name": "CODI_10", "type": "int(10) unsigned", "role": "category_fk"},
+          {"name": "IDORGANIZA", "type": "decimal(13,0)", "role": "organization_fk"},
+          {"name": "CARGOID", "type": "int(10) unsigned", "role": "position_fk"},
+          {"name": "CODI_07", "type": "int(10) unsigned", "role": "sector_fk"},
+          {"name": "CODI_06", "type": "int(10) unsigned", "role": "cost_center_fk"},
+          {"name": "CODI_03", "type": "int(10) unsigned", "role": "contract_regime_fk"},
+          {"name": "IDREVISTA", "type": "int(10) unsigned", "role": "employment_status_fk"},
+          {"name": "iddepartamento", "type": "int(10) unsigned", "role": "department_fk"},
+          {"name": "TURN_12", "type": "int(10) unsigned", "role": "legacy_shift_hint"},
+          {"name": "FITU_12", "type": "date", "role": "shift_hint_date"},
+          {"name": "lugarDeTrabajo", "type": "varchar(100)", "role": "workplace_label"}
+        ]
+      },
+      "keyStrategy": {
+        "sourceColumns": ["CODI_01", "LEGA_12"],
+        "canonicalKey": "employment_contract(legacy_company_id,legacy_legajo)",
+        "tenantScoped": true,
+        "collisionPolicy": "abort duplicate composite key; unresolved person or tenant goes to quarantine"
+      },
+      "target": {"entity": "grh_employees + employment_contract + source_xref", "materialization": "existing", "writeMode": "immutable_batch_then_idempotent_upsert_by_composite_key"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_employment", "categories": ["employment_identifier", "employment_dates", "organizational_assignment", "work_location"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "active tenant membership, employment link and scoped capability; changes require maker-checker"},
+      "freshness": {"classification": "snapshot_current_with_field_anomalies", "operationalUse": "candidate_employment_master", "notes": "El maestro llega al corte 2026; TURN_12 no es asignacion vigente confiable y se concilia por separado con legaturn."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "employment_contract.legacy_company_id", "transform": "unsigned_integer", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "employment_contract.legacy_legajo", "transform": "unsigned_integer_to_text_preserve", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "IDPERSONA", "targetField": "employment_contract.person_id", "transform": "resolve_source_xref_persona_or_quarantine", "classification": "pii_source_identifier"},
+        {"sourceColumn": "FING_12", "targetField": "employment_contract.start_date", "transform": "iso_date_validate_or_quarantine", "classification": "pii_employment"},
+        {"sourceColumn": "FEGR_12", "targetField": "employment_contract.end_date", "transform": "nullable_iso_date_validate_order_or_quarantine", "classification": "pii_employment"},
+        {"sourceColumn": "CODI_02", "targetField": "employment_contract.agreement_code", "transform": "unsigned_integer_to_text_resolve_catalog", "classification": "pii_employment"},
+        {"sourceColumn": "CODI_10", "targetField": "employment_contract.category_code", "transform": "compose_CODI_02_CODI_10", "classification": "pii_employment"},
+        {"sourceColumn": "IDORGANIZA", "targetField": "employment_contract.organization_unit_source_id", "transform": "decimal_integer_to_text_resolve_or_review", "classification": "pii_organizational"},
+        {"sourceColumn": "CARGOID", "targetField": "employment_contract.position_source_id", "transform": "unsigned_integer_to_text_resolve_or_review", "classification": "pii_organizational"},
+        {"sourceColumn": "CODI_07", "targetField": "employment_contract.sector_source_id", "transform": "compose_CODI_01_CODI_07", "classification": "pii_organizational"},
+        {"sourceColumn": "CODI_06", "targetField": "employment_contract.source_payload.cost_center", "transform": "compose_CODI_01_CODI_06", "classification": "pii_organizational"},
+        {"sourceColumn": "CODI_03", "targetField": "employment_contract.source_payload.contract_regime", "transform": "unsigned_integer_to_text_resolve_or_review", "classification": "pii_employment"},
+        {"sourceColumn": "IDREVISTA", "targetField": "employment_contract.source_payload.review_status", "transform": "unsigned_integer_to_text_resolve_or_review", "classification": "pii_employment"},
+        {"sourceColumn": "iddepartamento", "targetField": "employment_contract.source_payload.department", "transform": "unsigned_integer_to_text_resolve_or_review", "classification": "pii_organizational"},
+        {"sourceColumn": "TURN_12", "targetField": "reconciliation.legacy_shift_hint", "transform": "retain_as_non_authoritative_hint", "classification": "pii_attendance"},
+        {"sourceColumn": "FITU_12", "targetField": "reconciliation.legacy_shift_hint_date", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "lugarDeTrabajo", "targetField": "employment_contract.source_payload.workplace_label", "transform": "transcode_utf8_trim", "classification": "pii_work_location"}
+      ]
+    },
+    {
+      "id": "organization.unit",
+      "domain": "organization",
+      "purpose": "Versionar la estructura jerarquica municipal usada para alcance de permisos y ubicacion laboral.",
+      "source": {
+        "table": "organiza",
+        "expectedRowCount": 83,
+        "primaryKey": ["IDORGANIZA"],
+        "columns": [
+          {"name": "IDORGANIZA", "type": "decimal(13,0)", "role": "source_key"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_fk"},
+          {"name": "N1_DESC", "type": "varchar(40)", "role": "label"},
+          {"name": "codigoOrganiza", "type": "varchar(100)", "role": "business_code"},
+          {"name": "ID_PADRE", "type": "bigint(20)", "role": "parent_hint"},
+          {"name": "activo", "type": "varchar(255)", "role": "status_hint"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "IDORGANIZA"], "canonicalKey": "tenant_id:IDORGANIZA", "tenantScoped": true, "collisionPolicy": "quarantine duplicate code, missing tenant, missing parent or hierarchy cycle"},
+      "target": {"entity": "planned_organization_unit + employment_contract.organization_unit_source_id", "materialization": "planned", "writeMode": "staging_then_versioned_hierarchy_review"},
+      "dataClassification": {"personalData": false, "level": "restricted_organization", "categories": ["organization_structure", "authorization_scope"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "hierarchy must be approved before it scopes nominal data"},
+      "freshness": {"classification": "snapshot_current_requires_status_normalization", "operationalUse": "authorization_scope_candidate", "notes": "ID_PADRE no tiene FK declarada y activo es texto libre; ambos requieren validacion."},
+      "mappings": [
+        {"sourceColumn": "IDORGANIZA", "targetField": "planned_organization_unit.source_id", "transform": "decimal_integer_to_text", "classification": "organization_key"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_organization_unit.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "N1_DESC", "targetField": "planned_organization_unit.label", "transform": "transcode_utf8_trim", "classification": "organization_metadata"},
+        {"sourceColumn": "codigoOrganiza", "targetField": "planned_organization_unit.business_code", "transform": "trim_preserve", "classification": "organization_metadata"},
+        {"sourceColumn": "ID_PADRE", "targetField": "planned_organization_unit.parent_source_id", "transform": "nullable_integer_to_text_logical_review", "classification": "authorization_scope"},
+        {"sourceColumn": "activo", "targetField": "planned_organization_unit.status", "transform": "map_versioned_status_or_quarantine", "classification": "authorization_scope"}
+      ]
+    },
+    {
+      "id": "organization.position",
+      "domain": "organization",
+      "purpose": "Conservar cargos y dependencias para estructura y alcance funcional.",
+      "source": {
+        "table": "cargo",
+        "expectedRowCount": 5,
+        "primaryKey": ["CARGOID"],
+        "columns": [
+          {"name": "CARGOID", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DENOCARGO", "type": "varchar(50)", "role": "label"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "PADREID", "type": "int(10) unsigned", "role": "parent_fk"},
+          {"name": "DEPENDEID", "type": "int(10) unsigned", "role": "dependency_fk"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "CARGOID"], "canonicalKey": "tenant_id:CARGOID", "tenantScoped": true, "collisionPolicy": "quarantine missing tenant, self-loop or hierarchy cycle"},
+      "target": {"entity": "planned_position + employment_contract.position_source_id", "materialization": "planned", "writeMode": "staging_then_hierarchy_review"},
+      "dataClassification": {"personalData": false, "level": "restricted_organization", "categories": ["position", "organization_structure"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "approved hierarchy before nominal assignment"},
+      "freshness": {"classification": "snapshot_current_small_catalog", "operationalUse": "catalog_candidate", "notes": "Catalogo de cinco cargos; homologar cobertura con RRHH."},
+      "mappings": [
+        {"sourceColumn": "CARGOID", "targetField": "planned_position.source_id", "transform": "unsigned_integer_to_text", "classification": "organization_key"},
+        {"sourceColumn": "DENOCARGO", "targetField": "planned_position.label", "transform": "transcode_utf8_trim", "classification": "organization_metadata"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_position.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "PADREID", "targetField": "planned_position.parent_source_id", "transform": "resolve_nullable_self_fk", "classification": "organization_structure"},
+        {"sourceColumn": "DEPENDEID", "targetField": "planned_position.depends_on_source_id", "transform": "resolve_nullable_self_fk", "classification": "organization_structure"}
+      ]
+    },
+    {
+      "id": "organization.sector",
+      "domain": "organization",
+      "purpose": "Mapear sectores que delimitan asignaciones, reportes y permisos por area.",
+      "source": {
+        "table": "sectores",
+        "expectedRowCount": 36,
+        "primaryKey": ["CODI_01", "CODI_07"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "CODI_07", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_07", "type": "varchar(40)", "role": "label"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "CODI_07"], "canonicalKey": "CODI_01:CODI_07", "tenantScoped": true, "collisionPolicy": "abort duplicate composite key"},
+      "target": {"entity": "employment_contract.sector_source_id + tenant_action_area_scope", "materialization": "existing", "writeMode": "catalog_staging_then_scoped_reference"},
+      "dataClassification": {"personalData": false, "level": "restricted_organization", "categories": ["sector", "authorization_scope"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+sector", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "sector source id must belong to same tenant"},
+      "freshness": {"classification": "snapshot_current_catalog_candidate", "operationalUse": "authorization_scope_candidate", "notes": "Homologar nombres y sectores inactivos antes de otorgar scopes."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "sector.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "CODI_07", "targetField": "employment_contract.sector_source_id", "transform": "compose_CODI_01_CODI_07", "classification": "authorization_scope"},
+        {"sourceColumn": "DETA_07", "targetField": "sector.label", "transform": "transcode_utf8_trim", "classification": "organization_metadata"}
+      ]
+    },
+    {
+      "id": "organization.cost_center",
+      "domain": "organization",
+      "purpose": "Preservar centros de costo para imputacion y conciliacion de haberes sin convertirlos en permisos automaticamente.",
+      "source": {
+        "table": "costos",
+        "expectedRowCount": 46,
+        "primaryKey": ["CODI_01", "CODI_06"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "CODI_06", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_06", "type": "varchar(50)", "role": "label"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "CODI_06"], "canonicalKey": "CODI_01:CODI_06", "tenantScoped": true, "collisionPolicy": "abort duplicate composite key"},
+      "target": {"entity": "planned_cost_center + payroll dimensions", "materialization": "planned", "writeMode": "staging_then_catalog_review"},
+      "dataClassification": {"personalData": false, "level": "restricted_financial_structure", "categories": ["cost_center", "payroll_dimension"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization", "capabilities": ["employee.record.propose", "employee.record.approve", "payroll.read"], "enforcementGate": "dedicated payroll/finance read capability required before nominal projection"},
+      "freshness": {"classification": "snapshot_current_catalog_candidate", "operationalUse": "payroll_dimension_candidate", "notes": "No usar como estructura organizacional sin homologacion."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "planned_cost_center.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "CODI_06", "targetField": "planned_cost_center.source_id", "transform": "compose_CODI_01_CODI_06", "classification": "financial_structure"},
+        {"sourceColumn": "DETA_06", "targetField": "planned_cost_center.label", "transform": "transcode_utf8_trim", "classification": "financial_structure"}
+      ]
+    },
+    {
+      "id": "employment.agreement",
+      "domain": "employment",
+      "purpose": "Homologar convenios para clasificacion contractual y reglas de haberes.",
+      "source": {
+        "table": "convenio",
+        "expectedRowCount": 14,
+        "primaryKey": ["CODI_02"],
+        "columns": [
+          {"name": "CODI_02", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_02", "type": "varchar(40)", "role": "label"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_02"], "canonicalKey": "tenant_id:CODI_02", "tenantScoped": true, "collisionPolicy": "tenant namespace required because source key is globally unbound"},
+      "target": {"entity": "employment_contract.agreement_code + planned_agreement", "materialization": "existing", "writeMode": "reference_code_with_catalog_staging"},
+      "dataClassification": {"personalData": false, "level": "restricted_employment_catalog", "categories": ["agreement"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "catalog version and tenant binding required"},
+      "freshness": {"classification": "snapshot_current_catalog_candidate", "operationalUse": "employment_catalog_candidate", "notes": "Validar convenios vigentes y su normativa antes de calcular."},
+      "mappings": [
+        {"sourceColumn": "CODI_02", "targetField": "employment_contract.agreement_code", "transform": "unsigned_integer_to_text", "classification": "employment_catalog"},
+        {"sourceColumn": "DETA_02", "targetField": "planned_agreement.label", "transform": "transcode_utf8_trim", "classification": "employment_catalog"}
+      ]
+    },
+    {
+      "id": "employment.category",
+      "domain": "employment",
+      "purpose": "Homologar categorias por convenio para legajo y conciliacion de liquidacion.",
+      "source": {
+        "table": "catego",
+        "expectedRowCount": 156,
+        "primaryKey": ["CODI_02", "CODI_10"],
+        "columns": [
+          {"name": "CODI_02", "type": "int(10) unsigned", "role": "agreement_fk"},
+          {"name": "CODI_10", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_10", "type": "varchar(50)", "role": "label"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_hint"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_02", "CODI_10"], "canonicalKey": "tenant_id:CODI_02:CODI_10", "tenantScoped": true, "collisionPolicy": "quarantine category without agreement or tenant conflict"},
+      "target": {"entity": "employment_contract.category_code + planned_employment_category", "materialization": "existing", "writeMode": "reference_code_with_catalog_staging"},
+      "dataClassification": {"personalData": false, "level": "restricted_employment_catalog", "categories": ["agreement", "category"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["employee.record.propose", "employee.record.approve"], "enforcementGate": "resolved agreement and certified tenant binding"},
+      "freshness": {"classification": "snapshot_current_catalog_candidate", "operationalUse": "employment_catalog_candidate", "notes": "Validar vigencia y no promover valores remunerativos desde este catalogo sin control de payroll."},
+      "mappings": [
+        {"sourceColumn": "CODI_02", "targetField": "planned_employment_category.agreement_code", "transform": "resolve_agreement_fk", "classification": "employment_catalog"},
+        {"sourceColumn": "CODI_10", "targetField": "employment_contract.category_code", "transform": "compose_CODI_02_CODI_10", "classification": "employment_catalog"},
+        {"sourceColumn": "DETA_10", "targetField": "planned_employment_category.label", "transform": "transcode_utf8_trim", "classification": "employment_catalog"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_employment_category.tenant_id", "transform": "resolve_certified_company_binding_or_review_null", "classification": "tenant_key"}
+      ]
+    },
+    {
+      "id": "time.shift",
+      "domain": "time_catalog",
+      "purpose": "Convertir turnos legacy en especificaciones semanales versionadas, revisables y explicables.",
+      "source": {
+        "table": "turnos",
+        "expectedRowCount": 30,
+        "primaryKey": ["CODI_151"],
+        "columns": [
+          {"name": "CODI_151", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DESC_151", "type": "varchar(40)", "role": "label"},
+          {"name": "TIPO_151", "type": "int(10) unsigned", "role": "shift_type"},
+          {"name": "DIAT_151", "type": "int(10) unsigned", "role": "day_start"},
+          {"name": "DIAF_151", "type": "int(10) unsigned", "role": "day_end"},
+          {"name": "HSRO_151", "type": "int(10) unsigned", "role": "base_interval_fk"},
+          {"name": "HSMA_151_1", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_2", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_3", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_4", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_5", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_6", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSMA_151_7", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_1", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_2", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_3", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_4", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_5", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_6", "type": "int(10) unsigned", "role": "weekday_interval_fk"},
+          {"name": "HSTA_151_7", "type": "int(10) unsigned", "role": "weekday_interval_fk"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_151"], "canonicalKey": "tenant_id:turnos:CODI_151:revision", "tenantScoped": true, "collisionPolicy": "new source snapshot creates proposed revision; never overwrite approved revision"},
+      "target": {"entity": "time_catalog_entry + time_shift_spec + time_shift_weekly_interval", "materialization": "versioned_contract", "writeMode": "draft_submit_maker_checker_approve"},
+      "dataClassification": {"personalData": false, "level": "restricted_time_rules", "categories": ["shift_definition", "work_schedule"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "approved time source contract, distinct proposer/approver and non-overlapping validity"},
+      "freshness": {"classification": "historical_catalog_requires_homologation", "operationalUse": "historical_reference_only", "notes": "El catalogo existe pero sus asignaciones observadas terminan en 2012; no declararlo vigente 2026."},
+      "mappings": [
+        {"sourceColumn": "CODI_151", "targetField": "time_catalog_entry.logical_source_key", "transform": "hash_tenant_table_source_key", "classification": "time_catalog_key"},
+        {"sourceColumn": "DESC_151", "targetField": "time_catalog_entry.label", "transform": "transcode_utf8_trim", "classification": "time_catalog"},
+        {"sourceColumn": "TIPO_151", "targetField": "time_shift_spec.source_shift_type", "transform": "unsigned_integer_to_text_versioned_mapping", "classification": "time_rule"},
+        {"sourceColumn": "DIAT_151", "targetField": "time_shift_spec.source_day_start", "transform": "validate_weekday_semantics_or_quarantine", "classification": "time_rule"},
+        {"sourceColumn": "DIAF_151", "targetField": "time_shift_spec.source_day_end", "transform": "validate_weekday_semantics_or_quarantine", "classification": "time_rule"},
+        {"sourceColumn": "HSRO_151", "targetField": "time_shift_weekly_interval.base_interval_source_id", "transform": "resolve_horarios_fk", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_1", "targetField": "time_shift_weekly_interval.weekday_1_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_2", "targetField": "time_shift_weekly_interval.weekday_2_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_3", "targetField": "time_shift_weekly_interval.weekday_3_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_4", "targetField": "time_shift_weekly_interval.weekday_4_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_5", "targetField": "time_shift_weekly_interval.weekday_5_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_6", "targetField": "time_shift_weekly_interval.weekday_6_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSMA_151_7", "targetField": "time_shift_weekly_interval.weekday_7_am", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_1", "targetField": "time_shift_weekly_interval.weekday_1_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_2", "targetField": "time_shift_weekly_interval.weekday_2_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_3", "targetField": "time_shift_weekly_interval.weekday_3_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_4", "targetField": "time_shift_weekly_interval.weekday_4_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_5", "targetField": "time_shift_weekly_interval.weekday_5_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_6", "targetField": "time_shift_weekly_interval.weekday_6_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"},
+        {"sourceColumn": "HSTA_151_7", "targetField": "time_shift_weekly_interval.weekday_7_pm", "transform": "resolve_horarios_fk_or_null", "classification": "time_rule"}
+      ]
+    },
+    {
+      "id": "time.interval",
+      "domain": "time_catalog",
+      "purpose": "Normalizar franjas horarias y sus referencias de tolerancia sin interpretar reglas no homologadas.",
+      "source": {
+        "table": "horarios",
+        "expectedRowCount": 32,
+        "primaryKey": ["CODI_153"],
+        "columns": [
+          {"name": "CODI_153", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DESC_153", "type": "varchar(40)", "role": "label"},
+          {"name": "HINI_153", "type": "varchar(5)", "role": "starts_at"},
+          {"name": "HFIN_153", "type": "varchar(5)", "role": "ends_at"},
+          {"name": "PRTE_153", "type": "int(10) unsigned", "role": "entry_early_tolerance_fk"},
+          {"name": "PRTS_153", "type": "int(10) unsigned", "role": "exit_early_tolerance_fk"},
+          {"name": "POTE_153", "type": "int(10) unsigned", "role": "entry_late_tolerance_fk"},
+          {"name": "POTS_153", "type": "int(10) unsigned", "role": "exit_late_tolerance_fk"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_153"], "canonicalKey": "tenant_id:horarios:CODI_153:revision", "tenantScoped": true, "collisionPolicy": "quarantine invalid time syntax or unresolved tolerance; never guess overnight semantics"},
+      "target": {"entity": "time_shift_weekly_interval + time_rule_parameter", "materialization": "versioned_contract", "writeMode": "draft_under_parent_shift_revision"},
+      "dataClassification": {"personalData": false, "level": "restricted_time_rules", "categories": ["time_interval", "tolerance_reference"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "approved catalog revision and explicit timezone America/Argentina/Mendoza"},
+      "freshness": {"classification": "historical_catalog_requires_homologation", "operationalUse": "historical_reference_only", "notes": "Las horas estan en varchar(5); parsear estrictamente HH:mm y revisar cruces de medianoche."},
+      "mappings": [
+        {"sourceColumn": "CODI_153", "targetField": "time_shift_weekly_interval.source_interval_id", "transform": "unsigned_integer_to_text", "classification": "time_catalog_key"},
+        {"sourceColumn": "DESC_153", "targetField": "time_shift_weekly_interval.source_label", "transform": "transcode_utf8_trim", "classification": "time_catalog"},
+        {"sourceColumn": "HINI_153", "targetField": "time_shift_weekly_interval.starts_at", "transform": "strict_HH_mm_to_time_or_quarantine", "classification": "time_rule"},
+        {"sourceColumn": "HFIN_153", "targetField": "time_shift_weekly_interval.ends_at", "transform": "strict_HH_mm_to_time_or_quarantine", "classification": "time_rule"},
+        {"sourceColumn": "PRTE_153", "targetField": "time_rule_parameter.entry_early_tolerance_source_id", "transform": "resolve_tolerancias_fk", "classification": "time_rule"},
+        {"sourceColumn": "PRTS_153", "targetField": "time_rule_parameter.exit_early_tolerance_source_id", "transform": "resolve_tolerancias_fk", "classification": "time_rule"},
+        {"sourceColumn": "POTE_153", "targetField": "time_rule_parameter.entry_late_tolerance_source_id", "transform": "resolve_tolerancias_fk", "classification": "time_rule"},
+        {"sourceColumn": "POTS_153", "targetField": "time_rule_parameter.exit_late_tolerance_source_id", "transform": "resolve_tolerancias_fk", "classification": "time_rule"}
+      ]
+    },
+    {
+      "id": "time.tolerance",
+      "domain": "time_catalog",
+      "purpose": "Versionar cantidades de tolerancia como parametros; no inferir su aplicacion fuera de cada FK de horario.",
+      "source": {
+        "table": "tolerancias",
+        "expectedRowCount": 9,
+        "primaryKey": ["CODI_155"],
+        "columns": [
+          {"name": "CODI_155", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DESC_155", "type": "varchar(40)", "role": "label"},
+          {"name": "CANT_155", "type": "int(10) unsigned", "role": "quantity"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_155"], "canonicalKey": "tenant_id:tolerancias:CODI_155:revision", "tenantScoped": true, "collisionPolicy": "quarantine value outside approved minute bounds"},
+      "target": {"entity": "time_catalog_entry + time_rule_parameter", "materialization": "versioned_contract", "writeMode": "draft_submit_maker_checker_approve"},
+      "dataClassification": {"personalData": false, "level": "restricted_time_rules", "categories": ["tolerance", "rule_parameter"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "municipal rule homologation and maker-checker approval"},
+      "freshness": {"classification": "historical_catalog_requires_homologation", "operationalUse": "historical_reference_only", "notes": "CANT_155 se conserva como cantidad candidata; unidad minutos requiere confirmacion funcional."},
+      "mappings": [
+        {"sourceColumn": "CODI_155", "targetField": "time_catalog_entry.logical_source_key", "transform": "hash_tenant_table_source_key", "classification": "time_catalog_key"},
+        {"sourceColumn": "DESC_155", "targetField": "time_rule_parameter.source_label", "transform": "transcode_utf8_trim", "classification": "time_catalog"},
+        {"sourceColumn": "CANT_155", "targetField": "time_rule_parameter.number_value", "transform": "unsigned_integer_preserve_unit_pending", "classification": "time_rule"}
+      ]
+    },
+    {
+      "id": "time.assignment",
+      "domain": "time_assignment",
+      "purpose": "Representar asignaciones temporales legajo-turno-lugar sin asumir que intervalos abiertos de 2012 siguen vigentes.",
+      "source": {
+        "table": "legaturn",
+        "expectedRowCount": 574,
+        "primaryKey": ["CODI_01", "FECH_152", "LEGA_12"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "CODI_151", "type": "int(10) unsigned", "role": "shift_fk"},
+          {"name": "FECH_152", "type": "date", "role": "source_record_date"},
+          {"name": "FINI_152", "type": "date", "role": "effective_from"},
+          {"name": "FFIN_152", "type": "date", "role": "effective_to"},
+          {"name": "CODI_157", "type": "int(10) unsigned", "role": "location_fk"},
+          {"name": "OBSE_152", "type": "varchar(250)", "role": "note"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "LEGA_12", "FECH_152"], "canonicalKey": "tenant_id:employment_contract_id:source_record_date:revision", "tenantScoped": true, "collisionPolicy": "quarantine overlaps, inverted dates, unresolved contract/shift/location and sentinel dates"},
+      "target": {"entity": "time_catalog_entry + time_assignment_spec", "materialization": "versioned_contract", "writeMode": "historical_draft_never_current_without_approval"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_attendance", "categories": ["employment_identifier", "work_schedule", "work_location", "employment_note"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "explicit employment link, area scope, approved shift/calendar/rule versions and maker-checker"},
+      "freshness": {"classification": "historical_1970_to_2012_with_open_intervals", "operationalUse": "historical_evidence_only", "notes": "566 filas abiertas no prueban vigencia; el ultimo dato observado es 2012 y fechas 1970 requieren cuarentena/revision."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "time_assignment_spec.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "time_assignment_spec.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "CODI_151", "targetField": "time_assignment_spec.shift_entry_id", "transform": "resolve_approved_shift_revision_or_keep_historical_draft", "classification": "pii_attendance"},
+        {"sourceColumn": "FECH_152", "targetField": "time_catalog_entry.source_record_date", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "FINI_152", "targetField": "time_catalog_entry.effective_from", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "FFIN_152", "targetField": "time_catalog_entry.effective_to", "transform": "nullable_date_validate_order_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "CODI_157", "targetField": "time_assignment_spec.source_location_id", "transform": "resolve_locales_fk_or_quarantine", "classification": "pii_work_location"},
+        {"sourceColumn": "OBSE_152", "targetField": "time_assignment_spec.restricted_source_note", "transform": "transcode_utf8_trim_restricted", "classification": "pii_employment_note"}
+      ]
+    },
+    {
+      "id": "time.expected_day",
+      "domain": "time_expectation",
+      "purpose": "Conservar la jornada esperada historica por persona como evidencia para explicacion y casos dorados.",
+      "source": {
+        "table": "esperanza",
+        "expectedRowCount": 163634,
+        "primaryKey": ["IDESPERANZA"],
+        "columns": [
+          {"name": "IDESPERANZA", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "FECH_160", "type": "date", "role": "work_date"},
+          {"name": "HINI_160", "type": "varchar(5)", "role": "expected_start"},
+          {"name": "HFIN_160", "type": "varchar(5)", "role": "expected_end"},
+          {"name": "DSEM_160", "type": "varchar(9)", "role": "weekday_label"},
+          {"name": "CODI_151", "type": "int(10) unsigned", "role": "shift_fk"},
+          {"name": "AUTO_160", "type": "int(10) unsigned", "role": "authorization_flag"},
+          {"name": "CODI_154", "type": "int(10) unsigned", "role": "authorization_reason_fk"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["IDESPERANZA"], "canonicalKey": "source_batch_id:esperanza:IDESPERANZA", "tenantScoped": true, "collisionPolicy": "append-only per batch; conflicting same source id/hash aborts"},
+      "target": {"entity": "source_staging_row + planned_time_expected_day", "materialization": "staging_only", "writeMode": "append_only_historical_evidence"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_attendance", "categories": ["employment_identifier", "work_date", "expected_schedule", "authorization"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["time.source.propose", "time.source.approve"], "enforcementGate": "nominal projection requires dedicated attendance read capability plus employment and area scope"},
+      "freshness": {"classification": "historical_2011_01_01_to_2012_02_10", "operationalUse": "historical_evidence_only", "notes": "No generar jornadas actuales desde estas filas; pueden validar el motor historico."},
+      "mappings": [
+        {"sourceColumn": "IDESPERANZA", "targetField": "source_staging_row.source_id", "transform": "unsigned_integer_to_text", "classification": "source_identifier"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_time_expected_day.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "planned_time_expected_day.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "FECH_160", "targetField": "planned_time_expected_day.work_date", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "HINI_160", "targetField": "planned_time_expected_day.expected_start", "transform": "strict_HH_mm_to_time_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "HFIN_160", "targetField": "planned_time_expected_day.expected_end", "transform": "strict_HH_mm_to_time_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "DSEM_160", "targetField": "planned_time_expected_day.source_weekday_label", "transform": "trim_compare_to_date_weekday_flag_mismatch", "classification": "pii_attendance"},
+        {"sourceColumn": "CODI_151", "targetField": "planned_time_expected_day.source_shift_id", "transform": "resolve_turnos_fk", "classification": "pii_attendance"},
+        {"sourceColumn": "AUTO_160", "targetField": "planned_time_expected_day.source_authorized", "transform": "versioned_boolean_mapping_or_review", "classification": "pii_attendance_decision"},
+        {"sourceColumn": "CODI_154", "targetField": "planned_time_expected_day.authorization_reason_source_id", "transform": "resolve_motiauto_fk_or_null", "classification": "pii_attendance_decision"}
+      ]
+    },
+    {
+      "id": "time.punch",
+      "domain": "time_punch",
+      "purpose": "Preservar marcaciones historicas como evidencia nominal inmutable y reconciliarlas sin inventar enlaces.",
+      "source": {
+        "table": "fichadas",
+        "expectedRowCount": 958,
+        "primaryKey": ["CODI_01", "FECH_159", "HORA_159", "LEGA_12"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "FECH_159", "type": "date", "role": "punch_date"},
+          {"name": "HORA_159", "type": "varchar(5)", "role": "punch_time"},
+          {"name": "DSEM_159", "type": "varchar(9)", "role": "weekday_label"},
+          {"name": "ENTRADA", "type": "int(10) unsigned", "role": "direction_flag"},
+          {"name": "IDESPERANZA", "type": "int(10) unsigned", "role": "expected_day_fk"},
+          {"name": "AUTO_159", "type": "int(10) unsigned", "role": "authorization_flag"},
+          {"name": "CODI_154", "type": "int(10) unsigned", "role": "authorization_reason_fk"},
+          {"name": "PROC_159", "type": "int(10) unsigned", "role": "process_hint"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "LEGA_12", "FECH_159", "HORA_159"], "canonicalKey": "source_batch_id:CODI_01:LEGA_12:FECH_159:HORA_159", "tenantScoped": true, "collisionPolicy": "same natural key with different row hash is a conflict; never collapse without review"},
+      "target": {"entity": "source_staging_row + planned_time_punch_event", "materialization": "staging_only", "writeMode": "append_only_evidence_no_calculation"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_attendance", "categories": ["employment_identifier", "timestamp", "attendance_event", "authorization"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["time.source.propose", "time.source.approve"], "enforcementGate": "dedicated punch read capability, tenant employment link and area scope before nominal projection"},
+      "freshness": {"classification": "historical_2012_01_03_to_2012_01_11", "operationalUse": "historical_evidence_only", "notes": "Solo 11 de 958 filas traen IDESPERANZA; 874 coincidencias por legajo/fecha son propuestas de revision, no verdad persistible."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "planned_time_punch_event.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "planned_time_punch_event.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "FECH_159", "targetField": "planned_time_punch_event.occurred_date", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "HORA_159", "targetField": "planned_time_punch_event.occurred_time", "transform": "strict_HH_mm_to_time_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "DSEM_159", "targetField": "planned_time_punch_event.source_weekday_label", "transform": "trim_compare_to_date_weekday_flag_mismatch", "classification": "pii_attendance"},
+        {"sourceColumn": "ENTRADA", "targetField": "planned_time_punch_event.direction", "transform": "versioned_entry_exit_mapping_or_unknown", "classification": "pii_attendance"},
+        {"sourceColumn": "IDESPERANZA", "targetField": "planned_time_punch_event.expected_day_source_id", "transform": "resolve_fk_when_present_else_null_no_fuzzy_write", "classification": "pii_attendance_link"},
+        {"sourceColumn": "AUTO_159", "targetField": "planned_time_punch_event.source_authorized", "transform": "versioned_boolean_mapping_or_review", "classification": "pii_attendance_decision"},
+        {"sourceColumn": "CODI_154", "targetField": "planned_time_punch_event.authorization_reason_source_id", "transform": "resolve_motiauto_fk_or_null", "classification": "pii_attendance_decision"},
+        {"sourceColumn": "PROC_159", "targetField": "planned_time_punch_event.source_process_hint", "transform": "unsigned_integer_to_text_no_device_inference", "classification": "pii_attendance_metadata"}
+      ]
+    },
+    {
+      "id": "time.location",
+      "domain": "time_catalog",
+      "purpose": "Conservar lugares legacy para asignaciones; no inventar coordenadas, IP, radio o dispositivo ausentes.",
+      "source": {
+        "table": "locales",
+        "expectedRowCount": 3,
+        "primaryKey": ["CODI_157"],
+        "columns": [
+          {"name": "CODI_157", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DESC_157", "type": "varchar(40)", "role": "label"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_157"], "canonicalKey": "tenant_id:locales:CODI_157", "tenantScoped": true, "collisionPolicy": "tenant namespace required"},
+      "target": {"entity": "planned_time_location", "materialization": "planned", "writeMode": "catalog_only_no_geofence_inference"},
+      "dataClassification": {"personalData": false, "level": "restricted_work_location", "categories": ["work_location"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "approved location catalog; geofence/device metadata must come from a separate certified source"},
+      "freshness": {"classification": "historical_catalog_requires_homologation", "operationalUse": "label_reference_only", "notes": "Tres etiquetas sin direccion, coordenadas, IP, radio ni reloj."},
+      "mappings": [
+        {"sourceColumn": "CODI_157", "targetField": "planned_time_location.source_id", "transform": "unsigned_integer_to_text", "classification": "location_key"},
+        {"sourceColumn": "DESC_157", "targetField": "planned_time_location.label", "transform": "transcode_utf8_trim", "classification": "work_location"}
+      ]
+    },
+    {
+      "id": "time.holiday",
+      "domain": "time_catalog",
+      "purpose": "Importar feriados historicos como dias de calendario versionados, sin extenderlos a 2026.",
+      "source": {
+        "table": "feriado",
+        "expectedRowCount": 55,
+        "primaryKey": ["FECH_22"],
+        "columns": [
+          {"name": "FECH_22", "type": "date", "role": "calendar_date"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "MOTI_22", "type": "varchar(40)", "role": "label"},
+          {"name": "TIPOFERIADO", "type": "varchar(40)", "role": "holiday_type"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "FECH_22"], "canonicalKey": "tenant_id:calendar:FECH_22:revision", "tenantScoped": true, "collisionPolicy": "same date with conflicting type/label requires new proposed revision and review"},
+      "target": {"entity": "time_catalog_entry + time_calendar_day", "materialization": "versioned_contract", "writeMode": "historical_draft_submit_maker_checker"},
+      "dataClassification": {"personalData": false, "level": "restricted_time_rules", "categories": ["holiday_calendar"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "approved municipal calendar source and non-overlapping validity"},
+      "freshness": {"classification": "historical_2000_07_25_to_2008_03_24", "operationalUse": "historical_evidence_only", "notes": "No alcanza para calendario 2026; se requiere fuente municipal vigente."},
+      "mappings": [
+        {"sourceColumn": "FECH_22", "targetField": "time_calendar_day.day_date", "transform": "validate_date_or_quarantine", "classification": "calendar_rule"},
+        {"sourceColumn": "CODI_01", "targetField": "time_calendar_day.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "MOTI_22", "targetField": "time_calendar_day.label", "transform": "transcode_utf8_trim", "classification": "calendar_rule"},
+        {"sourceColumn": "TIPOFERIADO", "targetField": "time_calendar_day.day_type", "transform": "map_versioned_holiday_type_or_review", "classification": "calendar_rule"}
+      ]
+    },
+    {
+      "id": "time.authorization_reason",
+      "domain": "time_catalog",
+      "purpose": "Homologar motivos de autorizacion usados por expectativas, fichadas y prenovedades.",
+      "source": {
+        "table": "motiauto",
+        "expectedRowCount": 3,
+        "primaryKey": ["CODI_154"],
+        "columns": [
+          {"name": "CODI_154", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DESC_154", "type": "varchar(40)", "role": "label"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_154"], "canonicalKey": "tenant_id:motiauto:CODI_154:revision", "tenantScoped": true, "collisionPolicy": "new label semantics require reviewed catalog revision"},
+      "target": {"entity": "time_catalog_entry + time_rule_parameter", "materialization": "versioned_contract", "writeMode": "catalog_draft_submit_maker_checker"},
+      "dataClassification": {"personalData": false, "level": "restricted_time_rules", "categories": ["authorization_reason"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["time.catalog.propose", "time.catalog.approve"], "enforcementGate": "approved semantics before decision mapping"},
+      "freshness": {"classification": "historical_catalog_requires_homologation", "operationalUse": "historical_reference_only", "notes": "Tres codigos; confirmar significado y vigencia."},
+      "mappings": [
+        {"sourceColumn": "CODI_154", "targetField": "time_rule_parameter.code_value", "transform": "unsigned_integer_to_text", "classification": "time_rule"},
+        {"sourceColumn": "DESC_154", "targetField": "time_rule_parameter.source_label", "transform": "transcode_utf8_trim", "classification": "time_rule"}
+      ]
+    },
+    {
+      "id": "time.pre_novelty",
+      "domain": "administrative_event",
+      "purpose": "Conservar prenovedades calculadas como propuestas historicas explicables, separadas de la aprobacion y del asiento de haberes.",
+      "source": {
+        "table": "prenove",
+        "expectedRowCount": 873,
+        "primaryKey": ["CODI_164"],
+        "columns": [
+          {"name": "CODI_164", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "FECH_164", "type": "date", "role": "event_date"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept_hint"},
+          {"name": "CODI_154", "type": "int(10) unsigned", "role": "authorization_reason_fk"},
+          {"name": "REAL_164", "type": "varchar(6)", "role": "observed_quantity"},
+          {"name": "AUTO_164", "type": "varchar(4)", "role": "calculated_quantity"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_164"], "canonicalKey": "source_batch_id:prenove:CODI_164", "tenantScoped": true, "collisionPolicy": "append-only; conflicting row hash or missing employment enters quarantine"},
+      "target": {"entity": "source_staging_row + planned_time_pre_novelty", "materialization": "staging_only", "writeMode": "historical_proposal_no_payroll_post"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_attendance_payroll", "categories": ["employment_identifier", "attendance_result", "payroll_concept_hint", "human_decision"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["time.source.propose", "time.source.approve"], "enforcementGate": "dedicated nominal attendance/payroll capability and maker-checker before any downstream proposal"},
+      "freshness": {"classification": "historical_2012_01_02_to_2012_01_11", "operationalUse": "historical_evidence_only", "notes": "Las 873 filas carecen de motivo informado; CODI_27 no tiene FK declarada y no puede postearse automaticamente."},
+      "mappings": [
+        {"sourceColumn": "CODI_164", "targetField": "source_staging_row.source_id", "transform": "unsigned_integer_to_text", "classification": "source_identifier"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_time_pre_novelty.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "planned_time_pre_novelty.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "FECH_164", "targetField": "planned_time_pre_novelty.event_date", "transform": "validate_date_or_quarantine", "classification": "pii_attendance"},
+        {"sourceColumn": "CODI_27", "targetField": "planned_time_pre_novelty.payroll_concept_source_id", "transform": "logical_resolve_concepto_for_review_never_post", "classification": "pii_payroll_hint"},
+        {"sourceColumn": "CODI_154", "targetField": "planned_time_pre_novelty.authorization_reason_source_id", "transform": "resolve_motiauto_fk_or_null", "classification": "pii_attendance_decision"},
+        {"sourceColumn": "REAL_164", "targetField": "planned_time_pre_novelty.observed_quantity", "transform": "strict_locale_numeric_parse_or_quarantine", "classification": "pii_attendance_result"},
+        {"sourceColumn": "AUTO_164", "targetField": "planned_time_pre_novelty.calculated_quantity", "transform": "strict_locale_numeric_parse_or_quarantine", "classification": "pii_attendance_result"}
+      ]
+    },
+    {
+      "id": "event.absence",
+      "domain": "administrative_event",
+      "purpose": "Gestionar eventos historicos de ausencia con motivo, periodo y procedencia, sin exponer observaciones fuera del alcance autorizado.",
+      "source": {
+        "table": "ausencia",
+        "expectedRowCount": 31622,
+        "primaryKey": ["CODI_01", "FAUS_20", "LEGA_12"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_key"},
+          {"name": "FAUS_20", "type": "date", "role": "starts_on"},
+          {"name": "CODI_21", "type": "int(10) unsigned", "role": "absence_reason_fk"},
+          {"name": "CANT_20", "type": "decimal(4,2)", "role": "quantity"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept_fk"},
+          {"name": "FREG_20", "type": "date", "role": "registered_on"},
+          {"name": "FINS_20", "type": "date", "role": "instrument_date"},
+          {"name": "COME_20", "type": "varchar(50)", "role": "restricted_comment"},
+          {"name": "DIAS_24", "type": "int(10) unsigned", "role": "days"},
+          {"name": "FECHAHASTA", "type": "date", "role": "ends_on"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "LEGA_12", "FAUS_20"], "canonicalKey": "company_id:legajo:fecha", "tenantScoped": true, "collisionPolicy": "same key with differing payload requires source conflict review; orphan employment quarantined"},
+      "target": {"entity": "grh_absences", "materialization": "existing", "writeMode": "immutable_import_batch_then_composite_upsert"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_leave_health_adjacent", "categories": ["employment_identifier", "absence", "leave_reason", "restricted_comment", "payroll_effect"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["absence.enter", "absence.validate"], "enforcementGate": "maker-checker, employment link and area scope; restricted reason/comment projection requires explicit capability"},
+      "freshness": {"classification": "historical_register_mixed_quality", "operationalUse": "administrative_evidence_with_quarantine", "notes": "Hay 6 referencias a legajos inexistentes y fechas anomalas; no promoverlas a flujo vigente sin revision."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "grh_absences.company_id", "transform": "unsigned_integer", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "grh_absences.legajo", "transform": "unsigned_integer_to_text", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "FAUS_20", "targetField": "grh_absences.fecha", "transform": "validate_date_1990_to_cutoff_or_quarantine", "classification": "pii_absence"},
+        {"sourceColumn": "CODI_21", "targetField": "grh_absences.motivo_code", "transform": "resolve_motause_fk_or_quarantine", "classification": "pii_leave_reason"},
+        {"sourceColumn": "CANT_20", "targetField": "grh_absences.cantidad", "transform": "decimal_preserve", "classification": "pii_absence"},
+        {"sourceColumn": "CODI_27", "targetField": "grh_absences.source_payload.payroll_concept", "transform": "resolve_concepto_fk_or_null", "classification": "pii_payroll_hint"},
+        {"sourceColumn": "FREG_20", "targetField": "grh_absences.source_payload.registered_on", "transform": "nullable_date_validate_or_quarantine", "classification": "pii_event_metadata"},
+        {"sourceColumn": "FINS_20", "targetField": "grh_absences.source_payload.instrument_date", "transform": "nullable_date_validate_or_quarantine", "classification": "pii_legal_metadata"},
+        {"sourceColumn": "COME_20", "targetField": "grh_absences.comentario", "transform": "transcode_utf8_trim_restricted", "classification": "pii_restricted_comment"},
+        {"sourceColumn": "DIAS_24", "targetField": "grh_absences.dias", "transform": "unsigned_integer", "classification": "pii_absence"},
+        {"sourceColumn": "FECHAHASTA", "targetField": "grh_absences.fecha_hasta", "transform": "nullable_date_validate_order_or_quarantine", "classification": "pii_absence"}
+      ]
+    },
+    {
+      "id": "event.leave",
+      "domain": "administrative_event",
+      "purpose": "Gestionar periodos historicos de licencia con observacion restringida y control de rangos.",
+      "source": {
+        "table": "licencia",
+        "expectedRowCount": 3448,
+        "primaryKey": ["CODI_01", "FINI_24", "LEGA_12", "PERI_24"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "PERI_24", "type": "int(10) unsigned", "role": "period"},
+          {"name": "TIPO_24", "type": "varchar(1)", "role": "leave_type"},
+          {"name": "FINI_24", "type": "date", "role": "starts_on"},
+          {"name": "FFIN_24", "type": "date", "role": "ends_on"},
+          {"name": "DIAS_24", "type": "int(10) unsigned", "role": "days"},
+          {"name": "OBS1_24", "type": "varchar(40)", "role": "restricted_note"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "LEGA_12", "PERI_24", "FINI_24"], "canonicalKey": "company_id:periodo:legajo:fecha_inicio", "tenantScoped": true, "collisionPolicy": "conflicting payload, inverted range or orphan employment quarantined"},
+      "target": {"entity": "grh_leaves", "materialization": "existing", "writeMode": "immutable_import_batch_then_composite_upsert"},
+      "dataClassification": {"personalData": true, "level": "highly_restricted_leave_health_adjacent", "categories": ["employment_identifier", "leave_period", "leave_type", "restricted_note"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["leave.enter", "leave.approve"], "enforcementGate": "maker-checker, employment link and area scope; restricted details need explicit leave scope"},
+      "freshness": {"classification": "historical_register", "operationalUse": "administrative_evidence_with_quarantine", "notes": "Hay 4 referencias a legajos inexistentes y posibles fechas anomalas."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "grh_leaves.company_id", "transform": "unsigned_integer", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "grh_leaves.legajo", "transform": "unsigned_integer_to_text", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "PERI_24", "targetField": "grh_leaves.periodo", "transform": "unsigned_integer", "classification": "pii_leave"},
+        {"sourceColumn": "TIPO_24", "targetField": "grh_leaves.tipo", "transform": "trim_map_versioned_catalog_preserve_unknown", "classification": "pii_leave_reason"},
+        {"sourceColumn": "FINI_24", "targetField": "grh_leaves.fecha_inicio", "transform": "validate_date_1990_to_cutoff_or_quarantine", "classification": "pii_leave"},
+        {"sourceColumn": "FFIN_24", "targetField": "grh_leaves.fecha_fin", "transform": "nullable_date_validate_order_or_quarantine", "classification": "pii_leave"},
+        {"sourceColumn": "DIAS_24", "targetField": "grh_leaves.dias", "transform": "unsigned_integer_validate_against_range", "classification": "pii_leave"},
+        {"sourceColumn": "OBS1_24", "targetField": "grh_leaves.observaciones", "transform": "transcode_utf8_trim_restricted", "classification": "pii_restricted_note"}
+      ]
+    },
+    {
+      "id": "event.absence_rule",
+      "domain": "administrative_event",
+      "purpose": "Homologar motivos y efectos configurables de ausencia sin ejecutar automaticamente reglas historicas.",
+      "source": {
+        "table": "motause",
+        "expectedRowCount": 27,
+        "primaryKey": ["CODI_21"],
+        "columns": [
+          {"name": "CODI_21", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_21", "type": "varchar(40)", "role": "label"},
+          {"name": "TIPO_21", "type": "int(10) unsigned", "role": "reason_type"},
+          {"name": "codi_27", "type": "int(11) unsigned", "role": "payroll_concept_fk"},
+          {"name": "AFECTAPRESENTISMO", "type": "decimal(1,0)", "role": "attendance_effect"},
+          {"name": "metodocalculo", "type": "varchar(1)", "role": "calculation_method"},
+          {"name": "diascorridos", "type": "char(1)", "role": "calendar_day_flag"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_21"], "canonicalKey": "tenant_id:motause:CODI_21:revision", "tenantScoped": true, "collisionPolicy": "semantic change creates new reviewed revision; unknown flags remain non-operative"},
+      "target": {"entity": "time_catalog_entry + time_rule_parameter", "materialization": "versioned_contract", "writeMode": "draft_only_until_legal_and_payroll_homologation"},
+      "dataClassification": {"personalData": false, "level": "highly_restricted_leave_rules", "categories": ["leave_reason", "attendance_effect", "payroll_effect", "calculation_rule"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["absence.enter", "absence.validate", "leave.enter", "leave.approve"], "enforcementGate": "distinct legal/RRHH/payroll review before operational approval"},
+      "freshness": {"classification": "historical_rules_require_homologation", "operationalUse": "historical_reference_only", "notes": "No ejecutar presentismo, concepto o metodo desde flags legacy sin norma vigente y casos dorados."},
+      "mappings": [
+        {"sourceColumn": "CODI_21", "targetField": "time_catalog_entry.logical_source_key", "transform": "hash_tenant_table_source_key", "classification": "leave_rule_key"},
+        {"sourceColumn": "DETA_21", "targetField": "time_catalog_entry.label", "transform": "transcode_utf8_trim", "classification": "leave_rule"},
+        {"sourceColumn": "TIPO_21", "targetField": "time_rule_parameter.reason_type", "transform": "unsigned_integer_to_text_versioned_mapping", "classification": "leave_rule"},
+        {"sourceColumn": "codi_27", "targetField": "time_rule_parameter.payroll_concept_source_id", "transform": "resolve_concepto_fk_or_null_never_post", "classification": "payroll_rule"},
+        {"sourceColumn": "AFECTAPRESENTISMO", "targetField": "time_rule_parameter.affects_attendance_bonus", "transform": "strict_zero_one_to_boolean_or_quarantine", "classification": "attendance_rule"},
+        {"sourceColumn": "metodocalculo", "targetField": "time_rule_parameter.calculation_method", "transform": "map_versioned_code_or_keep_unknown", "classification": "leave_rule"},
+        {"sourceColumn": "diascorridos", "targetField": "time_rule_parameter.calendar_days", "transform": "strict_versioned_boolean_mapping_or_review", "classification": "leave_rule"}
+      ]
+    },
+    {
+      "id": "payroll.clock_concept",
+      "domain": "payroll",
+      "purpose": "Registrar el catalogo que vincula conceptos de reloj con conceptos de haberes como configuracion candidata, nunca como autorizacion de posteo.",
+      "source": {
+        "table": "cptosreloj",
+        "expectedRowCount": 7,
+        "primaryKey": ["CODI_27"],
+        "columns": [
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept_fk"},
+          {"name": "AUTO_156", "type": "int(10) unsigned", "role": "automatic_flag"},
+          {"name": "ACTI_156", "type": "int(10) unsigned", "role": "active_flag"},
+          {"name": "TIPO_156", "type": "int(10) unsigned", "role": "clock_concept_type"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_27"], "canonicalKey": "tenant_id:cptosreloj:CODI_27:revision", "tenantScoped": true, "collisionPolicy": "semantic change creates proposed revision; unresolved payroll concept quarantined"},
+      "target": {"entity": "planned_time_payroll_concept_mapping", "materialization": "planned", "writeMode": "configuration_only_never_post"},
+      "dataClassification": {"personalData": false, "level": "highly_restricted_payroll_rules", "categories": ["payroll_concept", "attendance_payroll_bridge"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll configuration propose/approve capabilities and segregation of duties required"},
+      "freshness": {"classification": "historical_small_catalog", "operationalUse": "mapping_candidate_only", "notes": "Siete conceptos; el puente relacptos esta vacio y no prueba automatizacion operativa."},
+      "mappings": [
+        {"sourceColumn": "CODI_27", "targetField": "planned_time_payroll_concept_mapping.payroll_concept_source_id", "transform": "resolve_concepto_fk", "classification": "payroll_rule"},
+        {"sourceColumn": "AUTO_156", "targetField": "planned_time_payroll_concept_mapping.source_automatic_flag", "transform": "versioned_boolean_mapping_or_review", "classification": "payroll_rule"},
+        {"sourceColumn": "ACTI_156", "targetField": "planned_time_payroll_concept_mapping.source_active_flag", "transform": "versioned_boolean_mapping_or_review", "classification": "payroll_rule"},
+        {"sourceColumn": "TIPO_156", "targetField": "planned_time_payroll_concept_mapping.source_type", "transform": "unsigned_integer_to_text_versioned_mapping", "classification": "payroll_rule"}
+      ]
+    },
+    {
+      "id": "payroll.concept",
+      "domain": "payroll",
+      "purpose": "Homologar conceptos de haberes usados por calculo, movimientos, ausencias y reloj.",
+      "source": {
+        "table": "concepto",
+        "expectedRowCount": 294,
+        "primaryKey": ["CODI_27"],
+        "columns": [
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "DETA_15", "type": "varchar(50)", "role": "label"},
+          {"name": "TIPO_15", "type": "varchar(1)", "role": "concept_type"},
+          {"name": "UNID_15", "type": "varchar(1)", "role": "unit"},
+          {"name": "TOTA_15", "type": "int(10) unsigned", "role": "totalizer_hint"},
+          {"name": "TIPO", "type": "decimal(1,0)", "role": "secondary_type"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_27"], "canonicalKey": "tenant_id:concepto:CODI_27:revision", "tenantScoped": true, "collisionPolicy": "formula/type/unit change creates reviewed revision; never overwrite payroll history"},
+      "target": {"entity": "planned_payroll_concept", "materialization": "planned", "writeMode": "catalog_staging_then_payroll_review"},
+      "dataClassification": {"personalData": false, "level": "highly_restricted_payroll_rules", "categories": ["payroll_concept", "totalizer", "unit"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll read/configure capabilities and maker-checker required"},
+      "freshness": {"classification": "snapshot_catalog_with_current_usage", "operationalUse": "payroll_catalog_candidate", "notes": "El catalogo se usa en calculo 2026, pero cada semantica requiere homologacion antes de exponer formulas."},
+      "mappings": [
+        {"sourceColumn": "CODI_27", "targetField": "planned_payroll_concept.source_id", "transform": "unsigned_integer_to_text", "classification": "payroll_rule"},
+        {"sourceColumn": "DETA_15", "targetField": "planned_payroll_concept.label", "transform": "transcode_utf8_trim", "classification": "payroll_rule"},
+        {"sourceColumn": "TIPO_15", "targetField": "planned_payroll_concept.source_type", "transform": "trim_versioned_mapping", "classification": "payroll_rule"},
+        {"sourceColumn": "UNID_15", "targetField": "planned_payroll_concept.source_unit", "transform": "trim_versioned_mapping", "classification": "payroll_rule"},
+        {"sourceColumn": "TOTA_15", "targetField": "planned_payroll_concept.source_totalizer", "transform": "unsigned_integer_to_text_versioned_mapping", "classification": "payroll_rule"},
+        {"sourceColumn": "TIPO", "targetField": "planned_payroll_concept.source_secondary_type", "transform": "decimal_integer_to_text_versioned_mapping", "classification": "payroll_rule"}
+      ]
+    },
+    {
+      "id": "payroll.run",
+      "domain": "payroll",
+      "purpose": "Construir corridas de liquidacion a partir de la cabecera historica y su estado de cierre.",
+      "source": {
+        "table": "histocal",
+        "expectedRowCount": 626,
+        "primaryKey": ["CODI_01", "FECA_31", "MES_31", "PERI_31", "TIPO_31"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "PERI_31", "type": "int(10) unsigned", "role": "source_period"},
+          {"name": "MES_31", "type": "int(10) unsigned", "role": "source_month"},
+          {"name": "FECA_31", "type": "date", "role": "payroll_date"},
+          {"name": "TIPO_31", "type": "varchar(1)", "role": "payroll_type"},
+          {"name": "CIER_31", "type": "int(10) unsigned", "role": "closed_flag"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "PERI_31", "MES_31", "FECA_31", "TIPO_31"], "canonicalKey": "source_batch_id:company:payroll_date:period:month:type", "tenantScoped": true, "collisionPolicy": "duplicate natural run with conflicting closure flag quarantined"},
+      "target": {"entity": "payroll_run", "materialization": "existing", "writeMode": "immutable_batch_then_idempotent_insert"},
+      "dataClassification": {"personalData": false, "level": "highly_restricted_payroll_metadata", "categories": ["payroll_period", "closure_status"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll read capability required; closure is source evidence, not an approval in MuniControl"},
+      "freshness": {"classification": "mixed_history_with_current_2026", "operationalUse": "payroll_run_evidence", "notes": "Validar cierre y corte por corrida; no asumir que todo el dump comparte igual vigencia."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "payroll_run.company_source_id", "transform": "unsigned_integer", "classification": "tenant_key"},
+        {"sourceColumn": "PERI_31", "targetField": "payroll_run.source_period", "transform": "unsigned_integer", "classification": "payroll_metadata"},
+        {"sourceColumn": "MES_31", "targetField": "payroll_run.source_month", "transform": "validate_1_to_12_or_quarantine", "classification": "payroll_metadata"},
+        {"sourceColumn": "FECA_31", "targetField": "payroll_run.payroll_date", "transform": "validate_2008_to_cutoff_or_quarantine", "classification": "payroll_metadata"},
+        {"sourceColumn": "TIPO_31", "targetField": "payroll_run.payroll_type", "transform": "trim_versioned_mapping_preserve_unknown", "classification": "payroll_metadata"},
+        {"sourceColumn": "CIER_31", "targetField": "payroll_run.source_closed_flag", "transform": "strict_zero_one_or_quarantine", "classification": "payroll_metadata"}
+      ]
+    },
+    {
+      "id": "payroll.fact",
+      "domain": "payroll",
+      "purpose": "Reconciliar conceptos e importes nominales por legajo y corrida con trazabilidad y acceso altamente restringido.",
+      "source": {
+        "table": "calculo",
+        "expectedRowCount": 4373145,
+        "primaryKey": ["CODI_01", "CODI_27", "FECA_31", "LEGA_12", "MES_31", "PERI_31", "TIPO_31"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "PERI_31", "type": "int(10) unsigned", "role": "source_period"},
+          {"name": "MES_31", "type": "int(10) unsigned", "role": "source_month"},
+          {"name": "FECA_31", "type": "date", "role": "payroll_date"},
+          {"name": "TIPO_31", "type": "varchar(1)", "role": "payroll_type"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept_fk"},
+          {"name": "CANT_31", "type": "decimal(15,2)", "role": "quantity"},
+          {"name": "IMPO_31", "type": "decimal(15,2)", "role": "nominal_amount"},
+          {"name": "CODI_02", "type": "int(10) unsigned", "role": "agreement_fk"},
+          {"name": "CODI_06", "type": "int(10) unsigned", "role": "cost_center_fk"},
+          {"name": "CODI_07", "type": "int(10) unsigned", "role": "sector_fk"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_01", "LEGA_12", "CODI_27", "FECA_31", "PERI_31", "MES_31", "TIPO_31"], "canonicalKey": "source_batch_id:full_calculo_primary_key", "tenantScoped": true, "collisionPolicy": "conflicting duplicate or orphan contract/run/concept quarantined; amounts never deduplicated heuristically"},
+      "target": {"entity": "source_staging_row + payroll_monthly_fact", "materialization": "existing", "writeMode": "append_detail_then_aggregate_with_reconciliation"},
+      "dataClassification": {"personalData": true, "level": "highest_restricted_payroll", "categories": ["employment_identifier", "payroll_concept", "quantity", "nominal_amount", "organizational_dimension"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll nominal read capability, MFA, employment/area scope and immutable audit are mandatory"},
+      "freshness": {"classification": "mixed_history_with_current_2026", "operationalUse": "payroll_evidence_and_reconciliation", "notes": "4.373.145 filas, incluidas 240.577 de 2026; vigencia se certifica por corrida, no por tabla completa."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "payroll_monthly_fact.tenant_binding", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "PERI_31", "targetField": "payroll_monthly_fact.source_period", "transform": "unsigned_integer", "classification": "pii_payroll"},
+        {"sourceColumn": "MES_31", "targetField": "payroll_monthly_fact.source_month", "transform": "validate_1_to_12_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "FECA_31", "targetField": "payroll_monthly_fact.payroll_date", "transform": "resolve_payroll_run_date", "classification": "pii_payroll"},
+        {"sourceColumn": "TIPO_31", "targetField": "payroll_monthly_fact.payroll_type", "transform": "resolve_payroll_run_type", "classification": "pii_payroll"},
+        {"sourceColumn": "LEGA_12", "targetField": "payroll_monthly_fact.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "CODI_27", "targetField": "source_staging_row.source_payload.payroll_concept", "transform": "resolve_concepto_fk_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "CANT_31", "targetField": "source_staging_row.source_payload.quantity", "transform": "decimal_preserve", "classification": "pii_payroll_quantity"},
+        {"sourceColumn": "IMPO_31", "targetField": "source_staging_row.source_payload.nominal_amount", "transform": "decimal_preserve_no_rounding", "classification": "pii_financial"},
+        {"sourceColumn": "CODI_02", "targetField": "payroll_monthly_fact.source_payload.agreement_code", "transform": "resolve_convenio_fk_or_review", "classification": "pii_employment"},
+        {"sourceColumn": "CODI_06", "targetField": "payroll_monthly_fact.source_payload.cost_center_code", "transform": "compose_CODI_01_CODI_06_resolve_or_review", "classification": "pii_financial_structure"},
+        {"sourceColumn": "CODI_07", "targetField": "payroll_monthly_fact.source_payload.sector_code", "transform": "compose_CODI_01_CODI_07_resolve_or_review", "classification": "pii_organizational"}
+      ]
+    },
+    {
+      "id": "payroll.movement",
+      "domain": "payroll",
+      "purpose": "Preservar movimientos de concepto por legajo y periodo como hechos nominales auditables.",
+      "source": {
+        "table": "legamov",
+        "expectedRowCount": 492127,
+        "primaryKey": ["ANO_30", "CODI_01", "CODI_06", "CODI_27", "LEGA_12", "MES_30", "TIPO_31"],
+        "columns": [
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "ANO_30", "type": "int(10) unsigned", "role": "year"},
+          {"name": "MES_30", "type": "int(10) unsigned", "role": "month"},
+          {"name": "TIPO_31", "type": "varchar(1)", "role": "payroll_type"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept_fk"},
+          {"name": "CODI_06", "type": "int(10) unsigned", "role": "cost_center_key"},
+          {"name": "cant_30", "type": "decimal(10,2)", "role": "quantity"},
+          {"name": "AUTO_30", "type": "int(10) unsigned", "role": "automatic_flag"},
+          {"name": "ESTADO", "type": "varchar(255)", "role": "status"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["ANO_30", "CODI_01", "CODI_06", "CODI_27", "LEGA_12", "MES_30", "TIPO_31"], "canonicalKey": "source_batch_id:full_legamov_primary_key_including_cost_center", "tenantScoped": true, "collisionPolicy": "preserve full source primary key; orphan employment/concept and anomalous period quarantined"},
+      "target": {"entity": "employment_movement", "materialization": "existing", "writeMode": "append_by_source_batch_and_source_key"},
+      "dataClassification": {"personalData": true, "level": "highest_restricted_payroll", "categories": ["employment_identifier", "payroll_concept", "quantity", "status"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll nominal read capability, MFA, employment/area scope and immutable audit"},
+      "freshness": {"classification": "mixed_history_with_current_2026", "operationalUse": "payroll_movement_evidence", "notes": "492.127 filas, incluidas 29.866 de 2026; validar cada periodo y estado."},
+      "mappings": [
+        {"sourceColumn": "CODI_01", "targetField": "employment_movement.tenant_binding", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "ANO_30", "targetField": "employment_movement.movement_period.year", "transform": "validate_year_1900_to_cutoff_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "MES_30", "targetField": "employment_movement.movement_period.month", "transform": "validate_1_to_12_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "TIPO_31", "targetField": "employment_movement.payroll_type", "transform": "trim_versioned_mapping_preserve_unknown", "classification": "pii_payroll"},
+        {"sourceColumn": "LEGA_12", "targetField": "employment_movement.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "CODI_27", "targetField": "employment_movement.concept_source_id", "transform": "resolve_concepto_fk_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "CODI_06", "targetField": "employment_movement.source_payload.cost_center_code", "transform": "compose_CODI_01_CODI_06_resolve_or_review", "classification": "pii_financial_structure"},
+        {"sourceColumn": "cant_30", "targetField": "employment_movement.quantity", "transform": "decimal_preserve", "classification": "pii_payroll_quantity"},
+        {"sourceColumn": "AUTO_30", "targetField": "employment_movement.source_automatic_flag", "transform": "versioned_boolean_mapping_or_review", "classification": "pii_payroll_metadata"},
+        {"sourceColumn": "ESTADO", "targetField": "employment_movement.source_status", "transform": "trim_versioned_mapping_preserve_unknown", "classification": "pii_payroll_metadata"}
+      ]
+    },
+    {
+      "id": "payroll.clock_rule_bridge",
+      "domain": "payroll",
+      "purpose": "Documentar el puente modelado turno-horario-concepto que aparece vacio para impedir que se lo trate como configuracion operativa.",
+      "source": {
+        "table": "relacptos",
+        "expectedRowCount": 0,
+        "primaryKey": ["ID"],
+        "columns": [
+          {"name": "ID", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "CODI_151", "type": "int(10) unsigned", "role": "shift_fk"},
+          {"name": "CODI_153", "type": "int(10) unsigned", "role": "interval_fk"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "clock_concept_fk"},
+          {"name": "DIAS_163", "type": "varchar(7)", "role": "weekday_pattern"},
+          {"name": "TIPO_163", "type": "varchar(9)", "role": "rule_type"},
+          {"name": "TIPOFERIADO", "type": "varchar(250)", "role": "holiday_type"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["ID"], "canonicalKey": "tenant_id:relacptos:ID:revision", "tenantScoped": true, "collisionPolicy": "no records may be invented; future rows require fresh approved source contract"},
+      "target": {"entity": "planned_time_payroll_rule_bridge", "materialization": "staging_only", "writeMode": "disabled_until_nonempty_certified_source_and_payroll_review"},
+      "dataClassification": {"personalData": false, "level": "highly_restricted_payroll_rules", "categories": ["attendance_payroll_bridge", "holiday_rule"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "dedicated payroll configuration capabilities, fresh source and maker-checker"},
+      "freshness": {"classification": "empty_not_operational", "operationalUse": "schema_evidence_only", "notes": "Cero filas; demuestra modelo posible, no configuracion activa."},
+      "mappings": [
+        {"sourceColumn": "ID", "targetField": "planned_time_payroll_rule_bridge.source_id", "transform": "unsigned_integer_to_text", "classification": "payroll_rule"},
+        {"sourceColumn": "CODI_151", "targetField": "planned_time_payroll_rule_bridge.shift_source_id", "transform": "resolve_turnos_fk", "classification": "payroll_rule"},
+        {"sourceColumn": "CODI_153", "targetField": "planned_time_payroll_rule_bridge.interval_source_id", "transform": "resolve_horarios_fk", "classification": "payroll_rule"},
+        {"sourceColumn": "CODI_27", "targetField": "planned_time_payroll_rule_bridge.clock_concept_source_id", "transform": "resolve_cptosreloj_fk", "classification": "payroll_rule"},
+        {"sourceColumn": "DIAS_163", "targetField": "planned_time_payroll_rule_bridge.weekday_pattern", "transform": "strict_pattern_parse_or_quarantine", "classification": "payroll_rule"},
+        {"sourceColumn": "TIPO_163", "targetField": "planned_time_payroll_rule_bridge.rule_type", "transform": "trim_versioned_mapping", "classification": "payroll_rule"},
+        {"sourceColumn": "TIPOFERIADO", "targetField": "planned_time_payroll_rule_bridge.holiday_type", "transform": "trim_versioned_mapping", "classification": "payroll_rule"}
+      ]
+    },
+    {
+      "id": "payroll.automatic_novelty",
+      "domain": "payroll",
+      "purpose": "Documentar la salida automatica reloj-haberes ausente para bloquear calculos o posteos inventados.",
+      "source": {
+        "table": "noveauto",
+        "expectedRowCount": 0,
+        "primaryKey": ["CODI_162"],
+        "columns": [
+          {"name": "CODI_162", "type": "int(10) unsigned", "role": "source_key"},
+          {"name": "CODI_01", "type": "int(10) unsigned", "role": "tenant_key"},
+          {"name": "LEGA_12", "type": "int(10) unsigned", "role": "employment_fk"},
+          {"name": "CODI_27", "type": "int(10) unsigned", "role": "payroll_concept"},
+          {"name": "FECH_162", "type": "date", "role": "event_date"},
+          {"name": "MES_30", "type": "int(10) unsigned", "role": "month"},
+          {"name": "ANO_30", "type": "int(10) unsigned", "role": "year"},
+          {"name": "TIPO_31", "type": "varchar(1)", "role": "payroll_type"}
+        ]
+      },
+      "keyStrategy": {"sourceColumns": ["CODI_162"], "canonicalKey": "source_batch_id:noveauto:CODI_162", "tenantScoped": true, "collisionPolicy": "no records may be synthesized; future rows require source and rule provenance"},
+      "target": {"entity": "planned_payroll_novelty_proposal", "materialization": "staging_only", "writeMode": "disabled_no_calculation_no_post"},
+      "dataClassification": {"personalData": true, "level": "highest_restricted_payroll", "categories": ["employment_identifier", "payroll_concept", "payroll_period", "calculated_novelty"]},
+      "accessPolicy": {"tenantBound": true, "rowScope": "tenant+organization+sector+employment_contract", "capabilities": ["payroll.read", "time.source.propose", "time.source.approve"], "enforcementGate": "approved rule version, explainable inputs, maker-checker and dedicated payroll post capability"},
+      "freshness": {"classification": "empty_not_operational", "operationalUse": "schema_evidence_only", "notes": "Cero filas; no existe evidencia de salida automatica operativa en este snapshot."},
+      "mappings": [
+        {"sourceColumn": "CODI_162", "targetField": "planned_payroll_novelty_proposal.source_id", "transform": "unsigned_integer_to_text", "classification": "source_identifier"},
+        {"sourceColumn": "CODI_01", "targetField": "planned_payroll_novelty_proposal.tenant_id", "transform": "resolve_certified_company_binding", "classification": "tenant_key"},
+        {"sourceColumn": "LEGA_12", "targetField": "planned_payroll_novelty_proposal.employment_contract_id", "transform": "resolve_employment_composite_key_or_quarantine", "classification": "pii_employment_identifier"},
+        {"sourceColumn": "CODI_27", "targetField": "planned_payroll_novelty_proposal.payroll_concept_source_id", "transform": "logical_resolve_concepto_for_review", "classification": "pii_payroll"},
+        {"sourceColumn": "FECH_162", "targetField": "planned_payroll_novelty_proposal.event_date", "transform": "validate_date_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "MES_30", "targetField": "planned_payroll_novelty_proposal.month", "transform": "validate_1_to_12_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "ANO_30", "targetField": "planned_payroll_novelty_proposal.year", "transform": "validate_year_or_quarantine", "classification": "pii_payroll"},
+        {"sourceColumn": "TIPO_31", "targetField": "planned_payroll_novelty_proposal.payroll_type", "transform": "trim_versioned_mapping", "classification": "pii_payroll"}
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "organization_to_tenant",
+      "kind": "foreign_key",
+      "sourceTable": "organiza",
+      "targetTable": "empresa",
+      "purpose": "Aislar cada unidad organizativa dentro de la empresa/tenant fuente.",
+      "columnPairs": [{"source": ["CODI_01"], "target": ["CODI_01"]}]
+    },
+    {
+      "id": "person_to_tenant_hint",
+      "kind": "logical_review_only",
+      "sourceTable": "persona",
+      "targetTable": "empresa",
+      "purpose": "Contrastar el tenant sugerido por persona; la vinculacion certificada se resuelve tambien mediante legajo.",
+      "columnPairs": [{"source": ["CODI_01"], "target": ["CODI_01"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Confirmar contra legajo y binding certificado; CODI_01 no tiene FK declarada en persona."}
+    },
+    {
+      "id": "employment_to_person",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "persona",
+      "purpose": "Resolver el titular del legajo.",
+      "columnPairs": [{"source": ["IDPERSONA"], "target": ["IDPERSONA"]}]
+    },
+    {
+      "id": "employment_to_organization",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "organiza",
+      "purpose": "Resolver la unidad organizativa del legajo.",
+      "columnPairs": [{"source": ["IDORGANIZA"], "target": ["IDORGANIZA"]}]
+    },
+    {
+      "id": "employment_to_position",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "cargo",
+      "purpose": "Resolver el cargo del legajo.",
+      "columnPairs": [{"source": ["CARGOID"], "target": ["CARGOID"]}]
+    },
+    {
+      "id": "employment_to_sector",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "sectores",
+      "purpose": "Resolver el sector tenant-bound del legajo.",
+      "columnPairs": [{"source": ["CODI_01", "CODI_07"], "target": ["CODI_01", "CODI_07"]}]
+    },
+    {
+      "id": "employment_to_cost_center",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "costos",
+      "purpose": "Resolver el centro de costo del legajo.",
+      "columnPairs": [{"source": ["CODI_01", "CODI_06"], "target": ["CODI_01", "CODI_06"]}]
+    },
+    {
+      "id": "employment_to_agreement",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "convenio",
+      "purpose": "Resolver el convenio del legajo.",
+      "columnPairs": [{"source": ["CODI_02"], "target": ["CODI_02"]}]
+    },
+    {
+      "id": "employment_to_category",
+      "kind": "foreign_key",
+      "sourceTable": "legajo",
+      "targetTable": "catego",
+      "purpose": "Resolver la categoria dentro del convenio.",
+      "columnPairs": [{"source": ["CODI_02", "CODI_10"], "target": ["CODI_02", "CODI_10"]}]
+    },
+    {
+      "id": "category_to_agreement",
+      "kind": "foreign_key",
+      "sourceTable": "catego",
+      "targetTable": "convenio",
+      "purpose": "Validar que cada categoria pertenece a un convenio conocido.",
+      "columnPairs": [{"source": ["CODI_02"], "target": ["CODI_02"]}]
+    },
+    {
+      "id": "position_hierarchy",
+      "kind": "foreign_key",
+      "sourceTable": "cargo",
+      "targetTable": "cargo",
+      "purpose": "Validar referencias jerarquicas de cargos y detectar ciclos por separado.",
+      "columnPairs": [
+        {"source": ["PADREID"], "target": ["CARGOID"]},
+        {"source": ["DEPENDEID"], "target": ["CARGOID"]}
+      ]
+    },
+    {
+      "id": "organization_parent_hint",
+      "kind": "logical_review_only",
+      "sourceTable": "organiza",
+      "targetTable": "organiza",
+      "purpose": "Reconstruir jerarquia organizativa sin confiar en un campo sin FK.",
+      "columnPairs": [{"source": ["ID_PADRE"], "target": ["IDORGANIZA"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Validar existencia, tenant, ausencia de auto-referencia y ausencia de ciclos antes de aprobar."}
+    },
+    {
+      "id": "employment_legacy_shift_hint",
+      "kind": "logical_review_only",
+      "sourceTable": "legajo",
+      "targetTable": "turnos",
+      "purpose": "Conciliar TURN_12 con asignaciones de legaturn sin usarlo como asignacion autoritativa.",
+      "columnPairs": [{"source": ["TURN_12"], "target": ["CODI_151"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Resolver los codigos coincidentes, marcar los no resueltos y elegir precedencia con RRHH."}
+    },
+    {
+      "id": "shift_to_intervals",
+      "kind": "foreign_key",
+      "sourceTable": "turnos",
+      "targetTable": "horarios",
+      "purpose": "Resolver intervalos base, AM y PM declarados por cada turno.",
+      "columnPairs": [
+        {"source": ["HSRO_151"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_1"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_2"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_3"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_4"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_5"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_6"], "target": ["CODI_153"]},
+        {"source": ["HSMA_151_7"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_1"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_2"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_3"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_5"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_6"], "target": ["CODI_153"]},
+        {"source": ["HSTA_151_7"], "target": ["CODI_153"]}
+      ]
+    },
+    {
+      "id": "shift_pm_day4_interval_hint",
+      "kind": "logical_review_only",
+      "sourceTable": "turnos",
+      "targetTable": "horarios",
+      "purpose": "Revisar HSTA_151_4, unico campo diario del conjunto sin FK declarada.",
+      "columnPairs": [{"source": ["HSTA_151_4"], "target": ["CODI_153"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Resolver solo si el codigo existe y la definicion funcional confirma la semantica; registrar excepcion de esquema."}
+    },
+    {
+      "id": "interval_to_tolerances",
+      "kind": "foreign_key",
+      "sourceTable": "horarios",
+      "targetTable": "tolerancias",
+      "purpose": "Resolver las cuatro tolerancias asociadas a cada franja.",
+      "columnPairs": [
+        {"source": ["PRTE_153"], "target": ["CODI_155"]},
+        {"source": ["PRTS_153"], "target": ["CODI_155"]},
+        {"source": ["POTE_153"], "target": ["CODI_155"]},
+        {"source": ["POTS_153"], "target": ["CODI_155"]}
+      ]
+    },
+    {
+      "id": "assignment_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "legaturn",
+      "targetTable": "legajo",
+      "purpose": "Vincular la asignacion con un legajo tenant-bound.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "assignment_to_shift",
+      "kind": "foreign_key",
+      "sourceTable": "legaturn",
+      "targetTable": "turnos",
+      "purpose": "Vincular la asignacion con el turno fuente.",
+      "columnPairs": [{"source": ["CODI_151"], "target": ["CODI_151"]}]
+    },
+    {
+      "id": "assignment_to_location",
+      "kind": "foreign_key",
+      "sourceTable": "legaturn",
+      "targetTable": "locales",
+      "purpose": "Vincular la asignacion con el lugar fuente.",
+      "columnPairs": [{"source": ["CODI_157"], "target": ["CODI_157"]}]
+    },
+    {
+      "id": "expected_day_to_employment_shift_reason",
+      "kind": "foreign_key",
+      "sourceTable": "esperanza",
+      "targetTable": "legajo",
+      "purpose": "Vincular cada jornada esperada con su legajo.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "expected_day_to_shift",
+      "kind": "foreign_key",
+      "sourceTable": "esperanza",
+      "targetTable": "turnos",
+      "purpose": "Vincular la jornada esperada con el turno registrado.",
+      "columnPairs": [{"source": ["CODI_151"], "target": ["CODI_151"]}]
+    },
+    {
+      "id": "expected_day_to_authorization_reason",
+      "kind": "foreign_key",
+      "sourceTable": "esperanza",
+      "targetTable": "motiauto",
+      "purpose": "Resolver el motivo de autorizacion cuando existe.",
+      "columnPairs": [{"source": ["CODI_154"], "target": ["CODI_154"]}]
+    },
+    {
+      "id": "punch_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "fichadas",
+      "targetTable": "legajo",
+      "purpose": "Vincular la marcacion con un legajo tenant-bound.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "punch_to_expected_day",
+      "kind": "foreign_key",
+      "sourceTable": "fichadas",
+      "targetTable": "esperanza",
+      "purpose": "Conservar el enlace explicito a jornada esperada cuando fue informado.",
+      "columnPairs": [{"source": ["IDESPERANZA"], "target": ["IDESPERANZA"]}]
+    },
+    {
+      "id": "punch_to_authorization_reason",
+      "kind": "foreign_key",
+      "sourceTable": "fichadas",
+      "targetTable": "motiauto",
+      "purpose": "Resolver el motivo de autorizacion de marcacion cuando existe.",
+      "columnPairs": [{"source": ["CODI_154"], "target": ["CODI_154"]}]
+    },
+    {
+      "id": "punch_expected_day_reconciliation",
+      "kind": "logical_review_only",
+      "sourceTable": "fichadas",
+      "targetTable": "esperanza",
+      "purpose": "Proponer reconciliacion por legajo y fecha cuando IDESPERANZA falta, sin escribir el enlace.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12", "FECH_159"], "target": ["CODI_01", "LEGA_12", "FECH_160"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Presentar candidatos, ambiguedad y evidencia al revisor; persistir solo una decision humana auditada."}
+    },
+    {
+      "id": "pre_novelty_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "prenove",
+      "targetTable": "legajo",
+      "purpose": "Vincular la prenovedad con un legajo tenant-bound.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "pre_novelty_to_authorization_reason",
+      "kind": "foreign_key",
+      "sourceTable": "prenove",
+      "targetTable": "motiauto",
+      "purpose": "Resolver el motivo de autorizacion informado.",
+      "columnPairs": [{"source": ["CODI_154"], "target": ["CODI_154"]}]
+    },
+    {
+      "id": "pre_novelty_to_payroll_concept_hint",
+      "kind": "logical_review_only",
+      "sourceTable": "prenove",
+      "targetTable": "concepto",
+      "purpose": "Contrastar el concepto sugerido sin asumir FK ni autorizar posteo.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Validar concepto, regla, motivo y aprobacion antes de cualquier propuesta de haberes."}
+    },
+    {
+      "id": "absence_to_reason",
+      "kind": "foreign_key",
+      "sourceTable": "ausencia",
+      "targetTable": "motause",
+      "purpose": "Resolver el motivo parametrizado de ausencia.",
+      "columnPairs": [{"source": ["CODI_21"], "target": ["CODI_21"]}]
+    },
+    {
+      "id": "absence_to_payroll_concept",
+      "kind": "foreign_key",
+      "sourceTable": "ausencia",
+      "targetTable": "concepto",
+      "purpose": "Resolver el concepto de haberes asociado cuando existe.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "absence_to_employment_review",
+      "kind": "logical_review_only",
+      "sourceTable": "ausencia",
+      "targetTable": "legajo",
+      "purpose": "Validar el legajo de ausencia porque el dump no declara FK.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Promover solo referencias existentes; los seis huerfanos observados permanecen en cuarentena."}
+    },
+    {
+      "id": "leave_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "licencia",
+      "targetTable": "legajo",
+      "purpose": "Vincular la licencia con un legajo tenant-bound.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "absence_rule_to_payroll_concept",
+      "kind": "foreign_key",
+      "sourceTable": "motause",
+      "targetTable": "concepto",
+      "purpose": "Resolver el concepto candidato asociado al motivo de ausencia.",
+      "columnPairs": [{"source": ["codi_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "clock_concept_to_payroll_concept",
+      "kind": "foreign_key",
+      "sourceTable": "cptosreloj",
+      "targetTable": "concepto",
+      "purpose": "Resolver el concepto de haberes usado por el catalogo de reloj.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "payroll_fact_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "legajo",
+      "purpose": "Vincular cada detalle de calculo con el legajo.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "payroll_fact_to_run",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "histocal",
+      "purpose": "Vincular cada detalle de calculo con su corrida.",
+      "columnPairs": [{"source": ["CODI_01", "PERI_31", "MES_31", "FECA_31", "TIPO_31"], "target": ["CODI_01", "PERI_31", "MES_31", "FECA_31", "TIPO_31"]}]
+    },
+    {
+      "id": "payroll_fact_to_concept",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "concepto",
+      "purpose": "Vincular el detalle con su concepto de haberes.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "payroll_fact_to_agreement",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "convenio",
+      "purpose": "Resolver la dimension de convenio del detalle.",
+      "columnPairs": [{"source": ["CODI_02"], "target": ["CODI_02"]}]
+    },
+    {
+      "id": "payroll_fact_to_sector",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "sectores",
+      "purpose": "Resolver la dimension tenant-bound de sector del detalle.",
+      "columnPairs": [{"source": ["CODI_01", "CODI_07"], "target": ["CODI_01", "CODI_07"]}]
+    },
+    {
+      "id": "payroll_fact_to_cost_center",
+      "kind": "foreign_key",
+      "sourceTable": "calculo",
+      "targetTable": "costos",
+      "purpose": "Resolver la dimension tenant-bound de centro de costo.",
+      "columnPairs": [{"source": ["CODI_01", "CODI_06"], "target": ["CODI_01", "CODI_06"]}]
+    },
+    {
+      "id": "payroll_movement_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "legamov",
+      "targetTable": "legajo",
+      "purpose": "Vincular el movimiento con un legajo tenant-bound.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "payroll_movement_to_concept",
+      "kind": "foreign_key",
+      "sourceTable": "legamov",
+      "targetTable": "concepto",
+      "purpose": "Vincular el movimiento con su concepto de haberes.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "clock_rule_bridge_dependencies",
+      "kind": "foreign_key",
+      "sourceTable": "relacptos",
+      "targetTable": "cptosreloj",
+      "purpose": "Validar el concepto de reloj de un eventual puente.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}]
+    },
+    {
+      "id": "clock_rule_bridge_to_interval",
+      "kind": "foreign_key",
+      "sourceTable": "relacptos",
+      "targetTable": "horarios",
+      "purpose": "Validar el intervalo de un eventual puente.",
+      "columnPairs": [{"source": ["CODI_153"], "target": ["CODI_153"]}]
+    },
+    {
+      "id": "clock_rule_bridge_to_shift",
+      "kind": "foreign_key",
+      "sourceTable": "relacptos",
+      "targetTable": "turnos",
+      "purpose": "Validar el turno de un eventual puente.",
+      "columnPairs": [{"source": ["CODI_151"], "target": ["CODI_151"]}]
+    },
+    {
+      "id": "automatic_novelty_to_employment",
+      "kind": "foreign_key",
+      "sourceTable": "noveauto",
+      "targetTable": "legajo",
+      "purpose": "Vincular una eventual novedad automatica con el legajo.",
+      "columnPairs": [{"source": ["CODI_01", "LEGA_12"], "target": ["CODI_01", "LEGA_12"]}]
+    },
+    {
+      "id": "automatic_novelty_to_concept_review",
+      "kind": "logical_review_only",
+      "sourceTable": "noveauto",
+      "targetTable": "concepto",
+      "purpose": "Contrastar el concepto de una eventual novedad porque no hay FK declarada.",
+      "columnPairs": [{"source": ["CODI_27"], "target": ["CODI_27"]}],
+      "reviewPolicy": {"autoLink": false, "requiredDecision": "Requerir concepto, regla aprobada, entradas explicables y aprobacion de payroll antes de vincular."}
+    }
+  ],
+  "quarantineRules": [
+    {
+      "code": "TENANT_BINDING_UNRESOLVED",
+      "tables": ["empresa", "persona", "legajo", "organiza", "sectores", "costos"],
+      "condition": "CODI_01 no resuelve exactamente a un platform_tenant_source_binding activo y certificado para GRH.",
+      "reason": "Evita mezclar municipios o crear tenants por inferencia.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Un administrador de plataforma certifica el binding y un responsable municipal confirma la empresa fuente."
+    },
+    {
+      "code": "REQUIRED_SOURCE_KEY_NULL_OR_DUPLICATE",
+      "tables": ["empresa", "persona", "legajo", "organiza", "cargo", "sectores", "costos", "convenio", "catego", "turnos", "horarios", "tolerancias", "legaturn", "esperanza", "fichadas", "locales", "feriado", "motiauto", "prenove", "ausencia", "licencia", "motause", "cptosreloj", "concepto", "histocal", "calculo", "legamov", "relacptos", "noveauto"],
+      "condition": "Algun componente de primaryKey es nulo, vacio o se repite con payload/hash distinto dentro del mismo lote.",
+      "reason": "Una clave ambigua rompe idempotencia y procedencia.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Correccion en origen o decision de data steward documentada sin sobrescribir la evidencia."
+    },
+    {
+      "code": "INVALID_OR_SENTINEL_DATE",
+      "tables": ["persona", "legajo", "legaturn", "esperanza", "fichadas", "feriado", "prenove", "ausencia", "licencia", "histocal", "calculo", "legamov", "noveauto"],
+      "condition": "Fecha invalida, rango invertido, fecha posterior al corte o ano centinela/anomalo (incluidos 0007, 0008, 0205, 1111, 1897 o 2223).",
+      "reason": "Impide que centinelas legacy se interpreten como eventos reales o vigencias.",
+      "severity": "high",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Correccion aprobada con valor, fuente y motivo; nunca normalizacion silenciosa."
+    },
+    {
+      "code": "TEXT_ENCODING_OR_LOSS",
+      "tables": ["empresa", "persona", "legajo", "organiza", "cargo", "sectores", "costos", "convenio", "catego", "turnos", "horarios", "tolerancias", "legaturn", "locales", "feriado", "motiauto", "prenove", "ausencia", "licencia", "motause", "concepto"],
+      "condition": "La conversion latin1/utf8 produce caracter de reemplazo, bytes invalidos o una ida-y-vuelta no equivalente.",
+      "reason": "Protege nombres, etiquetas y observaciones de corrupcion de codificacion.",
+      "severity": "high",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Transcodificacion determinista probada y revision de los casos afectados."
+    },
+    {
+      "code": "PERSON_IDENTITY_INVALID_OR_AMBIGUOUS",
+      "tables": ["persona", "legajo"],
+      "condition": "CUIL/DNI invalido o duplicado, IDPERSONA sin persona, conflicto de tenant, o multiples candidatos de identidad.",
+      "reason": "Evita fusionar personas o legajos incorrectos.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Resolucion por evidencia adicional o revision humana; nombre por si solo nunca alcanza."
+    },
+    {
+      "code": "ORGANIZATION_REFERENCE_OR_CYCLE",
+      "tables": ["legajo", "organiza", "cargo", "sectores", "costos"],
+      "condition": "Referencia inexistente, conflicto de tenant, auto-referencia o ciclo en jerarquia organizativa/cargo.",
+      "reason": "Evita permisos por area incorrectos y estructuras imposibles.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Jerarquia validada y aprobada antes de usarla como scope de autorizacion."
+    },
+    {
+      "code": "TIME_CATALOG_REFERENCE_OR_FORMAT_INVALID",
+      "tables": ["turnos", "horarios", "tolerancias", "locales", "motiauto"],
+      "condition": "FK no resuelta, hora fuera de HH:mm, intervalo imposible, weekday invalido o parametro fuera de limites aprobados.",
+      "reason": "Bloquea reglas de asistencia no deterministas.",
+      "severity": "high",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Catalogo homologado, timezone explicita, casos dorados y maker-checker."
+    },
+    {
+      "code": "STALE_TIME_SOURCE_USED_AS_CURRENT",
+      "tables": ["turnos", "horarios", "tolerancias", "legaturn", "esperanza", "fichadas", "feriado", "prenove"],
+      "condition": "Una fila historica se intenta materializar con vigencia operativa 2026 sin fuente aprobada y confirmacion municipal.",
+      "reason": "El modulo horario observado termina mayormente en 2012 y feriados en 2008.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Fuente temporal vigente aprobada y revision explicita de cobertura."
+    },
+    {
+      "code": "TIME_ASSIGNMENT_CONFLICT",
+      "tables": ["legajo", "legaturn"],
+      "condition": "Asignacion solapada/invertida, legajo/turno/lugar huerfano, intervalo abierto historico tratado como actual o conflicto con TURN_12.",
+      "reason": "Separa pistas legacy de una asignacion operativa aprobada.",
+      "severity": "high",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Conciliacion visible y decision de RRHH sobre precedencia y vigencia."
+    },
+    {
+      "code": "PUNCH_EXPECTATION_LINK_UNRESOLVED",
+      "tables": ["fichadas", "esperanza"],
+      "condition": "IDESPERANZA falta/no resuelve o la reconciliacion por persona/fecha produce cero o multiples candidatos.",
+      "reason": "Evita inventar la jornada contra la que se explica una marcacion.",
+      "severity": "high",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Decision humana auditada; las 874 coincidencias observadas son candidatos, no auto-links."
+    },
+    {
+      "code": "ADMINISTRATIVE_EVENT_ORPHAN_OR_INVERTED",
+      "tables": ["ausencia", "licencia", "legajo"],
+      "condition": "Legajo inexistente, motivo no resuelto, fecha final anterior a inicial o dias incompatibles con el rango.",
+      "reason": "Evita atribuir ausencias/licencias a la persona incorrecta o aceptar periodos imposibles.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Resolucion de los 6 huerfanos de ausencia y 4 de licencia mas validacion de rangos."
+    },
+    {
+      "code": "PRENOVELTY_CAUSE_OR_CONCEPT_UNPROVEN",
+      "tables": ["prenove", "motiauto", "concepto"],
+      "condition": "Motivo vacio/no homologado, concepto sin FK probada, cantidad no parseable o regla de calculo ausente.",
+      "reason": "Impide convertir un resultado legacy en una novedad de haberes sin explicacion.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Entradas, version de regla, motivo, concepto y aprobador quedan trazados."
+    },
+    {
+      "code": "PAYROLL_REFERENCE_OR_PERIOD_INVALID",
+      "tables": ["histocal", "calculo", "legamov", "concepto", "convenio", "sectores", "costos", "legajo"],
+      "condition": "Corrida, legajo, concepto o dimension no resuelve; mes/ano/tipo invalido; o clave natural entra en conflicto.",
+      "reason": "Protege reconciliacion e importes nominales contra asociaciones incorrectas.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Cero referencias criticas huerfanas o excepciones aprobadas con trazabilidad."
+    },
+    {
+      "code": "CLOCK_PAYROLL_BRIDGE_NOT_OPERATIONAL",
+      "tables": ["cptosreloj", "relacptos", "noveauto"],
+      "condition": "Se intenta calcular o postear una novedad automatica usando relacptos/noveauto vacias o sin fuente vigente.",
+      "reason": "El esquema modela un puente, pero el snapshot no contiene configuracion ni salidas operativas.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Fuente no vacia certificada, reglas aprobadas, casos dorados y segregacion de funciones."
+    },
+    {
+      "code": "NOMINAL_ACCESS_CONTROL_NOT_READY",
+      "tables": ["persona", "legajo", "legaturn", "esperanza", "fichadas", "prenove", "ausencia", "licencia", "calculo", "legamov", "noveauto"],
+      "condition": "Falta tenant binding, membresia activa, capability nominal dedicada, employment link, scope de area, MFA requerido o auditoria.",
+      "reason": "La autorizacion para procesar PII no elimina el aislamiento por municipio, funcion y area.",
+      "severity": "critical",
+      "action": "quarantine",
+      "autoPromote": false,
+      "releaseGate": "Todos los controles de acceso nominal estan aplicados y verificados en el ambiente objetivo."
+    }
+  ],
+  "migrationGates": [
+    {"id": "G01_SNAPSHOT_FINGERPRINT", "condition": "El archivo, SHA-256, motor, base, cantidad de tablas y filas coinciden con el perfil seguro aprobado.", "failureMode": "abort"},
+    {"id": "G02_CERTIFIED_TENANT_BINDING", "condition": "Cada CODI_01 resuelve exactamente a un tenant activo y un source binding certificado.", "failureMode": "abort"},
+    {"id": "G03_SCHEMA_MAPPING_VALID", "condition": "Este manifiesto valida todas las tablas, columnas, tipos, PK y FK declaradas contra el perfil seguro del lote.", "failureMode": "abort"},
+    {"id": "G04_IDENTITY_CROSSWALK", "condition": "Persona y legajo resuelven por source_xref; duplicados/invalidos quedan en cuarentena y no se fusionan por nombre.", "failureMode": "abort"},
+    {"id": "G05_NOMINAL_AUTHORIZATION", "condition": "Plano de datos tenant-bound, membresias, capabilities por seccion, employment links, scopes, MFA y auditoria estan operativos.", "failureMode": "abort"},
+    {"id": "G06_TIME_HOMOLOGATION", "condition": "Turnos, horarios, tolerancias, calendario y asignaciones tienen versiones aprobadas, vigencia y casos dorados; lo historico no se trata como actual.", "failureMode": "abort"},
+    {"id": "G07_CLOCK_SOURCE", "condition": "Marca/modelo/protocolo/timezone/formato/idempotencia de cada reloj o archivo actual estan certificados antes de ingerir nuevas marcaciones.", "failureMode": "abort"},
+    {"id": "G08_PAYROLL_SEGREGATION", "condition": "Lectura nominal, configuracion, aprobacion y posteo de payroll usan capabilities dedicadas y personas distintas donde corresponde.", "failureMode": "abort"},
+    {"id": "G09_QUARANTINE_RECONCILED", "condition": "Cada regla de cuarentena tiene conteo, evidencia y decision; ninguna fila critica se autopromueve.", "failureMode": "abort"},
+    {"id": "G10_DRY_RUN_IDEMPOTENCY", "condition": "Preflight, importacion en rama descartable y re-ejecucion producen huellas/conteos deterministas sin mutar Produccion.", "failureMode": "abort"}
+  ]
+}
