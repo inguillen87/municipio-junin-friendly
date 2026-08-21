@@ -248,6 +248,9 @@ test('los puntos de entrada enlazan el manifiesto y registran el worker', () => 
 test('build publica PWA con versión por contenido y Vercel usa cache headers correctos', () => {
   const build = read('scripts/build-friendly.mjs');
   assert.match(build, /createHash\('sha256'\)/);
+  assert.match(build, /normalizeTextForHash = \(value\) => value\.replace\(\/\\r\\n\?\/g, '\\n'\)/);
+  assert.match(build, /normalizeTextForHash\(fs\.readFileSync\(path\.join\(root, file\), 'utf8'\)\)/);
+  assert.match(build, /normalizeTextForHash\(swTemplate\.replaceAll\(versionToken, ''\)\)/);
   assert.match(build, /manifest\.webmanifest/);
   assert.match(build, /icon-maskable-512\.png/);
   assert.match(build, /replaceAll\(versionToken, cacheVersion\)/);

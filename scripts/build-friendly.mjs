@@ -58,6 +58,8 @@ const publicCacheInputs = [
   'assets/pwa/icon-maskable-512.png'
 ];
 
+const normalizeTextForHash = (value) => value.replace(/\r\n?/g, '\n');
+
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 for (const file of [...shellFiles, ...pwaFiles]) {
@@ -70,7 +72,7 @@ const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {
   versionHash.update(file);
   versionHash.update('\0');
-  versionHash.update(fs.readFileSync(path.join(root, file)));
+  versionHash.update(normalizeTextForHash(fs.readFileSync(path.join(root, file), 'utf8')));
   versionHash.update('\0');
 }
 const swOutput = path.join(output, 'sw.js');
@@ -79,7 +81,7 @@ const versionToken = '__PWA_CACHE_VERSION__';
 if (!swTemplate.includes(versionToken)) {
   throw new Error(`Service worker sin token de versión ${versionToken}.`);
 }
-versionHash.update(swTemplate.replaceAll(versionToken, ''));
+versionHash.update(normalizeTextForHash(swTemplate.replaceAll(versionToken, '')));
 const cacheVersion = `build-${versionHash.digest('hex').slice(0, 16)}`;
 fs.writeFileSync(swOutput, swTemplate.replaceAll(versionToken, cacheVersion));
 
