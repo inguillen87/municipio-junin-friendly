@@ -1,0 +1,256 @@
+{
+  "contractVersion": "0.1.0",
+  "contractId": "junin-attendance-policy-candidates-public.v1",
+  "tenant": "municipio-junin-mendoza",
+  "status": "draft_not_homologated",
+  "mode": "public_safe_read_only_preview",
+  "authoritative": false,
+  "commandsAllowedNow": [],
+  "publishedAt": "2026-08-21",
+  "purpose": "public_governance_preview_without_operational_activation",
+  "privacy": {
+    "containsPersonalRows": false,
+    "containsCredentials": false,
+    "containsExactCoordinates": false,
+    "containsDeviceConnectionDetails": false
+  },
+  "sourceEvidence": [
+    {
+      "sourceKey": "grh_mariadb_backup",
+      "sourceClass": "municipal_backup",
+      "sha256": "BCED0B174AAB977B085FC977723F7EDD8FB9E473ADCFBE237070E8ECEF982AA7",
+      "linkedManifest": "/attendance-readiness-evidence.v1.json",
+      "observedFacts": {
+        "historicalShifts": 30,
+        "historicalSchedules": 32,
+        "historicalTolerances": 9,
+        "historicalShiftAssignments": 574,
+        "historicalExpectedWorkdays": 163634,
+        "historicalPunches": 958,
+        "historicalHolidays": 55,
+        "historicalPreEvents": 873,
+        "coverage": "primarily_2000_2012"
+      },
+      "normativeWeight": "evidence_of_historical_structure_not_current_validity"
+    },
+    {
+      "sourceKey": "workshop_transcript_2026_08_21",
+      "sourceClass": "municipal_vendor_workshop_transcript",
+      "sha256": "EDF08C57F9CEBFC245A3756E73D1564C79FBC0F5AAB76A991E2D2F2F2E38DE6C",
+      "transcriptionReliability": "machine_generated_requires_audio_confirmation",
+      "observations": [
+        {
+          "locator": "00:12:02-00:12:41",
+          "topic": "pilot_location_and_shift_window"
+        },
+        {
+          "locator": "00:13:03-00:13:15",
+          "topic": "pilot_weekly_pattern"
+        },
+        {
+          "locator": "00:13:37-00:14:19",
+          "topic": "pilot_arrival_tolerance"
+        },
+        {
+          "locator": "00:27:57-00:30:55",
+          "topic": "monthly_expected_workdays_and_regeneration"
+        },
+        {
+          "locator": "00:31:47-00:32:11",
+          "topic": "day_25_confirmed_as_example_only"
+        },
+        {
+          "locator": "00:33:46-00:36:43",
+          "topic": "restricted_editing_and_audit_history"
+        },
+        {
+          "locator": "00:40:06-00:46:53",
+          "topic": "small_pilot_then_device_compatibility"
+        }
+      ],
+      "normativeWeight": "candidate_requirements_pending_formal_approval"
+    },
+    {
+      "sourceKey": "employee_area_roster",
+      "sourceClass": "municipal_roster_spreadsheet",
+      "sha256": "23F7A50CC903A601C5EDBD00427F51B35FF618F9366B0F290BAB30EC0ABDF21A",
+      "linkedManifest": "/attendance-readiness-evidence.v1.json",
+      "normativeWeight": "identifier_and_area_inventory_not_schedule_authority"
+    },
+    {
+      "sourceKey": "marking_points",
+      "sourceClass": "municipal_device_inventory_spreadsheet",
+      "sha256": "2897FEADC03E15C7246F126556D76DE7231B9F651975CC15C0C889D9BB2470B9",
+      "linkedManifest": "/attendance-readiness-evidence.v1.json",
+      "normativeWeight": "device_and_extraction_inventory_not_connector_certification"
+    },
+    {
+      "sourceKey": "organization_chart",
+      "sourceClass": "municipal_organization_spreadsheet",
+      "sha256": "583233646AFC8EE73B085417772DED2676FF445AE1B39A33383844C0A2560CD3",
+      "linkedManifest": "/attendance-readiness-evidence.v1.json",
+      "normativeWeight": "area_inventory_without_guard_or_rotating_shift_rules"
+    },
+    {
+      "sourceKey": "diagnostic_research_2026_08_21",
+      "sourceClass": "non_normative_design_research",
+      "sha256": "43A2ED1BCC82A25A0FA8397AD40D70F5DE450AC4B05E01518472A54435BAF733",
+      "normativeWeight": "design_input_only"
+    }
+  ],
+  "historicalDataModel": {
+    "engine": "mariadb_mysql_logical_dump",
+    "dumpBytes": 775106620,
+    "tables": 257,
+    "columns": 2980,
+    "rows": 6586360,
+    "declaredForeignKeys": 342,
+    "relationshipChains": [
+      "shift_to_schedule_to_tolerance",
+      "assignment_to_employee_shift_place",
+      "expected_workday_to_employee_shift",
+      "punch_to_employee_optional_expected_workday",
+      "clock_concept_to_payroll_concept"
+    ],
+    "integrityObservations": {
+      "scheduleToleranceReferences": 128,
+      "scheduleToleranceOrphans": 0,
+      "shiftScheduleReferences": 119,
+      "shiftScheduleOrphans": 0,
+      "assignmentRows": 574,
+      "assignmentForeignKeyOrphans": 0,
+      "openAssignments": 566,
+      "punchExpectationHeuristic": {
+        "matched": 874,
+        "total": 958,
+        "matchingRule": "same_employee_and_date",
+        "authoritative": false
+      }
+    },
+    "coverage": {
+      "expectedWorkdays": "2011-01-01_to_2012-02-10",
+      "punches": "2012-01-03_to_2012-01-11",
+      "holidays": "2000-07-25_to_2008-03-24"
+    },
+    "qualitySignals": {
+      "employeeRowsWithUnresolvedLegacyShiftCode": 541,
+      "distinctUnresolvedLegacyShiftCodes": 1,
+      "orphanAbsences": 6,
+      "orphanLeaves": 4,
+      "sentinelYearsRequireQuarantine": true,
+      "mixedCharacterSets": true
+    }
+  },
+  "candidatePolicy": {
+    "policyKey": "pilot_edificio_nuevo_general",
+    "version": "0.1.0",
+    "status": "draft",
+    "label": "Edificio Nuevo - turno general",
+    "weeklyPattern": {
+      "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "start": "07:00",
+      "end": "13:00",
+      "crossesMidnight": false
+    },
+    "arrivalToleranceMinutes": 5,
+    "assignmentRequiredBeforeMarking": {
+      "shift": true,
+      "place": true
+    },
+    "effectiveFrom": null,
+    "effectiveTo": null,
+    "approved": false,
+    "active": false
+  },
+  "candidateCalendar": {
+    "status": "not_created_missing_authoritative_source",
+    "version": null,
+    "timeZone": null,
+    "effectiveFrom": null,
+    "effectiveTo": null,
+    "days": [],
+    "approved": false
+  },
+  "expectationSnapshots": {
+    "businessLabel": "esperanzas",
+    "meaning": "derived_monthly_expected_workdays",
+    "sourceOfEmploymentTruth": false,
+    "generationCadence": "monthly",
+    "closedPeriodBehavior": "requires_authorized_reopening_and_new_audit_event",
+    "regenerateOn": [
+      "employment_start_or_end_change",
+      "shift_assignment_change",
+      "approved_calendar_change",
+      "approved_rule_version_change"
+    ],
+    "cutoffDay": null,
+    "meetingExampleDay25IsNormative": false
+  },
+  "versionGovernance": {
+    "lifecycle": ["draft", "submitted", "approved", "rejected", "retired"],
+    "enforcedNow": false,
+    "tenantScoped": true,
+    "immutableAfterApproval": true,
+    "retroactiveChangesRequireNewVersion": true,
+    "segregationOfDuties": true,
+    "minimumDistinctActors": 2,
+    "workflowRoles": ["rrhh_policy_proposer", "independent_policy_approver"],
+    "auditHistoryRequired": true
+  },
+  "governanceReadiness": {
+    "requiredFields": [
+      "source_reference",
+      "effective_dates",
+      "proposer_membership",
+      "proposal_reason",
+      "approver_membership",
+      "decision_reason"
+    ],
+    "currentDraft": {
+      "sourceReferences": [
+        "workshop_transcript_2026_08_21@00:12:02-00:14:19",
+        "grh_mariadb_backup@2026-08-19T15:00:00-03:00"
+      ],
+      "proposalReason": "catalog_onboarding",
+      "proposerMembership": null,
+      "approverMembership": null,
+      "decisionReason": null
+    },
+    "structurallyComplete": false
+  },
+  "openDecisions": [
+    { "decisionKey": "functional_owner", "label": "Responsable funcional y suplente", "status": "unresolved" },
+    { "decisionKey": "effective_dates", "label": "Inicio y fin de vigencia", "status": "unresolved" },
+    { "decisionKey": "authoritative_timezone", "label": "Zona horaria autoritativa", "status": "unresolved" },
+    { "decisionKey": "holiday_calendar", "label": "Calendario de feriados y asuetos", "status": "unresolved" },
+    { "decisionKey": "overtime_policy", "label": "Autorización, redondeo, topes y tasa de horas extra", "status": "unresolved" },
+    { "decisionKey": "presentism_policy", "label": "Bandas y consecuencias de presentismo", "status": "unresolved" },
+    { "decisionKey": "early_exit_and_breaks", "label": "Salidas anticipadas, pausas y jornadas partidas", "status": "unresolved" },
+    { "decisionKey": "missing_and_duplicate_punches", "label": "Fichadas faltantes, múltiples y duplicadas", "status": "unresolved" },
+    { "decisionKey": "overnight_and_weekend_shifts", "label": "Serenos, nocturnos, fines de semana y cruces de día", "status": "unresolved" },
+    { "decisionKey": "rule_precedence", "label": "Prioridad entre regla general, área, persona y excepción", "status": "unresolved" },
+    { "decisionKey": "monthly_cutoff", "label": "Fecha de corte mensual", "status": "unresolved" },
+    { "decisionKey": "location_validation", "label": "Política de lugar, radio y alternativa no biométrica", "status": "unresolved" }
+  ],
+  "explainabilityChain": [
+    "approved_calendar_version",
+    "approved_shift_version",
+    "approved_rule_version",
+    "employee_assignment_version",
+    "expected_workday_snapshot",
+    "immutable_raw_punch",
+    "human_exception",
+    "calculation_result"
+  ],
+  "releaseLimits": {
+    "catalogPersistenceEnabled": false,
+    "assignmentManagementEnabled": false,
+    "policyActivationEnabled": false,
+    "expectedWorkdayGenerationEnabled": false,
+    "liveClockConnectorsEnabled": false,
+    "attendanceCalculationEnabled": false,
+    "automaticSanctionsEnabled": false,
+    "payrollPostingEnabled": false,
+    "grhWritesEnabled": false
+  }
+}

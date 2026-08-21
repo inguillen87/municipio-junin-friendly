@@ -14,6 +14,8 @@ const PRECACHE_URLS = Object.freeze([
   '/calidad-datos.html',
   '/control-horario-readiness.html',
   '/attendance-readiness-evidence.v1.json',
+  '/control-horario-homologacion.html',
+  '/attendance-policy-candidates.v1.json',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',
@@ -35,7 +37,9 @@ const PUBLIC_NAVIGATION_FALLBACKS = new Map([
   ['/calidad-datos', '/calidad-datos.html'],
   ['/calidad-datos.html', '/calidad-datos.html'],
   ['/control-horario-readiness', '/control-horario-readiness.html'],
-  ['/control-horario-readiness.html', '/control-horario-readiness.html']
+  ['/control-horario-readiness.html', '/control-horario-readiness.html'],
+  ['/control-horario-homologacion', '/control-horario-homologacion.html'],
+  ['/control-horario-homologacion.html', '/control-horario-homologacion.html']
 ]);
 
 const NEVER_INTERCEPT_PREFIXES = Object.freeze([

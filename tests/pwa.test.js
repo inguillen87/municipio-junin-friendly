@@ -106,7 +106,7 @@ test('service worker precachea sólo el shell público agregado', async () => {
   worker.listeners.get('install')({ waitUntil(value) { installPromise = value; } });
   await installPromise;
 
-  for (const expected of ['/friendly-dashboard.html', '/control-horario-readiness.html', '/attendance-readiness-evidence.v1.json', '/friendly-data.json', '/manifest.webmanifest']) {
+  for (const expected of ['/friendly-dashboard.html', '/control-horario-readiness.html', '/attendance-readiness-evidence.v1.json', '/control-horario-homologacion.html', '/attendance-policy-candidates.v1.json', '/friendly-data.json', '/manifest.webmanifest']) {
     assert.ok(worker.added.includes(expected), `falta precachear ${expected}`);
   }
   for (const forbidden of ['/api/internal-data', '/api/internal-actions', '/api/internal-assistant', '/internal-dashboard.html', '/centro-acciones.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/gestion-comparativa.html', '/presupuesto-control.html', '/ausentismo-control.html', '/licencias-control.html', '/calidad-operativa.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/mendoza-title-vi.js', '/assets/junin-budget-2026.js']) {
@@ -176,7 +176,15 @@ test('service worker ofrece fallback sólo para navegaciones públicas conocidas
   };
   assert.equal(typeof dispatchFetch(worker, attendanceNavigation)?.then, 'function');
 
-  for (const path of ['/friendly-dashboard.html', '/modulos.html', '/reportes-rrhh.html', '/calidad-datos.html', '/control-horario-readiness.html']) {
+  const policyNavigation = {
+    method: 'GET',
+    url: 'https://friendly.example/control-horario-homologacion',
+    mode: 'navigate',
+    headers: new Headers()
+  };
+  assert.equal(typeof dispatchFetch(worker, policyNavigation)?.then, 'function');
+
+  for (const path of ['/friendly-dashboard.html', '/modulos.html', '/reportes-rrhh.html', '/calidad-datos.html', '/control-horario-readiness.html', '/control-horario-homologacion.html']) {
     const exactPublicNavigation = {
       method: 'GET',
       url: `https://friendly.example${path}`,
@@ -225,6 +233,28 @@ test('fallback offline limpio y exacto sólo consultan el caché público activo
   }
 });
 
+test('fallback offline de homologación funciona en ruta limpia y exacta', async () => {
+  for (const path of ['/control-horario-homologacion', '/control-horario-homologacion.html']) {
+    const offlineHtml = new Response('<h1>Homologación offline</h1>', {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' }
+    });
+    const worker = bootWorker({
+      cachedResponses: { '/control-horario-homologacion.html': offlineHtml },
+      fetchImpl: async () => { throw new Error('sin conexión'); }
+    });
+    const request = {
+      method: 'GET',
+      url: `https://friendly.example${path}`,
+      mode: 'navigate',
+      headers: new Headers()
+    };
+
+    const response = await dispatchFetch(worker, request);
+    assert.match(await response.text(), /Homologación offline/);
+  }
+});
+
 test('service worker respeta no-store y activa actualizaciones sólo por orden explícita', async () => {
   const worker = bootWorker({ responseHeaders: { 'cache-control': 'private, no-store' } });
   const safeStatic = {
@@ -249,7 +279,7 @@ test('service worker respeta no-store y activa actualizaciones sólo por orden e
 });
 
 test('los puntos de entrada enlazan el manifiesto y registran el worker', () => {
-  for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'control-horario-readiness.html']) {
+  for (const file of ['login.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'control-horario-readiness.html', 'control-horario-homologacion.html']) {
     const html = read(file);
     assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest">/, `${file} debe enlazar el manifiesto`);
     assert.match(html, /<link rel="apple-touch-icon" href="\/assets\/pwa\/icon-180\.png">/, `${file} debe publicar icono iOS`);
@@ -275,6 +305,8 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(ignore, /^!centro-acciones\.html$/m);
   assert.match(ignore, /^!control-horario-readiness\.html$/m);
   assert.match(ignore, /^!attendance-readiness-evidence\.v1\.json$/m);
+  assert.match(ignore, /^!control-horario-homologacion\.html$/m);
+  assert.match(ignore, /^!attendance-policy-candidates\.v1\.json$/m);
   assert.match(ignore, /^!scripts\/migrations\/003-action-center\.sql$/m);
 
   const vercel = JSON.parse(read('vercel.json'));
@@ -283,6 +315,7 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.equal(headers.get('/sw.js').get('Service-Worker-Allowed'), '/');
   assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
   assert.match(headers.get('/attendance-readiness-evidence.v1.json').get('Cache-Control'), /max-age=300/);
+  assert.match(headers.get('/attendance-policy-candidates.v1.json').get('Cache-Control'), /max-age=300/);
   for (const route of ['/api/(.*)', '/internal', '/internal-dashboard.html', '/centro-acciones', '/centro-acciones.html', '/estructura', '/datos-personales.html', '/nomina-control', '/gestion-comparativa', '/gestion-comparativa.html', '/presupuesto-control', '/presupuesto-control.html', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/junin-budget-2026.js', '/admin']) {
     assert.match(headers.get(route).get('Cache-Control'), /no-store/, `${route} debe impedir cache compartido`);
   }

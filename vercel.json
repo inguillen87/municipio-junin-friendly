@@ -45,6 +45,7 @@
     { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
     { "source": "/centro-acciones", "destination": "/centro-acciones.html" },
     { "source": "/control-horario-readiness", "destination": "/control-horario-readiness.html" },
+    { "source": "/control-horario-homologacion", "destination": "/control-horario-homologacion.html" },
     { "source": "/administracion-plataforma", "destination": "/administracion-plataforma.html" },
     { "source": "/modulos", "destination": "/modulos.html" },
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
@@ -169,6 +170,18 @@
     },
     {
       "source": "/attendance-readiness-evidence.v1.json",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+    },
+    {
+      "source": "/control-horario-homologacion",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+    },
+    {
+      "source": "/control-horario-homologacion.html",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+    },
+    {
+      "source": "/attendance-policy-candidates.v1.json",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
     },
     {

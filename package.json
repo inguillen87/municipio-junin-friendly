@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
     "test:browser": "node scripts/verify-friendly-browser.mjs",
+    "test:attendance-browser": "node scripts/verify-attendance-governance-browser.mjs",
     "build": "npm run test && node scripts/build-friendly.mjs",
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
     "db:actions:schema": "node --env-file=.env.local scripts/apply-action-center-schema.mjs",
