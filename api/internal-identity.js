@@ -31,11 +31,14 @@ import {
 import {
   IdentityGatewayError,
   applyTenantIdentityCommand,
+  applyTenantIdentityPlatformCommand,
   getLegacySessionPolicy,
-  getTenantIdentityCommandReplay,
+  getTenantIdentityPlatformCommandReplay,
+  getTenantIdentityPlatformInvitationsView,
   getTenantIdentitySql,
   getTenantIdentityView,
   identityGatewayDatabaseError,
+  lookupTenantInvitationDelivery,
   lookupTenantIdentity,
   normalizeIdentityDatabaseCommand,
   recordIdentityChallengeAttempt,
@@ -334,6 +337,11 @@ async function apply(sql, actorEmail, command, payload, options) {
   return applyTenantIdentityCommand(sql, actorEmail, normalized);
 }
 
+async function applyPlatform(sql, session, releaseSha, command, payload, options) {
+  const normalized = normalizeIdentityDatabaseCommand(command, payload, options);
+  return applyTenantIdentityPlatformCommand(sql, session, releaseSha, normalized);
+}
+
 export function createInternalIdentityHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const getSql = dependencies.getTenantIdentitySql ?? getTenantIdentitySql;
@@ -363,8 +371,12 @@ export function createInternalIdentityHandler(dependencies = {}) {
         const resource = queryResource(req);
         const identity = await currentIdentity(req, sql, secrets, env, { allowLegacy: resource !== 'invitations', now });
         if (resource === 'invitations') assertPlatformCapability(identity, 'platform.users.read');
-        const view = await getTenantIdentityView(sql, identity.session.email,
-          identity.kind === 'v2' ? identity.session.id : null, resource, 100);
+        const view = resource === 'invitations'
+          ? await getTenantIdentityPlatformInvitationsView(
+            sql, identity.session, certifiedReleaseSha(env), 100,
+          )
+          : await getTenantIdentityView(sql, identity.session.email,
+            identity.kind === 'v2' ? identity.session.id : null, resource, 100);
         return send(res, 200, {
           ok: true,
           ...(resource === 'bootstrap' ? {
@@ -725,8 +737,18 @@ export function createInternalIdentityHandler(dependencies = {}) {
         const identity = await currentIdentity(req, sql, secrets, env, { now });
         assertPlatformCapability(identity, 'platform.users.invite');
         const issueKey = idempotency(req, generator, true);
-        const delivery = await lookupTenantIdentity(sql, 'invitation_delivery', String(payload.invitationId || ''), '', { releaseSha });
-        const replay = await getTenantIdentityCommandReplay(sql, identity.session.email, issueKey, releaseSha);
+        const issueExpectedVersion = expectedVersion(body, true);
+        const delivery = await lookupTenantInvitationDelivery(
+          sql, identity.session, releaseSha, String(payload.invitationId || ''),
+        );
+        const replay = await getTenantIdentityPlatformCommandReplay(
+          sql, identity.session, releaseSha, {
+            idempotencyKey: issueKey,
+            command: 'issue_invitation',
+            expectedVersion: issueExpectedVersion,
+            invitationId: String(payload.invitationId || ''),
+          },
+        );
         if (replay && replay.command !== 'issue_invitation') {
           fail('IDENTITY_IDEMPOTENCY_REUSED', 409, 'Idempotency-Key reutilizada');
         }
@@ -746,12 +768,12 @@ export function createInternalIdentityHandler(dependencies = {}) {
           fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
         }
         const code = invitationCodeFor(delivery.invitationId, issueKey, secrets);
-        const result = replay?.result || await apply(sql, identity.session.email, 'issue_invitation', {
+        const result = replay?.result || await applyPlatform(sql, identity.session, releaseSha, 'issue_invitation', {
           invitationId: delivery.invitationId,
           deliveryAttemptId: generator(),
           codeHash: hashIdentitySecret(normalizeInvitationCode(code), secrets.tokenPepper),
           expiresAt: futureIso(now, IDENTITY_INVITATION_TTL_SECONDS), releaseSha,
-        }, { idempotencyKey: issueKey, expectedVersion: expectedVersion(body, true) });
+        }, { idempotencyKey: issueKey, expectedVersion: issueExpectedVersion });
         const deliveryAttemptId = String(result.deliveryAttemptId || '').toLowerCase();
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(deliveryAttemptId)) {
           fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
@@ -766,16 +788,52 @@ export function createInternalIdentityHandler(dependencies = {}) {
             }),
           });
         } catch {
-          await apply(sql, identity.session.email, 'delivery_failed', {
+          await applyPlatform(sql, identity.session, releaseSha, 'delivery_failed', {
             invitationId: delivery.invitationId, deliveryAttemptId,
           }, { idempotencyKey: generator(), expectedVersion: result.invitation.version }).catch(() => undefined);
           fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
         }
-        const confirmed = await apply(sql, identity.session.email, 'confirm_delivery', {
+        const confirmed = await applyPlatform(sql, identity.session, releaseSha, 'confirm_delivery', {
           invitationId: delivery.invitationId, deliveryAttemptId, releaseSha,
         }, { idempotencyKey: generator(), expectedVersion: result.invitation.version });
         return send(res, 202, { ok: true, invitation: confirmed.invitation,
           replayed: result.replayed === true });
+      }
+
+      if (command === 'certify_data_plane') {
+        exactPayload(payload, ['tenantId', 'sourceBindingId', 'reason']);
+        const releaseSha = certifiedReleaseSha(env);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        assertPlatformCapability(identity, 'platform.tenants.manage');
+        const result = await applyPlatform(sql, identity.session, releaseSha, command, {
+          tenantId: String(payload.tenantId || ''),
+          sourceBindingId: String(payload.sourceBindingId || ''),
+          releaseSha,
+          reason: String(payload.reason || ''),
+        }, {
+          idempotencyKey: idempotency(req, generator, true),
+          expectedVersion: expectedVersion(body, true),
+        });
+        return send(res, 200, { ok: true, ...result });
+      }
+
+      if (command === 'set_delivery_ready') {
+        exactPayload(payload, ['tenantId', 'ready', 'reason']);
+        if (payload.ready !== false) {
+          fail('IDENTITY_DELIVERY_CERTIFICATION_REQUIRED', 403,
+            'Solo el kill switch delivery=false esta habilitado');
+        }
+        const releaseSha = certifiedReleaseSha(env);
+        const identity = await currentIdentity(req, sql, secrets, env, { now });
+        assertPlatformCapability(identity, 'platform.tenants.manage');
+        const result = await applyPlatform(sql, identity.session, releaseSha, command, {
+          tenantId: String(payload.tenantId || ''), ready: false,
+          reason: String(payload.reason || ''),
+        }, {
+          idempotencyKey: idempotency(req, generator, true),
+          expectedVersion: expectedVersion(body, true),
+        });
+        return send(res, 200, { ok: true, ...result });
       }
 
       fail('IDENTITY_COMMAND_INVALID', 400, 'Comando no permitido');

@@ -428,7 +428,9 @@ test('operaciones platform-only rechazan contexto tenant y aceptan contexto plat
       authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
       platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.read'] }, tenant,
     } }];
-    if (sql.includes('tenant_identity_view')) return [{ result: { allowedCommands: [], invitations: [] } }];
+    if (sql.includes('tenant_identity_platform_invitations_view_v2')) {
+      return [{ result: { allowedCommands: [], invitations: [] } }];
+    }
     throw new Error('consulta no esperada');
   });
   const tenantRes = response();
@@ -562,18 +564,18 @@ test('fallo de entrega compensa la invitacion pendiente y nunca expone el codigo
       authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
       platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
     } }];
-    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
       invitationId: TENANT_ID, version: 1, email: 'persona@example.test',
       membershipStatus: 'invited', deliveryStatus: 'not_issued', tenant: { id: TENANT_ID, name: 'Junin' },
     } }];
-    if (sql.includes('tenant_identity_command_replay')) return [{ result: null }];
-    if (sql.includes('tenant_identity_apply_command')) {
-      commands.push([params[0], JSON.parse(params[5])]);
-      if (params[0] === 'issue_invitation') return [{ result: { deliveryAttemptId: DELIVERY_ATTEMPT_A, invitation: {
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: null }];
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) {
+      commands.push([params[4], JSON.parse(params[8])]);
+      if (params[4] === 'issue_invitation') return [{ result: { deliveryAttemptId: DELIVERY_ATTEMPT_A, invitation: {
         id: TENANT_ID, status: 'prepared', version: 2,
         delivery: { status: 'pending', expiresAt: '2026-08-22T15:00:00.000Z' },
       } } }];
-      if (params[0] === 'delivery_failed') return [{ result: { invitation: {
+      if (params[4] === 'delivery_failed') return [{ result: { invitation: {
         id: TENANT_ID, status: 'prepared', version: 3, delivery: { status: 'failed' },
       } } }];
     }
@@ -607,19 +609,19 @@ test('replay HTTP de entrega A no reenvia ni confirma cuando ya existe el intent
       authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
       platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
     } }];
-    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
       invitationId: TENANT_ID, version: 3, email: 'persona@example.test',
       membershipStatus: 'invited', deliveryStatus: 'pending', deliveryAttemptId: DELIVERY_ATTEMPT_B,
       tenant: { id: TENANT_ID, name: 'Junin' },
     } }];
-    if (sql.includes('tenant_identity_command_replay')) return [{ result: {
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: {
       command: 'issue_invitation', result: {
         deliveryAttemptId: DELIVERY_ATTEMPT_A,
         invitation: { id: TENANT_ID, status: 'prepared', version: 2,
           delivery: { status: 'pending', expiresAt: '2026-08-22T15:00:00.000Z' } },
       },
     } }];
-    if (sql.includes('tenant_identity_apply_command')) { applied = true; return []; }
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) { applied = true; return []; }
     throw new Error('consulta no esperada');
   }, { deliverInvitation: async () => { delivered = true; } });
   const res = response();
@@ -630,6 +632,75 @@ test('replay HTTP de entrega A no reenvia ni confirma cuando ya existe el intent
   assert.equal(res.payload.code, 'IDENTITY_DELIVERY_ATTEMPT_STALE');
   assert.equal(delivered, false);
   assert.equal(applied, false);
+});
+
+test('replay confirmado devuelve delivered sin reenviar ni volver a mutar', async () => {
+  const token = issueIdentitySessionToken({
+    id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
+  }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+  let providerCalls = 0;
+  let applyCalls = 0;
+  const handler = handlerWithQuery(async (sql, params) => {
+    if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+      authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
+    } }];
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
+      invitationId: TENANT_ID, version: 3, email: 'persona@example.test',
+      membershipStatus: 'invited', deliveryStatus: 'delivered',
+      deliveryAttemptId: DELIVERY_ATTEMPT_A, tenant: { id: TENANT_ID, name: 'Junin' },
+    } }];
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) {
+      assert.deepEqual(params.slice(0, 4), ['marcelo@example.test', SESSION_ID, 1, RELEASE_SHA]);
+      assert.equal(params[6], 1);
+      assert.equal(params[7], TENANT_ID);
+      return [{ result: { command: 'issue_invitation', result: {
+        deliveryAttemptId: DELIVERY_ATTEMPT_A,
+        invitation: { id: TENANT_ID, status: 'prepared', version: 2,
+          delivery: { status: 'pending', expiresAt: '2026-08-22T15:00:00.000Z' } },
+      } } }];
+    }
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) applyCalls += 1;
+    throw new Error('consulta no esperada');
+  }, { deliverInvitation: async () => { providerCalls += 1; } });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.payload.replayed, true);
+  assert.equal(res.payload.invitation.delivery.status, 'delivered');
+  assert.equal(providerCalls, 0);
+  assert.equal(applyCalls, 0);
+});
+
+test('replay pending con kill-switch cerrado falla antes del provider', async () => {
+  const token = issueIdentitySessionToken({
+    id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
+  }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+  let providerCalls = 0;
+  const handler = handlerWithQuery(async (sql) => {
+    if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+      authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
+    } }];
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
+      invitationId: TENANT_ID, version: 2, email: 'persona@example.test',
+      membershipStatus: 'invited', deliveryStatus: 'pending',
+      deliveryAttemptId: DELIVERY_ATTEMPT_A, tenant: { id: TENANT_ID, name: 'Junin' },
+    } }];
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) {
+      throw new Error('IDENTITY_DELIVERY_ATTEMPT_STALE');
+    }
+    throw new Error('consulta no esperada');
+  }, { deliverInvitation: async () => { providerCalls += 1; } });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.payload.code, 'IDENTITY_DELIVERY_ATTEMPT_STALE');
+  assert.equal(providerCalls, 0);
 });
 
 test('callback tardio A queda rechazado despues de emitir y confirmar B', async () => {
@@ -649,16 +720,16 @@ test('callback tardio A queda rechazado despues de emitir y confirmar B', async 
       authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
       platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
     } }];
-    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
       invitationId: TENANT_ID, version: invitationVersion, email: 'persona@example.test',
       membershipStatus: 'invited', deliveryStatus, deliveryAttemptId: currentAttempt,
       tenant: { id: TENANT_ID, name: 'Junin' },
     } }];
-    if (sql.includes('tenant_identity_command_replay')) return [{ result: null }];
-    if (sql.includes('tenant_identity_apply_command')) {
-      const command = params[0];
-      const expected = params[4];
-      const commandPayload = JSON.parse(params[5]);
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: null }];
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) {
+      const command = params[4];
+      const expected = params[7];
+      const commandPayload = JSON.parse(params[8]);
       if (command === 'issue_invitation') {
         if (expected !== invitationVersion) throw new Error('IDENTITY_VERSION_CONFLICT');
         currentAttempt = commandPayload.deliveryAttemptId;

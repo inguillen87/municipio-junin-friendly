@@ -154,17 +154,13 @@ test('get/requireInternalSession reutiliza la cookie y falla cerrado', () => {
   assert.match(headers['Set-Cookie'], /Max-Age=0/);
 });
 
-test('endpoint GET obliga migrar la sesion legacy y DELETE limpia ambas cookies', async (t) => {
-  const previousSecret = process.env.INTERNAL_SESSION_SECRET;
-  process.env.INTERNAL_SESSION_SECRET = TEST_SECRET;
-  t.after(() => {
-    if (previousSecret === undefined) delete process.env.INTERNAL_SESSION_SECRET;
-    else process.env.INTERNAL_SESSION_SECRET = previousSecret;
+test('endpoint GET obliga migrar la sesion legacy y DELETE limpia ambas cookies', async () => {
+  const handler = createInternalAuthHandler({
+    env: { IDENTITY_LEGACY_SESSION_ALLOWED: 'false' },
   });
-
   const token = issueInternalSessionToken(TEST_USER, { secret: TEST_SECRET });
   const getResponse = createMockResponse();
-  await internalAuthHandler({
+  await handler({
     method: 'GET',
     headers: { cookie: `${INTERNAL_SESSION_COOKIE}=${encodeURIComponent(token)}` },
   }, getResponse);
@@ -173,7 +169,7 @@ test('endpoint GET obliga migrar la sesion legacy y DELETE limpia ambas cookies'
   assert.equal(getResponse.payload.code, 'IDENTITY_SESSION_UPGRADE_REQUIRED');
 
   const deleteResponse = createMockResponse();
-  await internalAuthHandler({ method: 'DELETE', headers: {} }, deleteResponse);
+  await handler({ method: 'DELETE', headers: {} }, deleteResponse);
   assert.equal(deleteResponse.statusCode, 200);
   assert.equal(deleteResponse.payload.authenticated, false);
   assert.equal(Array.isArray(deleteResponse.headers['Set-Cookie']), true);

@@ -18,6 +18,9 @@ const KEY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const MEMBERSHIP_ID = '22222222-2222-4222-8222-222222222222';
 const SESSION_ID = '33333333-3333-4333-8333-333333333333';
+const RELEASE_SHA = 'a'.repeat(40);
+const BINDING_ID = '44444444-4444-4444-8444-444444444444';
+const CONTRACT_ID = '55555555-5555-4555-8555-555555555555';
 
 function response() {
   return {
@@ -30,7 +33,7 @@ function response() {
 
 function dependencies(overrides = {}) {
   return {
-    env: { NODE_ENV: 'test' },
+    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => ({
       mode: 'managed',
       session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
@@ -165,28 +168,83 @@ test('librería de administración invoca exclusivamente facades v2 ligadas a SI
     },
   };
   const session = { id: SESSION_ID, email: 'owner@example.test', version: 4 };
-  await getInternalAdminView(sql, session, 'users', 20);
+  await getInternalAdminView(sql, session, 'users', 20, { releaseSha: RELEASE_SHA });
   const command = normalizeInternalAdminCommand({
     command: 'suspend_membership', expectedVersion: 2,
     payload: { membershipId: MEMBERSHIP_ID },
   }, KEY);
   await applyInternalAdminCommand(sql, session, command);
-  assert.match(calls[0].statement, /tenant_iam_admin_view_v2/);
-  assert.deepEqual(calls[0].values.slice(0, 3), ['owner@example.test', SESSION_ID, 4]);
+  assert.match(calls[0].statement, /tenant_iam_admin_view_v3/);
+  assert.deepEqual(calls[0].values.slice(0, 5), [
+    'owner@example.test', SESSION_ID, 4, RELEASE_SHA, 'users',
+  ]);
   assert.match(calls[1].statement, /tenant_iam_apply_command_v2/);
   assert.deepEqual(calls[1].values.slice(0, 4), [
     'owner@example.test', SESSION_ID, 4, 'suspend_membership',
   ]);
   assert.doesNotMatch(calls.map((call) => call.statement).join('\n'), /tenant_iam_admin_view\(\$|tenant_iam_apply_command\(\$/);
   await assert.rejects(
-    getInternalAdminView(sql, { id: 'not-a-sid', email: 'owner@example.test', version: 4 }),
+    getInternalAdminView(sql, { id: 'not-a-sid', email: 'owner@example.test', version: 4 },
+      'bootstrap', 100, { releaseSha: RELEASE_SHA }),
     (error) => error.code === 'INTERNAL_ADMIN_SESSION_INVALID' && error.status === 401,
   );
 });
 
+test('provisioning laboral deriva tenant y liga replay a SID/version/release', async () => {
+  const calls = [];
+  const sql = { async query(statement, values) {
+    calls.push({ statement, values });
+    if (statement.includes('tenant_action_lookup_employment_v2')) return [{ result: {
+      tenantId: TENANT_ID, membershipId: MEMBERSHIP_ID, candidates: [], ephemeral: true, limit: 20,
+    } }];
+    return [{ result: { ok: true, version: 4 } }];
+  } };
+  const session = { id: SESSION_ID, email: 'owner@example.test', version: 4 };
+  const lookup = normalizeInternalAdminCommand({
+    command: 'lookup_employment',
+    payload: { tenantId: TENANT_ID, membershipId: MEMBERSHIP_ID, query: 'tes', limit: 20 },
+  }, KEY);
+  await applyInternalAdminCommand(sql, session, lookup, { releaseSha: RELEASE_SHA });
+  assert.match(calls[0].statement, /tenant_action_lookup_employment_v2/);
+  assert.deepEqual(calls[0].values.slice(0, 5), [
+    'owner@example.test', SESSION_ID, 4, RELEASE_SHA, MEMBERSHIP_ID,
+  ]);
+
+  const link = normalizeInternalAdminCommand({
+    command: 'link_employment', expectedVersion: 3,
+    payload: {
+      membershipId: MEMBERSHIP_ID, employmentContractId: CONTRACT_ID,
+      sourceBindingId: BINDING_ID, reasonCode: 'onboarding', reason: 'Alta validada',
+    },
+  }, KEY);
+  await applyInternalAdminCommand(sql, session, link, { releaseSha: RELEASE_SHA });
+  await applyInternalAdminCommand(sql, {
+    ...session, id: '66666666-6666-4666-8666-666666666666', version: 1,
+  }, link, { releaseSha: RELEASE_SHA });
+  assert.match(calls[1].statement, /tenant_action_apply_provisioning_command_v2/);
+  assert.equal(calls[1].values[4], MEMBERSHIP_ID);
+  assert.equal(calls[1].values[7].length, 64);
+  assert.notEqual(calls[1].values[7], calls[2].values[7], 'hash debe cambiar al rotar SID/version');
+  assert.equal(Object.hasOwn(JSON.parse(calls[1].values[9]), 'membershipId'), false);
+});
+
+test('provisioning valida motivo igual que la facade SQL y mapea formas invalidas a 422', () => {
+  assert.throws(() => normalizeInternalAdminCommand({
+    command: 'revoke_employment_link', expectedVersion: 2,
+    payload: { membershipId: MEMBERSHIP_ID, reasonCode: 'offboarding', reason: 'x' },
+  }, KEY), (error) => error.code === 'INTERNAL_ADMIN_REASON_INVALID' && error.status === 422);
+  for (const code of [
+    'TENANT_ACTION_PROVISIONING_INVALID', 'TENANT_ACTION_LOOKUP_INVALID',
+    'TENANT_ACTION_SCOPE_INVALID', 'TENANT_ACTION_REASON_REQUIRED',
+  ]) {
+    assert.equal(internalAdminDatabaseError(new Error(code)).status, 422);
+  }
+});
+
 test('POST prepara invitación inactiva y aplica same-origin, JSON e idempotencia', async () => {
   const handler = createInternalAdminHandler(dependencies({
-    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example',
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
   }));
   const noOrigin = response();
   await handler({ method: 'POST', headers: { 'content-type': 'application/json' }, body: {} }, noOrigin);

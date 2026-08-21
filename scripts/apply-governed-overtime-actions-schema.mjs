@@ -976,6 +976,15 @@ async function collectRuntimeAclEvidence(client) {
 }
 
 export async function verifyOvertimeFinalAcl(client) {
+  const lifecycle = await client.query(
+    'SELECT 1 FROM schema_migrations WHERE version = $1',
+    ['009-tenant-lifecycle-hardening'],
+  );
+  if (lifecycle.rowCount) {
+    const { verifyTenantLifecycleFinalAcl } = await import('./apply-tenant-lifecycle-hardening-schema.mjs');
+    await verifyTenantLifecycleFinalAcl(client);
+    return;
+  }
   validateOvertimeEvidence(await collectEvidence(client));
   validateOvertimeRuntimeAclEvidence(await collectRuntimeAclEvidence(client));
 }

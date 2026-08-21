@@ -798,6 +798,12 @@
       loading: false
     };
 
+    var EMPLOYMENT_REVOCATION_REASON_FALLBACK = Object.freeze([
+      Object.freeze({ key: 'offboarding', label: 'Baja operativa' }),
+      Object.freeze({ key: 'employment_change', label: 'Cambio laboral' }),
+      Object.freeze({ key: 'correction', label: 'Corrección auditada' })
+    ]);
+
     var ids = [
       'authGate','gateTitle','gateMessage','gateSpinner','retryAuth','platformAdminShell','adminSidebar','workspace',
       'menuButton','menuClose','navBackdrop','tenantSwitcher','tenantSwitcherCode','tenantSwitcherLabel','tenantContextBanner',
@@ -1735,8 +1741,8 @@
     function normalizeUserStatus(value) {
       var normalized = normalizeSearch(value);
       if (/activ|enabled|acept/.test(normalized)) return 'active';
-      if (/pend|invite|invita/.test(normalized)) return 'pending';
       if (/suspend|revoc|disabled|inactiv/.test(normalized)) return 'suspended';
+      if (/pend|invite|invita/.test(normalized)) return 'pending';
       return 'unknown';
     }
 
@@ -1869,6 +1875,19 @@
       );
     }
 
+    function employmentRevokeContextReady(user) {
+      var membershipStatus = normalizeUserStatus(user && user.status);
+      var linkStatus = user && user.employmentLink ? user.employmentLink.status : '';
+      return Boolean(
+        user && user.operationalMembershipId
+        && state.context.mode === 'tenant'
+        && state.context.tenantId
+        && state.context.tenantId === user.tenantId
+        && ['active', 'suspended'].includes(membershipStatus)
+        && ['linked', 'stale'].includes(linkStatus)
+      );
+    }
+
     function operationalBlockedReason(user) {
       if (!user || !user.operationalMembershipId) return 'La API no informó una membresía tenant explícita; los usuarios legacy permanecen cerrados.';
       if (state.context.mode !== 'tenant' || !state.context.tenantId || state.context.tenantId !== user.tenantId) return 'Abrí el gobierno exacto antes de administrar identidad laboral.';
@@ -1916,8 +1935,10 @@
       return '';
     }
 
-    function renderReasonSelect(select) {
-      populateSelect(select, state.operationalCatalog.reasonCodes, 'Seleccionar motivo tipificado', 'key', 'label');
+    function renderReasonSelect(select, fallback) {
+      var reasons = state.operationalCatalog.reasonCodes.length
+        ? state.operationalCatalog.reasonCodes : list(fallback);
+      populateSelect(select, reasons, 'Seleccionar motivo tipificado', 'key', 'label');
     }
 
     function renderEmploymentCandidates() {
@@ -1964,16 +1985,19 @@
       el.employmentLinkState.textContent = stale ? 'Revisión requerida' : linked ? 'Vinculado' : 'Sin vínculo';
       el.employmentLinkState.className = 'state-pill ' + (stale ? 'is-danger' : linked ? 'is-ok' : 'is-attention');
       clear(el.employmentLinkSummary);
-      if (linked) {
+      if (linked && bindingVerified) {
         el.employmentLinkSummary.append(
           node('strong', '', (link.displayName || user.displayName) + (link.legajo ? ' · legajo ' + link.legajo : '')),
-          node('span', '', bindingVerified ? bindingLabel(link.sourceBindingId) : 'Binding no certificado para este tenant'),
+          node('span', '', bindingLabel(link.sourceBindingId)),
           node('span', '', [link.organizationLabel, link.sectorLabel].filter(Boolean).join(' · ') || 'Área no informada')
         );
       } else {
-        el.employmentLinkSummary.append(node('strong', '', link.status === 'stale' ? 'El vínculo informado no es utilizable' : 'Sin vínculo verificado'), node('span', '', 'No se infiere un legajo desde el nombre o el email.'));
+        el.employmentLinkSummary.append(node('strong', '', stale ? 'El vínculo informado no es utilizable' : 'Sin vínculo verificado'), node('span', '', 'No se infiere un legajo desde el nombre o el email.'));
       }
-      renderReasonSelect(el.employmentReasonCode);
+      renderReasonSelect(
+        el.employmentReasonCode,
+        employmentRevokeContextReady(user) ? EMPLOYMENT_REVOCATION_REASON_FALLBACK : []
+      );
       renderEmploymentCandidates();
     }
 
@@ -2037,24 +2061,31 @@
       var user = state.selectedUser;
       if (!user) return;
       var baseReady = operationalContextReady(user) && governanceReady(true) && !state.loading;
+      var revokeReady = employmentRevokeContextReady(user) && governanceReady(true) && !state.loading;
+      var serverReasonCatalogReady = state.operationalCatalog.reasonCodes.length > 0;
+      var employmentControlsReady = (baseReady && serverReasonCatalogReady) || revokeReady;
       var version = authorityVersion(user.operationalAccess.version);
       var reasonCode = el.employmentReasonCode.value;
       var reasonReady = el.employmentReason.value.trim().length >= 3;
       var selectedCandidate = state.employmentCandidates.find(function (candidate) { return candidate.employmentContractId === el.employmentCandidateSelect.value; });
       var candidateBindingReady = selectedCandidate && Boolean(bindingById(selectedCandidate.sourceBindingId));
       var canLookup = baseReady && canCommand('lookup_employment');
-      var canLink = baseReady && canCommand('link_employment') && version && reasonCode && reasonReady && candidateBindingReady;
-      var canRevoke = baseReady && canCommand('revoke_employment_link') && version && reasonCode && reasonReady && user.employmentLink.status === 'linked';
+      var canLink = baseReady && serverReasonCatalogReady && canCommand('link_employment') && version && reasonCode && reasonReady && candidateBindingReady;
+      var canRevoke = revokeReady && canCommand('revoke_employment_link') && version && reasonCode && reasonReady;
       el.employmentLookupQuery.disabled = !canLookup;
       el.employmentLookupButton.disabled = !canLookup || el.employmentLookupQuery.value.trim().length < 3;
       el.employmentCandidateSelect.disabled = !baseReady || !state.employmentCandidates.length;
-      el.employmentReasonCode.disabled = !baseReady || !state.operationalCatalog.reasonCodes.length || (!canCommand('link_employment') && !canCommand('revoke_employment_link'));
+      el.employmentReasonCode.disabled = !employmentControlsReady || (!canCommand('link_employment') && !canCommand('revoke_employment_link'));
       el.employmentReason.disabled = el.employmentReasonCode.disabled;
       el.linkEmploymentButton.disabled = !canLink;
       el.linkEmploymentButton.textContent = user.employmentLink.status === 'linked' ? 'Cambiar vínculo' : 'Vincular legajo';
       el.revokeEmploymentButton.disabled = !canRevoke;
       el.employmentOperationGate.classList.toggle('is-ready', Boolean(canLink || canRevoke));
-      el.employmentOperationGate.textContent = !baseReady ? operationalBlockedReason(user)
+      el.employmentOperationGate.textContent = revokeReady && !baseReady
+        ? !canCommand('revoke_employment_link') ? 'El backend no autorizó el cierre del vínculo para esta sesión.'
+        : !version ? 'La versión de autoridad no está informada.'
+        : 'La membresía no opera. Podés revocar el vínculo activo como cierre auditado; esta acción no reactiva accesos.'
+        : !baseReady ? operationalBlockedReason(user)
         : !canCommand('link_employment') && !canCommand('revoke_employment_link') ? 'El backend no publicó comandos de vínculo para esta sesión.'
         : !version ? 'La versión de autoridad no está informada.'
         : 'Elegí un motivo tipificado, fundamentá el cambio y seleccioná una coincidencia autorizada.';

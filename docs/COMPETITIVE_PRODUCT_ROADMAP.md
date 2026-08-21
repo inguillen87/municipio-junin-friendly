@@ -1,6 +1,6 @@
 # MuniControl — hoja de ruta competitiva GovTech
 
-**Versión de análisis:** 2026-08-20
+**Versión de análisis:** 2026-08-21
 
 **Producto de referencia:** MuniControl Friendly, Municipio de Junín, Mendoza
 **Principio rector:** alcanzar y superar la cobertura funcional de las suites municipales existentes sin copiar código, identidad visual, textos ni procesos propietarios, y sin presentar datos sintéticos como verdad municipal.
@@ -40,16 +40,35 @@ Las fuentes de Argentina y GovTech LATAM aportan contexto institucional; no se u
 
 La comparación no asigna puntajes numéricos porque las fuentes públicas tienen distinto nivel de detalle. Un ranking con esos datos produciría precisión ficticia.
 
+### 1.2 Corte de evidencia del foundation 005–009A
+
+El foundation transversal de identidad y operaciones llegó hasta la migración 009A. Este cierre significa **implementado y verificado en local y en una rama Neon QA descartable**; no significa desplegado, habilitado ni probado con usuarios en Producción. Tampoco convierte en completas las capacidades funcionales que todavía carecen de fuente, calendario o reglas homologadas.
+
+| Entorno | Evidencia alcanzada | Límite explícito |
+|---|---|---|
+| **Local** | Identidad tenant v2 ligada a sesión, MFA y ACL/capability; lecturas y escrituras de Actions gobernadas; ingreso de declaraciones de mayor esfuerzo; administración de onboarding, vínculo laboral y scopes ligada a sesión, versión y tenant. Pruebas de contratos, rechazos e idempotencia acompañan las migraciones 005–009A. | Es evidencia de implementación. No prueba correo/entrega real, operación humana sostenida, integración de fichadas, reglas laborales homologadas ni comportamiento del artefacto desplegado. |
+| **Neon QA descartable** | Aplicación y reaplicación controlada de la migración, aislamiento tenant, accesos por funciones permitidas, lifecycle administrativo y replays/revocaciones adversariales sobre una rama aislada. Los fixtures del control plane son sintéticos y los datos fuente protegidos se mantuvieron sólo de lectura. | No es staging permanente ni Producción; la rama se elimina al terminar la validación y sus fixtures no representan personas, decisiones ni resultados municipales. |
+| **Producción** | **No desplegada para este corte.** | No hay habilitación de identidad v2/MFA/ACL, Actions gobernadas, intake de mayor esfuerzo ni administración lifecycle 009A que pueda declararse operativa en Producción. Hace falta desplegar el mismo artefacto autorizado, aplicar la migración y ejecutar smoke/adversariales remotos antes de cambiar este estado. |
+
+Capacidades concretas cerradas en el foundation:
+
+- identidad v2 resuelta por tenant, sesión, MFA y capability, con superficies legacy basadas sólo en email cerradas;
+- Centro de acciones con lecturas y escrituras gobernadas, contexto tenant explícito, control de versión, idempotencia y motivo auditable;
+- intake de mayor esfuerzo que registra la declaración como `pending_time_rules`: no calcula horas, adicional salarial ni resultado de nómina;
+- lifecycle/onboarding administrativo ligado a sesión privilegiada, MFA, release y tenant para crear el tenant con política cerrada, consultar/vincular/revocar legajo y reemplazar scopes sin borrar el historial.
+
+Siguen deliberadamente cerrados los conectores y la operación de turnos, fichadas, feriados, calendarios, reglas temporales y excepciones. También siguen cerrados el cálculo, la preliquidación, la publicación y el posting hacia payroll. La siguiente fase competitiva debe resolver primero ese contrato temporal con datos aprobados; no se inferirán horarios, marcaciones ni montos.
+
 ## 2. Lectura honesta del mercado
 
 | Dominio | Evidencia oficial publicada | Estado MuniControl | Decisión de producto |
 |---|---|---|---|
 | Legajos y estructura | [CIVITAS](https://civitas.com.ar/software-recursos-humanos/) declara RRHH centralizado; [Intervan](https://intervan.com.ar/recursos-humanos/) documenta legajo, estructura, puestos e historial; [SIGeMi](https://sigemi.com.ar/personal/) documenta legajos, novedades, accidentes, asistencia y capacitación. | **Parcial avanzado**: núcleo GRH laboral real, estructura, identidad y calidad. | Convertir GRH en fuente interoperable y reconciliada, no reemplazarla a ciegas. |
 | Licencias y ausencias | CIVITAS declara incidencias y licencias; Intervan documenta tipos configurables, saldos y reportes; SIGeMi documenta licencias reglamentarias y parametrizadas; [Oracle](https://docs.oracle.com/en/cloud/saas/human-resources/fautl/how-absences-are-handled-when-integrated-with-time-and-labor.html) integra solicitud, aprobación, saldo y transferencia a tiempo/nómina. | **Parcial avanzado**: Título VI versionado, analítica y primer workflow gobernado. | Completar ledger de saldos, turnos, fichadas, feriados, documentación y resolución humana antes de calcular disponibilidad. |
-| Asistencia y turnos | CIVITAS declara QR, PIN, facial y geolocalización; SIGeMi importa relojes y genera tardanzas/ausencias; [Tyler](https://www.tylertech.com/products/time-attendance) documenta horarios, overtime, autoservicio, aprobaciones móviles e integración con nómina; [Oracle](https://www.oracle.com/human-capital-management/human-resources/) documenta scheduling, time tracking y reglas laborales. | **Faltante por fuente**. | Empezar con conectores de reloj/CSV/API, staging y reglas explicables; biometría sólo con evaluación legal, privacidad y alternativa no biométrica. |
-| Nómina | CIVITAS declara convenios, Ganancias y automatización; Intervan documenta fórmulas, simulaciones, controles, ARCA/ANSES/bancos y asientos; [SIGeMi](https://sigemi.com.ar/sueldos/) documenta novedades y liquidaciones; [Oracle](https://docs.oracle.com/en/cloud/saas/human-resources/fapcd/overview-of-time-and-absence-data-for-payroll.html) documenta la transferencia reconciliable de tiempo/ausencias a nómina. | **Parcial analítico**: corridas GRH cerradas y reconciliadas. | Construir preliquidación explicable; no recalcular ni publicar sueldos hasta homologar conceptos, reglas, interfaces y casos dorados. |
+| Asistencia y turnos | CIVITAS declara QR, PIN, facial y geolocalización; SIGeMi importa relojes y genera tardanzas/ausencias; [Tyler](https://www.tylertech.com/products/time-attendance) documenta horarios, overtime, autoservicio, aprobaciones móviles e integración con nómina; [Oracle](https://www.oracle.com/human-capital-management/human-resources/) documenta scheduling, time tracking y reglas laborales. | **Parcial de intake; operación faltante**: una declaración de mayor esfuerzo puede ingresar gobernada como `pending_time_rules`, pero no existen aún fuentes homologadas de turnos/fichadas ni motor de calendario, reglas y excepciones. | Construir primero calendarios, turnos y reglas versionadas; después sumar conectores de reloj/CSV/API mediante staging. Biometría sólo con evaluación legal, privacidad y alternativa no biométrica. |
+| Nómina | CIVITAS declara convenios, Ganancias y automatización; Intervan documenta fórmulas, simulaciones, controles, ARCA/ANSES/bancos y asientos; [SIGeMi](https://sigemi.com.ar/sueldos/) documenta novedades y liquidaciones; [Oracle](https://docs.oracle.com/en/cloud/saas/human-resources/fapcd/overview-of-time-and-absence-data-for-payroll.html) documenta la transferencia reconciliable de tiempo/ausencias a nómina. | **Parcial analítico**: corridas GRH cerradas y reconciliadas. Cálculo, publicación y posting siguen cerrados. | Construir preliquidación explicable; no recalcular, publicar ni postear sueldos hasta homologar conceptos, reglas, interfaces y casos dorados. |
 | Recibo y autoservicio | CIVITAS declara recibo y firma digital; Intervan documenta recibos, licencias, saldos, fichadas e incidencias en autogestión. | **Faltante**. | Entrega verificable, consentimiento/firma compatible, constancia y acceso mínimo por empleado. |
-| Identidad, roles y auditoría | [SIGeMi](https://sigemi.com.ar/producto/) declara roles y auditoría de modificaciones; [OpenGov](https://opengov.com/) declara controles de acceso y audit trails en su plataforma. Las páginas públicas no prueban aislamiento multi-tenant ni segregación de funciones. | **En construcción**: control plane multi-tenant, SoD y bitácora append-only. | Terminar gateway tenant-aware, MFA, sesiones revocables, cuentas por invitación y pruebas adversariales. |
+| Identidad, roles y auditoría | [SIGeMi](https://sigemi.com.ar/producto/) declara roles y auditoría de modificaciones; [OpenGov](https://opengov.com/) declara controles de acceso y audit trails en su plataforma. Las páginas públicas no prueban aislamiento multi-tenant ni segregación de funciones. | **Parcial avanzado**: identity gateway v2, MFA, ACL/capabilities, sesiones revocables, Actions read/write y lifecycle administrativo tenant-aware implementados y verificados en local/Neon QA descartable; no desplegados en Producción. | Completar entrega/recuperación y rate limits operativos, desplegar el mismo artefacto autorizado y probar aislamiento/revocación en el entorno remoto antes de activar cuentas reales. |
 | Finanzas y presupuesto | Intervan publica presupuesto, contabilidad, tesorería y bancos; [SIGeMi](https://sigemi.com.ar/presupuesto/) documenta formulación, ejecución, ajustes y evaluación; OpenGov publica presupuesto, performance, financial management y controles de gasto. | **Parcial**: presupuesto aprobado 2026, sin ejecución. | Ingestar modificaciones, compromiso, devengado, mandado a pagar, pagado, tesorería y conciliación desde fuentes oficiales. |
 | Compras y patrimonio | Intervan publica solicitud, cotización y orden con control presupuestario; [SIGeMi](https://sigemi.com.ar/compras/) documenta reserva, ofertas, adjudicación, recepción, expediente de pago y portal de proveedores; OpenGov publica procurement y contract management de ciclo completo. | **Faltante**. | Circuito solicitud–cotización–adjudicación–recepción–pago, disponibilidad presupuestaria y maker-checker. |
 | Tributario y rentas | Intervan publica padrón, cálculos y pagos; SIGeMi documenta cuenta corriente, catastro, recaudación y planes; OpenGov publica tax & revenue collection con portal y cálculos. | **Faltante**. | Padrón contribuyente separado de RRHH, cuenta corriente temporal, reglas versionadas y pagos conciliados. |
@@ -77,11 +96,11 @@ La comparación no asigna puntajes numéricos porque las fuentes públicas tiene
 
 | Prioridad | Resultado de producto | Señal de mercado | Brecha actual | Criterio de paridad | Diferenciación que debe probarse | Sprint |
 |---|---|---|---|---|---|---|
-| **P0** | Acceso multi-tenant seguro y administrable | SIGeMi publica roles/auditoría; OpenGov publica control de acceso/audit trail. | Gateway y administración aún en construcción. | Invitación, MFA privilegiado, contexto explícito, capabilities, revocación, SoD y auditoría; cero lectura cross-tenant en pruebas adversariales. | Marcelo administra tenants sin heredar acceso a datos; cada acceso explica tenant, rol/capability, fuente y corte. | S005 |
+| **P0** | Acceso multi-tenant seguro y administrable | SIGeMi publica roles/auditoría; OpenGov publica control de acceso/audit trail. | Foundation v2/MFA/ACL y lifecycle 009A verificados en local/QA descartable; falta despliegue y operación probada en Producción. | Invitación, MFA privilegiado, contexto explícito, capabilities, revocación, SoD y auditoría; cero lectura cross-tenant en pruebas adversariales del artefacto desplegado. | Marcelo administra tenants sin heredar acceso a datos; cada acceso explica tenant, rol/capability, fuente y corte. | S005 / foundation 009A |
 | **P0** | Contrato canónico de persona–legajo–puesto–área | Civitas, Intervan, SIGeMi y Oracle parten de un núcleo laboral integrado. | GRH real disponible pero no todas las fuentes operativas están homologadas. | Identidades conciliadas, vigencias temporales, vínculo usuario–legajo y calidad/cobertura visible. | Integrar GRH reversiblemente y mostrar discrepancias en vez de ocultarlas o duplicar personas. | S005–S006 |
-| **P0** | Tiempo y asistencia explicables | Civitas, SIGeMi, Tyler y Oracle cubren captura, reglas, excepciones y conexión con nómina. | No hay fuente homologada de turnos/fichadas/feriados. | Evento original inmutable + turno + calendario + regla + corrección aprobada; minutos reconciliados. | Simulación antes de confirmar, maker-checker y razón legible para tardanza, falta u hora extra. | S006 |
+| **P0** | Tiempo y asistencia explicables | Civitas, SIGeMi, Tyler y Oracle cubren captura, reglas, excepciones y conexión con nómina. | El intake gobernado de mayor esfuerzo termina en `pending_time_rules`; no hay fuente homologada de turnos/fichadas/feriados ni motor de reglas. | Evento original inmutable + turno + calendario + regla versionada + excepción/corrección aprobada; minutos reconciliados. | Simulación antes de confirmar, maker-checker y razón legible para tardanza, falta u hora extra, sin inventar una marcación ausente. | S006 — siguiente fase |
 | **P0** | Licencias/ausencias de punta a punta | Civitas, Intervan, SIGeMi y Oracle publican tipos, solicitudes, saldos o aprobaciones. | Título VI y análisis existen; falta ledger operativo completo. | Solicitud, documento, reserva, decisión, notificación, cancelación y saldo reconciliado por día/hora. | Norma versionada, privacidad clínica, advertencia legal y explicación exacta de cada movimiento del saldo. | S007 |
-| **P0** | Preliquidación y recibo verificable | Civitas, Intervan, SIGeMi y Oracle conectan novedades con payroll; Civitas/Intervan publican recibo digital. | Hay lectura analítica de corridas GRH, no motor homologado. | Conceptos y fórmulas vigentes, casos dorados, simulación, control, cierre y entrega; conciliación al centavo. | Diferencia explicada contra GRH y trazabilidad desde la novedad hasta concepto, asiento, pago y recibo. | S008 |
+| **P0** | Preliquidación y recibo verificable | Civitas, Intervan, SIGeMi y Oracle conectan novedades con payroll; Civitas/Intervan publican recibo digital. | Hay lectura analítica de corridas GRH, no motor homologado; cálculo, publicación y posting están cerrados. | Conceptos y fórmulas vigentes, casos dorados, simulación, control, cierre y entrega; conciliación al centavo. | Diferencia explicada contra GRH y trazabilidad desde la novedad hasta concepto, asiento, pago y recibo. | S008 |
 | **P0** | Autoservicio mínimo del empleado | Intervan publica datos, licencias, saldos, fichadas y recibos; Tyler publica autoservicio de tiempo. | Portal de empleado faltante. | Cada empleado ve sólo sus datos, solicita/corrige por circuito y recibe notificaciones/constancias accesibles. | Mostrar procedencia, vigencia y canal de rectificación; adelantar este corte a S007–S008 sin esperar el portal ciudadano completo. | S007–S008, corte de S012 |
 | **P1** | Ejecución financiera y tesorería | Intervan, SIGeMi y OpenGov publican presupuesto/finanzas integrados. | Sólo presupuesto aprobado, sin ejecución oficial. | Crédito vigente, etapas del gasto, bancos, caja y conciliaciones con fuente oficial. | Tablero ejecutivo sin cifras inferidas, trazable hasta asiento/documento y con alertas de calidad. | S009 |
 | **P1** | Compras y proveedores | Intervan, SIGeMi y OpenGov publican circuitos de compra/proveedor/contrato. | Faltante. | Reserva, solicitud, ofertas, evaluación, adjudicación, recepción, factura, pago y portal. | Segregación verificable, comparativa reproducible y alertas de riesgo sin acusación automática. | S010 |
@@ -124,9 +143,9 @@ La paridad de funcionalidades no alcanza. MuniControl debe competir con cinco ve
 ## 4. Arquitectura objetivo
 
 ```text
-Identidad y tenant gateway
+Identidad y tenant gateway v2
   -> capacidades, áreas, MFA, sesión revocable, auditoría
-     -> Centro de acciones y expedientes
+     -> Centro de acciones gobernado en lectura y escritura
         -> RRHH / tiempo / licencias / nómina
         -> presupuesto / compras / contabilidad / tesorería
         -> rentas / proveedores / patrimonio
@@ -145,29 +164,36 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 
 ## 5. Roadmap priorizado
 
-### S005 — Identidad, activación y acceso tenant-aware — **en ejecución**
+### S005 / foundation 005–009A — Identidad, Actions y lifecycle tenant-aware — **implementado en local/QA; no desplegado en Producción**
 
-- Invitación sin contraseña inicial y sin secretos en URL, logs ni almacenamiento del navegador.
-- Activación de un solo uso; secreto almacenado sólo como hash.
-- MFA obligatorio para propietarios, administradores y capacidades privilegiadas/restringidas.
+- Invitación y activación de un solo uso sin contraseña inicial ni secretos persistidos en URL, logs o almacenamiento del navegador.
+- Identidad v2, tenant, membresía, área, ACL/capability y release resueltos del lado servidor desde una sesión registrada.
+- MFA obligatorio para propietarios, administradores y capacidades privilegiadas/restringidas; las superficies legacy basadas sólo en email quedan cerradas.
 - TOTP sirve como segundo factor inicial, pero no es resistente al phishing; la meta es ofrecer passkeys/WebAuthn antes de una exposición pública amplia.
-- Sesiones registradas, rotables y revocables; expiración absoluta e inactividad.
-- Tenant, membresía, área y capability resueltos del lado servidor en cada acceso.
+- Sesiones registradas, rotables y revocables; expiración absoluta, inactividad y rechazo de contexto/versiones obsoletos.
+- Lecturas y escrituras del Centro de acciones gobernadas por tenant, capability, versión, idempotencia y motivo auditable.
+- Intake de mayor esfuerzo aceptado únicamente como declaración `pending_time_rules`; ninguna hora ni impacto salarial se calcula todavía.
+- Onboarding/lifecycle administrativo ligado a sesión privilegiada: alta con política cerrada, consulta y vínculo de legajo, revocación y reemplazo de scopes conservando historial.
 - Marcelo conserva `PLATFORM_OWNER`; el acceso operativo a Junín debe ser una vinculación explícita, no una herencia del rol global.
-- Cuentas reales siguen inactivas hasta que email/entrega, MFA, recuperación, rate limit y data plane tenant-aware estén verificados.
+- Cuentas reales siguen inactivas hasta que email/entrega, recuperación, rate limit, despliegue y data plane tenant-aware estén verificados en el entorno autorizado.
 
-**Aceptación:** ninguna cuenta activada puede leer otro tenant; revocar membresía/sesión surte efecto en la siguiente solicitud; replays y fuerza bruta fallan cerrados; auditoría no guarda secretos.
+**Evidencia de cierre del foundation:** contratos y negativas verificados localmente; aplicación/reaplicación y casos adversariales ejecutados en una rama Neon QA descartable con fixtures sintéticos de control plane y fuentes protegidas sólo de lectura. Producción no recibió este corte.
 
-### S006 — Tiempo, turnos y asistencia interoperable
+**Aceptación de producto aún pendiente:** ninguna cuenta activada puede leer otro tenant; revocar membresía/sesión surte efecto en la siguiente solicitud; replays y fuerza bruta fallan cerrados; auditoría no guarda secretos. Estos criterios deben repetirse sobre el mismo artefacto desplegado antes de llamar completa a la capacidad.
 
-- Catálogo de turnos, calendarios, feriados, tolerancias y excepciones por convenio.
-- Conectores de fichadas por API/archivo y staging reversible.
-- Marcaciones originales inmutables; correcciones como eventos aprobados.
-- Tardanza, falta, horas ordinarias y extraordinarias explicables por regla.
-- Mayor esfuerzo con carga exclusiva, aprobación separada e impacto posterior.
+### S006 — Motor versionado de calendario, turnos y reglas de tiempo — **siguiente fase competitiva**
+
+- Registro de fuentes aprobadas: dueño, período, cobertura, zona horaria, formato, corte y estado de homologación; una fuente ausente permanece ausente.
+- Catálogo versionado de calendarios, feriados, turnos, tolerancias y reglas por tenant, convenio, vigencia y prioridad, con estados borrador–aprobada–retirada.
+- Asignación temporal de turno a contrato/persona sin sobrescribir historia y sin deducir horarios desde eventos incompletos.
+- Motor determinista de evaluación y simulación que devuelve regla, versión, entradas, minutos y explicación; si falta turno, calendario o marcación, mantiene el caso pendiente.
+- Ledger de excepciones y correcciones con motivo, evidencia, maker-checker y resultado antes/después; el evento original permanece inmutable.
+- Conectores de fichadas por API/archivo sólo después de registrar una fuente real, mediante staging reversible, deduplicación, cuarentena y reconciliación.
+- Tardanza, falta, horas ordinarias y extraordinarias explicables por regla; las declaraciones existentes de mayor esfuerzo continúan en `pending_time_rules` hasta completar este circuito.
+- Aprobación de mayor esfuerzo separada del cálculo y de cualquier impacto posterior; payroll/posting continúa deshabilitado.
 - Geolocalización sólo para funciones justificadas y con minimización; reconocimiento facial fuera del alcance inicial hasta evaluación normativa, DPIA y alternativa no biométrica.
 
-**Aceptación:** cada minuto calculado reconcilia contra turno, fichadas, feriado y decisión; nunca se deriva “presentismo” de eventos GRH incompletos.
+**Aceptación:** cada minuto calculado reconcilia contra una asignación de turno, calendario, fichadas, regla versionada y excepción/decisión; el resultado se reproduce con las mismas entradas. Una entrada incompleta produce `pending_time_rules` o excepción explícita, nunca presentismo, ausencia, hora extra ni monto inventado.
 
 ### S007 — Licencias operativas completas
 
@@ -182,6 +208,7 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 
 ### S008 — Preliquidación y recibo digital
 
+- Cálculo, publicación y posting permanecen cerrados hasta contar con el motor temporal homologado, capabilities separadas y casos dorados aprobados.
 - Catálogo de conceptos, convenios, vigencias, fórmulas, topes y novedades.
 - Simulador de recibo con explicación de cada concepto y comparación contra GRH.
 - Circuito novedades–cálculo–control–cierre–publicación con maker-checker.
@@ -189,6 +216,8 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 - Recibo digital verificable, firma/aceptación, entrega y constancia.
 
 **Aceptación:** totales bruto/descuentos/neto y costo empleador reconcilian al centavo; una corrida abierta nunca se publica como cerrada.
+
+La migración técnica **009A de lifecycle no equivale al sprint funcional S009** siguiente: 009A fortalece el control plane; no implementa ejecución financiera.
 
 ### S009 — Ejecución presupuestaria, contabilidad y tesorería
 
@@ -244,14 +273,16 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 
 ## 6. Orden de ejecución inmediato
 
-1. Terminar S005 sin activar usuarios reales.
-2. Convertir la matriz P0 en criterios de aceptación trazables; cada historia debe identificar fuente, rol, regla, evidencia y prueba negativa.
-3. Inventariar fuentes reales de turnos, relojes, feriados, conceptos de nómina y reglas de mayor esfuerzo de Junín.
-4. Implementar S006 en una rama de datos aislada y con un período cerrado de prueba.
-5. Completar S007 usando el Centro de acciones y adelantar el autoservicio mínimo del empleado: solicitud, saldo, estado y constancia.
-6. Recién entonces iniciar S008; no calcular recibos productivos con reglas inferidas.
-7. En paralelo, acordar formato oficial de ejecución presupuestaria para S009 y conservar el resto de la suite como módulos desactivados hasta contar con dueño y fuente.
-8. Actualizar este benchmark al cerrar cada sprint y después de cualquier demo contractual de un competidor; una demo observada debe registrarse separada de lo publicado.
+1. Congelar el cierre técnico 005–009A con evidencia local y de Neon QA descartable, eliminar los fixtures al terminar y conservar Producción sin cambios hasta una autorización de despliegue separada.
+2. Convertir S006 en contratos de aceptación trazables: fuente, tenant, contrato/persona, calendario, turno, regla/versionado, excepción, rol, motivo, resultado y prueba negativa.
+3. Inventariar y conseguir aprobación sobre las fuentes reales de turnos, relojes/fichadas, feriados y reglas de mayor esfuerzo de Junín. Registrar cobertura y ausencias; no completar huecos con datos sintéticos.
+4. Implementar el catálogo versionado de calendario, turnos y reglas en una rama aislada, inicialmente sin cálculo ni escritura a GRH/payroll.
+5. Agregar simulación determinista y ledger de excepciones; probar vigencias, prioridades, cambio de turno, falta de entrada, solapamientos, rechazo, corrección y concurrencia.
+6. Incorporar un conector de fichadas sólo cuando exista fuente aprobada, usando staging, deduplicación, cuarentena y reconciliación. Hasta entonces, los casos de mayor esfuerzo quedan en `pending_time_rules`.
+7. Habilitar revisión/aprobación temporal sólo después de reconciliar cada minuto. Mantener cálculo salarial, publicación y posting de payroll cerrados.
+8. Completar S007 usando el Centro de acciones y adelantar el autoservicio mínimo del empleado: solicitud, saldo, estado y constancia.
+9. Recién después iniciar S008; no calcular recibos productivos con reglas inferidas. En paralelo, acordar el formato oficial de ejecución presupuestaria para el sprint funcional S009.
+10. Actualizar este benchmark al cerrar cada sprint y después de cualquier demo contractual de un competidor; una demo observada debe registrarse separada de lo publicado.
 
 ## 7. Límites no negociables
 
@@ -282,7 +313,7 @@ La demostración de producto se organizará por viajes de rol y no por menú:
 
 1. `PLATFORM_OWNER` crea o administra un tenant sin obtener acceso implícito a sus datos operativos;
 2. RRHH vincula usuario–legajo y tramita una licencia con norma, turno, saldo y evidencia;
-3. la autoridad habilitada carga o aprueba una novedad temporal, y Tesorería/Contaduría controla su impacto sin poder alterar el origen;
+3. la autoridad habilitada ingresa una declaración temporal y, mientras falten calendario/turno/regla, el sistema la conserva como `pending_time_rules`; sólo una fase posterior permitirá aprobar minutos reconciliados, sin posting automático a payroll;
 4. el empleado consulta lo propio, solicita una rectificación y recibe constancia;
 5. auditoría reconstruye quién hizo qué, con qué versión, fuente y autorización;
 6. el intendente visualiza agregados reales y puede bajar hasta evidencia autorizada sin exponer salud, sueldo nominal ni otro tenant.

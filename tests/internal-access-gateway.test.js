@@ -65,7 +65,7 @@ test('la sesion administrada recibe capability, data-plane y SHA de release', as
   assert.equal(received.expectedReleaseSha, 'a'.repeat(40));
 });
 
-test('la transicion legacy es explicita y se puede cerrar por configuracion', async () => {
+test('legacy=false cierra la transicion y distingue una cookie que requiere migracion', async () => {
   const res = response();
   let legacyCalls = 0;
   const denied = await requireCompatibleInternalAccess({ headers: {} }, res, {
@@ -84,14 +84,18 @@ test('la transicion legacy es explicita y se puede cerrar por configuracion', as
     env: { IDENTITY_LEGACY_SESSION_ALLOWED: 'false' },
   });
   assert.equal(upgradeRes.body.code, 'IDENTITY_SESSION_UPGRADE_REQUIRED');
+});
 
+test('legacy=true habilita explicitamente el gateway transicional', async () => {
   const allowed = await requireCompatibleInternalAccess({ headers: {} }, response(), {
     env: { IDENTITY_LEGACY_SESSION_ALLOWED: 'true' },
     requireLegacySession: () => ({ email: 'owner@example.invalid', role: 'ADMIN_INTERNO' }),
   });
   assert.equal(allowed.mode, 'legacy');
   assert.equal(allowed.session.email, 'owner@example.invalid');
+});
 
+test('produccion mantiene legacy cerrado cuando la bandera no fue declarada', async () => {
   const productionRes = response();
   const productionDenied = await requireCompatibleInternalAccess({ headers: {} }, productionRes, {
     env: { VERCEL_ENV: 'production' },

@@ -108,6 +108,16 @@ test('administración diferencia preparación, emisión y aceptación', () => {
 test('administración laboral queda tenant-bound, versionada y cerrada sin contrato backend', () => {
   const html = parseInlineScripts('administracion-plataforma.html');
 
+  const statusNormalizer = html.match(/function normalizeUserStatus\(value\) \{([\s\S]*?)\n    \}/);
+  assert.ok(statusNormalizer, 'falta normalizador de estado de membresía');
+  const normalizeMembershipStatus = new Function(
+    'normalizeSearch', 'value',
+    `${statusNormalizer[0]}\nreturn normalizeUserStatus(value);`,
+  );
+  const normalizeSearchValue = (value) => String(value || '').trim().toLowerCase();
+  assert.equal(normalizeMembershipStatus(normalizeSearchValue, 'suspended'), 'suspended');
+  assert.equal(normalizeMembershipStatus(normalizeSearchValue, 'pending'), 'pending');
+
   for (const contract of [
     'operationalCatalog', 'sourceBindings', 'databaseLabel', 'companyId',
     'employmentLink', 'operationalAccess', 'operationalMembershipId',
@@ -116,10 +126,49 @@ test('administración laboral queda tenant-bound, versionada y cerrada sin contr
     'organizationUnitSourceId', 'sectorSourceId', 'reasonCode',
   ]) assert.match(html, new RegExp(contract), `falta contrato laboral ${contract}`);
 
+  const revokeContext = html.match(/function employmentRevokeContextReady\(user\) \{([\s\S]*?)\n    \}/);
+  assert.ok(revokeContext, 'falta compuerta tenant-bound para el cierre laboral');
+  assert.match(revokeContext[1], /state\.context\.tenantId === user\.tenantId/);
+  assert.match(revokeContext[1], /\['active', 'suspended'\]\.includes\(membershipStatus\)/);
+  assert.match(revokeContext[1], /\['linked', 'stale'\]\.includes\(linkStatus\)/);
+  assert.doesNotMatch(revokeContext[1], /tenantDataPlaneReady|sourceBindings|administrativeOnlyRole|releaseSha/);
+  const evaluateRevokeContext = new Function(
+    'state', 'normalizeUserStatus', 'user',
+    `${revokeContext[0]}\nreturn employmentRevokeContextReady(user);`,
+  );
+  const cleanupState = {
+    context: { mode: 'tenant', tenantId: 'tenant-a' },
+    controls: { tenantDataPlaneReady: false },
+    operationalCatalog: { sourceBindings: [], reasonCodes: [] },
+  };
+  const cleanupUser = {
+    operationalMembershipId: 'membership-a', tenantId: 'tenant-a',
+    status: 'active', roleKey: 'PLATFORM_OWNER', employmentLink: { status: 'linked' },
+  };
+  const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
+  assert.equal(evaluateRevokeContext(cleanupState, normalizeStatus, cleanupUser), true);
+  assert.equal(evaluateRevokeContext(cleanupState, normalizeStatus,
+    { ...cleanupUser, status: 'suspended', employmentLink: { status: 'stale' } }), true);
+  assert.equal(evaluateRevokeContext(cleanupState, normalizeStatus,
+    { ...cleanupUser, employmentLink: { status: 'unlinked' } }), false);
+  assert.equal(evaluateRevokeContext(cleanupState, normalizeStatus,
+    { ...cleanupUser, status: 'invited' }), false);
+  assert.equal(evaluateRevokeContext(cleanupState, normalizeStatus,
+    { ...cleanupUser, tenantId: 'tenant-b' }), false);
+
   assert.match(html, /var canLookup = baseReady && canCommand\('lookup_employment'\)/);
-  assert.match(html, /canCommand\('link_employment'\)/);
-  assert.match(html, /canCommand\('revoke_employment_link'\)/);
-  assert.match(html, /canCommand\('replace_action_scopes'\)/);
+  assert.match(html, /var canLink = baseReady && serverReasonCatalogReady && canCommand\('link_employment'\)/);
+  assert.match(html, /var scopeReady = baseReady && canCommand\('replace_action_scopes'\)/);
+  assert.match(html, /var revokeReady = employmentRevokeContextReady\(user\) && governanceReady\(true\) && !state\.loading/);
+  assert.match(html, /var canRevoke = revokeReady && canCommand\('revoke_employment_link'\)/);
+  assert.doesNotMatch(html, /var canRevoke = baseReady/);
+  assert.match(html, /var employmentControlsReady = \(baseReady && serverReasonCatalogReady\) \|\| revokeReady/);
+  assert.match(html, /EMPLOYMENT_REVOCATION_REASON_FALLBACK/);
+  for (const reason of ['offboarding', 'employment_change', 'correction']) assert.match(html, new RegExp(reason));
+  assert.doesNotMatch(html, /employmentReasonCode\.disabled = [^;]*reasonCodes\.length/);
+  assert.match(html, /esta acción no reactiva accesos/);
+  assert.match(html, /if \(linked && bindingVerified\)/);
+  assert.match(html, /stale \? 'El vínculo informado no es utilizable'/);
   assert.match(html, /user && user\.operationalMembershipId/);
   assert.match(html, /authorityVersion\(user\.operationalAccess\.version\)/);
   assert.doesNotMatch(html, /authorityVersion\(user\.operationalAccess\.version,[^)]*(?:employmentLink|user\.version)/);

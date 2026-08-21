@@ -66,6 +66,16 @@ function trustedOrigin(env) {
   }
 }
 
+function certifiedReleaseSha(env) {
+  const value = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(value)) {
+    throw new InternalAdminError(
+      'INTERNAL_ADMIN_RELEASE_NOT_CERTIFIED', 503, 'La version activa no esta certificada',
+    );
+  }
+  return value;
+}
+
 function assertSameOrigin(req, env) {
   const origin = header(req, 'origin').trim();
   const fetchSite = header(req, 'sec-fetch-site').trim().toLowerCase();
@@ -203,15 +213,17 @@ export function createInternalAdminHandler(dependencies = {}) {
       }
       const session = access.session;
       const sql = await getSql(env);
+      const releaseSha = certifiedReleaseSha(env);
       if (method === 'GET') {
         const resource = queryValue(req, 'resource', 'bootstrap');
         const limit = Number(queryValue(req, 'limit', '100'));
-        const result = await loadView(sql, session, resource, limit);
+        const tenantId = queryValue(req, 'tenantId', '').trim().toLowerCase();
+        const result = await loadView(sql, session, resource, limit, { tenantId, releaseSha });
         return send(res, 200, { ok: true, ...result });
       }
       const body = await readBody(req);
       const command = normalizeInternalAdminCommand(body, header(req, 'idempotency-key').trim());
-      const result = await applyCommand(sql, session, command);
+      const result = await applyCommand(sql, session, command, { releaseSha });
       return send(res, command.command === 'create_tenant' || command.command === 'invite_user' ? 201 : 200, {
         ok: true, ...result,
       });
