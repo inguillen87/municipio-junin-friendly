@@ -109,6 +109,28 @@ const EVENT_COLUMNS = Object.freeze([
   ['occurred_at', 'timestamp with time zone', true],
 ]);
 
+const TIME_SOURCE_STATUS_CONSTRAINT = `CHECK (
+  status IN ('draft','submitted','approved','rejected','retired','cancelled')
+)`;
+
+const TIME_SOURCE_STATE_CONSTRAINT = `CHECK (
+  (status = 'draft' AND submitted_at IS NULL AND decided_at IS NULL
+    AND retired_at IS NULL AND cancelled_at IS NULL
+    AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+  OR (status = 'submitted' AND submitted_at IS NOT NULL AND decided_at IS NULL
+    AND retired_at IS NULL AND cancelled_at IS NULL
+    AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+  OR (status IN ('approved','rejected') AND submitted_at IS NOT NULL
+    AND decided_at IS NOT NULL AND retired_at IS NULL AND cancelled_at IS NULL
+    AND approver_person_id IS NOT NULL AND approver_membership_id IS NOT NULL)
+  OR (status = 'retired' AND submitted_at IS NOT NULL AND decided_at IS NOT NULL
+    AND retired_at IS NOT NULL AND cancelled_at IS NULL
+    AND approver_person_id IS NOT NULL AND approver_membership_id IS NOT NULL)
+  OR (status = 'cancelled' AND decided_at IS NULL AND retired_at IS NULL
+    AND cancelled_at IS NOT NULL
+    AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+)`;
+
 function rows(result) {
   return Array.isArray(result?.rows) ? result.rows : [];
 }
@@ -121,13 +143,28 @@ function canonicalConstraint(value) {
   return normalized(value)
     .replaceAll('public.', '')
     .replace(/::(?:character varying|character|bpchar|text)(?:\[\])?/g, '')
-    .replace(/[()\s]/g, '');
+    .replace(/[()\s]/g, '')
+    // PostgreSQL deparsea `IN (...)` como `= ANY (ARRAY[...])` para varchar/text.
+    // Ambas formas expresan el mismo conjunto cerrado; se normalizan antes de
+    // comparar el contrato completo, no mediante coincidencias parciales.
+    .replace(/([a-z_][a-z0-9_.]*)=anyarray\[([^\]]+)\]/g, '$1in$2')
+    .replace(/([a-z_][a-z0-9_.]*)in((?:'[^']*')(?:,'[^']*')*)/g,
+      (_match, column, values) => `${column}in${values.split(',').sort().join(',')}`);
 }
 
 function requireTokens(name, definition, tokens) {
   const body = normalized(definition);
   for (const token of tokens) {
     if (!body.includes(normalized(token))) throw new Error(`${name} no contiene contrato ${token}`);
+  }
+}
+
+function requireConstraintTokens(name, definition, tokens) {
+  const body = canonicalConstraint(definition);
+  for (const token of tokens) {
+    if (!body.includes(canonicalConstraint(token))) {
+      throw new Error(`${name} no contiene contrato ${token}`);
+    }
   }
 }
 
@@ -334,18 +371,16 @@ export function validateTimeSourceEvidence(evidence) {
     'FOREIGN KEY (proposer_membership_id, tenant_id) REFERENCES tenant_membership(id, tenant_id) ON DELETE RESTRICT');
   exactConstraint(contractConstraints, 'time_source_contract_approver_membership_fk', 'f',
     'FOREIGN KEY (approver_membership_id, tenant_id) REFERENCES tenant_membership(id, tenant_id) ON DELETE RESTRICT');
-  requireTokens('check metadata contract', contractConstraints.get('time_source_contract_metadata_ck')?.definition, [
+  requireConstraintTokens('check metadata contract', contractConstraints.get('time_source_contract_metadata_ck')?.definition, [
     'time_source_metadata_row_valid_v1', 'record_count',
   ]);
-  requireTokens('check status contract', contractConstraints.get('time_source_contract_status_ck')?.definition, [
-    'draft', 'submitted', 'approved', 'rejected', 'retired', 'cancelled',
-  ]);
-  requireTokens('check maker checker', contractConstraints.get('time_source_contract_maker_checker_ck')?.definition, [
+  exactConstraint(contractConstraints, 'time_source_contract_status_ck', 'c',
+    TIME_SOURCE_STATUS_CONSTRAINT);
+  requireConstraintTokens('check maker checker', contractConstraints.get('time_source_contract_maker_checker_ck')?.definition, [
     'approver_person_id <> proposer_person_id', 'approver_membership_id <> proposer_membership_id',
   ]);
-  requireTokens('check state contract', contractConstraints.get('time_source_contract_state_ck')?.definition, [
-    "status = 'draft'", "status = 'submitted'", "status = 'retired'", "status = 'cancelled'",
-  ]);
+  exactConstraint(contractConstraints, 'time_source_contract_state_ck', 'c',
+    TIME_SOURCE_STATE_CONSTRAINT);
 
   const eventConstraints = constraintMap(evidence.eventConstraints);
   exactSet(eventConstraints.keys(), [
@@ -372,12 +407,12 @@ export function validateTimeSourceEvidence(evidence) {
     'FOREIGN KEY (actor_membership_id, tenant_id) REFERENCES tenant_membership(id, tenant_id) ON DELETE RESTRICT');
   exactConstraint(eventConstraints, 'time_source_governance_event_idempotency_uk', 'u',
     'UNIQUE (tenant_id, actor_membership_id, idempotency_key)');
-  requireTokens('check contexto event', eventConstraints.get('time_source_governance_event_context_ck')?.definition, [
+  requireConstraintTokens('check contexto event', eventConstraints.get('time_source_governance_event_context_ck')?.definition, [
     'actor_session_version > 0', "release_sha ~ '^[a-f0-9]{40}$'",
     "command_hash ~ '^[a-f0-9]{64}$'", 'resulting_version = expected_version + 1',
     'time_source_reason_allowed_v1',
   ]);
-  requireTokens('check json event', eventConstraints.get('time_source_governance_event_json_ck')?.definition, [
+  requireConstraintTokens('check json event', eventConstraints.get('time_source_governance_event_json_ck')?.definition, [
     "jsonb_typeof(before_snapshot) = 'object'", "jsonb_typeof(after_snapshot) = 'object'",
     "jsonb_typeof(result) = 'object'",
   ]);

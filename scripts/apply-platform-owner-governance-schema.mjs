@@ -132,6 +132,9 @@ export function validatePlatformOwnerGovernanceMigrationSql(sql) {
     'platform_owner_last_active_guard_v1', 'before update or delete on platform_user_role',
     'platform_owner_governance_view_v1', 'platform_owner_governance_apply_v1',
     'platform_owner_bootstrap_secondary_v1',
+    'platform_owner_function_acl_hardening',
+    'pg_get_function_identity_arguments',
+    'revoke all privileges on function',
     'tenant_lifecycle_assert_platform_capability_v2', "'platform.roles.manage'",
     'platform_owner_last_active', 'platform_owner_maker_checker_required',
     'platform_owner_self_revoke_forbidden', 'platform_owner_target_request_required',
@@ -160,7 +163,7 @@ export function validatePlatformOwnerGovernanceMigrationSql(sql) {
   }
   if (/\b(?:create|alter|drop)\s+table\s+(?:if\s+(?:not\s+)?exists\s+)?(?:public\.)?(?:grh_|payroll_|action_case|employment_contract|source_import_batch|time_source_contract|time_catalog_)/i.test(sql)
       || /\balter\s+role\b/i.test(sql)
-      || (sql.match(/\bexecute\s+format\s*\(/gi) || []).length !== 3
+      || (sql.match(/\bexecute\s+format\s*\(/gi) || []).length !== 4
       || /\binsert\s+into\s+(?:iam_capability|iam_role|iam_role_capability)\b/i.test(sql)) {
     throw new Error('012 contiene expansion de alcance o SQL dinamico prohibido');
   }
@@ -398,11 +401,11 @@ async function collectEvidence(client) {
         function_row.proacl, acldefault('f', function_row.proowner)
       )) acl WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE') AS "publicExecuteRevoked",
       has_function_privilege($1, function_row.oid, 'EXECUTE') AS "runtimeCanExecute",
-      ARRAY(SELECT role_row.rolname
+      to_json(ARRAY(SELECT role_row.rolname
         FROM aclexplode(COALESCE(function_row.proacl, acldefault('f', function_row.proowner))) acl
         JOIN pg_roles role_row ON role_row.oid = acl.grantee
         WHERE acl.privilege_type = 'EXECUTE' AND acl.grantee <> function_row.proowner
-        ORDER BY role_row.rolname) AS "nonOwnerExecuteGrantees",
+        ORDER BY role_row.rolname)) AS "nonOwnerExecuteGrantees",
       pg_get_functiondef(function_row.oid) AS definition
     FROM pg_proc function_row
     JOIN pg_namespace namespace ON namespace.oid = function_row.pronamespace
@@ -485,26 +488,26 @@ async function collectEvidence(client) {
         FROM aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) acl
         UNION ALL
         SELECT acl.grantee FROM pg_attribute attribute
-        CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+        CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
         WHERE attribute.attrelid = relation.oid AND attribute.attnum > 0
           AND attribute.attisdropped IS FALSE
       ) grants WHERE grants.grantee = 0) AS "publicPrivilegesRevoked",
       NOT (has_any_column_privilege($1, relation.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
         OR has_table_privilege($1, relation.oid, 'DELETE,TRUNCATE,TRIGGER'))
         AS "runtimePrivilegesRevoked",
-      ARRAY(SELECT DISTINCT COALESCE(role_row.rolname, 'PUBLIC')
+      to_json(ARRAY(SELECT DISTINCT COALESCE(role_row.rolname, 'PUBLIC')
         FROM (
           SELECT acl.grantee
           FROM aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) acl
           UNION ALL
           SELECT acl.grantee FROM pg_attribute attribute
-          CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+          CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
           WHERE attribute.attrelid = relation.oid AND attribute.attnum > 0
             AND attribute.attisdropped IS FALSE
         ) grants
         LEFT JOIN pg_roles role_row ON role_row.oid = grants.grantee
         WHERE grants.grantee <> relation.relowner
-        ORDER BY COALESCE(role_row.rolname, 'PUBLIC'))
+        ORDER BY COALESCE(role_row.rolname, 'PUBLIC')))
         AS "nonOwnerPrivilegeGrantees"
     FROM pg_class relation
     JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
@@ -539,13 +542,13 @@ async function collectEvidence(client) {
         OR has_sequence_privilege($1, sequence_row.oid, 'SELECT')
         OR has_sequence_privilege($1, sequence_row.oid, 'UPDATE'))
         AS "runtimePrivilegesRevoked",
-      ARRAY(SELECT DISTINCT COALESCE(role_row.rolname, 'PUBLIC')
+      to_json(ARRAY(SELECT DISTINCT COALESCE(role_row.rolname, 'PUBLIC')
         FROM aclexplode(COALESCE(
           sequence_row.relacl, acldefault('S', sequence_row.relowner)
         )) acl
         LEFT JOIN pg_roles role_row ON role_row.oid = acl.grantee
         WHERE acl.grantee <> sequence_row.relowner
-        ORDER BY COALESCE(role_row.rolname, 'PUBLIC'))
+        ORDER BY COALESCE(role_row.rolname, 'PUBLIC')))
         AS "nonOwnerPrivilegeGrantees"
     FROM sensitive_sequences sequence_row
     JOIN pg_roles runtime_role ON runtime_role.rolname = $1

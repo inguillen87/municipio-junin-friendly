@@ -233,7 +233,8 @@
     .dialog-note { margin: 0 0 15px; padding: 12px; color: #36515f; background: var(--surface-2); border-left: 4px solid var(--teal); font-size: 12px; line-height: 1.5; }
     .tenant-options { display: grid; gap: 4px; margin-top: 13px; }
     .tenant-option { width: 100%; min-height: 58px; display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; text-align: left; }
-    .tenant-option:hover, .tenant-option[aria-current="true"] { background: var(--surface-3); border-color: #9fc5bf; }
+    .tenant-option:not(:disabled):hover, .tenant-option[aria-current="true"] { background: var(--surface-3); border-color: #9fc5bf; }
+    .tenant-option:disabled { cursor: not-allowed; opacity: .72; background: var(--surface-2); }
     .tenant-option-code { width: 32px; height: 32px; display: grid; place-items: center; color: var(--teal-dark); background: #fff; border: 1px solid #9fc5bf; border-radius: 3px; font-size: 9px; font-weight: 900; }
     .tenant-option strong, .tenant-option small { display: block; }
     .tenant-option strong { color: var(--navy); font-size: 13px; }
@@ -449,7 +450,7 @@
           <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="adminSidebar" aria-expanded="false">☰</button>
           <button class="tenant-switcher" id="tenantSwitcher" type="button" aria-haspopup="dialog" aria-controls="tenantSwitcherDialog" aria-expanded="false">
             <span class="tenant-switcher-code" id="tenantSwitcherCode" aria-hidden="true">PL</span>
-            <span class="tenant-switcher-copy"><small>Ámbito activo</small><strong id="tenantSwitcherLabel">Plataforma completa</strong></span>
+            <span class="tenant-switcher-copy"><small>Filtro administrativo</small><strong id="tenantSwitcherLabel">Plataforma completa</strong></span>
             <span aria-hidden="true">⌄</span>
           </button>
           <div class="topbar-context">
@@ -519,7 +520,7 @@
                 <h1 id="accessTitle">Usuarios y accesos</h1>
                 <p class="page-lead">Usuarios activos, invitaciones y capacidades efectivas explicadas por tenant. La interfaz no deriva permisos desde el nombre del rol.</p>
               </div>
-              <div class="head-actions"><button class="button primary" id="inviteUserButton" type="button" disabled>Preparar invitación</button></div>
+              <div class="head-actions"><button class="button" id="attachExistingButton" type="button" disabled>Solicitar asociación</button><button class="button primary" id="inviteUserButton" type="button" disabled>Preparar invitación</button></div>
             </header>
 
             <section class="governance-strip is-blocked" id="accessGovernance" aria-labelledby="accessGovernanceTitle">
@@ -563,6 +564,21 @@
                 </div>
               </aside>
             </div>
+
+            <section class="panel" id="membershipRequestPanel" aria-labelledby="membershipRequestTitle" style="margin-top:18px">
+              <header class="panel-head"><div><h2 id="membershipRequestTitle">Solicitudes de acceso operativo</h2><p>Una persona propietaria solicita y otra, distinta de la solicitante y de la cuenta objetivo, aprueba o rechaza.</p></div></header>
+              <div class="panel-body">
+                <div class="governance-strip is-blocked" id="membershipRequestGate" aria-live="polite">
+                  <div><strong id="membershipRequestGateTitle">Doble control sin verificar</strong><p id="membershipRequestGateMessage">El acceso sigue bloqueado hasta acreditar dos propietarios con MFA.</p></div>
+                  <div class="governance-facts" id="membershipRequestFacts"></div>
+                </div>
+                <div class="effective-box" style="margin-top:16px"><strong>Decisión por solicitud.</strong> Cada fila exige su propio fundamento y una confirmación que identifica gobierno, cuenta, rol y acción.</div>
+                <div class="empty-state" id="membershipRequestEmpty"><strong>Sin solicitudes de acceso.</strong><p>No se asocian identidades ni se reactivan permisos fuera del flujo auditado.</p></div>
+                <div class="table-wrap" id="membershipRequestWrap" tabindex="0" role="region" aria-label="Solicitudes de acceso operativo" hidden>
+                  <table><caption class="sr-only">Solicitudes de membresía por gobierno</caption><thead><tr><th>Cuenta y gobierno</th><th>Cambio</th><th>Solicitante</th><th>Estado</th><th>Decisión</th></tr></thead><tbody id="membershipRequestRows"></tbody></table>
+                </div>
+              </div>
+            </section>
 
             <section class="panel" id="platformOwnerPanel" aria-labelledby="platformOwnerTitle" style="margin-top:18px">
               <header class="panel-head"><div><h2 id="platformOwnerTitle">Propietarios globales</h2><p>El alta o la baja de un propietario requiere una solicitud y la decisión de otra persona propietaria. Nunca concede acceso laboral por tenant.</p></div></header>
@@ -661,9 +677,9 @@
 
   <dialog id="tenantSwitcherDialog" aria-labelledby="tenantSwitcherTitle">
     <div class="dialog-shell">
-      <header class="dialog-head"><div><p class="eyebrow">Ámbito de trabajo</p><h2 id="tenantSwitcherTitle">Cambiar contexto</h2><p>La autorización se vuelve a consultar al cambiar de gobierno.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantSwitcherDialog" aria-label="Cerrar selector">×</button></header>
+      <header class="dialog-head"><div><p class="eyebrow">Control plane · filtro administrativo</p><h2 id="tenantSwitcherTitle">Filtrar administración</h2><p>Acota consultas del panel; no inicia una sesión operativa ni cambia la membresía activa.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantSwitcherDialog" aria-label="Cerrar selector">×</button></header>
       <div class="dialog-body">
-        <div class="field"><label for="tenantOptionSearch">Buscar gobierno autorizado</label><input class="input" id="tenantOptionSearch" type="search" maxlength="100" autocomplete="off"></div>
+        <div class="field"><label for="tenantOptionSearch">Buscar gobierno para filtrar</label><input class="input" id="tenantOptionSearch" type="search" maxlength="100" autocomplete="off"></div>
         <div class="tenant-options" id="tenantOptions" aria-live="polite"></div>
       </div>
     </div>
@@ -673,7 +689,7 @@
     <div class="dialog-shell">
       <header class="dialog-head"><div><p class="eyebrow">Gobierno autorizado</p><h2 id="tenantDetailTitle">Detalle de implementación</h2><p id="tenantDetailSubtitle">Fuente no informada.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantDetailDialog" aria-label="Cerrar detalle">×</button></header>
       <div class="dialog-body" id="tenantDetailBody"></div>
-      <footer class="dialog-footer"><span class="field-help">Los campos ausentes se muestran como no informados.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="tenantDetailDialog">Cerrar</button><button class="button primary" id="openTenantContextButton" type="button">Abrir gobierno</button></div></footer>
+      <footer class="dialog-footer"><span class="field-help">Los campos ausentes se muestran como no informados.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="tenantDetailDialog">Cerrar</button><button class="button primary" id="openTenantContextButton" type="button">Filtrar administración</button></div></footer>
     </div>
   </dialog>
 
@@ -693,6 +709,24 @@
         <div class="conflict-box" id="inviteConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
       </div>
       <footer class="dialog-footer"><span class="field-help" id="inviteMutationHint">Operación bloqueada.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="inviteUserDialog">Cancelar</button><button class="button primary" id="sendInviteButton" type="submit" disabled>Preparar invitación</button></div></footer>
+    </form>
+  </dialog>
+
+  <dialog id="attachExistingDialog" aria-labelledby="attachExistingTitle">
+    <form class="dialog-shell" id="attachExistingForm" novalidate autocomplete="off">
+      <header class="dialog-head"><div><p class="eyebrow">Membresía explícita</p><h2 id="attachExistingTitle">Solicitar asociación</h2><p>Prepara una solicitud para una identidad ya activada y un solo gobierno. Otra persona propietaria debe decidirla. No crea contraseñas ni habilita tenants futuros.</p></div><button class="button dialog-close" type="button" data-close-dialog="attachExistingDialog" aria-label="Cerrar asociación">×</button></header>
+      <div class="dialog-body">
+        <p class="dialog-note">La cuenta debe existir, usar identidad administrada y tener MFA activo. PostgreSQL vuelve a validar tenant, release, rol y segregación de funciones.</p>
+        <div class="form-grid">
+          <div class="field"><label for="attachExistingEmail">Email institucional existente</label><input class="input" id="attachExistingEmail" type="email" maxlength="254" required autocomplete="email"></div>
+          <div class="field"><label for="attachExistingTenant">Gobierno</label><select class="select" id="attachExistingTenant" required></select></div>
+          <div class="field"><label for="attachExistingRole">Rol operativo</label><select class="select" id="attachExistingRole" required></select></div>
+          <div class="field full"><label for="attachExistingReason">Fundamento</label><textarea class="textarea" id="attachExistingReason" minlength="3" maxlength="500" required placeholder="Autorización administrativa verificable"></textarea></div>
+        </div>
+        <div class="effective-box" id="attachExistingSummary"><strong>Sin membresía propuesta.</strong> Completá cuenta, gobierno y rol.</div>
+        <div class="conflict-box" id="attachExistingGate"><strong>Operación bloqueada</strong><span>No se solicitará ni almacenará una contraseña.</span></div>
+      </div>
+      <footer class="dialog-footer"><span class="field-help">Acceso explícito al gobierno seleccionado; futuros tenants requieren otra autorización.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="attachExistingDialog">Cancelar</button><button class="button primary" id="attachExistingSubmit" type="submit" disabled>Solicitar acceso</button></div></footer>
     </form>
   </dialog>
 
@@ -754,7 +788,7 @@
           </div>
         </section>
       </div>
-      <footer class="dialog-footer"><div class="dialog-actions"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><button class="button" id="issueInvitationButton" type="button" disabled>Emitir invitación</button></div><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
+      <footer class="dialog-footer"><div class="dialog-actions"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><button class="button" id="reactivateMembershipButton" type="button" disabled>Reactivar membresía</button><button class="button" id="issueInvitationButton" type="button" disabled>Emitir invitación</button></div><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
     </form>
   </dialog>
 
@@ -817,12 +851,20 @@
         owners: [], eligibleUsers: [], requests: [],
         controls: { activeOwnerCount: 0, makerCheckerReady: false, lastOwnerProtected: false }
       },
+      membershipRequests: [],
+      membershipGovernance: {
+        explicitTenantOnly: true, futureTenantAccess: false,
+        makerCheckerRequired: true, usableOwnerCount: 0,
+        actorGovernanceReady: false, makerCheckerReady: false,
+        actionableRequestCount: 0, eligibleTenantIds: []
+      },
       employmentCandidates: [],
       scopeDraft: [],
       selectedUser: null,
       selectedTenant: null,
       activeView: 'portfolio',
       userStatus: '',
+      pendingCommandKeys: new Map(),
       loadVersion: 0,
       loading: false
     };
@@ -841,7 +883,7 @@
       'metricTenants','metricTenantsNote','metricAttention','metricAttentionNote','metricReviews','metricReviewsNote',
       'metricSecurity','metricSecurityNote','tenantFilters','tenantSearch','tenantStatusFilter','clearTenantFilters',
       'tenantResultCount','portfolioCutoff','tenantLoading','tenantError','tenantErrorMessage','tenantEmpty','tenantTableWrap',
-      'tenantRows','inviteUserButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
+      'tenantRows','inviteUserButton','attachExistingButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
       'userStatusTabs','userFilters','userSearch','userRoleFilter','clearUserFilters','userResultCount','userCutoff',
       'userLoading','userError','userErrorMessage','userEmpty','userTableWrap','userRows','roleMatrixRole',
       'roleCapabilityMatrix','roleEffectiveSummary','controlGovernance','controlGovernanceTitle','controlGovernanceMessage',
@@ -849,6 +891,8 @@
       'platformOwnerGrantForm','platformOwnerCandidate','platformOwnerRequestReason','requestPlatformOwnerGrant',
       'platformOwnerCount','platformOwnerRows','platformOwnerDecisionReason','platformOwnerRequestEmpty',
       'platformOwnerRequestWrap','platformOwnerRequestRows',
+      'membershipRequestPanel','membershipRequestGate','membershipRequestGateTitle','membershipRequestGateMessage',
+      'membershipRequestFacts','membershipRequestEmpty','membershipRequestWrap','membershipRequestRows',
       'overtimeAssignee','overtimeAssignmentSource','overtimeAssignmentForm','overtimeAssigneeSelect','assignOvertimeButton',
       'absenceControlState','absenceControlSource','absenceControlExplanation','auditFilters','auditSearch','auditEventFilter',
       'clearAuditFilters','auditResultCount','auditCutoff','auditLoading','auditError','auditErrorMessage','auditEmpty',
@@ -856,8 +900,10 @@
       'tenantDetailTitle','tenantDetailSubtitle','tenantDetailBody','openTenantContextButton','inviteUserDialog','inviteUserForm',
       'inviteName','inviteEmail','inviteTenant','inviteRole','inviteCapabilityMatrix','inviteEffectiveSummary','inviteConflictBox',
       'inviteMutationHint','sendInviteButton','inviteNameError','inviteEmailError','inviteTenantError','inviteRoleError',
+      'attachExistingDialog','attachExistingForm','attachExistingEmail','attachExistingTenant','attachExistingRole',
+      'attachExistingReason','attachExistingSummary','attachExistingGate','attachExistingSubmit',
       'userDetailDialog','userAccessForm','userDetailTitle','userDetailSubtitle','userDetailFacts','userAccessRole',
-      'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','issueInvitationButton','updateAccessButton',
+      'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','reactivateMembershipButton','issueInvitationButton','updateAccessButton',
       'operationalBoundary','operationalBoundaryTitle','operationalBoundaryMessage','operationalBoundaryFacts','operationalWorkbenchState',
       'employmentLinkState','employmentLinkSummary','employmentLookupQuery','employmentLookupButton','employmentCandidateSelect','employmentCandidateHelp',
       'employmentReasonCode','employmentReason','linkEmploymentButton','revokeEmploymentButton','employmentOperationGate',
@@ -958,7 +1004,7 @@
       var normalized = normalizeSearch(value);
       if (/operativ|activ|ready|aprob|success|ok|complet/.test(normalized)) return 'is-ok';
       if (/bloque|suspend|deneg|revoc|error|critical|fall/.test(normalized)) return 'is-danger';
-      if (/atencion|pend|riesgo|warning|invite|observ/.test(normalized)) return 'is-attention';
+      if (/atencion|pend|riesgo|warning|invite|observ|venc|expir/.test(normalized)) return 'is-attention';
       if (/pilot|progreso|config|info|implement/.test(normalized)) return 'is-info';
       return '';
     }
@@ -1036,7 +1082,7 @@
       return window.crypto.randomUUID();
     }
 
-    async function postCommand(command, payload, expectedVersion) {
+    async function postCommand(command, payload, expectedVersion, idempotencyKey) {
       var body = { command: command, payload: payload || {} };
       if (expectedVersion !== undefined && expectedVersion !== null) body.expectedVersion = expectedVersion;
       return requestJson(ADMIN_URL, {
@@ -1044,7 +1090,7 @@
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'Idempotency-Key': commandKey()
+          'Idempotency-Key': idempotencyKey || commandKey()
         },
         body: JSON.stringify(body)
       });
@@ -1500,6 +1546,27 @@
       };
     }
 
+    function normalizeMembershipRequests(payload) {
+      return findArray(payload, ['membershipRequests']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id), action: text(row.action).toLowerCase(),
+          status: text(row.status).toLowerCase(), tenantId: text(row.tenantId),
+          tenantName: text(first(row.tenantName, row.tenantId), 'Gobierno no informado'),
+          targetEmail: text(row.targetEmail).toLowerCase(),
+          targetDisplayName: text(first(row.targetDisplayName, row.targetEmail), 'Cuenta no informada'),
+          membershipId: text(row.membershipId), roleKey: text(row.roleKey),
+          expectedMembershipVersion: Number(row.expectedMembershipVersion),
+          reason: text(row.reason), requestedByEmail: text(row.requestedByEmail).toLowerCase(),
+          requestedByDisplayName: text(first(row.requestedByDisplayName, row.requestedByEmail), 'Solicitante no informado'),
+          requestedAt: row.requestedAt, expiresAt: row.expiresAt,
+          decidedByEmail: text(row.decidedByEmail).toLowerCase(),
+          decisionReason: text(row.decisionReason), decidedAt: row.decidedAt,
+          version: authorityVersion(row.version), canCurrentActorDecide: row.canCurrentActorDecide === true
+        };
+      }).filter(function (request) { return request.id && request.targetEmail && request.version; });
+    }
+
     function normalizeBootstrap(payload, requestedTenantId) {
       var root = roots(payload)[0] || {};
       var user = firstObject(root.user, root.principal, root.session && root.session.user);
@@ -1533,7 +1600,9 @@
         source: normalizeSource(payload),
         exclusive: normalizeExclusive(payload, tenantId),
         operationalControls: normalizeOperationalControls(payload),
-        operationalCatalog: normalizeOperationalCatalog(payload)
+        operationalCatalog: normalizeOperationalCatalog(payload),
+        membershipRequests: normalizeMembershipRequests(payload),
+        membershipGovernance: firstObject(root.membershipGovernance)
       };
     }
 
@@ -1716,14 +1785,20 @@
       }).forEach(function (tenant) {
         var button = node('button', 'tenant-option');
         button.type = 'button';
-        button.dataset.tenantOption = tenant.id;
-        button.setAttribute('aria-current', String((state.context.tenantId || '') === tenant.id));
+        if (tenant.apiBacked === false) {
+          button.disabled = true;
+          button.setAttribute('aria-disabled', 'true');
+          button.title = 'Referencia informativa: la API todavía no publicó un UUID autorizado.';
+        } else {
+          button.dataset.tenantOption = tenant.id;
+          button.setAttribute('aria-current', String((state.context.tenantId || '') === tenant.id));
+        }
         button.appendChild(node('span', 'tenant-option-code', tenant.id ? initials(tenant.name) : 'PL'));
         var copy = node('span');
         copy.appendChild(node('strong', '', tenant.name));
         copy.appendChild(node('small', '', tenant.jurisdiction + ' · ' + tenant.governmentLevel));
         button.appendChild(copy);
-        button.appendChild(node('span', 'tenant-option-state', tenant.apiBacked === false ? 'Contexto municipal' : 'Autorizado'));
+        button.appendChild(node('span', 'tenant-option-state', tenant.apiBacked === false ? 'Referencia sin UUID · no seleccionable' : 'Autorizado'));
         el.tenantOptions.appendChild(button);
       });
     }
@@ -1862,6 +1937,8 @@
       el.governanceFacts.append(pill('Auditoría ' + (state.controls.auditReady ? 'lista' : 'bloqueada'), state.controls.auditReady ? 'is-ok' : 'is-attention'));
       el.governanceFacts.append(pill('Invitaciones ' + (state.controls.invitationGatewayReady ? 'activas' : 'sólo preparadas'), state.controls.invitationGatewayReady ? 'is-ok' : 'is-attention'));
       el.inviteUserButton.disabled = !mutationAllowed('invite_user', true) || !state.roles.length || !state.tenants.length;
+      var eligibleTenantCount = list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).length;
+      el.attachExistingButton.disabled = !mutationAllowed('request_existing_membership', true) || !state.roles.length || eligibleTenantCount < 1;
       el.createTenantButton.disabled = !mutationAllowed('create_tenant', false);
       el.createTenantGate.classList.toggle('is-danger', !mutationAllowed('create_tenant', false));
       el.createTenantGate.querySelector('strong').textContent = mutationAllowed('create_tenant', false) ? 'Alta autorizada' : 'Operación bloqueada';
@@ -1872,13 +1949,97 @@
     function renderRoleOptions() {
       var roleItems = state.roles.map(function (role) { return { key: role.key, label: role.label }; });
       var tenantRoleItems = state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).map(function (role) { return { key: role.key, label: role.label }; });
+      var eligibleTenantIds = new Set(list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).map(function (value) { return text(value); }).filter(Boolean));
+      var eligibleMembershipTenants = state.tenants.filter(function (tenant) { return eligibleTenantIds.has(tenant.id); });
       populateSelect(el.roleMatrixRole, roleItems, 'Seleccioná un rol informado', 'key', 'label');
       populateSelect(el.userRoleFilter, tenantRoleItems, 'Todos', 'key', 'label');
       populateSelect(el.inviteRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
+      populateSelect(el.attachExistingRole, tenantRoleItems.filter(function (role) {
+        return role.key === 'TENANT_RRHH_ADMIN_OPERATIVO';
+      }), 'Seleccionar perfil RR.HH. operativo', 'key', 'label');
       populateSelect(el.userAccessRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
       populateSelect(el.inviteTenant, state.tenants.map(function (tenant) { return { id: tenant.id, label: tenant.name }; }), 'Seleccionar gobierno', 'id', 'label');
+      populateSelect(el.attachExistingTenant, eligibleMembershipTenants.map(function (tenant) { return { id: tenant.id, label: tenant.name }; }), eligibleMembershipTenants.length ? 'Seleccionar gobierno certificado' : 'Sin gobiernos certificados', 'id', 'label');
       if (state.context.tenantId && state.tenants.some(function (tenant) { return tenant.id === state.context.tenantId; })) el.inviteTenant.value = state.context.tenantId;
+      if (state.context.tenantId && eligibleTenantIds.has(state.context.tenantId)) el.attachExistingTenant.value = state.context.tenantId;
       renderRoleMatrix();
+    }
+
+    function membershipRequestStatusLabel(status) {
+      if (status === 'pending') return 'Pendiente';
+      if (status === 'approved') return 'Aprobada';
+      if (status === 'rejected') return 'Rechazada';
+      if (status === 'expired') return 'Vencida';
+      return titleize(status || 'No informado');
+    }
+
+    function renderMembershipGovernance() {
+      var governance = state.membershipGovernance || {};
+      var requests = state.membershipRequests.slice();
+      var ready = governance.makerCheckerRequired === true
+        && governance.actorGovernanceReady === true
+        && governance.makerCheckerReady === true;
+      el.membershipRequestGate.classList.toggle('is-blocked', !ready);
+      el.membershipRequestGate.classList.toggle('is-ready', ready);
+      el.membershipRequestGateTitle.textContent = ready ? 'Doble control operativo disponible' : 'Doble control operativo bloqueado';
+      el.membershipRequestGateMessage.textContent = ready
+        ? 'La solicitud no cambia permisos: otra persona propietaria, distinta también de la cuenta objetivo, debe decidir.'
+        : (governance.actorGovernanceReady === true
+          ? 'Todavía no existe otra persona propietaria elegible con MFA para completar el doble control.'
+          : 'Tu cuenta debe ser propietaria activa y tener MFA antes de solicitar o decidir accesos.');
+      clear(el.membershipRequestFacts);
+      el.membershipRequestFacts.append(
+        pill(String(governance.usableOwnerCount || 0) + ' propietarios utilizables', ready ? 'is-ok' : 'is-danger'),
+        pill(String(governance.actionableRequestCount || 0) + ' decisiones disponibles', Number(governance.actionableRequestCount || 0) > 0 ? 'is-attention' : ''),
+        pill('Tenant explícito', governance.explicitTenantOnly === true ? 'is-ok' : 'is-danger'),
+        pill('Futuros tenants: no', governance.futureTenantAccess === false ? 'is-ok' : 'is-danger')
+      );
+      el.membershipRequestEmpty.hidden = requests.length > 0;
+      el.membershipRequestWrap.hidden = requests.length === 0;
+      clear(el.membershipRequestRows);
+      requests.forEach(function (request) {
+        var row = node('tr');
+        var target = node('td'); target.dataset.label = 'Cuenta y gobierno';
+        target.append(node('span', 'cell-title', request.targetDisplayName), node('span', 'cell-sub', request.targetEmail + ' · ' + request.tenantName));
+        var change = node('td'); change.dataset.label = 'Cambio';
+        change.append(node('span', 'cell-title', request.action === 'add' ? 'Alta RR.HH. operativa' : 'Reactivación RR.HH.'), node('span', 'cell-sub', request.reason || 'Fundamento no visible'));
+        var maker = node('td'); maker.dataset.label = 'Solicitante';
+        maker.append(node('span', 'cell-title', request.requestedByDisplayName), node('span', 'cell-sub', formatDate(request.requestedAt, true)));
+        var status = node('td'); status.dataset.label = 'Estado';
+        status.appendChild(pill(membershipRequestStatusLabel(request.status), statusTone(request.status)));
+        if (request.expiresAt) status.appendChild(node('span', 'cell-sub', (request.status === 'pending' ? 'Vence ' : 'Límite ') + formatDate(request.expiresAt, true)));
+        var decision = node('td'); decision.dataset.label = 'Decisión';
+        if (request.status === 'pending') {
+          var reasonField = node('div', 'field');
+          var reasonLabel = node('label', '', 'Fundamento para esta solicitud');
+          var reasonInput = node('textarea', 'textarea');
+          reasonInput.minLength = 3; reasonInput.maxLength = 500;
+          reasonInput.placeholder = 'Obligatorio para aprobar o rechazar';
+          reasonInput.dataset.membershipDecisionReason = request.id;
+          reasonLabel.htmlFor = 'membership-reason-' + request.id;
+          reasonInput.id = reasonLabel.htmlFor;
+          reasonField.append(reasonLabel, reasonInput);
+          var approve = node('button', 'button primary', 'Aprobar'); approve.type = 'button'; approve.dataset.approveMembershipRequest = request.id; approve.dataset.requestVersion = String(request.version || '');
+          var approveReady = ready && request.canCurrentActorDecide && canCommand('approve_membership_change');
+          approve.disabled = true;
+          var reject = node('button', 'button', 'Rechazar'); reject.type = 'button'; reject.dataset.rejectMembershipRequest = request.id; reject.dataset.requestVersion = String(request.version || '');
+          var rejectReady = ready && request.canCurrentActorDecide && canCommand('reject_membership_change');
+          reject.disabled = true;
+          reasonInput.addEventListener('input', function () {
+            var reasonReady = reasonInput.value.trim().length >= 3;
+            approve.disabled = !approveReady || state.loading || !reasonReady;
+            reject.disabled = !rejectReady || state.loading || !reasonReady;
+          });
+          decision.append(reasonField, approve, reject);
+          if (!request.canCurrentActorDecide) decision.appendChild(node('span', 'cell-sub', 'Debe decidir otra persona propietaria.'));
+        } else if (request.status === 'expired') {
+          decision.append(node('span', 'cell-title', 'Vencida sin decisión'), node('span', 'cell-sub', 'No modificó permisos ni creó una membresía.'));
+        } else {
+          decision.append(node('span', 'cell-title', request.decidedByEmail || 'Decisión registrada'), node('span', 'cell-sub', request.decisionReason || 'Fundamento protegido'));
+        }
+        row.append(target, change, maker, status, decision);
+        el.membershipRequestRows.appendChild(row);
+      });
     }
 
     function renderRoleMatrix() {
@@ -2324,6 +2485,8 @@
       var invitationVersionReady = Number.isSafeInteger(Number(user.invitation.version)) && Number(user.invitation.version) >= 1;
       el.issueInvitationButton.disabled = !mutationAllowed('issue_invitation', true) || !state.controls.invitationGatewayReady || user.invitation.status !== 'prepared' || !user.invitation.id || !invitationVersionReady;
       el.issueInvitationButton.textContent = user.invitation.status === 'issued' ? 'Invitación emitida' : user.invitation.status === 'accepted' ? 'Invitación aceptada' : 'Emitir invitación';
+      el.reactivateMembershipButton.disabled = !mutationAllowed('request_membership_reactivation', true)
+        || !user.membershipId || !versionReady || !reasonReady || normalizeUserStatus(user.status) !== 'suspended';
     }
 
     function openUserDetail(userId) {
@@ -2386,6 +2549,42 @@
       el.inviteMutationHint.textContent = valid
         ? (state.controls.invitationGatewayReady ? 'La invitación quedará preparada. Luego debe emitirse desde el detalle por el canal institucional.' : 'La invitación quedará preparada e inactiva hasta certificar el gateway; no crea credenciales.')
         : 'Completá los campos y resolvé los bloqueos de gobernanza.';
+    }
+
+    function updateAttachExistingGate() {
+      var email = el.attachExistingEmail.value.trim().toLowerCase();
+      var tenant = tenantById(el.attachExistingTenant.value);
+      var role = roleByKey(el.attachExistingRole.value);
+      var capabilities = role ? roleCapabilityKeys(role.key) : [];
+      var conflicts = sodConflicts(new Set(capabilities));
+      var eligibleTenantIds = new Set(list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).map(function (value) { return text(value); }).filter(Boolean));
+      var tenantReady = Boolean(tenant) && eligibleTenantIds.has(tenant.id);
+      if (tenant && !tenantReady) conflicts.push('Este gobierno todavía no tiene plano GRH y release certificados para altas operativas.');
+      var actorEmail = text(first(state.platformGovernance.currentActorEmail, state.user && state.user.email)).toLowerCase();
+      var eligibleCheckerCount = email ? state.platformGovernance.owners.filter(function (owner) {
+        return owner.active && owner.mfaEnrolled && owner.email
+          && owner.email !== actorEmail && owner.email !== email;
+      }).length : 0;
+      if (email && eligibleCheckerCount < 1) {
+        conflicts.push(email === actorEmail
+          ? 'No hay otra persona propietaria activa con MFA que pueda decidir tu solicitud.'
+          : 'No queda una persona propietaria activa con MFA distinta de quien solicita y de la cuenta objetivo. Con dos propietarios, cada owner debe solicitar su propia membresía para que el otro pueda decidir.');
+      }
+      var reasonReady = el.attachExistingReason.value.trim().length >= 3;
+      var ready = mutationAllowed('request_existing_membership', true)
+        && el.attachExistingEmail.validity.valid && Boolean(email)
+        && tenantReady && Boolean(role) && capabilities.length > 0
+        && eligibleCheckerCount > 0 && conflicts.length === 0 && reasonReady;
+      clear(el.attachExistingSummary);
+      if (!tenant || !role) {
+        el.attachExistingSummary.append(node('strong', '', 'Sin membresía propuesta.'), document.createTextNode(' Seleccioná gobierno y rol.'));
+      } else {
+        el.attachExistingSummary.append(node('strong', '', role.label + '. '), document.createTextNode(
+          capabilities.length + ' capacidades base para ' + tenant.name + '. ' + (tenantReady ? 'El gobierno está certificado para este flujo. ' : 'El gobierno todavía no está certificado. ') + 'No concede acceso a futuros gobiernos ni privilegios PostgreSQL.'
+        ));
+      }
+      renderConflictBox(el.attachExistingGate, conflicts, mutationAllowed('request_existing_membership', true));
+      el.attachExistingSubmit.disabled = !ready;
     }
 
     function showFieldError(input, errorElement, message) {
@@ -2488,6 +2687,7 @@
       renderTenants();
       renderGovernance();
       renderRoleOptions();
+      renderMembershipGovernance();
       renderPlatformGovernance();
       renderUsers();
       renderControls();
@@ -2511,6 +2711,8 @@
       state.exclusive = normalized.exclusive;
       state.operationalControls = normalized.operationalControls;
       state.operationalCatalog = normalized.operationalCatalog;
+      state.membershipRequests = normalized.membershipRequests;
+      state.membershipGovernance = normalized.membershipGovernance;
       return true;
     }
 
@@ -2644,11 +2846,16 @@
     }
 
     async function switchContext(tenantId) {
+      var requestedTenant = tenantId ? tenantById(tenantId) : null;
+      if (tenantId && (!requestedTenant || requestedTenant.apiBacked !== true)) {
+        showToast('Ese gobierno es sólo una referencia informativa: falta un UUID autorizado por la API.', true);
+        return;
+      }
       closeDialog(el.tenantSwitcherDialog); el.tenantSwitcher.setAttribute('aria-expanded', 'false');
       closeDialog(el.tenantDetailDialog);
       state.employmentCandidates = [];
       state.scopeDraft = [];
-      try { await loadAll(tenantId || ''); showToast(tenantId ? 'Ámbito cambiado y autorización actualizada.' : 'Ámbito global actualizado.'); }
+      try { await loadAll(tenantId || ''); showToast(tenantId ? 'Filtro administrativo aplicado. La sesión operativa no cambió.' : 'Filtro global del control plane aplicado.'); }
       catch (error) { showToast(error.message, true); }
     }
 
@@ -2762,20 +2969,32 @@
     }
 
     function commandNeedsSod(command) {
-      return ['invite_user', 'issue_invitation', 'update_access', 'assign_exclusive_capability', 'link_employment', 'revoke_employment_link', 'replace_action_scopes'].includes(command);
+      return ['invite_user', 'issue_invitation', 'update_access', 'assign_exclusive_capability', 'request_existing_membership', 'request_membership_reactivation', 'approve_membership_change', 'reject_membership_change', 'link_employment', 'revoke_employment_link', 'replace_action_scopes'].includes(command);
     }
 
     async function runCommand(command, payload, expectedVersion, button, successMessage, dialog) {
       if (!mutationAllowed(command, commandNeedsSod(command))) {
         showToast('El backend no habilitó esta operación con controles suficientes.', true); return;
       }
+      var commandFingerprint = JSON.stringify({ command: command, payload: payload || {}, expectedVersion: expectedVersion });
+      var idempotencyKey = state.pendingCommandKeys.get(commandFingerprint) || commandKey();
+      state.pendingCommandKeys.set(commandFingerprint, idempotencyKey);
       button.disabled = true;
       try {
-        await postCommand(command, payload, expectedVersion);
+        await postCommand(command, payload, expectedVersion, idempotencyKey);
+        state.pendingCommandKeys.delete(commandFingerprint);
         if (dialog) closeDialog(dialog);
         showToast(successMessage);
         await loadAll(state.context.tenantId || '');
-      } catch (error) { showToast(error.message, true); }
+      } catch (error) {
+        var uncertainOrConflict = !error.status || error.status === 408 || error.status === 409;
+        if (!uncertainOrConflict) state.pendingCommandKeys.delete(commandFingerprint);
+        showToast(error.message + (uncertainOrConflict ? ' Actualizando el estado antes de permitir otro intento.' : ''), true);
+        if (uncertainOrConflict) {
+          try { await loadAll(state.context.tenantId || ''); }
+          catch (_) { if (button && button.isConnected) button.disabled = false; }
+        } else if (button && button.isConnected) button.disabled = false;
+      }
       finally { renderGovernance(); renderControls(); }
     }
 
@@ -2805,7 +3024,7 @@
       el.tenantOptionSearch.addEventListener('input', renderTenantOptions);
       el.tenantOptions.addEventListener('click', function (event) { var option = event.target.closest('[data-tenant-option]'); if (option) switchContext(option.dataset.tenantOption || ''); });
       document.querySelectorAll('[data-close-dialog]').forEach(function (button) { button.addEventListener('click', function () { var dialog = document.getElementById(button.dataset.closeDialog); closeDialog(dialog); if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
-      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () {
+      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.attachExistingDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () {
         if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false');
         if (dialog === el.userDetailDialog) {
           state.employmentCandidates = [];
@@ -2839,6 +3058,21 @@
         event.preventDefault(); var result = validateInviteForm(); if (!result.valid) { updateInviteCapabilities(false); showToast('La invitación sigue bloqueada o incompleta.', true); return; }
         runCommand('invite_user', { tenantId: result.tenantId, email: result.email, displayName: result.name, roleKey: result.role }, null, el.sendInviteButton, 'Invitación preparada sin crear ni revelar credenciales.', el.inviteUserDialog);
       });
+      el.attachExistingButton.addEventListener('click', function () {
+        el.attachExistingForm.reset(); renderRoleOptions(); updateAttachExistingGate(); openDialog(el.attachExistingDialog);
+      });
+      [el.attachExistingEmail, el.attachExistingReason].forEach(function (input) { input.addEventListener('input', updateAttachExistingGate); });
+      [el.attachExistingTenant, el.attachExistingRole].forEach(function (select) { select.addEventListener('change', updateAttachExistingGate); });
+      el.attachExistingForm.addEventListener('submit', function (event) {
+        event.preventDefault(); updateAttachExistingGate();
+        if (el.attachExistingSubmit.disabled) { showToast('La asociación sigue bloqueada o incompleta.', true); return; }
+        runCommand('request_existing_membership', {
+          tenantId: el.attachExistingTenant.value,
+          email: el.attachExistingEmail.value.trim().toLowerCase(),
+          roleKey: el.attachExistingRole.value,
+          reason: el.attachExistingReason.value.trim()
+        }, 0, el.attachExistingSubmit, 'Solicitud registrada; todavía no se modificaron permisos.', el.attachExistingDialog);
+      });
       el.userSearch.addEventListener('input', renderUsers); el.userRoleFilter.addEventListener('change', renderUsers);
       el.clearUserFilters.addEventListener('click', function () { el.userSearch.value = ''; el.userRoleFilter.value = ''; state.userStatus = ''; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (tab) { tab.setAttribute('aria-selected', String(tab.dataset.userStatus === '')); }); renderUsers(); el.userSearch.focus(); });
       el.userStatusTabs.addEventListener('click', function (event) { var tab = event.target.closest('[data-user-status]'); if (!tab) return; state.userStatus = tab.dataset.userStatus; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (item) { item.setAttribute('aria-selected', String(item === tab)); }); renderUsers(); });
@@ -2846,6 +3080,28 @@
       el.roleMatrixRole.addEventListener('change', renderRoleMatrix);
       [el.platformOwnerCandidate, el.platformOwnerRequestReason, el.platformOwnerDecisionReason].forEach(function (control) {
         control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'input', renderPlatformGovernance);
+      });
+      el.membershipRequestRows.addEventListener('click', function (event) {
+        var approve = event.target.closest('[data-approve-membership-request]');
+        var reject = event.target.closest('[data-reject-membership-request]');
+        var button = approve || reject;
+        if (!button || button.disabled) return;
+        var row = button.closest('tr');
+        var reasonInput = row && row.querySelector('[data-membership-decision-reason]');
+        var reason = reasonInput ? reasonInput.value.trim() : '';
+        var version = Number(button.dataset.requestVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        var command = approve ? 'approve_membership_change' : 'reject_membership_change';
+        var requestId = approve ? button.dataset.approveMembershipRequest : button.dataset.rejectMembershipRequest;
+        var request = state.membershipRequests.find(function (item) { return item.id === requestId; });
+        if (!request) return;
+        var actionLabel = approve ? 'APROBAR' : 'RECHAZAR';
+        var confirmation = actionLabel + ' acceso operativo\n\nGobierno: ' + request.tenantName
+          + '\nCuenta: ' + request.targetEmail + '\nRol: ' + request.roleKey
+          + '\nFundamento: ' + reason + '\n\n¿Confirmar esta decisión auditada?';
+        if (!window.confirm(confirmation)) return;
+        runCommand(command, { requestId: requestId, reason: reason }, version, button,
+          approve ? 'Acceso operativo aprobado y auditado.' : 'Solicitud de acceso rechazada y auditada.', null);
       });
       el.platformOwnerGrantForm.addEventListener('submit', function (event) {
         event.preventDefault();
@@ -2877,6 +3133,17 @@
         if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
         var command = approve ? 'approve_platform_owner_change' : 'reject_platform_owner_change';
         var requestId = approve ? button.dataset.approveOwnerRequest : button.dataset.rejectOwnerRequest;
+        var request = state.platformGovernance.requests.find(function (item) { return item.id === requestId; });
+        if (!request) return;
+        var decisionLabel = approve ? 'APROBAR' : 'RECHAZAR';
+        var changeLabel = request.action === 'grant' ? 'OTORGAR PLATFORM_OWNER' : 'REVOCAR PLATFORM_OWNER';
+        var confirmation = decisionLabel + ' solicitud global\n\nCuenta objetivo: ' + request.targetEmail
+          + '\nCambio solicitado: ' + changeLabel
+          + '\nSolicitante: ' + request.requestedByEmail
+          + '\nMotivo original: ' + (request.reason || 'No informado')
+          + '\nFundamento de la decisión: ' + reason
+          + '\n\n¿Confirmar esta decisión global auditada?';
+        if (!window.confirm(confirmation)) return;
         runCommand(command, { requestId: requestId, reason: reason }, version, button,
           approve ? 'Cambio global aprobado y auditado.' : 'Solicitud global rechazada y auditada.', null);
       });
@@ -2921,6 +3188,14 @@
         var user = state.selectedUser; if (!user || el.suspendMembershipButton.disabled) return;
         if (!window.confirm('¿Suspender la membresía de ' + user.displayName + '? El backend volverá a validar esta decisión.')) return;
         runCommand('suspend_membership', { membershipId: user.membershipId }, user.version, el.suspendMembershipButton, 'Membresía suspendida.', el.userDetailDialog);
+      });
+      el.reactivateMembershipButton.addEventListener('click', function () {
+        var user = state.selectedUser; if (!user || el.reactivateMembershipButton.disabled) return;
+        if (!window.confirm('¿Reactivar la membresía explícita de ' + user.displayName + ' sólo para ' + user.tenantName + '?')) return;
+        runCommand('request_membership_reactivation', {
+          membershipId: user.membershipId,
+          reason: el.userAccessReason.value.trim()
+        }, user.version, el.reactivateMembershipButton, 'Solicitud de reactivación registrada; todavía no se modificaron permisos.', el.userDetailDialog);
       });
       el.issueInvitationButton.addEventListener('click', function () {
         var user = state.selectedUser; if (!user || el.issueInvitationButton.disabled) return;

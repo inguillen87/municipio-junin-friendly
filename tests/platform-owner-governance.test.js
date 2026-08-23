@@ -148,6 +148,7 @@ test('012 gobierna PLATFORM_OWNER con solicitud, doble aprobación y último own
   assert.match(sql, /owner_count <= 1[\s\S]+PLATFORM_OWNER_LAST_ACTIVE/);
   assert.match(sql, /owner_count = 2 AND target_email <> actor_email[\s\S]+PLATFORM_OWNER_TARGET_REQUEST_REQUIRED/);
   assert.match(sql, /UPDATE tenant_identity_session SET[\s\S]+source = 'platform'[\s\S]+status = 'active'/);
+  assert.doesNotMatch(sql, /UPDATE tenant_identity_session SET[\s\S]{0,240}?session_version\s*=\s*session_version\s*\+\s*1/);
   assert.match(sql, /INSERT INTO tenant_iam_event[\s\S]+'platform_role_request'/);
   assert.match(sql, /VOLATILE SECURITY DEFINER SET search_path = public, pg_temp/);
   const applyDefinition = functionDefinition(
@@ -167,6 +168,9 @@ test('012 gobierna PLATFORM_OWNER con solicitud, doble aprobación y último own
   assert.match(applyDefinition, /actor_email \|\| ':' \|\| p_idempotency_key::text, 0/);
   assert.match(sql, /REVOKE ALL ON TABLE platform_role_change_request FROM municontrol_actions_runtime_app/);
   assert.match(sql, /platform_owner_acl_hardening[\s\S]+aclexplode/);
+  assert.match(sql, /platform_owner_function_acl_hardening[\s\S]+pg_get_function_identity_arguments[\s\S]+REVOKE ALL PRIVILEGES ON FUNCTION/);
+  assert.match(sql, /aclexplode\(attribute\.attacl\)/);
+  assert.doesNotMatch(sql, /aclexplode\(COALESCE\(attribute\.attacl, '\{\}'::aclitem\[\]\)\)/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform_owner_governance_apply_v1/);
 });
 
@@ -187,6 +191,11 @@ test('aplicador 012 fija fingerprint, preflight 011 y allowlist final exacta', a
     PLATFORM_OWNER_GOVERNANCE_SIGNATURES.bootstrapSecondary,
   ), false);
   assert.match(applier, /directIsolatedDatabaseUrl\(\)/);
+  assert.match(applier, /aclexplode\(attribute\.attacl\)/);
+  assert.doesNotMatch(applier, /aclexplode\(COALESCE\(attribute\.attacl, '\{\}'::aclitem\[\]\)\)/);
+  assert.ok((applier.match(/to_json\(ARRAY\(SELECT DISTINCT COALESCE\(role_row\.rolname/g) || []).length >= 2);
+  assert.match(applier, /to_json\(ARRAY\(SELECT role_row\.rolname/);
+  assert.equal((sql.match(/\bEXECUTE\s+format\s*\(/gi) || []).length, 4);
   assert.match(applier, /SELECT checksum_sha256 FROM schema_migrations/);
   assert.match(applier, /if \(!existing\.rowCount\) \{[\s\S]+verifyVersionedTimeCatalogFinalAcl\(client\)/);
   assert.match(applier, /verifyPlatformOwnerGovernanceFinalAcl\(client\)[\s\S]+COMMIT/);
@@ -418,7 +427,7 @@ test('API expone vista global y procesa solicitudes sólo en contexto Plataforma
       payload: { targetEmail: 'Owner-B@Example.test', reason: 'Cobertura operativa' },
     },
   }, postResponse);
-  assert.equal(postResponse.statusCode, 200);
+  assert.equal(postResponse.statusCode, 202);
   assert.equal(postResponse.payload.request.status, 'pending');
   const apply = calls.find((call) => call.kind === 'apply');
   assert.equal(apply.command.payload.targetEmail, 'owner-b@example.test');
@@ -436,8 +445,12 @@ test('UI expone propietarios, solicitudes y decisiones sin edición directa del 
     'platformOwnerRequestRows', 'request_platform_owner_grant',
     'request_platform_owner_revoke', 'approve_platform_owner_change',
     'reject_platform_owner_change', 'makerCheckerReady', 'lastOwnerProtected',
-    'No podés aprobar tu propia baja',
+    'No podés aprobar tu propia baja', 'Cuenta objetivo:', 'Cambio solicitado:',
+    'Solicitante:', 'Motivo original:', 'Fundamento de la decisión:',
+    '¿Confirmar esta decisión global auditada?',
   ]) assert.match(html, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(html, /state\.platformGovernance\.requests\.find\(function \(item\) \{ return item\.id === requestId; \}\)/);
+  assert.match(html, /if \(!window\.confirm\(confirmation\)\) return;/);
   assert.doesNotMatch(html, /command:\s*['"](?:insert|update|delete)_platform_user_role/);
   assert.match(html, /El alta o la baja de un propietario requiere una solicitud y la decisión de otra persona propietaria/);
 });

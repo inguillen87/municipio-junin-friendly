@@ -382,7 +382,7 @@ export function validateVersionedTimeCatalogEvidence(evidence) {
   ], 'grants roles 011');
   exactSet((evidence?.conflicts || []).map((row) => `${row.left}:${row.right}`), [
     'time.catalog.approve:time.catalog.propose',
-    'time.overtime.post:time.catalog.approve',
+    'time.catalog.approve:time.overtime.post',
   ], 'conflictos SoD 011');
   for (const key of [
     'crossTenantEntries','crossTenantChildren','crossTenantEvents','makerCheckerViolations',
@@ -701,26 +701,26 @@ async function collectEvidence(client) {
         FROM aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) acl
         UNION ALL
         SELECT acl.grantee FROM pg_attribute attribute
-        CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+        CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
         WHERE attribute.attrelid = relation.oid AND attribute.attnum > 0
           AND attribute.attisdropped IS FALSE
       ) grants WHERE grants.grantee = 0) AS "publicPrivilegesRevoked",
       NOT (has_any_column_privilege($1, relation.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
         OR has_table_privilege($1, relation.oid, 'DELETE,TRUNCATE,TRIGGER'))
         AS "runtimePrivilegesRevoked",
-      ARRAY(SELECT DISTINCT COALESCE(grantee_role.rolname, 'PUBLIC')
+      to_json(ARRAY(SELECT DISTINCT COALESCE(grantee_role.rolname, 'PUBLIC')
         FROM (
           SELECT acl.grantee
           FROM aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) acl
           UNION ALL
           SELECT acl.grantee FROM pg_attribute attribute
-          CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+          CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
           WHERE attribute.attrelid = relation.oid AND attribute.attnum > 0
             AND attribute.attisdropped IS FALSE
         ) grants
         LEFT JOIN pg_roles grantee_role ON grantee_role.oid = grants.grantee
         WHERE grants.grantee <> relation.relowner
-        ORDER BY COALESCE(grantee_role.rolname, 'PUBLIC'))
+        ORDER BY COALESCE(grantee_role.rolname, 'PUBLIC')))
         AS "nonOwnerPrivilegeGrantees"
     FROM pg_class relation
     JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
@@ -755,13 +755,13 @@ async function collectEvidence(client) {
         OR has_sequence_privilege($1, sequence_row.oid, 'SELECT')
         OR has_sequence_privilege($1, sequence_row.oid, 'UPDATE'))
         AS "runtimePrivilegesRevoked",
-      ARRAY(SELECT DISTINCT COALESCE(grantee_role.rolname, 'PUBLIC')
+      to_json(ARRAY(SELECT DISTINCT COALESCE(grantee_role.rolname, 'PUBLIC')
         FROM aclexplode(COALESCE(
           sequence_row.relacl, acldefault('S', sequence_row.relowner)
         )) acl
         LEFT JOIN pg_roles grantee_role ON grantee_role.oid = acl.grantee
         WHERE acl.grantee <> sequence_row.relowner
-        ORDER BY COALESCE(grantee_role.rolname, 'PUBLIC'))
+        ORDER BY COALESCE(grantee_role.rolname, 'PUBLIC')))
         AS "nonOwnerPrivilegeGrantees"
     FROM sensitive_sequences sequence_row
     JOIN pg_roles runtime_role ON runtime_role.rolname = $1

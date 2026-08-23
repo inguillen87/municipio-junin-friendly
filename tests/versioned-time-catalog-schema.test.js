@@ -127,7 +127,7 @@ function installedEvidence() {
     ],
     conflicts: [
       { left: 'time.catalog.approve', right: 'time.catalog.propose' },
-      { left: 'time.overtime.post', right: 'time.catalog.approve' },
+      { left: 'time.catalog.approve', right: 'time.overtime.post' },
     ],
     crossTenantEntries: 0,
     crossTenantChildren: 0,
@@ -189,6 +189,8 @@ test('011 es parseable, fingerprintable y mantiene alcance catalog-only', () => 
   assert.equal(versionedTimeCatalogFingerprint(migration), versionedTimeCatalogFingerprint(migration));
   assert.doesNotMatch(migration, /\b(?:CREATE|ALTER|DROP)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?:public\.)?(?:grh_|payroll_|action_case)/i);
   assert.doesNotMatch(migration, /\b(?:calculated_minutes|worked_minutes|payroll_amount)\b/i);
+  assert.match(migration, /\('time\.catalog\.approve', 'time\.overtime\.post'/);
+  assert.doesNotMatch(migration, /\('time\.overtime\.post', 'time\.catalog\.approve'/);
   for (const flag of [
     'catalogReady','attendanceEvaluationReady','punchesLoaded',
     'minutesCalculated','payrollPosted','grhMutation',
@@ -427,6 +429,11 @@ test('aplicador exige rama aislada y hace fresh/reapply transaccional con prefli
   assert.match(applier, /pg_advisory_xact_lock/);
   assert.match(applier, /await verifyVersionedTimeCatalogFinalAcl\(client\)/);
   assert.match(migration, /time_catalog_acl_hardening[\s\S]+aclexplode/);
+  assert.match(migration, /aclexplode\(attribute\.attacl\)/);
+  assert.doesNotMatch(migration, /aclexplode\(COALESCE\(attribute\.attacl, '\{\}'::aclitem\[\]\)\)/);
+  assert.match(applier, /aclexplode\(attribute\.attacl\)/);
+  assert.doesNotMatch(applier, /aclexplode\(COALESCE\(attribute\.attacl, '\{\}'::aclitem\[\]\)\)/);
+  assert.ok((applier.match(/to_json\(ARRAY\(SELECT DISTINCT COALESCE\(grantee_role\.rolname/g) || []).length >= 2);
   assert.match(applier, /await client\.query\('COMMIT'\)/);
   assert.match(applier, /await client\.query\('ROLLBACK'\)/);
   assert.match(applier, /reapply verificado/);

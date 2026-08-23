@@ -524,7 +524,7 @@ BEGIN
         RETURNING * INTO assignment;
         UPDATE tenant_identity_session SET
           status = 'revoked', revoked_at = now(), revoked_by_user_email = actor_user.email,
-          session_version = session_version + 1, version = version + 1
+          version = version + 1
         WHERE lower(user_email) = target_email AND source = 'platform'
           AND status = 'active';
         GET DIAGNOSTICS revoked_sessions = ROW_COUNT;
@@ -701,6 +701,49 @@ REVOKE ALL ON FUNCTION platform_owner_last_active_guard_v1() FROM PUBLIC;
 REVOKE ALL ON FUNCTION platform_owner_governance_view_v1(text,uuid,integer,text,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION platform_owner_governance_apply_v1(text,uuid,integer,text,text,uuid,text,integer,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION platform_owner_bootstrap_secondary_v1(text,text,text,text,text,uuid,text) FROM PUBLIC;
+
+-- CREATE OR REPLACE conserva ACL historicas. Eliminamos todo EXECUTE no-owner
+-- antes de volver a otorgar exclusivamente las dos fachadas al runtime.
+DO $platform_owner_function_acl_hardening$
+DECLARE
+  acl_row record;
+  grantee_sql text;
+BEGIN
+  FOR acl_row IN
+    SELECT format('%I.%I(%s)', namespace.nspname, function_row.proname,
+        pg_get_function_identity_arguments(function_row.oid)) AS function_sql,
+      acl.grantee, grantee_role.rolname AS grantee_name
+    FROM pg_proc function_row
+    JOIN pg_namespace namespace ON namespace.oid = function_row.pronamespace
+    CROSS JOIN LATERAL aclexplode(COALESCE(
+      function_row.proacl, acldefault('f', function_row.proowner)
+    )) acl
+    LEFT JOIN pg_roles grantee_role ON grantee_role.oid = acl.grantee
+    WHERE namespace.nspname = 'public'
+      AND function_row.proname IN (
+        'platform_owner_governance_lock_v1',
+        'platform_owner_last_active_guard_v1',
+        'platform_owner_governance_view_v1',
+        'platform_owner_governance_apply_v1',
+        'platform_owner_bootstrap_secondary_v1'
+      )
+      AND acl.grantee <> function_row.proowner
+  LOOP
+    IF acl_row.grantee = 0 THEN
+      grantee_sql := 'PUBLIC';
+    ELSIF acl_row.grantee_name IS NULL THEN
+      RAISE EXCEPTION 'PLATFORM_OWNER_FUNCTION_ACL_GRANTEE_UNKNOWN' USING ERRCODE = 'P0001';
+    ELSE
+      grantee_sql := format('%I', acl_row.grantee_name);
+    END IF;
+    EXECUTE format(
+      'REVOKE ALL PRIVILEGES ON FUNCTION %s FROM %s',
+      acl_row.function_sql, grantee_sql
+    );
+  END LOOP;
+END
+$platform_owner_function_acl_hardening$;
+
 REVOKE ALL ON TABLE
   platform_role_change_request, platform_user_role, tenant_iam_event
 FROM PUBLIC;
@@ -766,7 +809,7 @@ BEGIN
     FROM sensitive_relations relation
     JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
       AND attribute.attnum > 0 AND attribute.attisdropped IS FALSE
-    CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+    CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
     LEFT JOIN pg_roles grantee_role ON grantee_role.oid = acl.grantee
     WHERE acl.grantee <> relation.relowner
     UNION ALL

@@ -114,7 +114,23 @@ function contractConstraints() {
     constraint('time_source_contract_maker_checker_ck', 'c',
       'CHECK (approver_person_id <> proposer_person_id AND approver_membership_id <> proposer_membership_id)'),
     constraint('time_source_contract_state_ck', 'c',
-      "CHECK ((status = 'draft') OR (status = 'submitted') OR (status = 'approved') OR (status = 'rejected') OR (status = 'retired') OR (status = 'cancelled'))"),
+      `CHECK (
+        (status = 'draft' AND submitted_at IS NULL AND decided_at IS NULL
+          AND retired_at IS NULL AND cancelled_at IS NULL
+          AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+        OR (status = 'submitted' AND submitted_at IS NOT NULL AND decided_at IS NULL
+          AND retired_at IS NULL AND cancelled_at IS NULL
+          AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+        OR (status IN ('approved','rejected') AND submitted_at IS NOT NULL
+          AND decided_at IS NOT NULL AND retired_at IS NULL AND cancelled_at IS NULL
+          AND approver_person_id IS NOT NULL AND approver_membership_id IS NOT NULL)
+        OR (status = 'retired' AND submitted_at IS NOT NULL AND decided_at IS NOT NULL
+          AND retired_at IS NOT NULL AND cancelled_at IS NULL
+          AND approver_person_id IS NOT NULL AND approver_membership_id IS NOT NULL)
+        OR (status = 'cancelled' AND decided_at IS NULL AND retired_at IS NULL
+          AND cancelled_at IS NOT NULL
+          AND approver_person_id IS NULL AND approver_membership_id IS NULL)
+      )`),
   ];
 }
 
@@ -145,6 +161,40 @@ function eventConstraints() {
       "CHECK (jsonb_typeof(before_snapshot) = 'object' AND jsonb_typeof(after_snapshot) = 'object' AND jsonb_typeof(result) = 'object')"),
   ];
 }
+
+const postgresDeparsedStatusConstraint = `CHECK (((status)::text = ANY
+  ((ARRAY['cancelled'::character varying, 'approved'::character varying,
+    'draft'::character varying, 'retired'::character varying,
+    'submitted'::character varying, 'rejected'::character varying])::text[])))`;
+
+const postgresDeparsedStateConstraint = `CHECK (
+  ((((status)::text = 'draft'::text) AND (submitted_at IS NULL)
+    AND (decided_at IS NULL) AND (retired_at IS NULL) AND (cancelled_at IS NULL)
+    AND (approver_person_id IS NULL) AND (approver_membership_id IS NULL))
+  OR (((status)::text = 'submitted'::text) AND (submitted_at IS NOT NULL)
+    AND (decided_at IS NULL) AND (retired_at IS NULL) AND (cancelled_at IS NULL)
+    AND (approver_person_id IS NULL) AND (approver_membership_id IS NULL))
+  OR (((status)::text = ANY ((ARRAY['rejected'::character varying,
+    'approved'::character varying])::text[])) AND (submitted_at IS NOT NULL)
+    AND (decided_at IS NOT NULL) AND (retired_at IS NULL) AND (cancelled_at IS NULL)
+    AND (approver_person_id IS NOT NULL) AND (approver_membership_id IS NOT NULL))
+  OR (((status)::text = 'retired'::text) AND (submitted_at IS NOT NULL)
+    AND (decided_at IS NOT NULL) AND (retired_at IS NOT NULL) AND (cancelled_at IS NULL)
+    AND (approver_person_id IS NOT NULL) AND (approver_membership_id IS NOT NULL))
+  OR (((status)::text = 'cancelled'::text) AND (decided_at IS NULL)
+    AND (retired_at IS NULL) AND (cancelled_at IS NOT NULL)
+    AND (approver_person_id IS NULL) AND (approver_membership_id IS NULL)))`;
+
+const postgresDeparsedEventContextConstraint = `CHECK (
+  actor_session_version > 0
+  AND release_sha ~ '^[a-f0-9]{40}$'::text
+  AND command_hash ~ '^[a-f0-9]{64}$'::text
+  AND reason_hash ~ '^[a-f0-9]{64}$'::text
+  AND expected_version >= 0
+  AND resulting_version = (expected_version + 1)
+  AND ((command)::text = 'create_draft'::text AND expected_version = 0
+    OR (command)::text <> 'create_draft'::text AND expected_version > 0)
+  AND time_source_reason_allowed_v1(command, reason_code))`;
 
 function functionDefinition(signature) {
   const name = signature.match(/^public\.([^(]+)/)?.[1];
@@ -466,6 +516,50 @@ test('evidencia instalada exige columnas, constraints, funciones, ACL y runtime 
   const unmanagedRole = installedEvidence();
   unmanagedRole.roles[0].systemManaged = false;
   assert.throws(() => validateTimeSourceEvidence(unmanagedRole), /metadata roles/);
+});
+
+test('checks 010 aceptan deparser PostgreSQL con casts y ANY sin relajar estados', () => {
+  const deparsed = installedEvidence();
+  deparsed.contractConstraints.find((row) => row.name === 'time_source_contract_status_ck')
+    .definition = postgresDeparsedStatusConstraint;
+  deparsed.contractConstraints.find((row) => row.name === 'time_source_contract_state_ck')
+    .definition = postgresDeparsedStateConstraint;
+  deparsed.eventConstraints.find((row) => row.name === 'time_source_governance_event_context_ck')
+    .definition = postgresDeparsedEventContextConstraint;
+  assert.doesNotThrow(() => validateTimeSourceEvidence(deparsed));
+
+  const weakenedContext = installedEvidence();
+  weakenedContext.eventConstraints.find((row) => row.name === 'time_source_governance_event_context_ck')
+    .definition = postgresDeparsedEventContextConstraint.replace(
+      'resulting_version = (expected_version + 1)',
+      'resulting_version >= (expected_version + 1)',
+    );
+  assert.throws(
+    () => validateTimeSourceEvidence(weakenedContext),
+    /check contexto event no contiene contrato resulting_version = expected_version \+ 1/,
+  );
+
+  const missingStatus = installedEvidence();
+  missingStatus.contractConstraints.find((row) => row.name === 'time_source_contract_status_ck')
+    .definition = postgresDeparsedStatusConstraint.replace(
+      ", 'rejected'::character varying",
+      '',
+    );
+  assert.throws(
+    () => validateTimeSourceEvidence(missingStatus),
+    /constraint invalida time_source_contract_status_ck/,
+  );
+
+  const weakenedState = installedEvidence();
+  weakenedState.contractConstraints.find((row) => row.name === 'time_source_contract_state_ck')
+    .definition = postgresDeparsedStateConstraint.replace(
+      '(cancelled_at IS NOT NULL)',
+      '(cancelled_at IS NULL)',
+    );
+  assert.throws(
+    () => validateTimeSourceEvidence(weakenedState),
+    /constraint invalida time_source_contract_state_ck/,
+  );
 });
 
 test('runtime sólo ejecuta allowlist SECDEF y no toca relaciones ni secuencias', () => {

@@ -224,7 +224,14 @@ export function createInternalAdminHandler(dependencies = {}) {
       const body = await readBody(req);
       const command = normalizeInternalAdminCommand(body, header(req, 'idempotency-key').trim());
       const result = await applyCommand(sql, session, command, { releaseSha });
-      return send(res, command.command === 'create_tenant' || command.command === 'invite_user' ? 201 : 200, {
+      const acceptedCommands = new Set([
+        'request_existing_membership', 'request_membership_reactivation',
+        'request_platform_owner_grant', 'request_platform_owner_revoke',
+      ]);
+      const createdCommands = new Set(['create_tenant', 'invite_user']);
+      const successStatus = acceptedCommands.has(command.command)
+        ? 202 : (createdCommands.has(command.command) ? 201 : 200);
+      return send(res, successStatus, {
         ok: true, ...result,
       });
     } catch (error) {

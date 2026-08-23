@@ -191,7 +191,7 @@ test('freeze backend #2 se verifica por bytes antes de cualquier conexion', asyn
   assert.ok(freezeAt > 0 && preflightAt > freezeAt && migrationAt > preflightAt);
   for (const hash of [
     '66ab3584315db1baba52f08ac7579eddbe04898fd5fa2c383f4e778a2f1a7034',
-    '0a7d14f3d855bb2537fd2e053b2f59d19b757b8dcac42f130346900574ab37e7',
+    'a791b1c5e0d1c46126bbea81b2a93633db97fe57376cb1dd0b2216d1c83ceea7',
     '28664fa7bbf26d8a501ffc9b4c175c083137f622e4a36a4a2b45069e506b07c4',
   ]) assert.ok(source.includes(hash));
 });

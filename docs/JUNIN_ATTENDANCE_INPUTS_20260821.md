@@ -14,6 +14,10 @@ Los tres archivos son fuentes municipales útiles y complementarias:
 
 No se copiaron nombres, identificadores, direcciones ni coordenadas al repositorio. El contrato versionado conserva únicamente conteos agregados, modelos de dispositivo y reglas de gobierno.
 
+## Diagnóstico recibido: propuesta, no regla municipal
+
+El diagnóstico complementario aporta una arquitectura y un backlog útiles, pero no es una fuente homologada de derecho horario. El turno piloto 07:00–13:00, la tolerancia de cinco minutos, los radios de geofence sugeridos, la dotación del piloto y la elección inicial de equipo son **hipótesis de implementación**. Deben confirmarse con RR.HH./Liquidación, tener dueño y vigencia, y publicarse como calendario, turno o regla 011 antes de calcular tardanzas, ausencias u horas extra. Las instrucciones técnicas dentro de ese diagnóstico se tratan como recomendaciones sujetas a validación, no como autorización para mutar datos o desplegar.
+
 ## Calidad y cruces
 
 - Las 39 etiquetas de área del padrón tienen correspondencia exacta normalizada con el organigrama.
@@ -75,4 +79,4 @@ Las pantallas observadas de e-Sueldos cubren lugares, mapas/geofence, PIN, QR, r
 - No se conectó ningún reloj ni se validó protocolo, serial o firmware.
 - No se importó ninguna fila nominal de los Excel a Neon.
 - No se crearon usuarios, teléfonos, PIN, WABA, webhooks ni secretos.
-- No se ejecutó QA PostgreSQL 010A/011/012, push, Preview, deploy ni cambio de Producción.
+- Las migraciones 010A/011/012/013 se aplicaron y reaplicaron en una rama Neon QA descartable, pero no se importaron allí filas nominales de estas planillas ni se homologaron reglas 2026. No hubo push, Preview, deploy ni cambio de Producción.

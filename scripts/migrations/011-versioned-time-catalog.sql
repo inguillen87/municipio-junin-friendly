@@ -28,7 +28,7 @@ INSERT INTO iam_capability_conflict (
 ) VALUES
   ('time.catalog.approve', 'time.catalog.propose',
    'La propuesta y la aprobacion del catalogo temporal deben estar separadas.'),
-  ('time.overtime.post', 'time.catalog.approve',
+  ('time.catalog.approve', 'time.overtime.post',
    'Quien gobierna reglas temporales no debe impactar mayor esfuerzo.')
 ON CONFLICT (capability_key, conflicts_with_key)
 DO UPDATE SET reason = EXCLUDED.reason;
@@ -2052,7 +2052,7 @@ BEGIN
     FROM sensitive_relations relation
     JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
       AND attribute.attnum > 0 AND attribute.attisdropped IS FALSE
-    CROSS JOIN LATERAL aclexplode(COALESCE(attribute.attacl, '{}'::aclitem[])) acl
+    CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
     LEFT JOIN pg_roles grantee_role ON grantee_role.oid = acl.grantee
     WHERE acl.grantee <> relation.relowner
     UNION ALL
