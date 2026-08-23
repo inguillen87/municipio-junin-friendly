@@ -1,0 +1,2504 @@
+{
+  "schemaVersion": 1,
+  "toolVersion": "1.0.0",
+  "profileKind": "safe_mapping_subset",
+  "privacy": {
+    "rawRowsRetained": false,
+    "dataLiteralsEmitted": false,
+    "samplesEmitted": false,
+    "outputScope": "schema_metadata_and_aggregate_counts_only"
+  },
+  "source": {
+    "fileName": "grh_junin.backup_2026081915_plataforma.sql.gz",
+    "container": "gzip",
+    "bytes": 44634613,
+    "logicalBytes": 775106620,
+    "sha256": "bced0b174aab977b085fc977723f7edd8fb9e473adcfbe237070e8ecef982aa7"
+  },
+  "sql": {
+    "dialect": "MariaDB/MySQL",
+    "statementCount": 2048,
+    "createTableStatements": 257,
+    "alterTableStatements": 0,
+    "insertStatements": 884
+  },
+  "summary": {
+    "tableCount": 257,
+    "columnCount": 2980,
+    "rowCount": 6586360,
+    "indexCount": 315,
+    "foreignKeyCount": 342,
+    "candidateCounts": {
+      "turnos": 6,
+      "fichadas": 5,
+      "calendarios": 9,
+      "reglas": 8
+    }
+  },
+  "selection": {
+    "kind": "mapped_schema_subset",
+    "fullProfileSha256": "04b1739a441b65cbf8f703dc92e262ddfe32114485b08f90e7172e57b2886e0d",
+    "tableCount": 29,
+    "columnCount": 212,
+    "rowCount": 5072607,
+    "indexCount": 0,
+    "foreignKeyCount": 57
+  },
+  "tables": [
+    {
+      "name": "ausencia",
+      "rowCount": 31622,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FAUS_20",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_21",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CANT_20",
+          "type": "decimal(4,2)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FREG_20",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FINS_20",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "COME_20",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DIAS_24",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECHAHASTA",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "FAUS_20",
+        "LEGA_12"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "AUSENCIA_FK",
+          "columns": [
+            "CODI_27"
+          ],
+          "referencedTable": "concepto",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        },
+        {
+          "name": "AUSENCIA2_FK",
+          "columns": [
+            "CODI_21"
+          ],
+          "referencedTable": "motause",
+          "referencedColumns": [
+            "CODI_21"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "calculo",
+      "rowCount": 4373145,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "PERI_31",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "MES_31",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECA_31",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_31",
+          "type": "varchar(1)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CANT_31",
+          "type": "decimal(15,2)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IMPO_31",
+          "type": "decimal(15,2)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_02",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_06",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_07",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "CODI_27",
+        "FECA_31",
+        "LEGA_12",
+        "MES_31",
+        "PERI_31",
+        "TIPO_31"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "CALCULO_FK",
+          "columns": [
+            "CODI_01",
+            "CODI_07"
+          ],
+          "referencedTable": "sectores",
+          "referencedColumns": [
+            "CODI_01",
+            "CODI_07"
+          ]
+        },
+        {
+          "name": "CALCULO2_FK",
+          "columns": [
+            "CODI_01",
+            "CODI_06"
+          ],
+          "referencedTable": "costos",
+          "referencedColumns": [
+            "CODI_01",
+            "CODI_06"
+          ]
+        },
+        {
+          "name": "FK4B7B3A23EEB52E8E",
+          "columns": [
+            "CODI_27"
+          ],
+          "referencedTable": "concepto",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        },
+        {
+          "name": "FK4B7B3A23EFC0E407",
+          "columns": [
+            "CODI_02"
+          ],
+          "referencedTable": "convenio",
+          "referencedColumns": [
+            "CODI_02"
+          ]
+        },
+        {
+          "name": "GRH_CDU_CALCU_HISTO_FK",
+          "columns": [
+            "CODI_01",
+            "PERI_31",
+            "MES_31",
+            "FECA_31",
+            "TIPO_31"
+          ],
+          "referencedTable": "histocal",
+          "referencedColumns": [
+            "CODI_01",
+            "PERI_31",
+            "MES_31",
+            "FECA_31",
+            "TIPO_31"
+          ]
+        },
+        {
+          "name": "GRH_CDU_CALCU_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cargo",
+      "rowCount": 5,
+      "columns": [
+        {
+          "name": "CARGOID",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DENOCARGO",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "PADREID",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DEPENDEID",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CARGOID"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "FK3CEEF9C3DD84E5C",
+          "columns": [
+            "DEPENDEID"
+          ],
+          "referencedTable": "cargo",
+          "referencedColumns": [
+            "CARGOID"
+          ]
+        },
+        {
+          "name": "FK3CEEF9C4FEC4DA9",
+          "columns": [
+            "PADREID"
+          ],
+          "referencedTable": "cargo",
+          "referencedColumns": [
+            "CARGOID"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "catego",
+      "rowCount": 156,
+      "columns": [
+        {
+          "name": "CODI_02",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_10",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_10",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_02",
+        "CODI_10"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "FK760FE477EFC0E407",
+          "columns": [
+            "CODI_02"
+          ],
+          "referencedTable": "convenio",
+          "referencedColumns": [
+            "CODI_02"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "concepto",
+      "rowCount": 294,
+      "columns": [
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_15",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_15",
+          "type": "varchar(1)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "UNID_15",
+          "type": "varchar(1)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TOTA_15",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO",
+          "type": "decimal(1,0)",
+          "nullable": false,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_27"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "convenio",
+      "rowCount": 14,
+      "columns": [
+        {
+          "name": "CODI_02",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_02",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_02"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "costos",
+      "rowCount": 46,
+      "columns": [
+        {
+          "name": "CODI_06",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_06",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "CODI_06"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "cptosreloj",
+      "rowCount": 7,
+      "columns": [
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "AUTO_156",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "ACTI_156",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_156",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_27"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "CONCEPT_FK",
+          "columns": [
+            "CODI_27"
+          ],
+          "referencedTable": "concepto",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "empresa",
+      "rowCount": 1,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "NOMB_01",
+          "type": "varchar(55)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DOMI_01",
+          "type": "varchar(55)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "LOCA_01",
+          "type": "varchar(55)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CUIT_01",
+          "type": "varchar(13)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "email",
+          "type": "varchar(255)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "esperanza",
+      "rowCount": 163634,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECH_160",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HINI_160",
+          "type": "varchar(5)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DSEM_160",
+          "type": "varchar(9)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "AUTO_160",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_154",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HFIN_160",
+          "type": "varchar(5)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDESPERANZA",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "IDESPERANZA"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "ESPERANZ_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        },
+        {
+          "name": "MOTIA_FK",
+          "columns": [
+            "CODI_154"
+          ],
+          "referencedTable": "motiauto",
+          "referencedColumns": [
+            "CODI_154"
+          ]
+        },
+        {
+          "name": "TURN_FK",
+          "columns": [
+            "CODI_151"
+          ],
+          "referencedTable": "turnos",
+          "referencedColumns": [
+            "CODI_151"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "feriado",
+      "rowCount": 55,
+      "columns": [
+        {
+          "name": "FECH_22",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "MOTI_22",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPOFERIADO",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "FECH_22"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "fichadas",
+      "rowCount": 958,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECH_159",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "HORA_159",
+          "type": "varchar(5)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DSEM_159",
+          "type": "varchar(9)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "AUTO_159",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_154",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "PROC_159",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "ENTRADA",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDESPERANZA",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "FECH_159",
+        "HORA_159",
+        "LEGA_12"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "ESPERANZ_FK",
+          "columns": [
+            "IDESPERANZA"
+          ],
+          "referencedTable": "esperanza",
+          "referencedColumns": [
+            "IDESPERANZA"
+          ]
+        },
+        {
+          "name": "FICHAD_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        },
+        {
+          "name": "MOTIAUT_FK",
+          "columns": [
+            "CODI_154"
+          ],
+          "referencedTable": "motiauto",
+          "referencedColumns": [
+            "CODI_154"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "histocal",
+      "rowCount": 626,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "PERI_31",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "MES_31",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECA_31",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_31",
+          "type": "varchar(1)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CIER_31",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "FECA_31",
+        "MES_31",
+        "PERI_31",
+        "TIPO_31"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "horarios",
+      "rowCount": 32,
+      "columns": [
+        {
+          "name": "CODI_153",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DESC_153",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HINI_153",
+          "type": "varchar(5)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HFIN_153",
+          "type": "varchar(5)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "PRTE_153",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "PRTS_153",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "POTE_153",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "POTS_153",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_153"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "TOLERANCIAS_FK",
+          "columns": [
+            "PRTE_153"
+          ],
+          "referencedTable": "tolerancias",
+          "referencedColumns": [
+            "CODI_155"
+          ]
+        },
+        {
+          "name": "TOLERANCIAS1_FK",
+          "columns": [
+            "PRTS_153"
+          ],
+          "referencedTable": "tolerancias",
+          "referencedColumns": [
+            "CODI_155"
+          ]
+        },
+        {
+          "name": "TOLERANCIAS2_FK",
+          "columns": [
+            "POTE_153"
+          ],
+          "referencedTable": "tolerancias",
+          "referencedColumns": [
+            "CODI_155"
+          ]
+        },
+        {
+          "name": "TOLERANCIAS3_FK",
+          "columns": [
+            "POTS_153"
+          ],
+          "referencedTable": "tolerancias",
+          "referencedColumns": [
+            "CODI_155"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "legajo",
+      "rowCount": 2450,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FING_12",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FEGR_12",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_02",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_06",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_07",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_03",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_10",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TURN_12",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FITU_12",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDPERSONA",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDORGANIZA",
+          "type": "decimal(13,0)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CARGOID",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDREVISTA",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "iddepartamento",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "lugarDeTrabajo",
+          "type": "varchar(100)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "LEGA_12"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "CARGO_FK",
+          "columns": [
+            "CARGOID"
+          ],
+          "referencedTable": "cargo",
+          "referencedColumns": [
+            "CARGOID"
+          ]
+        },
+        {
+          "name": "CONV_FK",
+          "columns": [
+            "CODI_02"
+          ],
+          "referencedTable": "convenio",
+          "referencedColumns": [
+            "CODI_02"
+          ]
+        },
+        {
+          "name": "COSTOS_FK",
+          "columns": [
+            "CODI_01",
+            "CODI_06"
+          ],
+          "referencedTable": "costos",
+          "referencedColumns": [
+            "CODI_01",
+            "CODI_06"
+          ]
+        },
+        {
+          "name": "FK859DE8984BB5A729",
+          "columns": [
+            "IDPERSONA"
+          ],
+          "referencedTable": "persona",
+          "referencedColumns": [
+            "IDPERSONA"
+          ]
+        },
+        {
+          "name": "FK859DE898821DA8EC",
+          "columns": [
+            "CODI_01",
+            "CODI_07"
+          ],
+          "referencedTable": "sectores",
+          "referencedColumns": [
+            "CODI_01",
+            "CODI_07"
+          ]
+        },
+        {
+          "name": "FK859DE8989317F58D",
+          "columns": [
+            "IDORGANIZA"
+          ],
+          "referencedTable": "organiza",
+          "referencedColumns": [
+            "IDORGANIZA"
+          ]
+        },
+        {
+          "name": "FK859DE898EF0DF3E8",
+          "columns": [
+            "CODI_02",
+            "CODI_10"
+          ],
+          "referencedTable": "catego",
+          "referencedColumns": [
+            "CODI_02",
+            "CODI_10"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "legamov",
+      "rowCount": 492127,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "ANO_30",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "MES_30",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_31",
+          "type": "varchar(1)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "cant_30",
+          "type": "decimal(10,2)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "AUTO_30",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_06",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "ESTADO",
+          "type": "varchar(255)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "ANO_30",
+        "CODI_01",
+        "CODI_06",
+        "CODI_27",
+        "LEGA_12",
+        "MES_30",
+        "TIPO_31"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "LEGAJOMOV_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        },
+        {
+          "name": "LEGAMOV_FK",
+          "columns": [
+            "CODI_27"
+          ],
+          "referencedTable": "concepto",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "legaturn",
+      "rowCount": 574,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECH_152",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FINI_152",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FFIN_152",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_157",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "OBSE_152",
+          "type": "varchar(250)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "FECH_152",
+        "LEGA_12"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "LEGAT_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        },
+        {
+          "name": "LOCALES_FK",
+          "columns": [
+            "CODI_157"
+          ],
+          "referencedTable": "locales",
+          "referencedColumns": [
+            "CODI_157"
+          ]
+        },
+        {
+          "name": "TURN1_FK",
+          "columns": [
+            "CODI_151"
+          ],
+          "referencedTable": "turnos",
+          "referencedColumns": [
+            "CODI_151"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "licencia",
+      "rowCount": 3448,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "PERI_24",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_24",
+          "type": "varchar(1)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FINI_24",
+          "type": "date",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "FFIN_24",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "OBS1_24",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DIAS_24",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "FINI_24",
+        "LEGA_12",
+        "PERI_24"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "LIC_LEG_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "locales",
+      "rowCount": 3,
+      "columns": [
+        {
+          "name": "CODI_157",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DESC_157",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_157"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "motause",
+      "rowCount": 27,
+      "columns": [
+        {
+          "name": "CODI_21",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_21",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_21",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "AFECTAPRESENTISMO",
+          "type": "decimal(1,0)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "codi_27",
+          "type": "int(11) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "metodocalculo",
+          "type": "varchar(1)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "diascorridos",
+          "type": "char(1)",
+          "nullable": false,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_21"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "FK74CD3778EEB52E8E",
+          "columns": [
+            "codi_27"
+          ],
+          "referencedTable": "concepto",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "motiauto",
+      "rowCount": 3,
+      "columns": [
+        {
+          "name": "CODI_154",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DESC_154",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_154"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "noveauto",
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECH_162",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "MES_30",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "ANO_30",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_31",
+          "type": "varchar(1)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_162",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_162"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "NOVE_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "organiza",
+      "rowCount": 83,
+      "columns": [
+        {
+          "name": "IDORGANIZA",
+          "type": "decimal(13,0)",
+          "nullable": false,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "N1_DESC",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "codigoOrganiza",
+          "type": "varchar(100)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "ID_PADRE",
+          "type": "bigint(20)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "activo",
+          "type": "varchar(255)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "IDORGANIZA"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "FK_organiza",
+          "columns": [
+            "CODI_01"
+          ],
+          "referencedTable": "empresa",
+          "referencedColumns": [
+            "CODI_01"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "persona",
+      "rowCount": 2349,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "NOMB_12",
+          "type": "varchar(100)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "SEXO_12",
+          "type": "varchar(15)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DOMI_12",
+          "type": "varchar(100)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FENA_12",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_47",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "NUDO_12",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TELE_12",
+          "type": "varchar(50)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CUIL_12",
+          "type": "varchar(12)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDPERSONA",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": true
+        },
+        {
+          "name": "EMIA_12",
+          "type": "varchar(100)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "IDLOCALIDAD",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "IDPERSONA"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "prenove",
+      "rowCount": 873,
+      "columns": [
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "LEGA_12",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "FECH_164",
+          "type": "date",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_154",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "AUTO_164",
+          "type": "varchar(4)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "REAL_164",
+          "type": "varchar(6)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_164",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_164"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "MOTIAU_FK",
+          "columns": [
+            "CODI_154"
+          ],
+          "referencedTable": "motiauto",
+          "referencedColumns": [
+            "CODI_154"
+          ]
+        },
+        {
+          "name": "PRENOV_LEGAJ_FK",
+          "columns": [
+            "CODI_01",
+            "LEGA_12"
+          ],
+          "referencedTable": "legajo",
+          "referencedColumns": [
+            "CODI_01",
+            "LEGA_12"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "relacptos",
+      "rowCount": 0,
+      "columns": [
+        {
+          "name": "ID",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_151",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_27",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DIAS_163",
+          "type": "varchar(7)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_163",
+          "type": "varchar(9)",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_153",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPOFERIADO",
+          "type": "varchar(250)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "ID"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "CPTOSRELOJ_FK",
+          "columns": [
+            "CODI_27"
+          ],
+          "referencedTable": "cptosreloj",
+          "referencedColumns": [
+            "CODI_27"
+          ]
+        },
+        {
+          "name": "HORARIOS_FK",
+          "columns": [
+            "CODI_153"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "TURNOS_FK",
+          "columns": [
+            "CODI_151"
+          ],
+          "referencedTable": "turnos",
+          "referencedColumns": [
+            "CODI_151"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sectores",
+      "rowCount": 36,
+      "columns": [
+        {
+          "name": "CODI_07",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DETA_07",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CODI_01",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_01",
+        "CODI_07"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "tolerancias",
+      "rowCount": 9,
+      "columns": [
+        {
+          "name": "CODI_155",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DESC_155",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "CANT_155",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_155"
+      ],
+      "indexes": [],
+      "foreignKeys": []
+    },
+    {
+      "name": "turnos",
+      "rowCount": 30,
+      "columns": [
+        {
+          "name": "CODI_151",
+          "type": "int(10) unsigned",
+          "nullable": false,
+          "hasDefault": false,
+          "autoIncrement": false
+        },
+        {
+          "name": "DESC_151",
+          "type": "varchar(40)",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "TIPO_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DIAT_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "DIAF_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSRO_151",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_1",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_2",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_3",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_4",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_5",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_6",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSMA_151_7",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_1",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_2",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_3",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_4",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_5",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_6",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        },
+        {
+          "name": "HSTA_151_7",
+          "type": "int(10) unsigned",
+          "nullable": true,
+          "hasDefault": true,
+          "autoIncrement": false
+        }
+      ],
+      "primaryKey": [
+        "CODI_151"
+      ],
+      "indexes": [],
+      "foreignKeys": [
+        {
+          "name": "HORA1_FK",
+          "columns": [
+            "HSRO_151"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA10_FK",
+          "columns": [
+            "HSTA_151_2"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA11_FK",
+          "columns": [
+            "HSTA_151_3"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA12_FK",
+          "columns": [
+            "HSMA_151_4"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA13_FK",
+          "columns": [
+            "HSTA_151_5"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA14_FK",
+          "columns": [
+            "HSTA_151_6"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA15_FK",
+          "columns": [
+            "HSTA_151_7"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA2_FK",
+          "columns": [
+            "HSMA_151_1"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA3_FK",
+          "columns": [
+            "HSMA_151_2"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA4_FK",
+          "columns": [
+            "HSMA_151_3"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA6_FK",
+          "columns": [
+            "HSMA_151_5"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA7_FK",
+          "columns": [
+            "HSMA_151_6"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA8_FK",
+          "columns": [
+            "HSMA_151_7"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        },
+        {
+          "name": "HORA9_FK",
+          "columns": [
+            "HSTA_151_1"
+          ],
+          "referencedTable": "horarios",
+          "referencedColumns": [
+            "CODI_153"
+          ]
+        }
+      ]
+    }
+  ]
+}

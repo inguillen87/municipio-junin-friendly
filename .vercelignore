@@ -30,6 +30,8 @@ quick-seed.js
 test_prisma.js
 *.html
 !login.html
+!activar-cuenta.html
+!seguridad-cuenta.html
 !friendly-dashboard.html
 !internal-dashboard.html
 !centro-acciones.html
@@ -37,6 +39,7 @@ test_prisma.js
 !attendance-readiness-evidence.v1.json
 !control-horario-homologacion.html
 !attendance-policy-candidates.v1.json
+!fuentes-tiempo.html
 !administracion-plataforma.html
 !datos-personales.html
 !modulos.html
@@ -52,6 +55,8 @@ test_prisma.js
 !calidad-operativa.html
 !asistente.html
 !centro-ayuda.html
+!assets/identity-security.css
+!scripts/migrations/005-tenant-identity-gateway.sql
 
 # Excluir endpoints legacy uno por uno. No usar `api/**`: Vercel no vuelve a
 # incluir de forma fiable los archivos negados y dejaría las APIs internas en 404.

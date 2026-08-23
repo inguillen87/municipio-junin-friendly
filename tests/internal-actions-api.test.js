@@ -2,13 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  actionMutationSession,
   assertActionCenterRuntimeIdentity,
   createInternalActionsHandler,
   getActionCenterSql,
 } from '../api/internal-actions.js';
 import { capabilitiesForRole } from '../lib/internal-rbac.js';
+import { ActionCenterError } from '../lib/internal-leave-workflow.js';
 
 const IDEMPOTENCY_KEY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SESSION_ID = '99999999-9999-4999-8999-999999999999';
+const RELEASE_SHA = 'a'.repeat(40);
 
 function response() {
   return {
@@ -22,35 +26,59 @@ function response() {
 }
 
 function principal(overrides = {}) {
+  const capabilities = capabilitiesForRole('EMPLEADO');
+  capabilities.add('actions.read');
   return {
     id: 'user-1',
     email: 'actor@junin.gob.ar',
     displayName: 'Actor',
     role: 'EMPLEADO',
-    capabilities: capabilitiesForRole('EMPLEADO'),
+    capabilities,
     employmentContractId: '11111111-1111-4111-8111-111111111111',
+    tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    membershipId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    sourceBindingId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    sourceCompanyId: 101,
+    sourceDatabase: 'grh_junin',
     areaScopes: [],
     ...overrides,
   };
 }
 
 function dependencies(overrides = {}) {
-  return {
-    env: { NODE_ENV: 'test' },
-    requireInternalSession: () => ({ id: 'session-1', email: 'actor@junin.gob.ar', role: 'ADMIN_INTERNO' }),
+  const defaults = {
+    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    requireCompatibleInternalAccess: async () => ({
+      mode: 'managed',
+      session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
+      principal: {
+        user: { email: 'actor@junin.gob.ar' },
+        tenant: {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          membershipId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          source: 'membership',
+          certifiedReleaseSha: RELEASE_SHA,
+        },
+      },
+    }),
     getInternalSql: async () => ({ fake: true }),
-    loadInternalPrincipal: async () => principal(),
+    loadTenantActionContext: async () => principal(),
     getActionBootstrap: async () => ({
+      principal: principal(),
       contract: { caseTypes: ['leave_request'] },
       source: { label: 'GRH canónica', cutoff: '2026-08-19T23:00:00Z', version: 'snapshot publicado' },
       options: { subjects: [], reasons: [] },
     }),
-    listLeaveCases: async () => ({ data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }),
-    readLeaveCase: async () => ({ data: { id: 'case-1' }, timeline: [], allowedCommands: [] }),
+    listLeaveCases: async () => ({ principal: principal(), data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }),
+    readLeaveCase: async () => ({ principal: principal(), data: { id: 'case-1' }, timeline: [], allowedCommands: [] }),
     createLeaveCase: async () => ({ data: { id: 'case-1', status: 'draft', version: 1 }, replayed: false }),
     updateLeaveDraft: async () => ({ data: { id: 'case-1', status: 'draft', version: 2 }, replayed: false }),
     transitionLeaveCase: async () => ({ data: { id: 'case-1', status: 'submitted', version: 2 }, replayed: true }),
+  };
+  return {
+    ...defaults,
     ...overrides,
+    env: { ...defaults.env, ...(overrides.env || {}) },
   };
 }
 
@@ -62,23 +90,66 @@ test('bootstrap publica capabilities canónicas y opciones sin depender del rol 
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.ok, true);
   assert.equal(res.payload.principal.role, 'EMPLEADO');
-  assert.equal(res.payload.principal.capabilities.includes('action.self.create'), true);
+  assert.equal(res.payload.principal.capabilities.includes('leave.request.self.create'), true);
   assert.deepEqual(res.payload.options, { subjects: [], reasons: [] });
   assert.equal(res.payload.source.label, 'GRH canónica');
   assert.match(res.headers['Cache-Control'], /no-store/);
   assert.equal(res.headers.Vary, 'Cookie');
 });
 
-test('cuenta DB inactiva falla 401 aunque la sesión HMAC siga vigente', async () => {
+test('membresía sin autoridad tenant falla 403 aunque la sesión siga vigente', async () => {
   const res = response();
-  const handler = createInternalActionsHandler(dependencies({ loadInternalPrincipal: async () => null }));
+  const handler = createInternalActionsHandler(dependencies({
+    getActionBootstrap: async () => {
+      throw new ActionCenterError(
+        'ACTION_TENANT_AUTHORITY_REQUIRED', 403, 'La membresía no tiene autoridad operativa vigente',
+      );
+    },
+  }));
   await handler({ method: 'GET', query: {}, headers: {} }, res);
-  assert.equal(res.statusCode, 401);
-  assert.equal(res.payload.code, 'INTERNAL_USER_INACTIVE');
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'ACTION_TENANT_AUTHORITY_REQUIRED');
+});
+
+test('contención transitoria responde 409 con retry y nunca simula cierre de sesión', async () => {
+  const res = response();
+  const handler = createInternalActionsHandler(dependencies({
+    getActionBootstrap: async () => {
+      throw new ActionCenterError(
+        'ACTION_SESSION_BUSY', 409, 'El acceso se está actualizando; reintentá en un momento',
+      );
+    },
+  }));
+  await handler({ method: 'GET', query: {}, headers: {} }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.payload.code, 'ACTION_SESSION_BUSY');
+  assert.equal(res.headers['Retry-After'], '1');
+  assert.notEqual(res.statusCode, 401);
+});
+
+test('contexto platform y binding legacy nunca ingresan al Centro de Acciones', async () => {
+  for (const tenant of [null, {
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    membershipId: null,
+    source: 'legacy_explicit',
+  }]) {
+    const res = response();
+    const handler = createInternalActionsHandler(dependencies({
+      requireCompatibleInternalAccess: async () => ({
+        mode: 'managed', session: { id: 'session-1' },
+        principal: { user: { email: 'marcelo@example.test' }, tenant },
+      }),
+    }));
+    await handler({ method: 'GET', query: {}, headers: {} }, res);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.payload.code, 'ACTION_TENANT_MEMBERSHIP_REQUIRED');
+  }
 });
 
 test('mutaciones exigen same-origin, JSON e Idempotency-Key en Preview/Production', async () => {
-  const handler = createInternalActionsHandler(dependencies({ env: { VERCEL_ENV: 'production' } }));
+  const handler = createInternalActionsHandler(dependencies({
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+  }));
 
   const noOrigin = response();
   await handler({ method: 'POST', headers: { 'content-type': 'application/json' }, body: {} }, noOrigin);
@@ -110,12 +181,36 @@ test('mutaciones exigen same-origin, JSON e Idempotency-Key en Preview/Productio
   assert.equal(spoofedForwardedHost.statusCode, 403);
   assert.equal(spoofedForwardedHost.payload.code, 'ACTION_ORIGIN_INVALID');
 
+  const reflectedHostAttack = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://evil.example', host: 'evil.example',
+      'sec-fetch-site': 'same-origin', 'content-type': 'application/json',
+    },
+    body: {},
+  }, reflectedHostAttack);
+  assert.equal(reflectedHostAttack.statusCode, 403);
+  assert.equal(reflectedHostAttack.payload.code, 'ACTION_ORIGIN_INVALID');
+
+  const crossSite = response();
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://municipio.example', host: 'municipio.example',
+      'sec-fetch-site': 'cross-site', 'content-type': 'application/json',
+    },
+    body: {},
+  }, crossSite);
+  assert.equal(crossSite.statusCode, 403);
+  assert.equal(crossSite.payload.code, 'ACTION_ORIGIN_INVALID');
+
   const noKey = response();
   await handler({
     method: 'POST',
     headers: {
       origin: 'https://municipio.example', host: 'municipio.example',
-      'x-forwarded-proto': 'https', 'content-type': 'application/json',
+      'x-forwarded-proto': 'https', 'sec-fetch-site': 'same-origin', 'content-type': 'application/json',
     },
     body: { caseType: 'leave_request', command: 'create', payload: {} },
   }, noKey);
@@ -255,6 +350,88 @@ test('POST create usa el único endpoint y responde 201 con recibo mínimo', asy
   assert.equal(calls[0][3], IDEMPOTENCY_KEY);
 });
 
+test('search_subjects es lectura POST efímera, sin idempotencia y con body exacto', async () => {
+  const searches = [];
+  const handler = createInternalActionsHandler(dependencies({
+    env: { VERCEL_ENV: 'preview', IDENTITY_APP_ORIGIN: 'https://municipio.example' },
+    getActionBootstrap: async (_sql, _identity, session, query) => {
+      searches.push({ session, query });
+      return {
+        principal: principal(), contract: { caseTypes: ['leave_request'] },
+        source: { label: 'GRH canónica', cutoff: null, version: 'snapshot publicado' },
+        options: { subjects: [], reasons: [] },
+      };
+    },
+  }));
+  const headers = {
+    origin: 'https://municipio.example',
+    'sec-fetch-site': 'same-origin',
+    'content-type': 'application/json',
+  };
+  const ok = response();
+  await handler({
+    method: 'POST', headers,
+    body: { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'tesorería' } },
+  }, ok);
+  assert.equal(ok.statusCode, 200);
+  assert.equal(searches[0].query, 'tesorería');
+  assert.equal(searches[0].session.id, SESSION_ID);
+
+  for (const body of [
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 10 } },
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'rrhh', extra: true } },
+    { caseType: 'leave_request', command: 'search_subjects', payload: { query: 'rrhh' }, extra: true },
+  ]) {
+    const invalid = response();
+    await handler({ method: 'POST', headers, body }, invalid);
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.payload.code, 'ACTION_SUBJECT_QUERY_INVALID');
+  }
+});
+
+test('mutación toma SID/version sólo de access.session y SHA sólo del release certificado', async () => {
+  let receivedSession;
+  const handler = createInternalActionsHandler(dependencies({
+    createLeaveCase: async (_sql, _principal, _payload, _key, session) => {
+      receivedSession = session;
+      return { data: { id: 'case-1', status: 'draft', version: 1 }, replayed: false };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY },
+    body: {
+      caseType: 'leave_request', command: 'create', payload: {},
+      actorSessionId: '11111111-1111-4111-8111-111111111111',
+      releaseSha: 'f'.repeat(40),
+    },
+  }, res);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(receivedSession, {
+    id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3, releaseSha: RELEASE_SHA,
+  });
+
+  const baseAccess = {
+    mode: 'managed',
+    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
+    principal: {
+      user: { email: 'actor@junin.gob.ar' },
+      tenant: { certifiedReleaseSha: RELEASE_SHA },
+    },
+  };
+  assert.throws(
+    () => actionMutationSession({
+      ...baseAccess, session: { ...baseAccess.session, email: 'otro@junin.gob.ar' },
+    }, { VERCEL_GIT_COMMIT_SHA: RELEASE_SHA }),
+    (error) => error.code === 'ACTION_SESSION_INVALID' && error.status === 401,
+  );
+  assert.throws(
+    () => actionMutationSession(baseAccess, { VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) }),
+    (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
+  );
+});
+
 test('replay de transición conserva éxito y marca la respuesta', async () => {
   const calls = [];
   const handler = createInternalActionsHandler(dependencies({
@@ -298,4 +475,120 @@ test('PATCH sólo admite update_draft y limita cuerpos a 16 KiB', async () => {
   }, tooLarge);
   assert.equal(tooLarge.statusCode, 413);
   assert.equal(tooLarge.payload.code, 'ACTION_BODY_TOO_LARGE');
+});
+
+test('overtime_entry despacha bootstrap/list/detail sólo a fachadas dedicadas', async () => {
+  const calls = [];
+  const shared = dependencies({
+    getOvertimeBootstrap: async () => {
+      calls.push('bootstrap');
+      return { principal: principal(), feature: { canEnter: true }, options: { subjects: [] } };
+    },
+    listOvertimeCases: async () => {
+      calls.push('list');
+      return { principal: principal(), data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } };
+    },
+    readOvertimeCase: async () => {
+      calls.push('detail');
+      return { principal: principal(), data: { id: 'overtime-1' }, timeline: [], allowedCommands: [] };
+    },
+  });
+  for (const query of [
+    { caseType: 'overtime_entry', resource: 'bootstrap' },
+    { caseType: 'overtime_entry', resource: 'list' },
+    { caseType: 'overtime_entry', resource: 'detail', id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+  ]) {
+    const res = response();
+    await createInternalActionsHandler(shared)({ method: 'GET', query, headers: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload.caseType, 'overtime_entry');
+  }
+  assert.deepEqual(calls, ['bootstrap', 'list', 'detail']);
+});
+
+test('overtime create exige body exacto y responde recibo sin impacto salarial', async () => {
+  let received;
+  const handler = createInternalActionsHandler(dependencies({
+    createOvertimeCase: async (...args) => {
+      received = args;
+      return {
+        replayed: false,
+        data: { id: 'overtime-1', status: 'draft', version: 1,
+          payrollImpact: { amount: null, calculated: false, posted: false } },
+      };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: { caseType: 'overtime_entry', command: 'create', payload: {
+      beneficiaryContractId: '11111111-1111-4111-8111-111111111111',
+      workDate: '2026-08-20', declaredMinutes: 73, reasonCode: 'service_continuity',
+    } },
+  }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.caseType, 'overtime_entry');
+  assert.equal(res.payload.data.payrollImpact.posted, false);
+  assert.equal(received[3], IDEMPOTENCY_KEY);
+
+  const invalid = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: { caseType: 'overtime_entry', command: 'create', reason: 'texto libre', payload: {} },
+  }, invalid);
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.payload.code, 'ACTION_COMMAND_INVALID');
+});
+
+test('overtime approve preserva envelope gobernado y nunca usa handler de licencias', async () => {
+  let overtimeCalls = 0;
+  let leaveCalls = 0;
+  const handler = createInternalActionsHandler(dependencies({
+    transitionLeaveCase: async () => { leaveCalls += 1; throw new Error('no debe llamarse'); },
+    transitionOvertimeCase: async (_sql, _principal, command, caseId, body) => {
+      overtimeCalls += 1;
+      assert.equal(command, 'approve');
+      assert.equal(caseId, 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+      assert.equal(body.evidenceStatus, 'verified');
+      return { replayed: false, data: { id: caseId, status: 'pending_time_rules', version: 3 } };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: {
+      'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_KEY,
+    },
+    body: {
+      caseType: 'overtime_entry', command: 'approve',
+      caseId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', expectedVersion: 2,
+      decisionReasonCode: 'validated_documentation', evidenceStatus: 'verified',
+      manualValidationConfirmed: true,
+    },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.status, 'pending_time_rules');
+  assert.equal(overtimeCalls, 1);
+  assert.equal(leaveCalls, 0);
+});
+
+test('search_subjects overtime sigue siendo lectura POST sin Idempotency-Key', async () => {
+  let subjectQuery;
+  const handler = createInternalActionsHandler(dependencies({
+    getOvertimeBootstrap: async (_sql, _identity, _session, query) => {
+      subjectQuery = query;
+      return { principal: principal(), feature: { canEnter: true }, options: { subjects: [] } };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: { caseType: 'overtime_entry', command: 'search_subjects', payload: { query: 'tesorería' } },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(subjectQuery, 'tesorería');
+  assert.equal(res.payload.caseType, 'overtime_entry');
 });

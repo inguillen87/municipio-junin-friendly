@@ -1,5 +1,5 @@
 import { getInternalSql } from '../lib/internal-neon.js';
-import { requireInternalSession } from '../lib/internal-session.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
   InternalAdminError,
   applyInternalAdminCommand,
@@ -10,6 +10,12 @@ import {
 
 const MAX_BODY_BYTES = 16 * 1024;
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
+const PLATFORM_ADMIN_CAPABILITIES = Object.freeze([
+  'platform.tenants.manage',
+  'platform.crm.manage',
+  'platform.users.manage',
+  'platform.roles.manage',
+]);
 let cachedUrl = null;
 let cachedSqlPromise = null;
 
@@ -46,18 +52,47 @@ function send(res, status, payload) {
   return res.status(status).json(payload);
 }
 
+function trustedOrigin(env) {
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate) {
+    if (productionLike(env)) {
+      throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+    }
+    return '';
+  }
+  try { return new URL(candidate).origin; } catch {
+    throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_NOT_CONFIGURED', 503, 'Origen canónico no configurado');
+  }
+}
+
+function certifiedReleaseSha(env) {
+  const value = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(value)) {
+    throw new InternalAdminError(
+      'INTERNAL_ADMIN_RELEASE_NOT_CERTIFIED', 503, 'La version activa no esta certificada',
+    );
+  }
+  return value;
+}
+
 function assertSameOrigin(req, env) {
   const origin = header(req, 'origin').trim();
+  const fetchSite = header(req, 'sec-fetch-site').trim().toLowerCase();
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
+    throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
+  }
   if (!origin) {
     if (productionLike(env)) throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_REQUIRED', 403, 'Origen requerido');
     return;
   }
-  let parsed;
-  try { parsed = new URL(origin); } catch {
+  const expected = trustedOrigin(env);
+  if (!expected) return;
+  let actual = '';
+  try { actual = new URL(origin).origin; } catch {
     throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
   }
-  const protocol = productionLike(env) ? 'https:' : 'http:';
-  if (parsed.protocol.toLowerCase() !== protocol || parsed.host.toLowerCase() !== header(req, 'host').toLowerCase()) {
+  if (actual !== expected) {
     throw new InternalAdminError('INTERNAL_ADMIN_ORIGIN_INVALID', 403, 'Origen no permitido');
   }
 }
@@ -141,7 +176,8 @@ export async function getInternalAdminSql(env = process.env) {
 }
 
 export function createInternalAdminHandler(dependencies = {}) {
-  const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
+  const requireAccess = dependencies.requireCompatibleInternalAccess
+    ?? requireCompatibleInternalAccess;
   const getSql = dependencies.getInternalAdminSql ?? getInternalAdminSql;
   const loadView = dependencies.getInternalAdminView ?? getInternalAdminView;
   const applyCommand = dependencies.applyInternalAdminCommand ?? applyInternalAdminCommand;
@@ -160,19 +196,42 @@ export function createInternalAdminHandler(dependencies = {}) {
           throw new InternalAdminError('INTERNAL_ADMIN_JSON_REQUIRED', 415, 'Se requiere application/json');
         }
       }
-      const session = requireSession(req, res, dependencies.sessionOptions || {});
-      if (!session) return undefined;
+      const access = await requireAccess(req, res, {
+        env,
+        requiredCapabilities: PLATFORM_ADMIN_CAPABILITIES,
+        capabilityMode: 'any',
+        allowLegacy: false,
+        legacySessionOptions: dependencies.sessionOptions || {},
+      });
+      if (!access) return undefined;
+      if (access.mode !== 'managed' || access.principal?.tenant) {
+        return send(res, 403, {
+          ok: false,
+          code: 'IDENTITY_PLATFORM_CONTEXT_REQUIRED',
+          error: 'Cambiá al contexto Plataforma para administrar municipios y usuarios',
+        });
+      }
+      const session = access.session;
       const sql = await getSql(env);
+      const releaseSha = certifiedReleaseSha(env);
       if (method === 'GET') {
         const resource = queryValue(req, 'resource', 'bootstrap');
         const limit = Number(queryValue(req, 'limit', '100'));
-        const result = await loadView(sql, session.email, resource, limit);
+        const tenantId = queryValue(req, 'tenantId', '').trim().toLowerCase();
+        const result = await loadView(sql, session, resource, limit, { tenantId, releaseSha });
         return send(res, 200, { ok: true, ...result });
       }
       const body = await readBody(req);
       const command = normalizeInternalAdminCommand(body, header(req, 'idempotency-key').trim());
-      const result = await applyCommand(sql, session.email, command);
-      return send(res, command.command === 'create_tenant' || command.command === 'invite_user' ? 201 : 200, {
+      const result = await applyCommand(sql, session, command, { releaseSha });
+      const acceptedCommands = new Set([
+        'request_existing_membership', 'request_membership_reactivation',
+        'request_platform_owner_grant', 'request_platform_owner_revoke',
+      ]);
+      const createdCommands = new Set(['create_tenant', 'invite_user']);
+      const successStatus = acceptedCommands.has(command.command)
+        ? 202 : (createdCommands.has(command.command) ? 201 : 200);
+      return send(res, successStatus, {
         ok: true, ...result,
       });
     } catch (error) {

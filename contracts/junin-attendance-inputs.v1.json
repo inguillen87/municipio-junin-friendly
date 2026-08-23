@@ -1,0 +1,169 @@
+{
+  "contractVersion": "1.0.0",
+  "contractId": "junin-attendance-inputs.v1",
+  "evidenceStatus": "discovered_not_homologated",
+  "observedAt": "2026-08-21",
+  "tenant": "municipio-junin-mendoza",
+  "minimumSchemaMigration": "011-versioned-time-catalog",
+  "privacy": {
+    "containsPersonalDataInSource": true,
+    "repositoryContainsRowValues": false,
+    "processingBoundary": "private_tenant_bound_data_plane",
+    "reportingBoundary": "aggregate_counts_and_non_personal_device_metadata_only"
+  },
+  "sources": [
+    {
+      "sourceKey": "employee_area_roster",
+      "fileName": "EXCEL_LIMPIO.xlsx",
+      "sheet": "Sheet1",
+      "range": "A1:C388",
+      "rows": 387,
+      "facts": {
+        "departmentLabels": 39,
+        "identifiersPresent": 387,
+        "uniqueIdentifiers": 387,
+        "identifierDigitLength": 8,
+        "identifierSemantics": "candidate_national_document_pending_municipal_confirmation",
+        "nameShapeIssues": 1,
+        "exactDepartmentOrganizationMatches": 39
+      },
+      "promotionPolicy": "never_link_by_name; confirm identifier semantics, then reconcile to GRH persona document assertion and employment contract with collision review"
+    },
+    {
+      "sourceKey": "marking_points",
+      "fileName": "P3-PUNTOS DE MARCACION.xlsx",
+      "sheet": "Hoja1",
+      "range": "A1:K17",
+      "rows": 13,
+      "facts": {
+        "uniquePointCodes": 13,
+        "coordinatesPresentAndStructurallyValid": 13,
+        "uniqueCoordinatePairs": 13,
+        "currentMethodPresent": 13,
+        "proposedMethodPresent": 13,
+        "ethernetDeclared": 13,
+        "wifiPossibleDeclared": 13,
+        "agentCountPresent": 0,
+        "localResponsiblePresent": 0,
+        "deviceModels": {
+          "K20": 11,
+          "SF300": 1,
+          "MB360": 1
+        },
+        "extractionChannels": {
+          "local_network": 7,
+          "offline_media": 6
+        },
+        "declaredAreaLabels": 26
+      },
+      "promotionPolicy": "site verification required; coordinates remain restricted and device serial, firmware, time source, protocol, owner and connectivity must be certified"
+    },
+    {
+      "sourceKey": "organization_chart",
+      "fileName": "organigrama1.xlsx",
+      "sheet": "Hoja1",
+      "range": "A1:F50",
+      "rows": 49,
+      "facts": {
+        "uniqueAreas": 49,
+        "secretariatLabels": 5,
+        "responsiblePresent": 49,
+        "numericAgentCounts": 41,
+        "textAgentCounts": 2,
+        "missingAgentCounts": 6,
+        "numericAgentPartialSum": 220,
+        "rotatingOrGuardAnswerPresent": 0,
+        "observationsPresent": 0
+      },
+      "promotionPolicy": "responsible names are processed only in the private tenant data plane; counts are estimates until owner, definition and cutoff are certified"
+    }
+  ],
+  "crosswalk": {
+    "rosterDepartmentLabels": 39,
+    "organizationAreaLabels": 49,
+    "pointAreaLabels": 26,
+    "exactRosterOrganizationMatches": 39,
+    "organizationLabelsWithoutRosterEvidence": 10,
+    "exactPointOrganizationMatches": 11,
+    "pointLabelsRequiringAliasReview": 15,
+    "exactPointRosterMatches": 11,
+    "numericAreaComparisons": 33,
+    "numericAreaExactEstimateMatches": 12,
+    "autoAlias": false
+  },
+  "canonicalTargets": [
+    "organization_alias",
+    "work_location",
+    "attendance_device",
+    "attendance_device_connector",
+    "employee_marking_eligibility",
+    "attendance_raw_event",
+    "attendance_canonical_event",
+    "marking_policy",
+    "authentication_challenge",
+    "geofence_policy"
+  ],
+  "securityAndPrivacyRules": [
+    "Every point, device, connector, employee eligibility and event is tenant-bound.",
+    "Raw punch events are append-only, idempotent and preserve device/source time plus ingestion time.",
+    "A WhatsApp number is a challenge-delivery channel, never the source of employment identity or authorization.",
+    "WhatsApp challenges and workplace PINs are short-lived, single-use, rate-limited and bound to tenant, actor, purpose and marking point.",
+    "Location is captured at punch time by default; continuous tracking is disabled unless separately justified, approved and governed.",
+    "Exact coordinates are restricted and never exposed in public reports or URLs.",
+    "Biometric templates remain on the device or an approved local controller; central biometric storage is out of scope until legal, privacy and security review.",
+    "Every calculated minute must explain source event, assignment, calendar, shift, rule version and human exception."
+  ],
+  "homologationGates": [
+    "G01_SOURCE_OWNER_AND_CUTOFF",
+    "G02_IDENTIFIER_SEMANTICS_AND_GRH_CROSSWALK",
+    "G03_ORGANIZATION_ALIAS_REVIEW",
+    "G04_SITE_AND_COORDINATE_VERIFICATION",
+    "G05_DEVICE_SERIAL_FIRMWARE_PROTOCOL_AND_CLOCK",
+    "G06_CONNECTOR_SECURITY_AND_IDEMPOTENCY",
+    "G07_MARKING_POLICY_AND_ALTERNATIVE_METHOD",
+    "G08_PRIVACY_RETENTION_AND_BIOMETRIC_REVIEW",
+    "G09_CURRENT_SHIFT_CALENDAR_AND_RULE_APPROVAL",
+    "G10_RECONCILIATION_AND_GOLDEN_CASES"
+  ],
+  "plannedCapabilities": [
+    "time.device.read",
+    "time.device.manage",
+    "time.connector.operate",
+    "time.connector.approve",
+    "time.marking.policy.manage",
+    "time.punch.review",
+    "time.punch.correct"
+  ],
+  "phases": [
+    {
+      "phase": "S006-C1",
+      "outcome": "Homologate area aliases, point ownership, roster identifier semantics and current coverage without importing row values into Git.",
+      "status": "planned"
+    },
+    {
+      "phase": "S006-C2",
+      "outcome": "Create tenant-bound point and device fleet catalog with serial, firmware, clock drift, health, protocol, secret reference and local owner.",
+      "status": "planned"
+    },
+    {
+      "phase": "S006-C3",
+      "outcome": "Ingest network and controlled offline files into an immutable raw-event ledger with deduplication, quarantine and replay.",
+      "status": "planned"
+    },
+    {
+      "phase": "S006-C4",
+      "outcome": "Enable governed web, QR, rotating PIN and WhatsApp challenge marking with punch-time geofence and non-biometric fallback.",
+      "status": "planned"
+    },
+    {
+      "phase": "S006-C5",
+      "outcome": "Generate expected calendars and explainable exceptions from approved 011 catalogs, then maker-checker review and payroll export preview.",
+      "status": "planned"
+    },
+    {
+      "phase": "S006-C6",
+      "outcome": "Operate multi-government connector fleet with tenant isolation, observability, SLA, disaster recovery and audited support access.",
+      "status": "planned"
+    }
+  ]
+}

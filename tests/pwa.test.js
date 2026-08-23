@@ -109,7 +109,7 @@ test('service worker precachea sólo el shell público agregado', async () => {
   for (const expected of ['/friendly-dashboard.html', '/control-horario-readiness.html', '/attendance-readiness-evidence.v1.json', '/control-horario-homologacion.html', '/attendance-policy-candidates.v1.json', '/friendly-data.json', '/manifest.webmanifest']) {
     assert.ok(worker.added.includes(expected), `falta precachear ${expected}`);
   }
-  for (const forbidden of ['/api/internal-data', '/api/internal-actions', '/api/internal-assistant', '/internal-dashboard.html', '/centro-acciones.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/gestion-comparativa.html', '/presupuesto-control.html', '/ausentismo-control.html', '/licencias-control.html', '/calidad-operativa.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/mendoza-title-vi.js', '/assets/junin-budget-2026.js']) {
+  for (const forbidden of ['/api/internal-data', '/api/internal-actions', '/api/internal-assistant', '/internal-dashboard.html', '/activar-cuenta.html', '/seguridad-cuenta.html', '/centro-acciones.html', '/fuentes-tiempo.html', '/datos-personales.html', '/estructura.html', '/nomina-control.html', '/gestion-comparativa.html', '/presupuesto-control.html', '/ausentismo-control.html', '/licencias-control.html', '/calidad-operativa.html', '/asistente.html', '/centro-ayuda.html', '/assets/internal-guide.js', '/assets/identity-security.css', '/assets/product-guidance.js', '/assets/mendoza-title-vi.js', '/assets/junin-budget-2026.js']) {
     assert.ok(!worker.added.includes(forbidden), `no se debe precachear ${forbidden}`);
   }
   assert.equal(worker.skipWaitingCalls, 0, 'una instalación no debe reemplazar la versión activa a mitad de sesión');
@@ -121,8 +121,14 @@ test('service worker nunca intercepta APIs, páginas internas ni rutas nominales
     '/api/internal-data?resource=people',
     '/internal',
     '/internal-dashboard.html',
+    '/activar-cuenta',
+    '/activar-cuenta.html',
+    '/seguridad-cuenta',
+    '/seguridad-cuenta.html',
     '/centro-acciones',
     '/centro-acciones.html',
+    '/fuentes-tiempo',
+    '/fuentes-tiempo.html',
     '/datos-personales.html',
     '/estructura',
     '/organigrama',
@@ -144,6 +150,7 @@ test('service worker nunca intercepta APIs, páginas internas ni rutas nominales
     '/centro-ayuda.html',
     '/ayuda',
     '/assets/internal-guide.js',
+    '/assets/identity-security.css',
     '/assets/product-guidance.js',
     '/assets/mendoza-title-vi.js',
     '/assets/junin-budget-2026.js',
@@ -307,7 +314,12 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(ignore, /^!attendance-readiness-evidence\.v1\.json$/m);
   assert.match(ignore, /^!control-horario-homologacion\.html$/m);
   assert.match(ignore, /^!attendance-policy-candidates\.v1\.json$/m);
+  assert.match(ignore, /^!activar-cuenta\.html$/m);
+  assert.match(ignore, /^!seguridad-cuenta\.html$/m);
+  assert.match(ignore, /^!fuentes-tiempo\.html$/m);
+  assert.match(ignore, /^!assets\/identity-security\.css$/m);
   assert.match(ignore, /^!scripts\/migrations\/003-action-center\.sql$/m);
+  assert.match(ignore, /^!scripts\/migrations\/005-tenant-identity-gateway\.sql$/m);
 
   const vercel = JSON.parse(read('vercel.json'));
   const headers = new Map(vercel.headers.map((entry) => [entry.source, new Map(entry.headers.map(({ key, value }) => [key, value]))]));
@@ -316,7 +328,7 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
   assert.match(headers.get('/attendance-readiness-evidence.v1.json').get('Cache-Control'), /max-age=300/);
   assert.match(headers.get('/attendance-policy-candidates.v1.json').get('Cache-Control'), /max-age=300/);
-  for (const route of ['/api/(.*)', '/internal', '/internal-dashboard.html', '/centro-acciones', '/centro-acciones.html', '/estructura', '/datos-personales.html', '/nomina-control', '/gestion-comparativa', '/gestion-comparativa.html', '/presupuesto-control', '/presupuesto-control.html', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/product-guidance.js', '/assets/junin-budget-2026.js', '/admin']) {
+  for (const route of ['/api/(.*)', '/activar-cuenta', '/activar-cuenta.html', '/seguridad-cuenta', '/seguridad-cuenta.html', '/internal', '/internal-dashboard.html', '/centro-acciones', '/centro-acciones.html', '/fuentes-tiempo', '/fuentes-tiempo.html', '/estructura', '/datos-personales.html', '/nomina-control', '/gestion-comparativa', '/gestion-comparativa.html', '/presupuesto-control', '/presupuesto-control.html', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/identity-security.css', '/assets/product-guidance.js', '/assets/junin-budget-2026.js', '/admin']) {
     assert.match(headers.get(route).get('Cache-Control'), /no-store/, `${route} debe impedir cache compartido`);
   }
 });

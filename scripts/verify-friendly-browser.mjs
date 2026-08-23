@@ -416,38 +416,172 @@ async function verifyAuthenticatedInternal() {
     await assertPageHealthy(page, 'Portal interno desktop');
 
     if (actionsEmail || hasCredentials) {
-      const actionsBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap`);
+      const actionsBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap&caseType=leave_request`);
       assert.equal(actionsBootstrapResponse.status(), 200, 'Centro de acciones debe aceptar una identidad DB-authoritative');
       const actionsBootstrap = await actionsBootstrapResponse.json();
       const actionCapabilities = new Set(actionsBootstrap.principal?.capabilities || []);
       const actionSubjects = actionsBootstrap.options?.subjects || [];
       const actionReasons = actionsBootstrap.options?.reasons || [];
+      const canReadOvertime = actionCapabilities.has('time.overtime.read');
+      let overtimeBootstrap = null;
+      if (canReadOvertime) {
+        const overtimeBootstrapResponse = await context.request.get(`${baseUrl}/api/internal-actions?resource=bootstrap&caseType=overtime_entry`);
+        assert.equal(overtimeBootstrapResponse.status(), 200, 'Mayor esfuerzo debe aceptar la identidad autorizada');
+        overtimeBootstrap = await overtimeBootstrapResponse.json();
+        assert.equal(overtimeBootstrap.caseType, 'overtime_entry');
+        assert.equal(overtimeBootstrap.contract?.policyVersionId, 'junin-mayor-esfuerzo-intake.v1');
+        assert.equal(overtimeBootstrap.contract?.confidentiality, 'restricted');
+        assert.equal(overtimeBootstrap.contract?.calculated, false);
+        assert.equal(overtimeBootstrap.contract?.posted, false);
+        assert.equal(overtimeBootstrap.contract?.payrollMutation, false);
+        assert.deepEqual(overtimeBootstrap.contract?.declaredMinutes, { min: 1, max: 1440 });
+        assert.equal(overtimeBootstrap.feature?.calculated, false);
+        assert.equal(overtimeBootstrap.feature?.posted, false);
+        for (const capability of overtimeBootstrap.principal?.capabilities || []) actionCapabilities.add(capability);
+      }
 
       await page.goto(`${baseUrl}/centro-acciones`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#appShell:not([hidden])');
       await page.waitForFunction(() => document.querySelector('#actionLoading')?.hidden === true);
       assert.equal(await page.locator('#actionError').isHidden(), true, 'La bandeja de acciones no debe degradar a error');
       const canCreateAction = [
-        'action.self.create', 'action.area.create', 'action.all.manage',
+        'leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage',
       ].some((capability) => actionCapabilities.has(capability));
-      if (canCreateAction && actionSubjects.length && actionReasons.length) {
-        assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con sujeto, motivo y capability explícitos');
+      const canSearchActionSubjects = [
+        'leave.request.area.create', 'leave.request.all.manage',
+      ].some((capability) => actionCapabilities.has(capability));
+      const hasActionSubjectRoute = actionSubjects.length > 0 || canSearchActionSubjects;
+      const hasActionReasonRoute = actionReasons.length > 0 || canSearchActionSubjects;
+      if (canCreateAction && hasActionSubjectRoute && hasActionReasonRoute) {
+        assert.equal(await page.locator('#createActionButton').isEnabled(), true, 'El alta debe habilitarse con una ruta explícita hacia sujetos y motivos autorizados');
         await page.locator('#createActionButton').click();
         await page.waitForSelector('#actionWizard[open]');
-        assert.equal(await page.locator('#actionLeaveType option').count() > 1, true, 'El catálogo GRH debe alimentar el selector de licencias');
+        if (actionReasons.length) assert.equal(await page.locator('#actionLeaveType option').count() > 1, true, 'El catálogo GRH propio debe alimentar el selector de licencias');
+        else assert.equal(await page.locator('#actionLeaveType').isDisabled(), true, 'Sin legajo propio, los motivos deben esperar la búsqueda gobernada');
+        if (canSearchActionSubjects) {
+          const subjectRequestPromise = page.waitForRequest((request) => (
+            request.method() === 'POST'
+            && new URL(request.url()).pathname === '/api/internal-actions'
+            && /"command"\s*:\s*"search_subjects"/.test(request.postData() || '')
+          ));
+          const subjectResponsePromise = page.waitForResponse((response) => (
+            response.request().method() === 'POST'
+            && new URL(response.url()).pathname === '/api/internal-actions'
+            && /"command"\s*:\s*"search_subjects"/.test(response.request().postData() || '')
+          ));
+          await page.locator('#actionEmployeeSearch').fill('ad');
+          await page.locator('#actionEmployeeSearchButton').click();
+          const subjectRequest = await subjectRequestPromise;
+          const subjectResponse = await subjectResponsePromise;
+          const subjectUrl = new URL(subjectRequest.url());
+          assert.equal(subjectUrl.search, '', 'La búsqueda nominal no debe incluir datos en query string');
+          assert.deepEqual(subjectRequest.postDataJSON(), {
+            caseType: 'leave_request', command: 'search_subjects', payload: { query: 'ad' },
+          });
+          assert.equal(subjectRequest.headers()['idempotency-key'], undefined, 'Una búsqueda read-only no debe consumir claves de idempotencia');
+          assert.equal(subjectResponse.status(), 200, 'La búsqueda efímera debe responder con el contrato gobernado');
+          const searchedBootstrap = await subjectResponse.json();
+          await page.waitForFunction(() => document.querySelector('#actionEmployeeSearchStatus')?.getAttribute('aria-busy') !== 'true');
+          const searchedReasons = searchedBootstrap.options?.reasons || [];
+          if (searchedReasons.length) assert.equal(await page.locator('#actionLeaveType option').count(), searchedReasons.length + 1, 'La búsqueda debe reemplazar el catálogo con motivos reautorizados');
+        }
         await page.locator('#closeWizard').click();
       }
       const firstAction = page.locator('#actionRows [data-open-action]').first();
       if (await firstAction.count()) {
+        const listProjection = await firstAction.locator('xpath=ancestor::tr[1]').getAttribute('data-projection');
         await firstAction.click();
         await page.waitForSelector('#actionDialog[open]');
         await page.waitForFunction(() => document.querySelector('#actionDialogBody')?.getAttribute('aria-busy') === 'false');
-        const timelineAdapted = await page.locator('#actionDialogBody .timeline').evaluate((timeline) => (
-          timeline.querySelectorAll('li').length > 0
-          && !/Actividad registrada\s*Actor registrado/i.test(timeline.innerText)
-        ));
-        assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
+        const projection = await page.locator('#actionDialogBody').getAttribute('data-projection');
+        assert.ok(['nominal', 'payroll'].includes(projection), 'El detalle debe declarar la proyección autorizada');
+        if (listProjection === 'payroll') assert.equal(projection, 'payroll', 'Un detalle nunca debe elevar una fila limitada a nómina hacia identidad nominal');
+        if (projection === 'payroll') {
+          assert.equal(await page.locator('#actionDialogBody .projection-note').count(), 1, 'Nómina debe explicar su proyección mínima');
+          assert.equal(await page.locator('#actionDialogBody .timeline').count(), 0, 'Nómina nunca debe renderizar historial nominal');
+          assert.equal(await page.locator('#actionDialogBody .command-panel').count(), 0, 'Nómina nunca debe renderizar comandos administrativos');
+          const payrollLabels = await page.locator('#actionDialogBody dt').allTextContents();
+          assert.equal(payrollLabels.some((label) => /^(?:Persona|Legajo|Sector)$/i.test(label.trim())), false, 'Nómina no debe construir campos de identidad');
+        } else {
+          const timelineAdapted = await page.locator('#actionDialogBody .timeline').evaluate((timeline) => (
+            timeline.querySelectorAll('li').length > 0
+            && !/Actividad registrada\s*Actor registrado/i.test(timeline.innerText)
+          ));
+          assert.equal(timelineAdapted, true, 'La UI debe adaptar eventType y actor del contrato real');
+        }
         await page.locator('#closeActionDialog').click();
+      }
+      if (canReadOvertime) {
+        const overtimeOption = page.locator('#actionTypeFilter option[value="overtime_entry"]');
+        assert.equal(await overtimeOption.count(), 1, 'Mayor esfuerzo debe ser descubrible como operación separada');
+        assert.equal(await page.locator('#createOvertimeButton').isHidden(), false, 'La lectura explícita debe descubrir la operación');
+        const hasGovernedOvertimeReason = (overtimeBootstrap.options?.reasons || []).some((reason) => (
+          reason?.governanceStatus === 'operational_provisional'
+        ));
+        const canEnterOvertime = overtimeBootstrap.feature?.canEnter === true
+          && actionCapabilities.has('time.overtime.enter')
+          && hasGovernedOvertimeReason;
+        assert.equal(await page.locator('#createOvertimeButton').isEnabled(), canEnterOvertime, 'La carga debe exigir capacidad y responsabilidad exclusiva');
+        if (canEnterOvertime) {
+          await page.locator('#createOvertimeButton').click();
+          await page.waitForSelector('#overtimeWizard[open]');
+          assert.equal(await page.locator('#overtimeDeclaredMinutes').getAttribute('min'), '1');
+          assert.equal(await page.locator('#overtimeDeclaredMinutes').getAttribute('max'), '1440');
+          assert.equal(await page.locator('#overtimePolicyVersion').inputValue(), 'junin-mayor-esfuerzo-intake.v1');
+          assert.equal(await page.locator('#overtimeConfidentiality').inputValue(), 'Restringida');
+          assert.equal(await page.locator('#overtimeWizard [data-calculated="false"]').count(), 1);
+          assert.equal(await page.locator('#overtimeWizard [data-amount="null"]').count(), 1);
+          assert.equal(await page.locator('#overtimeWizard [data-attendance-reconciled="false"]').count(), 1);
+          const overtimeSearchRequestPromise = page.waitForRequest((request) => (
+            request.method() === 'POST'
+            && new URL(request.url()).pathname === '/api/internal-actions'
+            && /"caseType"\s*:\s*"overtime_entry"/.test(request.postData() || '')
+            && /"command"\s*:\s*"search_subjects"/.test(request.postData() || '')
+          ));
+          const overtimeSearchResponsePromise = page.waitForResponse((response) => (
+            response.request().method() === 'POST'
+            && new URL(response.url()).pathname === '/api/internal-actions'
+            && /"caseType"\s*:\s*"overtime_entry"/.test(response.request().postData() || '')
+            && /"command"\s*:\s*"search_subjects"/.test(response.request().postData() || '')
+          ));
+          await page.locator('#overtimeEmployeeSearch').fill('ad');
+          await page.locator('#overtimeEmployeeSearchButton').click();
+          const overtimeSearchRequest = await overtimeSearchRequestPromise;
+          const overtimeSearchResponse = await overtimeSearchResponsePromise;
+          assert.equal(new URL(overtimeSearchRequest.url()).search, '', 'La búsqueda de mayor esfuerzo no debe filtrar PII en la URL');
+          assert.deepEqual(overtimeSearchRequest.postDataJSON(), {
+            caseType: 'overtime_entry', command: 'search_subjects', payload: { query: 'ad' },
+          });
+          assert.equal(overtimeSearchRequest.headers()['idempotency-key'], undefined, 'La búsqueda read-only no debe usar idempotencia');
+          assert.equal(overtimeSearchResponse.status(), 200);
+          await page.locator('#closeOvertimeWizard').click();
+        }
+
+        const overtimeListResponsePromise = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return response.request().method() === 'GET'
+            && url.pathname === '/api/internal-actions'
+            && url.searchParams.get('resource') === 'list'
+            && url.searchParams.get('caseType') === 'overtime_entry';
+        });
+        await page.locator('#actionTypeFilter').selectOption('overtime_entry');
+        const overtimeListResponse = await overtimeListResponsePromise;
+        assert.equal(overtimeListResponse.status(), 200, 'La bandeja de mayor esfuerzo debe cargar sin vistas heredadas');
+        const overtimeListUrl = new URL(overtimeListResponse.url());
+        assert.equal(overtimeListUrl.searchParams.has('view'), false, 'Mayor esfuerzo no debe enviar view de licencias');
+        await page.waitForFunction(() => document.querySelector('#actionLoading')?.hidden === true);
+        assert.equal(await page.locator('#actionViews').isHidden(), true, 'Las vistas de licencia no se reutilizan para mayor esfuerzo');
+
+        const firstOvertime = page.locator('#actionRows [data-open-action]').first();
+        if (await firstOvertime.count()) {
+          await firstOvertime.click();
+          await page.waitForSelector('#actionDialog[open]');
+          await page.waitForFunction(() => document.querySelector('#actionDialogBody')?.getAttribute('aria-busy') === 'false');
+          assert.equal(await page.locator('#actionDialogBody').getAttribute('data-projection'), 'restricted_nominal');
+          assert.match(await page.locator('#actionDialogBody').innerText(), /No realizado[\s\S]*No disponible[\s\S]*Asistencia conciliada[\s\S]*No/);
+          assert.equal((await page.locator('#actionDialogBody .timeline').innerText()).includes('@'), false, 'El historial de mayor esfuerzo no debe renderizar emails derivados');
+          await page.locator('#closeActionDialog').click();
+        }
       }
       await assertPageHealthy(page, 'Centro de acciones desktop');
       await page.setViewportSize({ width: 390, height: 844 });

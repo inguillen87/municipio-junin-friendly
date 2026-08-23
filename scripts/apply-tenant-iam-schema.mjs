@@ -7,8 +7,15 @@ import { directCanonicalDatabaseUrl } from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 const MIGRATION_VERSION = '004-tenant-iam-control-plane';
+const ACTION_AUTHORITY_MIGRATION_VERSION = '006-tenant-action-authority';
+const READ_FACADE_MIGRATION_VERSION = '007-action-center-read-facades';
 const MIGRATION_URL = new URL('./migrations/004-tenant-iam-control-plane.sql', import.meta.url);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
+const LEGACY_ADMIN_VIEW_SIGNATURE = 'public.tenant_iam_admin_view(text,text,integer)';
+const LEGACY_ADMIN_APPLY_SIGNATURE = 'public.tenant_iam_apply_command(text,text,uuid,text,integer,jsonb)';
+const V2_ADMIN_VIEW_SIGNATURE = 'public.tenant_iam_admin_view_v2(text,uuid,integer,text,integer)';
+const V2_ADMIN_APPLY_SIGNATURE = 'public.tenant_iam_apply_command_v2(text,uuid,integer,text,uuid,text,integer,jsonb)';
+const V2_ADMIN_ASSERT_SIGNATURE = 'public.tenant_iam_assert_platform_session_v2(text,uuid,integer)';
 
 export const TENANT_IAM_SCHEMA_CONTRACT = Object.freeze({
   tables: Object.freeze([
@@ -26,8 +33,8 @@ export const TENANT_IAM_SCHEMA_CONTRACT = Object.freeze({
     'public.tenant_iam_apply_command(text,text,uuid,text,integer,jsonb)',
   ]),
   runtimeFunctions: Object.freeze([
-    'public.tenant_iam_admin_view(text,text,integer)',
-    'public.tenant_iam_apply_command(text,text,uuid,text,integer,jsonb)',
+    LEGACY_ADMIN_VIEW_SIGNATURE,
+    LEGACY_ADMIN_APPLY_SIGNATURE,
   ]),
   indexes: Object.freeze([
     'internal_users_tenant_iam_id_uk',
@@ -37,6 +44,20 @@ export const TENANT_IAM_SCHEMA_CONTRACT = Object.freeze({
   trigger: 'tenant_iam_event_append_only',
   constraint: 'internal_users_active_password_ck',
 });
+
+export function tenantIamRuntimeAclProfile(actionAuthorityApplied) {
+  return Object.freeze({
+    signatures: Object.freeze([
+      ...TENANT_IAM_SCHEMA_CONTRACT.functions,
+      ...(actionAuthorityApplied
+        ? [V2_ADMIN_ASSERT_SIGNATURE, V2_ADMIN_VIEW_SIGNATURE, V2_ADMIN_APPLY_SIGNATURE]
+        : []),
+    ]),
+    allowed: Object.freeze(actionAuthorityApplied
+      ? [V2_ADMIN_VIEW_SIGNATURE, V2_ADMIN_APPLY_SIGNATURE]
+      : [...TENANT_IAM_SCHEMA_CONTRACT.runtimeFunctions]),
+  });
+}
 
 function rows(result) {
   return Array.isArray(result?.rows) ? result.rows : [];
@@ -149,8 +170,9 @@ async function collectEvidence(client) {
   };
 }
 
-async function verifyRuntimeAcl(client) {
+async function verifyRuntimeAcl(client, actionAuthorityApplied = false) {
   const contract = TENANT_IAM_SCHEMA_CONTRACT;
+  const profile = tenantIamRuntimeAclProfile(actionAuthorityApplied);
   const direct = await client.query(`
     SELECT rel.relname AS resource,
       has_any_column_privilege($1, rel.oid, 'SELECT') AS can_select,
@@ -169,9 +191,9 @@ async function verifyRuntimeAcl(client) {
     SELECT signature, to_regprocedure(signature) IS NOT NULL AS exists,
            has_function_privilege($1, to_regprocedure(signature), 'EXECUTE') AS can_execute
     FROM unnest($2::text[]) requested(signature)
-  `, [RUNTIME_ROLE, contract.functions]);
+  `, [RUNTIME_ROLE, profile.signatures]);
   for (const row of functionAcl.rows) {
-    const expected = contract.runtimeFunctions.includes(row.signature);
+    const expected = profile.allowed.includes(row.signature);
     if (!row.exists || row.can_execute !== expected) {
       throw new Error(`ACL de funcion IAM incorrecta: ${row.signature}`);
     }
@@ -206,6 +228,20 @@ async function main() {
     const existing = await client.query(
       'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1', [MIGRATION_VERSION],
     );
+    const actionAuthority = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1', [ACTION_AUTHORITY_MIGRATION_VERSION],
+    );
+    const actionAuthorityApplied = actionAuthority.rowCount > 0;
+    const readFacades = await client.query(
+      'SELECT 1 FROM schema_migrations WHERE version = $1', [READ_FACADE_MIGRATION_VERSION],
+    );
+    const readFacadesApplied = readFacades.rowCount > 0;
+    if (actionAuthorityApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${ACTION_AUTHORITY_MIGRATION_VERSION}`);
+    }
+    if (readFacadesApplied && !existing.rowCount) {
+      throw new Error(`${MIGRATION_VERSION} no puede aplicarse después de ${READ_FACADE_MIGRATION_VERSION}`);
+    }
     if (existing.rowCount && existing.rows[0].checksum_sha256.trim() !== checksum) {
       throw new Error(`Drift detectado: ${MIGRATION_VERSION} ya existe con otro SHA-256`);
     }
@@ -217,7 +253,11 @@ async function main() {
       );
     }
     validateTenantIamEvidence(await collectEvidence(client));
-    await verifyRuntimeAcl(client);
+    await verifyRuntimeAcl(client, actionAuthorityApplied);
+    if (readFacadesApplied) {
+      const { verifyActionReadFinalAcl } = await import('./apply-action-center-read-facades-schema.mjs');
+      await verifyActionReadFinalAcl(client);
+    }
     await client.query('COMMIT');
     console.log(existing.rowCount
       ? `${MIGRATION_VERSION}: ya aplicada y verificada`

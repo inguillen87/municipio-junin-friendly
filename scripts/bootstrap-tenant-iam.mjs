@@ -45,6 +45,7 @@ async function main() {
   await client.connect();
   try {
     await client.query('BEGIN');
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('PLATFORM_OWNER:GOVERNANCE', 12012))");
     await client.query(`SELECT pg_advisory_xact_lock(hashtext('municipio-junin-friendly:tenant-iam-bootstrap'))`);
     const owners = await client.query(`
       SELECT email, display_name
@@ -54,6 +55,16 @@ async function main() {
     `, [config.ownerEmail]);
     if (owners.rowCount !== 1) {
       throw new Error('PLATFORM_OWNER_EMAIL debe coincidir con exactamente un usuario interno activo');
+    }
+    const activePlatformOwners = await client.query(`
+      SELECT lower(user_email) AS email
+      FROM platform_user_role
+      WHERE role_key = 'PLATFORM_OWNER' AND active IS TRUE
+      FOR SHARE
+    `);
+    if (activePlatformOwners.rowCount > 0
+        && !activePlatformOwners.rows.some((row) => row.email === config.ownerEmail)) {
+      throw new Error('El bootstrap inicial no puede agregar otro PLATFORM_OWNER; use el bootstrap secundario 012');
     }
 
     const existingTenant = await client.query(

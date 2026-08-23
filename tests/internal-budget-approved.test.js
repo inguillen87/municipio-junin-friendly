@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import internalDataHandler, { budgetApproved } from '../api/internal-data.js';
+import internalDataHandler, { budgetApproved, createInternalDataHandler } from '../api/internal-data.js';
 import { JUNIN_BUDGET_2026 } from '../assets/junin-budget-2026.js';
-import { INTERNAL_SESSION_COOKIE, issueInternalSessionToken } from '../lib/internal-session.js';
-
-const TEST_SECRET = 'budget-approved-test-session-secret';
 
 function cloneSource() {
   return JSON.parse(JSON.stringify(JUNIN_BUDGET_2026));
@@ -151,37 +148,36 @@ test('budgetApproved expone sólo agregados institucionales y ninguna PII', () =
   }
 });
 
-test('el handler exige sesión, responde no-store y no abre Neon para budgetapproved', async (t) => {
-  const previousSecret = process.env.INTERNAL_SESSION_SECRET;
-  const previousDatabaseUrl = process.env.DATABASE_URL;
-  process.env.INTERNAL_SESSION_SECRET = TEST_SECRET;
-  delete process.env.DATABASE_URL;
-  t.after(() => {
-    if (previousSecret === undefined) delete process.env.INTERNAL_SESSION_SECRET;
-    else process.env.INTERNAL_SESSION_SECRET = previousSecret;
-    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = previousDatabaseUrl;
-  });
-
+test('el handler exige sesión v2, responde no-store y no abre Neon para budgetapproved', async () => {
   const unauthenticated = mockResponse();
   await internalDataHandler({ method: 'GET', query: { resource: 'budgetapproved' }, headers: {} }, unauthenticated);
   assert.equal(unauthenticated.statusCode, 401);
-  assert.equal(unauthenticated.payload.code, 'INTERNAL_SESSION_REQUIRED');
+  assert.equal(unauthenticated.payload.code, 'IDENTITY_SESSION_REQUIRED');
   assert.match(unauthenticated.headers['Cache-Control'], /private, no-store/);
 
-  const token = issueInternalSessionToken(
-    { id: 'budget-reader', email: 'budget@example.test', role: 'ADMIN_INTERNO' },
-    { secret: TEST_SECRET },
-  );
+  let accessOptions;
+  const managedHandler = createInternalDataHandler({
+    requireCompatibleInternalAccess: async (_req, _res, options) => {
+      accessOptions = options;
+      return {
+        mode: 'managed',
+        session: { email: 'budget@example.test' },
+        principal: { tenant: { effectiveCapabilities: ['budget.approved.read'] } },
+      };
+    },
+    getInternalSql: async () => { throw new Error('budgetapproved no debe abrir Neon'); },
+  });
   const authenticated = mockResponse();
-  await internalDataHandler({
+  await managedHandler({
     method: 'GET',
     query: { resource: 'budgetapproved' },
-    headers: { cookie: `${INTERNAL_SESSION_COOKIE}=${encodeURIComponent(token)}` },
+    headers: {},
   }, authenticated);
 
   assert.equal(authenticated.statusCode, 200);
   assert.equal(authenticated.payload.ok, true);
   assert.match(authenticated.headers['Cache-Control'], /private, no-store/);
   assert.equal(authenticated.headers.Vary, 'Cookie');
+  assert.deepEqual(accessOptions.requiredCapabilities, ['budget.approved.read']);
+  assert.equal(accessOptions.allowLegacy, false);
 });

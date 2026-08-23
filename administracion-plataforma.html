@@ -233,7 +233,8 @@
     .dialog-note { margin: 0 0 15px; padding: 12px; color: #36515f; background: var(--surface-2); border-left: 4px solid var(--teal); font-size: 12px; line-height: 1.5; }
     .tenant-options { display: grid; gap: 4px; margin-top: 13px; }
     .tenant-option { width: 100%; min-height: 58px; display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; text-align: left; }
-    .tenant-option:hover, .tenant-option[aria-current="true"] { background: var(--surface-3); border-color: #9fc5bf; }
+    .tenant-option:not(:disabled):hover, .tenant-option[aria-current="true"] { background: var(--surface-3); border-color: #9fc5bf; }
+    .tenant-option:disabled { cursor: not-allowed; opacity: .72; background: var(--surface-2); }
     .tenant-option-code { width: 32px; height: 32px; display: grid; place-items: center; color: var(--teal-dark); background: #fff; border: 1px solid #9fc5bf; border-radius: 3px; font-size: 9px; font-weight: 900; }
     .tenant-option strong, .tenant-option small { display: block; }
     .tenant-option strong { color: var(--navy); font-size: 13px; }
@@ -242,6 +243,44 @@
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .detail-section { padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
     .detail-section h3 { margin: 0 0 10px; color: var(--navy); font-size: 15px; }
+    #userDetailDialog { width: min(1180px, calc(100vw - 34px)); max-width: 1180px; }
+    .access-boundary { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 13px; align-items: center; margin-bottom: 15px; padding: 13px 15px; color: #254754; background: var(--surface-3); border: 1px solid #bdd5d1; border-left: 4px solid var(--teal); border-radius: var(--radius); }
+    .access-boundary.is-blocked { color: #704d16; background: var(--amber-bg); border-color: #e3c78f; border-left-color: var(--amber); }
+    .boundary-mark { width: 38px; height: 38px; display: grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-size: 11px; font-weight: 900; letter-spacing: .04em; }
+    .access-boundary strong, .access-boundary span { display: block; }
+    .access-boundary strong { color: var(--navy); font-size: 13px; }
+    .access-boundary span { margin-top: 3px; font-size: 11px; line-height: 1.45; }
+    .boundary-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .operational-workbench { margin-top: 15px; padding: 17px; background: #f8faf9; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+    .workbench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+    .workbench-head h3 { margin: 0; color: var(--navy); font-size: 18px; letter-spacing: -.02em; }
+    .workbench-head p { max-width: 760px; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .operational-grid { display: grid; grid-template-columns: minmax(300px,.72fr) minmax(440px,1.28fr); gap: 14px; margin-top: 14px; }
+    .operational-card { min-width: 0; padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .operational-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .operational-card h4 { margin: 0; color: var(--navy); font-size: 15px; }
+    .operational-card-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .binding-summary { margin-bottom: 13px; padding: 11px; color: #36515f; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .binding-summary strong, .binding-summary span { display: block; }
+    .binding-summary strong { color: var(--navy); font-size: 12px; }
+    .binding-summary span { margin-top: 3px; font-size: 11px; line-height: 1.45; }
+    .compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .compact-grid .full { grid-column: 1/-1; }
+    .inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    .inline-actions .button { flex: 0 0 auto; }
+    .operation-gate { margin-top: 11px; padding: 10px 11px; color: #6c4e18; background: var(--amber-bg); border: 1px solid #e3c78f; border-radius: 4px; font-size: 11px; line-height: 1.45; }
+    .operation-gate.is-ready { color: #155d4e; background: var(--green-bg); border-color: #a9d6c9; }
+    .scope-builder { padding: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .scope-builder-grid { display: grid; grid-template-columns: 1.25fr 1fr .8fr; gap: 9px; align-items: end; }
+    .scope-builder-grid .scope-wide { grid-column: span 2; }
+    .scope-draft-list { display: grid; gap: 7px; margin-top: 12px; }
+    .scope-draft-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 10px 11px; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 4px; }
+    .scope-draft-row.is-invalid { background: var(--red-bg); border-color: #e4b9b5; border-left-color: var(--red); }
+    .scope-draft-row strong, .scope-draft-row span { display: block; }
+    .scope-draft-row strong { color: var(--navy); font-size: 12px; }
+    .scope-draft-row span { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .scope-draft-row .button { min-height: 38px; padding: 7px 9px; }
+    .scope-empty { padding: 16px 12px; color: var(--muted); background: #fff; border: 1px dashed var(--line-strong); border-radius: 4px; text-align: center; font-size: 11px; line-height: 1.45; }
 
     .toast-region { position: fixed; z-index: 1000; right: 20px; bottom: calc(20px + var(--safe-bottom)); width: min(390px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
     .toast { padding: 12px 14px; color: #fff; background: var(--navy); border-left: 4px solid #64b9a9; border-radius: 4px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; }
@@ -252,6 +291,7 @@
       .access-layout { grid-template-columns: 1fr; }
       .control-row { grid-template-columns: minmax(200px,1fr) minmax(180px,.7fr); }
       .control-row > :last-child { grid-column: 1/-1; }
+      .operational-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 960px) {
@@ -284,6 +324,10 @@
       .toolbar .field:first-child { grid-column: 1/-1; }
       .panel-head, .panel-body, .table-meta { padding-left: 13px; padding-right: 13px; }
       .governance-strip { grid-template-columns: 1fr; }
+      .access-boundary { grid-template-columns: 38px minmax(0,1fr); }
+      .boundary-facts { grid-column: 1/-1; justify-content: flex-start; }
+      .scope-builder-grid { grid-template-columns: 1fr 1fr; }
+      .scope-builder-grid .scope-wide { grid-column: 1/-1; }
     }
 
     @media (max-width: 620px) {
@@ -310,6 +354,7 @@
       .control-row > :last-child { grid-column: auto; }
       .assignment-form { grid-template-columns: 1fr; }
       dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; }
+      #userDetailDialog { width: 100vw; max-width: none; }
       .dialog-shell { height: 100dvh; max-height: 100dvh; }
       .dialog-head { padding: 14px; }
       .dialog-body { padding: 15px 14px calc(24px + var(--safe-bottom)); }
@@ -321,6 +366,13 @@
       .facts > div { grid-template-columns: 1fr; gap: 4px; }
       .tenant-option { grid-template-columns: 34px minmax(0,1fr); }
       .tenant-option-state { grid-column: 2; }
+      .operational-workbench { padding: 12px; }
+      .workbench-head { flex-direction: column; }
+      .compact-grid, .scope-builder-grid { grid-template-columns: 1fr; }
+      .compact-grid .full, .scope-builder-grid .scope-wide { grid-column: auto; }
+      .inline-actions { display: grid; grid-template-columns: 1fr; }
+      .scope-draft-row { grid-template-columns: 1fr; }
+      .scope-draft-row .button { width: 100%; }
     }
 
     @media (max-width: 390px) {
@@ -330,6 +382,7 @@
       .tenant-switcher-copy small { display: none; }
       .page-lead { font-size: 13px; }
       .dialog-actions { grid-template-columns: 1fr; }
+      #userDetailDialog .dialog-actions { grid-template-columns: 1fr 1fr; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -377,6 +430,7 @@
           <span class="nav-label">Identidad y acceso</span>
           <button class="nav-link" type="button" data-admin-view="access"><span class="nav-code" aria-hidden="true">US</span>Usuarios y roles</button>
           <button class="nav-link" type="button" data-admin-view="controls"><span class="nav-code" aria-hidden="true">CO</span>Controles exclusivos</button>
+          <a class="nav-link" href="seguridad-cuenta.html"><span class="nav-code" aria-hidden="true">SE</span>Mi seguridad</a>
         </div>
         <div class="nav-group">
           <span class="nav-label">Gobierno y riesgo</span>
@@ -396,7 +450,7 @@
           <button class="menu-button" id="menuButton" type="button" aria-label="Abrir menú" aria-controls="adminSidebar" aria-expanded="false">☰</button>
           <button class="tenant-switcher" id="tenantSwitcher" type="button" aria-haspopup="dialog" aria-controls="tenantSwitcherDialog" aria-expanded="false">
             <span class="tenant-switcher-code" id="tenantSwitcherCode" aria-hidden="true">PL</span>
-            <span class="tenant-switcher-copy"><small>Ámbito activo</small><strong id="tenantSwitcherLabel">Plataforma completa</strong></span>
+            <span class="tenant-switcher-copy"><small>Filtro administrativo</small><strong id="tenantSwitcherLabel">Plataforma completa</strong></span>
             <span aria-hidden="true">⌄</span>
           </button>
           <div class="topbar-context">
@@ -466,7 +520,7 @@
                 <h1 id="accessTitle">Usuarios y accesos</h1>
                 <p class="page-lead">Usuarios activos, invitaciones y capacidades efectivas explicadas por tenant. La interfaz no deriva permisos desde el nombre del rol.</p>
               </div>
-              <div class="head-actions"><button class="button primary" id="inviteUserButton" type="button" disabled>Crear usuario mediante invitación</button></div>
+              <div class="head-actions"><button class="button" id="attachExistingButton" type="button" disabled>Solicitar asociación</button><button class="button primary" id="inviteUserButton" type="button" disabled>Preparar invitación</button></div>
             </header>
 
             <section class="governance-strip is-blocked" id="accessGovernance" aria-labelledby="accessGovernanceTitle">
@@ -510,6 +564,46 @@
                 </div>
               </aside>
             </div>
+
+            <section class="panel" id="membershipRequestPanel" aria-labelledby="membershipRequestTitle" style="margin-top:18px">
+              <header class="panel-head"><div><h2 id="membershipRequestTitle">Solicitudes de acceso operativo</h2><p>Una persona propietaria solicita y otra, distinta de la solicitante y de la cuenta objetivo, aprueba o rechaza.</p></div></header>
+              <div class="panel-body">
+                <div class="governance-strip is-blocked" id="membershipRequestGate" aria-live="polite">
+                  <div><strong id="membershipRequestGateTitle">Doble control sin verificar</strong><p id="membershipRequestGateMessage">El acceso sigue bloqueado hasta acreditar dos propietarios con MFA.</p></div>
+                  <div class="governance-facts" id="membershipRequestFacts"></div>
+                </div>
+                <div class="effective-box" style="margin-top:16px"><strong>Decisión por solicitud.</strong> Cada fila exige su propio fundamento y una confirmación que identifica gobierno, cuenta, rol y acción.</div>
+                <div class="empty-state" id="membershipRequestEmpty"><strong>Sin solicitudes de acceso.</strong><p>No se asocian identidades ni se reactivan permisos fuera del flujo auditado.</p></div>
+                <div class="table-wrap" id="membershipRequestWrap" tabindex="0" role="region" aria-label="Solicitudes de acceso operativo" hidden>
+                  <table><caption class="sr-only">Solicitudes de membresía por gobierno</caption><thead><tr><th>Cuenta y gobierno</th><th>Cambio</th><th>Solicitante</th><th>Estado</th><th>Decisión</th></tr></thead><tbody id="membershipRequestRows"></tbody></table>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" id="platformOwnerPanel" aria-labelledby="platformOwnerTitle" style="margin-top:18px">
+              <header class="panel-head"><div><h2 id="platformOwnerTitle">Propietarios globales</h2><p>El alta o la baja de un propietario requiere una solicitud y la decisión de otra persona propietaria. Nunca concede acceso laboral por tenant.</p></div></header>
+              <div class="panel-body">
+                <div class="governance-strip is-blocked" id="platformOwnerGate" aria-live="polite">
+                  <div><strong id="platformOwnerGateTitle">Gobierno global sin verificar</strong><p id="platformOwnerGateMessage">Esperando conteo, MFA y control de doble aprobación informados por PostgreSQL.</p></div>
+                  <div class="governance-facts" id="platformOwnerFacts"></div>
+                </div>
+                <form class="toolbar" id="platformOwnerGrantForm" autocomplete="off" style="margin-top:16px">
+                  <div class="field"><label for="platformOwnerCandidate">Cuenta activa con MFA</label><select class="select" id="platformOwnerCandidate"><option value="">Seleccionar persona elegible</option></select></div>
+                  <div class="field"><label for="platformOwnerRequestReason">Fundamento de la solicitud</label><textarea class="textarea" id="platformOwnerRequestReason" minlength="3" maxlength="500" placeholder="Motivo administrativo verificable"></textarea></div>
+                  <button class="button primary" id="requestPlatformOwnerGrant" type="submit" disabled>Solicitar alta global</button>
+                </form>
+                <div class="table-meta"><span id="platformOwnerCount">Sin propietarios verificados</span><span>Rol global sin herencia tenant</span></div>
+                <div class="table-wrap" tabindex="0" role="region" aria-labelledby="platformOwnerTitle">
+                  <table><caption class="sr-only">Propietarios globales visibles</caption><thead><tr><th>Persona</th><th>MFA</th><th>Versión</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="platformOwnerRows"></tbody></table>
+                </div>
+                <h3 style="margin:22px 0 8px;color:var(--navy)">Solicitudes de cambio</h3>
+                <div class="field"><label for="platformOwnerDecisionReason">Fundamento de la decisión</label><textarea class="textarea" id="platformOwnerDecisionReason" minlength="3" maxlength="500" placeholder="Obligatorio para aprobar o rechazar"></textarea></div>
+                <div class="empty-state" id="platformOwnerRequestEmpty"><strong>Sin solicitudes globales.</strong><p>No se infieren aprobaciones ni cambios fuera de la auditoría.</p></div>
+                <div class="table-wrap" id="platformOwnerRequestWrap" tabindex="0" role="region" aria-label="Solicitudes globales" hidden>
+                  <table><caption class="sr-only">Solicitudes de propietario global</caption><thead><tr><th>Objetivo</th><th>Cambio</th><th>Solicitante</th><th>Estado</th><th>Decisión</th></tr></thead><tbody id="platformOwnerRequestRows"></tbody></table>
+                </div>
+              </div>
+            </section>
           </section>
 
           <section class="view" id="controlsView" data-view-panel="controls" aria-labelledby="controlsTitle" hidden>
@@ -583,9 +677,9 @@
 
   <dialog id="tenantSwitcherDialog" aria-labelledby="tenantSwitcherTitle">
     <div class="dialog-shell">
-      <header class="dialog-head"><div><p class="eyebrow">Ámbito de trabajo</p><h2 id="tenantSwitcherTitle">Cambiar contexto</h2><p>La autorización se vuelve a consultar al cambiar de gobierno.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantSwitcherDialog" aria-label="Cerrar selector">×</button></header>
+      <header class="dialog-head"><div><p class="eyebrow">Control plane · filtro administrativo</p><h2 id="tenantSwitcherTitle">Filtrar administración</h2><p>Acota consultas del panel; no inicia una sesión operativa ni cambia la membresía activa.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantSwitcherDialog" aria-label="Cerrar selector">×</button></header>
       <div class="dialog-body">
-        <div class="field"><label for="tenantOptionSearch">Buscar gobierno autorizado</label><input class="input" id="tenantOptionSearch" type="search" maxlength="100" autocomplete="off"></div>
+        <div class="field"><label for="tenantOptionSearch">Buscar gobierno para filtrar</label><input class="input" id="tenantOptionSearch" type="search" maxlength="100" autocomplete="off"></div>
         <div class="tenant-options" id="tenantOptions" aria-live="polite"></div>
       </div>
     </div>
@@ -595,13 +689,13 @@
     <div class="dialog-shell">
       <header class="dialog-head"><div><p class="eyebrow">Gobierno autorizado</p><h2 id="tenantDetailTitle">Detalle de implementación</h2><p id="tenantDetailSubtitle">Fuente no informada.</p></div><button class="button dialog-close" type="button" data-close-dialog="tenantDetailDialog" aria-label="Cerrar detalle">×</button></header>
       <div class="dialog-body" id="tenantDetailBody"></div>
-      <footer class="dialog-footer"><span class="field-help">Los campos ausentes se muestran como no informados.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="tenantDetailDialog">Cerrar</button><button class="button primary" id="openTenantContextButton" type="button">Abrir gobierno</button></div></footer>
+      <footer class="dialog-footer"><span class="field-help">Los campos ausentes se muestran como no informados.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="tenantDetailDialog">Cerrar</button><button class="button primary" id="openTenantContextButton" type="button">Filtrar administración</button></div></footer>
     </div>
   </dialog>
 
   <dialog id="inviteUserDialog" aria-labelledby="inviteUserTitle">
     <form class="dialog-shell" id="inviteUserForm" novalidate autocomplete="off">
-      <header class="dialog-head"><div><p class="eyebrow">Identidad nominal</p><h2 id="inviteUserTitle">Crear usuario mediante invitación</h2><p>Se envía una invitación; esta pantalla no crea ni revela contraseñas.</p></div><button class="button dialog-close" type="button" data-close-dialog="inviteUserDialog" aria-label="Cerrar invitación">×</button></header>
+      <header class="dialog-head"><div><p class="eyebrow">Identidad nominal</p><h2 id="inviteUserTitle">Preparar invitación</h2><p>Primero se registra el acceso propuesto. La emisión por canal institucional es una operación posterior y auditada.</p></div><button class="button dialog-close" type="button" data-close-dialog="inviteUserDialog" aria-label="Cerrar invitación">×</button></header>
       <div class="dialog-body">
         <p class="dialog-note">El rol propone capacidades, pero el backend decide el acceso efectivo y vuelve a validar conflictos.</p>
         <div class="form-grid">
@@ -614,22 +708,87 @@
         <div class="effective-box" id="inviteEffectiveSummary"><strong>Sin acceso propuesto.</strong> Seleccioná gobierno y rol.</div>
         <div class="conflict-box" id="inviteConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
       </div>
-      <footer class="dialog-footer"><span class="field-help" id="inviteMutationHint">Operación bloqueada.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="inviteUserDialog">Cancelar</button><button class="button primary" id="sendInviteButton" type="submit" disabled>Enviar invitación</button></div></footer>
+      <footer class="dialog-footer"><span class="field-help" id="inviteMutationHint">Operación bloqueada.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="inviteUserDialog">Cancelar</button><button class="button primary" id="sendInviteButton" type="submit" disabled>Preparar invitación</button></div></footer>
+    </form>
+  </dialog>
+
+  <dialog id="attachExistingDialog" aria-labelledby="attachExistingTitle">
+    <form class="dialog-shell" id="attachExistingForm" novalidate autocomplete="off">
+      <header class="dialog-head"><div><p class="eyebrow">Membresía explícita</p><h2 id="attachExistingTitle">Solicitar asociación</h2><p>Prepara una solicitud para una identidad ya activada y un solo gobierno. Otra persona propietaria debe decidirla. No crea contraseñas ni habilita tenants futuros.</p></div><button class="button dialog-close" type="button" data-close-dialog="attachExistingDialog" aria-label="Cerrar asociación">×</button></header>
+      <div class="dialog-body">
+        <p class="dialog-note">La cuenta debe existir, usar identidad administrada y tener MFA activo. PostgreSQL vuelve a validar tenant, release, rol y segregación de funciones.</p>
+        <div class="form-grid">
+          <div class="field"><label for="attachExistingEmail">Email institucional existente</label><input class="input" id="attachExistingEmail" type="email" maxlength="254" required autocomplete="email"></div>
+          <div class="field"><label for="attachExistingTenant">Gobierno</label><select class="select" id="attachExistingTenant" required></select></div>
+          <div class="field"><label for="attachExistingRole">Rol operativo</label><select class="select" id="attachExistingRole" required></select></div>
+          <div class="field full"><label for="attachExistingReason">Fundamento</label><textarea class="textarea" id="attachExistingReason" minlength="3" maxlength="500" required placeholder="Autorización administrativa verificable"></textarea></div>
+        </div>
+        <div class="effective-box" id="attachExistingSummary"><strong>Sin membresía propuesta.</strong> Completá cuenta, gobierno y rol.</div>
+        <div class="conflict-box" id="attachExistingGate"><strong>Operación bloqueada</strong><span>No se solicitará ni almacenará una contraseña.</span></div>
+      </div>
+      <footer class="dialog-footer"><span class="field-help">Acceso explícito al gobierno seleccionado; futuros tenants requieren otra autorización.</span><div class="dialog-actions"><button class="button" type="button" data-close-dialog="attachExistingDialog">Cancelar</button><button class="button primary" id="attachExistingSubmit" type="submit" disabled>Solicitar acceso</button></div></footer>
     </form>
   </dialog>
 
   <dialog id="userDetailDialog" aria-labelledby="userDetailTitle">
-    <form class="dialog-shell" id="userAccessForm" novalidate>
+    <form class="dialog-shell" id="userAccessForm" novalidate autocomplete="off">
       <header class="dialog-head"><div><p class="eyebrow">Acceso efectivo</p><h2 id="userDetailTitle">Detalle de usuario</h2><p id="userDetailSubtitle">Consultando asignación.</p></div><button class="button dialog-close" type="button" data-close-dialog="userDetailDialog" aria-label="Cerrar usuario">×</button></header>
       <div class="dialog-body">
+        <section class="access-boundary is-blocked" id="operationalBoundary" aria-labelledby="operationalBoundaryTitle">
+          <span class="boundary-mark" aria-hidden="true">IAM</span>
+          <div><strong id="operationalBoundaryTitle">Administrar acceso no habilita operar</strong><span id="operationalBoundaryMessage">El vínculo con legajo, cada capacidad y cada alcance territorial deben estar informados y autorizados por separado.</span></div>
+          <div class="boundary-facts" id="operationalBoundaryFacts"></div>
+        </section>
         <div class="detail-grid">
           <section class="detail-section"><h3>Identidad y membresía</h3><dl class="facts" id="userDetailFacts"></dl></section>
           <section class="detail-section"><h3>Acceso propuesto</h3><div class="field"><label for="userAccessRole">Rol</label><select class="select" id="userAccessRole"></select></div><div class="capability-list" id="userAccessCapabilities"></div><div class="field" style="margin-top:13px"><label for="userAccessReason">Motivo del cambio</label><textarea class="textarea" id="userAccessReason" maxlength="500" required placeholder="Justificación administrativa verificable"></textarea><span class="field-help">Obligatorio; queda asociado a los overrides de capacidades.</span></div></section>
         </div>
         <div class="effective-box" id="userEffectiveSummary"><strong>Sin información efectiva.</strong></div>
         <div class="conflict-box" id="userConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
+
+        <section class="operational-workbench" aria-labelledby="operationalWorkbenchTitle">
+          <header class="workbench-head">
+            <div><h3 id="operationalWorkbenchTitle">Identidad laboral y alcances</h3><p>Configuración tenant-owned. Ningún rol administrativo hereda acceso a licencias, ausencias o mayor esfuerzo. Los cambios se vuelven a validar en PostgreSQL y quedan auditados.</p></div>
+            <span class="state-pill is-attention" id="operationalWorkbenchState">Bloqueado</span>
+          </header>
+          <div class="operational-grid">
+            <section class="operational-card" aria-labelledby="employmentLinkTitle">
+              <header class="operational-card-head"><div><h4 id="employmentLinkTitle">Vínculo con legajo</h4><p>Define únicamente la relación self del usuario dentro de este gobierno y esta fuente GRH.</p></div><span class="state-pill" id="employmentLinkState">No informado</span></header>
+              <div class="binding-summary" id="employmentLinkSummary"><strong>Sin vínculo verificado</strong><span>No se infiere un legajo desde el nombre o el email.</span></div>
+              <div class="field"><label for="employmentLookupQuery">Buscar en GRH protegida</label><div class="compact-grid"><input class="input" id="employmentLookupQuery" type="search" minlength="3" maxlength="80" placeholder="Legajo o nombre" autocomplete="off"><button class="button" id="employmentLookupButton" type="button" disabled>Buscar</button></div><span class="field-help">El criterio se envía por POST, no aparece en la URL y se descarta al cerrar.</span></div>
+              <div class="field" style="margin-top:10px"><label for="employmentCandidateSelect">Coincidencia autorizada</label><select class="select" id="employmentCandidateSelect" disabled><option value="">Sin búsqueda autorizada</option></select><span class="field-help" id="employmentCandidateHelp">Máximo 20 resultados devueltos por el backend.</span></div>
+              <div class="compact-grid" style="margin-top:10px">
+                <div class="field"><label for="employmentReasonCode">Tipo de cambio</label><select class="select" id="employmentReasonCode" disabled><option value="">Catálogo no informado</option></select></div>
+                <div class="field"><label for="employmentReason">Fundamento</label><textarea class="textarea" id="employmentReason" maxlength="500" placeholder="Motivo verificable" disabled></textarea></div>
+              </div>
+              <div class="inline-actions"><button class="button primary" id="linkEmploymentButton" type="button" disabled>Vincular legajo</button><button class="button danger" id="revokeEmploymentButton" type="button" disabled>Revocar vínculo</button></div>
+              <div class="operation-gate" id="employmentOperationGate" role="status" aria-live="polite">Esperando autorización, versión y fuente certificada.</div>
+            </section>
+
+            <section class="operational-card" aria-labelledby="actionScopesTitle">
+              <header class="operational-card-head"><div><h4 id="actionScopesTitle">Alcances por capacidad</h4><p>Una capacidad sin alcance no autoriza casos. Cada alcance pertenece al tenant, al binding y a una operación exacta.</p></div><span class="state-pill" id="actionScopeCount">0 alcances</span></header>
+              <div class="scope-builder">
+                <div class="scope-builder-grid">
+                  <div class="field scope-wide"><label for="scopeCapability">Capacidad operativa</label><select class="select" id="scopeCapability" disabled><option value="">Sin capacidades elegibles</option></select></div>
+                  <div class="field"><label for="scopeSourceBinding">Fuente certificada</label><select class="select" id="scopeSourceBinding" disabled><option value="">Sin binding verificado</option></select></div>
+                  <div class="field"><label for="scopeLevel">Nivel</label><select class="select" id="scopeLevel" disabled><option value="">Seleccionar</option><option value="company">Toda la empresa vinculada</option><option value="organization">Organización</option><option value="sector">Sector</option></select></div>
+                  <div class="field"><label for="scopeOrganization">Organización</label><select class="select" id="scopeOrganization" disabled><option value="">No corresponde</option></select></div>
+                  <div class="field"><label for="scopeSector">Sector</label><select class="select" id="scopeSector" disabled><option value="">No corresponde</option></select></div>
+                  <button class="button" id="addScopeButton" type="button" disabled>Agregar alcance</button>
+                </div>
+              </div>
+              <div class="scope-draft-list" id="scopeDraftList" aria-live="polite"><div class="scope-empty">El backend no informó alcances activos.</div></div>
+              <div class="compact-grid" style="margin-top:12px">
+                <div class="field"><label for="scopeReasonCode">Tipo de cambio</label><select class="select" id="scopeReasonCode" disabled><option value="">Catálogo no informado</option></select></div>
+                <div class="field"><label for="scopeReason">Fundamento</label><textarea class="textarea" id="scopeReason" maxlength="500" placeholder="Motivo verificable" disabled></textarea></div>
+              </div>
+              <div class="inline-actions"><button class="button primary" id="saveScopesButton" type="button" disabled>Guardar alcances</button></div>
+              <div class="operation-gate" id="scopeOperationGate" role="status" aria-live="polite">Los alcances permanecen en lectura hasta recibir catálogo y comando explícitos.</div>
+            </section>
+          </div>
+        </section>
       </div>
-      <footer class="dialog-footer"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
+      <footer class="dialog-footer"><div class="dialog-actions"><button class="button danger" id="suspendMembershipButton" type="button" disabled>Suspender membresía</button><button class="button" id="reactivateMembershipButton" type="button" disabled>Reactivar membresía</button><button class="button" id="issueInvitationButton" type="button" disabled>Emitir invitación</button></div><div class="dialog-actions"><button class="button" type="button" data-close-dialog="userDetailDialog">Cerrar</button><button class="button primary" id="updateAccessButton" type="submit" disabled>Actualizar acceso</button></div></footer>
     </form>
   </dialog>
 
@@ -660,6 +819,7 @@
 
     var AUTH_URL = '/api/internal-auth';
     var ADMIN_URL = '/api/internal-admin';
+    var IDENTITY_URL = '/api/internal-identity';
     var REQUEST_TIMEOUT_MS = 16000;
     var KNOWN_JUNIN = Object.freeze({
       id: 'municipio-junin-mendoza',
@@ -677,6 +837,7 @@
       roles: [],
       capabilities: [],
       users: [],
+      invitations: [],
       audit: [],
       allowedCommands: new Set(),
       controls: { sodReady: false, auditReady: false },
@@ -685,13 +846,34 @@
       source: {},
       exclusive: null,
       operationalControls: [],
+      operationalCatalog: { sourceBindings: [], scopeCapabilities: [], organizations: [], sectors: [], reasonCodes: [] },
+      platformGovernance: {
+        owners: [], eligibleUsers: [], requests: [],
+        controls: { activeOwnerCount: 0, makerCheckerReady: false, lastOwnerProtected: false }
+      },
+      membershipRequests: [],
+      membershipGovernance: {
+        explicitTenantOnly: true, futureTenantAccess: false,
+        makerCheckerRequired: true, usableOwnerCount: 0,
+        actorGovernanceReady: false, makerCheckerReady: false,
+        actionableRequestCount: 0, eligibleTenantIds: []
+      },
+      employmentCandidates: [],
+      scopeDraft: [],
       selectedUser: null,
       selectedTenant: null,
       activeView: 'portfolio',
       userStatus: '',
+      pendingCommandKeys: new Map(),
       loadVersion: 0,
       loading: false
     };
+
+    var EMPLOYMENT_REVOCATION_REASON_FALLBACK = Object.freeze([
+      Object.freeze({ key: 'offboarding', label: 'Baja operativa' }),
+      Object.freeze({ key: 'employment_change', label: 'Cambio laboral' }),
+      Object.freeze({ key: 'correction', label: 'Corrección auditada' })
+    ]);
 
     var ids = [
       'authGate','gateTitle','gateMessage','gateSpinner','retryAuth','platformAdminShell','adminSidebar','workspace',
@@ -701,10 +883,16 @@
       'metricTenants','metricTenantsNote','metricAttention','metricAttentionNote','metricReviews','metricReviewsNote',
       'metricSecurity','metricSecurityNote','tenantFilters','tenantSearch','tenantStatusFilter','clearTenantFilters',
       'tenantResultCount','portfolioCutoff','tenantLoading','tenantError','tenantErrorMessage','tenantEmpty','tenantTableWrap',
-      'tenantRows','inviteUserButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
+      'tenantRows','inviteUserButton','attachExistingButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
       'userStatusTabs','userFilters','userSearch','userRoleFilter','clearUserFilters','userResultCount','userCutoff',
       'userLoading','userError','userErrorMessage','userEmpty','userTableWrap','userRows','roleMatrixRole',
       'roleCapabilityMatrix','roleEffectiveSummary','controlGovernance','controlGovernanceTitle','controlGovernanceMessage',
+      'platformOwnerPanel','platformOwnerGate','platformOwnerGateTitle','platformOwnerGateMessage','platformOwnerFacts',
+      'platformOwnerGrantForm','platformOwnerCandidate','platformOwnerRequestReason','requestPlatformOwnerGrant',
+      'platformOwnerCount','platformOwnerRows','platformOwnerDecisionReason','platformOwnerRequestEmpty',
+      'platformOwnerRequestWrap','platformOwnerRequestRows',
+      'membershipRequestPanel','membershipRequestGate','membershipRequestGateTitle','membershipRequestGateMessage',
+      'membershipRequestFacts','membershipRequestEmpty','membershipRequestWrap','membershipRequestRows',
       'overtimeAssignee','overtimeAssignmentSource','overtimeAssignmentForm','overtimeAssigneeSelect','assignOvertimeButton',
       'absenceControlState','absenceControlSource','absenceControlExplanation','auditFilters','auditSearch','auditEventFilter',
       'clearAuditFilters','auditResultCount','auditCutoff','auditLoading','auditError','auditErrorMessage','auditEmpty',
@@ -712,8 +900,15 @@
       'tenantDetailTitle','tenantDetailSubtitle','tenantDetailBody','openTenantContextButton','inviteUserDialog','inviteUserForm',
       'inviteName','inviteEmail','inviteTenant','inviteRole','inviteCapabilityMatrix','inviteEffectiveSummary','inviteConflictBox',
       'inviteMutationHint','sendInviteButton','inviteNameError','inviteEmailError','inviteTenantError','inviteRoleError',
+      'attachExistingDialog','attachExistingForm','attachExistingEmail','attachExistingTenant','attachExistingRole',
+      'attachExistingReason','attachExistingSummary','attachExistingGate','attachExistingSubmit',
       'userDetailDialog','userAccessForm','userDetailTitle','userDetailSubtitle','userDetailFacts','userAccessRole',
-      'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','updateAccessButton',
+      'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','reactivateMembershipButton','issueInvitationButton','updateAccessButton',
+      'operationalBoundary','operationalBoundaryTitle','operationalBoundaryMessage','operationalBoundaryFacts','operationalWorkbenchState',
+      'employmentLinkState','employmentLinkSummary','employmentLookupQuery','employmentLookupButton','employmentCandidateSelect','employmentCandidateHelp',
+      'employmentReasonCode','employmentReason','linkEmploymentButton','revokeEmploymentButton','employmentOperationGate',
+      'actionScopeCount','scopeCapability','scopeSourceBinding','scopeLevel','scopeOrganization','scopeSector','addScopeButton',
+      'scopeDraftList','scopeReasonCode','scopeReason','saveScopesButton','scopeOperationGate',
       'createTenantDialog','createTenantForm','newTenantName','newTenantShortName','newTenantLevel','newTenantJurisdiction','newTenantSlug',
       'createTenantGate','confirmCreateTenant','toastRegion','mainContent'
     ];
@@ -809,7 +1004,7 @@
       var normalized = normalizeSearch(value);
       if (/operativ|activ|ready|aprob|success|ok|complet/.test(normalized)) return 'is-ok';
       if (/bloque|suspend|deneg|revoc|error|critical|fall/.test(normalized)) return 'is-danger';
-      if (/atencion|pend|riesgo|warning|invite|observ/.test(normalized)) return 'is-attention';
+      if (/atencion|pend|riesgo|warning|invite|observ|venc|expir/.test(normalized)) return 'is-attention';
       if (/pilot|progreso|config|info|implement/.test(normalized)) return 'is-info';
       return '';
     }
@@ -887,10 +1082,24 @@
       return window.crypto.randomUUID();
     }
 
-    async function postCommand(command, payload, expectedVersion) {
+    async function postCommand(command, payload, expectedVersion, idempotencyKey) {
       var body = { command: command, payload: payload || {} };
       if (expectedVersion !== undefined && expectedVersion !== null) body.expectedVersion = expectedVersion;
       return requestJson(ADMIN_URL, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey || commandKey()
+        },
+        body: JSON.stringify(body)
+      });
+    }
+
+    async function postIdentityCommand(command, payload, expectedVersion) {
+      var body = { command: command, payload: payload || {} };
+      if (expectedVersion !== undefined && expectedVersion !== null) body.expectedVersion = expectedVersion;
+      return requestJson(IDENTITY_URL, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -1048,9 +1257,138 @@
       }).filter(Boolean);
     }
 
+    function authorityVersion() {
+      for (var index = 0; index < arguments.length; index += 1) {
+        var value = Number(arguments[index]);
+        if (Number.isSafeInteger(value) && value >= 1) return value;
+      }
+      return null;
+    }
+
+    function normalizeEmploymentLink(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var source = firstObject(row.sourceBinding, row.binding);
+      var contractId = text(first(row.employmentContractId, row.contractId));
+      var declaredStatus = text(first(row.status, row.state)).toLowerCase();
+      var status = ['linked', 'unlinked', 'stale'].includes(declaredStatus)
+        ? declaredStatus : (contractId ? 'linked' : 'unlinked');
+      return {
+        status: status,
+        version: authorityVersion(row.version, row.authorityVersion),
+        employmentContractId: contractId,
+        sourceBindingId: text(first(row.sourceBindingId, source.id)),
+        legajo: text(first(row.legajo, row.employeeNumber)),
+        displayName: text(first(row.displayName, row.employeeName, row.name)),
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name))
+      };
+    }
+
+    function normalizeOperationalScope(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var level = text(first(row.scopeLevel, row.level)).toLowerCase();
+      if (!['company', 'organization', 'sector'].includes(level)) return null;
+      var normalized = {
+        id: text(row.id),
+        capabilityKey: text(first(row.capabilityKey, row.capability)),
+        sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+        scopeLevel: level,
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name)),
+        active: row.active !== false
+      };
+      if (!normalized.capabilityKey || !normalized.sourceBindingId) return null;
+      if (level === 'organization' && !normalized.organizationUnitSourceId) return null;
+      if (level === 'sector' && (!normalized.organizationUnitSourceId || !normalized.sectorSourceId)) return null;
+      return normalized;
+    }
+
+    function normalizeOperationalAccess(value) {
+      var row = firstObject(value);
+      return {
+        version: authorityVersion(row.version, row.authorityVersion),
+        scopes: list(first(row.scopes, row.actionScopes)).map(normalizeOperationalScope).filter(function (scope) {
+          return scope && scope.active;
+        })
+      };
+    }
+
+    function normalizeOperationalCatalog(payload) {
+      var catalog = findObject(payload, ['operationalCatalog','operationalAccessCatalog']);
+      var sourceBindings = list(first(catalog.sourceBindings, catalog.bindings)).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id),
+          system: text(first(row.system, row.sourceSystem), 'GRH').toUpperCase(),
+          databaseLabel: text(first(row.databaseLabel, row.sourceDatabaseLabel), 'Fuente municipal'),
+          companyId: text(first(row.companyId, row.sourceCompanyId)),
+          verified: row.verified === true
+        };
+      }).filter(function (binding) { return binding.id && binding.system === 'GRH' && binding.companyId && binding.verified; });
+      var scopeCapabilities = list(first(catalog.scopeCapabilities, catalog.capabilities)).map(function (value) {
+        return normalizeCapability(value, '');
+      }).filter(Boolean);
+      var organizations = list(first(catalog.organizations, catalog.organizationUnits)).map(function (value) {
+        var row = firstObject(value);
+        return {
+          sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+          sourceId: text(first(row.sourceId, row.id)),
+          label: text(first(row.label, row.name), 'Organización sin nombre')
+        };
+      }).filter(function (item) { return item.sourceBindingId && item.sourceId; });
+      var sectors = list(catalog.sectors).map(function (value) {
+        var row = firstObject(value);
+        return {
+          sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+          organizationUnitSourceId: text(first(row.organizationUnitSourceId, row.organizationId)),
+          sourceId: text(first(row.sourceId, row.id)),
+          label: text(first(row.label, row.name), 'Sector sin nombre')
+        };
+      }).filter(function (item) { return item.sourceBindingId && item.organizationUnitSourceId && item.sourceId; });
+      var reasonCodes = list(first(catalog.reasonCodes, catalog.changeReasons)).map(function (value) {
+        var row = typeof value === 'string' ? { key: value } : firstObject(value);
+        return { key: text(first(row.key, row.code)), label: text(first(row.label, row.name), titleize(first(row.key, row.code))) };
+      }).filter(function (item) { return item.key; });
+      return {
+        sourceBindings: sourceBindings,
+        scopeCapabilities: scopeCapabilities,
+        organizations: organizations,
+        sectors: sectors,
+        reasonCodes: reasonCodes
+      };
+    }
+
+    function normalizeEmploymentCandidate(value) {
+      var row = firstObject(value);
+      var organization = firstObject(row.organization);
+      var sector = firstObject(row.sector);
+      var candidate = {
+        employmentContractId: text(first(row.employmentContractId, row.contractId)),
+        sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
+        legajo: text(first(row.legajo, row.employeeNumber)),
+        displayName: text(first(row.displayName, row.name), 'Nombre no informado'),
+        organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
+        organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
+        sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
+        sectorLabel: text(first(row.sectorLabel, sector.label, sector.name))
+      };
+      return candidate.employmentContractId && candidate.sourceBindingId ? candidate : null;
+    }
+
     function normalizeUser(row) {
       row = firstObject(row);
       var membership = firstObject(row.membership, row.tenantMembership, row.access);
+      var invitation = firstObject(row.invitation, membership.invitation);
+      var delivery = firstObject(invitation.delivery);
+      var activation = firstObject(invitation.activation);
       var security = firstObject(row.security, row.authentication);
       var role = firstObject(row.roleDetail, membership.role);
       var capabilityValues = list(first(row.effectiveCapabilities, row.capabilities, membership.capabilities));
@@ -1061,9 +1399,14 @@
         return text(typeof value === 'string' ? value : firstObject(value).key);
       }).filter(Boolean);
       var status = text(first(membership.status, row.status, row.state), row.pending === true ? 'pending' : 'unknown');
+      var version = authorityVersion(membership.version, row.version);
+      var operationalMembershipId = text(first(membership.id, row.membershipId, row.membership_id));
+      var employmentLink = normalizeEmploymentLink(first(row.employmentLink, membership.employmentLink));
+      var operationalAccess = normalizeOperationalAccess(first(row.operationalAccess, membership.operationalAccess));
       return {
         id: text(first(row.id, row.userId, row.user_id, row.email)),
         membershipId: text(first(membership.id, row.membershipId, row.membership_id, row.id)),
+        operationalMembershipId: operationalMembershipId,
         displayName: text(first(row.displayName, row.name, row.fullName), 'Nombre no informado'),
         email: text(row.email).toLowerCase(),
         tenantId: text(first(membership.tenantId, row.tenantId, row.tenant_id)),
@@ -1073,12 +1416,50 @@
         status: status,
         mfa: first(security.mfaEnabled, row.mfaEnabled, row.mfa),
         lastAccessAt: first(security.lastAccessAt, row.lastAccessAt, row.lastSignInAt),
-        employmentLinked: first(row.employmentLinked, row.hasEmployeeLink, membership.employmentLinked),
+        employmentLinked: employmentLink.status === 'linked' ? true : employmentLink.status === 'unlinked' ? false : null,
+        employmentLink: employmentLink,
+        operationalAccess: operationalAccess,
+        invitation: {
+          id: text(first(invitation.id, row.invitationId)),
+          status: text(invitation.status, 'not_applicable').toLowerCase(),
+          version: first(invitation.version, row.invitationVersion),
+          deliveryStatus: text(delivery.status, 'not_issued').toLowerCase(),
+          issuedAt: first(delivery.issuedAt, invitation.issuedAt),
+          expiresAt: first(delivery.expiresAt, invitation.expiresAt),
+          acceptedAt: first(activation.acceptedAt, invitation.acceptedAt)
+        },
         capabilities: capabilities,
         eligibleCapabilities: eligible,
-        version: first(membership.version, row.version),
-        raw: row
+        version: version
       };
+    }
+
+    function normalizeInvitation(row) {
+      row = firstObject(row);
+      var delivery = firstObject(row.delivery);
+      var activation = firstObject(row.activation);
+      return {
+        id: text(row.id),
+        membershipId: text(row.membershipId),
+        tenantId: text(row.tenantId),
+        email: text(row.email).toLowerCase(),
+        status: text(row.status, 'not_applicable').toLowerCase(),
+        version: first(row.version),
+        deliveryStatus: text(delivery.status, 'not_issued').toLowerCase(),
+        issuedAt: first(delivery.issuedAt),
+        expiresAt: first(delivery.expiresAt),
+        acceptedAt: first(activation.acceptedAt)
+      };
+    }
+
+    function applyInvitationProjection() {
+      state.users.forEach(function (user) {
+        var invitation = state.invitations.find(function (item) {
+          return (item.membershipId && item.membershipId === user.membershipId)
+            || (item.email && item.email === user.email && (!item.tenantId || item.tenantId === user.tenantId));
+        });
+        if (invitation) user.invitation = invitation;
+      });
     }
 
     function normalizeAuditEvent(row) {
@@ -1165,6 +1546,27 @@
       };
     }
 
+    function normalizeMembershipRequests(payload) {
+      return findArray(payload, ['membershipRequests']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id), action: text(row.action).toLowerCase(),
+          status: text(row.status).toLowerCase(), tenantId: text(row.tenantId),
+          tenantName: text(first(row.tenantName, row.tenantId), 'Gobierno no informado'),
+          targetEmail: text(row.targetEmail).toLowerCase(),
+          targetDisplayName: text(first(row.targetDisplayName, row.targetEmail), 'Cuenta no informada'),
+          membershipId: text(row.membershipId), roleKey: text(row.roleKey),
+          expectedMembershipVersion: Number(row.expectedMembershipVersion),
+          reason: text(row.reason), requestedByEmail: text(row.requestedByEmail).toLowerCase(),
+          requestedByDisplayName: text(first(row.requestedByDisplayName, row.requestedByEmail), 'Solicitante no informado'),
+          requestedAt: row.requestedAt, expiresAt: row.expiresAt,
+          decidedByEmail: text(row.decidedByEmail).toLowerCase(),
+          decisionReason: text(row.decisionReason), decidedAt: row.decidedAt,
+          version: authorityVersion(row.version), canCurrentActorDecide: row.canCurrentActorDecide === true
+        };
+      }).filter(function (request) { return request.id && request.targetEmail && request.version; });
+    }
+
     function normalizeBootstrap(payload, requestedTenantId) {
       var root = roots(payload)[0] || {};
       var user = firstObject(root.user, root.principal, root.session && root.session.user);
@@ -1197,7 +1599,64 @@
         metrics: normalizeMetrics(payload),
         source: normalizeSource(payload),
         exclusive: normalizeExclusive(payload, tenantId),
-        operationalControls: normalizeOperationalControls(payload)
+        operationalControls: normalizeOperationalControls(payload),
+        operationalCatalog: normalizeOperationalCatalog(payload),
+        membershipRequests: normalizeMembershipRequests(payload),
+        membershipGovernance: firstObject(root.membershipGovernance)
+      };
+    }
+
+    function normalizePlatformGovernance(payload) {
+      var root = roots(payload)[0] || {};
+      var controls = firstObject(root.controls, root.governance);
+      var owners = findArray(payload, ['owners','assignments']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          email: text(row.email).toLowerCase(),
+          displayName: text(first(row.displayName, row.name, row.email), 'Persona sin nombre'),
+          active: row.active === true,
+          version: authorityVersion(row.version),
+          mfaEnrolled: row.mfaEnrolled === true,
+          grantedAt: row.grantedAt,
+          revokedAt: row.revokedAt
+        };
+      }).filter(function (owner) { return owner.email && owner.version; });
+      var eligibleUsers = findArray(payload, ['eligibleUsers','candidates']).map(function (value) {
+        var row = firstObject(value);
+        var assignmentVersion = Number(row.assignmentVersion);
+        return {
+          email: text(row.email).toLowerCase(),
+          displayName: text(first(row.displayName, row.name, row.email), 'Persona sin nombre'),
+          assignmentVersion: Number.isSafeInteger(assignmentVersion) && assignmentVersion >= 0 ? assignmentVersion : null,
+          mfaEnrolled: row.mfaEnrolled === true,
+          previouslyRevoked: row.previouslyRevoked === true
+        };
+      }).filter(function (candidate) { return candidate.email && candidate.assignmentVersion !== null && candidate.mfaEnrolled; });
+      var requests = findArray(payload, ['requests','items']).map(function (value) {
+        var row = firstObject(value);
+        return {
+          id: text(row.id), targetEmail: text(row.targetEmail).toLowerCase(),
+          targetDisplayName: text(first(row.targetDisplayName, row.targetEmail), 'Persona no informada'),
+          action: text(row.action).toLowerCase(), status: text(row.status).toLowerCase(),
+          reason: text(row.reason), requestedByEmail: text(row.requestedByEmail).toLowerCase(),
+          requestedByDisplayName: text(first(row.requestedByDisplayName, row.requestedByEmail), 'Solicitante no informado'),
+          requestedAt: row.requestedAt, decidedByEmail: text(row.decidedByEmail).toLowerCase(),
+          decisionReason: text(row.decisionReason), decidedAt: row.decidedAt,
+          version: authorityVersion(row.version),
+          expectedAssignmentVersion: Number(row.expectedAssignmentVersion)
+        };
+      }).filter(function (request) { return request.id && request.targetEmail && request.version; });
+      return {
+        currentActorEmail: text(first(root.currentActorEmail, state.user && state.user.email)).toLowerCase(),
+        owners: owners, eligibleUsers: eligibleUsers, requests: requests,
+        controls: {
+          activeOwnerCount: Math.max(0, finiteNumber(controls.activeOwnerCount) || 0),
+          makerCheckerReady: controls.makerCheckerReady === true,
+          lastOwnerProtected: controls.lastOwnerProtected === true,
+          selfApprovalBlocked: controls.selfApprovalBlocked === true,
+          mfaRequiredForGrant: controls.mfaRequiredForGrant === true,
+          auditReady: controls.auditReady === true
+        }
       };
     }
 
@@ -1326,14 +1785,20 @@
       }).forEach(function (tenant) {
         var button = node('button', 'tenant-option');
         button.type = 'button';
-        button.dataset.tenantOption = tenant.id;
-        button.setAttribute('aria-current', String((state.context.tenantId || '') === tenant.id));
+        if (tenant.apiBacked === false) {
+          button.disabled = true;
+          button.setAttribute('aria-disabled', 'true');
+          button.title = 'Referencia informativa: la API todavía no publicó un UUID autorizado.';
+        } else {
+          button.dataset.tenantOption = tenant.id;
+          button.setAttribute('aria-current', String((state.context.tenantId || '') === tenant.id));
+        }
         button.appendChild(node('span', 'tenant-option-code', tenant.id ? initials(tenant.name) : 'PL'));
         var copy = node('span');
         copy.appendChild(node('strong', '', tenant.name));
         copy.appendChild(node('small', '', tenant.jurisdiction + ' · ' + tenant.governmentLevel));
         button.appendChild(copy);
-        button.appendChild(node('span', 'tenant-option-state', tenant.apiBacked === false ? 'Contexto municipal' : 'Autorizado'));
+        button.appendChild(node('span', 'tenant-option-state', tenant.apiBacked === false ? 'Referencia sin UUID · no seleccionable' : 'Autorizado'));
         el.tenantOptions.appendChild(button);
       });
     }
@@ -1438,9 +1903,26 @@
     function normalizeUserStatus(value) {
       var normalized = normalizeSearch(value);
       if (/activ|enabled|acept/.test(normalized)) return 'active';
-      if (/pend|invite|invita/.test(normalized)) return 'pending';
       if (/suspend|revoc|disabled|inactiv/.test(normalized)) return 'suspended';
+      if (/pend|invite|invita/.test(normalized)) return 'pending';
       return 'unknown';
+    }
+
+    function invitationLabel(invitation) {
+      var status = normalizeSearch(invitation && invitation.status);
+      if (status === 'prepared') return 'Preparada';
+      if (status === 'issued') return 'Emitida';
+      if (status === 'accepted') return 'Aceptada';
+      if (status === 'cancelled') return 'Cancelada';
+      return 'No aplica';
+    }
+
+    function invitationDetail(invitation) {
+      var label = invitationLabel(invitation);
+      if (label === 'Emitida' && invitation.expiresAt) return label + ' · vence ' + formatDate(invitation.expiresAt, true);
+      if (label === 'Aceptada' && invitation.acceptedAt) return label + ' · ' + formatDate(invitation.acceptedAt, true);
+      if (label === 'Preparada') return label + ' · todavía no enviada';
+      return label;
     }
 
     function renderGovernance() {
@@ -1455,6 +1937,8 @@
       el.governanceFacts.append(pill('Auditoría ' + (state.controls.auditReady ? 'lista' : 'bloqueada'), state.controls.auditReady ? 'is-ok' : 'is-attention'));
       el.governanceFacts.append(pill('Invitaciones ' + (state.controls.invitationGatewayReady ? 'activas' : 'sólo preparadas'), state.controls.invitationGatewayReady ? 'is-ok' : 'is-attention'));
       el.inviteUserButton.disabled = !mutationAllowed('invite_user', true) || !state.roles.length || !state.tenants.length;
+      var eligibleTenantCount = list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).length;
+      el.attachExistingButton.disabled = !mutationAllowed('request_existing_membership', true) || !state.roles.length || eligibleTenantCount < 1;
       el.createTenantButton.disabled = !mutationAllowed('create_tenant', false);
       el.createTenantGate.classList.toggle('is-danger', !mutationAllowed('create_tenant', false));
       el.createTenantGate.querySelector('strong').textContent = mutationAllowed('create_tenant', false) ? 'Alta autorizada' : 'Operación bloqueada';
@@ -1465,13 +1949,97 @@
     function renderRoleOptions() {
       var roleItems = state.roles.map(function (role) { return { key: role.key, label: role.label }; });
       var tenantRoleItems = state.roles.filter(function (role) { return role.scopeKind === 'tenant'; }).map(function (role) { return { key: role.key, label: role.label }; });
+      var eligibleTenantIds = new Set(list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).map(function (value) { return text(value); }).filter(Boolean));
+      var eligibleMembershipTenants = state.tenants.filter(function (tenant) { return eligibleTenantIds.has(tenant.id); });
       populateSelect(el.roleMatrixRole, roleItems, 'Seleccioná un rol informado', 'key', 'label');
       populateSelect(el.userRoleFilter, tenantRoleItems, 'Todos', 'key', 'label');
       populateSelect(el.inviteRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
+      populateSelect(el.attachExistingRole, tenantRoleItems.filter(function (role) {
+        return role.key === 'TENANT_RRHH_ADMIN_OPERATIVO';
+      }), 'Seleccionar perfil RR.HH. operativo', 'key', 'label');
       populateSelect(el.userAccessRole, tenantRoleItems, 'Seleccionar rol de tenant', 'key', 'label');
       populateSelect(el.inviteTenant, state.tenants.map(function (tenant) { return { id: tenant.id, label: tenant.name }; }), 'Seleccionar gobierno', 'id', 'label');
+      populateSelect(el.attachExistingTenant, eligibleMembershipTenants.map(function (tenant) { return { id: tenant.id, label: tenant.name }; }), eligibleMembershipTenants.length ? 'Seleccionar gobierno certificado' : 'Sin gobiernos certificados', 'id', 'label');
       if (state.context.tenantId && state.tenants.some(function (tenant) { return tenant.id === state.context.tenantId; })) el.inviteTenant.value = state.context.tenantId;
+      if (state.context.tenantId && eligibleTenantIds.has(state.context.tenantId)) el.attachExistingTenant.value = state.context.tenantId;
       renderRoleMatrix();
+    }
+
+    function membershipRequestStatusLabel(status) {
+      if (status === 'pending') return 'Pendiente';
+      if (status === 'approved') return 'Aprobada';
+      if (status === 'rejected') return 'Rechazada';
+      if (status === 'expired') return 'Vencida';
+      return titleize(status || 'No informado');
+    }
+
+    function renderMembershipGovernance() {
+      var governance = state.membershipGovernance || {};
+      var requests = state.membershipRequests.slice();
+      var ready = governance.makerCheckerRequired === true
+        && governance.actorGovernanceReady === true
+        && governance.makerCheckerReady === true;
+      el.membershipRequestGate.classList.toggle('is-blocked', !ready);
+      el.membershipRequestGate.classList.toggle('is-ready', ready);
+      el.membershipRequestGateTitle.textContent = ready ? 'Doble control operativo disponible' : 'Doble control operativo bloqueado';
+      el.membershipRequestGateMessage.textContent = ready
+        ? 'La solicitud no cambia permisos: otra persona propietaria, distinta también de la cuenta objetivo, debe decidir.'
+        : (governance.actorGovernanceReady === true
+          ? 'Todavía no existe otra persona propietaria elegible con MFA para completar el doble control.'
+          : 'Tu cuenta debe ser propietaria activa y tener MFA antes de solicitar o decidir accesos.');
+      clear(el.membershipRequestFacts);
+      el.membershipRequestFacts.append(
+        pill(String(governance.usableOwnerCount || 0) + ' propietarios utilizables', ready ? 'is-ok' : 'is-danger'),
+        pill(String(governance.actionableRequestCount || 0) + ' decisiones disponibles', Number(governance.actionableRequestCount || 0) > 0 ? 'is-attention' : ''),
+        pill('Tenant explícito', governance.explicitTenantOnly === true ? 'is-ok' : 'is-danger'),
+        pill('Futuros tenants: no', governance.futureTenantAccess === false ? 'is-ok' : 'is-danger')
+      );
+      el.membershipRequestEmpty.hidden = requests.length > 0;
+      el.membershipRequestWrap.hidden = requests.length === 0;
+      clear(el.membershipRequestRows);
+      requests.forEach(function (request) {
+        var row = node('tr');
+        var target = node('td'); target.dataset.label = 'Cuenta y gobierno';
+        target.append(node('span', 'cell-title', request.targetDisplayName), node('span', 'cell-sub', request.targetEmail + ' · ' + request.tenantName));
+        var change = node('td'); change.dataset.label = 'Cambio';
+        change.append(node('span', 'cell-title', request.action === 'add' ? 'Alta RR.HH. operativa' : 'Reactivación RR.HH.'), node('span', 'cell-sub', request.reason || 'Fundamento no visible'));
+        var maker = node('td'); maker.dataset.label = 'Solicitante';
+        maker.append(node('span', 'cell-title', request.requestedByDisplayName), node('span', 'cell-sub', formatDate(request.requestedAt, true)));
+        var status = node('td'); status.dataset.label = 'Estado';
+        status.appendChild(pill(membershipRequestStatusLabel(request.status), statusTone(request.status)));
+        if (request.expiresAt) status.appendChild(node('span', 'cell-sub', (request.status === 'pending' ? 'Vence ' : 'Límite ') + formatDate(request.expiresAt, true)));
+        var decision = node('td'); decision.dataset.label = 'Decisión';
+        if (request.status === 'pending') {
+          var reasonField = node('div', 'field');
+          var reasonLabel = node('label', '', 'Fundamento para esta solicitud');
+          var reasonInput = node('textarea', 'textarea');
+          reasonInput.minLength = 3; reasonInput.maxLength = 500;
+          reasonInput.placeholder = 'Obligatorio para aprobar o rechazar';
+          reasonInput.dataset.membershipDecisionReason = request.id;
+          reasonLabel.htmlFor = 'membership-reason-' + request.id;
+          reasonInput.id = reasonLabel.htmlFor;
+          reasonField.append(reasonLabel, reasonInput);
+          var approve = node('button', 'button primary', 'Aprobar'); approve.type = 'button'; approve.dataset.approveMembershipRequest = request.id; approve.dataset.requestVersion = String(request.version || '');
+          var approveReady = ready && request.canCurrentActorDecide && canCommand('approve_membership_change');
+          approve.disabled = true;
+          var reject = node('button', 'button', 'Rechazar'); reject.type = 'button'; reject.dataset.rejectMembershipRequest = request.id; reject.dataset.requestVersion = String(request.version || '');
+          var rejectReady = ready && request.canCurrentActorDecide && canCommand('reject_membership_change');
+          reject.disabled = true;
+          reasonInput.addEventListener('input', function () {
+            var reasonReady = reasonInput.value.trim().length >= 3;
+            approve.disabled = !approveReady || state.loading || !reasonReady;
+            reject.disabled = !rejectReady || state.loading || !reasonReady;
+          });
+          decision.append(reasonField, approve, reject);
+          if (!request.canCurrentActorDecide) decision.appendChild(node('span', 'cell-sub', 'Debe decidir otra persona propietaria.'));
+        } else if (request.status === 'expired') {
+          decision.append(node('span', 'cell-title', 'Vencida sin decisión'), node('span', 'cell-sub', 'No modificó permisos ni creó una membresía.'));
+        } else {
+          decision.append(node('span', 'cell-title', request.decidedByEmail || 'Decisión registrada'), node('span', 'cell-sub', request.decisionReason || 'Fundamento protegido'));
+        }
+        row.append(target, change, maker, status, decision);
+        el.membershipRequestRows.appendChild(row);
+      });
     }
 
     function renderRoleMatrix() {
@@ -1482,6 +2050,97 @@
         clear(el.roleEffectiveSummary);
         el.roleEffectiveSummary.append(node('strong', '', role.label + '. '), document.createTextNode(role.description + ' La API informó ' + role.capabilities.length + ' capacidades para este rol.'));
       }
+    }
+
+    function platformGovernanceCommandReady(command, decision) {
+      var controls = state.platformGovernance.controls || {};
+      return canCommand(command) && controls.auditReady === true
+        && controls.lastOwnerProtected === true
+        && (!decision || controls.makerCheckerReady === true)
+        && !state.loading;
+    }
+
+    function renderPlatformGovernance() {
+      var governance = state.platformGovernance;
+      var controls = governance.controls || {};
+      var activeOwners = governance.owners.filter(function (owner) { return owner.active; });
+      var actorEmail = text(first(governance.currentActorEmail, state.user && state.user.email)).toLowerCase();
+      var onlineReady = controls.makerCheckerReady === true && controls.auditReady === true
+        && controls.lastOwnerProtected === true;
+      el.platformOwnerGate.classList.toggle('is-blocked', !onlineReady);
+      el.platformOwnerGate.classList.toggle('is-ready', onlineReady);
+      el.platformOwnerGateTitle.textContent = onlineReady ? 'Doble control global verificado' : 'Bootstrap secundario pendiente';
+      el.platformOwnerGateMessage.textContent = onlineReady
+        ? 'Una persona propone y otra decide. PostgreSQL protege al último propietario y revoca sesiones globales al aprobar una baja.'
+        : 'Con un único propietario, el alta del segundo sólo puede realizarse por el procedimiento break-glass auditado; nunca por autoaprobación.';
+      clear(el.platformOwnerFacts);
+      el.platformOwnerFacts.append(
+        pill(String(controls.activeOwnerCount || 0) + ' propietarios activos', activeOwners.length > 1 ? 'is-ok' : 'is-attention'),
+        pill('Último owner ' + (controls.lastOwnerProtected ? 'protegido' : 'sin verificar'), controls.lastOwnerProtected ? 'is-ok' : 'is-danger'),
+        pill('Auditoría ' + (controls.auditReady ? 'lista' : 'bloqueada'), controls.auditReady ? 'is-ok' : 'is-danger')
+      );
+
+      var selectedCandidate = el.platformOwnerCandidate.value;
+      clear(el.platformOwnerCandidate);
+      var placeholder = node('option', '', 'Seleccionar persona elegible'); placeholder.value = ''; el.platformOwnerCandidate.appendChild(placeholder);
+      governance.eligibleUsers.forEach(function (candidate) {
+        var option = node('option', '', candidate.displayName + ' · ' + candidate.email);
+        option.value = candidate.email; option.dataset.assignmentVersion = String(candidate.assignmentVersion);
+        el.platformOwnerCandidate.appendChild(option);
+      });
+      if (governance.eligibleUsers.some(function (candidate) { return candidate.email === selectedCandidate; })) el.platformOwnerCandidate.value = selectedCandidate;
+      var grantReasonReady = el.platformOwnerRequestReason.value.trim().length >= 3;
+      el.requestPlatformOwnerGrant.disabled = !onlineReady
+        || !platformGovernanceCommandReady('request_platform_owner_grant', false)
+        || !el.platformOwnerCandidate.value || !grantReasonReady;
+
+      clear(el.platformOwnerRows);
+      el.platformOwnerCount.textContent = activeOwners.length + (activeOwners.length === 1 ? ' propietario activo' : ' propietarios activos');
+      governance.owners.forEach(function (owner) {
+        var row = node('tr');
+        var person = node('td'); person.dataset.label = 'Persona'; person.append(node('span', 'cell-title', owner.displayName), node('span', 'cell-sub', owner.email));
+        var mfa = node('td'); mfa.dataset.label = 'MFA'; mfa.appendChild(pill(owner.mfaEnrolled ? 'Activo' : 'No verificado', owner.mfaEnrolled ? 'is-ok' : 'is-danger'));
+        var version = node('td', 'cell-sub', owner.version ? 'v' + owner.version : 'No informada'); version.dataset.label = 'Versión';
+        var status = node('td'); status.dataset.label = 'Estado'; status.appendChild(pill(owner.active ? 'Activo' : 'Revocado', owner.active ? 'is-ok' : 'is-danger'));
+        var action = node('td'); action.dataset.label = 'Acción';
+        var revoke = node('button', 'button danger', 'Solicitar baja'); revoke.type = 'button'; revoke.dataset.requestOwnerRevoke = owner.email; revoke.dataset.assignmentVersion = String(owner.version || '');
+        revoke.disabled = !owner.active || !owner.version || !onlineReady
+          || !platformGovernanceCommandReady('request_platform_owner_revoke', false)
+          || el.platformOwnerRequestReason.value.trim().length < 3
+          || (activeOwners.length === 2 && owner.email !== actorEmail);
+        if (activeOwners.length === 2 && owner.email !== actorEmail) revoke.title = 'Con dos propietarios, cada persona solicita su propia baja y la otra la aprueba.';
+        action.appendChild(revoke); row.append(person, mfa, version, status, action); el.platformOwnerRows.appendChild(row);
+      });
+
+      var visibleRequests = governance.requests.slice();
+      el.platformOwnerRequestEmpty.hidden = visibleRequests.length > 0;
+      el.platformOwnerRequestWrap.hidden = visibleRequests.length === 0;
+      clear(el.platformOwnerRequestRows);
+      var decisionReasonReady = el.platformOwnerDecisionReason.value.trim().length >= 3;
+      visibleRequests.forEach(function (request) {
+        var row = node('tr');
+        var target = node('td'); target.dataset.label = 'Objetivo'; target.append(node('span', 'cell-title', request.targetDisplayName), node('span', 'cell-sub', request.targetEmail));
+        var change = node('td'); change.dataset.label = 'Cambio'; change.append(node('span', 'cell-title', request.action === 'grant' ? 'Otorgar PLATFORM_OWNER' : 'Revocar PLATFORM_OWNER'), node('span', 'cell-sub', request.reason || 'Sin fundamento visible'));
+        var maker = node('td'); maker.dataset.label = 'Solicitante'; maker.append(node('span', 'cell-title', request.requestedByDisplayName), node('span', 'cell-sub', formatDate(request.requestedAt, true)));
+        var status = node('td'); status.dataset.label = 'Estado'; status.appendChild(pill(titleize(request.status), statusTone(request.status)));
+        var decision = node('td'); decision.dataset.label = 'Decisión';
+        if (request.status === 'pending') {
+          var sameMaker = actorEmail && actorEmail === request.requestedByEmail;
+          var selfRevoke = request.action === 'revoke' && actorEmail === request.targetEmail;
+          var approve = node('button', 'button primary', 'Aprobar'); approve.type = 'button'; approve.dataset.approveOwnerRequest = request.id; approve.dataset.requestVersion = String(request.version || '');
+          approve.disabled = sameMaker || selfRevoke || !decisionReasonReady
+            || !platformGovernanceCommandReady('approve_platform_owner_change', true);
+          var reject = node('button', 'button', 'Rechazar'); reject.type = 'button'; reject.dataset.rejectOwnerRequest = request.id; reject.dataset.requestVersion = String(request.version || '');
+          reject.disabled = sameMaker || !decisionReasonReady
+            || !platformGovernanceCommandReady('reject_platform_owner_change', true);
+          decision.append(approve, reject);
+          if (sameMaker) decision.appendChild(node('span', 'cell-sub', 'Debe decidir otra persona.'));
+          else if (selfRevoke) decision.appendChild(node('span', 'cell-sub', 'No podés aprobar tu propia baja.'));
+        } else {
+          decision.append(node('span', 'cell-title', request.decidedByEmail || 'Decisión registrada'), node('span', 'cell-sub', request.decisionReason || 'Fundamento protegido'));
+        }
+        row.append(target, change, maker, status, decision); el.platformOwnerRequestRows.appendChild(row);
+      });
     }
 
     function renderUsers() {
@@ -1511,10 +2170,14 @@
         var row = node('tr'); row.dataset.openRow = user.id; row.dataset.listRow = 'user';
         var identity = node('td'); identity.dataset.label = 'Usuario'; identity.append(node('span', 'cell-title', user.displayName), node('span', 'cell-sub', user.email || 'Email no informado'));
         var tenant = node('td'); tenant.dataset.label = 'Tenant'; tenant.textContent = user.tenantName;
-        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades informadas'));
-        var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.appendChild(pill(user.status, statusTone(user.status)));
+        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades · ' + user.operationalAccess.scopes.length + ' alcances'));
+        var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.append(pill(user.status, statusTone(user.status)), node('span', 'cell-sub', 'Invitación: ' + invitationDetail(user.invitation)));
         var security = node('td'); security.dataset.label = 'Seguridad';
-        security.append(node('span', 'cell-title', user.mfa === true ? 'MFA verificado' : user.mfa === false ? 'MFA no verificado' : 'MFA no informado'), node('span', 'cell-sub', user.lastAccessAt ? 'Último acceso ' + formatDate(user.lastAccessAt, true) : 'Último acceso no informado'));
+        security.append(
+          node('span', 'cell-title', user.mfa === true ? 'MFA verificado' : user.mfa === false ? 'MFA no verificado' : 'MFA no informado'),
+          node('span', 'cell-sub', user.employmentLink.status === 'linked' ? 'Legajo vinculado' : user.employmentLink.status === 'stale' ? 'Vínculo laboral a revisar' : 'Sin vínculo laboral'),
+          node('span', 'cell-sub', user.lastAccessAt ? 'Último acceso ' + formatDate(user.lastAccessAt, true) : 'Último acceso no informado')
+        );
         var action = node('td'); action.dataset.label = ''; var button = node('button', 'button row-button', 'Ver acceso'); button.type = 'button'; button.dataset.openUser = user.id; action.appendChild(button);
         row.append(identity, tenant, roleCell, statusCell, security, action);
         el.userRows.appendChild(row);
@@ -1523,7 +2186,281 @@
 
     function renderUserFacts(user) {
       clear(el.userDetailFacts);
-      el.userDetailFacts.append(fact('Nombre', user.displayName), fact('Email', user.email), fact('Tenant', user.tenantName), fact('Estado', user.status), fact('Vínculo con legajo', user.employmentLinked === true ? 'Verificado' : user.employmentLinked === false ? 'No vinculado' : 'No informado'), fact('MFA', user.mfa === true ? 'Verificado' : user.mfa === false ? 'No verificado' : 'No informado'), fact('Último acceso', user.lastAccessAt ? formatDate(user.lastAccessAt, true) : 'No informado'));
+      el.userDetailFacts.append(fact('Nombre', user.displayName), fact('Email', user.email), fact('Tenant', user.tenantName), fact('Membresía', user.status), fact('Invitación', invitationDetail(user.invitation)), fact('Entrega', user.invitation.deliveryStatus), fact('Vínculo con legajo', user.employmentLinked === true ? 'Verificado' : user.employmentLinked === false ? 'No vinculado' : 'No informado'), fact('MFA', user.mfa === true ? 'Verificado' : user.mfa === false ? 'No verificado' : 'No informado'), fact('Último acceso', user.lastAccessAt ? formatDate(user.lastAccessAt, true) : 'No informado'));
+    }
+
+    function administrativeOnlyRole(roleKey) {
+      return ['PLATFORM_OWNER', 'TENANT_ADMIN', 'ADMIN_INTERNO', 'INTERNAL_ADMIN'].includes(text(roleKey).toUpperCase());
+    }
+
+    function bindingById(bindingId) {
+      return state.operationalCatalog.sourceBindings.find(function (binding) { return binding.id === bindingId; }) || null;
+    }
+
+    function operationalCapabilityByKey(key) {
+      return state.operationalCatalog.scopeCapabilities.find(function (capability) { return capability.key === key; }) || null;
+    }
+
+    function operationalContextReady(user) {
+      return Boolean(
+        user && user.operationalMembershipId
+        && state.context.mode === 'tenant'
+        && state.context.tenantId
+        && state.context.tenantId === user.tenantId
+        && normalizeUserStatus(user.status) === 'active'
+        && state.controls.tenantDataPlaneReady === true
+        && state.operationalCatalog.sourceBindings.length > 0
+        && !administrativeOnlyRole(user.roleKey)
+      );
+    }
+
+    function employmentRevokeContextReady(user) {
+      var membershipStatus = normalizeUserStatus(user && user.status);
+      var linkStatus = user && user.employmentLink ? user.employmentLink.status : '';
+      return Boolean(
+        user && user.operationalMembershipId
+        && state.context.mode === 'tenant'
+        && state.context.tenantId
+        && state.context.tenantId === user.tenantId
+        && ['active', 'suspended'].includes(membershipStatus)
+        && ['linked', 'stale'].includes(linkStatus)
+      );
+    }
+
+    function operationalBlockedReason(user) {
+      if (!user || !user.operationalMembershipId) return 'La API no informó una membresía tenant explícita; los usuarios legacy permanecen cerrados.';
+      if (state.context.mode !== 'tenant' || !state.context.tenantId || state.context.tenantId !== user.tenantId) return 'Abrí el gobierno exacto antes de administrar identidad laboral.';
+      if (normalizeUserStatus(user.status) !== 'active') return 'La membresía debe estar activa.';
+      if (administrativeOnlyRole(user.roleKey)) return 'Los roles exclusivamente administrativos administran identidades, pero no operan casos laborales.';
+      if (state.controls.tenantDataPlaneReady !== true) return 'El plano de datos del gobierno todavía no está certificado.';
+      if (!state.operationalCatalog.sourceBindings.length) return 'La API no informó un binding GRH verificado.';
+      return '';
+    }
+
+    function bindingLabel(bindingId) {
+      var binding = bindingById(bindingId);
+      if (!binding) return 'Fuente no informada';
+      return binding.system + ' · ' + binding.databaseLabel + (binding.companyId ? ' · empresa ' + binding.companyId : '');
+    }
+
+    function scopeIdentity(scope) {
+      return [scope.capabilityKey, scope.sourceBindingId, scope.scopeLevel, scope.organizationUnitSourceId || '', scope.sectorSourceId || ''].join('|');
+    }
+
+    function scopeAreaLabel(scope) {
+      if (scope.scopeLevel === 'company') return 'Toda la empresa del binding';
+      if (scope.scopeLevel === 'organization') return scope.organizationLabel || 'Organización ' + scope.organizationUnitSourceId;
+      return (scope.sectorLabel || 'Sector ' + scope.sectorSourceId) + ' · ' + (scope.organizationLabel || 'organización ' + scope.organizationUnitSourceId);
+    }
+
+    function scopeCatalogIssue(scope, user) {
+      if (!bindingById(scope.sourceBindingId)) return 'El binding ya no está certificado para este tenant.';
+      if (!operationalCapabilityByKey(scope.capabilityKey)) return 'La capacidad no pertenece al catálogo operativo informado.';
+      if (!user.capabilities.includes(scope.capabilityKey)) return 'La membresía ya no posee esta capacidad efectiva.';
+      if (scope.scopeLevel === 'organization') {
+        var organization = state.operationalCatalog.organizations.some(function (item) {
+          return item.sourceBindingId === scope.sourceBindingId && item.sourceId === scope.organizationUnitSourceId;
+        });
+        if (!organization) return 'La organización ya no pertenece al catálogo del binding.';
+      }
+      if (scope.scopeLevel === 'sector') {
+        var sector = state.operationalCatalog.sectors.some(function (item) {
+          return item.sourceBindingId === scope.sourceBindingId
+            && item.organizationUnitSourceId === scope.organizationUnitSourceId
+            && item.sourceId === scope.sectorSourceId;
+        });
+        if (!sector) return 'El sector ya no pertenece al catálogo del binding.';
+      }
+      return '';
+    }
+
+    function renderReasonSelect(select, fallback) {
+      var reasons = state.operationalCatalog.reasonCodes.length
+        ? state.operationalCatalog.reasonCodes : list(fallback);
+      populateSelect(select, reasons, 'Seleccionar motivo tipificado', 'key', 'label');
+    }
+
+    function renderEmploymentCandidates() {
+      var previous = el.employmentCandidateSelect.value;
+      clear(el.employmentCandidateSelect);
+      var placeholder = node('option', '', state.employmentCandidates.length ? 'Seleccionar coincidencia' : 'Sin resultados autorizados');
+      placeholder.value = '';
+      el.employmentCandidateSelect.appendChild(placeholder);
+      state.employmentCandidates.forEach(function (candidate) {
+        var option = node('option', '', candidate.displayName + (candidate.legajo ? ' · legajo ' + candidate.legajo : '') + (candidate.sectorLabel ? ' · ' + candidate.sectorLabel : ''));
+        option.value = candidate.employmentContractId;
+        el.employmentCandidateSelect.appendChild(option);
+      });
+      if (state.employmentCandidates.some(function (candidate) { return candidate.employmentContractId === previous; })) el.employmentCandidateSelect.value = previous;
+      el.employmentCandidateHelp.textContent = state.employmentCandidates.length
+        ? state.employmentCandidates.length + (state.employmentCandidates.length === 1 ? ' coincidencia efímera informada.' : ' coincidencias efímeras informadas.')
+        : 'Máximo 20 resultados; el navegador no conserva la búsqueda.';
+    }
+
+    function renderOperationalBoundary(user) {
+      var ready = operationalContextReady(user);
+      var administrative = administrativeOnlyRole(user.roleKey);
+      var linkVerified = user.employmentLink.status === 'linked' && Boolean(bindingById(user.employmentLink.sourceBindingId));
+      el.operationalBoundary.classList.toggle('is-blocked', !ready);
+      el.operationalBoundaryTitle.textContent = administrative ? 'Rol administrativo separado de la operación' : ready ? 'Frontera operativa identificada' : 'Administrar acceso no habilita operar';
+      el.operationalBoundaryMessage.textContent = administrative
+        ? 'Este rol no puede recibir vínculo con legajo ni alcances operativos. Para operar se requiere otra membresía funcional explícita.'
+        : ready ? 'Tenant, membresía y fuente están identificados. Cada comando será revalidado por capacidad y alcance exactos.' : operationalBlockedReason(user);
+      clear(el.operationalBoundaryFacts);
+      el.operationalBoundaryFacts.append(
+        pill('Membresía ' + normalizeUserStatus(user.status), normalizeUserStatus(user.status) === 'active' ? 'is-ok' : 'is-attention'),
+        pill('Legajo ' + (linkVerified ? 'vinculado' : user.employmentLink.status === 'linked' || user.employmentLink.status === 'stale' ? 'a revisar' : 'sin vínculo'), linkVerified ? 'is-ok' : 'is-attention'),
+        pill(user.operationalAccess.scopes.length + (user.operationalAccess.scopes.length === 1 ? ' alcance' : ' alcances'), user.operationalAccess.scopes.length ? 'is-info' : 'is-attention')
+      );
+      el.operationalWorkbenchState.textContent = ready ? 'Tenant verificado' : 'Bloqueado';
+      el.operationalWorkbenchState.className = 'state-pill ' + (ready ? 'is-ok' : 'is-attention');
+    }
+
+    function renderEmploymentLink(user) {
+      var link = user.employmentLink;
+      var linked = link.status === 'linked';
+      var bindingVerified = linked && Boolean(bindingById(link.sourceBindingId));
+      var stale = link.status === 'stale' || (linked && !bindingVerified);
+      el.employmentLinkState.textContent = stale ? 'Revisión requerida' : linked ? 'Vinculado' : 'Sin vínculo';
+      el.employmentLinkState.className = 'state-pill ' + (stale ? 'is-danger' : linked ? 'is-ok' : 'is-attention');
+      clear(el.employmentLinkSummary);
+      if (linked && bindingVerified) {
+        el.employmentLinkSummary.append(
+          node('strong', '', (link.displayName || user.displayName) + (link.legajo ? ' · legajo ' + link.legajo : '')),
+          node('span', '', bindingLabel(link.sourceBindingId)),
+          node('span', '', [link.organizationLabel, link.sectorLabel].filter(Boolean).join(' · ') || 'Área no informada')
+        );
+      } else {
+        el.employmentLinkSummary.append(node('strong', '', stale ? 'El vínculo informado no es utilizable' : 'Sin vínculo verificado'), node('span', '', 'No se infiere un legajo desde el nombre o el email.'));
+      }
+      renderReasonSelect(
+        el.employmentReasonCode,
+        employmentRevokeContextReady(user) ? EMPLOYMENT_REVOCATION_REASON_FALLBACK : []
+      );
+      renderEmploymentCandidates();
+    }
+
+    function eligibleScopeCapabilities(user) {
+      var effective = new Set(user.capabilities);
+      return state.operationalCatalog.scopeCapabilities.filter(function (capability) { return effective.has(capability.key); });
+    }
+
+    function renderScopeBuilder(user) {
+      populateSelect(el.scopeCapability, eligibleScopeCapabilities(user), 'Seleccionar capacidad efectiva', 'key', 'label');
+      var bindings = state.operationalCatalog.sourceBindings.map(function (binding) {
+        return { id: binding.id, label: bindingLabel(binding.id) };
+      });
+      populateSelect(el.scopeSourceBinding, bindings, 'Seleccionar binding GRH', 'id', 'label');
+      if (!el.scopeSourceBinding.value && bindings.length === 1) el.scopeSourceBinding.value = bindings[0].id;
+      var organizations = state.operationalCatalog.organizations.filter(function (item) { return item.sourceBindingId === el.scopeSourceBinding.value; });
+      populateSelect(el.scopeOrganization, organizations, 'Seleccionar organización', 'sourceId', 'label');
+      var sectors = state.operationalCatalog.sectors.filter(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value && item.organizationUnitSourceId === el.scopeOrganization.value;
+      });
+      populateSelect(el.scopeSector, sectors, 'Seleccionar sector', 'sourceId', 'label');
+      var level = el.scopeLevel.value;
+      el.scopeOrganization.disabled = level === 'company' || !level;
+      el.scopeSector.disabled = level !== 'sector';
+    }
+
+    function renderScopeDraft(user) {
+      clear(el.scopeDraftList);
+      el.actionScopeCount.textContent = state.scopeDraft.length + (state.scopeDraft.length === 1 ? ' alcance' : ' alcances');
+      el.actionScopeCount.className = 'state-pill ' + (state.scopeDraft.length ? 'is-info' : 'is-attention');
+      if (!state.scopeDraft.length) {
+        el.scopeDraftList.appendChild(node('div', 'scope-empty', 'Sin alcances activos. La capacidad por sí sola no autoriza casos.'));
+        return;
+      }
+      state.scopeDraft.forEach(function (scope, index) {
+        var issue = scopeCatalogIssue(scope, user);
+        var row = node('div', 'scope-draft-row' + (issue ? ' is-invalid' : ''));
+        var copy = node('div');
+        var capability = operationalCapabilityByKey(scope.capabilityKey);
+        copy.append(
+          node('strong', '', capability ? capability.label : scope.capabilityKey),
+          node('span', '', scopeAreaLabel(scope) + ' · ' + bindingLabel(scope.sourceBindingId)),
+          issue ? node('span', '', 'Revisión obligatoria: ' + issue) : node('span', '', 'Alcance tenant-owned verificado contra el catálogo informado.')
+        );
+        var remove = node('button', 'button danger', 'Quitar');
+        remove.type = 'button';
+        remove.dataset.removeScopeIndex = String(index);
+        remove.disabled = !operationalContextReady(user) || !mutationAllowed('replace_action_scopes', true);
+        row.append(copy, remove);
+        el.scopeDraftList.appendChild(row);
+      });
+    }
+
+    function sameScopeDraft(user) {
+      var current = user.operationalAccess.scopes.map(scopeIdentity).sort();
+      var draft = state.scopeDraft.map(scopeIdentity).sort();
+      return current.length === draft.length && current.every(function (value, index) { return value === draft[index]; });
+    }
+
+    function updateOperationalGates() {
+      var user = state.selectedUser;
+      if (!user) return;
+      var baseReady = operationalContextReady(user) && governanceReady(true) && !state.loading;
+      var revokeReady = employmentRevokeContextReady(user) && governanceReady(true) && !state.loading;
+      var serverReasonCatalogReady = state.operationalCatalog.reasonCodes.length > 0;
+      var employmentControlsReady = (baseReady && serverReasonCatalogReady) || revokeReady;
+      var version = authorityVersion(user.operationalAccess.version);
+      var reasonCode = el.employmentReasonCode.value;
+      var reasonReady = el.employmentReason.value.trim().length >= 3;
+      var selectedCandidate = state.employmentCandidates.find(function (candidate) { return candidate.employmentContractId === el.employmentCandidateSelect.value; });
+      var candidateBindingReady = selectedCandidate && Boolean(bindingById(selectedCandidate.sourceBindingId));
+      var canLookup = baseReady && canCommand('lookup_employment');
+      var canLink = baseReady && serverReasonCatalogReady && canCommand('link_employment') && version && reasonCode && reasonReady && candidateBindingReady;
+      var canRevoke = revokeReady && canCommand('revoke_employment_link') && version && reasonCode && reasonReady;
+      el.employmentLookupQuery.disabled = !canLookup;
+      el.employmentLookupButton.disabled = !canLookup || el.employmentLookupQuery.value.trim().length < 3;
+      el.employmentCandidateSelect.disabled = !baseReady || !state.employmentCandidates.length;
+      el.employmentReasonCode.disabled = !employmentControlsReady || (!canCommand('link_employment') && !canCommand('revoke_employment_link'));
+      el.employmentReason.disabled = el.employmentReasonCode.disabled;
+      el.linkEmploymentButton.disabled = !canLink;
+      el.linkEmploymentButton.textContent = user.employmentLink.status === 'linked' ? 'Cambiar vínculo' : 'Vincular legajo';
+      el.revokeEmploymentButton.disabled = !canRevoke;
+      el.employmentOperationGate.classList.toggle('is-ready', Boolean(canLink || canRevoke));
+      el.employmentOperationGate.textContent = revokeReady && !baseReady
+        ? !canCommand('revoke_employment_link') ? 'El backend no autorizó el cierre del vínculo para esta sesión.'
+        : !version ? 'La versión de autoridad no está informada.'
+        : 'La membresía no opera. Podés revocar el vínculo activo como cierre auditado; esta acción no reactiva accesos.'
+        : !baseReady ? operationalBlockedReason(user)
+        : !canCommand('link_employment') && !canCommand('revoke_employment_link') ? 'El backend no publicó comandos de vínculo para esta sesión.'
+        : !version ? 'La versión de autoridad no está informada.'
+        : 'Elegí un motivo tipificado, fundamentá el cambio y seleccioná una coincidencia autorizada.';
+
+      var scopeReady = baseReady && canCommand('replace_action_scopes');
+      var level = el.scopeLevel.value;
+      var scopeShapeReady = Boolean(el.scopeCapability.value && el.scopeSourceBinding.value && level
+        && (level === 'company' || el.scopeOrganization.value)
+        && (level !== 'sector' || el.scopeSector.value));
+      el.scopeCapability.disabled = !scopeReady || !eligibleScopeCapabilities(user).length;
+      el.scopeSourceBinding.disabled = !scopeReady || !state.operationalCatalog.sourceBindings.length;
+      el.scopeLevel.disabled = !scopeReady;
+      if (!scopeReady) { el.scopeOrganization.disabled = true; el.scopeSector.disabled = true; }
+      el.addScopeButton.disabled = !scopeReady || !scopeShapeReady;
+      renderReasonSelect(el.scopeReasonCode);
+      el.scopeReasonCode.disabled = !scopeReady || !state.operationalCatalog.reasonCodes.length;
+      el.scopeReason.disabled = el.scopeReasonCode.disabled;
+      var scopeReasonReady = el.scopeReasonCode.value && el.scopeReason.value.trim().length >= 3;
+      var changed = !sameScopeDraft(user);
+      var invalidScopes = state.scopeDraft.filter(function (scope) { return scopeCatalogIssue(scope, user); });
+      el.saveScopesButton.disabled = !scopeReady || !version || !scopeReasonReady || !changed || invalidScopes.length > 0;
+      el.scopeOperationGate.classList.toggle('is-ready', scopeReady && Boolean(version));
+      el.scopeOperationGate.textContent = !baseReady ? operationalBlockedReason(user)
+        : !canCommand('replace_action_scopes') ? 'El backend no publicó replace_action_scopes para esta sesión.'
+        : !eligibleScopeCapabilities(user).length ? 'La membresía no tiene capacidades operativas elegibles; no se pueden fabricar alcances.'
+        : !version ? 'La versión del agregado de autoridad operativa no está informada; no se usa la versión legacy de membresía.'
+        : invalidScopes.length ? 'Quitá los alcances que ya no pertenecen al binding, área o capacidad efectiva informados.'
+        : changed ? 'Borrador local pendiente. PostgreSQL volverá a validar capability, binding, área y SoD.' : 'Los alcances coinciden con la versión informada por el backend.';
+    }
+
+    function renderOperationalWorkbench(user) {
+      renderOperationalBoundary(user);
+      renderEmploymentLink(user);
+      renderScopeBuilder(user);
+      renderScopeDraft(user);
+      updateOperationalGates();
     }
 
     function updateUserAccessGate() {
@@ -1531,6 +2468,10 @@
       if (!user) return;
       var selected = capabilityKeysFrom(el.userAccessCapabilities);
       var conflicts = sodConflicts(new Set(selected));
+      var selectedRoleAdministrative = administrativeOnlyRole(el.userAccessRole.value);
+      var operationalKeys = new Set(state.operationalCatalog.scopeCapabilities.map(function (capability) { return capability.key; }));
+      var selectedOperational = selected.filter(function (key) { return operationalKeys.has(key) || /^(?:leave\.request|time\.overtime|absence|employee\.record)\./.test(key); });
+      if (selectedRoleAdministrative && selectedOperational.length) conflicts.push('Un rol administrativo no puede conservar capacidades operativas: ' + selectedOperational.join(', ') + '.');
       var reasonReady = el.userAccessReason.value.trim().length >= 3;
       var versionReady = Number.isSafeInteger(Number(user.version)) && Number(user.version) >= 1;
       var ready = mutationAllowed('update_access', true) && conflicts.length === 0 && Boolean(el.userAccessRole.value) && reasonReady && Boolean(user.membershipId) && versionReady;
@@ -1541,19 +2482,38 @@
       renderConflictBox(el.userConflictBox, conflicts, mutationAllowed('update_access', true));
       var self = state.user && user.email && state.user.email && user.email.toLowerCase() === state.user.email.toLowerCase();
       el.suspendMembershipButton.disabled = !mutationAllowed('suspend_membership', false) || !user.membershipId || !versionReady || self || normalizeUserStatus(user.status) === 'suspended';
+      var invitationVersionReady = Number.isSafeInteger(Number(user.invitation.version)) && Number(user.invitation.version) >= 1;
+      el.issueInvitationButton.disabled = !mutationAllowed('issue_invitation', true) || !state.controls.invitationGatewayReady || user.invitation.status !== 'prepared' || !user.invitation.id || !invitationVersionReady;
+      el.issueInvitationButton.textContent = user.invitation.status === 'issued' ? 'Invitación emitida' : user.invitation.status === 'accepted' ? 'Invitación aceptada' : 'Emitir invitación';
+      el.reactivateMembershipButton.disabled = !mutationAllowed('request_membership_reactivation', true)
+        || !user.membershipId || !versionReady || !reasonReady || normalizeUserStatus(user.status) !== 'suspended';
     }
 
     function openUserDetail(userId) {
       var user = state.users.find(function (item) { return item.id === userId; });
       if (!user) return;
       state.selectedUser = user;
+      state.employmentCandidates = [];
+      state.scopeDraft = user.operationalAccess.scopes.map(function (scope) { return Object.assign({}, scope); });
       el.userAccessReason.value = '';
+      el.employmentLookupQuery.value = '';
+      el.employmentCandidateSelect.value = '';
+      el.employmentReasonCode.value = '';
+      el.employmentReason.value = '';
+      el.scopeCapability.value = '';
+      el.scopeSourceBinding.value = '';
+      el.scopeLevel.value = '';
+      el.scopeOrganization.value = '';
+      el.scopeSector.value = '';
+      el.scopeReasonCode.value = '';
+      el.scopeReason.value = '';
       el.userDetailTitle.textContent = user.displayName;
       el.userDetailSubtitle.textContent = user.email || 'Email no informado';
       renderUserFacts(user);
       el.userAccessRole.value = user.roleKey;
       renderCapabilityList(el.userAccessCapabilities, user.capabilities, mutationAllowed('update_access', true), 'userAccessCapability');
       updateUserAccessGate();
+      renderOperationalWorkbench(user);
       openDialog(el.userDetailDialog);
     }
 
@@ -1587,8 +2547,44 @@
       var valid = mutationAllowed('invite_user', true) && role && tenant && selected.length > 0 && conflicts.length === 0 && el.inviteName.value.trim() && el.inviteEmail.validity.valid && el.inviteEmail.value.trim();
       el.sendInviteButton.disabled = !valid;
       el.inviteMutationHint.textContent = valid
-        ? (state.controls.invitationGatewayReady ? 'La invitación requiere aceptación; no se genera una contraseña visible.' : 'La invitación quedará preparada e inactiva hasta certificar el gateway; no crea credenciales.')
+        ? (state.controls.invitationGatewayReady ? 'La invitación quedará preparada. Luego debe emitirse desde el detalle por el canal institucional.' : 'La invitación quedará preparada e inactiva hasta certificar el gateway; no crea credenciales.')
         : 'Completá los campos y resolvé los bloqueos de gobernanza.';
+    }
+
+    function updateAttachExistingGate() {
+      var email = el.attachExistingEmail.value.trim().toLowerCase();
+      var tenant = tenantById(el.attachExistingTenant.value);
+      var role = roleByKey(el.attachExistingRole.value);
+      var capabilities = role ? roleCapabilityKeys(role.key) : [];
+      var conflicts = sodConflicts(new Set(capabilities));
+      var eligibleTenantIds = new Set(list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).map(function (value) { return text(value); }).filter(Boolean));
+      var tenantReady = Boolean(tenant) && eligibleTenantIds.has(tenant.id);
+      if (tenant && !tenantReady) conflicts.push('Este gobierno todavía no tiene plano GRH y release certificados para altas operativas.');
+      var actorEmail = text(first(state.platformGovernance.currentActorEmail, state.user && state.user.email)).toLowerCase();
+      var eligibleCheckerCount = email ? state.platformGovernance.owners.filter(function (owner) {
+        return owner.active && owner.mfaEnrolled && owner.email
+          && owner.email !== actorEmail && owner.email !== email;
+      }).length : 0;
+      if (email && eligibleCheckerCount < 1) {
+        conflicts.push(email === actorEmail
+          ? 'No hay otra persona propietaria activa con MFA que pueda decidir tu solicitud.'
+          : 'No queda una persona propietaria activa con MFA distinta de quien solicita y de la cuenta objetivo. Con dos propietarios, cada owner debe solicitar su propia membresía para que el otro pueda decidir.');
+      }
+      var reasonReady = el.attachExistingReason.value.trim().length >= 3;
+      var ready = mutationAllowed('request_existing_membership', true)
+        && el.attachExistingEmail.validity.valid && Boolean(email)
+        && tenantReady && Boolean(role) && capabilities.length > 0
+        && eligibleCheckerCount > 0 && conflicts.length === 0 && reasonReady;
+      clear(el.attachExistingSummary);
+      if (!tenant || !role) {
+        el.attachExistingSummary.append(node('strong', '', 'Sin membresía propuesta.'), document.createTextNode(' Seleccioná gobierno y rol.'));
+      } else {
+        el.attachExistingSummary.append(node('strong', '', role.label + '. '), document.createTextNode(
+          capabilities.length + ' capacidades base para ' + tenant.name + '. ' + (tenantReady ? 'El gobierno está certificado para este flujo. ' : 'El gobierno todavía no está certificado. ') + 'No concede acceso a futuros gobiernos ni privilegios PostgreSQL.'
+        ));
+      }
+      renderConflictBox(el.attachExistingGate, conflicts, mutationAllowed('request_existing_membership', true));
+      el.attachExistingSubmit.disabled = !ready;
     }
 
     function showFieldError(input, errorElement, message) {
@@ -1691,6 +2687,8 @@
       renderTenants();
       renderGovernance();
       renderRoleOptions();
+      renderMembershipGovernance();
+      renderPlatformGovernance();
       renderUsers();
       renderControls();
       renderAudit();
@@ -1712,6 +2710,9 @@
       state.source = normalized.source;
       state.exclusive = normalized.exclusive;
       state.operationalControls = normalized.operationalControls;
+      state.operationalCatalog = normalized.operationalCatalog;
+      state.membershipRequests = normalized.membershipRequests;
+      state.membershipGovernance = normalized.membershipGovernance;
       return true;
     }
 
@@ -1727,6 +2728,36 @@
         state.users = [];
         el.userLoading.hidden = true; el.userError.hidden = false; el.userEmpty.hidden = true; el.userTableWrap.hidden = true;
         el.userErrorMessage.textContent = error.message;
+      }
+    }
+
+    async function loadInvitations(version) {
+      try {
+        var payload = await requestJson(IDENTITY_URL + '?resource=invitations');
+        if (version !== state.loadVersion) return;
+        state.invitations = findArray(payload, ['invitations','items']).map(normalizeInvitation).filter(function (invitation) { return invitation.id; });
+        list(payload.allowedCommands).forEach(function (command) { if (typeof command === 'string' && command) state.allowedCommands.add(command); });
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        state.invitations = [];
+      }
+    }
+
+    async function loadPlatformGovernance(version) {
+      try {
+        var payload = await requestJson(contextQuery('platform_owners', ''));
+        if (version !== state.loadVersion) return;
+        state.platformGovernance = normalizePlatformGovernance(payload);
+        list(payload.allowedCommands).forEach(function (command) {
+          if (typeof command === 'string' && command) state.allowedCommands.add(command);
+        });
+      } catch (error) {
+        if (version !== state.loadVersion || error.unauthorized) return;
+        state.platformGovernance = {
+          currentActorEmail: text(state.user && state.user.email).toLowerCase(),
+          owners: [], eligibleUsers: [], requests: [],
+          controls: { activeOwnerCount: 0, makerCheckerReady: false, lastOwnerProtected: false, auditReady: false }
+        };
       }
     }
 
@@ -1761,8 +2792,9 @@
         var loaded = await loadBootstrap(requestedTenantId || '', version);
         if (!loaded || version !== state.loadVersion) return;
         renderSession(); renderContext(); renderMetrics(); renderGovernance(); renderRoleOptions(); renderControls();
-        await Promise.all([loadUsers(requestedTenantId || '', version), loadAudit(requestedTenantId || '', version)]);
+        await Promise.all([loadUsers(requestedTenantId || '', version), loadInvitations(version), loadPlatformGovernance(version), loadAudit(requestedTenantId || '', version)]);
         if (version !== state.loadVersion) return;
+        applyInvitationProjection();
         renderAll();
       } catch (error) {
         if (version !== state.loadVersion || error.unauthorized) return;
@@ -1771,7 +2803,7 @@
         el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
         throw error;
       } finally {
-        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); }
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); renderPlatformGovernance(); }
       }
     }
 
@@ -1814,23 +2846,155 @@
     }
 
     async function switchContext(tenantId) {
+      var requestedTenant = tenantId ? tenantById(tenantId) : null;
+      if (tenantId && (!requestedTenant || requestedTenant.apiBacked !== true)) {
+        showToast('Ese gobierno es sólo una referencia informativa: falta un UUID autorizado por la API.', true);
+        return;
+      }
       closeDialog(el.tenantSwitcherDialog); el.tenantSwitcher.setAttribute('aria-expanded', 'false');
       closeDialog(el.tenantDetailDialog);
-      try { await loadAll(tenantId || ''); showToast(tenantId ? 'Ámbito cambiado y autorización actualizada.' : 'Ámbito global actualizado.'); }
+      state.employmentCandidates = [];
+      state.scopeDraft = [];
+      try { await loadAll(tenantId || ''); showToast(tenantId ? 'Filtro administrativo aplicado. La sesión operativa no cambió.' : 'Filtro global del control plane aplicado.'); }
       catch (error) { showToast(error.message, true); }
     }
 
+    async function lookupEmploymentCandidates() {
+      var user = state.selectedUser;
+      var query = el.employmentLookupQuery.value.trim();
+      if (!user || el.employmentLookupButton.disabled || query.length < 3) return;
+      el.employmentLookupButton.disabled = true;
+      el.employmentCandidateHelp.textContent = 'Consultando coincidencias autorizadas…';
+      el.employmentLookupQuery.value = '';
+      try {
+        var payload = await requestJson(ADMIN_URL, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': commandKey() },
+          body: JSON.stringify({
+            command: 'lookup_employment',
+            payload: { tenantId: user.tenantId, membershipId: user.operationalMembershipId, query: query, limit: 20 }
+          })
+        });
+        var verifiedBindings = new Set(state.operationalCatalog.sourceBindings.map(function (binding) { return binding.id; }));
+        state.employmentCandidates = findArray(payload, ['candidates','items']).map(normalizeEmploymentCandidate).filter(function (candidate) {
+          return candidate && verifiedBindings.has(candidate.sourceBindingId);
+        }).slice(0, 20);
+        renderEmploymentCandidates();
+        showToast(state.employmentCandidates.length ? 'Coincidencias protegidas actualizadas.' : 'El backend no informó coincidencias.');
+      } catch (error) {
+        state.employmentCandidates = [];
+        renderEmploymentCandidates();
+        showToast(error.message, true);
+      } finally {
+        updateOperationalGates();
+      }
+    }
+
+    function addScopeDraft() {
+      var user = state.selectedUser;
+      if (!user || el.addScopeButton.disabled) return;
+      var organization = state.operationalCatalog.organizations.find(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value && item.sourceId === el.scopeOrganization.value;
+      });
+      var sector = state.operationalCatalog.sectors.find(function (item) {
+        return item.sourceBindingId === el.scopeSourceBinding.value
+          && item.organizationUnitSourceId === el.scopeOrganization.value
+          && item.sourceId === el.scopeSector.value;
+      });
+      var scope = normalizeOperationalScope({
+        capabilityKey: el.scopeCapability.value,
+        sourceBindingId: el.scopeSourceBinding.value,
+        scopeLevel: el.scopeLevel.value,
+        organizationUnitSourceId: el.scopeLevel.value === 'company' ? null : el.scopeOrganization.value,
+        organizationLabel: organization && organization.label,
+        sectorSourceId: el.scopeLevel.value === 'sector' ? el.scopeSector.value : null,
+        sectorLabel: sector && sector.label,
+        active: true
+      });
+      if (!scope) { showToast('Completá el alcance exacto.', true); return; }
+      if (state.scopeDraft.some(function (existing) { return scopeIdentity(existing) === scopeIdentity(scope); })) {
+        showToast('Ese alcance ya está incluido.', true); return;
+      }
+      state.scopeDraft.push(scope);
+      renderScopeDraft(user);
+      updateOperationalGates();
+    }
+
+    function linkSelectedEmployment() {
+      var user = state.selectedUser;
+      var candidate = user && state.employmentCandidates.find(function (item) { return item.employmentContractId === el.employmentCandidateSelect.value; });
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !candidate || !version || el.linkEmploymentButton.disabled) return;
+      runCommand('link_employment', {
+        membershipId: user.operationalMembershipId,
+        employmentContractId: candidate.employmentContractId,
+        sourceBindingId: candidate.sourceBindingId,
+        reasonCode: el.employmentReasonCode.value,
+        reason: el.employmentReason.value.trim()
+      }, version, el.linkEmploymentButton, user.employmentLink.status === 'linked' ? 'Vínculo laboral actualizado.' : 'Vínculo laboral registrado.', el.userDetailDialog);
+    }
+
+    function revokeSelectedEmployment() {
+      var user = state.selectedUser;
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !version || el.revokeEmploymentButton.disabled) return;
+      if (!window.confirm('¿Revocar el vínculo laboral actual? La membresía conservará sólo los accesos que el backend considere válidos.')) return;
+      runCommand('revoke_employment_link', {
+        membershipId: user.operationalMembershipId,
+        reasonCode: el.employmentReasonCode.value,
+        reason: el.employmentReason.value.trim()
+      }, version, el.revokeEmploymentButton, 'Vínculo laboral revocado.', el.userDetailDialog);
+    }
+
+    function saveActionScopes() {
+      var user = state.selectedUser;
+      var version = user && authorityVersion(user.operationalAccess.version);
+      if (!user || !version || el.saveScopesButton.disabled) return;
+      if (!state.scopeDraft.length && user.operationalAccess.scopes.length
+          && !window.confirm('¿Dejar la membresía sin alcances operativos? Ninguna capacidad podrá actuar sobre casos.')) return;
+      runCommand('replace_action_scopes', {
+        membershipId: user.operationalMembershipId,
+        scopes: state.scopeDraft.map(function (scope) {
+          return {
+            capabilityKey: scope.capabilityKey,
+            sourceBindingId: scope.sourceBindingId,
+            scopeLevel: scope.scopeLevel,
+            ...(scope.scopeLevel === 'company' ? {} : { organizationUnitSourceId: scope.organizationUnitSourceId }),
+            ...(scope.scopeLevel === 'sector' ? { sectorSourceId: scope.sectorSourceId } : {})
+          };
+        }),
+        reasonCode: el.scopeReasonCode.value,
+        reason: el.scopeReason.value.trim()
+      }, version, el.saveScopesButton, 'Alcances operativos actualizados.', el.userDetailDialog);
+    }
+
+    function commandNeedsSod(command) {
+      return ['invite_user', 'issue_invitation', 'update_access', 'assign_exclusive_capability', 'request_existing_membership', 'request_membership_reactivation', 'approve_membership_change', 'reject_membership_change', 'link_employment', 'revoke_employment_link', 'replace_action_scopes'].includes(command);
+    }
+
     async function runCommand(command, payload, expectedVersion, button, successMessage, dialog) {
-      if (!mutationAllowed(command, command === 'invite_user' || command === 'update_access' || command === 'assign_exclusive_capability')) {
+      if (!mutationAllowed(command, commandNeedsSod(command))) {
         showToast('El backend no habilitó esta operación con controles suficientes.', true); return;
       }
+      var commandFingerprint = JSON.stringify({ command: command, payload: payload || {}, expectedVersion: expectedVersion });
+      var idempotencyKey = state.pendingCommandKeys.get(commandFingerprint) || commandKey();
+      state.pendingCommandKeys.set(commandFingerprint, idempotencyKey);
       button.disabled = true;
       try {
-        await postCommand(command, payload, expectedVersion);
+        await postCommand(command, payload, expectedVersion, idempotencyKey);
+        state.pendingCommandKeys.delete(commandFingerprint);
         if (dialog) closeDialog(dialog);
         showToast(successMessage);
         await loadAll(state.context.tenantId || '');
-      } catch (error) { showToast(error.message, true); }
+      } catch (error) {
+        var uncertainOrConflict = !error.status || error.status === 408 || error.status === 409;
+        if (!uncertainOrConflict) state.pendingCommandKeys.delete(commandFingerprint);
+        showToast(error.message + (uncertainOrConflict ? ' Actualizando el estado antes de permitir otro intento.' : ''), true);
+        if (uncertainOrConflict) {
+          try { await loadAll(state.context.tenantId || ''); }
+          catch (_) { if (button && button.isConnected) button.disabled = false; }
+        } else if (button && button.isConnected) button.disabled = false;
+      }
       finally { renderGovernance(); renderControls(); }
     }
 
@@ -1860,7 +3024,17 @@
       el.tenantOptionSearch.addEventListener('input', renderTenantOptions);
       el.tenantOptions.addEventListener('click', function (event) { var option = event.target.closest('[data-tenant-option]'); if (option) switchContext(option.dataset.tenantOption || ''); });
       document.querySelectorAll('[data-close-dialog]').forEach(function (button) { button.addEventListener('click', function () { var dialog = document.getElementById(button.dataset.closeDialog); closeDialog(dialog); if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
-      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () { if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false'); }); });
+      [el.tenantSwitcherDialog, el.tenantDetailDialog, el.inviteUserDialog, el.attachExistingDialog, el.userDetailDialog, el.createTenantDialog].forEach(function (dialog) { dialog.addEventListener('close', function () {
+        if (dialog === el.tenantSwitcherDialog) el.tenantSwitcher.setAttribute('aria-expanded', 'false');
+        if (dialog === el.userDetailDialog) {
+          state.employmentCandidates = [];
+          state.scopeDraft = [];
+          state.selectedUser = null;
+          el.employmentLookupQuery.value = '';
+          el.employmentReason.value = '';
+          el.scopeReason.value = '';
+        }
+      }); });
       el.refreshButton.addEventListener('click', function () { loadAll(state.context.tenantId || '').catch(function (error) { showToast(error.message, true); }); });
       el.logoutButton.addEventListener('click', async function () { try { await requestJson(AUTH_URL, { method: 'DELETE' }); } catch (_) {} window.location.replace('login.html'); });
       el.tenantSearch.addEventListener('input', renderTenants); el.tenantStatusFilter.addEventListener('change', renderTenants);
@@ -1882,16 +3056,126 @@
       el.inviteCapabilityMatrix.addEventListener('change', function () { updateInviteCapabilities(false); });
       el.inviteUserForm.addEventListener('submit', function (event) {
         event.preventDefault(); var result = validateInviteForm(); if (!result.valid) { updateInviteCapabilities(false); showToast('La invitación sigue bloqueada o incompleta.', true); return; }
-        runCommand('invite_user', { tenantId: result.tenantId, email: result.email, displayName: result.name, roleKey: result.role }, null, el.sendInviteButton, state.controls.invitationGatewayReady ? 'Invitación creada sin exponer credenciales.' : 'Invitación preparada; el gateway todavía no emite credenciales.', el.inviteUserDialog);
+        runCommand('invite_user', { tenantId: result.tenantId, email: result.email, displayName: result.name, roleKey: result.role }, null, el.sendInviteButton, 'Invitación preparada sin crear ni revelar credenciales.', el.inviteUserDialog);
+      });
+      el.attachExistingButton.addEventListener('click', function () {
+        el.attachExistingForm.reset(); renderRoleOptions(); updateAttachExistingGate(); openDialog(el.attachExistingDialog);
+      });
+      [el.attachExistingEmail, el.attachExistingReason].forEach(function (input) { input.addEventListener('input', updateAttachExistingGate); });
+      [el.attachExistingTenant, el.attachExistingRole].forEach(function (select) { select.addEventListener('change', updateAttachExistingGate); });
+      el.attachExistingForm.addEventListener('submit', function (event) {
+        event.preventDefault(); updateAttachExistingGate();
+        if (el.attachExistingSubmit.disabled) { showToast('La asociación sigue bloqueada o incompleta.', true); return; }
+        runCommand('request_existing_membership', {
+          tenantId: el.attachExistingTenant.value,
+          email: el.attachExistingEmail.value.trim().toLowerCase(),
+          roleKey: el.attachExistingRole.value,
+          reason: el.attachExistingReason.value.trim()
+        }, 0, el.attachExistingSubmit, 'Solicitud registrada; todavía no se modificaron permisos.', el.attachExistingDialog);
       });
       el.userSearch.addEventListener('input', renderUsers); el.userRoleFilter.addEventListener('change', renderUsers);
       el.clearUserFilters.addEventListener('click', function () { el.userSearch.value = ''; el.userRoleFilter.value = ''; state.userStatus = ''; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (tab) { tab.setAttribute('aria-selected', String(tab.dataset.userStatus === '')); }); renderUsers(); el.userSearch.focus(); });
       el.userStatusTabs.addEventListener('click', function (event) { var tab = event.target.closest('[data-user-status]'); if (!tab) return; state.userStatus = tab.dataset.userStatus; el.userStatusTabs.querySelectorAll('[data-user-status]').forEach(function (item) { item.setAttribute('aria-selected', String(item === tab)); }); renderUsers(); });
       el.userRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-user]'); if (button) openUserDetail(button.dataset.openUser); });
       el.roleMatrixRole.addEventListener('change', renderRoleMatrix);
+      [el.platformOwnerCandidate, el.platformOwnerRequestReason, el.platformOwnerDecisionReason].forEach(function (control) {
+        control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'input', renderPlatformGovernance);
+      });
+      el.membershipRequestRows.addEventListener('click', function (event) {
+        var approve = event.target.closest('[data-approve-membership-request]');
+        var reject = event.target.closest('[data-reject-membership-request]');
+        var button = approve || reject;
+        if (!button || button.disabled) return;
+        var row = button.closest('tr');
+        var reasonInput = row && row.querySelector('[data-membership-decision-reason]');
+        var reason = reasonInput ? reasonInput.value.trim() : '';
+        var version = Number(button.dataset.requestVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        var command = approve ? 'approve_membership_change' : 'reject_membership_change';
+        var requestId = approve ? button.dataset.approveMembershipRequest : button.dataset.rejectMembershipRequest;
+        var request = state.membershipRequests.find(function (item) { return item.id === requestId; });
+        if (!request) return;
+        var actionLabel = approve ? 'APROBAR' : 'RECHAZAR';
+        var confirmation = actionLabel + ' acceso operativo\n\nGobierno: ' + request.tenantName
+          + '\nCuenta: ' + request.targetEmail + '\nRol: ' + request.roleKey
+          + '\nFundamento: ' + reason + '\n\n¿Confirmar esta decisión auditada?';
+        if (!window.confirm(confirmation)) return;
+        runCommand(command, { requestId: requestId, reason: reason }, version, button,
+          approve ? 'Acceso operativo aprobado y auditado.' : 'Solicitud de acceso rechazada y auditada.', null);
+      });
+      el.platformOwnerGrantForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var candidate = state.platformGovernance.eligibleUsers.find(function (item) { return item.email === el.platformOwnerCandidate.value; });
+        var reason = el.platformOwnerRequestReason.value.trim();
+        if (!candidate || reason.length < 3 || el.requestPlatformOwnerGrant.disabled) return;
+        runCommand('request_platform_owner_grant', {
+          targetEmail: candidate.email, reason: reason
+        }, candidate.assignmentVersion, el.requestPlatformOwnerGrant, 'Solicitud global preparada para doble aprobación.', null);
+      });
+      el.platformOwnerRows.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-request-owner-revoke]');
+        if (!button || button.disabled) return;
+        var reason = el.platformOwnerRequestReason.value.trim();
+        var version = Number(button.dataset.assignmentVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        if (!window.confirm('¿Preparar la solicitud de baja global? La baja no se aplica hasta que otra persona propietaria la apruebe.')) return;
+        runCommand('request_platform_owner_revoke', {
+          targetEmail: button.dataset.requestOwnerRevoke, reason: reason
+        }, version, button, 'Solicitud de baja global preparada.', null);
+      });
+      el.platformOwnerRequestRows.addEventListener('click', function (event) {
+        var approve = event.target.closest('[data-approve-owner-request]');
+        var reject = event.target.closest('[data-reject-owner-request]');
+        var button = approve || reject;
+        if (!button || button.disabled) return;
+        var reason = el.platformOwnerDecisionReason.value.trim();
+        var version = Number(button.dataset.requestVersion);
+        if (reason.length < 3 || !Number.isSafeInteger(version) || version < 1) return;
+        var command = approve ? 'approve_platform_owner_change' : 'reject_platform_owner_change';
+        var requestId = approve ? button.dataset.approveOwnerRequest : button.dataset.rejectOwnerRequest;
+        var request = state.platformGovernance.requests.find(function (item) { return item.id === requestId; });
+        if (!request) return;
+        var decisionLabel = approve ? 'APROBAR' : 'RECHAZAR';
+        var changeLabel = request.action === 'grant' ? 'OTORGAR PLATFORM_OWNER' : 'REVOCAR PLATFORM_OWNER';
+        var confirmation = decisionLabel + ' solicitud global\n\nCuenta objetivo: ' + request.targetEmail
+          + '\nCambio solicitado: ' + changeLabel
+          + '\nSolicitante: ' + request.requestedByEmail
+          + '\nMotivo original: ' + (request.reason || 'No informado')
+          + '\nFundamento de la decisión: ' + reason
+          + '\n\n¿Confirmar esta decisión global auditada?';
+        if (!window.confirm(confirmation)) return;
+        runCommand(command, { requestId: requestId, reason: reason }, version, button,
+          approve ? 'Cambio global aprobado y auditado.' : 'Solicitud global rechazada y auditada.', null);
+      });
       el.userAccessRole.addEventListener('change', function () { renderCapabilityList(el.userAccessCapabilities, roleCapabilityKeys(el.userAccessRole.value), mutationAllowed('update_access', true), 'userAccessCapability'); updateUserAccessGate(); });
       el.userAccessCapabilities.addEventListener('change', updateUserAccessGate);
       el.userAccessReason.addEventListener('input', updateUserAccessGate);
+      el.employmentLookupQuery.addEventListener('input', updateOperationalGates);
+      el.employmentLookupQuery.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); lookupEmploymentCandidates(); } });
+      el.employmentLookupButton.addEventListener('click', lookupEmploymentCandidates);
+      el.employmentCandidateSelect.addEventListener('change', updateOperationalGates);
+      el.employmentReasonCode.addEventListener('change', updateOperationalGates);
+      el.employmentReason.addEventListener('input', updateOperationalGates);
+      el.linkEmploymentButton.addEventListener('click', linkSelectedEmployment);
+      el.revokeEmploymentButton.addEventListener('click', revokeSelectedEmployment);
+      [el.scopeCapability, el.scopeSourceBinding, el.scopeLevel, el.scopeOrganization].forEach(function (select) {
+        select.addEventListener('change', function () { var user = state.selectedUser; if (!user) return; renderScopeBuilder(user); updateOperationalGates(); });
+      });
+      el.scopeSector.addEventListener('change', updateOperationalGates);
+      el.addScopeButton.addEventListener('click', addScopeDraft);
+      el.scopeDraftList.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-remove-scope-index]');
+        var user = state.selectedUser;
+        if (!button || !user || button.disabled) return;
+        var index = Number(button.dataset.removeScopeIndex);
+        if (!Number.isSafeInteger(index) || index < 0 || index >= state.scopeDraft.length) return;
+        state.scopeDraft.splice(index, 1);
+        renderScopeDraft(user);
+        updateOperationalGates();
+      });
+      el.scopeReasonCode.addEventListener('change', updateOperationalGates);
+      el.scopeReason.addEventListener('input', updateOperationalGates);
+      el.saveScopesButton.addEventListener('click', saveActionScopes);
       el.userAccessForm.addEventListener('submit', function (event) {
         event.preventDefault(); var user = state.selectedUser; if (!user || el.updateAccessButton.disabled) return;
         var selected = new Set(capabilityKeysFrom(el.userAccessCapabilities));
@@ -1904,6 +3188,26 @@
         var user = state.selectedUser; if (!user || el.suspendMembershipButton.disabled) return;
         if (!window.confirm('¿Suspender la membresía de ' + user.displayName + '? El backend volverá a validar esta decisión.')) return;
         runCommand('suspend_membership', { membershipId: user.membershipId }, user.version, el.suspendMembershipButton, 'Membresía suspendida.', el.userDetailDialog);
+      });
+      el.reactivateMembershipButton.addEventListener('click', function () {
+        var user = state.selectedUser; if (!user || el.reactivateMembershipButton.disabled) return;
+        if (!window.confirm('¿Reactivar la membresía explícita de ' + user.displayName + ' sólo para ' + user.tenantName + '?')) return;
+        runCommand('request_membership_reactivation', {
+          membershipId: user.membershipId,
+          reason: el.userAccessReason.value.trim()
+        }, user.version, el.reactivateMembershipButton, 'Solicitud de reactivación registrada; todavía no se modificaron permisos.', el.userDetailDialog);
+      });
+      el.issueInvitationButton.addEventListener('click', function () {
+        var user = state.selectedUser; if (!user || el.issueInvitationButton.disabled) return;
+        if (!window.confirm('¿Emitir la invitación de ' + user.displayName + ' por el canal institucional configurado?')) return;
+        el.issueInvitationButton.disabled = true;
+        postIdentityCommand('issue_invitation', { invitationId: user.invitation.id }, Number(user.invitation.version)).then(function () {
+          closeDialog(el.userDetailDialog);
+          showToast('Invitación emitida. El código se entrega por un canal separado y nunca se muestra aquí.');
+          return loadAll(state.context.tenantId || '');
+        }).catch(function (error) {
+          showToast(error.code === 'IDENTITY_DELIVERY_UNAVAILABLE' ? 'El canal institucional no está disponible; la invitación sigue preparada.' : error.message, true);
+        }).finally(function () { renderGovernance(); });
       });
       el.overtimeAssigneeSelect.addEventListener('change', function () { el.assignOvertimeButton.disabled = !el.overtimeAssigneeSelect.value || !mutationAllowed('assign_exclusive_capability', true) || !state.exclusive || state.exclusive.verified !== true; });
       el.overtimeAssignmentForm.addEventListener('submit', function (event) {

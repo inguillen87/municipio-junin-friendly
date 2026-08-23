@@ -455,6 +455,64 @@
 
     .first-access-link:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
 
+    .access-links {
+      margin-top: 13px;
+      padding-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      border-top: 1px solid var(--line);
+    }
+
+    .access-links a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--navy-700);
+      font-size: 12px;
+      font-weight: 750;
+      text-align: center;
+      text-underline-offset: 3px;
+    }
+
+    .mfa-panel { padding-top: 2px; }
+    .mfa-panel h3 { margin: 0; color: var(--navy-950); font-size: 17px; }
+    .mfa-panel > p { margin: 8px 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .mfa-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .mfa-actions .button { padding-left: 10px; padding-right: 10px; }
+    .text-button { min-height: 44px; border: 0; background: transparent; color: var(--navy-700); font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .text-button:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
+
+    .context-options { display: grid; gap: 9px; margin: 0 0 18px; }
+    .context-option {
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 11px;
+      align-items: center;
+      padding: 11px 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+      cursor: pointer;
+    }
+    .context-option:has(input:checked) { border-color: var(--focus); background: #edf7fa; box-shadow: inset 4px 0 0 var(--focus); }
+    .context-option input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy-700); }
+    .context-option strong, .context-option span { display: block; }
+    .context-option strong { color: var(--navy-950); font-size: 13px; }
+    .context-option span { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+
+    .login-manual-key { margin: 0 0 18px; padding: 13px; border: 1px solid #7ebbb4; background: #edf8f6; }
+    .login-manual-key strong, .login-manual-key code, .login-manual-key span { display: block; }
+    .login-manual-key strong { color: var(--navy-950); font-size: 12px; }
+    .login-manual-key code { margin-top: 8px; color: #075c57; font-family: Consolas, 'Courier New', monospace; font-size: 14px; font-weight: 800; line-height: 1.5; overflow-wrap: anywhere; user-select: all; }
+    .login-manual-key span { margin-top: 8px; color: #345c5a; font-size: 11px; line-height: 1.45; }
+    .login-recovery-codes { margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-strong); list-style: none; }
+    .login-recovery-codes li { padding: 10px 11px; border-bottom: 1px solid var(--line); color: var(--navy-950); font-family: Consolas, 'Courier New', monospace; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
+    .login-recovery-codes li:nth-child(odd) { border-right: 1px solid var(--line); }
+    .recovery-confirm { display: grid; grid-template-columns: 20px 1fr; gap: 9px; align-items: start; margin: 0 0 17px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .recovery-confirm input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy-700); }
+
     .site-footer {
       border-top: 1px solid var(--line);
       background: #e5ebee;
@@ -518,6 +576,9 @@
       .public-route { padding-left: 20px; padding-right: 20px; }
       .access-panel-header { padding-top: 23px; }
       h2 { font-size: 26px; }
+      .access-links, .mfa-actions { grid-template-columns: 1fr; }
+      .login-recovery-codes { grid-template-columns: 1fr; }
+      .login-recovery-codes li:nth-child(odd) { border-right: 0; }
 
       .footer-inner {
         min-height: 64px;
@@ -594,49 +655,104 @@
           <p class="panel-description">Legajos, ausencias, licencias, vínculos y catálogos de gestión.</p>
         </div>
 
-        <form class="login-form" id="loginForm" onsubmit="doLogin(event)" autocomplete="on" aria-describedby="internal-help">
+        <form class="login-form" id="loginForm" onsubmit="doLogin(event)" autocomplete="on" novalidate aria-describedby="internal-help">
           <div class="error-msg" id="errorMsg" role="alert" aria-live="assertive" hidden>
             Credenciales incorrectas. Verificá el correo y la contraseña.
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="emailInput">Correo institucional</label>
-            <input
-              class="form-input"
-              id="emailInput"
-              name="email"
-              type="email"
-              inputmode="email"
-              placeholder="usuario@junin.gob.ar"
-              autocomplete="username"
-              spellcheck="false"
-              required
-            >
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="passInput">Contraseña</label>
-            <div class="password-field">
+          <div id="credentialStep">
+            <div class="form-group">
+              <label class="form-label" for="emailInput">Correo institucional</label>
               <input
                 class="form-input"
-                id="passInput"
-                name="password"
-                type="password"
-                placeholder="Ingresá tu contraseña"
-                autocomplete="current-password"
+                id="emailInput"
+                name="email"
+                type="email"
+                inputmode="email"
+                placeholder="usuario@junin.gob.ar"
+                autocomplete="username"
+                spellcheck="false"
                 required
               >
-              <button type="button" class="toggle-pass" onclick="togglePass()" id="togglePassBtn" aria-controls="passInput" aria-pressed="false">Mostrar</button>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="passInput">Contraseña</label>
+              <div class="password-field">
+                <input
+                  class="form-input"
+                  id="passInput"
+                  name="password"
+                  type="password"
+                  placeholder="Ingresá tu contraseña"
+                  autocomplete="current-password"
+                  required
+                >
+                <button type="button" class="toggle-pass" onclick="togglePass()" id="togglePassBtn" aria-controls="passInput" aria-pressed="false">Mostrar</button>
+              </div>
+            </div>
+
+            <p class="form-help" id="internal-help">Requiere una cuenta interna activa. El tenant y los permisos se verifican en el servidor.</p>
+
+            <button type="submit" class="button button-primary" id="btnLogin">
+              <span class="button-label">Ingresar al portal interno</span>
+              <span class="loading-indicator" aria-hidden="true"></span>
+            </button>
+            <div class="access-links">
+              <a href="activar-cuenta.html">Activar una invitación</a>
+              <a href="login.html?next=centro-ayuda.html">Primer recorrido guiado</a>
             </div>
           </div>
 
-          <p class="form-help" id="internal-help">Requiere una cuenta interna habilitada por la Municipalidad.</p>
+          <div class="mfa-panel" id="contextStep" hidden>
+            <h3>Elegí el ámbito de trabajo</h3>
+            <p id="contextHelp">La contraseña fue validada. Seleccioná uno de los contextos autorizados por el servidor; ninguno se elige automáticamente.</p>
+            <div class="context-options" id="contextOptions" role="radiogroup" aria-label="Contextos autorizados"></div>
+            <div class="mfa-actions">
+              <button type="button" class="button button-secondary" id="cancelContextButton">Cancelar</button>
+              <button type="submit" class="button button-primary" id="continueContextButton" disabled>Continuar</button>
+            </div>
+          </div>
 
-          <button type="submit" class="button button-primary" id="btnLogin">
-            <span class="button-label">Ingresar al portal interno</span>
-            <span class="loading-indicator" aria-hidden="true"></span>
-          </button>
-          <a class="first-access-link" href="login.html?next=centro-ayuda.html">Soy nuevo: iniciar el recorrido después de ingresar</a>
+          <div class="mfa-panel" id="loginEnrollmentStep" hidden>
+            <h3>Protegé la cuenta con MFA</h3>
+            <p>Este contexto requiere segundo factor. Agregá la clave en tu aplicación autenticadora; el factor permanece pendiente hasta verificar el código.</p>
+            <div class="login-manual-key">
+              <strong>Clave de configuración manual</strong>
+              <code id="loginManualMfaKey" aria-label="Clave manual de autenticación"></code>
+              <span>No se copia ni se guarda automáticamente. Desaparece al cancelar, completar o salir.</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="loginEnrollmentTotp">Código de seis dígitos</label>
+              <input class="form-input" id="loginEnrollmentTotp" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" spellcheck="false">
+            </div>
+            <div class="mfa-actions">
+              <button type="button" class="button button-secondary" id="cancelEnrollmentButton">Cancelar</button>
+              <button type="submit" class="button button-primary" id="completeEnrollmentButton">Activar MFA</button>
+            </div>
+          </div>
+
+          <div class="mfa-panel" id="loginRecoveryStep" hidden>
+            <h3>Códigos de recuperación</h3>
+            <p>Esta es la única visualización. Guardalos fuera de este dispositivo; MuniControl conserva sólo verificadores criptográficos.</p>
+            <ul class="login-recovery-codes" id="loginRecoveryCodes" aria-label="Códigos de recuperación"></ul>
+            <label class="recovery-confirm"><input id="loginRecoveryConfirmed" type="checkbox"><span>Confirmo que guardé los códigos en un lugar seguro.</span></label>
+            <button type="button" class="button button-primary" id="finishLoginEnrollmentButton" disabled>Continuar al portal</button>
+          </div>
+
+          <div class="mfa-panel" id="mfaStep" hidden>
+            <h3>Verificación en dos pasos</h3>
+            <p id="mfaHelp">Ingresá el código vigente de tu aplicación autenticadora. El desafío no se guarda en este navegador.</p>
+            <div class="form-group">
+              <label class="form-label" for="mfaInput" id="mfaInputLabel">Código de seis dígitos</label>
+              <input class="form-input" id="mfaInput" name="mfaCode" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" spellcheck="false">
+            </div>
+            <div class="mfa-actions">
+              <button type="button" class="button button-secondary" id="cancelMfaButton">Cancelar</button>
+              <button type="submit" class="button button-primary" id="verifyMfaButton">Verificar acceso</button>
+            </div>
+            <button type="button" class="text-button" id="toggleRecoveryButton">Usar un código de recuperación</button>
+          </div>
           <p class="access-status" id="accessStatus" role="status" aria-live="polite"></p>
         </form>
 
@@ -664,11 +780,27 @@
   </footer>
 
   <script>
+    var IDENTITY_URL = '/api/internal-identity';
+    var REQUEST_TIMEOUT_MS = 16000;
+    var contextFlow = null;
+    var loginEnrollmentFlow = null;
+    var pendingEnrollmentSession = null;
+    var pendingEnrollmentEmail = '';
+    var loginRecoveryValues = [];
+    var loginFlow = null;
+    var usingRecovery = false;
+
     function setLoading(isLoading, message) {
       var btn = document.getElementById('btnLogin');
+      var contextBtn = document.getElementById('continueContextButton');
+      var enrollmentBtn = document.getElementById('completeEnrollmentButton');
+      var mfaBtn = document.getElementById('verifyMfaButton');
       var publicBtn = document.getElementById('publicAccessBtn');
       var status = document.getElementById('accessStatus');
       btn.disabled = isLoading;
+      contextBtn.disabled = isLoading || !document.querySelector('#contextOptions input[name="loginContext"]:checked');
+      enrollmentBtn.disabled = isLoading;
+      mfaBtn.disabled = isLoading;
       publicBtn.disabled = isLoading;
       btn.classList.toggle('is-loading', isLoading);
       btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
@@ -700,6 +832,188 @@
       btn.setAttribute('aria-pressed', isVisible ? 'false' : 'true');
     }
 
+    function identityError(error) {
+      if (error && error.code === 'IDENTITY_RATE_LIMITED') return 'Se alcanzó el límite de intentos. Esperá unos minutos antes de volver a probar.';
+      if (error && error.code === 'IDENTITY_CONTEXT_FORBIDDEN') return 'El ámbito seleccionado ya no está autorizado. Volvé a ingresar para actualizar la lista.';
+      if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos y el desafío fue bloqueado. Volvé a iniciar sesión.';
+      if (error && ['IDENTITY_MFA_INVALID', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) return 'El código no es válido o el desafío ya venció.';
+      return 'No se pudo validar el acceso. Revisá los datos e intentá nuevamente.';
+    }
+
+    function commandKey() {
+      if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw new Error('Este navegador no puede completar una operación segura.');
+      return window.crypto.randomUUID();
+    }
+
+    async function identityRequest(command, payload, options) {
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+      try {
+        var headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+        if (options && options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+        var body = { command: command, payload: payload || {} };
+        if (options && Number.isSafeInteger(options.expectedVersion)) body.expectedVersion = options.expectedVersion;
+        var response = await fetch(IDENTITY_URL, {
+          method: 'POST',
+          headers: headers,
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+          signal: controller.signal
+        });
+        var result = {};
+        var raw = await response.text();
+        if (raw) { try { result = JSON.parse(raw); } catch (_) { result = {}; } }
+        if (response.status === 202 && result.code === 'CONTEXT_REQUIRED') return { context: result };
+        if (response.status === 202 && result.code === 'MFA_ENROLLMENT_REQUIRED') return { enrollment: result };
+        if (response.status === 202 && (result.code === 'MFA_REQUIRED' || result.code === 'IDENTITY_MFA_REQUIRED')) return { challenge: result.challenge && typeof result.challenge === 'object' ? result.challenge : result };
+        if (!response.ok || result.ok === false) {
+          var error = new Error('identity_request_failed');
+          error.code = typeof result.code === 'string' ? result.code : '';
+          error.status = response.status;
+          var nextVersion = Number(result.expectedVersion);
+          var attempts = Number(result.remainingAttempts);
+          if (Number.isSafeInteger(nextVersion) && nextVersion > 0) error.expectedVersion = nextVersion;
+          if (Number.isSafeInteger(attempts) && attempts >= 0) error.remainingAttempts = attempts;
+          throw error;
+        }
+        return { session: result };
+      } catch (error) {
+        if (error && error.name === 'AbortError') { var timeoutError = new Error('timeout'); timeoutError.code = 'IDENTITY_TIMEOUT'; throw timeoutError; }
+        throw error;
+      } finally { window.clearTimeout(timeout); }
+    }
+
+    function allowedDestination() {
+      var next = new URLSearchParams(window.location.search).get('next');
+      var allowedNext = ['internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'administracion-plataforma.html', 'seguridad-cuenta.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
+      return allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
+    }
+
+    function persistSessionShell(result, fallbackEmail) {
+      try {
+        var session = result && result.session && typeof result.session === 'object' ? result.session : result || {};
+        var user = result && result.user && typeof result.user === 'object' ? result.user : session.user && typeof session.user === 'object' ? session.user : session;
+        sessionStorage.setItem('mjunin_user', JSON.stringify({
+          name: user.name || user.displayName || user.email || fallbackEmail,
+          email: user.email || fallbackEmail,
+          loginAt: new Date().toISOString(),
+          internal: true
+        }));
+      } catch (_) { /* La cookie HttpOnly sigue siendo la única autoridad. */ }
+    }
+
+    function completeLogin(result, fallbackEmail) {
+      contextFlow = null;
+      loginEnrollmentFlow = null;
+      pendingEnrollmentSession = null;
+      pendingEnrollmentEmail = '';
+      loginRecoveryValues = [];
+      loginFlow = null;
+      document.getElementById('mfaInput').value = '';
+      persistSessionShell(result, fallbackEmail || '');
+      document.querySelector('#btnLogin .button-label').textContent = 'Accediendo al portal interno';
+      setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
+      window.location.replace(allowedDestination());
+    }
+
+    function openMfaStep(challenge, email) {
+      if (!challenge || typeof challenge.flowToken !== 'string' || !challenge.expiresAt || !Number.isSafeInteger(Number(challenge.expectedVersion))) throw new Error('invalid_mfa_contract');
+      contextFlow = null;
+      loginFlow = { token: challenge.flowToken, version: Number(challenge.expectedVersion), expiresAt: challenge.expiresAt, email: email, idempotencyKey: commandKey() };
+      usingRecovery = false;
+      document.getElementById('credentialStep').hidden = true;
+      document.getElementById('mfaStep').hidden = false;
+      document.getElementById('mfaInput').value = '';
+      document.getElementById('mfaInput').pattern = '[0-9]{6}';
+      document.getElementById('mfaInput').maxLength = 6;
+      document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos';
+      document.getElementById('mfaHelp').textContent = 'Ingresá el código vigente de tu aplicación autenticadora. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(challenge.expiresAt)) + '.';
+      document.getElementById('toggleRecoveryButton').textContent = 'Usar un código de recuperación';
+      document.getElementById('mfaInput').focus();
+    }
+
+    function openLoginEnrollment(response, email) {
+      var flow = response && response.flow && typeof response.flow === 'object' ? response.flow : {};
+      var enrollment = response && response.mfaEnrollment && typeof response.mfaEnrollment === 'object' ? response.mfaEnrollment : {};
+      if (typeof flow.flowToken !== 'string' || !Number.isSafeInteger(Number(flow.expectedVersion)) || !flow.expiresAt || typeof enrollment.manualKey !== 'string' || !enrollment.manualKey) throw new Error('invalid_enrollment_contract');
+      contextFlow = null; loginFlow = null;
+      loginEnrollmentFlow = { token: flow.flowToken, version: Number(flow.expectedVersion), expiresAt: flow.expiresAt, email: email, idempotencyKey: commandKey() };
+      pendingEnrollmentSession = null; pendingEnrollmentEmail = ''; loginRecoveryValues = [];
+      document.getElementById('credentialStep').hidden = true;
+      document.getElementById('contextStep').hidden = true;
+      document.getElementById('mfaStep').hidden = true;
+      document.getElementById('loginRecoveryStep').hidden = true;
+      document.getElementById('loginManualMfaKey').textContent = enrollment.manualKey;
+      document.getElementById('loginEnrollmentTotp').value = '';
+      document.getElementById('loginEnrollmentStep').hidden = false;
+      document.getElementById('loginEnrollmentTotp').focus();
+    }
+
+    function wipeLoginEnrollment(returnToCredentials) {
+      loginEnrollmentFlow = null; pendingEnrollmentSession = null; pendingEnrollmentEmail = ''; loginRecoveryValues = [];
+      document.getElementById('loginManualMfaKey').textContent = '';
+      document.getElementById('loginEnrollmentTotp').value = '';
+      document.getElementById('loginRecoveryCodes').replaceChildren();
+      document.getElementById('loginRecoveryConfirmed').checked = false;
+      document.getElementById('finishLoginEnrollmentButton').disabled = true;
+      document.getElementById('loginEnrollmentStep').hidden = true;
+      document.getElementById('loginRecoveryStep').hidden = true;
+      if (returnToCredentials) {
+        document.getElementById('credentialStep').hidden = false;
+        hideError(); setLoading(false, ''); document.getElementById('emailInput').focus();
+      }
+    }
+
+    function normalizeContexts(values) {
+      if (!Array.isArray(values)) return [];
+      var seen = new Set();
+      return values.slice(0, 50).map(function (value) {
+        if (!value || typeof value !== 'object') return null;
+        if (value.kind === 'platform') return { key: 'platform', kind: 'platform', label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : 'Administración de plataforma', detail: 'Ámbito global autorizado' };
+        if (value.kind === 'tenant' && typeof value.tenantId === 'string' && value.tenantId.trim() && typeof value.tenantName === 'string' && value.tenantName.trim()) return { key: 'tenant:' + value.tenantId.trim(), kind: 'tenant', tenantId: value.tenantId.trim(), label: value.tenantName.trim(), detail: typeof value.tenantSlug === 'string' && value.tenantSlug.trim() ? value.tenantSlug.trim() : 'Gobierno autorizado' };
+        return null;
+      }).filter(function (context) { if (!context || seen.has(context.key)) return false; seen.add(context.key); return true; });
+    }
+
+    function openContextStep(response, email) {
+      if (!response || typeof response.flowToken !== 'string' || !Number.isSafeInteger(Number(response.expectedVersion)) || !response.expiresAt) throw new Error('invalid_context_contract');
+      var contexts = normalizeContexts(response.contexts);
+      if (!contexts.length) throw new Error('invalid_context_contract');
+      contextFlow = { token: response.flowToken, version: Number(response.expectedVersion), expiresAt: response.expiresAt, contexts: contexts, email: email, idempotencyKey: commandKey() };
+      loginFlow = null;
+      var options = document.getElementById('contextOptions'); options.replaceChildren();
+      contexts.forEach(function (context, index) {
+        var label = document.createElement('label'); label.className = 'context-option';
+        var input = document.createElement('input'); input.type = 'radio'; input.name = 'loginContext'; input.value = context.key; input.id = 'loginContext' + index;
+        var copy = document.createElement('span'); var title = document.createElement('strong'); var detail = document.createElement('span');
+        title.textContent = context.label; detail.textContent = context.detail; copy.append(title, detail); label.append(input, copy); options.appendChild(label);
+      });
+      document.getElementById('credentialStep').hidden = true;
+      document.getElementById('mfaStep').hidden = true;
+      document.getElementById('loginEnrollmentStep').hidden = true;
+      document.getElementById('loginRecoveryStep').hidden = true;
+      document.getElementById('contextStep').hidden = false;
+      document.getElementById('continueContextButton').disabled = true;
+      options.querySelector('input').focus();
+    }
+
+    function cancelContext() {
+      contextFlow = null;
+      document.getElementById('contextOptions').replaceChildren();
+      document.getElementById('contextStep').hidden = true;
+      document.getElementById('credentialStep').hidden = false;
+      hideError(); setLoading(false, ''); document.getElementById('emailInput').focus();
+    }
+
+    function cancelMfa() {
+      contextFlow = null; loginFlow = null; usingRecovery = false;
+      document.getElementById('mfaInput').value = '';
+      document.getElementById('mfaStep').hidden = true;
+      document.getElementById('credentialStep').hidden = false;
+      hideError(); setLoading(false, '');
+      document.getElementById('emailInput').focus();
+    }
+
     async function doLogin(e) {
       e.preventDefault();
       var email = document.getElementById('emailInput').value.trim().toLowerCase();
@@ -707,39 +1021,124 @@
       var btnLabel = document.querySelector('#btnLogin .button-label');
 
       hideError();
+      if (loginEnrollmentFlow) {
+        var enrollmentTotp = document.getElementById('loginEnrollmentTotp').value.trim();
+        if (!/^\d{6}$/.test(enrollmentTotp)) { showError('Ingresá el código de seis dígitos para activar MFA.'); document.getElementById('loginEnrollmentTotp').focus(); return; }
+        setLoading(true, 'Verificando y activando el segundo factor…');
+        try {
+          var enrollmentResult = await identityRequest('complete_login_mfa_enrollment', { flowToken: loginEnrollmentFlow.token, totpCode: enrollmentTotp }, { expectedVersion: loginEnrollmentFlow.version, idempotencyKey: loginEnrollmentFlow.idempotencyKey });
+          var envelope = enrollmentResult.session && typeof enrollmentResult.session === 'object' ? enrollmentResult.session : {};
+          var codes = Array.isArray(envelope.recoveryCodes) ? envelope.recoveryCodes.filter(function (value) { return typeof value === 'string' && value; }) : [];
+          if (!codes.length) throw new Error('invalid_recovery_contract');
+          pendingEnrollmentSession = envelope; pendingEnrollmentEmail = loginEnrollmentFlow.email; loginRecoveryValues = codes.slice();
+          loginEnrollmentFlow = null;
+          document.getElementById('loginManualMfaKey').textContent = '';
+          document.getElementById('loginEnrollmentTotp').value = '';
+          document.getElementById('loginEnrollmentStep').hidden = true;
+          var recoveryList = document.getElementById('loginRecoveryCodes'); recoveryList.replaceChildren();
+          loginRecoveryValues.forEach(function (value) { var item = document.createElement('li'); item.textContent = value; recoveryList.appendChild(item); });
+          document.getElementById('loginRecoveryStep').hidden = false;
+          setLoading(false, 'MFA activo. Guardá los códigos antes de continuar.');
+          document.getElementById('loginRecoveryConfirmed').focus();
+        } catch (error) {
+          var enrollmentErrorMessage = identityError(error);
+          if (error && error.code === 'IDENTITY_MFA_INVALID' && loginEnrollmentFlow && Number.isSafeInteger(error.expectedVersion)) {
+            loginEnrollmentFlow.version = error.expectedVersion;
+            loginEnrollmentFlow.idempotencyKey = commandKey();
+            if (Number.isSafeInteger(error.remainingAttempts)) enrollmentErrorMessage += ' Quedan ' + error.remainingAttempts + ' intentos.';
+          }
+          if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+            wipeLoginEnrollment(true); showError(enrollmentErrorMessage); return;
+          }
+          document.getElementById('loginEnrollmentTotp').value = '';
+          showError(enrollmentErrorMessage); setLoading(false, 'No se pudo activar el segundo factor.'); document.getElementById('loginEnrollmentTotp').focus();
+        }
+        return;
+      }
+      if (contextFlow) {
+        var selected = document.querySelector('#contextOptions input[name="loginContext"]:checked');
+        if (!selected) { showError('Elegí un ámbito autorizado para continuar.'); return; }
+        var context = contextFlow.contexts.find(function (item) { return item.key === selected.value; });
+        if (!context) { showError('El ámbito seleccionado no pertenece a la lista autorizada.'); return; }
+        setLoading(true, 'Verificando el ámbito seleccionado…');
+        try {
+          var selectedPayload = context.kind === 'platform' ? { kind: 'platform' } : { kind: 'tenant', tenantId: context.tenantId };
+          var contextResult = await identityRequest('select_context', { flowToken: contextFlow.token, context: selectedPayload }, { expectedVersion: contextFlow.version, idempotencyKey: contextFlow.idempotencyKey });
+          var contextEmail = contextFlow.email;
+          if (contextResult.enrollment) { setLoading(false, 'Ámbito confirmado. Falta configurar el segundo factor.'); openLoginEnrollment(contextResult.enrollment, contextEmail); return; }
+          if (contextResult.challenge) { setLoading(false, 'Ámbito confirmado. Falta el segundo factor.'); openMfaStep(contextResult.challenge, contextEmail); return; }
+          completeLogin(contextResult.session, contextEmail);
+        } catch (error) {
+          showError(identityError(error)); setLoading(false, 'No se pudo confirmar el ámbito.');
+        }
+        return;
+      }
+      if (loginFlow) {
+        var mfaValue = document.getElementById('mfaInput').value.trim();
+        if (!mfaValue || (!usingRecovery && !/^\d{6}$/.test(mfaValue))) { showError(usingRecovery ? 'Ingresá un código de recuperación.' : 'Ingresá el código de seis dígitos.'); document.getElementById('mfaInput').focus(); return; }
+        setLoading(true, 'Verificando el segundo factor…');
+        try {
+          var verified = await identityRequest(usingRecovery ? 'recover_mfa' : 'verify_mfa', usingRecovery ? { flowToken: loginFlow.token, recoveryCode: mfaValue } : { flowToken: loginFlow.token, totpCode: mfaValue }, { expectedVersion: loginFlow.version, idempotencyKey: loginFlow.idempotencyKey });
+          completeLogin(verified.session, loginFlow.email);
+        } catch (error) {
+          var mfaErrorMessage = identityError(error);
+          if (error && error.code === 'IDENTITY_MFA_INVALID' && loginFlow && Number.isSafeInteger(error.expectedVersion)) {
+            loginFlow.version = error.expectedVersion;
+            loginFlow.idempotencyKey = commandKey();
+            if (Number.isSafeInteger(error.remainingAttempts)) mfaErrorMessage += ' Quedan ' + error.remainingAttempts + ' intentos.';
+          }
+          if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+            cancelMfa(); showError(mfaErrorMessage); return;
+          }
+          document.getElementById('mfaInput').value = '';
+          showError(mfaErrorMessage); setLoading(false, 'No se pudo verificar el segundo factor.'); document.getElementById('mfaInput').focus();
+        }
+        return;
+      }
+      if (!email || !document.getElementById('emailInput').validity.valid || !pass) {
+        showError('Ingresá un correo institucional válido y la contraseña.');
+        (email && document.getElementById('emailInput').validity.valid ? document.getElementById('passInput') : document.getElementById('emailInput')).focus();
+        return;
+      }
       btnLabel.textContent = 'Verificando acceso';
       setLoading(true, 'Verificando tus credenciales…');
 
       try {
-          var response = await fetch('/api/internal-auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ email: email, password: pass })
-          });
-          var result = await response.json();
-          if (!response.ok || !result.ok) throw new Error(result.error || 'Credenciales incorrectas');
-          sessionStorage.setItem('mjunin_user', JSON.stringify({
-            name: result.user && (result.user.name || result.user.email) || email,
-            email: result.user && result.user.email || email,
-            role: result.user && result.user.role || 'ADMIN_INTERNO',
-            tenant: 'municipio-junin-mendoza',
-            loginAt: new Date().toISOString(),
-            internal: true
-          }));
-          btnLabel.textContent = 'Accediendo al portal interno';
-          setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
-          var next = new URLSearchParams(window.location.search).get('next');
-          var allowedNext = ['internal-dashboard.html', 'centro-acciones.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
-          window.location.href = allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
+          var response = await identityRequest('login', { email: email, password: pass });
+          document.getElementById('passInput').value = '';
+          if (response.context) { btnLabel.textContent = 'Ingresar al portal interno'; setLoading(false, 'Contraseña verificada. Elegí el ámbito de trabajo.'); openContextStep(response.context, email); return; }
+          if (response.challenge) throw new Error('context_required_before_mfa');
+          completeLogin(response.session, email);
         return;
       } catch (error) {
-        showError(error.message || 'No se pudo iniciar sesión.');
+        document.getElementById('passInput').value = '';
+        showError(identityError(error));
         btnLabel.textContent = 'Ingresar al portal interno';
         setLoading(false, 'No se pudo validar el acceso.');
         document.getElementById('passInput').focus();
       }
     }
+
+    document.getElementById('cancelMfaButton').addEventListener('click', cancelMfa);
+    document.getElementById('cancelContextButton').addEventListener('click', cancelContext);
+    document.getElementById('cancelEnrollmentButton').addEventListener('click', function () { wipeLoginEnrollment(true); });
+    document.getElementById('contextOptions').addEventListener('change', function () { document.getElementById('continueContextButton').disabled = !document.querySelector('#contextOptions input[name="loginContext"]:checked'); });
+    document.getElementById('loginRecoveryConfirmed').addEventListener('change', function (event) { document.getElementById('finishLoginEnrollmentButton').disabled = !event.target.checked; });
+    document.getElementById('finishLoginEnrollmentButton').addEventListener('click', function () {
+      if (!pendingEnrollmentSession || !document.getElementById('loginRecoveryConfirmed').checked) return;
+      var session = pendingEnrollmentSession; var email = pendingEnrollmentEmail;
+      wipeLoginEnrollment(false); completeLogin(session, email);
+    });
+    document.getElementById('toggleRecoveryButton').addEventListener('click', function () {
+      usingRecovery = !usingRecovery;
+      var input = document.getElementById('mfaInput'); input.value = '';
+      input.pattern = usingRecovery ? '' : '[0-9]{6}'; input.maxLength = usingRecovery ? 64 : 6;
+      document.getElementById('mfaInputLabel').textContent = usingRecovery ? 'Código de recuperación' : 'Código de seis dígitos';
+      document.getElementById('mfaHelp').textContent = usingRecovery ? 'Cada código de recuperación sirve una sola vez. No se muestra ni se almacena después de enviarlo.' : 'Ingresá el código vigente de tu aplicación autenticadora.';
+      document.getElementById('toggleRecoveryButton').textContent = usingRecovery ? 'Usar la aplicación autenticadora' : 'Usar un código de recuperación';
+      hideError(); input.focus();
+    });
+    window.addEventListener('pagehide', function () { contextFlow = null; loginFlow = null; wipeLoginEnrollment(false); document.getElementById('passInput').value = ''; document.getElementById('mfaInput').value = ''; document.getElementById('contextOptions').replaceChildren(); });
   </script>
   <script>
     if ('serviceWorker' in navigator) {

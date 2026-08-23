@@ -5,6 +5,7 @@
   "functions": {
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },
+    "api/internal-identity.js": { "maxDuration": 20 },
     "api/internal-data.js": { "maxDuration": 20 },
     "api/internal-actions.js": { "maxDuration": 20 },
     "api/internal-admin.js": { "maxDuration": 20 },
@@ -41,11 +42,14 @@
     { "source": "/rrhh-data/:path*", "destination": "/api/friendly-policy" },
 
     { "source": "/login", "destination": "/login.html" },
+    { "source": "/activar-cuenta", "destination": "/activar-cuenta.html" },
+    { "source": "/seguridad-cuenta", "destination": "/seguridad-cuenta.html" },
     { "source": "/internal", "destination": "/internal-dashboard.html" },
     { "source": "/internal-dashboard", "destination": "/internal-dashboard.html" },
     { "source": "/centro-acciones", "destination": "/centro-acciones.html" },
     { "source": "/control-horario-readiness", "destination": "/control-horario-readiness.html" },
     { "source": "/control-horario-homologacion", "destination": "/control-horario-homologacion.html" },
+    { "source": "/fuentes-tiempo", "destination": "/fuentes-tiempo.html" },
     { "source": "/administracion-plataforma", "destination": "/administracion-plataforma.html" },
     { "source": "/modulos", "destination": "/modulos.html" },
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
@@ -141,6 +145,26 @@
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
+      "source": "/activar-cuenta",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/activar-cuenta.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/seguridad-cuenta",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/seguridad-cuenta.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/assets/identity-security.css",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
       "source": "/internal",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
@@ -183,6 +207,14 @@
     {
       "source": "/attendance-policy-candidates.v1.json",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }]
+    },
+    {
+      "source": "/fuentes-tiempo",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/fuentes-tiempo.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
       "source": "/administracion-plataforma",
