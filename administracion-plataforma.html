@@ -61,6 +61,8 @@
     .gate-mark { width: 54px; height: 54px; display: inline-grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-family: Georgia, serif; font-size: 26px; }
     .gate-card h1 { margin: 18px 0 8px; color: var(--navy); font-size: 25px; letter-spacing: -.02em; }
     .gate-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+    .gate-actions { display: grid; gap: 10px; margin-top: 22px; }
+    .gate-actions .button { width: 100%; }
     .spinner { width: 28px; height: 28px; margin: 22px auto 0; border: 3px solid #dbe4e6; border-top-color: var(--teal); border-radius: 50%; animation: spin .75s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -422,6 +424,11 @@
       <p id="gateMessage" role="status" aria-live="polite">Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.</p>
       <div class="spinner" id="gateSpinner" aria-hidden="true"></div>
       <button class="button primary" id="retryAuth" type="button" hidden>Reintentar</button>
+      <div class="gate-actions" id="platformContextActions" hidden>
+        <button class="button primary" id="switchToPlatformButton" type="button">Cambiar a Administración de plataforma</button>
+        <a class="button" id="reloginPlatformLink" href="login.html?next=administracion-plataforma.html">Volver a ingresar y elegir Plataforma</a>
+        <a class="button quiet" href="internal-dashboard.html#inicio">Volver a la operación de Junín</a>
+      </div>
     </div>
   </section>
 
@@ -881,6 +888,12 @@
     var IDENTITY_URL = '/api/internal-identity';
     var REQUEST_TIMEOUT_MS = 16000;
     var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    var PLATFORM_ADMIN_CAPABILITIES = Object.freeze([
+      'platform.tenants.manage',
+      'platform.crm.manage',
+      'platform.users.manage',
+      'platform.roles.manage'
+    ]);
     var KNOWN_JUNIN = Object.freeze({
       id: 'municipio-junin-mendoza',
       slug: 'municipio-junin-mendoza',
@@ -904,7 +917,7 @@
       sodRules: [],
       metrics: {},
       source: {},
-      identityAccess: { authorized: false, platformContext: false, mfa: false, capabilities: [] },
+      identityAccess: { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] },
       identityPolicy: { present: false, version: null, dataPlaneReady: false, invitationDeliveryReady: false, sourceBindingId: '' },
       sourceOnboarding: {
         tenantId: '', binding: null, evidence: null, commands: new Set(), error: '', busy: '',
@@ -943,7 +956,7 @@
     ]);
 
     var ids = [
-      'authGate','gateTitle','gateMessage','gateSpinner','retryAuth','platformAdminShell','adminSidebar','workspace',
+      'authGate','gateTitle','gateMessage','gateSpinner','retryAuth','platformContextActions','switchToPlatformButton','reloginPlatformLink','platformAdminShell','adminSidebar','workspace',
       'menuButton','menuClose','navBackdrop','tenantSwitcher','tenantSwitcherCode','tenantSwitcherLabel','tenantContextBanner',
       'contextScope','contextSource','contextReadiness','breadcrumbCurrent','topViewTitle','userAvatar','userName','userRole',
       'refreshButton','logoutButton','portfolioView','accessView','controlsView','auditView','createTenantButton',
@@ -1608,7 +1621,12 @@
       return {
         authorized: access.authorized === true,
         platformContext: access.tenant === null && Object.keys(platform).length > 0,
+        tenantContext: Object.keys(firstObject(access.tenant)).length > 0,
         mfa: session.mfa === true,
+        sessionVersion: authorityVersion(session.version),
+        canAdminPlatform: capabilities.some(function (capability) {
+          return PLATFORM_ADMIN_CAPABILITIES.includes(capability);
+        }),
         capabilities: Array.from(new Set(capabilities))
       };
     }
@@ -3014,7 +3032,7 @@
 
     async function loadIdentityAuthorization(requestedTenantId, version) {
       var identityLoaded = false;
-      state.identityAccess = { authorized: false, platformContext: false, mfa: false, capabilities: [] };
+      state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] };
       state.sourceOnboarding.commands = new Set();
       state.sourceOnboarding.binding = null;
       state.sourceOnboarding.evidence = null;
@@ -3046,7 +3064,7 @@
       } catch (error) {
         if (version !== state.loadVersion) return;
         if (!identityLoaded || error.unauthorized) {
-          state.identityAccess = { authorized: false, platformContext: false, mfa: false, capabilities: [] };
+          state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] };
           return;
         }
         state.sourceOnboarding.commands = new Set();
@@ -3441,13 +3459,66 @@
       finally { renderGovernance(); renderControls(); }
     }
 
+    function resetPlatformContextGate() {
+      el.platformContextActions.hidden = true;
+      el.switchToPlatformButton.hidden = false;
+      el.switchToPlatformButton.disabled = false;
+    }
+
+    async function switchToPlatformContext() {
+      el.switchToPlatformButton.disabled = true;
+      el.gateSpinner.hidden = false;
+      el.gateMessage.textContent = 'Validando tu alcance global y cambiando el ámbito de esta sesión.';
+      try {
+        var identityPayload = await requestJson(IDENTITY_URL + '?resource=bootstrap');
+        var access = normalizeIdentityAccess(identityPayload);
+        if (!access.tenantContext || !access.mfa || !access.canAdminPlatform || access.sessionVersion === null) {
+          var forbidden = new Error('Esta sesión no puede cambiar al ámbito Plataforma. Volvé a ingresar y elegí ese ámbito.');
+          forbidden.status = 403;
+          throw forbidden;
+        }
+        await postIdentityCommand('switch_context', { context: { kind: 'platform' } }, access.sessionVersion, commandKey());
+        window.location.reload();
+      } catch (error) {
+        if (error.unauthorized) return;
+        el.gateTitle.textContent = 'No pudimos cambiar el ámbito';
+        el.gateMessage.textContent = error.status === 409
+          ? 'La sesión cambió mientras operabas. Reintentá para usar su versión vigente.'
+          : error.message;
+        el.gateSpinner.hidden = true;
+        el.platformContextActions.hidden = false;
+        el.switchToPlatformButton.disabled = false;
+        el.switchToPlatformButton.focus();
+      }
+    }
+
     async function authenticate() {
-      el.gateTitle.textContent = 'Verificando administración'; el.gateMessage.textContent = 'Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.'; el.gateSpinner.hidden = false; el.retryAuth.hidden = true;
+      el.gateTitle.textContent = 'Verificando administración'; el.gateMessage.textContent = 'Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.'; el.gateSpinner.hidden = false; el.retryAuth.hidden = true; resetPlatformContextGate();
       try {
         var authPayload = await requestJson(AUTH_URL);
         var authRoot = roots(authPayload)[0] || {};
         var authUser = firstObject(authRoot.user, authRoot.session && authRoot.session.user);
         if (!text(first(authUser.id, authUser.email))) { redirectToLogin(); return; }
+        var identityPayload = await requestJson(IDENTITY_URL + '?resource=bootstrap');
+        state.identityAccess = normalizeIdentityAccess(identityPayload);
+        if (state.identityAccess.tenantContext) {
+          el.gateTitle.textContent = state.identityAccess.canAdminPlatform
+            ? 'La administración está en otro ámbito'
+            : 'Este usuario no tiene administración global';
+          el.gateMessage.textContent = state.identityAccess.canAdminPlatform
+            ? 'Estás trabajando dentro de Junín. Cambiá explícitamente a Plataforma para administrar gobiernos, usuarios y roles; al volver a operación podrás elegir Junín nuevamente.'
+            : 'Tu sesión actual sólo tiene alcance operativo. Volvé a ingresar si necesitás elegir otro ámbito autorizado.';
+          el.gateSpinner.hidden = true;
+          el.platformContextActions.hidden = false;
+          el.switchToPlatformButton.hidden = !state.identityAccess.canAdminPlatform;
+          (state.identityAccess.canAdminPlatform ? el.switchToPlatformButton : el.reloginPlatformLink).focus();
+          return;
+        }
+        if (!state.identityAccess.platformContext || !state.identityAccess.mfa || !state.identityAccess.canAdminPlatform) {
+          var forbidden = new Error('Tu sesión no tiene alcance administrativo global con segundo factor vigente.');
+          forbidden.status = 403;
+          throw forbidden;
+        }
         await loadAll('');
         el.authGate.hidden = true; el.platformAdminShell.hidden = false;
       } catch (error) {
@@ -3460,6 +3531,7 @@
 
     function bindEvents() {
       el.retryAuth.addEventListener('click', authenticate);
+      el.switchToPlatformButton.addEventListener('click', switchToPlatformContext);
       el.menuButton.addEventListener('click', openMenu); el.menuClose.addEventListener('click', function () { closeMenu(true); }); el.navBackdrop.addEventListener('click', function () { closeMenu(true); });
       document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
       document.querySelectorAll('[data-admin-view]').forEach(function (button) { button.addEventListener('click', function () { showView(button.dataset.adminView); }); });

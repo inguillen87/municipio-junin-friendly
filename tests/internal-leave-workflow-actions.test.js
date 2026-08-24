@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   ACTION_CENTER_CONTRACT,
+  actionDefaultViewForPrincipal,
+  actionListCapabilitiesForPrincipal,
   allowedCommandsForCase,
   createLeaveCase,
   getActionBootstrap,
@@ -348,6 +350,22 @@ test('detail consume una única facade, timeline allowlisted y comandos gobernad
 
   const unlinked = principal('RRHH_APROBADOR', { areaScopes: scope, employmentContractId: null });
   assert.deepEqual(allowedCommandsForCase(unlinked, submitted), []);
+
+  const unlinkedOperator = principal('RRHH_OPERADOR', {
+    employmentContractId: null,
+    areaScopes: [
+      { capabilityKey: 'leave.request.area.update', scopeLevel: 'company', companyId: 1 },
+      { capabilityKey: 'leave.request.area.submit', scopeLevel: 'company', companyId: 1 },
+      { capabilityKey: 'leave.request.area.cancel_pending', scopeLevel: 'company', companyId: 1 },
+    ],
+  });
+  assert.deepEqual(
+    allowedCommandsForCase(unlinkedOperator, caseRecord({
+      beneficiaryContractId: OTHER_CONTRACT,
+      status: 'draft',
+    })),
+    ['update_draft', 'submit', 'cancel'],
+  );
   const creator = principal('ADMIN_INTERNO', { email: submitted.createdBy });
   assert.equal(allowedCommandsForCase(creator, submitted).includes('approve'), false);
 });
@@ -434,6 +452,36 @@ test('bootstrap usa facade session-bound, máximo 50 y no expone DNI/CUIL', asyn
     getActionBootstrap(sql, identityFor(actor), ACTION_SESSION, 'x'),
     (error) => error.code === 'ACTION_SUBJECT_QUERY_INVALID',
   );
+});
+
+test('bandeja inicial siempre corresponde a un alcance real del principal', () => {
+  const linkedEmployee = principal('EMPLEADO');
+  assert.equal(actionDefaultViewForPrincipal(linkedEmployee), 'mine');
+  assert.equal(actionListCapabilitiesForPrincipal(linkedEmployee).defaultView, 'mine');
+
+  const globalReader = principal('ADMIN_INTERNO', { employmentContractId: null });
+  const globalViews = actionListCapabilitiesForPrincipal(globalReader);
+  assert.equal(globalViews.defaultView, 'authorized');
+  assert.equal(globalViews.views.some((view) => view.id === 'mine'), false);
+  assert.equal(globalViews.views.some((view) => view.id === 'authorized'), true);
+
+  const areaOperator = principal('RRHH_OPERADOR', {
+    employmentContractId: null,
+    areaScopes: [{
+      capabilityKey: 'leave.request.area.read',
+      scopeLevel: 'company',
+      companyId: 1,
+    }],
+  });
+  const areaViews = actionListCapabilitiesForPrincipal(areaOperator);
+  assert.equal(areaViews.defaultView, 'area');
+  assert.equal(areaViews.views.some((view) => view.id === 'area'), true);
+
+  for (const result of [
+    actionListCapabilitiesForPrincipal(linkedEmployee), globalViews, areaViews,
+  ]) {
+    assert.equal(result.views.some((view) => view.id === result.defaultView), true);
+  }
 });
 
 test('lock NOWAIT se mapea como contención reintentable y no como sesión inválida', async () => {

@@ -108,17 +108,48 @@ test('contexto platform o legacy falla cerrado antes de SQL', async () => {
   assert.equal(calls, 0);
 });
 
-test('administrador sin vínculo conserva lectura pero no publica capacidades mutantes', () => {
-  const exposed = publicPrincipal(principal('ADMIN_INTERNO', { employmentContractId: null }));
+test('administrador sin vínculo conserva lectura y publica mutaciones no decisorias por ámbito', () => {
+  const scopedCapabilities = [
+    ACTION_CAPABILITIES.AREA_CREATE,
+    ACTION_CAPABILITIES.AREA_UPDATE,
+    ACTION_CAPABILITIES.AREA_SUBMIT,
+    ACTION_CAPABILITIES.AREA_CANCEL_PENDING,
+  ];
+  const exposed = publicPrincipal(principal('ADMIN_INTERNO', {
+    employmentContractId: null,
+    areaScopes: scopedCapabilities.map((capabilityKey) => ({
+      capabilityKey,
+      scopeLevel: 'company',
+      companyId: 1,
+    })),
+  }));
   assert.equal(exposed.hasEmployeeLink, false);
   assert.equal(exposed.capabilities.includes(ACTION_CAPABILITIES.ALL_READ), true);
   assert.equal(exposed.capabilities.includes(ACTION_CAPABILITIES.RESTRICTED_READ), true);
+  for (const capability of scopedCapabilities) {
+    assert.equal(exposed.capabilities.includes(capability), true, capability);
+  }
   for (const capability of [
     ACTION_CAPABILITIES.SELF_CREATE,
-    ACTION_CAPABILITIES.AREA_CREATE,
     ACTION_CAPABILITIES.AREA_DECIDE,
     ACTION_CAPABILITIES.ALL_MANAGE,
     ACTION_CAPABILITIES.RESTRICTED_DECIDE,
+  ]) {
+    assert.equal(exposed.capabilities.includes(capability), false, capability);
+  }
+});
+
+test('principal público no anuncia botones de área sin un scope activo equivalente', () => {
+  const exposed = publicPrincipal(principal('ADMIN_INTERNO', {
+    employmentContractId: null,
+    areaScopes: [],
+  }));
+  for (const capability of [
+    ACTION_CAPABILITIES.AREA_CREATE,
+    ACTION_CAPABILITIES.AREA_READ,
+    ACTION_CAPABILITIES.AREA_UPDATE,
+    ACTION_CAPABILITIES.AREA_SUBMIT,
+    ACTION_CAPABILITIES.AREA_CANCEL_PENDING,
   ]) {
     assert.equal(exposed.capabilities.includes(capability), false, capability);
   }

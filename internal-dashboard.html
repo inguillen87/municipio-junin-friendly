@@ -756,6 +756,19 @@
     .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
     .detail-section-copy { margin: -6px 0 12px; color: var(--ink-soft); font-size: .8rem; }
 
+    .employee-quick-actions {
+      margin: 0 0 22px;
+      padding: 16px;
+      border: 1px solid #9fc8c2;
+      border-left: 4px solid var(--green);
+      border-radius: 10px;
+      background: #f1faf7;
+    }
+
+    .employee-quick-actions h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+    .employee-quick-actions p { margin: 5px 0 13px; color: var(--ink-soft); font-size: .8rem; }
+    .employee-quick-actions .button-row { margin: 0; }
+
     .detail-counts {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1392,6 +1405,8 @@
       const LOGIN_URL = 'login.html?next=internal-dashboard.html';
       const PAGE_LIMIT = 25;
       const VALID_VIEWS = new Set(['inicio', 'legajos', 'ausentismo', 'calidad']);
+      const LEAVE_PREVIEW_HANDOFF_KEY = 'municontrol.leave-preview-handoff.v1';
+      const ACTION_SUBJECT_HANDOFF_KEY = 'municontrol.action-subject-handoff.v1';
 
       const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
       const integerFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -2426,6 +2441,55 @@
         return card;
       }
 
+      function writeOperationalHandoff(key, payload) {
+        try {
+          sessionStorage.setItem(key, JSON.stringify(Object.assign({ createdAt: Date.now() }, payload)));
+          return true;
+        } catch (_) {
+          toast('No pudimos preparar el acceso directo. Abrí la herramienta desde el menú.', 'error');
+          return false;
+        }
+      }
+
+      function renderEmployeeQuickActions(employee) {
+        const section = create('section', 'employee-quick-actions');
+        section.setAttribute('aria-labelledby', 'employeeQuickActionsTitle');
+        const title = create('h3', '', 'Gestión rápida del legajo');
+        title.id = 'employeeQuickActionsTitle';
+        section.append(
+          title,
+          create('p', '', 'Iniciá una gestión con esta persona sin volver a copiar identificadores. Ningún legajo se agrega a la URL.')
+        );
+
+        const actions = create('div', 'button-row');
+        const companyId = text(employee.companyId);
+        const legajo = text(employee.legajo);
+
+        const calculate = create('button', 'button primary', 'Estimar referencia anual');
+        calculate.type = 'button';
+        calculate.disabled = !companyId || !legajo;
+        calculate.title = calculate.disabled ? 'La fuente no informó empresa y legajo.' : 'Abrir el cálculo anual con este legajo';
+        calculate.addEventListener('click', function () {
+          if (!writeOperationalHandoff(LEAVE_PREVIEW_HANDOFF_KEY, { companyId: companyId, legajo: legajo })) return;
+          location.assign('licencias-control.html#preview');
+        });
+
+        const request = create('button', 'button', 'Nueva solicitud de licencia');
+        request.type = 'button';
+        request.disabled = !legajo;
+        request.title = request.disabled ? 'La fuente no informó el legajo.' : 'Abrir una solicitud para esta persona';
+        request.addEventListener('click', function () {
+          if (!writeOperationalHandoff(ACTION_SUBJECT_HANDOFF_KEY, { query: legajo })) return;
+          location.assign('centro-acciones.html');
+        });
+
+        const absence = create('a', 'button', 'Ver ausentismo operativo');
+        absence.href = 'ausentismo-control.html';
+        actions.append(calculate, request, absence);
+        section.appendChild(actions);
+        return section;
+      }
+
       function detailSection(title, subtitle, fields, evidenceType) {
         const section = create('section', 'detail-section');
         const head = create('div', 'detail-section-head');
@@ -2815,6 +2879,8 @@
           ? 'Legajo ' + legajo + ' · ' + integration.label + ' · fuente laboral GRH'
           : 'Legajo no disponible · fuente laboral GRH';
         els.dialogBody.replaceChildren();
+
+        els.dialogBody.appendChild(renderEmployeeQuickActions(employee));
 
         els.dialogBody.appendChild(detailSection('Identidad canónica', 'Identidad consolidada desde GRH; los valores originales permanecen trazables.', [
           detailField('Legajo', employee.legajo),

@@ -648,6 +648,8 @@
 
       var AUTH_URL = '/api/internal-auth';
       var ACTIONS_URL = '/api/internal-actions';
+      var ACTION_SUBJECT_HANDOFF_KEY = 'municontrol.action-subject-handoff.v1';
+      var HANDOFF_MAX_AGE_MS = 10 * 60 * 1000;
       var LOGIN_URL = 'login.html?next=centro-acciones.html';
       var MAX_REASON_LENGTH = 1000;
       var SAFE_CASE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
@@ -2541,6 +2543,7 @@
           el.authGate.hidden=true;
           el.appShell.hidden=false;
           await loadActions();
+          consumeActionSubjectHandoff();
         }catch(error){
           if(error.unauthorized)return;
           el.gateTitle.textContent='No pudimos abrir el Centro de acciones';
@@ -2549,6 +2552,29 @@
           el.retryAuth.hidden=false;
           el.retryAuth.focus();
         }
+      }
+
+      function consumeActionSubjectHandoff() {
+        var raw='';
+        try{
+          raw=sessionStorage.getItem(ACTION_SUBJECT_HANDOFF_KEY)||'';
+          sessionStorage.removeItem(ACTION_SUBJECT_HANDOFF_KEY);
+        }catch(_){return;}
+        if(!raw)return;
+        var handoff;
+        try{handoff=JSON.parse(raw);}catch(_){return;}
+        var query=text(handoff&&handoff.query).replace(/\s+/g,' ').slice(0,50);
+        var createdAt=Number(handoff&&handoff.createdAt);
+        if(query.length<2||!Number.isFinite(createdAt)||Date.now()-createdAt<0||Date.now()-createdAt>HANDOFF_MAX_AGE_MS)return;
+        if(!canCreate()||!canSearchSubjects()){
+          toast('La sesión no habilita solicitudes para otros legajos.','error');
+          return;
+        }
+        openWizard();
+        if(!el.actionWizard.open)return;
+        el.actionEmployeeSearch.value=query;
+        el.actionEmployeeSearchButton.disabled=false;
+        searchAuthorizedSubjects();
       }
 
       function resetPagination() {

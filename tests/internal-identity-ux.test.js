@@ -147,6 +147,23 @@ test('administración diferencia preparación, emisión y aceptación', () => {
   assert.doesNotMatch(html, /token de invitación[^\n]+(?:localStorage|sessionStorage)/i);
 });
 
+test('administración ofrece un cambio explícito y versionado desde tenant a Plataforma', () => {
+  const html = parseInlineScripts('administracion-plataforma.html');
+  assert.match(html, /id="switchToPlatformButton"/);
+  assert.match(html, /Cambiar a Administración de plataforma/);
+  assert.match(html, /login\.html\?next=administracion-plataforma\.html/);
+  assert.match(html, /IDENTITY_URL \+ '\?resource=bootstrap'/);
+  assert.match(html, /postIdentityCommand\('switch_context', \{ context: \{ kind: 'platform' \} \}, access\.sessionVersion, commandKey\(\)\)/);
+  assert.match(html, /sessionVersion: authorityVersion\(session\.version\)/);
+  assert.match(html, /canAdminPlatform: capabilities\.some/);
+
+  const authenticate = html.match(/async function authenticate\(\) \{([\s\S]*?)\n    function bindEvents/);
+  assert.ok(authenticate, 'falta compuerta de autenticación administrativa');
+  assert.match(authenticate[1], /state\.identityAccess\.tenantContext/);
+  assert.match(authenticate[1], /platformContextActions\.hidden = false/);
+  assert.doesNotMatch(authenticate[1], /postIdentityCommand\('switch_context'/);
+});
+
 test('administración laboral queda tenant-bound, versionada y cerrada sin contrato backend', () => {
   const html = parseInlineScripts('administracion-plataforma.html');
 

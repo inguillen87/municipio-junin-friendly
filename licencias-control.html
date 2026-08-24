@@ -1222,6 +1222,8 @@
       var AUTH_URL = '/api/internal-auth';
       var DATA_URL = '/api/internal-data';
       var LOGIN_URL = 'login.html?next=licencias-control.html';
+      var LEAVE_PREVIEW_HANDOFF_KEY = 'municontrol.leave-preview-handoff.v1';
+      var HANDOFF_MAX_AGE_MS = 10 * 60 * 1000;
       var redirecting = false;
       var previewRequestId = 0;
       var normativeState = null;
@@ -2315,6 +2317,27 @@
         el.asOfInput.value = String(maximumYear);
       }
 
+      function consumePreviewHandoff() {
+        var raw = '';
+        try {
+          raw = sessionStorage.getItem(LEAVE_PREVIEW_HANDOFF_KEY) || '';
+          sessionStorage.removeItem(LEAVE_PREVIEW_HANDOFF_KEY);
+        } catch (_) {
+          return false;
+        }
+        if (!raw) return false;
+        var handoff;
+        try { handoff = JSON.parse(raw); } catch (_) { return false; }
+        var companyId = text(handoff && handoff.companyId);
+        var legajo = text(handoff && handoff.legajo);
+        var createdAt = Number(handoff && handoff.createdAt);
+        if (!/^\d{1,32}$/.test(companyId) || !/^[A-Za-z0-9._\/-]{1,64}$/.test(legajo)) return false;
+        if (!Number.isFinite(createdAt) || Date.now() - createdAt < 0 || Date.now() - createdAt > HANDOFF_MAX_AGE_MS) return false;
+        el.companyIdInput.value = companyId;
+        el.legajoInput.value = legajo;
+        return true;
+      }
+
       async function loadPage() {
         showGlobalLoading('Consultando vigencia, reglas y disponibilidad de datos.');
         resetPreviewView();
@@ -2323,6 +2346,10 @@
           renderSession(auth);
           var payload = await requestJson(DATA_URL + '?resource=leavenormative');
           renderNormative(normalizeNormative(payload));
+          if (consumePreviewHandoff()) {
+            el.previewForm.requestSubmit();
+            el.previewResultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         } catch (error) {
           showGlobalError(error);
         }
