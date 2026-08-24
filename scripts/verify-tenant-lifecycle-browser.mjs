@@ -392,7 +392,7 @@ async function openTenantAccess(page, viewport) {
   await page.locator(`[data-tenant-option="${FIXTURE.tenantId}"]`).click();
   await tenantBootstrap;
   await page.locator('#tenantSwitcherDialog').waitFor({ state: 'hidden' });
-  await page.locator('#toastRegion').getByText('Ámbito cambiado y autorización actualizada.').waitFor({ state: 'visible' });
+  await page.locator('#toastRegion').getByText('Filtro administrativo aplicado. La sesión operativa no cambió.').waitFor({ state: 'visible' });
 
   if (viewport.width <= 820) {
     await page.locator('#menuButton').click();

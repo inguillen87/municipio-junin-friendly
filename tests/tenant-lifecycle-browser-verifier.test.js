@@ -133,6 +133,7 @@ test('verifier dedicado intercepta toda API y no reutiliza el multipágina legac
   assert.match(source, /\/api\/internal-admin/);
   assert.match(source, /\/api\/internal-identity/);
   assert.match(source, /\/administracion-plataforma\.html/);
+  assert.match(source, /Filtro administrativo aplicado\. La sesión operativa no cambió\./);
   assert.doesNotMatch(source, /verify-friendly-browser|DATABASE_URL|@neondatabase|postgresql:\/\//i);
   assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
 });
