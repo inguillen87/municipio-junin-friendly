@@ -321,6 +321,7 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   assert.match(ignore, /^!scripts\/migrations\/003-action-center\.sql$/m);
   assert.match(ignore, /^!scripts\/migrations\/005-tenant-identity-gateway\.sql$/m);
   assert.match(ignore, /^!scripts\/migrations\/017-tenant-action-unlinked-operator\.sql$/m);
+  assert.match(ignore, /^!scripts\/migrations\/018-action-center-operational-completion\.sql$/m);
 
   const vercel = JSON.parse(read('vercel.json'));
   const headers = new Map(vercel.headers.map((entry) => [entry.source, new Map(entry.headers.map(({ key, value }) => [key, value]))]));
