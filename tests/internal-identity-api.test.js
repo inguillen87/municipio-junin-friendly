@@ -17,6 +17,10 @@ import {
 } from '../lib/internal-identity-crypto.js';
 import { INTERNAL_SESSION_COOKIE, issueInternalSessionToken } from '../lib/internal-session.js';
 import { hashInternalPassword } from '../lib/internal-password.js';
+import {
+  InvitationDeliveryError,
+  createResendInvitationDelivery,
+} from '../lib/internal-invitation-delivery.js';
 
 const ORIGIN = 'https://municipio.example';
 const SESSION_SECRET = 's'.repeat(48);
@@ -282,17 +286,45 @@ test('origin canonico no confia en Host reflejado y corta antes de abrir DB', as
 
 test('issue_invitation sin provider falla antes de mutar y nunca devuelve codigo', async () => {
   let queried = false;
+  let opened = false;
   const token = issueIdentitySessionToken({
     id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
   }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
-  const handler = handlerWithQuery(async () => { queried = true; return []; });
+  const handler = handlerWithQuery(async () => { queried = true; return []; }, {
+    getTenantIdentitySql: async () => {
+      opened = true;
+      return { query: async () => { queried = true; return []; } };
+    },
+  });
   const res = response();
   await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
     cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
   }), res);
   assert.equal(res.statusCode, 503);
   assert.equal(res.payload.code, 'IDENTITY_DELIVERY_UNAVAILABLE');
+  assert.equal(opened, false);
   assert.equal(queried, false);
+});
+
+test('issue_invitation con Resend sin configurar falla antes de abrir DB', async () => {
+  let opened = false;
+  const handler = handlerWithQuery(async () => [], {
+    deliverInvitation: createResendInvitationDelivery({
+      env: { IDENTITY_APP_ORIGIN: ORIGIN },
+      fetch: async () => { throw new Error('fetch no debe ejecutarse'); },
+    }),
+    getTenantIdentitySql: async () => {
+      opened = true;
+      return { query: async () => [] };
+    },
+  });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    idempotencyKey: KEY, expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.payload.code, 'IDENTITY_DELIVERY_UNAVAILABLE');
+  assert.equal(opened, false);
 });
 
 test('requireInternalAccess exige data plane y SHA exacto del release', async () => {
@@ -553,7 +585,7 @@ test('activacion exige SHA de release y lo vincula a lookup y comando transaccio
   assert.equal(mismatchRes.payload.code, 'IDENTITY_RELEASE_NOT_CERTIFIED');
 });
 
-test('fallo de entrega compensa la invitacion pendiente y nunca expone el codigo', async () => {
+test('fallo definitivo conocido compensa la invitacion pendiente y nunca expone el codigo', async () => {
   const token = issueIdentitySessionToken({
     id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
   }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
@@ -582,7 +614,7 @@ test('fallo de entrega compensa la invitacion pendiente y nunca expone el codigo
     throw new Error('consulta no esperada');
   }, { deliverInvitation: async (delivery) => {
     providerAttempt = delivery.deliveryAttempt;
-    throw new Error('provider failed');
+    throw new InvitationDeliveryError('PROVIDER_REJECTED', false);
   } });
   const res = response();
   await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
@@ -596,6 +628,51 @@ test('fallo de entrega compensa la invitacion pendiente y nunca expone el codigo
   assert.equal(commands[1][1].deliveryAttemptId, DELIVERY_ATTEMPT_A);
   assert.deepEqual(providerAttempt, { invitationId: TENANT_ID, id: DELIVERY_ATTEMPT_A });
   assert.doesNotMatch(JSON.stringify(res.payload), /AAAAA|invitationCode|codeHash/i);
+});
+
+test('fallos transitorios o desconocidos conservan el intento pending', async (t) => {
+  const failures = [
+    ['transitorio conocido', new InvitationDeliveryError('PROVIDER_TIMEOUT', true)],
+    ['desconocido', new Error('fallo externo sin clasificar')],
+  ];
+  for (const [label, providerError] of failures) {
+    await t.test(label, async () => {
+      const token = issueIdentitySessionToken({
+        id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
+      }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+      const commands = [];
+      const handler = handlerWithQuery(async (sql, params) => {
+        if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+          authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
+          platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
+        } }];
+        if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
+          invitationId: TENANT_ID, version: 1, email: 'persona@example.test',
+          membershipStatus: 'invited', deliveryStatus: 'not_issued',
+          tenant: { id: TENANT_ID, name: 'Junin' },
+        } }];
+        if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: null }];
+        if (sql.includes('tenant_identity_apply_platform_command_v2')) {
+          commands.push(params[4]);
+          if (params[4] === 'issue_invitation') return [{ result: {
+            deliveryAttemptId: DELIVERY_ATTEMPT_A,
+            invitation: { id: TENANT_ID, status: 'prepared', version: 2,
+              delivery: { status: 'pending', expiresAt: '2026-08-22T15:00:00.000Z' } },
+          } }];
+          return [{ result: {} }];
+        }
+        throw new Error('consulta no esperada');
+      }, { deliverInvitation: async () => { throw providerError; } });
+      const res = response();
+      await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+        cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
+      }), res);
+      assert.equal(res.statusCode, 503);
+      assert.equal(res.payload.code, 'IDENTITY_DELIVERY_UNAVAILABLE');
+      assert.deepEqual(commands, ['issue_invitation']);
+      assert.doesNotMatch(JSON.stringify(res.payload), /invitationCode|codeHash|fallo externo/i);
+    });
+  }
 });
 
 test('replay HTTP de entrega A no reenvia ni confirma cuando ya existe el intento B', async () => {
@@ -672,6 +749,91 @@ test('replay confirmado devuelve delivered sin reenviar ni volver a mutar', asyn
   assert.equal(res.payload.invitation.delivery.status, 'delivered');
   assert.equal(providerCalls, 0);
   assert.equal(applyCalls, 0);
+});
+
+test('replay pending con 23 horas no recontacta provider ni muta fuera de idempotencia segura', async () => {
+  const token = issueIdentitySessionToken({
+    id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
+  }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+  let providerCalls = 0;
+  let applyCalls = 0;
+  const handler = handlerWithQuery(async (sql) => {
+    if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+      authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
+    } }];
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
+      invitationId: TENANT_ID, version: 2, email: 'persona@example.test',
+      membershipStatus: 'invited', deliveryStatus: 'pending', deliveryAttemptId: DELIVERY_ATTEMPT_A,
+      tenant: { id: TENANT_ID, name: 'Junin' },
+    } }];
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: {
+      command: 'issue_invitation', result: {
+        deliveryAttemptId: DELIVERY_ATTEMPT_A,
+        invitation: { id: TENANT_ID, status: 'prepared', version: 2,
+          delivery: { status: 'pending', expiresAt: '2026-08-21T16:00:00.000Z' } },
+      },
+    } }];
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) {
+      applyCalls += 1;
+      return [];
+    }
+    throw new Error('consulta no esperada');
+  }, { deliverInvitation: async () => { providerCalls += 1; } });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.payload.code, 'IDENTITY_DELIVERY_UNAVAILABLE');
+  assert.equal(providerCalls, 0);
+  assert.equal(applyCalls, 0);
+});
+
+test('replay pending menor a 23 horas conserva envio idempotente y confirma', async () => {
+  const token = issueIdentitySessionToken({
+    id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
+  }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+  let providerCalls = 0;
+  const commands = [];
+  const handler = handlerWithQuery(async (sql, params) => {
+    if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+      authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.invite'] }, tenant: null,
+    } }];
+    if (sql.includes('tenant_identity_platform_invitation_delivery_v2')) return [{ result: {
+      invitationId: TENANT_ID, version: 2, email: 'persona@example.test',
+      membershipStatus: 'invited', deliveryStatus: 'pending', deliveryAttemptId: DELIVERY_ATTEMPT_A,
+      tenant: { id: TENANT_ID, name: 'Junin' },
+    } }];
+    if (sql.includes('tenant_identity_platform_command_replay_v2')) return [{ result: {
+      command: 'issue_invitation', result: {
+        deliveryAttemptId: DELIVERY_ATTEMPT_A,
+        invitation: { id: TENANT_ID, status: 'prepared', version: 2,
+          delivery: { status: 'pending', expiresAt: '2026-08-21T16:01:00.000Z' } },
+      },
+    } }];
+    if (sql.includes('tenant_identity_apply_platform_command_v2')) {
+      commands.push(params[4]);
+      assert.equal(params[4], 'confirm_delivery');
+      return [{ result: { invitation: {
+        id: TENANT_ID, status: 'issued', version: 3,
+        delivery: { status: 'delivered', expiresAt: '2026-08-21T16:01:00.000Z' },
+      } } }];
+    }
+    throw new Error('consulta no esperada');
+  }, { deliverInvitation: async ({ deliveryAttempt }) => {
+    providerCalls += 1;
+    assert.equal(deliveryAttempt.id, DELIVERY_ATTEMPT_A);
+  } });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    cookie: `${IDENTITY_SESSION_COOKIE}=${token}`, idempotencyKey: KEY, expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.payload.invitation.delivery.status, 'delivered');
+  assert.equal(providerCalls, 1);
+  assert.deepEqual(commands, ['confirm_delivery']);
 });
 
 test('replay pending con kill-switch cerrado falla antes del provider', async () => {

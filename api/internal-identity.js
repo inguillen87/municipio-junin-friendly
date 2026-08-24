@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { hashInternalPassword, verifyInternalPassword } from '../lib/internal-password.js';
 import {
+  InvitationDeliveryError,
+  createResendInvitationDelivery,
+} from '../lib/internal-invitation-delivery.js';
+import {
   getInternalSession,
   parseCookieHeader,
   serializeClearedInternalSessionCookie,
@@ -50,6 +54,7 @@ import {
 const MAX_BODY_BYTES = 16 * 1024;
 const DUMMY_PASSWORD_HASH = 'scrypt$16384$8$1$R0dHR0dHR0dHR0dHR0dHRw$sCqc4_u2rJULQEkXAuvGyxs8APXfS0S3tj1-cWJAPYxQTt6ZXmFC5D3-SRBZSsBAjgWf6AMEXQnmA4nn7G1KJg';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDENTITY_DELIVERY_RETRY_MAX_AGE_SECONDS = 23 * 60 * 60;
 
 function header(req, name) {
   const value = typeof req?.headers?.get === 'function'
@@ -167,6 +172,29 @@ function assertPasswordPolicy(value) {
 function exactPayload(payload, allowed) {
   const set = new Set(allowed);
   if (Object.keys(payload).some((key) => !set.has(key))) fail('IDENTITY_FIELD_UNSUPPORTED', 400, 'Campo no soportado');
+}
+
+function assertInvitationDeliveryConfigured(deliverInvitation) {
+  if (typeof deliverInvitation !== 'function') {
+    fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+  }
+  try {
+    if (typeof deliverInvitation.assertConfigured === 'function') {
+      deliverInvitation.assertConfigured();
+    }
+  } catch {
+    fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+  }
+}
+
+function assertReplayInsideDeliveryWindow(replay, now) {
+  const expiresAt = Date.parse(String(replay?.result?.invitation?.delivery?.expiresAt || ''));
+  const issuedAt = expiresAt - (IDENTITY_INVITATION_TTL_SECONDS * 1000);
+  const age = now.getTime() - issuedAt;
+  if (!Number.isFinite(expiresAt) || !Number.isFinite(age) || age < 0
+      || age >= IDENTITY_DELIVERY_RETRY_MAX_AGE_SECONDS * 1000) {
+    fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+  }
 }
 
 function nowDate(dependencies) {
@@ -363,6 +391,9 @@ export function createInternalIdentityHandler(dependencies = {}) {
         }
       }
       const body = method === 'POST' ? await readBody(req) : null;
+      if (body?.command === 'issue_invitation') {
+        assertInvitationDeliveryConfigured(deliverInvitation);
+      }
       const secrets = dependencies.identitySecrets ?? identitySecrets(env);
       const sql = await getSql(env);
       const now = nowDate(dependencies);
@@ -732,7 +763,6 @@ export function createInternalIdentityHandler(dependencies = {}) {
 
       if (command === 'issue_invitation') {
         exactPayload(payload, ['invitationId']);
-        if (typeof deliverInvitation !== 'function') fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
         const releaseSha = certifiedReleaseSha(env);
         const identity = await currentIdentity(req, sql, secrets, env, { now });
         assertPlatformCapability(identity, 'platform.users.invite');
@@ -767,6 +797,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
         if (replay && delivery.deliveryStatus !== 'pending') {
           fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
         }
+        if (replay) assertReplayInsideDeliveryWindow(replay, now);
         const code = invitationCodeFor(delivery.invitationId, issueKey, secrets);
         const result = replay?.result || await applyPlatform(sql, identity.session, releaseSha, 'issue_invitation', {
           invitationId: delivery.invitationId,
@@ -787,10 +818,12 @@ export function createInternalIdentityHandler(dependencies = {}) {
               invitationId: delivery.invitationId, id: deliveryAttemptId,
             }),
           });
-        } catch {
-          await applyPlatform(sql, identity.session, releaseSha, 'delivery_failed', {
-            invitationId: delivery.invitationId, deliveryAttemptId,
-          }, { idempotencyKey: generator(), expectedVersion: result.invitation.version }).catch(() => undefined);
+        } catch (error) {
+          if (error instanceof InvitationDeliveryError && error.retryable === false) {
+            await applyPlatform(sql, identity.session, releaseSha, 'delivery_failed', {
+              invitationId: delivery.invitationId, deliveryAttemptId,
+            }, { idempotencyKey: generator(), expectedVersion: result.invitation.version }).catch(() => undefined);
+          }
           fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
         }
         const confirmed = await applyPlatform(sql, identity.session, releaseSha, 'confirm_delivery', {
@@ -853,4 +886,6 @@ export function createInternalIdentityHandler(dependencies = {}) {
   };
 }
 
-export default createInternalIdentityHandler();
+export default createInternalIdentityHandler({
+  deliverInvitation: createResendInvitationDelivery(),
+});

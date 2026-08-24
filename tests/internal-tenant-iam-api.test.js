@@ -67,6 +67,16 @@ test('normalizador acepta invitación sin secretos y exige versiones en cambios'
   assert.equal(invite.expectedVersion, null);
   assert.match(invite.commandHash, /^[a-f0-9]{64}$/);
 
+  for (const email of ['persona@localhost', 'persona@dominio', 'persona..doble@example.test']) {
+    assert.throws(() => normalizeInternalAdminCommand({
+      command: 'invite_user',
+      payload: {
+        tenantId: TENANT_ID, email, displayName: 'No entregable', roleKey: 'TENANT_ADMIN',
+      },
+    }, KEY), (error) => error instanceof InternalAdminError
+      && error.code === 'INTERNAL_ADMIN_PAYLOAD_INVALID');
+  }
+
   assert.throws(() => normalizeInternalAdminCommand({
     command: 'suspend_membership', payload: { membershipId: MEMBERSHIP_ID },
   }, KEY), (error) => error instanceof InternalAdminError && error.code === 'INTERNAL_ADMIN_VERSION_REQUIRED');
