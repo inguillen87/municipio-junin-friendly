@@ -145,6 +145,14 @@
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
+      "source": "/login",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/login.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
       "source": "/activar-cuenta",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
