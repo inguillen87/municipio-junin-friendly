@@ -375,11 +375,27 @@ function assertCompletedFlowReplay(flow, requestKey, expectedPurpose, expectedAu
 }
 
 function emailDestinationHash(destination, secrets) {
-  return hashIdentitySecret(`email-mfa-destination|${destination}`, secrets.tokenPepper);
+  return hashIdentitySecret(
+    `email-mfa-destination|${destination}`,
+    secrets.emailMfaPepper,
+  );
 }
 
 function emailCodeHash(code, deliveryAttemptId, secrets) {
-  return hashIdentitySecret(`email-mfa-code|${deliveryAttemptId}|${code}`, secrets.tokenPepper);
+  return hashIdentitySecret(
+    `email-mfa-code|${deliveryAttemptId}|${code}`,
+    secrets.emailMfaPepper,
+  );
+}
+
+function assertEmailMfaSecretsConfigured(secrets) {
+  if (typeof secrets?.emailMfaPepper !== 'string'
+      || Buffer.byteLength(secrets.emailMfaPepper, 'utf8') < 32
+      || !Buffer.isBuffer(secrets?.emailMfaEncryptionKey)
+      || secrets.emailMfaEncryptionKey.length !== 32) {
+    fail('IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE', 503,
+      'El envio de codigos por correo no esta disponible');
+  }
 }
 
 function safePreparedEmailMfa(prepared, deliveryAttemptId, flow, secrets) {
@@ -391,7 +407,10 @@ function safePreparedEmailMfa(prepared, deliveryAttemptId, flow, secrets) {
   const status = String(prepared?.status || '');
   const flowVersion = Number(prepared?.flowVersion ?? flow?.version);
   const challengeVersion = Number(prepared?.version);
-  const destination = decryptEmailMfaDestination(destinationCiphertext, secrets.encryptionKey);
+  const destination = decryptEmailMfaDestination(
+    destinationCiphertext,
+    secrets.emailMfaEncryptionKey,
+  );
   if (!UUID.test(databaseId) || attemptId !== deliveryAttemptId
       || !/^[a-f0-9]{64}$/.test(destinationHash)
       || !destination || emailDestinationHash(destination, secrets) !== destinationHash
@@ -620,6 +639,9 @@ export function createInternalIdentityHandler(dependencies = {}) {
         assertMfaEmailDeliveryConfigured(mfaEmailDelivery);
       }
       const secrets = dependencies.identitySecrets ?? identitySecrets(env);
+      if (body?.command === 'request_email_mfa' || body?.command === 'verify_email_mfa') {
+        assertEmailMfaSecretsConfigured(secrets);
+      }
       const sql = await getSql(env);
       const now = nowDate(dependencies);
 
@@ -840,7 +862,9 @@ export function createInternalIdentityHandler(dependencies = {}) {
         }
         await rateLimit(sql, 'identity.mfa_email_send', flow.email, req, secrets);
         const deliveryAttemptId = requestKey;
-        const code = emailMfaCode(flowHash, deliveryAttemptId, secrets.tokenPepper);
+        const code = emailMfaCode(
+          flowHash, deliveryAttemptId, secrets.emailMfaPepper,
+        );
         const expiresAt = futureIso(now, IDENTITY_EMAIL_MFA_TTL_SECONDS);
         const preparedResult = await prepareIdentityEmailMfa(sql, {
           flowHash, deliveryAttemptId,

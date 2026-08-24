@@ -103,13 +103,19 @@ export function emailMfaFactorProvisionConfiguration(
 }
 
 export function emailMfaFactorProvisionMaterial(configuration, secrets, options = {}) {
+  const emailPepper = secrets.emailMfaPepper;
+  const emailEncryptionKey = secrets.emailMfaEncryptionKey;
+  if (typeof emailPepper !== 'string' || Buffer.byteLength(emailPepper, 'utf8') < 32
+      || !Buffer.isBuffer(emailEncryptionKey) || emailEncryptionKey.length !== 32) {
+    throw new Error('Faltan secretos dedicados del factor email MFA');
+  }
   const destinationHash = hashIdentitySecret(
     `email-mfa-destination|${configuration.destinationEmail}`,
-    secrets.tokenPepper,
+    emailPepper,
   );
   const reasonHash = hashIdentitySecret(
     `email-mfa-provision-reason|${configuration.reason}`,
-    secrets.tokenPepper,
+    emailPepper,
   );
   const commandMaterial = stableJson({
     contract: 'email-mfa-factor-provision-v1',
@@ -119,13 +125,13 @@ export function emailMfaFactorProvisionMaterial(configuration, secrets, options 
   });
   const idempotencyDigest = hashIdentitySecret(
     `email-mfa-factor-idempotency|${commandMaterial}`,
-    secrets.tokenPepper,
+    emailPepper,
   );
   const idempotencyKey = configuration.suppliedIdempotencyKey
     || deterministicUuidV4(idempotencyDigest);
   const destinationCiphertext = encryptEmailMfaDestination(
     configuration.destinationEmail,
-    secrets.encryptionKey,
+    emailEncryptionKey,
     options.random ? { random: options.random } : undefined,
   );
   return Object.freeze({

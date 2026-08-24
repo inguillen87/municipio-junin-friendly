@@ -22,6 +22,8 @@ const ENV = Object.freeze({
   IDENTITY_TOKEN_PEPPER: PEPPER,
   INTERNAL_SESSION_SECRET: 's'.repeat(64),
   IDENTITY_MFA_ENCRYPTION_KEY: ENCRYPTION_KEY.toString('base64url'),
+  IDENTITY_EMAIL_MFA_PEPPER: PEPPER,
+  IDENTITY_EMAIL_MFA_ENCRYPTION_KEY: ENCRYPTION_KEY.toString('base64url'),
   IDENTITY_EMAIL_MFA_PROVISION_REASON: 'Demostracion autorizada en rama QA aislada',
 });
 const ARGV = Object.freeze([
@@ -56,9 +58,12 @@ test('config acepta CLI o env, exige razon y confirmacion se valida antes de con
   assert.equal(factoryCalled, false);
 });
 
-test('coordenadas son idempotentes y cada cifrado usa un nonce independiente', () => {
+test('coordenadas usan secretos email dedicados y cada cifrado usa un nonce independiente', () => {
   const configuration = emailMfaFactorProvisionConfiguration(ARGV, ENV);
-  const secrets = { tokenPepper: PEPPER, encryptionKey: ENCRYPTION_KEY };
+  const secrets = {
+    tokenPepper: 'legacy-pepper'.repeat(4), encryptionKey: Buffer.alloc(32, 1),
+    emailMfaPepper: PEPPER, emailMfaEncryptionKey: ENCRYPTION_KEY,
+  };
   const first = emailMfaFactorProvisionMaterial(configuration, secrets, {
     random: (size) => Buffer.alloc(size, 1),
   });
@@ -69,6 +74,9 @@ test('coordenadas son idempotentes y cada cifrado usa un nonce independiente', (
   assert.equal(first.destinationHash, second.destinationHash);
   assert.equal(first.reasonHash, second.reasonHash);
   assert.notEqual(first.destinationCiphertext, second.destinationCiphertext);
+  assert.throws(() => emailMfaFactorProvisionMaterial(configuration, {
+    tokenPepper: PEPPER, encryptionKey: ENCRYPTION_KEY,
+  }), /secretos dedicados/);
   assert.match(first.idempotencyKey, /^[0-9a-f-]{36}$/);
   assert.match(first.destinationHash, /^[a-f0-9]{64}$/);
   assert.match(first.reasonHash, /^[a-f0-9]{64}$/);

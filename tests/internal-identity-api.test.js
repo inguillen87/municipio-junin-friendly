@@ -28,6 +28,7 @@ const ORIGIN = 'https://municipio.example';
 const SESSION_SECRET = 's'.repeat(48);
 const SECRETS = Object.freeze({
   tokenPepper: 'p'.repeat(48), sessionSecret: SESSION_SECRET, encryptionKey: Buffer.alloc(32, 7),
+  emailMfaPepper: 'e'.repeat(48), emailMfaEncryptionKey: Buffer.alloc(32, 8),
 });
 const NOW = Date.parse('2026-08-20T15:00:00.000Z');
 const RELEASE_SHA = 'a'.repeat(40);
@@ -277,10 +278,11 @@ test('quinto MFA invalido bloquea durablemente y un intento posterior no revive 
 
 test('request_email_mfa obtiene destino cifrado del servidor, envia OTP y responde solo pista', async () => {
   const destination = 'seguridad@municipio.example';
-  const destinationCiphertext = encryptEmailMfaDestination(destination, SECRETS.encryptionKey,
+  const destinationCiphertext = encryptEmailMfaDestination(
+    destination, SECRETS.emailMfaEncryptionKey,
     { random: (size) => Buffer.alloc(size, 4) });
   const destinationHash = hashIdentitySecret(
-    `email-mfa-destination|${destination}`, SECRETS.tokenPepper,
+    `email-mfa-destination|${destination}`, SECRETS.emailMfaPepper,
   );
   const deliveries = [];
   const handler = handlerWithQuery(async (sql, params) => {
@@ -333,6 +335,27 @@ test('request_email_mfa sin proveedor falla antes de abrir DB', async () => {
   const handler = handlerWithQuery(async () => [], {
     getTenantIdentitySql: async () => { opened = true; return { query: async () => [] }; },
     mfaEmailDelivery: { isConfigured: () => false, deliver: async () => ({}) },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.payload.code, 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE');
+  assert.equal(opened, false);
+});
+
+test('request_email_mfa exige secretos dedicados antes de abrir DB', async () => {
+  let opened = false;
+  const handler = createInternalIdentityHandler({
+    env: { IDENTITY_APP_ORIGIN: ORIGIN, VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    identitySecrets: {
+      tokenPepper: SECRETS.tokenPepper,
+      sessionSecret: SECRETS.sessionSecret,
+      encryptionKey: SECRETS.encryptionKey,
+    },
+    getTenantIdentitySql: async () => { opened = true; return { query: async () => [] }; },
+    mfaEmailDelivery: { isConfigured: () => true, deliver: async () => ({ providerAccepted: true }) },
   });
   const res = response();
   await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {

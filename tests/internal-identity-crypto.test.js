@@ -12,6 +12,7 @@ import {
   encryptEmailMfaDestination,
   encryptMfaSecret,
   hashIdentitySecret,
+  identitySecrets,
   issueIdentitySessionToken,
   maskEmailDestination,
   matchTotpStep,
@@ -26,6 +27,35 @@ import {
 const PEPPER = 'p'.repeat(48);
 const SESSION_SECRET = 's'.repeat(48);
 const NOW = Date.parse('2026-08-20T15:00:00.000Z');
+
+test('email MFA puede usar secretos dedicados sin rotar TOTP ni sesiones', () => {
+  const baseKey = Buffer.alloc(32, 1).toString('base64url');
+  const emailKey = Buffer.alloc(32, 2).toString('base64url');
+  const secrets = identitySecrets({
+    IDENTITY_TOKEN_PEPPER: PEPPER,
+    INTERNAL_SESSION_SECRET: SESSION_SECRET,
+    IDENTITY_MFA_ENCRYPTION_KEY: baseKey,
+    IDENTITY_EMAIL_MFA_PEPPER: 'e'.repeat(48),
+    IDENTITY_EMAIL_MFA_ENCRYPTION_KEY: emailKey,
+  });
+  assert.equal(secrets.tokenPepper, PEPPER);
+  assert.deepEqual(secrets.encryptionKey, Buffer.alloc(32, 1));
+  assert.equal(secrets.emailMfaPepper, 'e'.repeat(48));
+  assert.deepEqual(secrets.emailMfaEncryptionKey, Buffer.alloc(32, 2));
+  const withoutEmail = identitySecrets({
+    IDENTITY_TOKEN_PEPPER: PEPPER,
+    INTERNAL_SESSION_SECRET: SESSION_SECRET,
+    IDENTITY_MFA_ENCRYPTION_KEY: baseKey,
+  });
+  assert.equal(withoutEmail.emailMfaPepper, null);
+  assert.equal(withoutEmail.emailMfaEncryptionKey, null);
+  assert.throws(() => identitySecrets({
+    IDENTITY_TOKEN_PEPPER: PEPPER,
+    INTERNAL_SESSION_SECRET: SESSION_SECRET,
+    IDENTITY_MFA_ENCRYPTION_KEY: baseKey,
+    IDENTITY_EMAIL_MFA_PEPPER: 'e'.repeat(48),
+  }), /IDENTITY_EMAIL_MFA_SECRET_PAIR/);
+});
 
 test('codigo de invitacion usa 128 bits base32 sin confundir datos con separadores', () => {
   const code = createInvitationCode((size) => Buffer.alloc(size, 0xfb));
