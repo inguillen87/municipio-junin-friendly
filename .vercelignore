@@ -30,6 +30,7 @@ database/
 !scripts/migrations/013-existing-identity-membership-governance.sql
 !scripts/migrations/014-governed-source-binding-provisioning.sql
 !scripts/migrations/015-email-otp-mfa.sql
+!scripts/migrations/016-email-mfa-retry-idempotency.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

@@ -948,7 +948,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
           fail('IDENTITY_PAYLOAD_INVALID', 422, 'Desafio email invalido');
         }
         const code = normalizeEmailMfaCode(payload.code);
-        if (!code) fail('IDENTITY_MFA_INVALID', 401, 'Codigo invalido');
+        if (!code) fail('IDENTITY_EMAIL_MFA_INVALID', 401, 'Codigo de correo invalido');
         await rateLimit(sql, 'identity.mfa_email_verify', flow.email, req, secrets);
         const result = await completeIdentityEmailMfa(sql, {
           flowHash, deliveryAttemptId: emailChallengeId,
@@ -966,7 +966,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
               ? { remainingAttempts: remaining } : {}),
           };
           throw new IdentityGatewayError(
-            result?.locked === true ? 'IDENTITY_FLOW_LOCKED' : 'IDENTITY_MFA_INVALID',
+            result?.locked === true ? 'IDENTITY_FLOW_LOCKED' : 'IDENTITY_EMAIL_MFA_INVALID',
             result?.locked === true ? 423 : 401,
             result?.locked === true ? 'Flujo bloqueado' : 'Codigo invalido',
             details,
@@ -1292,6 +1292,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
       if (mapped) {
         if (mapped.retryAfter) res.setHeader('Retry-After', String(mapped.retryAfter));
         return send(res, mapped.status, { ok: false, code: mapped.code, error: mapped.message,
+          ...(mapped.retryAfter ? { retryAfterSeconds: mapped.retryAfter } : {}),
           ...(mapped.details || {}) });
       }
       if (error?.code === 'INTERNAL_AUTH_NOT_CONFIGURED' || error?.code === 'IDENTITY_DATABASE_ROLE_REQUIRED') {

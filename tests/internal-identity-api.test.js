@@ -330,6 +330,39 @@ test('request_email_mfa obtiene destino cifrado del servidor, envia OTP y respon
   assert.doesNotMatch(JSON.stringify(res.payload), new RegExp(deliveries[0].code));
 });
 
+test('request_email_mfa expone cooldown 429 con Retry-After sin contactar al proveedor', async () => {
+  let deliveries = 0;
+  const handler = handlerWithQuery(async (sql, params) => {
+    const rate = successfulRateLimit(sql, params); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'owner@junin.example', version: 2,
+      requestedTenantId: null,
+    } }];
+    if (sql.includes('tenant_identity_prepare_email_mfa')) {
+      throw new Error('IDENTITY_EMAIL_MFA_COOLDOWN');
+    }
+    throw new Error(`consulta no esperada: ${sql}`);
+  }, {
+    mfaEmailDelivery: {
+      isConfigured: () => true,
+      async deliver() { deliveries += 1; return { providerAccepted: true }; },
+    },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 429);
+  assert.equal(res.headers['Retry-After'], '45');
+  assert.deepEqual(res.payload, {
+    ok: false,
+    code: 'IDENTITY_EMAIL_MFA_COOLDOWN',
+    error: 'Espera antes de solicitar otro codigo',
+    retryAfterSeconds: 45,
+  });
+  assert.equal(deliveries, 0);
+});
+
 test('request_email_mfa sin proveedor falla antes de abrir DB', async () => {
   let opened = false;
   const handler = handlerWithQuery(async () => [], {
@@ -427,6 +460,7 @@ test('verify_email_mfa versiona el desafio email sin confundirlo con la version 
     flowToken: 'f'.repeat(43), emailChallengeId: KEY, code: '111111',
   }, { idempotencyKey: KEY_B, expectedVersion: 2 }), wrong);
   assert.equal(wrong.statusCode, 401);
+  assert.equal(wrong.payload.code, 'IDENTITY_EMAIL_MFA_INVALID');
   assert.equal(wrong.payload.expectedVersion, 3);
   assert.equal(wrong.payload.remainingAttempts, 4);
 

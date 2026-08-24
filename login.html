@@ -483,6 +483,11 @@
     .mfa-actions .button { padding-left: 10px; padding-right: 10px; }
     .mfa-alternate-actions { display: grid; gap: 2px; margin-top: 8px; }
     .email-mfa-status { min-height: 18px; margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .email-mfa-card { margin: 13px 0 16px; padding: 13px; border: 1px solid var(--focus); background: var(--wash); }
+    .email-mfa-card strong { display: block; color: var(--navy-950); font-size: 13px; }
+    .email-mfa-card > span { display: block; margin: 4px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .email-mfa-card .button { width: 100%; }
+    .mfa-method-separator { margin: 0 0 13px !important; font-weight: 750; text-align: center; }
     .text-button { min-height: 44px; border: 0; background: transparent; color: var(--navy-700); font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
     .text-button:disabled { color: #71818a; cursor: not-allowed; }
     .text-button:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
@@ -745,9 +750,16 @@
 
           <div class="mfa-panel" id="mfaStep" hidden>
             <h3>Verificación en dos pasos</h3>
-            <p id="mfaHelp">Ingresá el código vigente de tu aplicación autenticadora. El desafío no se guarda en este navegador.</p>
+            <div class="email-mfa-card">
+              <strong>Acceso por correo</strong>
+              <span>Solicitá un código nuevo para este intento. Los códigos de correos anteriores no sirven en otra sesión.</span>
+              <button type="button" class="button button-secondary" id="requestEmailMfaButton" aria-describedby="emailMfaStatus">Recibir un código nuevo por correo</button>
+              <p class="email-mfa-status" id="emailMfaStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+            </div>
+            <p class="mfa-method-separator">O usá otro método</p>
+            <p id="mfaHelp">Ingresá el código vigente de tu aplicación autenticadora. No pegues aquí un código recibido por correo.</p>
             <div class="form-group">
-              <label class="form-label" for="mfaInput" id="mfaInputLabel">Código de seis dígitos</label>
+              <label class="form-label" for="mfaInput" id="mfaInputLabel">Código de la aplicación autenticadora</label>
               <input class="form-input" id="mfaInput" name="mfaCode" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" spellcheck="false" aria-describedby="mfaHelp emailMfaStatus">
             </div>
             <div class="mfa-actions">
@@ -755,11 +767,9 @@
               <button type="submit" class="button button-primary" id="verifyMfaButton">Verificar acceso</button>
             </div>
             <div class="mfa-alternate-actions" role="group" aria-label="Otros métodos de verificación">
-              <button type="button" class="text-button" id="requestEmailMfaButton" aria-describedby="emailMfaStatus">Enviar código por correo</button>
               <button type="button" class="text-button" id="useAuthenticatorButton" hidden>Usar la aplicación autenticadora</button>
               <button type="button" class="text-button" id="toggleRecoveryButton">Usar un código de recuperación</button>
             </div>
-            <p class="email-mfa-status" id="emailMfaStatus" role="status" aria-live="polite" aria-atomic="true"></p>
           </div>
           <p class="access-status" id="accessStatus" role="status" aria-live="polite"></p>
         </form>
@@ -852,7 +862,10 @@
       if (error && error.code === 'IDENTITY_RATE_LIMITED') return 'Se alcanzó el límite de intentos. Esperá unos minutos antes de volver a probar.';
       if (error && error.code === 'IDENTITY_CONTEXT_FORBIDDEN') return 'El ámbito seleccionado ya no está autorizado. Volvé a ingresar para actualizar la lista.';
       if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos y el desafío fue bloqueado. Volvé a iniciar sesión.';
-      if (error && ['IDENTITY_MFA_INVALID', 'IDENTITY_EMAIL_MFA_INVALID', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) return 'El código no es válido o el desafío ya venció.';
+      if (error && error.code === 'IDENTITY_EMAIL_MFA_COOLDOWN') return 'Ya se emitió un código recientemente. Esperá la cuenta regresiva y solicitá uno nuevo desde esta pantalla.';
+      if (error && error.code === 'IDENTITY_EMAIL_MFA_INVALID') return 'Ese código de correo no es válido para este acceso o ya venció. Usá solamente el último código solicitado desde esta pantalla.';
+      if (error && error.code === 'IDENTITY_MFA_INVALID') return 'El código de la aplicación autenticadora no es válido. Si querés usar correo, solicitá un código nuevo desde el botón superior.';
+      if (error && error.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED') return 'El acceso venció. Volvé a ingresar para generar una verificación nueva.';
       if (error && ['IDENTITY_DELIVERY_UNAVAILABLE', 'IDENTITY_EMAIL_MFA_UNAVAILABLE', 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE'].includes(error.code)) return 'No se pudo enviar el código por correo. Podés usar la aplicación autenticadora o un código de recuperación.';
       return 'No se pudo validar el acceso. Revisá los datos e intentá nuevamente.';
     }
@@ -890,8 +903,10 @@
           error.status = response.status;
           var nextVersion = Number(result.expectedVersion);
           var attempts = Number(result.remainingAttempts);
+          var retryAfterSeconds = Number(result.retryAfterSeconds || response.headers.get('Retry-After'));
           if (Number.isSafeInteger(nextVersion) && nextVersion > 0) error.expectedVersion = nextVersion;
           if (Number.isSafeInteger(attempts) && attempts >= 0) error.remainingAttempts = attempts;
+          if (Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds > 0 && retryAfterSeconds <= 3600) error.retryAfterSeconds = retryAfterSeconds;
           throw error;
         }
         return { session: result };
@@ -963,14 +978,13 @@
       if (!emailButton || !authenticatorButton || !recoveryButton) return;
       var retrySeconds = emailMfaRetrySeconds();
       if (usingEmailMfa) {
-        emailButton.textContent = retrySeconds > 0 ? 'Reenviar código (' + retrySeconds + ' s)' : 'Reenviar código por correo';
-        emailButton.disabled = identityLoading || retrySeconds > 0;
+        emailButton.textContent = retrySeconds > 0 ? 'Reenviar código (' + retrySeconds + ' s)' : 'Recibir un código nuevo por correo';
       } else {
         emailButton.textContent = emailMfaChallenge && !emailMfaExpired()
           ? 'Usar código por correo solicitado'
-          : retrySeconds > 0 ? 'Reintentar correo (' + retrySeconds + ' s)' : 'Enviar código por correo';
-        emailButton.disabled = identityLoading || retrySeconds > 0;
+          : retrySeconds > 0 ? 'Solicitar otro código (' + retrySeconds + ' s)' : 'Recibir un código nuevo por correo';
       }
+      emailButton.disabled = identityLoading || retrySeconds > 0;
       authenticatorButton.hidden = !usingEmailMfa && !usingRecovery;
       authenticatorButton.disabled = identityLoading;
       recoveryButton.hidden = usingRecovery;
@@ -1052,6 +1066,7 @@
       document.getElementById('credentialStep').hidden = true;
       document.getElementById('mfaStep').hidden = false;
       selectMfaMethod('totp');
+      document.getElementById('requestEmailMfaButton').focus();
     }
 
     function openLoginEnrollment(response, email) {
@@ -1163,9 +1178,15 @@
         setLoading(false, 'Solicitud aceptada por el servicio de correo.');
       } catch (error) {
         if (loginFlow && error && Number.isSafeInteger(error.expectedVersion)) loginFlow.version = error.expectedVersion;
-        if (error && error.code === 'IDENTITY_GATEWAY_UNAVAILABLE') {
-          emailMfaRequestKey = null;
-          emailMfaRequestRetryAt = Date.now() + 45000;
+        var ambiguousRequest = error && ['IDENTITY_TIMEOUT', 'IDENTITY_GATEWAY_UNAVAILABLE'].includes(error.code);
+        var retrySeconds = error && Number.isSafeInteger(error.retryAfterSeconds) ? error.retryAfterSeconds : 0;
+        if (!ambiguousRequest) emailMfaRequestKey = null;
+        if (error && ['IDENTITY_EMAIL_MFA_COOLDOWN', 'IDENTITY_RATE_LIMITED'].includes(error.code)) {
+          emailMfaRequestRetryAt = Date.now() + (Math.max(45, retrySeconds) * 1000);
+          document.getElementById('emailMfaStatus').textContent = 'Esperá la cuenta regresiva y pedí un código nuevo para esta sesión.';
+          startEmailMfaCountdown();
+        } else if (ambiguousRequest || (error && error.code === 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE')) {
+          emailMfaRequestRetryAt = Date.now() + (Math.max(45, retrySeconds) * 1000);
           startEmailMfaCountdown();
         }
         if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
@@ -1282,7 +1303,7 @@
           if (error && error.code === 'IDENTITY_MFA_INVALID' && loginFlow && Number.isSafeInteger(error.expectedVersion)) {
             loginFlow.version = error.expectedVersion;
             loginFlow.idempotencyKey = commandKey();
-            if (Number.isSafeInteger(error.remainingAttempts)) mfaErrorMessage += ' Quedan ' + error.remainingAttempts + ' intentos.';
+            if (Number.isSafeInteger(error.remainingAttempts)) mfaErrorMessage += ' Quedan ' + error.remainingAttempts + ' intentos para el autenticador.';
           }
           if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
             cancelMfa(); showError(mfaErrorMessage); return;

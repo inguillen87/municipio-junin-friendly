@@ -91,9 +91,17 @@ test('login exige contexto explícito antes de MFA y no autoelige un tenant úni
 
 test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recovery', () => {
   const html = parseInlineScripts('login.html');
-  assert.match(html, /id="requestEmailMfaButton"[^>]*>Enviar código por correo<\/button>/);
+  assert.match(html, /<div class="email-mfa-card">[\s\S]+id="requestEmailMfaButton"[^>]*>Recibir un código nuevo por correo<\/button>/);
+  assert.match(html, /Los códigos de correos anteriores no sirven en otra sesión/);
+  assert.match(html, /id="mfaInputLabel">Código de la aplicación autenticadora<\/label>/);
+  assert.match(html, /No pegues aquí un código recibido por correo/);
   assert.match(html, /emailMfaRequestKey = emailMfaRequestKey \|\| commandKey\(\)/);
-  assert.match(html, /error\.code === 'IDENTITY_GATEWAY_UNAVAILABLE'[\s\S]+emailMfaRequestKey = null[\s\S]+emailMfaRequestRetryAt = Date\.now\(\) \+ 45000/);
+  assert.match(html, /var ambiguousRequest = error && \['IDENTITY_TIMEOUT', 'IDENTITY_GATEWAY_UNAVAILABLE'\]\.includes\(error\.code\)/);
+  assert.match(html, /if \(!ambiguousRequest\) emailMfaRequestKey = null/);
+  assert.match(html, /\['IDENTITY_EMAIL_MFA_COOLDOWN', 'IDENTITY_RATE_LIMITED'\]\.includes\(error\.code\)[\s\S]+Math\.max\(45, retrySeconds\)/);
+  assert.match(html, /ambiguousRequest \|\| \(error && error\.code === 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE'\)/);
+  assert.match(html, /Number\(result\.retryAfterSeconds \|\| response\.headers\.get\('Retry-After'\)\)/);
+  assert.match(html, /error\.retryAfterSeconds = retryAfterSeconds/);
   assert.match(html, /id="useAuthenticatorButton" hidden>Usar la aplicación autenticadora<\/button>/);
   assert.match(html, /id="emailMfaStatus" role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(html, /id="mfaInput"[^>]+inputmode="numeric"[^>]+autocomplete="one-time-code"/);
@@ -107,12 +115,16 @@ test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recov
   assert.match(html, /window\.setInterval\([\s\S]+1000\)/);
   assert.match(html, /emailMfaChallenge\.expectedVersion = error\.expectedVersion/);
   assert.match(html, /loginFlow\.version = error\.expectedVersion/);
+  assert.match(html, /error\.code === 'IDENTITY_EMAIL_MFA_INVALID'[\s\S]+Ese código de correo no es válido para este acceso o ya venció/);
+  assert.match(html, /error\.code === 'IDENTITY_MFA_INVALID'[\s\S]+El código de la aplicación autenticadora no es válido/);
+  assert.match(html, /error\.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED'[\s\S]+El acceso venció/);
   assert.match(html, /selectMfaMethod\('totp'\)/);
   assert.match(html, /selectMfaMethod\('recovery'\)/);
   assert.match(html, /verify_mfa/);
   assert.match(html, /recover_mfa/);
   const openMfaStep = html.match(/function openMfaStep\([\s\S]*?\n    function openLoginEnrollment/);
   assert.ok(openMfaStep, 'falta el paso MFA');
+  assert.match(openMfaStep[0], /selectMfaMethod\('totp'\)[\s\S]+requestEmailMfaButton'\)\.focus\(\)/);
   assert.doesNotMatch(openMfaStep[0], /requestEmailMfa\(|request_email_mfa/);
   assert.doesNotMatch(html, /request_email_mfa', \{[^}]*\b(?:email|destination|to)\b/i);
 });
