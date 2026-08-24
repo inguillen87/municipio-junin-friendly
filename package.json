@@ -23,6 +23,7 @@
     "db:tenant:source-binding:schema": "node --env-file=.env.local scripts/apply-governed-source-binding-provisioning-schema.mjs --confirm-isolated-branch",
     "db:identity:email-mfa:schema": "node --env-file=.env.local scripts/apply-email-otp-mfa-schema.mjs --confirm-isolated-branch",
     "db:identity:email-mfa:retry-schema": "node --env-file=.env.local scripts/apply-email-mfa-retry-idempotency-schema.mjs --confirm-isolated-branch",
+    "db:actions:operational-completion:schema": "node --env-file=.env.local scripts/apply-action-center-operational-completion-schema.mjs --confirm-isolated-branch",
     "db:identity:email-mfa:provision": "node --env-file=.env.local scripts/provision-email-mfa-factor.mjs --confirm-isolated-branch",
     "db:time:sources:verify-live": "node --env-file=.env.local scripts/verify-governed-time-source-registry-live.mjs --confirm-isolated-branch",
     "db:tenant:lifecycle:verify-live": "node --env-file=.env.local scripts/verify-tenant-lifecycle-live.mjs --confirm-isolated-branch",

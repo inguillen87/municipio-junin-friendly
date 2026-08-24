@@ -1832,10 +1832,12 @@
           const payload = await requestJSON(DATA_URL + '?resource=summary');
           state.summary = normalizeSummary(payload);
           renderSummary(state.summary);
+          return { ok: true, resource: 'summary' };
         } catch (error) {
-          if (error instanceof UnauthorizedError) return;
+          if (error instanceof UnauthorizedError) return { ok: false, resource: 'summary', unauthorized: true };
           state.summaryError = error;
           setSummaryError(error);
+          return { ok: false, resource: 'summary', error: error };
         }
       }
 
@@ -2165,7 +2167,9 @@
 
       async function loadEmployees(page) {
         const query = employeeQuery(page);
-        if (state.employeesLoading && state.employeeLastQuery === query) return;
+        if (state.employeesLoading && state.employeeLastQuery === query) {
+          return { ok: false, resource: 'employees', pending: true };
+        }
         if (state.employeeController) state.employeeController.abort();
         const controller = new AbortController();
         state.employeeController = controller;
@@ -2185,10 +2189,13 @@
           renderDirectoryScope(result.scope);
           collectRowSectors(result.rows);
           renderEmployees(result.rows, result.pagination);
+          return { ok: true, resource: 'employees' };
         } catch (error) {
-          if (error.name === 'AbortError' || error instanceof UnauthorizedError) return;
-          if (requestId !== state.employeeRequest) return;
+          if (error.name === 'AbortError') return { ok: false, resource: 'employees', cancelled: true };
+          if (error instanceof UnauthorizedError) return { ok: false, resource: 'employees', unauthorized: true };
+          if (requestId !== state.employeeRequest) return { ok: false, resource: 'employees', stale: true };
           renderEmployeesError(error);
+          return { ok: false, resource: 'employees', error: error };
         } finally {
           if (requestId === state.employeeRequest) {
             state.employeesLoading = false;
@@ -3049,9 +3056,17 @@
         els.refreshButton.disabled = true;
         const tasks = [loadSummary()];
         if (state.currentView === 'legajos' || state.employeesLoaded) tasks.push(loadEmployees(state.pagination.page || 1));
-        Promise.allSettled(tasks).finally(function () {
+        Promise.allSettled(tasks).then(function (results) {
+          const incomplete = results.some(function (result) {
+            return result.status === 'rejected' || !result.value || result.value.ok !== true;
+          });
+          if (incomplete) {
+            toast('La actualización quedó incompleta. Revisá los avisos y usá Actualizar para reintentar.', 'error');
+          } else {
+            toast('Información actualizada.');
+          }
+        }).finally(function () {
           els.refreshButton.disabled = false;
-          toast('Actualización finalizada.');
         });
       }
 

@@ -812,6 +812,7 @@
     var emailMfaCountdownTimer = null;
     var emailMfaRequestKey = null;
     var emailMfaRequestRetryAt = 0;
+    var emailMfaRequestInFlight = false;
     var identityLoading = false;
 
     function setLoading(isLoading, message) {
@@ -863,6 +864,7 @@
       if (error && error.code === 'IDENTITY_CONTEXT_FORBIDDEN') return 'El ámbito seleccionado ya no está autorizado. Volvé a ingresar para actualizar la lista.';
       if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos y el desafío fue bloqueado. Volvé a iniciar sesión.';
       if (error && error.code === 'IDENTITY_EMAIL_MFA_COOLDOWN') return 'Ya se emitió un código recientemente. Esperá la cuenta regresiva y solicitá uno nuevo desde esta pantalla.';
+      if (error && error.code === 'IDENTITY_EMAIL_MFA_NOT_CONFIGURED') return 'Esta cuenta no tiene un correo de recuperación habilitado. Usá la aplicación autenticadora o un código de recuperación.';
       if (error && error.code === 'IDENTITY_EMAIL_MFA_INVALID') return 'Ese código de correo no es válido para este acceso o ya venció. Usá solamente el último código solicitado desde esta pantalla.';
       if (error && error.code === 'IDENTITY_MFA_INVALID') return 'El código de la aplicación autenticadora no es válido. Si querés usar correo, solicitá un código nuevo desde el botón superior.';
       if (error && error.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED') return 'El acceso venció. Volvé a ingresar para generar una verificación nueva.';
@@ -1152,8 +1154,9 @@
       document.getElementById('emailInput').focus();
     }
 
-    async function requestEmailMfa() {
-      if (!loginFlow) return;
+    async function requestEmailMfa(options) {
+      if (!loginFlow || emailMfaRequestInFlight) return;
+      var automaticRequest = Boolean(options && options.automatic === true);
       if (emailMfaChallenge && !emailMfaExpired() && !usingEmailMfa) {
         selectMfaMethod('email');
         return;
@@ -1164,6 +1167,7 @@
         document.getElementById('emailMfaStatus').textContent = '';
       }
       hideError();
+      emailMfaRequestInFlight = true;
       setLoading(true, emailMfaChallenge ? 'Reenviando el código por correo…' : 'Enviando el código por correo…');
       try {
         emailMfaRequestKey = emailMfaRequestKey || commandKey();
@@ -1193,14 +1197,31 @@
           var terminalMessage = identityError(error);
           cancelMfa(); setLoading(false, ''); showError(terminalMessage); return;
         }
+        var automaticFallback = automaticRequest && error && [
+          'IDENTITY_EMAIL_MFA_NOT_CONFIGURED', 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE',
+          'IDENTITY_TIMEOUT', 'IDENTITY_GATEWAY_UNAVAILABLE',
+          'IDENTITY_EMAIL_MFA_COOLDOWN', 'IDENTITY_RATE_LIMITED'
+        ].includes(error.code);
+        if (automaticFallback) {
+          selectMfaMethod('totp');
+          hideError();
+          document.getElementById('emailMfaStatus').textContent = error.code === 'IDENTITY_EMAIL_MFA_NOT_CONFIGURED'
+            ? 'El correo no está configurado para esta cuenta. Continuá con la aplicación autenticadora o un código de recuperación.'
+            : 'El envío por correo no pudo confirmarse. Podés continuar con la aplicación autenticadora o un código de recuperación.';
+          setLoading(false, 'Elegí uno de los métodos de verificación disponibles.');
+          return;
+        }
         showError(identityError(error));
         setLoading(false, 'No se pudo enviar el código por correo.');
         document.getElementById('requestEmailMfaButton').focus();
+      } finally {
+        emailMfaRequestInFlight = false;
       }
     }
 
     async function doLogin(e) {
       e.preventDefault();
+      if (identityLoading) return;
       var email = document.getElementById('emailInput').value.trim().toLowerCase();
       var pass  = document.getElementById('passInput').value;
       var btnLabel = document.querySelector('#btnLogin .button-label');
@@ -1251,7 +1272,12 @@
           var contextResult = await identityRequest('select_context', { flowToken: contextFlow.token, context: selectedPayload }, { expectedVersion: contextFlow.version, idempotencyKey: contextFlow.idempotencyKey });
           var contextEmail = contextFlow.email;
           if (contextResult.enrollment) { setLoading(false, 'Ámbito confirmado. Falta configurar el segundo factor.'); openLoginEnrollment(contextResult.enrollment, contextEmail); return; }
-          if (contextResult.challenge) { setLoading(false, 'Ámbito confirmado. Falta el segundo factor.'); openMfaStep(contextResult.challenge, contextEmail); return; }
+          if (contextResult.challenge) {
+            setLoading(false, 'Ámbito confirmado. Preparando la verificación por correo…');
+            openMfaStep(contextResult.challenge, contextEmail);
+            await requestEmailMfa({ automatic: true });
+            return;
+          }
           completeLogin(contextResult.session, contextEmail);
         } catch (error) {
           showError(identityError(error)); setLoading(false, 'No se pudo confirmar el ámbito.');

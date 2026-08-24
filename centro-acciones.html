@@ -124,6 +124,22 @@
     .permission-strip p { margin: 3px 0 0; color: #526b75; font-size: 12px; line-height: 1.45; }
     .source-chip { max-width: 330px; padding: 7px 10px; overflow: hidden; color: var(--teal-dark); background: #fff; border: 1px solid #b9d2ce; border-radius: 4px; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 
+    .workflow-guide { margin: 18px 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--teal); border-radius: var(--radius); }
+    .workflow-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .workflow-head h2 { margin: 0; color: var(--navy); font-size: 19px; letter-spacing: -.02em; }
+    .workflow-head p { max-width: 720px; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .workflow-profile { flex: 0 0 auto; padding: 6px 9px; color: var(--teal-dark); background: var(--surface-3); border: 1px solid #bdd5d1; border-radius: 999px; font-size: 11px; font-weight: 850; white-space: nowrap; }
+    .workflow-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; margin: 15px 0 0; padding: 0; list-style: none; counter-reset: workflow-step; }
+    .workflow-step { position: relative; min-height: 190px; display: flex; flex-direction: column; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); counter-increment: workflow-step; }
+    .workflow-step::before { content: counter(workflow-step); width: 25px; height: 25px; display: grid; place-items: center; color: #fff; background: var(--teal); border-radius: 50%; font-size: 11px; font-weight: 900; }
+    .workflow-step[data-enabled="false"]::before { color: #526b75; background: #d8e0e2; }
+    .workflow-step h3 { margin: 11px 0 0; color: var(--navy); font-size: 14px; }
+    .workflow-step p { margin: 6px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .workflow-step .button { width: 100%; margin-top: auto; }
+    .workflow-status { display: block; margin-top: 8px; color: var(--teal-dark); font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+    .workflow-step[data-enabled="false"] .workflow-status { color: var(--muted); }
+    .workflow-note { margin: 13px 0 0; padding-top: 12px; color: var(--muted); border-top: 1px solid var(--line); font-size: 11px; line-height: 1.45; }
+
     .metrics { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 11px; margin: 18px 0; }
     .metrics[hidden] { display: none; }
     .metric { min-height: 118px; padding: 17px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--line-strong); border-radius: var(--radius); }
@@ -148,6 +164,7 @@
     .input:disabled, .select:disabled, .textarea:disabled { color: #536971; background: #edf1f2; border-color: #d4dddf; cursor: not-allowed; opacity: 1; }
     .textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
     .field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .field-counter { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
     .field-error { display: block; margin-top: 5px; color: var(--red); font-size: 11px; font-weight: 700; }
     .subject-search-control { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
     .subject-search-control .button { min-width: 88px; }
@@ -272,6 +289,7 @@
 
     @media (max-width: 1120px) {
       .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .workflow-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
       .filters { grid-template-columns: 1.4fr repeat(2,1fr); }
       .filters .field:nth-of-type(4), .filter-actions { grid-column: auto; }
       .detail-grid { grid-template-columns: 1fr; }
@@ -294,6 +312,8 @@
       .head-actions .button { flex: 1; }
       .permission-strip { grid-template-columns: 1fr; gap: 9px; }
       .source-chip { max-width: 100%; }
+      .workflow-head { display: grid; }
+      .workflow-profile { justify-self: start; }
       .filters { grid-template-columns: 1fr 1fr; padding: 13px; }
       .filters .field:first-child { grid-column: 1/-1; }
       .queue-head, .queue-meta, .pagination { padding-left: 13px; padding-right: 13px; }
@@ -305,6 +325,8 @@
       .avatar { width: 28px; height: 28px; }
       h1 { font-size: 32px; }
       .metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .workflow-grid { grid-template-columns: 1fr; }
+      .workflow-step { min-height: 0; }
       .metric { min-height: 105px; padding: 13px; }
       .metric strong { font-size: 26px; }
       .queue-head { display: block; }
@@ -461,6 +483,40 @@
             <span class="source-chip" id="sourceChip">Fuente operativa · verificando</span>
           </section>
 
+          <section class="workflow-guide" id="actionWorkflow" aria-labelledby="workflowTitle">
+            <header class="workflow-head">
+              <div><h2 id="workflowTitle">Circuito operativo de licencias</h2><p>Un recorrido concreto para trabajar con solicitudes reales. Cada paso se habilita únicamente cuando el backend confirma la capacidad del perfil.</p></div>
+              <span class="workflow-profile" id="workflowProfileStatus" role="status" aria-live="polite">Verificando operaciones…</span>
+            </header>
+            <ol class="workflow-grid">
+              <li class="workflow-step" data-workflow-step="create" data-enabled="false">
+                <span class="workflow-status" data-workflow-status="create">Verificando</span>
+                <h3>Crear borrador</h3>
+                <p>Elegí una persona autorizada, motivo y período. Todavía no concede la licencia.</p>
+                <button class="button primary" type="button" data-workflow-command="create" disabled>Crear solicitud</button>
+              </li>
+              <li class="workflow-step" data-workflow-step="edit" data-enabled="false">
+                <span class="workflow-status" data-workflow-status="edit">Verificando</span>
+                <h3>Revisar y editar</h3>
+                <p>Abrí un borrador vigente, corregí sus datos y conservá la trazabilidad de versión.</p>
+                <button class="button" type="button" data-workflow-command="edit" disabled>Ver borradores</button>
+              </li>
+              <li class="workflow-step" data-workflow-step="submit" data-enabled="false">
+                <span class="workflow-status" data-workflow-status="submit">Verificando</span>
+                <h3>Enviar a revisión</h3>
+                <p>Desde el detalle del borrador, iniciá el circuito administrativo sin aprobar ni impactar nómina.</p>
+                <button class="button" type="button" data-workflow-command="submit" disabled>Preparar envío</button>
+              </li>
+              <li class="workflow-step" data-workflow-step="cancel" data-enabled="false">
+                <span class="workflow-status" data-workflow-status="cancel">Verificando</span>
+                <h3>Cancelar pendiente</h3>
+                <p>Localizá solicitudes enviadas y cancelalas con fundamento; el historial nunca se elimina.</p>
+                <button class="button" type="button" data-workflow-command="cancel" disabled>Ver enviadas</button>
+              </li>
+            </ol>
+            <p class="workflow-note">Los accesos del circuito sólo abren el formulario o filtran la bandeja. Editar, enviar y cancelar siempre exigen abrir un caso, validar su versión vigente y confirmar la operación.</p>
+          </section>
+
           <section class="metrics" id="actionMetrics" aria-label="Resumen de la bandeja" hidden>
             <article class="metric" id="metricObservedCard"><span>Observadas</span><strong id="metricObserved">—</strong><small id="metricObservedNote">Con documentación o validación pendiente.</small></article>
             <article class="metric" id="metricClosedCard" data-tone="done"><span>Cerradas en 30 días</span><strong id="metricClosed">—</strong><small id="metricClosedNote">Sólo si la API informa el período.</small></article>
@@ -571,10 +627,10 @@
         </section>
 
         <section class="wizard-panel" data-action-step="3" hidden>
-          <h3>Respaldo y observación</h3><p>La evidencia se verifica durante la revisión. Los archivos se incorporan únicamente cuando el backend entregue una carga privada y trazable.</p>
+          <h3>Observación y respaldo</h3><p>Registrá una observación administrativa breve. Esta pantalla no adjunta archivos; cualquier evidencia se gestiona fuera de este formulario por el circuito autorizado.</p>
           <div class="form-grid">
             <div class="field full"><span class="field-label">Estado de evidencia</span><div class="review-card"><strong>Pendiente de verificación</strong><span class="field-help">No se declara ni valida evidencia al crear el borrador. El estado se registra al decidir, con confirmación humana.</span></div></div>
-            <div class="field full"><label for="actionEmployeeNote">Observación del solicitante</label><textarea class="textarea" id="actionEmployeeNote" maxlength="1000" placeholder="Describí únicamente lo necesario para tramitar la solicitud." aria-describedby="employeeNoteHelp"></textarea><span class="field-help" id="employeeNoteHelp">No ingreses diagnósticos ni información sensible. Los casos restringidos no admiten una nota general.</span></div>
+            <div class="field full"><label for="actionEmployeeNote" id="actionEmployeeNoteLabel">Observación administrativa breve (opcional)</label><textarea class="textarea" id="actionEmployeeNote" maxlength="500" placeholder="Ej.: cuidado familiar" aria-describedby="employeeNoteHelp employeeNoteCounter actionEmployeeNoteError"></textarea><span class="field-help" id="employeeNoteHelp">Hasta 500 caracteres. Describí sólo la gestión administrativa; no ingreses diagnósticos, documentos, datos de contacto ni enlaces.</span><span class="field-counter" id="employeeNoteCounter" aria-live="polite">0 / 500 caracteres</span><span class="field-error" id="actionEmployeeNoteError" hidden></span></div>
           </div>
           <div class="honesty-note">La pantalla no sube archivos a servicios públicos ni conserva el texto en el navegador. La observación se envía solamente al confirmar el borrador.</div>
         </section>
@@ -582,9 +638,9 @@
         <section class="wizard-panel" data-action-step="4" hidden>
           <h3>Revisar antes de crear</h3><p>El resultado será un borrador versionado. Luego deberá enviarse a revisión mediante una acción separada.</p>
           <div class="review-card"><h4>Resumen del borrador</h4><dl class="facts" id="wizardReview"></dl></div>
-          <label class="checkbox"><input id="actionConfirmTruth" type="checkbox"><span>Confirmo que revisé persona, motivo y período. Comprendo que el sistema no calculó saldo, horas efectivamente trabajadas ni recibo de sueldo.</span></label>
+          <label class="checkbox"><input id="actionConfirmTruth" type="checkbox"><span id="actionConfirmLabel">Confirmo que revisé la persona, el motivo y el período, y que quiero crear esta solicitud como borrador.</span></label>
           <span class="field-error" id="actionConfirmError" hidden></span>
-          <div class="honesty-note">Crear un borrador no aprueba la licencia, no genera un acto administrativo y no envía novedades a nómina.</div>
+          <div class="honesty-note">Este registro no aprueba una licencia ni modifica nómina. El sistema no calculó saldo disponible, horas trabajadas ni impacto salarial.</div>
         </section>
       </div>
       <footer class="wizard-footer">
@@ -652,6 +708,9 @@
       var HANDOFF_MAX_AGE_MS = 10 * 60 * 1000;
       var LOGIN_URL = 'login.html?next=centro-acciones.html';
       var MAX_REASON_LENGTH = 1000;
+      var MAX_EMPLOYEE_NOTE_LENGTH = 500;
+      var MAX_RESTRICTED_BRIEF_LENGTH = 500;
+      var SENSITIVE_NOTE_PATTERN = /(?:diagn[oó]stic|enfermedad|s[ií]ntoma|medicaci[oó]n|historia\s+cl[ií]nica|certificado\s+m[eé]dico|tratamiento\s+m[eé]dico|\b(?:dni|cuil|tel[eé]fono|correo|e-?mail)\b|https?:\/\/|www\.|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b\d{7,}\b)/i;
       var SAFE_CASE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
       var OVERTIME_POLICY_VERSION = 'junin-mayor-esfuerzo-intake.v1';
       var STATUS_LABELS = {
@@ -1274,13 +1333,13 @@
       function cacheElements() {
         ['authGate','gateTitle','gateMessage','gateSpinner','retryAuth','appShell','sidebar','menuButton','menuClose','navBackdrop','workspace',
           'userAvatar','userName','userRole','refreshButton','logoutButton','permissionSummary','sourceChip','createActionButton','queueCreateButton','createOvertimeButton','queueOvertimeButton',
-          'actionMetrics','metricObservedCard','metricClosedCard','metricObserved','metricClosed','queueTitle','queueSubtitle','actionViews','actionFilters','actionSearch',
+          'actionWorkflow','workflowProfileStatus','actionMetrics','metricObservedCard','metricClosedCard','metricObserved','metricClosed','queueTitle','queueSubtitle','actionViews','actionFilters','actionSearch',
           'actionTypeFilter','actionStatusFilter','clearActionFilters','actionResultCount','pageScopeLabel','actionLoading',
           'actionError','actionErrorMessage','retryActions','actionEmpty','actionQueue','actionRows','previousPage','nextPage','pageStatus',
           'actionDialog','actionDialogTitle','actionDialogSubtitle','closeActionDialog','actionDialogBody','actionWizard','actionWizardForm',
           'wizardTitle','wizardSubtitle','closeWizard','actionEmployeeSearchField','actionEmployeeSearch','actionEmployeeSearchButton','actionEmployeeSearchStatus','actionEmployee','actionLeaveType','leaveTypeHelp','actionConfidentiality','actionConfidentialityHelp','actionConfidentialityError','durationDays',
           'durationMinutes','startTimeField','endTimeField','actionStartDate','actionEndDate','actionStartTime','actionEndTime','durationGate','actionDurationModeError',
-          'actionEmployeeNote','employeeNoteHelp','wizardReview','actionConfirmTruth','actionConfirmError','wizardCancel','wizardBack','wizardNext',
+          'actionEmployeeNote','actionEmployeeNoteLabel','employeeNoteHelp','employeeNoteCounter','actionEmployeeNoteError','wizardReview','actionConfirmTruth','actionConfirmLabel','actionConfirmError','wizardCancel','wizardBack','wizardNext',
           'wizardSubmit','overtimeWizard','overtimeWizardForm','overtimeWizardTitle','overtimeWizardSubtitle','closeOvertimeWizard','overtimeAuthorityStatus',
           'overtimeEmployeeSearchField','overtimeEmployeeSearch','overtimeEmployeeSearchButton','overtimeEmployeeSearchStatus','overtimeEmployee','overtimeWorkDate','overtimeDeclaredMinutes','overtimeReason','overtimePolicyVersion','overtimeConfidentiality','overtimeConfirmTruth','overtimeConfirmError','overtimeCancel','overtimeSubmit','toastRegion'].forEach(function (id) { el[id] = byId(id); });
       }
@@ -1292,6 +1351,30 @@
 
       function canCreate() { return hasCapability('leave.request.self.create', 'leave.request.area.create', 'leave.request.all.manage'); }
       function canSearchSubjects() { return hasCapability('leave.request.area.create', 'leave.request.all.manage'); }
+      function workflowCapabilities() {
+        var hasSubjectRoute = state.initialSubjects.length > 0 || canSearchSubjects();
+        var hasReasonRoute = state.bootstrap.reasons.length > 0 || canSearchSubjects();
+        return {
+          create: canCreate() && hasSubjectRoute && hasReasonRoute,
+          edit: hasCapability('leave.request.self.update','leave.request.area.update','leave.request.all.manage'),
+          submit: hasCapability('leave.request.self.submit','leave.request.area.submit','leave.request.all.manage'),
+          cancel: hasCapability('leave.request.self.cancel','leave.request.area.cancel_pending','leave.request.all.manage')
+        };
+      }
+      function renderWorkflowGuide() {
+        var capabilities = workflowCapabilities();
+        var enabledCount = Object.keys(capabilities).filter(function (key) { return capabilities[key]; }).length;
+        el.workflowProfileStatus.textContent = enabledCount + ' de 4 operaciones habilitadas';
+        el.actionWorkflow.querySelectorAll('[data-workflow-step]').forEach(function (card) {
+          var key = card.dataset.workflowStep;
+          var enabled = capabilities[key] === true;
+          card.dataset.enabled = String(enabled);
+          var status = card.querySelector('[data-workflow-status]');
+          var button = card.querySelector('[data-workflow-command]');
+          status.textContent = enabled ? 'Habilitado por el backend' : 'No habilitado para este perfil';
+          button.disabled = !enabled;
+        });
+      }
       function hasOvertimeContract() {
         return Boolean(state.overtime
           && state.overtime.contract.caseType === 'overtime_entry'
@@ -1340,6 +1423,7 @@
         var reason = !canCreate() ? 'Tu sesión no tiene capacidad para crear solicitudes.' : !hasSubjectRoute ? 'No existe un legajo propio habilitado ni alcance para buscar otras personas.' : !hasReasonRoute ? 'El backend no informó el catálogo de licencias.' : '';
         el.createActionButton.title = reason;
         el.queueCreateButton.title = reason;
+        renderWorkflowGuide();
         el.actionEmployeeSearch.disabled = !canSearchSubjects();
         el.actionEmployeeSearchButton.disabled = !canSearchSubjects() || text(el.actionEmployeeSearch.value).length < 2;
         var overtimeVisible = canReadOvertime();
@@ -1773,6 +1857,21 @@
         } catch (error) { showQueueError(error); }
       }
 
+      function openWorkflowQueue(status) {
+        el.actionTypeFilter.value = 'leave_request';
+        renderStatusCatalog(status);
+        renderOperationMode();
+        resetPagination();
+        loadActions({ page: 1 });
+        el.queueTitle.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      }
+
+      function handleWorkflowCommand(command) {
+        if (command === 'create') { openWizard(); return; }
+        if (command === 'edit' || command === 'submit') { openWorkflowQueue('draft'); return; }
+        if (command === 'cancel') openWorkflowQueue('submitted');
+      }
+
       function fact(label, value) { var wrapper = create('div'); wrapper.append(create('dt','',label), create('dd','',text(value,'No informado'))); return wrapper; }
 
       function auditActorLabel(actor) {
@@ -1833,21 +1932,58 @@
         return Array.from(new Set(allowed));
       }
 
+      function commandPanelContext(detail, commands) {
+        if(detail.type==='overtime_entry')return {
+          title:'Siguiente paso operativo',
+          copy:'Cada botón exige allowedCommands vigente, capacidad explícita y, para la carga, responsabilidad exclusiva activa.',
+          empty:'No hay una transición de mayor esfuerzo habilitada para esta sesión y estado.'
+        };
+        if(detail.status==='draft')return {
+          title:'Siguiente paso: Enviar a revisión',
+          copy:commands.includes('submit')
+            ? 'Revisá persona, motivo y período. Enviar inicia la revisión administrativa; no aprueba la licencia ni modifica nómina.'
+            : 'El caso permanece como borrador. Esta sesión puede consultar su estado, pero el envío debe realizarlo una identidad autorizada por el backend.',
+          empty:'No tenés una operación habilitada sobre este borrador. Debe intervenir una identidad con permiso vigente para editar, enviar o cancelar.'
+        };
+        if(detail.status==='submitted')return {
+          title:'Aguardando decisión de un aprobador distinto',
+          copy:commands.includes('approve')||commands.includes('reject')
+            ? 'El backend confirmó autoridad decisora para esta sesión. Aprobar o rechazar exige validación humana y separación respecto de quien preparó la solicitud.'
+            : 'La solicitud ya fue enviada. Quien la preparó o envió no puede autoaprobarla; debe intervenir otra identidad con autoridad decisora vigente.',
+          empty:'Tu sesión puede consultar esta solicitud, pero no decidirla. La aprobación o el rechazo corresponden a un aprobador distinto autorizado por el backend.'
+        };
+        if(detail.status==='approved')return {
+          title:'Siguiente paso: Control administrativo',
+          copy:'La licencia ya tiene decisión administrativa. Sólo se muestran transiciones posteriores expresamente autorizadas por el backend.',
+          empty:'No hay una transición posterior habilitada para esta sesión. La aprobación conserva su historial y no implica cálculo automático de nómina.'
+        };
+        if(detail.status==='rejected'||detail.status==='cancelled'||detail.status==='canceled')return {
+          title:'Caso cerrado con trazabilidad',
+          copy:'El historial permanece disponible para consulta autorizada. Este estado no admite nuevas decisiones desde esta sesión.',
+          empty:'No hay operaciones habilitadas porque el caso está cerrado.'
+        };
+        return {
+          title:'Siguiente paso informado por el backend',
+          copy:detail.nextAction||detail.stage||'Consultá el estado vigente; cualquier transición requiere autorización explícita.',
+          empty:'No hay una transición habilitada para esta sesión y estado.'
+        };
+      }
+
       function renderCommandPanel(detail) {
         var panel = create('section','command-panel');
-        panel.append(create('h3','','Decisión disponible'), create('p','section-copy',detail.type === 'overtime_entry'
-          ? 'Cada botón exige allowedCommands vigente, capacidad explícita y, para la carga, responsabilidad exclusiva activa.'
-          : 'Los botones requieren permiso explícito del backend y capacidad de la sesión.'));
+        var availableCommands=[];
+        ['update_draft','submit','approve','reject','cancel'].forEach(function(command){if(commandAllowed(detail,command))availableCommands.push(command);});
+        var context=commandPanelContext(detail,availableCommands);
+        panel.append(create('h3','',context.title), create('p','section-copy',context.copy));
         var actions = create('div','command-actions');
-        ['update_draft','submit','approve','reject','cancel'].forEach(function (command) {
-          if (!commandAllowed(detail, command)) return;
+        availableCommands.forEach(function (command) {
           var label = detail.type === 'overtime_entry' ? OVERTIME_COMMAND_LABELS[command] : COMMAND_LABELS[command];
           var button = create('button','button ' + (command === 'approve' || command === 'submit' ? 'primary' : command === 'reject' || command === 'cancel' ? 'danger' : ''),label);
           button.type = 'button'; button.dataset.actionCommand = command;
           actions.appendChild(button);
         });
         if (!actions.children.length) {
-          var noAction = create('div','decision-warning','Esta sesión no tiene una decisión habilitada para el estado actual. El rol visible no otorga permisos por sí solo.');
+          var noAction = create('div','decision-warning',context.empty);
           panel.appendChild(noAction);
         } else panel.appendChild(actions);
         var formHost = create('div'); formHost.id = 'decisionFormHost'; panel.appendChild(formHost);
@@ -2231,23 +2367,49 @@
           valid:true,
           value:reason.confidentiality,
           message:reason.confidentiality==='restricted'
-            ? 'Tratamiento restringido obligatorio por el motivo y autorizado para este beneficiario. La nota general queda deshabilitada.'
+            ? 'Tratamiento restringido obligatorio por el motivo y autorizado para este beneficiario. La observación administrativa se incorpora al borrador bajo este nivel.'
             : 'Tratamiento estándar definido por el motivo y autorizado para este beneficiario. El nivel no se modifica manualmente.',
           error:''
         };
       }
 
-      function wizardValue() { var reason=selectedReason(); var confidentiality=confidentialityDecision(); var mode=el.durationMinutes.checked?'minute':'calendar_day'; return {beneficiaryContractId:el.actionEmployee.value,reasonCode:reason.code,reasonLabel:reason.label,policyVersionId:reason.policyVersionId,policyRuleId:reason.policyRuleId,startsOn:el.actionStartDate.value,endsOn:el.actionEndDate.value,startsAtLocal:mode==='minute'?el.actionStartTime.value:'',endsAtLocal:mode==='minute'?el.actionEndTime.value:'',durationUnit:mode,confidentiality:confidentiality.value,employeeNote:text(el.actionEmployeeNote.value).slice(0,1000)}; }
+      function employeeNoteDecision() {
+        var confidentiality=confidentialityDecision().value;
+        var restricted=confidentiality==='restricted';
+        var limit=restricted?MAX_RESTRICTED_BRIEF_LENGTH:MAX_EMPLOYEE_NOTE_LENGTH;
+        var value=text(el.actionEmployeeNote.value).replace(/\s+/g,' ');
+        var error='';
+        if(value.length>limit)error='La descripción supera el límite de '+limit+' caracteres para este tratamiento.';
+        else if(value&&SENSITIVE_NOTE_PATTERN.test(value))error='Usá sólo una descripción administrativa general. Quitá diagnósticos, documentos, datos de contacto y enlaces.';
+        return {valid:!error,value:value,restricted:restricted,limit:limit,error:error,sendToBackend:Boolean(value)};
+      }
+
+      function updateEmployeeNoteField() {
+        var decision=employeeNoteDecision();
+        el.actionEmployeeNote.disabled=false;
+        el.actionEmployeeNote.maxLength=decision.limit;
+        el.actionEmployeeNoteLabel.textContent=decision.restricted?'Observación administrativa breve · restringida (opcional)':'Observación administrativa breve (opcional)';
+        el.actionEmployeeNote.placeholder=decision.restricted?'Ej.: cuidado familiar':'Ej.: gestión familiar informada';
+        el.employeeNoteHelp.textContent=decision.restricted
+          ? 'Hasta 500 caracteres. Se incorporará al borrador con tratamiento restringido. Usá sólo una frase administrativa, sin diagnósticos, documentos, contactos ni enlaces.'
+          : 'Hasta 500 caracteres. Describí sólo la gestión administrativa; no ingreses diagnósticos, documentos, datos de contacto ni enlaces.';
+        el.employeeNoteCounter.textContent=decision.value.length+' / '+decision.limit.toLocaleString('es-AR')+' caracteres';
+        errorFor('actionEmployeeNoteError',decision.error);
+        return decision;
+      }
+
+      function wizardValue() { var reason=selectedReason(); var confidentiality=confidentialityDecision(); var note=employeeNoteDecision(); var mode=el.durationMinutes.checked?'minute':'calendar_day'; return {beneficiaryContractId:el.actionEmployee.value,reasonCode:reason.code,reasonLabel:reason.label,policyVersionId:reason.policyVersionId,policyRuleId:reason.policyRuleId,startsOn:el.actionStartDate.value,endsOn:el.actionEndDate.value,startsAtLocal:mode==='minute'?el.actionStartTime.value:'',endsAtLocal:mode==='minute'?el.actionEndTime.value:'',durationUnit:mode,confidentiality:confidentiality.value,employeeNote:note.value,employeeNoteSendable:note.sendToBackend}; }
       function errorFor(id,message){var node=byId(id);node.textContent=message||'';node.hidden=!message;}
       function validateStep(step){var value=wizardValue();var valid=true;if(step===1){var confidentiality=confidentialityDecision();updateConfidentiality();errorFor('actionEmployeeError',value.beneficiaryContractId?'':'Elegí una persona autorizada.');errorFor('actionLeaveTypeError',value.reasonCode?'':'Elegí un tipo de licencia.');valid=Boolean(value.beneficiaryContractId&&value.reasonCode&&value.policyVersionId&&confidentiality.valid);if(value.reasonCode&&!value.policyVersionId){errorFor('actionLeaveTypeError','El backend no informó una versión de política. El borrador fue bloqueado.');valid=false;}}
         if(step===2){var reason=selectedReason();var invalidMinutes=value.durationUnit==='minute'&&!minuteDurationAllowed(reason);errorFor('actionDurationModeError',invalidMinutes?'La franja horaria no está habilitada para este motivo. Elegí días completos.':'');errorFor('actionStartDateError',value.startsOn?'':'Indicá la fecha inicial.');errorFor('actionEndDateError',value.endsOn?'':'Indicá la fecha final.');valid=Boolean(value.startsOn&&value.endsOn&&!invalidMinutes);if(valid&&value.endsOn<value.startsOn){errorFor('actionEndDateError','La fecha final no puede ser anterior a la inicial.');valid=false;}if(value.durationUnit==='minute'&&!invalidMinutes){if(valid&&value.startsOn!==value.endsOn){errorFor('actionEndDateError','Una solicitud por minutos debe comenzar y terminar el mismo día.');valid=false;}errorFor('actionStartTimeError',value.startsAtLocal?'':'Indicá la hora inicial.');errorFor('actionEndTimeError',value.endsAtLocal?'':'Indicá la hora final.');valid=valid&&Boolean(value.startsAtLocal&&value.endsAtLocal);if(valid&&value.endsAtLocal<=value.startsAtLocal){errorFor('actionEndTimeError','La hora final debe ser posterior a la inicial.');valid=false;}}}
+        if(step===3)valid=updateEmployeeNoteField().valid;
         if(step===4){errorFor('actionConfirmError',el.actionConfirmTruth.checked?'':'Confirmá la revisión antes de crear el borrador.');valid=el.actionConfirmTruth.checked;}return valid;}
 
       function updateDurationFields(){var reason=selectedReason();var enabled=minuteDurationAllowed(reason);if(!enabled&&el.durationMinutes.checked){el.durationDays.checked=true;el.actionStartTime.value='';el.actionEndTime.value='';}el.durationMinutes.disabled=!enabled;el.durationMinutes.setAttribute('aria-disabled',String(!enabled));el.durationMinutes.title=enabled?'Este motivo admite una franja horaria solicitada.':'El catálogo vigente no habilita minutos para este motivo.';var minutes=enabled&&el.durationMinutes.checked;el.startTimeField.hidden=!minutes;el.endTimeField.hidden=!minutes;el.actionStartTime.required=minutes;el.actionEndTime.required=minutes;if(!minutes){errorFor('actionStartTimeError','');errorFor('actionEndTimeError','');errorFor('actionDurationModeError','');}if(!reason.code){el.durationGate.textContent='Seleccioná un motivo para conocer las modalidades habilitadas por la política vigente.';}else if(!enabled){el.durationGate.textContent='Según el catálogo normativo, este motivo sólo admite días completos. La franja horaria está reservada al motivo de lactancia habilitado por la política.';}else if(minutes){el.durationGate.textContent='La franja es un intervalo solicitado. Sin horario asignado, fichadas y calendario homologado, el sistema no calcula minutos laborables ni impacto salarial.';}else{el.durationGate.textContent='Este motivo admite días completos o franja horaria. El período informado sigue siendo una solicitud, no un saldo ni una licencia aprobada.';}}
 
-      function updateConfidentiality(){var decision=confidentialityDecision();el.actionConfidentiality.value=decision.value==='restricted'?'restricted':'standard';el.actionConfidentiality.disabled=true;el.actionConfidentialityHelp.textContent=decision.message;errorFor('actionConfidentialityError',decision.error);var restricted=decision.value==='restricted';if(restricted)el.actionEmployeeNote.value='';el.actionEmployeeNote.disabled=restricted;el.employeeNoteHelp.textContent=restricted?'Los casos restringidos no admiten una nota general. La evidencia sensible debe circular por el canal documental autorizado.':'No ingreses diagnósticos ni información sensible. Los casos restringidos no admiten una nota general.';}
+      function updateConfidentiality(){var decision=confidentialityDecision();el.actionConfidentiality.value=decision.value==='restricted'?'restricted':'standard';el.actionConfidentiality.disabled=true;el.actionConfidentialityHelp.textContent=decision.message;errorFor('actionConfidentialityError',decision.error);updateEmployeeNoteField();}
 
-      function renderWizardReview(){var value=wizardValue();var employee=el.actionEmployee.options[el.actionEmployee.selectedIndex];clear(el.wizardReview);el.wizardReview.append(fact('Persona',employee?employee.textContent:'No seleccionada'),fact('Motivo',value.reasonLabel||'No seleccionado'),fact('Período',formatDate(value.startsOn)+' → '+formatDate(value.endsOn)+(value.durationUnit==='minute'?' · '+value.startsAtLocal+' a '+value.endsAtLocal:'')),fact('Modalidad',value.durationUnit==='minute'?'Franja horaria solicitada':'Días calendario solicitados'),fact('Política',value.policyVersionId||'No informada'),fact('Evidencia','Pendiente de verificación'),fact('Confidencialidad',titleCase(value.confidentiality)));}
+      function renderWizardReview(){var value=wizardValue();var employee=el.actionEmployee.options[el.actionEmployee.selectedIndex];clear(el.wizardReview);el.wizardReview.append(fact('Persona',employee?employee.textContent:'No seleccionada'),fact('Motivo',value.reasonLabel||'No seleccionado'),fact('Período',formatDate(value.startsOn)+' → '+formatDate(value.endsOn)+(value.durationUnit==='minute'?' · '+value.startsAtLocal+' a '+value.endsAtLocal:'')),fact('Modalidad',value.durationUnit==='minute'?'Franja horaria solicitada':'Días calendario solicitados'),fact('Observación administrativa',value.employeeNote||'Sin descripción adicional'),fact('Registro del texto',value.confidentiality==='restricted'?'Se incorpora al borrador con tratamiento restringido':'Se incorpora al borrador autorizado'),fact('Política',value.policyVersionId||'No informada'),fact('Evidencia','Pendiente de verificación'),fact('Confidencialidad',titleCase(value.confidentiality)));}
 
       function showWizardStep(step){state.wizardStep=Math.min(4,Math.max(1,step));document.querySelectorAll('[data-action-step]').forEach(function(panel){panel.hidden=Number(panel.dataset.actionStep)!==state.wizardStep;});document.querySelectorAll('[data-wizard-step-indicator]').forEach(function(indicator){var number=Number(indicator.dataset.wizardStepIndicator);var current=number===state.wizardStep;indicator.classList.toggle('is-current',current);indicator.classList.toggle('is-done',number<state.wizardStep);if(current)indicator.setAttribute('aria-current','step');else indicator.removeAttribute('aria-current');});el.wizardBack.hidden=state.wizardStep===1;el.wizardNext.hidden=state.wizardStep===4;el.wizardSubmit.hidden=state.wizardStep!==4;if(state.wizardStep===4)renderWizardReview();var active=el.actionWizard.querySelector('[data-action-step="'+state.wizardStep+'"]');var focusable=active&&active.querySelector('select,input,textarea,button');if(focusable&&el.actionWizard.open)window.setTimeout(function(){if(el.actionWizard.open)focusable.focus();},0);}
 
@@ -2262,7 +2424,8 @@
         el.actionConfidentiality.value='standard';
         el.durationDays.checked=true;
         el.actionConfirmTruth.checked=false;
-        ['actionEmployeeError','actionLeaveTypeError','actionConfidentialityError','actionDurationModeError','actionStartDateError','actionEndDateError','actionStartTimeError','actionEndTimeError','actionConfirmError'].forEach(function(id){errorFor(id,'');});
+        el.actionConfirmLabel.textContent='Confirmo que revisé la persona, el motivo y el período, y que quiero crear esta solicitud como borrador.';
+        ['actionEmployeeError','actionLeaveTypeError','actionConfidentialityError','actionDurationModeError','actionStartDateError','actionEndDateError','actionStartTimeError','actionEndTimeError','actionEmployeeNoteError','actionConfirmError'].forEach(function(id){errorFor(id,'');});
         state.editing=null;
         el.wizardTitle.textContent='Nueva solicitud de licencia';
         el.wizardSubtitle.textContent='El borrador no concede una licencia ni modifica nómina.';
@@ -2284,6 +2447,7 @@
           el.wizardTitle.textContent='Editar borrador';
           el.wizardSubtitle.textContent='La persona queda fija. Los cambios requieren la versión vigente y no envían la solicitud a revisión.';
           el.wizardSubmit.textContent='Guardar borrador';
+          el.actionConfirmLabel.textContent='Confirmo que revisé la persona, el motivo y el período, y que quiero guardar estos cambios manteniendo la solicitud como borrador.';
           var existing=state.initialSubjects.find(function(item){return item.value===detail.subjectContractId;});
           var editingSubject=existing||normalizeSubject({
             contractId:detail.subjectContractId,
@@ -2486,8 +2650,8 @@
         }
       }
 
-      async function submitWizard(event){event.preventDefault();if(!validateStep(1)){showWizardStep(1);return;}if(!validateStep(2)){showWizardStep(2);return;}if(!validateStep(4))return;var confidentiality=confidentialityDecision();var reason=selectedReason();var value=wizardValue();if(!confidentiality.valid){toast('La confidencialidad exigida no está autorizada para esta combinación. No se envió información.','error');showWizardStep(1);return;}if(value.durationUnit==='minute'&&!minuteDurationAllowed(reason)){toast('La política vigente no habilita una franja horaria para este motivo. No se envió información.','error');showWizardStep(2);return;}var payload={beneficiaryContractId:value.beneficiaryContractId,reasonCode:value.reasonCode,policyVersionId:value.policyVersionId,startsOn:value.startsOn,endsOn:value.endsOn,durationUnit:value.durationUnit,confidentiality:confidentiality.value};if(value.policyRuleId)payload.policyRuleId=value.policyRuleId;if(value.durationUnit==='minute'){payload.startsAtLocal=value.startsAtLocal;payload.endsAtLocal=value.endsAtLocal;}if(value.employeeNote)payload.employeeNote=value.employeeNote;var body={caseType:'leave_request',command:state.editing?'update_draft':'create',payload:payload};var method='POST';if(state.editing){if(state.editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}body.caseId=state.editing.id;body.expectedVersion=state.editing.version;method='PATCH';}
-        el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);toast(state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.');closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(isActionBusy(error)?ACTION_BUSY_COPY:(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message),'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
+      async function submitWizard(event){event.preventDefault();if(!validateStep(1)){showWizardStep(1);return;}if(!validateStep(2)){showWizardStep(2);return;}if(!validateStep(3)){showWizardStep(3);return;}if(!validateStep(4))return;var confidentiality=confidentialityDecision();var reason=selectedReason();var value=wizardValue();if(!confidentiality.valid){toast('La confidencialidad exigida no está autorizada para esta combinación. No se envió información.','error');showWizardStep(1);return;}if(value.durationUnit==='minute'&&!minuteDurationAllowed(reason)){toast('La política vigente no habilita una franja horaria para este motivo. No se envió información.','error');showWizardStep(2);return;}var payload={beneficiaryContractId:value.beneficiaryContractId,reasonCode:value.reasonCode,policyVersionId:value.policyVersionId,startsOn:value.startsOn,endsOn:value.endsOn,durationUnit:value.durationUnit,confidentiality:confidentiality.value};if(value.policyRuleId)payload.policyRuleId=value.policyRuleId;if(value.durationUnit==='minute'){payload.startsAtLocal=value.startsAtLocal;payload.endsAtLocal=value.endsAtLocal;}if(value.employeeNoteSendable)payload.employeeNote=value.employeeNote;var body={caseType:'leave_request',command:state.editing?'update_draft':'create',payload:payload};var method='POST';if(state.editing){if(state.editing.version===null){toast('El backend no informó la versión del borrador. No se guardaron cambios.','error');return;}body.caseId=state.editing.id;body.expectedVersion=state.editing.version;method='PATCH';}
+        el.wizardSubmit.disabled=true;el.wizardSubmit.setAttribute('aria-busy','true');try{var response=await actionCommand(method,body);var created=normalizeDetail(response);var success=state.editing?'Borrador actualizado.':'Borrador creado. Aún no fue enviado a revisión.';toast(success);closeWizard();await loadActions();if(created.id)openAction(created.id);}catch(error){if(!error.unauthorized)toast(isActionBusy(error)?ACTION_BUSY_COPY:(error.status===409?'El borrador cambió en otra sesión. Volvé a abrirlo antes de editar.':error.message),'error');}finally{el.wizardSubmit.disabled=false;el.wizardSubmit.removeAttribute('aria-busy');}}
 
       function toast(message,type){var node=create('div','toast'+(type==='error'?' error':''),message);el.toastRegion.appendChild(node);window.setTimeout(function(){if(node.parentNode)node.remove();},4600);}
 
@@ -2592,6 +2756,11 @@
         el.sidebar.querySelectorAll('a').forEach(function (link) { link.addEventListener('click', function () { closeMenu(false); }); });
         document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
         [el.createActionButton, el.queueCreateButton].forEach(function (button) { button.addEventListener('click', function () { openWizard(); }); });
+        el.actionWorkflow.addEventListener('click', function (event) {
+          var button = event.target.closest('[data-workflow-command]');
+          if (!button || button.disabled) return;
+          handleWorkflowCommand(button.dataset.workflowCommand);
+        });
         [el.createOvertimeButton, el.queueOvertimeButton].forEach(function (button) { button.addEventListener('click', function () { openOvertimeWizard(); }); });
         el.actionViews.addEventListener('click', function (event) {
           var tab = event.target.closest('[data-action-view]');
@@ -2652,6 +2821,7 @@
         });
         el.actionEmployeeSearchButton.addEventListener('click', searchAuthorizedSubjects);
         el.actionEmployee.addEventListener('change', updateConfidentiality);
+        el.actionEmployeeNote.addEventListener('input', updateEmployeeNoteField);
         [el.durationDays, el.durationMinutes].forEach(function (input) { input.addEventListener('change', updateDurationFields); });
         el.actionLeaveType.addEventListener('change', function () { var reason = selectedReason(); el.leaveTypeHelp.textContent = reason.note || 'La versión normativa proviene del backend y quedará asociada al borrador.'; updateDurationFields(); updateConfidentiality(); });
         el.closeOvertimeWizard.addEventListener('click', closeOvertimeWizard);

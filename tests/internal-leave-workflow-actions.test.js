@@ -159,7 +159,7 @@ test('IDs canónicos md5 de PostgreSQL son válidos, pero idempotency conserva U
   assert.equal(normalizeIdempotencyKey(IDEMPOTENCY_KEY), IDEMPOTENCY_KEY);
 });
 
-test('mapeo no inequívocamente estándar exige restricted y prohíbe nota sensible general', () => {
+test('mapeo no inequívocamente estándar exige restricted y conserva una observación breve protegida', () => {
   const marriage = annualPayload({
     reasonCode: '4', policyRuleId: 'marriage', confidentiality: 'standard',
   });
@@ -167,13 +167,24 @@ test('mapeo no inequívocamente estándar exige restricted y prohíbe nota sensi
     () => normalizeLeavePayload(marriage),
     (error) => error.code === 'LEAVE_RESTRICTED_REQUIRED',
   );
-  assert.throws(
-    () => normalizeLeavePayload({ ...marriage, confidentiality: 'restricted', employeeNote: 'dato sensible' }),
-    (error) => error.code === 'LEAVE_RESTRICTED_NOTE_NOT_ALLOWED',
-  );
-  const normalized = normalizeLeavePayload({ ...marriage, confidentiality: 'restricted' });
+  const normalized = normalizeLeavePayload({
+    ...marriage,
+    confidentiality: 'restricted',
+    employeeNote: 'Necesita cuidar a su hija durante el periodo solicitado.',
+  });
   assert.equal(normalized.confidentiality, 'restricted');
-  assert.equal(Object.hasOwn(normalized.casePayload, 'employeeNote'), false);
+  assert.equal(
+    normalized.casePayload.employeeNote,
+    'Necesita cuidar a su hija durante el periodo solicitado.',
+  );
+  assert.throws(
+    () => normalizeLeavePayload({
+      ...marriage,
+      confidentiality: 'restricted',
+      employeeNote: 'x'.repeat(501),
+    }),
+    (error) => error.code === 'EMPLOYEE_NOTE_INVALID',
+  );
 });
 
 test('aprobación nunca es automática: exige fundamento, evidencia y confirmación humana', () => {
