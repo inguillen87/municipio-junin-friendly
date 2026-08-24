@@ -10,7 +10,9 @@ import {
 } from '../lib/internal-identity-access.js';
 import {
   createTotpEnrollment,
+  encryptEmailMfaDestination,
   encryptMfaSecret,
+  hashIdentitySecret,
   IDENTITY_SESSION_COOKIE,
   issueIdentitySessionToken,
   totpCode,
@@ -35,6 +37,7 @@ const SESSION_ID = '11111111-1111-4111-8111-111111111111';
 const TENANT_ID = '22222222-2222-4222-8222-222222222222';
 const DELIVERY_ATTEMPT_A = '30000000-0000-4000-8000-000000000001';
 const DELIVERY_ATTEMPT_B = '30000000-0000-4000-8000-000000000002';
+const EMAIL_CHALLENGE_ID = '40000000-0000-4000-8000-000000000001';
 
 function response() {
   return {
@@ -270,6 +273,148 @@ test('quinto MFA invalido bloquea durablemente y un intento posterior no revive 
   assert.equal(afterLock.statusCode, 401);
   assert.equal(afterLock.payload.code, 'IDENTITY_FLOW_INVALID_OR_EXPIRED');
   assert.equal(afterLock.payload.expectedVersion, undefined);
+});
+
+test('request_email_mfa obtiene destino cifrado del servidor, envia OTP y responde solo pista', async () => {
+  const destination = 'seguridad@municipio.example';
+  const destinationCiphertext = encryptEmailMfaDestination(destination, SECRETS.encryptionKey,
+    { random: (size) => Buffer.alloc(size, 4) });
+  const destinationHash = hashIdentitySecret(
+    `email-mfa-destination|${destination}`, SECRETS.tokenPepper,
+  );
+  const deliveries = [];
+  const handler = handlerWithQuery(async (sql, params) => {
+    const rate = successfulRateLimit(sql, params); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'owner@junin.example', version: 2,
+      requestedTenantId: null,
+    } }];
+    if (sql.includes('tenant_identity_prepare_email_mfa')) {
+      assert.equal(params[1], KEY);
+      assert.match(params[2], /^[a-f0-9]{64}$/);
+      assert.equal(params[4], 2);
+      return [{ result: {
+        id: EMAIL_CHALLENGE_ID, deliveryAttemptId: KEY,
+        destinationCiphertext, destinationHash,
+        expiresAt: '2026-08-20T15:05:00.000Z', status: 'pending_delivery',
+        flowVersion: 2, version: 1,
+      } }];
+    }
+    if (sql.includes('tenant_identity_mark_email_mfa_delivery')) {
+      assert.match(params[0], /^[a-f0-9]{64}$/);
+      assert.deepEqual(params.slice(1), [KEY, true]);
+      return [{ result: { id: EMAIL_CHALLENGE_ID, status: 'active', version: 2 } }];
+    }
+    throw new Error(`consulta no esperada: ${sql}`);
+  }, {
+    mfaEmailDelivery: {
+      isConfigured: () => true,
+      async deliver(input) { deliveries.push(input); return { providerAccepted: true }; },
+    },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.payload.code, 'EMAIL_MFA_ACCEPTED');
+  assert.equal(res.payload.challenge.id, KEY);
+  assert.equal(res.payload.challenge.maskedDestination, 's•••••••d@municipio.example');
+  assert.equal(res.payload.challenge.expectedVersion, 2);
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].to, destination);
+  assert.match(deliveries[0].code, /^\d{6}$/);
+  assert.doesNotMatch(JSON.stringify(res.payload), /seguridad@municipio|destinationCiphertext|destinationHash/i);
+  assert.doesNotMatch(JSON.stringify(res.payload), new RegExp(deliveries[0].code));
+});
+
+test('request_email_mfa sin proveedor falla antes de abrir DB', async () => {
+  let opened = false;
+  const handler = handlerWithQuery(async () => [], {
+    getTenantIdentitySql: async () => { opened = true; return { query: async () => [] }; },
+    mfaEmailDelivery: { isConfigured: () => false, deliver: async () => ({}) },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.payload.code, 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE');
+  assert.equal(opened, false);
+});
+
+test('verify_email_mfa consume hash server-side y crea sesion recovery auditada', async () => {
+  let completed = 0;
+  const handler = handlerWithQuery(async (sql, params) => {
+    const rate = successfulRateLimit(sql, params); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'owner@junin.example', version: 2,
+    } }];
+    if (sql.includes('tenant_identity_complete_email_mfa')) {
+      completed += 1;
+      assert.equal(params[1], KEY_B);
+      assert.match(params[2], /^[a-f0-9]{64}$/);
+      assert.equal(params[7], 2);
+      assert.equal(params[8], KEY);
+      assert.match(params[9], /^[a-f0-9]{64}$/);
+      return [{ result: { verified: true, session: {
+        id: SESSION_ID, email: 'owner@junin.example', version: 1, identityVersion: 2,
+        authLevel: 'recovery', expiresAt: '2026-08-20T23:00:00.000Z', tenantId: null,
+        source: 'platform',
+      } } }];
+    }
+    throw new Error(`consulta no esperada: ${sql}`);
+  });
+  const res = response();
+  await handler(request('verify_email_mfa', {
+    flowToken: 'f'.repeat(43), emailChallengeId: KEY, code: '482731',
+  }, { idempotencyKey: KEY_B, expectedVersion: 2 }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.authMethod, 'email_otp');
+  assert.equal(res.payload.session.authLevel, 'recovery');
+  assert.equal(completed, 1);
+  assert.match(String(res.headers['Set-Cookie']), new RegExp(IDENTITY_SESSION_COOKIE));
+  assert.doesNotMatch(JSON.stringify(res.payload), /482731|emailChallengeId/i);
+});
+
+test('verify_email_mfa versiona el desafio email sin confundirlo con la version del flow TOTP', async () => {
+  let completes = 0;
+  const handler = handlerWithQuery(async (sql, params) => {
+    const rate = successfulRateLimit(sql, params); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'owner@junin.example', version: 2,
+    } }];
+    if (sql.includes('tenant_identity_complete_email_mfa')) {
+      completes += 1;
+      assert.equal(params[7], completes === 1 ? 2 : 3);
+      assert.equal(params[8], KEY);
+      if (completes === 1) return [{ result: {
+        verified: false, locked: false, remainingAttempts: 4, version: 3,
+      } }];
+      return [{ result: { verified: true, version: 4, session: {
+        id: SESSION_ID, email: 'owner@junin.example', version: 1, identityVersion: 2,
+        authLevel: 'recovery', expiresAt: '2026-08-20T23:00:00.000Z', tenantId: null,
+        source: 'platform',
+      } } }];
+    }
+    throw new Error(`consulta no esperada: ${sql}`);
+  });
+  const wrong = response();
+  await handler(request('verify_email_mfa', {
+    flowToken: 'f'.repeat(43), emailChallengeId: KEY, code: '111111',
+  }, { idempotencyKey: KEY_B, expectedVersion: 2 }), wrong);
+  assert.equal(wrong.statusCode, 401);
+  assert.equal(wrong.payload.expectedVersion, 3);
+  assert.equal(wrong.payload.remainingAttempts, 4);
+
+  const correct = response();
+  await handler(request('verify_email_mfa', {
+    flowToken: 'f'.repeat(43), emailChallengeId: KEY, code: '222222',
+  }, {
+    idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', expectedVersion: 3,
+  }), correct);
+  assert.equal(correct.statusCode, 200);
+  assert.equal(completes, 2);
 });
 
 test('origin canonico no confia en Host reflejado y corta antes de abrir DB', async () => {

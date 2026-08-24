@@ -6,11 +6,16 @@ import {
   createInvitationCode,
   createRecoveryCodes,
   createTotpEnrollment,
+  decryptEmailMfaDestination,
   decryptMfaSecret,
+  emailMfaCode,
+  encryptEmailMfaDestination,
   encryptMfaSecret,
   hashIdentitySecret,
   issueIdentitySessionToken,
+  maskEmailDestination,
   matchTotpStep,
+  normalizeEmailMfaCode,
   normalizeInvitationCode,
   normalizeRecoveryCode,
   serializeIdentitySessionCookie,
@@ -44,6 +49,30 @@ test('TOTP informa el step exacto y AEAD rechaza alteraciones', () => {
   const encrypted = encryptMfaSecret(enrollment.manualKey, key, { random: (size) => Buffer.alloc(size, 7) });
   assert.equal(decryptMfaSecret(encrypted, key), enrollment.manualKey);
   assert.equal(decryptMfaSecret(`${encrypted.slice(0, -2)}AA`, key), null);
+});
+
+test('destino email MFA usa AAD separado, normaliza la pista y nunca cruza con TOTP', () => {
+  const key = Buffer.alloc(32, 11);
+  const encrypted = encryptEmailMfaDestination('Seguridad@Municipio.Example', key,
+    { random: (size) => Buffer.alloc(size, 3) });
+  assert.equal(decryptEmailMfaDestination(encrypted, key), 'seguridad@municipio.example');
+  assert.equal(decryptMfaSecret(encrypted, key), null);
+  assert.equal(maskEmailDestination('Seguridad@Municipio.Example'), 's•••••••d@municipio.example');
+  assert.equal(maskEmailDestination('ab@example.test'), 'a•@example.test');
+  assert.equal(maskEmailDestination('invalido'), '');
+});
+
+test('OTP email es determinista por flujo/intento, de seis digitos y normaliza cerrado', () => {
+  const flowHash = 'a'.repeat(64);
+  const attemptA = '30000000-0000-4000-8000-000000000001';
+  const attemptB = '30000000-0000-4000-8000-000000000002';
+  const first = emailMfaCode(flowHash, attemptA, PEPPER);
+  assert.match(first, /^\d{6}$/);
+  assert.equal(emailMfaCode(flowHash, attemptA, PEPPER), first);
+  assert.notEqual(emailMfaCode(flowHash, attemptB, PEPPER), first);
+  assert.equal(normalizeEmailMfaCode(` ${first} `), first);
+  assert.equal(normalizeEmailMfaCode('12345a'), '');
+  assert.throws(() => emailMfaCode('x', attemptA, PEPPER), /coordenadas/);
 });
 
 test('recovery codes son one-time material normalizable y no hashes reversibles', () => {

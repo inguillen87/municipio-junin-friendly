@@ -89,6 +89,34 @@ test('login exige contexto explícito antes de MFA y no autoelige un tenant úni
   assert.doesNotMatch(html, /otpauthUri/);
 });
 
+test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recovery', () => {
+  const html = parseInlineScripts('login.html');
+  assert.match(html, /id="requestEmailMfaButton"[^>]*>Enviar código por correo<\/button>/);
+  assert.match(html, /emailMfaRequestKey = emailMfaRequestKey \|\| commandKey\(\)/);
+  assert.match(html, /error\.code === 'IDENTITY_GATEWAY_UNAVAILABLE'[\s\S]+emailMfaRequestKey = null[\s\S]+emailMfaRequestRetryAt = Date\.now\(\) \+ 45000/);
+  assert.match(html, /id="useAuthenticatorButton" hidden>Usar la aplicación autenticadora<\/button>/);
+  assert.match(html, /id="emailMfaStatus" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(html, /id="mfaInput"[^>]+inputmode="numeric"[^>]+autocomplete="one-time-code"/);
+  assert.match(html, /response\.status === 202 && result\.code === 'EMAIL_MFA_ACCEPTED'/);
+  assert.match(html, /El servicio aceptó el envío a ' \+ challenge\.maskedDestination \+ '; revisá bandeja y spam/);
+  assert.doesNotMatch(html, /Código enviado a ' \+ challenge\.maskedDestination/);
+  assert.match(html, /identityRequest\('request_email_mfa', \{ flowToken: loginFlow\.token \}, \{ expectedVersion: loginFlow\.version, idempotencyKey: emailMfaRequestKey \}\)/);
+  assert.match(html, /identityRequest\('verify_email_mfa', \{ flowToken: loginFlow\.token, emailChallengeId: emailMfaChallenge\.id, code: emailMfaValue \}, \{ expectedVersion: emailMfaChallenge\.expectedVersion, idempotencyKey: commandKey\(\) \}\)/);
+  assert.match(html, /maskedDestination/);
+  assert.match(html, /Math\.max\(45, retryAfterSeconds\)/);
+  assert.match(html, /window\.setInterval\([\s\S]+1000\)/);
+  assert.match(html, /emailMfaChallenge\.expectedVersion = error\.expectedVersion/);
+  assert.match(html, /loginFlow\.version = error\.expectedVersion/);
+  assert.match(html, /selectMfaMethod\('totp'\)/);
+  assert.match(html, /selectMfaMethod\('recovery'\)/);
+  assert.match(html, /verify_mfa/);
+  assert.match(html, /recover_mfa/);
+  const openMfaStep = html.match(/function openMfaStep\([\s\S]*?\n    function openLoginEnrollment/);
+  assert.ok(openMfaStep, 'falta el paso MFA');
+  assert.doesNotMatch(openMfaStep[0], /requestEmailMfa\(|request_email_mfa/);
+  assert.doesNotMatch(html, /request_email_mfa', \{[^}]*\b(?:email|destination|to)\b/i);
+});
+
 test('administración diferencia preparación, emisión y aceptación', () => {
   const html = parseInlineScripts('administracion-plataforma.html');
   assert.match(html, /Preparar invitación/);

@@ -65,6 +65,7 @@ for (const migration of [
   '012-platform-owner-governance.sql',
   '013-existing-identity-membership-governance.sql',
   '014-governed-source-binding-provisioning.sql',
+  '015-email-otp-mfa.sql',
 ]) {
   assert.match(
     ignore,

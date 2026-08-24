@@ -481,7 +481,10 @@
     .mfa-panel > p { margin: 8px 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .mfa-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
     .mfa-actions .button { padding-left: 10px; padding-right: 10px; }
+    .mfa-alternate-actions { display: grid; gap: 2px; margin-top: 8px; }
+    .email-mfa-status { min-height: 18px; margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
     .text-button { min-height: 44px; border: 0; background: transparent; color: var(--navy-700); font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .text-button:disabled { color: #71818a; cursor: not-allowed; }
     .text-button:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
 
     .context-options { display: grid; gap: 9px; margin: 0 0 18px; }
@@ -745,13 +748,18 @@
             <p id="mfaHelp">Ingresá el código vigente de tu aplicación autenticadora. El desafío no se guarda en este navegador.</p>
             <div class="form-group">
               <label class="form-label" for="mfaInput" id="mfaInputLabel">Código de seis dígitos</label>
-              <input class="form-input" id="mfaInput" name="mfaCode" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" spellcheck="false">
+              <input class="form-input" id="mfaInput" name="mfaCode" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" spellcheck="false" aria-describedby="mfaHelp emailMfaStatus">
             </div>
             <div class="mfa-actions">
               <button type="button" class="button button-secondary" id="cancelMfaButton">Cancelar</button>
               <button type="submit" class="button button-primary" id="verifyMfaButton">Verificar acceso</button>
             </div>
-            <button type="button" class="text-button" id="toggleRecoveryButton">Usar un código de recuperación</button>
+            <div class="mfa-alternate-actions" role="group" aria-label="Otros métodos de verificación">
+              <button type="button" class="text-button" id="requestEmailMfaButton" aria-describedby="emailMfaStatus">Enviar código por correo</button>
+              <button type="button" class="text-button" id="useAuthenticatorButton" hidden>Usar la aplicación autenticadora</button>
+              <button type="button" class="text-button" id="toggleRecoveryButton">Usar un código de recuperación</button>
+            </div>
+            <p class="email-mfa-status" id="emailMfaStatus" role="status" aria-live="polite" aria-atomic="true"></p>
           </div>
           <p class="access-status" id="accessStatus" role="status" aria-live="polite"></p>
         </form>
@@ -789,8 +797,15 @@
     var loginRecoveryValues = [];
     var loginFlow = null;
     var usingRecovery = false;
+    var usingEmailMfa = false;
+    var emailMfaChallenge = null;
+    var emailMfaCountdownTimer = null;
+    var emailMfaRequestKey = null;
+    var emailMfaRequestRetryAt = 0;
+    var identityLoading = false;
 
     function setLoading(isLoading, message) {
+      identityLoading = isLoading;
       var btn = document.getElementById('btnLogin');
       var contextBtn = document.getElementById('continueContextButton');
       var enrollmentBtn = document.getElementById('completeEnrollmentButton');
@@ -805,6 +820,7 @@
       btn.classList.toggle('is-loading', isLoading);
       btn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
       status.textContent = message || '';
+      renderEmailMfaControls();
     }
 
     function showError(message) {
@@ -836,7 +852,8 @@
       if (error && error.code === 'IDENTITY_RATE_LIMITED') return 'Se alcanzó el límite de intentos. Esperá unos minutos antes de volver a probar.';
       if (error && error.code === 'IDENTITY_CONTEXT_FORBIDDEN') return 'El ámbito seleccionado ya no está autorizado. Volvé a ingresar para actualizar la lista.';
       if (error && error.code === 'IDENTITY_FLOW_LOCKED') return 'Se agotaron los intentos y el desafío fue bloqueado. Volvé a iniciar sesión.';
-      if (error && ['IDENTITY_MFA_INVALID', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) return 'El código no es válido o el desafío ya venció.';
+      if (error && ['IDENTITY_MFA_INVALID', 'IDENTITY_EMAIL_MFA_INVALID', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) return 'El código no es válido o el desafío ya venció.';
+      if (error && ['IDENTITY_DELIVERY_UNAVAILABLE', 'IDENTITY_EMAIL_MFA_UNAVAILABLE', 'IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE'].includes(error.code)) return 'No se pudo enviar el código por correo. Podés usar la aplicación autenticadora o un código de recuperación.';
       return 'No se pudo validar el acceso. Revisá los datos e intentá nuevamente.';
     }
 
@@ -866,6 +883,7 @@
         if (response.status === 202 && result.code === 'CONTEXT_REQUIRED') return { context: result };
         if (response.status === 202 && result.code === 'MFA_ENROLLMENT_REQUIRED') return { enrollment: result };
         if (response.status === 202 && (result.code === 'MFA_REQUIRED' || result.code === 'IDENTITY_MFA_REQUIRED')) return { challenge: result.challenge && typeof result.challenge === 'object' ? result.challenge : result };
+        if (response.status === 202 && result.code === 'EMAIL_MFA_ACCEPTED' && result.challenge && typeof result.challenge === 'object') return { emailChallenge: result.challenge };
         if (!response.ok || result.ok === false) {
           var error = new Error('identity_request_failed');
           error.code = typeof result.code === 'string' ? result.code : '';
@@ -902,13 +920,122 @@
       } catch (_) { /* La cookie HttpOnly sigue siendo la única autoridad. */ }
     }
 
+    function emailMfaRetrySeconds() {
+      var challengeRetryAt = emailMfaChallenge && Number.isFinite(emailMfaChallenge.retryAt)
+        ? emailMfaChallenge.retryAt : 0;
+      return Math.max(0, Math.ceil((Math.max(challengeRetryAt, emailMfaRequestRetryAt) - Date.now()) / 1000));
+    }
+
+    function emailMfaExpired() {
+      return !emailMfaChallenge || !Number.isFinite(Date.parse(emailMfaChallenge.expiresAt))
+        || Date.parse(emailMfaChallenge.expiresAt) <= Date.now();
+    }
+
+    function normalizeEmailMfaChallenge(value) {
+      var id = value && typeof value.id === 'string' ? value.id.trim() : '';
+      var maskedDestination = value && typeof value.maskedDestination === 'string' ? value.maskedDestination.trim() : '';
+      var expiresAt = value && typeof value.expiresAt === 'string' ? value.expiresAt : '';
+      var retryAfterSeconds = Number(value && value.retryAfterSeconds);
+      var expectedVersion = Number(value && value.expectedVersion);
+      if (!id || id.length > 128 || /[\u0000-\u001f\u007f]/.test(id)
+          || !maskedDestination || maskedDestination.length > 254 || !maskedDestination.includes('@')
+          || !/[\u2022*\u2026]/.test(maskedDestination) || /[\r\n<>]/.test(maskedDestination)
+          || !Number.isFinite(Date.parse(expiresAt))
+          || !Number.isSafeInteger(retryAfterSeconds) || retryAfterSeconds < 0 || retryAfterSeconds > 3600
+          || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+        throw new Error('invalid_email_mfa_contract');
+      }
+      var safeRetrySeconds = Math.max(45, retryAfterSeconds);
+      return {
+        id: id,
+        maskedDestination: maskedDestination,
+        expiresAt: expiresAt,
+        retryAfterSeconds: safeRetrySeconds,
+        retryAt: Date.now() + (safeRetrySeconds * 1000),
+        expectedVersion: expectedVersion
+      };
+    }
+
+    function renderEmailMfaControls() {
+      var emailButton = document.getElementById('requestEmailMfaButton');
+      var authenticatorButton = document.getElementById('useAuthenticatorButton');
+      var recoveryButton = document.getElementById('toggleRecoveryButton');
+      if (!emailButton || !authenticatorButton || !recoveryButton) return;
+      var retrySeconds = emailMfaRetrySeconds();
+      if (usingEmailMfa) {
+        emailButton.textContent = retrySeconds > 0 ? 'Reenviar código (' + retrySeconds + ' s)' : 'Reenviar código por correo';
+        emailButton.disabled = identityLoading || retrySeconds > 0;
+      } else {
+        emailButton.textContent = emailMfaChallenge && !emailMfaExpired()
+          ? 'Usar código por correo solicitado'
+          : retrySeconds > 0 ? 'Reintentar correo (' + retrySeconds + ' s)' : 'Enviar código por correo';
+        emailButton.disabled = identityLoading || retrySeconds > 0;
+      }
+      authenticatorButton.hidden = !usingEmailMfa && !usingRecovery;
+      authenticatorButton.disabled = identityLoading;
+      recoveryButton.hidden = usingRecovery;
+      recoveryButton.disabled = identityLoading;
+    }
+
+    function startEmailMfaCountdown() {
+      if (emailMfaCountdownTimer !== null) window.clearInterval(emailMfaCountdownTimer);
+      emailMfaCountdownTimer = null;
+      renderEmailMfaControls();
+      if (emailMfaRetrySeconds() < 1) return;
+      emailMfaCountdownTimer = window.setInterval(function () {
+        renderEmailMfaControls();
+        if (emailMfaRetrySeconds() < 1) {
+          window.clearInterval(emailMfaCountdownTimer);
+          emailMfaCountdownTimer = null;
+        }
+      }, 1000);
+    }
+
+    function clearEmailMfaState() {
+      if (emailMfaCountdownTimer !== null) window.clearInterval(emailMfaCountdownTimer);
+      emailMfaCountdownTimer = null;
+      emailMfaChallenge = null;
+      emailMfaRequestKey = null;
+      emailMfaRequestRetryAt = 0;
+      usingEmailMfa = false;
+      var status = document.getElementById('emailMfaStatus');
+      if (status) status.textContent = '';
+      renderEmailMfaControls();
+    }
+
+    function selectMfaMethod(method) {
+      usingRecovery = method === 'recovery';
+      usingEmailMfa = method === 'email';
+      var input = document.getElementById('mfaInput');
+      input.value = '';
+      input.pattern = usingRecovery ? '' : '[0-9]{6}';
+      input.minLength = usingRecovery ? 0 : 6;
+      input.maxLength = usingRecovery ? 64 : 6;
+      input.inputMode = usingRecovery ? 'text' : 'numeric';
+      if (usingRecovery) {
+        document.getElementById('mfaInputLabel').textContent = 'Código de recuperación';
+        document.getElementById('mfaHelp').textContent = 'Cada código de recuperación sirve una sola vez. No se muestra ni se almacena después de enviarlo.';
+      } else if (usingEmailMfa && emailMfaChallenge) {
+        document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos por correo';
+        document.getElementById('mfaHelp').textContent = 'Cuando llegue, ingresá el código dirigido a ' + emailMfaChallenge.maskedDestination + '. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(emailMfaChallenge.expiresAt)) + '.';
+      } else {
+        document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos';
+        document.getElementById('mfaHelp').textContent = 'Ingresá el código vigente de tu aplicación autenticadora. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(loginFlow.expiresAt)) + '.';
+      }
+      renderEmailMfaControls();
+      hideError();
+      input.focus();
+    }
+
     function completeLogin(result, fallbackEmail) {
       contextFlow = null;
       loginEnrollmentFlow = null;
       pendingEnrollmentSession = null;
       pendingEnrollmentEmail = '';
       loginRecoveryValues = [];
+      clearEmailMfaState();
       loginFlow = null;
+      usingRecovery = false;
       document.getElementById('mfaInput').value = '';
       persistSessionShell(result, fallbackEmail || '');
       document.querySelector('#btnLogin .button-label').textContent = 'Accediendo al portal interno';
@@ -919,17 +1046,12 @@
     function openMfaStep(challenge, email) {
       if (!challenge || typeof challenge.flowToken !== 'string' || !challenge.expiresAt || !Number.isSafeInteger(Number(challenge.expectedVersion))) throw new Error('invalid_mfa_contract');
       contextFlow = null;
+      clearEmailMfaState();
       loginFlow = { token: challenge.flowToken, version: Number(challenge.expectedVersion), expiresAt: challenge.expiresAt, email: email, idempotencyKey: commandKey() };
       usingRecovery = false;
       document.getElementById('credentialStep').hidden = true;
       document.getElementById('mfaStep').hidden = false;
-      document.getElementById('mfaInput').value = '';
-      document.getElementById('mfaInput').pattern = '[0-9]{6}';
-      document.getElementById('mfaInput').maxLength = 6;
-      document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos';
-      document.getElementById('mfaHelp').textContent = 'Ingresá el código vigente de tu aplicación autenticadora. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(challenge.expiresAt)) + '.';
-      document.getElementById('toggleRecoveryButton').textContent = 'Usar un código de recuperación';
-      document.getElementById('mfaInput').focus();
+      selectMfaMethod('totp');
     }
 
     function openLoginEnrollment(response, email) {
@@ -1007,11 +1129,53 @@
 
     function cancelMfa() {
       contextFlow = null; loginFlow = null; usingRecovery = false;
+      clearEmailMfaState();
       document.getElementById('mfaInput').value = '';
       document.getElementById('mfaStep').hidden = true;
       document.getElementById('credentialStep').hidden = false;
       hideError(); setLoading(false, '');
       document.getElementById('emailInput').focus();
+    }
+
+    async function requestEmailMfa() {
+      if (!loginFlow) return;
+      if (emailMfaChallenge && !emailMfaExpired() && !usingEmailMfa) {
+        selectMfaMethod('email');
+        return;
+      }
+      if (emailMfaRetrySeconds() > 0) return;
+      if (emailMfaExpired()) {
+        emailMfaChallenge = null;
+        document.getElementById('emailMfaStatus').textContent = '';
+      }
+      hideError();
+      setLoading(true, emailMfaChallenge ? 'Reenviando el código por correo…' : 'Enviando el código por correo…');
+      try {
+        emailMfaRequestKey = emailMfaRequestKey || commandKey();
+        var response = await identityRequest('request_email_mfa', { flowToken: loginFlow.token }, { expectedVersion: loginFlow.version, idempotencyKey: emailMfaRequestKey });
+        var challenge = normalizeEmailMfaChallenge(response.emailChallenge);
+        emailMfaRequestKey = null;
+        emailMfaRequestRetryAt = 0;
+        emailMfaChallenge = challenge;
+        document.getElementById('emailMfaStatus').textContent = 'El servicio aceptó el envío a ' + challenge.maskedDestination + '; revisá bandeja y spam. Podrás reenviarlo después de ' + challenge.retryAfterSeconds + ' segundos.';
+        selectMfaMethod('email');
+        startEmailMfaCountdown();
+        setLoading(false, 'Solicitud aceptada por el servicio de correo.');
+      } catch (error) {
+        if (loginFlow && error && Number.isSafeInteger(error.expectedVersion)) loginFlow.version = error.expectedVersion;
+        if (error && error.code === 'IDENTITY_GATEWAY_UNAVAILABLE') {
+          emailMfaRequestKey = null;
+          emailMfaRequestRetryAt = Date.now() + 45000;
+          startEmailMfaCountdown();
+        }
+        if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+          var terminalMessage = identityError(error);
+          cancelMfa(); setLoading(false, ''); showError(terminalMessage); return;
+        }
+        showError(identityError(error));
+        setLoading(false, 'No se pudo enviar el código por correo.');
+        document.getElementById('requestEmailMfaButton').focus();
+      }
     }
 
     async function doLogin(e) {
@@ -1074,6 +1238,39 @@
         return;
       }
       if (loginFlow) {
+        if (usingEmailMfa) {
+          var emailMfaValue = document.getElementById('mfaInput').value.trim();
+          if (!emailMfaChallenge || emailMfaExpired()) {
+            showError('El código por correo ya no está vigente. Solicitá uno nuevo.');
+            renderEmailMfaControls();
+            document.getElementById('requestEmailMfaButton').focus();
+            return;
+          }
+          if (!/^\d{6}$/.test(emailMfaValue)) {
+            showError('Ingresá el código de seis dígitos que recibiste por correo.');
+            document.getElementById('mfaInput').focus();
+            return;
+          }
+          setLoading(true, 'Verificando el código por correo…');
+          try {
+            var emailVerified = await identityRequest('verify_email_mfa', { flowToken: loginFlow.token, emailChallengeId: emailMfaChallenge.id, code: emailMfaValue }, { expectedVersion: emailMfaChallenge.expectedVersion, idempotencyKey: commandKey() });
+            completeLogin(emailVerified.session, loginFlow.email);
+          } catch (error) {
+            var emailMfaErrorMessage = identityError(error);
+            if (error && Number.isSafeInteger(error.expectedVersion)) {
+              emailMfaChallenge.expectedVersion = error.expectedVersion;
+              if (Number.isSafeInteger(error.remainingAttempts)) emailMfaErrorMessage += ' Quedan ' + error.remainingAttempts + ' intentos.';
+            }
+            if (error && ['IDENTITY_FLOW_LOCKED', 'IDENTITY_FLOW_INVALID_OR_EXPIRED'].includes(error.code)) {
+              cancelMfa(); setLoading(false, ''); showError(emailMfaErrorMessage); return;
+            }
+            document.getElementById('mfaInput').value = '';
+            showError(emailMfaErrorMessage);
+            setLoading(false, 'No se pudo verificar el código por correo.');
+            document.getElementById('mfaInput').focus();
+          }
+          return;
+        }
         var mfaValue = document.getElementById('mfaInput').value.trim();
         if (!mfaValue || (!usingRecovery && !/^\d{6}$/.test(mfaValue))) { showError(usingRecovery ? 'Ingresá un código de recuperación.' : 'Ingresá el código de seis dígitos.'); document.getElementById('mfaInput').focus(); return; }
         setLoading(true, 'Verificando el segundo factor…');
@@ -1129,16 +1326,12 @@
       var session = pendingEnrollmentSession; var email = pendingEnrollmentEmail;
       wipeLoginEnrollment(false); completeLogin(session, email);
     });
+    document.getElementById('requestEmailMfaButton').addEventListener('click', requestEmailMfa);
+    document.getElementById('useAuthenticatorButton').addEventListener('click', function () { selectMfaMethod('totp'); });
     document.getElementById('toggleRecoveryButton').addEventListener('click', function () {
-      usingRecovery = !usingRecovery;
-      var input = document.getElementById('mfaInput'); input.value = '';
-      input.pattern = usingRecovery ? '' : '[0-9]{6}'; input.maxLength = usingRecovery ? 64 : 6;
-      document.getElementById('mfaInputLabel').textContent = usingRecovery ? 'Código de recuperación' : 'Código de seis dígitos';
-      document.getElementById('mfaHelp').textContent = usingRecovery ? 'Cada código de recuperación sirve una sola vez. No se muestra ni se almacena después de enviarlo.' : 'Ingresá el código vigente de tu aplicación autenticadora.';
-      document.getElementById('toggleRecoveryButton').textContent = usingRecovery ? 'Usar la aplicación autenticadora' : 'Usar un código de recuperación';
-      hideError(); input.focus();
+      selectMfaMethod('recovery');
     });
-    window.addEventListener('pagehide', function () { contextFlow = null; loginFlow = null; wipeLoginEnrollment(false); document.getElementById('passInput').value = ''; document.getElementById('mfaInput').value = ''; document.getElementById('contextOptions').replaceChildren(); });
+    window.addEventListener('pagehide', function () { contextFlow = null; loginFlow = null; clearEmailMfaState(); wipeLoginEnrollment(false); document.getElementById('passInput').value = ''; document.getElementById('mfaInput').value = ''; document.getElementById('contextOptions').replaceChildren(); });
   </script>
   <script>
     if ('serviceWorker' in navigator) {

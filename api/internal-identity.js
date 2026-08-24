@@ -6,6 +6,10 @@ import {
   createResendInvitationDelivery,
 } from '../lib/internal-invitation-delivery.js';
 import {
+  MfaEmailDeliveryError,
+  createResendMfaEmailDelivery,
+} from '../lib/internal-mfa-email-delivery.js';
+import {
   getInternalSession,
   parseCookieHeader,
   serializeClearedInternalSessionCookie,
@@ -19,13 +23,17 @@ import {
   createInvitationCode,
   createRecoveryCodes,
   createTotpEnrollment,
+  decryptEmailMfaDestination,
   decryptMfaSecret,
+  emailMfaCode,
   encryptMfaSecret,
   hashIdentitySecret,
   identitySecrets,
   issueIdentitySessionToken,
+  maskEmailDestination,
   matchTotpStep,
   normalizeInvitationCode,
+  normalizeEmailMfaCode,
   normalizeRecoveryCode,
   serializeClearedIdentitySessionCookie,
   serializeIdentitySessionCookie,
@@ -37,6 +45,7 @@ import {
   IdentityGatewayError,
   applyTenantIdentityCommand,
   applyTenantIdentityPlatformCommand,
+  completeIdentityEmailMfa,
   getLegacySessionPolicy,
   getTenantIdentityPlatformCommandReplay,
   getTenantIdentityPlatformInvitationsView,
@@ -46,7 +55,9 @@ import {
   identityGatewayDatabaseError,
   lookupTenantInvitationDelivery,
   lookupTenantIdentity,
+  markIdentityEmailMfaDelivery,
   normalizeIdentityDatabaseCommand,
+  prepareIdentityEmailMfa,
   recordIdentityChallengeAttempt,
   resolveTenantIdentityAccess,
   revokeIdentitySessionForLogout,
@@ -58,6 +69,7 @@ const DUMMY_PASSWORD_HASH = 'scrypt$16384$8$1$R0dHR0dHR0dHR0dHR0dHRw$sCqc4_u2rJU
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDENTITY_DELIVERY_RETRY_MAX_AGE_SECONDS = 23 * 60 * 60;
+const IDENTITY_EMAIL_MFA_TTL_SECONDS = 5 * 60;
 
 function header(req, name) {
   const value = typeof req?.headers?.get === 'function'
@@ -203,6 +215,14 @@ function assertInvitationDeliveryConfigured(deliverInvitation) {
     }
   } catch {
     fail('IDENTITY_DELIVERY_UNAVAILABLE', 503, 'Canal de entrega no disponible');
+  }
+}
+
+function assertMfaEmailDeliveryConfigured(delivery) {
+  if (!delivery || typeof delivery.deliver !== 'function'
+      || typeof delivery.isConfigured !== 'function' || delivery.isConfigured() !== true) {
+    fail('IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE', 503,
+      'El envio de codigos por correo no esta disponible');
   }
 }
 
@@ -352,6 +372,50 @@ function assertCompletedFlowReplay(flow, requestKey, expectedPurpose, expectedAu
     fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
   }
   return flow.completedSession;
+}
+
+function emailDestinationHash(destination, secrets) {
+  return hashIdentitySecret(`email-mfa-destination|${destination}`, secrets.tokenPepper);
+}
+
+function emailCodeHash(code, deliveryAttemptId, secrets) {
+  return hashIdentitySecret(`email-mfa-code|${deliveryAttemptId}|${code}`, secrets.tokenPepper);
+}
+
+function safePreparedEmailMfa(prepared, deliveryAttemptId, flow, secrets) {
+  const databaseId = String(prepared?.id || prepared?.challengeId || '').trim().toLowerCase();
+  const attemptId = String(prepared?.deliveryAttemptId || '').trim().toLowerCase();
+  const destinationCiphertext = String(prepared?.destinationCiphertext || '');
+  const destinationHash = String(prepared?.destinationHash || '').trim().toLowerCase();
+  const expiresAt = String(prepared?.expiresAt || '');
+  const status = String(prepared?.status || '');
+  const flowVersion = Number(prepared?.flowVersion ?? flow?.version);
+  const challengeVersion = Number(prepared?.version);
+  const destination = decryptEmailMfaDestination(destinationCiphertext, secrets.encryptionKey);
+  if (!UUID.test(databaseId) || attemptId !== deliveryAttemptId
+      || !/^[a-f0-9]{64}$/.test(destinationHash)
+      || !destination || emailDestinationHash(destination, secrets) !== destinationHash
+      || !Number.isFinite(Date.parse(expiresAt))
+      || !['pending_delivery', 'active'].includes(status)
+      || !Number.isSafeInteger(flowVersion) || flowVersion < 1
+      || !Number.isSafeInteger(challengeVersion) || challengeVersion < 1) {
+    fail('IDENTITY_GATEWAY_UNAVAILABLE', 503, 'Gateway de identidad no disponible');
+  }
+  return Object.freeze({
+    id: attemptId, databaseId, deliveryAttemptId: attemptId,
+    destination, expiresAt, status, flowVersion, challengeVersion,
+    maskedDestination: maskEmailDestination(destination),
+  });
+}
+
+function emailMfaResponse(challenge) {
+  return {
+    id: challenge.id,
+    maskedDestination: challenge.maskedDestination,
+    expiresAt: challenge.expiresAt,
+    retryAfterSeconds: 45,
+    expectedVersion: challenge.challengeVersion,
+  };
 }
 
 async function currentIdentity(req, sql, secrets, env, options = {}) {
@@ -532,6 +596,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
   const getSql = dependencies.getTenantIdentitySql ?? getTenantIdentitySql;
   const generator = dependencies.randomUUID ?? randomUUID;
   const deliverInvitation = dependencies.deliverInvitation;
+  const mfaEmailDelivery = dependencies.mfaEmailDelivery;
 
   return async function handler(req, res) {
     const method = String(req?.method || 'GET').toUpperCase();
@@ -550,6 +615,9 @@ export function createInternalIdentityHandler(dependencies = {}) {
       const body = method === 'POST' ? await readBody(req) : null;
       if (body?.command === 'issue_invitation') {
         assertInvitationDeliveryConfigured(deliverInvitation);
+      }
+      if (body?.command === 'request_email_mfa') {
+        assertMfaEmailDeliveryConfigured(mfaEmailDelivery);
       }
       const secrets = dependencies.identitySecrets ?? identitySecrets(env);
       const sql = await getSql(env);
@@ -755,6 +823,135 @@ export function createInternalIdentityHandler(dependencies = {}) {
           }
           throw error;
         }
+      }
+
+      if (command === 'request_email_mfa') {
+        exactPayload(payload, ['flowToken']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        if (flow?.purpose !== 'login_mfa' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        const requestKey = idempotency(req, generator, true);
+        const requiredVersion = expectedVersion(body, true);
+        if (Number(flow.version) !== requiredVersion) {
+          fail('IDENTITY_VERSION_CONFLICT', 409, 'El registro cambio; actualiza y reintenta');
+        }
+        await rateLimit(sql, 'identity.mfa_email_send', flow.email, req, secrets);
+        const deliveryAttemptId = requestKey;
+        const code = emailMfaCode(flowHash, deliveryAttemptId, secrets.tokenPepper);
+        const expiresAt = futureIso(now, IDENTITY_EMAIL_MFA_TTL_SECONDS);
+        const preparedResult = await prepareIdentityEmailMfa(sql, {
+          flowHash, deliveryAttemptId,
+          codeHash: emailCodeHash(code, deliveryAttemptId, secrets),
+          expiresAt, expectedVersion: requiredVersion, idempotencyKey: requestKey,
+        });
+        let prepared = safePreparedEmailMfa(
+          preparedResult, deliveryAttemptId, flow, secrets,
+        );
+        if (prepared.status === 'active') {
+          return send(res, 202, {
+            ok: true, code: 'EMAIL_MFA_ACCEPTED', replayed: true,
+            challenge: emailMfaResponse(prepared),
+          });
+        }
+        let providerAccepted = false;
+        try {
+          const delivery = await mfaEmailDelivery.deliver({
+            to: prepared.destination, code, expiresAt: prepared.expiresAt,
+            contextLabel: flow.requestedTenantId
+              ? 'Portal interno de la Municipalidad de Junin'
+              : 'Administracion de plataforma',
+            idempotencyKey: `challenge-${prepared.deliveryAttemptId}`,
+          });
+          providerAccepted = delivery?.providerAccepted === true;
+          if (!providerAccepted) throw new MfaEmailDeliveryError('PROVIDER_UNAVAILABLE', true);
+          const accepted = await markIdentityEmailMfaDelivery(sql, {
+            flowHash, deliveryAttemptId, accepted: true,
+          });
+          const acceptedVersion = Number(accepted?.version);
+          if (String(accepted?.id || '').toLowerCase() !== prepared.databaseId
+              || accepted?.status !== 'active'
+              || !Number.isSafeInteger(acceptedVersion)
+              || acceptedVersion <= prepared.challengeVersion) {
+            fail('IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE', 503,
+              'El envio de codigos por correo no esta disponible');
+          }
+          prepared = Object.freeze({
+            ...prepared, status: 'active', challengeVersion: acceptedVersion,
+          });
+        } catch (error) {
+          if (!providerAccepted) {
+            await markIdentityEmailMfaDelivery(sql, {
+              flowHash, deliveryAttemptId, accepted: false,
+            }).catch(() => undefined);
+          }
+          if (error instanceof IdentityGatewayError) throw error;
+          if (error instanceof MfaEmailDeliveryError) {
+            fail('IDENTITY_MFA_EMAIL_DELIVERY_UNAVAILABLE', 503,
+              'El envio de codigos por correo no esta disponible');
+          }
+          throw error;
+        }
+        return send(res, 202, {
+          ok: true, code: 'EMAIL_MFA_ACCEPTED', replayed: false,
+          challenge: emailMfaResponse(prepared),
+        });
+      }
+
+      if (command === 'verify_email_mfa') {
+        exactPayload(payload, ['flowToken', 'emailChallengeId', 'code']);
+        const flowToken = String(payload.flowToken || '');
+        const flowHash = hashIdentitySecret(flowToken, secrets.tokenPepper);
+        const requestKey = idempotency(req, generator, true);
+        const requiredVersion = expectedVersion(body, true);
+        const flow = await lookupTenantIdentity(sql, 'flow', '', flowHash);
+        const replaySession = assertCompletedFlowReplay(
+          flow, requestKey, 'login_mfa', 'recovery',
+        );
+        if (replaySession) {
+          setSessionCookie(res, replaySession, secrets, env, now);
+          return send(res, 200, {
+            ok: true, replayed: true, session: sessionPayload(replaySession),
+          });
+        }
+        if (flow?.purpose !== 'login_mfa' || flow.status !== 'pending') {
+          fail('IDENTITY_FLOW_INVALID_OR_EXPIRED', 401, 'Flujo invalido o vencido');
+        }
+        const emailChallengeId = String(payload.emailChallengeId || '').trim().toLowerCase();
+        if (!UUID.test(emailChallengeId)) {
+          fail('IDENTITY_PAYLOAD_INVALID', 422, 'Desafio email invalido');
+        }
+        const code = normalizeEmailMfaCode(payload.code);
+        if (!code) fail('IDENTITY_MFA_INVALID', 401, 'Codigo invalido');
+        await rateLimit(sql, 'identity.mfa_email_verify', flow.email, req, secrets);
+        const result = await completeIdentityEmailMfa(sql, {
+          flowHash, deliveryAttemptId: emailChallengeId,
+          codeHash: emailCodeHash(code, emailChallengeId, secrets),
+          ...newSessionPayload(req, now, generator),
+          expectedVersion: requiredVersion, idempotencyKey: requestKey,
+        });
+        if (result?.verified !== true || !result.session) {
+          const remaining = Number(result?.remainingAttempts);
+          const nextVersion = Number(result?.version);
+          const details = {
+            expectedVersion: Number.isSafeInteger(nextVersion) && nextVersion > requiredVersion
+              ? nextVersion : requiredVersion,
+            ...(Number.isSafeInteger(remaining) && remaining >= 0
+              ? { remainingAttempts: remaining } : {}),
+          };
+          throw new IdentityGatewayError(
+            result?.locked === true ? 'IDENTITY_FLOW_LOCKED' : 'IDENTITY_MFA_INVALID',
+            result?.locked === true ? 423 : 401,
+            result?.locked === true ? 'Flujo bloqueado' : 'Codigo invalido',
+            details,
+          );
+        }
+        setSessionCookie(res, result.session, secrets, env, now);
+        return send(res, 200, {
+          ok: true, session: sessionPayload(result.session), authMethod: 'email_otp',
+        });
       }
 
       if (command === 'begin_activation') {
@@ -1084,4 +1281,5 @@ export function createInternalIdentityHandler(dependencies = {}) {
 
 export default createInternalIdentityHandler({
   deliverInvitation: createResendInvitationDelivery(),
+  mfaEmailDelivery: createResendMfaEmailDelivery(),
 });
