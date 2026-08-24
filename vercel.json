@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/run-sprint014-qa-migration.mjs && npm run build",
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
