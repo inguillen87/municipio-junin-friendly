@@ -152,9 +152,6 @@ try {
   ) VALUES ($1::uuid, $2, 'QA source binding rollback', 'QA source binding',
     'sandbox', 'Rama descartable', 'onboarding', 1, $3)`,
   [tenantId, `qa-source-${fixtureSuffix}`, actor.email]);
-  await smoke.query(`INSERT INTO tenant_identity_policy (tenant_id)
-    VALUES ($1::uuid)`, [tenantId]);
-
   const source = await smoke.query(`WITH latest AS (
     SELECT max(batch.source_cutoff) AS cutoff
     FROM source_import_batch batch
