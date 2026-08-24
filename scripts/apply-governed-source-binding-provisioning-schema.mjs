@@ -62,7 +62,11 @@ export function governedSourceBindingReasonConstraintFingerprint(value) {
       source = source.replace(/\(\s*(reason_code|reason_hash)\s*\)/g, '$1');
     }
     source = source.replace(
-      /=\s*any\s*\(\s*(?:\(\s*)?array\s*\[([^\]]*)\]\s*(?:\)\s*)?\)/g,
+      /=\s*any\s*\(\s*\(\s*array\s*\[([^\]]*)\]\s*\)\s*\)/g,
+      ' in ($1)',
+    );
+    source = source.replace(
+      /=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/g,
       ' in ($1)',
     );
     const tokens = [];

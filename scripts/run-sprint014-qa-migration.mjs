@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { Client, neon } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 const EXPECTED_BRANCH = 'br-plain-dust-acpjgebb';
 const EXPECTED_PROJECT = 'noisy-poetry-54471701';
@@ -54,40 +54,6 @@ guard(identity?.branch_id === EXPECTED_BRANCH, 'QA_BRANCH_ID_MISMATCH');
 guard(identity?.project_id === EXPECTED_PROJECT, 'QA_PROJECT_ID_MISMATCH');
 guard(identity?.database_name === 'neondb', 'QA_DATABASE_NAME_MISMATCH');
 guard(identity?.prerequisite_ready === true, 'QA_PREREQUISITE_013_MISSING');
-
-const constraintProbe = new Client({ connectionString: databaseUrl });
-await constraintProbe.connect();
-try {
-  await constraintProbe.query('BEGIN');
-  await constraintProbe.query(`ALTER TABLE tenant_identity_platform_event_context
-    DROP CONSTRAINT IF EXISTS tenant_identity_platform_event_context_reason_ck`);
-  await constraintProbe.query(`ALTER TABLE tenant_identity_platform_event_context
-    ADD CONSTRAINT tenant_identity_platform_event_context_reason_ck CHECK (
-      (reason_code IS NULL AND reason_hash IS NULL)
-      OR (reason_code IS NOT NULL AND reason_hash IS NOT NULL
-        AND reason_code IN ('certify_data_plane','delivery_kill_switch','bind_source')
-        AND reason_hash ~ '^[a-f0-9]{64}$')
-    )`);
-  const definition = await constraintProbe.query(`SELECT
-    pg_get_constraintdef(constraint_row.oid, true) AS definition,
-    constraint_row.convalidated AS validated
-    FROM pg_constraint constraint_row
-    WHERE constraint_row.conrelid = 'public.tenant_identity_platform_event_context'::regclass
-      AND constraint_row.conname = 'tenant_identity_platform_event_context_reason_ck'`);
-  console.log(JSON.stringify({
-    gate: 'sprint014_constraint_probe',
-    definition: definition.rows[0]?.definition || null,
-    validated: definition.rows[0]?.validated === true,
-  }));
-  await constraintProbe.query('ROLLBACK');
-} catch (error) {
-  await constraintProbe.query('ROLLBACK').catch(() => undefined);
-  throw error;
-} finally {
-  await constraintProbe.end().catch(() => undefined);
-}
-
-throw new Error('QA_CONSTRAINT_PROBE_COMPLETE');
 
 for (let pass = 1; pass <= 2; pass += 1) {
   const result = spawnSync(process.execPath,

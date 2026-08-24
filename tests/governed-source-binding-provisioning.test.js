@@ -241,6 +241,10 @@ test('evidencia 014 exige fuente exacta, allowlist y cero DML runtime tambien al
     ...evidence,
     contextConstraint: "CHECK (((reason_code IS NULL) AND (reason_hash IS NULL)) OR ((reason_code IS NOT NULL) AND (reason_hash IS NOT NULL) AND ((reason_code)::text = ANY ((ARRAY['certify_data_plane'::character varying, 'delivery_kill_switch'::character varying, 'bind_source'::character varying])::text[])) AND ((reason_hash)::text ~ '^[a-f0-9]{64}$'::text)))",
   }));
+  assert.doesNotThrow(() => validateGovernedSourceBindingEvidence({
+    ...evidence,
+    contextConstraint: "CHECK (reason_code IS NULL AND reason_hash IS NULL OR reason_code IS NOT NULL AND reason_hash IS NOT NULL AND (reason_code::text = ANY (ARRAY['certify_data_plane'::character varying, 'delivery_kill_switch'::character varying, 'bind_source'::character varying]::text[])) AND reason_hash ~ '^[a-f0-9]{64}$'::text)",
+  }));
   for (const [signature, hash] of Object.entries(GOVERNED_SOURCE_BINDING_FUNCTION_SOURCE_HASHES)) {
     const row = evidence.functions.find((entry) => entry.signature === signature);
     assert.equal(governedSourceBindingFunctionSourceFingerprint(row.source), hash);
