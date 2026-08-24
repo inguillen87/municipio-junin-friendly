@@ -33,12 +33,14 @@ import {
   verifyIdentitySessionToken,
 } from '../lib/internal-identity-crypto.js';
 import {
+  IDENTITY_RESOURCES,
   IdentityGatewayError,
   applyTenantIdentityCommand,
   applyTenantIdentityPlatformCommand,
   getLegacySessionPolicy,
   getTenantIdentityPlatformCommandReplay,
   getTenantIdentityPlatformInvitationsView,
+  getTenantIdentitySourceOnboardingView,
   getTenantIdentitySql,
   getTenantIdentityView,
   identityGatewayDatabaseError,
@@ -54,6 +56,7 @@ import {
 const MAX_BODY_BYTES = 16 * 1024;
 const DUMMY_PASSWORD_HASH = 'scrypt$16384$8$1$R0dHR0dHR0dHR0dHR0dHRw$sCqc4_u2rJULQEkXAuvGyxs8APXfS0S3tj1-cWJAPYxQTt6ZXmFC5D3-SRBZSsBAjgWf6AMEXQnmA4nn7G1KJg';
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IDENTITY_DELIVERY_RETRY_MAX_AGE_SECONDS = 23 * 60 * 60;
 
 function header(req, name) {
@@ -152,7 +155,23 @@ async function readBody(req) {
 function queryResource(req) {
   const value = req?.query?.resource;
   if (Array.isArray(value)) fail('IDENTITY_QUERY_INVALID', 400, 'Recurso ambiguo');
-  return String(value || 'bootstrap').trim().toLowerCase();
+  const resource = String(value || 'bootstrap').trim().toLowerCase();
+  if (!IDENTITY_RESOURCES.includes(resource)) fail('IDENTITY_RESOURCE_INVALID', 400, 'Recurso no soportado');
+  return resource;
+}
+
+function sourceOnboardingTenantId(req) {
+  const query = req?.query;
+  if (!query || typeof query !== 'object' || Array.isArray(query)
+      || query.resource !== 'source_onboarding'
+      || Object.keys(query).some((key) => !['resource', 'tenantId'].includes(key))) {
+    fail('IDENTITY_QUERY_INVALID', 400, 'Consulta invalida');
+  }
+  const value = query.tenantId;
+  if (Array.isArray(value) || typeof value !== 'string' || value !== value.trim() || !UUID.test(value)) {
+    fail('IDENTITY_QUERY_INVALID', 400, 'tenantId invalido');
+  }
+  return value.toLowerCase();
 }
 
 function email(value) {
@@ -341,7 +360,9 @@ async function currentIdentity(req, sql, secrets, env, options = {}) {
   if (v2Present) {
     const session = verifyIdentitySessionToken(cookies[IDENTITY_SESSION_COOKIE], { secret: secrets.sessionSecret, now: options.now });
     if (!session) fail('IDENTITY_SESSION_INVALID', 401, 'No autorizado');
-    const principal = await resolveTenantIdentityAccess(sql, session, { requiredCapabilities: [] });
+    const principal = await resolveTenantIdentityAccess(sql, session, {
+      requiredCapabilities: options.requiredCapabilities || [],
+    });
     if (!principal) fail('IDENTITY_SESSION_INVALID', 401, 'No autorizado');
     return { kind: 'v2', session, principal };
   }
@@ -358,6 +379,142 @@ function assertPlatformCapability(identity, capability) {
   if (identity?.kind !== 'v2' || identity?.principal?.tenant !== null
       || !Array.isArray(capabilities) || !capabilities.includes(capability)
       || identity.session?.identityVersion == null) fail('IDENTITY_FORBIDDEN', 403, 'No autorizado');
+}
+
+function assertGovernedPlatformCapability(identity, capability) {
+  assertPlatformCapability(identity, capability);
+  if (identity?.principal?.authorized !== true || identity?.principal?.session?.mfa !== true) {
+    fail('IDENTITY_FORBIDDEN', 403, 'No autorizado');
+  }
+}
+
+function safeSourceBindingResult(result, expected = {}) {
+  const sourceBinding = result?.sourceBinding && typeof result.sourceBinding === 'object'
+    ? result.sourceBinding : {};
+  const canonicalEvidence = result?.canonicalEvidence && typeof result.canonicalEvidence === 'object'
+    ? result.canonicalEvidence : {};
+  const bindingId = String(sourceBinding.id || '').trim().toLowerCase();
+  const tenantId = String(sourceBinding.tenantId || '').trim().toLowerCase();
+  const sourceSystem = String(sourceBinding.sourceSystem || '').trim().toUpperCase();
+  const sourceDatabase = String(sourceBinding.sourceDatabase || '').trim();
+  const sourceCompanyId = Number(sourceBinding.sourceCompanyId);
+  const sourceBatchId = String(canonicalEvidence.sourceBatchId || '').trim().toLowerCase();
+  const sourceCutoff = String(canonicalEvidence.sourceCutoff || '').trim();
+  const contractCount = Number(canonicalEvidence.contractCount);
+  const policyVersion = Number(result?.policyVersion);
+  if (!UUID.test(bindingId) || !UUID.test(tenantId)
+      || tenantId !== String(expected.tenantId || '').trim().toLowerCase()
+      || sourceSystem !== 'GRH'
+      || sourceDatabase !== String(expected.sourceDatabase || '').trim()
+      || !Number.isSafeInteger(sourceCompanyId)
+      || sourceCompanyId !== Number(expected.sourceCompanyId)
+      || sourceBinding.verified !== true
+      || !UUID.test(sourceBatchId) || !Number.isFinite(Date.parse(sourceCutoff))
+      || canonicalEvidence.validationState !== 'published'
+      || !Number.isSafeInteger(contractCount) || contractCount < 1
+      || !Number.isSafeInteger(policyVersion) || policyVersion < 1) {
+    fail('IDENTITY_GATEWAY_UNAVAILABLE', 503, 'Gateway de identidad no disponible');
+  }
+  return {
+    sourceBinding: {
+      id: bindingId,
+      tenantId,
+      sourceSystem: 'GRH',
+      verified: true,
+    },
+    canonicalEvidence: {
+      sourceCutoff,
+      validationState: 'published',
+      contractCount,
+    },
+    policyVersion,
+    replayed: result?.replayed === true,
+  };
+}
+
+function safeDataPlaneCertificationResult(result, tenantId, sourceBindingId) {
+  const policy = result?.policy && typeof result.policy === 'object' ? result.policy : null;
+  const expectedTenantId = String(tenantId || '').trim().toLowerCase();
+  const expectedSourceBindingId = String(sourceBindingId || '').trim().toLowerCase();
+  const policyTenantId = String(policy?.tenantId || '').trim().toLowerCase();
+  const policySourceBindingId = String(policy?.sourceBindingId || '').trim().toLowerCase();
+  const version = Number(policy?.version);
+  if (!policy || !UUID.test(policyTenantId) || policyTenantId !== expectedTenantId
+      || !UUID.test(policySourceBindingId) || policySourceBindingId !== expectedSourceBindingId
+      || policy.dataPlaneReady !== true || policy.deliveryReady !== false
+      || !Number.isSafeInteger(version) || version < 1) {
+    fail('IDENTITY_GATEWAY_UNAVAILABLE', 503, 'Gateway de identidad no disponible');
+  }
+  return {
+    policy: {
+      tenantId: policyTenantId,
+      dataPlaneReady: true,
+      deliveryReady: false,
+      version,
+      sourceBindingId: policySourceBindingId,
+    },
+    replayed: result?.replayed === true,
+  };
+}
+
+function safeSourceOnboardingView(result, tenantId) {
+  const identityPolicy = result?.identityPolicy && typeof result.identityPolicy === 'object'
+    ? result.identityPolicy : null;
+  const sourceBinding = result?.sourceBinding && typeof result.sourceBinding === 'object'
+    ? result.sourceBinding : null;
+  const canonicalEvidence = result?.canonicalEvidence && typeof result.canonicalEvidence === 'object'
+    ? result.canonicalEvidence : null;
+  const policyVersion = Number(identityPolicy?.version);
+  const allowedCommands = Array.isArray(result?.allowedCommands) ? result.allowedCommands : null;
+  const bindingTenantId = sourceBinding?.tenantId == null
+    ? tenantId : String(sourceBinding.tenantId).trim().toLowerCase();
+  const bindingValid = sourceBinding === null || (
+    UUID.test(String(sourceBinding.id || ''))
+    && bindingTenantId === tenantId
+    && sourceBinding.sourceSystem === 'GRH'
+    && sourceBinding.verified === true
+  );
+  const cutoff = canonicalEvidence?.sourceCutoff == null
+    ? NaN : Date.parse(String(canonicalEvidence.sourceCutoff));
+  const contractCount = Number(canonicalEvidence?.contractCount);
+  const evidenceValid = canonicalEvidence === null || (
+    Number.isFinite(cutoff)
+    && canonicalEvidence.validationState === 'published'
+    && Number.isSafeInteger(contractCount)
+    && contractCount > 0
+  );
+  const expectedCommands = identityPolicy?.dataPlaneReady === true
+    ? [] : (sourceBinding === null ? ['bind_source'] : ['certify_data_plane']);
+  const commandsValid = Array.isArray(allowedCommands)
+    && allowedCommands.length === expectedCommands.length
+    && allowedCommands.every((command, index) => command === expectedCommands[index]);
+  if (!identityPolicy || !Number.isSafeInteger(policyVersion) || policyVersion < 1
+      || typeof identityPolicy.dataPlaneReady !== 'boolean'
+      || (sourceBinding === null) !== (canonicalEvidence === null)
+      || !bindingValid || !evidenceValid || !commandsValid
+      || (identityPolicy.dataPlaneReady === true && sourceBinding === null)) {
+    fail('IDENTITY_GATEWAY_UNAVAILABLE', 503, 'Gateway de identidad no disponible');
+  }
+  return {
+    identityPolicy: {
+      version: policyVersion,
+      dataPlaneReady: identityPolicy.dataPlaneReady,
+    },
+    allowedCommands: expectedCommands,
+    ...(sourceBinding ? {
+      sourceBinding: {
+        id: String(sourceBinding.id).toLowerCase(),
+        tenantId,
+        sourceSystem: 'GRH',
+        verified: true,
+      },
+      canonicalEvidence: {
+        sourceCutoff: String(canonicalEvidence.sourceCutoff),
+        validationState: 'published',
+        contractCount,
+      },
+    } : {}),
+  };
 }
 
 async function apply(sql, actorEmail, command, payload, options) {
@@ -400,14 +557,25 @@ export function createInternalIdentityHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = queryResource(req);
-        const identity = await currentIdentity(req, sql, secrets, env, { allowLegacy: resource !== 'invitations', now });
+        const sourceTenantId = resource === 'source_onboarding' ? sourceOnboardingTenantId(req) : null;
+        const sourceCapability = 'platform.tenants.manage';
+        const identity = await currentIdentity(req, sql, secrets, env, {
+          allowLegacy: !['invitations', 'source_onboarding'].includes(resource),
+          now,
+          requiredCapabilities: resource === 'source_onboarding' ? [sourceCapability] : [],
+        });
         if (resource === 'invitations') assertPlatformCapability(identity, 'platform.users.read');
-        const view = resource === 'invitations'
-          ? await getTenantIdentityPlatformInvitationsView(
+        if (resource === 'source_onboarding') assertGovernedPlatformCapability(identity, sourceCapability);
+        const view = resource === 'source_onboarding'
+          ? safeSourceOnboardingView(await getTenantIdentitySourceOnboardingView(
+            sql, identity.session, certifiedReleaseSha(env), sourceTenantId,
+          ), sourceTenantId)
+          : resource === 'invitations'
+            ? await getTenantIdentityPlatformInvitationsView(
             sql, identity.session, certifiedReleaseSha(env), 100,
           )
-          : await getTenantIdentityView(sql, identity.session.email,
-            identity.kind === 'v2' ? identity.session.id : null, resource, 100);
+            : await getTenantIdentityView(sql, identity.session.email,
+              identity.kind === 'v2' ? identity.session.id : null, resource, 100);
         return send(res, 200, {
           ok: true,
           ...(resource === 'bootstrap' ? {
@@ -833,11 +1001,36 @@ export function createInternalIdentityHandler(dependencies = {}) {
           replayed: result.replayed === true });
       }
 
+      if (command === 'bind_source') {
+        exactPayload(payload, ['tenantId', 'sourceSystem', 'sourceDatabase', 'sourceCompanyId', 'reason']);
+        const releaseSha = certifiedReleaseSha(env);
+        const capability = 'platform.tenants.manage';
+        const identity = await currentIdentity(req, sql, secrets, env, {
+          now, requiredCapabilities: [capability],
+        });
+        assertGovernedPlatformCapability(identity, capability);
+        const result = await applyPlatform(sql, identity.session, releaseSha, command, {
+          tenantId: String(payload.tenantId || ''),
+          sourceSystem: String(payload.sourceSystem || ''),
+          sourceDatabase: String(payload.sourceDatabase || ''),
+          sourceCompanyId: payload.sourceCompanyId,
+          reason: String(payload.reason || ''),
+        }, {
+          idempotencyKey: idempotency(req, generator, true),
+          expectedVersion: expectedVersion(body, true),
+        });
+        const response = safeSourceBindingResult(result, payload);
+        return send(res, response.replayed ? 200 : 201, { ok: true, ...response });
+      }
+
       if (command === 'certify_data_plane') {
         exactPayload(payload, ['tenantId', 'sourceBindingId', 'reason']);
         const releaseSha = certifiedReleaseSha(env);
-        const identity = await currentIdentity(req, sql, secrets, env, { now });
-        assertPlatformCapability(identity, 'platform.tenants.manage');
+        const capability = 'platform.tenants.manage';
+        const identity = await currentIdentity(req, sql, secrets, env, {
+          now, requiredCapabilities: [capability],
+        });
+        assertGovernedPlatformCapability(identity, capability);
         const result = await applyPlatform(sql, identity.session, releaseSha, command, {
           tenantId: String(payload.tenantId || ''),
           sourceBindingId: String(payload.sourceBindingId || ''),
@@ -847,7 +1040,10 @@ export function createInternalIdentityHandler(dependencies = {}) {
           idempotencyKey: idempotency(req, generator, true),
           expectedVersion: expectedVersion(body, true),
         });
-        return send(res, 200, { ok: true, ...result });
+        const response = safeDataPlaneCertificationResult(
+          result, payload.tenantId, payload.sourceBindingId,
+        );
+        return send(res, 200, { ok: true, ...response });
       }
 
       if (command === 'set_delivery_ready') {

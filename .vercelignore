@@ -28,6 +28,7 @@ database/
 !scripts/migrations/011-versioned-time-catalog.sql
 !scripts/migrations/012-platform-owner-governance.sql
 !scripts/migrations/013-existing-identity-membership-governance.sql
+!scripts/migrations/014-governed-source-binding-provisioning.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

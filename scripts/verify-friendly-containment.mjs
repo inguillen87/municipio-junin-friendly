@@ -64,6 +64,7 @@ for (const migration of [
   '011-versioned-time-catalog.sql',
   '012-platform-owner-governance.sql',
   '013-existing-identity-membership-governance.sql',
+  '014-governed-source-binding-provisioning.sql',
 ]) {
   assert.match(
     ignore,

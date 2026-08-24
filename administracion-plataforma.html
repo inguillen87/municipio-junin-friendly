@@ -282,6 +282,17 @@
     .scope-draft-row .button { min-height: 38px; padding: 7px 9px; }
     .scope-empty { padding: 16px 12px; color: var(--muted); background: #fff; border: 1px dashed var(--line-strong); border-radius: 4px; text-align: center; font-size: 11px; line-height: 1.45; }
 
+    .source-onboarding-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+    .source-step { min-width: 0; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+    .source-step-head { display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 11px; align-items: start; margin-bottom: 14px; }
+    .source-step-number { width: 34px; height: 34px; display: grid; place-items: center; color: #fff; background: var(--navy); border-radius: 4px; font-size: 12px; font-weight: 900; }
+    .source-step h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .source-step-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .source-evidence { margin-top: 13px; padding: 13px; background: var(--surface-3); border: 1px solid #bdd5d1; border-radius: 4px; }
+    .source-evidence h4 { margin: 0 0 7px; color: var(--navy); font-size: 13px; }
+    .source-evidence .facts > div { grid-template-columns: minmax(105px,.4fr) minmax(0,1fr); }
+    .source-safety-note { margin: 13px 0 0; padding: 10px 11px; color: #536b75; background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 4px; font-size: 11px; line-height: 1.45; }
+
     .toast-region { position: fixed; z-index: 1000; right: 20px; bottom: calc(20px + var(--safe-bottom)); width: min(390px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
     .toast { padding: 12px 14px; color: #fff; background: var(--navy); border-left: 4px solid #64b9a9; border-radius: 4px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.4; }
     .toast.error { background: #6f2e2e; border-left-color: #efaaa5; }
@@ -292,6 +303,7 @@
       .control-row { grid-template-columns: minmax(200px,1fr) minmax(180px,.7fr); }
       .control-row > :last-child { grid-column: 1/-1; }
       .operational-grid { grid-template-columns: 1fr; }
+      .source-onboarding-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 960px) {
@@ -373,6 +385,8 @@
       .inline-actions { display: grid; grid-template-columns: 1fr; }
       .scope-draft-row { grid-template-columns: 1fr; }
       .scope-draft-row .button { width: 100%; }
+      .source-step { padding: 13px; }
+      .source-evidence .facts > div { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 390px) {
@@ -509,6 +523,51 @@
                   <thead><tr><th>Gobierno</th><th>Implementación</th><th>Estado</th><th>Fuente y corte</th><th>Próximo compromiso</th><th><span class="sr-only">Abrir</span></th></tr></thead>
                   <tbody id="tenantRows"></tbody>
                 </table>
+              </div>
+            </section>
+
+            <section class="panel" id="sourceOnboardingPanel" aria-labelledby="sourceOnboardingTitle" hidden>
+              <header class="panel-head"><div><h2 id="sourceOnboardingTitle">Fuente laboral del gobierno</h2><p>Onboarding gobernado de una fuente GRH real. Vincular y certificar son decisiones separadas, versionadas y auditables.</p></div></header>
+              <div class="panel-body">
+                <div class="governance-strip is-blocked" id="sourceOnboardingGate" role="status" aria-live="polite">
+                  <div><strong id="sourceOnboardingGateTitle">Onboarding bloqueado</strong><p id="sourceOnboardingGateMessage">Esperando contexto, MFA, capacidad y política versionada del backend.</p></div>
+                  <div class="governance-facts" id="sourceOnboardingFacts"></div>
+                </div>
+
+                <div class="source-onboarding-grid">
+                  <section class="source-step" aria-labelledby="sourceBindTitle">
+                    <header class="source-step-head"><span class="source-step-number" aria-hidden="true">1</span><div><h3 id="sourceBindTitle">Vincular fuente</h3><p>Declará las coordenadas técnicas entregadas por el gobierno. Esta acción todavía no habilita el plano de datos.</p></div></header>
+                    <form id="sourceBindForm" autocomplete="off">
+                      <div class="compact-grid">
+                        <div class="field"><label for="sourceSystem">Sistema fuente</label><input class="input" id="sourceSystem" name="sourceSystem" value="GRH" readonly aria-readonly="true"></div>
+                        <div class="field"><label for="sourceCompanyId">Identificador de empresa</label><input class="input" id="sourceCompanyId" name="sourceCompanyId" type="number" min="1" step="1" inputmode="numeric" required placeholder="Ingresar identificador"></div>
+                        <div class="field full"><label for="sourceDatabase">Base de origen</label><input class="input" id="sourceDatabase" name="sourceDatabase" maxlength="128" pattern="[A-Za-z_][A-Za-z0-9_$-]{0,127}" spellcheck="false" required placeholder="Nombre técnico informado por IT"><span class="field-help">No ingreses host, usuario, contraseña ni URL de conexión.</span></div>
+                        <div class="field full"><label for="sourceBindReason">Motivo de la vinculación</label><textarea class="textarea" id="sourceBindReason" name="reason" minlength="3" maxlength="500" required placeholder="Fundamento administrativo verificable"></textarea></div>
+                      </div>
+                      <div class="inline-actions"><button class="button primary" id="sourceBindSubmit" type="submit" disabled>Vincular fuente GRH</button></div>
+                      <p class="operation-gate" id="sourceBindGate">La vinculación permanece bloqueada hasta verificar la política del tenant.</p>
+                    </form>
+                  </section>
+
+                  <section class="source-step" aria-labelledby="sourceCertificationTitle">
+                    <header class="source-step-head"><span class="source-step-number" aria-hidden="true">2</span><div><h3 id="sourceCertificationTitle">Revisar y certificar</h3><p>La certificación requiere una segunda acción explícita sobre la evidencia canónica agregada devuelta por el backend.</p></div></header>
+                    <div class="empty-state" id="sourceEvidenceEmpty"><strong>Sin evidencia vinculada</strong><p>Completá el paso 1. No se muestran nombres, legajos ni registros individuales.</p></div>
+                    <div class="source-evidence" id="sourceEvidence" aria-live="polite" hidden>
+                      <h4>Evidencia canónica agregada</h4>
+                      <dl class="facts">
+                        <div><dt>Corte</dt><dd id="sourceEvidenceCutoff">No informado</dd></div>
+                        <div><dt>Estado</dt><dd id="sourceEvidenceState">No informado</dd></div>
+                        <div><dt>Cantidad</dt><dd id="sourceEvidenceCount">No informada</dd></div>
+                      </dl>
+                    </div>
+                    <form id="sourceCertifyForm" autocomplete="off">
+                      <div class="field" style="margin-top:13px"><label for="sourceCertifyReason">Motivo de la certificación</label><textarea class="textarea" id="sourceCertifyReason" name="reason" minlength="3" maxlength="500" required placeholder="Fundamento independiente para certificar el plano de datos"></textarea></div>
+                      <div class="inline-actions"><button class="button primary" id="sourceCertifySubmit" type="submit" disabled>Certificar plano de datos</button></div>
+                      <p class="operation-gate" id="sourceCertifyGate">Primero debe existir una vinculación GRH verificada con evidencia publicable.</p>
+                    </form>
+                    <p class="source-safety-note"><strong>Entrega separada.</strong> Certificar el plano de datos no habilita invitaciones ni canales de entrega; esa decisión permanece cerrada.</p>
+                  </section>
+                </div>
               </div>
             </section>
           </section>
@@ -821,6 +880,7 @@
     var ADMIN_URL = '/api/internal-admin';
     var IDENTITY_URL = '/api/internal-identity';
     var REQUEST_TIMEOUT_MS = 16000;
+    var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     var KNOWN_JUNIN = Object.freeze({
       id: 'municipio-junin-mendoza',
       slug: 'municipio-junin-mendoza',
@@ -844,6 +904,13 @@
       sodRules: [],
       metrics: {},
       source: {},
+      identityAccess: { authorized: false, platformContext: false, mfa: false, capabilities: [] },
+      identityPolicy: { present: false, version: null, dataPlaneReady: false, invitationDeliveryReady: false, sourceBindingId: '' },
+      sourceOnboarding: {
+        tenantId: '', binding: null, evidence: null, commands: new Set(), error: '', busy: '',
+        bindIdempotencyKey: '', certifyIdempotencyKey: '',
+        bindFingerprint: '', certifyFingerprint: ''
+      },
       exclusive: null,
       operationalControls: [],
       operationalCatalog: { sourceBindings: [], scopeCapabilities: [], organizations: [], sectors: [], reasonCodes: [] },
@@ -883,7 +950,11 @@
       'metricTenants','metricTenantsNote','metricAttention','metricAttentionNote','metricReviews','metricReviewsNote',
       'metricSecurity','metricSecurityNote','tenantFilters','tenantSearch','tenantStatusFilter','clearTenantFilters',
       'tenantResultCount','portfolioCutoff','tenantLoading','tenantError','tenantErrorMessage','tenantEmpty','tenantTableWrap',
-      'tenantRows','inviteUserButton','attachExistingButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
+      'tenantRows','sourceOnboardingPanel','sourceOnboardingGate','sourceOnboardingGateTitle','sourceOnboardingGateMessage','sourceOnboardingFacts',
+      'sourceBindForm','sourceSystem','sourceDatabase','sourceCompanyId','sourceBindReason','sourceBindSubmit','sourceBindGate',
+      'sourceEvidenceEmpty','sourceEvidence','sourceEvidenceCutoff','sourceEvidenceState','sourceEvidenceCount',
+      'sourceCertifyForm','sourceCertifyReason','sourceCertifySubmit','sourceCertifyGate',
+      'inviteUserButton','attachExistingButton','accessGovernance','accessGovernanceTitle','accessGovernanceMessage','governanceFacts',
       'userStatusTabs','userFilters','userSearch','userRoleFilter','clearUserFilters','userResultCount','userCutoff',
       'userLoading','userError','userErrorMessage','userEmpty','userTableWrap','userRows','roleMatrixRole',
       'roleCapabilityMatrix','roleEffectiveSummary','controlGovernance','controlGovernanceTitle','controlGovernanceMessage',
@@ -1096,7 +1167,7 @@
       });
     }
 
-    async function postIdentityCommand(command, payload, expectedVersion) {
+    async function postIdentityCommand(command, payload, expectedVersion, idempotencyKey) {
       var body = { command: command, payload: payload || {} };
       if (expectedVersion !== undefined && expectedVersion !== null) body.expectedVersion = expectedVersion;
       return requestJson(IDENTITY_URL, {
@@ -1104,7 +1175,7 @@
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'Idempotency-Key': commandKey()
+          'Idempotency-Key': idempotencyKey || commandKey()
         },
         body: JSON.stringify(body)
       });
@@ -1526,6 +1597,98 @@
       }).filter(function (control) { return control.key; });
     }
 
+    function normalizeIdentityAccess(payload) {
+      var root = roots(payload)[0] || {};
+      var access = firstObject(root.access);
+      var platform = firstObject(access.platform);
+      var session = firstObject(access.session);
+      var capabilities = list(platform.capabilities).map(function (value) {
+        return text(typeof value === 'string' ? value : firstObject(value).key);
+      }).filter(Boolean);
+      return {
+        authorized: access.authorized === true,
+        platformContext: access.tenant === null && Object.keys(platform).length > 0,
+        mfa: session.mfa === true,
+        capabilities: Array.from(new Set(capabilities))
+      };
+    }
+
+    function normalizeIdentityPolicy(payload) {
+      var policy = findObject(payload, ['identityPolicy','policy']);
+      var version = authorityVersion(policy.version);
+      var sourceBindingId = text(first(policy.sourceBindingId, policy.certifiedSourceBindingId));
+      return {
+        present: Object.keys(policy).length > 0 && version !== null,
+        version: version,
+        dataPlaneReady: policy.dataPlaneReady === true || policy.tenantDataPlaneReady === true,
+        invitationDeliveryReady: policy.invitationDeliveryReady === true || policy.deliveryReady === true,
+        sourceBindingId: UUID_PATTERN.test(sourceBindingId) ? sourceBindingId.toLowerCase() : ''
+      };
+    }
+
+    function normalizeSourceBindingResult(payload) {
+      var root = roots(payload)[0] || {};
+      var binding = firstObject(root.sourceBinding);
+      var evidence = firstObject(root.canonicalEvidence);
+      var contractCount = Number(evidence.contractCount);
+      var normalized = {
+        binding: {
+          id: text(binding.id).toLowerCase(),
+          tenantId: text(binding.tenantId).toLowerCase(),
+          sourceSystem: text(binding.sourceSystem).toUpperCase(),
+          verified: binding.verified === true
+        },
+        evidence: {
+          sourceCutoff: evidence.sourceCutoff,
+          validationState: text(evidence.validationState).toLowerCase(),
+          contractCount: Number.isSafeInteger(contractCount) && contractCount >= 0 ? contractCount : null
+        },
+        policyVersion: authorityVersion(root.policyVersion)
+      };
+      normalized.valid = UUID_PATTERN.test(normalized.binding.id)
+        && UUID_PATTERN.test(normalized.binding.tenantId)
+        && normalized.binding.sourceSystem === 'GRH'
+        && normalized.binding.verified === true
+        && normalized.policyVersion !== null
+        && Boolean(normalized.evidence.sourceCutoff)
+        && normalized.evidence.validationState === 'published'
+        && normalized.evidence.contractCount !== null;
+      return normalized;
+    }
+
+    function normalizeSourceOnboardingView(payload, tenantId) {
+      var root = roots(payload)[0] || {};
+      var binding = firstObject(root.sourceBinding);
+      var evidence = firstObject(root.canonicalEvidence);
+      var contractCount = Number(evidence.contractCount);
+      var normalizedTenantId = text(tenantId).toLowerCase();
+      var normalized = {
+        policy: normalizeIdentityPolicy(payload),
+        commands: normalizeAllowedCommands(payload),
+        binding: Object.keys(binding).length ? {
+          id: text(binding.id).toLowerCase(),
+          tenantId: text(binding.tenantId).toLowerCase(),
+          sourceSystem: text(binding.sourceSystem).toUpperCase(),
+          verified: binding.verified === true
+        } : null,
+        evidence: Object.keys(evidence).length ? {
+          sourceCutoff: evidence.sourceCutoff,
+          validationState: text(evidence.validationState).toLowerCase(),
+          contractCount: Number.isSafeInteger(contractCount) && contractCount >= 0 ? contractCount : null
+        } : null
+      };
+      normalized.validBinding = normalized.binding !== null && normalized.evidence !== null
+        && UUID_PATTERN.test(normalized.binding.id)
+        && normalized.binding.tenantId === normalizedTenantId
+        && normalized.binding.sourceSystem === 'GRH'
+        && normalized.binding.verified === true
+        && Boolean(normalized.evidence.sourceCutoff)
+        && normalized.evidence.validationState === 'published'
+        && Number.isSafeInteger(normalized.evidence.contractCount)
+        && normalized.evidence.contractCount > 0;
+      return normalized;
+    }
+
     function normalizeSource(payload) {
       var root = roots(payload)[0] || {};
       var source = firstObject(root.source, root.evidence, root.meta && root.meta.source);
@@ -1598,6 +1761,7 @@
         sodRules: normalizeSodRules(payload),
         metrics: normalizeMetrics(payload),
         source: normalizeSource(payload),
+        identityPolicy: normalizeIdentityPolicy(payload),
         exclusive: normalizeExclusive(payload, tenantId),
         operationalControls: normalizeOperationalControls(payload),
         operationalCatalog: normalizeOperationalCatalog(payload),
@@ -1944,6 +2108,135 @@
       el.createTenantGate.querySelector('strong').textContent = mutationAllowed('create_tenant', false) ? 'Alta autorizada' : 'Operación bloqueada';
       el.createTenantGate.querySelector('span').textContent = mutationAllowed('create_tenant', false) ? 'El backend volverá a validar el alta y registrará el evento.' : 'Falta comando explícito o auditoría verificada.';
       el.confirmCreateTenant.disabled = !mutationAllowed('create_tenant', false);
+    }
+
+    function sourceAuthorizationReady() {
+      return state.context.mode === 'tenant'
+        && UUID_PATTERN.test(state.context.tenantId)
+        && state.identityAccess.authorized === true
+        && state.identityAccess.platformContext === true
+        && state.identityAccess.mfa === true
+        && state.identityAccess.capabilities.includes('platform.tenants.manage');
+    }
+
+    function sourcePolicyReady() {
+      return state.identityPolicy.present === true
+        && Number.isSafeInteger(state.identityPolicy.version)
+        && state.identityPolicy.version >= 1;
+    }
+
+    function sourceEvidenceReady() {
+      var current = state.sourceOnboarding;
+      return current.tenantId === state.context.tenantId
+        && current.binding && current.evidence
+        && current.binding.tenantId === state.context.tenantId
+        && current.binding.sourceSystem === 'GRH'
+        && current.binding.verified === true
+        && UUID_PATTERN.test(current.binding.id)
+        && current.evidence.validationState === 'published'
+        && Number.isSafeInteger(current.evidence.contractCount)
+        && current.evidence.contractCount > 0
+        && Boolean(current.evidence.sourceCutoff);
+    }
+
+    function sourceBindInputReady() {
+      var sourceDatabase = el.sourceDatabase.value.trim();
+      var sourceCompanyId = Number(el.sourceCompanyId.value);
+      return /^[A-Za-z_][A-Za-z0-9_$-]{0,127}$/.test(sourceDatabase)
+        && Number.isSafeInteger(sourceCompanyId) && sourceCompanyId > 0
+        && el.sourceBindReason.value.trim().length >= 3;
+    }
+
+    function resetSourceOnboarding(tenantId) {
+      var normalizedTenantId = text(tenantId).toLowerCase();
+      if (state.sourceOnboarding.tenantId === normalizedTenantId) return;
+      state.sourceOnboarding = {
+        tenantId: normalizedTenantId, binding: null, evidence: null, commands: new Set(), error: '', busy: '',
+        bindIdempotencyKey: '', certifyIdempotencyKey: '',
+        bindFingerprint: '', certifyFingerprint: ''
+      };
+      el.sourceBindForm.reset();
+      el.sourceSystem.value = 'GRH';
+      el.sourceCertifyForm.reset();
+    }
+
+    function renderSourceOnboarding() {
+      var authorized = sourceAuthorizationReady();
+      el.sourceOnboardingPanel.hidden = !authorized;
+      if (!authorized) {
+        el.sourceBindSubmit.disabled = true;
+        el.sourceCertifySubmit.disabled = true;
+        return;
+      }
+
+      var policyReady = sourcePolicyReady();
+      var onboardingError = text(state.sourceOnboarding.error);
+      var alreadyCertified = policyReady && state.identityPolicy.dataPlaneReady === true;
+      var bindingReady = sourceEvidenceReady();
+      var bindCommandReady = !onboardingError && policyReady && state.sourceOnboarding.commands.has('bind_source')
+        && governanceReady(false) && !state.loading;
+      var certifyCommandReady = !onboardingError && policyReady && state.sourceOnboarding.commands.has('certify_data_plane')
+        && governanceReady(false) && !state.loading;
+      var currentCommandReady = alreadyCertified || (bindingReady ? certifyCommandReady : bindCommandReady);
+      var bindingLocked = Boolean(onboardingError) || alreadyCertified || bindingReady || state.sourceOnboarding.busy !== '';
+      var bindReady = bindCommandReady && !bindingLocked && sourceBindInputReady();
+      var certifyReady = certifyCommandReady && !alreadyCertified && bindingReady
+        && state.sourceOnboarding.busy === '' && el.sourceCertifyReason.value.trim().length >= 3;
+
+      el.sourceOnboardingGate.classList.toggle('is-blocked', !policyReady || !currentCommandReady);
+      el.sourceOnboardingGateTitle.textContent = onboardingError
+        ? 'Onboarding no disponible'
+        : (alreadyCertified
+        ? 'Plano de datos certificado'
+        : (policyReady && currentCommandReady ? 'Onboarding GRH gobernado' : 'Onboarding bloqueado'));
+      el.sourceOnboardingGateMessage.textContent = onboardingError
+        ? onboardingError
+        : (alreadyCertified
+        ? 'La política del tenant informa el plano de datos listo. La entrega de invitaciones conserva su decisión independiente.'
+        : (!policyReady
+          ? 'El bootstrap no informó una identityPolicy versionada para este gobierno.'
+          : (!currentCommandReady
+            ? 'El backend no habilitó la transición requerida para esta sesión y esta versión de política.'
+            : 'Vinculá la fuente y revisá la evidencia agregada antes de certificarla explícitamente.')));
+      clear(el.sourceOnboardingFacts);
+      el.sourceOnboardingFacts.append(
+        pill(policyReady ? 'Política v' + state.identityPolicy.version : 'Política ausente', policyReady ? 'is-ok' : 'is-danger'),
+        pill('MFA verificado', 'is-ok'),
+        pill('Gestión de tenants', 'is-ok'),
+        pill(state.identityPolicy.invitationDeliveryReady ? 'Entrega informada activa' : 'Entrega no habilitada', state.identityPolicy.invitationDeliveryReady ? 'is-attention' : '')
+      );
+
+      [el.sourceDatabase, el.sourceCompanyId, el.sourceBindReason].forEach(function (control) { control.disabled = bindingLocked; });
+      el.sourceBindSubmit.disabled = !bindReady;
+      el.sourceBindGate.classList.toggle('is-ready', bindCommandReady && !bindingLocked);
+      el.sourceBindGate.textContent = alreadyCertified
+        ? 'El plano de datos ya está certificado; no se permite reemplazar la fuente desde este flujo.'
+        : (bindingReady ? 'Fuente vinculada. Continuá con la revisión del paso 2.'
+          : (bindCommandReady ? 'Completá las coordenadas y el motivo para vincular; todavía no se certificará.'
+            : 'Falta política versionada o autorización explícita para vincular.'));
+
+      el.sourceEvidenceEmpty.hidden = bindingReady || alreadyCertified;
+      el.sourceEvidence.hidden = !bindingReady;
+      if (bindingReady) {
+        el.sourceEvidenceCutoff.textContent = formatDate(state.sourceOnboarding.evidence.sourceCutoff, true);
+        el.sourceEvidenceState.textContent = 'Publicada';
+        el.sourceEvidenceCount.textContent = state.sourceOnboarding.evidence.contractCount.toLocaleString('es-AR') + ' contratos canónicos';
+      } else if (alreadyCertified) {
+        el.sourceEvidenceEmpty.hidden = false;
+        el.sourceEvidenceEmpty.querySelector('strong').textContent = 'Plano certificado por el backend';
+        el.sourceEvidenceEmpty.querySelector('p').textContent = 'Actualizá la vista si necesitás reconciliar evidencia agregada; no se reconstruyen registros individuales en el navegador.';
+      } else {
+        el.sourceEvidenceEmpty.querySelector('strong').textContent = 'Sin evidencia vinculada';
+        el.sourceEvidenceEmpty.querySelector('p').textContent = 'Completá el paso 1. No se muestran nombres, legajos ni registros individuales.';
+      }
+      el.sourceCertifyReason.disabled = alreadyCertified || !bindingReady || state.sourceOnboarding.busy !== '';
+      el.sourceCertifySubmit.disabled = !certifyReady;
+      el.sourceCertifyGate.classList.toggle('is-ready', certifyCommandReady && bindingReady && !alreadyCertified);
+      el.sourceCertifyGate.textContent = alreadyCertified
+        ? 'Certificación registrada. Este flujo no habilitó delivery.'
+        : (bindingReady && certifyCommandReady
+          ? 'Evidencia publicada disponible. Ingresá un motivo independiente y confirmá la certificación.'
+          : 'Primero debe existir una vinculación GRH verificada con evidencia publicada y cantidad positiva.');
     }
 
     function renderRoleOptions() {
@@ -2686,6 +2979,7 @@
       renderMetrics();
       renderTenants();
       renderGovernance();
+      renderSourceOnboarding();
       renderRoleOptions();
       renderMembershipGovernance();
       renderPlatformGovernance();
@@ -2708,12 +3002,58 @@
       state.sodRules = normalized.sodRules;
       state.metrics = normalized.metrics;
       state.source = normalized.source;
+      state.identityPolicy = normalized.identityPolicy;
+      resetSourceOnboarding(normalized.context.tenantId);
       state.exclusive = normalized.exclusive;
       state.operationalControls = normalized.operationalControls;
       state.operationalCatalog = normalized.operationalCatalog;
       state.membershipRequests = normalized.membershipRequests;
       state.membershipGovernance = normalized.membershipGovernance;
       return true;
+    }
+
+    async function loadIdentityAuthorization(requestedTenantId, version) {
+      var identityLoaded = false;
+      state.identityAccess = { authorized: false, platformContext: false, mfa: false, capabilities: [] };
+      state.sourceOnboarding.commands = new Set();
+      state.sourceOnboarding.binding = null;
+      state.sourceOnboarding.evidence = null;
+      state.sourceOnboarding.error = '';
+      try {
+        var payload = await requestJson(IDENTITY_URL + '?resource=bootstrap');
+        if (version !== state.loadVersion) return;
+        state.identityAccess = normalizeIdentityAccess(payload);
+        identityLoaded = true;
+        var tenantId = text(requestedTenantId).toLowerCase();
+        if (!sourceAuthorizationReady() || !UUID_PATTERN.test(tenantId)
+            || tenantId !== state.context.tenantId) return;
+        var onboardingPayload = await requestJson(
+          IDENTITY_URL + '?resource=source_onboarding&tenantId=' + encodeURIComponent(tenantId)
+        );
+        if (version !== state.loadVersion) return;
+        var onboarding = normalizeSourceOnboardingView(onboardingPayload, tenantId);
+        state.identityPolicy = Object.assign({}, state.identityPolicy, {
+          present: onboarding.policy.present,
+          version: onboarding.policy.version,
+          dataPlaneReady: onboarding.policy.dataPlaneReady
+        });
+        state.sourceOnboarding.commands = new Set(onboarding.commands);
+        state.sourceOnboarding.error = '';
+        if (onboarding.validBinding) {
+          state.sourceOnboarding.binding = onboarding.binding;
+          state.sourceOnboarding.evidence = onboarding.evidence;
+        }
+      } catch (error) {
+        if (version !== state.loadVersion) return;
+        if (!identityLoaded || error.unauthorized) {
+          state.identityAccess = { authorized: false, platformContext: false, mfa: false, capabilities: [] };
+          return;
+        }
+        state.sourceOnboarding.commands = new Set();
+        state.sourceOnboarding.binding = null;
+        state.sourceOnboarding.evidence = null;
+        state.sourceOnboarding.error = error.message || 'El onboarding de fuente no está disponible.';
+      }
     }
 
     async function loadUsers(requestedTenantId, version) {
@@ -2791,8 +3131,8 @@
       try {
         var loaded = await loadBootstrap(requestedTenantId || '', version);
         if (!loaded || version !== state.loadVersion) return;
-        renderSession(); renderContext(); renderMetrics(); renderGovernance(); renderRoleOptions(); renderControls();
-        await Promise.all([loadUsers(requestedTenantId || '', version), loadInvitations(version), loadPlatformGovernance(version), loadAudit(requestedTenantId || '', version)]);
+        renderSession(); renderContext(); renderMetrics(); renderGovernance(); renderSourceOnboarding(); renderRoleOptions(); renderControls();
+        await Promise.all([loadIdentityAuthorization(requestedTenantId || '', version), loadUsers(requestedTenantId || '', version), loadInvitations(version), loadPlatformGovernance(version), loadAudit(requestedTenantId || '', version)]);
         if (version !== state.loadVersion) return;
         applyInvitationProjection();
         renderAll();
@@ -2803,7 +3143,7 @@
         el.auditLoading.hidden = true; el.auditError.hidden = false; el.auditErrorMessage.textContent = 'El bootstrap administrativo no está disponible.';
         throw error;
       } finally {
-        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderControls(); renderPlatformGovernance(); }
+        if (version === state.loadVersion) { setLoading(false); renderGovernance(); renderSourceOnboarding(); renderControls(); renderPlatformGovernance(); }
       }
     }
 
@@ -2968,6 +3308,109 @@
       }, version, el.saveScopesButton, 'Alcances operativos actualizados.', el.userDetailDialog);
     }
 
+    async function submitSourceBinding() {
+      renderSourceOnboarding();
+      if (el.sourceBindSubmit.disabled) {
+        showToast('La vinculación sigue bloqueada o incompleta.', true);
+        return;
+      }
+      var payload = {
+        tenantId: state.context.tenantId,
+        sourceSystem: 'GRH',
+        sourceDatabase: el.sourceDatabase.value.trim(),
+        sourceCompanyId: Number(el.sourceCompanyId.value),
+        reason: el.sourceBindReason.value.trim()
+      };
+      var expectedVersion = state.identityPolicy.version;
+      var fingerprint = JSON.stringify({ command: 'bind_source', payload: payload, expectedVersion: expectedVersion });
+      if (!state.sourceOnboarding.bindIdempotencyKey || state.sourceOnboarding.bindFingerprint !== fingerprint) {
+        state.sourceOnboarding.bindIdempotencyKey = commandKey();
+        state.sourceOnboarding.bindFingerprint = fingerprint;
+      }
+      state.sourceOnboarding.busy = 'bind';
+      renderSourceOnboarding();
+      try {
+        var response = await postIdentityCommand(
+          'bind_source', payload, expectedVersion, state.sourceOnboarding.bindIdempotencyKey
+        );
+        var result = normalizeSourceBindingResult(response);
+        if (!result.valid || result.binding.tenantId !== state.context.tenantId) {
+          throw new Error('El backend no devolvió una vinculación GRH verificable para este gobierno.');
+        }
+        state.sourceOnboarding.binding = result.binding;
+        state.sourceOnboarding.evidence = result.evidence;
+        state.sourceOnboarding.commands = new Set(['certify_data_plane']);
+        state.sourceOnboarding.error = '';
+        state.identityPolicy = Object.assign({}, state.identityPolicy, {
+          present: true,
+          version: result.policyVersion,
+          dataPlaneReady: false,
+          sourceBindingId: ''
+        });
+        state.sourceOnboarding.bindIdempotencyKey = '';
+        state.sourceOnboarding.bindFingerprint = '';
+        el.sourceDatabase.value = '';
+        el.sourceCompanyId.value = '';
+        el.sourceBindReason.value = '';
+        showToast('Fuente GRH vinculada. Revisá la evidencia agregada antes de certificar.');
+      } catch (error) {
+        showToast(error.message, true);
+        if (error.status === 409) {
+          try { await loadAll(state.context.tenantId); } catch (_) {}
+        }
+      } finally {
+        state.sourceOnboarding.busy = '';
+        renderSourceOnboarding();
+      }
+    }
+
+    async function submitDataPlaneCertification() {
+      renderSourceOnboarding();
+      if (el.sourceCertifySubmit.disabled) {
+        showToast('La certificación sigue bloqueada o incompleta.', true);
+        return;
+      }
+      if (!window.confirm('¿Certificar este plano de datos con la evidencia agregada revisada? Esta acción no habilita invitaciones ni delivery.')) return;
+      var payload = {
+        tenantId: state.context.tenantId,
+        sourceBindingId: state.sourceOnboarding.binding.id,
+        reason: el.sourceCertifyReason.value.trim()
+      };
+      var expectedVersion = state.identityPolicy.version;
+      var fingerprint = JSON.stringify({ command: 'certify_data_plane', payload: payload, expectedVersion: expectedVersion });
+      if (!state.sourceOnboarding.certifyIdempotencyKey || state.sourceOnboarding.certifyFingerprint !== fingerprint) {
+        state.sourceOnboarding.certifyIdempotencyKey = commandKey();
+        state.sourceOnboarding.certifyFingerprint = fingerprint;
+      }
+      state.sourceOnboarding.busy = 'certify';
+      renderSourceOnboarding();
+      try {
+        var response = await postIdentityCommand(
+          'certify_data_plane', payload, expectedVersion, state.sourceOnboarding.certifyIdempotencyKey
+        );
+        var policy = normalizeIdentityPolicy(response);
+        if (!policy.present || policy.dataPlaneReady !== true
+            || policy.sourceBindingId !== state.sourceOnboarding.binding.id) {
+          throw new Error('El backend no devolvió una certificación verificable para esta fuente.');
+        }
+        state.identityPolicy = policy;
+        state.sourceOnboarding.commands = new Set();
+        state.sourceOnboarding.error = '';
+        state.sourceOnboarding.certifyIdempotencyKey = '';
+        state.sourceOnboarding.certifyFingerprint = '';
+        el.sourceCertifyReason.value = '';
+        showToast('Plano de datos certificado. El canal de entrega no fue habilitado.');
+      } catch (error) {
+        showToast(error.message, true);
+        if (error.status === 409) {
+          try { await loadAll(state.context.tenantId); } catch (_) {}
+        }
+      } finally {
+        state.sourceOnboarding.busy = '';
+        renderSourceOnboarding();
+      }
+    }
+
     function commandNeedsSod(command) {
       return ['invite_user', 'issue_invitation', 'update_access', 'assign_exclusive_capability', 'request_existing_membership', 'request_membership_reactivation', 'approve_membership_change', 'reject_membership_change', 'link_employment', 'revoke_employment_link', 'replace_action_scopes'].includes(command);
     }
@@ -3041,6 +3484,11 @@
       el.clearTenantFilters.addEventListener('click', function () { el.tenantSearch.value = ''; el.tenantStatusFilter.value = ''; renderTenants(); el.tenantSearch.focus(); });
       el.tenantRows.addEventListener('click', function (event) { var button = event.target.closest('[data-open-tenant]'); if (button) openTenantDetail(button.dataset.openTenant); });
       el.openTenantContextButton.addEventListener('click', function () { if (state.selectedTenant) switchContext(state.selectedTenant.id); });
+      [el.sourceDatabase, el.sourceCompanyId, el.sourceBindReason, el.sourceCertifyReason].forEach(function (control) {
+        control.addEventListener('input', renderSourceOnboarding);
+      });
+      el.sourceBindForm.addEventListener('submit', function (event) { event.preventDefault(); submitSourceBinding(); });
+      el.sourceCertifyForm.addEventListener('submit', function (event) { event.preventDefault(); submitDataPlaneCertification(); });
       el.createTenantButton.addEventListener('click', function () { el.createTenantForm.reset(); openDialog(el.createTenantDialog); });
       el.createTenantForm.addEventListener('submit', function (event) {
         event.preventDefault();
