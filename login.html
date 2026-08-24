@@ -1033,8 +1033,8 @@
         document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos por correo';
         document.getElementById('mfaHelp').textContent = 'Cuando llegue, ingresá el código dirigido a ' + emailMfaChallenge.maskedDestination + '. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(emailMfaChallenge.expiresAt)) + '.';
       } else {
-        document.getElementById('mfaInputLabel').textContent = 'Código de seis dígitos';
-        document.getElementById('mfaHelp').textContent = 'Ingresá el código vigente de tu aplicación autenticadora. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(loginFlow.expiresAt)) + '.';
+        document.getElementById('mfaInputLabel').textContent = 'Código de la aplicación autenticadora';
+        document.getElementById('mfaHelp').textContent = 'Ingresá el código vigente de tu aplicación autenticadora. No pegues aquí un código recibido por correo. El desafío vence a las ' + new Intl.DateTimeFormat('es-AR', { timeStyle: 'short' }).format(new Date(loginFlow.expiresAt)) + '.';
       }
       renderEmailMfaControls();
       hideError();

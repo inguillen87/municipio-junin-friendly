@@ -118,6 +118,8 @@ test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recov
   assert.match(html, /error\.code === 'IDENTITY_EMAIL_MFA_INVALID'[\s\S]+Ese código de correo no es válido para este acceso o ya venció/);
   assert.match(html, /error\.code === 'IDENTITY_MFA_INVALID'[\s\S]+El código de la aplicación autenticadora no es válido/);
   assert.match(html, /error\.code === 'IDENTITY_FLOW_INVALID_OR_EXPIRED'[\s\S]+El acceso venció/);
+  assert.match(html, /mfaInputLabel'\)\.textContent = 'Código de la aplicación autenticadora'/);
+  assert.match(html, /mfaHelp'\)\.textContent = 'Ingresá el código vigente de tu aplicación autenticadora\. No pegues aquí un código recibido por correo\./);
   assert.match(html, /selectMfaMethod\('totp'\)/);
   assert.match(html, /selectMfaMethod\('recovery'\)/);
   assert.match(html, /verify_mfa/);
