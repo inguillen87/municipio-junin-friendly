@@ -55,6 +55,36 @@ assert.match(ignore, /^!assets\/identity-security\.css$/m, 'el shell institucion
 assert.match(ignore, /^!scripts\/migrations\/003-action-center\.sql$/m, 'la migración de acciones debe llegar al gate de build');
 assert.match(ignore, /^!scripts\/migrations\/004-tenant-iam-control-plane\.sql$/m, 'la migración IAM debe llegar al gate de build');
 assert.match(ignore, /^!scripts\/migrations\/005-tenant-identity-gateway\.sql$/m, 'la migración del gateway de identidad debe llegar al gate de build');
+for (const migration of [
+  '006-tenant-action-authority.sql',
+  '007-action-center-read-facades.sql',
+  '008-governed-overtime-actions.sql',
+  '009-tenant-lifecycle-hardening.sql',
+  '010-governed-time-source-registry.sql',
+  '011-versioned-time-catalog.sql',
+  '012-platform-owner-governance.sql',
+  '013-existing-identity-membership-governance.sql',
+]) {
+  assert.match(
+    ignore,
+    new RegExp(`^!scripts/migrations/${migration.replaceAll('.', '\\.')}$`, 'm'),
+    `${migration} debe llegar al gate remoto de build`,
+  );
+}
+assert.doesNotMatch(ignore, /^docs\/$/m, 'Vercel debe poder recorrer docs para re-incluir evidencia exacta');
+for (const document of [
+  'COMPETITIVE_PRODUCT_ROADMAP.md',
+  'IDENTITY_PRODUCTION_AUDIT_20260821.md',
+  'GRH_TIME_SOURCE_DISCOVERY_20260819.md',
+  'JUNIN_ATTENDANCE_INPUTS_20260821.md',
+  'CIVITAS_ESUELDOS_EVIDENCE_20260821.md',
+]) {
+  assert.match(
+    ignore,
+    new RegExp(`^!docs/${document.replaceAll('.', '\\.')}$`, 'm'),
+    `${document} debe llegar al gate remoto de privacidad`,
+  );
+}
 const gitIgnoreUrl = new URL('../.gitignore', import.meta.url);
 if (fs.existsSync(gitIgnoreUrl)) {
   const gitIgnore = fs.readFileSync(gitIgnoreUrl, 'utf8');
