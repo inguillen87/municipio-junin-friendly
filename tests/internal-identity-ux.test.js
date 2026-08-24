@@ -164,6 +164,19 @@ test('administración ofrece un cambio explícito y versionado desde tenant a Pl
   assert.doesNotMatch(authenticate[1], /postIdentityCommand\('switch_context'/);
 });
 
+test('administración vuelve a una operación tenant antes de abrir herramientas municipales', () => {
+  const html = parseInlineScripts('administracion-plataforma.html');
+  assert.match(html, /data-operation-target="internal-dashboard\.html#inicio"/);
+  assert.match(html, /data-operation-target="centro-acciones\.html"/);
+  assert.match(html, /Entrar a operación/);
+  assert.match(html, /function operationalTenantCandidate\(\)/);
+  assert.match(html, /candidates\.length === 1/);
+  assert.match(html, /postIdentityCommand\([\s\S]*?'switch_context',[\s\S]*?\{ context: \{ kind: 'tenant', tenantId: tenantId \} \},[\s\S]*?access\.sessionVersion/);
+  assert.match(html, /OPERATION_TARGETS\.includes\(target\)/);
+  assert.match(html, /window\.location\.assign\(target\)/);
+  assert.match(html, /Elegí primero el gobierno operativo/);
+});
+
 test('administración laboral queda tenant-bound, versionada y cerrada sin contrato backend', () => {
   const html = parseInlineScripts('administracion-plataforma.html');
 

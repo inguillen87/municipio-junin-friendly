@@ -435,7 +435,7 @@
   <div class="app-shell" id="platformAdminShell" hidden>
     <aside class="sidebar" id="adminSidebar" aria-label="Administración de plataforma">
       <div class="brand">
-        <a class="brand-home" href="internal-dashboard.html#inicio" aria-label="MuniControl, operación interna">
+        <a class="brand-home" href="login.html?next=internal-dashboard.html" data-operation-target="internal-dashboard.html#inicio" aria-label="MuniControl, operación interna">
           <span class="brand-mark" aria-hidden="true">M</span>
           <span class="brand-copy"><strong>MuniControl</strong><span>Administración global</span></span>
         </a>
@@ -456,8 +456,8 @@
         <div class="nav-group">
           <span class="nav-label">Gobierno y riesgo</span>
           <button class="nav-link" type="button" data-admin-view="audit"><span class="nav-code" aria-hidden="true">AU</span>Auditoría</button>
-          <a class="nav-link" href="centro-acciones.html"><span class="nav-code" aria-hidden="true">AC</span>Centro de acciones</a>
-          <a class="nav-link" href="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">OP</span>Volver a operación</a>
+          <a class="nav-link" href="login.html?next=centro-acciones.html" data-operation-target="centro-acciones.html"><span class="nav-code" aria-hidden="true">AC</span>Centro de acciones</a>
+          <a class="nav-link" href="login.html?next=internal-dashboard.html" data-operation-target="internal-dashboard.html#inicio"><span class="nav-code" aria-hidden="true">OP</span>Entrar a operación</a>
         </div>
       </nav>
 
@@ -475,7 +475,7 @@
             <span aria-hidden="true">⌄</span>
           </button>
           <div class="topbar-context">
-            <nav class="crumb" aria-label="Ruta de navegación"><a href="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span id="breadcrumbCurrent" aria-current="page">Cartera institucional</span></nav>
+            <nav class="crumb" aria-label="Ruta de navegación"><a href="login.html?next=internal-dashboard.html" data-operation-target="internal-dashboard.html#inicio">MuniControl</a><span aria-hidden="true">/</span><span id="breadcrumbCurrent" aria-current="page">Cartera institucional</span></nav>
             <strong class="top-title" id="topViewTitle">Administración multi-gobierno</strong>
           </div>
         </div>
@@ -893,6 +893,10 @@
       'platform.crm.manage',
       'platform.users.manage',
       'platform.roles.manage'
+    ]);
+    var OPERATION_TARGETS = Object.freeze([
+      'internal-dashboard.html#inicio',
+      'centro-acciones.html'
     ]);
     var KNOWN_JUNIN = Object.freeze({
       id: 'municipio-junin-mendoza',
@@ -3492,6 +3496,52 @@
       }
     }
 
+    function operationalTenantCandidate() {
+      var currentId = text(state.context.tenantId).toLowerCase();
+      var current = tenantById(currentId);
+      if (UUID_PATTERN.test(currentId) && current && current.apiBacked === true) return currentId;
+      var candidates = state.tenants.filter(function (tenant) {
+        return tenant.apiBacked === true && UUID_PATTERN.test(text(tenant.id));
+      });
+      return candidates.length === 1 ? text(candidates[0].id).toLowerCase() : '';
+    }
+
+    async function enterOperationalContext(link) {
+      var target = text(link && link.dataset.operationTarget);
+      if (!OPERATION_TARGETS.includes(target)) return;
+      var tenantId = operationalTenantCandidate();
+      if (!tenantId) {
+        renderTenantOptions();
+        openDialog(el.tenantSwitcherDialog);
+        el.tenantSwitcher.setAttribute('aria-expanded', 'true');
+        showToast('Elegí primero el gobierno operativo desde el filtro administrativo.', true);
+        return;
+      }
+      link.setAttribute('aria-disabled', 'true');
+      try {
+        var identityPayload = await requestJson(IDENTITY_URL + '?resource=bootstrap');
+        var access = normalizeIdentityAccess(identityPayload);
+        if (!access.platformContext || !access.mfa || access.sessionVersion === null) {
+          var forbidden = new Error('La sesión Plataforma no está vigente. Volvé a ingresar y elegí el gobierno operativo.');
+          forbidden.status = 403;
+          throw forbidden;
+        }
+        await postIdentityCommand(
+          'switch_context',
+          { context: { kind: 'tenant', tenantId: tenantId } },
+          access.sessionVersion,
+          commandKey()
+        );
+        window.location.assign(target);
+      } catch (error) {
+        if (error.unauthorized) return;
+        showToast(error.status === 409
+          ? 'La sesión cambió mientras operabas. Volvé a intentar.'
+          : error.message, true);
+        link.removeAttribute('aria-disabled');
+      }
+    }
+
     async function authenticate() {
       el.gateTitle.textContent = 'Verificando administración'; el.gateMessage.textContent = 'Confirmamos tu sesión y el alcance multi-gobierno antes de consultar datos.'; el.gateSpinner.hidden = false; el.retryAuth.hidden = true; resetPlatformContextGate();
       try {
@@ -3532,6 +3582,13 @@
     function bindEvents() {
       el.retryAuth.addEventListener('click', authenticate);
       el.switchToPlatformButton.addEventListener('click', switchToPlatformContext);
+      document.querySelectorAll('[data-operation-target]').forEach(function (link) {
+        link.addEventListener('click', function (event) {
+          event.preventDefault();
+          if (link.getAttribute('aria-disabled') === 'true') return;
+          enterOperationalContext(link);
+        });
+      });
       el.menuButton.addEventListener('click', openMenu); el.menuClose.addEventListener('click', function () { closeMenu(true); }); el.navBackdrop.addEventListener('click', function () { closeMenu(true); });
       document.addEventListener('keydown', function (event) { trapMenuFocus(event); if (event.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu(true); });
       document.querySelectorAll('[data-admin-view]').forEach(function (button) { button.addEventListener('click', function () { showView(button.dataset.adminView); }); });
