@@ -1034,31 +1034,31 @@
       </a>
 
       <nav class="primary-nav" aria-label="Navegación principal">
-        <button class="nav-button" type="button" data-view="inicio" aria-controls="view-inicio">
+        <button class="nav-button" type="button" data-view="inicio" data-any-capability="workforce.summary.read" aria-controls="view-inicio">
           <span class="nav-index" aria-hidden="true">IN</span><span>Inicio</span>
         </button>
-        <button class="nav-button" type="button" data-view="legajos" aria-controls="view-legajos">
+        <button class="nav-button" type="button" data-view="legajos" data-any-capability="workforce.employee.read" aria-controls="view-legajos">
           <span class="nav-index" aria-hidden="true">PE</span><span>Personas</span>
         </button>
-        <a class="nav-button" href="centro-acciones.html"><span class="nav-index" aria-hidden="true">AC</span><span>Centro de acciones</span></a>
-        <a class="nav-button" href="fuentes-tiempo.html"><span class="nav-index" aria-hidden="true">FT</span><span>Fuentes de tiempo</span></a>
-        <a class="nav-button" href="administracion-plataforma.html"><span class="nav-index" aria-hidden="true">AD</span><span>Administración</span></a>
-        <a class="nav-button" href="estructura.html"><span class="nav-index" aria-hidden="true">ES</span><span>Estructura</span></a>
-        <a class="nav-button" href="integracion-datos.html"><span class="nav-index" aria-hidden="true">IC</span><span>Integración</span></a>
-        <a class="nav-button" href="nomina-control.html"><span class="nav-index" aria-hidden="true">NO</span><span>Nómina</span></a>
-        <a class="nav-button" href="asistente.html"><span class="nav-index" aria-hidden="true">IA</span><span>Asistente</span></a>
+        <a class="nav-button" data-any-capability="actions.read" href="centro-acciones.html"><span class="nav-index" aria-hidden="true">AC</span><span>Centro de acciones</span></a>
+        <a class="nav-button" data-any-capability="time.source.read time.catalog.read" href="fuentes-tiempo.html"><span class="nav-index" aria-hidden="true">FT</span><span>Fuentes de tiempo</span></a>
+        <a class="nav-button" data-platform-admin href="administracion-plataforma.html"><span class="nav-index" aria-hidden="true">AD</span><span>Administración</span></a>
+        <a class="nav-button" data-any-capability="workforce.structure.read" href="estructura.html"><span class="nav-index" aria-hidden="true">ES</span><span>Estructura</span></a>
+        <a class="nav-button" data-any-capability="lineage.read" href="integracion-datos.html"><span class="nav-index" aria-hidden="true">IC</span><span>Integración</span></a>
+        <a class="nav-button" data-any-capability="payroll.read" href="nomina-control.html"><span class="nav-index" aria-hidden="true">NO</span><span>Nómina</span></a>
+        <a class="nav-button" data-any-capability="assistant.use" href="asistente.html"><span class="nav-index" aria-hidden="true">IA</span><span>Asistente</span></a>
       </nav>
 
       <nav class="suite-links" aria-label="Herramientas internas">
         <span class="suite-label">Herramientas</span>
-        <a class="nav-button" href="gestion-comparativa.html"><span class="nav-index" aria-hidden="true">GE</span><span>Gestiones</span></a>
-        <a class="nav-button" href="presupuesto-control.html"><span class="nav-index" aria-hidden="true">PR</span><span>Presupuesto</span></a>
-        <a class="nav-button" href="ausentismo-control.html"><span class="nav-index" aria-hidden="true">AU</span><span>Ausentismo</span></a>
-        <a class="nav-button" href="licencias-control.html"><span class="nav-index" aria-hidden="true">LI</span><span>Licencias</span></a>
-        <a class="nav-button" href="calidad-operativa.html"><span class="nav-index" aria-hidden="true">DQ</span><span>Calidad operativa</span></a>
-        <button class="nav-button" type="button" data-view="calidad" aria-controls="view-calidad"><span class="nav-index" aria-hidden="true">RS</span><span>Resumen rápido</span></button>
-        <a class="nav-button" href="reportes-rrhh.html"><span class="nav-index" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
-        <a class="nav-button" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
+        <a class="nav-button" data-any-capability="management.analytics.read" href="gestion-comparativa.html"><span class="nav-index" aria-hidden="true">GE</span><span>Gestiones</span></a>
+        <a class="nav-button" data-any-capability="budget.approved.read" href="presupuesto-control.html"><span class="nav-index" aria-hidden="true">PR</span><span>Presupuesto</span></a>
+        <a class="nav-button" data-any-capability="absence.analytics.read absence.nominal.read" href="ausentismo-control.html"><span class="nav-index" aria-hidden="true">AU</span><span>Ausentismo</span></a>
+        <a class="nav-button" data-any-capability="leave.policy.read leave.preview.read" href="licencias-control.html"><span class="nav-index" aria-hidden="true">LI</span><span>Licencias</span></a>
+        <a class="nav-button" data-any-capability="quality.read lineage.read" href="calidad-operativa.html"><span class="nav-index" aria-hidden="true">DQ</span><span>Calidad operativa</span></a>
+        <button class="nav-button" type="button" data-view="calidad" data-any-capability="quality.read" aria-controls="view-calidad"><span class="nav-index" aria-hidden="true">RS</span><span>Resumen rápido</span></button>
+        <a class="nav-button" data-any-capability="workforce.summary.read management.analytics.read" href="reportes-rrhh.html"><span class="nav-index" aria-hidden="true">IR</span><span>Reportes RRHH</span></a>
+        <a class="nav-button" data-any-capability="workforce.summary.read management.analytics.read" href="friendly-dashboard.html#inicio"><span class="nav-index" aria-hidden="true">CE</span><span>Centro ejecutivo</span></a>
         <a class="nav-button" href="modulos.html"><span class="nav-index" aria-hidden="true">MP</span><span>Mapa de producto</span></a>
       </nav>
 
@@ -1646,6 +1646,27 @@
         };
       }
 
+      function capabilitySet(value) {
+        return new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : []);
+      }
+
+      function applyNavigationAccess(access) {
+        const contract = access && typeof access === 'object' ? access : {};
+        const tenantCapabilities = capabilitySet(contract.tenantCapabilities);
+        const platformCapabilities = capabilitySet(contract.platformCapabilities);
+        document.querySelectorAll('[data-any-capability]').forEach(function (item) {
+          const required = text(item.dataset.anyCapability).split(/\s+/).filter(Boolean);
+          item.hidden = required.length > 0
+            && !required.some(function (capability) { return tenantCapabilities.has(capability); });
+        });
+        document.querySelectorAll('[data-platform-admin]').forEach(function (item) {
+          item.hidden = contract.context !== 'platform'
+            || ![...platformCapabilities].some(function (capability) {
+              return capability.startsWith('platform.');
+            });
+        });
+      }
+
       function detailRequestFromLocation() {
         const params = new URLSearchParams(window.location.search);
         const contractId = text(params.get('contractId'));
@@ -1670,6 +1691,7 @@
             return;
           }
           state.user = user;
+          applyNavigationAccess(payload.access);
           els.userName.textContent = user.name;
           els.userRole.textContent = user.role;
           els.authGate.hidden = true;

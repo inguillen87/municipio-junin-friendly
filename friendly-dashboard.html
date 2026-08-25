@@ -67,6 +67,7 @@
     .nav button,.nav-product-link{width:100%;display:grid;grid-template-columns:27px 1fr;align-items:center;gap:9px;padding:9px 10px;border:1px solid transparent;border-radius:5px;background:transparent;color:#c0ccd2;text-align:left;text-decoration:none;font-size:12px;font-weight:650;line-height:1.25;cursor:pointer}
     .nav button:hover,.nav-product-link:hover{background:#14384c;color:#fff}.nav button.active{background:#c4df67;border-color:#c4df67;color:#102430;box-shadow:none}
     .nav-code{display:grid;place-items:center;width:25px;height:25px;border:1px solid currentColor;border-radius:3px;font-size:8px;font-weight:900;letter-spacing:.04em;opacity:.8}
+    .nav-state{display:block;margin-top:2px;color:#9fb0b8;font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.nav button.active .nav-state{color:#345060}
     .side-foot{padding:12px 12px 13px;border:1px solid #284b5d;background:#0f3042;border-radius:6px}.side-foot strong{color:#d4e6e1}.side-foot span{color:#9dafb8;line-height:1.45}.side-foot a{color:#fff}
     .workspace{background:#eef2f0}.topbar{height:70px;padding:0 30px;border-color:#d8dfdc;background:#fff;backdrop-filter:none;box-shadow:0 1px 0 rgba(28,47,56,.03)}
     .crumb{color:#718087;font-size:11px}.top-title{color:#183043;font-size:14px}
@@ -113,7 +114,7 @@
         <div class="nav-group">
           <span class="nav-group-title">Dirección</span>
           <button class="active" data-section="inicio"><span class="nav-code">CE</span><span>Centro ejecutivo</span></button>
-          <a class="nav-product-link" href="modulos.html"><span class="nav-code">MP</span><span>Mapa de producto</span></a>
+          <a class="nav-product-link" href="modulos.html"><span class="nav-code">MP</span><span>Mapa de producto<small class="nav-state">Inventario</small></span></a>
         </div>
         <div class="nav-group">
           <span class="nav-group-title">Personas y RRHH</span>
@@ -123,8 +124,8 @@
         <div class="nav-group">
           <span class="nav-group-title">Gestión municipal</span>
           <button data-section="hacienda"><span class="nav-code">HP</span><span>Hacienda y presupuesto</span></button>
-          <button data-section="servicios"><span class="nav-code">SO</span><span>Servicios, obras y reclamos</span></button>
-          <button data-section="compras"><span class="nav-code">CP</span><span>Compras y proveedores</span></button>
+          <button data-section="servicios"><span class="nav-code">SO</span><span>Servicios, obras y reclamos<small class="nav-state">Sin integración</small></span></button>
+          <button data-section="compras"><span class="nav-code">CP</span><span>Compras y proveedores<small class="nav-state">Sin fuente</small></span></button>
         </div>
         <div class="nav-group">
           <span class="nav-group-title">Análisis y control</span>
@@ -135,7 +136,7 @@
         <div class="nav-group">
           <span class="nav-group-title">Sistema</span>
           <button data-section="datos"><span class="nav-code">AD</span><span>Administración</span></button>
-          <button data-section="hoja-ruta"><span class="nav-code">HR</span><span>Hoja de ruta</span></button>
+          <button data-section="hoja-ruta"><span class="nav-code">HR</span><span>Hoja de ruta<small class="nav-state">Planificado</small></span></button>
         </div>
       </nav>
       <div class="side-foot"><strong>Datos agregados</strong><span>Esta vista no contiene nombres, documentos, domicilios, legajos ni remuneraciones individuales.</span><a href="friendly-data.json" download>Descargar fuente agregada</a></div>

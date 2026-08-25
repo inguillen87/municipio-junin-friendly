@@ -203,7 +203,10 @@ test('endpoint GET reconoce v2 y DELETE confirma revocacion antes de limpiar', a
         },
         principal: {
           user: { email: 'marcelo@example.test', name: 'Marcelo QA' },
-          platform: { roles: ['PLATFORM_OWNER'] },
+          platform: {
+            roles: ['PLATFORM_OWNER'],
+            capabilities: ['platform.users.manage', 'platform.tenants.manage'],
+          },
           tenant: null,
         },
       };
@@ -221,6 +224,10 @@ test('endpoint GET reconoce v2 y DELETE confirma revocacion antes de limpiar', a
   assert.equal(getResponse.payload.sessionVersion, 2);
   assert.equal(getResponse.payload.user.name, 'Marcelo QA');
   assert.equal(getResponse.payload.user.role, 'PLATFORM_OWNER');
+  assert.deepEqual(getResponse.payload.access.platformCapabilities, [
+    'platform.tenants.manage', 'platform.users.manage',
+  ]);
+  assert.deepEqual(getResponse.payload.access.tenantCapabilities, []);
 
   const logoutResponse = createMockResponse();
   await handler({

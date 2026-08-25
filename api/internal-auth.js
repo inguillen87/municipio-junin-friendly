@@ -35,6 +35,12 @@ function managedSessionResponse(access) {
   const platformRoles = Array.isArray(access.principal?.platform?.roles)
     ? access.principal.platform.roles
     : [];
+  const platformCapabilities = normalizedCapabilityList(
+    access.principal?.platform?.capabilities,
+  );
+  const tenantCapabilities = normalizedCapabilityList(
+    tenant?.effectiveCapabilities || tenant?.capabilities,
+  );
   return {
     ok: true,
     authenticated: true,
@@ -49,9 +55,19 @@ function managedSessionResponse(access) {
       context: tenant ? 'tenant' : 'platform',
       tenant: tenant ? { id: tenant.id, slug: tenant.slug, roleKey: tenant.roleKey } : null,
       platformRoles,
+      platformCapabilities,
+      tenantCapabilities,
     },
     expiresAt: new Date(access.session.expiresAt * 1000).toISOString(),
   };
+}
+
+function normalizedCapabilityList(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((capability) => String(capability || '').trim())
+    .filter((capability) => /^[a-z][a-z0-9._-]{2,119}$/.test(capability)))]
+    .sort();
 }
 
 function requestCookie(req) {

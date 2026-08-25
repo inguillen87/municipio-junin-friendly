@@ -39,3 +39,22 @@ test('Actualizar sólo anuncia éxito cuando todas las consultas necesarias lo c
   assert.match(refresh, /Información actualizada\./);
   assert.doesNotMatch(refresh, /Actualización finalizada/);
 });
+
+test('el portal filtra el menú por capacidades y no ofrece Administración fuera de Plataforma', () => {
+  const html = parseInlineScripts('internal-dashboard.html');
+  const auth = read('api/internal-auth.js');
+  assert.match(html, /data-platform-admin href="administracion-plataforma\.html"/);
+  assert.match(html, /data-any-capability="workforce\.employee\.read"/);
+  assert.match(html, /function applyNavigationAccess\(access\)/);
+  assert.match(html, /contract\.context !== 'platform'/);
+  assert.match(html, /capability\.startsWith\('platform\.'\)/);
+  assert.match(auth, /platformCapabilities/);
+  assert.match(auth, /tenantCapabilities/);
+});
+
+test('el menú Friendly identifica los módulos que aún no tienen fuente operativa', () => {
+  const html = parseInlineScripts('friendly-dashboard.html');
+  assert.match(html, /Servicios, obras y reclamos<small class="nav-state">Sin integración<\/small>/);
+  assert.match(html, /Compras y proveedores<small class="nav-state">Sin fuente<\/small>/);
+  assert.match(html, /Mapa de producto<small class="nav-state">Inventario<\/small>/);
+});
