@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
-import { directIsolatedDatabaseUrl } from './lib/canonical-import.mjs';
+import {
+  directCanonicalDatabaseUrl,
+  resolveCanonicalDatabaseTarget,
+} from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 import {
   EMAIL_MFA_RETRY_IDEMPOTENCY_MIGRATION_VERSION,
@@ -393,7 +396,13 @@ async function main() {
   validateEmailFirstFactorMigrationSql(migration);
   const fingerprint = emailFirstFactorLoginFingerprint(migration);
   const statements = splitPostgresStatements(migration);
-  const client = new Client({ connectionString: directIsolatedDatabaseUrl() });
+  const args = process.argv.slice(2);
+  const target = resolveCanonicalDatabaseTarget(args, process.env);
+  const databaseUrl = directCanonicalDatabaseUrl(args, process.env);
+  if (databaseUrl !== target.databaseUrl) {
+    throw new Error('el target canonico cambio durante el preflight');
+  }
+  const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
     await client.query('BEGIN');
@@ -431,9 +440,13 @@ async function main() {
     }
     await verifyEmailFirstFactorFinalState(client);
     await client.query('COMMIT');
+    const targetLabel = target.mode === 'production'
+      ? `production:${target.branchId}` : 'isolated';
     console.log(existing.rowCount
-      ? `${EMAIL_FIRST_FACTOR_LOGIN_MIGRATION_VERSION}: reapply verificado (SHA-256 ${fingerprint})`
-      : `${EMAIL_FIRST_FACTOR_LOGIN_MIGRATION_VERSION}: fresh apply (${statements.length} sentencias, SHA-256 ${fingerprint})`);
+      ? `${EMAIL_FIRST_FACTOR_LOGIN_MIGRATION_VERSION}: reapply verificado `
+        + `(${targetLabel}, SHA-256 ${fingerprint})`
+      : `${EMAIL_FIRST_FACTOR_LOGIN_MIGRATION_VERSION}: fresh apply `
+        + `(${targetLabel}, ${statements.length} sentencias, SHA-256 ${fingerprint})`);
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;

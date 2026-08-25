@@ -4,6 +4,10 @@ import test from 'node:test';
 
 import { splitPostgresStatements } from '../scripts/lib/sql-statements.mjs';
 import {
+  directCanonicalDatabaseUrl,
+  resolveCanonicalDatabaseTarget,
+} from '../scripts/lib/canonical-import.mjs';
+import {
   EMAIL_FIRST_FACTOR_LOGIN_MIGRATION_VERSION,
   EMAIL_FIRST_FACTOR_SIGNATURES,
   canonicalizeHistoricalPrepareDefinition,
@@ -180,10 +184,12 @@ test('validadores adversariales rechazan bypass sin factor y mutacion de factore
   );
 });
 
-test('aplicador exige 016 y 019, rama aislada, baseline, ledger y estado final', () => {
+test('aplicador exige 016 y 019, target canonico, baseline, ledger y estado final', () => {
   assert.match(applier, /016-email-mfa-retry-idempotency\.sql/);
   assert.match(applier, /019-institutional-access-profiles\.sql/);
-  assert.match(applier, /directIsolatedDatabaseUrl\(\)/);
+  assert.match(applier, /resolveCanonicalDatabaseTarget\(args, process\.env\)/);
+  assert.match(applier, /directCanonicalDatabaseUrl\(args, process\.env\)/);
+  assert.doesNotMatch(applier, /directIsolatedDatabaseUrl/);
   assert.match(applier, /verifyBaselineFacade\(client\)/);
   assert.match(applier, /verifyScopedEmailMfaPrerequisite\(client\)/);
   assert.match(applier, /validateEmailMfaRetryIdempotencyEvidence/);
@@ -195,6 +201,36 @@ test('aplicador exige 016 y 019, rama aislada, baseline, ledger y estado final',
   assert.match(applier, /verifyEmailFirstFactorFinalState\(client\)/);
   assert.match(applier, /await client\.query\('COMMIT'\)/);
   assert.match(applier, /await client\.query\('ROLLBACK'\)/);
+});
+
+test('aplicador 020 exige confirmacion y pines exactos antes de admitir Produccion', () => {
+  const branchId = 'br-email-first-factor-production';
+  const host = 'ep-email-first-factor.sa-east-1.aws.neon.tech';
+  const databaseUrl = `postgresql://user:secret@${host}/municontrol`;
+  const env = {
+    DATABASE_URL_UNPOOLED: databaseUrl,
+    CANONICAL_PRODUCTION_BRANCH_ID: branchId,
+    CANONICAL_PRODUCTION_HOST: host,
+    CANONICAL_PRODUCTION_DATABASE: 'municontrol',
+    VERCEL_ENV: 'production',
+  };
+  const args = [`--confirm-production-branch=${branchId}`];
+  assert.deepEqual(resolveCanonicalDatabaseTarget(args, env), {
+    databaseUrl,
+    mode: 'production',
+    branchId,
+  });
+  assert.equal(directCanonicalDatabaseUrl(args, env), databaseUrl);
+  assert.throws(
+    () => resolveCanonicalDatabaseTarget([], env),
+    /confirm-isolated-branch|confirm-production-branch/,
+  );
+  assert.throws(
+    () => resolveCanonicalDatabaseTarget([
+      '--confirm-production-branch=br-otra-rama',
+    ], env),
+    /no coincide con CANONICAL_PRODUCTION_BRANCH_ID/,
+  );
 });
 
 test('verificador 020 tolera el deparser SET search_path TO sin relajar 016', () => {
