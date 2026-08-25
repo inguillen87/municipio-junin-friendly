@@ -30,6 +30,7 @@ Desktop.ini
 .vercel
 .env*
 .new_token.txt
+config/attendance-gateway.local.json
 
 rrhh-data/*.json
 rrhh-data/**/*.sql

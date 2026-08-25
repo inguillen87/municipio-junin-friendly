@@ -9,7 +9,9 @@
     "api/internal-data.js": { "maxDuration": 20 },
     "api/internal-actions.js": { "maxDuration": 20 },
     "api/internal-admin.js": { "maxDuration": 20 },
-    "api/internal-assistant.js": { "maxDuration": 25 }
+    "api/internal-assistant.js": { "maxDuration": 25 },
+    "api/internal-attendance.js": { "maxDuration": 20 },
+    "api/attendance-ingest.js": { "maxDuration": 20 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
@@ -50,6 +52,7 @@
     { "source": "/control-horario-readiness", "destination": "/control-horario-readiness.html" },
     { "source": "/control-horario-homologacion", "destination": "/control-horario-homologacion.html" },
     { "source": "/fuentes-tiempo", "destination": "/fuentes-tiempo.html" },
+    { "source": "/relojes-marcaciones", "destination": "/relojes-marcaciones.html" },
     { "source": "/administracion-plataforma", "destination": "/administracion-plataforma.html" },
     { "source": "/modulos", "destination": "/modulos.html" },
     { "source": "/reportes-rrhh", "destination": "/reportes-rrhh.html" },
@@ -222,6 +225,14 @@
     },
     {
       "source": "/fuentes-tiempo.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/relojes-marcaciones",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/relojes-marcaciones.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

@@ -6,6 +6,7 @@
     "test": "node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
     "test:browser": "node scripts/verify-friendly-browser.mjs",
     "test:attendance-browser": "node scripts/verify-attendance-governance-browser.mjs",
+    "test:browser:attendance-devices": "node scripts/build-friendly.mjs && node scripts/verify-attendance-device-browser.mjs",
     "test:browser:tenant-lifecycle": "node scripts/verify-tenant-lifecycle-browser.mjs",
     "test:browser:time-sources": "node scripts/verify-time-source-browser.mjs",
     "test:browser:membership-governance": "npm run build && node scripts/verify-admin-membership-governance-browser.mjs",
@@ -18,6 +19,8 @@
     "db:tenant:lifecycle:schema": "node --env-file=.env.local scripts/apply-tenant-lifecycle-hardening-schema.mjs",
     "db:time:sources:schema": "node --env-file=.env.local scripts/apply-governed-time-source-registry-schema.mjs",
     "db:time:catalog:schema": "node --env-file=.env.local scripts/apply-versioned-time-catalog-schema.mjs",
+    "db:attendance:schema": "node --env-file=.env.local scripts/apply-attendance-device-gateway-schema.mjs --confirm-isolated-branch",
+    "db:attendance:import-junin": "node --env-file=.env.local scripts/import-junin-attendance-inventory.mjs --confirm-isolated-branch",
     "db:platform:owners:schema": "node --env-file=.env.local scripts/apply-platform-owner-governance-schema.mjs",
     "db:tenant:membership-governance:schema": "node --env-file=.env.local scripts/apply-existing-identity-membership-governance-schema.mjs",
     "db:tenant:source-binding:schema": "node --env-file=.env.local scripts/apply-governed-source-binding-provisioning-schema.mjs --confirm-isolated-branch",
@@ -30,6 +33,8 @@
     "db:identity:email-first-factor:verify": "node --env-file=.env.local scripts/verify-email-first-factor-login-live.mjs --confirm-isolated-branch",
     "db:identity:email-mfa:provision": "node --env-file=.env.local scripts/provision-email-mfa-factor.mjs --confirm-isolated-branch",
     "db:time:sources:verify-live": "node --env-file=.env.local scripts/verify-governed-time-source-registry-live.mjs --confirm-isolated-branch",
+    "attendance:gateway": "node scripts/attendance-gateway-agent.mjs",
+    "attendance:inventory:preflight": "node scripts/import-junin-attendance-inventory.mjs --confirm-isolated-branch --tenant-slug=junin-mendoza",
     "db:tenant:lifecycle:verify-live": "node --env-file=.env.local scripts/verify-tenant-lifecycle-live.mjs --confirm-isolated-branch",
     "db:actions:overtime:verify-live": "node --env-file=.env.local scripts/verify-governed-overtime-live.mjs --confirm-isolated-branch",
     "db:actions:verify-live": "node scripts/verify-action-center-live.mjs --confirm-isolated-branch",
@@ -56,6 +61,7 @@
     "playwright": "^1.62.1"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2"
+    "@neondatabase/serverless": "^1.0.2",
+    "read-excel-file": "9.3.10"
   }
 }

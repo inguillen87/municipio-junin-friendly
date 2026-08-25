@@ -14,7 +14,7 @@ function publicSection(section) {
   };
 }
 
-export const GUIDANCE_AS_OF = '2026-08-20T00:00:00.000Z';
+export const GUIDANCE_AS_OF = '2026-08-25T00:00:00.000Z';
 
 export const SECTION_CATALOG = deepFreeze([
   {
@@ -37,6 +37,13 @@ export const SECTION_CATALOG = deepFreeze([
     actions: ['crear una solicitud de licencia', 'consultar la bandeja autorizada', 'enviar un borrador', 'revisar o decidir cuando la sesión tiene esa capacidad'],
     limits: ['la aprobación siempre requiere una decisión humana autorizada', 'no calcula saldos, horas trabajadas ni impacto salarial sin libros y reglas homologados', 'una aprobación en MuniControl no implica aplicación automática en GRH o nómina'],
     aliases: ['acciones', 'centro de acciones', 'solicitud', 'solicitudes', 'tramite interno', 'licencia operativa', 'aprobar licencia'],
+  },
+  {
+    id: 'marcaciones', label: 'Relojes y marcaciones', targetPath: '/relojes-marcaciones',
+    purpose: 'Consultar el inventario municipal de puntos y equipos, y separar ese relevamiento de conectores, lotes y marcaciones efectivamente recibidos.',
+    actions: ['revisar los trece puntos informados', 'consultar equipos y conectores registrados', 'controlar lotes, duplicados y marcaciones sin vínculo', 'verificar si existe recepción física reciente'],
+    limits: ['el inventario no acredita conexión con los aparatos', 'una marcación no calcula por sí sola jornada, presentismo, horas extra ni haberes', 'la plataforma no almacena plantillas biométricas'],
+    aliases: ['relojes', 'marcaciones', 'fichadas', 'huella', 'puntos de marcacion', 'control horario', 'conectores'],
   },
   {
     id: 'administracion', label: 'Administración de plataforma', targetPath: '/administracion-plataforma',
@@ -142,6 +149,11 @@ export const TASK_CATALOG = deepFreeze([
     steps: ['Abrí Centro de acciones.', 'Confirmá el alcance y las capacidades de tu sesión.', 'Elegí el legajo, el motivo y la modalidad por día o por minutos solicitados.', 'Revisá los controles faltantes: el sistema no completa saldos, jornadas ni documentación con supuestos.', 'Enviá la solicitud y seguí su historial.', 'Si te corresponde decidir, verificá evidencia, regla y segregación antes de aprobar o rechazar.'],
   },
   {
+    id: 'revisar_marcaciones', label: 'Revisar relojes y marcaciones', sectionId: 'marcaciones',
+    aliases: ['revisar relojes', 'ver marcaciones', 'ver fichadas', 'controlar reloj', 'ver puntos de marcacion'],
+    steps: ['Abrí Relojes y marcaciones.', 'Diferenciá el inventario reportado del estado operativo informado por el backend.', 'Revisá puntos, equipos y conectores del municipio.', 'Consultá lotes y marcaciones para identificar duplicados, identidades sin vincular o revisiones pendientes.', 'No interpretes una marca como jornada calculada ni impacto en nómina.'],
+  },
+  {
     id: 'explorar_estructura', label: 'Explorar la estructura municipal', sectionId: 'estructura',
     aliases: ['explorar estructura', 'buscar sector', 'buscar organizacion', 'ver organigrama', 'ver cargos'],
     steps: ['Abrí Estructura.', 'Elegí Organizaciones, Sectores o Cargos y catálogos.', 'Usá la búsqueda y el filtro de situación para acotar los grupos.', 'Leé las definiciones de la vista antes de interpretar relaciones jerárquicas.'],
@@ -209,6 +221,7 @@ export const GLOSSARY = deepFreeze([
   { id: 'contrato_mes', label: 'Contrato-mes liquidado', aliases: ['contrato mes', 'contrato-mes', 'legajo mes'], definition: 'Unidad formada por un legajo y un mes con liquidación cerrada. Se usa como denominador comparable de eventos registrados; no equivale a horas trabajadas ni presentismo.', relatedSectionIds: ['gestiones', 'nomina', 'ausentismo'] },
   { id: 'presupuesto_aprobado', label: 'Presupuesto aprobado', aliases: ['presupuesto aprobado', 'credito aprobado', 'presupuesto 2026'], definition: 'Autorización anual de gastos y estimación de recursos y financiamiento fijada por ordenanza. No equivale a ejecución: para medir desvíos hacen falta modificaciones, compromiso, devengado y pagado de una fuente oficial.', relatedSectionIds: ['presupuesto', 'gestiones'] },
   { id: 'caso_administrativo', label: 'Caso administrativo', aliases: ['caso administrativo', 'solicitud administrativa', 'expediente de accion'], definition: 'Unidad operativa con responsable, estado, versión e historial inmutable. Registra decisiones humanas; no modifica por sí sola la fuente GRH ni sustituye un acto administrativo externo.', relatedSectionIds: ['acciones', 'licencias'] },
+  { id: 'marcacion_canonica', label: 'Marcación canónica', aliases: ['marcacion canonica', 'fichada normalizada', 'evento de reloj'], definition: 'Evento recibido de un reloj o archivo autorizado, normalizado e inmutable. Puede quedar sin vínculo o pendiente de revisión y no equivale por sí solo a horas efectivamente trabajadas.', relatedSectionIds: ['marcaciones', 'ausentismo'] },
 ]);
 
 export function getProductGuidanceCatalog() {

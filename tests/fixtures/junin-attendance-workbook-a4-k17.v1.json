@@ -1,0 +1,28 @@
+[
+  [
+    "Código del punto\nOBLIGATORIO",
+    "Nombre del punto\nOBLIGATORIO",
+    "Dirección\nOBLIGATORIO",
+    "Coordenadas (lat, long)",
+    "Áreas que fichan aquí (códigos P1)\nOBLIGATORIO",
+    "Cantidad de agentes\nOBLIGATORIO",
+    "Método de registro actual\nOBLIGATORIO",
+    "Conectividad disponible\nOBLIGATORIO",
+    "Método de fichaje propuesto",
+    "Responsable local (apellido y nombre)",
+    "Observaciones"
+  ],
+  ["PM-01", "Desarrollo Social", "Don Bosco y Sarmiento", "-33.14439944216667, -68.48614413711181", "Desarrollo Social, Prensa", null, "Reloj biométrico existente", "internet Ethernet, con psobilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por red local)"],
+  ["PM-02", "Compras y Suministros", "salvador gonzalez y san martin", "-33.144667, -68.484850", "Compras, Computos", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  SF300 (Se Extrae las fichadas por red local)"],
+  ["PM-03", "Galpon Municipal", "salvador gonzalez", "-33.149042, -68.486697", "Servicios Publicos, Obras Publicas, Inspeccion,Industria,Bromatologia,Archivo,Laboratorio", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por red local)"],
+  ["PM-04", "Delegacion Barriales", "Ruta Provincial 60 - Los Barriales", "-33.0993178633887, -68.57014279903184", "Servicios Publicos", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por red local)"],
+  ["PM-05", "Delegacion La Colonia", "Nuequen 125 - La Colonia", "-33.0934475196115, -68.47779933982788", "Servicios Publicos,Bicentenario,Biblioteca", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por red local)"],
+  ["PM-06", "Polideportivo La Colonia", "La colonia 84 - La colonia", "-33.092452835928455, -68.48031044906291", "Personal de Deportes", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por red local)"],
+  ["PM-07", "Parque Dueño del Sol", "Ruta Provincial 60 - Junin", "-33.15851799805642, -68.44681238266608", "Oficina de Licencias, Servicios Publicos, Alarmas Comunitarias", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por pendrivel)"],
+  ["PM-08", "Planta de Reciclado", "Calle Pergamino - Los Barriales", "-33.09098841020135, -68.54537272141366", "Personal de Planta Reciclado", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por pendrivel)"],
+  ["PM-09", "Centro Universitario", "Defensa 57 - La Colonia", "-33.09228804264707, -68.47671970222686", "Personal de Centro Universitario", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20 (Se Extrae las fichadas por pendrivel)"],
+  ["PM-10", "Edificio Viejo", "San Martin 15 - Junin", "-33.14441767252901, -68.48566284468338", "Obras Publicas,Obras Privadas.Hcd,Vivienda,Recursos Fisicos", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20(Se Extrae las fichadas por red local)"],
+  ["PM-11", "Galpon Parque", "Parque Sueños del Sol", "-33.15656319761986, -68.44216169371639", "Choferes, Serenos,Personal Servicios Publicos", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  MB360(Se Extrae las fichadas por pendrivel)"],
+  ["PM-12", "Delegacion de Philipps", "Marcelo T. Alvear - Philipps", "-33.20434501321217, -68.37620199308803", "Servicios Publicos, Delegada", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20(Se Extrae las fichadas por pendrivel)"],
+  ["PM-13", "Delegacion Medrano", "Independencia - Medrano", "-33.17467673501977, -68.61642617269332", "Servicios Publicos, Administrativo Delegacion", null, "Reloj biométrico existente", "internet Ethernet, con posibilidad de poner wifi", "Reloj biométrico fijo", null, "reloj marca ZKTeco modelo  K20(Se Extrae las fichadas por pendrivel)"]
+]

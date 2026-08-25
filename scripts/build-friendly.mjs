@@ -20,6 +20,7 @@ const shellFiles = [
   'control-horario-homologacion.html',
   'attendance-policy-candidates.v1.json',
   'fuentes-tiempo.html',
+  'relojes-marcaciones.html',
   'administracion-plataforma.html',
   'estructura.html',
   'integracion-datos.html',

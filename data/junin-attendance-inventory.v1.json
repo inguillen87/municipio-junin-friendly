@@ -1,0 +1,49 @@
+{
+  "contractVersion": "junin-attendance-inventory.v1",
+  "tenantSlug": "junin-mendoza",
+  "timezone": "America/Argentina/Mendoza",
+  "source": {
+    "kind": "municipal_workbook",
+    "fileName": "P3-PUNTOS DE MARCACION.xlsx",
+    "sha256": "2897feadc03e15c7246f126556d76de7231b9f651975cc15c0c889d9bb2470b9",
+    "sheet": "Hoja1",
+    "range": "A4:K17",
+    "rangeSha256": "284f0db6b01f13d73c5ccaec63a0400800cff9e3b36046d2ca6ffa7549c337dd",
+    "mappingVersion": "junin-attendance-workbook-a4-k17.v1",
+    "recordCount": 13,
+    "verificationState": "reported_inventory"
+  },
+  "defaults": {
+    "vendor": "ZKTeco",
+    "deviceKind": "fixed_biometric_clock",
+    "inventoryState": "pending_physical_verification",
+    "networkCapabilities": [],
+    "biometricRetention": "device_or_local_controller_only"
+  },
+  "sites": [
+    {"code":"PM-01","name":"Desarrollo Social","address":"Don Bosco y Sarmiento","latitude":-33.1443994,"longitude":-68.4861441,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-02","name":"Compras y Suministros","address":"Salvador González y San Martín","latitude":-33.1446670,"longitude":-68.4848500,"model":"SF300","reportedExtraction":"network_pull"},
+    {"code":"PM-03","name":"Galpón Municipal","address":"Salvador González","latitude":-33.1490420,"longitude":-68.4866970,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-04","name":"Delegación Barriales","address":"Ruta Provincial 60, Los Barriales","latitude":-33.0993179,"longitude":-68.5701428,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-05","name":"Delegación La Colonia","address":"Neuquén 125, La Colonia","latitude":-33.0934475,"longitude":-68.4777993,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-06","name":"Polideportivo La Colonia","address":"La Colonia 84","latitude":-33.0924528,"longitude":-68.4803104,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-07","name":"Parque Dueño del Sol","address":"Ruta Provincial 60, Junín","latitude":-33.1585180,"longitude":-68.4468124,"model":"K20","reportedExtraction":"removable_media"},
+    {"code":"PM-08","name":"Planta de Reciclado","address":"Calle Pergamino, Los Barriales","latitude":-33.0909884,"longitude":-68.5453727,"model":"K20","reportedExtraction":"removable_media"},
+    {"code":"PM-09","name":"Centro Universitario","address":"Defensa 57, La Colonia","latitude":-33.0922880,"longitude":-68.4767197,"model":"K20","reportedExtraction":"removable_media"},
+    {"code":"PM-10","name":"Edificio Viejo","address":"San Martín 15, Junín","latitude":-33.1444177,"longitude":-68.4856628,"model":"K20","reportedExtraction":"network_pull"},
+    {"code":"PM-11","name":"Galpón Parque","address":"Parque Sueños del Sol","latitude":-33.1565632,"longitude":-68.4421617,"model":"MB360","reportedExtraction":"removable_media"},
+    {"code":"PM-12","name":"Delegación de Philipps","address":"Marcelo T. Alvear, Philipps","latitude":-33.2043450,"longitude":-68.3762020,"model":"K20","reportedExtraction":"removable_media"},
+    {"code":"PM-13","name":"Delegación Medrano","address":"Independencia, Medrano","latitude":-33.1746767,"longitude":-68.6164262,"model":"K20","reportedExtraction":"removable_media"}
+  ],
+  "unresolvedRequiredFields": [
+    "device_serial_number",
+    "device_hardware_id",
+    "firmware_version",
+    "ip_address_or_export_profile",
+    "network_port_and_protocol",
+    "local_responsible",
+    "employee_count",
+    "device_user_identifier_semantics",
+    "approved_geofence_radius_meters"
+  ]
+}

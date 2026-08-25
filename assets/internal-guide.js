@@ -78,6 +78,22 @@
         ['#actionWizard', 'Solicitud de licencia', 'Registra días o minutos solicitados; no infiere horas trabajadas, saldo ni liquidación.']
       ]
     },
+    attendance: {
+      sectionId: 'marcaciones', title: 'Relojes y marcaciones',
+      tour: [
+        ['.truth-strip', 'Estado operativo real', 'Esta franja sólo confirma conexión cuando el backend recibió recientemente un lote de hardware no simulado.'],
+        ['.evidence-panel', 'Inventario municipal', 'Los trece puntos y modelos provienen del relevamiento recibido; todavía no prueban conexión física.'],
+        ['.summary-grid', 'Recepción y pendientes', 'Separá altas lógicas, conectores, eventos, identidades sin vínculo y revisiones pendientes.'],
+        ['.tabs', 'Cinco recursos', 'Consultá puntos, equipos, conectores, marcaciones y lotes sin mezclar sus estados.'],
+        ['#resourcePanel', 'Detalle operativo', 'Cada fila proviene del backend interno y mantiene estado, fuente y trazabilidad.'],
+        ['.feature-grid', 'Límites del cálculo', 'Una fichada recibida no calcula jornada, presentismo, nómina ni almacena la plantilla biométrica.']
+      ],
+      explain: [
+        ['.truth-strip', 'Conexión acreditada', 'Exige conector y reloj físico activos con recepción aceptada dentro de la ventana reciente.'],
+        ['.evidence-panel', 'Relevamiento', 'Conserva lugares, modelos y canal reportado separados de la operación.'],
+        ['#resourcePanel', 'Registros del tenant', 'Muestra únicamente recursos autorizados del municipio activo.']
+      ]
+    },
     platformAdmin: {
       sectionId: 'administracion', title: 'Administración de plataforma',
       tour: [
@@ -215,6 +231,7 @@
   function inferPage() {
     var path = window.location.pathname.toLowerCase();
     if (path.indexOf('centro-acciones') >= 0) return 'actions';
+    if (path.indexOf('relojes-marcaciones') >= 0) return 'attendance';
     if (path.indexOf('administracion-plataforma') >= 0 || path === '/admin') return 'platformAdmin';
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';

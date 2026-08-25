@@ -1,0 +1,12 @@
+{
+  "contractVersion": "attendance-gateway-agent.v1",
+  "endpoint": "https://attendance-gateway.example.invalid/api/attendance-ingest",
+  "tenantId": "00000000-0000-4000-8000-000000000000",
+  "connectorKey": "replace-with-provisioned-connector",
+  "driverKey": "legacy-rel000-fixed-width",
+  "transport": "pull",
+  "deviceExternalKey": "replace-after-physical-verification",
+  "siteExternalKey": "PM-10",
+  "timezone": "America/Argentina/Mendoza",
+  "utcOffsetMinutes": -180
+}

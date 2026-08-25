@@ -12,7 +12,7 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
   assert.match(html, /login\.html\?next=centro-ayuda\.html/);
   assert.match(html, /No modifica permisos|no roles de seguridad/i);
   assert.match(html, /no presume un organigrama normativo/i);
-  assert.equal((html.match(/class="module-card"/g) || []).length, 15);
+  assert.equal((html.match(/class="module-card"/g) || []).length, 16);
   assert.equal((html.match(/class="route-card"/g) || []).length, 6);
   assert.equal((html.match(/data-progress-id=/g) || []).length, 5);
   assert.match(html, /id="assistantHelpLink"/);
@@ -25,9 +25,9 @@ test('el centro de aprendizaje es interno, accesible y no confunde perfiles con 
 });
 
 test('el contrato de aprendizaje cubre la navegación, las tareas y el glosario vigentes', () => {
-  assert.equal(SECTION_CATALOG.length, 15);
-  assert.equal(TASK_CATALOG.length, 13);
-  assert.equal(GLOSSARY.length, 15);
+  assert.equal(SECTION_CATALOG.length, 16);
+  assert.equal(TASK_CATALOG.length, 14);
+  assert.equal(GLOSSARY.length, 16);
   assert.equal(new Set(SECTION_CATALOG.map((section) => section.id)).size, SECTION_CATALOG.length);
   assert.equal(new Set(TASK_CATALOG.map((task) => task.id)).size, TASK_CATALOG.length);
   for (const task of TASK_CATALOG) assert.ok(SECTION_CATALOG.some((section) => section.id === task.sectionId), `tarea huérfana ${task.id}`);
@@ -53,7 +53,7 @@ test('la guía contextual aísla progreso por sesión y cumple el contrato modal
 });
 
 test('todas las vistas internas principales cargan una sola guía compartida', () => {
-  for (const file of ['internal-dashboard.html', 'administracion-plataforma.html', 'centro-acciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
+  for (const file of ['internal-dashboard.html', 'administracion-plataforma.html', 'centro-acciones.html', 'relojes-marcaciones.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'asistente.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html']) {
     const html = read(file);
     assert.equal((html.match(/assets\/internal-guide\.js/g) || []).length, 1, `${file} debe cargar una sola guía`);
     assert.match(html, /data-mc-page=/, `${file} debe declarar su contexto de ayuda`);
