@@ -137,12 +137,45 @@ test('invitacion temporal llega al buzon compartido e identifica usuario, rol y 
     maskedDestination: 's••••d@example.test',
     temporarySharedInbox: true,
     temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+    temporaryRouteExpiryMode: 'scheduled',
   });
   assert.deepEqual(bodies[0].to, ['shared@example.test']);
   assert.match(bodies[0].subject, /hugo@example\.test.*Aprobador final de RRHH.*Municipalidad de Junin/);
   assert.match(bodies[0].text, /Identidad de acceso: Hugo \(hugo@example\.test\)/);
   assert.match(bodies[0].text, /El codigo activa solamente la identidad indicada/);
   assert.match(bodies[0].html, /Entrega temporal autorizada para la muestra/);
+});
+
+test('invitacion compartida admite vigencia manual reversible sin fecha ficticia', async () => {
+  const bodies = [];
+  const manualEnv = {
+    ...ENV,
+    ...TEMPORARY_ROUTE_ENV,
+    IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+      ...JSON.parse(TEMPORARY_ROUTE_ENV.IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG),
+      expiresAt: null,
+    }),
+  };
+  const delivery = createResendInvitationDelivery({
+    env: manualEnv,
+    now: new Date('2099-01-01T00:00:00.000Z'),
+    fetch: async (_url, options) => { bodies.push(JSON.parse(options.body)); return { ok: true }; },
+  });
+  const result = await delivery({
+    ...INPUT,
+    to: 'hugo@example.test',
+    identityEmail: 'hugo@example.test',
+    tenantId: '22222222-2222-4222-8222-222222222222',
+  });
+  assert.deepEqual(result, {
+    accepted: true,
+    maskedDestination: 's••••d@example.test',
+    temporarySharedInbox: true,
+    temporaryRouteExpiresAt: null,
+    temporaryRouteExpiryMode: 'manual',
+  });
+  assert.match(bodies[0].text, /Hasta desactivación manual del responsable de plataforma/);
+  assert.doesNotMatch(bodies[0].text, /undefined|null/);
 });
 
 test('rechaza email, origen, codigo e identificadores ambiguos antes de contactar Resend', async () => {

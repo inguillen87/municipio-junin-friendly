@@ -43,6 +43,7 @@ test('enruta solamente la identidad y el contexto incluidos en la allowlist temp
     maskedRecipient: 's••••d@example.test',
     temporarySharedInbox: true,
     temporaryRouteExpiresAt: CONFIG.expiresAt,
+    temporaryRouteExpiryMode: 'scheduled',
     identityEmail: 'owner@example.test',
     context: 'platform',
     identityLabel: 'Marcelo',
@@ -83,6 +84,33 @@ test('una ruta allowlisted vencida falla cerrado y nunca vuelve silenciosamente 
     && error.reason === 'TEMPORARY_ROUTE_EXPIRED');
 });
 
+test('expiresAt null mantiene la allowlist hasta desactivacion manual explicita', () => {
+  const manual = { ...CONFIG, expiresAt: null };
+  const route = resolveTemporaryEmailRoute({
+    env: envFor(manual), now: new Date('2099-01-01T00:00:00.000Z'),
+    logicalRecipient: 'owner@institution.example', identityEmail: 'owner@example.test',
+  });
+  assert.deepEqual(route, {
+    recipient: 'shared@example.test',
+    maskedRecipient: 's••••d@example.test',
+    temporarySharedInbox: true,
+    temporaryRouteExpiresAt: null,
+    temporaryRouteExpiryMode: 'manual',
+    identityEmail: 'owner@example.test',
+    context: 'platform',
+    identityLabel: 'Marcelo',
+    roleLabel: 'Administrador de plataforma',
+    tenantLabel: 'Administracion global',
+  });
+
+  const disabled = resolveTemporaryEmailRoute({
+    env: envFor(manual, 'false'), now: NOW,
+    logicalRecipient: 'owner@institution.example', identityEmail: 'owner@example.test',
+  });
+  assert.equal(disabled.temporarySharedInbox, false);
+  assert.equal(disabled.recipient, 'owner@institution.example');
+});
+
 test('rechaza ventana mayor a siete dias, duplicados, campos extra y flag ambiguo', () => {
   const invalidConfigurations = [
     envFor({ ...CONFIG, expiresAt: '2026-08-31T01:30:00.001Z' }),
@@ -90,6 +118,7 @@ test('rechaza ventana mayor a siete dias, duplicados, campos extra y flag ambigu
     envFor({ ...CONFIG, extra: true }),
     envFor({ ...CONFIG, recipient: 'shared@localhost' }),
     envFor({ ...CONFIG, routes: [{ ...CONFIG.routes[0], roleLabel: 'Admin\nBcc: attacker' }] }),
+    envFor({ recipient: CONFIG.recipient, routes: CONFIG.routes }),
     envFor(CONFIG, '1'),
   ];
   for (const env of invalidConfigurations) {

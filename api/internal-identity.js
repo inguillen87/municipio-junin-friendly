@@ -428,13 +428,17 @@ function safePreparedEmailMfa(prepared, deliveryAttemptId, flow, secrets) {
 }
 
 function emailMfaResponse(challenge, delivery = null) {
+  const scheduledExpiry = delivery?.temporaryRouteExpiryMode === 'scheduled'
+    && typeof delivery.temporaryRouteExpiresAt === 'string'
+    && Number.isFinite(Date.parse(delivery.temporaryRouteExpiresAt));
+  const manualExpiry = delivery?.temporaryRouteExpiryMode === 'manual'
+    && delivery.temporaryRouteExpiresAt === null;
   const temporary = delivery?.temporarySharedInbox === true
     && typeof delivery.maskedDestination === 'string'
     && delivery.maskedDestination.length >= 5
     && delivery.maskedDestination.length <= 254
     && !/[\u0000-\u001f\u007f]/.test(delivery.maskedDestination)
-    && typeof delivery.temporaryRouteExpiresAt === 'string'
-    && Number.isFinite(Date.parse(delivery.temporaryRouteExpiresAt));
+    && (scheduledExpiry || manualExpiry);
   return {
     id: challenge.id,
     maskedDestination: temporary ? delivery.maskedDestination : challenge.maskedDestination,
@@ -444,6 +448,7 @@ function emailMfaResponse(challenge, delivery = null) {
     ...(temporary ? {
       temporarySharedInbox: true,
       temporaryRouteExpiresAt: delivery.temporaryRouteExpiresAt,
+      temporaryRouteExpiryMode: delivery.temporaryRouteExpiryMode,
     } : {}),
   };
 }

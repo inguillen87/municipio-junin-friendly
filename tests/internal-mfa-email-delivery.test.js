@@ -140,6 +140,7 @@ test('buzon compartido temporal conserva actor, rol y tenant visibles sin cambia
     maskedDestination: 's••••d@example.test',
     temporarySharedInbox: true,
     temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+    temporaryRouteExpiryMode: 'scheduled',
   });
   assert.deepEqual(bodies[0].to, ['shared@example.test']);
   assert.match(bodies[0].subject, /owner@example\.test.*Administrador de plataforma.*Administracion global/);
@@ -147,6 +148,39 @@ test('buzon compartido temporal conserva actor, rol y tenant visibles sin cambia
   assert.match(bodies[0].text, /El codigo inicia solamente la identidad indicada/);
   assert.match(bodies[0].html, /Entrega temporal autorizada para la muestra/);
   assert.doesNotMatch(bodies[0].subject, /persona@example\.test/);
+});
+
+test('buzon compartido con cierre manual no inventa fecha y sigue identificando la cuenta', async () => {
+  const bodies = [];
+  const manualEnv = {
+    ...ENV,
+    ...TEMPORARY_ROUTE_ENV,
+    IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+      ...JSON.parse(TEMPORARY_ROUTE_ENV.IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG),
+      expiresAt: null,
+    }),
+  };
+  const delivery = createResendMfaEmailDelivery({
+    env: manualEnv,
+    now: new Date('2099-01-01T00:00:00.000Z'),
+    fetchImpl: async (_url, options) => { bodies.push(JSON.parse(options.body)); return { ok: true }; },
+  });
+  const result = await delivery.deliver({
+    ...INPUT,
+    expiresAt: '2099-01-01T00:10:00.000Z',
+    identityEmail: 'owner@example.test',
+    tenantId: null,
+  });
+  assert.deepEqual(result, {
+    providerAccepted: true,
+    maskedDestination: 's••••d@example.test',
+    temporarySharedInbox: true,
+    temporaryRouteExpiresAt: null,
+    temporaryRouteExpiryMode: 'manual',
+  });
+  assert.match(bodies[0].text, /Hasta desactivación manual del responsable de plataforma/);
+  assert.doesNotMatch(bodies[0].text, /undefined|null/);
+  assert.match(bodies[0].html, /Hasta desactivación manual del responsable de plataforma/);
 });
 
 test('rechaza payload ambiguo, codigo no numerico, expiracion e inyecciones antes de fetch', async () => {

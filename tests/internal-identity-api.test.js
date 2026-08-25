@@ -396,6 +396,7 @@ test('request_email_mfa informa el buzon compartido temporal sin reemplazar el a
           maskedDestination: 'g•••••••o@example.test',
           temporarySharedInbox: true,
           temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+          temporaryRouteExpiryMode: 'scheduled',
         };
       },
     },
@@ -407,11 +408,62 @@ test('request_email_mfa informa el buzon compartido temporal sin reemplazar el a
   assert.equal(res.statusCode, 202);
   assert.equal(res.payload.challenge.maskedDestination, 'g•••••••o@example.test');
   assert.equal(res.payload.challenge.temporarySharedInbox, true);
+  assert.equal(res.payload.challenge.temporaryRouteExpiryMode, 'scheduled');
   assert.equal(
     res.payload.challenge.temporaryRouteExpiresAt,
     '2026-08-26T01:30:00.000Z',
   );
   assert.doesNotMatch(JSON.stringify(res.payload), /hugo@junin|hugo@municipio/i);
+});
+
+test('request_email_mfa conserva la pista del buzon compartido con cierre manual', async () => {
+  const destination = 'owner@municipio.example';
+  const destinationCiphertext = encryptEmailMfaDestination(
+    destination, SECRETS.emailMfaEncryptionKey,
+    { random: (size) => Buffer.alloc(size, 5) });
+  const destinationHash = hashIdentitySecret(
+    `email-mfa-destination|${destination}`, SECRETS.emailMfaPepper,
+  );
+  const handler = handlerWithQuery(async (sql) => {
+    const rate = successfulRateLimit(sql); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'owner@junin.example', version: 2,
+      requestedTenantId: null,
+    } }];
+    if (sql.includes('tenant_identity_prepare_email_mfa')) return [{ result: {
+      id: EMAIL_CHALLENGE_ID, deliveryAttemptId: KEY,
+      destinationCiphertext, destinationHash,
+      expiresAt: '2026-08-20T15:05:00.000Z', status: 'pending_delivery',
+      flowVersion: 2, version: 1,
+    } }];
+    if (sql.includes('tenant_identity_mark_email_mfa_delivery')) return [{ result: {
+      id: EMAIL_CHALLENGE_ID, status: 'active', version: 2,
+    } }];
+    throw new Error(`consulta no esperada: ${sql}`);
+  }, {
+    mfaEmailDelivery: {
+      isConfigured: () => true,
+      async deliver() {
+        return {
+          providerAccepted: true,
+          maskedDestination: 'g•••••••o@example.test',
+          temporarySharedInbox: true,
+          temporaryRouteExpiresAt: null,
+          temporaryRouteExpiryMode: 'manual',
+        };
+      },
+    },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.payload.challenge.maskedDestination, 'g•••••••o@example.test');
+  assert.equal(res.payload.challenge.temporarySharedInbox, true);
+  assert.equal(res.payload.challenge.temporaryRouteExpiryMode, 'manual');
+  assert.equal(res.payload.challenge.temporaryRouteExpiresAt, null);
+  assert.doesNotMatch(JSON.stringify(res.payload), /owner@junin|owner@municipio/i);
 });
 
 test('request_email_mfa expone cooldown 429 con Retry-After sin contactar al proveedor', async () => {
