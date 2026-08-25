@@ -92,7 +92,8 @@ test('envia texto y HTML municipal accesible y reporta solo aceptacion del prove
   assert.match(body.html, /<html lang="es">/);
   assert.match(body.html, /role="presentation"/);
   assert.match(body.html, /role="article"/);
-  assert.match(body.html, /Entorno de demostración · Junín, Mendoza/);
+  assert.match(body.html, /Plataforma de gestión municipal · Junín, Mendoza/);
+  assert.doesNotMatch(body.html, /Entorno de demostración/i);
   assert.match(body.html, /Administracion de plataforma &amp; RRHH/);
   assert.match(body.html, /482731/);
   assert.doesNotMatch(body.html, /providerAccepted|delivered/i);
