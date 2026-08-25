@@ -898,6 +898,28 @@ test('activacion exige SHA de release y lo vincula a lookup y comando transaccio
   assert.match(lookedUpCodeHash, /^[a-f0-9]{64}$/);
   assert.equal(commandCodeHash, lookedUpCodeHash);
 
+  const explicitSha = 'c'.repeat(40);
+  let explicitLookupRelease = null;
+  const explicit = handlerWithQuery(async (sql, params) => {
+    const rate = successfulRateLimit(sql, params); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) {
+      explicitLookupRelease = params[3];
+      return [{ result: null }];
+    }
+    throw new Error('consulta no esperada');
+  }, {
+    env: {
+      IDENTITY_APP_ORIGIN: ORIGIN,
+      INTERNAL_CERTIFIED_RELEASE_SHA: explicitSha.toUpperCase(),
+      VERCEL_GIT_COMMIT_SHA: explicitSha,
+      NODE_ENV: 'test',
+    },
+  });
+  const explicitRes = response();
+  await explicit(request('begin_activation', { invitationCode: code }), explicitRes);
+  assert.equal(explicitRes.statusCode, 401);
+  assert.equal(explicitLookupRelease, explicitSha);
+
   let queried = false;
   const missing = handlerWithQuery(async () => { queried = true; return []; }, {
     env: { IDENTITY_APP_ORIGIN: ORIGIN, NODE_ENV: 'test' },
@@ -907,6 +929,24 @@ test('activacion exige SHA de release y lo vincula a lookup y comando transaccio
   assert.equal(missingRes.statusCode, 503);
   assert.equal(missingRes.payload.code, 'IDENTITY_RELEASE_NOT_CERTIFIED');
   assert.equal(queried, false);
+
+  let invalidExplicitQueried = false;
+  const invalidExplicit = handlerWithQuery(async () => {
+    invalidExplicitQueried = true;
+    return [];
+  }, {
+    env: {
+      IDENTITY_APP_ORIGIN: ORIGIN,
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'manual-sin-sha',
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      NODE_ENV: 'test',
+    },
+  });
+  const invalidExplicitRes = response();
+  await invalidExplicit(request('begin_activation', { invitationCode: code }), invalidExplicitRes);
+  assert.equal(invalidExplicitRes.statusCode, 503);
+  assert.equal(invalidExplicitRes.payload.code, 'IDENTITY_RELEASE_NOT_CERTIFIED');
+  assert.equal(invalidExplicitQueried, false);
 
   const releaseB = 'b'.repeat(40);
   const mismatch = handlerWithQuery(async (sql, params) => {

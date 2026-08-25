@@ -80,6 +80,43 @@ test('el detalle muestra el siguiente paso y conserva maker-checker desde allowe
   assert.doesNotMatch(commandPanel, /Esta sesión no tiene una decisión habilitada para el estado actual/);
 });
 
+test('el detalle nominal muestra un comprobante con la resolución persistida por el backend', async () => {
+  const html = await read('centro-acciones.html');
+  const normalizeStart = html.indexOf('function normalizeDetail');
+  const normalizeEnd = html.indexOf('function cacheElements', normalizeStart);
+  const normalize = html.slice(normalizeStart, normalizeEnd);
+  const nominalStart = html.indexOf('function renderActionDetail');
+  const nominalEnd = html.indexOf('async function openAction', nominalStart);
+  const nominalDetail = html.slice(nominalStart, nominalEnd);
+  const payrollStart = html.indexOf('function renderPayrollDetail');
+  const payrollEnd = html.indexOf('function overtimeDetailContractValid', payrollStart);
+  const payrollDetail = html.slice(payrollStart, payrollEnd);
+
+  assert.ok(normalizeStart > 0 && normalizeEnd > normalizeStart);
+  assert.match(normalize, /var actors = nominal && base\.type === 'leave_request'/);
+  assert.match(normalize, /var decision = nominal && base\.type === 'leave_request'/);
+  assert.match(normalize, /actors: nominal && base\.type === 'leave_request'/);
+  assert.match(normalize, /decision: nominal && base\.type === 'leave_request'/);
+  assert.match(normalize, /decidedBy: text\(actors\.decidedBy\)/);
+  assert.match(normalize, /reason: text\(decision\.reason\)/);
+  assert.match(normalize, /manualValidationConfirmed: bool\(decision\.manualValidationConfirmed\)/);
+
+  assert.ok(nominalStart > 0 && nominalEnd > nominalStart);
+  assert.match(html, /Comprobante de licencia aprobada/);
+  assert.match(html, /Comprobante de solicitud rechazada/);
+  for (const label of ['Caso', 'Resultado', 'Fecha de decisión', 'Fundamento', 'Estado de evidencia', 'Confirmación humana']) {
+    assert.match(html, new RegExp(`fact\\('${label}'`));
+  }
+  assert.match(html, /fact\(approved \? 'Aprobada por' : 'Rechazada por'/);
+  assert.match(nominalDetail, /renderLeaveDecisionReceipt\(detail\)/);
+  assert.ok(payrollStart > 0 && payrollEnd > payrollStart);
+  assert.doesNotMatch(payrollDetail, /renderLeaveDecisionReceipt|decision\.reason|actors\.decidedBy/);
+
+  assert.match(html, /Licencia aprobada y registrada\.' \+ suffix/);
+  assert.match(html, /Solicitud rechazada y registrada\.' \+ suffix/);
+  assert.match(html, /leaveTransitionSuccessMessage\(next\)/);
+});
+
 test('el script inline del Centro de acciones conserva sintaxis JavaScript válida', async () => {
   const html = await read('centro-acciones.html');
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {

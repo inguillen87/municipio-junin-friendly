@@ -1,6 +1,10 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
+  InternalCertifiedReleaseError,
+  resolveInternalCertifiedReleaseSha,
+} from '../lib/internal-certified-release.js';
+import {
   InternalAdminError,
   applyInternalAdminCommand,
   getInternalAdminView,
@@ -67,13 +71,14 @@ function trustedOrigin(env) {
 }
 
 function certifiedReleaseSha(env) {
-  const value = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
-  if (!/^[a-f0-9]{40}$/.test(value)) {
+  try {
+    return resolveInternalCertifiedReleaseSha(env);
+  } catch (error) {
+    if (!(error instanceof InternalCertifiedReleaseError)) throw error;
     throw new InternalAdminError(
       'INTERNAL_ADMIN_RELEASE_NOT_CERTIFIED', 503, 'La version activa no esta certificada',
     );
   }
-  return value;
 }
 
 function assertSameOrigin(req, env) {

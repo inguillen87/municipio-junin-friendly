@@ -49,7 +49,10 @@ test('la sesion administrada recibe capability, data-plane y SHA de release', as
   const access = await requireCompatibleInternalAccess({
     headers: { cookie: `${IDENTITY_SESSION_COOKIE}=token` },
   }, response(), {
-    env: { VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40) },
+    env: {
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'a'.repeat(40),
+      VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40),
+    },
     secrets: { sessionSecret: 's'.repeat(64) },
     sql: { kind: 'identity' },
     requiredCapabilities: ['assistant.use'],
@@ -63,6 +66,28 @@ test('la sesion administrada recibe capability, data-plane y SHA de release', as
   assert.deepEqual(received.requiredCapabilities, ['assistant.use']);
   assert.equal(received.requireDataPlaneReady, true);
   assert.equal(received.expectedReleaseSha, 'a'.repeat(40));
+});
+
+test('release manual inválido bloquea antes de consultar identidad o DB', async () => {
+  let identityCalls = 0;
+  let sqlCalls = 0;
+  const res = response();
+  const access = await requireCompatibleInternalAccess({
+    headers: { cookie: `${IDENTITY_SESSION_COOKIE}=token` },
+  }, res, {
+    env: {
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'manual-sin-sha',
+      VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40),
+    },
+    requireDataPlaneReady: true,
+    getIdentitySql: async () => { sqlCalls += 1; return {}; },
+    requireManagedAccess: async () => { identityCalls += 1; return {}; },
+  });
+  assert.equal(access, null);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.code, 'IDENTITY_RELEASE_NOT_CERTIFIED');
+  assert.equal(sqlCalls, 0);
+  assert.equal(identityCalls, 0);
 });
 
 test('legacy=false cierra la transicion y distingue una cookie que requiere migracion', async () => {

@@ -1660,10 +1660,9 @@
             && !required.some(function (capability) { return tenantCapabilities.has(capability); });
         });
         document.querySelectorAll('[data-platform-admin]').forEach(function (item) {
-          item.hidden = contract.context !== 'platform'
-            || ![...platformCapabilities].some(function (capability) {
-              return capability.startsWith('platform.');
-            });
+          item.hidden = ![...platformCapabilities].some(function (capability) {
+            return capability.startsWith('platform.');
+          });
         });
       }
 

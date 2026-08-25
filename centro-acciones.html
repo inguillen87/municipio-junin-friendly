@@ -1286,13 +1286,17 @@
         var request = firstObject(row.request, row.payload, row.details);
         var leave = firstObject(row.leave, row.leaveRequest, request.leave, request);
         var nominal = isNominalProjection(base.projection);
+        var timestamps = firstObject(row.timestamps);
+        var actors = nominal && base.type === 'leave_request' ? firstObject(row.actors) : {};
+        var decision = nominal && base.type === 'leave_request' ? firstObject(row.decision) : {};
+        var decidedAt = first(timestamps.decidedAt, row.decidedAt);
         var allowed = nominal ? firstArray(root.allowedCommands, row.allowedCommands, payload && payload.allowedCommands, root.commands, row.commands, payload && payload.commands).map(function (item) { return lower(typeof item === 'object' ? first(item.command, item.id, item.code) : item); }).filter(Boolean) : [];
         var gates = nominal ? firstArray(leave.gates, leave.blockers, row.gates, root.gates, payload && payload.gates).map(function (item) { return text(typeof item === 'object' ? first(item.label, item.message, item.reason, item.code) : item); }).filter(Boolean) : [];
         var overtimePayload = base.type === 'overtime_entry' ? firstObject(row.payload, row.overtime, request) : {};
         var payrollImpact = base.type === 'overtime_entry' ? firstObject(row.payrollImpact) : {};
         var normalized = Object.assign(base, {
           description: nominal ? text(first(row.description, row.note, row.employeeNote, request.employeeNote)) : '',
-          decidedAt: first(row.timestamps && row.timestamps.decidedAt, row.decidedAt),
+          decidedAt: decidedAt,
           leave: {
             mode: lower(first(leave.durationUnit, leave.mode, leave.unit)),
             reasonCode: text(first(leave.reasonCode, leave.leaveTypeCode, leave.typeCode)),
@@ -1311,6 +1315,18 @@
           evidence: nominal ? firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence) : [],
           timeline: nominal ? firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(base.type === 'overtime_entry' ? normalizeOvertimeTimeline : normalizeTimeline) : [],
           allowedCommands: allowed,
+          actors: nominal && base.type === 'leave_request' ? {
+            createdBy: text(actors.createdBy),
+            submittedBy: text(actors.submittedBy),
+            decidedBy: text(actors.decidedBy),
+            cancelledBy: text(actors.cancelledBy)
+          } : null,
+          decision: nominal && base.type === 'leave_request' ? {
+            result: ['approved','rejected'].includes(base.status) ? base.status : '',
+            decidedAt: decidedAt,
+            reason: text(decision.reason),
+            manualValidationConfirmed: bool(decision.manualValidationConfirmed)
+          } : null,
           overtime: base.type === 'overtime_entry' ? {
             workDate: text(overtimePayload.workDate),
             declaredMinutes: integer(overtimePayload.declaredMinutes),
@@ -2152,6 +2168,50 @@
         el.actionDialogBody.setAttribute('aria-busy','false');
       }
 
+      function leaveDecisionOutcome(detail) {
+        var explicit = lower(detail && detail.decision && detail.decision.result);
+        if (explicit === 'approved' || explicit === 'rejected') return explicit;
+        var event = array(detail && detail.timeline).slice().reverse().find(function (item) {
+          return item && (item.eventType === 'approved' || item.eventType === 'rejected');
+        });
+        return event ? event.eventType : '';
+      }
+
+      function leaveDecisionEvidenceLabel(value) {
+        var labels = {
+          pending: 'Pendiente', received: 'Recibida', verified: 'Verificada',
+          not_required: 'No requerida según regla', rejected: 'Rechazada',
+          not_provided: 'No informada por el backend'
+        };
+        var key = lower(value);
+        return labels[key] || (key ? titleCase(key) : 'No informada por el backend');
+      }
+
+      function renderLeaveDecisionReceipt(detail) {
+        var outcome = leaveDecisionOutcome(detail);
+        if (!outcome || !detail.decision || !detail.actors) return null;
+        var approved = outcome === 'approved';
+        var section = create('section','detail-section decision-receipt');
+        section.append(
+          create('h3','',approved ? 'Comprobante de licencia aprobada' : 'Comprobante de solicitud rechazada'),
+          create('p','section-copy','Resolución administrativa informada por el backend para este caso; no representa cálculo ni aplicación en nómina.')
+        );
+        var facts = create('dl','facts');
+        facts.append(
+          fact('Caso',detail.displayId || 'No informado por el backend'),
+          fact('Resultado',statusLabel(outcome)),
+          fact(approved ? 'Aprobada por' : 'Rechazada por',detail.actors.decidedBy || 'No informado por el backend'),
+          fact('Fecha de decisión',formatDateTime(detail.decision.decidedAt)),
+          fact('Fundamento',detail.decision.reason || 'No informado por el backend'),
+          fact('Estado de evidencia',leaveDecisionEvidenceLabel(detail.leave.evidenceStatus)),
+          fact('Confirmación humana',approved
+            ? (detail.decision.manualValidationConfirmed ? 'Sí, registrada' : 'No informada por el backend')
+            : 'No requerida para el rechazo')
+        );
+        section.appendChild(facts);
+        return section;
+      }
+
       function renderActionDetail(detail) {
         if (detail.type === 'overtime_entry') {
           renderOvertimeDetail(detail);
@@ -2167,7 +2227,10 @@
         clear(el.actionDialogBody);
         el.actionDialogBody.dataset.projection = 'nominal';
         var banner = create('div','detail-banner');
-        var bannerCopy = create('div'); bannerCopy.append(create('strong','',detail.title || typeLabel(detail.type)), create('p','',detail.nextAction || detail.stage || 'Próxima acción no informada'));
+        var bannerTitle = detail.status === 'approved'
+          ? 'Licencia aprobada y registrada'
+          : detail.status === 'rejected' ? 'Solicitud rechazada y registrada' : detail.title || typeLabel(detail.type);
+        var bannerCopy = create('div'); bannerCopy.append(create('strong','',bannerTitle), create('p','',detail.nextAction || detail.stage || 'Próxima acción no informada'));
         banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
         el.actionDialogBody.appendChild(banner);
 
@@ -2193,6 +2256,8 @@
         evidenceSection.appendChild(evidenceList); left.appendChild(evidenceSection);
 
         var right = create('div');
+        var decisionReceipt = renderLeaveDecisionReceipt(detail);
+        if (decisionReceipt) right.appendChild(decisionReceipt);
         var control = create('section','detail-section'); control.append(create('h3','','Control administrativo'), create('p','section-copy','La referencia legal orienta el análisis; aprobar constituye una decisión administrativa.'));
         var controlFacts = create('dl','facts'); controlFacts.append(fact('Estado',statusLabel(detail.status)), fact('Etapa',detail.stage || 'No informada'), fact('Política',detail.leave.policyVersionId || 'No informada'), fact('Regla',detail.leave.policyRuleId || 'No informada'), fact('Estado de cálculo',titleCase(detail.leave.calculationStatus)), fact('Evidencia',titleCase(detail.leave.evidenceStatus))); control.appendChild(controlFacts); right.appendChild(control);
 
@@ -2290,6 +2355,15 @@
         form.addEventListener('submit',function(event){event.preventDefault();executeTransition(command,form);}); host.appendChild(form); (reason || form.querySelector('button[type="submit"]')).focus();
       }
 
+      function leaveTransitionSuccessMessage(detail) {
+        var suffix = detail && detail.displayId ? ' Caso ' + detail.displayId + '.' : '';
+        if (detail && detail.status === 'approved') return 'Licencia aprobada y registrada.' + suffix;
+        if (detail && detail.status === 'rejected') return 'Solicitud rechazada y registrada.' + suffix;
+        if (detail && detail.status === 'submitted') return 'Solicitud enviada a revisión.' + suffix;
+        if (detail && (detail.status === 'cancelled' || detail.status === 'canceled')) return 'Solicitud cancelada con trazabilidad.' + suffix;
+        return 'Acción registrada con estado ' + statusLabel(detail && detail.status) + '.' + suffix;
+      }
+
       async function executeTransition(command, form) {
         var detail=state.selected; if(!detail || detail.version===null){toast('El backend no informó la versión esperada. La transición fue bloqueada.','error');return;}
         var overtime=detail.type==='overtime_entry';
@@ -2320,7 +2394,7 @@
         }
         var submit=form.querySelector('button[type="submit"]'); submit.disabled=true; submit.setAttribute('aria-busy','true');
         var transitionRecorded=false;
-        try { await actionCommand('POST',body); transitionRecorded=true; toast(overtime?'Declaración actualizada con trazabilidad.':'Acción registrada con trazabilidad.'); var next=normalizeDetail(await actionGet('detail',{caseType:body.caseType,id:detail.id})); renderActionDetail(next); await loadActions(); }
+        try { await actionCommand('POST',body); transitionRecorded=true; var next=normalizeDetail(await actionGet('detail',{caseType:body.caseType,id:detail.id})); renderActionDetail(next); toast(overtime?'Declaración actualizada con trazabilidad.':leaveTransitionSuccessMessage(next)); await loadActions(); }
         catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else{toast(overtime?overtimeCommandError(error):(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message),'error');if(error.status===409)openAction(detail.id);}}}
         finally{submit.disabled=false;submit.removeAttribute('aria-busy');}
       }

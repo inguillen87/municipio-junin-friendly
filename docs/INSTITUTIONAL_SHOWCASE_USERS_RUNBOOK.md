@@ -18,7 +18,11 @@ El buzón de segundo factor puede ser el mismo temporalmente. Sigue siendo solo 
 - El factor email queda `pending` o `verified` según el estado existente. Con
   `020-email-first-factor-login` verificada, un contexto privilegiado con factor
   email vivo entra al desafío por correo sin exigir enrolar TOTP primero.
-- La configuración del routing temporal de correo es independiente y debe expirar como máximo en siete días.
+- La configuración del routing compartido es independiente. Puede usar una
+  expiración programada o quedar en modo de revocación manual con
+  `expiresAt:null`; en este último caso permanece activa únicamente hasta que
+  un responsable la retire explícitamente de las variables del entorno y
+  vuelva a desplegar.
 
 ## Precondiciones
 

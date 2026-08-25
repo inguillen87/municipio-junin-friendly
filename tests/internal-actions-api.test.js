@@ -430,6 +430,27 @@ test('mutación toma SID/version sólo de access.session y SHA sólo del release
     () => actionMutationSession(baseAccess, { VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) }),
     (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
   );
+  assert.equal(
+    actionMutationSession(baseAccess, {
+      INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA.toUpperCase(),
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+    }).releaseSha,
+    RELEASE_SHA,
+  );
+  assert.throws(
+    () => actionMutationSession(baseAccess, {
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'manual-sin-sha',
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+    }),
+    (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
+  );
+  assert.throws(
+    () => actionMutationSession(baseAccess, {
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'b'.repeat(40),
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+    }),
+    (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
+  );
 });
 
 test('replay de transición conserva éxito y marca la respuesta', async () => {

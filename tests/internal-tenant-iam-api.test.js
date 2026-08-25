@@ -134,6 +134,37 @@ test('GET bootstrap expone el contrato esperado sin confiar en el rol del cookie
   assert.equal(res.headers.Vary, 'Cookie');
 });
 
+test('administración usa el release explícito de un deployment manual', async () => {
+  let receivedRelease = null;
+  const handler = createInternalAdminHandler(dependencies({
+    env: {
+      NODE_ENV: 'test',
+      INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA.toUpperCase(),
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+    },
+    getInternalAdminView: async (_sql, _session, _resource, _limit, options) => {
+      receivedRelease = options.releaseSha;
+      return { tenants: [], roles: [], allowedCommands: [], controls: {} };
+    },
+  }));
+  const res = response();
+  await handler({ method: 'GET', headers: {}, query: { resource: 'bootstrap' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(receivedRelease, RELEASE_SHA);
+
+  const invalid = createInternalAdminHandler(dependencies({
+    env: {
+      NODE_ENV: 'test',
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'manual-sin-sha',
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+    },
+  }));
+  const invalidRes = response();
+  await invalid({ method: 'GET', headers: {}, query: { resource: 'bootstrap' } }, invalidRes);
+  assert.equal(invalidRes.statusCode, 503);
+  assert.equal(invalidRes.payload.code, 'INTERNAL_ADMIN_RELEASE_NOT_CERTIFIED');
+});
+
 test('administración global exige contexto Plataforma aunque el usuario conserve capabilities globales', async () => {
   let sqlCalls = 0;
   const handler = createInternalAdminHandler(dependencies({

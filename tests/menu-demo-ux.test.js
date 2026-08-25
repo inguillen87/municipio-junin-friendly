@@ -40,14 +40,23 @@ test('Actualizar sólo anuncia éxito cuando todas las consultas necesarias lo c
   assert.doesNotMatch(refresh, /Actualización finalizada/);
 });
 
-test('el portal filtra el menú por capacidades y no ofrece Administración fuera de Plataforma', () => {
+test('el portal ofrece Administración con capacidad global aun desde un tenant', () => {
   const html = parseInlineScripts('internal-dashboard.html');
+  const admin = parseInlineScripts('administracion-plataforma.html');
   const auth = read('api/internal-auth.js');
   assert.match(html, /data-platform-admin href="administracion-plataforma\.html"/);
   assert.match(html, /data-any-capability="workforce\.employee\.read"/);
   assert.match(html, /function applyNavigationAccess\(access\)/);
-  assert.match(html, /contract\.context !== 'platform'/);
-  assert.match(html, /capability\.startsWith\('platform\.'\)/);
+  const start = html.indexOf('function applyNavigationAccess(access)');
+  const end = html.indexOf('\n      function detailRequestFromLocation', start);
+  assert.ok(start > 0 && end > start, 'debe existir el gate de navegación por capacidades');
+  const navigationGate = html.slice(start, end);
+  assert.match(navigationGate, /platformCapabilities/);
+  assert.match(navigationGate, /capability\.startsWith\('platform\.'\)/);
+  assert.doesNotMatch(navigationGate, /contract\.context !== 'platform'/);
+  assert.match(admin, /function switchToPlatformContext\(\)/);
+  assert.match(admin, /postIdentityCommand\('switch_context', \{ context: \{ kind: 'platform' \} \}/);
+  assert.match(admin, /if \(!state\.identityAccess\.platformContext \|\| !state\.identityAccess\.mfa \|\| !state\.identityAccess\.canAdminPlatform\)/);
   assert.match(auth, /platformCapabilities/);
   assert.match(auth, /tenantCapabilities/);
 });

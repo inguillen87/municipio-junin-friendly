@@ -1,5 +1,9 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import {
+  InternalCertifiedReleaseError,
+  resolveInternalCertifiedReleaseSha,
+} from '../lib/internal-certified-release.js';
 import { capabilitiesForActionCenter } from '../lib/internal-resource-access.js';
 import { publicPrincipal } from '../lib/internal-rbac.js';
 import {
@@ -38,7 +42,6 @@ const CASE_TYPES = new Set([CASE_TYPE, OVERTIME_CASE_TYPE, TIME_SOURCE_CASE_TYPE
 const MUTATION_METHODS = new Set(['POST', 'PATCH']);
 const ACTIONS_RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RELEASE_SHA_PATTERN = /^[a-f0-9]{40}$/i;
 let cachedActionsDatabaseUrl = null;
 let cachedActionsSqlPromise = null;
 
@@ -197,9 +200,15 @@ export function actionMutationSession(access, env = process.env) {
       || !Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
     fail('ACTION_SESSION_INVALID', 401, 'La sesión operativa ya no es válida');
   }
-  const releaseSha = String(env?.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase();
+  let releaseSha;
+  try {
+    releaseSha = resolveInternalCertifiedReleaseSha(env);
+  } catch (error) {
+    if (!(error instanceof InternalCertifiedReleaseError)) throw error;
+    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada para operar');
+  }
   const certifiedSha = String(access?.principal?.tenant?.certifiedReleaseSha || '').trim().toLowerCase();
-  if (!RELEASE_SHA_PATTERN.test(releaseSha) || releaseSha !== certifiedSha) {
+  if (releaseSha !== certifiedSha) {
     fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada para operar');
   }
   return Object.freeze({
