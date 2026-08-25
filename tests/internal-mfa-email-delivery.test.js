@@ -18,6 +18,18 @@ const INPUT = Object.freeze({
   contextLabel: 'Administracion de plataforma & RRHH',
   idempotencyKey: 'challenge-30000000-0000-4000-8000-000000000001',
 });
+const TEMPORARY_ROUTE_ENV = Object.freeze({
+  IDENTITY_TEMPORARY_SHARED_INBOX_ENABLED: 'true',
+  IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+    recipient: 'shared@example.test',
+    expiresAt: '2026-08-26T01:30:00.000Z',
+    routes: [{
+      identityEmail: 'owner@example.test', context: 'platform',
+      identityLabel: 'Marcelo', roleLabel: 'Administrador de plataforma',
+      tenantLabel: 'Administracion global',
+    }],
+  }),
+});
 
 function deliveryError(reason, retryable = false) {
   return (error) => error instanceof MfaEmailDeliveryError
@@ -110,6 +122,31 @@ test('permite reutilizar el remitente de invitaciones cuando no hay uno especifi
   assert.equal(delivery.isConfigured(), true);
   await delivery.deliver(INPUT);
   assert.equal(bodies[0].from, invitationFrom);
+});
+
+test('buzon compartido temporal conserva actor, rol y tenant visibles sin cambiar la identidad', async () => {
+  const bodies = [];
+  const delivery = createResendMfaEmailDelivery({
+    env: { ...ENV, ...TEMPORARY_ROUTE_ENV }, now: NOW,
+    fetchImpl: async (_url, options) => { bodies.push(JSON.parse(options.body)); return { ok: true }; },
+  });
+  const result = await delivery.deliver({
+    ...INPUT,
+    identityEmail: 'owner@example.test',
+    tenantId: null,
+  });
+  assert.deepEqual(result, {
+    providerAccepted: true,
+    maskedDestination: 's••••d@example.test',
+    temporarySharedInbox: true,
+    temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+  });
+  assert.deepEqual(bodies[0].to, ['shared@example.test']);
+  assert.match(bodies[0].subject, /owner@example\.test.*Administrador de plataforma.*Administracion global/);
+  assert.match(bodies[0].text, /Identidad de acceso: Marcelo \(owner@example\.test\)/);
+  assert.match(bodies[0].text, /El codigo inicia solamente la identidad indicada/);
+  assert.match(bodies[0].html, /Entrega temporal autorizada para la muestra/);
+  assert.doesNotMatch(bodies[0].subject, /persona@example\.test/);
 });
 
 test('rechaza payload ambiguo, codigo no numerico, expiracion e inyecciones antes de fetch', async () => {

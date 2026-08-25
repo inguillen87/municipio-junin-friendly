@@ -427,13 +427,24 @@ function safePreparedEmailMfa(prepared, deliveryAttemptId, flow, secrets) {
   });
 }
 
-function emailMfaResponse(challenge) {
+function emailMfaResponse(challenge, delivery = null) {
+  const temporary = delivery?.temporarySharedInbox === true
+    && typeof delivery.maskedDestination === 'string'
+    && delivery.maskedDestination.length >= 5
+    && delivery.maskedDestination.length <= 254
+    && !/[\u0000-\u001f\u007f]/.test(delivery.maskedDestination)
+    && typeof delivery.temporaryRouteExpiresAt === 'string'
+    && Number.isFinite(Date.parse(delivery.temporaryRouteExpiresAt));
   return {
     id: challenge.id,
-    maskedDestination: challenge.maskedDestination,
+    maskedDestination: temporary ? delivery.maskedDestination : challenge.maskedDestination,
     expiresAt: challenge.expiresAt,
     retryAfterSeconds: 45,
     expectedVersion: challenge.challengeVersion,
+    ...(temporary ? {
+      temporarySharedInbox: true,
+      temporaryRouteExpiresAt: delivery.temporaryRouteExpiresAt,
+    } : {}),
   };
 }
 
@@ -728,6 +739,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
           if (flow.purpose === 'login_mfa') {
             return send(res, 202, { ok: true, code: 'MFA_REQUIRED', challenge: {
               flowToken, expectedVersion: flow.version, expiresAt: flow.expiresAt,
+              emailMfaAvailable: flow.emailMfaAvailable === true,
             } });
           }
           const pendingSecret = decryptMfaSecret(flow.mfaSecretCiphertext, secrets.encryptionKey);
@@ -752,6 +764,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
         if (result.mfaRequired) {
           return send(res, 202, { ok: true, code: 'MFA_REQUIRED', challenge: {
             flowToken, expectedVersion: result.version, expiresAt: result.expiresAt,
+            emailMfaAvailable: result.emailMfaAvailable === true,
           } });
         }
         if (result.mfaEnrollmentRequired) {
@@ -881,15 +894,19 @@ export function createInternalIdentityHandler(dependencies = {}) {
           });
         }
         let providerAccepted = false;
+        let deliveryPresentation = null;
         try {
           const delivery = await mfaEmailDelivery.deliver({
             to: prepared.destination, code, expiresAt: prepared.expiresAt,
+            identityEmail: flow.email,
+            tenantId: flow.requestedTenantId || null,
             contextLabel: flow.requestedTenantId
               ? 'Portal interno de la Municipalidad de Junin'
               : 'Administracion de plataforma',
             idempotencyKey: `challenge-${prepared.deliveryAttemptId}`,
           });
           providerAccepted = delivery?.providerAccepted === true;
+          deliveryPresentation = delivery;
           if (!providerAccepted) throw new MfaEmailDeliveryError('PROVIDER_UNAVAILABLE', true);
           const accepted = await markIdentityEmailMfaDelivery(sql, {
             flowHash, deliveryAttemptId, accepted: true,
@@ -920,7 +937,7 @@ export function createInternalIdentityHandler(dependencies = {}) {
         }
         return send(res, 202, {
           ok: true, code: 'EMAIL_MFA_ACCEPTED', replayed: false,
-          challenge: emailMfaResponse(prepared),
+          challenge: emailMfaResponse(prepared, deliveryPresentation),
         });
       }
 
@@ -1201,6 +1218,8 @@ export function createInternalIdentityHandler(dependencies = {}) {
         try {
           await deliverInvitation({
             to: delivery.email, code, expiresAt: result.invitation.delivery.expiresAt,
+            identityEmail: delivery.email,
+            tenantId: delivery.tenant?.id,
             tenantName: delivery.tenant?.name,
             activationUrl: `${trustedOrigin(env)}/activar-cuenta`,
             deliveryAttempt: Object.freeze({

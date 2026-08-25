@@ -152,6 +152,32 @@ test('select_context privilegiado sin factor inicia enrolamiento, no crea sesion
   assert.equal(res.headers['Set-Cookie'], undefined);
 });
 
+test('select_context publica emailMfaAvailable sin exponer destino ni factor', async () => {
+  for (const emailMfaAvailable of [false, true]) {
+    const handler = handlerWithQuery(async (sql, params) => {
+      if (sql.includes('tenant_identity_lookup')) return [{ result: {
+        purpose: 'login_context', status: 'pending', email: 'marcelo@example.test', version: 1,
+      } }];
+      if (sql.includes('tenant_identity_apply_command')) {
+        assert.equal(params[0], 'select_login_context');
+        return [{ result: {
+          mfaRequired: true, emailMfaAvailable,
+          version: 2, expiresAt: '2026-08-20T15:10:00.000Z',
+        } }];
+      }
+      throw new Error('consulta no esperada');
+    });
+    const res = response();
+    await handler(request('select_context', {
+      flowToken: 'f'.repeat(43), context: { kind: 'tenant', tenantId: TENANT_ID },
+    }, { idempotencyKey: KEY, expectedVersion: 1 }), res);
+    assert.equal(res.statusCode, 202);
+    assert.equal(res.payload.code, 'MFA_REQUIRED');
+    assert.equal(res.payload.challenge.emailMfaAvailable, emailMfaAvailable);
+    assert.doesNotMatch(JSON.stringify(res.payload), /destination|ciphertext|factorId/i);
+  }
+});
+
 test('select_context rechaza tenant IDOR y replay consumido de otro proposito', async () => {
   const idor = handlerWithQuery(async (sql) => {
     if (sql.includes('tenant_identity_lookup')) return [{ result: {
@@ -311,7 +337,12 @@ test('request_email_mfa obtiene destino cifrado del servidor, envia OTP y respon
   }, {
     mfaEmailDelivery: {
       isConfigured: () => true,
-      async deliver(input) { deliveries.push(input); return { providerAccepted: true }; },
+      async deliver(input) {
+        assert.equal(input.identityEmail, 'owner@junin.example');
+        assert.equal(input.tenantId, null);
+        deliveries.push(input);
+        return { providerAccepted: true };
+      },
     },
   });
   const res = response();
@@ -328,6 +359,59 @@ test('request_email_mfa obtiene destino cifrado del servidor, envia OTP y respon
   assert.match(deliveries[0].code, /^\d{6}$/);
   assert.doesNotMatch(JSON.stringify(res.payload), /seguridad@municipio|destinationCiphertext|destinationHash/i);
   assert.doesNotMatch(JSON.stringify(res.payload), new RegExp(deliveries[0].code));
+});
+
+test('request_email_mfa informa el buzon compartido temporal sin reemplazar el actor del flow', async () => {
+  const destination = 'hugo@municipio.example';
+  const destinationCiphertext = encryptEmailMfaDestination(
+    destination, SECRETS.emailMfaEncryptionKey,
+    { random: (size) => Buffer.alloc(size, 4) });
+  const destinationHash = hashIdentitySecret(
+    `email-mfa-destination|${destination}`, SECRETS.emailMfaPepper,
+  );
+  const handler = handlerWithQuery(async (sql) => {
+    const rate = successfulRateLimit(sql); if (rate) return rate;
+    if (sql.includes('tenant_identity_lookup')) return [{ result: {
+      purpose: 'login_mfa', status: 'pending', email: 'hugo@junin.example', version: 2,
+      requestedTenantId: TENANT_ID,
+    } }];
+    if (sql.includes('tenant_identity_prepare_email_mfa')) return [{ result: {
+      id: EMAIL_CHALLENGE_ID, deliveryAttemptId: KEY,
+      destinationCiphertext, destinationHash,
+      expiresAt: '2026-08-20T15:05:00.000Z', status: 'pending_delivery',
+      flowVersion: 2, version: 1,
+    } }];
+    if (sql.includes('tenant_identity_mark_email_mfa_delivery')) return [{ result: {
+      id: EMAIL_CHALLENGE_ID, status: 'active', version: 2,
+    } }];
+    throw new Error(`consulta no esperada: ${sql}`);
+  }, {
+    mfaEmailDelivery: {
+      isConfigured: () => true,
+      async deliver(input) {
+        assert.equal(input.identityEmail, 'hugo@junin.example');
+        assert.equal(input.tenantId, TENANT_ID);
+        return {
+          providerAccepted: true,
+          maskedDestination: 'g•••••••o@example.test',
+          temporarySharedInbox: true,
+          temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+        };
+      },
+    },
+  });
+  const res = response();
+  await handler(request('request_email_mfa', { flowToken: 'f'.repeat(43) }, {
+    idempotencyKey: KEY, expectedVersion: 2,
+  }), res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(res.payload.challenge.maskedDestination, 'g•••••••o@example.test');
+  assert.equal(res.payload.challenge.temporarySharedInbox, true);
+  assert.equal(
+    res.payload.challenge.temporaryRouteExpiresAt,
+    '2026-08-26T01:30:00.000Z',
+  );
+  assert.doesNotMatch(JSON.stringify(res.payload), /hugo@junin|hugo@municipio/i);
 });
 
 test('request_email_mfa expone cooldown 429 con Retry-After sin contactar al proveedor', async () => {
@@ -1024,9 +1108,11 @@ test('replay pending menor a 23 horas conserva envio idempotente y confirma', as
       } } }];
     }
     throw new Error('consulta no esperada');
-  }, { deliverInvitation: async ({ deliveryAttempt }) => {
+  }, { deliverInvitation: async ({ deliveryAttempt, identityEmail, tenantId }) => {
     providerCalls += 1;
     assert.equal(deliveryAttempt.id, DELIVERY_ATTEMPT_A);
+    assert.equal(identityEmail, 'persona@example.test');
+    assert.equal(tenantId, TENANT_ID);
   } });
   const res = response();
   await handler(request('issue_invitation', { invitationId: TENANT_ID }, {

@@ -799,6 +799,89 @@ export function validateExistingIdentityMembershipEvidence(evidence) {
   return true;
 }
 
+// Contrato focal y acumulable del perfil creado por 013. A diferencia del
+// verificador historico completo, no congela el inventario global de funciones
+// runtime: migraciones posteriores pueden extenderlo con sus propias ACL
+// exactas. El rol, su catalogo tenant y SoD siguen siendo fail-closed.
+export function validateExistingIdentityMembershipRoleContractEvidence(evidence) {
+  const role = evidence?.role;
+  if (!role || role.roleKey !== 'TENANT_RRHH_ADMIN_OPERATIVO'
+      || role.scopeKind !== 'tenant' || role.systemManaged !== true
+      || !String(role.label || '').trim() || !String(role.description || '').trim()) {
+    throw new Error('rol operativo focal 013 fuera de contrato');
+  }
+  const capabilities = (evidence?.roleCapabilities || []).map(
+    (row) => row.capabilityKey,
+  );
+  exactSet(
+    capabilities,
+    TENANT_RRHH_ADMIN_OPERATIVO_CAPABILITIES,
+    'perfil operativo focal 013',
+  );
+  if (capabilities.length !== TENANT_RRHH_ADMIN_OPERATIVO_CAPABILITIES.length) {
+    throw new Error('perfil operativo focal 013 contiene capacidades duplicadas');
+  }
+  const catalog = Array.isArray(evidence?.catalog) ? evidence.catalog : [];
+  exactSet(
+    catalog.map((row) => row.capabilityKey),
+    TENANT_RRHH_ADMIN_OPERATIVO_CAPABILITIES,
+    'catalogo focal 013',
+  );
+  if (catalog.some((row) => row.scopeKind !== 'tenant')) {
+    throw new Error('catalogo focal 013 incluye capacidad no tenant');
+  }
+  if ((evidence?.conflicts || []).length) {
+    throw new Error('perfil operativo focal 013 contiene conflictos SoD');
+  }
+  return true;
+}
+
+async function collectExistingIdentityMembershipRoleContractEvidence(client) {
+  const role = await client.query(`
+    SELECT role_key AS "roleKey", label, description,
+      scope_kind AS "scopeKind", system_managed AS "systemManaged"
+    FROM public.iam_role
+    WHERE role_key = 'TENANT_RRHH_ADMIN_OPERATIVO'
+  `);
+  const roleCapabilities = await client.query(`
+    SELECT capability_key AS "capabilityKey"
+    FROM public.iam_role_capability
+    WHERE role_key = 'TENANT_RRHH_ADMIN_OPERATIVO'
+    ORDER BY capability_key
+  `);
+  const catalog = await client.query(`
+    SELECT capability_key AS "capabilityKey", scope_kind AS "scopeKind"
+    FROM public.iam_capability
+    WHERE capability_key = ANY($1::varchar[])
+    ORDER BY capability_key
+  `, [TENANT_RRHH_ADMIN_OPERATIVO_CAPABILITIES]);
+  const conflicts = await client.query(`
+    SELECT conflict.capability_key AS "capabilityKey",
+      conflict.conflicts_with_key AS "conflictsWithKey"
+    FROM public.iam_capability_conflict conflict
+    JOIN public.iam_role_capability left_grant
+      ON left_grant.role_key = 'TENANT_RRHH_ADMIN_OPERATIVO'
+     AND left_grant.capability_key = conflict.capability_key
+    JOIN public.iam_role_capability right_grant
+      ON right_grant.role_key = left_grant.role_key
+     AND right_grant.capability_key = conflict.conflicts_with_key
+    ORDER BY conflict.capability_key, conflict.conflicts_with_key
+  `);
+  return {
+    role: rows(role)[0] || null,
+    roleCapabilities: rows(roleCapabilities),
+    catalog: rows(catalog),
+    conflicts: rows(conflicts),
+  };
+}
+
+export async function verifyExistingIdentityMembershipRoleContract(client) {
+  validateExistingIdentityMembershipRoleContractEvidence(
+    await collectExistingIdentityMembershipRoleContractEvidence(client),
+  );
+  return true;
+}
+
 async function collectEvidence(client) {
   const requestColumns = await client.query(`
     SELECT column_name AS name, udt_name AS "udtName",

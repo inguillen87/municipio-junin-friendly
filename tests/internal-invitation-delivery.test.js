@@ -22,6 +22,18 @@ const INPUT = Object.freeze({
     id: '30000000-0000-4000-8000-000000000001',
   }),
 });
+const TEMPORARY_ROUTE_ENV = Object.freeze({
+  IDENTITY_TEMPORARY_SHARED_INBOX_ENABLED: 'true',
+  IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+    recipient: 'shared@example.test',
+    expiresAt: '2026-08-26T01:30:00.000Z',
+    routes: [{
+      identityEmail: 'hugo@example.test', context: '22222222-2222-4222-8222-222222222222',
+      identityLabel: 'Hugo', roleLabel: 'Aprobador final de RRHH',
+      tenantLabel: 'Municipalidad de Junin',
+    }],
+  }),
+});
 
 function deliveryError(reason, retryable = false) {
   return (error) => error instanceof InvitationDeliveryError
@@ -105,6 +117,32 @@ test('normaliza timestamps RFC3339 de PostgreSQL con offset y microsegundos', as
   assert.match(bodies[0].html, /2026-08-25T15:00:00\.123Z/);
   assert.match(bodies[1].text, /2026-08-25T18:00:00\.654Z/);
   assert.match(bodies[1].html, /2026-08-25T18:00:00\.654Z/);
+});
+
+test('invitacion temporal llega al buzon compartido e identifica usuario, rol y municipio', async () => {
+  const bodies = [];
+  const delivery = createResendInvitationDelivery({
+    env: { ...ENV, ...TEMPORARY_ROUTE_ENV },
+    now: new Date('2026-08-24T01:30:00.000Z'),
+    fetch: async (_url, options) => { bodies.push(JSON.parse(options.body)); return { ok: true }; },
+  });
+  const result = await delivery({
+    ...INPUT,
+    to: 'hugo@example.test',
+    identityEmail: 'hugo@example.test',
+    tenantId: '22222222-2222-4222-8222-222222222222',
+  });
+  assert.deepEqual(result, {
+    accepted: true,
+    maskedDestination: 's••••d@example.test',
+    temporarySharedInbox: true,
+    temporaryRouteExpiresAt: '2026-08-26T01:30:00.000Z',
+  });
+  assert.deepEqual(bodies[0].to, ['shared@example.test']);
+  assert.match(bodies[0].subject, /hugo@example\.test.*Aprobador final de RRHH.*Municipalidad de Junin/);
+  assert.match(bodies[0].text, /Identidad de acceso: Hugo \(hugo@example\.test\)/);
+  assert.match(bodies[0].text, /El codigo activa solamente la identidad indicada/);
+  assert.match(bodies[0].html, /Entrega temporal autorizada para la muestra/);
 });
 
 test('rechaza email, origen, codigo e identificadores ambiguos antes de contactar Resend', async () => {

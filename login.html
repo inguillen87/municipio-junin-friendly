@@ -1273,9 +1273,12 @@
           var contextEmail = contextFlow.email;
           if (contextResult.enrollment) { setLoading(false, 'Ámbito confirmado. Falta configurar el segundo factor.'); openLoginEnrollment(contextResult.enrollment, contextEmail); return; }
           if (contextResult.challenge) {
-            setLoading(false, 'Ámbito confirmado. Preparando la verificación por correo…');
+            var emailFirstFactor = contextResult.challenge.emailMfaAvailable === true;
+            setLoading(false, emailFirstFactor
+              ? 'Ámbito confirmado. Preparando la verificación por correo…'
+              : 'Ámbito confirmado. Ingresá el código de tu aplicación autenticadora.');
             openMfaStep(contextResult.challenge, contextEmail);
-            await requestEmailMfa({ automatic: true });
+            if (emailFirstFactor) await requestEmailMfa({ automatic: true });
             return;
           }
           completeLogin(contextResult.session, contextEmail);

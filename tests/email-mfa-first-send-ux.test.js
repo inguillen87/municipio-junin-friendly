@@ -74,13 +74,14 @@ function request(key) {
   };
 }
 
-test('Continuar abre MFA y solicita el primer email una sola vez', async () => {
+test('Continuar autoenvia solo cuando el challenge acredita factor email', async () => {
   const source = loginScript();
   const contextStart = source.indexOf('if (contextResult.challenge)');
   const contextEnd = source.indexOf('completeLogin(contextResult.session', contextStart);
   const contextBranch = source.slice(contextStart, contextEnd);
   assert.match(contextBranch, /openMfaStep\(contextResult\.challenge, contextEmail\);/);
-  assert.match(contextBranch, /await requestEmailMfa\(\{ automatic: true \}\);/);
+  assert.match(contextBranch, /contextResult\.challenge\.emailMfaAvailable === true/);
+  assert.match(contextBranch, /if \(emailFirstFactor\) await requestEmailMfa\(\{ automatic: true \}\);/);
   assert.ok(contextBranch.indexOf('openMfaStep') < contextBranch.indexOf('requestEmailMfa'),
     'el formulario de código debe estar abierto antes de iniciar el envío');
   assert.match(source, /async function doLogin\(e\) \{\s*e\.preventDefault\(\);\s*if \(identityLoading\) return;/);
@@ -144,6 +145,60 @@ test('Continuar abre MFA y solicita el primer email una sola vez', async () => {
   assert.equal(context.emailMfaRequestInFlight, false);
   assert.equal(context.usingEmailMfa, true, 'el éxito debe dejar visible el ingreso del código email');
   assert.equal(context.emailMfaRequestKey, null, 'una respuesta cierta cierra el intento idempotente');
+});
+
+test('challenge TOTP-only no dispara email y challenge email-first dispara exactamente uno', async () => {
+  const source = loginScript();
+
+  async function exercise(emailMfaAvailable) {
+    let emailRequests = 0;
+    let opened = 0;
+    const selected = { value: 'platform' };
+    const elements = new Map([
+      ['emailInput', { value: 'owner@example.test' }],
+      ['passInput', { value: 'irrelevante' }],
+    ]);
+    const context = {
+      identityLoading: false,
+      loginEnrollmentFlow: null,
+      loginFlow: null,
+      contextFlow: {
+        token: 'flow-token', version: 1, idempotencyKey: KEY,
+        email: 'owner@example.test',
+        contexts: [{ key: 'platform', kind: 'platform' }],
+      },
+      document: {
+        getElementById(id) { return elements.get(id) || { value: '', focus() {} }; },
+        querySelector(selector) {
+          if (selector.includes('loginContext')) return selected;
+          if (selector === '#btnLogin .button-label') return { textContent: '' };
+          return null;
+        },
+      },
+      hideError() {}, showError(message) { throw new Error(message); }, setLoading() {},
+      async identityRequest(command) {
+        assert.equal(command, 'select_context');
+        return { challenge: {
+          flowToken: 'flow-token', expectedVersion: 2,
+          expiresAt: '2026-08-24T15:05:00.000Z', emailMfaAvailable,
+        } };
+      },
+      openMfaStep() { opened += 1; },
+      async requestEmailMfa(options) {
+        assert.equal(options.automatic, true);
+        emailRequests += 1;
+      },
+      openLoginEnrollment() {}, completeLogin() {}, identityError: () => 'error',
+      Boolean, Number,
+    };
+    vm.createContext(context);
+    vm.runInContext(functionDeclaration(source, 'doLogin'), context);
+    await context.doLogin({ preventDefault() {} });
+    return { emailRequests, opened };
+  }
+
+  assert.deepEqual(await exercise(false), { emailRequests: 0, opened: 1 });
+  assert.deepEqual(await exercise(true), { emailRequests: 1, opened: 1 });
 });
 
 test('un usuario TOTP-only conserva TOTP y recovery sin error bloqueante', async () => {
