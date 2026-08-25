@@ -33,6 +33,9 @@ database/
 !scripts/migrations/016-email-mfa-retry-idempotency.sql
 !scripts/migrations/017-tenant-action-unlinked-operator.sql
 !scripts/migrations/018-action-center-operational-completion.sql
+!scripts/migrations/019-institutional-access-profiles.sql
+!scripts/migrations/020-email-first-factor-login.sql
+!scripts/migrations/021-platform-owner-operational-integral.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md
@@ -40,6 +43,7 @@ database/
 !docs/CIVITAS_ESUELDOS_EVIDENCE_20260821.md
 !docs/GOVERNED_TENANT_MEMBERSHIP_20260821.md
 !docs/QA_IDENTITY_MEMBERSHIP_20260821.md
+!docs/INSTITUTIONAL_SHOWCASE_USERS_RUNBOOK.md
 data-rrhh/
 prisma/
 css/

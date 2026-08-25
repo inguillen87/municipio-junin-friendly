@@ -41,6 +41,7 @@ const applierUrl = new URL(
   '../scripts/apply-platform-owner-operational-integral-schema.mjs', import.meta.url,
 );
 const packageUrl = new URL('../package.json', import.meta.url);
+const vercelIgnoreUrl = new URL('../.vercelignore', import.meta.url);
 const prerequisiteUrls = {
   membership: new URL(
     '../scripts/migrations/013-existing-identity-membership-governance.sql', import.meta.url,
@@ -53,11 +54,20 @@ const prerequisiteUrls = {
   ),
 };
 
-const [migration, applier, packageSource, prerequisite013, prerequisite019, prerequisite020] =
+const [
+  migration,
+  applier,
+  packageSource,
+  vercelIgnore,
+  prerequisite013,
+  prerequisite019,
+  prerequisite020,
+] =
   await Promise.all([
     readFile(migrationUrl, 'utf8'),
     readFile(applierUrl, 'utf8'),
     readFile(packageUrl, 'utf8'),
+    readFile(vercelIgnoreUrl, 'utf8'),
     readFile(prerequisiteUrls.membership, 'utf8'),
     readFile(prerequisiteUrls.profiles, 'utf8'),
     readFile(prerequisiteUrls.emailFirst, 'utf8'),
@@ -303,6 +313,20 @@ test('aplicador exige pines QA explicitos y conserva el target productivo canoni
     ),
     { databaseUrl, mode: 'production', branchId },
   );
+});
+
+test('Vercel conserva migraciones y runbook requeridos por el build', () => {
+  for (const requiredPath of [
+    'scripts/migrations/019-institutional-access-profiles.sql',
+    'scripts/migrations/020-email-first-factor-login.sql',
+    'scripts/migrations/021-platform-owner-operational-integral.sql',
+    'docs/INSTITUTIONAL_SHOWCASE_USERS_RUNBOOK.md',
+  ]) {
+    assert.match(
+      vercelIgnore,
+      new RegExp(`^!${requiredPath.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`, 'm'),
+    );
+  }
 });
 
 test('gate 021 acredita rama QA, endpoint directo y base antes de conectar', () => {
