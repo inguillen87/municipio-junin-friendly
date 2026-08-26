@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
 import {
-  directCanonicalDatabaseUrl,
+  resolveCanonicalDatabaseTarget,
 } from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 import {
@@ -802,11 +802,25 @@ async function verifyNoUnledgeredObjects(client) {
   if (rows(result)[0]?.present === true) throw new Error('objetos 022 presentes sin ledger');
 }
 
-export function assertAttendanceDeviceGatewayIsolatedTarget(target) {
-  if (target?.mode !== 'isolated') {
-    throw new Error('el esquema 022 sólo admite un target QA aislado');
+export function resolveAttendanceDeviceGatewayTarget(
+  argv = process.argv,
+  env = process.env,
+) {
+  const args = [...argv];
+  const values = { ...env };
+  const canonicalTarget = resolveCanonicalDatabaseTarget(args, values);
+  if (canonicalTarget.mode === 'production') return canonicalTarget;
+  if (canonicalTarget.mode !== 'isolated') {
+    throw new Error('el esquema 022 sólo admite un target aislado o Producción canónica');
   }
-  return target;
+
+  const isolatedTarget = resolvePlatformOwnerOperationalIntegralTarget(args, values);
+  if (isolatedTarget.mode !== 'isolated'
+      || isolatedTarget.databaseUrl !== canonicalTarget.databaseUrl
+      || !isolatedTarget.branchId) {
+    throw new Error('el target QA cambió durante el preflight canónico');
+  }
+  return isolatedTarget;
 }
 
 async function main() {
@@ -815,12 +829,8 @@ async function main() {
   const fingerprint = attendanceDeviceGatewayFingerprint(migration);
   const statements = splitPostgresStatements(migration);
   const args = process.argv.slice(2);
-  const target = assertAttendanceDeviceGatewayIsolatedTarget(
-    resolvePlatformOwnerOperationalIntegralTarget(args, process.env),
-  );
-  const databaseUrl = directCanonicalDatabaseUrl(args, process.env);
-  if (databaseUrl !== target.databaseUrl) throw new Error('el target canonico cambio durante el preflight');
-  const client = new Client({ connectionString: databaseUrl });
+  const target = resolveAttendanceDeviceGatewayTarget(args, process.env);
+  const client = new Client({ connectionString: target.databaseUrl });
   await client.connect();
   try {
     await client.query('BEGIN');

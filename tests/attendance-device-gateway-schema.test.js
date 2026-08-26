@@ -16,8 +16,8 @@ import {
   ATTENDANCE_DEVICE_GATEWAY_RUNTIME_FUNCTIONS,
   ATTENDANCE_DEVICE_GATEWAY_SIGNATURES,
   ATTENDANCE_DEVICE_GATEWAY_TABLES,
-  assertAttendanceDeviceGatewayIsolatedTarget,
   attendanceDeviceGatewayFingerprint,
+  resolveAttendanceDeviceGatewayTarget,
   validateAttendanceDeviceGatewayEvidence,
   validateAttendanceDeviceGatewayMigrationSql,
 } from '../scripts/apply-attendance-device-gateway-schema.mjs';
@@ -507,9 +507,10 @@ test('aplicador usa ledger, target Neon acreditado, transacción y verificación
     /011-versioned-time-catalog\.sql/,
     /019-institutional-access-profiles\.sql/,
     /021-platform-owner-operational-integral\.sql/,
-    /resolvePlatformOwnerOperationalIntegralTarget\(args, process\.env\)/,
-    /assertAttendanceDeviceGatewayIsolatedTarget/,
-    /directCanonicalDatabaseUrl\(args, process\.env\)/,
+    /resolveCanonicalDatabaseTarget\(args, values\)/,
+    /resolvePlatformOwnerOperationalIntegralTarget\(args, values\)/,
+    /resolveAttendanceDeviceGatewayTarget\(args, process\.env\)/,
+    /new Client\(\{ connectionString: target\.databaseUrl \}\)/,
     /SELECT pg_advisory_xact_lock/,
     /await client\.query\('BEGIN'\)/,
     /await client\.query\('COMMIT'\)/,
@@ -520,12 +521,62 @@ test('aplicador usa ledger, target Neon acreditado, transacción y verificación
     /reapply verificado/,
     /fresh apply/,
   ]) assert.match(applier, pattern);
-  const isolated = { mode: 'isolated', databaseUrl: 'postgresql://qa.invalid/db' };
-  assert.equal(assertAttendanceDeviceGatewayIsolatedTarget(isolated), isolated);
+
+  const qaBranchId = 'br-attendance-qa';
+  const qaHost = 'ep-attendance-qa.sa-east-1.aws.neon.tech';
+  const qaDatabaseUrl = `postgresql://operator:secret@${qaHost}/municipio_qa?sslmode=require`;
+  assert.deepEqual(resolveAttendanceDeviceGatewayTarget(['--confirm-isolated-branch'], {
+    DATABASE_URL_UNPOOLED: qaDatabaseUrl,
+    CANONICAL_QA_BRANCH_ID: qaBranchId,
+    CANONICAL_QA_HOST: qaHost,
+    CANONICAL_QA_DATABASE: 'municipio_qa',
+  }), {
+    mode: 'isolated', databaseUrl: qaDatabaseUrl, branchId: qaBranchId,
+  });
+
+  const productionBranchId = 'br-attendance-production';
+  const productionHost = 'ep-attendance-production.sa-east-1.aws.neon.tech';
+  const productionDatabaseUrl = `postgresql://operator:secret@${productionHost}/municipio?sslmode=require`;
+  const productionEnv = {
+    DATABASE_URL_UNPOOLED: productionDatabaseUrl,
+    CANONICAL_PRODUCTION_BRANCH_ID: productionBranchId,
+    CANONICAL_PRODUCTION_HOST: productionHost,
+    CANONICAL_PRODUCTION_DATABASE: 'municipio',
+    VERCEL_ENV: 'production',
+  };
+  assert.deepEqual(resolveAttendanceDeviceGatewayTarget([
+    `--confirm-production-branch=${productionBranchId}`,
+  ], productionEnv), {
+    mode: 'production', databaseUrl: productionDatabaseUrl, branchId: productionBranchId,
+  });
+
   assert.throws(
-    () => assertAttendanceDeviceGatewayIsolatedTarget({
-      mode: 'production', databaseUrl: 'postgresql://production.invalid/db',
+    () => resolveAttendanceDeviceGatewayTarget([], productionEnv),
+    /confirm-isolated-branch|confirm-production-branch/,
+  );
+  assert.throws(
+    () => resolveAttendanceDeviceGatewayTarget([
+      '--confirm-production-branch=br-attendance-incorrecta',
+    ], productionEnv),
+    /no coincide con CANONICAL_PRODUCTION_BRANCH_ID/,
+  );
+  assert.throws(
+    () => resolveAttendanceDeviceGatewayTarget([
+      `--confirm-production-branch=${productionBranchId}`,
+    ], {
+      ...productionEnv,
+      DATABASE_URL_UNPOOLED: productionDatabaseUrl.replace('.neon.tech', '-pooler.neon.tech'),
     }),
-    /sólo admite un target QA aislado/,
+    /pooled/,
+  );
+  assert.throws(
+    () => resolveAttendanceDeviceGatewayTarget(['--confirm-isolated-branch'], {
+      ...productionEnv,
+      CANONICAL_QA_BRANCH_ID: qaBranchId,
+      CANONICAL_QA_HOST: productionHost,
+      CANONICAL_QA_DATABASE: 'municipio',
+      VERCEL_ENV: 'preview',
+    }),
+    /coincide con CANONICAL_PRODUCTION_HOST/,
   );
 });
