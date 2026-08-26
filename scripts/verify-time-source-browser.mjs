@@ -282,7 +282,7 @@ async function verifyViewport(browser, config, viewport) {
 
   try {
     await page.goto(config.baseUrl + PAGE_PATH, { waitUntil: 'domcontentloaded' });
-    await page.locator('h1').getByText('Fuentes de tiempo').waitFor({ state: 'visible' });
+    await page.locator('h1').getByText('Tiempo y marcaciones').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.requirement').count(), 5, 'TIME_SOURCE_BROWSER_REQUIREMENTS_INVALID');
     assert.equal(await page.locator('#evaluationReady').innerText(), 'No');
     assert.equal(await page.locator('#payrollCalculated').innerText(), 'No');
