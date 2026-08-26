@@ -114,9 +114,52 @@ export const ATTENDANCE_DEVICE_GATEWAY_FUNCTION_SOURCE_HASHES = Object.freeze(
   })),
 );
 
+function tableDefinitionFromMigration(sql, table) {
+  const start = String(sql).indexOf(`CREATE TABLE IF NOT EXISTS ${table} (`);
+  const end = String(sql).indexOf('\n);', start);
+  if (start < 0 || end < 0) throw new Error(`tabla 022 no parseable ${table}`);
+  return String(sql).slice(start, end);
+}
+
+function inlineForeignKeyName(tableName, columnName) {
+  const name = `${tableName}_${columnName}_fkey`;
+  if (Buffer.byteLength(name, 'utf8') > 63) {
+    throw new Error(`FK inline 022 requiere CONSTRAINT explícita ${tableName}.${columnName}`);
+  }
+  return name;
+}
+
+function inlineForeignKeysFromMigration(sql) {
+  const result = [];
+  const names = new Set();
+  for (const tableName of ATTENDANCE_DEVICE_GATEWAY_TABLES) {
+    const definition = tableDefinitionFromMigration(sql, tableName);
+    for (const match of definition.matchAll(
+      /^\s*(?!CONSTRAINT\b)([a-z0-9_]+)\s+[^,\n]*?\bREFERENCES\s+([a-z0-9_]+)\s*\(([^)]+)\)\s+ON\s+DELETE\s+RESTRICT\s*,?\s*$/gim,
+    )) {
+      const columnName = match[1].toLowerCase();
+      const name = inlineForeignKeyName(tableName, columnName);
+      if (names.has(name)) throw new Error(`FK inline 022 duplicada ${name}`);
+      names.add(name);
+      result.push(Object.freeze({
+        name,
+        tableName,
+        columnName,
+        referencedTable: match[2].toLowerCase(),
+        referencedColumns: match[3].replace(/\s+/g, ' ').trim().toLowerCase(),
+      }));
+    }
+  }
+  return Object.freeze(result);
+}
+
+const ATTENDANCE_DEVICE_GATEWAY_INLINE_FOREIGN_KEYS =
+  inlineForeignKeysFromMigration(migrationContractSource);
+
 export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINTS = Object.freeze([
   ...new Set([
     ...ATTENDANCE_DEVICE_GATEWAY_TABLES.map((table) => `${table}_pkey`),
+    ...ATTENDANCE_DEVICE_GATEWAY_INLINE_FOREIGN_KEYS.map(({ name }) => name),
     ...[...migrationContractSource.matchAll(/\bCONSTRAINT\s+(?!IF\b)([a-z0-9_]+)/gi)]
       .map((match) => match[1].toLowerCase()),
   ]),
@@ -125,13 +168,14 @@ export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINTS = Object.freeze([
 function constraintTablesFromMigration(sql) {
   const result = {};
   for (const table of ATTENDANCE_DEVICE_GATEWAY_TABLES) {
-    const start = String(sql).indexOf(`CREATE TABLE IF NOT EXISTS ${table} (`);
-    const end = String(sql).indexOf('\n);', start);
-    if (start < 0 || end < 0) throw new Error(`tabla 022 no parseable ${table}`);
+    const definition = tableDefinitionFromMigration(sql, table);
     result[`${table}_pkey`] = table;
-    for (const match of String(sql).slice(start, end).matchAll(
+    for (const match of definition.matchAll(
       /\bCONSTRAINT\s+([a-z0-9_]+)/gi,
     )) result[match[1].toLowerCase()] = table;
+  }
+  for (const foreignKey of inlineForeignKeysFromMigration(sql)) {
+    result[foreignKey.name] = foreignKey.tableName;
   }
   for (const match of String(sql).matchAll(
     /ALTER\s+TABLE\s+([a-z0-9_]+)\s+ADD\s+CONSTRAINT\s+([a-z0-9_]+)/gi,
@@ -166,6 +210,13 @@ for (const match of migrationContractSource.matchAll(
   DERIVED_CONSTRAINT_DEFINITION_CONTRACTS[match[1].toLowerCase()] = [
     `foreign key (${match[2].replace(/\s+/g, ' ').trim()})`,
     `references ${match[3]}(${match[4].replace(/\s+/g, ' ').trim()})`,
+    'on delete restrict',
+  ];
+}
+for (const foreignKey of ATTENDANCE_DEVICE_GATEWAY_INLINE_FOREIGN_KEYS) {
+  DERIVED_CONSTRAINT_DEFINITION_CONTRACTS[foreignKey.name] = [
+    `foreign key (${foreignKey.columnName})`,
+    `references ${foreignKey.referencedTable}(${foreignKey.referencedColumns})`,
     'on delete restrict',
   ];
 }
@@ -562,7 +613,7 @@ export function validateAttendanceDeviceGatewayEvidence(evidence) {
     ATTENDANCE_DEVICE_GATEWAY_CONSTRAINTS, 'constraints 022');
   for (const constraint of evidence?.constraints || []) {
     const expectedType = constraint.name.endsWith('_pkey') ? 'p'
-      : constraint.name.endsWith('_fk') ? 'f'
+      : constraint.name.endsWith('_fk') || constraint.name.endsWith('_fkey') ? 'f'
         : constraint.name.endsWith('_uk') ? 'u'
           : constraint.name.endsWith('_ck') ? 'c' : null;
     if (!expectedType || constraint.type !== expectedType || constraint.validated !== true

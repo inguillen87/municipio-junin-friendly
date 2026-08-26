@@ -34,6 +34,57 @@ const [migration, applier] = await Promise.all([
   readFile(applierUrl, 'utf8'),
 ]);
 
+const INLINE_FOREIGN_KEY_CONTRACT = Object.freeze({
+  attendance_marking_site_tenant_id_fkey: {
+    tableName: 'attendance_marking_site',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_device_tenant_id_fkey: {
+    tableName: 'attendance_device',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_connector_tenant_id_fkey: {
+    tableName: 'attendance_connector',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_identity_map_tenant_id_fkey: {
+    tableName: 'attendance_identity_map',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_identity_map_employment_contract_id_fkey: {
+    tableName: 'attendance_identity_map',
+    definition: [
+      'foreign key (employment_contract_id)',
+      'references employment_contract(id)',
+      'on delete restrict',
+    ],
+  },
+  attendance_ingest_batch_tenant_id_fkey: {
+    tableName: 'attendance_ingest_batch',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_raw_event_tenant_id_fkey: {
+    tableName: 'attendance_raw_event',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_canonical_punch_tenant_id_fkey: {
+    tableName: 'attendance_canonical_punch',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+  attendance_canonical_punch_employment_contract_id_fkey: {
+    tableName: 'attendance_canonical_punch',
+    definition: [
+      'foreign key (employment_contract_id)',
+      'references employment_contract(id)',
+      'on delete restrict',
+    ],
+  },
+  attendance_gateway_audit_event_tenant_id_fkey: {
+    tableName: 'attendance_gateway_audit_event',
+    definition: ['foreign key (tenant_id)', 'references platform_tenant(id)', 'on delete restrict'],
+  },
+});
+
 function syntheticEvidence(overrides = {}) {
   const requiredColumns = [
     ['attendance_connector', 'token_sha256'],
@@ -66,7 +117,8 @@ function syntheticEvidence(overrides = {}) {
     constraints: ATTENDANCE_DEVICE_GATEWAY_CONSTRAINTS.map((name) => ({
       name,
       tableName: ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_TABLES[name],
-      type: name.endsWith('_pkey') ? 'p' : name.endsWith('_fk') ? 'f'
+      type: name.endsWith('_pkey') ? 'p'
+        : name.endsWith('_fk') || name.endsWith('_fkey') ? 'f'
         : name.endsWith('_uk') ? 'u' : 'c',
       validated: true,
       definition: (ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[name] || [])
@@ -154,6 +206,21 @@ test('022 fija ocho tablas privadas, ocho capacidades y cuatro fachadas runtime'
   assert.match(attendanceDeviceGatewayFingerprint(migration), /^[a-f0-9]{64}$/);
   assert.equal(validateAttendanceDeviceGatewayMigrationSql(migration), true);
   assert.ok(splitPostgresStatements(migration).length >= 75);
+});
+
+test('deriva exactamente las FK inline con los nombres autogenerados por PostgreSQL', () => {
+  const expectedNames = Object.keys(INLINE_FOREIGN_KEY_CONTRACT).sort();
+  assert.deepEqual(
+    ATTENDANCE_DEVICE_GATEWAY_CONSTRAINTS.filter((name) => name.endsWith('_fkey')).sort(),
+    expectedNames,
+  );
+  for (const [name, contract] of Object.entries(INLINE_FOREIGN_KEY_CONTRACT)) {
+    assert.equal(ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_TABLES[name], contract.tableName);
+    assert.deepEqual(
+      ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[name],
+      contract.definition,
+    );
+  }
 });
 
 test('contrato de ingesta compara el envelope completo antes de insertar', () => {
@@ -493,6 +560,14 @@ test('evidencia final exige tablas tenant-bound, funciones definer, ACL y roles 
   const constraintDrift = syntheticEvidence();
   constraintDrift.constraints.pop();
   assert.throws(() => validateAttendanceDeviceGatewayEvidence(constraintDrift), /constraints 022/);
+  const missingInlineForeignKey = syntheticEvidence();
+  missingInlineForeignKey.constraints = missingInlineForeignKey.constraints.filter(
+    ({ name }) => name !== 'attendance_device_tenant_id_fkey',
+  );
+  assert.throws(
+    () => validateAttendanceDeviceGatewayEvidence(missingInlineForeignKey),
+    /constraints 022 fuera de contrato/,
+  );
   const indexDrift = syntheticEvidence();
   indexDrift.indexes[0].definition = 'CREATE INDEX roto';
   assert.throws(() => validateAttendanceDeviceGatewayEvidence(indexDrift), /indice 022/);
