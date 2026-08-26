@@ -33,7 +33,9 @@ test('relojes muestra cobertura geográfica reportada sin fingir seguimiento ni 
   assert.match(html, /Cobertura y preparación técnica/);
   assert.match(html, /Mapa relativo de puntos reportados/);
   assert.match(html, /No representa ubicación en tiempo real de empleados ni conectividad activa/);
-  assert.equal((html.match(/class="map-point(?: media)?"/g) || []).length, 13);
+  assert.equal((html.match(/<span class="map-point(?: media)?"[^>]*aria-hidden="true">/g) || []).length, 13);
+  assert.doesNotMatch(html, /<button[^>]*class="map-point/);
+  assert.doesNotMatch(html, /\.map-point:focus-visible|cursor:help/);
   for (let index = 1; index <= 13; index += 1) {
     assert.match(html, new RegExp(`PM-${String(index).padStart(2, '0')}`));
   }
@@ -44,6 +46,23 @@ test('relojes muestra cobertura geográfica reportada sin fingir seguimiento ni 
   assert.match(html, /Firmware y protocolo/);
   assert.match(html, /Relevar físicamente un K20 piloto/);
   assert.doesNotMatch(html, /navigator\.geolocation|google\.maps|mapbox|leaflet/i);
+});
+
+test('los sidebars operativos conservan acceso directo a relojes y marcaciones', () => {
+  for (const file of [
+    'estructura.html', 'integracion-datos.html', 'nomina-control.html',
+    'licencias-control.html', 'ausentismo-control.html',
+    'gestion-comparativa.html', 'presupuesto-control.html',
+    'calidad-operativa.html', 'asistente.html',
+  ]) {
+    const html = read(file);
+    const attendanceIndex = html.indexOf('href="relojes-marcaciones.html"');
+    const integrationIndex = html.indexOf('href="integracion-datos.html"');
+    const attendanceLink = html.match(/<a[^>]*href="relojes-marcaciones\.html"[^>]*>[\s\S]*?<\/a>/)?.[0] || '';
+    assert.equal((html.match(/href="relojes-marcaciones\.html"/g) || []).length, 1, file);
+    assert.ok(attendanceIndex > -1 && attendanceIndex < integrationIndex, `${file}: RM debe estar junto y antes de IC`);
+    assert.match(attendanceLink, /Relojes y marcaciones/, file);
+  }
 });
 
 test('el inventario funcional cierra sesión en login en vez de recargar una sesión residual', () => {
