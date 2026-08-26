@@ -30,6 +30,42 @@ test('la página temporal mantiene límites de verdad y cinco requisitos explíc
   assert.doesNotMatch(html, /presentismo calculado|horas aprobadas|importe estimado/i);
 });
 
+test('Tiempo y marcaciones presenta los conteos históricos del manifiesto sin fingir vigencia', () => {
+  const evidence = JSON.parse(read('attendance-readiness-evidence.v1.json'));
+  const sources = new Map(evidence.sources.map((source) => [source.sourceKey, source]));
+  const grh = sources.get('grh_mariadb_backup');
+  const points = sources.get('marking_points');
+
+  assert.equal(evidence.evidenceStatus, 'discovered_not_homologated');
+  assert.equal(evidence.sources.length, 4);
+  assert.equal(points.facts.points, 13);
+  assert.equal(grh.facts.shifts, 30);
+  assert.equal(grh.facts.schedules, 32);
+  assert.equal(grh.facts.punches, 958);
+  assert.equal(grh.facts.attendanceCoverage, 'primarily_2000_2012');
+  assert.equal(evidence.releaseLimits.liveClockConnectorsEnabled, false);
+  assert.equal(evidence.releaseLimits.attendanceMinutesCalculated, false);
+
+  assert.match(html, /<title>Tiempo y marcaciones \| MuniControl<\/title>/);
+  assert.match(html, /aria-current="page"><span class="nav-code">FT<\/span><span>Tiempo y marcaciones<\/span>/);
+  assert.match(html, /<h1>Tiempo y marcaciones<\/h1>/);
+  for (const [key, value] of [
+    ['source-count', evidence.sources.length],
+    ['marking-points', points.facts.points],
+    ['historical-shifts', grh.facts.shifts],
+    ['historical-schedules', grh.facts.schedules],
+    ['historical-punches', grh.facts.punches],
+  ]) assert.match(html, new RegExp(`data-evidence-fact="${key}"[^>]*><strong>${value}<\\/strong>`));
+
+  assert.match(html, /Descubierto · no homologado/);
+  assert.match(html, /cubren principalmente 2000–2012/);
+  assert.match(html, /no prueban relojes conectados, vigencia operativa 2026 ni asistencia calculada/i);
+  assert.match(html, /href="attendance-readiness-evidence\.v1\.json"/);
+  assert.match(html, /href="control-horario-readiness\.html"/);
+  assert.match(html, /href="control-horario-homologacion\.html"/);
+  assert.match(html, /href="relojes-marcaciones\.html"/);
+});
+
 test('el cliente exige la capability tenant exacta y nunca deriva autoridad global', () => {
   assert.match(html, /time\.source\.read/);
   assert.match(html, /time\.source\.propose/);
