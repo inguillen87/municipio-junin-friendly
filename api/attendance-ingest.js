@@ -6,6 +6,10 @@ import {
   normalizeAttendanceIngestRequest,
 } from '../lib/internal-attendance-gateway.js';
 import { TimeDeviceDriverError } from '../lib/internal-time-device-drivers.js';
+import {
+  InternalCertifiedReleaseError,
+  resolveInternalCertifiedReleaseSha,
+} from '../lib/internal-certified-release.js';
 import { getActionCenterSql } from './internal-actions.js';
 
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -108,9 +112,10 @@ export function createAttendanceIngestHandler(dependencies = {}) {
         registry,
         identityPepper: env?.ATTENDANCE_IDENTITY_PEPPER,
       });
+      const releaseSha = resolveInternalCertifiedReleaseSha(env);
       const sql = await getSql(env);
       const receipt = await ingest(
-        sql, normalized, tokenSha256, String(env?.VERCEL_GIT_COMMIT_SHA || ''),
+        sql, normalized, tokenSha256, releaseSha,
       );
       if (receipt.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return send(res, receipt.replayed ? 200 : 202, { ok: true, ...receipt });
@@ -119,6 +124,13 @@ export function createAttendanceIngestHandler(dependencies = {}) {
       if (safe) {
         if (safe.status === 401) res.setHeader('WWW-Authenticate', 'Bearer realm="attendance-connector"');
         return send(res, safe.status, { ok: false, code: safe.code, error: safe.message });
+      }
+      if (error instanceof InternalCertifiedReleaseError) {
+        return send(res, 503, {
+          ok: false,
+          code: 'ATTENDANCE_RELEASE_NOT_CERTIFIED',
+          error: 'El release de marcaciones no coincide con la versión certificada',
+        });
       }
       if (error?.code === 'ACTION_DATABASE_ROLE_REQUIRED') {
         return send(res, 503, {

@@ -66,6 +66,7 @@ test('los gateways operativos consumen el resolver único y no leen metadata Git
     'api/internal-admin.js',
     'api/internal-identity.js',
     'api/internal-actions.js',
+    'api/attendance-ingest.js',
     'lib/internal-access-gateway.js',
   ]) {
     const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');

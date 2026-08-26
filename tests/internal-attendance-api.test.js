@@ -228,6 +228,61 @@ test('endpoint de gateway entrega recibo mínimo y sólo hash del bearer a la DB
   assert.equal(JSON.stringify(res.payload).includes(token), false);
   assert.match(calls[0][2], /^[a-f0-9]{64}$/);
   assert.notEqual(calls[0][2], token);
+  assert.equal(calls[0][3], RELEASE_SHA);
+});
+
+test('gateway usa el release certificado explícito también en deployments manuales', async () => {
+  const calls = [];
+  const handler = createAttendanceIngestHandler(ingestDependencies({
+    env: {
+      INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA,
+      VERCEL_GIT_COMMIT_SHA: undefined,
+    },
+    ingestAttendanceBatch: async (...args) => {
+      calls.push(args);
+      return {
+        batchId: IDEMPOTENCY_ID, status: 'accepted', acceptedCount: 1,
+        duplicateCount: 0, unmappedCount: 1, ambiguousCount: 0, replayed: false,
+      };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST',
+    headers: { authorization: `Bearer ${'m'.repeat(40)}`, 'content-type': 'application/json' },
+    body: { connectorKey: 'gateway-manual', batchKey: 'batch-manual' },
+  }, res);
+  assert.equal(res.statusCode, 202);
+  assert.equal(calls[0][3], RELEASE_SHA);
+});
+
+test('gateway falla cerrado antes de abrir SQL si el release no está certificado', async () => {
+  const cases = [
+    {},
+    { INTERNAL_CERTIFIED_RELEASE_SHA: 'invalido', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    { INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA, VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) },
+  ];
+  for (const env of cases) {
+    let sqlCalls = 0;
+    let ingestCalls = 0;
+    const dependencies = ingestDependencies({
+      getInternalSql: async () => { sqlCalls += 1; return { fake: true }; },
+      ingestAttendanceBatch: async () => { ingestCalls += 1; return {}; },
+    });
+    dependencies.env = { ...env, ATTENDANCE_IDENTITY_PEPPER: 'y'.repeat(40) };
+    const handler = createAttendanceIngestHandler(dependencies);
+    const res = response();
+    await handler({
+      method: 'POST',
+      headers: { authorization: `Bearer ${'r'.repeat(40)}`, 'content-type': 'application/json' },
+      body: { connectorKey: 'gateway-release', batchKey: 'batch-release' },
+    }, res);
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.payload.code, 'ATTENDANCE_RELEASE_NOT_CERTIFIED');
+    assert.equal(sqlCalls, 0);
+    assert.equal(ingestCalls, 0);
+    assert.equal(JSON.stringify(res.payload).includes('INTERNAL_CERTIFIED_RELEASE_SHA'), false);
+  }
 });
 
 test('endpoint de gateway no filtra errores internos del driver', async () => {
