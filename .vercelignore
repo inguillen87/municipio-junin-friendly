@@ -36,6 +36,7 @@ database/
 !scripts/migrations/019-institutional-access-profiles.sql
 !scripts/migrations/020-email-first-factor-login.sql
 !scripts/migrations/021-platform-owner-operational-integral.sql
+!scripts/migrations/022-attendance-device-gateway.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md
@@ -64,6 +65,7 @@ test_prisma.js
 !control-horario-homologacion.html
 !attendance-policy-candidates.v1.json
 !fuentes-tiempo.html
+!relojes-marcaciones.html
 !administracion-plataforma.html
 !datos-personales.html
 !modulos.html

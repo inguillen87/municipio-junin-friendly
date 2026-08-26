@@ -158,6 +158,8 @@ test('la página mantiene accesibilidad y sintaxis de script válida', () => {
 
 test('build, login, navegación y Vercel publican la ruta privada', () => {
   assert.match(read('scripts/build-friendly.mjs'), /'relojes-marcaciones\.html'/);
+  assert.match(read('.vercelignore'), /^!relojes-marcaciones\.html$/m);
+  assert.match(read('.vercelignore'), /^!scripts\/migrations\/022-attendance-device-gateway\.sql$/m);
   assert.match(read('login.html'), /'relojes-marcaciones\.html'/);
   assert.match(read('internal-dashboard.html'), /data-any-capability="attendance\.read" href="relojes-marcaciones\.html"/);
   assert.match(read('centro-acciones.html'), /href="relojes-marcaciones\.html"/);
