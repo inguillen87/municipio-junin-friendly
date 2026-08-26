@@ -221,6 +221,39 @@ for (const foreignKey of ATTENDANCE_DEVICE_GATEWAY_INLINE_FOREIGN_KEYS) {
   ];
 }
 
+const ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS = Object.freeze({
+  attendance_marking_site_label_ck: {
+    columnName: 'label', minimum: 2, maximum: 180, nullable: false,
+  },
+  attendance_marking_site_address_ck: {
+    columnName: 'address_text', minimum: 3, maximum: 300, nullable: true,
+  },
+  attendance_device_model_ck: {
+    columnName: 'model', minimum: 1, maximum: 120, nullable: false,
+  },
+  attendance_device_serial_ck: {
+    columnName: 'serial_number', minimum: 1, maximum: 128, nullable: true,
+  },
+  attendance_device_firmware_ck: {
+    columnName: 'firmware_version', minimum: 1, maximum: 120, nullable: true,
+  },
+  attendance_ingest_batch_key_ck: {
+    columnName: 'batch_key', minimum: 1, maximum: 160, nullable: false,
+  },
+  attendance_raw_event_key_ck: {
+    columnName: 'event_key', minimum: 1, maximum: 160, nullable: false,
+  },
+});
+
+function lengthRangeConstraintTokens({ columnName, minimum, maximum, nullable }) {
+  const expression = `length(btrim(${columnName}))`;
+  return [
+    ...(nullable ? [`${columnName} is null`] : []),
+    `${expression} >= ${minimum}`,
+    `${expression} <= ${maximum}`,
+  ];
+}
+
 export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS = Object.freeze({
   ...DERIVED_CONSTRAINT_DEFINITION_CONTRACTS,
   attendance_marking_site_coordinates_ck: [
@@ -273,12 +306,18 @@ export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS = Object.
     'driver_key', '^[a-z0-9][a-z0-9._-]{2,95}$', '<>', 'simulator',
   ],
   attendance_device_external_ck: ['external_key', '^[a-z0-9][a-z0-9._-]{1,95}$'],
-  attendance_device_firmware_ck: ['firmware_version', 'length(btrim(firmware_version))', '1', '120'],
-  attendance_device_model_ck: ['length(btrim(model))', '1', '120'],
+  attendance_device_firmware_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_device_firmware_ck,
+  ),
+  attendance_device_model_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_device_model_ck,
+  ),
   attendance_device_network_host_ck: ['network_host', 'masklen(network_host)', '32', '128'],
   attendance_device_network_port_ck: ['network_port', '1', '65535'],
   attendance_device_protocol_ck: ['protocol_key', '^[a-z0-9][a-z0-9._-]{1,63}$'],
-  attendance_device_serial_ck: ['serial_number', 'length(btrim(serial_number))', '1', '128'],
+  attendance_device_serial_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_device_serial_ck,
+  ),
   attendance_device_status_ck: ['status', 'draft', 'active', 'offline', 'suspended', 'retired'],
   attendance_device_timezone_ck: ['timezone', '^[A-Za-z]', '/[A-Za-z0-9]'],
   attendance_device_transport_ck: [
@@ -303,11 +342,17 @@ export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS = Object.
   attendance_ingest_batch_hash_ck: [
     'payload_sha256', '^[a-f0-9]{64}$', 'release_sha', '^[a-f0-9]{40}$',
   ],
-  attendance_ingest_batch_key_ck: ['length(btrim(batch_key))', '1', '160'],
+  attendance_ingest_batch_key_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_ingest_batch_key_ck,
+  ),
   attendance_ingest_batch_status_ck: ['status', 'accepted'],
   attendance_marking_site_external_ck: ['external_key', '^[a-z0-9][a-z0-9._-]{1,95}$'],
-  attendance_marking_site_address_ck: ['address_text', 'length(btrim(address_text))', '3', '300'],
-  attendance_marking_site_label_ck: ['length(btrim(label))', '2', '180'],
+  attendance_marking_site_address_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_marking_site_address_ck,
+  ),
+  attendance_marking_site_label_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_marking_site_label_ck,
+  ),
   attendance_marking_site_status_ck: ['status', 'draft', 'active', 'suspended', 'retired'],
   attendance_marking_site_timezone_ck: ['timezone', '^[A-Za-z]', '/[A-Za-z0-9]'],
   attendance_marking_site_transport_ck: ['network_enabled', 'removable_media_enabled'],
@@ -316,7 +361,9 @@ export const ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS = Object.
   attendance_raw_event_hashes_ck: [
     'event_sha256', '^[a-f0-9]{64}$', 'identity_hmac_sha256',
   ],
-  attendance_raw_event_key_ck: ['length(btrim(event_key))', '1', '160'],
+  attendance_raw_event_key_ck: lengthRangeConstraintTokens(
+    ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS.attendance_raw_event_key_ck,
+  ),
   attendance_raw_event_method_ck: [
     'method', 'fingerprint', 'card', 'pin', 'face', 'mobile', 'manual', 'unknown',
   ],
@@ -429,6 +476,25 @@ function requireTokens(label, value, required) {
   const body = normalized(value);
   for (const token of required) {
     if (!body.includes(normalized(token))) throw new Error(`${label} no contiene ${token}`);
+  }
+}
+
+function canonicalLengthRangeConstraint(value) {
+  return normalized(value)
+    .replace(/::(?:character varying|character|bpchar|text)\b/g, '')
+    .replace(/[()\s]/g, '');
+}
+
+function requireLengthRangeConstraint(label, definition, contract) {
+  const { columnName, minimum, maximum, nullable } = contract;
+  const expression = `lengthbtrim${columnName}`;
+  const nullablePrefix = nullable ? `${columnName}isnullor` : '';
+  const accepted = new Set([
+    `check${nullablePrefix}${expression}between${minimum}and${maximum}`,
+    `check${nullablePrefix}${expression}>=${minimum}and${expression}<=${maximum}`,
+  ]);
+  if (!accepted.has(canonicalLengthRangeConstraint(definition))) {
+    throw new Error(`${label} no conserva el rango exacto ${minimum}..${maximum}`);
   }
 }
 
@@ -621,8 +687,18 @@ export function validateAttendanceDeviceGatewayEvidence(evidence) {
           !== ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_TABLES[constraint.name]) {
       throw new Error(`constraint 022 invalida ${constraint.name}`);
     }
-    requireTokens(`constraint 022 ${constraint.name}`, constraint.definition,
-      ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[constraint.name] || []);
+    const lengthRangeContract =
+      ATTENDANCE_DEVICE_GATEWAY_LENGTH_RANGE_CONSTRAINTS[constraint.name];
+    if (lengthRangeContract) {
+      requireLengthRangeConstraint(
+        `constraint 022 ${constraint.name}`,
+        constraint.definition,
+        lengthRangeContract,
+      );
+    } else {
+      requireTokens(`constraint 022 ${constraint.name}`, constraint.definition,
+        ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[constraint.name] || []);
+    }
     if (constraint.name === 'attendance_device_transport_ck'
         && normalized(constraint.definition).includes('simulator')) {
       throw new Error('constraint 022 permite transport simulador');

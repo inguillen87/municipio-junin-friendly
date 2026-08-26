@@ -85,6 +85,23 @@ const INLINE_FOREIGN_KEY_CONTRACT = Object.freeze({
   },
 });
 
+const LENGTH_RANGE_CONSTRAINT_DEFINITIONS = Object.freeze({
+  attendance_marking_site_label_ck: 'CHECK (length(btrim(label)) BETWEEN 2 AND 180)',
+  attendance_marking_site_address_ck:
+    'CHECK (address_text IS NULL OR length(btrim(address_text)) BETWEEN 3 AND 300)',
+  attendance_device_model_ck: 'CHECK (length(btrim(model)) BETWEEN 1 AND 120)',
+  attendance_device_serial_ck:
+    'CHECK (serial_number IS NULL OR length(btrim(serial_number)) BETWEEN 1 AND 128)',
+  attendance_device_firmware_ck:
+    'CHECK (firmware_version IS NULL OR length(btrim(firmware_version)) BETWEEN 1 AND 120)',
+  attendance_ingest_batch_key_ck: 'CHECK (length(btrim(batch_key)) BETWEEN 1 AND 160)',
+  attendance_raw_event_key_ck: 'CHECK (length(btrim(event_key)) BETWEEN 1 AND 160)',
+});
+
+const PG_DEPARSED_FIRMWARE_CONSTRAINT = 'CHECK (((firmware_version IS NULL) '
+  + 'OR ((length(btrim((firmware_version)::text)) >= 1) '
+  + 'AND (length(btrim((firmware_version)::text)) <= 120))))';
+
 function syntheticEvidence(overrides = {}) {
   const requiredColumns = [
     ['attendance_connector', 'token_sha256'],
@@ -121,8 +138,8 @@ function syntheticEvidence(overrides = {}) {
         : name.endsWith('_fk') || name.endsWith('_fkey') ? 'f'
         : name.endsWith('_uk') ? 'u' : 'c',
       validated: true,
-      definition: (ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[name] || [])
-        .join(' '),
+      definition: LENGTH_RANGE_CONSTRAINT_DEFINITIONS[name]
+        || (ATTENDANCE_DEVICE_GATEWAY_CONSTRAINT_DEFINITION_CONTRACTS[name] || []).join(' '),
     })),
     indexes: ATTENDANCE_DEVICE_GATEWAY_INDEXES.map((name) => ({
       name,
@@ -536,6 +553,23 @@ test('validador SQL rechaza expansión sensible, DML canonico y drift de rol', (
       '',
     )),
     /persistencia 022 permite driver simulador/,
+  );
+});
+
+test('acepta casts inocuos del deparser y rechaza debilitar rangos btrim', () => {
+  const postgresDeparsedFirmware = syntheticEvidence();
+  postgresDeparsedFirmware.constraints.find(
+    ({ name }) => name === 'attendance_device_firmware_ck',
+  ).definition = PG_DEPARSED_FIRMWARE_CONSTRAINT;
+  assert.equal(validateAttendanceDeviceGatewayEvidence(postgresDeparsedFirmware), true);
+  const weakenedFirmwareRange = syntheticEvidence();
+  weakenedFirmwareRange.constraints.find(
+    ({ name }) => name === 'attendance_device_firmware_ck',
+  ).definition = 'CHECK (firmware_version IS NULL '
+    + 'OR length(btrim(firmware_version)) BETWEEN 0 AND 120)';
+  assert.throws(
+    () => validateAttendanceDeviceGatewayEvidence(weakenedFirmwareRange),
+    /attendance_device_firmware_ck no conserva el rango exacto 1\.\.120/,
   );
 });
 
