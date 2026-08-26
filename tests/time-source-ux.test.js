@@ -95,6 +95,12 @@ test('el contrato HTTP mantiene filtros allowlisted e idempotencia UUID en body 
   assert.doesNotMatch(html, /event\.(?:actorEmail|actorPersonId|actorMembershipId|reasonHash)/);
 });
 
+test('los errores gobernados del backend conservan su mensaje operativo', () => {
+  assert.match(html, /typeof payload\.error==='string'\?payload\.error/);
+  assert.match(html, /first\(payload\.message,errorMessage\)/);
+  assert.doesNotMatch(html, /payload\.error&&payload\.error\.message\),'La operación fue rechazada\.'/);
+});
+
 test('la UI es accesible y adaptable a desktop y móvil', () => {
   assert.match(html, /min-width:320px/);
   assert.match(html, /@media\(max-width:820px\)/);

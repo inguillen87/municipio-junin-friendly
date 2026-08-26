@@ -3059,17 +3059,17 @@
         els.logoutButton.disabled = true;
         els.logoutButton.setAttribute('aria-busy', 'true');
         try {
-          await requestJSON(AUTH_URL, { method: 'DELETE' });
+          await fetch(AUTH_URL, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }
+          });
+        } catch (_) {
+          /* La salida local continúa aunque la solicitud no llegue a completarse. */
+        } finally {
           sessionStorage.removeItem('mjunin_user');
           redirectToLogin();
-        } catch (error) {
-          if (error instanceof UnauthorizedError) {
-            sessionStorage.removeItem('mjunin_user');
-            return;
-          }
-          els.logoutButton.disabled = false;
-          els.logoutButton.removeAttribute('aria-busy');
-          toast(friendlyNetworkError(error, 'No se pudo cerrar la sesión. Volvé a intentarlo.'), 'error');
         }
       }
 

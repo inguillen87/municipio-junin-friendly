@@ -394,11 +394,19 @@
 
       document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.section)));
       document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.open)));
-      $('logout').addEventListener('click',async()=>{
-        sessionStorage.removeItem('mjunin_user');
-        try{await fetch('/api/internal-auth',{method:'DELETE',credentials:'same-origin'});}catch(_){}
-        location.href='friendly-dashboard.html';
-      });
+      async function logout(){
+        try{
+          await fetch('/api/internal-auth',{
+            method:'DELETE',credentials:'same-origin',cache:'no-store',
+            headers:{Accept:'application/json','Cache-Control':'no-store'}
+          });
+        }catch(_){/* La limpieza local no depende de la disponibilidad de red. */}
+        finally{
+          sessionStorage.removeItem('mjunin_user');
+          window.location.replace('login.html');
+        }
+      }
+      $('logout').addEventListener('click',logout);
       window.addEventListener('hashchange',()=>openSection(location.hash.slice(1),false));
 
       fetch('friendly-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('HTTP '+response.status);return response.json();}).then(payload=>{

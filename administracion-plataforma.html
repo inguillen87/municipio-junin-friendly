@@ -978,6 +978,7 @@
       identityPolicy: { present: false, version: null, dataPlaneReady: false, invitationDeliveryReady: false, sourceBindingId: '' },
       sourceOnboarding: {
         tenantId: '', binding: null, evidence: null, commands: new Set(), error: '', busy: '',
+        recertificationRequired: false,
         bindIdempotencyKey: '', certifyIdempotencyKey: '',
         bindFingerprint: '', certifyFingerprint: ''
       },
@@ -2255,6 +2256,30 @@
         && Boolean(current.evidence.sourceCutoff);
     }
 
+    function sourceReleaseRecertificationReady(error) {
+      return error && error.status === 503
+        && error.code === 'IDENTITY_SOURCE_RELEASE_RECERTIFICATION_REQUIRED'
+        && sourcePolicyReady()
+        && state.identityPolicy.dataPlaneReady === true
+        && state.controls.tenantDataPlaneReady === false
+        && UUID_PATTERN.test(state.identityPolicy.sourceBindingId);
+    }
+
+    function activateSourceReleaseRecovery(error) {
+      if (!sourceReleaseRecertificationReady(error)) return false;
+      state.sourceOnboarding.binding = {
+        id: state.identityPolicy.sourceBindingId,
+        tenantId: state.context.tenantId,
+        sourceSystem: 'GRH',
+        verified: true
+      };
+      state.sourceOnboarding.evidence = null;
+      state.sourceOnboarding.commands = new Set(['certify_data_plane']);
+      state.sourceOnboarding.error = '';
+      state.sourceOnboarding.recertificationRequired = true;
+      return true;
+    }
+
     function sourceBindInputReady() {
       var sourceDatabase = el.sourceDatabase.value.trim();
       var sourceCompanyId = Number(el.sourceCompanyId.value);
@@ -2268,6 +2293,7 @@
       if (state.sourceOnboarding.tenantId === normalizedTenantId) return;
       state.sourceOnboarding = {
         tenantId: normalizedTenantId, binding: null, evidence: null, commands: new Set(), error: '', busy: '',
+        recertificationRequired: false,
         bindIdempotencyKey: '', certifyIdempotencyKey: '',
         bindFingerprint: '', certifyFingerprint: ''
       };
@@ -2287,38 +2313,45 @@
 
       var policyReady = sourcePolicyReady();
       var onboardingError = text(state.sourceOnboarding.error);
-      var alreadyCertified = policyReady && state.identityPolicy.dataPlaneReady === true;
-      var bindingReady = sourceEvidenceReady();
+      var recertificationRequired = state.sourceOnboarding.recertificationRequired === true;
+      var alreadyCertified = policyReady && state.identityPolicy.dataPlaneReady === true && !recertificationRequired;
+      var evidenceReady = sourceEvidenceReady();
+      var certificationSourceReady = evidenceReady || recertificationRequired;
       var bindCommandReady = !onboardingError && policyReady && state.sourceOnboarding.commands.has('bind_source')
         && governanceReady(false) && !state.loading;
       var certifyCommandReady = !onboardingError && policyReady && state.sourceOnboarding.commands.has('certify_data_plane')
         && governanceReady(false) && !state.loading;
-      var currentCommandReady = alreadyCertified || (bindingReady ? certifyCommandReady : bindCommandReady);
-      var bindingLocked = Boolean(onboardingError) || alreadyCertified || bindingReady || state.sourceOnboarding.busy !== '';
+      var currentCommandReady = alreadyCertified || (certificationSourceReady ? certifyCommandReady : bindCommandReady);
+      var bindingLocked = Boolean(onboardingError) || alreadyCertified || certificationSourceReady || state.sourceOnboarding.busy !== '';
       var bindReady = bindCommandReady && !bindingLocked && sourceBindInputReady();
-      var certifyReady = certifyCommandReady && !alreadyCertified && bindingReady
+      var certifyReady = certifyCommandReady && !alreadyCertified && certificationSourceReady
         && state.sourceOnboarding.busy === '' && el.sourceCertifyReason.value.trim().length >= 3;
 
       el.sourceOnboardingGate.classList.toggle('is-blocked', !policyReady || !currentCommandReady);
       el.sourceOnboardingGateTitle.textContent = onboardingError
         ? 'Onboarding no disponible'
+        : (recertificationRequired
+        ? 'Release pendiente de recertificación'
         : (alreadyCertified
         ? 'Plano de datos certificado'
-        : (policyReady && currentCommandReady ? 'Onboarding GRH gobernado' : 'Onboarding bloqueado'));
+        : (policyReady && currentCommandReady ? 'Onboarding GRH gobernado' : 'Onboarding bloqueado')));
       el.sourceOnboardingGateMessage.textContent = onboardingError
         ? onboardingError
+        : (recertificationRequired
+        ? 'La fuente GRH ya estaba certificada, pero el release activo cambió. Confirmá la recertificación para habilitar nuevamente las consultas tenant.'
         : (alreadyCertified
         ? 'La política del tenant informa el plano de datos listo. La entrega de invitaciones conserva su decisión independiente.'
         : (!policyReady
           ? 'El bootstrap no informó una identityPolicy versionada para este gobierno.'
           : (!currentCommandReady
             ? 'El backend no habilitó la transición requerida para esta sesión y esta versión de política.'
-            : 'Vinculá la fuente y revisá la evidencia agregada antes de certificarla explícitamente.')));
+            : 'Vinculá la fuente y revisá la evidencia agregada antes de certificarla explícitamente.'))));
       clear(el.sourceOnboardingFacts);
       el.sourceOnboardingFacts.append(
         pill(policyReady ? 'Política v' + state.identityPolicy.version : 'Política ausente', policyReady ? 'is-ok' : 'is-danger'),
         pill('MFA verificado', 'is-ok'),
         pill('Gestión de tenants', 'is-ok'),
+        pill(recertificationRequired ? 'Release pendiente' : 'Release verificado', recertificationRequired ? 'is-attention' : 'is-ok'),
         pill(state.identityPolicy.invitationDeliveryReady ? 'Entrega informada activa' : 'Entrega no habilitada', state.identityPolicy.invitationDeliveryReady ? 'is-attention' : '')
       );
 
@@ -2327,13 +2360,17 @@
       el.sourceBindGate.classList.toggle('is-ready', bindCommandReady && !bindingLocked);
       el.sourceBindGate.textContent = alreadyCertified
         ? 'El plano de datos ya está certificado; no se permite reemplazar la fuente desde este flujo.'
-        : (bindingReady ? 'Fuente vinculada. Continuá con la revisión del paso 2.'
+        : (certificationSourceReady ? 'Fuente vinculada. Continuá con la revisión del paso 2.'
           : (bindCommandReady ? 'Completá las coordenadas y el motivo para vincular; todavía no se certificará.'
             : 'Falta política versionada o autorización explícita para vincular.'));
 
-      el.sourceEvidenceEmpty.hidden = bindingReady || alreadyCertified;
-      el.sourceEvidence.hidden = !bindingReady;
-      if (bindingReady) {
+      el.sourceEvidenceEmpty.hidden = evidenceReady || alreadyCertified;
+      el.sourceEvidence.hidden = !evidenceReady;
+      if (recertificationRequired) {
+        el.sourceEvidenceEmpty.hidden = false;
+        el.sourceEvidenceEmpty.querySelector('strong').textContent = 'Fuente GRH certificada; release nuevo pendiente';
+        el.sourceEvidenceEmpty.querySelector('p').textContent = 'El backend conserva el binding verificado y volverá a validar versión, tenant, MFA y release al confirmar.';
+      } else if (evidenceReady) {
         el.sourceEvidenceCutoff.textContent = formatDate(state.sourceOnboarding.evidence.sourceCutoff, true);
         el.sourceEvidenceState.textContent = 'Publicada';
         el.sourceEvidenceCount.textContent = state.sourceOnboarding.evidence.contractCount.toLocaleString('es-AR') + ' contratos canónicos';
@@ -2345,14 +2382,16 @@
         el.sourceEvidenceEmpty.querySelector('strong').textContent = 'Sin evidencia vinculada';
         el.sourceEvidenceEmpty.querySelector('p').textContent = 'Completá el paso 1. No se muestran nombres, legajos ni registros individuales.';
       }
-      el.sourceCertifyReason.disabled = alreadyCertified || !bindingReady || state.sourceOnboarding.busy !== '';
+      el.sourceCertifyReason.disabled = alreadyCertified || !certificationSourceReady || state.sourceOnboarding.busy !== '';
       el.sourceCertifySubmit.disabled = !certifyReady;
-      el.sourceCertifyGate.classList.toggle('is-ready', certifyCommandReady && bindingReady && !alreadyCertified);
-      el.sourceCertifyGate.textContent = alreadyCertified
+      el.sourceCertifyGate.classList.toggle('is-ready', certifyCommandReady && certificationSourceReady && !alreadyCertified);
+      el.sourceCertifyGate.textContent = recertificationRequired
+        ? 'Ingresá el motivo del release y confirmá la recertificación. No modifica la fuente GRH ni habilita delivery.'
+        : (alreadyCertified
         ? 'Certificación registrada. Este flujo no habilitó delivery.'
-        : (bindingReady && certifyCommandReady
+        : (evidenceReady && certifyCommandReady
           ? 'Evidencia publicada disponible. Ingresá un motivo independiente y confirmá la certificación.'
-          : 'Primero debe existir una vinculación GRH verificada con evidencia publicada y cantidad positiva.');
+          : 'Primero debe existir una vinculación GRH verificada con evidencia publicada y cantidad positiva.'));
     }
 
     function renderRoleOptions() {
@@ -3136,6 +3175,7 @@
       state.sourceOnboarding.binding = null;
       state.sourceOnboarding.evidence = null;
       state.sourceOnboarding.error = '';
+      state.sourceOnboarding.recertificationRequired = false;
       try {
         var payload = await requestJson(IDENTITY_URL + '?resource=bootstrap');
         if (version !== state.loadVersion) return;
@@ -3156,6 +3196,7 @@
         });
         state.sourceOnboarding.commands = new Set(onboarding.commands);
         state.sourceOnboarding.error = '';
+        state.sourceOnboarding.recertificationRequired = false;
         if (onboarding.validBinding) {
           state.sourceOnboarding.binding = onboarding.binding;
           state.sourceOnboarding.evidence = onboarding.evidence;
@@ -3166,9 +3207,11 @@
           state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] };
           return;
         }
+        if (activateSourceReleaseRecovery(error)) return;
         state.sourceOnboarding.commands = new Set();
         state.sourceOnboarding.binding = null;
         state.sourceOnboarding.evidence = null;
+        state.sourceOnboarding.recertificationRequired = false;
         state.sourceOnboarding.error = error.message || 'El onboarding de fuente no está disponible.';
       }
     }
@@ -3471,6 +3514,7 @@
         state.sourceOnboarding.evidence = result.evidence;
         state.sourceOnboarding.commands = new Set(['certify_data_plane']);
         state.sourceOnboarding.error = '';
+        state.sourceOnboarding.recertificationRequired = false;
         state.identityPolicy = Object.assign({}, state.identityPolicy, {
           present: true,
           version: result.policyVersion,
@@ -3500,7 +3544,10 @@
         showToast('La certificación sigue bloqueada o incompleta.', true);
         return;
       }
-      if (!window.confirm('¿Certificar este plano de datos con la evidencia agregada revisada? Esta acción no habilita invitaciones ni delivery.')) return;
+      var confirmation = state.sourceOnboarding.recertificationRequired
+        ? '¿Recertificar el plano de datos para el release activo? La fuente GRH no cambia y esta acción no habilita invitaciones ni delivery.'
+        : '¿Certificar este plano de datos con la evidencia agregada revisada? Esta acción no habilita invitaciones ni delivery.';
+      if (!window.confirm(confirmation)) return;
       var payload = {
         tenantId: state.context.tenantId,
         sourceBindingId: state.sourceOnboarding.binding.id,
@@ -3526,6 +3573,7 @@
         state.identityPolicy = policy;
         state.sourceOnboarding.commands = new Set();
         state.sourceOnboarding.error = '';
+        state.sourceOnboarding.recertificationRequired = false;
         state.sourceOnboarding.certifyIdempotencyKey = '';
         state.sourceOnboarding.certifyFingerprint = '';
         el.sourceCertifyReason.value = '';

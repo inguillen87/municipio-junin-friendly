@@ -53,7 +53,7 @@ test('panel aparece sólo con contexto tenant y autoridad plataforma MFA explíc
   assert.match(render, /sourcePolicyReady\(\)/);
   assert.match(render, /sourceOnboarding\.commands\.has\('bind_source'\)/);
   assert.match(render, /sourceOnboarding\.commands\.has\('certify_data_plane'\)/);
-  assert.match(render, /currentCommandReady = alreadyCertified \|\| \(bindingReady \? certifyCommandReady : bindCommandReady\)/);
+  assert.match(render, /currentCommandReady = alreadyCertified \|\| \(certificationSourceReady \? certifyCommandReady : bindCommandReady\)/);
   assert.match(render, /sourceBindSubmit\.disabled = !bindReady/);
   assert.match(render, /sourceCertifySubmit\.disabled = !certifyReady/);
 
@@ -68,8 +68,28 @@ test('panel aparece sólo con contexto tenant y autoridad plataforma MFA explíc
   assert.match(html, /state\.sourceOnboarding\.commands = new Set\(\)/);
   assert.doesNotMatch(html, /onboarding\.commands\.forEach[\s\S]+state\.allowedCommands\.add\(command\)/);
   assert.match(html, /state\.sourceOnboarding\.error = error\.message/);
+  assert.match(html, /activateSourceReleaseRecovery\(error\)/);
   assert.match(render, /Onboarding no disponible/);
   assert.match(html, /state\.identityPolicy = Object\.assign\(\{\}, state\.identityPolicy/);
+});
+
+test('un cambio de release conserva una recuperación gobernada desde la UI', () => {
+  const ready = functionSource('sourceReleaseRecertificationReady');
+  assert.match(ready, /IDENTITY_SOURCE_RELEASE_RECERTIFICATION_REQUIRED/);
+  assert.match(ready, /state\.identityPolicy\.dataPlaneReady === true/);
+  assert.match(ready, /state\.controls\.tenantDataPlaneReady === false/);
+  assert.match(ready, /UUID_PATTERN\.test\(state\.identityPolicy\.sourceBindingId\)/);
+
+  const recovery = functionSource('activateSourceReleaseRecovery');
+  assert.match(recovery, /commands = new Set\(\['certify_data_plane'\]\)/);
+  assert.match(recovery, /sourceSystem: 'GRH'/);
+  assert.match(recovery, /recertificationRequired = true/);
+  assert.doesNotMatch(recovery, /sourceDatabase|sourceCompanyId|releaseSha/);
+
+  const render = functionSource('renderSourceOnboarding');
+  assert.match(render, /Release pendiente de recertificación/);
+  assert.match(render, /recertificación para habilitar nuevamente las consultas tenant/);
+  assert.match(render, /No modifica la fuente GRH ni habilita delivery/);
 });
 
 test('vinculación usa contrato exacto, UUIDv4 y versión del bootstrap sin hardcodes municipales', () => {
@@ -101,6 +121,7 @@ test('certificación exige evidencia agregada, versión actualizada y acción hu
 
   const submit = functionSource('submitDataPlaneCertification');
   assert.match(submit, /window\.confirm\(/);
+  assert.match(submit, /Recertificar el plano de datos para el release activo/);
   assert.match(submit, /tenantId: state\.context\.tenantId/);
   assert.match(submit, /sourceBindingId: state\.sourceOnboarding\.binding\.id/);
   assert.match(submit, /reason: el\.sourceCertifyReason\.value\.trim\(\)/);
