@@ -129,8 +129,10 @@ test('la UX no simula fichadas ni expone biometría o seguimiento continuo', () 
   assert.match(html, /no almacena plantillas de huella/i);
   assert.match(html, /No se almacenan/);
   assert.match(html, /no crea fichadas de muestra/i);
-  assert.match(html, /no utiliza datos de ejemplo, mapas externos ni simuladores/i);
-  assert.doesNotMatch(html, /navigator\.geolocation|google\.maps|mapbox|leaflet|type="file"|getUserMedia/i);
+  assert.match(html, /OpenStreetMap aporta sólo el mapa base/i);
+  assert.match(html, /Concentración de puntos \(no personas ni fichadas\)/);
+  assert.match(html, /heatMetric&&payload\.heatMetric!==['"]reported_site_density['"]/);
+  assert.doesNotMatch(html, /navigator\.geolocation|google\.maps|mapbox|type="file"|getUserMedia/i);
   assert.doesNotMatch(html, /localStorage|sessionStorage|document\.cookie|console\./);
   assert.doesNotMatch(html, /Crear marcación|Simular fichada|Conectar ahora/);
 });

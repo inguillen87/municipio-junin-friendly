@@ -17,6 +17,15 @@ const AUTH_PATH = '/api/internal-auth';
 const ATTENDANCE_PATH = '/api/internal-attendance';
 const PAGE_SIZE = 25;
 const PUBLIC_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const LEAFLET_DIST_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'node_modules',
+  'leaflet',
+  'dist',
+);
+const LEAFLET_CSS_PATH = path.join(LEAFLET_DIST_ROOT, 'leaflet.css');
+const LEAFLET_JS_PATH = path.join(LEAFLET_DIST_ROOT, 'leaflet.js');
 const INVENTORY_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
@@ -33,6 +42,11 @@ const STATIC_MIME_TYPES = new Map([
   ['.webmanifest', 'application/manifest+json; charset=utf-8'],
 ]);
 const RESOURCES = Object.freeze(['site', 'device', 'connector', 'punch', 'batch', 'audit']);
+const REPORTED_INVENTORY_RESOURCE = 'reported-inventory';
+const LOCAL_TILE_SVG = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#e7efed"/><path d="M0 64h256M0 128h256M0 192h256M64 0v256M128 0v256M192 0v256" fill="none" stroke="#cad8d6" stroke-width="1"/></svg>',
+  'utf8',
+);
 const FIXTURE = Object.freeze({
   tenantId: '10000000-0000-4000-8000-000000000001',
   membershipId: '20000000-0000-4000-8000-000000000002',
@@ -119,6 +133,33 @@ export function buildAttendanceDeviceBootstrapFixture({ audit = false, manage = 
   };
 }
 
+export function buildAttendanceReportedInventoryFixture() {
+  return {
+    ok: true,
+    resource: REPORTED_INVENTORY_RESOURCE,
+    contract: { version: 'attendance-reported-inventory.v1' },
+    tenantSlug: 'junin-mendoza',
+    timezone: INVENTORY.timezone,
+    source: {
+      kind: INVENTORY.source.kind,
+      status: INVENTORY.source.verificationState,
+      recordCount: INVENTORY.source.recordCount,
+      mappingVersion: INVENTORY.source.mappingVersion,
+    },
+    physicalConnectionConfirmed: false,
+    heatMetric: 'reported_site_density',
+    data: INVENTORY.sites.map((site) => ({
+      code: site.code,
+      name: site.name,
+      address: site.address,
+      latitude: site.latitude,
+      longitude: site.longitude,
+      model: site.model,
+      channel: site.reportedExtraction,
+    })),
+  };
+}
+
 export function buildAttendanceDeviceSiteFixtures() {
   return INVENTORY.sites.map((site, index) => ({
     id: indexedUuid('5', index + 1),
@@ -174,8 +215,11 @@ export function validateAttendanceDeviceApiRequest(request) {
 
   const params = new URLSearchParams(request.search);
   const resource = params.get('resource');
-  assert.ok(RESOURCES.includes(resource) || resource === 'bootstrap', 'ATTENDANCE_DEVICE_BROWSER_RESOURCE_INVALID');
-  if (resource === 'bootstrap') {
+  assert.ok(
+    RESOURCES.includes(resource) || resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE,
+    'ATTENDANCE_DEVICE_BROWSER_RESOURCE_INVALID',
+  );
+  if (resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE) {
     assert.deepEqual([...params.keys()], ['resource'], 'ATTENDANCE_DEVICE_BROWSER_BOOTSTRAP_QUERY_INVALID');
   } else {
     assert.deepEqual(
@@ -368,6 +412,31 @@ function assertExactFixtureContracts() {
     ['hardwareConnected', 'hoursCalculated', 'payrollPosted', 'biometricTemplatesStored'],
     'ATTENDANCE_FEATURES',
   );
+  const reportedInventory = buildAttendanceReportedInventoryFixture();
+  exactKeys(
+    reportedInventory,
+    ['ok', 'resource', 'contract', 'tenantSlug', 'timezone', 'source', 'physicalConnectionConfirmed', 'heatMetric', 'data'],
+    'ATTENDANCE_REPORTED_INVENTORY',
+  );
+  exactKeys(reportedInventory.contract, ['version'], 'ATTENDANCE_REPORTED_INVENTORY_CONTRACT');
+  exactKeys(
+    reportedInventory.source,
+    ['kind', 'status', 'recordCount', 'mappingVersion'],
+    'ATTENDANCE_REPORTED_INVENTORY_SOURCE',
+  );
+  assert.equal(reportedInventory.data.length, 13, 'ATTENDANCE_REPORTED_INVENTORY_COUNT_INVALID');
+  for (const item of reportedInventory.data) {
+    exactKeys(
+      item,
+      ['code', 'name', 'address', 'latitude', 'longitude', 'model', 'channel'],
+      'ATTENDANCE_REPORTED_INVENTORY_SITE',
+    );
+  }
+  assert.doesNotMatch(
+    JSON.stringify(reportedInventory),
+    /email|document|dni|cuil|employee|agent|responsible|principal|serial|firmware|ip_address|sha256/i,
+    'ATTENDANCE_REPORTED_INVENTORY_PII_LEAK',
+  );
   for (const item of buildAttendanceDeviceSiteFixtures()) {
     exactKeys(item, ['id', 'externalKey', 'label', 'addressText', 'timezone', 'latitude', 'longitude', 'geofenceRadiusM', 'networkEnabled', 'removableMediaEnabled', 'status', 'version'], 'ATTENDANCE_SITE');
   }
@@ -379,9 +448,33 @@ function assertExactFixtureContracts() {
   }
 }
 
+function assertReportedCoordinatesNotEmbedded() {
+  const html = fs.readFileSync(path.join(PUBLIC_ROOT, 'relojes-marcaciones.html'), 'utf8');
+  assert.doesNotMatch(
+    html,
+    /data\/junin-attendance-inventory|junin-attendance-inventory\.v1\.json/i,
+    'ATTENDANCE_DEVICE_BROWSER_STATIC_INVENTORY_REFERENCE_FORBIDDEN',
+  );
+  for (const site of INVENTORY.sites) {
+    for (const value of [site.latitude, site.longitude]) {
+      assert.equal(
+        html.includes(String(value)),
+        false,
+        `ATTENDANCE_DEVICE_BROWSER_COORDINATE_EMBEDDED_${site.code}`,
+      );
+      assert.equal(
+        html.includes(Number(value).toFixed(6)),
+        false,
+        `ATTENDANCE_DEVICE_BROWSER_FORMATTED_COORDINATE_EMBEDDED_${site.code}`,
+      );
+    }
+  }
+}
+
 async function verifyScenario(browser, baseUrl, viewport, accessProfile, screenshots) {
   const auditEnabled = accessProfile === 'auditor';
   const manageEnabled = accessProfile === 'manager';
+  const simulateTileFailure = accessProfile === 'reader';
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     locale: 'es-AR',
@@ -393,7 +486,9 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
   const evidence = {
     authGets: 0,
     bootstrapGets: 0,
+    reportedInventoryGets: 0,
     listGets: new Map(),
+    tileRequests: 0,
     mutationPosts: 0,
     mutationPayload: null,
     unexpectedApi: 0,
@@ -411,6 +506,28 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
   });
   page.on('response', (response) => {
     if (response.status() >= 400) issues.push(`http-${response.status()}: ${new URL(response.url()).pathname}`);
+  });
+
+  await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', (route) => route.fulfill({
+    status: 200,
+    path: LEAFLET_CSS_PATH,
+    contentType: 'text/css; charset=utf-8',
+    headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=31536000, immutable' },
+  }));
+  await page.route('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', (route) => route.fulfill({
+    status: 200,
+    path: LEAFLET_JS_PATH,
+    contentType: 'application/javascript; charset=utf-8',
+    headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=31536000, immutable' },
+  }));
+  await page.route(/https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/, (route) => {
+    evidence.tileRequests += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=3600' },
+      body: LOCAL_TILE_SVG,
+    });
   });
 
   await page.route('**/api/**', async (route) => {
@@ -467,6 +584,15 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
         })),
       });
     }
+    if (resource === REPORTED_INVENTORY_RESOURCE) {
+      evidence.reportedInventoryGets += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'cache-control': 'private, no-store, max-age=0' },
+        body: JSON.stringify(buildAttendanceReportedInventoryFixture()),
+      });
+    }
     evidence.listGets.set(resource, (evidence.listGets.get(resource) || 0) + 1);
     let payload;
     if (resource === 'site') payload = pageEnvelope(resource, requestedPage, sites);
@@ -503,6 +629,10 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     });
     assert.deepEqual(authResponse, { status: 200, authenticated: true }, 'ATTENDANCE_DEVICE_BROWSER_AUTH_FIXTURE_INVALID');
 
+    await page.waitForFunction(() => document.querySelector('#reportedGeoCount')?.textContent?.includes('13 puntos'));
+    await page.waitForFunction(() => document.querySelectorAll('#mapAccessibleList li').length === 13);
+    await page.waitForFunction(() => document.querySelectorAll('.reported-marker').length === 13);
+
     assert.equal(await page.locator('#appShell h1').innerText(), 'Relojes y marcaciones');
     assert.equal(await page.locator('.inventory-details tbody tr').count(), 13, 'ATTENDANCE_DEVICE_BROWSER_REPORTED_POINTS_INVALID');
     assert.equal(await page.locator('#tableBody tr').count(), 13, 'ATTENDANCE_DEVICE_BROWSER_OPERATIONAL_POINTS_INVALID');
@@ -513,6 +643,76 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     assert.equal(await page.locator('#punchCount').innerText(), '0');
     assert.equal(await page.locator('#biometricFeature').innerText(), 'No se almacenan');
     assert.equal((await page.locator('body').innerText()).includes(FIXTURE.email), false, 'ATTENDANCE_DEVICE_BROWSER_FIXTURE_EMAIL_RENDERED');
+
+    assert.equal(await page.locator('#attendanceMap').getAttribute('class').then((value) => value?.includes('leaflet-container')), true,
+      'ATTENDANCE_DEVICE_BROWSER_LEAFLET_NOT_INITIALIZED');
+    assert.equal(await page.locator('.reported-marker').count(), 13,
+      'ATTENDANCE_DEVICE_BROWSER_MAP_MARKER_COUNT_INVALID');
+    assert.equal(await page.locator('#mapAccessibleList li').count(), 13,
+      'ATTENDANCE_DEVICE_BROWSER_ACCESSIBLE_MAP_LIST_INVALID');
+    await page.locator('.map-accessible-details summary').click();
+    await page.locator('#mapAccessibleList').waitFor({ state: 'visible' });
+    const accessibleMapCopy = await page.locator('#mapAccessibleList').innerText();
+    assert.equal((accessibleMapCopy.match(/Red informada/g) || []).length, 7,
+      'ATTENDANCE_DEVICE_BROWSER_NETWORK_CHANNEL_COUNT_INVALID');
+    assert.equal((accessibleMapCopy.match(/Medio removible informado/g) || []).length, 6,
+      'ATTENDANCE_DEVICE_BROWSER_REMOVABLE_CHANNEL_COUNT_INVALID');
+    assert.match(accessibleMapCopy, /PM-01 · Desarrollo Social/,
+      'ATTENDANCE_DEVICE_BROWSER_FIRST_REPORTED_SITE_MISSING');
+    assert.match(accessibleMapCopy, /Don Bosco y Sarmiento/,
+      'ATTENDANCE_DEVICE_BROWSER_FIRST_REPORTED_ADDRESS_MISSING');
+    assert.match(accessibleMapCopy, /-33\.144399, -68\.486144/,
+      'ATTENDANCE_DEVICE_BROWSER_FIRST_REPORTED_COORDINATE_MISSING');
+    assert.equal(await page.locator('#densityToggle').isChecked(), true,
+      'ATTENDANCE_DEVICE_BROWSER_DENSITY_DEFAULT_INVALID');
+    await page.waitForFunction(() => document.querySelectorAll('.leaflet-overlay-pane path').length === 13);
+
+    if (simulateTileFailure) {
+      await page.evaluate(() => {
+        const tiles = Array.from(document.querySelectorAll('.leaflet-tile')).slice(0, 2);
+        if (tiles.length < 2) throw new Error('ATTENDANCE_DEVICE_BROWSER_MAP_TILES_MISSING');
+        for (const tile of tiles) tile.dispatchEvent(new Event('error'));
+      });
+      await page.locator('#mapFallback').waitFor({ state: 'visible' });
+      assert.match(await page.locator('#mapFallbackCopy').innerText(), /mapa base no está disponible/i,
+        'ATTENDANCE_DEVICE_BROWSER_MAP_FALLBACK_COPY_INVALID');
+      assert.equal(await page.locator('.reported-marker').count(), 13,
+        'ATTENDANCE_DEVICE_BROWSER_FALLBACK_REMOVED_MARKERS');
+      assert.equal(await page.locator('#mapAccessibleList li').count(), 13,
+        'ATTENDANCE_DEVICE_BROWSER_FALLBACK_REMOVED_LIST');
+    } else {
+      assert.equal(await page.locator('#mapFallback').isHidden(), true,
+        'ATTENDANCE_DEVICE_BROWSER_MAP_FALLBACK_UNEXPECTED');
+    }
+
+    await page.locator('#densityToggle').uncheck();
+    await page.waitForFunction(() => document.querySelectorAll('.leaflet-overlay-pane path').length === 0);
+    assert.match(await page.locator('#mapStatus').innerText(), /desactivada/i,
+      'ATTENDANCE_DEVICE_BROWSER_DENSITY_DISABLE_STATUS_INVALID');
+    await page.locator('#densityToggle').check();
+    await page.waitForFunction(() => document.querySelectorAll('.leaflet-overlay-pane path').length === 13);
+    assert.match(await page.locator('#mapStatus').innerText(), /activada/i,
+      'ATTENDANCE_DEVICE_BROWSER_DENSITY_ENABLE_STATUS_INVALID');
+
+    assert.equal(await page.locator('#fitReportedPoints').isEnabled(), true,
+      'ATTENDANCE_DEVICE_BROWSER_REFIT_DISABLED');
+    await page.locator('#fitReportedPoints').click();
+    assert.match(await page.locator('#mapStatus').innerText(), /reencuadrado.*13 puntos/i,
+      'ATTENDANCE_DEVICE_BROWSER_REFIT_STATUS_INVALID');
+
+    const firstReportedMarker = page.locator('.reported-marker[title="PM-01 · Desarrollo Social"]');
+    await firstReportedMarker.focus();
+    await firstReportedMarker.press('Enter');
+    await page.locator('.leaflet-popup').waitFor({ state: 'visible' });
+    const popupCopy = await page.locator('.leaflet-popup').innerText();
+    assert.match(popupCopy, /PM-01 · Desarrollo Social/,
+      'ATTENDANCE_DEVICE_BROWSER_POPUP_SITE_INVALID');
+    assert.match(popupCopy, /Don Bosco y Sarmiento/,
+      'ATTENDANCE_DEVICE_BROWSER_POPUP_ADDRESS_INVALID');
+    assert.match(popupCopy, /K20/,
+      'ATTENDANCE_DEVICE_BROWSER_POPUP_MODEL_INVALID');
+    assert.match(popupCopy, /Red informada/,
+      'ATTENDANCE_DEVICE_BROWSER_POPUP_CHANNEL_INVALID');
 
     assert.equal(await page.locator('#tab-audit').isHidden(), !auditEnabled, 'ATTENDANCE_DEVICE_BROWSER_AUDIT_VISIBILITY_INVALID');
     assert.equal(await page.locator('[role="tab"]:visible').count(), auditEnabled ? 6 : 5, 'ATTENDANCE_DEVICE_BROWSER_TAB_COUNT_INVALID');
@@ -597,6 +797,10 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     assert.equal(evidence.authGets, 1, 'ATTENDANCE_DEVICE_BROWSER_AUTH_GET_COUNT_INVALID');
     assert.equal(evidence.bootstrapGets, manageEnabled ? 2 : 1,
       'ATTENDANCE_DEVICE_BROWSER_BOOTSTRAP_GET_COUNT_INVALID');
+    assert.equal(evidence.reportedInventoryGets, 1,
+      'ATTENDANCE_DEVICE_BROWSER_REPORTED_INVENTORY_GET_COUNT_INVALID');
+    assert.ok(evidence.tileRequests >= 1,
+      'ATTENDANCE_DEVICE_BROWSER_MAP_TILE_REQUEST_MISSING');
     for (const resource of ['site', 'device', 'connector', 'punch', 'batch']) {
       assert.ok((evidence.listGets.get(resource) || 0) >= 1, `ATTENDANCE_DEVICE_BROWSER_${resource.toUpperCase()}_NOT_VISITED`);
     }
@@ -624,6 +828,13 @@ export function buildAttendanceDeviceBrowserSummary() {
     accessProfilesVerified: 3,
     scenariosVerified: 6,
     reportedPointsVerified: 13,
+    networkPointsVerified: 7,
+    removableMediaPointsVerified: 6,
+    geographicMapVerified: true,
+    densityLayerVerified: true,
+    reframeVerified: true,
+    mapFallbackVerified: true,
+    coordinatesEmbeddedInHtml: false,
     apiFullyIntercepted: true,
     databaseMutations: false,
     hardwareConnected: false,
@@ -644,6 +855,9 @@ export function buildAttendanceDeviceBrowserFailure() {
 
 export async function runAttendanceDeviceBrowserVerification() {
   assertExactFixtureContracts();
+  assertReportedCoordinatesNotEmbedded();
+  assert.ok(fs.existsSync(LEAFLET_CSS_PATH), 'ATTENDANCE_DEVICE_BROWSER_LEAFLET_CSS_MISSING');
+  assert.ok(fs.existsSync(LEAFLET_JS_PATH), 'ATTENDANCE_DEVICE_BROWSER_LEAFLET_JS_MISSING');
   const server = await startAttendanceDeviceBrowserServer();
   const browser = await chromium.launch({ headless: true });
   const screenshots = [];

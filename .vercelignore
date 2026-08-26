@@ -37,6 +37,7 @@ database/
 !scripts/migrations/020-email-first-factor-login.sql
 !scripts/migrations/021-platform-owner-operational-integral.sql
 !scripts/migrations/022-attendance-device-gateway.sql
+!scripts/migrations/023-time-source-unlinked-reader.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

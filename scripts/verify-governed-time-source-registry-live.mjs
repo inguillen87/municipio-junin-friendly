@@ -29,7 +29,7 @@ const LIBRARY_URL = new URL('../lib/internal-time-source-registry.js', import.me
 const BACKEND_FREEZE_HASHES = Object.freeze([
   [MIGRATION_URL, '66ab3584315db1baba52f08ac7579eddbe04898fd5fa2c383f4e778a2f1a7034'],
   [APPLIER_URL, 'a791b1c5e0d1c46126bbea81b2a93633db97fe57376cb1dd0b2216d1c83ceea7'],
-  [LIBRARY_URL, '28664fa7bbf26d8a501ffc9b4c175c083137f622e4a36a4a2b45069e506b07c4'],
+  [LIBRARY_URL, 'ef05368141df081debf9d86aeb91c29b216100fad0e41967e9a0a76e26885d94'],
 ]);
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

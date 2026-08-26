@@ -28,6 +28,7 @@ function access() {
       user: { email: 'actor@junin.gob.ar' },
       tenant: {
         id: TENANT_ID,
+        slug: 'junin-mendoza',
         membershipId: MEMBERSHIP_ID,
         source: 'membership',
         certifiedReleaseSha: RELEASE_SHA,
@@ -120,6 +121,109 @@ test('auditoría exige capacidad dedicada y conserva el recurso hasta la fachada
   assert.equal(res.payload.resource, 'audit');
   assert.deepEqual(accessCalls[0].requiredCapabilities, ['attendance.audit.read']);
   assert.equal(listCalls[0][2].resource, 'audit');
+});
+
+test('inventario reportado exige el gate completo y expone sólo el contrato geográfico mínimo', async () => {
+  const accessCalls = [];
+  let sqlCalls = 0;
+  const handler = createInternalAttendanceHandler(internalDependencies({
+    requireCompatibleInternalAccess: async (_req, _res, options) => {
+      accessCalls.push(options);
+      return access();
+    },
+    getInternalSql: async () => {
+      sqlCalls += 1;
+      return { fake: true };
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'GET', query: { resource: 'reported-inventory' }, headers: {},
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.ok, true);
+  assert.equal(res.payload.resource, 'reported-inventory');
+  assert.equal(res.payload.contract.version, 'attendance-reported-inventory.v1');
+  assert.equal(res.payload.tenantSlug, 'junin-mendoza');
+  assert.deepEqual(res.payload.source, {
+    kind: 'municipal_workbook',
+    status: 'reported_inventory',
+    recordCount: 13,
+    mappingVersion: 'junin-attendance-workbook-a4-k17.v1',
+  });
+  assert.equal(res.payload.physicalConnectionConfirmed, false);
+  assert.equal(res.payload.heatMetric, 'reported_site_density');
+  assert.equal(res.payload.data.length, 13);
+  assert.deepEqual(res.payload.data.map((site) => site.code),
+    Array.from({ length: 13 }, (_, index) => `PM-${String(index + 1).padStart(2, '0')}`));
+  for (const site of res.payload.data) {
+    assert.deepEqual(Object.keys(site), [
+      'code', 'name', 'address', 'latitude', 'longitude', 'model', 'channel',
+    ]);
+    assert.equal(typeof site.latitude, 'number');
+    assert.equal(typeof site.longitude, 'number');
+    assert.ok(['network_pull', 'removable_media'].includes(site.channel));
+  }
+  assert.deepEqual(accessCalls[0].requiredCapabilities, ['attendance.read']);
+  assert.equal(accessCalls[0].requireDataPlaneReady, true);
+  assert.equal(accessCalls[0].requireCertifiedDataBinding, true);
+  assert.equal(accessCalls[0].allowLegacy, false);
+  assert.equal(sqlCalls, 0);
+  assert.equal(res.headers['Cache-Control'], 'private, no-store, max-age=0');
+  assert.equal(res.headers.Vary, 'Cookie');
+
+  const serialized = JSON.stringify(res.payload);
+  assert.doesNotMatch(serialized, /fileName|sha256|sheet|range|unresolvedRequiredFields/);
+  assert.doesNotMatch(serialized, /email|document|dni|cuil|principal/i);
+});
+
+test('inventario reportado no cruza tenants ni admite parámetros de listado', async () => {
+  let sqlCalls = 0;
+  const foreignAccess = access();
+  foreignAccess.principal.tenant.slug = 'otro-municipio';
+  const handler = createInternalAttendanceHandler(internalDependencies({
+    requireCompatibleInternalAccess: async () => foreignAccess,
+    getInternalSql: async () => {
+      sqlCalls += 1;
+      return { fake: true };
+    },
+  }));
+
+  const foreign = response();
+  await handler({
+    method: 'GET', query: { resource: 'reported-inventory' }, headers: {},
+  }, foreign);
+  assert.equal(foreign.statusCode, 404);
+  assert.equal(foreign.payload.code, 'ATTENDANCE_REPORTED_INVENTORY_NOT_AVAILABLE');
+
+  const extra = response();
+  await handler({
+    method: 'GET', query: { resource: 'reported-inventory', page: '1' }, headers: {},
+  }, extra);
+  assert.equal(extra.statusCode, 400);
+  assert.equal(extra.payload.code, 'ATTENDANCE_QUERY_INVALID');
+  assert.equal(sqlCalls, 0);
+});
+
+test('inventario reportado rechaza identidades sin membresía antes de leer la fuente', async () => {
+  const withoutMembership = access();
+  delete withoutMembership.principal.tenant.membershipId;
+  let inventoryCalls = 0;
+  const handler = createInternalAttendanceHandler(internalDependencies({
+    requireCompatibleInternalAccess: async () => withoutMembership,
+    getReportedAttendanceInventory: () => {
+      inventoryCalls += 1;
+      return {};
+    },
+  }));
+  const res = response();
+  await handler({
+    method: 'GET', query: { resource: 'reported-inventory' }, headers: {},
+  }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'ATTENDANCE_TENANT_MEMBERSHIP_REQUIRED');
+  assert.equal(inventoryCalls, 0);
 });
 
 test('mutaciones requieren mismo origen, JSON e idempotencia', async () => {

@@ -354,6 +354,27 @@ test('bootstrap revalida principal DB, filtra comandos y mantiene el motor cerra
   assert.match(sql.calls[0].statement, /time_source_registry_bootstrap_v1/);
 });
 
+test('lectura temporal admite membresía operativa sin inventar vínculo laboral', async () => {
+  const principal = {
+    ...governedPrincipal(['time.source.read', 'time.source.propose', 'time.source.audit.read']),
+    actorPersonId: null,
+  };
+  const sql = sqlMock(async (statement) => [{ result: statement.includes('_bootstrap_')
+    ? { ...bootstrapEnvelope(), principal, allowedCommands: ['create_draft'] }
+    : { principal, records: [], total: 0 } }]);
+
+  const bootstrap = await getTimeSourceBootstrap(sql, identity(), session());
+  const listing = await listTimeSources(sql, identity(), {}, session());
+
+  assert.equal(bootstrap.principal.actorPersonId, null);
+  assert.equal(bootstrap.feature.canPropose, false);
+  assert.equal(bootstrap.feature.canApprove, false);
+  assert.equal(bootstrap.feature.canAudit, true);
+  assert.deepEqual(bootstrap.allowedCommands, []);
+  assert.deepEqual(listing.data, []);
+  assert.equal(sql.calls.length, 2);
+});
+
 test('readiness maliciosa no puede declarar evaluación, asistencia, nómina ni mutación GRH', async () => {
   const sql = sqlMock(async () => [{ result: bootstrapEnvelope(
     ['time.source.read'], readiness({ approved: true, maliciousTruth: true }),
@@ -452,6 +473,21 @@ test('mutación exige capacidad específica además de read y nunca envía el fu
     );
     assert.equal(sql.calls.length, 1, `no debe invocar apply sin ${capability}`);
   }
+});
+
+test('membresía sin vínculo conserva lectura pero no puede mutar fuentes', async () => {
+  const principal = {
+    ...governedPrincipal(['time.source.read', 'time.source.propose']),
+    actorPersonId: null,
+  };
+  const sql = sqlMock(async () => [{ result: {
+    ...bootstrapEnvelope(), principal, allowedCommands: ['create_draft'],
+  } }]);
+  await assert.rejects(
+    applyTimeSourceCommand(sql, identity(), session(), command('create_draft'), IDEMPOTENCY_KEY),
+    (error) => error?.code === 'TIME_SOURCE_EMPLOYMENT_REQUIRED' && error?.status === 403,
+  );
+  assert.equal(sql.calls.length, 1, 'la mutación debe cerrarse antes de invocar apply');
 });
 
 test('apply liga hash a SID, versión, release, actor y binding; devuelve replay histórico', async () => {

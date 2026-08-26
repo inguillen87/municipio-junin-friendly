@@ -11,6 +11,7 @@ import {
   buildAttendanceDeviceBrowserSummary,
   buildAttendanceDeviceEquipmentFixtures,
   buildAttendanceDeviceSiteFixtures,
+  buildAttendanceReportedInventoryFixture,
   validateAttendanceDeviceApiRequest,
   validateAttendanceDeviceAuthRequest,
   validateAttendanceDeviceMutationRequest,
@@ -83,6 +84,32 @@ test('fixtures de puntos y equipos corresponden al inventario real reportado de 
   assert.ok(devices.every((item) => item.status === 'draft' && item.driverKey === 'pending-homologation'));
 });
 
+test('fixture cartográfica replica los 13 puntos mínimos sin PII ni metadatos internos de la planilla', () => {
+  const fixture = buildAttendanceReportedInventoryFixture();
+  assert.equal(fixture.ok, true);
+  assert.equal(fixture.resource, 'reported-inventory');
+  assert.equal(fixture.contract.version, 'attendance-reported-inventory.v1');
+  assert.equal(fixture.source.recordCount, 13);
+  assert.equal(fixture.physicalConnectionConfirmed, false);
+  assert.equal(fixture.heatMetric, 'reported_site_density');
+  assert.equal(fixture.data.length, 13);
+  assert.equal(fixture.data.filter((item) => item.channel === 'network_pull').length, 7);
+  assert.equal(fixture.data.filter((item) => item.channel === 'removable_media').length, 6);
+  assert.deepEqual(fixture.data[0], {
+    code: 'PM-01',
+    name: 'Desarrollo Social',
+    address: 'Don Bosco y Sarmiento',
+    latitude: -33.1443994,
+    longitude: -68.4861441,
+    model: 'K20',
+    channel: 'network_pull',
+  });
+  assert.doesNotMatch(
+    JSON.stringify(fixture),
+    /email|document|dni|cuil|employee|agent|responsible|principal|serial|firmware|ip_address|sha256/i,
+  );
+});
+
 test('fixture de auditoría es paginable y no contiene payloads ni identidad personal', () => {
   const rows = buildAttendanceDeviceAuditFixtures();
   assert.equal(rows.length, 26);
@@ -107,10 +134,22 @@ test('validador acepta sólo GET exactos y paginación de 25', () => {
     search: '?resource=site&page=2&pageSize=25',
     headers: requestHeaders,
   }), { resource: 'site', page: 2 });
+  assert.deepEqual(validateAttendanceDeviceApiRequest({
+    method: 'GET',
+    pathname: '/api/internal-attendance',
+    search: '?resource=reported-inventory',
+    headers: requestHeaders,
+  }), { resource: 'reported-inventory', page: 1 });
   assert.throws(() => validateAttendanceDeviceApiRequest({
     method: 'GET',
     pathname: '/api/internal-attendance',
     search: '?resource=site&page=1&pageSize=100',
+    headers: requestHeaders,
+  }));
+  assert.throws(() => validateAttendanceDeviceApiRequest({
+    method: 'GET',
+    pathname: '/api/internal-attendance',
+    search: '?resource=reported-inventory&page=1',
     headers: requestHeaders,
   }));
   assert.throws(() => validateAttendanceDeviceApiRequest({
@@ -167,6 +206,9 @@ test('verificador sirve public, intercepta toda API y no conoce Neon ni credenci
   assert.match(source, /page\.route\('\*\*\/api\/\*\*'/);
   assert.match(source, /assertNoHorizontalOverflow/);
   assert.match(source, /assertFocusVisibleAndUsable/);
+  assert.match(source, /assertReportedCoordinatesNotEmbedded/);
+  assert.match(source, /LEAFLET_JS_PATH/);
+  assert.match(source, /mapFallbackVerified:\s*true/);
   assert.match(source, /consoleErrors:\s*0/);
   assert.match(source, /databaseMutations:\s*false/);
   assert.doesNotMatch(source, /DATABASE_URL|NEON_DATABASE|@neondatabase|postgresql:\/\/|new\s+(?:Client|Pool)\b|sql`/i);
@@ -174,6 +216,7 @@ test('verificador sirve public, intercepta toda API y no conoce Neon ni credenci
     packageJson.scripts['test:browser:attendance-devices'],
     'node scripts/build-friendly.mjs && node scripts/verify-attendance-device-browser.mjs',
   );
+  assert.equal(packageJson.devDependencies.leaflet, '^1.9.4');
 });
 
 test('resúmenes públicos informan evidencia y fallo sin detalles internos', () => {
@@ -183,6 +226,13 @@ test('resúmenes públicos informan evidencia y fallo sin detalles internos', ()
     accessProfilesVerified: 3,
     scenariosVerified: 6,
     reportedPointsVerified: 13,
+    networkPointsVerified: 7,
+    removableMediaPointsVerified: 6,
+    geographicMapVerified: true,
+    densityLayerVerified: true,
+    reframeVerified: true,
+    mapFallbackVerified: true,
+    coordinatesEmbeddedInHtml: false,
     apiFullyIntercepted: true,
     databaseMutations: false,
     hardwareConnected: false,

@@ -5,6 +5,7 @@ import {
   getAttendanceBootstrap,
   listAttendanceResources,
 } from '../lib/internal-attendance-gateway.js';
+import { getReportedAttendanceInventory } from '../lib/internal-attendance-reported-inventory.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 
 const MAX_BODY_BYTES = 32 * 1024;
@@ -160,6 +161,8 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const bootstrap = dependencies.getAttendanceBootstrap ?? getAttendanceBootstrap;
   const list = dependencies.listAttendanceResources ?? listAttendanceResources;
   const apply = dependencies.applyAttendanceCommand ?? applyAttendanceCommand;
+  const reportedInventory = dependencies.getReportedAttendanceInventory
+    ?? getReportedAttendanceInventory;
 
   return async function internalAttendanceHandler(req, res) {
     const method = String(req?.method || 'GET').toUpperCase();
@@ -198,6 +201,20 @@ export function createInternalAttendanceHandler(dependencies = {}) {
           error: 'Marcaciones exige una membresía municipal activa',
         });
       }
+
+      if (method === 'GET' && requestedResource === 'reported-inventory') {
+        assertQueryKeys(req, new Set(['resource']));
+        const result = reportedInventory(access.principal);
+        if (!result) {
+          return send(res, 404, {
+            ok: false,
+            code: 'ATTENDANCE_REPORTED_INVENTORY_NOT_AVAILABLE',
+            error: 'No hay un inventario reportado para este municipio',
+          });
+        }
+        return send(res, 200, { ok: true, ...result });
+      }
+
       const tenantSession = actionMutationSession(access, env);
       const sql = await getSql(env);
 
