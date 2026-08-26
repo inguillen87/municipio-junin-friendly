@@ -1,0 +1,104 @@
+:root {
+  --mc-radius: 8px;
+  --mc-radius-large: 12px;
+  --mc-shadow-soft: 0 8px 24px rgba(8, 40, 58, .075);
+  --mc-shadow-lift: 0 14px 34px rgba(8, 40, 58, .13);
+  --mc-accent: #69d3c5;
+  --mc-highlight: #c4e963;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  z-index: 9998;
+  inset: 0 0 auto;
+  height: 3px;
+  pointer-events: none;
+  background: linear-gradient(90deg, #c4e963 0 24%, #69d3c5 24% 68%, #194b63 68% 100%);
+}
+
+.brand-mark,
+.gate-mark {
+  color: transparent !important;
+  background-color: transparent !important;
+  background-image: url("pwa/icon.svg") !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+  font-size: 0 !important;
+  text-indent: -9999px;
+}
+
+.sidebar {
+  background-image: linear-gradient(180deg, rgba(25, 75, 99, .34), rgba(8, 40, 58, .2));
+}
+
+.nav-link,
+.nav button,
+.nav-product-link,
+.button,
+.btn,
+button,
+a {
+  transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.nav-link:hover,
+.nav button:hover,
+.nav-product-link:hover {
+  transform: translateX(2px);
+}
+
+.nav-link[aria-current="page"],
+.nav button.active,
+.nav-product-link[aria-current="page"] {
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.button:hover:not(:disabled),
+.btn:hover:not(:disabled),
+button:hover:not(:disabled) {
+  box-shadow: 0 5px 13px rgba(8, 40, 58, .1);
+}
+
+:is(.panel, .metric, .feature, .card, .module-card, .summary-card, .evidence-panel, .attendance-insights) {
+  border-radius: var(--mc-radius) !important;
+  box-shadow: var(--mc-shadow-soft);
+}
+
+:is(.panel, .metric, .feature, .card, .module-card, .summary-card):hover {
+  border-color: color-mix(in srgb, #0f766e 34%, #d5dfe1);
+}
+
+.topbar {
+  box-shadow: 0 4px 16px rgba(8, 40, 58, .04);
+}
+
+.main > .content,
+.content > main,
+main.content {
+  animation: mc-enter .34s cubic-bezier(.2, .7, .2, 1) both;
+}
+
+@keyframes mc-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+
+  .nav-link:hover,
+  .nav button:hover,
+  .nav-product-link:hover {
+    transform: none;
+  }
+}

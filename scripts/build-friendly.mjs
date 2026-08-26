@@ -33,6 +33,7 @@ const shellFiles = [
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-guide.js',
+  'assets/municontrol-enterprise.css',
   'assets/identity-security.css',
   'assets/product-guidance.js',
   'assets/mendoza-title-vi.js',

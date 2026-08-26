@@ -127,7 +127,7 @@
         button.addEventListener('click',async function(){
           sessionStorage.removeItem('mjunin_user');
           try{await fetch('/api/internal-auth',{method:'DELETE',credentials:'same-origin'});}catch(_){}
-          location.reload();
+          location.replace('login.html');
         });
       }else{
         button.hidden=true;
