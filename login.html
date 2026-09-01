@@ -547,6 +547,8 @@
         gap: 40px;
       }
 
+      .access-panel { order: -1; }
+
       .context-panel { padding-top: 0; }
 
       .intro { max-width: 700px; }
@@ -816,6 +818,7 @@
     var emailMfaRequestRetryAt = 0;
     var emailMfaRequestInFlight = false;
     var identityLoading = false;
+    var selectedLoginContextKind = '';
 
     function setLoading(isLoading, message) {
       identityLoading = isLoading;
@@ -920,10 +923,29 @@
       } finally { window.clearTimeout(timeout); }
     }
 
-    function allowedDestination() {
-      var next = new URLSearchParams(window.location.search).get('next');
-      var allowedNext = ['internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'relojes-marcaciones.html', 'administracion-plataforma.html', 'seguridad-cuenta.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
-      return allowedNext.indexOf(next) >= 0 ? next : 'internal-dashboard.html';
+    function allowedDestination(contextKind) {
+      var next = new URLSearchParams(window.location.search).get('next') || '';
+      var platformSafeNext = ['administracion-plataforma.html', 'seguridad-cuenta.html'];
+      var tenantSafeNext = ['internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'relojes-marcaciones.html', 'seguridad-cuenta.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
+      var platform = contextKind === 'platform';
+      var fallback = platform ? 'administracion-plataforma.html' : 'internal-dashboard.html';
+      var allowedNext = platform ? platformSafeNext : tenantSafeNext;
+      var hashAt = next.indexOf('#');
+      var hash = hashAt >= 0 ? next.slice(hashAt) : '';
+      var route = (hashAt >= 0 ? next.slice(0, hashAt) : next).replace(/^\/+/, '');
+      if (allowedNext.indexOf(route) < 0) return fallback;
+      if (hash && !/^#[a-z0-9][a-z0-9_-]{0,63}$/i.test(hash)) hash = '';
+      return route + hash;
+    }
+
+    function sessionContextKind(result) {
+      var session = result && result.session && typeof result.session === 'object' ? result.session : result || {};
+      var hasTenantId = Object.prototype.hasOwnProperty.call(session, 'tenantId');
+      var hasActiveTenantId = Object.prototype.hasOwnProperty.call(session, 'activeTenantId');
+      var tenantId = hasTenantId ? session.tenantId : hasActiveTenantId ? session.activeTenantId : undefined;
+      if ((hasTenantId || hasActiveTenantId) && tenantId === null) return 'platform';
+      if (typeof tenantId === 'string' && tenantId.trim()) return 'tenant';
+      return '';
     }
 
     function persistSessionShell(result, fallbackEmail) {
@@ -1046,6 +1068,8 @@
     }
 
     function completeLogin(result, fallbackEmail) {
+      var contextKind = sessionContextKind(result) || selectedLoginContextKind;
+      var destination = allowedDestination(contextKind);
       contextFlow = null;
       loginEnrollmentFlow = null;
       pendingEnrollmentSession = null;
@@ -1054,11 +1078,12 @@
       clearEmailMfaState();
       loginFlow = null;
       usingRecovery = false;
+      selectedLoginContextKind = '';
       document.getElementById('mfaInput').value = '';
       persistSessionShell(result, fallbackEmail || '');
-      document.querySelector('#btnLogin .button-label').textContent = 'Accediendo al portal interno';
-      setLoading(true, 'Acceso confirmado. Abriendo el portal interno…');
-      window.location.replace(allowedDestination());
+      document.querySelector('#btnLogin .button-label').textContent = contextKind === 'platform' ? 'Accediendo a administración' : 'Accediendo al portal interno';
+      setLoading(true, contextKind === 'platform' ? 'Acceso confirmado. Abriendo la administración de plataforma…' : 'Acceso confirmado. Abriendo el portal interno…');
+      window.location.replace(destination);
     }
 
     function openMfaStep(challenge, email) {
@@ -1121,6 +1146,7 @@
       var contexts = normalizeContexts(response.contexts);
       if (!contexts.length) throw new Error('invalid_context_contract');
       contextFlow = { token: response.flowToken, version: Number(response.expectedVersion), expiresAt: response.expiresAt, contexts: contexts, email: email, idempotencyKey: commandKey() };
+      selectedLoginContextKind = '';
       loginFlow = null;
       var options = document.getElementById('contextOptions'); options.replaceChildren();
       contexts.forEach(function (context, index) {
@@ -1140,6 +1166,7 @@
 
     function cancelContext() {
       contextFlow = null;
+      selectedLoginContextKind = '';
       document.getElementById('contextOptions').replaceChildren();
       document.getElementById('contextStep').hidden = true;
       document.getElementById('credentialStep').hidden = false;
@@ -1147,7 +1174,7 @@
     }
 
     function cancelMfa() {
-      contextFlow = null; loginFlow = null; usingRecovery = false;
+      contextFlow = null; loginFlow = null; usingRecovery = false; selectedLoginContextKind = '';
       clearEmailMfaState();
       document.getElementById('mfaInput').value = '';
       document.getElementById('mfaStep').hidden = true;
@@ -1268,6 +1295,7 @@
         if (!selected) { showError('Elegí un ámbito autorizado para continuar.'); return; }
         var context = contextFlow.contexts.find(function (item) { return item.key === selected.value; });
         if (!context) { showError('El ámbito seleccionado no pertenece a la lista autorizada.'); return; }
+        selectedLoginContextKind = context.kind;
         setLoading(true, 'Verificando el ámbito seleccionado…');
         try {
           var selectedPayload = context.kind === 'platform' ? { kind: 'platform' } : { kind: 'tenant', tenantId: context.tenantId };
@@ -1383,7 +1411,7 @@
     document.getElementById('toggleRecoveryButton').addEventListener('click', function () {
       selectMfaMethod('recovery');
     });
-    window.addEventListener('pagehide', function () { contextFlow = null; loginFlow = null; clearEmailMfaState(); wipeLoginEnrollment(false); document.getElementById('passInput').value = ''; document.getElementById('mfaInput').value = ''; document.getElementById('contextOptions').replaceChildren(); });
+    window.addEventListener('pagehide', function () { contextFlow = null; loginFlow = null; selectedLoginContextKind = ''; clearEmailMfaState(); wipeLoginEnrollment(false); document.getElementById('passInput').value = ''; document.getElementById('mfaInput').value = ''; document.getElementById('contextOptions').replaceChildren(); });
   </script>
   <script>
     if ('serviceWorker' in navigator) {

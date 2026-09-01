@@ -1405,7 +1405,6 @@
 
       const AUTH_URL = '/api/internal-auth';
       const DATA_URL = '/api/internal-data';
-      const LOGIN_URL = 'login.html?next=internal-dashboard.html';
       const PAGE_LIMIT = 25;
       const VALID_VIEWS = new Set(['inicio', 'legajos', 'ausentismo', 'calidad']);
       const LEAVE_PREVIEW_HANDOFF_KEY = 'municontrol.leave-preview-handoff.v1';
@@ -1587,7 +1586,8 @@
       }
 
       function redirectToLogin() {
-        window.location.replace(LOGIN_URL);
+        const next = 'internal-dashboard.html' + window.location.hash;
+        window.location.replace('login.html?next=' + encodeURIComponent(next));
       }
 
       function errorMessage(payload, fallback) {
@@ -1645,8 +1645,24 @@
         return {
           name: text(user.name) || text(user.email) || 'Usuario interno',
           email: text(user.email),
-          role: text(user.role) || 'Usuario interno'
+          role: roleLabel(user.role)
         };
+      }
+
+      function roleLabel(value) {
+        const key = text(value).toUpperCase();
+        const labels = {
+          PLATFORM_OWNER: 'Propietario de plataforma',
+          PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Propietario de plataforma · Operación integral',
+          HUGO_APROBADOR_INTEGRAL: 'Aprobador institucional integral',
+          CONSULTA_INTEGRAL: 'Consulta institucional integral',
+          TENANT_RRHH_ADMIN_OPERATIVO: 'Administración operativa de RR. HH.',
+          ADMIN_INTERNO: 'Administración interna',
+          INTERNAL_ADMIN: 'Administración interna'
+        };
+        if (labels[key]) return labels[key];
+        if (!key) return 'Usuario interno';
+        return key.toLowerCase().replace(/[._-]+/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
       }
 
       function capabilitySet(value) {

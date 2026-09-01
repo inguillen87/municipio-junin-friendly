@@ -43,6 +43,7 @@ test('Cerrar sesión en la vista agregada intenta revocar y siempre termina en l
     const destinations = [];
     const { storage, removed } = storageRecorder();
     const logout = instantiate(source, 'logout', {
+      authenticatedSession: true,
       fetch: async (url, options) => {
         calls.push({ url, options });
         if (rejected) throw new TypeError('network unavailable');
@@ -65,6 +66,21 @@ test('Cerrar sesión en la vista agregada intenta revocar y siempre termina en l
   }
 
   assert.doesNotMatch(html, /location\.href\s*=\s*['"]friendly-dashboard\.html['"]/);
+});
+
+test('la vista agregada anónima abre login sin intentar una revocación', async () => {
+  const html = read('friendly-dashboard.html');
+  const source = extractAsyncFunction(html, 'logout');
+  const assigned = [];
+  const logout = instantiate(source, 'logout', {
+    authenticatedSession: false,
+    fetch: async () => assert.fail('no debe revocar una sesión que no existe'),
+    sessionStorage: { removeItem() { assert.fail('no debe limpiar una sesión inexistente'); } },
+    window: { location: { assign(value) { assigned.push(value); } } },
+  });
+
+  await logout();
+  assert.deepEqual(assigned, ['login.html?next=internal-dashboard.html%23inicio']);
 });
 
 test('Salir de Portal Interno intenta revocar y siempre vuelve al login', async () => {

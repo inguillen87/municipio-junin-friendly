@@ -50,6 +50,16 @@ test('guía del asistente no concede acceso implícito a RRHH', () => {
   assert.deepEqual(capabilitiesForActionCenter(), [TENANT_DATA_CAPABILITIES.ACTIONS_READ]);
 });
 
+test('estado de relojes exige assistant.use y attendance.read', () => {
+  assert.deepEqual(capabilitiesForAssistantIntent('attendance_status'), [
+    TENANT_DATA_CAPABILITIES.ASSISTANT_USE,
+    TENANT_DATA_CAPABILITIES.ATTENDANCE_READ,
+  ]);
+  assert.deepEqual(capabilitiesForAssistantIntent('out_of_scope'), [
+    TENANT_DATA_CAPABILITIES.ASSISTANT_USE,
+  ]);
+});
+
 test('principalHasCapabilities falla cerrado sin tenant o ante capability faltante', () => {
   const principal = {
     tenant: {

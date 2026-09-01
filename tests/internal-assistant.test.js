@@ -134,6 +134,46 @@ const quality = {
   },
 };
 
+const attendanceStatus = {
+  status: 'ready',
+  reportedInventory: {
+    source: {
+      kind: 'municipal_workbook',
+      status: 'reported_inventory',
+      recordCount: 13,
+      mappingVersion: 'junin-attendance-workbook-a4-k17.v1',
+    },
+    physicalConnectionConfirmed: false,
+    heatMetric: 'reported_site_density',
+    data: Array.from({ length: 13 }, (_item, index) => ({
+      code: `PM-${String(index + 1).padStart(2, '0')}`,
+      name: `Punto ${index + 1}`,
+      latitude: -33.14 - (index / 10_000),
+      longitude: -68.48 - (index / 10_000),
+      channel: index < 7 ? 'network_pull' : 'removable_media',
+    })),
+  },
+  bootstrap: {
+    summary: {
+      siteCount: 2,
+      deviceCount: 2,
+      connectorCount: 2,
+      activeConnectorCount: 1,
+      rawEventCount: 24,
+      punchCount: 20,
+      unmatchedPunchCount: 3,
+      pendingReviewCount: 2,
+    },
+    features: {
+      hardwareConnected: false,
+      hoursCalculated: false,
+      payrollPosted: false,
+      biometricTemplatesStored: false,
+    },
+  },
+  gateway: { available: true, unavailableCode: null },
+};
+
 const TEST_IDENTITY_CAPABILITIES = Object.freeze([
   'assistant.use',
   'workforce.summary.read',
@@ -148,6 +188,7 @@ const TEST_IDENTITY_CAPABILITIES = Object.freeze([
   'quality.read',
   'lineage.read',
   'budget.approved.read',
+  'attendance.read',
 ]);
 
 const TEST_EXTERNAL_ENV = Object.freeze({
@@ -195,6 +236,7 @@ function handler(overrides = {}) {
     absenceEvents: overrides.absenceEvents || overrides.absenceevents,
     qualityIssues: overrides.qualityIssues || overrides.qualityissues,
     importLineage: overrides.importLineage || overrides.importlineage,
+    attendanceStatus: overrides.attendanceStatus || (async () => attendanceStatus),
     resolveAbsenceReason: overrides.resolveAbsenceReason,
     canonicalScope: async () => scope,
     employees: overrides.employees || (async () => ({
@@ -260,9 +302,86 @@ test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ message: 'Ver licencias del legajo 42, empresa 1.' }), 'employee_detail');
   assert.equal(classifyAssistantRequest({ message: 'Ver licencias del legajo 2009, empresa 1.' }), 'employee_detail');
   assert.equal(classifyAssistantRequest({ message: 'Prepará una lectura ejecutiva de dotación, nómina, integración, ausentismo y calidad' }), 'executive_analysis');
+  assert.equal(classifyAssistantRequest({ message: '¿Qué relojes están conectados ahora?' }), 'attendance_status');
+  assert.equal(classifyAssistantRequest({ message: '¿Cuántas marcaciones recibimos hoy?' }), 'attendance_status');
+  assert.equal(classifyAssistantRequest({ message: '¿Dónde están los relojes que tenemos?' }), 'attendance_status');
+  assert.equal(classifyAssistantRequest({ message: '¿Cuál es el clima de Junín mañana?' }), 'out_of_scope');
   assert.equal(classifyAssistantRequest({ intent: 'absence_analysis' }), 'absence_analysis');
   assert.equal(classifyAssistantRequest({ search: 'Pérez' }), 'employee_search');
   assert.equal(classifyAssistantRequest({ legajo: '42' }), 'employee_detail');
+});
+
+test('relojes y marcaciones usa sólo inventario reportado y bootstrap local con límites explícitos', async () => {
+  let externalFetchCalled = false;
+  const res = await post({
+    message: '¿Cuál es el estado y la cobertura de los relojes y cuántas marcaciones hubo hoy?',
+    enhance: true,
+  }, {
+    fetch: async () => {
+      externalFetchCalled = true;
+      throw new Error('no debe externalizar relojes o marcaciones');
+    },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'attendance_status');
+  assert.equal(res.payload.queryPlan.externalPolicy, 'local_only');
+  assert.equal(res.payload.privacy.localOnlyResource, true);
+  assert.equal(res.payload.provider.externalProviderUsed, false);
+  assert.equal(externalFetchCalled, false);
+  assert.equal(res.payload.data.coverage.reportedSites, 13);
+  assert.equal(res.payload.data.coverage.georeferencedSites, 13);
+  assert.equal(res.payload.data.coverage.networkPullReported, 7);
+  assert.equal(res.payload.data.coverage.removableMediaReported, 6);
+  assert.equal(res.payload.data.coverage.physicalConnectionConfirmedByInventory, false);
+  assert.equal(res.payload.data.operational.activeConnectors, 1);
+  assert.equal(res.payload.data.operational.canonicalPunches, 20);
+  assert.equal(res.payload.data.operational.hardwareConnectionConfirmed, false);
+  assert.equal(res.payload.data.operational.temporalWindow, null);
+  assert.match(res.payload.answer, /no prueba que los relojes estén conectados/i);
+  assert.match(res.payload.answer, /no permiten afirmar cuántas marcaciones hubo hoy/i);
+  assert.deepEqual(
+    res.payload.sources.map((source) => source.relation),
+    ['reported_attendance_inventory', 'attendance_gateway_bootstrap_v1'],
+  );
+});
+
+test('estado de marcaciones exige assistant.use y attendance.read antes de consultar fuentes', async () => {
+  let attendanceCalled = false;
+  const access = managedAccess();
+  access.principal.tenant.effectiveCapabilities = access.principal.tenant.effectiveCapabilities
+    .filter((capability) => capability !== 'attendance.read');
+  const res = await post({ message: '¿Qué relojes están conectados ahora?' }, {
+    requireCompatibleInternalAccess: async () => access,
+    attendanceStatus: async () => {
+      attendanceCalled = true;
+      return attendanceStatus;
+    },
+  });
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.intent, 'attendance_status');
+  assert.equal(res.payload.code, 'IDENTITY_CAPABILITY_REQUIRED');
+  assert.equal(attendanceCalled, false);
+});
+
+test('preguntas fuera del alcance reciben respuesta explícita y nunca usan proveedor externo', async () => {
+  let externalFetchCalled = false;
+  const res = await post({ message: '¿Cuál es el clima de Junín mañana?', enhance: true }, {
+    fetch: async () => {
+      externalFetchCalled = true;
+      throw new Error('no debe llamar un proveedor externo');
+    },
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'out_of_scope');
+  assert.equal(res.payload.data.code, 'ASSISTANT_SCOPE_UNSUPPORTED');
+  assert.equal(res.payload.queryPlan.externalPolicy, 'local_only');
+  assert.equal(res.payload.provider.externalProviderUsed, false);
+  assert.equal(externalFetchCalled, false);
+  assert.match(res.payload.answer, /no es de propósito general/i);
+  assert.equal(res.payload.data.rawQuestionExternalized, false);
 });
 
 test('plan municipal v1 clasifica los cinco recursos nuevos y extrae filtros aplicables', () => {
@@ -566,6 +685,10 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   assert.deepEqual(
     res.payload.capabilities.find((capability) => capability.intent === 'quality_analysis'),
     { intent: 'quality_analysis', externalEnhancement: true },
+  );
+  assert.deepEqual(
+    res.payload.capabilities.find((capability) => capability.intent === 'attendance_status'),
+    { intent: 'attendance_status', externalEnhancement: false, resource: 'attendancereportedinventory' },
   );
   assert.deepEqual(res.payload.providerPolicy, {
     primary: 'openai', fallback: 'huggingface', fallbackRequiresPrimaryAttempt: true,
@@ -1946,5 +2069,9 @@ test('la interfaz activa enriquecimiento y adapta insight y fuentes del contrato
   assert.match(html, /Ficha y licencias históricas/);
   assert.match(html, /Asistida ·/);
   assert.match(html, /Lectura ejecutiva/);
+  assert.match(html, /PLATFORM_OWNER_OPERATIVO_INTEGRAL:\s*'Propietario de plataforma · Operación integral'/);
+  assert.match(html, /HUGO_APROBADOR_INTEGRAL:\s*'Aprobador municipal integral'/);
+  assert.match(html, /CONSULTA_INTEGRAL:\s*'Consulta integral'/);
+  assert.match(html, /role:\s*friendlyRoleLabel\(user\.role\)/);
   assert.doesNotMatch(html, /row\s*&&\s*row\.rawFields/);
 });

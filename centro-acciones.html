@@ -752,8 +752,18 @@
         AUDITOR: 'Auditoría',
         INTENDENTE: 'Intendencia',
         GOBERNADOR: 'Gobernación',
-        ADMIN_INTERNO: 'Administración interna'
+        ADMIN_INTERNO: 'Administración interna',
+        INTERNAL_ADMIN: 'Administración interna',
+        PLATFORM_OWNER: 'Propietario de plataforma',
+        PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Propietario de plataforma · Operación integral',
+        HUGO_APROBADOR_INTEGRAL: 'Aprobador institucional integral',
+        CONSULTA_INTEGRAL: 'Consulta institucional integral',
+        TENANT_RRHH_ADMIN_OPERATIVO: 'Administración operativa de RRHH'
       };
+      function humanRoleLabel(value) {
+        var role = text(value).toUpperCase();
+        return ROLE_LABELS[role] || titleCase(role) || 'Acceso interno';
+      }
       var CAPABILITY_LABELS = {
         'leave.request.self.create': 'crear solicitudes propias',
         'leave.request.self.update': 'editar borradores propios',
@@ -1107,7 +1117,7 @@
           user: {
             id: text(first(user.id, user.userId, authUser && authUser.id)),
             name: text(first(user.name, user.displayName, user.email, authUser && authUser.name), 'Usuario interno'),
-            role: text(first(user.role, user.profile, authUser && authUser.role), 'Acceso interno')
+            role: humanRoleLabel(first(user.role, user.profile, authUser && authUser.role))
           },
           capabilities: normalizeCapabilities(root), subjects: subjects, reasons: reasons,
           subjectsTruncated: bool(first(options.subjectsTruncated, root.subjectsTruncated)),

@@ -645,6 +645,7 @@
             <button class="quick-button" type="button" data-prompt="Mostrame un resumen operativo de GRH y aclarame el grano de cada conteo."><span class="quick-code" aria-hidden="true">RS</span><span>Resumen GRH</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá la estructura, organizaciones, sectores y cargos observados en GRH sin inferir un organigrama."><span class="quick-code" aria-hidden="true">ES</span><span>Estructura observada</span></button>
             <button class="quick-button" type="button" data-prompt="Analizá el ausentismo agregado del último período disponible, sus motivos principales y límites metodológicos."><span class="quick-code" aria-hidden="true">AU</span><span>Ausentismo agregado</span></button>
+            <button class="quick-button" type="button" data-prompt="¿Cuál es el estado y la cobertura reportada de los relojes y marcaciones? Separá inventario, gateway y conectividad física."><span class="quick-code" aria-hidden="true">RM</span><span>Relojes y marcaciones</span></button>
             <button class="quick-button" type="button" data-prompt="Listá los eventos administrativos de ausencia del último período disponible."><span class="quick-code" aria-hidden="true">EV</span><span>Eventos de ausencia</span></button>
             <button class="quick-button" type="button" data-prompt="Explicame el Título VI de la Ley 5811, su aplicación municipal en Junín y qué puede calcularse responsablemente con GRH."><span class="quick-code" aria-hidden="true">LV</span><span>Ley 5811 · Título VI</span></button>
             <button class="quick-button" type="button" data-compose="Buscá al empleado "><span class="quick-code" aria-hidden="true">PE</span><span>Buscar empleado</span></button>
@@ -838,12 +839,13 @@
         batch: 32,
         bucket: 16
       };
-      var LOCAL_ONLY_INTENTS = ['employee_search', 'employee_detail', 'absence_event_list', 'leave_policy', 'quality_issue_list', 'import_lineage'];
+      var LOCAL_ONLY_INTENTS = ['employee_search', 'employee_detail', 'absence_event_list', 'leave_policy', 'quality_issue_list', 'import_lineage', 'attendance_status', 'out_of_scope'];
       var INTENT_DOMAINS = {
         operational_summary: 'summary',
         workforce_summary: 'workforce',
         management_comparison: 'management',
         budget_approved: 'budget',
+        attendance_status: 'attendance',
         structure_analysis: 'structure',
         absence_analysis: 'absence',
         absence_event_list: 'absence',
@@ -857,10 +859,16 @@
       var INITIAL_CONTEXT_INTENTS = {
         inicio: 'operational_summary', resumen: 'operational_summary', estructura: 'structure_analysis',
         ausentismo: 'absence_analysis', licencias: 'leave_policy', calidad: 'quality_analysis', personas: 'employee_search',
-        nomina: 'payroll_control', integracion: 'integration_quality', gestiones: 'management_comparison', presupuesto: 'budget_approved'
+        nomina: 'payroll_control', integracion: 'integration_quality', gestiones: 'management_comparison', presupuesto: 'budget_approved', marcaciones: 'attendance_status'
       };
-      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', management: 'comparación de gestiones', budget: 'presupuesto aprobado', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
-      var RESOURCE_LABELS = { summary: 'resumen GRH', managementanalytics: 'comparativa homogénea de gestiones', budgetapproved: 'presupuesto aprobado 2026', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var DOMAIN_LABELS = { summary: 'resumen', workforce: 'dotación', management: 'comparación de gestiones', budget: 'presupuesto aprobado', attendance: 'relojes y marcaciones', structure: 'estructura', absence: 'ausentismo', leave_policy: 'licencias normativas', quality: 'calidad', lineage: 'linaje', employee: 'empleado', payroll: 'nómina', integration: 'integración', executive: 'ejecutiva', guidance: 'ayuda' };
+      var RESOURCE_LABELS = { summary: 'resumen GRH', managementanalytics: 'comparativa homogénea de gestiones', budgetapproved: 'presupuesto aprobado 2026', attendancereportedinventory: 'inventario municipal reportado', attendancebootstrap: 'estado del gateway de marcaciones', structure: 'estructura GRH', absenceanalytics: 'ausentismo agregado', absenceevents: 'eventos de ausencia', leavenormative: 'catálogo normativo versionado', qualityoverview: 'calidad agregada', qualityissues: 'hallazgos registrados', importlineage: 'linaje de snapshots', employees: 'directorio laboral', employee: 'ficha laboral', productguidance: 'guía de producto' };
+      var ROLE_LABELS = {
+        PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Propietario de plataforma · Operación integral',
+        HUGO_APROBADOR_INTEGRAL: 'Aprobador municipal integral',
+        CONSULTA_INTEGRAL: 'Consulta integral',
+        PLATFORM_OWNER: 'Propietario de plataforma'
+      };
       var DECISION_LABELS = {
         explicit_intent: 'Vista elegida por el usuario',
         deterministic_message_classification: 'Ruta determinada por la consulta',
@@ -931,6 +939,11 @@
 
       function readableCode(value) {
         return cleanText(value).replace(/[_-]+/g, ' ');
+      }
+
+      function friendlyRoleLabel(value) {
+        var role = cleanText(value, 'Usuario interno');
+        return ROLE_LABELS[role.toUpperCase()] || readableCode(role);
       }
 
       function readableDomain(value) {
@@ -1264,7 +1277,7 @@
         return {
           name: cleanText(user.name, cleanText(user.email, 'Usuario interno')),
           email: cleanText(user.email),
-          role: cleanText(user.role, 'Usuario interno')
+          role: friendlyRoleLabel(user.role)
         };
       }
 
@@ -1729,6 +1742,16 @@
             return 'Explicame cómo usar ' + cleanText(section && section.label, 'esta sección') + '.';
           });
         }
+        if (intent === 'attendance_status') return [
+          contextualSuggestion('Revisar inventario y gateway', '¿Cuál es el estado y la cobertura reportada de los relojes y marcaciones?', 'attendance_status', contextForIntent('attendance_status', payload.conversationContext, {})),
+          contextualSuggestion('Cómo revisar marcaciones', 'Explicame cómo revisar relojes, conectores y marcaciones paso a paso.', 'task_guidance', contextForIntent('task_guidance', payload.conversationContext, {})),
+          contextualSuggestion('Analizar ausentismo', 'Analizá el ausentismo agregado del último período disponible.', 'absence_analysis', contextForIntent('absence_analysis', payload.conversationContext, {}))
+        ];
+        if (intent === 'out_of_scope') return [
+          contextualSuggestion('Consultar dotación', '¿Cuál es la dotación administrativa y liquidable actual?', 'workforce_summary', contextForIntent('workforce_summary', payload.conversationContext, {})),
+          contextualSuggestion('Consultar relojes', '¿Cuál es el estado y la cobertura reportada de los relojes y marcaciones?', 'attendance_status', contextForIntent('attendance_status', payload.conversationContext, {})),
+          contextualSuggestion('Ver ayuda', 'Soy una persona nueva en MuniControl. Explicame por dónde empezar.', 'help_navigation', contextForIntent('help_navigation', payload.conversationContext, {}))
+        ];
         if (intent === 'operational_summary') return [
           contextualSuggestion('Ver estructura observada', 'Mostrame las asignaciones observadas de estructura.', 'structure_analysis', contextForIntent('structure_analysis', payload.conversationContext, {})),
           contextualSuggestion('Analizar ausentismo', 'Analizá los eventos administrativos de ausencia.', 'absence_analysis', contextForIntent('absence_analysis', payload.conversationContext, {})),
@@ -1830,6 +1853,7 @@
           workforce_summary: 'Dotación municipal',
           management_comparison: 'Comparación de gestiones',
           budget_approved: 'Presupuesto aprobado 2026',
+          attendance_status: 'Relojes y marcaciones',
           payroll_control: 'Control de nómina',
           integration_quality: 'Integración de identidad',
           quality_analysis: 'Calidad operativa',
@@ -1842,7 +1866,8 @@
           section_explanation: 'Explicación de sección',
           task_guidance: 'Guía paso a paso',
           glossary: 'Glosario municipal',
-          help: 'Ayuda'
+          help: 'Ayuda',
+          out_of_scope: 'Fuera del alcance verificado'
         })[intent] || 'Consulta municipal';
       }
 
@@ -1872,7 +1897,13 @@
           mode: mode,
           nominalLocal: ['employee_search', 'employee_detail'].includes(intent) && (localOnly || payload.privacy && payload.privacy.nominalQueries === 'local_database_only'),
           localOnly: localOnly,
-          localLabel: ['absence_event_list'].includes(intent) ? 'Registro nominal · local' : 'Control interno · local',
+          localLabel: ['absence_event_list'].includes(intent)
+            ? 'Registro nominal · local'
+            : intent === 'attendance_status'
+              ? 'Control horario · local'
+              : intent === 'out_of_scope'
+                ? 'Alcance verificado · local'
+                : 'Control interno · local',
           providerLabel: providerUsed ? ({ openai: 'OpenAI', huggingface: 'HF' })[cleanText(payload.provider && payload.provider.provider).toLowerCase()] || 'IA' : '',
           topic: topicLabel(payload),
           facts: factsFromPayload(payload),

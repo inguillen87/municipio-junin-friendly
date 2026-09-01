@@ -27,6 +27,9 @@ import {
   TASK_CATALOG,
   getProductGuidanceCatalog,
 } from '../assets/product-guidance.js';
+import { getAttendanceBootstrap } from '../lib/internal-attendance-gateway.js';
+import { getReportedAttendanceInventory } from '../lib/internal-attendance-reported-inventory.js';
+import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 
 const MAX_BODY_BYTES = 12 * 1024;
 const MAX_MESSAGE_LENGTH = 1_200;
@@ -67,12 +70,14 @@ const INTENTS = new Set([
   'employee_detail',
   'management_comparison',
   'budget_approved',
+  'attendance_status',
   'executive_analysis',
   'help_navigation',
   'section_explanation',
   'task_guidance',
   'glossary',
   'help',
+  'out_of_scope',
 ]);
 
 const GUIDANCE_INTENTS = new Set([
@@ -81,6 +86,7 @@ const GUIDANCE_INTENTS = new Set([
   'task_guidance',
   'glossary',
   'help',
+  'out_of_scope',
 ]);
 
 const EXTERNAL_ALLOWED_INTENTS = new Set([
@@ -103,6 +109,8 @@ const NOMINAL_OR_INTERNAL_ONLY_INTENTS = new Set([
   'import_lineage',
   'leave_policy',
   'budget_approved',
+  'attendance_status',
+  'out_of_scope',
 ]);
 
 const INTENT_RESOURCES = Object.freeze({
@@ -121,12 +129,14 @@ const INTENT_RESOURCES = Object.freeze({
   employee_detail: ['employee', 'canonicalscope'],
   management_comparison: ['managementanalytics'],
   budget_approved: ['budgetapproved'],
+  attendance_status: ['attendancereportedinventory', 'attendancebootstrap'],
   executive_analysis: ['integrationquality', 'payrollcontrol', 'canonicalscope', 'absenceanalytics', 'qualityoverview'],
   help_navigation: ['productguidance'],
   section_explanation: ['productguidance'],
   task_guidance: ['productguidance'],
   glossary: ['productguidance'],
   help: ['productguidance'],
+  out_of_scope: ['productguidance'],
 });
 
 const EXTERNAL_FORBIDDEN_FIELDS = /\b(?:dni|cuil|nombre|apellido|legajo|domicilio|direcci[oó]n|tel[eé]fono|email|contract[_-]?id|source[_-]?id|canonical[_-]?id|issue[_-]?id|observed[_-]?value|import[_-]?lineage)\b/i;
@@ -520,6 +530,7 @@ const QUALITY_ENTITIES = new Set(['persona', 'legajo', 'artifact:calculo', 'arti
 
 function naturalFilters(body, message, intent) {
   const text = foldAssistantQuery(message);
+  if (['attendance_status', 'out_of_scope'].includes(intent)) return {};
   if (intent === 'budget_approved') {
     const ordinanceAnalysis = municipalOrdinanceReferenceAnalysis(message);
     const messageFiscalAnalysis = budgetFiscalYearAnalysis(message, ordinanceAnalysis);
@@ -912,6 +923,9 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:que significa|que quiere decir|defini(?:r|cion)|glosario|termino)\b/.test(message)) return 'glossary';
   if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar))\b/.test(message)) return 'task_guidance';
   if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
+  const attendanceTopic = /\b(?:relojes?|marcaciones?|fichadas?|fichajes?|puntos?\s+de\s+marcacion|control\s+horario|huellas?\s+digitales?|biometri(?:a|co|cos|ca|cas)|conectores?)\b/.test(message);
+  const attendanceStateQuestion = /\b(?:estado|cobertura|inventario|mapa|calor|donde|tenemos|cuant[oa]s?|conectad[oa]s?|activ[oa]s?|recibid[oa]s?|registrad[oa]s?|hoy|ahora|tiempo\s+real|ubicacion|georreferenciad[oa]s?)\b/.test(message);
+  if (attendanceTopic && attendanceStateQuestion) return 'attendance_status';
   if (/\b(?:donde (?:esta|encuentro|veo|puedo)|como (?:llego|entro)|ir a|navegacion|navegar|menu|secciones|pantallas|onboarding|soy nuev[oa]|primer ingreso)\b/.test(message)) return 'help_navigation';
   if (/\b(?:comparar|compara|compare|comparame|comparativa|comparacion)\b[^.?!]*\bgestiones?\b/.test(message)
       || /\b(?:comparar|compara|compare|comparame)\b[^.?!]*\bgestion\b[^.?!]*\banterior\b/.test(message)
@@ -943,7 +957,7 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:buscar|busca|encontrar|empleados?|directorio|ficha)\b/.test(message)) return 'employee_search';
   if (/\b(?:analiza|analisis|explica|recomendacion|diagnostico|ejecutivo)\b/.test(message)) return 'executive_analysis';
   if (/\b(?:ayuda|guia|tutorial|aprender|orientacion)\b/.test(message)) return 'help_navigation';
-  return 'help';
+  return 'out_of_scope';
 }
 
 function intentDomain(intent) {
@@ -952,6 +966,7 @@ function intentDomain(intent) {
   if (intent === 'leave_policy') return 'leave_policy';
   if (intent === 'management_comparison') return 'management';
   if (intent === 'budget_approved') return 'budget';
+  if (intent === 'attendance_status') return 'attendance';
   if (['quality_analysis', 'quality_issue_list'].includes(intent)) return 'quality';
   if (intent === 'structure_analysis') return 'structure';
   if (intent === 'import_lineage') return 'lineage';
@@ -1189,6 +1204,145 @@ function formatMoney(value) {
     currency: 'ARS',
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+}
+
+async function loadGovernedAttendanceStatus(access, env) {
+  const reportedInventory = getReportedAttendanceInventory(access?.principal);
+  try {
+    const tenantSession = actionMutationSession(access, env);
+    const sql = await getActionCenterSql(env);
+    const bootstrap = await getAttendanceBootstrap(sql, access.principal, tenantSession);
+    return {
+      status: 'ready',
+      reportedInventory,
+      bootstrap,
+      gateway: { available: true, unavailableCode: null },
+    };
+  } catch (error) {
+    return {
+      status: reportedInventory ? 'reported_only' : 'unavailable',
+      reportedInventory,
+      bootstrap: null,
+      gateway: {
+        available: false,
+        unavailableCode: safeIdentifier(error?.code, 80) || 'ATTENDANCE_GATEWAY_UNAVAILABLE',
+      },
+    };
+  }
+}
+
+function attendanceStatusResult(payload = {}) {
+  const reported = payload.reportedInventory && typeof payload.reportedInventory === 'object'
+    ? payload.reportedInventory
+    : null;
+  const sites = Array.isArray(reported?.data) ? reported.data : [];
+  const reportedSiteCount = reported
+    ? qualityCount(reported?.source?.recordCount ?? sites.length)
+    : null;
+  const georeferencedSiteCount = reported
+    ? sites.filter((site) => Number.isFinite(Number(site?.latitude))
+      && Number.isFinite(Number(site?.longitude))).length
+    : null;
+  const networkPullReported = reported
+    ? sites.filter((site) => site?.channel === 'network_pull').length
+    : null;
+  const removableMediaReported = reported
+    ? sites.filter((site) => site?.channel === 'removable_media').length
+    : null;
+  const bootstrap = payload.bootstrap && typeof payload.bootstrap === 'object'
+    ? payload.bootstrap
+    : null;
+  const gatewayAvailable = payload.gateway?.available === true && Boolean(bootstrap);
+  const summary = gatewayAvailable ? bootstrap.summary || {} : {};
+  const hardwareConnectionConfirmed = gatewayAvailable
+    ? bootstrap.features?.hardwareConnected === true
+    : false;
+  const coverage = {
+    reportedSites: reportedSiteCount,
+    georeferencedSites: georeferencedSiteCount,
+    networkPullReported,
+    removableMediaReported,
+    physicalConnectionConfirmedByInventory: reported?.physicalConnectionConfirmed === true,
+    heatMetric: reported?.heatMetric || null,
+    mappingVersion: reported?.source?.mappingVersion || null,
+  };
+  const operational = {
+    apiAvailable: gatewayAvailable,
+    registeredSites: gatewayAvailable ? qualityCount(summary.siteCount) : null,
+    registeredDevices: gatewayAvailable ? qualityCount(summary.deviceCount) : null,
+    registeredConnectors: gatewayAvailable ? qualityCount(summary.connectorCount) : null,
+    activeConnectors: gatewayAvailable ? qualityCount(summary.activeConnectorCount) : null,
+    rawEvents: gatewayAvailable ? qualityCount(summary.rawEventCount) : null,
+    canonicalPunches: gatewayAvailable ? qualityCount(summary.punchCount) : null,
+    unmatchedPunches: gatewayAvailable ? qualityCount(summary.unmatchedPunchCount) : null,
+    pendingReview: gatewayAvailable ? qualityCount(summary.pendingReviewCount) : null,
+    hardwareConnectionConfirmed,
+    temporalWindow: null,
+    unavailableCode: gatewayAvailable ? null : payload.gateway?.unavailableCode || 'ATTENDANCE_GATEWAY_UNAVAILABLE',
+  };
+  if (!reported && !gatewayAvailable) {
+    return {
+      status: 503,
+      answer: 'No hay un inventario municipal reportado ni un estado operativo verificable del gateway de marcaciones para esta sesión. No corresponde inferir puntos, equipos, conectividad ni fichadas.',
+      data: { coverage, operational },
+      targetPath: '/relojes-marcaciones',
+      relatedSections: relatedSections(['marcaciones', 'ayuda']),
+      asOf: null,
+      sources: [],
+    };
+  }
+
+  const reportedAnswer = reported
+    ? `El relevamiento municipal reporta ${formatNumber(reportedSiteCount)} puntos y ${formatNumber(georeferencedSiteCount)} ubicaciones con coordenadas: ${formatNumber(networkPullReported)} con extracción por red informada y ${formatNumber(removableMediaReported)} por medio removible.`
+    : 'Este municipio no tiene un inventario de puntos reportado en la fuente disponible.';
+  const gatewayAnswer = gatewayAvailable
+    ? `El gateway registra ${formatNumber(operational.registeredSites)} puntos dados de alta, ${formatNumber(operational.registeredDevices)} equipos, ${formatNumber(operational.activeConnectors)} conectores activos sobre ${formatNumber(operational.registeredConnectors)} y ${formatNumber(operational.canonicalPunches)} marcaciones canónicas. ${hardwareConnectionConfirmed ? 'La API informa conexión física habilitada para esta sesión.' : 'La API no confirma conexión física activa para esta sesión.'}`
+    : 'El estado operativo del gateway no pudo verificarse en esta consulta, por lo que no se afirma conectividad ni recepción de fichadas.';
+  const facts = [
+    ...(reported ? [
+      { label: 'Puntos reportados', value: reportedSiteCount },
+      { label: 'Puntos georreferenciados', value: georeferencedSiteCount },
+      { label: 'Extracción por red informada', value: networkPullReported },
+      { label: 'Extracción por medio removible', value: removableMediaReported },
+    ] : []),
+    ...(gatewayAvailable ? [
+      { label: 'Equipos registrados en el gateway', value: operational.registeredDevices },
+      { label: 'Conectores activos', value: `${operational.activeConnectors} de ${operational.registeredConnectors}` },
+      { label: 'Marcaciones canónicas acumuladas', value: operational.canonicalPunches },
+      { label: 'Pendientes de revisión', value: operational.pendingReview },
+    ] : [{ label: 'Estado operativo del gateway', value: 'No verificable en esta consulta' }]),
+  ];
+  return {
+    answer: `${reportedAnswer} Ese inventario describe puntos informados y no prueba que los relojes estén conectados. ${gatewayAnswer} El bootstrap no informa una ventana temporal: estos conteos no permiten afirmar cuántas marcaciones hubo hoy ni ubicación en tiempo real.`,
+    data: {
+      coverage,
+      operational,
+      facts,
+      limitations: [
+        'reported_inventory_is_not_live_connectivity',
+        'bootstrap_has_no_temporal_window',
+        'punch_is_not_hours_worked_or_payroll_impact',
+        'biometric_templates_are_not_exposed_or_stored_by_this_assistant',
+      ],
+    },
+    targetPath: '/relojes-marcaciones',
+    relatedSections: relatedSections(['marcaciones', 'ausentismo', 'calidad']),
+    asOf: null,
+    sources: [
+      ...(reported ? [{
+        system: 'MUNICIPIO_DE_JUNIN',
+        relation: 'reported_attendance_inventory',
+        authority: reported.source?.kind || 'municipal_workbook',
+        asOf: null,
+      }] : []),
+      ...(gatewayAvailable ? [{
+        system: 'ATTENDANCE_GATEWAY',
+        relation: 'attendance_gateway_bootstrap_v1',
+        authority: 'tenant_attendance_control',
+        asOf: null,
+      }] : []),
+    ],
+  };
 }
 
 function operationalSummaryResult(payload = {}) {
@@ -2588,7 +2742,34 @@ function glossaryResult(body = {}) {
   };
 }
 
+function outOfScopeResult() {
+  const supportedDomains = [
+    'dotación y estructura',
+    'personas y legajos autorizados',
+    'nómina y presupuesto aprobado',
+    'ausentismo y normativa de licencias',
+    'calidad, integración y linaje de datos',
+    'relojes y marcaciones reportadas',
+    'comparación de gestiones',
+    'uso y navegación de MuniControl',
+  ];
+  return {
+    answer: 'No puedo responder esa consulta con las fuentes municipales verificadas disponibles. Este asistente no es de propósito general y no completa la respuesta con información de Internet ni con supuestos. Puedo ayudarte con dotación, legajos autorizados, nómina, presupuesto aprobado, ausentismo, licencias, calidad, integración, relojes y marcaciones reportadas, comparaciones de gestión y uso de MuniControl.',
+    data: {
+      code: 'ASSISTANT_SCOPE_UNSUPPORTED',
+      supportedDomains,
+      rawQuestionExternalized: false,
+    },
+    steps: ['Reformulá la consulta dentro de uno de los dominios disponibles.', 'Revisá siempre la fuente, el corte y los límites incluidos en la respuesta.'],
+    targetPath: '/centro-ayuda',
+    relatedSections: relatedSections(['ayuda', 'asistente']),
+    asOf: GUIDANCE_AS_OF,
+    sources: guidanceSource('supported_assistant_scope'),
+  };
+}
+
 function productGuidanceResult(intent, body) {
+  if (intent === 'out_of_scope') return outOfScopeResult();
   if (intent === 'section_explanation') return sectionExplanationResult(body);
   if (intent === 'task_guidance') return taskGuidanceResult(body);
   if (intent === 'glossary') return glossaryResult(body);
@@ -3589,6 +3770,7 @@ function capabilitiesPayload() {
       { intent: 'import_lineage', externalEnhancement: false, resource: 'importlineage' },
       { intent: 'management_comparison', externalEnhancement: true, resource: 'managementanalytics' },
       { intent: 'budget_approved', externalEnhancement: false, resource: 'budgetapproved' },
+      { intent: 'attendance_status', externalEnhancement: false, resource: 'attendancereportedinventory' },
       { intent: 'employee_search', externalEnhancement: false },
       { intent: 'employee_detail', externalEnhancement: false },
       { intent: 'executive_analysis', externalEnhancement: true },
@@ -3642,6 +3824,8 @@ export function createInternalAssistantHandler(dependencies = {}) {
   const loadImportLineage = dependencies.importLineage ?? dependencies.importlineage ?? internalData.importLineage;
   const loadManagement = dependencies.managementAnalytics ?? dependencies.managementanalytics ?? internalData.managementAnalytics;
   const loadBudget = dependencies.budgetApproved ?? dependencies.budgetapproved ?? internalData.budgetApproved;
+  const loadAttendanceStatus = dependencies.attendanceStatus
+    ?? ((access) => loadGovernedAttendanceStatus(access, env));
   const resolveReason = dependencies.resolveAbsenceReason ?? resolveAbsenceReason;
   const loadQuality = dependencies.qualityOverview
     ?? dependencies.qualityoverview
@@ -3797,6 +3981,11 @@ export function createInternalAssistantHandler(dependencies = {}) {
       if (GUIDANCE_INTENTS.has(intent)) {
         result = productGuidanceResult(intent, body);
         resourceStatuses.push({ name: 'productguidance', status: 'ok' });
+      } else if (intent === 'attendance_status') {
+        result = attendanceStatusResult(await tracked(
+          'attendance_status',
+          () => loadAttendanceStatus(access),
+        ));
       } else if (intent === 'budget_approved') {
         const fiscalYear = Number(plan.filters.fiscalYear ?? 2026);
         const instrumentNumber = Number(plan.filters.instrumentNumber ?? 1021);
@@ -4000,7 +4189,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
           ]);
           result = executiveResult(integration, payroll, scope, absence, quality);
         } else {
-          result = productGuidanceResult('help', body);
+          result = productGuidanceResult('out_of_scope', body);
         }
       }
 

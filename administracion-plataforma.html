@@ -1133,6 +1133,19 @@
     function titleize(value) {
       return text(value).replace(/[._-]+/g, ' ').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
     }
+    function roleLabel(value) {
+      var key = text(value).toUpperCase();
+      var labels = {
+        PLATFORM_OWNER: 'Propietario de plataforma',
+        PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Propietario de plataforma · Operación integral',
+        HUGO_APROBADOR_INTEGRAL: 'Aprobador institucional integral',
+        CONSULTA_INTEGRAL: 'Consulta institucional integral',
+        TENANT_RRHH_ADMIN_OPERATIVO: 'Administración operativa de RR. HH.',
+        ADMIN_INTERNO: 'Administración interna',
+        INTERNAL_ADMIN: 'Administración interna'
+      };
+      return labels[key] || titleize(key) || 'Rol no informado';
+    }
     function normalizeSearch(value) {
       return text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     }
@@ -1546,9 +1559,12 @@
       }).filter(Boolean);
       var status = text(first(membership.status, row.status, row.state), row.pending === true ? 'pending' : 'unknown');
       var version = authorityVersion(membership.version, row.version);
-      var operationalMembershipId = text(first(membership.id, row.membershipId, row.membership_id));
+      var topLevelMembershipId = row.tenantId && row.roleKey ? row.id : '';
+      var operationalMembershipId = text(first(membership.id, row.membershipId, row.membership_id, topLevelMembershipId));
       var employmentLink = normalizeEmploymentLink(first(row.employmentLink, membership.employmentLink));
-      var operationalAccess = normalizeOperationalAccess(first(row.operationalAccess, membership.operationalAccess));
+      var rawOperationalAccess = first(row.operationalAccess, membership.operationalAccess);
+      var operationalAccessReported = Object.keys(firstObject(rawOperationalAccess)).length > 0;
+      var operationalAccess = normalizeOperationalAccess(rawOperationalAccess);
       return {
         id: text(first(row.id, row.userId, row.user_id, row.email)),
         membershipId: text(first(membership.id, row.membershipId, row.membership_id, row.id)),
@@ -1565,6 +1581,7 @@
         employmentLinked: employmentLink.status === 'linked' ? true : employmentLink.status === 'unlinked' ? false : null,
         employmentLink: employmentLink,
         operationalAccess: operationalAccess,
+        operationalAccessReported: operationalAccessReported,
         invitation: {
           id: text(first(invitation.id, row.invitationId)),
           status: text(invitation.status, 'not_applicable').toLowerCase(),
@@ -1677,6 +1694,7 @@
       var access = firstObject(root.access);
       var platform = firstObject(access.platform);
       var session = firstObject(access.session);
+      var authLevel = text(first(session.authLevel, session.authenticationLevel)).toLowerCase();
       var capabilities = list(platform.capabilities).map(function (value) {
         return text(typeof value === 'string' ? value : firstObject(value).key);
       }).filter(Boolean);
@@ -1684,8 +1702,8 @@
         authorized: access.authorized === true,
         platformContext: access.tenant === null && Object.keys(platform).length > 0,
         tenantContext: Object.keys(firstObject(access.tenant)).length > 0,
-        mfa: session.mfa === true,
-        sessionVersion: authorityVersion(session.version),
+        mfa: session.mfa === true || ['mfa', 'recovery'].includes(authLevel),
+        sessionVersion: authorityVersion(session.version, access.sessionVersion, root.sessionVersion),
         canAdminPlatform: capabilities.some(function (capability) {
           return PLATFORM_ADMIN_CAPABILITIES.includes(capability);
         }),
@@ -1824,7 +1842,7 @@
           id: text(first(user.id, user.userId, user.email)),
           displayName: text(first(user.displayName, user.name, user.email), 'Usuario administrativo'),
           email: text(user.email),
-          role: text(first(user.role, user.roleLabel, user.platformRole), 'Rol no informado')
+          role: roleLabel(first(user.roleLabel, user.role, user.platformRole))
         },
         context: {
           mode: tenantId || mode === 'tenant' ? 'tenant' : 'platform',
@@ -2620,7 +2638,10 @@
         var row = node('tr'); row.dataset.openRow = user.id; row.dataset.listRow = 'user';
         var identity = node('td'); identity.dataset.label = 'Usuario'; identity.append(node('span', 'cell-title', user.displayName), node('span', 'cell-sub', user.email || 'Email no informado'));
         var tenant = node('td'); tenant.dataset.label = 'Tenant'; tenant.textContent = user.tenantName;
-        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades · ' + user.operationalAccess.scopes.length + ' alcances'));
+        var scopeSummary = user.operationalAccessReported
+          ? user.operationalAccess.scopes.length + ' alcances'
+          : 'Alcances: elegí el gobierno';
+        var roleCell = node('td'); roleCell.dataset.label = 'Rol'; roleCell.append(node('span', 'cell-title', user.roleLabel), node('span', 'cell-sub', user.capabilities.length + ' capacidades · ' + scopeSummary));
         var statusCell = node('td'); statusCell.dataset.label = 'Estado'; statusCell.append(pill(user.status, statusTone(user.status)), node('span', 'cell-sub', 'Invitación: ' + invitationDetail(user.invitation)));
         var security = node('td'); security.dataset.label = 'Seguridad';
         security.append(
@@ -2760,7 +2781,9 @@
       el.operationalBoundaryFacts.append(
         pill('Membresía ' + normalizeUserStatus(user.status), normalizeUserStatus(user.status) === 'active' ? 'is-ok' : 'is-attention'),
         pill('Legajo ' + (linkVerified ? 'vinculado' : user.employmentLink.status === 'linked' || user.employmentLink.status === 'stale' ? 'a revisar' : 'sin vínculo'), linkVerified ? 'is-ok' : 'is-attention'),
-        pill(user.operationalAccess.scopes.length + (user.operationalAccess.scopes.length === 1 ? ' alcance' : ' alcances'), user.operationalAccess.scopes.length ? 'is-info' : 'is-attention')
+        pill(user.operationalAccessReported
+          ? user.operationalAccess.scopes.length + (user.operationalAccess.scopes.length === 1 ? ' alcance' : ' alcances')
+          : 'Alcances no informados en vista global', user.operationalAccess.scopes.length ? 'is-info' : 'is-attention')
       );
       el.operationalWorkbenchState.textContent = ready ? 'Tenant verificado' : 'Bloqueado';
       el.operationalWorkbenchState.className = 'state-pill ' + (ready ? 'is-ok' : 'is-attention');

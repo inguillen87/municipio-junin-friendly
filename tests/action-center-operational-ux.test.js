@@ -5,6 +5,15 @@ import test from 'node:test';
 
 const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 
+test('el Centro de acciones presenta roles institucionales legibles', async () => {
+  const html = await read('centro-acciones.html');
+
+  assert.match(html, /PLATFORM_OWNER_OPERATIVO_INTEGRAL: 'Propietario de plataforma · Operación integral'/);
+  assert.match(html, /HUGO_APROBADOR_INTEGRAL: 'Aprobador institucional integral'/);
+  assert.match(html, /CONSULTA_INTEGRAL: 'Consulta institucional integral'/);
+  assert.match(html, /role: humanRoleLabel\(first\(user\.role, user\.profile, authUser && authUser\.role\)\)/);
+});
+
 test('el Centro de acciones explica y habilita el circuito RRHH desde capacidades del backend', async () => {
   const html = await read('centro-acciones.html');
 

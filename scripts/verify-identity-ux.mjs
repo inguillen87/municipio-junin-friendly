@@ -12,6 +12,10 @@ const allowedFiles = new Map([
   ['/activar-cuenta.html', 'activar-cuenta.html'],
   ['/seguridad-cuenta.html', 'seguridad-cuenta.html'],
   ['/assets/identity-security.css', 'assets/identity-security.css'],
+  ['/assets/municontrol-enterprise.css', 'assets/municontrol-enterprise.css'],
+  ['/assets/pwa/icon.svg', 'assets/pwa/icon.svg'],
+  ['/assets/pwa/icon-180.png', 'assets/pwa/icon-180.png'],
+  ['/manifest.webmanifest', 'manifest.webmanifest'],
 ]);
 
 function json(res, status, payload) {
@@ -33,6 +37,10 @@ const lockoutRequests = [];
 const securityEnrollmentRequests = [];
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
+  if (req.method === 'GET' && url.pathname === '/administracion-plataforma.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store, max-age=0' });
+    return res.end('<!doctype html><html lang="es"><title>Administración de plataforma</title><body>Destino Plataforma verificado</body></html>');
+  }
   if (url.pathname === '/api/internal-identity') {
     if (req.method === 'GET' && url.searchParams.get('resource') === 'bootstrap') {
       return json(res, 200, {
@@ -105,8 +113,13 @@ const server = http.createServer(async (req, res) => {
   const relative = allowedFiles.get(url.pathname);
   if (!relative || req.method !== 'GET') { res.writeHead(404); return res.end('Not found'); }
   const content = fs.readFileSync(path.join(root, relative));
+  const contentType = relative.endsWith('.css') ? 'text/css; charset=utf-8'
+    : relative.endsWith('.svg') ? 'image/svg+xml'
+      : relative.endsWith('.png') ? 'image/png'
+        : relative.endsWith('.webmanifest') ? 'application/manifest+json; charset=utf-8'
+          : 'text/html; charset=utf-8';
   res.writeHead(200, {
-    'Content-Type': relative.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/html; charset=utf-8',
+    'Content-Type': contentType,
     'Cache-Control': 'private, no-store, max-age=0',
     'Referrer-Policy': 'no-referrer',
     'X-Frame-Options': 'DENY',
@@ -161,6 +174,14 @@ try {
   {
     const { context, page } = await pageFor({ width: 390, height: 844 });
     await page.goto(`${origin}/login.html`, { waitUntil: 'networkidle' });
+    const initialAccessPosition = await page.locator('#access-panel').evaluate((node) => ({
+      top: node.getBoundingClientRect().top,
+      emailTop: document.getElementById('emailInput').getBoundingClientRect().top,
+      passwordTop: document.getElementById('passInput').getBoundingClientRect().top,
+    }));
+    assert.equal(initialAccessPosition.top < 140, true, 'el acceso debe aparecer antes que la introducción en móvil');
+    assert.equal(initialAccessPosition.emailTop < 430, true, 'el correo debe quedar visible sin desplazamiento excesivo');
+    assert.equal(initialAccessPosition.passwordTop < 560, true, 'la contraseña debe quedar cerca del primer viewport');
     await page.locator('#emailInput').fill('cuenta@example.invalid');
     await page.locator('#passInput').fill('QA password only');
     await page.locator('#btnLogin').click();
@@ -212,7 +233,7 @@ try {
     assert.match(await page.locator('#errorMsg').innerText(), /Quedan 4 intentos/);
     await page.locator('#mfaInput').fill('QA-RECOVERY-CORRECT');
     await page.locator('#verifyMfaButton').click();
-    await page.waitForURL(`${origin}/internal-dashboard.html`);
+    await page.waitForURL(`${origin}/administracion-plataforma.html`);
     assert.deepEqual(recoveryRequests.map((item) => item.version), [2, 3]);
     assert.notEqual(recoveryRequests[0].key, recoveryRequests[1].key);
     await context.close();

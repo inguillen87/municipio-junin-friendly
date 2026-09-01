@@ -145,7 +145,7 @@
     </aside>
 
     <div class="workspace">
-      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Plataforma de gestión</div><div class="top-title" id="pageTitle">Centro ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><a class="action primary internal-entry" href="internal-dashboard.html#inicio">Portal interno</a><button class="logout" id="logout" type="button">Cerrar sesión</button></div></header>
+      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Plataforma de gestión</div><div class="top-title" id="pageTitle">Centro ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><a class="action primary internal-entry" href="internal-dashboard.html#inicio">Portal interno</a><button class="logout" id="logout" type="button">Ingresar</button></div></header>
       <main class="content" id="main"><div class="loading" id="loading">Preparando el tablero verificado...</div><div id="dashboard" hidden>
         <section class="section active" id="inicio">
           <div class="hero"><div><div class="eyebrow">Centro ejecutivo</div><h1>Situación municipal al corte</h1><p>Vista consolidada del snapshot GRH. Los demás dominios permanecen visibles en el mapa de producto y se habilitan cuando existe una fuente municipal homologada.</p><div class="source-line"><span class="tag real">Fuente GRH</span><span class="tag derived">Indicador derivado</span><span class="tag unavailable">Fuente pendiente</span></div></div><div class="hero-aside"><div class="eyebrow">Corte de información</div><strong id="heroCutoff">06 AGO 2026</strong><span>Fotografía controlada; no es una conexión en tiempo real.</span></div></div>
@@ -396,7 +396,19 @@
 
       document.querySelectorAll('[data-section]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.section)));
       document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',()=>openSection(button.dataset.open)));
+      let authenticatedSession=false;
+      async function syncSessionAction(){
+        try{
+          const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'}});
+          if(response.ok){const payload=await response.json();authenticatedSession=payload&&payload.authenticated===true;}
+        }catch(_){authenticatedSession=false;}
+        $('logout').textContent=authenticatedSession?'Cerrar sesión':'Ingresar';
+      }
       async function logout(){
+        if(!authenticatedSession){
+          window.location.assign('login.html?next=internal-dashboard.html%23inicio');
+          return;
+        }
         try{
           await fetch('/api/internal-auth',{
             method:'DELETE',credentials:'same-origin',cache:'no-store',
@@ -409,6 +421,7 @@
         }
       }
       $('logout').addEventListener('click',logout);
+      syncSessionAction();
       window.addEventListener('hashchange',()=>openSection(location.hash.slice(1),false));
 
       fetch('friendly-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('HTTP '+response.status);return response.json();}).then(payload=>{

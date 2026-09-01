@@ -13,6 +13,20 @@ function parseInlineScripts(file) {
   return html;
 }
 
+function extractFunction(source, name) {
+  const marker = `function ${name}`;
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `falta ${marker}`);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') depth -= 1;
+    if (depth === 0) return source.slice(start, index + 1);
+  }
+  assert.fail(`el cuerpo de ${name} no cierra`);
+}
+
 test('activación usa código manual y mantiene secretos fuera de URL y almacenamiento', () => {
   const html = parseInlineScripts('activar-cuenta.html');
   assert.match(html, /\/api\/internal-identity/);
@@ -89,6 +103,31 @@ test('login exige contexto explícito antes de MFA y no autoelige un tenant úni
   assert.doesNotMatch(html, /otpauthUri/);
 });
 
+test('login conserva deep links internos y rechaza destinos externos', () => {
+  const html = parseInlineScripts('login.html');
+  const source = extractFunction(html, 'allowedDestination');
+  const allowedDestination = (search, contextKind = 'tenant') => new Function(
+    'window', 'URLSearchParams', 'contextKind', `${source}; return allowedDestination(contextKind);`,
+  )({ location: { search } }, URLSearchParams, contextKind);
+
+  assert.equal(allowedDestination('?next=internal-dashboard.html%23legajos'), 'internal-dashboard.html#legajos');
+  assert.equal(allowedDestination('?next=%2Finternal-dashboard.html%23ausentismo'), 'internal-dashboard.html#ausentismo');
+  assert.equal(allowedDestination('?next=https%3A%2F%2Fevil.example%2F'), 'internal-dashboard.html');
+  assert.equal(allowedDestination('?next=internal-dashboard.html%23%2Fevil'), 'internal-dashboard.html');
+  assert.equal(allowedDestination('?next=internal-dashboard.html%23legajos', 'platform'), 'administracion-plataforma.html');
+  assert.equal(allowedDestination('?next=administracion-plataforma.html', 'platform'), 'administracion-plataforma.html');
+  assert.equal(allowedDestination('?next=seguridad-cuenta.html%23sesiones', 'platform'), 'seguridad-cuenta.html#sesiones');
+  assert.equal(allowedDestination('?next=administracion-plataforma.html', 'tenant'), 'internal-dashboard.html');
+
+  const contextSource = extractFunction(html, 'sessionContextKind');
+  const sessionContextKind = new Function(`${contextSource}; return sessionContextKind;`)();
+  assert.equal(sessionContextKind({ tenantId: null }), 'platform');
+  assert.equal(sessionContextKind({ tenantId: 'tenant-junin' }), 'tenant');
+  assert.equal(sessionContextKind({ activeTenantId: null }), 'platform');
+  assert.match(html, /var contextKind = sessionContextKind\(result\) \|\| selectedLoginContextKind/);
+  assert.match(html, /\.access-panel \{ order: -1; \}/);
+});
+
 test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recovery', () => {
   const html = parseInlineScripts('login.html');
   assert.match(html, /<div class="email-mfa-card">[\s\S]+id="requestEmailMfaButton"[^>]*>Recibir un código nuevo por correo<\/button>/);
@@ -154,7 +193,7 @@ test('administración ofrece un cambio explícito y versionado desde tenant a Pl
   assert.match(html, /login\.html\?next=administracion-plataforma\.html/);
   assert.match(html, /IDENTITY_URL \+ '\?resource=bootstrap'/);
   assert.match(html, /postIdentityCommand\('switch_context', \{ context: \{ kind: 'platform' \} \}, access\.sessionVersion, commandKey\(\)\)/);
-  assert.match(html, /sessionVersion: authorityVersion\(session\.version\)/);
+  assert.match(html, /sessionVersion: authorityVersion\(session\.version, access\.sessionVersion, root\.sessionVersion\)/);
   assert.match(html, /canAdminPlatform: capabilities\.some/);
 
   const authenticate = html.match(/async function authenticate\(\) \{([\s\S]*?)\n    function bindEvents/);
@@ -175,6 +214,36 @@ test('administración vuelve a una operación tenant antes de abrir herramientas
   assert.match(html, /OPERATION_TARGETS\.includes\(target\)/);
   assert.match(html, /window\.location\.assign\(target\)/);
   assert.match(html, /Elegí primero el gobierno operativo/);
+
+  const source = extractFunction(html, 'normalizeIdentityAccess');
+  const normalizeIdentityAccess = new Function(
+    'roots', 'firstObject', 'list', 'text', 'first', 'authorityVersion', 'PLATFORM_ADMIN_CAPABILITIES',
+    `${source}; return normalizeIdentityAccess;`,
+  )(
+    (payload) => [payload],
+    (...values) => values.find((value) => value && typeof value === 'object' && !Array.isArray(value)) || {},
+    (value) => Array.isArray(value) ? value : [],
+    (value) => value == null ? '' : String(value).trim(),
+    (...values) => values.find((value) => value !== undefined && value !== null && value !== ''),
+    (...values) => {
+      const value = values.map(Number).find((candidate) => Number.isSafeInteger(candidate) && candidate >= 1);
+      return value === undefined ? null : value;
+    },
+    ['platform.tenants.manage'],
+  );
+  const access = normalizeIdentityAccess({
+    ok: true,
+    access: {
+      authorized: true,
+      tenant: null,
+      platform: { capabilities: ['platform.tenants.manage'] },
+      session: { version: 7, authLevel: 'recovery' },
+    },
+  });
+  assert.equal(access.platformContext, true);
+  assert.equal(access.mfa, true, 'email MFA recovery también es segundo factor vigente');
+  assert.equal(access.sessionVersion, 7);
+  assert.equal(access.canAdminPlatform, true);
 });
 
 test('administración laboral queda tenant-bound, versionada y cerrada sin contrato backend', () => {

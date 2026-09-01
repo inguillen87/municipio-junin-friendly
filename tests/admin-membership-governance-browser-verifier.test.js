@@ -8,6 +8,7 @@ import {
   buildAdminMembershipBootstrapFixture,
   buildAdminMembershipBrowserFailure,
   buildAdminMembershipBrowserSummary,
+  buildAdminMembershipIdentityFixture,
   buildAdminMembershipPlatformOwnersFixture,
   expectedExistingMembershipBody,
   expectedMembershipApprovalBody,
@@ -58,6 +59,7 @@ test('matriz fija cubre desktop 1440x900 y mobile 390x844', () => {
 
 test('auth y gobierno sintéticos exigen PLATFORM_OWNER, MFA, dos owners y tenant explícito', () => {
   const auth = buildAdminMembershipAuthFixture();
+  const identity = buildAdminMembershipIdentityFixture();
   const bootstrap = buildAdminMembershipBootstrapFixture(false);
   const owners = buildAdminMembershipPlatformOwnersFixture();
   assert.equal(auth.authenticated, true);
@@ -65,6 +67,12 @@ test('auth y gobierno sintéticos exigen PLATFORM_OWNER, MFA, dos owners y tenan
   assert.deepEqual(auth.access.platformRoles, ['PLATFORM_OWNER']);
   assert.equal(auth.authentication.level, 'mfa');
   assert.equal(auth.authentication.mfaVerified, true);
+  assert.equal(identity.access.authorized, true);
+  assert.equal(identity.access.tenant, null);
+  assert.deepEqual(identity.access.platform.roles, ['PLATFORM_OWNER']);
+  assert.ok(identity.access.platform.capabilities.includes('platform.tenants.manage'));
+  assert.equal(identity.access.session.authLevel, 'mfa');
+  assert.equal(identity.access.session.version, 2);
   assert.equal(owners.owners.length, 2);
   assert.ok(owners.owners.every((owner) => owner.active && owner.mfaEnrolled));
   assert.equal(owners.controls.makerCheckerReady, true);

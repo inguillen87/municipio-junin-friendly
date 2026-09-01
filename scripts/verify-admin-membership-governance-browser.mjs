@@ -135,6 +135,29 @@ export function buildAdminMembershipAuthFixture() {
   };
 }
 
+export function buildAdminMembershipIdentityFixture() {
+  return {
+    ok: true,
+    access: {
+      authorized: true,
+      tenant: null,
+      platform: {
+        roles: ['PLATFORM_OWNER'],
+        capabilities: [
+          'platform.tenants.manage',
+          'platform.crm.manage',
+          'platform.users.manage',
+          'platform.roles.manage',
+        ],
+      },
+      session: {
+        version: 2,
+        authLevel: 'mfa',
+      },
+    },
+  };
+}
+
 function tenantFixtures() {
   return [
     {
@@ -405,6 +428,12 @@ async function routeApiRequest(route, evidence) {
     evidence.identityGets += 1;
     evidence.events.push('get:invitations');
     return route.fulfill(jsonResponse({ ok: true, allowedCommands: [], invitations: [] }));
+  }
+
+  if (url.pathname === IDENTITY_PATH && method === 'GET' && hasOnlyResourceQuery(url, 'bootstrap')) {
+    evidence.identityGets += 1;
+    evidence.events.push('get:identity-bootstrap');
+    return route.fulfill(jsonResponse(buildAdminMembershipIdentityFixture()));
   }
 
   if (url.pathname === ADMIN_PATH && method === 'GET') {

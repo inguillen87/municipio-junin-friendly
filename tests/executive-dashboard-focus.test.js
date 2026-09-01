@@ -68,14 +68,16 @@ test('el foco ejecutivo conecta análisis agregado con gestiones existentes', ()
   assert.match(html, /@media\(max-width:480px\)\{[^}]*executive-quick-actions[^}]*grid-template-columns:1fr/);
 });
 
-test('la cabecera conserva Portal interno junto a un cierre de sesión inequívoco', () => {
+test('la cabecera pública ofrece ingreso y sólo muestra cierre tras verificar sesión', () => {
   const html = read('friendly-dashboard.html');
   const topbar = html.match(/<header class="topbar">([\s\S]*?)<\/header>/);
 
   assert.ok(topbar, 'falta la cabecera principal');
   assert.match(topbar[1], /href="internal-dashboard\.html#inicio">Portal interno<\/a>/);
-  assert.match(topbar[1], /<button class="logout" id="logout" type="button">Cerrar sesión<\/button>/);
-  assert.ok(topbar[1].indexOf('Portal interno') < topbar[1].indexOf('Cerrar sesión'));
+  assert.match(topbar[1], /<button class="logout" id="logout" type="button">Ingresar<\/button>/);
+  assert.ok(topbar[1].indexOf('Portal interno') < topbar[1].indexOf('Ingresar'));
+  assert.match(html, /authenticatedSession\?'Cerrar sesión':'Ingresar'/);
+  assert.match(html, /payload&&payload\.authenticated===true/);
   assert.match(html, /\.internal-entry\{min-height:34px;white-space:nowrap\}/);
   assert.match(html, /\.top-actions \.internal-entry\{padding:7px 8px;font-size:9px\}/);
   assert.doesNotMatch(html, /\$\('logout'\)\.textContent='Portal interno'/);
