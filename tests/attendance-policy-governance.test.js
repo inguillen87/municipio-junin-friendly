@@ -5,12 +5,14 @@ import vm from 'node:vm';
 
 const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('S006-B publica un candidato trazable sin confundirlo con una regla vigente', () => {
+test('S006-C5a publica candidatos trazables sin confundirlos con reglas vigentes', () => {
   const html = read('control-horario-homologacion.html');
   const contract = JSON.parse(read('attendance-policy-candidates.v1.json'));
 
   assert.equal(contract.contractId, 'junin-attendance-policy-candidates-public.v1');
-  assert.equal(contract.contractVersion, '0.1.0');
+  assert.equal(contract.contractVersion, '0.2.0');
+  assert.equal(contract.publishedAt, '2026-08-21');
+  assert.equal(contract.revisedAt, '2026-09-02');
   assert.equal(contract.status, 'draft_not_homologated');
   assert.equal(contract.mode, 'public_safe_read_only_preview');
   assert.equal(contract.authoritative, false);
@@ -22,8 +24,8 @@ test('S006-B publica un candidato trazable sin confundirlo con una regla vigente
   assert.equal(contract.candidatePolicy.weeklyPattern.start, '07:00');
   assert.equal(contract.candidatePolicy.weeklyPattern.end, '13:00');
   assert.equal(contract.candidatePolicy.arrivalToleranceMinutes, 5);
-  assert.match(html, /Sprint S006-B · gobierno de reglas/);
-  assert.match(html, /Borrador 0\.1 · no homologado/);
+  assert.match(html, /Sprint S006-C5a · explicación antes del cálculo/);
+  assert.match(html, /Borrador 0\.2 · no homologado/);
   assert.match(html, /Lun–Vie/);
   assert.match(html, /07:00–13:00/);
   assert.match(html, />5 min</);
@@ -38,8 +40,9 @@ test('S006-B publica un candidato trazable sin confundirlo con una regla vigente
   assert.equal(contract.historicalDataModel.qualitySignals.distinctUnresolvedLegacyShiftCodes, 1);
   assert.match(html, /541 legajos afectados por un código legacy no resuelto/);
   const evidenceByKey = new Map(contract.sourceEvidence.map((source) => [source.sourceKey, source]));
-  assert.equal(evidenceByKey.size, 6);
+  assert.equal(evidenceByKey.size, contract.sourceEvidence.length);
   for (const sourceKey of ['employee_area_roster', 'marking_points', 'organization_chart']) assert.ok(evidenceByKey.has(sourceKey));
+  assert.ok(evidenceByKey.has('accounting_tolerance_reference_image_2026_09_02'));
   const transcriptLocators = evidenceByKey.get('workshop_transcript_2026_08_21').observations.map(({ locator }) => locator);
   assert.ok(transcriptLocators.includes('00:13:37-00:14:19'));
   assert.ok(transcriptLocators.includes('00:31:47-00:32:11'));
@@ -47,7 +50,7 @@ test('S006-B publica un candidato trazable sin confundirlo con una regla vigente
   assert.match(html, /descubierto ≠ homologado ≠ vigente/);
 });
 
-test('S006-B deja sin valor normativo toda definición incompleta', () => {
+test('S006-C5a deja sin valor normativo toda definición incompleta', () => {
   const html = read('control-horario-homologacion.html');
   const contract = JSON.parse(read('attendance-policy-candidates.v1.json'));
 
@@ -71,7 +74,7 @@ test('S006-B deja sin valor normativo toda definición incompleta', () => {
   assert.equal((html.match(/class="state candidate"/g) || []).length, 3);
 });
 
-test('S006-B exige versiones inmutables, maker-checker y aislamiento por tenant', () => {
+test('S006-C5a exige versiones inmutables, maker-checker y aislamiento por tenant', () => {
   const html = read('control-horario-homologacion.html');
   const contract = JSON.parse(read('attendance-policy-candidates.v1.json'));
   const governance = contract.versionGovernance;
@@ -93,7 +96,7 @@ test('S006-B exige versiones inmutables, maker-checker y aislamiento por tenant'
   assert.equal(contract.governanceReadiness.structurallyComplete, false);
 });
 
-test('S006-B mantiene el contrato público sin PII, secretos ni ubicación exacta', () => {
+test('S006-C5a mantiene el contrato público sin PII, secretos ni ubicación exacta', () => {
   const html = read('control-horario-homologacion.html');
   const rawContract = read('attendance-policy-candidates.v1.json');
   const contract = JSON.parse(rawContract);
@@ -115,7 +118,7 @@ test('S006-B mantiene el contrato público sin PII, secretos ni ubicación exact
   assert.doesNotThrow(() => new vm.Script(scripts[0], { filename: 'control-horario-homologacion.inline.js' }));
 });
 
-test('S006-B queda navegable, publicable y disponible offline en ambas rutas', () => {
+test('S006-C5a queda navegable, publicable y disponible offline en ambas rutas', () => {
   const html = read('control-horario-homologacion.html');
   const modules = read('modulos.html');
   const readiness = read('control-horario-readiness.html');
@@ -132,8 +135,10 @@ test('S006-B queda navegable, publicable y disponible offline en ambas rutas', (
   assert.match(readiness, /href="control-horario-homologacion\.html">Abrir S006-B/);
   assert.match(build, /'control-horario-homologacion\.html'/);
   assert.match(build, /'attendance-policy-candidates\.v1\.json'/);
+  assert.match(build, /'assets\/junin-tardiness-policy\.js'/);
   assert.match(worker, /'\/control-horario-homologacion\.html'/);
   assert.match(worker, /'\/attendance-policy-candidates\.v1\.json'/);
+  assert.match(worker, /'\/assets\/junin-tardiness-policy\.js'/);
   assert.match(worker, /\['\/control-horario-homologacion', '\/control-horario-homologacion\.html'\]/);
   assert.match(ignore, /^!control-horario-homologacion\.html$/m);
   assert.match(ignore, /^!attendance-policy-candidates\.v1\.json$/m);

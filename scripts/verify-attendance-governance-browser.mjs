@@ -80,6 +80,14 @@ async function inspect(viewport, label) {
     await page.locator('#pending-toggle').click();
     assert.equal(await page.locator('tbody tr:visible').count(), 15);
 
+    await page.locator('#tardiness-month').fill('2026-09');
+    await page.locator('#tardiness-entries').fill('2026-09-03, 8\n2026-09-10, 14\n2026-09-21, 39');
+    await page.getByRole('button', { name: 'Simular banda candidata' }).click();
+    assert.equal(await page.locator('#tardiness-result').isVisible(), true);
+    assert.equal(await page.locator('[data-result="minutes"]').innerText(), '61');
+    assert.equal(await page.locator('[data-result="percent"]').innerText(), '75 %');
+    assert.match(await page.locator('[data-result="band"]').innerText(), /Más de 60 y hasta 150 minutos/);
+
     const layout = await page.evaluate(() => {
       const rgba = (value) => {
         const parts = value.match(/[\d.]+/g)?.map(Number) || [];
@@ -127,7 +135,7 @@ async function inspect(viewport, label) {
     assert.equal(layout.overflow, false, `${label}: overflow horizontal`);
     assert.ok(layout.minFontSize >= 12, `${label}: texto menor a 12 px (${layout.minFontSize})`);
     assert.deepEqual(layout.contrastFailures, [], `${label}: contraste menor a 4.5:1`);
-    assert.match(layout.heading || '', /Turnos que se pueden explicar/);
+    assert.match(layout.heading || '', /Turnos y reglas que se pueden explicar/);
 
     await page.evaluate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -148,7 +156,7 @@ async function inspect(viewport, label) {
     await page.goto(`${baseUrl}/control-horario-homologacion.html`, { waitUntil: 'domcontentloaded' });
     assert.match(await page.locator('.stamp').innerText(), /no homologado/i);
     await page.goto(`${baseUrl}/control-horario-homologacion`, { waitUntil: 'domcontentloaded' });
-    assert.match(await page.locator('h1').innerText(), /Turnos que se pueden explicar/);
+    assert.match(await page.locator('h1').innerText(), /Turnos y reglas que se pueden explicar/);
     offline = false;
     await context.setOffline(false);
   } finally {
@@ -164,7 +172,7 @@ try {
   assert.equal(contract.status, 'draft_not_homologated');
   await inspect({ width: 1440, height: 900 }, 'desktop');
   await inspect({ width: 390, height: 844 }, 'mobile');
-  console.log(`S006-B browser QA: OK; screenshots: ${screenshots.join(', ')}`);
+  console.log(`S006-C5a browser QA: OK; screenshots: ${screenshots.join(', ')}`);
 } finally {
   await browser.close();
   if (server.listening) await new Promise((resolve) => server.close(resolve));

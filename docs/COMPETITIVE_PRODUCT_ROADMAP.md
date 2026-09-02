@@ -219,6 +219,8 @@ La plataforma seguirá siendo modular: un gobierno activa sólo los dominios par
 ### S008 — Preliquidación y recibo digital
 
 - Cálculo, publicación y posting permanecen cerrados hasta contar con el motor temporal homologado, capabilities separadas y casos dorados aprobados.
+- El corte del 02/09/2026 avanza de menor a mayor: primero laboratorio y catálogo de fórmulas, previsualización gobernada y comparación contra GRH; después cierre al centavo, maker-checker, PDF/Excel y paquetes operativos. F.931/LSD queda como salida asistida posterior, no como integración fiscal inicial.
+- El paquete mensual observado aporta archivos de regresión y planillas de control; no habilita presentación fiscal automática ni convierte reglas orales en política productiva. La evidencia detallada se conserva en `docs/CIVITAS_GRH_PAYROLL_EVIDENCE_20260902.md`.
 - Catálogo de conceptos, convenios, vigencias, fórmulas, topes y novedades.
 - Simulador de recibo con explicación de cada concepto y comparación contra GRH.
 - Circuito novedades–cálculo–control–cierre–publicación con maker-checker.

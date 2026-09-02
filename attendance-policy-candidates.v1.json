@@ -1,5 +1,5 @@
 {
-  "contractVersion": "0.1.0",
+  "contractVersion": "0.2.0",
   "contractId": "junin-attendance-policy-candidates-public.v1",
   "tenant": "municipio-junin-mendoza",
   "status": "draft_not_homologated",
@@ -7,6 +7,7 @@
   "authoritative": false,
   "commandsAllowedNow": [],
   "publishedAt": "2026-08-21",
+  "revisedAt": "2026-09-02",
   "purpose": "public_governance_preview_without_operational_activation",
   "privacy": {
     "containsPersonalRows": false,
@@ -69,6 +70,23 @@
         }
       ],
       "normativeWeight": "candidate_requirements_pending_formal_approval"
+    },
+    {
+      "sourceKey": "accounting_tolerance_reference_image_2026_09_02",
+      "sourceClass": "municipal_accounting_reference_image",
+      "sha256": "CE2BE97A53D1DCA2B69DC2852A7E501C35A3E4B528A211BE62B02BF38811AD46",
+      "observations": [
+        {
+          "locator": "table_rows_3_6",
+          "topic": "candidate_monthly_tardiness_discount_bands"
+        },
+        {
+          "locator": "row_8",
+          "topic": "candidate_monthly_accumulation_note"
+        }
+      ],
+      "containsPersonalRows": false,
+      "normativeWeight": "candidate_accounting_reference_pending_rrhh_legal_confirmation_and_formal_approval"
     },
     {
       "sourceKey": "employee_area_roster",
@@ -161,6 +179,65 @@
     "effectiveTo": null,
     "approved": false,
     "active": false
+  },
+  "candidateTardinessPolicy": {
+    "policyKey": "junin_monthly_tardiness_candidate_2026_09_02",
+    "version": "0.1.0",
+    "status": "draft_not_homologated",
+    "label": "Bandas mensuales candidatas de impuntualidad injustificada",
+    "sourceKey": "accounting_tolerance_reference_image_2026_09_02",
+    "measurement": "monthly_accumulated_unjustified_lateness_minutes",
+    "inputUnit": "whole_minutes",
+    "accumulationPeriod": "calendar_month",
+    "cutoffDay": null,
+    "candidateTolerance": {
+      "bandKey": "within_tolerance",
+      "minExclusive": null,
+      "maxInclusive": 5,
+      "candidateJornadaDiscountPercent": 0,
+      "documentedInSource": false,
+      "evidenceClass": "inferred_uncovered_range_before_first_documented_band"
+    },
+    "documentedDiscountBands": [
+      {
+        "bandKey": "over_5_through_15",
+        "minExclusive": 5,
+        "maxInclusive": 15,
+        "candidateJornadaDiscountPercent": 25,
+        "documentedInSource": true
+      },
+      {
+        "bandKey": "over_15_through_60",
+        "minExclusive": 15,
+        "maxInclusive": 60,
+        "candidateJornadaDiscountPercent": 50,
+        "documentedInSource": true
+      },
+      {
+        "bandKey": "over_60_through_150",
+        "minExclusive": 60,
+        "maxInclusive": 150,
+        "candidateJornadaDiscountPercent": 75,
+        "documentedInSource": true
+      },
+      {
+        "bandKey": "over_150",
+        "minExclusive": 150,
+        "maxInclusive": null,
+        "candidateJornadaDiscountPercent": 100,
+        "documentedInSource": true
+      }
+    ],
+    "authoritative": false,
+    "approved": false,
+    "active": false,
+    "effects": {
+      "simulationOnly": true,
+      "automaticSanction": false,
+      "payrollCalculation": false,
+      "payrollPosting": false,
+      "grhWrite": false
+    }
   },
   "candidateCalendar": {
     "status": "not_created_missing_authoritative_source",
