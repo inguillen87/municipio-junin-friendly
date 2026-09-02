@@ -344,6 +344,31 @@
     .source-preview-findings li { padding: 8px 9px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
     .source-preview-findings li.ok { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
 
+    .post-close-grid { display: grid; grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr); gap: 12px; align-items: start; }
+    .post-close-form { display: grid; gap: 12px; }
+    .post-close-context { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+    .post-close-field { display: grid; gap: 6px; }
+    .post-close-field label { color: var(--navy); font-size: 12px; font-weight: 800; }
+    .post-close-field input, .post-close-field select, .post-close-field textarea {
+      width: 100%; min-height: 44px; padding: 9px 10px; color: var(--navy); background: #fbfcfc;
+      border: 1px solid #9dafb7; border-radius: 4px; font: inherit;
+    }
+    .post-close-field input[type="file"] { padding: 8px; }
+    .post-close-field textarea { min-height: 88px; resize: vertical; }
+    .post-close-field small { color: var(--muted); font-size: 10px; }
+    .post-close-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .post-close-actions .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
+    .post-close-actions .button:disabled { cursor: wait; opacity: .62; }
+    .post-close-results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .post-close-results > *, .post-close-results .table-wrap { min-width: 0; max-width: 100%; }
+    .post-close-results .table-wrap { width: 100%; }
+    .post-close-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .post-close-meta div { min-width: 0; padding: 9px 10px; overflow-wrap: anywhere; background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
+    .post-close-meta strong { display: block; margin-bottom: 3px; color: var(--navy); }
+    .post-close-note { margin: 0; padding: 10px 11px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
+    .post-close-note[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
+    .post-close-format { display: block; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
+
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { padding: 10px 11px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -376,14 +401,15 @@
     .error-card p { color: var(--muted); }
 
     @media (max-width: 1080px) {
-      .formula-panel, .audit-grid, .formula-lab-grid, .source-preview-grid { grid-template-columns: 1fr; }
+      .formula-panel, .audit-grid, .formula-lab-grid, .source-preview-grid, .post-close-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 950px) {
-      .app { display: block; }
-      .sidebar { position: relative; min-height: auto; height: auto; padding: 14px; }
+      .app { display: block; width: 100%; max-width: 100vw; }
+      .workspace { min-width: 0; max-width: 100%; }
+      .sidebar { position: relative; min-width: 0; max-width: 100%; min-height: auto; height: auto; padding: 14px; }
       .brand { padding-bottom: 12px; }
       .nav-label, .side-note { display: none; }
-      .nav { display: flex; overflow-x: auto; scrollbar-width: thin; }
+      .nav { display: flex; width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
       .nav[aria-label="Navegación principal"] { flex-wrap: wrap; gap: 5px; overflow: visible; }
       .nav[aria-label="Navegación principal"] a { flex: 1 1 110px; justify-content: center; }
       .nav + .nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
@@ -400,8 +426,19 @@
       .run-card { padding: 16px; }
       .run-summary { grid-template-columns: 1fr; gap: 12px; }
       .run-contracts { padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .metric-grid, .reconcile-grid, .formula-lab-results, .formula-catalog-grid, .source-preview-meta { grid-template-columns: 1fr; }
+      .metric-grid, .reconcile-grid, .formula-lab-results, .formula-catalog-grid, .source-preview-meta, .post-close-meta, .post-close-context { grid-template-columns: 1fr; }
       .source-preview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .post-close-results .table-wrap { overflow: visible; border: 0; }
+      .post-close-results table, .post-close-results tbody, .post-close-results tfoot { display: block; width: 100%; }
+      .post-close-results thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .post-close-results tbody, .post-close-results tfoot { display: grid; gap: 8px; }
+      .post-close-results tbody tr, .post-close-results tfoot tr { display: grid; padding: 7px 10px; background: #fbfcfc; border: 1px solid var(--line); border-radius: 4px; }
+      .post-close-results tfoot { margin-top: 8px; }
+      .post-close-results tfoot th { display: block; padding: 5px 0 8px; border-bottom: 1px solid var(--line); }
+      .post-close-results tbody td, .post-close-results tfoot td { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; text-align: right; border-bottom: 1px solid var(--line); }
+      .post-close-results tbody td:last-child, .post-close-results tfoot td:last-child { border-bottom: 0; }
+      .post-close-results tbody td::before, .post-close-results tfoot td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+      .post-close-results tbody td.numeric, .post-close-results tfoot td.numeric { text-align: right; }
       .metric strong { font-size: 18px; }
       th, td { padding: 9px; }
     }
@@ -614,13 +651,88 @@
           </div>
         </section>
 
+        <section class="section" aria-labelledby="postCloseTitle" data-payroll-post-close-reconciler>
+          <header class="section-head">
+            <div>
+              <span class="section-index">05 · CONTROL POSCIERRE</span>
+              <h2 id="postCloseTitle">Conciliar aportes 701 y 703 sin rehacer planillas</h2>
+              <p>Compara dos extractos agregados del mismo mes y jurisdicción con centavos exactos. Está basado en el trabajo poscierre explicado por la contadora; no aplica tasas ni interpreta datos nominales.</p>
+            </div>
+            <span class="state-badge warning">Local · sin subir archivos</span>
+          </header>
+          <div class="post-close-grid">
+            <article class="panel">
+              <h3>Fuentes del control</h3>
+              <p class="panel-note">Prepará un CSV agregado desde el reporte GRH y otro desde la planilla de control independiente. Cada archivo debe contener sólo los conceptos 701 y 703 para una única jurisdicción.</p>
+              <code class="post-close-format">periodo;jurisdiccion;concepto;importe_ars
+2026-07;42;701;0,00
+2026-07;42;703;0,00</code>
+              <form class="post-close-form" data-post-close-form>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="postClosePeriod">Período</label>
+                    <input id="postClosePeriod" data-post-close-period type="month" required autocomplete="off">
+                  </div>
+                  <div class="post-close-field">
+                    <label for="postCloseJurisdiction">Jurisdicción</label>
+                    <select id="postCloseJurisdiction" data-post-close-jurisdiction required>
+                      <option value="">Seleccionar</option>
+                      <option value="42">42</option>
+                      <option value="55">55</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="post-close-field">
+                  <label for="postCloseObservedFile">Extracto agregado del reporte GRH</label>
+                  <input id="postCloseObservedFile" data-post-close-observed-file type="file" accept=".csv,text/csv,text/plain" required>
+                  <small>CSV UTF-8, separado por punto y coma, máximo 16 KiB. El nombre no se conserva.</small>
+                </div>
+                <div class="post-close-field">
+                  <label for="postCloseControlFile">Extracto agregado de la planilla de control</label>
+                  <input id="postCloseControlFile" data-post-close-control-file type="file" accept=".csv,text/csv,text/plain" required>
+                  <small>Debe declarar exactamente el mismo período y jurisdicción que el reporte GRH.</small>
+                </div>
+                <div class="post-close-field">
+                  <label for="postCloseObservation">Observación del desvío</label>
+                  <textarea id="postCloseObservation" data-post-close-observation maxlength="500" autocomplete="off" aria-describedby="postCloseObservationHelp" placeholder="Se habilita como requisito cuando exista una diferencia."></textarea>
+                  <small id="postCloseObservationHelp">La observación no se muestra en el resultado ni convierte una diferencia en coincidencia.</small>
+                </div>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit" data-post-close-submit>Conciliar archivos</button>
+                  <button class="button" type="button" data-post-close-reset>Limpiar</button>
+                </div>
+              </form>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="postCloseResultTitle">
+              <h3 id="postCloseResultTitle">Resultado del control</h3>
+              <p class="formula-lab-status" data-post-close-status role="status" aria-live="polite">Esperando período, jurisdicción y dos archivos agregados.</p>
+              <div data-post-close-result hidden>
+                <div class="table-wrap">
+                  <table>
+                    <caption class="visually-hidden">Comparación poscierre de los conceptos 701 y 703</caption>
+                    <thead><tr><th>Jurisdicción</th><th>Concepto</th><th class="numeric">Reporte GRH</th><th class="numeric">Control</th><th class="numeric">Diferencia</th><th>Estado</th></tr></thead>
+                    <tbody data-post-close-rows></tbody>
+                    <tfoot><tr><th colspan="2">Total jurisdicción</th><td class="numeric" data-label="Reporte GRH" data-post-close-total-observed>—</td><td class="numeric" data-label="Control" data-post-close-total-control>—</td><td class="numeric" data-label="Diferencia" data-post-close-total-difference>—</td><td data-label="Estado">Control local</td></tr></tfoot>
+                  </table>
+                </div>
+                <div class="post-close-meta">
+                  <div><strong>Fuente GRH</strong><span data-post-close-observed-hash>—</span><br><span data-post-close-observed-bytes>—</span></div>
+                  <div><strong>Fuente de control</strong><span data-post-close-control-hash>—</span><br><span data-post-close-control-bytes>—</span></div>
+                </div>
+                <p class="post-close-note" data-post-close-observation-note>Sin resultado.</p>
+              </div>
+              <div class="method-note">La huella SHA-256 identifica los bytes comparados durante esta ejecución. Como no se firma ni persiste, no constituye evidencia durable ni acredita quién creó el archivo o si el dato es oficial. Este control no cierra nómina, no aprueba aportes, no genera F.931 y no escribe en GRH, PostgreSQL o Neon.</div>
+            </article>
+          </div>
+        </section>
+
         <section class="section" aria-labelledby="historyTitle">
-          <header class="section-head"><div><span class="section-index">05 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <header class="section-head"><div><span class="section-index">06 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
-          <header class="section-head"><div><span class="section-index">06 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <header class="section-head"><div><span class="section-index">07 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
@@ -864,7 +976,7 @@
         var title = document.createElement('h1');
         title.textContent = 'No se pudieron consultar las corridas de nómina';
         var detail = document.createElement('p');
-        detail.textContent = message + ' Podés reintentar o usar abajo el laboratorio de fórmulas y la previsualización sin importar; ninguna de esas herramientas calcula ni publica una liquidación.';
+        detail.textContent = message + ' Podés reintentar o usar abajo el laboratorio de fórmulas, la previsualización sin importar y el control poscierre local; ninguna de esas herramientas calcula ni publica una liquidación.';
         var retry = document.createElement('button');
         retry.className = 'button';
         retry.type = 'button';
@@ -914,5 +1026,6 @@
   </script>
   <script type="module" src="assets/payroll-formula-linter.js"></script>
   <script type="module" src="assets/grh-source-preview.js"></script>
+  <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
 </body>
 </html>

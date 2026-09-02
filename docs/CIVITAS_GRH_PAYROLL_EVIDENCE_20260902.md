@@ -195,11 +195,21 @@ Los topes, versiones, parámetros previsionales y diseños deben tener vigencia 
 | S008-G | Paquete F.931/LSD asistido | fase posterior: layout vigente, mapa versionado, validación y acuse humano; sin conexión automática inicial |
 | S008-H | Tres cierres paralelos | coincidencia con el sistema vigente y aprobación contable antes de integrar en continuo |
 
+Estado de implementación en la rama aislada `codex/civitas-attendance-payroll`:
+
+- **S008-A implementado:** revisión sintáctica individual y auditoría de catálogo, sin evaluar importes;
+- **S008-B1 implementado en código:** preview privado agregado con autorización del servidor; requiere configurar el secreto dedicado y certificar el entorno antes de desplegar;
+- **S008-C1 implementado como control local:** compara dos CSV agregados de exactamente dos filas —conceptos 701 y 703— para un período y una jurisdicción 42 o 55. Calcula con `BigInt` en centavos, calcula y muestra huellas SHA-256 de los bytes usados durante la ejecución y exige ingresar una observación ante diferencias sin conservar su texto ni convertirlas en coincidencia;
+- **S008-B2 y S008-C2 en adelante pendientes:** no existe aún importación gobernada, cierre general ni exportación institucional homologada.
+
+El control C1 no precarga los importes de la captura ni las tasas mostradas en ella. Los valores observados sirven como caso de prueba histórico; el operador debe aportar las dos fuentes agregadas del período que realmente revisa.
+
 ## Límites actuales
 
 - No se conectó GRH o GRH_WEB en tiempo real ni se escribió en ellos.
 - No existe todavía un motor de liquidación homologado en MuniControl.
 - No se generó ni presentó un F.931 real.
+- El conciliador C1 funciona en el navegador y no persiste la observación ni constituye evidencia durable; esa trazabilidad corresponde a C2.
 - No se cargaron CUIL, CBU, familiares, salud, embargos o sueldos nominales en Git o Neon.
 - La base canónica PostgreSQL debe recibir sólo lotes autorizados y retenidos según necesidad; el ZIP y los binarios permanecen fuera de la base.
 - Después de tres cierres paralelos conciliados podrá evaluarse lectura incremental; GRH continúa como fuente hasta una decisión formal de reemplazo.

@@ -219,21 +219,114 @@ async function inspect(viewport, label) {
     assert.doesNotMatch(JSON.stringify(previewRequest), /empleados-confidencial|tenantId|sourceBindingId/);
     assert.equal(await sourcePreview.locator('[data-source-preview-file]').inputValue(), '');
 
+    const postClose = page.locator('[data-payroll-post-close-reconciler]');
+    const observedExact = [
+      'periodo;jurisdiccion;concepto;importe_ars',
+      '2026-07;42;701;82882370,98',
+      '2026-07;42;703;106546119,35',
+    ].join('\n');
+    const controlExact = [
+      'periodo;jurisdiccion;concepto;importe_ars',
+      '2026-07;42;701;82882370,98',
+      '2026-07;42;703;106546119,35',
+    ].join('\r\n');
+    await postClose.locator('[data-post-close-period]').fill('2026-07');
+    await postClose.locator('[data-post-close-jurisdiction]').selectOption('42');
+    await postClose.locator('[data-post-close-observed-file]').setInputFiles({
+      name: 'reporte-grh-nominal-secreto.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(observedExact),
+    });
+    await postClose.locator('[data-post-close-control-file]').setInputFiles({
+      name: 'planilla-control-contable-secreta.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(controlExact),
+    });
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Coincidencia exacta'));
+    assert.equal(await postClose.locator('[data-post-close-rows] tr').count(), 2);
+    assert.match(await postClose.locator('[data-post-close-rows] tr').first().innerText(), /42\s+701\s+\$ 82\.882\.370,98/);
+    assert.equal(await postClose.locator('[data-post-close-total-observed]').innerText(), '$ 189.428.490,33');
+    assert.equal(await postClose.locator('[data-post-close-total-difference]').innerText(), '$ 0,00');
+    assert.match(await postClose.locator('[data-post-close-observed-hash]').innerText(), /^sha256:[a-f0-9]{64}$/);
+    assert.doesNotMatch(await postClose.innerText(), /reporte-grh-nominal-secreto|planilla-control-contable-secreta/);
+    assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
+    assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
+
+    const controlDifference = [
+      'periodo;jurisdiccion;concepto;importe_ars',
+      '2026-07;42;701;82882370,97',
+      '2026-07;42;703;106546119,35',
+    ].join('\n');
+    await postClose.locator('[data-post-close-observed-file]').setInputFiles({
+      name: 'origen.csv', mimeType: 'text/csv', buffer: Buffer.from(observedExact),
+    });
+    await postClose.locator('[data-post-close-control-file]').setInputFiles({
+      name: 'control.csv', mimeType: 'text/csv', buffer: Buffer.from(controlDifference),
+    });
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Hay diferencias'));
+    assert.equal(await postClose.locator('[data-post-close-observation]').getAttribute('required'), '');
+    assert.equal(await postClose.locator('[data-post-close-total-difference]').innerText(), '$ 0,01');
+    const privateObservation = 'Revisar planilla <img src=x onerror=alert(1)> persona privada';
+    await postClose.locator('[data-post-close-observation]').fill(privateObservation);
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Observación recibida'));
+    assert.equal(await postClose.locator('img[src="x"]').count(), 0);
+    assert.doesNotMatch(await postClose.innerText(), /persona privada|<img/);
+    assert.match(await postClose.locator('[data-post-close-observation-note]').innerText(), /su texto no se conserva/);
+    assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
+    assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
+
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      overflowElements: [...document.querySelectorAll('body *')].filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1;
+      }).slice(0, 12).map((element) => ({
+        tag: element.tagName,
+        className: String(element.className || '').slice(0, 80),
+        text: String(element.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80),
+        left: Math.round(element.getBoundingClientRect().left),
+        right: Math.round(element.getBoundingClientRect().right),
+      })),
       formulaVisible: Boolean(document.querySelector('[data-payroll-formula-lab]')?.getBoundingClientRect().width),
       previewVisible: Boolean(document.querySelector('[data-grh-source-preview]')?.getBoundingClientRect().width),
+      postCloseVisible: Boolean(document.querySelector('[data-payroll-post-close-reconciler]')?.getBoundingClientRect().width),
+      postCloseGeometry: (() => {
+        const panel = document.querySelector('.post-close-results');
+        const state = document.querySelector('[data-post-close-status]');
+        const table = document.querySelector('[data-payroll-post-close-reconciler] .table-wrap');
+        const tools = document.querySelector('[aria-label="Herramientas internas"]');
+        const shape = (element) => element ? ({
+          left: Math.round(element.getBoundingClientRect().left),
+          right: Math.round(element.getBoundingClientRect().right),
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }) : null;
+        return { panel: shape(panel), state: shape(state), table: shape(table), tools: shape(tools) };
+      })(),
       storedFormula: localStorage.length + sessionStorage.length,
     }));
-    assert.equal(layout.overflow, false, `${label}: overflow horizontal`);
+    assert.equal(layout.overflow, false, `${label}: overflow horizontal ${JSON.stringify(layout.overflowElements)}`);
     assert.equal(layout.formulaVisible, true, `${label}: laboratorio oculto`);
     assert.equal(layout.previewVisible, true, `${label}: previsualización oculta`);
+    assert.equal(layout.postCloseVisible, true, `${label}: control poscierre oculto`);
+    assert.ok(layout.postCloseGeometry.panel.right <= viewport.width + 1, `${label}: panel poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
+    assert.ok(layout.postCloseGeometry.state.right <= viewport.width + 1, `${label}: estado poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
+    assert.ok(layout.postCloseGeometry.table.right <= viewport.width + 1, `${label}: tabla poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.equal(layout.storedFormula, 0, `${label}: la fórmula no debe persistirse en storage`);
 
-    await sourcePreview.scrollIntoViewIfNeeded();
-    const screenshot = path.join(os.tmpdir(), `municontrol-payroll-source-preview-${label}.png`);
+    await postClose.scrollIntoViewIfNeeded();
+    const screenshot = path.join(os.tmpdir(), `municontrol-payroll-post-close-${label}.png`);
     await page.screenshot({ path: screenshot, fullPage: false });
     screenshots.push(screenshot);
+
+    await postClose.getByRole('button', { name: 'Limpiar' }).click();
+    assert.equal(await postClose.locator('[data-post-close-result]').isVisible(), false);
+    assert.equal(await postClose.locator('[data-post-close-rows] tr').count(), 0);
+    assert.equal(await postClose.locator('[data-post-close-observed-hash]').innerText(), '—');
+    assert.equal(await postClose.locator('[data-post-close-total-observed]').innerText(), '—');
   } finally {
     await context.close();
   }
@@ -259,11 +352,13 @@ async function inspectUnavailablePayroll() {
     await page.waitForSelector('#mainContent:not([hidden])');
     assert.equal(await page.locator('#errorHost').isVisible(), true);
     assert.match(await page.locator('#errorHost').innerText(), /No se pudieron consultar las corridas/);
-    assert.match(await page.locator('#errorHost').innerText(), /laboratorio de fórmulas y la previsualización sin importar/);
+    assert.match(await page.locator('#errorHost').innerText(), /laboratorio de fórmulas, la previsualización sin importar y el control poscierre local/);
     assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
     assert.equal(await page.locator('[data-grh-source-preview]').isVisible(), true);
+    assert.equal(await page.locator('[data-payroll-post-close-reconciler]').isVisible(), true);
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
     assert.match(await page.locator('[data-source-preview-status]').innerText(), /Esperando un archivo local/);
+    assert.match(await page.locator('[data-post-close-status]').innerText(), /Esperando período, jurisdicción y dos archivos agregados/);
   } finally {
     await context.close();
   }
