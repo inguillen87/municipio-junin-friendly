@@ -40,6 +40,7 @@ const shellFiles = [
   'assets/junin-budget-2026.js',
   'assets/junin-tardiness-policy.js',
   'assets/payroll-formula-linter.js',
+  'assets/grh-source-preview.js',
   'datos-personales.html',
   'friendly-data.json'
 ];

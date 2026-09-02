@@ -6,6 +6,7 @@ export const DEFAULT_FORMULA_LIMITS = Object.freeze({
   maxDepth: 32,
   maxReferences: 256,
   maxCatalogEntries: 250,
+  maxCatalogTextLength: 65536,
 });
 
 class FormulaSyntaxError extends Error {
@@ -28,6 +29,7 @@ function normalizeLimits(limits = {}) {
     maxDepth: positiveInteger(limits.maxDepth, DEFAULT_FORMULA_LIMITS.maxDepth),
     maxReferences: positiveInteger(limits.maxReferences, DEFAULT_FORMULA_LIMITS.maxReferences),
     maxCatalogEntries: positiveInteger(limits.maxCatalogEntries, DEFAULT_FORMULA_LIMITS.maxCatalogEntries),
+    maxCatalogTextLength: positiveInteger(limits.maxCatalogTextLength, DEFAULT_FORMULA_LIMITS.maxCatalogTextLength),
   };
 }
 
@@ -436,14 +438,15 @@ export function analyzeFormulaCatalog(catalog, options = {}) {
   const processed = new Set();
   for (const [rawId, formula, entryMetadata] of entries) {
     const id = canonicalReference(rawId);
-    if (!id || processed.has(id)) continue;
-    processed.add(id);
+    if (!id) continue;
+    const duplicated = processed.has(id);
+    if (!duplicated) processed.add(id);
     const result = analyzeFormula(formula, {
       limits,
       constantMetadata: entryMetadata ?? options.constantMetadata,
     });
     formulas.push({ id, ...result });
-    for (const entry of result.diagnostics.filter((item) => item.severity === 'error')) {
+    for (const entry of result.diagnostics) {
       diagnostics.push({ ...entry, message: `${id}: ${entry.message}`, reference: id });
     }
     if (result.ast) {
@@ -456,7 +459,7 @@ export function analyzeFormulaCatalog(catalog, options = {}) {
           dependency.positions[0], dependency.reference,
         ));
       }
-      graph.set(id, resolved);
+      if (!duplicated) graph.set(id, resolved);
     }
   }
 
@@ -469,6 +472,77 @@ export function analyzeFormulaCatalog(catalog, options = {}) {
     ));
   }
   return { ok: !diagnostics.some((item) => item.severity === 'error'), formulas, cycles, diagnostics, limits };
+}
+
+export function parseFormulaCatalogText(source, options = {}) {
+  const limits = normalizeLimits(options.limits);
+  const diagnostics = [];
+  const entries = [];
+  if (typeof source !== 'string') {
+    return {
+      ok: false, entries, limits,
+      diagnostics: [diagnostic('error', 'CATALOG_TEXT_TYPE_INVALID', 'El catálogo debe ser texto.', 0)],
+    };
+  }
+  if (source.length > limits.maxCatalogTextLength) {
+    return {
+      ok: false, entries, limits,
+      diagnostics: [diagnostic(
+        'error', 'CATALOG_TEXT_TOO_LONG',
+        `El catálogo supera el límite de ${limits.maxCatalogTextLength} caracteres.`,
+        limits.maxCatalogTextLength,
+      )],
+    };
+  }
+
+  const lines = source.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
+    if (!raw.trim()) continue;
+    const separator = raw.indexOf('=');
+    const id = separator >= 0 ? canonicalReference(raw.slice(0, separator)) : null;
+    const formula = separator >= 0 ? raw.slice(separator + 1).trim() : '';
+    if (!id) {
+      diagnostics.push(diagnostic(
+        'error', 'CATALOG_ASSIGNMENT_INVALID',
+        `Línea ${index + 1}: usá una asignación como R[100] = N[200] + 1.`,
+        0,
+      ));
+      continue;
+    }
+    if (!formula) {
+      diagnostics.push(diagnostic(
+        'error', 'CATALOG_FORMULA_EMPTY',
+        `Línea ${index + 1}: ${id} no tiene una expresión.`,
+        separator + 1, id,
+      ));
+      continue;
+    }
+    entries.push({ id, formula, line: index + 1 });
+  }
+  if (!entries.length && !diagnostics.length) {
+    diagnostics.push(diagnostic('error', 'CATALOG_EMPTY', 'Ingresá al menos una asignación.', 0));
+  }
+  if (entries.length > limits.maxCatalogEntries) {
+    diagnostics.push(diagnostic(
+      'error', 'CATALOG_LIMIT_EXCEEDED',
+      `El catálogo supera el límite de ${limits.maxCatalogEntries} fórmulas.`,
+      0,
+    ));
+  }
+  return { ok: !diagnostics.some((item) => item.severity === 'error'), entries, diagnostics, limits };
+}
+
+export function analyzeFormulaCatalogText(source, options = {}) {
+  const parsed = parseFormulaCatalogText(source, options);
+  const analysis = analyzeFormulaCatalog(parsed.entries, options);
+  const diagnostics = [...parsed.diagnostics, ...analysis.diagnostics];
+  return {
+    ...analysis,
+    ok: !diagnostics.some((item) => item.severity === 'error'),
+    entries: parsed.entries,
+    diagnostics,
+  };
 }
 
 export function analyzeFormula(source, options = {}) {
@@ -525,7 +599,13 @@ export function mountPayrollFormulaLab(root = document) {
   const constantsHost = host.querySelector('[data-formula-constants]');
   const diagnosticsHost = host.querySelector('[data-formula-diagnostics]');
   const structure = host.querySelector('[data-formula-structure]');
-  if (!form || !input || !status || !dependencies || !constantsHost || !diagnosticsHost || !structure) return false;
+  const catalogForm = host.querySelector('[data-catalog-form]');
+  const catalogInput = host.querySelector('[data-catalog-input]');
+  const catalogStatus = host.querySelector('[data-catalog-status]');
+  const catalogGraph = host.querySelector('[data-catalog-graph]');
+  const catalogDiagnostics = host.querySelector('[data-catalog-diagnostics]');
+  if (!form || !input || !status || !dependencies || !constantsHost || !diagnosticsHost || !structure
+      || !catalogForm || !catalogInput || !catalogStatus || !catalogGraph || !catalogDiagnostics) return false;
 
   function render() {
     const result = analyzeFormula(input.value);
@@ -579,12 +659,54 @@ export function mountPayrollFormulaLab(root = document) {
       : `Sintaxis válida para este analizador · ${result.dependencies.length} referencias · ${result.constants.length} constantes · ${warningCount} ${warningCount === 1 ? 'revisión' : 'revisiones'}.`;
   }
 
+  function renderCatalog() {
+    const result = analyzeFormulaCatalogText(catalogInput.value);
+    catalogGraph.replaceChildren();
+    catalogDiagnostics.replaceChildren();
+
+    if (result.formulas.length) {
+      for (const entry of result.formulas) {
+        const dependencyLabels = entry.dependencies.map((dependency) => dependency.reference);
+        appendTextItem(
+          catalogGraph,
+          `${entry.id} → ${dependencyLabels.length ? dependencyLabels.join(', ') : 'sin dependencias'}`,
+          entry.ok ? '' : 'error',
+        );
+      }
+    } else {
+      appendTextItem(catalogGraph, 'Sin fórmulas analizables.', 'formula-lab-empty');
+    }
+
+    if (result.diagnostics.length) {
+      for (const entry of result.diagnostics) {
+        const prefix = entry.severity === 'error' ? 'Error' : 'Revisión';
+        appendTextItem(catalogDiagnostics, `${prefix} · ${entry.message}`, entry.severity);
+      }
+    } else {
+      appendTextItem(catalogDiagnostics, 'Catálogo cerrado sin observaciones estructurales.', 'ok');
+    }
+
+    const errorCount = result.diagnostics.filter((entry) => entry.severity === 'error').length;
+    const warningCount = result.diagnostics.length - errorCount;
+    const unresolvedCount = result.diagnostics.filter((entry) => entry.code === 'UNRESOLVED_REFERENCE').length;
+    const duplicateCount = result.diagnostics.filter((entry) => entry.code === 'CATALOG_REFERENCE_DUPLICATED').length;
+    catalogStatus.dataset.state = errorCount ? 'error' : warningCount ? 'warning' : 'ok';
+    catalogStatus.textContent = errorCount
+      ? `Catálogo con pendientes · ${result.formulas.length} fórmulas · ${result.cycles.length} ciclos · ${unresolvedCount} referencias inexistentes · ${duplicateCount} duplicados.`
+      : `Catálogo estructuralmente válido · ${result.formulas.length} fórmulas · ${warningCount} ${warningCount === 1 ? 'revisión' : 'revisiones'}.`;
+  }
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     render();
   });
+  catalogForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    renderCatalog();
+  });
   host.dataset.mounted = 'true';
   render();
+  renderCatalog();
   return true;
 }
 

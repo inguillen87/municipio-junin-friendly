@@ -19,6 +19,12 @@ test('Nómina integra un laboratorio accesible y explícitamente no operativo', 
   assert.match(html, /data-formula-constants/);
   assert.match(html, /data-formula-diagnostics/);
   assert.match(html, /data-formula-structure aria-label=/);
+  assert.match(html, /Auditor de catálogo/);
+  assert.match(html, /una asignación por línea/i);
+  assert.match(html, /data-catalog-input maxlength="65536"/);
+  assert.match(html, /data-catalog-status role="status" aria-live="polite"/);
+  assert.match(html, /data-catalog-graph/);
+  assert.match(html, /data-catalog-diagnostics/);
   assert.equal((html.match(/assets\/payroll-formula-linter\.js/g) || []).length, 1);
   assert.match(html, /<script type="module" src="assets\/payroll-formula-linter\.js"><\/script>/);
 });
@@ -28,6 +34,8 @@ test('el cliente sólo analiza en memoria y renderiza texto sin HTML dinámico',
 
   assert.match(source, /export function analyzeFormula/);
   assert.match(source, /export function analyzeFormulaCatalog/);
+  assert.match(source, /export function parseFormulaCatalogText/);
+  assert.match(source, /export function analyzeFormulaCatalogText/);
   assert.match(source, /export function mountPayrollFormulaLab/);
   assert.match(source, /\.textContent\s*=/);
   assert.match(source, /replaceChildren\(\)/);

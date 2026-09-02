@@ -22,8 +22,12 @@ Se distinguen cuatro niveles:
 | GRH legado | Flujo de licencias/ausencias y navegación histórica observada; la sesión nueva redirigió al login y no se reingresaron credenciales | no aplica |
 | GRH_WEB | Menú, formularios de importación, liquidación, cierre, informes, recibos, pagos y retenciones observados sin ejecutar acciones | no aplica |
 | Manual de fórmulas de GRH_WEB | 97 páginas; contrato funcional de referencias y operadores, sin copiar expresiones ni contenido propietario | `6600DB0B4816C8CB716B9A9B40FE6F60A86CEAB4C172B33E34588472D99F07CC` |
+| Siete notas de voz de poscierre | 7 min 12,69 s brutos; 5 min 35,64 s únicos porque una nota es duplicada binaria | manifiesto SHA-256 registrado abajo |
+| Captura de Estadísticas por concepto | Totales agregados de aportes patronales 701/703, sin filas nominales | `07C4720835FB45C602E9672813039F4C280875DCFC3CA3D8DE8C28FD173BEF3F` |
 
-El audio, sus transcripciones temporales y los modelos usados localmente fueron eliminados al terminar el análisis. Ninguna de estas fuentes se cargó a Neon.
+Las transcripciones temporales fueron eliminadas al terminar el análisis. Se utilizó un modelo de transcripción local preexistente en la caché del equipo; no se copió al repositorio ni a Neon. Los archivos fuente permanecen en `Downloads`, fuera del repositorio y de Neon.
+
+Manifiesto de notas de voz, en orden cronológico: `F5B6FDE9…69CEB`, `554A9085…B0599`, `350033AB…A831`, `350033AB…A831` (duplicado), `D8D30CB4…EEDC`, `2584A285…B4B4` y `0D84E1CC…4DDA`.
 
 ## Los dos sistemas cumplen papeles distintos
 
@@ -51,11 +55,33 @@ El formulario de importación admite archivo, formato, concepto, período, agrup
 2. **Observado:** consultar y exportar estadísticas por período, tipo, convenio, jurisdicción, repartición y concepto.
 3. **Observado + declarado:** corregir manualmente Excel y producir PDF mediante impresión desde el navegador.
 4. **Declarado:** preparar controles y anexos para Tribunal de Cuentas.
-5. **Observado + declarado:** consolidar liquidaciones y producir archivos F.931 separados por ámbito o jurisdicción.
+5. **Observado + declarado:** extraer el reporte ANSES/TXT y conciliar por separado las jurisdicciones 42 y 55 antes de entregarlo por el circuito provincial.
 6. **Observado + declarado:** generar acreditaciones por banco, jurisdicción y repartición, y volver a copiar datos a planillas de control.
 7. **Declarado:** crear un expediente por repartición y comprobar que sus subtotales coincidan con liquidación, banco y contabilidad.
 8. **Observado + declarado:** conciliar por separado ART, OSEP, jubilación, cajas asistenciales, mutuales, embargos y transferencias.
 9. **Declarado:** reconstruir escalas desde actas paritarias y ordenanzas, y trasladarlas manualmente a las plantas y liquidaciones alcanzadas.
+
+## Aclaración operativa posterior: la prioridad es el poscierre
+
+Las siete notas de voz posteriores corrigen el orden inicial. La contadora identifica como dolor inmediato el trabajo **después de cerrar y acreditar la liquidación**, no reemplazar primero el cálculo de haberes:
+
+1. extraer un conjunto reducido de reportes GRH: ANSES, OSEP, Seguro Mutual y Estadísticas por concepto;
+2. completar planillas Excel de cajas asistenciales, mutuales y descuentos;
+3. cuadrar por separado jurisdicciones 42 y 55;
+4. contrastar los conceptos patronales con Estadísticas por concepto;
+5. entregar por la plataforma de Casa de Gobierno una vez habilitada la ventana correspondiente.
+
+La operadora declara que Provincia consolida y presenta el F.931 global. Por lo tanto MuniControl no debe diseñar como primer paso una conexión directa de presentación a ARCA. Esa descripción operativa aún necesita procedimiento institucional vigente y casos dorados; no se convierte en regla fiscal sólo por aparecer en una grabación.
+
+La captura agregada confirma, con certeza alta para ese reporte observado:
+
+| Concepto | Descripción visible | Tasa visible | Total visible |
+|---|---|---:|---:|
+| 701 | Aporte patronal OSEP | 7 % | $ 82.882.370,98 |
+| 703 | Aporte patronal jubilatorio | 17,753 % | $ 106.546.119,35 |
+| — | Contribuciones | — | $ 189.428.490,33 |
+
+La suma `82.882.370,98 + 106.546.119,35 = 189.428.490,33` reconcilia exactamente en la captura. No prueba que esas tasas o importes correspondan a otro período, jurisdicción o población. El tratamiento diferencial mencionado oralmente para 42/55 no es suficientemente nítido para parametrizarlo.
 
 El paquete mensual contiene tres TXT F.931 de 790, 742 y 112 registros. Cada registro tiene 463 caracteres. Esta evidencia permite construir un validador estructural y casos de regresión, pero no demuestra por sí sola que el diseño de registro siga vigente ni autoriza una presentación fiscal automática.
 
@@ -104,6 +130,8 @@ La previsualización técnica disponible acepta archivos delimitados únicamente
 La migración 024 agrega un ledger gobernado para resultados mensuales, coherencia mínima entre `outcome` y minutos, fuentes reconciliadas, maker-checker y bloqueo absoluto de nómina. Todavía **no recompone de manera independiente los minutos desde turno, calendario, regla y fichadas**; por eso no es un motor de evaluación productivo y sus resultados permanecen cerrados al runtime hasta implementar y probar ese cálculo determinista.
 
 ## F.931 y Libro de Sueldos Digital
+
+En Junín, según el procedimiento relatado por la operadora, el municipio prepara y controla insumos por jurisdicción y los entrega a Casa de Gobierno; Provincia realiza la presentación global. Esta afirmación debe validarse institucionalmente. Aun si el diseño técnico futuro contempla otros gobiernos con operatorias diferentes, la primera herramienta de Junín será de conciliación y paquete asistido, no de presentación automática.
 
 Las fuentes oficiales de ARCA revisadas describen intercambio de archivos, revisión del empleador y presentación en los servicios correspondientes. No se encontró evidencia oficial de una API pública ordinaria para presentar automáticamente F.931/Libro de Sueldos Digital.
 
@@ -157,8 +185,10 @@ Los topes, versiones, parámetros previsionales y diseños deben tener vigencia 
 | Sprint | Entrega | Condición de salida |
 |---|---|---|
 | S008-A | Fórmulas y conceptos | laboratorio sintáctico, referencias, constantes, dependencias y ciclos; sin cálculo ni publicación |
-| S008-B | Importador gobernado del corte mensual | manifiesto, previsualización, cuarentena e idempotencia |
-| S008-C | Cierre y conciliación | totales al centavo, diferencias cero o justificadas y maker-checker |
+| S008-B1 | Preview privado del corte mensual | adaptador allowlisted, conteos, rechazos y huella; sin filas ni persistencia |
+| S008-B2 | Importador gobernado del corte mensual | manifiesto, cuarentena, idempotencia y aprobación explícita |
+| S008-C1 | Conciliación poscierre 701/703 | período + jurisdicción 42/55 + fuente; esperado, observado y diferencia al centavo, sin F.931 |
+| S008-C2 | Cierre y conciliación general | totales al centavo, diferencias cero o justificadas y maker-checker |
 | S008-D | Excel y PDF institucionales | una corrida, fórmulas auditables, totales y diferencias visibles |
 | S008-E | Paquete bancario | TXT + Excel + PDF desde una corrida; conciliación contra nómina y expediente |
 | S008-F | Expediente y Tribunal de Cuentas | paquete por repartición con anexos, hash, estados y trazabilidad |

@@ -11,6 +11,7 @@
     "api/internal-admin.js": { "maxDuration": 20 },
     "api/internal-assistant.js": { "maxDuration": 25 },
     "api/internal-attendance.js": { "maxDuration": 20 },
+    "api/internal-grh-source-preview.js": { "maxDuration": 20 },
     "api/attendance-ingest.js": { "maxDuration": 20 }
   },
   "rewrites": [

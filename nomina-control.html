@@ -314,6 +314,35 @@
     .formula-lab-structure { margin-top: 10px; }
     .formula-lab-structure summary { cursor: pointer; color: var(--blue); font-size: 11px; font-weight: 800; }
     .formula-lab-structure pre { max-height: 260px; margin: 8px 0 0; padding: 11px; overflow: auto; color: #28414d; background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 11px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; }
+    .formula-catalog-panel { margin-top: 12px; border-top: 4px solid var(--blue); }
+    .formula-catalog-panel .formula-lab-input { min-height: 150px; }
+    .formula-catalog-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+    .formula-catalog-grid h4 { margin: 0 0 7px; color: var(--navy); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+
+    .source-preview-grid { display: grid; grid-template-columns: minmax(300px, .8fr) minmax(0, 1.2fr); gap: 12px; align-items: start; }
+    .source-preview-form { display: grid; gap: 12px; }
+    .source-preview-field { display: grid; gap: 6px; }
+    .source-preview-field label { color: var(--navy); font-size: 12px; font-weight: 800; }
+    .source-preview-field select, .source-preview-field input[type="file"] {
+      width: 100%; min-height: 44px; padding: 9px 10px; color: var(--navy); background: #fbfcfc;
+      border: 1px solid #9dafb7; border-radius: 4px; font: inherit;
+    }
+    .source-preview-field input[type="file"] { padding: 8px; }
+    .source-preview-field small { color: var(--muted); font-size: 10px; }
+    .source-preview-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .source-preview-actions .button { color: #fff; background: var(--green); border-color: var(--green); }
+    .source-preview-actions .button:disabled { cursor: wait; opacity: .62; }
+    .source-preview-results { display: grid; gap: 10px; }
+    .source-preview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .source-preview-metric { padding: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .source-preview-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .source-preview-metric strong { display: block; margin-top: 5px; color: var(--navy); font-size: 21px; font-variant-numeric: tabular-nums; }
+    .source-preview-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .source-preview-meta div { padding: 9px 10px; overflow-wrap: anywhere; background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
+    .source-preview-meta strong { display: block; margin-bottom: 2px; color: var(--navy); }
+    .source-preview-findings { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .source-preview-findings li { padding: 8px 9px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
+    .source-preview-findings li.ok { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
 
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -341,12 +370,13 @@
     .loader { width: 24px; height: 24px; margin: 16px auto 0; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .75s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
-    .error-card { max-width: 650px; margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #e0c1bd; border-top: 4px solid var(--red); border-radius: var(--radius); }
+    #errorHost { max-width: 1380px; margin: 0 auto; padding: 20px 34px 0; }
+    .error-card { margin: 0; padding: 18px 20px; background: var(--surface); border: 1px solid #e0c1bd; border-left: 4px solid var(--red); border-radius: var(--radius); }
     .error-card h1 { margin: 0; color: var(--navy); font-size: 30px; font-weight: 790; line-height: 1.1; }
     .error-card p { color: var(--muted); }
 
     @media (max-width: 1080px) {
-      .formula-panel, .audit-grid, .formula-lab-grid { grid-template-columns: 1fr; }
+      .formula-panel, .audit-grid, .formula-lab-grid, .source-preview-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 950px) {
       .app { display: block; }
@@ -359,6 +389,7 @@
       .nav + .nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
       .nav a { flex: 0 0 auto; white-space: nowrap; }
       .topbar { padding: 12px 16px; }
+      #errorHost { padding: 16px 16px 0; }
       main { padding: 24px 16px 60px; }
       .page-head, .run-grid { grid-template-columns: 1fr; }
     }
@@ -369,7 +400,8 @@
       .run-card { padding: 16px; }
       .run-summary { grid-template-columns: 1fr; gap: 12px; }
       .run-contracts { padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .metric-grid, .reconcile-grid, .formula-lab-results { grid-template-columns: 1fr; }
+      .metric-grid, .reconcile-grid, .formula-lab-results, .formula-catalog-grid, .source-preview-meta { grid-template-columns: 1fr; }
+      .source-preview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .metric strong { font-size: 18px; }
       th, td { padding: 9px; }
     }
@@ -501,16 +533,94 @@
               </details>
             </article>
           </div>
+          <article class="panel formula-catalog-panel" aria-labelledby="formulaCatalogTitle">
+            <h3 id="formulaCatalogTitle">Auditor de catálogo</h3>
+            <p class="panel-note">Ingresá una asignación por línea. El auditor trata el conjunto como un catálogo cerrado: toda referencia debe tener su propia línea. Detecta duplicados, referencias inexistentes y dependencias circulares sin ejecutar las expresiones. El catálogo precargado es sintético y no representa reglas municipales vigentes.</p>
+            <div class="formula-lab-grid">
+              <form class="formula-lab-form" data-catalog-form>
+                <label for="payrollCatalogInput">Catálogo a revisar</label>
+                <textarea class="formula-lab-input" id="payrollCatalogInput" data-catalog-input maxlength="65536" spellcheck="false" autocomplete="off" aria-describedby="formulaCatalogHelp">R[100] = N[200] + 1&#10;N[200] = I[300] * 0.25&#10;I[300] = 0</textarea>
+                <div class="formula-lab-actions">
+                  <button class="button" type="submit">Auditar catálogo</button>
+                  <span class="formula-lab-limit" id="formulaCatalogHelp">Formato: R[100] = N[200] + 1. Máximo 250 fórmulas; cada expresión conserva los límites del analizador.</span>
+                </div>
+              </form>
+              <div aria-labelledby="formulaCatalogResultTitle">
+                <h4 id="formulaCatalogResultTitle" class="visually-hidden">Resultado del catálogo</h4>
+                <p class="formula-lab-status" data-catalog-status role="status" aria-live="polite">Preparando auditor de catálogo.</p>
+                <div class="formula-catalog-grid">
+                  <div><h4>Grafo de dependencias</h4><ul class="formula-lab-list" data-catalog-graph></ul></div>
+                  <div><h4>Hallazgos</h4><ul class="formula-lab-list" data-catalog-diagnostics></ul></div>
+                </div>
+              </div>
+            </div>
+          </article>
           <div class="method-note">Una fórmula válida para este analizador todavía requiere contraste con el motor de origen, definición funcional, unidad, vigencia, casos de prueba, aprobación y doble control antes de incorporarse a un catálogo gobernado.</div>
         </section>
 
+        <section class="section" aria-labelledby="sourcePreviewTitle" data-grh-source-preview>
+          <header class="section-head">
+            <div>
+              <span class="section-index">04 · PREVISUALIZACIÓN DE FUENTE</span>
+              <h2 id="sourcePreviewTitle">Analizar un archivo mensual sin importarlo</h2>
+              <p>Comprueba formato, estructura y cantidades antes de iniciar una carga gobernada. Es un archivo local seleccionado por el operador: no representa una conexión en vivo con GRH.</p>
+            </div>
+            <span class="state-badge warning">Preview privado · máximo 2 MiB</span>
+          </header>
+          <div class="source-preview-grid">
+            <article class="panel">
+              <h3>Fuente a revisar</h3>
+              <p class="panel-note">Sólo se aceptan adaptadores versionados por el servidor. El navegador no envía el nombre del archivo, el tenant, el vínculo de fuente ni un esquema definido por el usuario.</p>
+              <form class="source-preview-form" data-source-preview-form>
+                <div class="source-preview-field">
+                  <label for="sourcePreviewDefinition">Formato declarado</label>
+                  <select id="sourcePreviewDefinition" data-source-preview-definition>
+                    <option value="grh-calculo-pipe-utf8.v1">Cálculo GRH · columnas separadas por | · UTF-8</option>
+                    <option value="grh-calculo-semicolon-windows1252.v1">Cálculo GRH · columnas separadas por ; · Windows-1252</option>
+                  </select>
+                  <small>La definición fija columnas y tipos esperados; no se infiere desde el contenido.</small>
+                </div>
+                <div class="source-preview-field">
+                  <label for="sourcePreviewFile">Archivo mensual TXT o CSV</label>
+                  <input id="sourcePreviewFile" data-source-preview-file type="file" accept=".txt,.csv,text/plain,text/csv" required>
+                  <small data-source-preview-file-state>Seleccioná un archivo de hasta 2 MiB. Su nombre no se muestra ni se envía.</small>
+                </div>
+                <div class="source-preview-actions">
+                  <button class="button" type="submit" data-source-preview-submit>Analizar sin importar</button>
+                  <span class="formula-lab-limit">No crea una corrida, no liquida y no modifica PostgreSQL ni GRH.</span>
+                </div>
+              </form>
+            </article>
+            <article class="panel source-preview-results" aria-labelledby="sourcePreviewResultTitle">
+              <h3 id="sourcePreviewResultTitle">Resultado agregado</h3>
+              <p class="formula-lab-status" data-source-preview-status role="status" aria-live="polite">Esperando un archivo local.</p>
+              <div data-source-preview-result hidden>
+                <div class="source-preview-metrics" aria-label="Conteos de la previsualización">
+                  <div class="source-preview-metric"><span>Registros</span><strong data-source-preview-records>—</strong></div>
+                  <div class="source-preview-metric"><span>Aceptados</span><strong data-source-preview-accepted>—</strong></div>
+                  <div class="source-preview-metric"><span>Rechazados</span><strong data-source-preview-rejected>—</strong></div>
+                  <div class="source-preview-metric"><span>Hallazgos</span><strong data-source-preview-issues>—</strong></div>
+                </div>
+                <div class="source-preview-meta">
+                  <div><strong>Contrato</strong><span data-source-preview-contract>—</span></div>
+                  <div><strong>Formato y codificación</strong><span data-source-preview-format>—</span></div>
+                  <div><strong>Tamaño procesado</strong><span data-source-preview-bytes>—</span></div>
+                  <div><strong>Huella ligada al contexto</strong><span data-source-preview-fingerprint>—</span></div>
+                </div>
+                <div><h4>Resumen de hallazgos</h4><ul class="source-preview-findings" data-source-preview-findings></ul></div>
+              </div>
+              <div class="method-note">El endpoint procesa el contenido en memoria y no persiste el archivo ni el resultado. La verificación de identidad conserva únicamente su auditoría habitual de sesión. Un preview válido todavía no autoriza una importación.</div>
+            </article>
+          </div>
+        </section>
+
         <section class="section" aria-labelledby="historyTitle">
-          <header class="section-head"><div><span class="section-index">04 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <header class="section-head"><div><span class="section-index">05 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
-          <header class="section-head"><div><span class="section-index">05 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <header class="section-head"><div><span class="section-index">06 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
@@ -738,7 +848,13 @@
 
       function showError(message) {
         byId('loading').hidden = true;
-        byId('mainContent').hidden = true;
+        byId('mainContent').hidden = false;
+        setBadge('runsBadge', 'warning', 'Fuente no disponible');
+        setBadge('reconciliationBadge', 'warning', 'Sin datos');
+        byId('overallPanel').dataset.state = 'warning';
+        setText('overallTitle', 'Datos de corrida no disponibles');
+        setText('overallDetail', 'No se publican importes ni indicadores. Las herramientas estructurales independientes permanecen visibles y conservan sus propios controles de acceso.');
+        setText('sourceChip', 'Fuente de nómina no disponible');
         var host = byId('errorHost');
         host.hidden = false;
         host.replaceChildren();
@@ -746,9 +862,9 @@
         card.className = 'error-card';
         card.setAttribute('role', 'alert');
         var title = document.createElement('h1');
-        title.textContent = 'No se pudo abrir el control de nómina';
+        title.textContent = 'No se pudieron consultar las corridas de nómina';
         var detail = document.createElement('p');
-        detail.textContent = message;
+        detail.textContent = message + ' Podés reintentar o usar abajo el laboratorio de fórmulas y la previsualización sin importar; ninguna de esas herramientas calcula ni publica una liquidación.';
         var retry = document.createElement('button');
         retry.className = 'button';
         retry.type = 'button';
@@ -797,5 +913,6 @@
     }());
   </script>
   <script type="module" src="assets/payroll-formula-linter.js"></script>
+  <script type="module" src="assets/grh-source-preview.js"></script>
 </body>
 </html>

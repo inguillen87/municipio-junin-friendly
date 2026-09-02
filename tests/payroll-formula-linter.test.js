@@ -5,7 +5,9 @@ import test from 'node:test';
 import {
   analyzeFormula,
   analyzeFormulaCatalog,
+  analyzeFormulaCatalogText,
   DEFAULT_FORMULA_LIMITS,
+  parseFormulaCatalogText,
 } from '../assets/payroll-formula-linter.js';
 
 test('analiza la notación funcional permitida sin evaluar importes', () => {
@@ -141,6 +143,66 @@ test('rechaza dependencias ausentes dentro de un catálogo revisado', () => {
   assert.ok(result.diagnostics.some(({ code, reference }) => (
     code === 'UNRESOLVED_REFERENCE' && reference === 'N[999]'
   )));
+});
+
+test('convierte asignaciones por línea en entradas de catálogo sin interpretar texto libre', () => {
+  const parsed = parseFormulaCatalogText('R[100] = N[200] + 1\n\nN[200] = I[300] = 0');
+
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.entries, [
+    { id: 'R[100]', formula: 'N[200] + 1', line: 1 },
+    { id: 'N[200]', formula: 'I[300] = 0', line: 3 },
+  ]);
+  assert.deepEqual(parsed.diagnostics, []);
+
+  const invalid = parseFormulaCatalogText('R[1]\nX[2] = R[1]\nN[2] =');
+  assert.equal(invalid.ok, false);
+  assert.deepEqual(
+    invalid.diagnostics.map(({ code }) => code),
+    ['CATALOG_ASSIGNMENT_INVALID', 'CATALOG_ASSIGNMENT_INVALID', 'CATALOG_FORMULA_EMPTY'],
+  );
+});
+
+test('audita texto de catálogo y reúne duplicados, faltantes y ciclos', () => {
+  const result = analyzeFormulaCatalogText([
+    'R[1] = N[2]',
+    'N[2] = R[1]',
+    'R[1] = U[9]',
+    'A[3] = L[404]',
+  ].join('\n'));
+
+  assert.equal(result.ok, false);
+  assert.ok(result.diagnostics.some(({ code }) => code === 'CATALOG_REFERENCE_DUPLICATED'));
+  assert.ok(result.diagnostics.some(({ code, reference }) => code === 'UNRESOLVED_REFERENCE' && reference === 'U[9]'));
+  assert.ok(result.diagnostics.some(({ code, reference }) => code === 'UNRESOLVED_REFERENCE' && reference === 'L[404]'));
+  assert.ok(result.diagnostics.some(({ code }) => code === 'CATALOG_CYCLE'));
+  assert.deepEqual(result.cycles, [['R[1]', 'N[2]', 'R[1]']]);
+});
+
+test('un catálogo cerrado válido conserva revisiones no bloqueantes de constantes', () => {
+  const result = analyzeFormulaCatalogText([
+    'R[100] = N[200] + 1',
+    'N[200] = I[300] * 0.25',
+    'I[300] = 0',
+  ].join('\n'));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.formulas.length, 3);
+  assert.deepEqual(result.cycles, []);
+  assert.equal(result.diagnostics.filter(({ code }) => code === 'CONSTANT_METADATA_MISSING').length, 3);
+  assert.ok(result.diagnostics.every(({ severity }) => severity === 'warning'));
+});
+
+test('el texto de catálogo respeta límites duros globales, por fórmula y por cantidad', () => {
+  const global = parseFormulaCatalogText('R[1] = 0', { limits: { maxCatalogTextLength: 4 } });
+  assert.equal(global.diagnostics[0].code, 'CATALOG_TEXT_TOO_LONG');
+
+  const formula = analyzeFormulaCatalogText(`R[1] = ${'1+'.repeat(2100)}1`);
+  assert.ok(formula.diagnostics.some(({ code }) => code === 'FORMULA_TOO_LONG'));
+
+  const count = analyzeFormulaCatalogText('R[1] = 0\nN[1] = 0', { limits: { maxCatalogEntries: 1 } });
+  assert.ok(count.diagnostics.some(({ code }) => code === 'CATALOG_LIMIT_EXCEEDED'));
+  assert.equal(count.limits.maxCatalogEntries, 1);
 });
 
 test('rechaza constantes numéricas que no sean finitas', () => {
