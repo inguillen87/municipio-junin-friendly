@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const screenshots = [];
+const downloads = [];
 const previewRequests = [];
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -252,6 +253,36 @@ async function inspect(viewport, label) {
     assert.doesNotMatch(await postClose.innerText(), /reporte-grh-nominal-secreto|planilla-control-contable-secreta/);
     assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
     assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
+    assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), true);
+    assert.equal(await postClose.locator('[data-post-close-export-xlsx]').isEnabled(), true);
+    assert.equal(await postClose.locator('[data-post-close-export-pdf]').isEnabled(), true);
+    assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /borrador local con coincidencia aritmética/);
+
+    const [xlsxDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      postClose.locator('[data-post-close-export-xlsx]').click(),
+    ]);
+    assert.equal(xlsxDownload.suggestedFilename(), 'municontrol_control-poscierre_2026-07_jurisdiccion-42.xlsx');
+    const xlsxPath = path.join(os.tmpdir(), `municontrol-payroll-post-close-${label}.xlsx`);
+    await xlsxDownload.saveAs(xlsxPath);
+    const xlsxBytes = fs.readFileSync(xlsxPath);
+    assert.deepEqual([...xlsxBytes.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+    assert.equal(xlsxBytes.includes(Buffer.from('COINCIDENCIA ARITMÉTICA LOCAL - AL CENTAVO')), true);
+    assert.equal(xlsxBytes.includes(Buffer.from('reporte-grh-nominal-secreto')), false);
+    downloads.push(xlsxPath);
+
+    const [pdfDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      postClose.locator('[data-post-close-export-pdf]').click(),
+    ]);
+    assert.equal(pdfDownload.suggestedFilename(), 'municontrol_control-poscierre_2026-07_jurisdiccion-42.pdf');
+    const pdfPath = path.join(os.tmpdir(), `municontrol-payroll-post-close-${label}.pdf`);
+    await pdfDownload.saveAs(pdfPath);
+    const pdfBytes = fs.readFileSync(pdfPath);
+    assert.equal(pdfBytes.subarray(0, 8).toString('ascii'), '%PDF-1.4');
+    assert.equal(pdfBytes.includes(Buffer.from('Borrador local de control - No oficial')), true);
+    assert.equal(pdfBytes.includes(Buffer.from('reporte-grh-nominal-secreto')), false);
+    downloads.push(pdfPath);
 
     const controlDifference = [
       'periodo;jurisdiccion;concepto;importe_ars',
@@ -268,6 +299,7 @@ async function inspect(viewport, label) {
     await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Hay diferencias'));
     assert.equal(await postClose.locator('[data-post-close-observation]').getAttribute('required'), '');
     assert.equal(await postClose.locator('[data-post-close-total-difference]').innerText(), '$ 0,01');
+    assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), false);
     const privateObservation = 'Revisar planilla <img src=x onerror=alert(1)> persona privada';
     await postClose.locator('[data-post-close-observation]').fill(privateObservation);
     await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
@@ -277,6 +309,8 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-observation-note]').innerText(), /su texto no se conserva/);
     assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
     assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
+    assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), true);
+    assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /diferencia abierta/);
 
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
@@ -322,11 +356,27 @@ async function inspect(viewport, label) {
     await page.screenshot({ path: screenshot, fullPage: false });
     screenshots.push(screenshot);
 
+    await postClose.locator('[data-post-close-observed-file]').setInputFiles({
+      name: 'misma-a.csv', mimeType: 'text/csv', buffer: Buffer.from(observedExact),
+    });
+    await postClose.locator('[data-post-close-control-file]').setInputFiles({
+      name: 'misma-b.csv', mimeType: 'text/csv', buffer: Buffer.from(observedExact),
+    });
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-post-close-observation-note]')?.textContent.includes('bytes idénticos'));
+    assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), false);
+    assert.match(
+      await postClose.locator('[data-post-close-export-status]').textContent(),
+      /bloqueada porque los dos archivos contienen exactamente los mismos bytes/,
+    );
+
     await postClose.getByRole('button', { name: 'Limpiar' }).click();
     assert.equal(await postClose.locator('[data-post-close-result]').isVisible(), false);
     assert.equal(await postClose.locator('[data-post-close-rows] tr').count(), 0);
     assert.equal(await postClose.locator('[data-post-close-observed-hash]').innerText(), '—');
     assert.equal(await postClose.locator('[data-post-close-total-observed]').innerText(), '—');
+    assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), false);
+    assert.equal(await postClose.locator('[data-post-close-export-xlsx]').isDisabled(), true);
   } finally {
     await context.close();
   }
@@ -359,6 +409,29 @@ async function inspectUnavailablePayroll() {
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
     assert.match(await page.locator('[data-source-preview-status]').innerText(), /Esperando un archivo local/);
     assert.match(await page.locator('[data-post-close-status]').innerText(), /Esperando período, jurisdicción y dos archivos agregados/);
+
+    const postClose = page.locator('[data-payroll-post-close-reconciler]');
+    const observed = [
+      'periodo;jurisdiccion;concepto;importe_ars',
+      '2026-07;55;701;100,00',
+      '2026-07;55;703;200,00',
+    ].join('\n');
+    const control = observed.replaceAll('\n', '\r\n');
+    await postClose.locator('[data-post-close-period]').fill('2026-07');
+    await postClose.locator('[data-post-close-jurisdiction]').selectOption('55');
+    await postClose.locator('[data-post-close-observed-file]').setInputFiles({
+      name: 'grh.csv', mimeType: 'text/csv', buffer: Buffer.from(observed),
+    });
+    await postClose.locator('[data-post-close-control-file]').setInputFiles({
+      name: 'control.csv', mimeType: 'text/csv', buffer: Buffer.from(control),
+    });
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Coincidencia exacta'));
+    assert.equal(await postClose.locator('[data-post-close-export-xlsx]').isEnabled(), true);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'), postClose.locator('[data-post-close-export-xlsx]').click(),
+    ]);
+    assert.equal(download.suggestedFilename(), 'municontrol_control-poscierre_2026-07_jurisdiccion-55.xlsx');
   } finally {
     await context.close();
   }
@@ -369,7 +442,7 @@ try {
   await inspect({ width: 1440, height: 900 }, 'desktop');
   await inspect({ width: 390, height: 844 }, 'mobile');
   await inspectUnavailablePayroll();
-  console.log(`Payroll formula browser QA: OK; screenshots: ${screenshots.join(', ')}`);
+  console.log(`Payroll formula browser QA: OK; screenshots: ${screenshots.join(', ')}; downloads: ${downloads.join(', ')}`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));

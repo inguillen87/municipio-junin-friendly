@@ -1,3 +1,9 @@
+import {
+  createPayrollPostClosePdfArtifact,
+  createPayrollPostCloseXlsxArtifact,
+  downloadPayrollPostCloseArtifact,
+} from './payroll-post-close-exporter.js';
+
 export const PAYROLL_POST_CLOSE_CONTRACT_VERSION = 'payroll-post-close-701-703.v1';
 export const PAYROLL_POST_CLOSE_MAX_FILE_BYTES = 16 * 1024;
 export const PAYROLL_POST_CLOSE_MAX_OBSERVATION_LENGTH = 500;
@@ -254,6 +260,10 @@ export function mountPayrollPostCloseReconciler(root = document) {
   const resultHost = host.querySelector('[data-post-close-result]');
   const rows = host.querySelector('[data-post-close-rows]');
   const observationNote = host.querySelector('[data-post-close-observation-note]');
+  const exportActions = host.querySelector('[data-post-close-export-actions]');
+  const exportXlsx = host.querySelector('[data-post-close-export-xlsx]');
+  const exportPdf = host.querySelector('[data-post-close-export-pdf]');
+  const exportStatus = host.querySelector('[data-post-close-export-status]');
   const outputSelectors = [
     '[data-post-close-total-observed]', '[data-post-close-total-control]',
     '[data-post-close-total-difference]', '[data-post-close-observed-hash]',
@@ -265,7 +275,10 @@ export function mountPayrollPostCloseReconciler(root = document) {
   )));
   if (!form || !period || !jurisdiction || !observedFile || !controlFile || !observation
       || !submit || !reset || !status || !resultHost || !rows || !observationNote
+      || !exportActions || !exportXlsx || !exportPdf || !exportStatus
       || Object.values(outputs).some((value) => !value)) return false;
+
+  let exportSnapshot = null;
 
   function setStatus(state, message) {
     status.dataset.state = state;
@@ -273,9 +286,14 @@ export function mountPayrollPostCloseReconciler(root = document) {
   }
 
   function clearResult() {
+    exportSnapshot = null;
     resultHost.hidden = true;
     rows.replaceChildren();
     observation.required = false;
+    exportActions.hidden = true;
+    exportXlsx.disabled = true;
+    exportPdf.disabled = true;
+    exportStatus.textContent = 'Primero completá una conciliación exportable.';
     for (const output of Object.values(outputs)) output.textContent = '—';
     observationNote.textContent = 'La observación sólo es obligatoria cuando existe diferencia.';
   }
@@ -317,10 +335,55 @@ export function mountPayrollPostCloseReconciler(root = document) {
       setStatus('error', 'Hay diferencias. La observación es obligatoria y no convierte el resultado en coincidencia.');
     }
     if (result.warnings.includes('SOURCE_BYTES_IDENTICAL')) {
-      observationNote.textContent += ' Las dos fuentes tienen bytes idénticos; verificá que sean independientes.';
+      observationNote.textContent += ' Los dos archivos tienen bytes idénticos; el segundo no aporta contenido diferente.';
+    }
+    const sourceBytesDiffer = !result.warnings.includes('SOURCE_BYTES_IDENTICAL');
+    if (result.inputRequirementsSatisfied && sourceBytesDiffer) {
+      exportSnapshot = Object.freeze({ result, generatedAt: new Date().toISOString() });
+      exportActions.hidden = false;
+      exportXlsx.disabled = false;
+      exportPdf.disabled = false;
+      exportStatus.textContent = result.reconciled
+        ? 'Listo para descargar como borrador local con coincidencia aritmética. Procedencia e independencia no verificadas por el servidor.'
+        : 'Listo para descargar como borrador local con diferencia abierta. Procedencia e independencia no verificadas por el servidor.';
+    } else {
+      exportSnapshot = null;
+      exportActions.hidden = true;
+      exportXlsx.disabled = true;
+      exportPdf.disabled = true;
+      exportStatus.textContent = sourceBytesDiffer
+        ? 'Completá el requisito local antes de descargar.'
+        : 'La descarga está bloqueada porque los dos archivos contienen exactamente los mismos bytes.';
     }
     resultHost.hidden = false;
   }
+
+  function exportArtifact(kind) {
+    if (!exportSnapshot) {
+      exportStatus.textContent = 'Ejecutá una conciliación exportable antes de descargar.';
+      return;
+    }
+    exportXlsx.disabled = true;
+    exportPdf.disabled = true;
+    try {
+      const options = { generatedAt: exportSnapshot.generatedAt };
+      const artifact = kind === 'xlsx'
+        ? createPayrollPostCloseXlsxArtifact(exportSnapshot.result, options)
+        : createPayrollPostClosePdfArtifact(exportSnapshot.result, options);
+      const fileName = downloadPayrollPostCloseArtifact(artifact);
+      exportStatus.textContent = `${fileName} se preparó sin incluir observaciones ni filas nominales.`;
+    } catch (error) {
+      exportStatus.textContent = error instanceof Error
+        ? error.message : 'No se pudo preparar la descarga local.';
+    } finally {
+      const enabled = Boolean(exportSnapshot);
+      exportXlsx.disabled = !enabled;
+      exportPdf.disabled = !enabled;
+    }
+  }
+
+  exportXlsx.addEventListener('click', () => exportArtifact('xlsx'));
+  exportPdf.addEventListener('click', () => exportArtifact('pdf'));
 
   for (const element of [period, jurisdiction, observedFile, controlFile]) {
     element.addEventListener('change', () => {
@@ -382,6 +445,8 @@ export function mountPayrollPostCloseReconciler(root = document) {
       submit.disabled = false;
     }
   });
+
+  globalThis.addEventListener?.('pagehide', () => { exportSnapshot = null; }, { once: true });
 
   host.dataset.mounted = 'true';
   return true;

@@ -189,6 +189,7 @@ Los topes, versiones, parámetros previsionales y diseños deben tener vigencia 
 | S008-B2 | Importador gobernado del corte mensual | manifiesto, cuarentena, idempotencia y aprobación explícita |
 | S008-C1 | Conciliación poscierre 701/703 | período + jurisdicción 42/55 + fuente; esperado, observado y diferencia al centavo, sin F.931 |
 | S008-C2 | Cierre y conciliación general | totales al centavo, diferencias cero o justificadas y maker-checker |
+| S008-D0 | Borradores locales descargables | XLSX real y PDF de una página desde el mismo resultado C1; siempre no oficiales y sin observación |
 | S008-D | Excel y PDF institucionales | una corrida, fórmulas auditables, totales y diferencias visibles |
 | S008-E | Paquete bancario | TXT + Excel + PDF desde una corrida; conciliación contra nómina y expediente |
 | S008-F | Expediente y Tribunal de Cuentas | paquete por repartición con anexos, hash, estados y trazabilidad |
@@ -200,7 +201,8 @@ Estado de implementación en la rama aislada `codex/civitas-attendance-payroll`:
 - **S008-A implementado:** revisión sintáctica individual y auditoría de catálogo, sin evaluar importes;
 - **S008-B1 implementado en código:** preview privado agregado con autorización del servidor; requiere configurar el secreto dedicado y certificar el entorno antes de desplegar;
 - **S008-C1 implementado como control local:** compara dos CSV agregados de exactamente dos filas —conceptos 701 y 703— para un período y una jurisdicción 42 o 55. Calcula con `BigInt` en centavos, calcula y muestra huellas SHA-256 de los bytes usados durante la ejecución y exige ingresar una observación ante diferencias sin conservar su texto ni convertirlas en coincidencia;
-- **S008-B2 y S008-C2 en adelante pendientes:** no existe aún importación gobernada, cierre general ni exportación institucional homologada.
+- **S008-D0 implementado como salida local:** genera un XLSX OOXML macro-free con importes numéricos, fórmulas auditables y totales, y un PDF A4 de una página desde la misma instantánea de memoria. Ambos declaran `Borrador local de control - No oficial`, mantienen abierta toda diferencia conceptual aunque el total se compense, muestran período, jurisdicción, huellas y tamaños, no incluyen texto de observación, nombres de archivo ni filas nominales y bloquean la salida cuando las fuentes tienen bytes idénticos;
+- **S008-B2, S008-C2 y S008-D homologado permanecen pendientes:** todavía no existen importación gobernada, corrida persistida, maker-checker, responsable validado, observación durable ni evento de aprobación. Por eso los archivos D0 no deben presentarse como cierre o documento institucional aprobado.
 
 El control C1 no precarga los importes de la captura ni las tasas mostradas en ella. Los valores observados sirven como caso de prueba histórico; el operador debe aportar las dos fuentes agregadas del período que realmente revisa.
 
@@ -210,6 +212,8 @@ El control C1 no precarga los importes de la captura ni las tasas mostradas en e
 - No existe todavía un motor de liquidación homologado en MuniControl.
 - No se generó ni presentó un F.931 real.
 - El conciliador C1 funciona en el navegador y no persiste la observación ni constituye evidencia durable; esa trazabilidad corresponde a C2.
+- Las descargas D0 usan el reloj no verificado del navegador y no contienen firma digital, responsable, `runId` ni aprobación del servidor.
+- Que los bytes de los dos archivos difieran no acredita procedencia ni independencia; D0 sólo identifica el segundo como archivo de control declarado por el operador. Esa separación debe validarse en C2 con actores, manifiesto y evidencia del servidor.
 - No se cargaron CUIL, CBU, familiares, salud, embargos o sueldos nominales en Git o Neon.
 - La base canónica PostgreSQL debe recibir sólo lotes autorizados y retenidos según necesidad; el ZIP y los binarios permanecen fuera de la base.
 - Después de tres cierres paralelos conciliados podrá evaluarse lectura incremental; GRH continúa como fuente hasta una decisión formal de reemplazo.

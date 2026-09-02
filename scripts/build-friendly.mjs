@@ -41,6 +41,7 @@ const shellFiles = [
   'assets/junin-tardiness-policy.js',
   'assets/payroll-formula-linter.js',
   'assets/grh-source-preview.js',
+  'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
   'datos-personales.html',
   'friendly-data.json'

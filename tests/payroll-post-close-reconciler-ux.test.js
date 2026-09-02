@@ -17,8 +17,16 @@ test('Nómina integra un conciliador poscierre agregado, local y accesible', () 
   assert.equal((html.match(/data-post-close-observed-file/g) || []).length, 1);
   assert.equal((html.match(/data-post-close-control-file/g) || []).length, 1);
   assert.match(html, /data-post-close-observation maxlength="500"/);
+  assert.match(html, /planilla de control declarada por el operador/);
+  assert.doesNotMatch(html, /control independiente/);
   assert.match(html, /data-post-close-status role="status" aria-live="polite"/);
   assert.match(html, /data-post-close-rows/);
+  assert.match(html, /data-post-close-export-actions hidden/);
+  assert.match(html, /data-post-close-export-xlsx disabled>Descargar Excel/);
+  assert.match(html, /data-post-close-export-pdf disabled>Descargar PDF/);
+  assert.match(html, /data-post-close-export-status role="status" aria-live="polite"/);
+  assert.match(html, /borradores locales, no incluyen la observación ni registros nominales, y no verifican procedencia o independencia de las fuentes/);
+  assert.match(html, /\.post-close-export-actions \.button \{ width: 100%; \}/);
   assert.match(html, /<th>Jurisdicción<\/th><th>Concepto<\/th>/);
   assert.match(html, /<th colspan="2">Total jurisdicción<\/th>/);
   assert.match(html, /data-label="Reporte GRH" data-post-close-total-observed/);
@@ -26,6 +34,7 @@ test('Nómina integra un conciliador poscierre agregado, local y accesible', () 
   assert.match(html, /no genera F\.931 y no escribe en GRH, PostgreSQL o Neon/);
   assert.match(html, /la previsualización sin importar y el control poscierre local/);
   assert.equal((html.match(/assets\/payroll-post-close-reconciler\.js/g) || []).length, 1);
+  assert.doesNotMatch(html, /<script[^>]+payroll-post-close-exporter/);
 });
 
 test('el build publica el conciliador privado sin agregarlo al precache público', () => {
@@ -33,5 +42,7 @@ test('el build publica el conciliador privado sin agregarlo al precache público
   const worker = read('sw.js');
 
   assert.match(build, /'assets\/payroll-post-close-reconciler\.js'/);
+  assert.match(build, /'assets\/payroll-post-close-exporter\.js'/);
   assert.doesNotMatch(worker, /payroll-post-close-reconciler/);
+  assert.doesNotMatch(worker, /payroll-post-close-exporter/);
 });

@@ -368,6 +368,13 @@
     .post-close-note { margin: 0; padding: 10px 11px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
     .post-close-note[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
     .post-close-format { display: block; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
+    .post-close-export { padding: 13px; background: var(--green-soft); border: 1px solid #b9d8ce; border-radius: 4px; }
+    .post-close-export h4 { margin: 0; color: var(--navy); font-size: 13px; }
+    .post-close-export > p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+    .post-close-export-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .post-close-export-actions .button:first-child { color: #fff; background: var(--green); border-color: var(--green); }
+    .post-close-export-actions .button:disabled { cursor: not-allowed; opacity: .55; }
+    .post-close-export-status { display: block; margin-top: 8px; color: var(--green); font-size: 10px; font-weight: 700; }
 
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -439,6 +446,8 @@
       .post-close-results tbody td:last-child, .post-close-results tfoot td:last-child { border-bottom: 0; }
       .post-close-results tbody td::before, .post-close-results tfoot td::before { content: attr(data-label); color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
       .post-close-results tbody td.numeric, .post-close-results tfoot td.numeric { text-align: right; }
+      .post-close-export-actions { display: grid; grid-template-columns: 1fr; }
+      .post-close-export-actions .button { width: 100%; }
       .metric strong { font-size: 18px; }
       th, td { padding: 9px; }
     }
@@ -663,7 +672,7 @@
           <div class="post-close-grid">
             <article class="panel">
               <h3>Fuentes del control</h3>
-              <p class="panel-note">Prepará un CSV agregado desde el reporte GRH y otro desde la planilla de control independiente. Cada archivo debe contener sólo los conceptos 701 y 703 para una única jurisdicción.</p>
+              <p class="panel-note">Prepará un CSV agregado desde el reporte GRH y otro desde la planilla de control declarada por el operador. Cada archivo debe contener sólo los conceptos 701 y 703 para una única jurisdicción; su procedencia e independencia no se verifican en esta etapa local.</p>
               <code class="post-close-format">periodo;jurisdiccion;concepto;importe_ars
 2026-07;42;701;0,00
 2026-07;42;703;0,00</code>
@@ -717,11 +726,20 @@
                 </div>
                 <div class="post-close-meta">
                   <div><strong>Fuente GRH</strong><span data-post-close-observed-hash>—</span><br><span data-post-close-observed-bytes>—</span></div>
-                  <div><strong>Fuente de control</strong><span data-post-close-control-hash>—</span><br><span data-post-close-control-bytes>—</span></div>
+                  <div><strong>Archivo de control declarado</strong><span data-post-close-control-hash>—</span><br><span data-post-close-control-bytes>—</span></div>
                 </div>
                 <p class="post-close-note" data-post-close-observation-note>Sin resultado.</p>
+                <div class="post-close-export" data-post-close-export-actions hidden>
+                  <h4>Descargas del control</h4>
+                  <p>Los dos archivos usan los mismos importes, estado y huellas. Se generan en este navegador como borradores locales, no incluyen la observación ni registros nominales, y no verifican procedencia o independencia de las fuentes.</p>
+                  <div class="post-close-export-actions">
+                    <button class="button" type="button" data-post-close-export-xlsx disabled>Descargar Excel</button>
+                    <button class="button" type="button" data-post-close-export-pdf disabled>Descargar PDF</button>
+                  </div>
+                  <span class="post-close-export-status" data-post-close-export-status role="status" aria-live="polite">Primero completá una conciliación exportable.</span>
+                </div>
               </div>
-              <div class="method-note">La huella SHA-256 identifica los bytes comparados durante esta ejecución. Como no se firma ni persiste, no constituye evidencia durable ni acredita quién creó el archivo o si el dato es oficial. Este control no cierra nómina, no aprueba aportes, no genera F.931 y no escribe en GRH, PostgreSQL o Neon.</div>
+              <div class="method-note">La huella SHA-256 identifica los bytes comparados durante esta ejecución. Como no se firma ni persiste, no constituye evidencia durable ni acredita quién creó el archivo o si el dato es oficial. Las descargas son borradores de control, no cierres aprobados. Este control no cierra nómina, no aprueba aportes, no genera F.931 y no escribe en GRH, PostgreSQL o Neon.</div>
             </article>
           </div>
         </section>
