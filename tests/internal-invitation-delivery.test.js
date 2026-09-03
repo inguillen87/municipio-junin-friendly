@@ -146,6 +146,78 @@ test('invitacion temporal llega al buzon compartido e identifica usuario, rol y 
   assert.match(bodies[0].html, /Entrega temporal autorizada para la muestra/);
 });
 
+test('recipient por ruta llega a Resend y otra invitacion conserva el buzon compartido por defecto', async () => {
+  const requests = [];
+  const tenantId = '22222222-2222-4222-8222-222222222222';
+  const routeEnv = {
+    RESEND_API_KEY: ENV.RESEND_API_KEY,
+    IDENTITY_INVITATION_FROM: 'MuniControl <identidad@example.test>',
+    IDENTITY_APP_ORIGIN: 'https://app.example.test',
+    IDENTITY_TEMPORARY_SHARED_INBOX_ENABLED: 'true',
+    IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+      recipient: 'default-inbox@example.test',
+      expiresAt: null,
+      routes: [
+        {
+          identityEmail: 'approver@example.test', context: tenantId,
+          recipient: 'approvals-inbox@example.test',
+          identityLabel: 'Aprobador', roleLabel: 'Aprobacion final',
+          tenantLabel: 'Municipio de prueba',
+        },
+        {
+          identityEmail: 'operator@example.test', context: tenantId,
+          identityLabel: 'Operador', roleLabel: 'Operacion municipal',
+          tenantLabel: 'Municipio de prueba',
+        },
+      ],
+    }),
+  };
+  const delivery = createResendInvitationDelivery({
+    env: routeEnv,
+    now: new Date('2026-08-24T01:30:00.000Z'),
+    fetch: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true };
+    },
+  });
+  const routed = await delivery({
+    ...INPUT,
+    to: 'approver@example.test',
+    identityEmail: 'approver@example.test',
+    tenantId,
+    activationUrl: 'https://app.example.test/activar-cuenta',
+    deliveryAttempt: {
+      ...INPUT.deliveryAttempt,
+      id: '30000000-0000-4000-8000-000000000002',
+    },
+  });
+  const fallback = await delivery({
+    ...INPUT,
+    to: 'operator@example.test',
+    identityEmail: 'operator@example.test',
+    tenantId,
+    activationUrl: 'https://app.example.test/activar-cuenta',
+    deliveryAttempt: {
+      ...INPUT.deliveryAttempt,
+      id: '30000000-0000-4000-8000-000000000003',
+    },
+  });
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests.map(({ url }) => url), [
+    'https://api.resend.com/emails',
+    'https://api.resend.com/emails',
+  ]);
+  assert.deepEqual(requests.map(({ body }) => body.to), [
+    ['approvals-inbox@example.test'],
+    ['default-inbox@example.test'],
+  ]);
+  assert.equal(routed.maskedDestination, 'a••••••••x@example.test');
+  assert.equal(fallback.maskedDestination, 'd••••••••x@example.test');
+  assert.equal(routed.temporarySharedInbox, true);
+  assert.equal(fallback.temporarySharedInbox, true);
+});
+
 test('invitacion compartida admite vigencia manual reversible sin fecha ficticia', async () => {
   const bodies = [];
   const manualEnv = {

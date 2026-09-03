@@ -395,6 +395,7 @@
     .post-close-format { display: block; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
     .post-close-export { padding: 13px; background: var(--green-soft); border: 1px solid #b9d8ce; border-radius: 4px; }
     .post-close-export h4 { margin: 0; color: var(--navy); font-size: 13px; }
+    .post-close-export h4:not(:first-child) { margin-top: 16px; padding-top: 14px; border-top: 1px solid #b9d8ce; }
     .post-close-export > p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
     .post-close-export-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     .post-close-export-actions .button:first-child { color: #fff; background: var(--green); border-color: var(--green); }
@@ -868,8 +869,14 @@
                   <p class="post-close-evidence-summary"><strong>Evidencia de esta ejecución local</strong><span data-grh-summary-evidence>Sin huellas calculadas.</span></p>
                 </details>
                 <div class="post-close-export">
-                  <h4>CSV agregado compatible con el conciliador</h4>
-                  <p>Exporta conceptos en centavos enteros, sin nombres, CUIL, legajos ni cuentas. El código de repartición 0 significa “todas las reparticiones del PDF”; no representa una repartición real.</p>
+                  <h4>Libro mensual de conceptos</h4>
+                  <p>Genera un Excel profesional con Resumen, J42, J55, General y Trazabilidad desde la misma conciliación. Incluye fórmulas visibles y montos exactos; no contiene filas personales ni datos bancarios.</p>
+                  <div class="post-close-export-actions">
+                    <button class="button" type="button" data-grh-summary-export-xlsx disabled>Descargar Excel completo</button>
+                  </div>
+                  <span class="post-close-export-status" data-grh-summary-export-status data-state="warning" role="status" aria-live="polite">Primero validá los tres PDF del mes.</span>
+                  <h4>Insumos técnicos CSV</h4>
+                  <p>Exportan conceptos en centavos enteros para el conciliador, sin nombres, CUIL, legajos ni cuentas. El código de repartición 0 significa “todas las reparticiones del PDF”; no representa una repartición real.</p>
                   <div class="post-close-export-actions">
                     <button class="button" type="button" data-grh-summary-export="42" disabled>Descargar conceptos J42</button>
                     <button class="button" type="button" data-grh-summary-export="55" disabled>Descargar conceptos J55</button>

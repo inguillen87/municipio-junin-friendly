@@ -150,6 +150,69 @@ test('buzon compartido temporal conserva actor, rol y tenant visibles sin cambia
   assert.doesNotMatch(bodies[0].subject, /persona@example\.test/);
 });
 
+test('recipient por ruta llega a Resend y otra ruta conserva el buzon compartido por defecto', async () => {
+  const requests = [];
+  const routeEnv = {
+    RESEND_API_KEY: ENV.RESEND_API_KEY,
+    IDENTITY_MFA_FROM: 'MuniControl <seguridad@example.test>',
+    IDENTITY_TEMPORARY_SHARED_INBOX_ENABLED: 'true',
+    IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG: JSON.stringify({
+      recipient: 'default-inbox@example.test',
+      expiresAt: null,
+      routes: [
+        {
+          identityEmail: 'approver@example.test', context: 'platform',
+          recipient: 'approvals-inbox@example.test',
+          identityLabel: 'Aprobador', roleLabel: 'Aprobacion final',
+          tenantLabel: 'Administracion global',
+        },
+        {
+          identityEmail: 'operator@example.test', context: 'platform',
+          identityLabel: 'Operador', roleLabel: 'Operacion municipal',
+          tenantLabel: 'Administracion global',
+        },
+      ],
+    }),
+  };
+  const delivery = createResendMfaEmailDelivery({
+    env: routeEnv,
+    now: NOW,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true };
+    },
+  });
+
+  const routed = await delivery.deliver({
+    ...INPUT,
+    to: 'approver@example.test',
+    identityEmail: 'approver@example.test',
+    tenantId: null,
+    idempotencyKey: 'challenge-30000000-0000-4000-8000-000000000002',
+  });
+  const fallback = await delivery.deliver({
+    ...INPUT,
+    to: 'operator@example.test',
+    identityEmail: 'operator@example.test',
+    tenantId: null,
+    idempotencyKey: 'challenge-30000000-0000-4000-8000-000000000003',
+  });
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests.map(({ url }) => url), [
+    'https://api.resend.com/emails',
+    'https://api.resend.com/emails',
+  ]);
+  assert.deepEqual(requests.map(({ body }) => body.to), [
+    ['approvals-inbox@example.test'],
+    ['default-inbox@example.test'],
+  ]);
+  assert.equal(routed.maskedDestination, 'a••••••••x@example.test');
+  assert.equal(fallback.maskedDestination, 'd••••••••x@example.test');
+  assert.equal(routed.temporarySharedInbox, true);
+  assert.equal(fallback.temporarySharedInbox, true);
+});
+
 test('buzon compartido con cierre manual no inventa fecha y sigue identificando la cuenta', async () => {
   const bodies = [];
   const manualEnv = {

@@ -46,6 +46,7 @@ const shellFiles = [
   'assets/payroll-post-close-reconciler.js',
   'assets/monthly-close-jurisdiction-xlsx-adapter.js',
   'assets/monthly-close-jurisdiction-xlsx-worker.js',
+  'assets/payroll-concept-breakdown-exporter.js',
   'assets/monthly-close-grh-summary-adapter.js',
   'assets/monthly-close-grh-summary-worker.js',
   'assets/monthly-close-local-precheck.js',

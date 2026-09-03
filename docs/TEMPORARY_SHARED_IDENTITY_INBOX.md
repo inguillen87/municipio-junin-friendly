@@ -27,14 +27,16 @@ alias de usuario, no comparte contraseña, sesión, rol ni actor de auditoría.
 
 ```text
 IDENTITY_TEMPORARY_SHARED_INBOX_ENABLED=true
-IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG={"recipient":"buzon-controlado@example.com","expiresAt":"2026-08-26T23:59:00.000Z","routes":[{"identityEmail":"owner@municipio.example","context":"platform","identityLabel":"Propietario","roleLabel":"Administrador de plataforma","tenantLabel":"Administración global"},{"identityEmail":"aprobador@municipio.example","context":"00000000-0000-4000-8000-000000000000","identityLabel":"Responsable de Gobierno","roleLabel":"Aprobador final de RRHH","tenantLabel":"Municipalidad de Junín"}]}
+IDENTITY_TEMPORARY_SHARED_INBOX_CONFIG={"recipient":"buzon-controlado@example.com","expiresAt":"2026-08-26T23:59:00.000Z","routes":[{"identityEmail":"owner@municipio.example","context":"platform","identityLabel":"Propietario","roleLabel":"Administrador de plataforma","tenantLabel":"Administración global"},{"identityEmail":"aprobador@municipio.example","context":"00000000-0000-4000-8000-000000000000","recipient":"contadora@example.com","identityLabel":"Responsable de Gobierno","roleLabel":"Aprobador final de RRHH","tenantLabel":"Municipalidad de Junín"}]}
 ```
 
 Para mantener la ruta hasta una desactivación manual, conservar la misma
 allowlist y usar `"expiresAt":null`. No se usa una fecha ficticia lejana.
 
-El JSON admite entre 1 y 20 rutas. No admite claves adicionales, duplicados,
-saltos de línea en etiquetas ni destinatarios no entregables.
+El JSON admite entre 1 y 20 rutas. `recipient` define el buzón compartido por
+defecto y cada ruta puede declarar su propio `recipient` para derivar solamente
+esa identidad y ese contexto. No admite claves adicionales, duplicados, saltos
+de línea en etiquetas ni destinatarios no entregables.
 
 ## Preparación de cada identidad
 

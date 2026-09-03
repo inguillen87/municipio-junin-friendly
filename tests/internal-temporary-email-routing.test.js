@@ -66,6 +66,29 @@ test('enruta solamente la identidad y el contexto incluidos en la allowlist temp
   assert.equal(notAllowed.recipient, 'other@institution.example');
 });
 
+test('una ruta puede usar un buzon distinto sin cambiar el destino de las otras identidades', () => {
+  const env = envFor({
+    ...CONFIG,
+    routes: CONFIG.routes.map((route) => route.identityEmail === 'hugo@example.test'
+      ? { ...route, recipient: 'noelia@example.test' }
+      : route),
+  });
+  const owner = resolveTemporaryEmailRoute({
+    env, now: NOW, logicalRecipient: 'owner@institution.example',
+    identityEmail: 'owner@example.test', tenantId: null,
+  });
+  const hugo = resolveTemporaryEmailRoute({
+    env, now: NOW, logicalRecipient: 'hugo@institution.example',
+    identityEmail: 'hugo@example.test', tenantId: TENANT_ID,
+  });
+  assert.equal(owner.recipient, 'shared@example.test');
+  assert.equal(owner.maskedRecipient, 's••••d@example.test');
+  assert.equal(hugo.recipient, 'noelia@example.test');
+  assert.equal(hugo.maskedRecipient, 'n••••a@example.test');
+  assert.equal(hugo.identityEmail, 'hugo@example.test');
+  assert.equal(hugo.context, TENANT_ID);
+});
+
 test('la bandera apagada conserva el destinatario normal aunque exista configuracion', () => {
   const route = resolveTemporaryEmailRoute({
     env: envFor(CONFIG, 'false'), now: NOW,
@@ -117,6 +140,7 @@ test('rechaza ventana mayor a siete dias, duplicados, campos extra y flag ambigu
     envFor({ ...CONFIG, routes: [...CONFIG.routes, CONFIG.routes[0]] }),
     envFor({ ...CONFIG, extra: true }),
     envFor({ ...CONFIG, recipient: 'shared@localhost' }),
+    envFor({ ...CONFIG, routes: [{ ...CONFIG.routes[0], recipient: 'noelia@localhost' }] }),
     envFor({ ...CONFIG, routes: [{ ...CONFIG.routes[0], roleLabel: 'Admin\nBcc: attacker' }] }),
     envFor({ recipient: CONFIG.recipient, routes: CONFIG.routes }),
     envFor(CONFIG, '1'),

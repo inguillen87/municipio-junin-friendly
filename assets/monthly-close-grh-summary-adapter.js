@@ -1,3 +1,9 @@
+import {
+  PayrollConceptBreakdownExportError,
+  createPayrollConceptBreakdownXlsx,
+  downloadPayrollConceptBreakdownArtifact,
+} from './payroll-concept-breakdown-exporter.js';
+
 export const PAYROLL_MONTHLY_GRH_SUMMARY_VERSION = 'payroll-monthly-grh-summary.v1';
 export const PAYROLL_MONTHLY_GRH_SUMMARY_PARSER_VERSION =
   'grh-concept-statistics-pdf-layout.v1';
@@ -773,10 +779,13 @@ export function mountMonthlyGrhSummaryImport(root = document) {
   const equation = host.querySelector('[data-grh-summary-equation]');
   const evidence = host.querySelector('[data-grh-summary-evidence]');
   const exportButtons = [...host.querySelectorAll('[data-grh-summary-export]')];
+  const workbookButton = host.querySelector('[data-grh-summary-export-xlsx]');
+  const workbookStatus = host.querySelector('[data-grh-summary-export-status]');
   let currentSummary = null;
   let operationSequence = 0;
   if (!form || !period || inputs.size !== 3 || !submit || !reset || !status
-      || !result || !rows || !equation || !evidence || exportButtons.length !== 2) {
+      || !result || !rows || !equation || !evidence || exportButtons.length !== 2
+      || !workbookButton || !workbookStatus) {
     return false;
   }
 
@@ -792,6 +801,9 @@ export function mountMonthlyGrhSummaryImport(root = document) {
     evidence.textContent = 'Sin huellas calculadas.';
     result.hidden = true;
     for (const button of exportButtons) button.disabled = true;
+    workbookButton.disabled = true;
+    workbookStatus.dataset.state = 'warning';
+    workbookStatus.textContent = 'Primero validá los tres PDF del mes.';
   }
 
   function updateFileState(input) {
@@ -831,6 +843,9 @@ export function mountMonthlyGrhSummaryImport(root = document) {
     equation.textContent = `J42 ${formatGrhSummaryCents(j42.totals.netCents)} + J55 ${formatGrhSummaryCents(j55.totals.netCents)} = General ${formatGrhSummaryCents(general.totals.netCents)} · diferencia ${formatGrhSummaryCents(summary.crossReport.netDifferenceCents)}.`;
     evidence.textContent = `${summary.parserVersion} · ${summary.crossReport.componentComparisons} comparaciones exactas · ${summary.reports.map((report) => `${report.kind}: ${report.source.sha256}`).join(' · ')}`;
     for (const button of exportButtons) button.disabled = false;
+    workbookButton.disabled = false;
+    workbookStatus.dataset.state = 'ok';
+    workbookStatus.textContent = 'Libro de cinco hojas listo para generar desde esta conciliación.';
     result.hidden = false;
     setStatus(
       '',
@@ -865,6 +880,24 @@ export function mountMonthlyGrhSummaryImport(root = document) {
       if (currentSummary) downloadCsv(currentSummary, button.dataset.grhSummaryExport);
     });
   }
+  workbookButton.addEventListener('click', () => {
+    if (!currentSummary) return;
+    workbookButton.disabled = true;
+    workbookStatus.dataset.state = 'warning';
+    workbookStatus.textContent = 'Generando el Excel agregado…';
+    try {
+      const artifact = createPayrollConceptBreakdownXlsx(currentSummary);
+      downloadPayrollConceptBreakdownArtifact(artifact);
+      workbookStatus.dataset.state = 'ok';
+      workbookStatus.textContent = 'Descarga preparada desde la conciliación validada.';
+    } catch (error) {
+      workbookStatus.dataset.state = 'error';
+      workbookStatus.textContent = error instanceof PayrollConceptBreakdownExportError
+        ? error.message : 'No se pudo generar el desglose mensual.';
+    } finally {
+      workbookButton.disabled = currentSummary === null;
+    }
+  });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     period.setAttribute('aria-invalid', String(!period.value));
