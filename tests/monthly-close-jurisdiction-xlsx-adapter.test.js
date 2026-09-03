@@ -345,7 +345,7 @@ test('Nómina publica el flujo Excel recomendado y el build mantiene el worker p
   const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
   const worker = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   assert.match(html, /06 · CONTROL MENSUAL/);
-  assert.match(html, /Pasar el control de jurisdicción del Excel a un corte auditable/);
+  assert.match(html, /Convertir y conciliar el paquete mensual de GRH/);
   assert.match(html, /CONTROL DE JURISDICCION\.xlsx/);
   assert.match(html, /verifica las seis fórmulas del formato/);
   assert.match(html, /El libro puede conservar metadatos de autor/);

@@ -46,6 +46,8 @@ const shellFiles = [
   'assets/payroll-post-close-reconciler.js',
   'assets/monthly-close-jurisdiction-xlsx-adapter.js',
   'assets/monthly-close-jurisdiction-xlsx-worker.js',
+  'assets/monthly-close-grh-summary-adapter.js',
+  'assets/monthly-close-grh-summary-worker.js',
   'assets/monthly-close-local-precheck.js',
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
@@ -70,6 +72,18 @@ const vendorFiles = [
   {
     source: 'node_modules/fflate/LICENSE',
     destination: 'assets/vendor/fflate.LICENSE.txt',
+  },
+  {
+    source: 'node_modules/pdfjs-dist/build/pdf.min.mjs',
+    destination: 'assets/vendor/pdf.min.mjs',
+  },
+  {
+    source: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+    destination: 'assets/vendor/pdf.worker.min.mjs',
+  },
+  {
+    source: 'node_modules/pdfjs-dist/LICENSE',
+    destination: 'assets/vendor/pdfjs-dist.LICENSE.txt',
   },
 ];
 const pwaFiles = [

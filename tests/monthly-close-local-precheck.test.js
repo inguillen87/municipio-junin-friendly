@@ -245,9 +245,9 @@ test('Nómina publica el precontrol mensual visible y el build incluye su módul
   const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
   const worker = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   assert.match(html, /06 · CONTROL MENSUAL/);
-  assert.match(html, /Pasar el control de jurisdicción del Excel a un corte auditable/);
+  assert.match(html, /Convertir y conciliar el paquete mensual de GRH/);
+  assert.match(html, /PDF \+ Excel locales · diferencia exigida: \$ 0,00/);
   assert.match(html, /3\. Cruce técnico avanzado/);
-  assert.match(html, /Excel local · diferencia exigida: \$ 0,00/);
   assert.match(html, /data-monthly-close-precheck/);
   assert.match(html, /data-monthly-close-form novalidate/);
   assert.match(html, /data-monthly-close-concept-file/);
