@@ -62,6 +62,21 @@
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
       ]
     },
+    'payroll-novelties': {
+      sectionId: 'novedades', title: 'Novedades de nómina',
+      tour: [
+        ['.page-head', 'Alcance seguro', 'La aprobación sólo habilita una salida exportable; no calcula haberes ni escribe en GRH.'],
+        ['#entrySection', 'Carga y preflight', 'Prepará una fila o un CSV y corregí su estructura antes de crear un lote trazable.'],
+        ['#previewPanel', 'Previsualización', 'Revisá legajo, concepto, unidades, importe y observación antes de guardar.'],
+        ['#batchesTitle', 'Circuito de aprobación', 'Los comandos dependen del estado del lote y de las capacidades efectivas informadas por el backend.'],
+        ['#detailPanel', 'Detalle y exportación', 'Consultá validaciones y descargá únicamente lotes aprobados para exportar.']
+      ],
+      explain: [
+        ['.boundary', 'Límite operativo', 'Esta etapa no modifica GRH, cálculo de haberes ni movimientos laborales.'],
+        ['#entrySection', 'Carga individual o masiva', 'Ambos modos usan el mismo contrato, límites y validaciones determinísticas.'],
+        ['#batchesTitle', 'Maker-checker', 'La preparación, el envío y la decisión quedan separados y auditados.']
+      ]
+    },
     actions: {
       sectionId: 'acciones', title: 'Centro de acciones',
       tour: [

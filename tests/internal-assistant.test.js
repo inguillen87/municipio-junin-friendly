@@ -546,11 +546,11 @@ test('clasifica onboarding, explicación, recorridos y glosario antes que los do
   assert.equal(classifyAssistantRequest({ term: 'GRH' }), 'glossary');
 });
 
-test('catálogo de ayuda expone las dieciséis secciones reales y rutas existentes', () => {
+test('catálogo de ayuda expone las diecisiete secciones reales y rutas existentes', () => {
   const catalog = getAssistantGuidanceCatalog();
   assert.equal(catalog.asOf, '2026-08-25T00:00:00.000Z');
   assert.deepEqual(catalog.sections.map((section) => section.label), [
-    'Inicio', 'Personas', 'Centro de acciones', 'Relojes y marcaciones', 'Administración de plataforma', 'Estructura', 'Integración', 'Nómina', 'Comparar gestiones', 'Presupuesto', 'Asistente', 'Ausentismo', 'Licencias normativas', 'Calidad', 'Reportes', 'Ayuda',
+    'Inicio', 'Personas', 'Centro de acciones', 'Relojes y marcaciones', 'Administración de plataforma', 'Estructura', 'Integración', 'Nómina', 'Novedades de nómina', 'Comparar gestiones', 'Presupuesto', 'Asistente', 'Ausentismo', 'Licencias normativas', 'Calidad', 'Reportes', 'Ayuda',
   ]);
   assert.equal(catalog.sections.find((section) => section.id === 'inicio').targetPath, '/internal-dashboard#inicio');
   assert.equal(catalog.sections.find((section) => section.id === 'personas').targetPath, '/internal-dashboard#legajos');
@@ -560,6 +560,7 @@ test('catálogo de ayuda expone las dieciséis secciones reales y rutas existent
   assert.equal(catalog.sections.find((section) => section.id === 'estructura').targetPath, '/estructura');
   assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
+  assert.equal(catalog.sections.find((section) => section.id === 'novedades').targetPath, '/novedades-nomina');
   assert.equal(catalog.sections.find((section) => section.id === 'gestiones').targetPath, '/gestion-comparativa');
   assert.equal(catalog.sections.find((section) => section.id === 'presupuesto').targetPath, '/presupuesto-control');
   assert.equal(catalog.sections.find((section) => section.id === 'ausentismo').targetPath, '/ausentismo-control');
@@ -668,8 +669,8 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   const help = await post({ message: 'Soy nuevo, necesito ayuda para empezar' });
   assert.equal(help.statusCode, 200);
   assert.equal(help.payload.intent, 'help_navigation');
-  assert.equal(help.payload.data.sections.length, 16);
-  assert.equal(help.payload.relatedSections.length, 16);
+  assert.equal(help.payload.data.sections.length, 17);
+  assert.equal(help.payload.relatedSections.length, 17);
   assert.equal(help.payload.targetPath, '/centro-ayuda');
 
   const res = responseRecorder();
@@ -698,7 +699,7 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
     durableQuotaCertificationRequired: true,
     localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
   });
-  assert.equal(res.payload.guidance.sections.length, 16);
+  assert.equal(res.payload.guidance.sections.length, 17);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
 

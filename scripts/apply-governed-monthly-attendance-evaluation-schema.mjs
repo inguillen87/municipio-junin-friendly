@@ -4,9 +4,9 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
 import {
-  directCanonicalDatabaseUrl,
-  resolveCanonicalDatabaseTarget,
-} from './lib/canonical-import.mjs';
+  resolvePinnedNeonTarget,
+  verifyPinnedNeonConnectedTarget,
+} from './lib/pinned-neon-target.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 export const ATTENDANCE_EVALUATION_MIGRATION_VERSION =
@@ -752,75 +752,17 @@ async function verifyNoUnledgeredObjects(client) {
   }
 }
 
-function pinnedTargetValue(argv, prefix, envValue, label, pattern) {
-  const matches = argv.filter((argument) => argument.startsWith(prefix));
-  if (matches.length > 1) throw new Error(`${label} repetido`);
-  const fromArgument = matches[0]?.slice(prefix.length).trim();
-  const fromEnvironment = String(envValue || '').trim();
-  if (fromArgument && fromEnvironment && fromArgument !== fromEnvironment) {
-    throw new Error(`${label} no coincide entre CLI y entorno`);
-  }
-  const value = fromArgument || fromEnvironment;
-  if (!value) throw new Error(`Falta ${label}`);
-  if (!pattern.test(value)) throw new Error(`${label} tiene formato invalido`);
-  return value;
-}
-
 export function resolveAttendanceEvaluationTarget(argv = process.argv, env = process.env) {
-  if (!argv.includes('--confirm-isolated-branch')) {
-    throw new Error('Falta --confirm-isolated-branch');
-  }
-  const target = resolveCanonicalDatabaseTarget(argv, env);
-  if (target.mode !== 'isolated') {
-    throw new Error('el esquema 024 solo admite una rama aislada');
-  }
-  const databaseUrl = directCanonicalDatabaseUrl(argv, env);
-  if (databaseUrl !== target.databaseUrl) {
-    throw new Error('el target 024 cambio durante el preflight');
-  }
-  const parsed = new URL(databaseUrl);
-  const branchId = pinnedTargetValue(argv, '--expected-neon-branch-id=',
-    env.ATTENDANCE_EVALUATION_EXPECTED_NEON_BRANCH_ID,
-    'ATTENDANCE_EVALUATION_EXPECTED_NEON_BRANCH_ID', /^br-[a-z0-9-]+$/);
-  const projectId = pinnedTargetValue(argv, '--expected-neon-project-id=',
-    env.ATTENDANCE_EVALUATION_EXPECTED_NEON_PROJECT_ID,
-    'ATTENDANCE_EVALUATION_EXPECTED_NEON_PROJECT_ID', /^[a-z][a-z0-9-]{2,95}$/);
-  const expectedHost = pinnedTargetValue(argv, '--expected-neon-host=',
-    env.ATTENDANCE_EVALUATION_EXPECTED_NEON_HOST,
-    'ATTENDANCE_EVALUATION_EXPECTED_NEON_HOST',
-    /^ep-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech$/);
-  const expectedDatabase = pinnedTargetValue(argv, '--expected-database=',
-    env.ATTENDANCE_EVALUATION_EXPECTED_DATABASE,
-    'ATTENDANCE_EVALUATION_EXPECTED_DATABASE', /^[A-Za-z_][A-Za-z0-9_$-]*$/);
-  let actualDatabase;
-  try {
-    actualDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  } catch {
-    throw new Error('DATABASE_URL_UNPOOLED contiene una base invalida');
-  }
-  if (parsed.hostname !== expectedHost || actualDatabase !== expectedDatabase) {
-    throw new Error('DATABASE_URL_UNPOOLED no coincide con el target 024 fijado');
-  }
-  return Object.freeze({
-    ...target, branchId, projectId, expectedHost, expectedDatabase,
-    endpointId: expectedHost.split('.')[0],
+  return resolvePinnedNeonTarget({
+    argv,
+    env,
+    envPrefix: 'ATTENDANCE_EVALUATION',
+    targetLabel: '024',
   });
 }
 
 export async function verifyAttendanceEvaluationConnectedTarget(client, target) {
-  const result = await client.query(`
-    SELECT current_setting('neon.branch_id', true) AS "branchId",
-      current_setting('neon.project_id', true) AS "projectId",
-      current_setting('neon.endpoint_id', true) AS "endpointId",
-      current_database() AS database
-  `);
-  const actual = rows(result)[0] || {};
-  if (actual.branchId !== target.branchId || actual.projectId !== target.projectId
-      || actual.endpointId !== target.endpointId
-      || actual.database !== target.expectedDatabase) {
-    throw new Error('la conexion efectiva no coincide con la rama Neon aislada fijada');
-  }
-  return true;
+  return verifyPinnedNeonConnectedTarget(client, target, '024');
 }
 
 async function main() {
@@ -869,9 +811,9 @@ async function main() {
     await client.query('COMMIT');
     console.log(existing.rowCount
       ? `${ATTENDANCE_EVALUATION_MIGRATION_VERSION}: reapply verificado `
-        + `(isolated, SHA-256 ${fingerprint})`
+        + `(${target.mode}, SHA-256 ${fingerprint})`
       : `${ATTENDANCE_EVALUATION_MIGRATION_VERSION}: fresh apply `
-        + `(isolated, ${statements.length} sentencias, SHA-256 ${fingerprint})`);
+        + `(${target.mode}, ${statements.length} sentencias, SHA-256 ${fingerprint})`);
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;

@@ -40,6 +40,10 @@ database/
 !scripts/migrations/023-time-source-unlinked-reader.sql
 !scripts/migrations/024-governed-monthly-attendance-evaluation.sql
 !scripts/migrations/025-governed-payroll-control-import.sql
+!scripts/migrations/026-governed-payroll-novelties.sql
+!scripts/migrations/027-institutional-payroll-novelty-profiles.sql
+!scripts/migrations/028-governed-account-profile.sql
+!scripts/migrations/029-payroll-novelty-first-fortnight.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md
@@ -77,6 +81,7 @@ test_prisma.js
 !estructura.html
 !integracion-datos.html
 !nomina-control.html
+!novedades-nomina.html
 !gestion-comparativa.html
 !presupuesto-control.html
 !ausentismo-control.html

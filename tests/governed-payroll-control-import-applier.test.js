@@ -128,7 +128,7 @@ test('verificación efectiva rechaza una conexión a otra rama o base', async ()
     endpointId: 'ep-b2-control', database: 'branchdb',
   }] }) };
   await assert.rejects(
-    verifyPayrollControlImportConnectedTarget(driftedClient, target), /rama Neon aislada/,
+    verifyPayrollControlImportConnectedTarget(driftedClient, target), /target Neon/,
   );
 });
 

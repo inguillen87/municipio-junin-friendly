@@ -12,7 +12,8 @@
     "api/internal-assistant.js": { "maxDuration": 25 },
     "api/internal-attendance.js": { "maxDuration": 20 },
     "api/internal-grh-source-preview.js": { "maxDuration": 20 },
-    "api/attendance-ingest.js": { "maxDuration": 20 }
+    "api/attendance-ingest.js": { "maxDuration": 20 },
+    "api/internal-payroll-novelties.js": { "maxDuration": 20 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },
@@ -61,6 +62,7 @@
     { "source": "/estructura", "destination": "/estructura.html" },
     { "source": "/integracion-datos", "destination": "/integracion-datos.html" },
     { "source": "/nomina-control", "destination": "/nomina-control.html" },
+    { "source": "/novedades-nomina", "destination": "/novedades-nomina.html" },
     { "source": "/gestion-comparativa", "destination": "/gestion-comparativa.html" },
     { "source": "/presupuesto-control", "destination": "/presupuesto-control.html" },
     { "source": "/ausentismo-control", "destination": "/ausentismo-control.html" },
@@ -258,6 +260,14 @@
     },
     {
       "source": "/nomina-control.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/novedades-nomina",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/novedades-nomina.html",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {

@@ -74,6 +74,13 @@ export const SECTION_CATALOG = deepFreeze([
     aliases: ['nomina', 'liquidacion', 'liquidaciones', 'haberes', 'sueldo', 'salario', 'corrida', 'corridas'],
   },
   {
+    id: 'novedades', label: 'Novedades de nómina', targetPath: '/novedades-nomina',
+    purpose: 'Preparar novedades individuales o masivas, validarlas, enviarlas a aprobación y exportar únicamente los lotes aprobados.',
+    actions: ['cargar una novedad individual', 'previsualizar un CSV de hasta 500 filas', 'enviar un lote a aprobación', 'aprobar, rechazar o cancelar según capacidades', 'exportar un lote aprobado'],
+    limits: ['la aprobación habilita exportación pero no calcula haberes', 'no escribe en GRH, calculo ni employment_movement', 'los legajos y capacidades se validan en el backend contra el binding certificado'],
+    aliases: ['novedad', 'novedades', 'novedades de nomina', 'carga masiva', 'lote de novedades', 'importar novedades'],
+  },
+  {
     id: 'gestiones', label: 'Comparar gestiones', targetPath: '/gestion-comparativa',
     purpose: 'Comparar dos períodos de gobierno con la misma cantidad de días, años de gestión y meses de nómina cerrada respaldados por GRH.',
     actions: ['contrastar altas, bajas y balance registral', 'comparar años de gestión equivalentes', 'revisar eventos por contrato-mes cerrado', 'alternar sectores literales y la agrupación reversible de jardines'],

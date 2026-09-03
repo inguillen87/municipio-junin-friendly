@@ -25,6 +25,7 @@ const shellFiles = [
   'estructura.html',
   'integracion-datos.html',
   'nomina-control.html',
+  'novedades-nomina.html',
   'gestion-comparativa.html',
   'presupuesto-control.html',
   'ausentismo-control.html',
@@ -43,6 +44,9 @@ const shellFiles = [
   'assets/grh-source-preview.js',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
+  'assets/payroll-novelty-exporter.js',
+  'assets/payroll-novelty-xlsx-exporter.js',
+  'assets/payroll-novelty-workbench.js',
   'assets/rrhh-report-pack.js',
   'datos-personales.html',
   'friendly-data.json'

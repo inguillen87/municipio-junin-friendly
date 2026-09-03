@@ -4,9 +4,9 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
 import {
-  directCanonicalDatabaseUrl,
-  resolveCanonicalDatabaseTarget,
-} from './lib/canonical-import.mjs';
+  resolvePinnedNeonTarget,
+  verifyPinnedNeonConnectedTarget,
+} from './lib/pinned-neon-target.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 
 export const PAYROLL_CONTROL_IMPORT_MIGRATION_VERSION =
@@ -291,64 +291,17 @@ export async function verifyPayrollControlImportFinalState(client) {
   return true;
 }
 
-function pinnedValue(argv, prefix, envValue, label, pattern) {
-  const matches = argv.filter((argument) => argument.startsWith(prefix));
-  if (matches.length > 1) throw new Error(`${label} repetido`);
-  const cli = matches[0]?.slice(prefix.length).trim();
-  const env = String(envValue || '').trim();
-  if (cli && env && cli !== env) throw new Error(`${label} no coincide entre CLI y entorno`);
-  const value = cli || env;
-  if (!value) throw new Error(`Falta ${label}`);
-  if (!pattern.test(value)) throw new Error(`${label} tiene formato invalido`);
-  return value;
-}
-
 export function resolvePayrollControlImportTarget(argv = process.argv, env = process.env) {
-  if (!argv.includes('--confirm-isolated-branch')) {
-    throw new Error('Falta --confirm-isolated-branch');
-  }
-  const target = resolveCanonicalDatabaseTarget(argv, env);
-  if (target.mode !== 'isolated') throw new Error('025 solo admite una rama aislada');
-  const databaseUrl = directCanonicalDatabaseUrl(argv, env);
-  if (databaseUrl !== target.databaseUrl) throw new Error('target 025 cambio en preflight');
-  const parsed = new URL(databaseUrl);
-  const branchId = pinnedValue(argv, '--expected-neon-branch-id=',
-    env.PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_BRANCH_ID,
-    'PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_BRANCH_ID', /^br-[a-z0-9-]+$/);
-  const projectId = pinnedValue(argv, '--expected-neon-project-id=',
-    env.PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_PROJECT_ID,
-    'PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_PROJECT_ID', /^[a-z][a-z0-9-]{2,95}$/);
-  const expectedHost = pinnedValue(argv, '--expected-neon-host=',
-    env.PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_HOST,
-    'PAYROLL_CONTROL_IMPORT_EXPECTED_NEON_HOST',
-    /^ep-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech$/);
-  const expectedDatabase = pinnedValue(argv, '--expected-database=',
-    env.PAYROLL_CONTROL_IMPORT_EXPECTED_DATABASE,
-    'PAYROLL_CONTROL_IMPORT_EXPECTED_DATABASE', /^[A-Za-z_][A-Za-z0-9_$-]*$/);
-  const actualDatabase = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  if (parsed.hostname !== expectedHost || actualDatabase !== expectedDatabase) {
-    throw new Error('DATABASE_URL_UNPOOLED no coincide con target 025 fijado');
-  }
-  return Object.freeze({
-    ...target, branchId, projectId, expectedHost, expectedDatabase,
-    endpointId: expectedHost.split('.')[0],
+  return resolvePinnedNeonTarget({
+    argv,
+    env,
+    envPrefix: 'PAYROLL_CONTROL_IMPORT',
+    targetLabel: '025',
   });
 }
 
 export async function verifyPayrollControlImportConnectedTarget(client, target) {
-  const result = await client.query(`
-    SELECT current_setting('neon.branch_id', true) AS "branchId",
-      current_setting('neon.project_id', true) AS "projectId",
-      current_setting('neon.endpoint_id', true) AS "endpointId",
-      current_database() AS database
-  `);
-  const actual = rows(result)[0] || {};
-  if (actual.branchId !== target.branchId || actual.projectId !== target.projectId
-      || actual.endpointId !== target.endpointId
-      || actual.database !== target.expectedDatabase) {
-    throw new Error('conexion efectiva no coincide con rama Neon aislada fijada');
-  }
-  return true;
+  return verifyPinnedNeonConnectedTarget(client, target, '025');
 }
 
 async function verifyPrerequisites(client) {
@@ -421,7 +374,8 @@ async function main() {
     await verifyPayrollControlImportFinalState(client);
     await client.query('COMMIT');
     console.log(`${PAYROLL_CONTROL_IMPORT_MIGRATION_VERSION}: ${existing.rowCount
-      ? 'reapply con ledger y evidencia parcial verificados' : 'fresh apply'} (isolated, SHA-256 ${checksum})`);
+      ? 'reapply con ledger y evidencia parcial verificados' : 'fresh apply'} `
+      + `(${target.mode}, SHA-256 ${checksum})`);
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
