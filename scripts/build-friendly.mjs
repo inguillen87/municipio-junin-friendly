@@ -44,6 +44,7 @@ const shellFiles = [
   'assets/grh-source-preview.js',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
+  'assets/monthly-close-local-precheck.js',
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',

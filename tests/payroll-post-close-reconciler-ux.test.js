@@ -20,7 +20,8 @@ test('Nómina integra un conciliador poscierre agregado, local y accesible', () 
   assert.match(html, /data-post-close-observed-file[^>]+aria-invalid="false"[^>]+aria-describedby="postCloseObservedFileHelp postCloseObservedFileState"/);
   assert.match(html, /data-post-close-control-file[^>]+aria-invalid="false"[^>]+aria-describedby="postCloseControlFileHelp postCloseControlFileState"/);
   assert.equal((html.match(/>Elegir archivo CSV<\/span>/g) || []).length, 2);
-  assert.equal((html.match(/>No hay un archivo seleccionado\.<\/span>/g) || []).length, 2);
+  assert.match(html, /data-post-close-observed-file-state[^>]*>No hay un archivo seleccionado\.<\/span>/);
+  assert.match(html, /data-post-close-control-file-state[^>]*>No hay un archivo seleccionado\.<\/span>/);
   assert.match(html, /data-post-close-error-summary role="alert" tabindex="-1"/);
   assert.match(html, /data-post-close-error-list/);
   assert.match(html, /data-post-close-observation maxlength="500"/);
@@ -45,7 +46,7 @@ test('Nómina integra un conciliador poscierre agregado, local y accesible', () 
   assert.match(html, /data-label="Reporte GRH" data-post-close-total-observed/);
   assert.match(html, /\.post-close-results tbody td::before/);
   assert.match(html, /no genera F\.931 y no escribe en GRH, PostgreSQL o Neon/);
-  assert.match(html, /la previsualización sin importar y el control poscierre local/);
+  assert.match(html, /control poscierre y el precontrol mensual técnico/);
   assert.equal((html.match(/assets\/payroll-post-close-reconciler\.js/g) || []).length, 1);
   assert.doesNotMatch(html, /<script[^>]+payroll-post-close-exporter/);
   assert.match(reconciler, /function showFormErrors\(title, entries\)/);

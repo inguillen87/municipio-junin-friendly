@@ -339,6 +339,50 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /diferencia abierta/);
     assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'warning');
 
+    const monthlyClose = page.locator('[data-monthly-close-precheck]');
+    assert.equal(await monthlyClose.isVisible(), true);
+    await monthlyClose.getByRole('button', { name: 'Validar y conciliar' }).click();
+    const monthlyError = monthlyClose.locator('[data-monthly-close-errors]');
+    assert.equal(await monthlyError.isVisible(), true);
+    assert.equal(await monthlyError.evaluate((element) => document.activeElement === element), true);
+    const monthlyConcepts = [
+      'periodo;jurisdiccion;reparticion_codigo;concepto_codigo;ocurrencias;cantidad_centesimas;haberes_rem_centavos;haberes_no_rem_centavos;asignaciones_familiares_centavos;retenciones_centavos;contribuciones_centavos',
+      '2026-08;42;1;993;2;200;1000;0;0;0;0',
+      '2026-08;42;2;994;3;300;2000;100;0;50;0',
+    ].join('\n');
+    const monthlyBank = [
+      'periodo;jurisdiccion;reparticion_codigo;banco_codigo;tipo_cuenta;operaciones;importe_neto_centavos',
+      '2026-08;42;1;191;cuenta_corriente;2;1000',
+      '2026-08;42;2;72;caja_ahorro;3;2050',
+    ].join('\r\n');
+    await monthlyClose.locator('[data-monthly-close-period]').fill('2026-08');
+    await monthlyClose.locator('[data-monthly-close-jurisdiction]').selectOption('42');
+    await monthlyClose.locator('[data-monthly-close-concept-file]').setInputFiles({
+      name: 'conceptos-agregados-privados.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(monthlyConcepts),
+    });
+    await monthlyClose.locator('[data-monthly-close-bank-file]').setInputFiles({
+      name: 'banco-agregado-privado.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(monthlyBank),
+    });
+    await monthlyClose.getByRole('button', { name: 'Validar y conciliar' }).click();
+    await page.waitForFunction(() => (
+      document.querySelector('[data-monthly-close-status]')?.textContent.includes('Coincidencia exacta')
+    ));
+    assert.equal(await monthlyClose.locator('[data-monthly-close-rows] tr').count(), 2);
+    assert.equal(await monthlyClose.locator('[data-monthly-close-total-concept]').innerText(), '$ 30,50');
+    assert.equal(await monthlyClose.locator('[data-monthly-close-total-bank]').innerText(), '$ 30,50');
+    assert.equal(await monthlyClose.locator('[data-monthly-close-total-difference]').innerText(), '$ 0,00');
+    assert.match(await monthlyClose.locator('[data-monthly-close-evidence]').innerText(), /sha256:[a-f0-9]{64}/);
+    assert.doesNotMatch(
+      await monthlyClose.innerText(),
+      /conceptos-agregados-privados|banco-agregado-privado/,
+    );
+    assert.equal(await monthlyClose.locator('[data-monthly-close-concept-file]').inputValue(), '');
+    assert.equal(await monthlyClose.locator('[data-monthly-close-bank-file]').inputValue(), '');
+
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       overflowElements: [...document.querySelectorAll('body *')].filter((element) => {
@@ -354,6 +398,7 @@ async function inspect(viewport, label) {
       formulaVisible: Boolean(document.querySelector('[data-payroll-formula-lab]')?.getBoundingClientRect().width),
       previewVisible: Boolean(document.querySelector('[data-grh-source-preview]')?.getBoundingClientRect().width),
       postCloseVisible: Boolean(document.querySelector('[data-payroll-post-close-reconciler]')?.getBoundingClientRect().width),
+      monthlyCloseVisible: Boolean(document.querySelector('[data-monthly-close-precheck]')?.getBoundingClientRect().width),
       postCloseGeometry: (() => {
         const panel = document.querySelector('.post-close-results');
         const state = document.querySelector('[data-post-close-status]');
@@ -373,6 +418,7 @@ async function inspect(viewport, label) {
     assert.equal(layout.formulaVisible, true, `${label}: laboratorio oculto`);
     assert.equal(layout.previewVisible, true, `${label}: previsualización oculta`);
     assert.equal(layout.postCloseVisible, true, `${label}: control poscierre oculto`);
+    assert.equal(layout.monthlyCloseVisible, true, `${label}: precontrol mensual oculto`);
     assert.ok(layout.postCloseGeometry.panel.right <= viewport.width + 1, `${label}: panel poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.state.right <= viewport.width + 1, `${label}: estado poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.table.right <= viewport.width + 1, `${label}: tabla poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
@@ -430,10 +476,11 @@ async function inspectUnavailablePayroll() {
     await page.waitForSelector('#mainContent:not([hidden])');
     assert.equal(await page.locator('#errorHost').isVisible(), true);
     assert.match(await page.locator('#errorHost').innerText(), /No se pudieron consultar las corridas/);
-    assert.match(await page.locator('#errorHost').innerText(), /laboratorio de fórmulas, la previsualización sin importar y el control poscierre local/);
+    assert.match(await page.locator('#errorHost').innerText(), /control poscierre y el precontrol mensual técnico/);
     assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
     assert.equal(await page.locator('[data-grh-source-preview]').isVisible(), true);
     assert.equal(await page.locator('[data-payroll-post-close-reconciler]').isVisible(), true);
+    assert.equal(await page.locator('[data-monthly-close-precheck]').isVisible(), true);
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
     assert.match(await page.locator('[data-source-preview-status]').innerText(), /Esperando un archivo local/);
     assert.match(await page.locator('[data-post-close-status]').innerText(), /Esperando período, jurisdicción y dos archivos agregados/);
