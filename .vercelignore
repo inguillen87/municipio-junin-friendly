@@ -47,6 +47,7 @@ database/
 !scripts/migrations/030-governed-account-profile-admin-view.sql
 !scripts/migrations/031-governed-employee-payroll-history.sql
 !scripts/migrations/032-payroll-type-mapping-fail-closed.sql
+!scripts/migrations/033-payroll-art-report-capability.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

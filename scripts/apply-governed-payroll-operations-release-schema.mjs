@@ -53,6 +53,11 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-payroll-type-mapping-fail-closed-schema.mjs', import.meta.url),
     envPrefix: 'PAYROLL_TYPE_MAPPING',
   }),
+  Object.freeze({
+    version: '033-payroll-art-report-capability',
+    script: new URL('./apply-payroll-art-report-capability-schema.mjs', import.meta.url),
+    envPrefix: 'PAYROLL_ART_REPORT',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -60,7 +65,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-032',
+    targetLabel: 'release 024-033',
   });
 }
 
@@ -91,12 +96,12 @@ async function main() {
   const args = process.argv.slice(2);
   const target = resolvePayrollOperationsReleaseTarget(args, process.env);
 
-  // One preflight connection proves all nine migrations will target the same
+  // One preflight connection proves every migration will target the same
   // branch, project, direct endpoint and database before the first write.
   const client = new Client({ connectionString: target.databaseUrl });
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-032');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-033');
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -120,7 +125,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-032 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-033 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]
