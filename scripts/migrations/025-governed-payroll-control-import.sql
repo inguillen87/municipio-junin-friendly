@@ -1052,6 +1052,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.payroll_control_import_prepare_v1(
   p_context jsonb,
+  p_expected_binding_id uuid,
   p_source_kind text,
   p_period_month date,
   p_jurisdiction text,
@@ -1075,7 +1076,8 @@ DECLARE
   stored_rows jsonb;
   event_hash_placeholder text := repeat('0', 64);
 BEGIN
-  IF p_source_kind NOT IN ('grh_observed','operator_control')
+  IF p_expected_binding_id IS NULL
+     OR p_source_kind NOT IN ('grh_observed','operator_control')
      OR p_period_month IS NULL OR EXTRACT(day FROM p_period_month) <> 1
      OR p_period_month NOT BETWEEN DATE '1900-01-01' AND DATE '2099-12-01'
      OR p_jurisdiction NOT IN ('42','55')
@@ -1092,6 +1094,9 @@ BEGIN
   context_value := public.payroll_control_import_assert_context_v1(
     p_context, 'payroll.control_import.prepare'
   );
+  IF p_expected_binding_id <> (context_value->>'certifiedBindingId')::uuid THEN
+    RAISE EXCEPTION 'PAYROLL_CONTROL_IMPORT_BINDING_CHANGED' USING ERRCODE = 'P0001';
+  END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(
     (context_value->>'tenantId') || ':' || (context_value->>'membershipId')
       || ':' || p_idempotency::text,
@@ -1412,9 +1417,9 @@ COMMENT ON COLUMN public.payroll_control_import_batch.content_hmac_sha256 IS
 COMMENT ON COLUMN public.payroll_control_import_batch.reason_reference IS
   'Referencia opaca ref:UUIDv4; no admite texto libre ni datos personales.';
 COMMENT ON FUNCTION public.payroll_control_import_prepare_v1(
-  jsonb,text,date,text,text,text,integer,jsonb,uuid,text
+  jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text
 ) IS
-  'Registra una fuente agregada en cuarentena; p_content_hmac_sha256 debe ser calculado por el servidor.';
+  'Registra una fuente agregada en cuarentena; exige el binding usado para el HMAC y p_content_hmac_sha256 calculado por el servidor.';
 
 REVOKE ALL PRIVILEGES ON TABLE
   public.payroll_control_import_batch,
@@ -1438,7 +1443,7 @@ REVOKE ALL ON FUNCTION public.payroll_control_import_event_guard_v1() FROM PUBLI
 REVOKE ALL ON FUNCTION public.payroll_control_import_require_audit_v1() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.payroll_control_import_bootstrap_v1(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.payroll_control_import_prepare_v1(
-  jsonb,text,date,text,text,text,integer,jsonb,uuid,text
+  jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text
 ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.payroll_control_import_transition_v1(
   jsonb,uuid,text,integer,text,text,uuid,text
@@ -1465,7 +1470,7 @@ REVOKE ALL PRIVILEGES ON FUNCTION public.payroll_control_import_require_audit_v1
 REVOKE ALL PRIVILEGES ON FUNCTION public.payroll_control_import_bootstrap_v1(jsonb)
   FROM municontrol_actions_runtime_app;
 REVOKE ALL PRIVILEGES ON FUNCTION public.payroll_control_import_prepare_v1(
-  jsonb,text,date,text,text,text,integer,jsonb,uuid,text
+  jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text
 ) FROM municontrol_actions_runtime_app;
 REVOKE ALL PRIVILEGES ON FUNCTION public.payroll_control_import_transition_v1(
   jsonb,uuid,text,integer,text,text,uuid,text
@@ -1474,7 +1479,7 @@ REVOKE ALL PRIVILEGES ON FUNCTION public.payroll_control_import_transition_v1(
 GRANT EXECUTE ON FUNCTION public.payroll_control_import_bootstrap_v1(jsonb)
   TO municontrol_actions_runtime_app;
 GRANT EXECUTE ON FUNCTION public.payroll_control_import_prepare_v1(
-  jsonb,text,date,text,text,text,integer,jsonb,uuid,text
+  jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text
 ) TO municontrol_actions_runtime_app;
 GRANT EXECUTE ON FUNCTION public.payroll_control_import_transition_v1(
   jsonb,uuid,text,integer,text,text,uuid,text

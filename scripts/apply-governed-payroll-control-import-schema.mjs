@@ -22,7 +22,7 @@ export const PAYROLL_CONTROL_IMPORT_FUNCTIONS = Object.freeze([
   'public.payroll_control_import_bootstrap_v1(jsonb)',
   'public.payroll_control_import_event_guard_v1()',
   'public.payroll_control_import_event_snapshot_v1(bigint,uuid)',
-  'public.payroll_control_import_prepare_v1(jsonb,text,date,text,text,text,integer,jsonb,uuid,text)',
+  'public.payroll_control_import_prepare_v1(jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text)',
   'public.payroll_control_import_reject_change_v1()',
   'public.payroll_control_import_require_audit_v1()',
   'public.payroll_control_import_row_guard_v1()',
@@ -32,7 +32,7 @@ export const PAYROLL_CONTROL_IMPORT_FUNCTIONS = Object.freeze([
 ]);
 export const PAYROLL_CONTROL_IMPORT_RUNTIME_FUNCTIONS = Object.freeze([
   'public.payroll_control_import_bootstrap_v1(jsonb)',
-  'public.payroll_control_import_prepare_v1(jsonb,text,date,text,text,text,integer,jsonb,uuid,text)',
+  'public.payroll_control_import_prepare_v1(jsonb,uuid,text,date,text,text,text,integer,jsonb,uuid,text)',
   'public.payroll_control_import_transition_v1(jsonb,uuid,text,integer,text,text,uuid,text)',
 ]);
 export const PAYROLL_CONTROL_IMPORT_TRIGGERS = Object.freeze([

@@ -9,7 +9,14 @@ import {
   PAYROLL_CONTROL_IMPORT_HMAC_KEY_VERSION,
   PAYROLL_CONTROL_IMPORT_MAX_BYTES,
   PayrollControlImportError,
+  getPayrollControlImportBootstrap,
+  listPayrollControlImports,
+  normalizePayrollControlImportIdempotencyKey,
+  normalizePayrollControlImportTransition,
+  persistPayrollControlImport,
   preparePayrollControlImport,
+  readPayrollControlImport,
+  transitionPayrollControlImport,
 } from '../lib/internal-payroll-control-import.js';
 
 const encoder = new TextEncoder();
@@ -186,4 +193,227 @@ test('el módulo no registra ni persiste bytes, nombres o secretos', () => {
   assert.doesNotMatch(sourceCode, /INSERT\s+INTO|UPDATE\s+payroll|fetch\s*\(/i);
   assert.match(sourceCode, /createHmac\('sha256'/);
   assert.match(sourceCode, /BigInt\(integer\)/);
+});
+
+const membershipId = '55555555-5555-4555-8555-555555555555';
+const sessionId = '66666666-6666-4666-8666-666666666666';
+const batchId = '77777777-7777-4777-8777-777777777777';
+const idempotency = '88888888-8888-4888-8888-888888888888';
+const reasonReference = 'ref:99999999-9999-4999-8999-999999999999';
+
+function identityPrincipal() {
+  return {
+    user: { email: 'operator@junin.gob.ar' },
+    tenant: {
+      id: baseContext.tenantId,
+      membershipId,
+      source: 'membership',
+    },
+  };
+}
+
+function actionSession() {
+  return {
+    id: sessionId,
+    email: 'operator@junin.gob.ar',
+    version: 2,
+    releaseSha: baseContext.releaseSha,
+  };
+}
+
+function persistedBatch(overrides = {}) {
+  return {
+    id: batchId,
+    sourceKind: 'grh_observed',
+    provenanceState: 'operator_declared',
+    period: '2026-07',
+    jurisdiction: '42',
+    definitionKey: PAYROLL_CONTROL_IMPORT_DEFINITION,
+    contractVersion: PAYROLL_CONTROL_IMPORT_CONTRACT_VERSION,
+    hmacKeyVersion: PAYROLL_CONTROL_IMPORT_HMAC_KEY_VERSION,
+    contentFingerprint: 'b'.repeat(64),
+    byteLength: source().byteLength,
+    rowCount: 2,
+    releaseSha: baseContext.releaseSha,
+    status: 'quarantined',
+    version: 1,
+    reasonCode: 'source_uploaded',
+    reasonReference: null,
+    payrollPosted: false,
+    fiscalArtifactGenerated: false,
+    rows: [
+      { concept: '701', amountCents: '8288237098' },
+      { concept: '703', amountCents: '10654611935' },
+    ],
+    ...overrides,
+  };
+}
+
+function persistedBootstrap() {
+  return {
+    principal: {
+      tenantId: baseContext.tenantId,
+      membershipId,
+      certifiedBindingId: baseContext.sourceBindingId,
+      roleKey: 'PLATFORM_OWNER_OPERATIVO_INTEGRAL',
+      employmentLinked: true,
+      capabilities: ['payroll.control_import.read', 'payroll.control_import.prepare'],
+    },
+    batches: [persistedBatch()],
+    recentEvents: [{ id: 1, batchId, command: 'prepare' }],
+    limits: {
+      maxSourceBytes: PAYROLL_CONTROL_IMPORT_MAX_BYTES,
+      contractVersion: PAYROLL_CONTROL_IMPORT_CONTRACT_VERSION,
+      hmacKeyVersion: PAYROLL_CONTROL_IMPORT_HMAC_KEY_VERSION,
+      definitionKey: PAYROLL_CONTROL_IMPORT_DEFINITION,
+      sourceKinds: ['grh_observed', 'operator_control'],
+      concepts: ['701', '703'],
+    },
+  };
+}
+
+test('bootstrap, list y detail usan sólo la facade gobernada y validan flags de seguridad', async () => {
+  const calls = [];
+  const sql = {
+    async query(statement, values) {
+      calls.push({ statement, values });
+      return { rows: [{ result: persistedBootstrap() }] };
+    },
+  };
+  const result = await getPayrollControlImportBootstrap(
+    sql, identityPrincipal(), actionSession(),
+  );
+  assert.match(calls[0].statement, /SELECT payroll_control_import_bootstrap_v1\(\$1::jsonb\)/);
+  const context = JSON.parse(calls[0].values[0]);
+  assert.equal(context.tenantId, baseContext.tenantId);
+  assert.equal(context.membershipId, membershipId);
+  assert.equal(context.actorSessionId, sessionId);
+  assert.equal(Object.hasOwn(context, 'fingerprintKey'), false);
+  assert.deepEqual(Object.keys(listPayrollControlImports(result)).sort(), ['batches', 'limits']);
+  const detail = readPayrollControlImport(result, batchId);
+  assert.equal(detail.id, batchId);
+  assert.equal(detail.events.length, 1);
+  assert.throws(
+    () => readPayrollControlImport(result, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_NOT_FOUND',
+  );
+
+  const unsafe = persistedBootstrap();
+  unsafe.batches[0].payrollPosted = true;
+  const unsafeSql = { query: async () => [{ result: unsafe }] };
+  await assert.rejects(
+    getPayrollControlImportBootstrap(unsafeSql, identityPrincipal(), actionSession()),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_CONTRACT_DRIFT',
+  );
+});
+
+test('persistencia envía manifiesto agregado, HMAC y command hash sin bytes ni secreto', async () => {
+  const prepared = prepare();
+  const calls = [];
+  const sql = {
+    async query(statement, values) {
+      calls.push({ statement, values });
+      return [{ result: { replayed: false, data: persistedBatch() } }];
+    },
+  };
+  const result = await persistPayrollControlImport(
+    sql, identityPrincipal(), actionSession(), prepared, idempotency,
+    baseContext.sourceBindingId,
+  );
+
+  assert.equal(result.replayed, false);
+  assert.match(calls[0].statement, /payroll_control_import_prepare_v1/);
+  assert.equal(calls[0].values[1], baseContext.sourceBindingId);
+  assert.equal(calls[0].values[2], 'grh_observed');
+  assert.equal(calls[0].values[3], '2026-07-01');
+  assert.equal(calls[0].values[6], prepared.contentHmacSha256);
+  assert.deepEqual(JSON.parse(calls[0].values[8]), prepared.rows);
+  assert.equal(calls[0].values[9], idempotency);
+  assert.match(calls[0].values[10], /^[a-f0-9]{64}$/);
+  const serialized = JSON.stringify(calls);
+  assert.doesNotMatch(serialized, /unit-test-payroll-control-import-hmac-secret/);
+  assert.doesNotMatch(serialized, /periodo;jurisdiccion|82882370,98/);
+});
+
+test('approve se traduce a validate para SQL y mantiene idempotencia optimista', async () => {
+  const calls = [];
+  const sql = {
+    async query(statement, values) {
+      calls.push({ statement, values });
+      return [{ result: {
+        replayed: true,
+        data: persistedBatch({ status: 'validated', version: 2 }),
+      } }];
+    },
+  };
+  const result = await transitionPayrollControlImport(
+    sql,
+    identityPrincipal(),
+    actionSession(),
+    'approve',
+    {
+      batchId,
+      expectedVersion: 1,
+      reasonCode: 'source_validated',
+      reasonReference: null,
+    },
+    idempotency,
+  );
+  assert.equal(result.replayed, true);
+  assert.match(calls[0].statement, /payroll_control_import_transition_v1/);
+  assert.equal(calls[0].values[1], batchId);
+  assert.equal(calls[0].values[2], 'validate');
+  assert.equal(calls[0].values[3], 1);
+  assert.equal(calls[0].values[6], idempotency);
+  assert.match(calls[0].values[7], /^[a-f0-9]{64}$/);
+});
+
+test('normaliza UUID v4, motivos y referencias opacas sin aceptar texto libre', () => {
+  assert.equal(normalizePayrollControlImportIdempotencyKey(idempotency), idempotency);
+  assert.deepEqual(normalizePayrollControlImportTransition('cancel', {
+    batchId,
+    expectedVersion: 2,
+    reasonCode: 'cancelled_by_preparer',
+    reasonReference,
+  }), {
+    batchId,
+    expectedVersion: 2,
+    reasonCode: 'cancelled_by_preparer',
+    reasonReference,
+  });
+  assert.throws(
+    () => normalizePayrollControlImportTransition('reject', {
+      batchId,
+      expectedVersion: 2,
+      reasonCode: 'amounts_inconsistent',
+      reasonReference: 'Los montos no coinciden con el informe de Noelia',
+    }),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_REASON_REFERENCE_REQUIRED',
+  );
+  assert.throws(
+    () => normalizePayrollControlImportIdempotencyKey(batchId.replace('-4', '-1')),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_IDEMPOTENCY_KEY_INVALID',
+  );
+});
+
+test('errores SQL se traducen a códigos seguros sin reflejar datos de la base', async () => {
+  const sql = {
+    async query() {
+      throw new Error(
+        'PAYROLL_CONTROL_IMPORT_DUPLICATE_SOURCE detalle interno 82882370,98',
+      );
+    },
+  };
+  await assert.rejects(
+    persistPayrollControlImport(
+      sql, identityPrincipal(), actionSession(), prepare(), idempotency,
+      baseContext.sourceBindingId,
+    ),
+    (error) => {
+      assert.equal(error.code, 'PAYROLL_CONTROL_IMPORT_DUPLICATE_SOURCE');
+      assert.equal(error.status, 409);
+      assert.doesNotMatch(error.message, /82882370/);
+      return true;
+    },
+  );
 });
