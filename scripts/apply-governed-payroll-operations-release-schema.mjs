@@ -38,6 +38,11 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-payroll-novelty-first-fortnight-schema.mjs', import.meta.url),
     envPrefix: 'PAYROLL_NOVELTY_FIRST_FORTNIGHT',
   }),
+  Object.freeze({
+    version: '030-governed-account-profile-admin-view',
+    script: new URL('./apply-governed-account-profile-admin-view-schema.mjs', import.meta.url),
+    envPrefix: 'ACCOUNT_PROFILE_GOVERNANCE',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -45,7 +50,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-029',
+    targetLabel: 'release 024-030',
   });
 }
 
@@ -76,12 +81,12 @@ async function main() {
   const args = process.argv.slice(2);
   const target = resolvePayrollOperationsReleaseTarget(args, process.env);
 
-  // One preflight connection proves all six migrations will target the same
+  // One preflight connection proves all seven migrations will target the same
   // branch, project, direct endpoint and database before the first write.
   const client = new Client({ connectionString: target.databaseUrl });
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-029');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-030');
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -105,7 +110,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-029 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-030 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]

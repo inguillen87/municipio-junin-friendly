@@ -863,6 +863,17 @@
         <div class="detail-grid">
           <section class="detail-section"><h3>Identidad y membresía</h3><dl class="facts" id="userDetailFacts"></dl></section>
           <section class="detail-section"><h3>Acceso propuesto</h3><div class="field"><label for="userAccessRole">Rol</label><select class="select" id="userAccessRole"></select></div><div class="capability-list" id="userAccessCapabilities"></div><div class="field" style="margin-top:13px"><label for="userAccessReason">Motivo del cambio</label><textarea class="textarea" id="userAccessReason" maxlength="500" required placeholder="Justificación administrativa verificable"></textarea><span class="field-help">Obligatorio; queda asociado a los overrides de capacidades.</span></div></section>
+          <section class="detail-section" style="grid-column:1 / -1" aria-labelledby="accountProfileTitle">
+            <h3 id="accountProfileTitle">Nombre visible de la cuenta</h3>
+            <p class="field-help">Corrige sólo la identidad visible de acceso. No cambia el legajo, los datos laborales, el email, el rol ni las capacidades.</p>
+            <div class="compact-grid" style="margin-top:13px">
+              <div class="field"><label for="profileDisplayName">Nombre visible</label><input class="input" id="profileDisplayName" type="text" minlength="2" maxlength="120" autocomplete="off" disabled></div>
+              <div class="field"><label for="profileReason">Fundamento de la corrección</label><textarea class="textarea" id="profileReason" minlength="3" maxlength="500" required placeholder="Fuente institucional que respalda el cambio" disabled></textarea></div>
+            </div>
+            <div class="dialog-note" style="margin-top:13px"><strong>Impacto de seguridad.</strong> Al confirmar, el backend revoca todas las sesiones activas de esta cuenta. La persona deberá volver a ingresar.</div>
+            <div class="inline-actions"><button class="button primary" id="updateProfileButton" type="button" disabled>Corregir nombre visible</button></div>
+            <div class="operation-gate" id="profileOperationGate" role="status" aria-live="polite">Esperando capacidad efectiva, gobierno certificado y versión de identidad.</div>
+          </section>
         </div>
         <div class="effective-box" id="userEffectiveSummary"><strong>Sin información efectiva.</strong></div>
         <div class="conflict-box" id="userConflictBox"><strong>Validación pendiente</strong><span>Las reglas de segregación todavía no fueron verificadas.</span></div>
@@ -1050,6 +1061,7 @@
       'attachExistingReason','attachExistingSummary','attachExistingGate','attachExistingSubmit',
       'userDetailDialog','userAccessForm','userDetailTitle','userDetailSubtitle','userDetailFacts','userAccessRole',
       'userAccessCapabilities','userAccessReason','userEffectiveSummary','userConflictBox','suspendMembershipButton','reactivateMembershipButton','issueInvitationButton','updateAccessButton',
+      'profileDisplayName','profileReason','updateProfileButton','profileOperationGate',
       'operationalBoundary','operationalBoundaryTitle','operationalBoundaryMessage','operationalBoundaryFacts','operationalWorkbenchState',
       'employmentLinkState','employmentLinkSummary','employmentLookupQuery','employmentLookupButton','employmentCandidateSelect','employmentCandidateHelp',
       'employmentReasonCode','employmentReason','linkEmploymentButton','revokeEmploymentButton','employmentOperationGate',
@@ -1570,6 +1582,7 @@
         membershipId: text(first(membership.id, row.membershipId, row.membership_id, row.id)),
         operationalMembershipId: operationalMembershipId,
         displayName: text(first(row.displayName, row.name, row.fullName), 'Nombre no informado'),
+        identityVersion: authorityVersion(first(row.identityVersion, firstObject(row.identity).version)),
         email: text(row.email).toLowerCase(),
         tenantId: text(first(membership.tenantId, row.tenantId, row.tenant_id)),
         tenantName: text(first(membership.tenantName, row.tenantName, row.tenant), 'No informado'),
@@ -2660,6 +2673,39 @@
       el.userDetailFacts.append(fact('Nombre', user.displayName), fact('Email', user.email), fact('Tenant', user.tenantName), fact('Membresía', user.status), fact('Invitación', invitationDetail(user.invitation)), fact('Entrega', user.invitation.deliveryStatus), fact('Vínculo con legajo', user.employmentLinked === true ? 'Verificado' : user.employmentLinked === false ? 'No vinculado' : 'No informado'), fact('MFA', user.mfa === true ? 'Verificado' : user.mfa === false ? 'No verificado' : 'No informado'), fact('Último acceso', user.lastAccessAt ? formatDate(user.lastAccessAt, true) : 'No informado'));
     }
 
+    function updateAccountProfileGate() {
+      var user = state.selectedUser;
+      if (!user) return;
+      var tenantContextReady = state.context.mode === 'tenant'
+        && Boolean(state.context.tenantId)
+        && state.context.tenantId === user.tenantId;
+      var activeMembership = normalizeUserStatus(user.status) === 'active';
+      var identityVersionReady = Number.isSafeInteger(Number(user.identityVersion))
+        && Number(user.identityVersion) >= 1;
+      var displayName = el.profileDisplayName.value.trim().replace(/\s+/g, ' ');
+      var displayNameReady = displayName.length >= 2
+        && displayName.length <= 120
+        && displayName !== user.displayName;
+      var reasonReady = el.profileReason.value.trim().length >= 3;
+      var capabilityReady = platformCapabilityAllowed(['platform.users.manage']);
+      var commandReady = mutationAllowed('update_account_profile', false);
+      var editable = tenantContextReady && activeMembership && capabilityReady
+        && commandReady && identityVersionReady;
+      el.profileDisplayName.disabled = !editable;
+      el.profileReason.disabled = !editable;
+      el.updateProfileButton.disabled = !editable || !displayNameReady || !reasonReady;
+      el.profileOperationGate.classList.toggle('is-ready', editable);
+      el.profileOperationGate.textContent = !tenantContextReady
+        ? 'Abrí el gobierno exacto antes de corregir una identidad.'
+        : !activeMembership ? 'La cuenta objetivo debe tener una membresía activa en este gobierno.'
+        : !capabilityReady ? 'La sesión no tiene la capacidad efectiva platform.users.manage.'
+        : !canCommand('update_account_profile') ? 'El backend no publicó update_account_profile para este gobierno y release.'
+        : !governanceReady(false) ? 'La auditoría administrativa no está verificada.'
+        : !identityVersionReady ? 'La API no informó identityVersion; no se usará la versión de membresía.'
+        : displayName === user.displayName ? 'Ingresá un nombre visible diferente y fundamentá la corrección.'
+        : 'Corrección preparada. Al confirmar se revocarán todas las sesiones activas de la cuenta.';
+    }
+
     function administrativeOnlyRole(roleKey) {
       return ['PLATFORM_OWNER', 'TENANT_ADMIN', 'ADMIN_INTERNO', 'INTERNAL_ADMIN'].includes(text(roleKey).toUpperCase());
     }
@@ -2969,6 +3015,8 @@
       state.employmentCandidates = [];
       state.scopeDraft = user.operationalAccess.scopes.map(function (scope) { return Object.assign({}, scope); });
       el.userAccessReason.value = '';
+      el.profileDisplayName.value = user.displayName;
+      el.profileReason.value = '';
       el.employmentLookupQuery.value = '';
       el.employmentCandidateSelect.value = '';
       el.employmentReasonCode.value = '';
@@ -2983,6 +3031,7 @@
       el.userDetailTitle.textContent = user.displayName;
       el.userDetailSubtitle.textContent = user.email || 'Email no informado';
       renderUserFacts(user);
+      updateAccountProfileGate();
       el.userAccessRole.value = user.roleKey;
       renderCapabilityList(el.userAccessCapabilities, user.capabilities, mutationAllowed('update_access', true), 'userAccessCapability');
       updateUserAccessGate();
@@ -3786,6 +3835,8 @@
           el.employmentLookupQuery.value = '';
           el.employmentReason.value = '';
           el.scopeReason.value = '';
+          el.profileDisplayName.value = '';
+          el.profileReason.value = '';
         }
       }); });
       el.refreshButton.addEventListener('click', function () { loadAll(state.context.tenantId || '').catch(function (error) { showToast(error.message, true); }); });
@@ -3916,6 +3967,26 @@
       el.userAccessRole.addEventListener('change', function () { renderCapabilityList(el.userAccessCapabilities, roleCapabilityKeys(el.userAccessRole.value), mutationAllowed('update_access', true), 'userAccessCapability'); updateUserAccessGate(); });
       el.userAccessCapabilities.addEventListener('change', updateUserAccessGate);
       el.userAccessReason.addEventListener('input', updateUserAccessGate);
+      el.profileDisplayName.addEventListener('input', updateAccountProfileGate);
+      el.profileReason.addEventListener('input', updateAccountProfileGate);
+      el.updateProfileButton.addEventListener('click', function () {
+        var user = state.selectedUser;
+        if (!user || el.updateProfileButton.disabled) return;
+        var displayName = el.profileDisplayName.value.trim().replace(/\s+/g, ' ');
+        var confirmation = 'CORREGIR nombre visible\n\nCuenta: ' + user.email
+          + '\nGobierno: ' + user.tenantName
+          + '\nNombre actual: ' + user.displayName
+          + '\nNombre nuevo: ' + displayName
+          + '\n\nEsta acción revocará todas las sesiones activas de la cuenta. La persona deberá volver a ingresar.\n\n¿Confirmar esta corrección auditada?';
+        if (!window.confirm(confirmation)) return;
+        runCommand('update_account_profile', {
+          tenantId: user.tenantId,
+          targetEmail: user.email,
+          displayName: displayName,
+          reason: el.profileReason.value.trim()
+        }, Number(user.identityVersion), el.updateProfileButton,
+        'Nombre visible corregido. Las sesiones activas de la cuenta fueron revocadas.', el.userDetailDialog);
+      });
       el.employmentLookupQuery.addEventListener('input', updateOperationalGates);
       el.employmentLookupQuery.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); lookupEmploymentCandidates(); } });
       el.employmentLookupButton.addEventListener('click', lookupEmploymentCandidates);

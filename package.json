@@ -29,6 +29,7 @@
     "db:payroll:novelties:smoke": "node --env-file=.env.local scripts/smoke-governed-payroll-novelties.mjs --confirm-isolated-branch",
     "db:payroll:novelty-profiles:schema": "node --env-file=.env.local scripts/apply-institutional-payroll-novelty-profiles-schema.mjs --confirm-isolated-branch",
     "db:identity:account-profile:schema": "node --env-file=.env.local scripts/apply-governed-account-profile-schema.mjs --confirm-isolated-branch",
+    "db:identity:account-profile-view:schema": "node --env-file=.env.local scripts/apply-governed-account-profile-admin-view-schema.mjs --confirm-isolated-branch",
     "db:payroll:novelty:first-fortnight:schema": "node --env-file=.env.local scripts/apply-payroll-novelty-first-fortnight-schema.mjs --confirm-isolated-branch",
     "db:payroll:operations:release": "node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs",
     "db:attendance:import-junin": "node --env-file=.env.local scripts/import-junin-attendance-inventory.mjs --confirm-isolated-branch",

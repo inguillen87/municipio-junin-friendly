@@ -23,7 +23,7 @@ function target(mode = 'isolated') {
   };
 }
 
-test('release ejecuta en orden estricto 024 a 029', () => {
+test('release ejecuta en orden estricto 024 a 030', () => {
   assert.deepEqual(PAYROLL_OPERATIONS_RELEASE_STEPS.map((step) => step.version), [
     '024-governed-monthly-attendance-evaluation',
     '025-governed-payroll-control-import',
@@ -31,13 +31,18 @@ test('release ejecuta en orden estricto 024 a 029', () => {
     '027-institutional-payroll-novelty-profiles',
     '028-governed-account-profile',
     '029-payroll-novelty-first-fortnight',
+    '030-governed-account-profile-admin-view',
   ]);
-  const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
   assert.equal(step029.envPrefix, 'PAYROLL_NOVELTY_FIRST_FORTNIGHT');
   assert.match(step029.script.pathname, /apply-payroll-novelty-first-fortnight-schema\.mjs$/);
+  const step030 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  assert.equal(step030.envPrefix, 'ACCOUNT_PROFILE_GOVERNANCE');
+  assert.match(step030.script.pathname,
+    /apply-governed-account-profile-admin-view-schema\.mjs$/);
   assert.match(source, /result\.status !== 0/);
   assert.match(source, /release se detuvo antes del siguiente paso/);
-  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-029'\)/);
+  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-030'\)/);
 });
 
 test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () => {
@@ -60,6 +65,11 @@ test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () =>
     target(), 'PAYROLL_NOVELTY_FIRST_FORTNIGHT', {},
   );
   assert.equal(fortnightEnv.PAYROLL_NOVELTY_FIRST_FORTNIGHT_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
+  const accountProfileViewEnv = payrollOperationsChildEnvironment(
+    target(), 'ACCOUNT_PROFILE_GOVERNANCE', {},
+  );
+  assert.equal(accountProfileViewEnv.ACCOUNT_PROFILE_GOVERNANCE_EXPECTED_NEON_BRANCH_ID,
     'br-payroll-release');
 });
 
@@ -84,7 +94,7 @@ test('release productivo repite branch id en comando, canonico y pin propio', ()
   ), /rama confirmada no coincide/);
 });
 
-test('package expone release explícito y Vercel conserva 026 a 029 y la pantalla', async () => {
+test('package expone release explícito y Vercel conserva 026 a 030 y la pantalla', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
   assert.equal(packageJson.scripts['db:payroll:operations:release'],
     'node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs');
@@ -93,6 +103,7 @@ test('package expone release explícito y Vercel conserva 026 a 029 y la pantall
   assert.match(ignore, /!scripts\/migrations\/027-institutional-payroll-novelty-profiles\.sql/);
   assert.match(ignore, /!scripts\/migrations\/028-governed-account-profile\.sql/);
   assert.match(ignore, /!scripts\/migrations\/029-payroll-novelty-first-fortnight\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/030-governed-account-profile-admin-view\.sql/);
   assert.match(ignore, /!novedades-nomina\.html/);
   assert.doesNotMatch(source, /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
 });

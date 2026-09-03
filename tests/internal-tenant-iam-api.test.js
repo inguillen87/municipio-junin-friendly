@@ -20,7 +20,7 @@ const MEMBERSHIP_ID = '22222222-2222-4222-8222-222222222222';
 const SESSION_ID = '33333333-3333-4333-8333-333333333333';
 const RELEASE_SHA = 'a'.repeat(40);
 const BINDING_ID = '44444444-4444-4444-8444-444444444444';
-const CONTRACT_ID = '55555555-5555-4555-8555-555555555555';
+const CONTRACT_ID = 'd30a43b1-b002-fbc9-d287-0ca0b816dcd7';
 
 function response() {
   return {
@@ -200,7 +200,7 @@ test('contexto legacy no puede enumerar ni mutar aunque alegue el email del owne
   assert.equal(sqlCalls, 0);
 });
 
-test('librería de administración invoca exclusivamente facades v2 ligadas a SID/version', async () => {
+test('librería de administración invoca exclusivamente facades versionadas ligadas a SID/version', async () => {
   const calls = [];
   const sql = {
     async query(statement, values) {
@@ -215,7 +215,7 @@ test('librería de administración invoca exclusivamente facades v2 ligadas a SI
     payload: { membershipId: MEMBERSHIP_ID },
   }, KEY);
   await applyInternalAdminCommand(sql, session, command);
-  assert.match(calls[0].statement, /tenant_iam_admin_view_v3/);
+  assert.match(calls[0].statement, /tenant_iam_admin_view_v4/);
   assert.deepEqual(calls[0].values.slice(0, 5), [
     'owner@example.test', SESSION_ID, 4, RELEASE_SHA, 'users',
   ]);
@@ -267,6 +267,47 @@ test('provisioning laboral deriva tenant y liga replay a SID/version/release', a
   assert.equal(calls[1].values[7].length, 64);
   assert.notEqual(calls[1].values[7], calls[2].values[7], 'hash debe cambiar al rotar SID/version');
   assert.equal(Object.hasOwn(JSON.parse(calls[1].values[9]), 'membershipId'), false);
+});
+
+test('link_employment acepta UUID canónico de PostgreSQL sin relajar otros identificadores', () => {
+  const body = {
+    command: 'link_employment', expectedVersion: 3,
+    payload: {
+      membershipId: MEMBERSHIP_ID,
+      employmentContractId: CONTRACT_ID.toUpperCase(),
+      sourceBindingId: BINDING_ID,
+      reasonCode: 'correction',
+      reason: 'Corrección auditada',
+    },
+  };
+  const normalized = normalizeInternalAdminCommand(body, KEY);
+  assert.equal(normalized.payload.employmentContractId, CONTRACT_ID);
+
+  for (const malformed of [
+    'd30a43b1-b002-fbc9-d287-0ca0b816dcd',
+    'd30a43b1-b002-fbc9-d287-0ca0b816dcdz',
+    'd30a43b1b002fbc9d2870ca0b816dcd7',
+  ]) {
+    assert.throws(() => normalizeInternalAdminCommand({
+      ...body,
+      payload: { ...body.payload, employmentContractId: malformed },
+    }, KEY), (error) => error instanceof InternalAdminError
+      && error.code === 'INTERNAL_ADMIN_PAYLOAD_INVALID'
+      && error.status === 422);
+  }
+
+  assert.throws(() => normalizeInternalAdminCommand({
+    ...body,
+    payload: { ...body.payload, membershipId: CONTRACT_ID },
+  }, KEY), (error) => error instanceof InternalAdminError
+    && error.code === 'INTERNAL_ADMIN_PAYLOAD_INVALID'
+    && error.status === 422);
+  assert.throws(() => normalizeInternalAdminCommand({
+    ...body,
+    payload: { ...body.payload, sourceBindingId: CONTRACT_ID },
+  }, KEY), (error) => error instanceof InternalAdminError
+    && error.code === 'INTERNAL_ADMIN_PAYLOAD_INVALID'
+    && error.status === 422);
 });
 
 test('provisioning valida motivo igual que la facade SQL y mapea formas invalidas a 422', () => {

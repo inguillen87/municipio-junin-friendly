@@ -952,8 +952,12 @@ export function classifyAssistantRequest(body = {}) {
   if (/\b(?:ley\s*5?811|titulo\s*(?:vi|6)|regimen\s+(?:legal\s+)?de\s+licencias|art(?:iculo)?s?\.?\s*(?:37|38|39|40|41|42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57|58|59|60|61|62|63|64|65)|cuantos?\s+dias?\s+(?:de\s+)?licencia\s+anual|licencia\s+anual\s+(?:por|segun)\s+antiguedad)\b/.test(message)) return 'leave_policy';
   if (/\b(?:ausencias?|ausentismo|licencias?|eventos? de ausencia|faltas?)\b/.test(message)) return 'absence_analysis';
   if (/\b(?:nomina|liquidacion|haberes|sueldo|salario|corrida|julio|agosto)\b/.test(message)) return 'payroll_control';
-  if (/\b(?:personas|crosswalk|integracion|coincidencia|identidad|padron)\b/.test(message)) return 'integration_quality';
-  if (/\b(?:dotacion|activos?|liquidables?|brecha|plantel|cuantos?|882|854)\b/.test(message)) return 'workforce_summary';
+  const explicitIntegrationTopic = /\b(?:crosswalk|integracion|coincidencias?|identidad|padron|vinculad[oa]s?|ambigu[oa]s?)\b/.test(message);
+  const workforceTopic = /\b(?:dotacion|activos?|liquidables?|brecha|plantel|cuant[oa]s?|882|854)\b/.test(message)
+    || /\b(?:personas?|emplead[oa]s?|agentes?|legajos?)\s+activ[oa]s?\b/.test(message);
+  if (explicitIntegrationTopic) return 'integration_quality';
+  if (workforceTopic) return 'workforce_summary';
+  if (/\bpersonas?\b/.test(message)) return 'integration_quality';
   if (/\b(?:buscar|busca|encontrar|empleados?|directorio|ficha)\b/.test(message)) return 'employee_search';
   if (/\b(?:analiza|analisis|explica|recomendacion|diagnostico|ejecutivo)\b/.test(message)) return 'executive_analysis';
   if (/\b(?:ayuda|guia|tutorial|aprender|orientacion)\b/.test(message)) return 'help_navigation';
@@ -1196,6 +1200,18 @@ function dateValue(value) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('es-AR');
+}
+
+function formatDateOnlyEsAr(value) {
+  const iso = dateValue(value);
+  if (!iso) return '';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return [
+    String(parsed.getUTCDate()).padStart(2, '0'),
+    String(parsed.getUTCMonth() + 1).padStart(2, '0'),
+    String(parsed.getUTCFullYear()),
+  ].join('/');
 }
 
 function formatMoney(value) {
@@ -1619,9 +1635,12 @@ function workforceResult(integration, scope) {
   const liquidable = integration.workforceControl?.liquidable?.value;
   const gap = integration.workforceControl?.difference?.value;
   const reconciled = integration.workforceControl?.status === 'reconciled';
-  const answer = administrative === null || liquidable === null || gap === null
+  const asOf = dateValue(integration.source?.cutoff || scope.asOf);
+  const cutoffLabel = formatDateOnlyEsAr(asOf);
+  const cutoffNote = cutoffLabel ? ` Corte GRH: ${cutoffLabel}.` : '';
+  const answer = (administrative === null || liquidable === null || gap === null
     ? `GRH contiene ${formatNumber(scope.totalContracts)} legajos históricos y ${formatNumber(scope.totalPeople)} personas canónicas. El control administrativo/liquidable todavía no está listo para publicarse.`
-    : `GRH contiene ${formatNumber(scope.totalContracts)} legajos históricos y ${formatNumber(scope.totalPeople)} personas canónicas. Hay ${formatNumber(administrative)} activos administrativos, ${formatNumber(liquidable)} incluidos en la corrida operativa y una brecha de ${formatNumber(gap)} legajos${reconciled ? ' completamente explicada por estados de control' : ' pendiente de revisión'}.`;
+    : `GRH contiene ${formatNumber(scope.totalContracts)} legajos históricos y ${formatNumber(scope.totalPeople)} personas canónicas. Hay ${formatNumber(administrative)} activos administrativos, ${formatNumber(liquidable)} incluidos en la corrida operativa y una brecha de ${formatNumber(gap)} legajos${reconciled ? ' completamente explicada por estados de control' : ' pendiente de revisión'}.`) + cutoffNote;
   return {
     answer,
     data: {
@@ -1634,7 +1653,7 @@ function workforceResult(integration, scope) {
       gapBreakdown: integration.workforceControl?.stateBreakdown?.rows || [],
       status: integration.workforceControl?.status || integration.status,
     },
-    asOf: dateValue(integration.source?.cutoff || scope.asOf),
+    asOf,
     sources: [
       { system: 'GRH', relation: 'employment_contract', authority: 'labor_core' },
       { system: 'GRH', relation: 'vw_empleado_actual', authority: 'workforce_control' },

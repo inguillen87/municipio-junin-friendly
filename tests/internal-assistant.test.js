@@ -280,6 +280,8 @@ async function post(body, overrides = {}, requestOverrides = {}) {
 
 test('clasifica intenciones principales sin depender del proveedor', () => {
   assert.equal(classifyAssistantRequest({ message: '¿Cuál es la brecha de dotación?' }), 'workforce_summary');
+  assert.equal(classifyAssistantRequest({ message: '¿Cuántas personas activas informa el corte GRH y cuál es la fecha de ese corte?' }), 'workforce_summary');
+  assert.equal(classifyAssistantRequest({ message: '¿Cuántas personas activas tienen coincidencia confirmada en el crosswalk?' }), 'integration_quality');
   assert.equal(classifyAssistantRequest({ message: '¿La nómina de agosto está cerrada?' }), 'payroll_control');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo viene el crosswalk con PERSONAS?' }), 'integration_quality');
   assert.equal(classifyAssistantRequest({ message: 'Analizá la calidad operativa por severidad' }), 'quality_analysis');
@@ -728,9 +730,25 @@ test('resumen determinístico reconcilia 2450/882/854/28 con fuente y asOf', asy
   assert.match(res.payload.answer, /2\.450/);
   assert.match(res.payload.answer, /882/);
   assert.match(res.payload.answer, /854/);
+  assert.match(res.payload.answer, /Corte GRH: 06\/08\/2026\./);
   assert.equal(res.payload.asOf, scope.asOf);
   assert.equal(res.payload.sources[0].system, 'GRH');
   assert.equal(res.payload.provider.status, 'not_requested');
+});
+
+test('pregunta natural por personas activas y corte usa dotación y responde desde el bootstrap GRH', async () => {
+  const res = await post({
+    message: '¿Cuántas personas activas informa el corte GRH y cuál es la fecha de ese corte?',
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.intent, 'workforce_summary');
+  assert.equal(res.payload.data.administrativeActive, 882);
+  assert.equal(res.payload.asOf, scope.asOf);
+  assert.match(res.payload.answer, /882 activos administrativos/i);
+  assert.match(res.payload.answer, /Corte GRH: 06\/08\/2026\./);
+  assert.doesNotMatch(res.payload.answer, /crosswalk|coincidencias confirmadas/i);
+  assert.equal(res.payload.sources[0].system, 'GRH');
 });
 
 test('nómina distingue julio cerrado publicable de agosto abierto', async () => {
