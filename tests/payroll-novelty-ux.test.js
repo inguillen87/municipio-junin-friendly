@@ -4,12 +4,19 @@ import test from 'node:test';
 
 const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('Novedades ofrece carga individual y masiva con preflight, circuito y exportación', () => {
+test('Novedades ofrece carga individual, rápida y masiva con preflight, circuito y exportación', () => {
   const html = read('novedades-nomina.html');
 
   assert.match(html, /data-mc-page="payroll-novelties"/);
   assert.match(html, /Carga individual/);
+  assert.match(html, /Carga rápida por legajo/);
   assert.match(html, /Carga masiva/);
+  assert.match(html, /name="sourceMode" value="agile"/);
+  assert.match(html, /id="agileAddButton"/);
+  assert.match(html, /id="agileClearButton"/);
+  assert.match(html, /id="agileRows"/);
+  assert.match(html, /id="agileTemplateLock"/);
+  assert.match(html, /id="readOnlySection"/);
   assert.match(html, /<option value="first_fortnight">Primera quincena<\/option>/);
   assert.match(html, /<option value="supplementary">Complementaria<\/option>/);
   assert.match(html, /<option value="other">Otra<\/option>/);
@@ -50,6 +57,17 @@ test('el workbench usa contrato gobernado y no inventa permisos ni persistencia 
   assert.match(source, /first_fortnight: 'Primera quincena'/);
   assert.match(source, /supplementary: 'Complementaria'/);
   assert.match(source, /other: 'Otra'/);
+  assert.match(source, /entryMode === 'agile' \? 'bulk' : entryMode/);
+  assert.match(source, /function addAgileRow/);
+  assert.match(source, /function removeAgileRow/);
+  assert.match(source, /function clearAgileRows/);
+  assert.match(source, /byId\('legajo'\)\.value = ''/);
+  assert.match(source, /const AGILE_TEMPLATE_FIELD_IDS = Object\.freeze/);
+  assert.match(source, /agileTemplate = \{ periodMonth, payrollType, commonValues:/);
+  assert.match(source, /radio\.disabled = hasRows && radio\.value !== 'agile'/);
+  assert.match(source, /aria-label', `Quitar fila \$\{index \+ 1\}, legajo \$\{row\.legajo\}`/);
+  assert.match(source, /principalChanged \|\| !canPrepare/);
+  assert.match(source, /payroll\.novelty\.prepare', payload\.principal/);
   assert.doesNotMatch(source, /supplementary: 'Suplementaria'/);
   assert.match(source, /downloadPayrollNoveltyXlsx/);
   assert.match(source, /Descargar Excel de revisión/);

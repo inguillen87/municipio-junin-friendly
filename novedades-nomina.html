@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#123247">
   <meta name="color-scheme" content="light">
   <title>Novedades de nómina | MuniControl</title>
-  <meta name="description" content="Carga individual y masiva de novedades con validación, aprobación y exportación trazable.">
+  <meta name="description" content="Carga individual, rápida y masiva de novedades con validación, aprobación y exportación trazable.">
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <script src="assets/internal-guide.js" defer></script>
@@ -75,7 +75,7 @@
     h2 { margin: 5px 0 0; color: var(--navy); font-size: 25px; line-height: 1.2; }
     h3 { margin: 0; color: var(--navy); font-size: 17px; }
     .section-head p, .panel-note { margin: 6px 0 0; color: var(--muted); }
-    .mode-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .mode-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
     .mode { position: relative; display: flex; gap: 11px; align-items: flex-start; padding: 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
     .mode:has(input:checked) { background: var(--green-soft); border-color: var(--green); box-shadow: inset 3px 0 var(--green); }
     .mode input { margin-top: 4px; accent-color: var(--green); }
@@ -93,6 +93,13 @@
     .checkbox { min-height: 44px; display: flex; gap: 9px; align-items: center; padding: 9px 11px; background: var(--amber-soft); border: 1px solid #e7ca87; border-radius: 4px; }
     .checkbox input { width: 18px; min-height: 18px; margin: 0; accent-color: var(--amber); }
     .bulk-format { padding: 12px; overflow-x: auto; color: #31505e; background: #f3f7f7; border: 1px solid var(--line); border-radius: 4px; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+    .agile-panel { margin-top: 16px; padding: 16px; background: var(--blue-soft); border: 1px solid #b6d2e2; border-radius: 5px; }
+    .agile-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .agile-toolbar p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .agile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .agile-count { color: var(--blue); font-weight: 850; }
+    .agile-panel table { min-width: 720px; }
+    .agile-panel .empty { padding: 20px; background: rgba(255,255,255,.7); }
     .form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
     .preview { margin-top: 18px; padding: 18px; background: var(--green-soft); border: 1px solid #b8d9d1; border-radius: 5px; }
     .preview header { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 12px; }
@@ -187,11 +194,16 @@
 
           <div class="message" id="messageHost" role="status" aria-live="polite" hidden></div>
 
-          <section class="section" id="entrySection" aria-labelledby="entryTitle">
+          <section class="section" id="readOnlySection" aria-labelledby="readOnlyTitle" hidden>
+            <header class="section-head"><div><span class="section-index">CONSULTA HABILITADA</span><h2 id="readOnlyTitle">Bandeja visible sin permiso de carga</h2><p>Tu perfil puede consultar la bandeja habilitada por el servidor. El detalle nominal, la auditoría y la exportación aparecen únicamente si tus capacidades efectivas los autorizan.</p></div><span class="status submitted">Sólo lectura</span></header>
+          </section>
+
+          <section class="section" id="entrySection" aria-labelledby="entryTitle" hidden>
             <header class="section-head"><div><span class="section-index">01 · CARGAR Y VALIDAR</span><h2 id="entryTitle">Preparar novedades</h2><p>La validación previa ocurre primero en el navegador y se repite de forma autoritativa en el servidor.</p></div><span class="status draft">Hasta <span id="maxRows">500</span>&nbsp;filas</span></header>
 
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Una novedad con observación, importe o unidades.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Conservá los datos y cambiá sólo el agente. Se registra como lote.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
             </div>
 
@@ -212,6 +224,18 @@
               <div class="field wide"><label for="legalInstrument">Instrumento legal</label><input id="legalInstrument" maxlength="160" placeholder="Resolución, decreto u ordenanza, si corresponde"></div>
               <div class="field full"><label for="observation">Observación</label><textarea id="observation" maxlength="500" placeholder="Describí brevemente el pedido o fundamento. Este texto queda en el lote restringido."></textarea><small>Máximo 500 caracteres. No adjuntes información clínica innecesaria.</small></div>
               <label class="field full checkbox" for="forced"><input id="forced" type="checkbox"><span><strong>Modo forzado</strong><br>Exige importe y una justificación de al menos 10 caracteres; siempre requiere segunda aprobación.</span></label>
+            </div>
+
+            <div class="agile-panel" id="agilePanel" hidden>
+              <div class="agile-toolbar">
+                <div><strong>Carga rápida en memoria</strong><p>Agregá el legajo actual. Se limpia sólo ese campo y se conservan concepto, período, unidades, importe y fundamento.</p></div>
+                <div class="agile-actions"><button class="button primary" id="agileAddButton" type="button">Agregar legajo al lote</button><button class="button" id="agileClearButton" type="button" disabled>Vaciar lista</button></div>
+              </div>
+              <p class="agile-count" id="agileCount" role="status" aria-live="polite">0 filas preparadas.</p>
+              <p class="panel-note" id="agileTemplateLock" role="status" aria-live="polite" hidden></p>
+              <div class="empty" id="agileEmpty">Todavía no agregaste legajos. Completá la novedad de arriba y presioná “Agregar legajo al lote”.</div>
+              <div class="table-wrap" id="agileTable" hidden><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Fundamento</th><th>Acción</th></tr></thead><tbody id="agileRows"></tbody></table></div>
+              <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. El servidor vuelve a validar todas las filas, el binding GRH y tus capacidades.</p>
             </div>
 
             <div id="bulkFields" hidden>

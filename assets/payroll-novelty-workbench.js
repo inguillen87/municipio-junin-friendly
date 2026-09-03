@@ -35,14 +35,26 @@ const byId = (id) => document.getElementById(id);
 let bootstrapState = null;
 let preparedDraft = null;
 let preparedDraftKey = null;
+let preparedEntryMode = null;
 let selectedBatchId = null;
 let redirectIssued = false;
+let agileDraftRows = [];
+let agileTemplate = null;
 const pendingTransitionAttempts = new Map();
+
+const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
+  'periodMonth', 'payrollType', 'conceptSourceId', 'costCenterSourceId',
+  'adjustmentMonth', 'quantityDecimal', 'amountArs', 'movementType',
+  'legalInstrument', 'observation', 'forced',
+]);
 
 function setBusy(value, label = '') {
   document.body.dataset.busy = value ? 'true' : 'false';
   for (const button of document.querySelectorAll('button')) button.disabled = Boolean(value);
-  if (!value) byId('prepareButton').disabled = preparedDraft === null;
+  if (!value) {
+    byId('prepareButton').disabled = preparedDraft === null;
+    renderAgileRows();
+  }
   byId('busyStatus').hidden = !value;
   byId('busyStatus').textContent = label || 'Procesando solicitud…';
 }
@@ -70,6 +82,7 @@ function clearMessage() {
 function invalidatePreparedDraft() {
   preparedDraft = null;
   preparedDraftKey = null;
+  preparedEntryMode = null;
   byId('previewPanel').hidden = true;
   byId('prepareButton').disabled = true;
 }
@@ -233,8 +246,8 @@ function rowFromValues(values, ordinal, periodMonth) {
   };
 }
 
-function individualRows(periodMonth) {
-  return [rowFromValues([
+function currentEntryValues() {
+  return [
     byId('legajo').value,
     byId('conceptSourceId').value,
     byId('costCenterSourceId').value,
@@ -245,7 +258,24 @@ function individualRows(periodMonth) {
     byId('legalInstrument').value,
     byId('observation').value,
     byId('forced').checked ? 'SI' : 'NO',
-  ], 1, periodMonth)];
+  ];
+}
+
+function individualRows(periodMonth) {
+  return [rowFromValues(currentEntryValues(), 1, periodMonth)];
+}
+
+function agileRows(periodMonth) {
+  if (!agileDraftRows.length) {
+    throw new Error('Agregá al menos un legajo a la carga rápida antes de validar.');
+  }
+  const rows = agileDraftRows.map((row, index) => ({ ...row, rowOrdinal: index + 1 }));
+  for (const row of rows) {
+    if (row.adjustmentMonth && row.adjustmentMonth > periodMonth) {
+      throw new Error(`Fila ${row.rowOrdinal}: el mes de ajuste supera el período actual.`);
+    }
+  }
+  return rows;
 }
 
 function bulkRows(periodMonth) {
@@ -289,13 +319,22 @@ function duplicateCheck(rows) {
 }
 
 function buildDraft() {
-  const sourceMode = document.querySelector('[name="sourceMode"]:checked')?.value;
-  const periodMonth = exactMonth(byId('periodMonth').value, 'Período');
-  const payrollType = byId('payrollType').value;
+  const entryMode = document.querySelector('[name="sourceMode"]:checked')?.value;
+  const periodMonth = entryMode === 'agile' && agileTemplate
+    ? agileTemplate.periodMonth
+    : exactMonth(byId('periodMonth').value, 'Período');
+  const payrollType = entryMode === 'agile' && agileTemplate
+    ? agileTemplate.payrollType
+    : byId('payrollType').value;
   const allowedTypes = bootstrapState?.limits?.payrollTypes || [];
   if (!allowedTypes.includes(payrollType)) throw new Error('El tipo de liquidación no está habilitado.');
-  const rows = sourceMode === 'bulk' ? bulkRows(periodMonth) : individualRows(periodMonth);
+  const rows = entryMode === 'bulk'
+    ? bulkRows(periodMonth)
+    : entryMode === 'agile'
+      ? agileRows(periodMonth)
+      : individualRows(periodMonth);
   duplicateCheck(rows);
+  const sourceMode = entryMode === 'agile' ? 'bulk' : entryMode;
   return { sourceMode, periodMonth, payrollType, rows };
 }
 
@@ -327,9 +366,10 @@ function renderPreflight(draft) {
     }
     body.appendChild(tr);
   }
+  const modeLabel = preparedEntryMode === 'agile' ? 'Carga rápida: ' : '';
   byId('previewCaption').textContent = draft.rows.length > 25
-    ? `Se muestran 25 de ${draft.rows.length} filas válidas.`
-    : `${draft.rows.length} fila${draft.rows.length === 1 ? '' : 's'} válida${draft.rows.length === 1 ? '' : 's'}.`;
+    ? `${modeLabel}se muestran 25 de ${draft.rows.length} filas válidas.`
+    : `${modeLabel}${draft.rows.length} fila${draft.rows.length === 1 ? '' : 's'} válida${draft.rows.length === 1 ? '' : 's'}.`;
   byId('previewPanel').hidden = false;
   byId('prepareButton').disabled = false;
 }
@@ -349,6 +389,14 @@ function capabilityText(principal) {
   if (capabilities.has('payroll.novelty.approve')) labels.push('aprobar o rechazar');
   if (capabilities.has('payroll.novelty.export')) labels.push('exportar aprobados');
   return labels.length ? labels.join(' · ') : 'consulta habilitada';
+}
+
+function principalKey(principal) {
+  return [
+    principal?.email ?? principal?.user?.email,
+    principal?.membershipId ?? principal?.tenant?.membershipId,
+    principal?.tenantId ?? principal?.tenant?.id,
+  ].map((value) => String(value || '').trim().toLowerCase()).join('|');
 }
 
 function assertBatchContract(batch, { detail = false } = {}) {
@@ -521,12 +569,23 @@ async function loadBootstrap({ quiet = false } = {}) {
         || payload?.limits?.payrollPosted !== false) {
       throw new Error('La API de novedades no cumple el contrato seguro esperado.');
     }
-    bootstrapState = payload;
     if (!Array.isArray(payload.batches)) {
       throw new Error('La API no devolvió una bandeja válida.');
     }
     for (const batch of payload.batches) assertBatchContract(batch);
+    const priorPrincipalKey = principalKey(bootstrapState?.principal);
+    const nextPrincipalKey = principalKey(payload.principal);
+    const principalChanged = Boolean(priorPrincipalKey && priorPrincipalKey !== nextPrincipalKey);
+    const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
+    if (agileDraftRows.length && (principalChanged || !canPrepare)) {
+      agileDraftRows = [];
+      agileTemplate = null;
+      invalidatePreparedDraft();
+    }
+    bootstrapState = payload;
     byId('sessionScope').textContent = capabilityText(payload.principal);
+    byId('entrySection').hidden = !canPrepare;
+    byId('readOnlySection').hidden = canPrepare;
     byId('maxRows').textContent = String(payload.limits.maxRows || MAX_ROWS);
     const select = byId('payrollType');
     const current = select.value;
@@ -677,14 +736,106 @@ async function exportBatch(id, format) {
 
 function updateMode() {
   const mode = document.querySelector('[name="sourceMode"]:checked')?.value;
-  byId('individualFields').hidden = mode !== 'individual';
+  byId('individualFields').hidden = !['individual', 'agile'].includes(mode);
   byId('bulkFields').hidden = mode !== 'bulk';
+  byId('agilePanel').hidden = mode !== 'agile';
+  renderAgileRows();
   invalidatePreparedDraft();
+}
+
+function renderAgileRows() {
+  const host = byId('agileRows');
+  if (!host) return;
+  host.replaceChildren();
+  agileDraftRows.forEach((row, index) => {
+    const tr = document.createElement('tr');
+    for (const value of [
+      index + 1,
+      row.legajo,
+      row.conceptSourceId,
+      row.quantityDecimal ?? '—',
+      moneyFromCents(row.amountCents),
+      row.observation || '—',
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = String(value);
+      tr.appendChild(td);
+    }
+    const action = document.createElement('td');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button compact';
+    remove.dataset.agileRemove = String(index);
+    remove.textContent = 'Quitar';
+    remove.setAttribute('aria-label', `Quitar fila ${index + 1}, legajo ${row.legajo}`);
+    action.appendChild(remove);
+    tr.appendChild(action);
+    host.appendChild(tr);
+  });
+  byId('agileCount').textContent = `${agileDraftRows.length} fila${agileDraftRows.length === 1 ? '' : 's'} preparada${agileDraftRows.length === 1 ? '' : 's'}.`;
+  byId('agileEmpty').hidden = agileDraftRows.length > 0;
+  byId('agileTable').hidden = agileDraftRows.length === 0;
+  byId('agileClearButton').disabled = agileDraftRows.length === 0 || document.body.dataset.busy === 'true';
+  byId('agileAddButton').disabled = agileDraftRows.length >= MAX_ROWS || document.body.dataset.busy === 'true';
+  const hasRows = agileDraftRows.length > 0;
+  for (const fieldId of AGILE_TEMPLATE_FIELD_IDS) byId(fieldId).disabled = hasRows;
+  for (const radio of document.querySelectorAll('[name="sourceMode"]')) {
+    radio.disabled = hasRows && radio.value !== 'agile';
+  }
+  byId('agileTemplateLock').hidden = !hasRows;
+  byId('agileTemplateLock').textContent = hasRows
+    ? `Plantilla bloqueada: ${agileTemplate?.periodMonth || '—'} · ${TYPE_LABELS[agileTemplate?.payrollType] || agileTemplate?.payrollType || '—'}. Vaciá la lista para cambiar período, tipo o datos comunes.`
+    : '';
+}
+
+function addAgileRow() {
+  clearMessage();
+  try {
+    if (agileDraftRows.length >= MAX_ROWS) throw new Error(`La carga rápida admite hasta ${MAX_ROWS} filas.`);
+    const periodMonth = exactMonth(byId('periodMonth').value, 'Período');
+    const payrollType = byId('payrollType').value;
+    const allowedTypes = bootstrapState?.limits?.payrollTypes || [];
+    if (!allowedTypes.includes(payrollType)) throw new Error('El tipo de liquidación no está habilitado.');
+    const enteredValues = currentEntryValues();
+    const commonValues = agileTemplate?.commonValues || enteredValues.slice(1);
+    const row = rowFromValues([enteredValues[0], ...commonValues], agileDraftRows.length + 1, periodMonth);
+    const nextRows = [...agileDraftRows, row];
+    duplicateCheck(nextRows);
+    agileDraftRows = nextRows;
+    if (!agileTemplate) {
+      agileTemplate = { periodMonth, payrollType, commonValues: [...commonValues] };
+    }
+    byId('legajo').value = '';
+    invalidatePreparedDraft();
+    renderAgileRows();
+    showMessage('success', 'Legajo agregado a la carga rápida', 'Los demás datos quedaron listos para reutilizar. La lista todavía no fue enviada al servidor.');
+    byId('legajo').focus();
+  } catch (error) {
+    showMessage('error', 'No se pudo agregar el legajo', errorMessage(error));
+  }
+}
+
+function clearAgileRows() {
+  agileDraftRows = [];
+  agileTemplate = null;
+  invalidatePreparedDraft();
+  renderAgileRows();
+  showMessage('success', 'Carga rápida vaciada', 'No se creó ni modificó ningún lote en el servidor.');
+}
+
+function removeAgileRow(index) {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= agileDraftRows.length) return;
+  agileDraftRows = agileDraftRows.filter((_, rowIndex) => rowIndex !== index)
+    .map((row, rowIndex) => ({ ...row, rowOrdinal: rowIndex + 1 }));
+  if (!agileDraftRows.length) agileTemplate = null;
+  invalidatePreparedDraft();
+  renderAgileRows();
 }
 
 function preflight() {
   clearMessage();
   try {
+    preparedEntryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
     preparedDraft = buildDraft();
     preparedDraftKey = crypto.randomUUID();
     renderPreflight(preparedDraft);
@@ -698,6 +849,7 @@ function preflight() {
 async function prepare() {
   if (!preparedDraft) return;
   if (!preparedDraftKey) preparedDraftKey = crypto.randomUUID();
+  const completedEntryMode = preparedEntryMode;
   setBusy(true, 'Validando y creando lote trazable…');
   clearMessage();
   try {
@@ -711,6 +863,11 @@ async function prepare() {
     });
     selectedBatchId = hasCapability('payroll.novelty.nominal.read')
       ? payload.data?.id || null : null;
+    if (completedEntryMode === 'agile') {
+      agileDraftRows = [];
+      agileTemplate = null;
+      renderAgileRows();
+    }
     invalidatePreparedDraft();
     showMessage('success', 'Lote creado y auditado', 'Quedó como borrador validado. No se calculó sueldo ni se escribió en GRH.');
     await loadBootstrap({ quiet: true });
@@ -756,6 +913,12 @@ function initialize() {
   byId('preflightButton').addEventListener('click', preflight);
   byId('prepareButton').addEventListener('click', prepare);
   byId('bulkFile').addEventListener('change', handleFile);
+  byId('agileAddButton').addEventListener('click', addAgileRow);
+  byId('agileClearButton').addEventListener('click', clearAgileRows);
+  byId('agileRows').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-agile-remove]');
+    if (button) removeAgileRow(Number(button.dataset.agileRemove));
+  });
   byId('refreshButton').addEventListener('click', () => loadBootstrap());
   byId('logoutButton').addEventListener('click', logout);
   byId('closeDetail').addEventListener('click', () => {
