@@ -6,8 +6,11 @@ import {
   PAYROLL_OPERATIONS_RELEASE_STEPS,
   payrollOperationsChildArguments,
   payrollOperationsChildEnvironment,
+  payrollOperationsReleaseStepsForState,
   resolvePayrollOperationsReleaseTarget,
 } from '../scripts/apply-governed-payroll-operations-release-schema.mjs';
+import { payrollControlImportBindingFingerprint } from
+  '../scripts/apply-payroll-control-import-binding-lock-schema.mjs';
 
 const source = await readFile(new URL(
   '../scripts/apply-governed-payroll-operations-release-schema.mjs', import.meta.url,
@@ -23,7 +26,7 @@ function target(mode = 'isolated') {
   };
 }
 
-test('release ejecuta en orden estricto 024 a 033', () => {
+test('release ejecuta en orden estricto 024 a 034', () => {
   assert.deepEqual(PAYROLL_OPERATIONS_RELEASE_STEPS.map((step) => step.version), [
     '024-governed-monthly-attendance-evaluation',
     '025-governed-payroll-control-import',
@@ -35,6 +38,7 @@ test('release ejecuta en orden estricto 024 a 033', () => {
     '031-governed-employee-payroll-history',
     '032-payroll-type-mapping-fail-closed',
     '033-payroll-art-report-capability',
+    '034-payroll-control-import-binding-lock',
   ]);
   const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.find((step) => (
     step.version === '029-payroll-novelty-first-fortnight'
@@ -47,21 +51,25 @@ test('release ejecuta en orden estricto 024 a 033', () => {
   assert.equal(step030.envPrefix, 'ACCOUNT_PROFILE_GOVERNANCE');
   assert.match(step030.script.pathname,
     /apply-governed-account-profile-admin-view-schema\.mjs$/);
-  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
+  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-4);
   assert.equal(step031.envPrefix, 'EMPLOYEE_PAYROLL_HISTORY');
   assert.match(step031.script.pathname,
     /apply-governed-employee-payroll-history-schema\.mjs$/);
-  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
+  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
   assert.equal(step032.envPrefix, 'PAYROLL_TYPE_MAPPING');
   assert.match(step032.script.pathname,
     /apply-payroll-type-mapping-fail-closed-schema\.mjs$/);
-  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
   assert.equal(step033.envPrefix, 'PAYROLL_ART_REPORT');
   assert.match(step033.script.pathname,
     /apply-payroll-art-report-capability-schema\.mjs$/);
+  const step034 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  assert.equal(step034.envPrefix, 'PAYROLL_CONTROL_IMPORT_BINDING');
+  assert.match(step034.script.pathname,
+    /apply-payroll-control-import-binding-lock-schema\.mjs$/);
   assert.match(source, /result\.status !== 0/);
   assert.match(source, /release se detuvo antes del siguiente paso/);
-  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-033'\)/);
+  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-034'\)/);
 });
 
 test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () => {
@@ -105,6 +113,11 @@ test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () =>
   );
   assert.equal(artReportEnv.PAYROLL_ART_REPORT_EXPECTED_NEON_BRANCH_ID,
     'br-payroll-release');
+  const bindingEnv = payrollOperationsChildEnvironment(
+    target(), 'PAYROLL_CONTROL_IMPORT_BINDING', {},
+  );
+  assert.equal(bindingEnv.PAYROLL_CONTROL_IMPORT_BINDING_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
 });
 
 test('release productivo repite branch id en comando, canonico y pin propio', () => {
@@ -128,7 +141,29 @@ test('release productivo repite branch id en comando, canonico y pin propio', ()
   ), /rama confirmada no coincide/);
 });
 
-test('package expone release explícito y Vercel conserva 026 a 033 y la pantalla', async () => {
+test('reapply 034 omite la verificacion historica 025 y valida su ledger antes de escribir', async () => {
+  const migration = await readFile(new URL(
+    '../scripts/migrations/034-payroll-control-import-binding-lock.sql', import.meta.url,
+  ), 'utf8');
+  const checksum = payrollControlImportBindingFingerprint(migration);
+  const fresh = await payrollOperationsReleaseStepsForState({
+    async query() { return { rowCount: 0, rows: [] }; },
+  });
+  assert.equal(fresh.some((step) => step.version === '025-governed-payroll-control-import'), true);
+
+  const reapply = await payrollOperationsReleaseStepsForState({
+    async query() { return { rowCount: 1, rows: [{ checksum_sha256: checksum }] }; },
+  });
+  assert.equal(reapply.some((step) => step.version === '025-governed-payroll-control-import'), false);
+  assert.equal(reapply.at(-1).version, '034-payroll-control-import-binding-lock');
+
+  await assert.rejects(() => payrollOperationsReleaseStepsForState({
+    async query() { return { rowCount: 1, rows: [{ checksum_sha256: '0'.repeat(64) }] }; },
+  }), /Drift detectado: 034-payroll-control-import-binding-lock/);
+  assert.match(source, /releaseSteps = await payrollOperationsReleaseStepsForState\(client\)/);
+});
+
+test('package expone release explícito y Vercel conserva 026 a 034 y la pantalla', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
   assert.equal(packageJson.scripts['db:payroll:operations:release'],
     'node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs');
@@ -141,6 +176,7 @@ test('package expone release explícito y Vercel conserva 026 a 033 y la pantall
   assert.match(ignore, /!scripts\/migrations\/031-governed-employee-payroll-history\.sql/);
   assert.match(ignore, /!scripts\/migrations\/032-payroll-type-mapping-fail-closed\.sql/);
   assert.match(ignore, /!scripts\/migrations\/033-payroll-art-report-capability\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/034-payroll-control-import-binding-lock\.sql/);
   assert.match(ignore, /!novedades-nomina\.html/);
   assert.doesNotMatch(source, /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
 });

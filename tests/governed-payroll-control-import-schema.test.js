@@ -148,9 +148,8 @@ test('IAM institucional separa Marcelo, Hugo y consulta', () => {
   assert.doesNotMatch(migration, /\('PLATFORM_OWNER', 'payroll\.control_import\./);
 });
 
-test('las firmas publicas coinciden con el contrato API B2 y fijan el binding del HMAC', () => {
+test('las firmas publicas coinciden con el contrato API B2', () => {
   assert.match(migration, /payroll_control_import_bootstrap_v1\(p_context jsonb\)/);
-  assert.match(migration, /payroll_control_import_prepare_v1\([\s\S]*p_context jsonb,[\s\S]*p_expected_binding_id uuid,[\s\S]*p_source_kind text,[\s\S]*p_period_month date,[\s\S]*p_jurisdiction text,[\s\S]*p_definition_key text,[\s\S]*p_content_hmac_sha256 text,[\s\S]*p_byte_length integer,[\s\S]*p_rows jsonb,[\s\S]*p_idempotency uuid,[\s\S]*p_command_hash text/);
-  assert.match(migration, /p_expected_binding_id <> \(context_value->>'certifiedBindingId'\)::uuid[\s\S]*PAYROLL_CONTROL_IMPORT_BINDING_CHANGED/);
+  assert.match(migration, /payroll_control_import_prepare_v1\([\s\S]*p_context jsonb,[\s\S]*p_source_kind text,[\s\S]*p_period_month date,[\s\S]*p_jurisdiction text,[\s\S]*p_definition_key text,[\s\S]*p_content_hmac_sha256 text,[\s\S]*p_byte_length integer,[\s\S]*p_rows jsonb,[\s\S]*p_idempotency uuid,[\s\S]*p_command_hash text/);
   assert.match(migration, /payroll_control_import_transition_v1\([\s\S]*p_context jsonb,[\s\S]*p_batch_id uuid,[\s\S]*p_command text,[\s\S]*p_expected_version integer,[\s\S]*p_reason_code text,[\s\S]*p_reason_reference text,[\s\S]*p_idempotency uuid,[\s\S]*p_command_hash text/);
 });

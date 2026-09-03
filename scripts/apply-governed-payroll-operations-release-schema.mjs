@@ -1,7 +1,12 @@
 import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
+import {
+  PAYROLL_CONTROL_IMPORT_BINDING_MIGRATION_VERSION,
+  payrollControlImportBindingFingerprint,
+} from './apply-payroll-control-import-binding-lock-schema.mjs';
 import {
   resolvePinnedNeonTarget,
   verifyPinnedNeonConnectedTarget,
@@ -58,6 +63,11 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-payroll-art-report-capability-schema.mjs', import.meta.url),
     envPrefix: 'PAYROLL_ART_REPORT',
   }),
+  Object.freeze({
+    version: '034-payroll-control-import-binding-lock',
+    script: new URL('./apply-payroll-control-import-binding-lock-schema.mjs', import.meta.url),
+    envPrefix: 'PAYROLL_CONTROL_IMPORT_BINDING',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -65,7 +75,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-033',
+    targetLabel: 'release 024-034',
   });
 }
 
@@ -92,6 +102,30 @@ export function payrollOperationsChildEnvironment(target, envPrefix, env = proce
   };
 }
 
+export async function payrollOperationsReleaseStepsForState(client) {
+  const installed = await client.query(
+    'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1',
+    [PAYROLL_CONTROL_IMPORT_BINDING_MIGRATION_VERSION],
+  );
+  if (!installed.rowCount) return PAYROLL_OPERATIONS_RELEASE_STEPS;
+
+  const migration = await readFile(new URL(
+    './migrations/034-payroll-control-import-binding-lock.sql', import.meta.url,
+  ), 'utf8');
+  const expected = payrollControlImportBindingFingerprint(migration);
+  if (installed.rowCount !== 1
+      || String(installed.rows[0].checksum_sha256 || '').trim() !== expected) {
+    throw new Error(`Drift detectado: ${PAYROLL_CONTROL_IMPORT_BINDING_MIGRATION_VERSION}`);
+  }
+
+  // 034 reemplaza deliberadamente la firma publica que 025 verifica. En un
+  // reapply se conserva el ledger 025 y se verifica mediante el prerequisito
+  // checksum de 034, sin intentar reconstruir la fachada historica.
+  return Object.freeze(PAYROLL_OPERATIONS_RELEASE_STEPS.filter((step) => (
+    step.version !== '025-governed-payroll-control-import'
+  )));
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const target = resolvePayrollOperationsReleaseTarget(args, process.env);
@@ -99,15 +133,17 @@ async function main() {
   // One preflight connection proves every migration will target the same
   // branch, project, direct endpoint and database before the first write.
   const client = new Client({ connectionString: target.databaseUrl });
+  let releaseSteps;
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-033');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-034');
+    releaseSteps = await payrollOperationsReleaseStepsForState(client);
   } finally {
     await client.end().catch(() => undefined);
   }
 
   const childArguments = payrollOperationsChildArguments(target);
-  for (const step of PAYROLL_OPERATIONS_RELEASE_STEPS) {
+  for (const step of releaseSteps) {
     const result = spawnSync(
       process.execPath,
       [fileURLToPath(step.script), ...childArguments],
@@ -125,7 +161,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-033 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-034 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]
