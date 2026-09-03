@@ -45,6 +45,35 @@ const payrollFixture = Object.freeze({
   limitations: ['Fixture sintético de navegador; no habilita cálculo ni publicación.'],
 });
 
+const controlImportBootstrapFixture = Object.freeze({
+  ok: true,
+  data: {
+    principal: {
+      tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      membershipId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      certifiedBindingId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      roleKey: 'PLATFORM_OWNER_OPERATIVO_INTEGRAL',
+      employmentLinked: true,
+      capabilities: [
+        'payroll.control_import.read',
+        'payroll.control_import.prepare',
+        'payroll.control_import.audit.read',
+        'payroll.art_report.generate',
+      ],
+    },
+    batches: [],
+    recentEvents: [],
+    limits: {
+      maxSourceBytes: 16384,
+      contractVersion: 'payroll-control-import.v1',
+      hmacKeyVersion: 'hmac-v1',
+      definitionKey: 'payroll-post-close-701-703.v1',
+      sourceKinds: ['grh_observed', 'operator_control'],
+      concepts: ['701', '703'],
+    },
+  },
+});
+
 function previewFixture(byteLength) {
   return {
     ok: true,
@@ -89,6 +118,12 @@ const server = http.createServer((request, response) => {
     }
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     response.end(JSON.stringify(payrollFixture));
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/internal-payroll-control-import'
+      && url.searchParams.get('resource') === 'bootstrap') {
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    response.end(JSON.stringify(controlImportBootstrapFixture));
     return;
   }
   if (request.method === 'POST' && url.pathname === '/api/internal-grh-source-preview') {
@@ -283,6 +318,68 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /borrador local con coincidencia aritmética/);
     assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'ok');
 
+    const persistedControl = page.locator('[data-payroll-control-import-workflow]');
+    await page.waitForFunction(() => document.querySelector('[data-control-import-status]')?.textContent.includes('Se cargaron'));
+    assert.equal(await persistedControl.locator('[data-control-import-prepare-panel]').isVisible(), true);
+    assert.match(await persistedControl.locator('[data-control-import-maker-checker]').innerText(), /otra identidad autorizada debe aprobarlas/i);
+    assert.match(await persistedControl.locator('[data-control-import-empty]').innerText(), /No hay corridas informadas/);
+
+    const art = page.locator('[data-payroll-art-report-workbench]');
+    await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('Contexto validado'));
+    assert.equal(await art.locator('[data-art-form]').isVisible(), true);
+    await art.locator('[data-art-period]').fill('2026-08');
+    await art.locator('[data-art-scope]').selectOption('all');
+    await art.locator('[data-art-snapshot]').fill('grh-art-2026-08-qa');
+    await art.locator('[data-art-cutoff]').fill('2026-09-03T18:00');
+    const artSource = [
+      'liquidacion;jurisdiccion;legajo;dni;cuil;sexo;dias_trabajados;concepto_993_ars;concepto_995_ars',
+      'mensual-2026-08-j42;42;1001;12345678;20123456786;M;31;100000,00;2500,00',
+    ].join('\r\n');
+    await art.locator('[data-art-file]').setInputFiles({
+      name: 'personas-art-privado.csv', mimeType: 'text/csv', buffer: Buffer.from(artSource),
+    });
+    assert.doesNotMatch(await art.locator('[data-art-file-state]').innerText(), /personas-art-privado/);
+    await art.getByRole('button', { name: 'Generar control ART' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('sin errores de fila'));
+    assert.equal(await art.locator('[data-art-accepted]').innerText(), '1');
+    assert.equal(await art.locator('[data-art-rejected]').innerText(), '0');
+    assert.equal(await art.locator('[data-art-salary]').innerText(), '$ 102.500,00');
+    assert.match(await art.locator('[data-art-fingerprint]').innerText(), /^sha256:[a-f0-9]{64}$/);
+    assert.equal(await art.locator('[data-art-downloads] button').count(), 6);
+    assert.equal(await art.getByRole('button', { name: 'Descargar Excel' }).count(), 1);
+    assert.equal(await art.getByRole('button', { name: 'Descargar PDF' }).count(), 1);
+    assert.doesNotMatch(await art.innerText(), /personas-art-privado/);
+
+    const [artXlsxDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      art.getByRole('button', { name: 'Descargar Excel' }).click(),
+    ]);
+    assert.match(artXlsxDownload.suggestedFilename(), /^municontrol_art-provincia_2026-08_todos_[a-f0-9]{12}\.xlsx$/);
+    const artXlsxPath = path.join(os.tmpdir(), `municontrol-payroll-art-${label}.xlsx`);
+    await artXlsxDownload.saveAs(artXlsxPath);
+    const artXlsxBytes = fs.readFileSync(artXlsxPath);
+    assert.deepEqual([...artXlsxBytes.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+    assert.equal(artXlsxBytes.includes(Buffer.from('Documento interno restringido')), true);
+    assert.equal(artXlsxBytes.includes(Buffer.from('personas-art-privado')), false);
+    downloads.push(artXlsxPath);
+
+    const [artPdfDownload] = await Promise.all([
+      page.waitForEvent('download'),
+      art.getByRole('button', { name: 'Descargar PDF' }).click(),
+    ]);
+    assert.match(artPdfDownload.suggestedFilename(), /^municontrol_art-provincia_2026-08_todos_[a-f0-9]{12}\.pdf$/);
+    const artPdfPath = path.join(os.tmpdir(), `municontrol-payroll-art-${label}.pdf`);
+    await artPdfDownload.saveAs(artPdfPath);
+    const artPdfBytes = fs.readFileSync(artPdfPath);
+    assert.equal(artPdfBytes.subarray(0, 8).toString('ascii'), '%PDF-1.4');
+    assert.equal(artPdfBytes.includes(Buffer.from('personas-art-privado')), false);
+    downloads.push(artPdfPath);
+
+    await art.scrollIntoViewIfNeeded();
+    const artScreenshot = path.join(os.tmpdir(), `municontrol-payroll-art-${label}.png`);
+    await page.screenshot({ path: artScreenshot, fullPage: false });
+    screenshots.push(artScreenshot);
+
     const [xlsxDownload] = await Promise.all([
       page.waitForEvent('download'),
       postClose.locator('[data-post-close-export-xlsx]').click(),
@@ -399,6 +496,8 @@ async function inspect(viewport, label) {
       previewVisible: Boolean(document.querySelector('[data-grh-source-preview]')?.getBoundingClientRect().width),
       postCloseVisible: Boolean(document.querySelector('[data-payroll-post-close-reconciler]')?.getBoundingClientRect().width),
       monthlyCloseVisible: Boolean(document.querySelector('[data-monthly-close-precheck]')?.getBoundingClientRect().width),
+      persistedControlVisible: Boolean(document.querySelector('[data-payroll-control-import-workflow]')?.getBoundingClientRect().width),
+      artVisible: Boolean(document.querySelector('[data-payroll-art-report-workbench]')?.getBoundingClientRect().width),
       postCloseGeometry: (() => {
         const panel = document.querySelector('.post-close-results');
         const state = document.querySelector('[data-post-close-status]');
@@ -419,6 +518,8 @@ async function inspect(viewport, label) {
     assert.equal(layout.previewVisible, true, `${label}: previsualización oculta`);
     assert.equal(layout.postCloseVisible, true, `${label}: control poscierre oculto`);
     assert.equal(layout.monthlyCloseVisible, true, `${label}: precontrol mensual oculto`);
+    assert.equal(layout.persistedControlVisible, true, `${label}: corridas persistidas ocultas`);
+    assert.equal(layout.artVisible, true, `${label}: reporte ART oculto`);
     assert.ok(layout.postCloseGeometry.panel.right <= viewport.width + 1, `${label}: panel poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.state.right <= viewport.width + 1, `${label}: estado poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.table.right <= viewport.width + 1, `${label}: tabla poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);

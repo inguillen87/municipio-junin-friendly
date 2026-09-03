@@ -404,6 +404,15 @@
     .post-close-export-status[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; border-left-color: var(--green); }
     .post-close-export-status[data-state="warning"] { color: #6b4c16; background: var(--amber-soft); border-color: #e2cf9e; border-left-color: var(--amber); }
     .post-close-export-status[data-state="error"] { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; border-left-color: var(--red); }
+    .control-import-scope { display: grid; gap: 7px; margin-bottom: 12px; padding: 12px; color: var(--navy); background: var(--blue-soft); border: 1px solid #c7d6e0; border-radius: 4px; }
+    .control-import-scope strong { overflow-wrap: anywhere; }
+    .control-import-scope span { color: var(--muted); font-size: 11px; }
+    .control-import-table td:nth-child(3) { min-width: 220px; font-variant-numeric: tabular-nums; }
+    .control-import-detail { display: grid; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .control-import-detail h4 { margin: 0; color: var(--navy); font-size: 14px; }
+    .control-import-detail .post-close-actions .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
+    .control-import-events span { display: block; color: var(--muted); font-size: 10px; }
+    [data-payroll-control-import-workflow][aria-busy="true"] { opacity: .82; }
 
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -796,10 +805,197 @@
           </div>
         </section>
 
+        <section class="section" aria-labelledby="controlImportTitle" data-payroll-control-import-workflow aria-busy="true">
+          <header class="section-head">
+            <div>
+              <span class="section-index">06 · CORRIDAS PERSISTIDAS</span>
+              <h2 id="controlImportTitle">Preparar y aprobar fuentes de control con trazabilidad</h2>
+              <p>Convierte el control local de conceptos 701 y 703 en corridas guardadas y auditables. Marcelo prepara; una identidad distinta con rol aprobador —por ejemplo Hugo— valida o rechaza.</p>
+            </div>
+            <span class="state-badge warning">PostgreSQL · separación de funciones</span>
+          </header>
+          <p class="formula-lab-status" data-control-import-status data-state="warning" role="status" aria-live="polite">Consultando corridas persistidas…</p>
+          <div class="post-close-grid" style="margin-top: 12px;">
+            <article class="panel" data-control-import-prepare-panel hidden>
+              <h3>1. Preparar fuente agregada</h3>
+              <p class="panel-note">Sólo acepta el contrato exacto de dos filas —conceptos 701 y 703— para un mes y una jurisdicción. El archivo se valida en el servidor; no se conserva el nombre ni los bytes originales.</p>
+              <form class="post-close-form" data-control-import-form novalidate>
+                <div class="post-close-field">
+                  <label for="controlImportSourceKind">Origen declarado</label>
+                  <select id="controlImportSourceKind" data-control-import-source-kind required>
+                    <option value="">Seleccionar</option>
+                    <option value="grh_observed">Reporte agregado observado en GRH</option>
+                    <option value="operator_control">Planilla agregada de control</option>
+                  </select>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="controlImportPeriod">Período</label>
+                    <input id="controlImportPeriod" data-control-import-period type="month" required autocomplete="off">
+                  </div>
+                  <div class="post-close-field">
+                    <label for="controlImportJurisdiction">Jurisdicción</label>
+                    <select id="controlImportJurisdiction" data-control-import-jurisdiction required>
+                      <option value="">Seleccionar</option>
+                      <option value="42">42</option>
+                      <option value="55">55</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="post-close-field">
+                  <label for="controlImportFile">CSV agregado</label>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Seleccionar CSV 701/703</span>
+                      <input class="post-close-file-input" id="controlImportFile" data-control-import-file type="file" accept=".csv,text/csv,text/plain" required aria-describedby="controlImportFileHelp controlImportFileState">
+                    </span>
+                    <span class="post-close-file-state" id="controlImportFileState" data-control-import-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="controlImportFileHelp">UTF-8, separado por punto y coma, máximo 16 KiB. Debe usar: periodo;jurisdiccion;concepto;importe_ars.</small>
+                </div>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit" data-control-import-prepare>Preparar corrida</button>
+                </div>
+              </form>
+              <div class="method-note">Preparar deja la fuente en cuarentena. No cierra nómina, no modifica GRH, no genera F.931 ni produce una liquidación oficial.</div>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="controlImportRunsTitle">
+              <h3 id="controlImportRunsTitle">2. Revisar y decidir</h3>
+              <div class="control-import-scope">
+                <strong data-control-import-role>Consultando rol…</strong>
+                <span data-control-import-maker-checker>Las acciones se habilitan desde el servidor según rol, identidad y estado.</span>
+              </div>
+              <div class="post-close-actions">
+                <button class="button" type="button" data-control-import-refresh>Actualizar corridas</button>
+              </div>
+              <div class="table-wrap control-import-table">
+                <table>
+                  <caption class="visually-hidden">Corridas persistidas de control de conceptos 701 y 703</caption>
+                  <thead><tr><th>Fuente</th><th>Período</th><th>Importes</th><th>Estado</th><th>Detalle</th></tr></thead>
+                  <tbody data-control-import-batches></tbody>
+                </table>
+                <p class="empty" data-control-import-empty>No hay corridas informadas para este contexto certificado.</p>
+              </div>
+              <div class="control-import-detail" data-control-import-detail hidden>
+                <h4 data-control-import-detail-title>Detalle de corrida</h4>
+                <div class="post-close-meta" data-control-import-detail-meta></div>
+                <div class="table-wrap">
+                  <table>
+                    <caption class="visually-hidden">Importes persistidos de la corrida seleccionada</caption>
+                    <thead><tr><th>Concepto</th><th class="numeric">Importe</th></tr></thead>
+                    <tbody data-control-import-detail-rows></tbody>
+                  </table>
+                </div>
+                <div>
+                  <h4>Historial de auditoría</h4>
+                  <ul class="trace-list control-import-events" data-control-import-events></ul>
+                </div>
+                <div class="post-close-field" data-control-import-reject-field hidden>
+                  <label for="controlImportRejectReason">Motivo de rechazo</label>
+                  <select id="controlImportRejectReason" data-control-import-reject-reason>
+                    <option value="contract_invalid">El archivo no cumple el contrato</option>
+                    <option value="amounts_inconsistent">Los importes son inconsistentes</option>
+                    <option value="source_unverifiable">No se puede verificar la fuente</option>
+                  </select>
+                  <small>La referencia técnica se genera automáticamente; no se guardan comentarios libres ni datos personales.</small>
+                </div>
+                <div class="post-close-actions" data-control-import-actions></div>
+                <p class="post-close-note" data-control-import-action-status data-state="warning" role="status" aria-live="polite">Seleccioná una corrida para ver las decisiones habilitadas.</p>
+              </div>
+              <div class="method-note">“Fuente aprobada” certifica esta carga agregada y su circuito maker-checker. No significa sueldo liquidado, pago realizado ni presentación fiscal generada.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="artReportTitle" data-payroll-art-report-workbench aria-busy="true">
+          <header class="section-head">
+            <div>
+              <span class="section-index">07 · REPORTE ART PROVINCIA</span>
+              <h2 id="artReportTitle">Calcular 993 + 995 y preparar archivos de revisión</h2>
+              <p>Automatiza la planilla ART solicitada por el área contable: valida legajo, DNI, CUIL, sexo y días; calcula con centavos exactos; separa Todo, J42 o J55; y genera detalle, rechazados, resumen y trazabilidad.</p>
+            </div>
+            <span class="state-badge warning">Uso autorizado · salida no oficial</span>
+          </header>
+          <p class="formula-lab-status" data-art-status data-state="warning" role="status" aria-live="polite">Validando el permiso de la sesión…</p>
+          <div class="post-close-grid" style="margin-top: 12px;">
+            <article class="panel">
+              <h3>Fuente canónica ART</h3>
+              <p class="panel-note">El archivo contiene datos personales y se procesa únicamente en este navegador. No se envía ni persiste. Usá una exportación controlada y eliminá las descargas cuando ya no sean necesarias.</p>
+              <div class="post-close-note" data-art-gate>La herramienta permanece bloqueada hasta que el servidor confirme el permiso específico.</div>
+              <form class="post-close-form" data-art-form novalidate hidden>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="artPeriod">Período</label>
+                    <input id="artPeriod" data-art-period type="month" required autocomplete="off">
+                  </div>
+                  <div class="post-close-field">
+                    <label for="artScope">Ámbito del reporte</label>
+                    <select id="artScope" data-art-scope required>
+                      <option value="all">Todo el municipio</option>
+                      <option value="42">Jurisdicción 42</option>
+                      <option value="55">Jurisdicción 55</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="artSnapshot">Identificador de la exportación fuente</label>
+                    <input id="artSnapshot" data-art-snapshot type="text" maxlength="128" required autocomplete="off" placeholder="grh-art-2026-08-cierre-01">
+                    <small>Debe identificar el lote real exportado; no inventes un nombre genérico.</small>
+                  </div>
+                  <div class="post-close-field">
+                    <label for="artCutoff">Fecha y hora de corte de la fuente</label>
+                    <input id="artCutoff" data-art-cutoff type="datetime-local" required autocomplete="off">
+                  </div>
+                </div>
+                <div class="post-close-field">
+                  <label for="artFile">CSV UTF-8 con datos canónicos</label>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir CSV ART</span>
+                      <input class="post-close-file-input" id="artFile" data-art-file type="file" accept=".csv,text/csv,text/plain" required aria-describedby="artFileHelp artFileState">
+                    </span>
+                    <span class="post-close-file-state" id="artFileState" data-art-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="artFileHelp">Máximo 2 MiB y 10.000 filas. Importe en pesos con coma y dos decimales; sin separador de miles.</small>
+                </div>
+                <code class="post-close-format">liquidacion;jurisdiccion;legajo;dni;cuil;sexo;dias_trabajados;concepto_993_ars;concepto_995_ars</code>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit" data-art-submit>Generar control ART</button>
+                  <button class="button" type="button" data-art-reset>Limpiar datos locales</button>
+                </div>
+              </form>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="artResultTitle">
+              <h3 id="artResultTitle">Resultado y descargas</h3>
+              <div data-art-result hidden>
+                <span class="state-badge" data-art-result-state>Sin ejecutar</span>
+                <div class="source-preview-metrics" style="margin-top: 10px;">
+                  <div class="source-preview-metric"><span>Filas fuente</span><strong data-art-source-rows>—</strong></div>
+                  <div class="source-preview-metric"><span>Aceptadas</span><strong data-art-accepted>—</strong></div>
+                  <div class="source-preview-metric"><span>Rechazadas</span><strong data-art-rejected>—</strong></div>
+                  <div class="source-preview-metric"><span>Masa salarial ART</span><strong data-art-salary>—</strong></div>
+                </div>
+                <div style="margin-top: 12px;">
+                  <h4>Validaciones por fila</h4>
+                  <ul class="quality-list" data-art-rejected-list></ul>
+                </div>
+                <p class="post-close-evidence-summary" style="margin-top: 12px;"><strong>Huella reproducible del reporte</strong><span data-art-fingerprint>—</span></p>
+                <div class="post-close-export" style="margin-top: 12px;">
+                  <h4>Paquete para revisión</h4>
+                  <p>Incluye cuatro CSV auditables, un Excel de cuatro hojas y un PDF institucional interno. “Detalle” contiene datos personales; “rechazados” informa sólo número de fila y códigos de error.</p>
+                  <div class="post-close-export-actions" data-art-downloads></div>
+                </div>
+              </div>
+              <div class="method-note">La fórmula implementada es exclusivamente concepto 993 + concepto 995, según el requerimiento relevado. Excel y PDF quedan identificados con huellas SHA-256 y rotulados como documentos internos restringidos. La herramienta no envía el archivo, no modifica nómina y no habilita una presentación oficial ante ART u otro organismo.</div>
+            </article>
+          </div>
+        </section>
+
         <section class="section" aria-labelledby="monthlyClosePrecheckTitle" data-monthly-close-precheck>
           <header class="section-head">
             <div>
-              <span class="section-index">06 · CONTROL MENSUAL</span>
+              <span class="section-index">08 · CONTROL MENSUAL</span>
               <h2 id="monthlyClosePrecheckTitle">Convertir y conciliar el paquete mensual de GRH</h2>
               <p>Abrí los tres resúmenes PDF tipo Mes y la planilla agregada que hoy usa el área. MuniControl recalcula conceptos, J42, J55 y el total general, detecta diferencias y genera insumos normalizados sin conservar los archivos.</p>
             </div>
@@ -1026,12 +1222,12 @@
         </section>
 
         <section class="section" aria-labelledby="historyTitle">
-          <header class="section-head"><div><span class="section-index">07 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <header class="section-head"><div><span class="section-index">09 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
-          <header class="section-head"><div><span class="section-index">08 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <header class="section-head"><div><span class="section-index">10 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
@@ -1326,6 +1522,8 @@
   <script type="module" src="assets/payroll-formula-linter.js"></script>
   <script type="module" src="assets/grh-source-preview.js"></script>
   <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
+  <script type="module" src="assets/payroll-control-import-workflow.js"></script>
+  <script type="module" src="assets/payroll-art-report-workbench.js"></script>
   <script type="module" src="assets/monthly-close-grh-summary-adapter.js"></script>
   <script type="module" src="assets/monthly-close-jurisdiction-xlsx-adapter.js"></script>
   <script type="module" src="assets/monthly-close-local-precheck.js"></script>
