@@ -11,6 +11,8 @@ export const PAYROLL_POST_CLOSE_MAX_OBSERVATION_LENGTH = 500;
 const HEADER = 'periodo;jurisdiccion;concepto;importe_ars';
 const PERIOD = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])$/;
 const AMOUNT = /^-?(?:0|[1-9][0-9]{0,17}),[0-9]{2}$/;
+const MIN_INT64 = -9223372036854775808n;
+const MAX_INT64 = 9223372036854775807n;
 const CENTS = /^-?(?:0|[1-9][0-9]*)$/;
 const JURISDICTIONS = Object.freeze(['42', '55']);
 const CONCEPTS = Object.freeze(['701', '703']);
@@ -79,7 +81,14 @@ function amountToCents(value) {
   if (negative && cents === 0n) {
     fail('POST_CLOSE_AMOUNT_INVALID', 'El importe negativo cero no es canónico');
   }
-  return negative ? -cents : cents;
+  const signed = negative ? -cents : cents;
+  if (signed < MIN_INT64 || signed > MAX_INT64) {
+    fail(
+      'POST_CLOSE_AMOUNT_OUT_OF_RANGE',
+      'El importe excede el rango exacto admitido por el registro institucional',
+    );
+  }
+  return signed;
 }
 
 function decodeSource(bytes) {
@@ -253,13 +262,20 @@ export function mountPayrollPostCloseReconciler(root = document) {
   const jurisdiction = host.querySelector('[data-post-close-jurisdiction]');
   const observedFile = host.querySelector('[data-post-close-observed-file]');
   const controlFile = host.querySelector('[data-post-close-control-file]');
+  const observedFileState = host.querySelector('[data-post-close-observed-file-state]');
+  const controlFileState = host.querySelector('[data-post-close-control-file-state]');
   const observation = host.querySelector('[data-post-close-observation]');
   const submit = host.querySelector('[data-post-close-submit]');
   const reset = host.querySelector('[data-post-close-reset]');
   const status = host.querySelector('[data-post-close-status]');
+  const errorSummary = host.querySelector('[data-post-close-error-summary]');
+  const errorTitle = host.querySelector('[data-post-close-error-title]');
+  const errorList = host.querySelector('[data-post-close-error-list]');
   const resultHost = host.querySelector('[data-post-close-result]');
   const rows = host.querySelector('[data-post-close-rows]');
   const observationNote = host.querySelector('[data-post-close-observation-note]');
+  const evidenceSummary = host.querySelector('[data-post-close-evidence-summary]');
+  const evidenceDetails = host.querySelector('[data-post-close-evidence-details]');
   const exportActions = host.querySelector('[data-post-close-export-actions]');
   const exportXlsx = host.querySelector('[data-post-close-export-xlsx]');
   const exportPdf = host.querySelector('[data-post-close-export-pdf]');
@@ -273,8 +289,10 @@ export function mountPayrollPostCloseReconciler(root = document) {
   const outputs = Object.fromEntries(outputSelectors.map((selector) => (
     [selector, host.querySelector(selector)]
   )));
-  if (!form || !period || !jurisdiction || !observedFile || !controlFile || !observation
-      || !submit || !reset || !status || !resultHost || !rows || !observationNote
+  if (!form || !period || !jurisdiction || !observedFile || !controlFile
+      || !observedFileState || !controlFileState || !observation || !submit || !reset
+      || !status || !errorSummary || !errorTitle || !errorList || !resultHost || !rows
+      || !observationNote || !evidenceSummary || !evidenceDetails
       || !exportActions || !exportXlsx || !exportPdf || !exportStatus
       || Object.values(outputs).some((value) => !value)) return false;
 
@@ -285,17 +303,70 @@ export function mountPayrollPostCloseReconciler(root = document) {
     status.textContent = message;
   }
 
+  function setExportStatus(state, message) {
+    exportStatus.dataset.state = state;
+    exportStatus.textContent = message;
+  }
+
+  function updateFileState(input, output) {
+    const file = input.files && input.files[0];
+    if (!file) {
+      output.dataset.state = '';
+      output.textContent = 'No hay un archivo seleccionado.';
+      input.setAttribute('aria-invalid', 'false');
+      return;
+    }
+    const tooLarge = file.size > PAYROLL_POST_CLOSE_MAX_FILE_BYTES;
+    output.dataset.state = tooLarge ? 'error' : 'ready';
+    output.textContent = tooLarge
+      ? `Archivo seleccionado · ${file.size} bytes · supera el máximo de 16 KiB.`
+      : `Archivo seleccionado · ${file.size} bytes.`;
+    input.setAttribute('aria-invalid', String(tooLarge));
+  }
+
+  function clearFormErrors() {
+    errorSummary.hidden = true;
+    errorList.replaceChildren();
+    for (const element of [period, jurisdiction, observedFile, controlFile]) {
+      element.setAttribute('aria-invalid', 'false');
+    }
+  }
+
+  function showFormErrors(title, entries) {
+    errorTitle.textContent = title;
+    errorList.replaceChildren();
+    for (const entry of entries) {
+      entry.element.setAttribute('aria-invalid', 'true');
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${entry.element.id}`;
+      link.textContent = entry.message;
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        entry.element.focus();
+      });
+      item.appendChild(link);
+      errorList.appendChild(item);
+    }
+    errorSummary.hidden = false;
+    errorSummary.focus();
+  }
+
   function clearResult() {
     exportSnapshot = null;
+    observation.required = false;
     resultHost.hidden = true;
     rows.replaceChildren();
     observation.required = false;
     exportActions.hidden = true;
     exportXlsx.disabled = true;
     exportPdf.disabled = true;
-    exportStatus.textContent = 'Primero completá una conciliación exportable.';
+    setExportStatus('warning', 'Primero completá una conciliación exportable.');
     for (const output of Object.values(outputs)) output.textContent = '—';
+    evidenceSummary.textContent = 'Sin huellas calculadas.';
+    evidenceDetails.open = false;
     observationNote.textContent = 'La observación sólo es obligatoria cuando existe diferencia.';
+    observationNote.dataset.state = '';
   }
 
   function render(result) {
@@ -323,15 +394,21 @@ export function mountPayrollPostCloseReconciler(root = document) {
     outputs['[data-post-close-observed-bytes]'].textContent = `${result.sources.observed.byteLength} bytes`;
     outputs['[data-post-close-control-hash]'].textContent = result.sources.control.sha256;
     outputs['[data-post-close-control-bytes]'].textContent = `${result.sources.control.byteLength} bytes`;
-    observation.required = result.observationRequired;
+    const identicalSources = result.warnings.includes('SOURCE_BYTES_IDENTICAL');
+    evidenceSummary.textContent = `2 fuentes identificadas · ${result.sources.observed.byteLength} y ${result.sources.control.byteLength} bytes · ${identicalSources ? 'huellas iguales' : 'huellas diferentes'}.`;
+    evidenceDetails.open = false;
+    observation.required = result.observationRequired && !result.inputRequirementsSatisfied;
     if (result.status === 'matched') {
       observationNote.textContent = 'Los conceptos coinciden al centavo para esta jurisdicción.';
+      observationNote.dataset.state = 'ok';
       setStatus('ok', 'Coincidencia exacta. Este control local no aprueba ni cierra la liquidación.');
     } else if (result.status === 'difference_acknowledged') {
       observationNote.textContent = 'Se recibió una observación para esta ejecución local, pero su texto no se conserva. La diferencia sigue abierta.';
+      observationNote.dataset.state = 'warning';
       setStatus('warning', 'Observación recibida. La diferencia no está conciliada ni documentada de forma durable.');
     } else {
       observationNote.textContent = 'Escribí una observación para satisfacer el requisito de esta revisión local; el texto no se conservará.';
+      observationNote.dataset.state = 'error';
       setStatus('error', 'Hay diferencias. La observación es obligatoria y no convierte el resultado en coincidencia.');
     }
     if (result.warnings.includes('SOURCE_BYTES_IDENTICAL')) {
@@ -343,24 +420,30 @@ export function mountPayrollPostCloseReconciler(root = document) {
       exportActions.hidden = false;
       exportXlsx.disabled = false;
       exportPdf.disabled = false;
-      exportStatus.textContent = result.reconciled
-        ? 'Listo para descargar como borrador local con coincidencia aritmética. Procedencia e independencia no verificadas por el servidor.'
-        : 'Listo para descargar como borrador local con diferencia abierta. Procedencia e independencia no verificadas por el servidor.';
+      setExportStatus(
+        result.reconciled ? 'ok' : 'warning',
+        result.reconciled
+          ? 'Listo para descargar como borrador local con coincidencia aritmética. Procedencia e independencia no verificadas por el servidor.'
+          : 'Listo para descargar como borrador local con diferencia abierta. Procedencia e independencia no verificadas por el servidor.',
+      );
     } else {
       exportSnapshot = null;
       exportActions.hidden = true;
       exportXlsx.disabled = true;
       exportPdf.disabled = true;
-      exportStatus.textContent = sourceBytesDiffer
-        ? 'Completá el requisito local antes de descargar.'
-        : 'La descarga está bloqueada porque los dos archivos contienen exactamente los mismos bytes.';
+      setExportStatus(
+        sourceBytesDiffer ? 'warning' : 'error',
+        sourceBytesDiffer
+          ? 'Completá el requisito local antes de descargar.'
+          : 'La descarga está bloqueada porque los dos archivos contienen exactamente los mismos bytes.',
+      );
     }
     resultHost.hidden = false;
   }
 
   function exportArtifact(kind) {
     if (!exportSnapshot) {
-      exportStatus.textContent = 'Ejecutá una conciliación exportable antes de descargar.';
+      setExportStatus('error', 'Ejecutá una conciliación exportable antes de descargar.');
       return;
     }
     exportXlsx.disabled = true;
@@ -371,10 +454,12 @@ export function mountPayrollPostCloseReconciler(root = document) {
         ? createPayrollPostCloseXlsxArtifact(exportSnapshot.result, options)
         : createPayrollPostClosePdfArtifact(exportSnapshot.result, options);
       const fileName = downloadPayrollPostCloseArtifact(artifact);
-      exportStatus.textContent = `${fileName} se preparó sin incluir observaciones ni filas nominales.`;
+      setExportStatus('ok', `${fileName} se preparó sin incluir observaciones ni filas nominales.`);
     } catch (error) {
-      exportStatus.textContent = error instanceof Error
-        ? error.message : 'No se pudo preparar la descarga local.';
+      setExportStatus(
+        'error',
+        error instanceof Error ? error.message : 'No se pudo preparar la descarga local.',
+      );
     } finally {
       const enabled = Boolean(exportSnapshot);
       exportXlsx.disabled = !enabled;
@@ -387,6 +472,9 @@ export function mountPayrollPostCloseReconciler(root = document) {
 
   for (const element of [period, jurisdiction, observedFile, controlFile]) {
     element.addEventListener('change', () => {
+      clearFormErrors();
+      if (element === observedFile) updateFileState(observedFile, observedFileState);
+      if (element === controlFile) updateFileState(controlFile, controlFileState);
       observation.value = '';
       clearResult();
       setStatus('', 'Contexto modificado. Ejecutá una nueva conciliación local.');
@@ -395,24 +483,42 @@ export function mountPayrollPostCloseReconciler(root = document) {
 
   reset.addEventListener('click', () => {
     form.reset();
+    clearFormErrors();
+    updateFileState(observedFile, observedFileState);
+    updateFileState(controlFile, controlFileState);
     clearResult();
     setStatus('', 'Esperando período, jurisdicción y dos fuentes locales.');
   });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    clearFormErrors();
     const observed = observedFile.files && observedFile.files[0];
     const control = controlFile.files && controlFile.files[0];
-    if (!observed || !control) {
-      setStatus('error', 'Seleccioná las dos fuentes locales antes de conciliar.');
+    const missing = [];
+    if (!period.value) missing.push({ element: period, message: 'Seleccioná el período del control.' });
+    if (!jurisdiction.value) missing.push({ element: jurisdiction, message: 'Seleccioná la jurisdicción 42 o 55.' });
+    if (!observed) missing.push({ element: observedFile, message: 'Elegí el extracto agregado del reporte GRH.' });
+    if (!control) missing.push({ element: controlFile, message: 'Elegí el extracto agregado de la planilla de control.' });
+    if (missing.length) {
+      showFormErrors('Completá los datos requeridos antes de conciliar.', missing);
+      setStatus('error', 'Faltan datos requeridos. Revisá el resumen de errores.');
       return;
     }
-    if (observed.size > PAYROLL_POST_CLOSE_MAX_FILE_BYTES
-        || control.size > PAYROLL_POST_CLOSE_MAX_FILE_BYTES) {
+    const oversized = [];
+    if (observed.size > PAYROLL_POST_CLOSE_MAX_FILE_BYTES) {
+      oversized.push({ element: observedFile, message: 'El extracto GRH supera el máximo de 16 KiB.' });
+    }
+    if (control.size > PAYROLL_POST_CLOSE_MAX_FILE_BYTES) {
+      oversized.push({ element: controlFile, message: 'La planilla de control supera el máximo de 16 KiB.' });
+    }
+    if (oversized.length) {
+      showFormErrors('Reducí los archivos antes de volver a intentar.', oversized);
       setStatus('error', 'Una fuente supera el límite local de 16 KiB.');
       return;
     }
     submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
     setStatus('', 'Conciliando importes exactos y calculando huellas locales…');
     let observedBytes;
     let controlBytes;
@@ -427,10 +533,13 @@ export function mountPayrollPostCloseReconciler(root = document) {
         observation: observation.value,
       });
       render(result);
+      clearFormErrors();
       if (result.inputRequirementsSatisfied) {
         observedFile.value = '';
         controlFile.value = '';
         observation.value = '';
+        updateFileState(observedFile, observedFileState);
+        updateFileState(controlFile, controlFileState);
       } else {
         observation.focus();
       }
@@ -438,11 +547,23 @@ export function mountPayrollPostCloseReconciler(root = document) {
       const message = error instanceof PayrollPostCloseReconciliationError
         ? error.message : 'No se pudo completar la conciliación local.';
       clearResult();
+      const fields = error instanceof PayrollPostCloseReconciliationError
+        && error.code === 'POST_CLOSE_PERIOD_INVALID'
+        ? [{ element: period, message: 'Revisá el período seleccionado.' }]
+        : error instanceof PayrollPostCloseReconciliationError
+          && error.code === 'POST_CLOSE_JURISDICTION_INVALID'
+          ? [{ element: jurisdiction, message: 'Revisá la jurisdicción seleccionada.' }]
+          : [
+            { element: observedFile, message: 'Revisá el formato y contenido del extracto GRH.' },
+            { element: controlFile, message: 'Revisá el formato y contenido de la planilla de control.' },
+          ];
+      showFormErrors(message, fields);
       setStatus('error', message);
     } finally {
       if (observedBytes) observedBytes.fill(0);
       if (controlBytes) controlBytes.fill(0);
       submit.disabled = false;
+      submit.removeAttribute('aria-busy');
     }
   });
 

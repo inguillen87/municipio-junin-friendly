@@ -221,6 +221,17 @@ async function inspect(viewport, label) {
     assert.equal(await sourcePreview.locator('[data-source-preview-file]').inputValue(), '');
 
     const postClose = page.locator('[data-payroll-post-close-reconciler]');
+    assert.equal(await postClose.getByLabel('Extracto agregado del reporte GRH').count(), 1);
+    assert.equal(await postClose.getByLabel('Extracto agregado de la planilla de control').count(), 1);
+    assert.equal(await postClose.locator('[data-post-close-observed-file-state]').innerText(), 'No hay un archivo seleccionado.');
+    assert.equal(await postClose.locator('[data-post-close-control-file-state]').innerText(), 'No hay un archivo seleccionado.');
+    await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
+    const postCloseErrorSummary = postClose.locator('[data-post-close-error-summary]');
+    assert.equal(await postCloseErrorSummary.isVisible(), true);
+    assert.equal(await postCloseErrorSummary.evaluate((element) => document.activeElement === element), true);
+    assert.equal(await postClose.locator('[data-post-close-observed-file]').getAttribute('aria-invalid'), 'true');
+    assert.equal(await postClose.locator('[data-post-close-control-file]').getAttribute('aria-invalid'), 'true');
+    assert.match(await postCloseErrorSummary.innerText(), /Elegí el extracto agregado del reporte GRH/);
     const observedExact = [
       'periodo;jurisdiccion;concepto;importe_ars',
       '2026-07;42;701;82882370,98',
@@ -243,20 +254,34 @@ async function inspect(viewport, label) {
       mimeType: 'text/csv',
       buffer: Buffer.from(controlExact),
     });
+    assert.match(await postClose.locator('[data-post-close-observed-file-state]').innerText(), /^Archivo seleccionado · \d+ bytes\.$/);
+    assert.match(await postClose.locator('[data-post-close-control-file-state]').innerText(), /^Archivo seleccionado · \d+ bytes\.$/);
+    assert.doesNotMatch(await postClose.locator('[data-post-close-observed-file-state]').innerText(), /reporte-grh-nominal-secreto/);
+    assert.equal(await postCloseErrorSummary.isVisible(), false);
     await postClose.getByRole('button', { name: 'Conciliar archivos' }).click();
     await page.waitForFunction(() => document.querySelector('[data-post-close-status]')?.textContent.includes('Coincidencia exacta'));
     assert.equal(await postClose.locator('[data-post-close-rows] tr').count(), 2);
     assert.match(await postClose.locator('[data-post-close-rows] tr').first().innerText(), /42\s+701\s+\$ 82\.882\.370,98/);
     assert.equal(await postClose.locator('[data-post-close-total-observed]').innerText(), '$ 189.428.490,33');
     assert.equal(await postClose.locator('[data-post-close-total-difference]').innerText(), '$ 0,00');
+    const evidenceDetails = postClose.locator('[data-post-close-evidence-details]');
+    assert.equal(await evidenceDetails.getAttribute('open'), null);
+    assert.match(await postClose.locator('[data-post-close-evidence-summary]').innerText(), /2 fuentes identificadas · \d+ y \d+ bytes · huellas diferentes/);
+    assert.equal(await postClose.locator('[data-post-close-observed-hash]').isVisible(), false);
+    await evidenceDetails.locator('summary').click();
     assert.match(await postClose.locator('[data-post-close-observed-hash]').innerText(), /^sha256:[a-f0-9]{64}$/);
+    assert.equal(await postClose.locator('[data-post-close-observed-hash]').isVisible(), true);
+    await evidenceDetails.locator('summary').click();
     assert.doesNotMatch(await postClose.innerText(), /reporte-grh-nominal-secreto|planilla-control-contable-secreta/);
     assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
     assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
+    assert.equal(await postClose.locator('[data-post-close-observed-file-state]').innerText(), 'No hay un archivo seleccionado.');
+    assert.equal(await postClose.locator('[data-post-close-control-file-state]').innerText(), 'No hay un archivo seleccionado.');
     assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), true);
     assert.equal(await postClose.locator('[data-post-close-export-xlsx]').isEnabled(), true);
     assert.equal(await postClose.locator('[data-post-close-export-pdf]').isEnabled(), true);
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /borrador local con coincidencia aritmética/);
+    assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'ok');
 
     const [xlsxDownload] = await Promise.all([
       page.waitForEvent('download'),
@@ -307,10 +332,12 @@ async function inspect(viewport, label) {
     assert.equal(await postClose.locator('img[src="x"]').count(), 0);
     assert.doesNotMatch(await postClose.innerText(), /persona privada|<img/);
     assert.match(await postClose.locator('[data-post-close-observation-note]').innerText(), /su texto no se conserva/);
+    assert.equal(await postClose.locator('[data-post-close-observation]').getAttribute('required'), null);
     assert.equal(await postClose.locator('[data-post-close-observed-file]').inputValue(), '');
     assert.equal(await postClose.locator('[data-post-close-control-file]').inputValue(), '');
     assert.equal(await postClose.locator('[data-post-close-export-actions]').isVisible(), true);
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /diferencia abierta/);
+    assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'warning');
 
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
@@ -369,6 +396,7 @@ async function inspect(viewport, label) {
       await postClose.locator('[data-post-close-export-status]').textContent(),
       /bloqueada porque los dos archivos contienen exactamente los mismos bytes/,
     );
+    assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'error');
 
     await postClose.getByRole('button', { name: 'Limpiar' }).click();
     assert.equal(await postClose.locator('[data-post-close-result]').isVisible(), false);

@@ -39,6 +39,7 @@ database/
 !scripts/migrations/022-attendance-device-gateway.sql
 !scripts/migrations/023-time-source-unlinked-reader.sql
 !scripts/migrations/024-governed-monthly-attendance-evaluation.sql
+!scripts/migrations/025-governed-payroll-control-import.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

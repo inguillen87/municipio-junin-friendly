@@ -134,6 +134,23 @@ test('rechaza importes ambiguos en lugar de redondear o convertir con Number', a
   }
   assert.equal(formatArsCents('9007199254740993'), '$ 90.071.992.547.409,93');
   assert.equal(formatArsCents('-1'), '-$ 0,01');
+
+  assert.equal((await reconcile({
+    observedBytes: source({ amount701: '92233720368547758,07' }),
+    controlBytes: source({ amount701: '92233720368547758,07' }),
+  })).comparisons[0].observedCents, '9223372036854775807');
+  await assert.rejects(
+    reconcile({ observedBytes: source({ amount701: '92233720368547758,08' }) }),
+    (error) => error.code === 'POST_CLOSE_AMOUNT_OUT_OF_RANGE',
+  );
+  assert.equal((await reconcile({
+    observedBytes: source({ amount701: '-92233720368547758,08' }),
+    controlBytes: source({ amount701: '-92233720368547758,08' }),
+  })).comparisons[0].observedCents, '-9223372036854775808');
+  await assert.rejects(
+    reconcile({ observedBytes: source({ amount701: '-92233720368547758,09' }) }),
+    (error) => error.code === 'POST_CLOSE_AMOUNT_OUT_OF_RANGE',
+  );
 });
 
 test('SHA-256 cubre los bytes crudos de cada fuente y no su texto normalizado', async () => {

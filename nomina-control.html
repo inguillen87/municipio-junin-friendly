@@ -353,9 +353,25 @@
       width: 100%; min-height: 44px; padding: 9px 10px; color: var(--navy); background: #fbfcfc;
       border: 1px solid #9dafb7; border-radius: 4px; font: inherit;
     }
-    .post-close-field input[type="file"] { padding: 8px; }
     .post-close-field textarea { min-height: 88px; resize: vertical; }
     .post-close-field small { color: var(--muted); font-size: 10px; }
+    .post-close-field [aria-invalid="true"] { border-color: var(--red); }
+    .post-close-file-picker { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; align-items: center; }
+    .post-close-file-trigger { position: relative; display: inline-flex; min-width: 154px; }
+    .post-close-file-button { display: inline-flex; width: 100%; align-items: center; justify-content: center; pointer-events: none; }
+    .post-close-file-input {
+      position: absolute; inset: 0; z-index: 1; width: 100% !important; min-height: 44px !important;
+      padding: 0 !important; cursor: pointer; opacity: 0;
+    }
+    .post-close-file-trigger:focus-within .post-close-file-button { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .post-close-file-trigger:has(.post-close-file-input[aria-invalid="true"]) .post-close-file-button { color: var(--red); border-color: var(--red); }
+    .post-close-file-state { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
+    .post-close-file-state[data-state="ready"] { color: var(--green); font-weight: 750; }
+    .post-close-file-state[data-state="error"] { color: var(--red); font-weight: 750; }
+    .post-close-error-summary { padding: 11px 12px; color: var(--red); background: var(--red-soft); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); border-radius: 4px; }
+    .post-close-error-summary strong { display: block; }
+    .post-close-error-summary ul { display: grid; gap: 4px; margin: 7px 0 0; padding-left: 19px; }
+    .post-close-error-summary a { color: inherit; font-size: 11px; font-weight: 750; }
     .post-close-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .post-close-actions .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
     .post-close-actions .button:disabled { cursor: wait; opacity: .62; }
@@ -365,8 +381,14 @@
     .post-close-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .post-close-meta div { min-width: 0; padding: 9px 10px; overflow-wrap: anywhere; background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
     .post-close-meta strong { display: block; margin-bottom: 3px; color: var(--navy); }
+    .post-close-evidence-summary { margin: 0; padding: 9px 10px; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; }
+    .post-close-evidence-summary strong { display: block; margin-bottom: 2px; }
+    .post-close-evidence { border: 1px solid var(--line); border-radius: 4px; background: #fbfcfc; }
+    .post-close-evidence summary { min-height: 44px; padding: 13px 14px; cursor: pointer; color: var(--blue); font-size: 11px; font-weight: 800; }
+    .post-close-evidence .post-close-meta { padding: 0 10px 10px; }
     .post-close-note { margin: 0; padding: 10px 11px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
     .post-close-note[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
+    .post-close-note[data-state="error"] { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; }
     .post-close-format { display: block; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
     .post-close-export { padding: 13px; background: var(--green-soft); border: 1px solid #b9d8ce; border-radius: 4px; }
     .post-close-export h4 { margin: 0; color: var(--navy); font-size: 13px; }
@@ -374,7 +396,10 @@
     .post-close-export-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     .post-close-export-actions .button:first-child { color: #fff; background: var(--green); border-color: var(--green); }
     .post-close-export-actions .button:disabled { cursor: not-allowed; opacity: .55; }
-    .post-close-export-status { display: block; margin-top: 8px; color: var(--green); font-size: 10px; font-weight: 700; }
+    .post-close-export-status { display: block; margin-top: 8px; padding: 8px 9px; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .post-close-export-status[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; border-left-color: var(--green); }
+    .post-close-export-status[data-state="warning"] { color: #6b4c16; background: var(--amber-soft); border-color: #e2cf9e; border-left-color: var(--amber); }
+    .post-close-export-status[data-state="error"] { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; border-left-color: var(--red); }
 
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -448,6 +473,8 @@
       .post-close-results tbody td.numeric, .post-close-results tfoot td.numeric { text-align: right; }
       .post-close-export-actions { display: grid; grid-template-columns: 1fr; }
       .post-close-export-actions .button { width: 100%; }
+      .post-close-file-picker { grid-template-columns: 1fr; }
+      .post-close-file-trigger, .post-close-file-button { width: 100%; }
       .metric strong { font-size: 18px; }
       th, td { padding: 9px; }
     }
@@ -676,15 +703,19 @@
               <code class="post-close-format">periodo;jurisdiccion;concepto;importe_ars
 2026-07;42;701;0,00
 2026-07;42;703;0,00</code>
-              <form class="post-close-form" data-post-close-form>
+              <form class="post-close-form" data-post-close-form novalidate>
+                <div class="post-close-error-summary" data-post-close-error-summary role="alert" tabindex="-1" aria-labelledby="postCloseErrorTitle" hidden>
+                  <strong id="postCloseErrorTitle" data-post-close-error-title>Revisá los datos del control</strong>
+                  <ul data-post-close-error-list></ul>
+                </div>
                 <div class="post-close-context">
                   <div class="post-close-field">
                     <label for="postClosePeriod">Período</label>
-                    <input id="postClosePeriod" data-post-close-period type="month" required autocomplete="off">
+                    <input id="postClosePeriod" data-post-close-period type="month" required autocomplete="off" aria-invalid="false">
                   </div>
                   <div class="post-close-field">
                     <label for="postCloseJurisdiction">Jurisdicción</label>
-                    <select id="postCloseJurisdiction" data-post-close-jurisdiction required>
+                    <select id="postCloseJurisdiction" data-post-close-jurisdiction required aria-invalid="false">
                       <option value="">Seleccionar</option>
                       <option value="42">42</option>
                       <option value="55">55</option>
@@ -693,13 +724,25 @@
                 </div>
                 <div class="post-close-field">
                   <label for="postCloseObservedFile">Extracto agregado del reporte GRH</label>
-                  <input id="postCloseObservedFile" data-post-close-observed-file type="file" accept=".csv,text/csv,text/plain" required>
-                  <small>CSV UTF-8, separado por punto y coma, máximo 16 KiB. El nombre no se conserva.</small>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir archivo CSV</span>
+                      <input class="post-close-file-input" id="postCloseObservedFile" data-post-close-observed-file type="file" accept=".csv,text/csv,text/plain" required aria-invalid="false" aria-describedby="postCloseObservedFileHelp postCloseObservedFileState">
+                    </span>
+                    <span class="post-close-file-state" id="postCloseObservedFileState" data-post-close-observed-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="postCloseObservedFileHelp">CSV UTF-8, separado por punto y coma, máximo 16 KiB. El nombre no se conserva ni se muestra.</small>
                 </div>
                 <div class="post-close-field">
                   <label for="postCloseControlFile">Extracto agregado de la planilla de control</label>
-                  <input id="postCloseControlFile" data-post-close-control-file type="file" accept=".csv,text/csv,text/plain" required>
-                  <small>Debe declarar exactamente el mismo período y jurisdicción que el reporte GRH.</small>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir archivo CSV</span>
+                      <input class="post-close-file-input" id="postCloseControlFile" data-post-close-control-file type="file" accept=".csv,text/csv,text/plain" required aria-invalid="false" aria-describedby="postCloseControlFileHelp postCloseControlFileState">
+                    </span>
+                    <span class="post-close-file-state" id="postCloseControlFileState" data-post-close-control-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="postCloseControlFileHelp">Debe declarar exactamente el mismo período y jurisdicción que el reporte GRH. El nombre no se conserva ni se muestra.</small>
                 </div>
                 <div class="post-close-field">
                   <label for="postCloseObservation">Observación del desvío</label>
@@ -724,10 +767,14 @@
                     <tfoot><tr><th colspan="2">Total jurisdicción</th><td class="numeric" data-label="Reporte GRH" data-post-close-total-observed>—</td><td class="numeric" data-label="Control" data-post-close-total-control>—</td><td class="numeric" data-label="Diferencia" data-post-close-total-difference>—</td><td data-label="Estado">Control local</td></tr></tfoot>
                   </table>
                 </div>
-                <div class="post-close-meta">
-                  <div><strong>Fuente GRH</strong><span data-post-close-observed-hash>—</span><br><span data-post-close-observed-bytes>—</span></div>
-                  <div><strong>Archivo de control declarado</strong><span data-post-close-control-hash>—</span><br><span data-post-close-control-bytes>—</span></div>
-                </div>
+                <p class="post-close-evidence-summary"><strong>Evidencia local</strong><span data-post-close-evidence-summary>Sin huellas calculadas.</span></p>
+                <details class="post-close-evidence" data-post-close-evidence-details>
+                  <summary>Ver evidencia técnica</summary>
+                  <div class="post-close-meta">
+                    <div><strong>Fuente GRH</strong><span data-post-close-observed-hash>—</span><br><span data-post-close-observed-bytes>—</span></div>
+                    <div><strong>Archivo de control declarado</strong><span data-post-close-control-hash>—</span><br><span data-post-close-control-bytes>—</span></div>
+                  </div>
+                </details>
                 <p class="post-close-note" data-post-close-observation-note>Sin resultado.</p>
                 <div class="post-close-export" data-post-close-export-actions hidden>
                   <h4>Descargas del control</h4>
@@ -736,7 +783,7 @@
                     <button class="button" type="button" data-post-close-export-xlsx disabled>Descargar Excel</button>
                     <button class="button" type="button" data-post-close-export-pdf disabled>Descargar PDF</button>
                   </div>
-                  <span class="post-close-export-status" data-post-close-export-status role="status" aria-live="polite">Primero completá una conciliación exportable.</span>
+                  <span class="post-close-export-status" data-post-close-export-status data-state="warning" role="status" aria-live="polite">Primero completá una conciliación exportable.</span>
                 </div>
               </div>
               <div class="method-note">La huella SHA-256 identifica los bytes comparados durante esta ejecución. Como no se firma ni persiste, no constituye evidencia durable ni acredita quién creó el archivo o si el dato es oficial. Las descargas son borradores de control, no cierres aprobados. Este control no cierra nómina, no aprueba aportes, no genera F.931 y no escribe en GRH, PostgreSQL o Neon.</div>
