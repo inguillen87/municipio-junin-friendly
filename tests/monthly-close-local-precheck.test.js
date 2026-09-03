@@ -244,10 +244,10 @@ test('Nómina publica el precontrol mensual visible y el build incluye su módul
   const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
   const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
   const worker = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(html, /06 · PAQUETE MENSUAL/);
-  assert.match(html, /Precontrol técnico del neto por repartición/);
-  assert.match(html, /todavía no transforma los Excel o PDF de origen ni exporta resultados/);
-  assert.match(html, /Herramienta técnica local · diferencia cero/);
+  assert.match(html, /06 · CONTROL MENSUAL/);
+  assert.match(html, /Pasar el control de jurisdicción del Excel a un corte auditable/);
+  assert.match(html, /3\. Cruce técnico avanzado/);
+  assert.match(html, /Excel local · diferencia exigida: \$ 0,00/);
   assert.match(html, /data-monthly-close-precheck/);
   assert.match(html, /data-monthly-close-form novalidate/);
   assert.match(html, /data-monthly-close-concept-file/);

@@ -796,15 +796,76 @@
         <section class="section" aria-labelledby="monthlyClosePrecheckTitle" data-monthly-close-precheck>
           <header class="section-head">
             <div>
-              <span class="section-index">06 · PAQUETE MENSUAL</span>
-              <h2 id="monthlyClosePrecheckTitle">Precontrol técnico del neto por repartición</h2>
-              <p>Valida dos CSV agregados que ya cumplan los contratos visibles y compara al centavo lo informado por conceptos con la acreditación bancaria. Esta herramienta local todavía no transforma los Excel o PDF de origen ni exporta resultados.</p>
+              <span class="section-index">06 · CONTROL MENSUAL</span>
+              <h2 id="monthlyClosePrecheckTitle">Pasar el control de jurisdicción del Excel a un corte auditable</h2>
+              <p>Abrí la planilla agregada que hoy usa el área. MuniControl recalcula J42, J55 y el total general, detecta diferencias y genera un resumen normalizado sin conservar el archivo.</p>
             </div>
-            <span class="state-badge warning">Herramienta técnica local · diferencia cero</span>
+            <span class="state-badge warning">Excel local · diferencia exigida: $ 0,00</span>
           </header>
           <div class="post-close-grid">
             <article class="panel">
-              <h3>Fuentes agregadas de la corrida</h3>
+              <h3>1. Abrir el Excel actual</h3>
+              <p class="panel-note">Primer formato admitido: <strong>CONTROL DE JURISDICCION.xlsx</strong>, con una única hoja CONTROL. Las celdas admitidas son agregadas y la salida normalizada no incluye nombres, CUIL ni cuentas. El libro puede conservar metadatos de autor: no salen del navegador ni aparecen en el resumen. El período se declara porque el libro no lo informa.</p>
+              <form class="post-close-form" data-jurisdiction-xlsx-form novalidate>
+                <div class="post-close-field">
+                  <label for="jurisdictionXlsxPeriod">Período que estás controlando</label>
+                  <input id="jurisdictionXlsxPeriod" data-jurisdiction-xlsx-period type="month" required autocomplete="off" aria-invalid="false">
+                  <small>No se deduce del nombre del archivo.</small>
+                </div>
+                <div class="post-close-field">
+                  <label for="jurisdictionXlsxFile">Excel agregado de control</label>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir Excel</span>
+                      <input class="post-close-file-input" id="jurisdictionXlsxFile" data-jurisdiction-xlsx-file type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required aria-invalid="false" aria-describedby="jurisdictionXlsxHelp jurisdictionXlsxFileState">
+                    </span>
+                    <span class="post-close-file-state" id="jurisdictionXlsxFileState" data-jurisdiction-xlsx-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="jurisdictionXlsxHelp">Máximo 512 KiB. Se procesa en un área aislada del navegador; no se envía ni se guarda.</small>
+                </div>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit" data-jurisdiction-xlsx-submit>Validar planilla</button>
+                  <button class="button" type="button" data-jurisdiction-xlsx-reset>Limpiar</button>
+                </div>
+              </form>
+              <div class="method-note">MuniControl verifica las seis fórmulas del formato y vuelve a calcular sumas y diferencias desde las 28 filas agregadas. Si una fórmula cambió o el total guardado quedó viejo, bloquea el control. Sólo corrige el residuo técnico menor o igual a 0,001 centavo que deja Excel; la tolerancia de negocio sigue siendo cero.</div>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="jurisdictionXlsxResultTitle">
+              <h3 id="jurisdictionXlsxResultTitle">2. Revisar J42, J55 y total general</h3>
+              <p class="formula-lab-status" data-jurisdiction-xlsx-status role="status" aria-live="polite">Esperando período y Excel agregado.</p>
+              <div data-jurisdiction-xlsx-result hidden>
+                <div class="table-wrap">
+                  <table>
+                    <caption class="visually-hidden">Control mensual agregado por jurisdicción</caption>
+                    <thead><tr><th>Jurisdicción</th><th class="numeric">Reparticiones</th><th class="numeric">Suma recalculada</th><th class="numeric">Total guardado</th><th class="numeric">Referencia del archivo</th><th class="numeric">Diferencia recalculada</th><th>Estado</th></tr></thead>
+                    <tbody data-jurisdiction-xlsx-rows></tbody>
+                    <tfoot><tr><th>Total general</th><td class="numeric" data-label="Reparticiones" data-jurisdiction-xlsx-total-rows>—</td><td class="numeric" data-label="Suma recalculada" data-jurisdiction-xlsx-total-recalculated>—</td><td class="numeric" data-label="Total guardado" data-jurisdiction-xlsx-total-saved>—</td><td class="numeric" data-label="Referencia del archivo" data-jurisdiction-xlsx-total-reference>—</td><td class="numeric" data-label="Diferencia recalculada" data-jurisdiction-xlsx-total-difference>—</td><td data-label="Estado">Precontrol local</td></tr></tfoot>
+                  </table>
+                </div>
+                <details class="post-close-evidence">
+                  <summary>Ver los netos informados por repartición</summary>
+                  <div class="table-wrap">
+                    <table>
+                      <caption class="visually-hidden">Netos agregados de cada repartición</caption>
+                      <thead><tr><th>Jurisdicción</th><th>Repartición</th><th class="numeric">Neto informado</th></tr></thead>
+                      <tbody data-jurisdiction-xlsx-details></tbody>
+                    </table>
+                  </div>
+                </details>
+                <p class="post-close-evidence-summary"><strong>Evidencia local</strong><span data-jurisdiction-xlsx-evidence>Sin huella calculada.</span></p>
+                <div class="post-close-export">
+                  <h4>Resumen normalizado para revisión</h4>
+                  <p>Se genera desde las filas recalculadas y sólo cuando J42, J55 y el total general coinciden. Contiene período, jurisdicción, repartición e importe entero en centavos.</p>
+                  <div class="post-close-export-actions">
+                    <button class="button" type="button" data-jurisdiction-xlsx-export="42" disabled>Descargar J42 CSV</button>
+                    <button class="button" type="button" data-jurisdiction-xlsx-export="55" disabled>Descargar J55 CSV</button>
+                  </div>
+                </div>
+              </div>
+              <p class="post-close-note">La coincidencia demuestra un control aritmético del neto preparado. No prueba que el archivo haya sido enviado, aceptado o acreditado por un banco.</p>
+            </article>
+            <article class="panel">
+              <h3>3. Cruce técnico avanzado</h3>
               <p class="panel-note">Usá archivos UTF-8 sin nombres, CUIL, CBU ni legajos. Los encabezados son cerrados: una columna adicional o un período distinto bloquean el control.</p>
               <details class="post-close-evidence">
                 <summary>Ver contratos CSV</summary>
@@ -863,7 +924,7 @@
               </form>
             </article>
             <article class="panel post-close-results" aria-labelledby="monthlyCloseResultTitle">
-              <h3 id="monthlyCloseResultTitle">Control por repartición</h3>
+              <h3 id="monthlyCloseResultTitle">4. Comparar conceptos y acreditación</h3>
               <p class="formula-lab-status" data-monthly-close-status role="status" aria-live="polite">Esperando período, jurisdicción y dos fuentes agregadas.</p>
               <div data-monthly-close-result hidden>
                 <div class="table-wrap">
@@ -877,7 +938,7 @@
                 <p class="post-close-evidence-summary"><strong>Evidencia local</strong><span data-monthly-close-evidence>Sin huellas calculadas.</span></p>
               </div>
               <p class="post-close-note">Fórmula técnica visible: haberes remunerativos + no remunerativos + asignaciones familiares − retenciones. Tolerancia: 0 centavos.</p>
-              <div class="method-note">Este corte no compara automáticamente la planilla de Casa de Gobierno, no certifica el neto de nómina, no genera archivos bancarios ni el TXT de Tribunal y no persiste nada. Las fuentes y sus huellas siguen siendo evidencia local declarada por el operador.</div>
+              <div class="method-note">Este cruce avanzado todavía requiere dos CSV agregados. No certifica el neto de nómina, no genera archivos bancarios ni el TXT de Tribunal y no persiste nada. Las fuentes y sus huellas siguen siendo evidencia local declarada por el operador.</div>
             </article>
           </div>
         </section>
@@ -1183,6 +1244,7 @@
   <script type="module" src="assets/payroll-formula-linter.js"></script>
   <script type="module" src="assets/grh-source-preview.js"></script>
   <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
+  <script type="module" src="assets/monthly-close-jurisdiction-xlsx-adapter.js"></script>
   <script type="module" src="assets/monthly-close-local-precheck.js"></script>
 </body>
 </html>

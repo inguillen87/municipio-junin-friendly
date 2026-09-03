@@ -44,6 +44,8 @@ const shellFiles = [
   'assets/grh-source-preview.js',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
+  'assets/monthly-close-jurisdiction-xlsx-adapter.js',
+  'assets/monthly-close-jurisdiction-xlsx-worker.js',
   'assets/monthly-close-local-precheck.js',
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
@@ -51,6 +53,24 @@ const shellFiles = [
   'assets/rrhh-report-pack.js',
   'datos-personales.html',
   'friendly-data.json'
+];
+const vendorFiles = [
+  {
+    source: 'node_modules/read-excel-file/bundle/read-excel-file.min.js',
+    destination: 'assets/vendor/read-excel-file.min.js',
+  },
+  {
+    source: 'node_modules/read-excel-file/LICENSE',
+    destination: 'assets/vendor/read-excel-file.LICENSE.txt',
+  },
+  {
+    source: 'node_modules/fflate/umd/index.js',
+    destination: 'assets/vendor/fflate.min.js',
+  },
+  {
+    source: 'node_modules/fflate/LICENSE',
+    destination: 'assets/vendor/fflate.LICENSE.txt',
+  },
 ];
 const pwaFiles = [
   'manifest.webmanifest',
@@ -89,6 +109,11 @@ for (const file of [...shellFiles, ...pwaFiles]) {
   const destination = path.join(output, file);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(root, file), destination);
+}
+for (const file of vendorFiles) {
+  const destination = path.join(output, file.destination);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(path.join(root, file.source), destination);
 }
 
 const versionHash = crypto.createHash('sha256');
