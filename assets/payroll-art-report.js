@@ -373,6 +373,13 @@ export async function buildPayrollArtReport(input, { cryptoImpl = globalThis.cry
   return report;
 }
 
+export function requireTrustedPayrollArtReport(report) {
+  if (!REPORT_CONTEXTS.has(report)) {
+    fail('ART_REPORT_NOT_TRUSTED', 'El reporte debe provenir del motor ART de esta sesión');
+  }
+  return report;
+}
+
 function neutralizeSpreadsheetFormula(value) {
   return /^[=+\-@]/.test(value) ? `'${value}` : value;
 }
@@ -494,9 +501,7 @@ export async function createPayrollArtCsvBundle(
   report,
   { cryptoImpl = globalThis.crypto } = {},
 ) {
-  if (!REPORT_CONTEXTS.has(report)) {
-    fail('ART_REPORT_NOT_TRUSTED', 'El reporte debe provenir del motor ART de esta sesión');
-  }
+  requireTrustedPayrollArtReport(report);
   const base = baseFileName(report);
   const artifacts = [];
   artifacts.push(await fileArtifact(
