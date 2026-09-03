@@ -1610,6 +1610,100 @@
         return raw || '—';
       }
 
+      function structuredValueText(value, state) {
+        if (value === null || value === undefined || value === '') return '';
+        if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+        if (typeof value === 'number') return Number.isFinite(value) ? formatNumber(value, false) : '';
+        if (typeof value === 'string') {
+          const raw = value.trim();
+          return /^\[object (?:Object|Array)\]$/i.test(raw) ? 'Detalle disponible en la trazabilidad' : raw;
+        }
+        if (typeof value !== 'object') return text(value);
+
+        const context = state || { depth: 0, seen: new WeakSet() };
+        if (context.seen.has(value)) return 'Referencia circular';
+        if (context.depth >= 4) return Array.isArray(value)
+          ? formatNumber(value.length) + ' elementos'
+          : 'Detalle disponible en la trazabilidad';
+
+        context.seen.add(value);
+        const childState = { depth: context.depth + 1, seen: context.seen };
+        if (Array.isArray(value)) {
+          const labels = value.map(function (item) { return structuredValueText(item, childState); }).filter(Boolean);
+          context.seen.delete(value);
+          const unique = Array.from(new Set(labels));
+          const visible = unique.slice(0, 6);
+          if (unique.length > visible.length) visible.push('… y ' + formatNumber(unique.length - visible.length) + ' más');
+          return visible.join(' · ');
+        }
+
+        const firstReadable = function (keys) {
+          for (const key of keys) {
+            if (!(key in value)) continue;
+            const label = structuredValueText(value[key], childState);
+            if (label) return label;
+          }
+          return '';
+        };
+        const firstDisplayLabel = function (keys) {
+          for (const key of keys) {
+            if (!(key in value)) continue;
+            const candidate = value[key];
+            if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+              for (const labelKey of ['sourceDisplay', 'displayName', 'display', 'label', 'name', 'nombre']) {
+                const label = structuredValueText(candidate[labelKey], childState);
+                if (label) return label;
+              }
+            }
+            const label = structuredValueText(candidate, childState);
+            if (label) return label;
+          }
+          return '';
+        };
+        const preferred = firstReadable(['sourceDisplay', 'displayName', 'display', 'label', 'name', 'nombre', 'description', 'descripcion', 'text', 'value']);
+        const sourceCode = firstReadable(['sourceId', 'sourceCode', 'code', 'codigo']);
+        if (preferred) {
+          context.seen.delete(value);
+          return sourceCode && sourceCode.toLocaleLowerCase('es-AR') !== preferred.toLocaleLowerCase('es-AR')
+            ? preferred + ' · código ' + sourceCode
+            : preferred;
+        }
+
+        const street = firstDisplayLabel(['street', 'calle']);
+        const number = firstDisplayLabel(['number', 'numero', 'altura']);
+        const floor = firstDisplayLabel(['floor', 'piso']);
+        const unit = firstDisplayLabel(['unit', 'departamento', 'depto']);
+        const barrio = firstDisplayLabel(['barrio', 'neighborhood']);
+        const locality = firstDisplayLabel(['locality', 'localidad', 'city', 'ciudad']);
+        const province = firstDisplayLabel(['province', 'provincia']);
+        const postalCode = firstDisplayLabel(['postalCode', 'codigoPostal', 'cp']);
+        const addressParts = [];
+        if (street || number) addressParts.push([street, number].filter(Boolean).join(' '));
+        if (floor) addressParts.push('Piso ' + floor);
+        if (unit) addressParts.push('Unidad ' + unit);
+        if (barrio) addressParts.push('Barrio ' + barrio);
+        if (locality) addressParts.push(locality);
+        if (province) addressParts.push(province);
+        if (postalCode) addressParts.push('CP ' + postalCode);
+        if (addressParts.length) {
+          context.seen.delete(value);
+          return Array.from(new Set(addressParts)).join(' · ');
+        }
+
+        if (sourceCode) {
+          context.seen.delete(value);
+          return 'Código ' + sourceCode;
+        }
+
+        const parts = Object.entries(value).slice(0, 6).map(function (entry) {
+          const label = structuredValueText(entry[1], childState);
+          return label ? readableKey(entry[0], 'detail') + ': ' + label : '';
+        }).filter(Boolean);
+        context.seen.delete(value);
+        if (Object.keys(value).length > 6) parts.push('… y ' + formatNumber(Object.keys(value).length - 6) + ' campos más');
+        return parts.join(' · ');
+      }
+
       function create(tag, className, content) {
         const node = document.createElement(tag);
         if (className) node.className = className;
@@ -2516,10 +2610,11 @@
       }
 
       function detailField(label, value, formatter, evidenceType) {
-        const available = value !== null && value !== undefined && text(value) !== '';
         const field = create('div', 'detail-field');
         const term = create('dt', '', label);
-        const output = available ? (formatter ? formatter(value) : text(value)) : '—';
+        const sourceOutput = structuredValueText(value);
+        const output = sourceOutput ? (structuredValueText(formatter ? formatter(value) : value) || '—') : '—';
+        const available = output !== '—';
         const definition = create('dd', '', output);
         const type = available ? (evidenceType || 'source') : 'unavailable';
         field.append(term, definition, create('span', 'evidence ' + type, evidenceLabel(type)));
@@ -2955,9 +3050,10 @@
 
       function familyValue(label, value, formatter) {
         const wrapper = create('div');
+        const sourceOutput = structuredValueText(value);
         wrapper.append(
           create('dt', '', label),
-          create('dd', '', value !== null && value !== undefined && text(value) !== '' ? (formatter ? formatter(value) : text(value)) : '—')
+          create('dd', '', sourceOutput ? (structuredValueText(formatter ? formatter(value) : value) || '—') : '—')
         );
         return wrapper;
       }
@@ -3108,12 +3204,14 @@
         ], contact.available ? 'source' : 'unavailable'));
 
         const territory = personas.territory && typeof personas.territory === 'object' ? personas.territory : {};
-        section.appendChild(detailSection('Territorio PERSONAS', 'Valores auxiliares conservados tal como fueron extraídos.', [
+        const territorySection = detailSection('Territorio PERSONAS', 'Valores auxiliares conservados tal como fueron extraídos.', [
           detailField('Localidad', territory.locality),
           detailField('Provincia', territory.province),
           detailField('Código postal', territory.postalCode),
           detailField('Domicilio en padrón', territory.inlineAddress)
-        ]));
+        ]);
+        territorySection.appendChild(traceDetails(personas.territory, 'Campos de origen del territorio'));
+        section.appendChild(territorySection);
 
         const domiciles = Array.isArray(personas.domiciles) ? personas.domiciles : [];
         const domicileSection = create('section', 'detail-section');
@@ -3127,11 +3225,11 @@
           const list = create('div', 'family-list');
           domiciles.forEach(function (domicile, index) {
             const card = create('article', 'family-card');
-            const title = text(domicile.sourceDisplay)
-              || [domicile.street, domicile.number].filter(function (part) { return text(part); }).join(' ')
+            const title = structuredValueText(domicile.sourceDisplay)
+              || structuredValueText({ street: domicile.street, number: domicile.number })
               || 'Domicilio ' + (index + 1);
             const header = create('div', 'family-card-head');
-            header.append(create('strong', '', title), create('span', '', text(domicile.type) || 'Tipo no informado'));
+            header.append(create('strong', '', title), create('span', '', structuredValueText(domicile.type) || 'Tipo no informado'));
             const fields = create('dl', 'family-fields');
             fields.append(
               familyValue('Localidad', domicile.locality),
@@ -3142,7 +3240,7 @@
               familyValue('ID original', domicile.sourceId)
             );
             card.append(header, fields);
-            card.appendChild(traceDetails(domicile.coordinates, 'Coordenadas informadas'));
+            card.appendChild(traceDetails(domicile, 'Campos de origen del domicilio'));
             list.appendChild(card);
           });
           domicileSection.appendChild(list);
