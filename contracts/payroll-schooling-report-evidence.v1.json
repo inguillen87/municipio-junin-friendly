@@ -1,0 +1,41 @@
+{
+  "contractVersion": "payroll-schooling-report-evidence.v1",
+  "reportId": "REP-08",
+  "profileId": "schooling-control-noelia-20260903.observed.v1",
+  "requestedOutput": "xlsx",
+  "evidenceLevel": "explicit-output-only",
+  "sources": [
+    {
+      "sourceRef": "noelia-report-requirements-20260903",
+      "kind": "pdf",
+      "sha256": "sha256:4a9d1eea930808aea897524c109b3cef077f7014b848835a4edc7c08c6c11dc4",
+      "page": 2,
+      "observation": "Control de escolaridades solicitado como planilla Excel"
+    },
+    {
+      "sourceRef": "agosto-working-files-20260902",
+      "kind": "zip-inventory",
+      "sha256": "sha256:20d3ab30c090bbe349de19b567b00d949f5a3ffed00094cd3261d4ca3604001f",
+      "xlsxEntries": 50,
+      "uniqueXlsxPayloads": 45,
+      "unambiguousSchoolingWorkbookCandidates": 0
+    }
+  ],
+  "observedColumns": [],
+  "sampleWorkbookAvailable": false,
+  "semanticMappingComplete": false,
+  "generationAllowed": false,
+  "officialUseAllowed": false,
+  "unknownRequirements": [
+    "source_population_and_cutoff",
+    "column_order_names_and_types",
+    "schooling_event_or_concept_mapping",
+    "inclusion_and_exclusion_rules",
+    "jurisdiction_and_department_scope",
+    "amount_source_and_rounding",
+    "duplicate_business_key",
+    "control_totals",
+    "approved_filename_and_sheet_names",
+    "privacy_minimization_and_retention"
+  ]
+}
