@@ -43,6 +43,7 @@ const shellFiles = [
   'assets/grh-source-preview.js',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
+  'assets/rrhh-report-pack.js',
   'datos-personales.html',
   'friendly-data.json'
 ];
@@ -65,6 +66,7 @@ const publicCacheInputs = [
   'control-horario-homologacion.html',
   'attendance-policy-candidates.v1.json',
   'assets/junin-tardiness-policy.js',
+  'assets/rrhh-report-pack.js',
   'friendly-data.json',
   'manifest.webmanifest',
   'assets/pwa/icon.svg',

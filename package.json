@@ -7,6 +7,7 @@
     "test:browser": "node scripts/verify-friendly-browser.mjs",
     "test:attendance-browser": "node scripts/verify-attendance-governance-browser.mjs",
     "test:payroll-formula-browser": "node scripts/build-friendly.mjs && node scripts/verify-payroll-formula-lab-browser.mjs",
+    "test:rrhh-report-browser": "node scripts/build-friendly.mjs && node scripts/verify-rrhh-report-browser.mjs",
     "test:browser:attendance-devices": "node scripts/build-friendly.mjs && node scripts/verify-attendance-device-browser.mjs",
     "test:browser:tenant-lifecycle": "node scripts/verify-tenant-lifecycle-browser.mjs",
     "test:browser:time-sources": "node scripts/verify-time-source-browser.mjs",

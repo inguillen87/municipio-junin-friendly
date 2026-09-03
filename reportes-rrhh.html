@@ -315,6 +315,72 @@
     .method-item p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
     .method-item a { display: inline-block; margin-top: 13px; color: var(--blue); font-size: 12px; font-weight: 700; }
 
+    .export-pack {
+      margin-top: 58px;
+      border: 1px solid var(--line-dark);
+      border-top: 4px solid var(--green);
+      background: var(--surface);
+    }
+    .export-pack-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 24px;
+      padding: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .export-pack-kicker {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .export-pack h2 { margin: 0; color: var(--navy); font: 700 28px/1.1 Georgia, serif; }
+    .export-pack-copy { max-width: 760px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+    .export-pack-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid #8fbab1;
+      background: #eff8f5;
+      color: #075d53;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .export-pack-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-bottom: 1px solid var(--line);
+    }
+    .export-meta-item { min-width: 0; padding: 16px 24px; border-right: 1px solid var(--line); }
+    .export-meta-item:last-child { border-right: 0; }
+    .export-meta-item span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .export-meta-item strong { display: block; overflow-wrap: anywhere; color: var(--ink); font-size: 12px; }
+    .export-pack-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 20px 24px 14px; }
+    .export-button {
+      min-height: 44px;
+      padding: 0 17px;
+      border: 1px solid var(--navy);
+      background: var(--navy);
+      color: #fff;
+      cursor: pointer;
+      font: 800 12px/1 Arial, sans-serif;
+    }
+    .export-button.secondary { background: #fff; color: var(--navy); }
+    .export-button:hover:not(:disabled) { background: var(--green); border-color: var(--green); color: #fff; }
+    .export-button:focus-visible { outline: 3px solid rgba(13, 126, 115, .28); outline-offset: 2px; }
+    .export-button:disabled { border-color: #b9c4c4; background: #e5eaea; color: #657578; cursor: not-allowed; }
+    .export-status { flex: 1 1 260px; min-height: 20px; margin: 0 0 0 4px; color: var(--muted); font-size: 12px; }
+    .export-status[data-state="ready"], .export-status[data-state="done"] { color: #075d53; }
+    .export-status[data-state="error"] { color: var(--red); }
+    .export-pack-note { margin: 0; padding: 0 24px 20px; color: var(--muted); font-size: 11px; }
+
     .report-actions {
       display: grid;
       grid-template-columns: 1.15fr .85fr;
@@ -343,8 +409,8 @@
     }
 
     @media (max-width: 980px) {
-      .report-shell { grid-template-columns: 1fr; gap: 20px; }
-      .report-index { position: static; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 18px; }
+      .report-shell { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+      .report-index { min-width: 0; position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 18px; }
       .report-index nav { display: flex; flex-wrap: wrap; gap: 2px 16px; }
       .report-index nav a { padding: 5px 0; }
       .source-brief { margin-top: 0; padding-top: 0; border-top: 0; max-width: 260px; text-align: right; }
@@ -352,21 +418,26 @@
       .absence-layout { grid-template-columns: 1fr; }
     }
     @media (max-width: 720px) {
-      .header-inner { width: min(100% - 28px, 1240px); min-height: 64px; }
+      .header-inner { width: min(1240px, calc(100% - 28px)); min-height: 64px; }
       .brand-context { display: none; }
       .header-nav a { display: none; }
       .header-nav .internal-link { display: block; margin-left: 0; padding: 7px 9px; font-size: 11px; }
-      .report-shell { width: min(100% - 28px, 1240px); padding-top: 20px; }
+      .report-shell { width: min(1240px, calc(100% - 28px)); padding-top: 20px; }
       .report-index { display: block; }
       .report-index nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 7px; }
       .report-index nav a { flex: 0 0 auto; }
       .source-brief { display: none; }
       .report-title { font-size: clamp(38px, 13vw, 56px); }
       .section-title-row { grid-template-columns: 1fr; gap: 10px; }
-      .management-compare, .method-grid, .report-actions { grid-template-columns: 1fr; }
+      .management-compare, .method-grid, .report-actions, .export-pack-head, .export-pack-meta { grid-template-columns: 1fr; }
       .management-period.current { border-top: 0; border-left: 4px solid var(--green); padding: 18px 18px 18px 14px; }
       .management-period.previous { border-left: 4px solid var(--blue); border-top: 0; padding: 18px 18px 18px 14px; }
       .action-links { border-left: 0; border-top: 1px solid var(--navy); }
+      .export-meta-item { border-right: 0; border-bottom: 1px solid var(--line); }
+      .export-meta-item:last-child { border-bottom: 0; }
+      .export-pack-actions { align-items: stretch; }
+      .export-button { flex: 1 1 180px; }
+      .export-status { flex-basis: 100%; margin: 5px 0 0; }
       .chart-header { display: block; }
       .legend { justify-content: flex-start; margin-top: 10px; }
     }
@@ -385,7 +456,7 @@
     }
     @media print {
       body { background: #fff; }
-      .site-header, .report-index, .report-actions { display: none; }
+      .site-header, .report-index, .report-actions, .export-pack { display: none; }
       .report-shell { display: block; width: 100%; padding: 0; }
       .report-section, .chart-block { break-inside: avoid; }
       .chart-scroll svg { min-width: 0; }
@@ -422,6 +493,7 @@
           <a href="#ausentismo">Ausentismo</a>
           <a href="#sectores">Sectores</a>
           <a href="#metodologia">Método y límites</a>
+          <a href="#descargas">Exportar</a>
         </nav>
       </div>
       <div class="source-brief">
@@ -556,6 +628,28 @@
             <div class="method-item"><strong>Remuneraciones</strong><p id="payrollLimitation">—</p><a href="calidad-datos.html#disponibilidad">Ver disponibilidad por dominio</a></div>
             <div class="method-item"><strong>Período</strong><p id="periodLimitation">—</p><a href="calidad-datos.html#fuente">Consultar trazabilidad</a></div>
           </div>
+        </section>
+
+        <section class="export-pack" id="descargas" aria-labelledby="exportPackTitle">
+          <div class="export-pack-head">
+            <div>
+              <span class="export-pack-kicker">Salida reproducible</span>
+              <h2 id="exportPackTitle">Paquete ejecutivo de RRHH</h2>
+              <p class="export-pack-copy">Descargá un Excel de cinco hojas o un PDF A4 construidos desde la misma instantánea agregada que ves en pantalla.</p>
+            </div>
+            <span class="export-pack-badge">Generación local</span>
+          </div>
+          <div class="export-pack-meta" aria-label="Trazabilidad del paquete">
+            <div class="export-meta-item"><span>Corte</span><strong id="exportCutoff">Validando…</strong></div>
+            <div class="export-meta-item"><span>Fuente</span><strong id="exportDataset">Validando…</strong></div>
+            <div class="export-meta-item"><span>Huella</span><strong id="exportSha">Validando…</strong></div>
+          </div>
+          <div class="export-pack-actions" id="exportPackActions" aria-busy="true">
+            <button class="export-button" id="downloadRrhhXlsx" type="button" disabled>Descargar Excel</button>
+            <button class="export-button secondary" id="downloadRrhhPdf" type="button" disabled>Descargar PDF</button>
+            <p class="export-status" id="reportPackStatus" data-state="loading" role="status" aria-live="polite">Validando el contrato del corte…</p>
+          </div>
+          <p class="export-pack-note">No consulta ni escribe en Neon. Los archivos no contienen nombres, documentos ni filas personales; tampoco constituyen un cierre de liquidación ni calculan remuneraciones.</p>
         </section>
 
         <section class="report-actions" aria-labelledby="continueTitle">
@@ -814,6 +908,53 @@
         renderSectors(data.workforce.activeSectors);
       }
 
+      async function prepareReportPack(data) {
+        const actions = byId('exportPackActions');
+        const status = byId('reportPackStatus');
+        const xlsxButton = byId('downloadRrhhXlsx');
+        const pdfButton = byId('downloadRrhhPdf');
+        const setBusy = (busy) => {
+          actions.setAttribute('aria-busy', String(busy));
+          xlsxButton.disabled = busy;
+          pdfButton.disabled = busy;
+        };
+        try {
+          const reportPack = await import('./assets/rrhh-report-pack.js');
+          const snapshot = reportPack.createRrhhReportSnapshot(data, { generatedAt: new Date().toISOString() });
+          setText('exportCutoff', formatDate(snapshot.source.cutoffDate));
+          setText('exportDataset', snapshot.source.dataset);
+          setText('exportSha', `${snapshot.source.sha256.slice(0, 19)}…`);
+          status.dataset.state = 'ready';
+          status.textContent = 'Instantánea validada. Elegí el formato de salida.';
+          setBusy(false);
+
+          const download = (kind) => {
+            setBusy(true);
+            status.dataset.state = 'loading';
+            status.textContent = `Generando ${kind === 'xlsx' ? 'Excel' : 'PDF'} desde el corte validado…`;
+            try {
+              const artifact = kind === 'xlsx'
+                ? reportPack.createRrhhReportXlsxArtifact(snapshot)
+                : reportPack.createRrhhReportPdfArtifact(snapshot);
+              const fileName = reportPack.downloadRrhhReportArtifact(artifact);
+              status.dataset.state = 'done';
+              status.textContent = `Archivo generado: ${fileName}`;
+            } catch (error) {
+              status.dataset.state = 'error';
+              status.textContent = `No se pudo generar el archivo: ${error.message}`;
+            } finally {
+              setBusy(false);
+            }
+          };
+          xlsxButton.addEventListener('click', () => download('xlsx'));
+          pdfButton.addEventListener('click', () => download('pdf'));
+        } catch (error) {
+          actions.setAttribute('aria-busy', 'false');
+          status.dataset.state = 'error';
+          status.textContent = `Exportación no disponible: ${error.message}`;
+        }
+      }
+
       async function start() {
         try {
           const response = await fetch('friendly-data.json', { cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -823,6 +964,7 @@
           fillReport(data);
           byId('loading').hidden = true;
           byId('reportContent').hidden = false;
+          prepareReportPack(data);
         } catch (error) {
           byId('loading').hidden = true;
           byId('loadError').hidden = false;

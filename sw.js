@@ -17,6 +17,7 @@ const PRECACHE_URLS = Object.freeze([
   '/control-horario-homologacion.html',
   '/attendance-policy-candidates.v1.json',
   '/assets/junin-tardiness-policy.js',
+  '/assets/rrhh-report-pack.js',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',
