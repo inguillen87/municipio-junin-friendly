@@ -867,7 +867,7 @@
             <h3 id="accountProfileTitle">Nombre visible de la cuenta</h3>
             <p class="field-help">Corrige sólo la identidad visible de acceso. No cambia el legajo, los datos laborales, el email, el rol ni las capacidades.</p>
             <div class="compact-grid" style="margin-top:13px">
-              <div class="field"><label for="profileDisplayName">Nombre visible</label><input class="input" id="profileDisplayName" type="text" minlength="2" maxlength="120" autocomplete="off" disabled></div>
+              <div class="field"><label for="profileDisplayName">Nombre visible</label><input class="input" id="profileDisplayName" type="text" minlength="3" maxlength="120" autocomplete="off" disabled></div>
               <div class="field"><label for="profileReason">Fundamento de la corrección</label><textarea class="textarea" id="profileReason" minlength="3" maxlength="500" required placeholder="Fuente institucional que respalda el cambio" disabled></textarea></div>
             </div>
             <div class="dialog-note" style="margin-top:13px"><strong>Impacto de seguridad.</strong> Al confirmar, el backend revoca todas las sesiones activas de esta cuenta. La persona deberá volver a ingresar.</div>
@@ -2683,7 +2683,7 @@
       var identityVersionReady = Number.isSafeInteger(Number(user.identityVersion))
         && Number(user.identityVersion) >= 1;
       var displayName = el.profileDisplayName.value.trim().replace(/\s+/g, ' ');
-      var displayNameReady = displayName.length >= 2
+      var displayNameReady = displayName.length >= 3
         && displayName.length <= 120
         && displayName !== user.displayName;
       var reasonReady = el.profileReason.value.trim().length >= 3;

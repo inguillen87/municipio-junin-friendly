@@ -111,7 +111,7 @@ test('aplicador 030 es ledgered, transaccional, fijado a Neon y depende de 028',
 test('Usuarios y roles corrige solo el nombre con version de identidad y confirmacion revocatoria', () => {
   parseInlineScripts();
   assert.match(html, /id="accountProfileTitle">Nombre visible de la cuenta/);
-  assert.match(html, /id="profileDisplayName"[^>]+minlength="2"[^>]+maxlength="120"[^>]+disabled/);
+  assert.match(html, /id="profileDisplayName"[^>]+minlength="3"[^>]+maxlength="120"[^>]+disabled/);
   assert.match(html, /id="profileReason"[^>]+minlength="3"[^>]+maxlength="500"[^>]+required[^>]+disabled/);
   assert.match(html, /revoca todas las sesiones activas de esta cuenta/i);
   assert.match(html, /identityVersion: authorityVersion\(first\(row\.identityVersion, firstObject\(row\.identity\)\.version\)\)/);
@@ -119,6 +119,7 @@ test('Usuarios y roles corrige solo el nombre con version de identidad y confirm
   const gate = html.match(/function updateAccountProfileGate\(\) \{([\s\S]*?)\n    \}\n\n    function administrativeOnlyRole/);
   assert.ok(gate, 'falta la compuerta de perfil');
   assert.match(gate[1], /platformCapabilityAllowed\(\['platform\.users\.manage'\]\)/);
+  assert.match(gate[1], /displayName\.length >= 3/);
   assert.match(gate[1], /mutationAllowed\('update_account_profile', false\)/);
   assert.match(gate[1], /state\.context\.tenantId === user\.tenantId/);
   assert.match(gate[1], /normalizeUserStatus\(user\.status\) === 'active'/);
