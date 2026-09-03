@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://municontrol.local/contracts/grh-payroll-type-map.v1.json",
+  "contractVersion": "grh-payroll-type-map.v1",
+  "sourceSystem": "GRH",
+  "sourceField": "TIPO_31",
+  "canonicalTypes": [
+    "monthly",
+    "first_fortnight",
+    "sac",
+    "vacation",
+    "supplementary",
+    "final",
+    "other"
+  ],
+  "verifiedMappings": [
+    {
+      "sourceCode": "M",
+      "canonicalType": "monthly",
+      "evidence": {
+        "kind": "observed_ui_label",
+        "label": "M - Mensuales",
+        "surface": "GRH_WEB - Cierre de liquidacion",
+        "observedOn": "2026-09-03"
+      }
+    }
+  ],
+  "unclassifiedSourceCodes": ["P", "S", "V", "O", "F"],
+  "ledger": {
+    "version": "payroll-type-mapping-ledger.v1",
+    "algorithm": "sha256(version + LF + sha256(sql-bytes) + LF + sha256(contract-bytes))",
+    "table": "schema_migrations",
+    "column": "checksum_sha256"
+  },
+  "policy": {
+    "unknownResult": null,
+    "duplicateDetection": "block_when_same_contract_period_concept_cost_center_has_unclassified_source_type",
+    "prohibited": "Do not infer a mapping from initials, frequency, month distribution or UI ordering.",
+    "promotionGate": "Each new mapping requires an explicit source label or an approved municipal catalog, a versioned contract update and regression tests."
+  }
+}

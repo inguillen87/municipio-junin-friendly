@@ -4,6 +4,8 @@ import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = 'login.html?next=novedades-nomina.html';
 const MAX_ROWS = 500;
+const PAYROLL_NOVELTY_HANDOFF_KEY = 'municontrol.payroll-novelty-handoff.v1';
+const PAYROLL_NOVELTY_HANDOFF_MAX_AGE_MS = 5 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KNOWN_COMMANDS = new Set(['submit', 'approve', 'reject', 'cancel']);
 const STATE_LABELS = Object.freeze({
@@ -29,7 +31,22 @@ const ISSUE_LABELS = Object.freeze({
   movement_type_not_observed: 'Tipo de movimiento aún no observado',
   already_observed: 'Novedad ya observada en el período',
   existing_movement_conflict: 'Conflicto con un movimiento existente',
+  legacy_payroll_type_unclassified: 'Tipo GRH pendiente de homologación',
 });
+
+function issueLabel(issue) {
+  const code = String(issue?.code || '');
+  if (code !== 'legacy_payroll_type_unclassified') {
+    return ISSUE_LABELS[code] || code || 'Validación';
+  }
+  const details = issue?.details && typeof issue.details === 'object'
+    ? issue.details : {};
+  if (details.basis === 'published_grh_same_period'
+      && details.reason === 'versioned_payroll_type_mapping_required') {
+    return 'Existe un movimiento GRH coincidente cuyo tipo aún no está homologado. Pedí clasificar ese código antes de enviar la novedad.';
+  }
+  return 'El tipo GRH necesita revisión y homologación antes de enviar la novedad.';
+}
 
 const byId = (id) => document.getElementById(id);
 let bootstrapState = null;
@@ -40,6 +57,7 @@ let selectedBatchId = null;
 let redirectIssued = false;
 let agileDraftRows = [];
 let agileTemplate = null;
+let handoffRequiresPayrollTypeSelection = false;
 const pendingTransitionAttempts = new Map();
 
 const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
@@ -513,7 +531,7 @@ function renderBatchDetail(payload) {
     const tr = document.createElement('tr');
     const issues = Array.isArray(row.issues) ? row.issues : [];
     const issueText = issues.length
-      ? issues.map((issue) => ISSUE_LABELS[issue.code] || issue.code || 'Validación').join(' · ')
+      ? issues.map(issueLabel).join(' · ')
       : 'Validada';
     for (const value of [
       row.rowOrdinal,
@@ -590,6 +608,13 @@ async function loadBootstrap({ quiet = false } = {}) {
     const select = byId('payrollType');
     const current = select.value;
     select.replaceChildren();
+    if (handoffRequiresPayrollTypeSelection) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Elegí el tipo de liquidación';
+      placeholder.disabled = true;
+      select.appendChild(placeholder);
+    }
     for (const type of payload.limits.payrollTypes || []) {
       const option = document.createElement('option');
       option.value = type;
@@ -597,6 +622,7 @@ async function loadBootstrap({ quiet = false } = {}) {
       select.appendChild(option);
     }
     if ([...select.options].some((option) => option.value === current)) select.value = current;
+    if (handoffRequiresPayrollTypeSelection && !current) select.value = '';
     renderBatches();
     byId('pageContent').hidden = false;
     byId('loadingState').hidden = true;
@@ -904,12 +930,61 @@ async function logout() {
   }
 }
 
+function consumePayrollNoveltyHandoff() {
+  let raw = null;
+  try {
+    raw = sessionStorage.getItem(PAYROLL_NOVELTY_HANDOFF_KEY);
+    sessionStorage.removeItem(PAYROLL_NOVELTY_HANDOFF_KEY);
+  } catch {
+    return false;
+  }
+  if (!raw) return false;
+
+  let handoff;
+  try {
+    handoff = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  const createdAt = Number(handoff?.createdAt);
+  const age = Date.now() - createdAt;
+  const legajo = String(handoff?.legajo || '').trim();
+  const periodMonth = String(handoff?.periodMonth || '').trim();
+  const payrollType = String(handoff?.payrollType || '').trim();
+  if (!Number.isSafeInteger(createdAt) || age < 0 || age > PAYROLL_NOVELTY_HANDOFF_MAX_AGE_MS
+      || !/^(?:0|[1-9]\d{0,19})$/.test(legajo)
+      || !/^20(?:0[8-9]|[1-9]\d)-(?:0[1-9]|1[0-2])$/.test(periodMonth)
+      || (payrollType && !Object.hasOwn(TYPE_LABELS, payrollType))) {
+    return false;
+  }
+
+  const individualMode = document.querySelector('[name="sourceMode"][value="individual"]');
+  if (individualMode) individualMode.checked = true;
+  byId('legajo').value = legajo;
+  byId('periodMonth').value = periodMonth;
+  handoffRequiresPayrollTypeSelection = !payrollType;
+  byId('payrollType').value = payrollType;
+  updateMode();
+  invalidatePreparedDraft();
+  showMessage(
+    'success',
+    'Legajo y período preparados',
+    payrollType
+      ? 'Completá concepto, unidades o importe y revisá la novedad. Nada fue enviado automáticamente.'
+      : 'Elegí el tipo de liquidación, completá la novedad y revisala. El código de origen no se convirtió automáticamente.',
+  );
+  return true;
+}
+
 function initialize() {
   const current = new Date();
   byId('periodMonth').value = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
   for (const radio of document.querySelectorAll('[name="sourceMode"]')) radio.addEventListener('change', updateMode);
   byId('entrySection').addEventListener('input', invalidatePreparedDraft);
   byId('entrySection').addEventListener('change', invalidatePreparedDraft);
+  byId('payrollType').addEventListener('change', () => {
+    if (byId('payrollType').value) handoffRequiresPayrollTypeSelection = false;
+  });
   byId('preflightButton').addEventListener('click', preflight);
   byId('prepareButton').addEventListener('click', prepare);
   byId('bulkFile').addEventListener('change', handleFile);
@@ -926,6 +1001,7 @@ function initialize() {
     byId('detailPanel').hidden = true;
   });
   updateMode();
+  consumePayrollNoveltyHandoff();
   loadBootstrap();
 }
 

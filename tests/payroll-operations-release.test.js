@@ -23,7 +23,7 @@ function target(mode = 'isolated') {
   };
 }
 
-test('release ejecuta en orden estricto 024 a 030', () => {
+test('release ejecuta en orden estricto 024 a 032', () => {
   assert.deepEqual(PAYROLL_OPERATIONS_RELEASE_STEPS.map((step) => step.version), [
     '024-governed-monthly-attendance-evaluation',
     '025-governed-payroll-control-import',
@@ -32,17 +32,31 @@ test('release ejecuta en orden estricto 024 a 030', () => {
     '028-governed-account-profile',
     '029-payroll-novelty-first-fortnight',
     '030-governed-account-profile-admin-view',
+    '031-governed-employee-payroll-history',
+    '032-payroll-type-mapping-fail-closed',
   ]);
-  const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
+  const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.find((step) => (
+    step.version === '029-payroll-novelty-first-fortnight'
+  ));
   assert.equal(step029.envPrefix, 'PAYROLL_NOVELTY_FIRST_FORTNIGHT');
   assert.match(step029.script.pathname, /apply-payroll-novelty-first-fortnight-schema\.mjs$/);
-  const step030 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  const step030 = PAYROLL_OPERATIONS_RELEASE_STEPS.find((step) => (
+    step.version === '030-governed-account-profile-admin-view'
+  ));
   assert.equal(step030.envPrefix, 'ACCOUNT_PROFILE_GOVERNANCE');
   assert.match(step030.script.pathname,
     /apply-governed-account-profile-admin-view-schema\.mjs$/);
+  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
+  assert.equal(step031.envPrefix, 'EMPLOYEE_PAYROLL_HISTORY');
+  assert.match(step031.script.pathname,
+    /apply-governed-employee-payroll-history-schema\.mjs$/);
+  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  assert.equal(step032.envPrefix, 'PAYROLL_TYPE_MAPPING');
+  assert.match(step032.script.pathname,
+    /apply-payroll-type-mapping-fail-closed-schema\.mjs$/);
   assert.match(source, /result\.status !== 0/);
   assert.match(source, /release se detuvo antes del siguiente paso/);
-  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-030'\)/);
+  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-032'\)/);
 });
 
 test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () => {
@@ -71,6 +85,16 @@ test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () =>
   );
   assert.equal(accountProfileViewEnv.ACCOUNT_PROFILE_GOVERNANCE_EXPECTED_NEON_BRANCH_ID,
     'br-payroll-release');
+  const historyEnv = payrollOperationsChildEnvironment(
+    target(), 'EMPLOYEE_PAYROLL_HISTORY', {},
+  );
+  assert.equal(historyEnv.EMPLOYEE_PAYROLL_HISTORY_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
+  const typeMappingEnv = payrollOperationsChildEnvironment(
+    target(), 'PAYROLL_TYPE_MAPPING', {},
+  );
+  assert.equal(typeMappingEnv.PAYROLL_TYPE_MAPPING_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
 });
 
 test('release productivo repite branch id en comando, canonico y pin propio', () => {
@@ -94,7 +118,7 @@ test('release productivo repite branch id en comando, canonico y pin propio', ()
   ), /rama confirmada no coincide/);
 });
 
-test('package expone release explícito y Vercel conserva 026 a 030 y la pantalla', async () => {
+test('package expone release explícito y Vercel conserva 026 a 032 y la pantalla', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
   assert.equal(packageJson.scripts['db:payroll:operations:release'],
     'node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs');
@@ -104,6 +128,8 @@ test('package expone release explícito y Vercel conserva 026 a 030 y la pantall
   assert.match(ignore, /!scripts\/migrations\/028-governed-account-profile\.sql/);
   assert.match(ignore, /!scripts\/migrations\/029-payroll-novelty-first-fortnight\.sql/);
   assert.match(ignore, /!scripts\/migrations\/030-governed-account-profile-admin-view\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/031-governed-employee-payroll-history\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/032-payroll-type-mapping-fail-closed\.sql/);
   assert.match(ignore, /!novedades-nomina\.html/);
   assert.doesNotMatch(source, /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
 });

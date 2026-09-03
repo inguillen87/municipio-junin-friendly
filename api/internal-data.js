@@ -1,6 +1,8 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
+import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
+import payrollTypeContract from '../contracts/grh-payroll-type-map.v1.json' with { type: 'json' };
 import {
   annualLeaveReference,
   getTitleViCatalog,
@@ -2901,9 +2903,113 @@ const DIRECTORY_STATUS = new Set([
 const DIRECTORY_CROSSWALK = new Set(['all', 'matched', 'ambiguous', 'unmatched', 'rejected']);
 const DETAIL_EVENT_LIMIT = 25;
 const DETAIL_MOVEMENT_LIMIT = 20;
+const EMPLOYEE_PAYROLL_LIMIT = 12;
+const EMPLOYEE_PAYROLL_MAX_LIMIT = 24;
+const EMPLOYEE_PAYROLL_RECONCILIATION = Object.freeze({
+  kind: 'derived_arithmetic_control',
+  formula: '993 + 994 + 995 - 996 - 999',
+  toleranceAmount: '0.01',
+  currency: 'ARS',
+  sourceReported: false,
+});
+
+function verifiedPayrollTypeMappings(contract) {
+  if (contract?.contractVersion !== 'grh-payroll-type-map.v1'
+      || contract?.sourceSystem !== 'GRH'
+      || contract?.sourceField !== 'TIPO_31'
+      || !Array.isArray(contract?.canonicalTypes)
+      || !Array.isArray(contract?.verifiedMappings)) {
+    return Object.freeze({ canonicalTypes: new Set(), sourceMappings: new Map() });
+  }
+  const canonicalTypes = new Set(contract.canonicalTypes.map((value) => String(value || '').trim()));
+  const sourceMappings = new Map();
+  for (const mapping of contract.verifiedMappings) {
+    const sourceCode = String(mapping?.sourceCode || '').trim().toUpperCase();
+    const canonicalType = String(mapping?.canonicalType || '').trim();
+    if (!sourceCode || !canonicalTypes.has(canonicalType) || sourceMappings.has(sourceCode)) {
+      return Object.freeze({ canonicalTypes: new Set(), sourceMappings: new Map() });
+    }
+    sourceMappings.set(sourceCode, canonicalType);
+  }
+  return Object.freeze({ canonicalTypes, sourceMappings });
+}
+
+const EMPLOYEE_PAYROLL_TYPE_CONTRACT = verifiedPayrollTypeMappings(payrollTypeContract);
+
+function employeePayrollCanonicalType(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  if (EMPLOYEE_PAYROLL_TYPE_CONTRACT.canonicalTypes.has(normalized)) return normalized;
+  return EMPLOYEE_PAYROLL_TYPE_CONTRACT.sourceMappings.get(normalized.toUpperCase()) ?? null;
+}
 
 function boundedQueryValue(req, name, maximum = 160) {
   return queryValue(req, name).trim().slice(0, maximum);
+}
+
+function strictPositiveQueryInteger(req, name, fallback, maximum) {
+  const raw = queryValue(req, name).trim();
+  if (!raw) return fallback;
+  if (!/^[1-9][0-9]*$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed <= maximum ? parsed : null;
+}
+
+function payrollMoney(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const match = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/.exec(String(value).trim());
+  if (!match) return null;
+  const sign = match[1] === '-' && (match[2] !== '0' || /[1-9]/.test(match[3] || '')) ? '-' : '';
+  return `${sign}${BigInt(match[2])}.${String(match[3] || '').padEnd(2, '0')}`;
+}
+
+function payrollDecimal(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const raw = String(value).trim();
+  return /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(raw) ? raw : null;
+}
+
+function payrollCents(value) {
+  const normalized = payrollMoney(value);
+  if (normalized === null) return null;
+  const negative = normalized.startsWith('-');
+  const unsigned = negative ? normalized.slice(1) : normalized;
+  const [integer, fraction] = unsigned.split('.');
+  const cents = (BigInt(integer) * 100n) + BigInt(fraction);
+  return negative ? -cents : cents;
+}
+
+function payrollReconciliation(row) {
+  const values = [
+    row.subjectEarnings,
+    row.nonSubjectEarnings,
+    row.familyAllowance,
+    row.employeeWithholdings,
+    row.netPayable,
+  ].map(payrollCents);
+  if (values.some((value) => value === null)) {
+    return { status: 'not_available', difference: null };
+  }
+  const difference = values[0] + values[1] + values[2] - values[3] - values[4];
+  const magnitude = difference < 0n ? -difference : difference;
+  return {
+    status: magnitude <= 1n ? 'matched' : 'mismatch',
+    difference: payrollMoneyFromCents(difference),
+  };
+}
+
+function employeePayrollStatus(closureStatus, reconciliationStatus) {
+  if (closureStatus === 'open') return 'open';
+  if (closureStatus !== 'closed') return 'uncertified';
+  if (reconciliationStatus === 'matched') return 'closed_reconciled';
+  if (reconciliationStatus === 'mismatch') return 'closed_mismatch';
+  return 'closed_not_reconciled';
+}
+
+function payrollMoneyFromCents(cents) {
+  const negative = cents < 0n;
+  const magnitude = negative ? -cents : cents;
+  return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
 function directoryBaseSql() {
@@ -3113,6 +3219,167 @@ export async function employees(sql, req) {
       },
       facets: { sectors, organizations, agreements }
     }
+  };
+}
+
+export async function employeePayroll(sql, req, identityPrincipal, tenantSession) {
+  const contractId = boundedQueryValue(req, 'contractId', 64);
+  const yearText = boundedQueryValue(req, 'year', 4);
+  const page = strictPositiveQueryInteger(req, 'page', 1, 10000);
+  const limit = strictPositiveQueryInteger(
+    req,
+    'limit',
+    EMPLOYEE_PAYROLL_LIMIT,
+    EMPLOYEE_PAYROLL_MAX_LIMIT,
+  );
+  if (!contractId) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_CONTRACT_REQUIRED',
+        error: 'Seleccioná una ficha válida para consultar sus liquidaciones.',
+      },
+    };
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_CONTRACT_INVALID',
+        error: 'La ficha seleccionada no tiene un identificador válido.',
+      },
+    };
+  }
+  if (yearText && !/^(?:19\d{2}|20\d{2}|2100)$/.test(yearText)) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_YEAR_INVALID',
+        error: 'El año solicitado no es válido.',
+      },
+    };
+  }
+  if (page === null || limit === null) {
+    return {
+      status: 400,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_PAGE_INVALID',
+        error: 'La paginación solicitada no es válida.',
+      },
+    };
+  }
+
+  const actorEmail = String(identityPrincipal?.user?.email || '').trim().toLowerCase();
+  const tenantId = String(identityPrincipal?.tenant?.id || '').trim().toLowerCase();
+  const membershipId = String(identityPrincipal?.tenant?.membershipId || '').trim().toLowerCase();
+  const sessionId = String(tenantSession?.id || '').trim().toLowerCase();
+  const sessionEmail = String(tenantSession?.email || '').trim().toLowerCase();
+  const sessionVersion = Number(tenantSession?.version);
+  const releaseSha = String(tenantSession?.releaseSha || '').trim().toLowerCase();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!actorEmail || actorEmail !== sessionEmail
+      || identityPrincipal?.tenant?.source !== 'membership'
+      || !uuidPattern.test(tenantId) || !uuidPattern.test(membershipId)
+      || !uuidPattern.test(sessionId)
+      || !Number.isSafeInteger(sessionVersion) || sessionVersion < 1
+      || !/^[a-f0-9]{40}$/.test(releaseSha)) {
+    return {
+      status: 401,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_SESSION_INVALID',
+        error: 'La sesión para consultar liquidaciones ya no es válida.',
+      },
+    };
+  }
+
+  const year = yearText ? Number(yearText) : null;
+  const [facadeRow] = await sql.query(`
+    SELECT employee_payroll_history_v1(
+      $1, $2::uuid, $3::integer, $4, $5::uuid, $6::uuid,
+      $7::uuid, $8::integer, $9::integer, $10::integer
+    ) AS result
+  `, [
+    actorEmail, sessionId, sessionVersion, releaseSha, tenantId, membershipId,
+    contractId, year, page, limit,
+  ]);
+  const envelope = facadeRow?.result;
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)
+      || typeof envelope.found !== 'boolean' || !Array.isArray(envelope.items)
+      || envelope.page !== page || envelope.limit !== limit || envelope.year !== year
+      || !Number.isSafeInteger(envelope.total) || envelope.total < 0
+      || envelope.items.length > limit) {
+    const error = new Error('employee_payroll_history_v1 devolvió un contrato inválido');
+    error.code = 'EMPLOYEE_PAYROLL_CONTRACT_DRIFT';
+    throw error;
+  }
+  if (!envelope.found) {
+    return {
+      status: 404,
+      payload: {
+        ok: false,
+        code: 'EMPLOYEE_PAYROLL_NOT_FOUND',
+        error: 'No encontramos la ficha seleccionada.',
+      },
+    };
+  }
+
+  const items = envelope.items.map((row) => {
+    const monetary = {
+      subjectEarnings: payrollMoney(row.subjectEarnings),
+      nonSubjectEarnings: payrollMoney(row.nonSubjectEarnings),
+      familyAllowance: payrollMoney(row.familyAllowance),
+      employeeWithholdings: payrollMoney(row.employeeWithholdings),
+      net: payrollMoney(row.net),
+      netPayable: payrollMoney(row.netPayable),
+      employerContributions: payrollMoney(row.employerContributions),
+    };
+    const reconciliation = payrollReconciliation(monetary);
+    return {
+      payrollDate: row.payrollDate ?? null,
+      sourcePeriod: Number.isSafeInteger(Number(row.sourcePeriod)) ? Number(row.sourcePeriod) : null,
+      sourceMonth: Number.isSafeInteger(Number(row.sourceMonth)) ? Number(row.sourceMonth) : null,
+      payrollType: String(row.payrollType || '').trim() || 'unknown',
+      canonicalPayrollType: employeePayrollCanonicalType(row.payrollType),
+      closureStatus: String(row.closureStatus || '').trim() || 'unknown',
+      presentationStatus: employeePayrollStatus(row.closureStatus, reconciliation.status),
+      itemCount: Number.isSafeInteger(Number(row.itemCount)) ? Number(row.itemCount) : null,
+      distinctConcepts: Number.isSafeInteger(Number(row.distinctConcepts))
+        ? Number(row.distinctConcepts) : null,
+      quantity: payrollDecimal(row.quantity),
+      ...monetary,
+      reconciliation,
+      sourceCutoff: row.sourceCutoff ?? null,
+    };
+  });
+  const total = envelope.total;
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      data: { items },
+      meta: {
+        authority: 'GRH',
+        grain: 'employment_contract_payroll_month',
+        monetaryBasis: 'ARS nominal',
+        monetaryValuesRepresentation: 'decimal_string_2_places',
+        nominalContext: true,
+        containsDirectIdentifiers: false,
+        isOfficialReceipt: false,
+        reconciliation: EMPLOYEE_PAYROLL_RECONCILIATION,
+        year,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.max(1, Math.ceil(total / limit)),
+        },
+      },
+    },
   };
 }
 
@@ -3456,6 +3723,9 @@ export async function employee(sql, req) {
 export function createInternalDataHandler(dependencies = {}) {
   const requireAccess = dependencies.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess;
   const getSql = dependencies.getInternalSql ?? getInternalSql;
+  const getPayrollSql = dependencies.getActionCenterSql ?? getActionCenterSql;
+  const getTenantSession = dependencies.actionMutationSession ?? actionMutationSession;
+  const env = dependencies.env ?? process.env;
 
   return async function handler(req, res) {
     if (String(req.method || 'GET').toUpperCase() !== 'GET') {
@@ -3466,7 +3736,7 @@ export function createInternalDataHandler(dependencies = {}) {
       const resource = queryValue(req, 'resource', 'summary').toLowerCase();
       const requiredCapabilities = capabilitiesForInternalDataResource(resource);
       const access = await requireAccess(req, res, {
-        env: dependencies.env ?? process.env,
+        env,
         requiredCapabilities: requiredCapabilities ?? [],
         requireDataPlaneReady: true,
         requireCertifiedDataBinding: true,
@@ -3478,6 +3748,12 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'employeepayroll') {
+        const tenantSession = getTenantSession(access, env);
+        const sql = await getPayrollSql(env);
+        const result = await employeePayroll(sql, req, access.principal, tenantSession);
         return send(res, result.status, result.payload);
       }
       const sql = await getSql();

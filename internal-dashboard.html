@@ -769,6 +769,48 @@
     .employee-quick-actions p { margin: 5px 0 13px; color: var(--ink-soft); font-size: .8rem; }
     .employee-quick-actions .button-row { margin: 0; }
 
+    .payroll-history {
+      overflow: hidden;
+      border: 1px solid #9fc8c2;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .payroll-history > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px;
+      cursor: pointer;
+      list-style: none;
+      background: #f1faf7;
+    }
+
+    .payroll-history > summary::-webkit-details-marker { display: none; }
+    .payroll-history > summary::after { content: '+'; color: var(--green); font-size: 1.35rem; font-weight: 900; }
+    .payroll-history[open] > summary::after { content: '−'; }
+    .payroll-history-summary strong { display: block; color: var(--navy); }
+    .payroll-history-summary span { display: block; margin-top: 4px; color: var(--ink-soft); font-size: .78rem; font-weight: 500; }
+    .payroll-history-body { padding: 16px; border-top: 1px solid var(--line); }
+    .payroll-history-meta { margin: 0 0 12px; color: var(--ink-soft); font-size: .78rem; }
+    .payroll-list { display: grid; gap: 12px; }
+    .payroll-card { padding: 15px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 9px; background: #fbfcfb; }
+    .payroll-card[data-state="closed_reconciled"] { border-left-color: var(--green); }
+    .payroll-card[data-state="closed_mismatch"] { border-left-color: var(--red); }
+    .payroll-card[data-state="open"], .payroll-card[data-state="uncertified"], .payroll-card[data-state="closed_not_reconciled"] { border-left-color: var(--amber); }
+    .payroll-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .payroll-card-head h4 { margin: 0; color: var(--navy); font-size: .95rem; }
+    .payroll-card-head p { margin: 4px 0 0; color: var(--ink-soft); font-size: .75rem; }
+    .payroll-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 13px 0; }
+    .payroll-amount { padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+    .payroll-amount span { display: block; color: var(--ink-soft); font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .025em; }
+    .payroll-amount strong { display: block; margin-top: 5px; color: var(--navy); font-size: .86rem; font-variant-numeric: tabular-nums; }
+    .payroll-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .payroll-card-actions small { color: var(--ink-soft); }
+    .payroll-card-context small { display: block; }
+    .payroll-card-context .payroll-action-unavailable { margin-top: 5px; color: var(--red); font-weight: 700; }
+
     .detail-counts {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -980,7 +1022,9 @@
       .pagination .button { width: 100%; padding-inline: 11px; }
       .fact-row { grid-template-columns: minmax(0, 1fr) auto; }
       .fact-row dd { grid-column: 1; grid-row: 2; }
-      .family-list, .family-fields { grid-template-columns: 1fr; }
+      .family-list, .family-fields, .payroll-amounts { grid-template-columns: 1fr; }
+      .payroll-card-head, .payroll-card-actions { display: block; }
+      .payroll-card-head .state-pill, .payroll-card-actions .button { margin-top: 10px; }
       .trace-row { grid-template-columns: minmax(0, 1fr) auto; }
       .trace-row dd { grid-column: 1; grid-row: 2; }
       dialog { width: calc(100vw - 16px); max-height: calc(100vh - 16px); }
@@ -1409,16 +1453,19 @@
       const VALID_VIEWS = new Set(['inicio', 'legajos', 'ausentismo', 'calidad']);
       const LEAVE_PREVIEW_HANDOFF_KEY = 'municontrol.leave-preview-handoff.v1';
       const ACTION_SUBJECT_HANDOFF_KEY = 'municontrol.action-subject-handoff.v1';
+      const PAYROLL_NOVELTY_HANDOFF_KEY = 'municontrol.payroll-novelty-handoff.v1';
 
       const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
       const integerFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
       const percentFormatter = new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 });
       const dateFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      const monthFormatter = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
       const state = {
         user: null,
         summary: null,
         summaryError: null,
+        tenantCapabilities: new Set(),
         currentView: 'inicio',
         employeesLoaded: false,
         employeesLoading: false,
@@ -1426,6 +1473,8 @@
         employeeRequest: 0,
         employeeController: null,
         detailController: null,
+        payrollController: null,
+        payrollActionDescriptionSequence: 0,
         filters: { search: '', sector: '', organization: '', agreement: '', status: 'all', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
@@ -1673,6 +1722,7 @@
         const contract = access && typeof access === 'object' ? access : {};
         const tenantCapabilities = capabilitySet(contract.tenantCapabilities);
         const platformCapabilities = capabilitySet(contract.platformCapabilities);
+        state.tenantCapabilities = tenantCapabilities;
         document.querySelectorAll('[data-any-capability]').forEach(function (item) {
           const required = text(item.dataset.anyCapability).split(/\s+/).filter(Boolean);
           item.hidden = required.length > 0
@@ -2427,6 +2477,7 @@
 
       function closeDialog() {
         if (state.detailController) state.detailController.abort();
+        if (state.payrollController) state.payrollController.abort();
         if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
         else els.employeeDialog.removeAttribute('open');
       }
@@ -2434,6 +2485,7 @@
       async function openEmployee(contractId, legajo, companyId, fallbackName) {
         if (!text(contractId) && !text(legajo)) return;
         if (state.detailController) state.detailController.abort();
+        if (state.payrollController) state.payrollController.abort();
         const controller = new AbortController();
         state.detailController = controller;
         els.dialogTitle.textContent = fallbackName || 'Ficha de legajo';
@@ -2509,13 +2561,48 @@
         );
 
         const actions = create('div', 'button-row');
+        const unavailable = [];
         const companyId = text(employee.companyId);
         const legajo = text(employee.legajo);
+        const contractId = text(employee.contractId);
 
-        const calculate = create('button', 'button primary', 'Estimar referencia anual');
+        const payroll = create('button', 'button primary', 'Ver liquidaciones');
+        payroll.type = 'button';
+        const canReadPayroll = state.tenantCapabilities.has('workforce.employee.read')
+          && state.tenantCapabilities.has('payroll.read');
+        payroll.disabled = !contractId || !canReadPayroll;
+        payroll.title = !contractId
+          ? 'La ficha no informó un contrato canónico.'
+          : !canReadPayroll
+            ? 'Tu perfil no tiene habilitada la consulta salarial nominal.'
+          : 'Abrir el historial mensual informado por GRH';
+        if (payroll.disabled) unavailable.push('Ver liquidaciones: ' + payroll.title);
+        payroll.addEventListener('click', function () {
+          const history = document.getElementById('employeePayrollHistory');
+          if (!history) return;
+          history.open = true;
+          history.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        const novelty = create('button', 'button', 'Cargar novedad');
+        novelty.type = 'button';
+        const canPrepareNovelty = state.tenantCapabilities.has('payroll.novelty.prepare');
+        novelty.disabled = !legajo || !canPrepareNovelty;
+        novelty.title = !legajo
+          ? 'La fuente no informó el legajo.'
+          : !canPrepareNovelty
+            ? 'Tu perfil puede consultar, pero no preparar novedades.'
+          : 'Abrir Novedades con este legajo, sin enviarlo automáticamente';
+        if (novelty.disabled) unavailable.push('Cargar novedad: ' + novelty.title);
+        novelty.addEventListener('click', function () {
+          startPayrollNovelty(employee);
+        });
+
+        const calculate = create('button', 'button', 'Estimar referencia anual');
         calculate.type = 'button';
         calculate.disabled = !companyId || !legajo;
         calculate.title = calculate.disabled ? 'La fuente no informó empresa y legajo.' : 'Abrir el cálculo anual con este legajo';
+        if (calculate.disabled) unavailable.push('Estimar referencia anual: ' + calculate.title);
         calculate.addEventListener('click', function () {
           if (!writeOperationalHandoff(LEAVE_PREVIEW_HANDOFF_KEY, { companyId: companyId, legajo: legajo })) return;
           location.assign('licencias-control.html#preview');
@@ -2525,6 +2612,7 @@
         request.type = 'button';
         request.disabled = !legajo;
         request.title = request.disabled ? 'La fuente no informó el legajo.' : 'Abrir una solicitud para esta persona';
+        if (request.disabled) unavailable.push('Nueva solicitud de licencia: ' + request.title);
         request.addEventListener('click', function () {
           if (!writeOperationalHandoff(ACTION_SUBJECT_HANDOFF_KEY, { query: legajo })) return;
           location.assign('centro-acciones.html');
@@ -2532,8 +2620,247 @@
 
         const absence = create('a', 'button', 'Ver ausentismo operativo');
         absence.href = 'ausentismo-control.html';
-        actions.append(calculate, request, absence);
+        actions.append(payroll, novelty, calculate, request, absence);
         section.appendChild(actions);
+        if (unavailable.length) {
+          const availability = create(
+            'p',
+            'detail-section-copy',
+            'Acciones no disponibles en esta sesión: ' + unavailable.join(' '),
+          );
+          availability.id = 'employeeQuickActionsAvailability';
+          actions.querySelectorAll('button:disabled').forEach(function (button) {
+            button.setAttribute('aria-describedby', availability.id);
+          });
+          section.appendChild(availability);
+        }
+        return section;
+      }
+
+      function currentMonthValue() {
+        const current = new Date();
+        return current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0');
+      }
+
+      function noveltyPayrollType(value) {
+        const normalized = text(value).toLowerCase();
+        return ['monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other'].includes(normalized)
+          ? normalized
+          : null;
+      }
+
+      function startPayrollNovelty(employee, liquidation) {
+        const legajo = text(employee && employee.legajo);
+        if (!legajo) {
+          toast('La fuente no informó el legajo para iniciar la novedad.', 'error');
+          return;
+        }
+        const payrollDate = text(liquidation && liquidation.payrollDate);
+        const periodMonth = /^\d{4}-(?:0[1-9]|1[0-2])/.test(payrollDate)
+          ? payrollDate.slice(0, 7)
+          : currentMonthValue();
+        const normalizedPayrollType = noveltyPayrollType(
+          liquidation && (liquidation.canonicalPayrollType || liquidation.payrollType)
+        );
+        const prepared = writeOperationalHandoff(PAYROLL_NOVELTY_HANDOFF_KEY, {
+          legajo: legajo,
+          periodMonth: periodMonth,
+          payrollType: normalizedPayrollType
+        });
+        if (prepared) location.assign('novedades-nomina.html');
+      }
+
+      function formatMoneyExact(value) {
+        const match = /^(-?)(0|[1-9][0-9]*)\.([0-9]{2})$/.exec(text(value));
+        if (!match) return '—';
+        const integer = integerFormatter.format(BigInt(match[2]));
+        return '$ ' + (match[1] || '') + integer + ',' + match[3];
+      }
+
+      function payrollTypeLabel(value) {
+        return ({
+          monthly: 'Mensual',
+          first_fortnight: 'Primera quincena',
+          second_fortnight: 'Segunda quincena',
+          sac: 'SAC',
+          vacation: 'Vacaciones',
+          supplementary: 'Complementaria',
+          final: 'Liquidación final',
+          other: 'Otra'
+        })[text(value).toLowerCase()] || ('Código GRH ' + displayValue(value));
+      }
+
+      function payrollPresentation(value) {
+        return ({
+          closed_reconciled: { label: 'Cerrada · control aritmético coincidente', className: 'active' },
+          open: { label: 'Abierta / preliquidación', className: 'unknown' },
+          uncertified: { label: 'Estado no certificado', className: 'unknown' },
+          closed_mismatch: { label: 'Cierre · control aritmético con diferencia', className: 'unknown' },
+          closed_not_reconciled: { label: 'Cierre · control aritmético no disponible', className: 'unknown' }
+        })[text(value)] || { label: 'Estado no disponible', className: 'inactive' };
+      }
+
+      function payrollAmount(label, value) {
+        const item = create('div', 'payroll-amount');
+        item.append(create('span', '', label), create('strong', '', formatMoneyExact(value)));
+        return item;
+      }
+
+      function payrollCard(item, employee) {
+        const card = create('article', 'payroll-card');
+        const stateValue = text(item.presentationStatus) || 'uncertified';
+        card.dataset.state = stateValue;
+        const presentation = payrollPresentation(stateValue);
+        const head = create('div', 'payroll-card-head');
+        const title = create('div');
+        const parsedDate = parseDate(item.payrollDate);
+        title.append(
+          create('h4', '', parsedDate ? monthFormatter.format(parsedDate) : 'Período no disponible'),
+          create('p', '', payrollTypeLabel(item.canonicalPayrollType || item.payrollType) + ' · ' + displayValue(item.distinctConcepts) + ' conceptos')
+        );
+        head.append(title, create('span', 'state-pill ' + presentation.className, presentation.label));
+        card.appendChild(head);
+
+        if (item.reconciliation && item.reconciliation.status === 'mismatch') {
+          card.appendChild(create(
+            'p',
+            'notice warning',
+            'Control aritmético derivado: diferencia ' + formatMoneyExact(item.reconciliation.difference) + ' (tolerancia ± $ 0,01).',
+          ));
+        }
+
+        const amounts = create('div', 'payroll-amounts');
+        amounts.append(
+          payrollAmount('Haberes remunerativos', item.subjectEarnings),
+          payrollAmount('Haberes no remunerativos', item.nonSubjectEarnings),
+          payrollAmount('Asignaciones familiares', item.familyAllowance),
+          payrollAmount('Retenciones', item.employeeWithholdings),
+          payrollAmount('Neto a pagar', item.netPayable),
+          payrollAmount('Contribuciones patronales', item.employerContributions)
+        );
+        card.appendChild(amounts);
+
+        const actions = create('div', 'payroll-card-actions');
+        const sourceCutoff = item.sourceCutoff ? formatDate(item.sourceCutoff) : 'corte no disponible';
+        const actionContext = create('div', 'payroll-card-context');
+        actionContext.appendChild(create(
+          'small',
+          '',
+          'Fuente GRH · ' + sourceCutoff + ' · resumen mensual, no recibo oficial · control aritmético derivado (tolerancia ± $ 0,01)'
+        ));
+        const novelty = create('button', 'button', 'Cargar novedad para este período');
+        novelty.type = 'button';
+        novelty.disabled = !state.tenantCapabilities.has('payroll.novelty.prepare');
+        novelty.title = novelty.disabled
+          ? 'Tu perfil puede consultar esta liquidación, pero no preparar novedades.'
+          : 'Abrir Novedades con el legajo y este período';
+        if (novelty.disabled) {
+          const availability = create('small', 'payroll-action-unavailable', novelty.title);
+          state.payrollActionDescriptionSequence += 1;
+          availability.id = 'payrollNoveltyUnavailable' + state.payrollActionDescriptionSequence;
+          novelty.setAttribute('aria-describedby', availability.id);
+          actionContext.appendChild(availability);
+        }
+        novelty.addEventListener('click', function () { startPayrollNovelty(employee, item); });
+        actions.append(actionContext, novelty);
+        card.appendChild(actions);
+        return card;
+      }
+
+      function renderEmployeePayrollHistory(employee) {
+        const section = create('details', 'detail-section payroll-history');
+        section.id = 'employeePayrollHistory';
+        const summary = create('summary', 'payroll-history-summary');
+        const summaryText = create('span');
+        summaryText.append(
+          create('strong', '', 'Historial de liquidaciones'),
+          create('span', '', 'Totales mensuales reales del legajo. Resumen de fuente; no es un recibo oficial.')
+        );
+        summary.appendChild(summaryText);
+        section.appendChild(summary);
+
+        const body = create('div', 'payroll-history-body');
+        const meta = create('p', 'payroll-history-meta', 'Todavía no se consultaron importes salariales.');
+        meta.setAttribute('role', 'status');
+        meta.setAttribute('aria-live', 'polite');
+        const list = create('div', 'payroll-list');
+        const more = create('button', 'button', 'Ver períodos anteriores');
+        more.type = 'button';
+        more.hidden = true;
+        body.append(meta, list, more);
+        section.appendChild(body);
+
+        let loaded = false;
+        let loading = false;
+        let nextPage = 1;
+        let activeController = null;
+        let reloadWhenIdle = false;
+        section.addEventListener('toggle', function () {
+          if (!section.open) {
+            reloadWhenIdle = false;
+            if (activeController) activeController.abort();
+            return;
+          }
+          if (loaded) return;
+          if (loading) reloadWhenIdle = true;
+          else loadPage();
+        });
+        async function loadPage() {
+          if (loading || !text(employee.contractId)) return;
+          if (state.payrollController) state.payrollController.abort();
+          const controller = new AbortController();
+          state.payrollController = controller;
+          activeController = controller;
+          loading = true;
+          more.disabled = true;
+          meta.textContent = nextPage === 1 ? 'Consultando liquidaciones…' : 'Consultando períodos anteriores…';
+          try {
+            const params = new URLSearchParams({
+              resource: 'employeepayroll',
+              contractId: text(employee.contractId),
+              page: String(nextPage),
+              limit: '12'
+            });
+            const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
+            const items = Array.isArray(payload && payload.data && payload.data.items) ? payload.data.items : [];
+            const pagination = payload && payload.meta && payload.meta.pagination && typeof payload.meta.pagination === 'object'
+              ? payload.meta.pagination : {};
+            if (nextPage === 1) list.replaceChildren();
+            items.forEach(function (item) { list.appendChild(payrollCard(item || {}, employee)); });
+            const total = nonNegativeNumber(pagination.total);
+            if (nextPage === 1 && !items.length) {
+              list.appendChild(create('div', 'notice warning', 'GRH no informó liquidaciones mensuales para este contrato.'));
+            }
+            meta.textContent = total === null
+              ? formatNumber(list.children.length) + ' liquidaciones recibidas.'
+              : formatNumber(total) + ' liquidaciones mensuales informadas por GRH.';
+            const currentPage = nonNegativeNumber(pagination.page) || nextPage;
+            const pages = nonNegativeNumber(pagination.pages) || currentPage;
+            more.hidden = currentPage >= pages;
+            more.textContent = 'Ver períodos anteriores';
+            nextPage = currentPage + 1;
+            loaded = true;
+          } catch (error) {
+            if (error instanceof UnauthorizedError || error.name === 'AbortError') return;
+            meta.textContent = 'No se pudo consultar el historial salarial.';
+            if (!loaded) {
+              list.replaceChildren(create('div', 'notice error', text(error && error.message) || 'La consulta no está disponible.'));
+            } else {
+              more.textContent = 'Reintentar períodos anteriores';
+            }
+            more.hidden = false;
+          } finally {
+            if (state.payrollController === controller) state.payrollController = null;
+            if (activeController === controller) activeController = null;
+            loading = false;
+            more.disabled = false;
+            if (reloadWhenIdle && section.open && !loaded) {
+              reloadWhenIdle = false;
+              loadPage();
+            }
+          }
+        }
+        more.addEventListener('click', loadPage);
         return section;
       }
 
@@ -2928,6 +3255,7 @@
         els.dialogBody.replaceChildren();
 
         els.dialogBody.appendChild(renderEmployeeQuickActions(employee));
+        els.dialogBody.appendChild(renderEmployeePayrollHistory(employee));
 
         els.dialogBody.appendChild(detailSection('Identidad canónica', 'Identidad consolidada desde GRH; los valores originales permanecen trazables.', [
           detailField('Legajo', employee.legajo),

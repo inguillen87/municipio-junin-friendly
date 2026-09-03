@@ -85,6 +85,27 @@ La suma `82.882.370,98 + 106.546.119,35 = 189.428.490,33` reconcilia exactamente
 
 El paquete mensual contiene tres TXT F.931 de 790, 742 y 112 registros. Cada registro tiene 463 caracteres. Esta evidencia permite construir un validador estructural y casos de regresión, pero no demuestra por sí sola que el diseño de registro siga vigente ni autoriza una presentación fiscal automática.
 
+## Feedback operativo del 03/09: bajar de la nómina al legajo
+
+Dos notas de voz posteriores agregan una necesidad distinta y complementaria al control agregado. La operadora puede consultar la nómina por repartición y abrir la ficha de un legajo, pero no encuentra un recorrido directo para:
+
+1. ver la liquidación mensual de ese legajo;
+2. recorrer sus liquidaciones anteriores por período y tipo;
+3. iniciar una novedad desde la misma ficha, sin volver a copiar el identificador;
+4. distinguir una consulta de una solicitud de anulación o reliquidación.
+
+El manual operativo accesible de GRH_WEB confirma que “Recibo de sueldo” se consulta por legajo, fecha, mes, año y tipo de liquidación, con seis opciones nominales: final, mes, otros conceptos, primera quincena, SAC y vacaciones. La pantalla documentada de cierre muestra explícitamente `M - Mensuales`. Esto respalda el recorrido por legajo y la etiqueta de `M`, pero no prueba por sí solo las equivalencias de los otros códigos crudos `P/S/V/O/F`; esos valores permanecen sin conversión automática hasta contar con un catálogo institucional versionado.
+
+El requisito P0 queda definido como **ficha operativa del legajo**. La primera entrega consulta `payroll_monthly_fact` únicamente al desplegar “Historial de liquidaciones”, exige en conjunto lectura nominal de legajos y lectura salarial, conserva los importes como decimales exactos y separa `cerrada y conciliada`, `abierta` y `estado no certificado`. Es un resumen mensual de fuente GRH, no un recibo oficial ni un cálculo nuevo.
+
+“Cargar novedad” transfiere legajo, período y, sólo cuando ya es canónico, tipo mediante `sessionStorage` de un solo uso y cinco minutos de vigencia. Los códigos cortos de `TIPO_31` se muestran como códigos GRH y no se convierten por intuición: mientras no exista una equivalencia versionada para ese código, el formulario exige elegir el tipo. No coloca datos personales en la URL, no prepara un lote y no lo envía automáticamente. El formulario conserva la validación humana y el circuito maker-checker existentes.
+
+La revisión del cierre en GRH_WEB aportó una sola equivalencia explícita: `M - Mensuales`, registrada como `M → monthly` en `contracts/grh-payroll-type-map.v1.json`. Los códigos `P`, `S`, `V`, `O` y `F` siguen sin homologar: ni su inicial, ni el mes en que aparecen, ni el orden de opciones del manual constituyen evidencia suficiente. Para no omitir duplicados silenciosamente, la migración 032 bloquea una novedad cuando el mismo contrato, período, concepto y centro ya tiene un movimiento publicado cuyo tipo legacy no puede clasificarse.
+
+El ledger de 032 fija un checksum combinado y versionado de los bytes exactos de la migración SQL y del contrato JSON. Cambiar el código o la evidencia contractual altera la huella y se trata como drift; incorporar otra equivalencia exige una nueva versión, evidencia aprobada y regresión explícita.
+
+La anulación y la reliquidación quedan como siguiente contrato operativo: solicitud inmutable, motivo, corrida afectada, aprobación separada, exportación controlada y reconciliación contra la siguiente importación. Hasta homologar un conector de escritura, `aprobada` no puede significar `ejecutada en GRH`.
+
 ## Reglas orales todavía no homologadas
 
 Se mencionaron antigüedad, cálculos auxiliares, porcentajes de cargos jerárquicos, aumentos acumulativos y caducidades documentales. También se citó un acta paritaria. Ninguna regla numérica debe ingresar al motor por la sola transcripción: se requieren norma, vigencia, población alcanzada, fórmula exacta, redondeo y casos de prueba aprobados.

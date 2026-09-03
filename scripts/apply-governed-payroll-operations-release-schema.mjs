@@ -43,6 +43,16 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-governed-account-profile-admin-view-schema.mjs', import.meta.url),
     envPrefix: 'ACCOUNT_PROFILE_GOVERNANCE',
   }),
+  Object.freeze({
+    version: '031-governed-employee-payroll-history',
+    script: new URL('./apply-governed-employee-payroll-history-schema.mjs', import.meta.url),
+    envPrefix: 'EMPLOYEE_PAYROLL_HISTORY',
+  }),
+  Object.freeze({
+    version: '032-payroll-type-mapping-fail-closed',
+    script: new URL('./apply-payroll-type-mapping-fail-closed-schema.mjs', import.meta.url),
+    envPrefix: 'PAYROLL_TYPE_MAPPING',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -50,7 +60,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-030',
+    targetLabel: 'release 024-032',
   });
 }
 
@@ -81,12 +91,12 @@ async function main() {
   const args = process.argv.slice(2);
   const target = resolvePayrollOperationsReleaseTarget(args, process.env);
 
-  // One preflight connection proves all seven migrations will target the same
+  // One preflight connection proves all nine migrations will target the same
   // branch, project, direct endpoint and database before the first write.
   const client = new Client({ connectionString: target.databaseUrl });
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-030');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-032');
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -110,7 +120,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-030 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-032 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]
