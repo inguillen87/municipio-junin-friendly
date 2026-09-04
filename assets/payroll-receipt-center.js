@@ -262,6 +262,11 @@ function renderPayrollItems() {
     : 'GRH no informó liquidaciones mensuales para esta ficha.';
 }
 
+function focusPeriodNavigation() {
+  const focusTarget = byId('togglePeriods').hidden ? byId('collapsePeriods') : byId('togglePeriods');
+  focusTarget.focus({ preventScroll: true });
+}
+
 async function showMorePeriods() {
   const total = Math.max(payrollPagination.total, payrollItems.length);
   const targetCount = Math.min(total, visiblePeriodCount === INITIAL_PERIODS
@@ -270,6 +275,7 @@ async function showMorePeriods() {
   if (payrollItems.length >= targetCount) {
     visiblePeriodCount = targetCount;
     renderPayrollItems();
+    focusPeriodNavigation();
     return;
   }
   clearMessage();
@@ -287,15 +293,14 @@ async function showMorePeriods() {
     showMessage('error', 'No pudimos cargar más períodos', `${error.message} Los períodos ya visibles siguen disponibles.`);
   } finally {
     setBusy(false);
-    const focusTarget = byId('togglePeriods').hidden ? byId('collapsePeriods') : byId('togglePeriods');
-    focusTarget.focus({ preventScroll: true });
+    focusPeriodNavigation();
   }
 }
 
 function collapsePeriods() {
   visiblePeriodCount = INITIAL_PERIODS;
   renderPayrollItems();
-  byId('togglePeriods').focus({ preventScroll: true });
+  focusPeriodNavigation();
 }
 
 function previewRow(label, value, emphasized = false) {
