@@ -10,7 +10,7 @@ import {
   downloadPayrollBankControlXlsxArtifact,
 } from './payroll-bank-control-exporter.js';
 
-export const PAYROLL_BANK_CONTROL_VERSION = 'payroll-bank-control-xlsx.v1';
+export const PAYROLL_BANK_CONTROL_VERSION = 'payroll-bank-control-xlsx.v2';
 export const BANK_ACCREDITATION_SUMMARY_VERSION = 'bank-accreditation-summary.v1';
 export const BANK_ACCREDITATION_SUMMARY_HEADER =
   'periodo;jurisdiccion;reparticion_codigo;banco_codigo;tipo_cuenta;operaciones;importe_neto_centavos';
@@ -32,9 +32,12 @@ const BANKS = Object.freeze({
   nacion: Object.freeze({ code: '11', label: 'Nación' }),
   transferencias: Object.freeze({ code: '0', label: 'Transferencias especiales' }),
 });
-const WORKBOOK_KEYS = new Set(['period', 'byteLength', 'sheets', 'accountTypes']);
+const WORKBOOK_KEYS = new Set([
+  'period', 'byteLength', 'fileName', 'sha256', 'sheets', 'accountTypes',
+]);
 const SHEET_KEYS = new Set(['name', 'dimension', 'rows']);
 const ROW_KEYS = new Set(['rowNumber', 'cells']);
+const SHA256 = /^[0-9a-f]{64}$/;
 const MAX_ROWS_PER_SHEET = 20_000;
 const MAX_TOTAL_ROWS = 60_000;
 const MAX_INT64 = 9223372036854775807n;
@@ -162,6 +165,16 @@ function validateWorkbookInput(input) {
   if (!Number.isInteger(input.byteLength) || input.byteLength <= 0
       || input.byteLength > PAYROLL_BANK_CONTROL_MAX_BYTES) {
     fail('BANK_CONTROL_SIZE_INVALID', 'El Excel está vacío o supera el máximo local de 2 MiB');
+  }
+  if (typeof input.fileName !== 'string' || input.fileName.length < 1
+      || input.fileName.length > 180 || input.fileName !== input.fileName.trim()
+      || !/\.xlsx$/i.test(input.fileName)
+      || /[\\/\u0000-\u001f\u007f]/.test(input.fileName)
+      || typeof input.sha256 !== 'string' || !SHA256.test(input.sha256)) {
+    fail(
+      'BANK_CONTROL_SOURCE_IDENTITY_INVALID',
+      'El nombre o la huella local del Excel no cumplen el contrato esperado',
+    );
   }
   if (!Array.isArray(input.sheets) || input.sheets.length !== EXPECTED_SHEET_KEYS.length) {
     fail('BANK_CONTROL_WORKBOOK_INVALID', 'El libro debe contener exactamente las ocho hojas esperadas');
@@ -338,6 +351,71 @@ function sortGroups(left, right) {
     || left.accountType.localeCompare(right.accountType);
 }
 
+function reconcileAggregates(groups, sheets) {
+  const groupKeys = new Set();
+  for (const group of groups) {
+    const key = [
+      group.jurisdiction, group.repartitionCode, group.bankCode, group.accountType,
+    ].join('|');
+    if (groupKeys.has(key)) {
+      fail('BANK_CONTROL_AGGREGATE_INVALID', 'El resumen contiene una clasificación repetida');
+    }
+    groupKeys.add(key);
+  }
+
+  const sheetsByKey = new Map();
+  for (const sheet of sheets) {
+    if (!EXPECTED_SHEET_KEYS.includes(sheet.sheetKey) || sheetsByKey.has(sheet.sheetKey)) {
+      fail('BANK_CONTROL_AGGREGATE_INVALID', 'El resumen de hojas no conserva ocho claves únicas');
+    }
+    sheetsByKey.set(sheet.sheetKey, sheet);
+  }
+  if (sheetsByKey.size !== EXPECTED_SHEET_KEYS.length
+      || EXPECTED_SHEET_KEYS.some((key) => !sheetsByKey.has(key))) {
+    fail('BANK_CONTROL_AGGREGATE_INVALID', 'El resumen de hojas no coincide con el conjunto esperado');
+  }
+
+  const summarize = (predicate) => {
+    let operations = 0;
+    let netCents = 0n;
+    for (const group of groups) {
+      if (!predicate(group)) continue;
+      operations += group.operations;
+      netCents = checkedAdd(netCents, BigInt(group.netCents));
+    }
+    return { operations, netCents };
+  };
+  for (const sheetKey of EXPECTED_SHEET_KEYS) {
+    if (sheetKey.startsWith('transferencias-')) continue;
+    const sheet = sheetsByKey.get(sheetKey);
+    const calculated = summarize((group) => (
+      group.jurisdiction === sheet.jurisdiction && group.bankCode === sheet.bankCode
+    ));
+    if (calculated.operations !== sheet.operations
+        || calculated.netCents !== BigInt(sheet.netCents)) {
+      fail(
+        'BANK_CONTROL_AGGREGATE_INVALID',
+        `La clasificación agregada no concilia con la hoja ${sheetKey}`,
+      );
+    }
+  }
+
+  const transfers = summarize((group) => group.bankCode === BANKS.transferencias.code);
+  let transferOperations = 0;
+  let transferNetCents = 0n;
+  for (const sheetKey of ['transferencias-funcionarios', 'transferencias-varias']) {
+    const sheet = sheetsByKey.get(sheetKey);
+    transferOperations += sheet.operations;
+    transferNetCents = checkedAdd(transferNetCents, BigInt(sheet.netCents));
+  }
+  if (transfers.operations !== transferOperations || transfers.netCents !== transferNetCents) {
+    fail(
+      'BANK_CONTROL_AGGREGATE_INVALID',
+      'Las transferencias agregadas no concilian con sus dos hojas de origen',
+    );
+  }
+}
+
 export function preparePayrollBankControlWorkbook(input) {
   validateWorkbookInput(input);
   const accountTypes = validateAccountTypes(input.accountTypes);
@@ -433,6 +511,7 @@ export function preparePayrollBankControlWorkbook(input) {
   if (jurisdictions.some((entry) => entry.operations <= 0)) {
     fail('BANK_CONTROL_JURISDICTION_EMPTY', 'Una jurisdicción no contiene operaciones bancarias');
   }
+  reconcileAggregates(normalizedGroups, sheetSummaries);
 
   return Object.freeze({
     contractVersion: PAYROLL_BANK_CONTROL_VERSION,
@@ -446,6 +525,8 @@ export function preparePayrollBankControlWorkbook(input) {
     groups: Object.freeze(normalizedGroups),
     sheets: Object.freeze(sheetSummaries),
     source: Object.freeze({
+      fileName: input.fileName,
+      sha256: input.sha256,
       byteLength: input.byteLength,
       worksheetCount: input.sheets.length,
       actualXmlRowsVisited: totalRows,
@@ -509,7 +590,7 @@ export function createBankAccreditationSummaryCsv(control, jurisdiction) {
   return new TextEncoder().encode(`${lines.join('\r\n')}\r\n`);
 }
 
-export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, {
+export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, fileName, {
   WorkerImpl = globalThis.Worker,
   timeoutMs = 30_000,
 } = {}) {
@@ -555,7 +636,9 @@ export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, {
         'No se pudo completar el análisis local del Excel',
       ),
     ), { once: true });
-    worker.postMessage({ type: 'prepare', arrayBuffer, period, accountTypes }, [arrayBuffer]);
+    worker.postMessage({
+      type: 'prepare', arrayBuffer, period, accountTypes, fileName,
+    }, [arrayBuffer]);
   });
 }
 
@@ -579,6 +662,8 @@ export function mountPayrollBankControlXlsx(host = document) {
   const result = root.querySelector('[data-bank-control-result]');
   const operations = root.querySelector('[data-bank-control-operations]');
   const worksheets = root.querySelector('[data-bank-control-worksheets]');
+  const uniqueRepartitions = root.querySelector('[data-bank-control-repartitions="unique"]');
+  const bankRepartitions = root.querySelector('[data-bank-control-repartitions="bank"]');
   const total = root.querySelector('[data-bank-control-total="all"]');
   const total42 = root.querySelector('[data-bank-control-total="42"]');
   const total55 = root.querySelector('[data-bank-control-total="55"]');
@@ -587,11 +672,15 @@ export function mountPayrollBankControlXlsx(host = document) {
   const exportBank = root.querySelector('[data-bank-control-export-bank]');
   const exportXlsx = root.querySelector('[data-bank-control-export-xlsx]');
   const exportStatus = root.querySelector('[data-bank-control-export-status]');
+  const sourceFileName = root.querySelector('[data-bank-control-source-name]');
+  const sourceBytes = root.querySelector('[data-bank-control-source-bytes]');
+  const sourceSha256 = root.querySelector('[data-bank-control-source-sha256]');
   const accountInputs = Object.fromEntries(ACCOUNT_TYPE_KEYS.map((key) => [
     key, root.querySelector(`[data-bank-control-account="${key}"]`),
   ]));
   if (!form || !period || !fileInput || !submit || !reset || !status || !result
-      || !operations || !worksheets || !total || !total42 || !total55
+      || !operations || !worksheets || !uniqueRepartitions || !bankRepartitions
+      || !total || !total42 || !total55 || !sourceFileName || !sourceBytes || !sourceSha256
       || !rows || !exportJurisdiction || !exportBank || !exportXlsx || !exportStatus
       || ACCOUNT_TYPE_KEYS.some((key) => !accountInputs[key])) return false;
   let latest = null;
@@ -627,7 +716,10 @@ export function mountPayrollBankControlXlsx(host = document) {
     latest = null;
     result.hidden = true;
     rows.replaceChildren();
-    for (const node of [operations, worksheets, total, total42, total55]) node.textContent = '—';
+    for (const node of [
+      operations, worksheets, uniqueRepartitions, bankRepartitions,
+      total, total42, total55, sourceFileName, sourceBytes, sourceSha256,
+    ]) node.textContent = '—';
     exportJurisdiction.disabled = true;
     exportBank.disabled = true;
     exportXlsx.disabled = true;
@@ -648,7 +740,7 @@ export function mountPayrollBankControlXlsx(host = document) {
         group.accountType === 'transferencia_especial'
           ? 'Transferencia especial'
           : group.accountType === 'caja_ahorro' ? 'Caja de ahorro' : 'Cuenta corriente',
-        'Tipo de cuenta',
+        'Tipo declarado al procesar',
       );
       appendCell(row, String(group.operations), 'Operaciones', 'numeric');
       appendCell(row, formatJurisdictionControlCents(group.netCents), 'Neto', 'numeric');
@@ -659,9 +751,18 @@ export function mountPayrollBankControlXlsx(host = document) {
     const j55 = control.jurisdictions.find((entry) => entry.jurisdiction === '55');
     operations.textContent = String(control.total.operations);
     worksheets.textContent = String(control.source.worksheetCount);
+    uniqueRepartitions.textContent = String(new Set(control.groups.map((group) => (
+      `${group.jurisdiction}|${group.repartitionCode}`
+    ))).size);
+    bankRepartitions.textContent = String(new Set(control.groups.map((group) => (
+      `${group.jurisdiction}|${group.repartitionCode}|${group.bankCode}`
+    ))).size);
     total.textContent = formatJurisdictionControlCents(control.total.netCents);
     total42.textContent = formatJurisdictionControlCents(j42.netCents);
     total55.textContent = formatJurisdictionControlCents(j55.netCents);
+    sourceFileName.textContent = control.source.fileName;
+    sourceBytes.textContent = `${control.source.byteLength.toLocaleString('es-AR')} bytes`;
+    sourceSha256.textContent = control.source.sha256;
     result.hidden = false;
     latest = control;
     exportJurisdiction.disabled = false;
@@ -713,7 +814,7 @@ export function mountPayrollBankControlXlsx(host = document) {
     setStatus('', 'Leyendo las ocho hojas y recalculando totales en este navegador…');
     try {
       const control = await runPayrollBankControlWorker(
-        await file.arrayBuffer(), period.value, types,
+        await file.arrayBuffer(), period.value, types, file.name,
       );
       if (current !== sequence) return;
       render(control);

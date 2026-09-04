@@ -306,10 +306,18 @@ function clearExtracted(extracted) {
   }
 }
 
+async function sha256Hex(bytes) {
+  if (!globalThis.crypto?.subtle || typeof globalThis.crypto.subtle.digest !== 'function') {
+    fail('BANK_CONTROL_HASH_UNAVAILABLE', 'El navegador no puede calcular la huella local del archivo');
+  }
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 self.addEventListener('message', async (event) => {
   if (event.data?.type !== 'prepare' || !(event.data.arrayBuffer instanceof ArrayBuffer)
       || typeof event.data.period !== 'string' || !event.data.accountTypes
-      || typeof event.data.accountTypes !== 'object') {
+      || typeof event.data.accountTypes !== 'object' || typeof event.data.fileName !== 'string') {
     self.postMessage({
       ok: false,
       code: 'BANK_CONTROL_WORKER_INPUT_INVALID',
@@ -331,6 +339,7 @@ self.addEventListener('message', async (event) => {
     return;
   }
   try {
+    const sha256 = await sha256Hex(bytes);
     const unzipSync = await loadZipReader();
     extracted = unzipWorkbook(bytes, unzipSync);
     const workbookXml = decodeXml(
@@ -359,6 +368,8 @@ self.addEventListener('message', async (event) => {
     const control = preparePayrollBankControlWorkbook({
       period: event.data.period,
       byteLength: bytes.byteLength,
+      fileName: event.data.fileName,
+      sha256,
       sheets,
       accountTypes: event.data.accountTypes,
     });

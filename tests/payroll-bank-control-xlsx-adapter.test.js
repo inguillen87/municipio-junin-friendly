@@ -15,6 +15,8 @@ const ACCOUNT_TYPES = Object.freeze({
   santander: 'caja_ahorro',
   nacion: 'cuenta_corriente',
 });
+const SOURCE_FILE_NAME = 'PLANILLA CONTROL GENERAL 08.2026.xlsx';
+const SOURCE_SHA256 = 'a'.repeat(64);
 
 function cuil(seed) {
   // Prefijo 00: checksum útil para probar el parser, pero imposible como CUIL real.
@@ -71,6 +73,8 @@ function workbook() {
   return {
     period: '2026-08',
     byteLength: 95_338,
+    fileName: SOURCE_FILE_NAME,
+    sha256: SOURCE_SHA256,
     accountTypes: { ...ACCOUNT_TYPES },
     sheets: [
       bankSheet('BANCAR. 08.2026- CRED. JUR.42', 1, '100.00', '01'),
@@ -108,6 +112,9 @@ test('recalcula las ocho hojas y genera dos resúmenes canónicos sin PII', () =
   assert.equal(result.sheets.find((entry) => entry.sheetKey === 'transferencias-varias').headerBlocks, 2);
   assert.equal(result.source.actualXmlRowsVisited, 24);
   assert.equal(result.source.worksheetDimensionTrusted, false);
+  assert.equal(result.source.fileName, SOURCE_FILE_NAME);
+  assert.equal(result.source.sha256, SOURCE_SHA256);
+  assert.equal(result.source.byteLength, 95_338);
   assert.deepEqual(
     [...new Set(result.groups.map((entry) => entry.bankCode))].sort(),
     ['0', '11', '191', '72'],
@@ -152,6 +159,14 @@ test('falla cerrado sin tipo de cuenta explícito o sin las ocho hojas exactas',
   const duplicate = workbook();
   duplicate.sheets[7] = duplicate.sheets[6];
   expectCode('BANK_CONTROL_SHEET_DUPLICATED', () => preparePayrollBankControlWorkbook(duplicate));
+
+  const badIdentity = workbook();
+  badIdentity.fileName = '../control.xlsx';
+  expectCode('BANK_CONTROL_SOURCE_IDENTITY_INVALID', () => preparePayrollBankControlWorkbook(badIdentity));
+
+  const badHash = workbook();
+  badHash.sha256 = 'not-a-sha256';
+  expectCode('BANK_CONTROL_SOURCE_IDENTITY_INVALID', () => preparePayrollBankControlWorkbook(badHash));
 });
 
 test('limita BARCAR a Santander y verifica período, CUIL, cabecera y jurisdicción', () => {
@@ -194,11 +209,17 @@ test('worker, pantalla y empaquetado preservan el límite local y agregado', () 
   assert.doesNotMatch(worker, /readXlsxFile|max_row|localStorage|sessionStorage|indexedDB|\bfetch\s*\(|console\./);
   assert.match(worker, /clearExtracted\(extracted\)/);
   assert.match(worker, /bytes\.fill\(0\)/);
+  assert.match(worker, /crypto\.subtle\.digest\('SHA-256', bytes\)/);
   assert.match(worker, /self\.postMessage\(\{ ok: true, control \}\)/);
   assert.doesNotMatch(worker, /postMessage\([^)]*(?:sheets|sharedStrings|rows)/s);
 
   assert.match(html, /data-payroll-bank-control-xlsx/);
   assert.match(html, /data-bank-control-worksheets/);
+  assert.match(html, /data-bank-control-repartitions="unique"/);
+  assert.match(html, /data-bank-control-repartitions="bank"/);
+  assert.match(html, /data-bank-control-source-sha256/);
+  assert.match(html, /tipo declarado al procesar/i);
+  assert.match(html, /no queda validado por el archivo ni por la entidad/i);
   assert.match(html, /no es un TXT bancario ni acredita pagos/i);
   assert.match(html, /No hay subida, API, almacenamiento ni escritura en Neon/i);
   assert.equal((html.match(/data-bank-control-account=/g) || []).length, 3);

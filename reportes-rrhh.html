@@ -485,11 +485,16 @@
     .bank-control-requirements ul { margin: 13px 0 0; padding-left: 19px; color: var(--muted); font-size: 11px; }
     .bank-control-requirements li + li { margin-top: 5px; }
     .bank-control-result[hidden] { display: none; }
-    .bank-control-totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+    .bank-control-totals { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); }
     .bank-control-total { min-width: 0; padding: 16px 20px; border-right: 1px solid var(--line); }
     .bank-control-total:last-child { border-right: 0; }
     .bank-control-total span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
     .bank-control-total strong { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; }
+    .bank-control-count-note { margin: 0; padding: 11px 20px; border-top: 1px solid var(--line); background: #f7f9f9; color: var(--muted); font-size: 11px; }
+    .bank-control-source { display: grid; grid-template-columns: minmax(180px, 1fr) auto minmax(320px, 1.4fr); gap: 14px 22px; align-items: start; padding: 15px 20px; border-top: 1px solid var(--line); background: #f7f9f9; }
+    .bank-control-source div { min-width: 0; }
+    .bank-control-source span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .bank-control-source strong, .bank-control-source code { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--ink); font: 650 11px/1.45 "Segoe UI", sans-serif; }
     .bank-control-table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
     .bank-control-table { width: 100%; border-collapse: collapse; font-size: 11px; }
     .bank-control-table th { padding: 10px 12px; background: #f0f4f4; color: var(--navy); text-align: left; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
@@ -841,6 +846,7 @@
       .export-status { flex-basis: 100%; margin: 5px 0 0; }
       .bank-control-form { border-right: 0; border-bottom: 1px solid var(--line); }
       .bank-control-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bank-control-source { grid-template-columns: 1fr; }
       .bank-control-total { border-bottom: 1px solid var(--line); }
       .bank-control-total:nth-child(even) { border-right: 0; }
       .bank-control-total:last-child { grid-column: 1 / -1; border-bottom: 0; }
@@ -1067,7 +1073,7 @@
                   <input id="bankControlPeriod" data-bank-control-period type="month" min="2000-01" max="2099-12" required>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlCredicoop">Credicoop · tipo de cuenta</label>
+                  <label for="bankControlCredicoop">Credicoop · tipo declarado al procesar</label>
                   <select id="bankControlCredicoop" data-bank-control-account="credicoop" required>
                     <option value="">Elegir explícitamente</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
@@ -1075,7 +1081,7 @@
                   </select>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlSantander">Santander · tipo de cuenta</label>
+                  <label for="bankControlSantander">Santander · tipo declarado al procesar</label>
                   <select id="bankControlSantander" data-bank-control-account="santander" required>
                     <option value="">Elegir explícitamente</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
@@ -1083,7 +1089,7 @@
                   </select>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlNacion">Nación · tipo de cuenta</label>
+                  <label for="bankControlNacion">Nación · tipo declarado al procesar</label>
                   <select id="bankControlNacion" data-bank-control-account="nacion" required>
                     <option value="">Elegir explícitamente</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
@@ -1114,7 +1120,7 @@
                 <li>Se admite el rótulo observado <strong>BARCAR</strong> únicamente en Santander.</li>
                 <li>Las jurisdicciones de transferencias surgen de la lista versionada de reparticiones de Junín.</li>
                 <li>La dimensión declarada no se usa para recorrer filas: sólo cuentan nodos OOXML reales.</li>
-                <li>Transferencias usa “transferencia especial”; los tres bancos exigen elegir el tipo de cuenta.</li>
+                <li>Transferencias usa “transferencia especial”; en los tres bancos el tipo de cuenta se declara al procesar y no queda validado por el archivo ni por la entidad.</li>
               </ul>
             </div>
           </div>
@@ -1122,13 +1128,21 @@
             <div class="bank-control-totals">
               <div class="bank-control-total"><span>Operaciones</span><strong data-bank-control-operations>—</strong></div>
               <div class="bank-control-total"><span>Hojas procesadas</span><strong data-bank-control-worksheets>—</strong></div>
+              <div class="bank-control-total"><span>Reparticiones únicas</span><strong data-bank-control-repartitions="unique">—</strong></div>
+              <div class="bank-control-total"><span>Reparticiones por banco</span><strong data-bank-control-repartitions="bank">—</strong></div>
               <div class="bank-control-total"><span>Neto total</span><strong data-bank-control-total="all">—</strong></div>
               <div class="bank-control-total"><span>Neto J42</span><strong data-bank-control-total="42">—</strong></div>
               <div class="bank-control-total"><span>Neto J55</span><strong data-bank-control-total="55">—</strong></div>
             </div>
+            <p class="bank-control-count-note">“Reparticiones únicas” cuenta cada repartición una sola vez. “Reparticiones por banco” vuelve a contarla cuando aparece en otro banco o transferencia.</p>
+            <div class="bank-control-source" aria-label="Trazabilidad local del archivo fuente">
+              <div><span>Archivo fuente</span><strong data-bank-control-source-name>—</strong></div>
+              <div><span>Bytes de origen</span><strong data-bank-control-source-bytes>—</strong></div>
+              <div><span>SHA-256 calculado localmente</span><code data-bank-control-source-sha256>—</code></div>
+            </div>
             <div class="bank-control-table-wrap">
               <table class="bank-control-table">
-                <thead><tr><th>Jurisdicción</th><th>Repartición</th><th>Banco</th><th>Tipo declarado</th><th class="numeric">Operaciones</th><th class="numeric">Neto</th><th>Estado</th></tr></thead>
+                <thead><tr><th>Jurisdicción</th><th>Repartición</th><th>Banco</th><th>Tipo declarado al procesar</th><th class="numeric">Operaciones</th><th class="numeric">Neto</th><th>Estado</th></tr></thead>
                 <tbody data-bank-control-rows></tbody>
               </table>
             </div>

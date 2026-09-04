@@ -15,6 +15,8 @@ import {
 
 const GENERATED_AT_A = '2026-09-04T12:00:00.000Z';
 const GENERATED_AT_B = '2026-09-04T18:00:00.000Z';
+const SOURCE_FILE_NAME = 'PLANILLA CONTROL GENERAL 08.2026.xlsx';
+const SOURCE_SHA256 = 'b'.repeat(64);
 const ACCOUNT_TYPES = Object.freeze({
   credicoop: 'cuenta_corriente',
   santander: 'caja_ahorro',
@@ -69,6 +71,8 @@ function control() {
   return preparePayrollBankControlWorkbook({
     period: '2026-08',
     byteLength: 95_338,
+    fileName: SOURCE_FILE_NAME,
+    sha256: SOURCE_SHA256,
     accountTypes: { ...ACCOUNT_TYPES },
     sheets: [
       bankSheet('BANCAR. 08.2026- CRED. JUR.42', 1, '100.00', '01'),
@@ -128,6 +132,12 @@ test('genera un XLSX de control J42 con resumen y detalle agregado por repartici
   assert.match(entries.get('xl/workbook.xml'), /sheet name="Resumen".*sheet name="Por repartición"/s);
   assert.match(entries.get('xl/worksheets/sheet1.xml'), /Todos los bancos y transferencias/);
   assert.match(entries.get('xl/worksheets/sheet1.xml'), /No acredita haberes ni genera instrucciones bancarias/);
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), /Tipo declarado al procesar/);
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), /Reparticiones únicas del alcance/);
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), /Reparticiones por banco/);
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), /PLANILLA CONTROL GENERAL 08\.2026\.xlsx/);
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), new RegExp(SOURCE_SHA256));
+  assert.match(entries.get('xl/worksheets/sheet1.xml'), /Bytes de origen/);
   assert.match(entries.get('xl/worksheets/sheet1.xml'), /<c r="C12" s="9" t="n"><v>1<\/v><\/c>/);
   assert.doesNotMatch(entries.get('xl/worksheets/sheet1.xml'), /<f>SUM\(C8:C11\)<\/f>/);
   assert.match(entries.get('xl/worksheets/sheet2.xml'), /<f>SUM\(E7:E10\)<\/f><v>4<\/v>/);
@@ -135,7 +145,7 @@ test('genera un XLSX de control J42 con resumen y detalle agregado por repartici
 
   const detail = await readSheet(Buffer.from(artifact.bytes), 'Por repartición');
   assert.deepEqual(detail[5], [
-    'Jurisdicción', 'Repartición', 'Banco', 'Tipo declarado',
+    'Jurisdicción', 'Repartición', 'Banco', 'Tipo declarado al procesar',
     'Operaciones', 'Neto de control', 'Estado',
   ]);
   assert.equal(detail[6][0], 'J42');
@@ -168,6 +178,25 @@ test('permite elegir un banco probado por la hoja sin convertirlo en acreditaci�
   assert.equal(detail[7][5], 200);
   assert.equal(artifact.bankInstructionGenerated, false);
   assert.equal(artifact.bankAccreditationPerformed, false);
+});
+
+test('J55 exporta Credicoop, Santander, Nación y transferencias con conciliación propia', async () => {
+  const cases = [
+    ['credicoop', 'Credicoop', 200],
+    ['santander', 'Santander', 400],
+    ['nacion', 'Nación', 800],
+    ['transferencias', 'Transferencias especiales', 600],
+  ];
+  for (const [bankScope, expectedBank, expectedNet] of cases) {
+    const artifact = createPayrollBankControlXlsxArtifact(control(), {
+      jurisdiction: '55', bankScope, generatedAt: GENERATED_AT_A,
+    });
+    const detail = await readSheet(Buffer.from(artifact.bytes), 'Por repartición');
+    assert.equal(detail[6][0], 'J55');
+    assert.equal(detail[6][2], expectedBank);
+    assert.equal(detail[6][5], expectedNet);
+    assert.equal(detail.at(-1)[5], expectedNet);
+  }
 });
 
 test('los bytes son deterministas y el alcance vacío o manipulado falla cerrado', () => {
@@ -216,6 +245,50 @@ test('los bytes son deterministas y el alcance vacío o manipulado falla cerrado
   [credicoop.accountType, santander.accountType] = [santander.accountType, credicoop.accountType];
   assert.throws(
     () => createPayrollBankControlXlsxArtifact(bankSwap, { jurisdiction: '42', bankScope: 'all' }),
+    errorCode('BANK_CONTROL_EXPORT_SOURCE_INVALID'),
+  );
+
+  const duplicateGroup = structuredClone(source);
+  duplicateGroup.groups.push(structuredClone(duplicateGroup.groups[0]));
+  duplicateGroup.total.operations += duplicateGroup.groups[0].operations;
+  duplicateGroup.total.netCents = String(
+    BigInt(duplicateGroup.total.netCents) + BigInt(duplicateGroup.groups[0].netCents),
+  );
+  const duplicateJurisdiction = duplicateGroup.jurisdictions.find((entry) => (
+    entry.jurisdiction === duplicateGroup.groups[0].jurisdiction
+  ));
+  duplicateJurisdiction.operations += duplicateGroup.groups[0].operations;
+  duplicateJurisdiction.netCents = String(
+    BigInt(duplicateJurisdiction.netCents) + BigInt(duplicateGroup.groups[0].netCents),
+  );
+  assert.throws(
+    () => createPayrollBankControlXlsxArtifact(duplicateGroup, {
+      jurisdiction: '42', bankScope: 'all',
+    }),
+    errorCode('BANK_CONTROL_EXPORT_SOURCE_INVALID'),
+  );
+
+  const duplicatedSheetKey = structuredClone(source);
+  duplicatedSheetKey.sheets[7].sheetKey = duplicatedSheetKey.sheets[6].sheetKey;
+  assert.throws(
+    () => createPayrollBankControlXlsxArtifact(duplicatedSheetKey, {
+      jurisdiction: '42', bankScope: 'all',
+    }),
+    errorCode('BANK_CONTROL_EXPORT_SOURCE_INVALID'),
+  );
+
+  const bankReconciliationDrift = structuredClone(source);
+  const credicoop42 = bankReconciliationDrift.sheets.find((sheet) => (
+    sheet.sheetKey === 'credicoop-42'
+  ));
+  const santander42 = bankReconciliationDrift.sheets.find((sheet) => (
+    sheet.sheetKey === 'santander-42'
+  ));
+  [credicoop42.netCents, santander42.netCents] = [santander42.netCents, credicoop42.netCents];
+  assert.throws(
+    () => createPayrollBankControlXlsxArtifact(bankReconciliationDrift, {
+      jurisdiction: '42', bankScope: 'all',
+    }),
     errorCode('BANK_CONTROL_EXPORT_SOURCE_INVALID'),
   );
 });

@@ -1,6 +1,6 @@
-export const PAYROLL_BANK_CONTROL_EXPORT_VERSION = 'payroll-bank-control-export.v1';
+export const PAYROLL_BANK_CONTROL_EXPORT_VERSION = 'payroll-bank-control-export.v2';
 
-const SOURCE_VERSION = 'payroll-bank-control-xlsx.v1';
+const SOURCE_VERSION = 'payroll-bank-control-xlsx.v2';
 const SOURCE_EXPORT_VERSION = 'bank-accreditation-summary.v1';
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const PERIOD = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])$/;
@@ -53,7 +53,7 @@ const SHEET_KEYS = new Set([
   'sheetKey', 'jurisdiction', 'bankCode', 'operations', 'netCents', 'headerBlocks',
 ]);
 const SOURCE_KEYS = new Set([
-  'byteLength', 'worksheetCount', 'actualXmlRowsVisited', 'headerBlockCount',
+  'fileName', 'sha256', 'byteLength', 'worksheetCount', 'actualXmlRowsVisited', 'headerBlockCount',
   'worksheetDimensionTrusted', 'cachedCellValuesUsed', 'formulasExecuted',
   'externalLinksFollowed',
 ]);
@@ -285,6 +285,12 @@ function validateControl(control) {
   );
   if (!Number.isInteger(control.source.byteLength) || control.source.byteLength < 1
       || control.source.byteLength > 2 * 1024 * 1024
+      || typeof control.source.fileName !== 'string' || control.source.fileName.length < 1
+      || control.source.fileName.length > 180 || control.source.fileName !== control.source.fileName.trim()
+      || !/\.xlsx$/i.test(control.source.fileName)
+      || /[\\/\u0000-\u001f\u007f]/.test(control.source.fileName)
+      || typeof control.source.sha256 !== 'string'
+      || !/^[0-9a-f]{64}$/.test(control.source.sha256)
       || control.source.worksheetCount !== 8
       || !Number.isInteger(control.source.actualXmlRowsVisited)
       || control.source.actualXmlRowsVisited < 1 || control.source.actualXmlRowsVisited > 60_000
@@ -423,7 +429,7 @@ function summarySheetXml(context) {
   }).join('');
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <dimension ref="A1:F${noteRow + 4}"/>
+  <dimension ref="A1:F${noteRow + 8}"/>
   <sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="7" topLeftCell="A8" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
   <sheetFormatPr defaultRowHeight="18"/>
   <cols><col min="1" max="2" width="26" customWidth="1"/><col min="3" max="4" width="16" customWidth="1"/><col min="5" max="5" width="21" customWidth="1"/><col min="6" max="6" width="29" customWidth="1"/></cols>
@@ -434,23 +440,27 @@ function summarySheetXml(context) {
     <row r="5">${inlineCell('A5', 'Alcance', 3)}${inlineCell('B5', context.bank.label, 5)}${inlineCell('D5', 'Operaciones', 3)}${numericCell('E5', String(context.operations))}</row>
     <row r="6">${inlineCell('A6', 'Neto de control', 3)}${moneyCell('B6', context.netCents, 8)}${inlineCell('D6', 'Estado', 3)}${inlineCell('E6', 'Recalculado', 10)}</row>
     <row r="7" ht="34" customHeight="1">${[
-      'Banco', 'Tipo de cuenta declarado', 'Reparticiones por banco', 'Operaciones', 'Neto de control', 'Estado',
+      'Banco', 'Tipo declarado al procesar', 'Reparticiones por banco', 'Operaciones', 'Neto de control', 'Estado',
     ].map((value, index) => inlineCell(`${String.fromCharCode(65 + index)}7`, value, 4)).join('')}</row>
     ${rows}
     <row r="${totalRow}" ht="24" customHeight="1">${[
-      inlineCell(`A${totalRow}`, 'TOTAL', 9), inlineCell(`B${totalRow}`, 'Únicas en alcance', 14),
+      inlineCell(`A${totalRow}`, 'TOTAL', 9), inlineCell(`B${totalRow}`, 'Reparticiones únicas del alcance', 14),
       numericCell(`C${totalRow}`, String(context.repartitionCount), 9),
       formulaCell(`D${totalRow}`, `SUM(D${firstDataRow}:D${lastDataRow})`, String(context.operations), 9),
       formulaCell(`E${totalRow}`, `SUM(E${firstDataRow}:E${lastDataRow})`, centsDecimal(context.netCents), 11),
       inlineCell(`F${totalRow}`, 'Control local', 14),
     ].join('')}</row>
-    <row r="${noteRow}">${inlineCell(`A${noteRow}`, 'Alcance', 3)}${inlineCell(`B${noteRow}`, 'Los bancos se identifican por las ocho hojas mensuales validadas. El tipo de cuenta lo declara quien procesa.', 12)}</row>
+    <row r="${noteRow}">${inlineCell(`A${noteRow}`, 'Alcance', 3)}${inlineCell(`B${noteRow}`, 'Los bancos se identifican por las ocho hojas mensuales validadas. El tipo de cuenta fue declarado al procesar; el archivo y el banco no lo validan.', 12)}</row>
     <row r="${noteRow + 1}">${inlineCell(`A${noteRow + 1}`, 'Privacidad', 3)}${inlineCell(`B${noteRow + 1}`, 'Sin nombres, legajos, DNI, CUIL, CBU ni números de cuenta.', 12)}</row>
     <row r="${noteRow + 2}">${inlineCell(`A${noteRow + 2}`, 'Límite', 3)}${inlineCell(`B${noteRow + 2}`, 'Este libro sirve para control contable. No es un archivo de acreditación ni reemplaza la revisión humana.', 12)}</row>
     <row r="${noteRow + 3}">${inlineCell(`A${noteRow + 3}`, 'Procesamiento', 3)}${inlineCell(`B${noteRow + 3}`, 'Realizado localmente en el navegador; no se guardaron filas nominales.', 12)}</row>
     <row r="${noteRow + 4}">${inlineCell(`A${noteRow + 4}`, 'Clasificación', 3)}${inlineCell(`B${noteRow + 4}`, `Reparticiones según ${context.repartitionRosterVersion}.`, 12)}</row>
+    <row r="${noteRow + 5}">${inlineCell(`A${noteRow + 5}`, 'Archivo fuente', 3)}${inlineCell(`B${noteRow + 5}`, context.source.fileName, 12)}</row>
+    <row r="${noteRow + 6}">${inlineCell(`A${noteRow + 6}`, 'Bytes de origen', 3)}${numericCell(`B${noteRow + 6}`, String(context.source.byteLength))}</row>
+    <row r="${noteRow + 7}">${inlineCell(`A${noteRow + 7}`, 'SHA-256 local', 3)}${inlineCell(`B${noteRow + 7}`, context.source.sha256, 12)}</row>
+    <row r="${noteRow + 8}">${inlineCell(`A${noteRow + 8}`, 'Cómo leer los conteos', 3)}${inlineCell(`B${noteRow + 8}`, '“Reparticiones por banco” vuelve a contar una repartición si aparece en otro banco. “Reparticiones únicas del alcance” la cuenta una sola vez en toda la selección.', 12)}</row>
   </sheetData>
-  <mergeCells count="7"><mergeCell ref="A1:F1"/><mergeCell ref="A2:F2"/><mergeCell ref="B${noteRow}:F${noteRow}"/><mergeCell ref="B${noteRow + 1}:F${noteRow + 1}"/><mergeCell ref="B${noteRow + 2}:F${noteRow + 2}"/><mergeCell ref="B${noteRow + 3}:F${noteRow + 3}"/><mergeCell ref="B${noteRow + 4}:F${noteRow + 4}"/></mergeCells>
+  <mergeCells count="11"><mergeCell ref="A1:F1"/><mergeCell ref="A2:F2"/><mergeCell ref="B${noteRow}:F${noteRow}"/><mergeCell ref="B${noteRow + 1}:F${noteRow + 1}"/><mergeCell ref="B${noteRow + 2}:F${noteRow + 2}"/><mergeCell ref="B${noteRow + 3}:F${noteRow + 3}"/><mergeCell ref="B${noteRow + 4}:F${noteRow + 4}"/><mergeCell ref="B${noteRow + 5}:F${noteRow + 5}"/><mergeCell ref="B${noteRow + 6}:F${noteRow + 6}"/><mergeCell ref="B${noteRow + 7}:F${noteRow + 7}"/><mergeCell ref="B${noteRow + 8}:F${noteRow + 8}"/></mergeCells>
   <autoFilter ref="A7:F${lastDataRow}"/>
   <pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
   <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/>
@@ -485,7 +495,7 @@ function detailSheetXml(context) {
     <row r="4">${inlineCell('A4', 'Período', 3)}${inlineCell('B4', context.period, 5)}${inlineCell('D4', 'Filas agregadas', 3)}${numericCell('E4', String(context.rows.length))}</row>
     <row r="5">${inlineCell('A5', 'Uso', 3)}${inlineCell('B5', 'Control contable', 5)}${inlineCell('D5', 'Acreditación', 3)}${inlineCell('E5', 'No generada', 13)}</row>
     <row r="6" ht="34" customHeight="1">${[
-      'Jurisdicción', 'Repartición', 'Banco', 'Tipo declarado', 'Operaciones', 'Neto de control', 'Estado',
+      'Jurisdicción', 'Repartición', 'Banco', 'Tipo declarado al procesar', 'Operaciones', 'Neto de control', 'Estado',
     ].map((value, index) => inlineCell(`${String.fromCharCode(65 + index)}6`, value, 4)).join('')}</row>
     ${dataRows}
     <row r="${totalRow}" ht="24" customHeight="1">${[
