@@ -73,6 +73,11 @@ test('acepta identificadores uuid históricos de PostgreSQL aunque no codifiquen
   assert.equal(summary.context.tenantId, '00000000-0000-0000-0000-000000000002');
 });
 
+test('explica los códigos GRH todavía no homologados sin inventar su significado', () => {
+  const summary = createPayrollReceiptSummary(employee, { ...payroll, canonicalPayrollType: null, payrollType: 'P' }, { tenant });
+  assert.equal(summary.payroll.payrollTypeLabel, 'Código GRH P - sin homologar');
+});
+
 test('crea un PDF local íntegro con ámbito, alcance y trazabilidad visibles', () => {
   const summary = createPayrollReceiptSummary(employee, payroll, { tenant, generatedAt: '2026-09-04T12:00:00.000Z' });
   const artifact = createPayrollReceiptPdfArtifact(summary);

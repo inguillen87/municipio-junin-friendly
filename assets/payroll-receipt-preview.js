@@ -42,7 +42,8 @@ function formatArs(value) {
 }
 
 function typeLabel(value) {
-  return ({
+  const raw = cleanText(value, 48, 'Tipo no informado');
+  const known = ({
     monthly: 'Mensual',
     first_fortnight: 'Primera quincena',
     second_fortnight: 'Segunda quincena',
@@ -51,7 +52,9 @@ function typeLabel(value) {
     supplementary: 'Complementaria',
     final: 'Liquidación final',
     other: 'Otra',
-  })[String(value || '').trim().toLowerCase()] || cleanText(value, 48, 'Tipo no informado');
+  })[raw.toLowerCase()];
+  if (known) return known;
+  return /^[A-Z]$/.test(raw) ? `Código GRH ${raw} - sin homologar` : raw;
 }
 
 function normalizedSourceCutoff(value) {

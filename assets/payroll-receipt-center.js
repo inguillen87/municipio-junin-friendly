@@ -8,6 +8,7 @@ const AUTH_URL = '/api/internal-auth';
 const DATA_URL = '/api/internal-data';
 const LOGIN_URL = 'login.html?next=recibos-sueldo.html';
 const REQUIRED = ['workforce.employee.read', 'payroll.read'];
+const INITIAL_PERIODS = 6;
 const byId = (id) => document.getElementById(id);
 const integerFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const monthFormatter = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -16,6 +17,7 @@ let selectedEmployee = null;
 let payrollItems = [];
 let selectedSummary = null;
 let redirecting = false;
+let periodsExpanded = false;
 const busyButtonStates = new Map();
 
 function text(value) { return String(value ?? '').trim(); }
@@ -45,7 +47,11 @@ function monthLabel(value) {
 }
 
 function typeLabel(value) {
-  return ({ monthly: 'Mensual', first_fortnight: 'Primera quincena', second_fortnight: 'Segunda quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Final', other: 'Otra' })[text(value).toLowerCase()] || text(value) || 'Tipo no informado';
+  const raw = text(value);
+  const known = ({ monthly: 'Mensual', first_fortnight: 'Primera quincena', second_fortnight: 'Segunda quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Final', other: 'Otra' })[raw.toLowerCase()];
+  if (known) return known;
+  if (/^[A-Z]$/.test(raw)) return `Código GRH ${raw} · sin homologar`;
+  return raw || 'Tipo no informado';
 }
 
 function stateInfo(value) {
@@ -127,6 +133,7 @@ async function searchEmployees(event) {
   }
   clearMessage();
   setBusy(true, 'Buscando la persona…');
+  byId('employeeResults').hidden = false;
   byId('employeeResults').replaceChildren();
   byId('resultsStatus').textContent = 'Buscando…';
   try {
@@ -192,11 +199,14 @@ async function selectEmployee(employee) {
   selectedEmployee = employee;
   selectedSummary = null;
   payrollItems = [];
+  periodsExpanded = false;
   clearMessage();
   setBusy(true, 'Consultando liquidaciones reales…');
   byId('selectedEmployee').hidden = false;
   byId('selectedName').textContent = text(employee.nombre) || 'Persona sin nombre informado';
   byId('selectedMeta').textContent = `Legajo ${text(employee.legajo) || 'no informado'} · ${text(employee.sector) || 'Sector no informado'} · ${text(employee.convenio) || 'Convenio no informado'}`;
+  byId('employeeResults').hidden = true;
+  byId('resultsStatus').textContent = 'Persona seleccionada. Usá “Cambiar persona” para volver a los resultados.';
   byId('periodList').replaceChildren();
   byId('periodStatus').textContent = 'Consultando períodos…';
   byId('periodSection').hidden = false;
@@ -205,15 +215,27 @@ async function selectEmployee(employee) {
     const params = new URLSearchParams({ resource: 'employeepayroll', contractId: text(employee.contractId), page: '1', limit: '24' });
     const payload = await api(`${DATA_URL}?${params}`);
     payrollItems = Array.isArray(payload.data?.items) ? payload.data.items : [];
-    payrollItems.forEach((item, index) => byId('periodList').appendChild(payrollCard(item, index)));
-    byId('periodStatus').textContent = payrollItems.length
-      ? `${payrollItems.length} período${payrollItems.length === 1 ? '' : 's'} informado${payrollItems.length === 1 ? '' : 's'} por GRH.`
-      : 'GRH no informó liquidaciones mensuales para esta ficha.';
+    renderPayrollItems();
     byId('periodSection').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   } catch (error) {
     byId('periodStatus').textContent = 'No se pudieron consultar las liquidaciones.';
     showMessage('error', 'No pudimos abrir el historial', error.message);
   } finally { setBusy(false); }
+}
+
+function renderPayrollItems() {
+  const visibleItems = periodsExpanded ? payrollItems : payrollItems.slice(0, INITIAL_PERIODS);
+  byId('periodList').replaceChildren();
+  visibleItems.forEach((item, index) => byId('periodList').appendChild(payrollCard(item, index)));
+  const hiddenCount = Math.max(0, payrollItems.length - INITIAL_PERIODS);
+  const toggle = byId('togglePeriods');
+  toggle.hidden = hiddenCount === 0;
+  toggle.textContent = periodsExpanded
+    ? `Ver sólo los ${Math.min(INITIAL_PERIODS, payrollItems.length)} más recientes`
+    : `Ver ${hiddenCount} período${hiddenCount === 1 ? '' : 's'} anterior${hiddenCount === 1 ? '' : 'es'}`;
+  byId('periodStatus').textContent = payrollItems.length
+    ? `Mostrando ${visibleItems.length} de ${payrollItems.length} períodos informados por GRH.`
+    : 'GRH no informó liquidaciones mensuales para esta ficha.';
 }
 
 function previewRow(label, value, emphasized = false) {
@@ -260,7 +282,8 @@ async function logout() {
 async function initialize() {
   byId('employeeSearchForm').addEventListener('submit', searchEmployees);
   byId('downloadButton').addEventListener('click', downloadSelected);
-  byId('changeEmployee').addEventListener('click', () => { byId('employeeSearch').focus(); window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
+  byId('togglePeriods').addEventListener('click', () => { periodsExpanded = !periodsExpanded; renderPayrollItems(); });
+  byId('changeEmployee').addEventListener('click', () => { byId('employeeResults').hidden = false; byId('resultsStatus').textContent = 'Elegí otra ficha o realizá una nueva búsqueda.'; byId('employeeSearch').focus(); window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
   byId('logoutButton').addEventListener('click', logout);
   try {
     session = await api(AUTH_URL);
