@@ -17,7 +17,8 @@ const ACCOUNT_TYPES = Object.freeze({
 });
 
 function cuil(seed) {
-  const firstTen = `20${String(seed).padStart(8, '0')}`;
+  // Prefijo 00: checksum útil para probar el parser, pero imposible como CUIL real.
+  const firstTen = `00${String(seed).padStart(8, '0')}`;
   const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
   let sum = 0;
   for (let index = 0; index < weights.length; index += 1) {
@@ -127,6 +128,16 @@ test('recalcula las ocho hojas y genera dos resúmenes canónicos sin PII', () =
   assert.match(j42, /^2026-08;42;01;191;cuenta_corriente;1;10000$/m);
   assert.match(j55, /^2026-08;55;17;0;transferencia_especial;2;61000$/m);
   assert.doesNotMatch(`${j42}${j55}`, /PRIVATE|CUIL|CBU/);
+});
+
+test('el verificador del libro real no imprime importes municipales', () => {
+  const source = fs.readFileSync(new URL(
+    '../scripts/verify-payroll-bank-control-browser.mjs', import.meta.url,
+  ), 'utf8');
+  const output = source.match(/process\.stdout\.write\([\s\S]*?\);/)?.[0] ?? '';
+  assert.match(output, /operations42/);
+  assert.match(output, /operations55/);
+  assert.doesNotMatch(output, /financialTotals|jurisdiction42|jurisdiction55|\btotal\b/);
 });
 
 test('falla cerrado sin tipo de cuenta explícito o sin las ocho hojas exactas', () => {

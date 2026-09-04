@@ -84,11 +84,11 @@ try {
   const summary = {
     operations: await page.locator('[data-bank-control-operations]').innerText(),
     worksheets: await page.locator('[data-bank-control-worksheets]').innerText(),
-    total: await page.locator('[data-bank-control-total="all"]').innerText(),
-    jurisdiction42: await page.locator('[data-bank-control-total="42"]').innerText(),
-    jurisdiction55: await page.locator('[data-bank-control-total="55"]').innerText(),
     aggregateRows: await page.locator('[data-bank-control-rows] tr').count(),
   };
+  const financialTotals = await Promise.all([
+    'all', '42', '55',
+  ].map((key) => page.locator(`[data-bank-control-total="${key}"]`).innerText()));
   const jurisdictionOperations = await page.locator('[data-bank-control-rows] tr').evaluateAll((rows) => {
     const totals = { 42: 0, 55: 0 };
     for (const row of rows) {
@@ -102,6 +102,7 @@ try {
   summary.operations55 = jurisdictionOperations['55'];
   assert.equal(summary.worksheets, '8');
   assert.ok(Number(summary.operations) > 0);
+  assert.ok(financialTotals.every((value) => /^\$\s+[0-9.]+,[0-9]{2}$/.test(value)));
   assert.equal(summary.operations42 + summary.operations55, Number(summary.operations));
   assert.ok(summary.aggregateRows > 0);
 
@@ -115,7 +116,14 @@ try {
     assert.equal(lines[0], expectedHeader);
     assert.ok(lines.slice(1).filter(Boolean).every((line) => line.startsWith(`2026-08;${jurisdiction};`)));
   }
-  process.stdout.write(`${JSON.stringify(summary)}\n`);
+  process.stdout.write(`${JSON.stringify({
+    ok: true,
+    operations: summary.operations,
+    worksheets: summary.worksheets,
+    aggregateRows: summary.aggregateRows,
+    operations42: summary.operations42,
+    operations55: summary.operations55,
+  })}\n`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));

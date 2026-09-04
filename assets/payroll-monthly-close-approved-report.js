@@ -217,7 +217,6 @@ function approvalEvidence(run) {
     fail('APPROVED_PROOF_APPROVAL_INVALID', 'La aprobación final no coincide con la versión y hora decididas por el servidor.');
   }
   return Object.freeze({
-    actorRoleKey: event.actorRoleKey,
     eventSha256: event.eventSha256,
     decidedAt,
   });
@@ -383,7 +382,7 @@ function pdfDocument(context) {
 
   rect(38, 157, 519, 76, color.greenSoft, color.green);
   text(51, 215, 'APROBACION TRAZABLE', 8, 'F2', color.green);
-  text(51, 198, `Rol revisor: ${context.approval.actorRoleKey}`, 8, 'F2', color.navy);
+  text(51, 198, 'Decisión emitida por una autoridad habilitada y distinta del preparador', 8, 'F2', color.navy);
   text(51, 183, `Fecha y hora del servidor: ${serverUtcLabel(context.approval.decidedAt)}`, 8, 'F1', color.ink);
   text(51, 169, 'Huella del evento', 6.5, 'F2', color.muted);
   splitHash(135, 169, context.approval.eventSha256);

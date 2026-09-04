@@ -138,7 +138,7 @@ function approvedRun() {
         resultingVersion: 3,
         reasonCode: 'approved_by_checker',
         reasonReference: REFERENCE,
-        actorRoleKey: 'HUGO_APROBADOR_INTEGRAL',
+        actorRoleKey: 'TENANT_RRHH_APPROVER',
         eventSha256: '9'.repeat(64),
         occurredAt: '2026-09-04T10:02:00.000Z',
       },
@@ -177,7 +177,8 @@ test('genera un PDF determinista desde aprobación, conciliación y hora del ser
   assert.match(pdf, /2026-08 \/ J42/);
   assert.match(pdf, new RegExp(RUN_ID));
   assert.match(pdf, /\$ 30,50/);
-  assert.match(pdf, /HUGO_APROBADOR_INTEGRAL/);
+  assert.match(pdf, /autoridad habilitada y distinta del preparador/);
+  assert.doesNotMatch(pdf, /TENANT_RRHH_APPROVER/);
   assert.match(pdf, /2026-09-04 10:02:00 UTC/);
   assert.match(pdf, new RegExp('9'.repeat(32)));
   assert.match(pdf, /No es F\.931\/LSD ni constancia fiscal/);
@@ -191,7 +192,7 @@ test('el comprobante sólo incluye campos agregados y rechaza deriva con PII', (
   expectBlocked(run, 'APPROVED_PROOF_PII_DETECTED');
 
   const pdf = decodedPdf(createPayrollMonthlyCloseApprovedPdf(approvedRun()));
-  assert.doesNotMatch(pdf, /employee|legajo|cuil|cbu|correo|@/i);
+  assert.doesNotMatch(pdf, /employee|legajo|cuil|cbu|correo|@|actorRoleKey|HUGO/i);
 });
 
 test('falla cerrado para estados no aprobados, diferencias y bloqueos', () => {
