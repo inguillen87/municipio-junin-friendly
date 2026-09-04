@@ -588,7 +588,8 @@ export function validatePayrollReprocessingEvidence(evidence) {
       throw new Error(`trigger 035 invalido: ${name}`);
     }
     requireTokens(`trigger ${name}`, trigger.definition, [
-      ...contract.tokens, `ON public.${contract.table}`, contract.functionSignature,
+      ...contract.tokens, `ON public.${contract.table}`,
+      contract.functionSignature.replace(/^public\./, ''),
     ]);
   }
 
