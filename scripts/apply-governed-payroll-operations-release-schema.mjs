@@ -68,6 +68,11 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-payroll-control-import-binding-lock-schema.mjs', import.meta.url),
     envPrefix: 'PAYROLL_CONTROL_IMPORT_BINDING',
   }),
+  Object.freeze({
+    version: '035-governed-payroll-reprocessing',
+    script: new URL('./apply-governed-payroll-reprocessing-schema.mjs', import.meta.url),
+    envPrefix: 'PAYROLL_REPROCESSING',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -75,7 +80,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-034',
+    targetLabel: 'release 024-035',
   });
 }
 
@@ -136,7 +141,7 @@ async function main() {
   let releaseSteps;
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-034');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-035');
     releaseSteps = await payrollOperationsReleaseStepsForState(client);
   } finally {
     await client.end().catch(() => undefined);
@@ -161,7 +166,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-034 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-035 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]

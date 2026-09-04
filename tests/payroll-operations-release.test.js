@@ -26,7 +26,7 @@ function target(mode = 'isolated') {
   };
 }
 
-test('release ejecuta en orden estricto 024 a 034', () => {
+test('release ejecuta en orden estricto 024 a 035', () => {
   assert.deepEqual(PAYROLL_OPERATIONS_RELEASE_STEPS.map((step) => step.version), [
     '024-governed-monthly-attendance-evaluation',
     '025-governed-payroll-control-import',
@@ -39,6 +39,7 @@ test('release ejecuta en orden estricto 024 a 034', () => {
     '032-payroll-type-mapping-fail-closed',
     '033-payroll-art-report-capability',
     '034-payroll-control-import-binding-lock',
+    '035-governed-payroll-reprocessing',
   ]);
   const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.find((step) => (
     step.version === '029-payroll-novelty-first-fortnight'
@@ -51,25 +52,29 @@ test('release ejecuta en orden estricto 024 a 034', () => {
   assert.equal(step030.envPrefix, 'ACCOUNT_PROFILE_GOVERNANCE');
   assert.match(step030.script.pathname,
     /apply-governed-account-profile-admin-view-schema\.mjs$/);
-  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-4);
+  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-5);
   assert.equal(step031.envPrefix, 'EMPLOYEE_PAYROLL_HISTORY');
   assert.match(step031.script.pathname,
     /apply-governed-employee-payroll-history-schema\.mjs$/);
-  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
+  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-4);
   assert.equal(step032.envPrefix, 'PAYROLL_TYPE_MAPPING');
   assert.match(step032.script.pathname,
     /apply-payroll-type-mapping-fail-closed-schema\.mjs$/);
-  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
+  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
   assert.equal(step033.envPrefix, 'PAYROLL_ART_REPORT');
   assert.match(step033.script.pathname,
     /apply-payroll-art-report-capability-schema\.mjs$/);
-  const step034 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  const step034 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
   assert.equal(step034.envPrefix, 'PAYROLL_CONTROL_IMPORT_BINDING');
   assert.match(step034.script.pathname,
     /apply-payroll-control-import-binding-lock-schema\.mjs$/);
+  const step035 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  assert.equal(step035.envPrefix, 'PAYROLL_REPROCESSING');
+  assert.match(step035.script.pathname,
+    /apply-governed-payroll-reprocessing-schema\.mjs$/);
   assert.match(source, /result\.status !== 0/);
   assert.match(source, /release se detuvo antes del siguiente paso/);
-  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-034'\)/);
+  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-035'\)/);
 });
 
 test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () => {
@@ -118,6 +123,11 @@ test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () =>
   );
   assert.equal(bindingEnv.PAYROLL_CONTROL_IMPORT_BINDING_EXPECTED_NEON_BRANCH_ID,
     'br-payroll-release');
+  const reprocessingEnv = payrollOperationsChildEnvironment(
+    target(), 'PAYROLL_REPROCESSING', {},
+  );
+  assert.equal(reprocessingEnv.PAYROLL_REPROCESSING_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
 });
 
 test('release productivo repite branch id en comando, canonico y pin propio', () => {
@@ -155,7 +165,7 @@ test('reapply 034 omite la verificacion historica 025 y valida su ledger antes d
     async query() { return { rowCount: 1, rows: [{ checksum_sha256: checksum }] }; },
   });
   assert.equal(reapply.some((step) => step.version === '025-governed-payroll-control-import'), false);
-  assert.equal(reapply.at(-1).version, '034-payroll-control-import-binding-lock');
+  assert.equal(reapply.at(-1).version, '035-governed-payroll-reprocessing');
 
   await assert.rejects(() => payrollOperationsReleaseStepsForState({
     async query() { return { rowCount: 1, rows: [{ checksum_sha256: '0'.repeat(64) }] }; },
@@ -163,7 +173,7 @@ test('reapply 034 omite la verificacion historica 025 y valida su ledger antes d
   assert.match(source, /releaseSteps = await payrollOperationsReleaseStepsForState\(client\)/);
 });
 
-test('package expone release explícito y Vercel conserva 026 a 034 y la pantalla', async () => {
+test('package expone release explícito y Vercel conserva 026 a 035 y la pantalla', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
   assert.equal(packageJson.scripts['db:payroll:operations:release'],
     'node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs');
@@ -177,6 +187,7 @@ test('package expone release explícito y Vercel conserva 026 a 034 y la pantall
   assert.match(ignore, /!scripts\/migrations\/032-payroll-type-mapping-fail-closed\.sql/);
   assert.match(ignore, /!scripts\/migrations\/033-payroll-art-report-capability\.sql/);
   assert.match(ignore, /!scripts\/migrations\/034-payroll-control-import-binding-lock\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/035-governed-payroll-reprocessing\.sql/);
   assert.match(ignore, /!novedades-nomina\.html/);
   assert.doesNotMatch(source, /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
 });
