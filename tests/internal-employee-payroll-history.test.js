@@ -392,15 +392,15 @@ test('employeePayroll publica importes exactos y explicita el control aritmétic
   ].join('|'), 'i'));
 });
 
-test('employeePayroll aplica el mapping GRH v2 completo y deja desconocidos fail-closed', async () => {
-  const sourceCodes = ['M', 'P', 'S', 'V', 'O', 'F', 'X'];
+test('employeePayroll aplica sólo el mapping versionado M a monthly y deja los demás códigos fail-closed', async () => {
+  const sourceCodes = ['M', 'P', 'S', 'V', 'O', 'F'];
   const rows = sourceCodes.map((payrollType, index) => payrollRow({
     payrollDate: `2026-0${8 - index}-28`,
     payrollType,
   }));
   const result = await employeePayroll(
-    mockPayrollSql(rows, rows.length, { limit: 7 }),
-    { query: { contractId: CONTRACT_ID, limit: '7' } },
+    mockPayrollSql(rows, rows.length, { limit: 6 }),
+    { query: { contractId: CONTRACT_ID, limit: '6' } },
     managedAccess().principal,
     tenantSession(),
   );
@@ -408,6 +408,6 @@ test('employeePayroll aplica el mapping GRH v2 completo y deja desconocidos fail
   assert.equal(result.status, 200);
   assert.deepEqual(result.payload.data.items.map((item) => item.payrollType), sourceCodes);
   assert.deepEqual(result.payload.data.items.map((item) => item.canonicalPayrollType), [
-    'monthly', 'first_fortnight', 'sac', 'vacation', 'other', 'final', null,
+    'monthly', null, null, null, null, null,
   ]);
 });

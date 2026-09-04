@@ -53,7 +53,6 @@ database/
 !scripts/migrations/036-owner-tenant-operational-authority.sql
 !scripts/migrations/037-payroll-control-import-lock-semantics.sql
 !scripts/migrations/038-governed-monthly-close-run.sql
-!scripts/migrations/039-grh-payroll-type-homologation.sql
 !scripts/apply-governed-monthly-close-schema.mjs
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md

@@ -201,22 +201,15 @@ test('Cargar novedad crea un handoff privado mínimo sin datos en la URL', async
   assert.doesNotMatch(html, /localStorage\.(?:setItem|getItem)\(PAYROLL_NOVELTY_HANDOFF_KEY/);
 });
 
-test('el handoff usa los seis tipos GRH homologados y conserva desconocidos fail-closed', async () => {
+test('el historial presenta los códigos GRH en lenguaje cotidiano sin ampliar el handoff vigente', async () => {
   const html = await read('internal-dashboard.html');
   const workbench = await read('assets/payroll-novelty-workbench.js');
-  const contract = JSON.parse(await read('contracts/grh-payroll-type-map.v2.json'));
+  const contract = JSON.parse(await read('contracts/grh-payroll-type-map.v1.json'));
   const normalize = noveltyTypeNormalizer(html);
   const starter = payrollNoveltyStarter(html);
   assert.deepEqual(contract.verifiedMappings.map(({ sourceCode, canonicalType }) => ({
     sourceCode, canonicalType,
-  })), [
-    { sourceCode: 'F', canonicalType: 'final' },
-    { sourceCode: 'M', canonicalType: 'monthly' },
-    { sourceCode: 'O', canonicalType: 'other' },
-    { sourceCode: 'P', canonicalType: 'first_fortnight' },
-    { sourceCode: 'S', canonicalType: 'sac' },
-    { sourceCode: 'V', canonicalType: 'vacation' },
-  ]);
+  })), [{ sourceCode: 'M', canonicalType: 'monthly' }]);
   for (const canonical of ['monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other']) {
     assert.equal(normalize(canonical), canonical);
   }
@@ -229,21 +222,12 @@ test('el handoff usa los seis tipos GRH homologados y conserva desconocidos fail
   );
   starter.start(
     { legajo: '571' },
-    { payrollDate: '2026-07-31', payrollType: 'P', canonicalPayrollType: 'first_fortnight' },
-  );
-  starter.start(
-    { legajo: '571' },
-    { payrollDate: '2026-06-30', payrollType: 'S', canonicalPayrollType: 'sac' },
-  );
-  starter.start(
-    { legajo: '571' },
-    { payrollDate: '2026-05-31', payrollType: 'X', canonicalPayrollType: null },
+    { payrollDate: '2026-07-31', payrollType: 'P', canonicalPayrollType: null },
   );
   assert.deepEqual(starter.handoffs.map(({ payload }) => payload.payrollType), [
-    'monthly', 'first_fortnight', 'sac', null,
+    'monthly', null,
   ]);
   assert.deepEqual(starter.redirects, [
-    'novedades-nomina.html', 'novedades-nomina.html',
     'novedades-nomina.html', 'novedades-nomina.html',
   ]);
   assert.deepEqual(starter.toasts, []);
