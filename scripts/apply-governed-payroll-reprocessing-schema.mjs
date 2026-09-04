@@ -345,7 +345,8 @@ function normalizedDeparser(value) {
     .replace(/::varchar(?:\(\d+\))?/g, '')
     .replace(/::text\[\]/g, '')
     .replace(/::text/g, '')
-    .replace(/\(([a-z_][a-z0-9_]*)\)/g, '$1');
+    .replace(/\(([a-z_][a-z0-9_]*)\)/g, '$1')
+    .replace(/\(\((?=array\[)/g, '(');
 }
 
 function requireTokens(label, value, tokens) {
