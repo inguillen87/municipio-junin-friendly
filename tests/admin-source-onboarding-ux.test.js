@@ -73,7 +73,7 @@ test('panel aparece sólo con contexto tenant y autoridad plataforma MFA explíc
   assert.match(html, /state\.identityPolicy = Object\.assign\(\{\}, state\.identityPolicy/);
 });
 
-test('un cambio de release conserva una recuperación gobernada desde la UI', () => {
+test('un cambio de contrato conserva una recuperación gobernada desde la UI', () => {
   const ready = functionSource('sourceReleaseRecertificationReady');
   assert.match(ready, /IDENTITY_SOURCE_RELEASE_RECERTIFICATION_REQUIRED/);
   assert.match(ready, /state\.identityPolicy\.dataPlaneReady === true/);
@@ -87,8 +87,8 @@ test('un cambio de release conserva una recuperación gobernada desde la UI', ()
   assert.doesNotMatch(recovery, /sourceDatabase|sourceCompanyId|releaseSha/);
 
   const render = functionSource('renderSourceOnboarding');
-  assert.match(render, /Release pendiente de recertificación/);
-  assert.match(render, /recertificación para habilitar nuevamente las consultas tenant/);
+  assert.match(render, /Contrato de datos pendiente/);
+  assert.match(render, /nueva revisión para habilitar nuevamente las consultas del gobierno/);
   assert.match(render, /No modifica la fuente GRH ni habilita delivery/);
 });
 
@@ -121,7 +121,7 @@ test('certificación exige evidencia agregada, versión actualizada y acción hu
 
   const submit = functionSource('submitDataPlaneCertification');
   assert.match(submit, /window\.confirm\(/);
-  assert.match(submit, /Recertificar el plano de datos para el release activo/);
+  assert.match(submit, /Certificar la nueva revisión del contrato de datos/);
   assert.match(submit, /tenantId: state\.context\.tenantId/);
   assert.match(submit, /sourceBindingId: state\.sourceOnboarding\.binding\.id/);
   assert.match(submit, /reason: el\.sourceCertifyReason\.value\.trim\(\)/);

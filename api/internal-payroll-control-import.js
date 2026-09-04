@@ -407,7 +407,7 @@ function safeError(error) {
     return new InternalPayrollControlImportApiError(
       'PAYROLL_CONTROL_IMPORT_RELEASE_NOT_CERTIFIED',
       503,
-      'La versión desplegada no está certificada',
+      'El contrato de datos activo no está certificado',
     );
   }
   if (error?.code === 'ACTION_DATABASE_ROLE_REQUIRED') {

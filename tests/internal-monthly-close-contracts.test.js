@@ -59,13 +59,23 @@ function bankSource({ firstAmount = '1000', secondAmount = '2050', includeSecond
   ]);
 }
 
-function governmentSource({ missingMetric = '' } = {}) {
+function governmentSource({ missingMetric = '', overrides = {} } = {}) {
+  const compatibleValues = {
+    haberes_rem_no_docentes: '3000',
+    haberes_rem_docentes: '0',
+    haberes_no_rem: '100',
+    contribuciones_jubilatorias: '700',
+    contribuciones_osep: '25',
+    contribuciones_osep_no_rem: '0',
+    art: '25',
+    ...overrides,
+  };
   return bytes([
     MONTHLY_CLOSE_SOURCE_CONTRACTS['government-payroll-summary.v1'].header,
     ...governmentMetrics.map(([metric, unit], index) => (
       metric === missingMetric
         ? `2026-08;42;${metric};${unit};no_informado;`
-        : `2026-08;42;${metric};${unit};informado;${index + 1}`
+        : `2026-08;42;${metric};${unit};informado;${compatibleValues[metric] ?? index + 1}`
     )),
   ]);
 }
@@ -177,11 +187,18 @@ test('Casa de Gobierno hace explícito un faltante y bloquea el precontrol', () 
   const precheck = buildMonthlyClosePrecheck([concepts, bank, government]);
   assert.equal(precheck.status, 'blocked');
   assert.equal(precheck.readyForReview, false);
-  assert.deepEqual(precheck.blockingIssues, [{
-    definitionKey: 'government-payroll-summary.v1',
-    code: 'MONTHLY_CLOSE_METRIC_NOT_INFORMED',
-    metric: 'art',
-  }]);
+  assert.deepEqual(precheck.blockingIssues, [
+    {
+      definitionKey: 'government-payroll-summary.v1',
+      code: 'MONTHLY_CLOSE_METRIC_NOT_INFORMED',
+      metric: 'art',
+    },
+    {
+      definitionKey: 'monthly-close-government-reconciliation.v1',
+      code: 'MONTHLY_CLOSE_GOVERNMENT_CONTRIBUTIONS_NOT_COMPARABLE',
+      comparisonKey: 'employer_contributions',
+    },
+  ]);
   assert.equal(precheck.closeApproved, false);
 });
 
@@ -212,9 +229,17 @@ test('las tres fuentes completas sólo dejan el cierre listo para revisión', ()
       { repartitionCode: '2', differenceCents: '0', matches: true },
     ],
   );
+  assert.deepEqual(precheck.reconciliation.governmentComparisons.map((row) => ({
+    comparisonKey: row.comparisonKey,
+    differenceCents: row.differenceCents,
+    matches: row.matches,
+  })), [
+    { comparisonKey: 'earnings', differenceCents: '0', matches: true },
+    { comparisonKey: 'employer_contributions', differenceCents: '0', matches: true },
+  ]);
   assert.equal(precheck.reconciliation.toleranceCents, '0');
   assert.equal(precheck.reconciliation.rulesInferred, false);
-  assert.equal(precheck.reconciliation.governmentSummaryCompared, false);
+  assert.equal(precheck.reconciliation.governmentSummaryCompared, true);
   assert.equal(precheck.reconciliation.payrollNetCertified, false);
   assert.equal(precheck.provenanceVerified, false);
   assert.equal(precheck.persistencePerformed, false);
@@ -223,6 +248,36 @@ test('las tres fuentes completas sólo dejan el cierre listo para revisión', ()
   assert.equal(precheck.closeApproved, false);
   assert.equal(precheck.bankArtifactGenerated, false);
   assert.equal(precheck.tribunalArtifactGenerated, false);
+});
+
+test('Gobierno participa de la conciliación y una diferencia de un centavo bloquea', () => {
+  const concepts = prepare(
+    'grh-concept-statistics.v1', 'grh_observed', conceptSource(),
+  );
+  const bank = prepare(
+    'bank-accreditation-summary.v1', 'bank_control', bankSource(),
+  );
+  const government = prepare(
+    'government-payroll-summary.v1',
+    'government_control',
+    governmentSource({ overrides: { art: '24' } }),
+  );
+  const precheck = buildMonthlyClosePrecheck([concepts, bank, government]);
+  assert.equal(precheck.readyForReview, false);
+  assert.equal(precheck.reconciliation.governmentSummaryCompared, true);
+  assert.deepEqual(precheck.reconciliation.governmentComparisons[1], {
+    comparisonKey: 'employer_contributions',
+    reportedGrhCents: '750',
+    reportedGovernmentCents: '749',
+    differenceCents: '1',
+    matches: false,
+    issueCode: 'MONTHLY_CLOSE_GOVERNMENT_CONTRIBUTIONS_MISMATCH',
+  });
+  assert.deepEqual(precheck.blockingIssues.at(-1), {
+    definitionKey: 'monthly-close-government-reconciliation.v1',
+    code: 'MONTHLY_CLOSE_GOVERNMENT_CONTRIBUTIONS_MISMATCH',
+    comparisonKey: 'employer_contributions',
+  });
 });
 
 test('bloquea diferencias y reparticiones faltantes sin aplicar tolerancias', () => {
@@ -464,7 +519,7 @@ test('el módulo no persiste bytes ni afirma cierre, cálculo o presentación fi
   assert.match(sourceCode, /payrollPosted: false/);
   assert.match(sourceCode, /closeApproved: false/);
   assert.match(sourceCode, /fiscalArtifactGenerated: false/);
-  assert.match(sourceCode, /governmentSummaryCompared: false/);
+  assert.match(sourceCode, /governmentSummaryCompared: true/);
   assert.match(sourceCode, /payrollNetCertified: false/);
   assert.match(sourceCode, /tribunalArtifactGenerated: false/);
 });

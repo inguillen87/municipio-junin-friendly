@@ -184,7 +184,7 @@ test('el handler autorizado usa sesión administrada y sólo la conexión ACTION
     env: {
       NODE_ENV: 'test',
       INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA,
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
     },
   });
   const res = response();

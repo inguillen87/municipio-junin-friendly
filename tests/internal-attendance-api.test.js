@@ -39,7 +39,7 @@ function access() {
 
 function internalDependencies(overrides = {}) {
   const defaults = {
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA, ATTENDANCE_IDENTITY_PEPPER: 'x'.repeat(40) },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA, ATTENDANCE_IDENTITY_PEPPER: 'x'.repeat(40) },
     requireCompatibleInternalAccess: async () => access(),
     getInternalSql: async () => ({ fake: true }),
     getAttendanceBootstrap: async () => ({
@@ -277,7 +277,7 @@ test('mutación reenvía pepper sólo al normalizador server-side y marca replay
 
 function ingestDependencies(overrides = {}) {
   const defaults = {
-    env: { VERCEL_GIT_COMMIT_SHA: RELEASE_SHA, ATTENDANCE_IDENTITY_PEPPER: 'y'.repeat(40) },
+    env: { INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA, ATTENDANCE_IDENTITY_PEPPER: 'y'.repeat(40) },
     registry: { fake: true },
     getInternalSql: async () => ({ fake: true }),
     normalizeAttendanceIngestRequest: (value) => ({
@@ -335,12 +335,12 @@ test('endpoint de gateway entrega recibo mínimo y sólo hash del bearer a la DB
   assert.equal(calls[0][3], RELEASE_SHA);
 });
 
-test('gateway usa el release certificado explícito también en deployments manuales', async () => {
+test('gateway usa el contrato certificado explícito y tolera otro SHA de deployment', async () => {
   const calls = [];
   const handler = createAttendanceIngestHandler(ingestDependencies({
     env: {
       INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA,
-      VERCEL_GIT_COMMIT_SHA: undefined,
+      VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40),
     },
     ingestAttendanceBatch: async (...args) => {
       calls.push(args);
@@ -360,11 +360,14 @@ test('gateway usa el release certificado explícito también en deployments manu
   assert.equal(calls[0][3], RELEASE_SHA);
 });
 
-test('gateway falla cerrado antes de abrir SQL si el release no está certificado', async () => {
+test('gateway falla cerrado antes de abrir SQL si el contrato no está certificado', async () => {
   const cases = [
     {},
     { INTERNAL_CERTIFIED_RELEASE_SHA: 'invalido', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
-    { INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA, VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) },
+    {
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_RELEASE_SHA: 'b'.repeat(40),
+    },
   ];
   for (const env of cases) {
     let sqlCalls = 0;

@@ -300,7 +300,7 @@ test('replay 016 conserva un intento y el proveedor recibe una sola entrega', as
   const handler = createInternalIdentityHandler({
     env: {
       IDENTITY_APP_ORIGIN: ORIGIN,
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
       NODE_ENV: 'test',
     },
     identitySecrets: SECRETS,

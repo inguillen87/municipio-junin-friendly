@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import {
-  InternalCertifiedReleaseError,
-  resolveInternalCertifiedReleaseSha,
+  InternalCertifiedDataContractError,
+  resolveInternalCertifiedDataContractSha,
 } from '../lib/internal-certified-release.js';
 import { hashInternalPassword, verifyInternalPassword } from '../lib/internal-password.js';
 import {
@@ -125,10 +125,10 @@ function trustedOrigin(env) {
 
 function certifiedReleaseSha(env) {
   try {
-    return resolveInternalCertifiedReleaseSha(env);
+    return resolveInternalCertifiedDataContractSha(env);
   } catch (error) {
-    if (!(error instanceof InternalCertifiedReleaseError)) throw error;
-    fail('IDENTITY_RELEASE_NOT_CERTIFIED', 503, 'La version activa no esta certificada');
+    if (!(error instanceof InternalCertifiedDataContractError)) throw error;
+    fail('IDENTITY_RELEASE_NOT_CERTIFIED', 503, 'El contrato de datos activo no está certificado');
   }
 }
 

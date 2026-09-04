@@ -52,6 +52,8 @@ database/
 !scripts/migrations/035-governed-payroll-reprocessing.sql
 !scripts/migrations/036-owner-tenant-operational-authority.sql
 !scripts/migrations/037-payroll-control-import-lock-semantics.sql
+!scripts/migrations/038-governed-monthly-close-run.sql
+!scripts/apply-governed-monthly-close-schema.mjs
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

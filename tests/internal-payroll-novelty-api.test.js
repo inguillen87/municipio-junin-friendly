@@ -81,7 +81,7 @@ function dependencies(overrides = {}) {
     env: {
       NODE_ENV: 'test',
       INTERNAL_APP_ORIGIN: 'https://municipio.example',
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
     },
     requireCompatibleInternalAccess: async () => access(),
     getInternalSql: async () => ({ runtime: true }),

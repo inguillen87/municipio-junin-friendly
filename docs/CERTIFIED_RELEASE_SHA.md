@@ -1,48 +1,77 @@
-# SHA del release certificado
+# Contrato de datos certificado
 
-Las operaciones gobernadas comparan el release activo con
-`certified_release_sha` en PostgreSQL. El resolver no certifica ni promueve un
-release: solamente identifica qué commit está ejecutando el backend y conserva
-la comparación exacta en la base.
+Las operaciones gobernadas comparan una identidad estable del contrato de
+datos con `certified_release_sha` en PostgreSQL. El nombre de la columna se
+conserva por compatibilidad, pero su valor ya no identifica cada despliegue de
+la aplicación: identifica la revisión del contrato que comparten el backend y
+las fachadas SQL.
 
-## Deployments manuales
+La variable canónica es `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA`. Debe contener
+exactamente 40 caracteres hexadecimales. Una forma auditable de asignarla es
+usar el SHA completo del commit que introdujo la última modificación real del
+contrato gobernado y conservarlo en los despliegues posteriores hasta que ese
+contrato vuelva a cambiar.
 
-Configurar `INTERNAL_CERTIFIED_RELEASE_SHA` con el SHA Git completo de 40
-caracteres del artefacto desplegado. Esta variable tiene precedencia sobre
-`VERCEL_GIT_COMMIT_SHA`, porque un deployment manual de Vercel puede no publicar
-metadata Git. Si Vercel sí informa ambos valores, deben ser exactamente iguales;
-una discrepancia falla cerrada para impedir que un artefacto se presente como
-otro release.
+`VERCEL_GIT_COMMIT_SHA` identifica el artefacto desplegado y no participa en
+esta comparación. Por eso un cambio de UX, textos, estilos u otro código que no
+altera el contrato de datos puede desplegarse sin recertificar el tenant.
 
-Si `INTERNAL_CERTIFIED_RELEASE_SHA` existe pero está vacía o no contiene un SHA
-válido, el runtime falla cerrado con HTTP 503. No usa el valor de Vercel como
-respaldo silencioso.
+## Estado seguro
 
-## Deployments vinculados a Git
+El runtime falla cerrado con HTTP 503 antes de abrir la base cuando:
 
-Cuando la variable explícita no existe, el runtime conserva el fallback a
-`VERCEL_GIT_COMMIT_SHA`. Ambos caminos normalizan a minúsculas y exigen
-exactamente 40 caracteres hexadecimales.
+- no existe ni la variable canónica ni el alias transitorio;
+- la identidad no tiene exactamente 40 caracteres hexadecimales; o
+- la variable canónica y el alias transitorio conviven con valores distintos.
 
-## Checklist operacional
+Una identidad válida tampoco certifica por sí sola el plano: PostgreSQL debe
+tener el mismo valor y conservar el binding GRH verificado. Si el contrato se
+rota y la política del tenant conserva la identidad anterior, las operaciones
+tenant fallan cerradas hasta completar la certificación gobernada.
 
-1. Registrar el SHA exacto del commit que produjo el artefacto.
-2. Configurar `INTERNAL_CERTIFIED_RELEASE_SHA` con ese mismo SHA únicamente en
-   los entornos que usan un deployment manual. Nunca apuntarla al SHA anterior
-   para eludir una diferencia con la política del tenant.
-3. Crear un deployment nuevo: los cambios de variables de Vercel no alteran un
-   deployment ya construido.
-4. Si la política del tenant todavía certifica el release anterior, usar el
-   comando gobernado `certify_data_plane` desde una sesión Plataforma con MFA,
-   binding GRH verificado, versión esperada e idempotencia. No actualizar
-   `tenant_identity_policy` mediante SQL directo.
-5. Confirmar que PostgreSQL devuelve el mismo SHA del artefacto y mantiene el
-   binding esperado. Recién entonces ejecutar smokes de lectura y de una
-   operación gobernada autorizada.
+## Transición desde el nombre anterior
 
-Un estado `Ready` de Vercel por sí solo no acredita la comparación con
-PostgreSQL. Durante el intervalo entre el deployment y la recertificación, los
-accesos tenant deben fallar cerrados; la administración global conserva el
-camino explícito para completar la promoción.
+`INTERNAL_CERTIFIED_RELEASE_SHA` permanece como alias explícito y temporal. Ya
+no debe seguir al SHA de Vercel ni se compara con él. Esto permite migrar sin
+interrumpir el servicio ni recertificar datos que no cambiaron:
 
-Para volver al modo Git, eliminar la variable explícita y desplegar nuevamente.
+1. Desplegar esta versión conservando el valor actual de
+   `INTERNAL_CERTIFIED_RELEASE_SHA`.
+2. Agregar `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA` con exactamente el mismo
+   valor y crear un nuevo despliegue.
+3. Comprobar las lecturas y una operación gobernada autorizada.
+4. Eliminar el alias anterior y desplegar nuevamente.
+
+Mientras ambas variables convivan deben ser idénticas. No se admite fallback a
+metadata Git, valores vacíos ni corrección silenciosa.
+
+## Despliegue ordinario: el contrato no cambió
+
+1. Mantener `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA` sin cambios.
+2. Desplegar el nuevo artefacto normalmente.
+3. Verificar que las lecturas tenant y una operación gobernada sigan disponibles.
+
+No ejecutar `certify_data_plane` y no editar la política del tenant. El SHA del
+nuevo commit de Vercel puede ser distinto; eso es esperado.
+
+## Rotación: el contrato de datos sí cambió
+
+Una rotación corresponde cuando cambia una fachada SQL, una migración, el
+binding exigido o una pre/postcondición gobernada que modifica lo que el runtime
+puede leer o escribir. No corresponde por un cambio puramente visual.
+
+1. Identificar y revisar el cambio de contrato; probar su migración en una rama
+   aislada de Neon antes de Producción.
+2. Asignar una nueva identidad de 40 hexadecimales y configurar
+   `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA` con ese valor.
+3. Aplicar la migración gobernada con conexión directa y verificar sus
+   invariantes.
+4. Desplegar el backend. La diferencia con PostgreSQL debe producir HTTP 503;
+   ese cierre confirma que no se mezclan contratos.
+5. Desde una sesión Plataforma con MFA, binding GRH verificado, versión esperada
+   e idempotencia, ejecutar `certify_data_plane` una sola vez.
+6. Confirmar que PostgreSQL devuelve la nueva identidad, mantiene el binding
+   esperado y habilita los smokes tenant.
+
+Nunca actualizar `tenant_identity_policy` mediante SQL directo. Un estado
+`Ready` de Vercel tampoco prueba que el contrato y PostgreSQL coincidan.

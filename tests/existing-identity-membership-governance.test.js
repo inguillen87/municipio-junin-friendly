@@ -595,7 +595,7 @@ test('fachada release-bound enruta solicitud, reactivación, aprobación y recha
 test('API responde 202 a solicitudes y 200 a decisiones maker-checker', async () => {
   const captured = [];
   const handler = createInternalAdminHandler({
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => ({
       mode: 'managed', session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
       principal: { tenant: null },

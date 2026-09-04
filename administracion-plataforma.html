@@ -2364,14 +2364,14 @@
       el.sourceOnboardingGateTitle.textContent = onboardingError
         ? 'Onboarding no disponible'
         : (recertificationRequired
-        ? 'Release pendiente de recertificación'
+        ? 'Contrato de datos pendiente'
         : (alreadyCertified
         ? 'Plano de datos certificado'
         : (policyReady && currentCommandReady ? 'Onboarding GRH gobernado' : 'Onboarding bloqueado')));
       el.sourceOnboardingGateMessage.textContent = onboardingError
         ? onboardingError
         : (recertificationRequired
-        ? 'La fuente GRH ya estaba certificada, pero el release activo cambió. Confirmá la recertificación para habilitar nuevamente las consultas tenant.'
+        ? 'La fuente GRH ya estaba certificada, pero el contrato de datos cambió. Confirmá la nueva revisión para habilitar nuevamente las consultas del gobierno.'
         : (alreadyCertified
         ? 'La política del tenant informa el plano de datos listo. La entrega de invitaciones conserva su decisión independiente.'
         : (!policyReady
@@ -2384,7 +2384,7 @@
         pill(policyReady ? 'Política v' + state.identityPolicy.version : 'Política ausente', policyReady ? 'is-ok' : 'is-danger'),
         pill('MFA verificado', 'is-ok'),
         pill('Gestión de tenants', 'is-ok'),
-        pill(recertificationRequired ? 'Release pendiente' : 'Release verificado', recertificationRequired ? 'is-attention' : 'is-ok'),
+        pill(recertificationRequired ? 'Contrato pendiente' : 'Contrato verificado', recertificationRequired ? 'is-attention' : 'is-ok'),
         pill(state.identityPolicy.invitationDeliveryReady ? 'Entrega informada activa' : 'Entrega no habilitada', state.identityPolicy.invitationDeliveryReady ? 'is-attention' : '')
       );
 
@@ -3081,7 +3081,7 @@
       var conflicts = sodConflicts(new Set(capabilities));
       var eligibleTenantIds = new Set(list(state.membershipGovernance && state.membershipGovernance.eligibleTenantIds).map(function (value) { return text(value); }).filter(Boolean));
       var tenantReady = Boolean(tenant) && eligibleTenantIds.has(tenant.id);
-      if (tenant && !tenantReady) conflicts.push('Este gobierno todavía no tiene plano GRH y release certificados para altas operativas.');
+      if (tenant && !tenantReady) conflicts.push('Este gobierno todavía no tiene el plano GRH y su contrato de datos certificados para altas operativas.');
       var actorEmail = text(first(state.platformGovernance.currentActorEmail, state.user && state.user.email)).toLowerCase();
       var eligibleCheckerCount = email ? state.platformGovernance.owners.filter(function (owner) {
         return owner.active && owner.mfaEnrolled && owner.email
@@ -3619,7 +3619,7 @@
         return;
       }
       var confirmation = state.sourceOnboarding.recertificationRequired
-        ? '¿Recertificar el plano de datos para el release activo? La fuente GRH no cambia y esta acción no habilita invitaciones ni delivery.'
+        ? '¿Certificar la nueva revisión del contrato de datos? La fuente GRH no cambia y esta acción no habilita invitaciones ni envíos.'
         : '¿Certificar este plano de datos con la evidencia agregada revisada? Esta acción no habilita invitaciones ni delivery.';
       if (!window.confirm(confirmation)) return;
       var payload = {

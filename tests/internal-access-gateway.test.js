@@ -44,14 +44,14 @@ test('una sesion v2 invalida nunca degrada a la cookie legacy', async () => {
   assert.equal(res.statusCode, 401);
 });
 
-test('la sesion administrada recibe capability, data-plane y SHA de release', async () => {
+test('la sesion administrada recibe capability, data-plane e identidad de contrato', async () => {
   let received;
   const access = await requireCompatibleInternalAccess({
     headers: { cookie: `${IDENTITY_SESSION_COOKIE}=token` },
   }, response(), {
     env: {
       INTERNAL_CERTIFIED_RELEASE_SHA: 'a'.repeat(40),
-      VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40),
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: 'a'.repeat(40),
     },
     secrets: { sessionSecret: 's'.repeat(64) },
     sql: { kind: 'identity' },
@@ -68,7 +68,7 @@ test('la sesion administrada recibe capability, data-plane y SHA de release', as
   assert.equal(received.expectedReleaseSha, 'a'.repeat(40));
 });
 
-test('release manual inválido bloquea antes de consultar identidad o DB', async () => {
+test('contrato explícito inválido bloquea antes de consultar identidad o DB', async () => {
   let identityCalls = 0;
   let sqlCalls = 0;
   const res = response();
@@ -77,7 +77,7 @@ test('release manual inválido bloquea antes de consultar identidad o DB', async
   }, res, {
     env: {
       INTERNAL_CERTIFIED_RELEASE_SHA: 'manual-sin-sha',
-      VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40),
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: 'a'.repeat(40),
     },
     requireDataPlaneReady: true,
     getIdentitySql: async () => { sqlCalls += 1; return {}; },

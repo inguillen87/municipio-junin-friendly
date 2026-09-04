@@ -29,7 +29,7 @@ const SAFE_LIBRARY_MESSAGES = Object.freeze({
   PAYROLL_REPROCESSING_NOT_FOUND: 'Expediente no encontrado',
   PAYROLL_REPROCESSING_SESSION_BUSY: 'El acceso se está actualizando; reintentá en un momento',
   PAYROLL_REPROCESSING_SESSION_INVALID: 'La sesión operativa ya no es válida',
-  PAYROLL_REPROCESSING_RELEASE_NOT_CERTIFIED: 'La versión desplegada no está certificada',
+  PAYROLL_REPROCESSING_RELEASE_NOT_CERTIFIED: 'El contrato de datos activo no está certificado',
   PAYROLL_REPROCESSING_BINDING_REQUIRED: 'El binding GRH certificado no está disponible',
   PAYROLL_REPROCESSING_CONTRACT_DRIFT: 'El contrato de anulación/reliquidación no es seguro',
   TENANT_IAM_SOD_CONFLICT: 'La membresía combina capacidades incompatibles',
@@ -239,7 +239,7 @@ function safeError(error) {
     return new InternalPayrollReprocessingApiError(
       'PAYROLL_REPROCESSING_RELEASE_NOT_CERTIFIED',
       503,
-      'La versión desplegada no está certificada',
+      'El contrato de datos activo no está certificado',
     );
   }
   if (error?.code === 'ACTION_DATABASE_ROLE_REQUIRED') {

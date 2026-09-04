@@ -30,7 +30,7 @@ function target(mode = 'isolated') {
   };
 }
 
-test('release ejecuta en orden estricto 024 a 037', () => {
+test('release ejecuta en orden estricto 024 a 038', () => {
   assert.deepEqual(PAYROLL_OPERATIONS_RELEASE_STEPS.map((step) => step.version), [
     '024-governed-monthly-attendance-evaluation',
     '025-governed-payroll-control-import',
@@ -46,6 +46,7 @@ test('release ejecuta en orden estricto 024 a 037', () => {
     '035-governed-payroll-reprocessing',
     '036-owner-tenant-operational-authority',
     '037-payroll-control-import-lock-semantics',
+    '038-governed-monthly-close-run',
   ]);
   const step029 = PAYROLL_OPERATIONS_RELEASE_STEPS.find((step) => (
     step.version === '029-payroll-novelty-first-fortnight'
@@ -58,37 +59,40 @@ test('release ejecuta en orden estricto 024 a 037', () => {
   assert.equal(step030.envPrefix, 'ACCOUNT_PROFILE_GOVERNANCE');
   assert.match(step030.script.pathname,
     /apply-governed-account-profile-admin-view-schema\.mjs$/);
-  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-7);
+  const step031 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-8);
   assert.equal(step031.envPrefix, 'EMPLOYEE_PAYROLL_HISTORY');
   assert.match(step031.script.pathname,
     /apply-governed-employee-payroll-history-schema\.mjs$/);
-  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-6);
+  const step032 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-7);
   assert.equal(step032.envPrefix, 'PAYROLL_TYPE_MAPPING');
   assert.match(step032.script.pathname,
     /apply-payroll-type-mapping-fail-closed-schema\.mjs$/);
-  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-5);
+  const step033 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-6);
   assert.equal(step033.envPrefix, 'PAYROLL_ART_REPORT');
   assert.match(step033.script.pathname,
     /apply-payroll-art-report-capability-schema\.mjs$/);
-  const step034 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-4);
+  const step034 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-5);
   assert.equal(step034.envPrefix, 'PAYROLL_CONTROL_IMPORT_BINDING');
   assert.match(step034.script.pathname,
     /apply-payroll-control-import-binding-lock-schema\.mjs$/);
-  const step035 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
+  const step035 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-4);
   assert.equal(step035.envPrefix, 'PAYROLL_REPROCESSING');
   assert.match(step035.script.pathname,
     /apply-governed-payroll-reprocessing-schema\.mjs$/);
-  const step036 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
+  const step036 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-3);
   assert.equal(step036.envPrefix, 'OWNER_TENANT_AUTHORITY');
   assert.match(step036.script.pathname,
     /apply-owner-tenant-operational-authority-schema\.mjs$/);
-  const step037 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  const step037 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-2);
   assert.equal(step037.envPrefix, 'PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS');
   assert.match(step037.script.pathname,
     /apply-payroll-control-import-lock-semantics-schema\.mjs$/);
+  const step038 = PAYROLL_OPERATIONS_RELEASE_STEPS.at(-1);
+  assert.equal(step038.envPrefix, 'PAYROLL_MONTHLY_CLOSE');
+  assert.match(step038.script.pathname, /apply-governed-monthly-close-schema\.mjs$/);
   assert.match(source, /result\.status !== 0/);
   assert.match(source, /release se detuvo antes del siguiente paso/);
-  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-037'\)/);
+  assert.match(source, /verifyPinnedNeonConnectedTarget\(client, target, 'release 024-038'\)/);
 });
 
 test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () => {
@@ -154,6 +158,11 @@ test('hijos reciben modo y cuatro pines, nunca el secreto como argumento', () =>
     lockSemanticsEnv.PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS_EXPECTED_NEON_BRANCH_ID,
     'br-payroll-release',
   );
+  const monthlyCloseEnv = payrollOperationsChildEnvironment(
+    target(), 'PAYROLL_MONTHLY_CLOSE', {},
+  );
+  assert.equal(monthlyCloseEnv.PAYROLL_MONTHLY_CLOSE_EXPECTED_NEON_BRANCH_ID,
+    'br-payroll-release');
 });
 
 test('release productivo repite branch id en comando, canonico y pin propio', () => {
@@ -196,7 +205,7 @@ test('reapply 034 omite la verificacion historica 025 y valida su ledger antes d
     },
   });
   assert.equal(reapply.some((step) => step.version === '025-governed-payroll-control-import'), false);
-  assert.equal(reapply.at(-1).version, '037-payroll-control-import-lock-semantics');
+  assert.equal(reapply.at(-1).version, '038-governed-monthly-close-run');
 
   await assert.rejects(() => payrollOperationsReleaseStepsForState({
     async query(_sql, [version]) {
@@ -209,7 +218,7 @@ test('reapply 034 omite la verificacion historica 025 y valida su ledger antes d
   assert.match(source, /releaseSteps = await payrollOperationsReleaseStepsForState\(client\)/);
 });
 
-test('reapply 036 valida su checksum y ejecuta unicamente el hotfix 037', async () => {
+test('reapply 036 valida su checksum y ejecuta sólo 037 y 038', async () => {
   const migration = await readFile(new URL(
     '../scripts/migrations/036-owner-tenant-operational-authority.sql', import.meta.url,
   ), 'utf8');
@@ -223,6 +232,7 @@ test('reapply 036 valida su checksum y ejecuta unicamente el hotfix 037', async 
   });
   assert.deepEqual(plan.map((step) => step.version), [
     '037-payroll-control-import-lock-semantics',
+    '038-governed-monthly-close-run',
   ]);
   assert.deepEqual(queriedVersions, [OWNER_TENANT_AUTHORITY_MIGRATION_VERSION]);
 
@@ -238,10 +248,12 @@ test('reapply 036 valida su checksum y ejecuta unicamente el hotfix 037', async 
   );
 });
 
-test('package expone release explícito y Vercel conserva 026 a 037 y la pantalla', async () => {
+test('package expone release explícito y Vercel conserva 026 a 038 y la pantalla', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
   assert.equal(packageJson.scripts['db:payroll:operations:release'],
     'node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs');
+  assert.equal(packageJson.scripts['db:payroll:monthly-close:schema'],
+    'node --env-file=.env.local scripts/apply-governed-monthly-close-schema.mjs --confirm-isolated-branch');
   const ignore = await readFile(new URL('../.vercelignore', import.meta.url), 'utf8');
   assert.match(ignore, /!scripts\/migrations\/026-governed-payroll-novelties\.sql/);
   assert.match(ignore, /!scripts\/migrations\/027-institutional-payroll-novelty-profiles\.sql/);
@@ -255,6 +267,8 @@ test('package expone release explícito y Vercel conserva 026 a 037 y la pantall
   assert.match(ignore, /!scripts\/migrations\/035-governed-payroll-reprocessing\.sql/);
   assert.match(ignore, /!scripts\/migrations\/036-owner-tenant-operational-authority\.sql/);
   assert.match(ignore, /!scripts\/migrations\/037-payroll-control-import-lock-semantics\.sql/);
+  assert.match(ignore, /!scripts\/migrations\/038-governed-monthly-close-run\.sql/);
+  assert.match(ignore, /!scripts\/apply-governed-monthly-close-schema\.mjs/);
   assert.match(ignore, /!novedades-nomina\.html/);
   assert.doesNotMatch(source, /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
 });

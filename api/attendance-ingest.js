@@ -7,8 +7,8 @@ import {
 } from '../lib/internal-attendance-gateway.js';
 import { TimeDeviceDriverError } from '../lib/internal-time-device-drivers.js';
 import {
-  InternalCertifiedReleaseError,
-  resolveInternalCertifiedReleaseSha,
+  InternalCertifiedDataContractError,
+  resolveInternalCertifiedDataContractSha,
 } from '../lib/internal-certified-release.js';
 import { getActionCenterSql } from './internal-actions.js';
 
@@ -112,7 +112,7 @@ export function createAttendanceIngestHandler(dependencies = {}) {
         registry,
         identityPepper: env?.ATTENDANCE_IDENTITY_PEPPER,
       });
-      const releaseSha = resolveInternalCertifiedReleaseSha(env);
+      const releaseSha = resolveInternalCertifiedDataContractSha(env);
       const sql = await getSql(env);
       const receipt = await ingest(
         sql, normalized, tokenSha256, releaseSha,
@@ -125,7 +125,7 @@ export function createAttendanceIngestHandler(dependencies = {}) {
         if (safe.status === 401) res.setHeader('WWW-Authenticate', 'Bearer realm="attendance-connector"');
         return send(res, safe.status, { ok: false, code: safe.code, error: safe.message });
       }
-      if (error instanceof InternalCertifiedReleaseError) {
+      if (error instanceof InternalCertifiedDataContractError) {
         return send(res, 503, {
           ok: false,
           code: 'ATTENDANCE_RELEASE_NOT_CERTIFIED',

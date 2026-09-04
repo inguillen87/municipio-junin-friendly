@@ -391,7 +391,7 @@ test('librería usa fachadas 012 ligadas a SID, versión y release', async () =>
 test('API expone vista global y procesa solicitudes sólo en contexto Plataforma', async () => {
   const calls = [];
   const handler = createInternalAdminHandler({
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async (_req, _res, options) => {
       calls.push({ kind: 'access', options });
       return {

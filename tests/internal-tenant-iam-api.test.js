@@ -33,7 +33,7 @@ function response() {
 
 function dependencies(overrides = {}) {
   return {
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => ({
       mode: 'managed',
       session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
@@ -134,13 +134,13 @@ test('GET bootstrap expone el contrato esperado sin confiar en el rol del cookie
   assert.equal(res.headers.Vary, 'Cookie');
 });
 
-test('administración usa el release explícito de un deployment manual', async () => {
+test('administración usa el contrato explícito aunque cambie el SHA del deployment', async () => {
   let receivedRelease = null;
   const handler = createInternalAdminHandler(dependencies({
     env: {
       NODE_ENV: 'test',
       INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA.toUpperCase(),
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40),
     },
     getInternalAdminView: async (_sql, _session, _resource, _limit, options) => {
       receivedRelease = options.releaseSha;
@@ -326,7 +326,7 @@ test('provisioning valida motivo igual que la facade SQL y mapea formas invalida
 test('POST prepara invitación inactiva y aplica same-origin, JSON e idempotencia', async () => {
   const handler = createInternalAdminHandler(dependencies({
     env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://municipio.example',
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
   }));
   const noOrigin = response();
   await handler({ method: 'POST', headers: { 'content-type': 'application/json' }, body: {} }, noOrigin);

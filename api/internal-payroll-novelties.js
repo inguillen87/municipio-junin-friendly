@@ -35,7 +35,7 @@ const SAFE_LIBRARY_MESSAGES = Object.freeze({
   PAYROLL_NOVELTY_NOMINAL_READ_REQUIRED: 'La exportación exige acceso nominal explícito',
   PAYROLL_NOVELTY_SESSION_BUSY: 'El acceso se está actualizando; reintentá en un momento',
   PAYROLL_NOVELTY_SESSION_INVALID: 'La sesión operativa ya no es válida',
-  PAYROLL_NOVELTY_RELEASE_NOT_CERTIFIED: 'La versión desplegada no está certificada',
+  PAYROLL_NOVELTY_RELEASE_NOT_CERTIFIED: 'El contrato de datos activo no está certificado',
   PAYROLL_NOVELTY_BINDING_REQUIRED: 'El binding GRH certificado no está disponible',
   TENANT_IAM_SOD_CONFLICT: 'La membresía combina capacidades incompatibles',
 });
@@ -242,7 +242,7 @@ function safeError(error) {
   }
   if (error?.code === 'ACTION_RELEASE_NOT_CERTIFIED') {
     return new InternalPayrollNoveltiesApiError(
-      'PAYROLL_NOVELTY_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada',
+      'PAYROLL_NOVELTY_RELEASE_NOT_CERTIFIED', 503, 'El contrato de datos activo no está certificado',
     );
   }
   if (error?.code === 'ACTION_DATABASE_ROLE_REQUIRED') {

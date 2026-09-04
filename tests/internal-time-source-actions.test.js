@@ -51,7 +51,7 @@ function internalPrincipal() {
 
 function dependencies(overrides = {}) {
   const defaults = {
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => access(),
     getInternalSql: async () => ({ fake: true }),
     getTimeSourceBootstrap: async () => ({

@@ -1,8 +1,8 @@
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
-  InternalCertifiedReleaseError,
-  resolveInternalCertifiedReleaseSha,
+  InternalCertifiedDataContractError,
+  resolveInternalCertifiedDataContractSha,
 } from '../lib/internal-certified-release.js';
 import { capabilitiesForActionCenter } from '../lib/internal-resource-access.js';
 import { publicPrincipal } from '../lib/internal-rbac.js';
@@ -202,14 +202,14 @@ export function actionMutationSession(access, env = process.env) {
   }
   let releaseSha;
   try {
-    releaseSha = resolveInternalCertifiedReleaseSha(env);
+    releaseSha = resolveInternalCertifiedDataContractSha(env);
   } catch (error) {
-    if (!(error instanceof InternalCertifiedReleaseError)) throw error;
-    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada para operar');
+    if (!(error instanceof InternalCertifiedDataContractError)) throw error;
+    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'El contrato de datos activo no está certificado para operar');
   }
   const certifiedSha = String(access?.principal?.tenant?.certifiedReleaseSha || '').trim().toLowerCase();
   if (releaseSha !== certifiedSha) {
-    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'La versión desplegada no está certificada para operar');
+    fail('ACTION_RELEASE_NOT_CERTIFIED', 503, 'El contrato de datos activo no está certificado para operar');
   }
   return Object.freeze({
     id: sessionId,

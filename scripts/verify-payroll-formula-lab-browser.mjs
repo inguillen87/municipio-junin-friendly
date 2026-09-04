@@ -87,6 +87,47 @@ const controlImportBootstrapFixture = Object.freeze({
   },
 });
 
+const monthlyCloseBootstrapFixture = Object.freeze({
+  ok: true,
+  data: {
+    principal: {
+      tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      membershipId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      certifiedBindingId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      roleKey: 'PLATFORM_OWNER_OPERATIVO_INTEGRAL',
+      employmentLinked: true,
+      capabilities: [
+        'payroll.monthly_close.read',
+        'payroll.monthly_close.prepare',
+        'payroll.monthly_close.audit.read',
+      ],
+    },
+    limits: {
+      contractVersion: 'payroll-monthly-close-run.v1',
+      maxSourceBytes: 256 * 1024,
+      jurisdictions: ['42', '55'],
+      sourceContracts: [
+        { definitionKey: 'grh-concept-statistics.v1' },
+        { definitionKey: 'bank-accreditation-summary.v1' },
+        { definitionKey: 'government-payroll-summary.v1' },
+      ],
+    },
+    runs: [],
+    recentEvents: [],
+    flags: {
+      includesPersonalRecords: false,
+      rawContentStored: false,
+      grhMutation: false,
+      payrollCalculated: false,
+      payrollPosted: false,
+      closeApproved: false,
+      bankArtifactGenerated: false,
+      governmentArtifactGenerated: false,
+      fiscalArtifactGenerated: false,
+    },
+  },
+});
+
 const reprocessingBootstrapFixture = Object.freeze({
   ok: true,
   contractVersion: 'payroll-reprocessing-case.v1',
@@ -174,6 +215,10 @@ const internalAuthFixture = Object.freeze({
       'payroll.control_import.read',
       'payroll.control_import.prepare',
       'payroll.control_import.audit.read',
+      'payroll.monthly_close.read',
+      'payroll.monthly_close.prepare',
+      'payroll.monthly_close.approve',
+      'payroll.monthly_close.audit.read',
       'payroll.reprocessing.read',
       'payroll.reprocessing.prepare',
       'payroll.reprocessing.approve',
@@ -238,6 +283,12 @@ const server = http.createServer((request, response) => {
       && url.searchParams.get('resource') === 'bootstrap') {
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     response.end(JSON.stringify(controlImportBootstrapFixture));
+    return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/internal-payroll-monthly-close'
+      && url.searchParams.get('resource') === 'bootstrap') {
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    response.end(JSON.stringify(monthlyCloseBootstrapFixture));
     return;
   }
   if (request.method === 'GET' && url.pathname === '/api/internal-payroll-reprocessing') {

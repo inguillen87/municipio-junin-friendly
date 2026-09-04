@@ -71,7 +71,7 @@ function dependencies(overrides = {}) {
   const defaults = {
     env: {
       NODE_ENV: 'test',
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
       GRH_SOURCE_PREVIEW_HMAC_SECRET: HMAC_SECRET,
     },
     requireCompatibleInternalAccess: async () => managedAccess(),

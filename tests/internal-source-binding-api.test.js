@@ -98,7 +98,7 @@ function handlerWithQuery(query, overrides = {}) {
   return createInternalIdentityHandler({
     env: {
       IDENTITY_APP_ORIGIN: ORIGIN,
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
       NODE_ENV: 'test',
     },
     identitySecrets: SECRETS,

@@ -15,6 +15,9 @@ import {
   PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS_MIGRATION_VERSION,
 } from './apply-payroll-control-import-lock-semantics-schema.mjs';
 import {
+  PAYROLL_MONTHLY_CLOSE_MIGRATION_VERSION,
+} from './apply-governed-monthly-close-schema.mjs';
+import {
   resolvePinnedNeonTarget,
   verifyPinnedNeonConnectedTarget,
 } from './lib/pinned-neon-target.mjs';
@@ -92,6 +95,11 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     ),
     envPrefix: 'PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS',
   }),
+  Object.freeze({
+    version: PAYROLL_MONTHLY_CLOSE_MIGRATION_VERSION,
+    script: new URL('./apply-governed-monthly-close-schema.mjs', import.meta.url),
+    envPrefix: 'PAYROLL_MONTHLY_CLOSE',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -99,7 +107,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-037',
+    targetLabel: 'release 024-038',
   });
 }
 
@@ -144,9 +152,10 @@ export async function payrollOperationsReleaseStepsForState(client) {
 
     // 036 reemplaza contratos de 026, 027 y 035 para conceder autoridad owner
     // con maker-checker por registro. Revalidar esas versiones historicas
-    // contra el estado posterior produciria un falso drift antes del hotfix.
+    // contra el estado posterior produciria un falso drift antes de los incrementos.
     return Object.freeze(PAYROLL_OPERATIONS_RELEASE_STEPS.filter((step) => (
       step.version === PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS_MIGRATION_VERSION
+        || step.version === PAYROLL_MONTHLY_CLOSE_MIGRATION_VERSION
     )));
   }
 
@@ -183,7 +192,7 @@ async function main() {
   let releaseSteps;
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-037');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-038');
     releaseSteps = await payrollOperationsReleaseStepsForState(client);
   } finally {
     await client.end().catch(() => undefined);
@@ -208,7 +217,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-037 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-038 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]

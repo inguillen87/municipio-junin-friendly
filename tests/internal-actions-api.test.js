@@ -47,7 +47,7 @@ function principal(overrides = {}) {
 
 function dependencies(overrides = {}) {
   const defaults = {
-    env: { NODE_ENV: 'test', VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => ({
       mode: 'managed',
       session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
@@ -389,7 +389,7 @@ test('search_subjects es lectura POST efímera, sin idempotencia y con body exac
   }
 });
 
-test('mutación toma SID/version sólo de access.session y SHA sólo del release certificado', async () => {
+test('mutación toma SID/version sólo de access.session e identidad sólo del contrato certificado', async () => {
   let receivedSession;
   const handler = createInternalActionsHandler(dependencies({
     createLeaveCase: async (_sql, _principal, _payload, _key, session) => {
@@ -423,17 +423,17 @@ test('mutación toma SID/version sólo de access.session y SHA sólo del release
   assert.throws(
     () => actionMutationSession({
       ...baseAccess, session: { ...baseAccess.session, email: 'otro@junin.gob.ar' },
-    }, { VERCEL_GIT_COMMIT_SHA: RELEASE_SHA }),
+    }, { INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA }),
     (error) => error.code === 'ACTION_SESSION_INVALID' && error.status === 401,
   );
   assert.throws(
-    () => actionMutationSession(baseAccess, { VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40) }),
+    () => actionMutationSession(baseAccess, { INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: 'b'.repeat(40) }),
     (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
   );
   assert.equal(
     actionMutationSession(baseAccess, {
       INTERNAL_CERTIFIED_RELEASE_SHA: RELEASE_SHA.toUpperCase(),
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
+      VERCEL_GIT_COMMIT_SHA: 'b'.repeat(40),
     }).releaseSha,
     RELEASE_SHA,
   );
@@ -446,8 +446,8 @@ test('mutación toma SID/version sólo de access.session y SHA sólo del release
   );
   assert.throws(
     () => actionMutationSession(baseAccess, {
+      INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA,
       INTERNAL_CERTIFIED_RELEASE_SHA: 'b'.repeat(40),
-      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
     }),
     (error) => error.code === 'ACTION_RELEASE_NOT_CERTIFIED' && error.status === 503,
   );

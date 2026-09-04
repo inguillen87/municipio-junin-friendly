@@ -65,7 +65,7 @@ function request(command, payload, options = {}) {
 
 function handlerWithQuery(query, overrides = {}) {
   return createInternalIdentityHandler({
-    env: { IDENTITY_APP_ORIGIN: ORIGIN, VERCEL_GIT_COMMIT_SHA: RELEASE_SHA, NODE_ENV: 'test' },
+    env: { IDENTITY_APP_ORIGIN: ORIGIN, INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA, NODE_ENV: 'test' },
     identitySecrets: SECRETS, now: () => NOW,
     randomUUID: (() => {
       let index = 0;
@@ -517,7 +517,7 @@ test('request_email_mfa sin proveedor falla antes de abrir DB', async () => {
 test('request_email_mfa exige secretos dedicados antes de abrir DB', async () => {
   let opened = false;
   const handler = createInternalIdentityHandler({
-    env: { IDENTITY_APP_ORIGIN: ORIGIN, VERCEL_GIT_COMMIT_SHA: RELEASE_SHA },
+    env: { IDENTITY_APP_ORIGIN: ORIGIN, INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     identitySecrets: {
       tokenPepper: SECRETS.tokenPepper,
       sessionSecret: SECRETS.sessionSecret,
@@ -866,7 +866,7 @@ test('activacion queda cerrada si policy no esta lista', async () => {
   assert.doesNotMatch(JSON.stringify(res.payload), /flowToken|manualKey|otpauth/i);
 });
 
-test('activacion exige SHA de release y lo vincula a lookup y comando transaccional', async () => {
+test('activacion exige identidad de contrato y la vincula a lookup y comando transaccional', async () => {
   const code = 'AAAAA-AAAAA-AAAAA-AAAAA-AAAAAA';
   let lookedUpRelease;
   let lookedUpCodeHash;
@@ -911,7 +911,7 @@ test('activacion exige SHA de release y lo vincula a lookup y comando transaccio
     env: {
       IDENTITY_APP_ORIGIN: ORIGIN,
       INTERNAL_CERTIFIED_RELEASE_SHA: explicitSha.toUpperCase(),
-      VERCEL_GIT_COMMIT_SHA: explicitSha,
+      VERCEL_GIT_COMMIT_SHA: RELEASE_SHA,
       NODE_ENV: 'test',
     },
   });
@@ -956,7 +956,7 @@ test('activacion exige SHA de release y lo vincula a lookup y comando transaccio
       throw new Error('IDENTITY_RELEASE_NOT_CERTIFIED');
     }
     throw new Error('consulta no esperada');
-  }, { env: { IDENTITY_APP_ORIGIN: ORIGIN, VERCEL_GIT_COMMIT_SHA: releaseB, NODE_ENV: 'test' } });
+  }, { env: { IDENTITY_APP_ORIGIN: ORIGIN, INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: releaseB, NODE_ENV: 'test' } });
   const mismatchRes = response();
   await mismatch(request('begin_activation', { invitationCode: code }), mismatchRes);
   assert.equal(mismatchRes.statusCode, 503);
