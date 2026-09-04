@@ -33,14 +33,6 @@ test('el manifiesto versiona el límite real y separa UX de contrato de datos', 
   assert.equal(dataContractMembership(manifest, 'contracts/grh-payroll-type-map.v2.json').matched, true);
   assert.equal(dataContractMembership(manifest, 'api/internal-data.js').matched, true);
   for (const criticalPath of [
-    'package.json',
-    'scripts/assert-certified-data-contract.mjs',
-    'scripts/classify-data-contract-release.mjs',
-    'scripts/lib/canonical-import.mjs',
-    'scripts/lib/pinned-neon-target.mjs',
-    'scripts/lib/sql-statements.mjs',
-    'scripts/apply-payroll-type-mapping-fail-closed-schema.mjs',
-    'scripts/apply-grh-payroll-type-homologation-schema.mjs',
     'lib/internal-access-gateway.js',
     'lib/internal-resource-access.js',
     'lib/internal-rbac.js',

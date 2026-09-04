@@ -7,11 +7,10 @@ la aplicación: identifica la revisión del contrato que comparten el backend y
 las fachadas SQL.
 
 La variable canónica es `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA`. Debe contener
-exactamente 40 caracteres hexadecimales. El valor no es un SHA de commit: es la
-identidad de contenido calculada por
-`scripts/classify-data-contract-release.mjs` sobre los miembros declarados en
-`contracts/certified-data-contract-files.v1.json`. Se conserva en los
-despliegues posteriores hasta que alguno de esos miembros vuelva a cambiar.
+exactamente 40 caracteres hexadecimales. Una forma auditable de asignarla es
+usar el SHA completo del commit que introdujo la última modificación real del
+contrato gobernado y conservarlo en los despliegues posteriores hasta que ese
+contrato vuelva a cambiar.
 
 `VERCEL_GIT_COMMIT_SHA` identifica el artefacto desplegado y no participa en
 esta comparación. Por eso un cambio de UX, textos, estilos u otro código que no
@@ -46,34 +45,6 @@ interrumpir el servicio ni recertificar datos que no cambiaron:
 Mientras ambas variables convivan deben ser idénticas. No se admite fallback a
 metadata Git, valores vacíos ni corrección silenciosa.
 
-## Assert automático durante el build
-
-`npm run build` ejecuta primero `npm run prebuild`, que calcula la identidad del
-contrato desde los archivos exactos entregados al build. También puede
-ejecutarse de forma explícita con:
-
-```powershell
-npm run release:assert
-```
-
-El comportamiento depende exclusivamente del entorno de publicación:
-
-- En Vercel Producción (`VERCEL_ENV=production`) exige la variable canónica,
-  valida su formato y compara el valor con la identidad calculada. Ausencia,
-  formato inválido, conflicto con el alias transitorio o desigualdad detienen
-  el build antes de publicar.
-- En Preview, Development y local la identidad se calcula igualmente, pero la
-  comparación informa `NO APLICA`. Ese resultado no certifica ni prueba
-  Producción.
-- Si Vercel informa `VERCEL=1` sin un `VERCEL_ENV` válido, el build falla
-  cerrado; no se degrada silenciosamente a local.
-
-El assert usa el contenido del checkout y no depende de `.git`, que puede no
-estar presente en el paquete de fuentes de Vercel. El propio assert, el
-clasificador, su conexión al build y los controles de pinning de migraciones
-forman parte del manifiesto protegido: debilitarlos se clasifica como cambio de
-contrato, no como una publicación ordinaria.
-
 ## Despliegue ordinario: el contrato no cambió
 
 El límite auditable del contrato está versionado en
@@ -84,9 +55,7 @@ pipeline puede clasificar automáticamente la diferencia contra la base:
 npm run release:gate -- --base=origin/main --head=HEAD
 ```
 
-Un resultado `RELEASE ORDINARIO` termina con código 0 y habilita estos pasos.
-El assert de build es complementario: comprueba además que el checkout que se
-está construyendo conserva la identidad configurada en Producción.
+Un resultado `RELEASE ORDINARIO` termina con código 0 y habilita estos pasos:
 
 1. Mantener `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA` sin cambios.
 2. Desplegar el nuevo artefacto normalmente, sin pedir una acción manual al
