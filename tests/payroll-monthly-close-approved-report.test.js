@@ -168,12 +168,16 @@ test('genera un PDF determinista desde aprobación, conciliación y hora del ser
   assert.equal(first.contractVersion, PAYROLL_MONTHLY_CLOSE_APPROVED_PROOF_VERSION);
   assert.equal(first.sourceContractVersion, 'payroll-monthly-close-run.v1');
   assert.equal(first.containsPersonalRecords, false);
-  assert.equal(first.fileName, 'municontrol_cierre-aprobado_2026-08_j42_10000000.pdf');
+  assert.equal(first.verificationStatus, 'local_unsigned_copy');
+  assert.equal(first.fileName, 'municontrol_copia-local-cierre_2026-08_j42_10000000.pdf');
   assert.equal(Object.isFrozen(first), true);
   assert.deepEqual(first.bytes, second.bytes);
   assert.equal(isPayrollMonthlyCloseApprovedProofReady(approvedRun()), true);
   assert.match(pdf, /^%PDF-1\.4/);
-  assert.match(pdf, /APROBADA Y CONCILIADA AL CENTAVO/);
+  assert.match(pdf, /COPIA LOCAL DEL CIERRE INFORMADO COMO APROBADO/);
+  assert.match(pdf, /ESTADO RECIBIDO: APROBADO Y CONCILIADO/);
+  assert.match(pdf, /sin firma digital ni validez externa/);
+  assert.doesNotMatch(pdf, /COMPROBANTE INTERNO DE CIERRE APROBADO/);
   assert.match(pdf, /2026-08 \/ J42/);
   assert.match(pdf, new RegExp(RUN_ID));
   assert.match(pdf, /\$ 30,50/);
@@ -183,10 +187,11 @@ test('genera un PDF determinista desde aprobación, conciliación y hora del ser
   assert.match(pdf, new RegExp('9'.repeat(32)));
   assert.match(pdf, /No es F\.931\/LSD ni constancia fiscal/);
   assert.match(pdf, /No transmite datos ni modifica GRH o PostgreSQL/);
+  assert.match(pdf, /No prueba autenticidad: verifique el caso vigente dentro de MuniControl/);
   assert.match(pdf, /%%EOF\n$/);
 });
 
-test('el comprobante sólo incluye campos agregados y rechaza deriva con PII', () => {
+test('la copia local sólo incluye campos agregados y rechaza deriva con PII', () => {
   const run = approvedRun();
   run.employeeId = 'employee-123';
   expectBlocked(run, 'APPROVED_PROOF_PII_DETECTED');

@@ -24,6 +24,7 @@ const PRECACHE_URLS = Object.freeze([
   '/assets/payroll-f931-workbench.js',
   '/assets/payroll-bank-control-xlsx-adapter.js',
   '/assets/payroll-bank-control-xlsx-worker.js',
+  '/assets/vendor/fflate.min.js',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',

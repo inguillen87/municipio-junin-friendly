@@ -902,24 +902,24 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     nodes.approvedProof.hidden = !ready;
     nodes.approvedProofDownload.disabled = !ready;
     nodes.approvedProofStatus.textContent = ready
-      ? 'Disponible: cierre aprobado por control independiente, conciliado al centavo y sin bloqueos.'
-      : 'El comprobante se habilita únicamente después de una aprobación conciliada y sin bloqueos.';
+      ? 'Disponible: copia local del cierre informado como aprobado y conciliado. No posee firma digital.'
+      : 'La copia local se habilita después de una aprobación conciliada. No es un comprobante verificable.';
     nodes.approvedProofStatus.dataset.state = ready ? 'ok' : 'warning';
   }
 
   function downloadApprovedReport() {
     if (state.busy || !state.detail || !nodes.approvedProofDownload || !nodes.approvedProofStatus) return;
     nodes.approvedProofDownload.disabled = true;
-    nodes.approvedProofStatus.textContent = 'Verificando la aprobación y preparando el comprobante…';
+    nodes.approvedProofStatus.textContent = 'Preparando una copia local sin firma digital…';
     nodes.approvedProofStatus.dataset.state = 'warning';
     try {
       const artifact = createApprovedPdf(state.detail);
       const fileName = downloadApprovedProof(artifact);
-      nodes.approvedProofStatus.textContent = `Comprobante descargado: ${fileName}`;
+      nodes.approvedProofStatus.textContent = `Copia local descargada: ${fileName}`;
       nodes.approvedProofStatus.dataset.state = 'ok';
     } catch (error) {
       nodes.approvedProofStatus.textContent = error instanceof PayrollMonthlyCloseApprovedProofError
-        ? error.message : 'No se pudo generar un comprobante verificable.';
+        ? error.message : 'No se pudo generar la copia local.';
       nodes.approvedProofStatus.dataset.state = 'error';
     } finally {
       nodes.approvedProofDownload.disabled = !isPayrollMonthlyCloseApprovedProofReady(state.detail);

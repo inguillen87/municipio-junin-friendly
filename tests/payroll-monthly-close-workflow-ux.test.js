@@ -491,8 +491,8 @@ test('presenta circuito maker-checker, conciliación exacta y límites operativo
   assert.match(html, /data-monthly-workflow-actions/);
   assert.match(html, /data-monthly-workflow-approved-proof/);
   assert.match(html, /data-monthly-workflow-approved-proof-download/);
-  assert.match(html, /Descargar PDF aprobado/);
-  assert.match(html, /PDF interno, agregado y sin datos personales/);
+  assert.match(html, /Descargar copia local/);
+  assert.match(html, /no posee firma digital y no es un comprobante verificable/);
   assert.match(html, /No es recibo de sueldo, orden de pago, archivo bancario, F\.931\/LSD ni constancia fiscal/);
   assert.equal((html.match(/assets\/payroll-monthly-close-workflow\.js/g) || []).length, 1);
   assert.equal((html.match(/assets\/payroll-monthly-close-approved-report\.js/g) || []).length, 0);

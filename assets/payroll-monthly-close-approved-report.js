@@ -1,7 +1,8 @@
-export const PAYROLL_MONTHLY_CLOSE_APPROVED_PROOF_VERSION = 'payroll-monthly-close-approved-proof.v1';
+export const PAYROLL_MONTHLY_CLOSE_APPROVED_PROOF_VERSION = 'payroll-monthly-close-local-copy.v1';
 
 const SOURCE_CONTRACT_VERSION = 'payroll-monthly-close-run.v1';
 const MIME_PDF = 'application/pdf';
+const VERIFICATION_STATUS = 'local_unsigned_copy';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[a-f0-9]{64}$/;
 const PERIOD = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])$/;
@@ -117,7 +118,7 @@ function validateSources(run) {
   });
   return SOURCE_ORDER.map((definitionKey) => {
     const source = byDefinition.get(definitionKey);
-    if (!source) fail('APPROVED_PROOF_SOURCES_INVALID', 'Falta una fuente requerida para el comprobante.');
+    if (!source) fail('APPROVED_PROOF_SOURCES_INVALID', 'Falta una fuente requerida para la copia local.');
     return Object.freeze({
       definitionKey,
       label: SOURCE_SPECS[definitionKey].label,
@@ -225,7 +226,7 @@ function approvalEvidence(run) {
 function approvedContext(run) {
   const sensitiveKey = sensitiveKeyIn(run);
   if (sensitiveKey) {
-    fail('APPROVED_PROOF_PII_DETECTED', `El cierre contiene un campo no permitido para este comprobante (${sensitiveKey}).`);
+    fail('APPROVED_PROOF_PII_DETECTED', `El cierre contiene un campo no permitido para esta copia local (${sensitiveKey}).`);
   }
   if (!isObject(run) || !UUID.test(String(run.id || ''))
       || run.contractVersion !== SOURCE_CONTRACT_VERSION
@@ -237,7 +238,7 @@ function approvedContext(run) {
       || run.mismatchCount !== 0 || run.blockingIssueCount !== 0
       || !Array.isArray(run.blockingIssues) || run.blockingIssues.length !== 0
       || !SHA256.test(String(run.sourceSetSha256 || ''))) {
-    fail('APPROVED_PROOF_NOT_AUTHORIZED', 'Sólo un cierre aprobado, conciliado y sin bloqueos puede emitir comprobante.');
+    fail('APPROVED_PROOF_NOT_AUTHORIZED', 'Sólo un cierre informado como aprobado, conciliado y sin bloqueos puede generar la copia local.');
   }
   const totals = exactTotals(run.totals);
   if (!totals) fail('APPROVED_PROOF_TOTALS_INVALID', 'Los totales aprobados no coinciden al centavo.');
@@ -333,11 +334,11 @@ function pdfDocument(context) {
 
   rect(0, 762, 595, 80, color.navy);
   text(38, 807, 'MuniControl', 21, 'F2', color.white);
-  text(38, 785, 'COMPROBANTE INTERNO DE CIERRE APROBADO', 11, 'F2', color.white);
-  text(38, 770, 'Evidencia agregada, determinista y sin datos personales', 8, 'F1', color.white);
+  text(38, 785, 'COPIA LOCAL DEL CIERRE INFORMADO COMO APROBADO', 10, 'F2', color.white);
+  text(38, 770, 'Resumen agregado sin firma digital ni validez externa', 8, 'F1', color.white);
 
   rect(38, 718, 519, 28, color.greenSoft, color.green);
-  text(51, 728, 'APROBADA Y CONCILIADA AL CENTAVO', 10, 'F2', color.green);
+  text(51, 728, 'ESTADO RECIBIDO: APROBADO Y CONCILIADO', 10, 'F2', color.green);
 
   rect(38, 669, 250, 34, color.soft, color.line);
   text(50, 689, 'PERIODO / JURISDICCION', 7, 'F2', color.muted);
@@ -381,7 +382,7 @@ function pdfDocument(context) {
   });
 
   rect(38, 157, 519, 76, color.greenSoft, color.green);
-  text(51, 215, 'APROBACION TRAZABLE', 8, 'F2', color.green);
+  text(51, 215, 'REFERENCIA DE LA DECISION', 8, 'F2', color.green);
   text(51, 198, 'Decisión emitida por una autoridad habilitada y distinta del preparador', 8, 'F2', color.navy);
   text(51, 183, `Fecha y hora del servidor: ${serverUtcLabel(context.approval.decidedAt)}`, 8, 'F1', color.ink);
   text(51, 169, 'Huella del evento', 6.5, 'F2', color.muted);
@@ -389,9 +390,9 @@ function pdfDocument(context) {
 
   rect(38, 70, 519, 70, color.soft, color.line);
   text(51, 124, 'ALCANCE', 7, 'F2', color.green);
-  text(51, 110, 'Comprobante interno agregado. No es recibo de sueldo, orden de pago ni archivo bancario.', 7.5);
+  text(51, 110, 'Copia local no verificable. No es recibo de sueldo, orden de pago ni archivo bancario.', 7.5);
   text(51, 97, 'No es F.931/LSD ni constancia fiscal. No transmite datos ni modifica GRH o PostgreSQL.', 7.5);
-  text(51, 84, 'La aprobación corresponde exclusivamente a esta corrida, versión y evidencia identificada.', 7.5);
+  text(51, 84, 'No prueba autenticidad: verifique el caso vigente dentro de MuniControl.', 7.5);
 
   text(38, 43, `Contrato: ${PAYROLL_MONTHLY_CLOSE_APPROVED_PROOF_VERSION}`, 7, 'F1', color.muted);
   rightText(557, 43, 'Municipalidad de Junín - Página 1 de 1', 7, 'F2', color.navy);
@@ -404,7 +405,7 @@ function pdfDocument(context) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     joinBytes([latinBytes(`<< /Length ${contentBytes.byteLength} >>\nstream\n`), contentBytes, latinBytes('endstream')]),
-    `<< /Title (${pdfLiteral(`Cierre aprobado ${context.period} - J${context.jurisdiction}`)}) /Author (MuniControl) /Subject (Comprobante interno agregado sin datos personales) /Creator (MuniControl) /Producer (MuniControl) >>`,
+    `<< /Title (${pdfLiteral(`Copia local de cierre ${context.period} - J${context.jurisdiction}`)}) /Author (MuniControl) /Subject (Resumen local agregado sin firma digital) /Creator (MuniControl) /Producer (MuniControl) >>`,
   ];
   const header = latinBytes('%PDF-1.4\n%âãÏÓ\n');
   const parts = [header];
@@ -450,7 +451,8 @@ export function createPayrollMonthlyCloseApprovedPdf(run) {
     jurisdiction: context.jurisdiction,
     decidedAt: context.approval.decidedAt,
     approvalEventSha256: context.approval.eventSha256,
-    fileName: `municontrol_cierre-aprobado_${context.period}_j${context.jurisdiction}_${context.runId.slice(0, 8)}.pdf`,
+    verificationStatus: VERIFICATION_STATUS,
+    fileName: `municontrol_copia-local-cierre_${context.period}_j${context.jurisdiction}_${context.runId.slice(0, 8)}.pdf`,
     mimeType: MIME_PDF,
     containsPersonalRecords: false,
     bytes,
@@ -462,7 +464,7 @@ export function createPayrollMonthlyCloseApprovedPdf(run) {
 export function downloadPayrollMonthlyCloseApprovedProof(artifact, dependencies = {}) {
   const expectedKeys = [
     'contractVersion', 'sourceContractVersion', 'runId', 'runVersion', 'period',
-    'jurisdiction', 'decidedAt', 'approvalEventSha256', 'fileName', 'mimeType',
+    'jurisdiction', 'decidedAt', 'approvalEventSha256', 'verificationStatus', 'fileName', 'mimeType',
     'containsPersonalRecords', 'bytes',
   ];
   if (!isObject(artifact) || !Object.isFrozen(artifact)
@@ -476,13 +478,14 @@ export function downloadPayrollMonthlyCloseApprovedProof(artifact, dependencies 
       || !['42', '55'].includes(String(artifact.jurisdiction))
       || !normalizedIso(artifact.decidedAt)
       || !SHA256.test(String(artifact.approvalEventSha256 || ''))
-      || artifact.fileName !== `municontrol_cierre-aprobado_${artifact.period}_j${artifact.jurisdiction}_${artifact.runId.slice(0, 8)}.pdf`
+      || artifact.verificationStatus !== VERIFICATION_STATUS
+      || artifact.fileName !== `municontrol_copia-local-cierre_${artifact.period}_j${artifact.jurisdiction}_${artifact.runId.slice(0, 8)}.pdf`
       || artifact.mimeType !== MIME_PDF || artifact.containsPersonalRecords !== false
       || !(artifact.bytes instanceof Uint8Array) || artifact.bytes.byteLength < 100
       || artifactIntegrity.get(artifact) !== crc32(artifact.bytes)
       || String.fromCharCode(...artifact.bytes.subarray(0, 8)) !== '%PDF-1.4'
       || !new TextDecoder('latin1').decode(artifact.bytes.subarray(-16)).includes('%%EOF')) {
-    fail('APPROVED_PROOF_ARTIFACT_INVALID', 'El comprobante no supera el control de integridad previo a la descarga.');
+    fail('APPROVED_PROOF_ARTIFACT_INVALID', 'La copia local no supera el control de integridad previo a la descarga.');
   }
   const documentImpl = dependencies.documentImpl ?? globalThis.document;
   const urlApi = dependencies.urlApi ?? globalThis.URL;

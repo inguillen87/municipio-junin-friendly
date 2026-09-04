@@ -132,6 +132,7 @@ const publicCacheInputs = [
   'assets/payroll-f931-workbench.js',
   'assets/payroll-bank-control-xlsx-adapter.js',
   'assets/payroll-bank-control-xlsx-worker.js',
+  'assets/vendor/fflate.min.js',
   'friendly-data.json',
   'manifest.webmanifest',
   'assets/pwa/icon.svg',
@@ -160,7 +161,7 @@ const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {
   versionHash.update(file);
   versionHash.update('\0');
-  versionHash.update(normalizeTextForHash(fs.readFileSync(path.join(root, file), 'utf8')));
+  versionHash.update(normalizeTextForHash(fs.readFileSync(path.join(output, file), 'utf8')));
   versionHash.update('\0');
 }
 const swOutput = path.join(output, 'sw.js');

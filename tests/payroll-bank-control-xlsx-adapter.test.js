@@ -205,6 +205,8 @@ test('worker, pantalla y empaquetado preservan el límite local y agregado', () 
   assert.equal((html.match(/data-bank-control-export=/g) || []).length, 2);
   assert.match(build, /assets\/payroll-bank-control-xlsx-adapter\.js/);
   assert.match(build, /assets\/payroll-bank-control-xlsx-worker\.js/);
+  assert.match(build, /publicCacheInputs[\s\S]*assets\/vendor\/fflate\.min\.js/);
   assert.match(sw, /assets\/payroll-bank-control-xlsx-adapter\.js/);
   assert.match(sw, /assets\/payroll-bank-control-xlsx-worker\.js/);
+  assert.match(sw, /PRECACHE_URLS[\s\S]*assets\/vendor\/fflate\.min\.js/);
 });
