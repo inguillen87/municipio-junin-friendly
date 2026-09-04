@@ -20,6 +20,8 @@ const PRECACHE_URLS = Object.freeze([
   '/assets/rrhh-report-pack.js',
   '/assets/payroll-schooling-report.js',
   '/assets/payroll-schooling-report-workbench.js',
+  '/assets/payroll-f931-prevalidator.js',
+  '/assets/payroll-f931-workbench.js',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',
