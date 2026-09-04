@@ -599,16 +599,17 @@ export function mountPayrollFormulaLab(root = document) {
   const constantsHost = host.querySelector('[data-formula-constants]');
   const diagnosticsHost = host.querySelector('[data-formula-diagnostics]');
   const structure = host.querySelector('[data-formula-structure]');
+  const reviewContext = host.querySelector('[data-formula-review-context]');
   const catalogForm = host.querySelector('[data-catalog-form]');
   const catalogInput = host.querySelector('[data-catalog-input]');
   const catalogStatus = host.querySelector('[data-catalog-status]');
   const catalogGraph = host.querySelector('[data-catalog-graph]');
   const catalogDiagnostics = host.querySelector('[data-catalog-diagnostics]');
-  if (!form || !input || !status || !dependencies || !constantsHost || !diagnosticsHost || !structure
+  if (!form || !input || !status || !dependencies || !constantsHost || !diagnosticsHost || !structure || !reviewContext
       || !catalogForm || !catalogInput || !catalogStatus || !catalogGraph || !catalogDiagnostics) return false;
 
-  function render() {
-    const result = analyzeFormula(input.value);
+  function render(options = {}) {
+    const result = analyzeFormula(input.value, { constantMetadata: options.constantMetadata });
     dependencies.replaceChildren();
     constantsHost.replaceChildren();
     diagnosticsHost.replaceChildren();
@@ -657,6 +658,9 @@ export function mountPayrollFormulaLab(root = document) {
     status.textContent = errorCount
       ? `Fórmula inválida · ${errorCount} ${errorCount === 1 ? 'error' : 'errores'}.`
       : `Sintaxis válida para este analizador · ${result.dependencies.length} referencias · ${result.constants.length} constantes · ${warningCount} ${warningCount === 1 ? 'revisión' : 'revisiones'}.`;
+    const contextLabel = typeof options.contextLabel === 'string' ? options.contextLabel.trim() : '';
+    reviewContext.hidden = !contextLabel;
+    reviewContext.textContent = contextLabel;
   }
 
   function renderCatalog() {
@@ -699,6 +703,12 @@ export function mountPayrollFormulaLab(root = document) {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     render();
+  });
+  host.addEventListener('payroll-formula:analyze-proposal', (event) => {
+    const detail = event instanceof CustomEvent && event.detail && typeof event.detail === 'object'
+      ? event.detail
+      : {};
+    render({ constantMetadata: detail.constantMetadata, contextLabel: detail.contextLabel });
   });
   catalogForm.addEventListener('submit', (event) => {
     event.preventDefault();

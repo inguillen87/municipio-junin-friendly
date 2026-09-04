@@ -363,8 +363,62 @@ async function inspect(viewport, label) {
 
   try {
     await page.goto(`${baseUrl}/nomina-control.html`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-payroll-formula-lab]');
+    await page.waitForSelector('[data-payroll-formula-lab]', { state: 'attached' });
     assert.equal(await page.locator('#mainContent').isVisible(), true);
+    const formulaTask = page.getByRole('button', { name: /Actualizar escala salarial/ });
+    assert.equal(await formulaTask.isVisible(), true);
+    await formulaTask.click();
+    const formulaProposal = page.locator('[data-payroll-formula-proposal]');
+    assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
+    assert.equal(await page.locator('[data-payroll-art-report-workbench]').isHidden(), true);
+
+    await formulaProposal.locator('#formulaProposalJurisdiction').selectOption('42');
+    await formulaProposal.locator('#formulaProposalAgreement').fill('Régimen municipal QA');
+    await formulaProposal.locator('#formulaProposalValidFrom').fill('2026-09');
+    await formulaProposal.locator('#formulaProposalPayrollType').selectOption('M');
+    await formulaProposal.getByRole('button', { name: 'Preparar propuesta' }).click();
+    assert.match(await formulaProposal.locator('[data-formula-proposal-status]').innerText(), /faltan datos de homologación/i);
+    assert.match(await formulaProposal.locator('[data-formula-proposal-before]').innerText(), /100\.000,00/);
+    assert.match(await formulaProposal.locator('[data-formula-proposal-delta]').innerText(), /20\.000,00/);
+    assert.match(await formulaProposal.locator('[data-formula-proposal-after]').innerText(), /120\.000,00/);
+    assert.match(await formulaProposal.locator('[data-formula-proposal-summary]').innerText(), /únicamente sobre la asignación de la clase/i);
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-send-linter]').isDisabled(), true);
+
+    await formulaProposal.locator('.formula-proposal-advanced > summary').click();
+    await formulaProposal.locator('#formulaProposalReference').fill('A[10]');
+    await formulaProposal.locator('#formulaProposalScaleVersion').fill('escala-2026-08');
+    await formulaProposal.getByRole('button', { name: 'Preparar propuesta' }).click();
+    assert.match(await formulaProposal.locator('[data-formula-proposal-status]').innerText(), /control estructural/i);
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-expression]').innerText(), 'A[10] * 1.2');
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-send-linter]').isEnabled(), true);
+    await formulaProposal.locator('[data-formula-proposal-send-linter]').click();
+    assert.equal(await page.locator('[data-formula-technical-details]').getAttribute('open'), '');
+    assert.equal(await page.locator('[data-formula-input]').inputValue(), 'A[10] * 1.2');
+    assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
+    assert.match(await page.locator('[data-formula-constants]').innerText(), /metadatos informados/);
+    assert.match(await page.locator('[data-formula-review-context]').innerText(), /Referencia y versión todavía no verificadas/i);
+    assert.match(await page.locator('[data-formula-review-context]').innerText(), /redondeo centavo más próximo/i);
+    await formulaProposal.scrollIntoViewIfNeeded();
+    const formulaScreenshot = path.join(os.tmpdir(), `municontrol-payroll-formula-proposal-${label}.png`);
+    await page.screenshot({ path: formulaScreenshot, fullPage: false });
+    screenshots.push(formulaScreenshot);
+
+    await formulaProposal.locator('#formulaProposalInstruction').fill('Aumentar 20% la escala salarial y el sueldo bruto');
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-send-linter]').isDisabled(), true);
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-result]').isHidden(), true);
+    assert.match(await formulaProposal.locator('[data-formula-proposal-status]').innerText(), /Volvé a prepararla/i);
+    await formulaProposal.getByRole('button', { name: 'Preparar propuesta' }).click();
+    assert.match(await formulaProposal.locator('[data-formula-proposal-status]').innerText(), /no se aplica directamente al bruto/i);
+    assert.equal(await formulaProposal.locator('[data-formula-proposal-result]').isHidden(), true);
+
+    await page.getByRole('button', { name: 'Ver todas las herramientas' }).click();
+    await page.evaluate(() => {
+      document.querySelectorAll('.payroll-section-body, .payroll-subtool-body').forEach((element) => {
+        element.hidden = false;
+      });
+      const technicalDetails = document.querySelector('[data-formula-technical-details]');
+      if (technicalDetails) technicalDetails.open = true;
+    });
     await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
     assert.equal(await page.locator('[data-reprocessing-run] option').count(), 3);
     const runSelectorText = await page.locator('[data-reprocessing-run]').innerText();
@@ -399,7 +453,7 @@ async function inspect(viewport, label) {
     await reprocessingWorkflow.locator('[data-reprocessing-cases] tr').first().getByRole('button', { name: 'Abrir' }).click();
     await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
     assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-detail]').isVisible(), true);
-    assert.match(await page.locator('#formulaLabTitle').innerText(), /Revisar una fórmula/);
+    assert.match(await page.locator('#formulaLabTitle').innerText(), /Actualizar la escala salarial/);
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
 
     const input = page.locator('[data-formula-input]');
@@ -844,6 +898,14 @@ async function inspectUnavailablePayroll() {
     assert.equal(await page.locator('#errorHost').isVisible(), true);
     assert.match(await page.locator('#errorHost').innerText(), /No se pudieron consultar las corridas/);
     assert.match(await page.locator('#errorHost').innerText(), /control poscierre y el precontrol mensual técnico/);
+    await page.getByRole('button', { name: 'Ver todas las herramientas' }).click();
+    await page.evaluate(() => {
+      document.querySelectorAll('.payroll-section-body, .payroll-subtool-body').forEach((element) => {
+        element.hidden = false;
+      });
+      const technicalDetails = document.querySelector('[data-formula-technical-details]');
+      if (technicalDetails) technicalDetails.open = true;
+    });
     assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
     assert.equal(await page.locator('[data-grh-source-preview]').isVisible(), true);
     assert.equal(await page.locator('[data-payroll-post-close-reconciler]').isVisible(), true);

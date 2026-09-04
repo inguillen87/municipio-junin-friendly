@@ -4,9 +4,9 @@ import test from 'node:test';
 
 const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
 
-test('Nómina abre con cinco trabajos contables reconocibles y deja lo técnico en segundo plano', () => {
+test('Nómina abre con seis trabajos contables reconocibles y deja lo técnico en segundo plano', () => {
   assert.match(html, /¿Qué necesitás hacer hoy\?/);
-  assert.equal((html.match(/class="payroll-task-option"/g) || []).length, 5);
+  assert.equal((html.match(/class="payroll-task-option"/g) || []).length, 6);
   assert.match(html, /<strong>Recibos y liquidaciones<\/strong>/);
   assert.match(html, /<strong>Control mensual<\/strong>/);
   assert.match(html, /href="reportes-rrhh\.html#bancarizacion"/);
@@ -14,8 +14,10 @@ test('Nómina abre con cinco trabajos contables reconocibles y deja lo técnico 
   assert.match(html, /<strong>Reporte ART<\/strong>/);
   assert.match(html, /<strong>Bancos y transferencias<\/strong>/);
   assert.match(html, /<strong>OSEP y Mutual<\/strong>/);
+  assert.match(html, /<strong>Actualizar escala salarial<\/strong>/);
+  assert.match(html, /data-payroll-task-select="formulas"[^>]+data-payroll-task-target="formulaLabSection"/);
   assert.match(html, /Herramientas avanzadas e historial/);
-  assert.match(html, /data-payroll-task-section="advanced" data-payroll-formula-lab/);
+  assert.match(html, /data-payroll-task-section="formulas advanced" data-payroll-formula-lab/);
   assert.match(html, /data-payroll-task-section="advanced" data-grh-source-preview/);
   assert.match(html, /id="historySection"[^>]+data-payroll-task-section="advanced"/);
   assert.match(html, /id="auditSection"[^>]+data-payroll-task-section="advanced"/);
@@ -69,6 +71,7 @@ test('la portada y los paneles progresivos mantienen semántica accesible y adap
   assert.match(html, /data-payroll-task-select="art"[^>]+aria-pressed="false"[^>]+aria-controls="artReportSection"/);
   assert.match(html, /data-payroll-task-select="banks"[^>]+aria-pressed="false"[^>]+aria-controls="bankDiagnosticSection"/);
   assert.match(html, /data-payroll-task-select="health"[^>]+aria-pressed="false"[^>]+aria-controls="healthDiagnosticSection"/);
+  assert.match(html, /data-payroll-task-select="formulas"[^>]+aria-pressed="false"[^>]+aria-controls="formulaLabSection"/);
   assert.match(html, /\.payroll-task-list \{ grid-template-columns: 1fr; \}/);
   assert.match(html, /\.payroll-task-more \{ display: grid; grid-template-columns: 1fr; \}/);
   assert.match(html, /@media print[\s\S]*\.payroll-task-section, \.payroll-section-body, \.payroll-subtool-body \{ display: block !important; \}/);

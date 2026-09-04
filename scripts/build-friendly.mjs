@@ -45,6 +45,7 @@ const shellFiles = [
   'assets/junin-budget-2026.js',
   'assets/junin-tardiness-policy.js',
   'assets/payroll-formula-linter.js',
+  'assets/payroll-formula-proposal.js',
   'assets/grh-source-preview.js',
   'assets/payroll-post-close-exporter.js',
   'assets/payroll-post-close-reconciler.js',
