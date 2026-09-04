@@ -344,7 +344,8 @@ function normalizedDeparser(value) {
     .replace(/::character varying(?:\(\d+\))?/g, '')
     .replace(/::varchar(?:\(\d+\))?/g, '')
     .replace(/::text\[\]/g, '')
-    .replace(/::text/g, '');
+    .replace(/::text/g, '')
+    .replace(/\(([a-z_][a-z0-9_]*)\)/g, '$1');
 }
 
 function requireTokens(label, value, tokens) {

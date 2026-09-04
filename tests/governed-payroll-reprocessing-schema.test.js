@@ -90,6 +90,7 @@ test('aplicador exige ledger, prerequisitos, transacción, lock y verificación 
     /await client\.query\('ROLLBACK'\)/,
     /verifyPayrollReprocessingFinalState\(client\)/,
     /replace\(\/::text\/g, ''\)/,
+    /replace\(\/\\\(\(\[a-z_\]\[a-z0-9_\]\*\)\\\)\/g, '\$1'\)/,
   ]) assert.match(applier, pattern);
   assert.doesNotMatch(applier,
     /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
