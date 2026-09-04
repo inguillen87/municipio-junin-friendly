@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "manifestId": "municontrol-certified-data-contract-files.v1",
-  "manifestVersion": "1.1.0",
+  "manifestVersion": "1.2.0",
   "identity": {
     "algorithm": "sha256",
     "runtimeHexLength": 40,
@@ -14,6 +14,46 @@
         "path": "contracts/certified-data-contract-files.v1.json",
         "category": "classification_boundary",
         "reason": "Versiona el límite auditable del contrato; modificarlo exige revisar la rotación."
+      },
+      {
+        "path": "package.json",
+        "category": "release_control",
+        "reason": "Conecta el assert contractual al ciclo prebuild; retirarlo o alterarlo no puede publicarse como cambio ordinario."
+      },
+      {
+        "path": "scripts/assert-certified-data-contract.mjs",
+        "category": "release_control",
+        "reason": "Calcula el contrato del checkout y exige en Producción el pin canónico exacto antes de construir."
+      },
+      {
+        "path": "scripts/classify-data-contract-release.mjs",
+        "category": "release_control",
+        "reason": "Define la membresía, normalización y función hash usadas para clasificar y calcular la identidad contractual."
+      },
+      {
+        "path": "scripts/lib/canonical-import.mjs",
+        "category": "release_control",
+        "reason": "Fija el endpoint directo y las confirmaciones de rama permitidas a los aplicadores canónicos."
+      },
+      {
+        "path": "scripts/lib/pinned-neon-target.mjs",
+        "category": "release_control",
+        "reason": "Verifica los pines independientes y la identidad efectiva del destino Neon antes de una migración."
+      },
+      {
+        "path": "scripts/lib/sql-statements.mjs",
+        "category": "release_control",
+        "reason": "Segmenta las migraciones gobernadas sin romper cuerpos SQL ni ejecutar fragmentos ambiguos."
+      },
+      {
+        "path": "scripts/apply-payroll-type-mapping-fail-closed-schema.mjs",
+        "category": "migration_control",
+        "reason": "Aplica y verifica el prerrequisito fail-closed de homologación con target y ledger fijados."
+      },
+      {
+        "path": "scripts/apply-grh-payroll-type-homologation-schema.mjs",
+        "category": "migration_control",
+        "reason": "Aplica y verifica la homologación GRH vigente con invariantes, ledger y destino fijados."
       },
       {
         "path": "contracts/grh-junin-mariadb-to-canonical.v1.json",
