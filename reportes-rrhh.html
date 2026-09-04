@@ -381,6 +381,127 @@
     .export-status[data-state="error"] { color: var(--red); }
     .export-pack-note { margin: 0; padding: 0 24px 20px; color: var(--muted); font-size: 11px; }
 
+    .schooling-lab {
+      margin-top: 58px;
+      border: 1px solid var(--line-dark);
+      border-top: 4px solid var(--ochre);
+      background: var(--surface);
+      scroll-margin-top: 24px;
+    }
+    .schooling-lab-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: start;
+      padding: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    .schooling-lab-kicker {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ochre);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .schooling-lab h2 { margin: 0; color: var(--navy); font: 700 28px/1.1 Georgia, serif; }
+    .schooling-lab-copy { max-width: 760px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+    .schooling-lab-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid #c3a561;
+      background: #fff9e9;
+      color: #6b4d0f;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .schooling-lab-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr);
+    }
+    .schooling-form, .schooling-requirements { padding: 22px 24px; }
+    .schooling-form { border-right: 1px solid var(--line); }
+    .schooling-field-label { display: block; color: var(--ink); font-size: 12px; font-weight: 750; }
+    .schooling-file-picker { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+    .schooling-file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .schooling-file-label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 15px;
+      border: 1px solid var(--navy);
+      background: #fff;
+      color: var(--navy);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .schooling-file-input:focus-visible + .schooling-file-label { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .schooling-file-hint { color: var(--muted); font-size: 11px; }
+    .schooling-form small { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; }
+    .schooling-buttons { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+    .schooling-button {
+      min-height: 42px;
+      padding: 0 15px;
+      border: 1px solid var(--navy);
+      background: var(--navy);
+      color: #fff;
+      cursor: pointer;
+      font: 800 12px/1 Arial, sans-serif;
+    }
+    .schooling-button.secondary { background: #fff; color: var(--navy); }
+    .schooling-button:disabled { border-color: #c3cccc; background: #e7ebeb; color: #657578; cursor: not-allowed; }
+    .schooling-status { min-height: 22px; margin: 16px 0 0; color: var(--muted); font-size: 12px; }
+    .schooling-status[data-state="ok"] { color: #075d53; }
+    .schooling-status[data-state="error"] { color: #7c2c21; }
+    .schooling-status[data-state="warning"] { color: #6b4d0f; }
+    .schooling-requirements h3 { margin: 0; color: var(--navy); font-size: 16px; }
+    .schooling-requirements p { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+    .schooling-requirements ul, .schooling-issues { margin: 13px 0 0; padding-left: 19px; color: var(--muted); font-size: 11px; }
+    .schooling-requirements li + li, .schooling-issues li + li { margin-top: 5px; }
+    .schooling-result {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+    }
+    .schooling-result[hidden] { display: none; }
+    .schooling-result-card { min-width: 0; padding: 16px 20px; border-right: 1px solid var(--line); }
+    .schooling-result-card:last-child { border-right: 0; }
+    .schooling-result-card span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .schooling-result-card strong { display: block; margin-top: 5px; overflow-wrap: anywhere; color: var(--ink); font-size: 12px; }
+    .schooling-result-card strong[data-state="ok"] { color: #075d53; }
+    .schooling-result-card strong[data-state="error"] { color: #7c2c21; }
+    .schooling-result-details { grid-column: 1 / -1; padding: 16px 20px; border-top: 1px solid var(--line); }
+    .schooling-result-details > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    .schooling-fingerprint { display: block; margin-top: 6px; overflow-wrap: anywhere; color: var(--muted); font: 11px/1.4 Consolas, monospace; }
+    .schooling-gate {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      margin: 0;
+      padding: 18px 24px;
+      border-top: 1px solid #dfc991;
+      background: #fff9e9;
+      color: #6b4d0f;
+      font-size: 12px;
+    }
+
     .report-actions {
       display: grid;
       grid-template-columns: 1.15fr .85fr;
@@ -429,7 +550,7 @@
       .source-brief { display: none; }
       .report-title { font-size: clamp(38px, 13vw, 56px); }
       .section-title-row { grid-template-columns: 1fr; gap: 10px; }
-      .management-compare, .method-grid, .report-actions, .export-pack-head, .export-pack-meta { grid-template-columns: 1fr; }
+      .management-compare, .method-grid, .report-actions, .export-pack-head, .export-pack-meta, .schooling-lab-head, .schooling-lab-grid, .schooling-gate { grid-template-columns: 1fr; }
       .management-period.current { border-top: 0; border-left: 4px solid var(--green); padding: 18px 18px 18px 14px; }
       .management-period.previous { border-left: 4px solid var(--blue); border-top: 0; padding: 18px 18px 18px 14px; }
       .action-links { border-left: 0; border-top: 1px solid var(--navy); }
@@ -438,6 +559,10 @@
       .export-pack-actions { align-items: stretch; }
       .export-button { flex: 1 1 180px; }
       .export-status { flex-basis: 100%; margin: 5px 0 0; }
+      .schooling-form { border-right: 0; border-bottom: 1px solid var(--line); }
+      .schooling-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .schooling-result-card:nth-child(2) { border-right: 0; }
+      .schooling-result-card:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
       .chart-header { display: block; }
       .legend { justify-content: flex-start; margin-top: 10px; }
     }
@@ -456,7 +581,7 @@
     }
     @media print {
       body { background: #fff; }
-      .site-header, .report-index, .report-actions, .export-pack { display: none; }
+      .site-header, .report-index, .report-actions, .export-pack, .schooling-lab { display: none; }
       .report-shell { display: block; width: 100%; padding: 0; }
       .report-section, .chart-block { break-inside: avoid; }
       .chart-scroll svg { min-width: 0; }
@@ -493,6 +618,7 @@
           <a href="#ausentismo">Ausentismo</a>
           <a href="#sectores">Sectores</a>
           <a href="#metodologia">Método y límites</a>
+          <a href="#escolaridades">Escolaridades</a>
           <a href="#descargas">Exportar</a>
         </nav>
       </div>
@@ -628,6 +754,53 @@
             <div class="method-item"><strong>Remuneraciones</strong><p id="payrollLimitation">—</p><a href="calidad-datos.html#disponibilidad">Ver disponibilidad por dominio</a></div>
             <div class="method-item"><strong>Período</strong><p id="periodLimitation">—</p><a href="calidad-datos.html#fuente">Consultar trazabilidad</a></div>
           </div>
+        </section>
+
+        <section class="schooling-lab" id="escolaridades" aria-labelledby="schoolingTitle" data-payroll-schooling-report-workbench aria-busy="false">
+          <div class="schooling-lab-head">
+            <div>
+              <span class="schooling-lab-kicker">Control previo · REP-08 solicitado</span>
+              <h2 id="schoolingTitle">Diagnóstico local de escolaridades</h2>
+              <p class="schooling-lab-copy">Revisá si una planilla es un XLSX técnicamente íntegro antes de homologarla. Como todavía no recibimos una muestra inequívoca del reporte, MuniControl no adivina columnas, fórmulas ni reglas.</p>
+            </div>
+            <span class="schooling-lab-badge">Pendiente de homologación</span>
+          </div>
+          <div class="schooling-lab-grid">
+            <form class="schooling-form" data-schooling-form>
+              <span class="schooling-field-label">Planilla XLSX para diagnóstico</span>
+              <div class="schooling-file-picker">
+                <input class="schooling-file-input" id="schoolingWorkbook" data-schooling-file type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+                <label class="schooling-file-label" for="schoolingWorkbook">Elegir archivo XLSX</label>
+                <span class="schooling-file-hint">Un archivo · máximo 8 MiB</span>
+              </div>
+              <small>El archivo se procesa únicamente en este navegador. No se sube, no se guarda en Neon y no se muestran sus celdas ni su nombre.</small>
+              <div class="schooling-buttons">
+                <button class="schooling-button" data-schooling-validate type="submit">Analizar estructura XLSX</button>
+                <button class="schooling-button secondary" data-schooling-reset type="button">Limpiar</button>
+              </div>
+              <p class="schooling-status" data-schooling-status data-state="" role="status" aria-live="polite">Seleccioná un archivo XLSX para revisar su estructura.</p>
+            </form>
+            <div class="schooling-requirements">
+              <h3>Qué falta para generar el reporte</h3>
+              <p>La integridad técnica del archivo no reemplaza la homologación contable y funcional.</p>
+              <ul data-schooling-requirements></ul>
+            </div>
+          </div>
+          <div class="schooling-result" data-schooling-result hidden aria-label="Resultado del diagnóstico">
+            <div class="schooling-result-card"><span>Estructura</span><strong data-schooling-structure>—</strong></div>
+            <div class="schooling-result-card"><span>Partes OOXML</span><strong data-schooling-parts>—</strong></div>
+            <div class="schooling-result-card"><span>Hojas detectadas</span><strong data-schooling-worksheets>—</strong></div>
+            <div class="schooling-result-card"><span>Tamaño</span><strong data-schooling-bytes>—</strong></div>
+            <div class="schooling-result-details">
+              <span>Huella local SHA-256</span>
+              <strong class="schooling-fingerprint" data-schooling-fingerprint>—</strong>
+              <ul class="schooling-issues" data-schooling-issues></ul>
+            </div>
+          </div>
+          <p class="schooling-gate">
+            <span data-schooling-gate>Generación bloqueada hasta homologación.</span>
+            <button class="schooling-button" data-schooling-generation type="button" disabled>Generar Excel</button>
+          </p>
         </section>
 
         <section class="export-pack" id="descargas" aria-labelledby="exportPackTitle">
@@ -975,6 +1148,7 @@
       start();
     }());
   </script>
+  <script type="module" src="assets/payroll-schooling-report-workbench.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

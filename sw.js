@@ -18,6 +18,8 @@ const PRECACHE_URLS = Object.freeze([
   '/attendance-policy-candidates.v1.json',
   '/assets/junin-tardiness-policy.js',
   '/assets/rrhh-report-pack.js',
+  '/assets/payroll-schooling-report.js',
+  '/assets/payroll-schooling-report-workbench.js',
   '/friendly-data.json',
   '/manifest.webmanifest',
   '/assets/pwa/icon.svg',
