@@ -52,6 +52,7 @@ const shellFiles = [
   'assets/payroll-control-import-workflow.js',
   'assets/payroll-reprocessing-workflow.js',
   'assets/payroll-art-report.js',
+  'assets/payroll-art-noelia-adapter.js',
   'assets/payroll-art-report-exporter.js',
   'assets/payroll-art-report-workbench.js',
   'assets/payroll-bank-fixed-width-profiles.js',

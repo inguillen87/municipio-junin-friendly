@@ -448,7 +448,7 @@
     .source-preview-actions .button:disabled { cursor: wait; opacity: .62; }
     .source-preview-results { display: grid; gap: 10px; }
     .source-preview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-    .source-preview-metric { padding: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .source-preview-metric { min-width: 0; padding: 11px; overflow-wrap: anywhere; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
     .source-preview-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
     .source-preview-metric strong { display: block; margin-top: 5px; color: var(--navy); font-size: 21px; font-variant-numeric: tabular-nums; }
     .source-preview-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -459,21 +459,23 @@
     .source-preview-findings li.ok { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
 
     .post-close-grid { display: grid; grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr); gap: 12px; align-items: start; }
+    .post-close-grid > * { min-width: 0; max-width: 100%; }
     .grh-summary-panel { grid-column: 1 / -1; }
     .grh-summary-files { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .post-close-form { display: grid; gap: 12px; }
-    .post-close-context { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
-    .post-close-field { display: grid; gap: 6px; }
+    .post-close-form { display: grid; min-width: 0; max-width: 100%; gap: 12px; }
+    .post-close-form > * { min-width: 0; max-width: 100%; }
+    .post-close-context { display: grid; min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+    .post-close-field { display: grid; min-width: 0; max-width: 100%; gap: 6px; align-content: start; }
     .post-close-field label { color: var(--navy); font-size: 12px; font-weight: 800; }
     .post-close-field input, .post-close-field select, .post-close-field textarea {
-      width: 100%; min-height: 44px; padding: 9px 10px; color: var(--navy); background: #fbfcfc;
+      width: 100%; min-width: 0; max-width: 100%; min-height: 44px; padding: 9px 10px; color: var(--navy); background: #fbfcfc;
       border: 1px solid #9dafb7; border-radius: 4px; font: inherit;
     }
     .post-close-field textarea { min-height: 88px; resize: vertical; }
     .post-close-field small { color: var(--muted); font-size: 10px; }
     .post-close-field [aria-invalid="true"] { border-color: var(--red); }
-    .post-close-file-picker { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px; align-items: center; }
-    .post-close-file-trigger { position: relative; display: inline-flex; min-width: 154px; }
+    .post-close-file-picker { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; align-items: start; }
+    .post-close-file-trigger { position: relative; display: inline-flex; width: 100%; min-width: 0; }
     .post-close-file-button { display: inline-flex; width: 100%; align-items: center; justify-content: center; pointer-events: none; }
     .post-close-file-input {
       position: absolute; inset: 0; z-index: 1; width: 100% !important; min-height: 44px !important;
@@ -484,6 +486,7 @@
     .post-close-file-state { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
     .post-close-file-state[data-state="ready"] { color: var(--green); font-weight: 750; }
     .post-close-file-state[data-state="error"] { color: var(--red); font-weight: 750; }
+    .post-close-field-error { color: var(--red); font-weight: 750; }
     .post-close-error-summary { padding: 11px 12px; color: var(--red); background: var(--red-soft); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); border-radius: 4px; }
     .post-close-error-summary strong { display: block; }
     .post-close-error-summary ul { display: grid; gap: 4px; margin: 7px 0 0; padding-left: 19px; }
@@ -503,10 +506,11 @@
     .post-close-evidence { border: 1px solid var(--line); border-radius: 4px; background: #fbfcfc; }
     .post-close-evidence summary { min-height: 44px; padding: 13px 14px; cursor: pointer; color: var(--blue); font-size: 11px; font-weight: 800; }
     .post-close-evidence .post-close-meta { padding: 0 10px 10px; }
+    .post-close-evidence > .quality-list { padding: 0 10px 10px; }
     .post-close-note { margin: 0; padding: 10px 11px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 11px; }
     .post-close-note[data-state="ok"] { color: var(--green); background: var(--green-soft); border-color: #b9d8ce; }
     .post-close-note[data-state="error"] { color: var(--red); background: var(--red-soft); border-color: #dfbbb6; }
-    .post-close-format { display: block; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
+    .post-close-format { display: block; min-width: 0; max-width: 100%; margin-top: 8px; padding: 9px; overflow-x: auto; color: var(--navy); background: #f2f5f4; border: 1px solid var(--line); border-radius: 4px; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; white-space: pre; }
     .post-close-export { padding: 13px; background: var(--green-soft); border: 1px solid #b9d8ce; border-radius: 4px; }
     .post-close-export h4 { margin: 0; color: var(--navy); font-size: 13px; }
     .post-close-export h4:not(:first-child) { margin-top: 16px; padding-top: 14px; border-top: 1px solid #b9d8ce; }
@@ -1383,79 +1387,127 @@
             <div>
               <span class="section-index">07 · REPORTE ART PROVINCIA</span>
               <h2 id="artReportTitle">Calcular 993 + 995 y preparar archivos de revisión</h2>
-              <p>Automatiza la planilla ART solicitada por el área contable: valida legajo, DNI, CUIL, sexo y días; calcula con centavos exactos; separa Todo, J42 o J55; y genera detalle, rechazados, resumen y trazabilidad.</p>
+              <p>Automatiza el reporte pedido por el área contable: cruza los Excel reales por CUIL, valida DNI, sexo y días, recalcula 993 + 995 y genera un Excel y PDF profesional. La comparación contra SUSS queda visible como control informativo.</p>
             </div>
             <span class="state-badge warning">Uso autorizado · salida no oficial</span>
           </header>
           <p class="formula-lab-status" data-art-status data-state="warning" role="status" aria-live="polite">Validando el permiso de la sesión…</p>
           <div class="post-close-grid" style="margin-top: 12px;">
             <article class="panel">
-              <h3>Fuente canónica ART</h3>
-              <p class="panel-note">El archivo contiene datos personales y se procesa únicamente en este navegador. No se envía ni persiste. Usá una exportación controlada y eliminá las descargas cuando ya no sean necesarias.</p>
+              <h3>Cruce automático de planillas ART</h3>
+              <p class="panel-note">Elegí los dos Excel que hoy arma el área contable. MuniControl los cruza por CUIL, toma sexo y días de SUSS, calcula <strong>Imponible + Asignaciones familiares</strong> y marca cualquier diferencia sin bloquear el reporte válido. Los archivos no se suben al servidor.</p>
               <div class="post-close-note" data-art-gate>La herramienta permanece bloqueada hasta que el servidor confirme el permiso específico.</div>
               <form class="post-close-form" data-art-form novalidate hidden>
                 <div class="post-close-context">
                   <div class="post-close-field">
                     <label for="artPeriod">Período</label>
-                    <input id="artPeriod" data-art-period type="month" required autocomplete="off">
+                    <input id="artPeriod" data-art-period type="month" required autocomplete="off" aria-invalid="false" aria-describedby="artPeriodError">
+                    <small class="post-close-field-error" id="artPeriodError" data-art-period-error hidden></small>
                   </div>
                   <div class="post-close-field">
-                    <label for="artScope">Ámbito del reporte</label>
-                    <select id="artScope" data-art-scope required>
-                      <option value="all">Todo el municipio</option>
-                      <option value="42">Jurisdicción 42</option>
-                      <option value="55">Jurisdicción 55</option>
+                    <label for="artMode">Origen de los datos</label>
+                    <select id="artMode" data-art-mode required>
+                      <option value="noelia">Dos Excel del área contable</option>
+                      <option value="csv">CSV canónico con jurisdicción</option>
                     </select>
                   </div>
                 </div>
                 <div class="post-close-context">
                   <div class="post-close-field">
-                    <label for="artSnapshot">Identificador de la exportación fuente</label>
-                    <input id="artSnapshot" data-art-snapshot type="text" maxlength="128" required autocomplete="off" placeholder="grh-art-2026-08-cierre-01">
-                    <small>Debe identificar el lote real exportado; no inventes un nombre genérico.</small>
+                    <label for="artSnapshot">Nombre de la exportación</label>
+                    <input id="artSnapshot" data-art-snapshot type="text" maxlength="128" required autocomplete="off" placeholder="Ej.: art-agosto-2026-cierre-1" aria-invalid="false" aria-describedby="artSnapshotHelp artSnapshotError">
+                    <small id="artSnapshotHelp">Usá letras, números, puntos o guiones para reconocer después el lote real.</small>
+                    <small class="post-close-field-error" id="artSnapshotError" data-art-snapshot-error hidden></small>
                   </div>
                   <div class="post-close-field">
-                    <label for="artCutoff">Fecha y hora de corte de la fuente</label>
-                    <input id="artCutoff" data-art-cutoff type="datetime-local" required autocomplete="off">
+                    <label for="artCutoff">Datos actualizados hasta</label>
+                    <input id="artCutoff" data-art-cutoff type="datetime-local" required autocomplete="off" aria-invalid="false" aria-describedby="artCutoffHelp artCutoffError">
+                    <small id="artCutoffHelp">Indicá la fecha y hora en que se exportaron las planillas.</small>
+                    <small class="post-close-field-error" id="artCutoffError" data-art-cutoff-error hidden></small>
                   </div>
                 </div>
-                <div class="post-close-field">
-                  <label for="artFile">CSV UTF-8 con datos canónicos</label>
-                  <div class="post-close-file-picker">
-                    <span class="post-close-file-trigger">
-                      <span class="button post-close-file-button" aria-hidden="true">Elegir CSV ART</span>
-                      <input class="post-close-file-input" id="artFile" data-art-file type="file" accept=".csv,text/csv,text/plain" required aria-describedby="artFileHelp artFileState">
-                    </span>
-                    <span class="post-close-file-state" id="artFileState" data-art-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                <div data-art-mode-panel="noelia">
+                  <div class="post-close-field">
+                    <label for="artGalenoFile">1. Planilla GALENO ART</label>
+                    <div class="post-close-file-picker">
+                      <span class="post-close-file-trigger">
+                        <span class="button post-close-file-button" aria-hidden="true">Elegir Excel GALENO</span>
+                        <input class="post-close-file-input" id="artGalenoFile" data-art-galeno-file type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-invalid="false" aria-describedby="artGalenoHelp artGalenoFileState">
+                      </span>
+                      <span class="post-close-file-state" id="artGalenoFileState" data-art-galeno-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                    </div>
+                    <small id="artGalenoHelp">Debe contener CUIL, DNI, Imponible, No imponible y Asignaciones familiares.</small>
                   </div>
-                  <small id="artFileHelp">Máximo 2 MiB y 10.000 filas. Importe en pesos con coma y dos decimales; sin separador de miles.</small>
+                  <div class="post-close-field">
+                    <label for="artSussFile">2. Plantilla SUSS / ART</label>
+                    <div class="post-close-file-picker">
+                      <span class="post-close-file-trigger">
+                        <span class="button post-close-file-button" aria-hidden="true">Elegir Excel SUSS</span>
+                        <input class="post-close-file-input" id="artSussFile" data-art-suss-file type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-invalid="false" aria-describedby="artSussHelp artSussFileState">
+                      </span>
+                      <span class="post-close-file-state" id="artSussFileState" data-art-suss-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                    </div>
+                    <small id="artSussHelp">Debe contener CUIL, DNI, sexo, días trabajados y sueldo declarado.</small>
+                  </div>
+                  <div class="method-note"><strong>Control automático:</strong> el sueldo ART se vuelve a calcular con la regla solicitada 993 + 995. “No imponible” se conserva sólo como referencia y no se suma.</div>
                 </div>
-                <code class="post-close-format">liquidacion;jurisdiccion;legajo;dni;cuil;sexo;dias_trabajados;concepto_993_ars;concepto_995_ars</code>
+                <div data-art-mode-panel="csv" hidden>
+                  <div class="post-close-context">
+                    <div class="post-close-field">
+                      <label for="artScope">Ámbito del reporte</label>
+                      <select id="artScope" data-art-scope>
+                        <option value="all">Todo el municipio</option>
+                        <option value="42">Jurisdicción 42</option>
+                        <option value="55">Jurisdicción 55</option>
+                      </select>
+                    </div>
+                    <div class="post-close-field">
+                      <label for="artFile">CSV UTF-8 con datos canónicos</label>
+                      <div class="post-close-file-picker">
+                        <span class="post-close-file-trigger">
+                          <span class="button post-close-file-button" aria-hidden="true">Elegir CSV ART</span>
+                          <input class="post-close-file-input" id="artFile" data-art-file type="file" accept=".csv,text/csv,text/plain" aria-invalid="false" aria-describedby="artFileHelp artFileState">
+                        </span>
+                        <span class="post-close-file-state" id="artFileState" data-art-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                      </div>
+                      <small id="artFileHelp">Máximo 2 MiB y 10.000 filas. Usá este modo sólo si la fuente ya informa legajo y jurisdicción.</small>
+                    </div>
+                  </div>
+                  <code class="post-close-format">liquidacion;jurisdiccion;legajo;dni;cuil;sexo;dias_trabajados;concepto_993_ars;concepto_995_ars</code>
+                </div>
                 <div class="post-close-actions">
-                  <button class="button primary" type="submit" data-art-submit>Generar control ART</button>
+                  <button class="button primary" type="submit" data-art-submit>Calcular y preparar reporte</button>
                   <button class="button" type="button" data-art-reset>Limpiar datos locales</button>
                 </div>
               </form>
             </article>
             <article class="panel post-close-results" aria-labelledby="artResultTitle">
               <h3 id="artResultTitle">Resultado y descargas</h3>
-              <div data-art-result hidden>
+              <div data-art-result hidden tabindex="-1" aria-labelledby="artResultTitle">
                 <span class="state-badge" data-art-result-state>Sin ejecutar</span>
                 <div class="source-preview-metrics" style="margin-top: 10px;">
                   <div class="source-preview-metric"><span>Filas fuente</span><strong data-art-source-rows>—</strong></div>
                   <div class="source-preview-metric"><span>Aceptadas</span><strong data-art-accepted>—</strong></div>
                   <div class="source-preview-metric"><span>Rechazadas</span><strong data-art-rejected>—</strong></div>
+                  <div class="source-preview-metric"><span>Comparaciones 993 + 995 vs SUSS</span><strong data-art-compared>—</strong></div>
+                  <div class="source-preview-metric"><span>Diferencias informativas</span><strong data-art-mismatches>—</strong></div>
                   <div class="source-preview-metric"><span>Masa salarial ART</span><strong data-art-salary>—</strong></div>
                 </div>
-                <div style="margin-top: 12px;">
-                  <h4>Validaciones por fila</h4>
+                <p class="panel-note">Las comparaciones incluyen únicamente filas aceptadas con importes disponibles en ambas planillas. Las filas rechazadas quedan fuera de la comparación y de los totales del reporte.</p>
+                <details class="post-close-evidence" style="margin-top: 12px;" data-art-rejected-details>
+                  <summary data-art-rejected-summary>Ver validaciones por fila</summary>
                   <ul class="quality-list" data-art-rejected-list></ul>
-                </div>
+                </details>
                 <p class="post-close-evidence-summary" style="margin-top: 12px;"><strong>Huella reproducible del reporte</strong><span data-art-fingerprint>—</span></p>
                 <div class="post-close-export" style="margin-top: 12px;">
                   <h4>Paquete para revisión</h4>
-                  <p>Incluye cuatro CSV auditables, un Excel de cuatro hojas y un PDF institucional interno. “Detalle” contiene datos personales; “rechazados” informa sólo número de fila y códigos de error.</p>
-                  <div class="post-close-export-actions" data-art-downloads></div>
+                  <p>Excel y PDF reúnen el resumen, el detalle del cálculo y las filas que requieren corrección.</p>
+                  <div class="post-close-export-actions" data-art-primary-downloads></div>
+                  <details class="post-close-evidence" style="margin-top: 12px;" data-art-downloads-details>
+                    <summary>Más formatos para auditoría (CSV)</summary>
+                    <p class="panel-note">Archivos separados para revisar el detalle, las excepciones, el resumen y la trazabilidad.</p>
+                    <div class="post-close-export-actions" data-art-downloads></div>
+                  </details>
                 </div>
               </div>
               <div class="method-note">La fórmula implementada es exclusivamente concepto 993 + concepto 995, según el requerimiento relevado. Excel y PDF quedan identificados con huellas SHA-256 y rotulados como documentos internos restringidos. La herramienta no envía el archivo, no modifica nómina y no habilita una presentación oficial ante ART u otro organismo.</div>

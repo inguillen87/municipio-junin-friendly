@@ -1,4 +1,7 @@
-import { requireTrustedPayrollArtReport } from './payroll-art-report.js';
+import {
+  payrollArtValidationLabel,
+  requireTrustedPayrollArtReport,
+} from './payroll-art-report.js';
 
 export const PAYROLL_ART_OFFICE_EXPORT_CONTRACT_VERSION = 'payroll-art-office-export.v1';
 
@@ -53,6 +56,7 @@ async function sha256Bytes(bytes, cryptoImpl) {
 }
 
 function exactArs(value, { symbol = true, grouped = true } = {}) {
+  if (value === null || value === undefined || value === '') return 'No informado';
   const cents = BigInt(value);
   const negative = cents < 0n;
   const digits = String(negative ? -cents : cents).padStart(3, '0');
@@ -62,12 +66,23 @@ function exactArs(value, { symbol = true, grouped = true } = {}) {
   return `${negative ? '-' : ''}${symbol ? '$ ' : ''}${integer},${digits.slice(-2)}`;
 }
 
+function reviewLabel(row) {
+  if (row.warningCodes.includes('ART_DECLARED_SALARY_DIFFERENCE')) return 'Revisar diferencia';
+  if (row.warningCodes.includes('ART_DECLARED_SALARY_UNAVAILABLE')) return 'Sin comparación SUSS';
+  if (row.warningCodes.includes('ART_NON_TAXABLE_UNAVAILABLE')) return 'No imponible no informado';
+  return 'Coincide';
+}
+
 function scopeLabel(scope) {
-  return scope === 'all' ? 'Todos (J42 + J55)' : `Jurisdicción ${scope}`;
+  if (scope === 'all') return 'Todos (J42 + J55)';
+  if (scope === 'municipal') return 'Municipio completo · sin desagregar J42/J55';
+  return `Jurisdicción ${scope}`;
 }
 
 function fileScope(scope) {
-  return scope === 'all' ? 'todos' : `j${scope}`;
+  if (scope === 'all') return 'todos';
+  if (scope === 'municipal') return 'municipio';
+  return `j${scope}`;
 }
 
 function fileStem(report) {
@@ -75,9 +90,18 @@ function fileStem(report) {
 }
 
 function statusLabel(report) {
-  return report.readyForReview
-    ? 'LISTO PARA REVISIÓN AUTORIZADA'
-    : 'BLOQUEADO POR VALIDACIONES';
+  if (report.status === 'generated_with_exceptions') return 'REPORTE GENERADO CON EXCEPCIONES';
+  if (report.status === 'ready_with_observations') return 'LISTO CON DIFERENCIAS INFORMATIVAS';
+  if (report.status === 'ready_for_authorized_review') return 'LISTO PARA REVISIÓN AUTORIZADA';
+  return 'BLOQUEADO POR VALIDACIONES';
+}
+
+function statusStyle(report) {
+  return report.status === 'ready_for_authorized_review' ? 9 : 7;
+}
+
+function statusIsClear(report) {
+  return report.status === 'ready_for_authorized_review';
 }
 
 function inlineCell(ref, value, style = 4) {
@@ -157,7 +181,7 @@ function summarySheet(report) {
     { height: 8, cells: [null, null, null, null] },
     { cells: [t('Período', 3), t(report.period), t('Alcance', 3), t(scopeLabel(report.scope))] },
     { cells: [t('Corte de fuente', 3), t(report.source.cutoffAt), t('Identificador de fuente', 3), t(report.source.snapshotId, 8)] },
-    { cells: [t('Estado', 3), t(statusLabel(report), report.readyForReview ? 9 : 7), t('Fórmula aplicada', 3), t(report.traceability.formula)] },
+    { cells: [t('Estado', 3), t(statusLabel(report), statusStyle(report)), t('Fórmula aplicada', 3), t(report.traceability.formula)] },
     { height: 8, cells: [null, null, null, null] },
     { cells: [t('Métrica', 5), t('Valor', 5), t('Métrica', 5), t('Valor', 5)] },
     { cells: [t('Filas de fuente', 4), n(report.summary.sourceRows), t('Filas del alcance', 4), n(report.summary.scopedRows)] },
@@ -175,19 +199,37 @@ function summarySheet(report) {
     { cells: [t('Control de alcance', 7), t('No presenta ni envía información a ART; no modifica nómina, GRH ni PostgreSQL.', 7), null, null] },
     { cells: [t('Precisión monetaria', 7), t('Los importes se exportan como texto exacto y centavos enteros para evitar redondeos binarios de Excel.', 7), null, null] },
   ];
+  if (report.scope === 'municipal') {
+    rows.push(
+      { height: 8, cells: [null, null, null, null] },
+      { cells: [t('Cruce GALENO / SUSS', 5), t('Resultado', 5), t('Importe comparado', 5), t('Valor', 5)] },
+      { cells: [t('Coincidencias exactas · aceptadas', 4), n(report.summary.comparisonMatches), t('Sueldo SUSS · aceptadas comparadas', 4), t(exactArs(report.summary.declaredSalaryTotalCents), 6)] },
+      { cells: [t('Diferencias · aceptadas comparadas', 7), n(report.summary.comparisonMismatches, 7), t('SUSS menos fórmula · aceptadas', 7), t(exactArs(report.summary.differenceTotalCents), 7)] },
+      { cells: [t('Mapeo de origen', 7), t('Imponible → 993; Asign. Fliares → 995. Confirmación operativa pendiente.', 7), null, null] },
+      { cells: [t('Universo único del control', 7), t('Comparaciones y totales se calculan únicamente sobre filas aceptadas. Los datos informativos opcionales sólo suman cuando están disponibles.', 7), null, null] },
+    );
+  }
   return worksheet(rows, {
     widths: [30, 64, 28, 52],
-    merges: ['A1:D1', 'A2:D2', 'B18:D18', 'B19:D19', 'B21:D21', 'B22:D22'],
+    merges: [
+      'A1:D1', 'A2:D2', 'B18:D18', 'B19:D19', 'B21:D21', 'B22:D22',
+      ...(report.scope === 'municipal' ? ['B27:D27', 'B28:D28'] : []),
+    ],
     freezeAt: 7,
   });
 }
 
 function detailSheet(report) {
+  const paired = report.scope === 'municipal';
   const headers = [
     'Período', 'Alcance', 'Fila fuente', 'Liquidación', 'Jurisdicción', 'Legajo',
     'DNI', 'CUIL', 'Sexo', 'Días trabajados', 'Concepto 993 ARS', 'Concepto 995 ARS',
     'Sueldo ART ARS', '993 centavos exactos', '995 centavos exactos',
     'Sueldo centavos exactos', 'Versión de fórmula',
+    ...(paired ? [
+      'Fila GALENO', 'Fila SUSS', 'No imponible informativo ARS',
+      'Sueldo declarado SUSS ARS', 'Diferencia SUSS menos fórmula ARS', 'Revisión',
+    ] : []),
   ];
   const rows = [
     ...titleRows(report, 'Detalle nominal ART', headers.length),
@@ -201,17 +243,31 @@ function detailSheet(report) {
       t(exactArs(row.salaryCents, { symbol: false, grouped: false }), 6),
       t(row.concept993Cents, 6), t(row.concept995Cents, 6), t(row.salaryCents, 6),
       t(report.formulaVersion, 8),
+      ...(paired ? [
+        t(row.galenoRowNumbers.join('|'), 6), t(row.sussRowNumbers.join('|'), 6),
+        t(exactArs(row.nonTaxableCents, { symbol: false, grouped: false }), 6),
+        t(exactArs(row.declaredSalaryCents, { symbol: false, grouped: false }), 6),
+        t(exactArs(row.differenceCents, { symbol: false, grouped: false }), 6),
+        t(reviewLabel(row), row.warningCodes.length ? 7 : 9),
+      ] : []),
     ] })),
   ];
   if (report.acceptedRows.length === 0) {
     rows.push({ cells: [t('Sin filas aceptadas para el alcance seleccionado.', 7), ...Array(headers.length - 1).fill(null)] });
   }
   const lastData = Math.max(4, rows.length);
+  const lastColumn = columnName(headers.length - 1);
   return worksheet(rows, {
-    widths: [12, 24, 12, 29, 14, 15, 16, 19, 9, 17, 20, 20, 20, 23, 23, 25, 38],
-    merges: ['A1:Q1', 'A2:Q2', ...(report.acceptedRows.length === 0 ? [`A5:Q5`] : [])],
+    widths: [
+      12, 24, 12, 29, 14, 25, 16, 19, 9, 17, 20, 20, 20, 23, 23, 25, 38,
+      ...(paired ? [14, 14, 28, 26, 31, 22] : []),
+    ],
+    merges: [
+      `A1:${lastColumn}1`, `A2:${lastColumn}2`,
+      ...(report.acceptedRows.length === 0 ? [`A5:${lastColumn}5`] : []),
+    ],
     freezeAt: 4,
-    filter: `A4:Q${lastData}`,
+    filter: `A4:${lastColumn}${lastData}`,
     orientation: 'landscape',
   });
 }
@@ -219,8 +275,34 @@ function detailSheet(report) {
 function rejectedSheet(report) {
   const rejected = report.rejectedRows.flatMap((row) => row.errorCodes.map((code) => ({
     rowNumber: row.rowNumber,
+    galenoRowNumbers: row.galenoRowNumbers || [],
+    sussRowNumbers: row.sussRowNumbers || [],
     code,
+    reason: payrollArtValidationLabel(code),
   })));
+  if (report.scope === 'municipal') {
+    const rows = [
+      ...titleRows(report, 'Filas a corregir', 5),
+      { height: 8, cells: [null, null, null, null, null] },
+      { cells: [
+        t('Fila del cruce', 5), t('Filas GALENO', 5), t('Filas SUSS', 5),
+        t('Motivo para corregir', 5), t('Código técnico', 5),
+      ] },
+      ...rejected.map((row) => ({ cells: [
+        n(row.rowNumber), t(row.galenoRowNumbers.join('|') || '—'),
+        t(row.sussRowNumbers.join('|') || '—'), t(row.reason), t(row.code),
+      ] })),
+    ];
+    if (rejected.length === 0) {
+      rows.push({ cells: [t('Sin filas a corregir'), t('—'), t('—'), t('—'), t('—')] });
+    }
+    return worksheet(rows, {
+      widths: [18, 20, 20, 78, 42],
+      merges: ['A1:E1', 'A2:E2'],
+      freezeAt: 4,
+      filter: `A4:E${rows.length}`,
+    });
+  }
   const rows = [
     ...titleRows(report, 'Filas rechazadas', 2),
     { height: 8, cells: [null, null] },
@@ -254,7 +336,7 @@ function traceabilitySheet(report) {
     ['SHA-256 de fuente', report.source.sha256],
     ['Filas de fuente', String(report.source.rowCount)],
     ['SHA-256 del reporte', report.traceability.reportSha256],
-    ['Reglas inferidas', 'NO'],
+    ['Reglas inferidas', report.traceability.rulesInferred ? 'SÍ' : 'NO'],
     ['Persistencia realizada', 'NO'],
     ['Red utilizada', 'NO'],
     ['Nómina modificada', 'NO'],
@@ -262,6 +344,13 @@ function traceabilitySheet(report) {
     ['Precisión monetaria', 'Texto ARS + centavos enteros exactos; sin conversión a punto flotante'],
     ['Confidencialidad', 'Restringido: contiene detalle nominal si existen filas aceptadas'],
   ];
+  if (Array.isArray(report.source.sourceFiles)) {
+    for (const sourceFile of report.source.sourceFiles) {
+      entries.push([`SHA-256 fuente ${sourceFile.kind}`, sourceFile.sha256]);
+      entries.push([`Filas fuente ${sourceFile.kind}`, String(sourceFile.rowCount)]);
+    }
+    entries.push(['Estado del mapeo', report.traceability.mappingState]);
+  }
   const rows = [
     ...titleRows(report, 'Trazabilidad del reporte ART', 2),
     { height: 8, cells: [null, null] },
@@ -438,8 +527,10 @@ function summaryPdfCommands(report, pageNumber, totalPages) {
   const painter = pdfPainter();
   const { color, rect, text, rightText } = painter;
   pageChrome(report, painter, 'RESUMEN Y TRAZABILIDAD', pageNumber, totalPages);
-  rect(27, 475, 788, 38, report.readyForReview ? '0.918 0.961 0.945' : color.amber, report.readyForReview ? color.green : color.red);
-  text(40, 489, statusLabel(report), 11, 'F2', report.readyForReview ? color.green : color.red);
+  const clear = statusIsClear(report);
+  const blocked = report.status === 'blocked_by_validation';
+  rect(27, 475, 788, 38, clear ? '0.918 0.961 0.945' : color.amber, clear ? color.green : blocked ? color.red : color.amber);
+  text(40, 489, statusLabel(report), 11, 'F2', clear ? color.green : blocked ? color.red : color.navy);
   rightText(802, 489, `${report.summary.acceptedRows} aceptadas · ${report.summary.rejectedRows} rechazadas`, 8, 'F2', color.navy);
 
   const metrics = [
@@ -479,6 +570,10 @@ function summaryPdfCommands(report, pageNumber, totalPages) {
   text(102, 156, report.traceability.reportSha256.slice(55), 6.5, 'F1', color.ink);
   text(27, 134, 'Fórmula', 7, 'F2', color.muted);
   text(102, 134, `${report.traceability.formula} · ${report.formulaVersion}`, 7, 'F1', color.ink);
+  if (report.scope === 'municipal') {
+    text(27, 118, 'Cruce', 7, 'F2', color.muted);
+    text(102, 118, `${report.summary.comparisonRows} filas aceptadas comparadas · ${report.summary.comparisonMatches} coincidencias · ${report.summary.comparisonMismatches} diferencias`, 7, 'F1', color.ink);
+  }
   rect(27, 62, 788, 52, color.amber, color.line);
   text(39, 96, 'ALCANCE DEL DOCUMENTO', 7, 'F2', color.red);
   text(39, 80, 'No presenta ni envía información a ART. No modifica nómina, GRH ni PostgreSQL.', 7, 'F1', color.ink);
@@ -491,13 +586,21 @@ const DETAIL_COLUMNS = [
   ['CUIL', 75], ['S', 18], ['Días', 30], ['993', 86], ['995', 86], ['Sueldo ART', 90],
 ];
 
+const MUNICIPAL_DETAIL_COLUMNS = [
+  ['Cruce', 36], ['GALENO', 54], ['SUSS', 45], ['DNI', 55], ['CUIL', 85],
+  ['S', 18], ['Días', 30], ['993', 80], ['995', 70], ['ART 993+995', 100],
+  ['SUSS declarado', 110], ['Dif.', 105],
+];
+
 function detailPdfCommands(report, rows, pageNumber, totalPages) {
   const painter = pdfPainter();
   const { color, rect, text, rightText } = painter;
   pageChrome(report, painter, 'DETALLE NOMINAL', pageNumber, totalPages);
   text(27, 507, 'Uso interno restringido · Importes en ARS exactos · Fórmula 993 + 995', 7, 'F2', color.navy);
+  const paired = report.scope === 'municipal';
+  const columns = paired ? MUNICIPAL_DETAIL_COLUMNS : DETAIL_COLUMNS;
   let x = 27;
-  for (const [label, width] of DETAIL_COLUMNS) {
+  for (const [label, width] of columns) {
     rect(x, 477, width, 22, color.green, color.line);
     text(x + 4, 485, label, 5.8, 'F2', color.white);
     x += width;
@@ -506,16 +609,22 @@ function detailPdfCommands(report, rows, pageNumber, totalPages) {
     const y = 459 - index * 18;
     const shaded = index % 2 === 1;
     x = 27;
-    const values = [
+    const values = paired ? [
+      String(row.rowNumber), row.galenoRowNumbers.join('|'), row.sussRowNumbers.join('|'),
+      row.dni, row.cuil, row.sex, row.workedDays, exactArs(row.concept993Cents),
+      exactArs(row.concept995Cents), exactArs(row.salaryCents),
+      exactArs(row.declaredSalaryCents), exactArs(row.differenceCents),
+    ] : [
       String(row.rowNumber), row.liquidationId, row.jurisdiction, row.legajo, row.dni,
       row.cuil, row.sex, row.workedDays, exactArs(row.concept993Cents),
       exactArs(row.concept995Cents), exactArs(row.salaryCents),
     ];
-    DETAIL_COLUMNS.forEach(([, width], columnIndex) => {
+    columns.forEach(([, width], columnIndex) => {
       rect(x, y, width, 18, shaded ? color.soft : color.white, color.line);
-      const value = clipped(values[columnIndex], Math.floor(width / 3.4));
-      if (columnIndex >= 8) rightText(x + width - 3, y + 6, value, 5.4);
-      else text(x + 3, y + 6, value, 5.4);
+      const value = clipped(values[columnIndex], Math.floor(width / (paired ? 3 : 3.4)));
+      const moneyStart = paired ? 7 : 8;
+      if (columnIndex >= moneyStart) rightText(x + width - 3, y + 6, value, paired ? 4.7 : 5.4);
+      else text(x + 3, y + 6, value, paired ? 5 : 5.4);
       x += width;
     });
   });
@@ -527,6 +636,31 @@ function rejectedPdfCommands(report, rows, pageNumber, totalPages) {
   const painter = pdfPainter();
   const { color, rect, text } = painter;
   pageChrome(report, painter, 'VALIDACIONES RECHAZADAS', pageNumber, totalPages);
+  if (report.scope === 'municipal') {
+    text(27, 507, 'Usá las filas GALENO/SUSS para corregir el Excel original. No se replica el dato personal rechazado.', 7, 'F2', color.navy);
+    const columns = [['Cruce', 50], ['GALENO', 90], ['SUSS', 80], ['Motivo', 568]];
+    let x = 27;
+    columns.forEach(([label, width]) => {
+      rect(x, 477, width, 22, color.green, color.line);
+      text(x + 7, 485, label, 6, 'F2', color.white);
+      x += width;
+    });
+    rows.forEach((row, index) => {
+      const y = 459 - index * 18;
+      const fill = index % 2 ? color.soft : color.white;
+      const values = [
+        String(row.rowNumber), row.galenoRowNumbers.join('|') || '—',
+        row.sussRowNumbers.join('|') || '—', `${row.reason} (${row.code})`,
+      ];
+      x = 27;
+      columns.forEach(([, width], columnIndex) => {
+        rect(x, y, width, 18, fill, color.line);
+        text(x + 7, y + 6, clipped(values[columnIndex], Math.floor(width / 3.2)), 5.6);
+        x += width;
+      });
+    });
+    return `${painter.commands.join('\n')}\n`;
+  }
   text(27, 507, 'Sólo se informa fila de fuente y código de validación; no se replica el dato personal rechazado.', 7, 'F2', color.navy);
   rect(27, 477, 90, 22, color.green, color.line);
   rect(117, 477, 698, 22, color.green, color.line);
@@ -551,7 +685,10 @@ function pdfDocument(report) {
   }
   const rejected = report.rejectedRows.flatMap((row) => row.errorCodes.map((code) => ({
     rowNumber: row.rowNumber,
+    galenoRowNumbers: row.galenoRowNumbers || [],
+    sussRowNumbers: row.sussRowNumbers || [],
     code,
+    reason: payrollArtValidationLabel(code),
   })));
   const rejectedPageSize = 22;
   for (let index = 0; index < rejected.length; index += rejectedPageSize) {

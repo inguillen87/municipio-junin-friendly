@@ -603,6 +603,7 @@ async function inspect(viewport, label) {
     const art = page.locator('[data-payroll-art-report-workbench]');
     await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('Contexto validado'));
     assert.equal(await art.locator('[data-art-form]').isVisible(), true);
+    await art.locator('[data-art-mode]').selectOption('csv');
     await art.locator('[data-art-period]').fill('2026-08');
     await art.locator('[data-art-scope]').selectOption('all');
     await art.locator('[data-art-snapshot]').fill('grh-art-2026-08-qa');
@@ -615,20 +616,21 @@ async function inspect(viewport, label) {
       name: 'personas-art-privado.csv', mimeType: 'text/csv', buffer: Buffer.from(artSource),
     });
     assert.doesNotMatch(await art.locator('[data-art-file-state]').innerText(), /personas-art-privado/);
-    await art.getByRole('button', { name: 'Generar control ART' }).click();
-    await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('sin errores de fila'));
+    await art.getByRole('button', { name: 'Calcular y preparar reporte' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('sin errores ni diferencias'));
     assert.equal(await art.locator('[data-art-accepted]').innerText(), '1');
     assert.equal(await art.locator('[data-art-rejected]').innerText(), '0');
     assert.equal(await art.locator('[data-art-salary]').innerText(), '$ 102.500,00');
     assert.match(await art.locator('[data-art-fingerprint]').innerText(), /^sha256:[a-f0-9]{64}$/);
-    assert.equal(await art.locator('[data-art-downloads] button').count(), 6);
-    assert.equal(await art.getByRole('button', { name: 'Descargar Excel' }).count(), 1);
-    assert.equal(await art.getByRole('button', { name: 'Descargar PDF' }).count(), 1);
+    assert.equal(await art.locator('[data-art-primary-downloads] button').count(), 2);
+    assert.equal(await art.locator('[data-art-downloads] button').count(), 4);
+    assert.equal(await art.getByRole('button', { name: 'Descargar reporte ART en Excel', exact: true }).count(), 1);
+    assert.equal(await art.getByRole('button', { name: 'Descargar reporte ART en PDF', exact: true }).count(), 1);
     assert.doesNotMatch(await art.innerText(), /personas-art-privado/);
 
     const [artXlsxDownload] = await Promise.all([
       page.waitForEvent('download'),
-      art.getByRole('button', { name: 'Descargar Excel' }).click(),
+      art.getByRole('button', { name: 'Descargar reporte ART en Excel', exact: true }).click(),
     ]);
     assert.match(artXlsxDownload.suggestedFilename(), /^municontrol_art-provincia_2026-08_todos_[a-f0-9]{12}\.xlsx$/);
     const artXlsxPath = path.join(os.tmpdir(), `municontrol-payroll-art-${label}.xlsx`);
@@ -641,7 +643,7 @@ async function inspect(viewport, label) {
 
     const [artPdfDownload] = await Promise.all([
       page.waitForEvent('download'),
-      art.getByRole('button', { name: 'Descargar PDF' }).click(),
+      art.getByRole('button', { name: 'Descargar reporte ART en PDF', exact: true }).click(),
     ]);
     assert.match(artPdfDownload.suggestedFilename(), /^municontrol_art-provincia_2026-08_todos_[a-f0-9]{12}\.pdf$/);
     const artPdfPath = path.join(os.tmpdir(), `municontrol-payroll-art-${label}.pdf`);
