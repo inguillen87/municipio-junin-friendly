@@ -1,6 +1,8 @@
 export const PAYROLL_RECEIPT_PREVIEW_VERSION = 'payroll-receipt-preview.v1';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Los contratos canónicos importados desde GRH usan el tipo uuid de PostgreSQL,
+// pero algunos identificadores históricos no codifican versión/variante RFC.
+const POSTGRES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
 const MONEY = /^(-?)(0|[1-9]\d*)\.([0-9]{2})$/;
 const MIME_PDF = 'application/pdf';
@@ -62,7 +64,7 @@ function normalizedSourceCutoff(value) {
 function municipalContext(value) {
   const tenantId = String(value?.id || '').trim().toLowerCase();
   const tenantSlug = String(value?.slug || '').trim().toLowerCase();
-  if (!UUID.test(tenantId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug) || tenantSlug.length > 80) {
+  if (!POSTGRES_UUID.test(tenantId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tenantSlug) || tenantSlug.length > 80) {
     fail('RECEIPT_TENANT_INVALID', 'El ámbito municipal de la sesión no es válido.');
   }
   const tenantLabel = tenantSlug.split('-').filter(Boolean)
@@ -72,7 +74,7 @@ function municipalContext(value) {
 
 export function createPayrollReceiptSummary(employee, payroll, options = {}) {
   if (!employee || typeof employee !== 'object' || Array.isArray(employee)
-      || !UUID.test(String(employee.contractId || ''))) {
+      || !POSTGRES_UUID.test(String(employee.contractId || ''))) {
     fail('RECEIPT_EMPLOYEE_INVALID', 'La ficha laboral seleccionada no es válida.');
   }
   if (!payroll || typeof payroll !== 'object' || Array.isArray(payroll)

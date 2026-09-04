@@ -60,6 +60,19 @@ test('genera un resumen individual real, tenant-bound, inmutable y explícitamen
   assert.ok(Object.isFrozen(summary.payroll));
 });
 
+test('acepta identificadores uuid históricos de PostgreSQL aunque no codifiquen versión RFC', () => {
+  const summary = createPayrollReceiptSummary(
+    { ...employee, contractId: '00000000-0000-0000-0000-000000000001' },
+    payroll,
+    {
+      tenant: { id: '00000000-0000-0000-0000-000000000002', slug: 'junin-mendoza' },
+      generatedAt: '2026-09-04T12:00:00.000Z',
+    },
+  );
+  assert.equal(summary.employee.contractId, '00000000-0000-0000-0000-000000000001');
+  assert.equal(summary.context.tenantId, '00000000-0000-0000-0000-000000000002');
+});
+
 test('crea un PDF local íntegro con ámbito, alcance y trazabilidad visibles', () => {
   const summary = createPayrollReceiptSummary(employee, payroll, { tenant, generatedAt: '2026-09-04T12:00:00.000Z' });
   const artifact = createPayrollReceiptPdfArtifact(summary);
