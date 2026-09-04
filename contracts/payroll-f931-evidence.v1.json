@@ -1,0 +1,103 @@
+{
+  "contractVersion": "payroll-f931-prevalidation.v1",
+  "reportId": "REP-09",
+  "profileId": "f931-grh-463-crlf.observed-2026-08.v1",
+  "purpose": "local-structural-prevalidation-only",
+  "evidenceLevel": "physical-samples-only",
+  "source": {
+    "sourceRef": "agosto-working-files-20260902",
+    "kind": "zip-inventory",
+    "sha256": "sha256:20d3ab30c090bbe349de19b567b00d949f5a3ffed00094cd3261d4ca3604001f",
+    "observedPeriod": "2026-08"
+  },
+  "physicalLayout": {
+    "format": "fixed-width",
+    "recordWidthBytes": 463,
+    "lineEnding": "CRLF",
+    "trailingLineEnding": "required",
+    "bom": "forbidden",
+    "encodingEvidence": "windows-1252-compatible-bytes"
+  },
+  "requiredScopes": [
+    "general",
+    "jurisdiction_42",
+    "jurisdiction_55"
+  ],
+  "observedArtifacts": {
+    "general": {
+      "sourceRef": "f931-general-2026-08-observation-01",
+      "physicalRecordCount": 790,
+      "byteLength": 367350,
+      "sha256": "sha256:e8e4815b62f489893f288e9ab944d79ef5d713844c9e49fbf397258e2f325f0f",
+      "bom": false,
+      "crlfCount": 790,
+      "nonAsciiByteCount": 51
+    },
+    "jurisdiction_42": {
+      "sourceRef": "f931-j42-2026-08-observation-01",
+      "physicalRecordCount": 742,
+      "byteLength": 345030,
+      "sha256": "sha256:6db75073ba8c7120e8fcd1f9d9db9ca30d0156f3c06f0e14c80c6d6eef00003e",
+      "bom": false,
+      "crlfCount": 742,
+      "nonAsciiByteCount": 45
+    },
+    "jurisdiction_55": {
+      "sourceRef": "f931-j55-2026-08-observation-01",
+      "physicalRecordCount": 112,
+      "byteLength": 52080,
+      "sha256": "sha256:7adde230bbefad1155fd3168611245dc5e0815e358ee66a2e333ac071fbf7246",
+      "bom": false,
+      "crlfCount": 112,
+      "nonAsciiByteCount": 9
+    }
+  },
+  "observedExactRowIntersections": [
+    {
+      "left": "general",
+      "right": "jurisdiction_42",
+      "count": 679
+    },
+    {
+      "left": "general",
+      "right": "jurisdiction_55",
+      "count": 48
+    },
+    {
+      "left": "jurisdiction_42",
+      "right": "jurisdiction_55",
+      "count": 0
+    }
+  ],
+  "populationRelationship": {
+    "status": "unmapped",
+    "partitionAssumed": false,
+    "note": "Los conteos y solapamientos físicos observados no prueban la semántica de las tres poblaciones."
+  },
+  "fieldManifest": [
+    {
+      "fieldId": "unmapped_f931_record",
+      "startByte": 1,
+      "endByte": 463,
+      "status": "unknown"
+    }
+  ],
+  "semanticMappingComplete": false,
+  "populationFiltersVerified": false,
+  "homologated": false,
+  "generationAllowed": false,
+  "officialSubmissionAllowed": false,
+  "unknownRequirements": [
+    "current_official_layout_and_effective_date",
+    "field_boundaries_meanings_padding_and_alignment",
+    "person_and_liquidation_business_keys",
+    "monthly_and_supplementary_inclusion_rules",
+    "three_output_population_semantics",
+    "jurisdiction_42_and_55_filter_contract",
+    "amount_fields_rounding_and_control_totals",
+    "approved_file_naming_and_transport",
+    "accounting_owner_and_maker_checker_roles",
+    "human_submission_and_acknowledgement_procedure",
+    "retention_privacy_and_access_policy"
+  ]
+}
