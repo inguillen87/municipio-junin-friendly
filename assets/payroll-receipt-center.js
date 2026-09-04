@@ -3,6 +3,7 @@ import {
   createPayrollReceiptSummary,
   downloadPayrollReceiptPdf,
 } from './payroll-receipt-preview.js';
+import { payrollTypePresentation } from './payroll-type-presentation.js';
 
 const AUTH_URL = '/api/internal-auth';
 const DATA_URL = '/api/internal-data';
@@ -47,14 +48,6 @@ function exactMoney(value) {
 function monthLabel(value) {
   if (!/^20\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/.test(text(value))) return 'Período no informado';
   return monthFormatter.format(new Date(`${value}T00:00:00Z`));
-}
-
-function typeLabel(value) {
-  const raw = text(value);
-  const known = ({ monthly: 'Mensual', first_fortnight: 'Primera quincena', second_fortnight: 'Segunda quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Final', other: 'Otra' })[raw.toLowerCase()];
-  if (known) return known;
-  if (/^[A-Z]$/.test(raw)) return `Código GRH ${raw} · sin homologar`;
-  return raw || 'Tipo no informado';
 }
 
 function stateInfo(value) {
@@ -165,10 +158,15 @@ function amount(label, value, emphasized = false) {
 function payrollCard(item, index) {
   const article = create('article', 'period-card');
   const [label, kind, explanation] = stateInfo(item.presentationStatus);
+  const payrollType = payrollTypePresentation(item.canonicalPayrollType, item.payrollType);
   article.dataset.state = kind;
   const heading = create('div', 'period-card-heading');
   const title = create('div');
-  title.append(create('h3', '', monthLabel(item.payrollDate)), create('p', '', typeLabel(item.canonicalPayrollType || item.payrollType)));
+  title.append(
+    create('h3', '', monthLabel(item.payrollDate)),
+    create('p', '', payrollType.label),
+    create('small', 'period-type-source', payrollType.detail),
+  );
   heading.append(title, create('span', `status ${kind}`, label));
   const amounts = create('div', 'period-amounts');
   amounts.append(amount('Total de haberes', addMoney(item.subjectEarnings, item.nonSubjectEarnings, item.familyAllowance)), amount('Retenciones', item.employeeWithholdings), amount('Neto a pagar', item.netPayable, true));

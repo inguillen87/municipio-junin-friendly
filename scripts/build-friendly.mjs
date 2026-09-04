@@ -72,6 +72,7 @@ const shellFiles = [
   'assets/monthly-close-local-precheck.js',
   'assets/payroll-monthly-close-approved-report.js',
   'assets/payroll-monthly-close-workflow.js',
+  'assets/payroll-type-presentation.js',
   'assets/payroll-receipt-preview.js',
   'assets/payroll-receipt-center.js',
   'assets/payroll-novelty-exporter.js',

@@ -43,7 +43,9 @@ test('el recorrido consulta endpoints gobernados, envía la búsqueda por POST y
   assert.match(source, /collapsePeriods/);
   assert.match(source, /togglePeriods'\)\.hidden \? byId\('collapsePeriods'/);
   assert.match(source, /periodTitle'\)\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(source, /Código GRH \$\{raw\} · sin homologar/);
+  assert.match(source, /payrollTypePresentation\(item\.canonicalPayrollType, item\.payrollType\)/);
+  assert.match(source, /payrollType\.label/);
+  assert.match(source, /payrollType\.detail/);
   assert.match(source, /credentials: 'same-origin'/);
   assert.match(source, /cache: 'no-store'/);
   assert.match(source, /method: 'DELETE'/);

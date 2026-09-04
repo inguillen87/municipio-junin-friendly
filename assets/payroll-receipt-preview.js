@@ -1,3 +1,5 @@
+import { payrollTypePresentation } from './payroll-type-presentation.js';
+
 export const PAYROLL_RECEIPT_PREVIEW_VERSION = 'payroll-receipt-preview.v1';
 
 // Los contratos canónicos importados desde GRH usan el tipo uuid de PostgreSQL,
@@ -39,22 +41,6 @@ function formatArs(value) {
   const absolute = negative ? -valueCents : valueCents;
   const whole = (absolute / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${negative ? '- ' : ''}$ ${whole},${String(absolute % 100n).padStart(2, '0')}`;
-}
-
-function typeLabel(value) {
-  const raw = cleanText(value, 48, 'Tipo no informado');
-  const known = ({
-    monthly: 'Mensual',
-    first_fortnight: 'Primera quincena',
-    second_fortnight: 'Segunda quincena',
-    sac: 'SAC',
-    vacation: 'Vacaciones',
-    supplementary: 'Complementaria',
-    final: 'Liquidación final',
-    other: 'Otra',
-  })[raw.toLowerCase()];
-  if (known) return known;
-  return /^[A-Z]$/.test(raw) ? `Código GRH ${raw} - sin homologar` : raw;
 }
 
 function normalizedSourceCutoff(value) {
@@ -102,6 +88,7 @@ export function createPayrollReceiptSummary(employee, payroll, options = {}) {
     ? null : cents(payroll.employerContributions, 'de contribuciones patronales');
   const generatedAt = options.generatedAt ? new Date(options.generatedAt) : new Date();
   if (!Number.isFinite(generatedAt.getTime())) fail('RECEIPT_GENERATED_AT_INVALID', 'La fecha de generación no es válida.');
+  const payrollType = payrollTypePresentation(payroll.canonicalPayrollType, payroll.payrollType);
 
   const summary = Object.freeze({
     contractVersion: PAYROLL_RECEIPT_PREVIEW_VERSION,
@@ -117,7 +104,9 @@ export function createPayrollReceiptSummary(employee, payroll, options = {}) {
     payroll: Object.freeze({
       payrollDate: payroll.payrollDate,
       payrollType: cleanText(payroll.canonicalPayrollType ?? payroll.payrollType, 48, 'unknown'),
-      payrollTypeLabel: typeLabel(payroll.canonicalPayrollType ?? payroll.payrollType),
+      payrollTypeLabel: payrollType.label,
+      payrollTypeDetail: payrollType.detail,
+      sourcePayrollTypeCode: payrollType.sourceCode,
       itemCount: Number.isSafeInteger(payroll.itemCount) && payroll.itemCount >= 0 ? payroll.itemCount : null,
       distinctConcepts: Number.isSafeInteger(payroll.distinctConcepts) && payroll.distinctConcepts >= 0
         ? payroll.distinctConcepts : null,
@@ -233,7 +222,7 @@ function pdfDocument(summary) {
 
   rect(38, 190, 519, 55, colors.soft, colors.line);
   text(51, 228, 'TRAZABILIDAD', 7, 'F2', colors.green);
-  text(51, 212, `Fuente: GRH · corte: ${p.sourceCutoff ? p.sourceCutoff.slice(0, 10) : 'no informado'}`, 8, 'F1', colors.ink);
+  text(51, 212, `Fuente: GRH · corte: ${p.sourceCutoff ? p.sourceCutoff.slice(0, 10) : 'no informado'}${p.sourcePayrollTypeCode ? ` · tipo: ${p.sourcePayrollTypeCode}` : ''}`, 8, 'F1', colors.ink);
   text(51, 198, `Generado: ${summary.generatedAt.slice(0, 19).replace('T', ' ')} UTC · diferencia de control: ${formatArs(p.reconciliationDifference)}`, 8, 'F1', colors.ink);
 
   rect(38, 92, 519, 78, colors.amberSoft, colors.amber);

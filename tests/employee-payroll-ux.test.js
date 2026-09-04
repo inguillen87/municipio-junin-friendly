@@ -201,15 +201,15 @@ test('Cargar novedad crea un handoff privado mínimo sin datos en la URL', async
   assert.doesNotMatch(html, /localStorage\.(?:setItem|getItem)\(PAYROLL_NOVELTY_HANDOFF_KEY/);
 });
 
-test('el handoff usa M homologado como mensual y mantiene P S V O F fail-closed', async () => {
+test('el historial presenta los códigos GRH en lenguaje cotidiano sin ampliar el handoff vigente', async () => {
   const html = await read('internal-dashboard.html');
   const workbench = await read('assets/payroll-novelty-workbench.js');
   const contract = JSON.parse(await read('contracts/grh-payroll-type-map.v1.json'));
   const normalize = noveltyTypeNormalizer(html);
   const starter = payrollNoveltyStarter(html);
-  assert.deepEqual(contract.verifiedMappings.map(({ sourceCode, canonicalType }) => ({ sourceCode, canonicalType })), [
-    { sourceCode: 'M', canonicalType: 'monthly' },
-  ]);
+  assert.deepEqual(contract.verifiedMappings.map(({ sourceCode, canonicalType }) => ({
+    sourceCode, canonicalType,
+  })), [{ sourceCode: 'M', canonicalType: 'monthly' }]);
   for (const canonical of ['monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other']) {
     assert.equal(normalize(canonical), canonical);
   }
@@ -224,11 +224,19 @@ test('el handoff usa M homologado como mensual y mantiene P S V O F fail-closed'
     { legajo: '571' },
     { payrollDate: '2026-07-31', payrollType: 'P', canonicalPayrollType: null },
   );
-  assert.deepEqual(starter.handoffs.map(({ payload }) => payload.payrollType), ['monthly', null]);
-  assert.deepEqual(starter.redirects, ['novedades-nomina.html', 'novedades-nomina.html']);
+  assert.deepEqual(starter.handoffs.map(({ payload }) => payload.payrollType), [
+    'monthly', null,
+  ]);
+  assert.deepEqual(starter.redirects, [
+    'novedades-nomina.html', 'novedades-nomina.html',
+  ]);
   assert.deepEqual(starter.toasts, []);
-  assert.match(html, /item\.canonicalPayrollType \|\| item\.payrollType/);
-  assert.match(html, /Código GRH/);
+  assert.match(html, /payrollTypeLabel\(item\.canonicalPayrollType, item\.payrollType\)/);
+  assert.match(html, /Tipo informado por GRH · código/);
+  assert.match(html, /P: 'Primera quincena'/);
+  assert.match(html, /S: 'Aguinaldo \(SAC\)'/);
+  assert.match(html, /O: 'Liquidación adicional \/ otros conceptos'/);
+  assert.doesNotMatch(html, /Código GRH/);
   assert.match(workbench, /handoffRequiresPayrollTypeSelection\s*=\s*!payrollType/);
   assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection\)[\s\S]{0,360}placeholder\.value\s*=\s*''/);
   assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection && !current\) select\.value = ''/);

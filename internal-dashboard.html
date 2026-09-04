@@ -885,6 +885,7 @@
     .payroll-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .payroll-card-head h4 { margin: 0; color: var(--navy); font-size: .95rem; }
     .payroll-card-head p { margin: 4px 0 0; color: var(--ink-soft); font-size: .75rem; }
+    .payroll-card-head .payroll-type-origin { display: block; margin-top: 3px; color: var(--ink-soft); font-size: .69rem; }
     .payroll-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 13px 0; }
     .payroll-amount { padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
     .payroll-amount span { display: block; color: var(--ink-soft); font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .025em; }
@@ -2882,17 +2883,34 @@
         return '$ ' + (match[1] || '') + integer + ',' + match[3];
       }
 
-      function payrollTypeLabel(value) {
+      function payrollTypeLabel(canonicalValue, sourceValue) {
+        var sourceCode = text(sourceValue).toUpperCase();
+        var sourceLabels = {
+          F: 'Liquidación final',
+          M: 'Mensual / segunda quincena',
+          O: 'Liquidación adicional / otros conceptos',
+          P: 'Primera quincena',
+          S: 'Aguinaldo (SAC)',
+          V: 'Vacaciones'
+        };
+        if (/^[A-Z]$/.test(sourceCode) && sourceLabels[sourceCode]) return sourceLabels[sourceCode];
         return ({
           monthly: 'Mensual',
           first_fortnight: 'Primera quincena',
           second_fortnight: 'Segunda quincena',
-          sac: 'SAC',
+          sac: 'Aguinaldo (SAC)',
           vacation: 'Vacaciones',
           supplementary: 'Complementaria',
           final: 'Liquidación final',
-          other: 'Otra'
-        })[text(value).toLowerCase()] || ('Código GRH ' + displayValue(value));
+          other: 'Liquidación adicional / otros conceptos'
+        })[text(canonicalValue).toLowerCase()] || 'Tipo histórico pendiente de identificar';
+      }
+
+      function payrollTypeOrigin(sourceValue) {
+        var sourceCode = text(sourceValue).toUpperCase();
+        return /^[A-Z]$/.test(sourceCode)
+          ? 'Tipo informado por GRH · código ' + sourceCode
+          : 'Tipo normalizado por MuniControl';
       }
 
       function payrollPresentation(value) {
@@ -2921,7 +2939,8 @@
         const parsedDate = parseDate(item.payrollDate);
         title.append(
           create('h4', '', parsedDate ? monthFormatter.format(parsedDate) : 'Período no disponible'),
-          create('p', '', payrollTypeLabel(item.canonicalPayrollType || item.payrollType) + ' · ' + displayValue(item.distinctConcepts) + ' conceptos')
+          create('p', '', payrollTypeLabel(item.canonicalPayrollType, item.payrollType) + ' · ' + displayValue(item.distinctConcepts) + ' conceptos'),
+          create('small', 'payroll-type-origin', payrollTypeOrigin(item.payrollType))
         );
         head.append(title, create('span', 'state-pill ' + presentation.className, presentation.label));
         card.appendChild(head);
