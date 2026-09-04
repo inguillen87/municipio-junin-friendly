@@ -8,6 +8,13 @@ import {
   payrollControlImportBindingFingerprint,
 } from './apply-payroll-control-import-binding-lock-schema.mjs';
 import {
+  OWNER_TENANT_AUTHORITY_MIGRATION_VERSION,
+  ownerTenantAuthorityFingerprint,
+} from './apply-owner-tenant-operational-authority-schema.mjs';
+import {
+  PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS_MIGRATION_VERSION,
+} from './apply-payroll-control-import-lock-semantics-schema.mjs';
+import {
   resolvePinnedNeonTarget,
   verifyPinnedNeonConnectedTarget,
 } from './lib/pinned-neon-target.mjs';
@@ -73,6 +80,18 @@ export const PAYROLL_OPERATIONS_RELEASE_STEPS = Object.freeze([
     script: new URL('./apply-governed-payroll-reprocessing-schema.mjs', import.meta.url),
     envPrefix: 'PAYROLL_REPROCESSING',
   }),
+  Object.freeze({
+    version: '036-owner-tenant-operational-authority',
+    script: new URL('./apply-owner-tenant-operational-authority-schema.mjs', import.meta.url),
+    envPrefix: 'OWNER_TENANT_AUTHORITY',
+  }),
+  Object.freeze({
+    version: '037-payroll-control-import-lock-semantics',
+    script: new URL(
+      './apply-payroll-control-import-lock-semantics-schema.mjs', import.meta.url,
+    ),
+    envPrefix: 'PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS',
+  }),
 ]);
 
 export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env = process.env) {
@@ -80,7 +99,7 @@ export function resolvePayrollOperationsReleaseTarget(argv = process.argv, env =
     argv,
     env,
     envPrefix: 'PAYROLL_OPERATIONS',
-    targetLabel: 'release 024-035',
+    targetLabel: 'release 024-037',
   });
 }
 
@@ -108,6 +127,29 @@ export function payrollOperationsChildEnvironment(target, envPrefix, env = proce
 }
 
 export async function payrollOperationsReleaseStepsForState(client) {
+  const ownerAuthorityInstalled = await client.query(
+    'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1',
+    [OWNER_TENANT_AUTHORITY_MIGRATION_VERSION],
+  );
+  if (ownerAuthorityInstalled.rowCount) {
+    const ownerAuthorityMigration = await readFile(new URL(
+      './migrations/036-owner-tenant-operational-authority.sql', import.meta.url,
+    ), 'utf8');
+    const ownerAuthorityExpected = ownerTenantAuthorityFingerprint(ownerAuthorityMigration);
+    if (ownerAuthorityInstalled.rowCount !== 1
+        || String(ownerAuthorityInstalled.rows[0].checksum_sha256 || '').trim()
+          !== ownerAuthorityExpected) {
+      throw new Error(`Drift detectado: ${OWNER_TENANT_AUTHORITY_MIGRATION_VERSION}`);
+    }
+
+    // 036 reemplaza contratos de 026, 027 y 035 para conceder autoridad owner
+    // con maker-checker por registro. Revalidar esas versiones historicas
+    // contra el estado posterior produciria un falso drift antes del hotfix.
+    return Object.freeze(PAYROLL_OPERATIONS_RELEASE_STEPS.filter((step) => (
+      step.version === PAYROLL_CONTROL_IMPORT_LOCK_SEMANTICS_MIGRATION_VERSION
+    )));
+  }
+
   const installed = await client.query(
     'SELECT checksum_sha256 FROM schema_migrations WHERE version = $1',
     [PAYROLL_CONTROL_IMPORT_BINDING_MIGRATION_VERSION],
@@ -141,7 +183,7 @@ async function main() {
   let releaseSteps;
   await client.connect();
   try {
-    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-035');
+    await verifyPinnedNeonConnectedTarget(client, target, 'release 024-037');
     releaseSteps = await payrollOperationsReleaseStepsForState(client);
   } finally {
     await client.end().catch(() => undefined);
@@ -166,7 +208,7 @@ async function main() {
       throw new Error(`${step.version} fallo; el release se detuvo antes del siguiente paso`);
     }
   }
-  console.log(`release 024-035 verificado (${target.mode}:${target.branchId})`);
+  console.log(`release 024-037 verificado (${target.mode}:${target.branchId})`);
 }
 
 const invokedAsScript = Boolean(process.argv[1]

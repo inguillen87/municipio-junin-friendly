@@ -450,6 +450,25 @@ async function verifyNoUnledgeredState(client) {
   }
 }
 
+export async function assertNoAffectedOwnerDenyOverrides(client) {
+  const result = await client.query(`
+    SELECT count(*)::integer AS count
+    FROM public.tenant_membership_capability_override override_row
+    JOIN public.tenant_membership membership
+      ON membership.id = override_row.membership_id
+    WHERE membership.role_key = $1
+      AND override_row.deny_override IS TRUE
+      AND override_row.capability_key = ANY($2::varchar[])
+  `, [OWNER_TENANT_AUTHORITY_ROLE, OWNER_TENANT_AUTHORITY_CAPABILITIES]);
+  const affectedCount = Number(rows(result)[0]?.count || 0);
+  if (affectedCount > 0) {
+    throw new Error(
+      `OWNER_TENANT_AUTHORITY_DENY_OVERRIDE_REVIEW_REQUIRED: ${affectedCount}`,
+    );
+  }
+  return true;
+}
+
 async function main() {
   const migration = await readFile(MIGRATION_URL, 'utf8');
   validateOwnerTenantAuthorityMigrationSql(migration);
@@ -474,6 +493,11 @@ async function main() {
       throw new Error(`Drift detectado: ${OWNER_TENANT_AUTHORITY_MIGRATION_VERSION}`);
     }
     if (!existing.rowCount) {
+      // 036 es una migracion ya publicada y su SQL elimina overrides del
+      // conjunto concedido. Un deny explicito es revocatorio y no se puede
+      // convertir silenciosamente en permiso: se detiene antes del primer
+      // statement para que una migracion posterior lo trate de forma auditable.
+      await assertNoAffectedOwnerDenyOverrides(client);
       await verifyNoUnledgeredState(client);
       for (const [index, statement] of statements.entries()) {
         try {

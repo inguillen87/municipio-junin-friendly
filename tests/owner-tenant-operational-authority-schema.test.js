@@ -9,6 +9,7 @@ import {
   OWNER_TENANT_AUTHORITY_ROLE,
   OWNER_TENANT_AUTHORITY_SCOPE_CAPABILITIES,
   OWNER_TENANT_AUTHORITY_SOD_EXCEPTIONS,
+  assertNoAffectedOwnerDenyOverrides,
   ownerTenantAuthorityFingerprint,
   resolveOwnerTenantAuthorityTarget,
   validateOwnerTenantAuthorityEvidence,
@@ -167,6 +168,7 @@ test('aplicador 036 diferencia fresh/reapply y verifica ledger, pines y estado f
     /035-governed-payroll-reprocessing/,
     /SELECT checksum_sha256 FROM schema_migrations/,
     /if \(!existing\.rowCount\) \{[\s\S]*verifyNoUnledgeredState\(client\)/,
+    /if \(!existing\.rowCount\) \{[\s\S]*assertNoAffectedOwnerDenyOverrides\(client\)[\s\S]*verifyNoUnledgeredState\(client\)/,
     /verifyOwnerTenantAuthorityFinalState\(client\)/,
     /resolvePinnedNeonTarget/,
     /verifyPinnedNeonConnectedTarget/,
@@ -178,6 +180,29 @@ test('aplicador 036 diferencia fresh/reapply y verifica ledger, pines y estado f
   ]) assert.match(applier, pattern);
   assert.doesNotMatch(applier,
     /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);
+});
+
+test('aplicador 036 aborta antes de mutar si un owner conserva un deny explicito', async () => {
+  let capturedSql = '';
+  let capturedParams = [];
+  const client = {
+    async query(sql, params) {
+      capturedSql = sql;
+      capturedParams = params;
+      return { rows: [{ count: 1 }] };
+    },
+  };
+  await assert.rejects(
+    () => assertNoAffectedOwnerDenyOverrides(client),
+    /OWNER_TENANT_AUTHORITY_DENY_OVERRIDE_REVIEW_REQUIRED: 1/,
+  );
+  assert.match(capturedSql, /override_row\.deny_override IS TRUE/);
+  assert.equal(capturedParams[0], OWNER_TENANT_AUTHORITY_ROLE);
+  assert.deepEqual(capturedParams[1], OWNER_TENANT_AUTHORITY_CAPABILITIES);
+
+  assert.equal(await assertNoAffectedOwnerDenyOverrides({
+    async query() { return { rows: [{ count: 0 }] }; },
+  }), true);
 });
 
 test('target 036 exige pines propios y separa QA de Produccion', () => {
