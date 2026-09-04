@@ -265,13 +265,11 @@ async function togglePeriods() {
   if (periodsExpanded) {
     periodsExpanded = false;
     renderPayrollItems();
-    byId('periodTitle').focus({ preventScroll: true });
     return;
   }
   if (payrollItems.length >= payrollPagination.total) {
     periodsExpanded = true;
     renderPayrollItems();
-    byId('periodTitle').focus({ preventScroll: true });
     return;
   }
   clearMessage();
@@ -285,7 +283,6 @@ async function togglePeriods() {
     }
     periodsExpanded = true;
     renderPayrollItems();
-    byId('periodTitle').focus({ preventScroll: true });
   } catch (error) {
     showMessage('error', 'No pudimos cargar todo el historial', `${error.message} Los períodos ya visibles siguen disponibles.`);
   } finally { setBusy(false); }
