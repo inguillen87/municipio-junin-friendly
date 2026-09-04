@@ -930,12 +930,21 @@
       var platform = contextKind === 'platform';
       var fallback = platform ? 'administracion-plataforma.html' : 'internal-dashboard.html';
       var allowedNext = platform ? platformSafeNext : tenantSafeNext;
+      var queryAt = next.indexOf('?');
       var hashAt = next.indexOf('#');
-      var hash = hashAt >= 0 ? next.slice(hashAt) : '';
-      var route = (hashAt >= 0 ? next.slice(0, hashAt) : next).replace(/^\/+/, '');
-      if (allowedNext.indexOf(route) < 0) return fallback;
+      var suffixAt = queryAt < 0 ? hashAt : hashAt < 0 ? queryAt : Math.min(queryAt, hashAt);
+      var suffix = suffixAt >= 0 ? next.slice(suffixAt) : '';
+      var route = (suffixAt >= 0 ? next.slice(0, suffixAt) : next).replace(/^\/+/, '');
+      var normalizedRoute = route.replace(/\.html$/i, '');
+      var allowedRoute = allowedNext.find(function (candidate) {
+        return candidate.replace(/\.html$/i, '') === normalizedRoute;
+      });
+      if (!allowedRoute) return fallback;
+      var suffixHashAt = suffix.indexOf('#');
+      var query = suffixHashAt >= 0 ? suffix.slice(0, suffixHashAt) : suffix;
+      var hash = suffixHashAt >= 0 ? suffix.slice(suffixHashAt) : '';
       if (hash && !/^#[a-z0-9][a-z0-9_-]{0,63}$/i.test(hash)) hash = '';
-      return route + hash;
+      return allowedRoute + query + hash;
     }
 
     function sessionContextKind(result) {

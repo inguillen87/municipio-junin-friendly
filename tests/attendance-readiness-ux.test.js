@@ -76,8 +76,9 @@ test('S006-A mantiene privacidad, accesibilidad y navegación pública', () => {
   assert.ok(Object.values(evidence.releaseLimits).every((enabled) => enabled === false));
   assert.match(modules, /href="control-horario-readiness\.html">Abrir preparación/);
 
+  assert.equal(vercel.cleanUrls, true);
   const rewrite = vercel.rewrites.find((entry) => entry.source === '/control-horario-readiness');
-  assert.equal(rewrite?.destination, '/control-horario-readiness.html');
+  assert.equal(rewrite, undefined, 'cleanUrls debe resolver la pantalla sin un rewrite redundante');
   for (const route of ['/control-horario-readiness', '/control-horario-readiness.html']) {
     const header = vercel.headers.find((entry) => entry.source === route);
     assert.match(header?.headers?.[0]?.value || '', /max-age=300/);

@@ -100,7 +100,8 @@ test('la pantalla privada se publica, queda fuera del precache y enlaza desde NÃ
   const vercel = JSON.parse(read('vercel.json'));
   assert.equal(vercel.functions['api/internal-payroll-novelties.js']?.maxDuration, 20);
   const rewrite = vercel.rewrites.find((entry) => entry.source === '/novedades-nomina');
-  assert.equal(rewrite?.destination, '/novedades-nomina.html');
+  assert.equal(vercel.cleanUrls, true);
+  assert.equal(rewrite, undefined, 'cleanUrls debe resolver la pantalla sin un rewrite redundante');
   const headers = new Map(vercel.headers.map((entry) => [entry.source,
     new Map(entry.headers.map((header) => [header.key, header.value]))]));
   for (const route of ['/novedades-nomina', '/novedades-nomina.html']) {

@@ -215,6 +215,85 @@
     .notice-mark { font-weight: 900; }
     .notice strong { display: block; color: #5b3e12; }
     .notice p { margin: 2px 0 0; font-size: 12px; }
+    .payroll-publication-note { display: block; margin-top: 14px; padding: 0; }
+    .payroll-publication-note > summary { min-height: 44px; padding: 11px 14px; cursor: pointer; font-weight: 800; }
+    .payroll-publication-note > summary::marker { color: var(--amber); }
+    .payroll-publication-note > p { margin: 0; padding: 0 14px 13px 34px; }
+
+    .payroll-task-launcher {
+      margin-top: 22px;
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--green);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 28px rgba(18, 50, 71, .06);
+    }
+    .payroll-task-launcher h2 { margin: 0; color: var(--navy); font-size: clamp(22px, 3vw, 30px); letter-spacing: -.025em; }
+    .payroll-task-intro { max-width: 760px; margin: 7px 0 0; color: var(--muted); }
+    .payroll-task-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+    .payroll-task-option { height: 100%; }
+    .payroll-task-button {
+      width: 100%;
+      min-height: 132px;
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 11px;
+      align-content: start;
+      padding: 15px;
+      color: var(--ink);
+      text-align: left;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .payroll-task-button:hover { background: var(--green-soft); border-color: #98c7bb; }
+    .payroll-task-button[aria-pressed="true"] { background: var(--green-soft); border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+    .payroll-task-number { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--green); border-radius: 50%; font-size: 12px; font-weight: 850; }
+    .payroll-task-copy strong { display: block; color: var(--navy); font-size: 15px; }
+    .payroll-task-copy span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .payroll-report-catalog { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: #fbfcfb; }
+    .payroll-report-catalog > summary { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; color: var(--navy); cursor: pointer; font-weight: 800; }
+    .payroll-report-catalog > summary::marker { color: var(--green); }
+    .payroll-report-catalog > summary span { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .payroll-report-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 1px; background: var(--line); border-top: 1px solid var(--line); list-style: none; }
+    .payroll-report-list li { min-width: 0; background: var(--surface); }
+    .payroll-report-link {
+      width: 100%;
+      min-height: 66px;
+      display: block;
+      padding: 10px 12px;
+      color: var(--ink);
+      text-align: left;
+      text-decoration: none;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    .payroll-report-link:hover { background: var(--green-soft); }
+    .payroll-report-link strong { display: block; color: var(--navy); font-size: 12px; }
+    .payroll-report-link span { display: inline-block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .payroll-report-link .payroll-report-state { margin-left: 5px; padding: 2px 5px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 3px; font-size: 8px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+    .payroll-task-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .payroll-task-status { margin: 0; color: var(--muted); font-size: 12px; }
+    .payroll-task-status strong { color: var(--navy); }
+    .payroll-task-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+    .payroll-task-more > strong { margin-right: 3px; color: var(--navy); font-size: 12px; }
+    .payroll-task-more .button { min-height: 38px; padding: 6px 10px; font-size: 12px; }
+    .payroll-section-toggle, .payroll-subtool-toggle { min-width: 116px; }
+    .payroll-section-body { padding-top: 1px; }
+    .payroll-section-body[hidden], .payroll-subtool-body[hidden] { display: none !important; }
+    .payroll-task-section[data-expanded="false"] { padding: 14px 16px; background: rgba(255, 255, 255, .58); border: 1px solid var(--line); border-radius: var(--radius); }
+    .payroll-task-section[data-expanded="false"] .section-head { margin: 0; }
+    .payroll-task-section[data-expanded="false"] .section-head p { max-width: 880px; }
+    .payroll-subtool-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .payroll-subtool-heading > :first-child { min-width: 0; }
+    .payroll-subtool[data-expanded="false"] { padding: 15px; background: #fbfcfb; }
+    .payroll-subtool[data-expanded="false"] .payroll-subtool-heading h3 { margin-bottom: 0; }
+    .payroll-subtool[data-expanded="false"] .payroll-subtool-heading p { margin-bottom: 0; }
+    .payroll-task-section:target { scroll-margin-top: 18px; }
 
     .section { margin-top: 30px; }
     .section-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
@@ -507,6 +586,7 @@
       #errorHost { padding: 16px 16px 0; }
       main { padding: 24px 16px 60px; }
       .page-head, .run-grid { grid-template-columns: 1fr; }
+      .payroll-task-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 620px) {
       .source-chip { display: none; }
@@ -535,12 +615,21 @@
       .post-close-file-trigger, .post-close-file-button { width: 100%; }
       .metric strong { font-size: 18px; }
       th, td { padding: 9px; }
+      .payroll-task-launcher { padding: 17px; }
+      .payroll-task-list { grid-template-columns: 1fr; }
+      .payroll-report-list { grid-template-columns: 1fr; }
+      .payroll-task-button { min-height: 0; }
+      .payroll-task-footer, .payroll-subtool-heading { align-items: stretch; flex-direction: column; }
+      .payroll-task-more { display: grid; grid-template-columns: 1fr; }
+      .payroll-task-more > strong { margin: 0; }
+      .payroll-task-footer .button, .payroll-task-more .button, .payroll-section-toggle, .payroll-subtool-toggle { width: 100%; }
     }
     @media print {
-      .sidebar, .topbar, .button, .loading, #errorHost { display: none !important; }
+      .sidebar, .topbar, .button, .loading, #errorHost, .payroll-task-launcher { display: none !important; }
       .app { display: block; }
       main { max-width: none; padding: 0; }
       .run-card, .panel, .metric { break-inside: avoid; }
+      .payroll-task-section, .payroll-section-body, .payroll-subtool-body { display: block !important; }
     }
   </style>
   <script src="assets/internal-guide.js" defer></script>
@@ -588,13 +677,72 @@
 
       <main id="mainContent" hidden>
         <section class="page-head" aria-labelledby="pageTitle">
-          <div><p class="eyebrow">Nómina · cierre y trazabilidad</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Separa la referencia cerrada de la corrida en curso. Los importes abiertos permanecen fuera de los indicadores ejecutivos, aunque estén disponibles en la fuente técnica.</p></div>
+          <div><p class="eyebrow">Nómina · cierre y trazabilidad</p><h1 id="pageTitle">Control de nómina</h1><p class="lead">Controlá archivos, prepará cierres y revisá resultados del mes desde un único lugar. Empezá por una tarea y abrí el detalle sólo cuando lo necesites.</p></div>
           <aside class="status-panel" id="overallPanel"><strong id="overallTitle">Estado del control</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
         </section>
 
-        <section class="notice" aria-labelledby="publicationRuleTitle"><span class="notice-mark" aria-hidden="true">Nota</span><div><strong id="publicationRuleTitle">La fecha más reciente no siempre es un cierre</strong><p>Una preliquidación sirve para control operativo, pero no para comunicar gasto, costo ni evolución financiera. La API debe autorizar expresamente la publicación ejecutiva.</p></div></section>
+        <section class="payroll-task-launcher" aria-labelledby="payrollTaskTitle" data-payroll-task-launcher>
+          <p class="eyebrow">Acceso rápido por tarea</p>
+          <h2 id="payrollTaskTitle">¿Qué necesitás hacer hoy?</h2>
+          <p class="payroll-task-intro" id="payrollTaskIntro">Entrá directamente al trabajo que necesitás. Las fórmulas, diagnósticos técnicos y evidencias quedan disponibles como herramientas avanzadas, sin ocupar la vista diaria.</p>
+          <ul class="payroll-task-list">
+            <li class="payroll-task-option">
+              <a class="payroll-task-button" href="reportes-rrhh.html#bancarizacion" aria-describedby="payrollTaskIntro">
+                <span class="payroll-task-number" aria-hidden="true">1</span><span class="payroll-task-copy"><strong>Control mensual</strong><span>Abrir la planilla bancaria del período, recalcularla y descargar los controles J42 y J55.</span></span>
+              </a>
+            </li>
+            <li class="payroll-task-option">
+              <button class="payroll-task-button" type="button" data-payroll-task-select="art" data-payroll-task-target="artReportSection" aria-pressed="false" aria-controls="artReportSection" aria-describedby="payrollTaskIntro">
+                <span class="payroll-task-number" aria-hidden="true">2</span><span class="payroll-task-copy"><strong>Reporte ART</strong><span>Calcular la base de control y preparar los archivos para revisión.</span></span>
+              </button>
+            </li>
+            <li class="payroll-task-option">
+              <button class="payroll-task-button" type="button" data-payroll-task-select="banks" data-payroll-task-target="bankDiagnosticSection" aria-pressed="false" aria-controls="bankDiagnosticSection" aria-describedby="payrollTaskIntro">
+                <span class="payroll-task-number" aria-hidden="true">3</span><span class="payroll-task-copy"><strong>Bancos y transferencias</strong><span>Validar la estructura del archivo y conciliar los totales antes de acreditar.</span></span>
+              </button>
+            </li>
+            <li class="payroll-task-option">
+              <button class="payroll-task-button" type="button" data-payroll-task-select="health" data-payroll-task-target="healthDiagnosticSection" aria-pressed="false" aria-controls="healthDiagnosticSection" aria-describedby="payrollTaskIntro">
+                <span class="payroll-task-number" aria-hidden="true">4</span><span class="payroll-task-copy"><strong>OSEP y Mutual</strong><span>Comprobar archivos de ancho fijo y detectar errores antes de presentarlos.</span></span>
+              </button>
+            </li>
+          </ul>
+          <details class="payroll-report-catalog" data-payroll-report-catalog>
+            <summary>Todos los reportes <span>9 pedidos relevados del área contable</span></summary>
+            <nav aria-label="Catálogo de reportes de nómina">
+              <ul class="payroll-report-list">
+                <li><a class="payroll-report-link" href="reportes-rrhh.html#bancarizacion"><strong>Bancarización Dpto. / Control General</strong><span>Planilla mensual XLSX y resúmenes J42/J55</span></a></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="banks" data-payroll-task-target="bankDiagnosticSection" data-payroll-bank-profile="credicoop-accreditation-30.observed.v1"><strong>Credicoop TXT · J42 y J55</strong><span>Control de estructura</span><span class="payroll-report-state">Prevalidación</span></button></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="banks" data-payroll-task-target="bankDiagnosticSection" data-payroll-bank-profile="gt-pagos-200.observed.v1"><strong>Nación · J42 y J55</strong><span>Control GT_PAGOS observado</span><span class="payroll-report-state">Prevalidación</span></button></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="banks" data-payroll-task-target="bankDiagnosticSection" data-payroll-bank-profile="transferencias-varias-167.observed.v1"><strong>Transferencias varias XLSX/TXT</strong><span>Validación del TXT observado</span><span class="payroll-report-state">Prevalidación</span></button></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="health" data-payroll-task-target="healthDiagnosticSection" data-payroll-health-profile="auto"><strong>OSEP</strong><span>Detección del formato físico</span><span class="payroll-report-state">Prevalidación</span></button></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="health" data-payroll-task-target="healthDiagnosticSection" data-payroll-health-profile="seguro-mutual-121-crlf.v1"><strong>Seguro Mutual</strong><span>TXT de 121 bytes + CRLF</span><span class="payroll-report-state">Prevalidación</span></button></li>
+                <li><button class="payroll-report-link" type="button" data-payroll-task-open="art" data-payroll-task-target="artReportSection"><strong>ART · conceptos 993 + 995</strong><span>Cálculo y paquete para revisión</span><span class="payroll-report-state">Precontrol</span></button></li>
+                <li><a class="payroll-report-link" href="reportes-rrhh.html#escolaridades"><strong>Escolaridades XLSX</strong><span>Diagnóstico de integridad del libro</span><span class="payroll-report-state">Prevalidación</span></a></li>
+                <li><a class="payroll-report-link" href="reportes-rrhh.html#f931"><strong>F.931 TXT</strong><span>Control físico previo a homologación</span><span class="payroll-report-state">Prevalidación</span></a></li>
+              </ul>
+            </nav>
+          </details>
+          <div class="payroll-task-more" aria-label="Recorridos adicionales de nómina">
+            <strong>Otros recorridos</strong>
+            <button class="button" type="button" data-payroll-task-select="prepare" data-payroll-task-target="monthlyCloseGovernedPanel" aria-pressed="false" aria-controls="runsSection reconciliationSection controlImportSection monthlyCloseSection">Preparar cierre</button>
+            <button class="button" type="button" data-payroll-task-select="review" data-payroll-task-target="controlImportSection" aria-pressed="false" aria-controls="reconciliationSection controlImportSection reprocessingSection monthlyCloseSection">Revisar pendientes</button>
+            <button class="button" type="button" data-payroll-task-select="advanced" data-payroll-task-target="formulaLabSection" aria-pressed="false" aria-controls="runsSection reconciliationSection formulaLabSection sourcePreviewSection postCloseSection historySection auditSection">Herramientas avanzadas e historial</button>
+          </div>
+          <div class="payroll-task-footer">
+            <p class="payroll-task-status" id="payrollTaskStatus" role="status" aria-live="polite"><strong>Vista simple activa.</strong> Elegí el trabajo que querés realizar.</p>
+            <button class="button" type="button" data-payroll-task-show-all aria-controls="payrollTaskWorkspace">Ver todas las herramientas</button>
+          </div>
+        </section>
 
-        <section class="section" aria-labelledby="runsTitle">
+        <details class="notice payroll-publication-note">
+          <summary id="publicationRuleTitle">¿Cuándo puede publicarse un cierre?</summary>
+          <p>Los importes sólo se presentan como oficiales cuando el período está cerrado, conciliado y autorizado por el servidor. Una preliquidación sirve para control, pero todavía no es un cierre.</p>
+        </details>
+
+        <div id="payrollTaskWorkspace" data-payroll-task-workspace>
+
+        <section class="section" id="runsSection" aria-labelledby="runsTitle" data-payroll-task-section="prepare advanced">
           <header class="section-head"><div><span class="section-index">01 · ESTADO DE CORRIDAS</span><h2 id="runsTitle">Cierre de referencia y período abierto</h2><p>Los meses, cantidades y estados provienen del contrato interno. La interfaz no completa ni estima valores faltantes.</p></div><span class="state-badge" id="runsBadge">Consultando</span></header>
           <div class="run-grid">
             <article class="run-card" id="closedRunCard">
@@ -621,7 +769,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="reconciliationTitle">
+        <section class="section" id="reconciliationSection" aria-labelledby="reconciliationTitle" data-payroll-task-section="prepare review advanced">
           <header class="section-head"><div><span class="section-index">02 · CONCILIACIÓN ARITMÉTICA</span><h2 id="reconciliationTitle">Cómo se valida el neto pagable</h2><p>La conciliación se aplica a la última corrida cerrada. Una diferencia dentro de tolerancia habilita el control aritmético, no reemplaza el cierre administrativo.</p></div><span class="state-badge" id="reconciliationBadge">Consultando</span></header>
           <div class="formula-panel">
             <article class="panel"><h3>Reglas de cálculo</h3><p class="panel-note">Las expresiones usan los totales literales de GRH; no se suma indiscriminadamente el importe técnico de todos los conceptos.</p><div class="formula">993 + 994 + 995 - 996 = 999</div><div class="formula">Costo empleador proxy = 993 + 994 + 995 + 990</div><div class="reconcile-grid"><div class="reconcile-item"><span>Diferencia aritmética</span><strong id="arithmeticDifference">—</strong></div><div class="reconcile-item"><span>Tolerancia</span><strong id="roundingTolerance">—</strong></div><div class="reconcile-item"><span>Aportes patronales</span><strong id="employerContributions">—</strong></div></div></article>
@@ -629,7 +777,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="formulaLabTitle" data-payroll-formula-lab>
+        <section class="section" id="formulaLabSection" aria-labelledby="formulaLabTitle" data-payroll-task-section="advanced" data-payroll-formula-lab>
           <header class="section-head">
             <div>
               <span class="section-index">03 · LABORATORIO DE FÓRMULAS</span>
@@ -690,7 +838,7 @@
           <div class="method-note">Una fórmula válida para este analizador todavía requiere contraste con el motor de origen, definición funcional, unidad, vigencia, casos de prueba, aprobación y doble control antes de incorporarse a un catálogo gobernado.</div>
         </section>
 
-        <section class="section" aria-labelledby="sourcePreviewTitle" data-grh-source-preview>
+        <section class="section" id="sourcePreviewSection" aria-labelledby="sourcePreviewTitle" data-payroll-task-section="advanced" data-grh-source-preview>
           <header class="section-head">
             <div>
               <span class="section-index">04 · PREVISUALIZACIÓN DE FUENTE</span>
@@ -746,7 +894,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="postCloseTitle" data-payroll-post-close-reconciler>
+        <section class="section" id="postCloseSection" aria-labelledby="postCloseTitle" data-payroll-task-section="advanced" data-payroll-post-close-reconciler>
           <header class="section-head">
             <div>
               <span class="section-index">05 · CONTROL POSCIERRE</span>
@@ -850,7 +998,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="controlImportTitle" data-payroll-control-import-workflow aria-busy="true">
+        <section class="section" id="controlImportSection" aria-labelledby="controlImportTitle" data-payroll-task-section="prepare review" data-payroll-control-import-workflow aria-busy="true">
           <header class="section-head">
             <div>
               <span class="section-index">06 · CORRIDAS PERSISTIDAS</span>
@@ -952,7 +1100,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="reprocessingTitle" data-payroll-reprocessing-workflow aria-busy="true">
+        <section class="section" id="reprocessingSection" aria-labelledby="reprocessingTitle" data-payroll-task-section="review" data-payroll-reprocessing-workflow aria-busy="true">
           <header class="section-head">
             <div>
               <span class="section-index">06.1 · ANULACIÓN Y RELIQUIDACIÓN</span>
@@ -1085,7 +1233,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="artReportTitle" data-payroll-art-report-workbench aria-busy="true">
+        <section class="section" id="artReportSection" aria-labelledby="artReportTitle" data-payroll-task-section="art" data-payroll-art-report-workbench aria-busy="true">
           <header class="section-head">
             <div>
               <span class="section-index">07 · REPORTE ART PROVINCIA</span>
@@ -1170,7 +1318,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="bankDiagnosticTitle" data-payroll-bank-report-workbench aria-busy="false">
+        <section class="section" id="bankDiagnosticSection" aria-labelledby="bankDiagnosticTitle" data-payroll-task-section="banks" data-payroll-bank-report-workbench aria-busy="false">
           <header class="section-head">
             <div>
               <span class="section-index">08 · ARCHIVOS BANCARIOS</span>
@@ -1238,7 +1386,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="healthDiagnosticTitle" data-payroll-health-fixed-width-workbench aria-busy="false">
+        <section class="section" id="healthDiagnosticSection" aria-labelledby="healthDiagnosticTitle" data-payroll-task-section="health" data-payroll-health-fixed-width-workbench aria-busy="false">
           <header class="section-head">
             <div>
               <span class="section-index">09 · OSEP Y SEGURO MUTUAL</span>
@@ -1297,7 +1445,7 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="monthlyClosePrecheckTitle" data-monthly-close-precheck>
+        <section class="section" id="monthlyCloseSection" aria-labelledby="monthlyClosePrecheckTitle" data-payroll-task-section="prepare review" data-monthly-close-precheck>
           <header class="section-head">
             <div>
               <span class="section-index">10 · CONTROL MENSUAL</span>
@@ -1523,7 +1671,7 @@
               <p class="post-close-note">Fórmula técnica visible: haberes remunerativos + no remunerativos + asignaciones familiares − retenciones. Tolerancia: 0 centavos.</p>
               <div class="method-note">Este cruce avanzado todavía requiere dos CSV agregados. No certifica el neto de nómina, no genera archivos bancarios ni el TXT de Tribunal y no persiste nada. Las fuentes y sus huellas siguen siendo evidencia local declarada por el operador.</div>
             </article>
-            <article class="panel monthly-close-governed" data-payroll-monthly-close-workflow aria-labelledby="monthlyCloseGovernedTitle" aria-busy="true">
+            <article class="panel monthly-close-governed" id="monthlyCloseGovernedPanel" data-payroll-monthly-close-workflow aria-labelledby="monthlyCloseGovernedTitle" aria-busy="true">
               <div>
                 <span class="section-index">S008-C2.1 · CIERRE GOBERNADO</span>
                 <h3 id="monthlyCloseGovernedTitle">Guardar, conciliar y decidir una corrida mensual</h3>
@@ -1656,12 +1804,12 @@
           </div>
         </section>
 
-        <section class="section" aria-labelledby="historyTitle">
+        <section class="section" id="historySection" aria-labelledby="historyTitle" data-payroll-task-section="advanced">
           <header class="section-head"><div><span class="section-index">11 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
-        <section class="section" aria-labelledby="auditTitle">
+        <section class="section" id="auditSection" aria-labelledby="auditTitle" data-payroll-task-section="advanced">
           <header class="section-head"><div><span class="section-index">12 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
@@ -1671,11 +1819,217 @@
             </div>
           </div>
         </section>
+        </div>
 
         <footer><span id="footerSource">Fuente interna sin confirmar</span> · Importes nominales en pesos argentinos · Uso interno de gestión.</footer>
       </main>
     </div>
   </div>
+
+  <script data-payroll-progressive-navigation>
+    (function () {
+      'use strict';
+
+      var launcher = document.querySelector('[data-payroll-task-launcher]');
+      var workspace = document.querySelector('[data-payroll-task-workspace]');
+      if (!launcher || !workspace) return;
+
+      var sections = Array.from(workspace.querySelectorAll('[data-payroll-task-section]'));
+      var taskButtons = Array.from(launcher.querySelectorAll('[data-payroll-task-select]'));
+      var reportButtons = Array.from(launcher.querySelectorAll('[data-payroll-task-open]'));
+      var showAllButton = launcher.querySelector('[data-payroll-task-show-all]');
+      var status = document.getElementById('payrollTaskStatus');
+      var taskLabels = {
+        art: ['Reporte ART', 'Se muestra únicamente el control requerido para preparar el reporte ART.'],
+        banks: ['Bancos y transferencias', 'Se muestra el diagnóstico previo a la acreditación bancaria.'],
+        health: ['OSEP y Mutual', 'Se muestran los controles de estructura para OSEP y Seguro Mutual.'],
+        prepare: ['Preparar cierre', 'Se muestran el estado, la conciliación y el circuito mensual de preparación.'],
+        review: ['Revisar pendientes', 'Se muestran las bandejas y decisiones que el servidor habilite para tu rol.'],
+        advanced: ['Herramientas avanzadas e historial', 'Se muestran fórmulas, previsualizaciones, controles técnicos, historial y trazabilidad.']
+      };
+
+      function directChildWithClass(parent, className) {
+        return Array.from(parent.children).find(function (child) { return child.classList.contains(className); }) || null;
+      }
+
+      function setSectionExpanded(section, expanded) {
+        var body = directChildWithClass(section, 'payroll-section-body');
+        var toggle = section.querySelector(':scope > .section-head [data-payroll-section-toggle]');
+        if (!body || !toggle) return;
+        section.dataset.expanded = expanded ? 'true' : 'false';
+        body.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggle.textContent = expanded ? 'Ocultar detalle' : 'Abrir sección';
+      }
+
+      sections.forEach(function (section, index) {
+        section.classList.add('payroll-task-section');
+        var header = directChildWithClass(section, 'section-head');
+        if (!header) return;
+        var body = document.createElement('div');
+        body.className = 'payroll-section-body';
+        body.id = section.id + 'Body';
+        while (header.nextSibling) body.appendChild(header.nextSibling);
+        section.appendChild(body);
+
+        var toggle = document.createElement('button');
+        toggle.className = 'button payroll-section-toggle';
+        toggle.type = 'button';
+        toggle.dataset.payrollSectionToggle = String(index + 1);
+        toggle.setAttribute('aria-controls', body.id);
+        toggle.addEventListener('click', function () {
+          var opening = toggle.getAttribute('aria-expanded') !== 'true';
+          if (opening) {
+            sections.forEach(function (candidate) {
+              if (candidate !== section && !candidate.hidden) setSectionExpanded(candidate, false);
+            });
+          }
+          setSectionExpanded(section, opening);
+        });
+        header.appendChild(toggle);
+        setSectionExpanded(section, false);
+      });
+
+      var monthlySection = document.getElementById('monthlyCloseSection');
+      var monthlyTools = monthlySection
+        ? Array.from(monthlySection.querySelectorAll('.post-close-grid > article.panel'))
+        : [];
+
+      function setSubtoolExpanded(panel, expanded) {
+        var body = directChildWithClass(panel, 'payroll-subtool-body');
+        var toggle = panel.querySelector(':scope > .payroll-subtool-heading [data-payroll-subtool-toggle]');
+        if (!body || !toggle) return;
+        panel.dataset.expanded = expanded ? 'true' : 'false';
+        body.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggle.textContent = expanded ? 'Ocultar paso' : 'Abrir paso';
+      }
+
+      monthlyTools.forEach(function (panel, index) {
+        var titleBlock = panel.firstElementChild;
+        if (!titleBlock) return;
+        panel.classList.add('payroll-subtool');
+        if (!panel.id) panel.id = 'monthlyCloseTool' + String(index + 1);
+
+        var heading = document.createElement('div');
+        heading.className = 'payroll-subtool-heading';
+        panel.insertBefore(heading, titleBlock);
+        heading.appendChild(titleBlock);
+
+        var body = document.createElement('div');
+        body.className = 'payroll-subtool-body';
+        body.id = panel.id + 'Body';
+        while (heading.nextSibling) body.appendChild(heading.nextSibling);
+        panel.appendChild(body);
+
+        var toggle = document.createElement('button');
+        toggle.className = 'button payroll-subtool-toggle';
+        toggle.type = 'button';
+        toggle.dataset.payrollSubtoolToggle = String(index + 1);
+        toggle.setAttribute('aria-controls', body.id);
+        toggle.addEventListener('click', function () {
+          var opening = toggle.getAttribute('aria-expanded') !== 'true';
+          if (opening) {
+            monthlyTools.forEach(function (candidate) {
+              if (candidate !== panel) setSubtoolExpanded(candidate, false);
+            });
+          }
+          setSubtoolExpanded(panel, opening);
+        });
+        heading.appendChild(toggle);
+        setSubtoolExpanded(panel, false);
+      });
+
+      function sectionSupportsTask(section, task) {
+        return String(section.dataset.payrollTaskSection || '').split(/\s+/).includes(task);
+      }
+
+      function updateStatus(title, detail) {
+        var strong = document.createElement('strong');
+        strong.textContent = title + '. ';
+        status.replaceChildren(strong, document.createTextNode(detail));
+      }
+
+      function focusTarget(target) {
+        var heading = target.matches('h1, h2, h3, h4') ? target : target.querySelector('h2, h3, h4');
+        if (!heading) return;
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function activateTask(task, targetId, moveFocus) {
+        taskButtons.forEach(function (button) {
+          button.setAttribute('aria-pressed', button.dataset.payrollTaskSelect === task ? 'true' : 'false');
+        });
+        sections.forEach(function (section) {
+          section.hidden = !sectionSupportsTask(section, task);
+          setSectionExpanded(section, false);
+        });
+        monthlyTools.forEach(function (panel) { setSubtoolExpanded(panel, false); });
+
+        var target = document.getElementById(targetId);
+        var targetSection = target && target.closest('[data-payroll-task-section]');
+        if (targetSection && !targetSection.hidden) setSectionExpanded(targetSection, true);
+        var targetSubtool = target && target.closest('.payroll-subtool');
+        if (targetSubtool) setSubtoolExpanded(targetSubtool, true);
+
+        var copy = taskLabels[task] || ['Recorrido seleccionado', 'Se muestran únicamente las herramientas relacionadas.'];
+        updateStatus(copy[0], copy[1]);
+        if (moveFocus && target) window.requestAnimationFrame(function () { focusTarget(target); });
+      }
+
+      function showAllTools() {
+        taskButtons.forEach(function (button) { button.setAttribute('aria-pressed', 'false'); });
+        sections.forEach(function (section) {
+          section.hidden = false;
+          setSectionExpanded(section, false);
+        });
+        monthlyTools.forEach(function (panel) { setSubtoolExpanded(panel, false); });
+        updateStatus('Vista completa', 'Todas las herramientas están disponibles y plegadas. Abrí sólo la sección que necesites.');
+      }
+
+      function applyReportPreset(button) {
+        if (button.dataset.payrollBankProfile) {
+          var bankProfile = document.querySelector('[data-bank-diagnostic-profile]');
+          if (bankProfile) {
+            bankProfile.value = button.dataset.payrollBankProfile;
+            bankProfile.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+        if (button.dataset.payrollHealthProfile) {
+          var healthProfile = document.querySelector('[data-health-profile]');
+          if (healthProfile) {
+            healthProfile.value = button.dataset.payrollHealthProfile;
+            healthProfile.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }
+
+      taskButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activateTask(button.dataset.payrollTaskSelect, button.dataset.payrollTaskTarget, true);
+        });
+      });
+      reportButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          activateTask(button.dataset.payrollTaskOpen, button.dataset.payrollTaskTarget, true);
+          applyReportPreset(button);
+          var catalog = button.closest('[data-payroll-report-catalog]');
+          if (catalog) catalog.open = false;
+        });
+      });
+      showAllButton.addEventListener('click', showAllTools);
+
+      sections.forEach(function (section) { section.hidden = true; });
+      var hashTarget = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+      var hashSection = hashTarget && hashTarget.closest('[data-payroll-task-section]');
+      if (hashSection) {
+        var hashTask = String(hashSection.dataset.payrollTaskSection || '').split(/\s+/)[0];
+        activateTask(hashTask, hashTarget.id || hashSection.id, false);
+      }
+    }());
+  </script>
 
   <script>
     (function () {

@@ -142,9 +142,11 @@ test('S006-C5a queda navegable, publicable y disponible offline en ambas rutas',
   assert.match(worker, /\['\/control-horario-homologacion', '\/control-horario-homologacion\.html'\]/);
   assert.match(ignore, /^!control-horario-homologacion\.html$/m);
   assert.match(ignore, /^!attendance-policy-candidates\.v1\.json$/m);
-  assert.deepEqual(
+  assert.equal(vercel.cleanUrls, true);
+  assert.equal(
     vercel.rewrites.find(({ source }) => source === '/control-horario-homologacion'),
-    { source: '/control-horario-homologacion', destination: '/control-horario-homologacion.html' },
+    undefined,
+    'cleanUrls debe resolver la pantalla sin un rewrite redundante',
   );
   for (const route of ['/control-horario-homologacion', '/control-horario-homologacion.html', '/attendance-policy-candidates.v1.json']) {
     const header = vercel.headers.find(({ source }) => source === route);

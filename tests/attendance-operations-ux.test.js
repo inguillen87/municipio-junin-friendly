@@ -171,7 +171,8 @@ test('build, login, navegación y Vercel publican la ruta privada', () => {
   const config = JSON.parse(read('vercel.json'));
   const rewrites = new Map(config.rewrites.map((entry) => [entry.source, entry.destination]));
   const headers = new Map(config.headers.map((entry) => [entry.source, new Map(entry.headers.map(({ key, value }) => [key, value]))]));
-  assert.equal(rewrites.get('/relojes-marcaciones'), '/relojes-marcaciones.html');
+  assert.equal(config.cleanUrls, true);
+  assert.equal(rewrites.has('/relojes-marcaciones'), false);
   assert.match(headers.get('/relojes-marcaciones').get('Cache-Control'), /private, no-store/);
   assert.match(headers.get('/relojes-marcaciones.html').get('Cache-Control'), /private, no-store/);
   assert.equal(config.functions['api/internal-attendance.js'].maxDuration, 20);

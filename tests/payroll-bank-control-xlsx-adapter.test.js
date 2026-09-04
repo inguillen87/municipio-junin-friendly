@@ -202,10 +202,14 @@ test('worker, pantalla y empaquetado preservan el límite local y agregado', () 
   assert.match(html, /no es un TXT bancario ni acredita pagos/i);
   assert.match(html, /No hay subida, API, almacenamiento ni escritura en Neon/i);
   assert.equal((html.match(/data-bank-control-account=/g) || []).length, 3);
-  assert.equal((html.match(/data-bank-control-export=/g) || []).length, 2);
+  assert.equal((html.match(/data-bank-control-export-xlsx/g) || []).length, 1);
+  assert.match(html, /data-bank-control-export-jurisdiction/);
+  assert.match(html, /data-bank-control-export-bank/);
+  assert.match(build, /assets\/payroll-bank-control-exporter\.js/);
   assert.match(build, /assets\/payroll-bank-control-xlsx-adapter\.js/);
   assert.match(build, /assets\/payroll-bank-control-xlsx-worker\.js/);
   assert.match(build, /publicCacheInputs[\s\S]*assets\/vendor\/fflate\.min\.js/);
+  assert.match(sw, /assets\/payroll-bank-control-exporter\.js/);
   assert.match(sw, /assets\/payroll-bank-control-xlsx-adapter\.js/);
   assert.match(sw, /assets\/payroll-bank-control-xlsx-worker\.js/);
   assert.match(sw, /PRECACHE_URLS[\s\S]*assets\/vendor\/fflate\.min\.js/);

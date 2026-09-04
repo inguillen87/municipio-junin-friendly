@@ -11,8 +11,6 @@ const root = path.resolve(import.meta.dirname, '..');
 const publicRoot = path.join(root, 'public');
 const fixture = process.env.BANK_CONTROL_XLSX_FIXTURE;
 const outerZip = process.env.BANK_CONTROL_OUTER_ZIP;
-const expectedHeader =
-  'periodo;jurisdiccion;reparticion_codigo;banco_codigo;tipo_cuenta;operaciones;importe_neto_centavos';
 
 if ((fixture ? 1 : 0) + (outerZip ? 1 : 0) !== 1) {
   throw new Error('Definí una única fuente local de validación');
@@ -106,15 +104,38 @@ try {
   assert.equal(summary.operations42 + summary.operations55, Number(summary.operations));
   assert.ok(summary.aggregateRows > 0);
 
-  for (const jurisdiction of ['42', '55']) {
+  const exportCases = [
+    { jurisdiction: '42', bank: 'all', label: 'Todos los bancos y transferencias', filePart: '_j42_todos.xlsx' },
+    { jurisdiction: '55', bank: 'all', label: 'Todos los bancos y transferencias', filePart: '_j55_todos.xlsx' },
+    { jurisdiction: '42', bank: 'credicoop', label: 'Credicoop', filePart: '_j42_credicoop.xlsx' },
+    { jurisdiction: '42', bank: 'santander', label: 'Santander', filePart: '_j42_santander.xlsx' },
+    { jurisdiction: '42', bank: 'nacion', label: 'Nación', filePart: '_j42_nacion.xlsx' },
+    { jurisdiction: '42', bank: 'transferencias', label: 'Transferencias especiales', filePart: '_j42_transferencias.xlsx' },
+    { jurisdiction: '55', bank: 'credicoop', label: 'Credicoop', filePart: '_j55_credicoop.xlsx' },
+    { jurisdiction: '55', bank: 'santander', label: 'Santander', filePart: '_j55_santander.xlsx' },
+    { jurisdiction: '55', bank: 'nacion', label: 'Nación', filePart: '_j55_nacion.xlsx' },
+    { jurisdiction: '55', bank: 'transferencias', label: 'Transferencias especiales', filePart: '_j55_transferencias.xlsx' },
+  ];
+  for (const exportCase of exportCases) {
+    await page.locator('[data-bank-control-export-jurisdiction]')
+      .selectOption(exportCase.jurisdiction);
+    await page.locator('[data-bank-control-export-bank]').selectOption(exportCase.bank);
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.locator(`[data-bank-control-export="${jurisdiction}"]`).click(),
+      page.locator('[data-bank-control-export-xlsx]').click(),
     ]);
+    assert.ok(download.suggestedFilename().endsWith(exportCase.filePart));
     const bytes = fs.readFileSync(await download.path());
-    const lines = new TextDecoder().decode(bytes).split('\r\n');
-    assert.equal(lines[0], expectedHeader);
-    assert.ok(lines.slice(1).filter(Boolean).every((line) => line.startsWith(`2026-08;${jurisdiction};`)));
+    assert.deepEqual([...bytes.subarray(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+    const entries = unzipSync(bytes);
+    const workbookXml = new TextDecoder().decode(entries['xl/workbook.xml']);
+    const detailXml = new TextDecoder().decode(entries['xl/worksheets/sheet2.xml']);
+    assert.match(workbookXml, /sheet name="Resumen".*sheet name="Por repartición"/s);
+    assert.match(detailXml, new RegExp(`Detalle de control J${exportCase.jurisdiction}`));
+    assert.ok(detailXml.includes(exportCase.label));
+    assert.match(detailXml, /Acreditación.*No generada/s);
+    assert.doesNotMatch(detailXml, /APELLIDO Y NOMBRE|CTA BANCARIA|C\.B\.U/i);
+    bytes.fill(0);
   }
   process.stdout.write(`${JSON.stringify({
     ok: true,
@@ -123,6 +144,7 @@ try {
     aggregateRows: summary.aggregateRows,
     operations42: summary.operations42,
     operations55: summary.operations55,
+    xlsxExportsVerified: exportCases.length,
   })}\n`);
 } finally {
   await browser.close();

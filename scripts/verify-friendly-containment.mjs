@@ -6,29 +6,28 @@ const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), '
 const config = JSON.parse(read('vercel.json'));
 const rewrites = new Map(config.rewrites.map(({ source, destination }) => [source, destination]));
 
-assert.equal(rewrites.get('/'), '/friendly-dashboard.html');
+assert.equal(config.cleanUrls, true);
+assert.equal(config.trailingSlash, false);
+assert.equal(rewrites.get('/'), '/friendly-dashboard');
 assert.equal(rewrites.get('/rrhh-data/:path*'), '/api/friendly-policy');
-assert.equal(rewrites.get('/internal'), '/internal-dashboard.html');
-assert.equal(rewrites.get('/activar-cuenta'), '/activar-cuenta.html');
-assert.equal(rewrites.get('/seguridad-cuenta'), '/seguridad-cuenta.html');
-assert.equal(rewrites.get('/rrhh'), '/internal-dashboard.html');
-assert.equal(rewrites.get('/centro-acciones'), '/centro-acciones.html');
-assert.equal(rewrites.get('/fuentes-tiempo'), '/fuentes-tiempo.html');
-assert.equal(rewrites.get('/administracion-plataforma'), '/administracion-plataforma.html');
-assert.equal(rewrites.get('/admin'), '/administracion-plataforma.html');
-assert.equal(rewrites.get('/modulos'), '/modulos.html');
-assert.equal(rewrites.get('/reportes'), '/reportes-rrhh.html');
-assert.equal(rewrites.get('/organigrama'), '/estructura.html');
-assert.equal(rewrites.get('/integracion-datos'), '/integracion-datos.html');
-assert.equal(rewrites.get('/nomina-control'), '/nomina-control.html');
-assert.equal(rewrites.get('/gestion-comparativa'), '/gestion-comparativa.html');
-assert.equal(rewrites.get('/presupuesto-control'), '/presupuesto-control.html');
-assert.equal(rewrites.get('/ausentismo-control'), '/ausentismo-control.html');
-assert.equal(rewrites.get('/licencias-control'), '/licencias-control.html');
-assert.equal(rewrites.get('/calidad-operativa'), '/calidad-operativa.html');
-assert.equal(rewrites.get('/asistente'), '/asistente.html');
-assert.equal(rewrites.get('/centro-ayuda'), '/centro-ayuda.html');
-assert.equal(rewrites.get('/ayuda'), '/centro-ayuda.html');
+assert.equal(rewrites.get('/internal'), '/internal-dashboard');
+assert.equal(rewrites.get('/rrhh'), '/internal-dashboard');
+assert.equal(rewrites.get('/admin'), '/administracion-plataforma');
+assert.equal(rewrites.get('/reportes'), '/reportes-rrhh');
+assert.equal(rewrites.get('/organigrama'), '/estructura');
+assert.equal(rewrites.get('/ayuda'), '/centro-ayuda');
+for (const canonicalRoute of [
+  '/activar-cuenta', '/seguridad-cuenta', '/centro-acciones', '/fuentes-tiempo',
+  '/administracion-plataforma', '/modulos', '/integracion-datos', '/nomina-control',
+  '/gestion-comparativa', '/presupuesto-control', '/ausentismo-control',
+  '/licencias-control', '/calidad-operativa', '/asistente', '/centro-ayuda',
+]) {
+  assert.equal(rewrites.has(canonicalRoute), false, `${canonicalRoute} debe resolver directamente por cleanUrls`);
+}
+for (const rewrite of config.rewrites) {
+  assert.doesNotMatch(rewrite.source, /\.html(?:$|[?#])/i, `rewrite source no canónico: ${rewrite.source}`);
+  assert.doesNotMatch(rewrite.destination, /\.html(?:$|[?#])/i, `rewrite destination no canónico: ${rewrite.destination}`);
+}
 assert.ok(config.functions['api/internal-auth.js'], 'falta publicar autenticación interna');
 assert.ok(config.functions['api/internal-identity.js'], 'falta publicar el gateway de identidad');
 assert.ok(config.functions['api/internal-data.js'], 'falta publicar API interna');
@@ -177,9 +176,9 @@ assert.match(dashboard, /titles\[requested\]\?requested:'inicio'/, 'los hashes d
 assert.match(dashboard, /friendly-data\.json/, 'el tablero debe cargar la fuente agregada');
 assert.match(dashboard, /URLSearchParams\(location\.search\)\.get\('section'\)/, 'las rutas heredadas deben abrir su seccion correcta');
 assert.match(dashboard, /routeSections\[location\.pathname\]/, 'las rutas reescritas deben resolver la seccion desde el path visible');
-assert.equal(rewrites.get('/hacienda'), '/friendly-dashboard.html?section=hacienda');
-assert.equal(rewrites.get('/servicios'), '/friendly-dashboard.html?section=servicios');
-assert.equal(rewrites.get('/licitaciones'), '/friendly-dashboard.html?section=compras');
+assert.equal(rewrites.get('/hacienda'), '/friendly-dashboard?section=hacienda');
+assert.equal(rewrites.get('/servicios'), '/friendly-dashboard?section=servicios');
+assert.equal(rewrites.get('/licitaciones'), '/friendly-dashboard?section=compras');
 
 const login = read('login.html');
 assert.doesNotMatch(login, /const\s+USERS\s*=|function\s+fillUser\s*\(/, 'el acceso público no debe depender de credenciales demo embebidas');

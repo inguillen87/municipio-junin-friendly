@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cleanFriendlyRouteReferences } from './clean-friendly-route-references.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -59,6 +60,7 @@ const shellFiles = [
   'assets/payroll-schooling-report-workbench.js',
   'assets/payroll-f931-prevalidator.js',
   'assets/payroll-f931-workbench.js',
+  'assets/payroll-bank-control-exporter.js',
   'assets/payroll-bank-control-xlsx-adapter.js',
   'assets/payroll-bank-control-xlsx-worker.js',
   'assets/monthly-close-jurisdiction-xlsx-adapter.js',
@@ -130,6 +132,7 @@ const publicCacheInputs = [
   'assets/payroll-schooling-report-workbench.js',
   'assets/payroll-f931-prevalidator.js',
   'assets/payroll-f931-workbench.js',
+  'assets/payroll-bank-control-exporter.js',
   'assets/payroll-bank-control-xlsx-adapter.js',
   'assets/payroll-bank-control-xlsx-worker.js',
   'assets/vendor/fflate.min.js',
@@ -140,6 +143,12 @@ const publicCacheInputs = [
   'assets/pwa/icon-192.png',
   'assets/pwa/icon-512.png',
   'assets/pwa/icon-maskable-512.png'
+];
+
+const htmlRouteFiles = shellFiles.filter((file) => file.endsWith('.html'));
+const cleanReferenceFiles = [
+  ...shellFiles.filter((file) => file.endsWith('.html') || file.endsWith('.js')),
+  'sw.js'
 ];
 
 const normalizeTextForHash = (value) => value.replace(/\r\n?/g, '\n');
@@ -155,6 +164,16 @@ for (const file of vendorFiles) {
   const destination = path.join(output, file.destination);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(root, file.source), destination);
+}
+
+// El repositorio conserva nombres .html para permitir abrir cada pantalla de
+// forma aislada durante desarrollo. El artefacto publicado enlaza únicamente
+// las rutas canónicas sin extensión, evitando una redirección 308 en cada clic.
+for (const file of cleanReferenceFiles) {
+  const destination = path.join(output, file);
+  const source = fs.readFileSync(destination, 'utf8');
+  const cleaned = cleanFriendlyRouteReferences(source, htmlRouteFiles);
+  if (cleaned !== source) fs.writeFileSync(destination, cleaned);
 }
 
 const versionHash = crypto.createHash('sha256');

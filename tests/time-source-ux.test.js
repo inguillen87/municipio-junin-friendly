@@ -170,7 +170,8 @@ test('build, login, service worker y Vercel publican la vista como privada no-st
   const config = JSON.parse(read('vercel.json'));
   const rewrites = new Map(config.rewrites.map((entry) => [entry.source, entry.destination]));
   const headers = new Map(config.headers.map((entry) => [entry.source, new Map(entry.headers.map(({ key, value }) => [key, value]))]));
-  assert.equal(rewrites.get('/fuentes-tiempo'), '/fuentes-tiempo.html');
+  assert.equal(config.cleanUrls, true);
+  assert.equal(rewrites.has('/fuentes-tiempo'), false);
   assert.match(headers.get('/fuentes-tiempo').get('Cache-Control'), /private, no-store/);
   assert.match(headers.get('/fuentes-tiempo.html').get('Cache-Control'), /private, no-store/);
 });

@@ -4,6 +4,11 @@ import {
   formatJurisdictionControlCents,
   jurisdictionControlAmountToCents,
 } from './monthly-close-jurisdiction-xlsx-adapter.js';
+import {
+  PayrollBankControlExportError,
+  createPayrollBankControlXlsxArtifact,
+  downloadPayrollBankControlXlsxArtifact,
+} from './payroll-bank-control-exporter.js';
 
 export const PAYROLL_BANK_CONTROL_VERSION = 'payroll-bank-control-xlsx.v1';
 export const BANK_ACCREDITATION_SUMMARY_VERSION = 'bank-accreditation-summary.v1';
@@ -562,18 +567,6 @@ function appendCell(row, value, label, className = '') {
   row.appendChild(cell);
 }
 
-function downloadBytes(bytes, fileName) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'text/csv;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.hidden = true;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 export function mountPayrollBankControlXlsx(host = document) {
   const root = host.querySelector('[data-payroll-bank-control-xlsx]');
   if (!root || root.dataset.mounted === 'true') return false;
@@ -590,14 +583,16 @@ export function mountPayrollBankControlXlsx(host = document) {
   const total42 = root.querySelector('[data-bank-control-total="42"]');
   const total55 = root.querySelector('[data-bank-control-total="55"]');
   const rows = root.querySelector('[data-bank-control-rows]');
-  const export42 = root.querySelector('[data-bank-control-export="42"]');
-  const export55 = root.querySelector('[data-bank-control-export="55"]');
+  const exportJurisdiction = root.querySelector('[data-bank-control-export-jurisdiction]');
+  const exportBank = root.querySelector('[data-bank-control-export-bank]');
+  const exportXlsx = root.querySelector('[data-bank-control-export-xlsx]');
+  const exportStatus = root.querySelector('[data-bank-control-export-status]');
   const accountInputs = Object.fromEntries(ACCOUNT_TYPE_KEYS.map((key) => [
     key, root.querySelector(`[data-bank-control-account="${key}"]`),
   ]));
   if (!form || !period || !fileInput || !submit || !reset || !status || !result
       || !operations || !worksheets || !total || !total42 || !total55
-      || !rows || !export42 || !export55
+      || !rows || !exportJurisdiction || !exportBank || !exportXlsx || !exportStatus
       || ACCOUNT_TYPE_KEYS.some((key) => !accountInputs[key])) return false;
   let latest = null;
   let sequence = 0;
@@ -606,13 +601,37 @@ export function mountPayrollBankControlXlsx(host = document) {
     status.dataset.state = state;
     status.textContent = message;
   };
+  const setExportStatus = (state, message) => {
+    exportStatus.dataset.state = state;
+    exportStatus.textContent = message;
+  };
+  const syncExportScope = () => {
+    if (!latest) return;
+    const bankCodes = new Map([
+      ['credicoop', '191'], ['santander', '72'], ['nacion', '11'], ['transferencias', '0'],
+    ]);
+    const jurisdiction = exportJurisdiction.value;
+    for (const option of exportBank.querySelectorAll('option')) {
+      option.disabled = option.value !== 'all' && !latest.groups.some((group) => (
+        group.jurisdiction === jurisdiction && group.bankCode === bankCodes.get(option.value)
+      ));
+    }
+    if (exportBank.selectedOptions[0]?.disabled) exportBank.value = 'all';
+    const selectedLabel = exportBank.selectedOptions[0]?.textContent || 'Todos los bancos';
+    setExportStatus(
+      '',
+      `Salida preparada: J${jurisdiction} · ${selectedLabel}. Es un control agregado, no una acreditación.`,
+    );
+  };
   const clearResult = () => {
     latest = null;
     result.hidden = true;
     rows.replaceChildren();
     for (const node of [operations, worksheets, total, total42, total55]) node.textContent = '—';
-    export42.disabled = true;
-    export55.disabled = true;
+    exportJurisdiction.disabled = true;
+    exportBank.disabled = true;
+    exportXlsx.disabled = true;
+    setExportStatus('', 'Procesá la planilla para habilitar la descarga.');
   };
   const accountTypes = () => Object.fromEntries(
     ACCOUNT_TYPE_KEYS.map((key) => [key, accountInputs[key].value]),
@@ -633,6 +652,7 @@ export function mountPayrollBankControlXlsx(host = document) {
       );
       appendCell(row, String(group.operations), 'Operaciones', 'numeric');
       appendCell(row, formatJurisdictionControlCents(group.netCents), 'Neto', 'numeric');
+      appendCell(row, 'Recalculado', 'Estado');
       rows.appendChild(row);
     }
     const j42 = control.jurisdictions.find((entry) => entry.jurisdiction === '42');
@@ -644,8 +664,10 @@ export function mountPayrollBankControlXlsx(host = document) {
     total55.textContent = formatJurisdictionControlCents(j55.netCents);
     result.hidden = false;
     latest = control;
-    export42.disabled = false;
-    export55.disabled = false;
+    exportJurisdiction.disabled = false;
+    exportBank.disabled = false;
+    exportXlsx.disabled = false;
+    syncExportScope();
     setStatus(
       'ok',
       `${control.total.operations} operaciones recalculadas desde filas nominales válidas. Los datos personales ya fueron descartados.`,
@@ -710,16 +732,28 @@ export function mountPayrollBankControlXlsx(host = document) {
       root.setAttribute('aria-busy', 'false');
     }
   });
-  for (const button of [export42, export55]) {
-    button.addEventListener('click', () => {
-      if (!latest) return;
-      const jurisdiction = button.dataset.bankControlExport;
-      downloadBytes(
-        createBankAccreditationSummaryCsv(latest, jurisdiction),
-        `municontrol_resumen-bancario_${latest.period}_jurisdiccion-${jurisdiction}.csv`,
+  exportJurisdiction.addEventListener('change', syncExportScope);
+  exportBank.addEventListener('change', syncExportScope);
+  exportXlsx.addEventListener('click', () => {
+    if (!latest) return;
+    try {
+      const artifact = createPayrollBankControlXlsxArtifact(latest, {
+        jurisdiction: exportJurisdiction.value,
+        bankScope: exportBank.value,
+      });
+      downloadPayrollBankControlXlsxArtifact(artifact);
+      setExportStatus(
+        'ok',
+        `Excel de control descargado: J${artifact.jurisdiction} · ${exportBank.selectedOptions[0]?.textContent || artifact.bankScope}. No es una acreditación.`,
       );
-    });
-  }
+    } catch (error) {
+      setExportStatus(
+        'error',
+        error instanceof PayrollBankControlExportError
+          ? error.message : 'No se pudo generar el Excel de control.',
+      );
+    }
+  });
   root.dataset.mounted = 'true';
   return true;
 }

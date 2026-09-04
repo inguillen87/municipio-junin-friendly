@@ -495,8 +495,15 @@
     .bank-control-table th { padding: 10px 12px; background: #f0f4f4; color: var(--navy); text-align: left; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
     .bank-control-table td { padding: 10px 12px; border-top: 1px solid var(--line); color: var(--muted); }
     .bank-control-table .numeric { text-align: right; font-variant-numeric: tabular-nums; }
-    .bank-control-exports { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 16px 24px; border-top: 1px solid var(--line); background: #f7f9f9; }
-    .bank-control-exports p { flex: 1 1 300px; margin: 0; color: var(--muted); font-size: 11px; }
+    .bank-control-exports { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 16px; padding: 18px 24px; border-top: 1px solid var(--line); background: #f7f9f9; }
+    .bank-control-export-copy { margin: 0; color: var(--muted); font-size: 11px; }
+    .bank-control-export-fields { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
+    .bank-control-export-field { display: block; min-width: 0; color: var(--ink); font-size: 11px; font-weight: 750; }
+    .bank-control-export-field select { width: 100%; min-height: 42px; margin-top: 6px; border: 1px solid #b8c8c9; border-radius: 7px; background: #fff; padding: 8px 10px; color: var(--ink); font: inherit; font-weight: 650; }
+    .bank-control-export-action { min-width: 220px; }
+    .bank-control-export-status { grid-column: 1 / -1; min-height: 18px; margin: 0; color: var(--muted); font-size: 11px; }
+    .bank-control-export-status[data-state="ok"] { color: #075d53; }
+    .bank-control-export-status[data-state="error"] { color: #7c2c21; }
 
     .schooling-lab {
       margin-top: 58px;
@@ -837,6 +844,8 @@
       .bank-control-total { border-bottom: 1px solid var(--line); }
       .bank-control-total:nth-child(even) { border-right: 0; }
       .bank-control-total:last-child { grid-column: 1 / -1; border-bottom: 0; }
+      .bank-control-exports, .bank-control-export-fields { grid-template-columns: 1fr; }
+      .bank-control-export-action { width: 100%; }
       .schooling-form { border-right: 0; border-bottom: 1px solid var(--line); }
       .schooling-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .schooling-result-card:nth-child(2) { border-right: 0; }
@@ -1046,7 +1055,7 @@
             <div>
               <span class="bank-control-kicker">Automatización local · planilla de control mensual</span>
               <h2 id="bankControlTitle">Control de pagos por banco y jurisdicción</h2>
-              <p class="bank-control-copy">Importá la <strong>PLANILLA CONTROL GENERAL MM.YYYY.xlsx</strong> del área contable y recalculá operaciones y netos por repartición, banco y jurisdicción desde las filas nominales válidas. El resultado es un resumen de control: no es un TXT bancario ni acredita pagos.</p>
+              <p class="bank-control-copy">Importá la <strong>PLANILLA CONTROL GENERAL MM.YYYY.xlsx</strong>, recalculá operaciones y netos y descargá un Excel de control por jurisdicción, repartición y banco. El resultado no es un TXT bancario ni acredita pagos.</p>
             </div>
             <span class="bank-control-badge">8 hojas esperadas</span>
           </div>
@@ -1119,14 +1128,33 @@
             </div>
             <div class="bank-control-table-wrap">
               <table class="bank-control-table">
-                <thead><tr><th>Jurisdicción</th><th>Repartición</th><th>Banco</th><th>Tipo de cuenta</th><th class="numeric">Operaciones</th><th class="numeric">Neto</th></tr></thead>
+                <thead><tr><th>Jurisdicción</th><th>Repartición</th><th>Banco</th><th>Tipo declarado</th><th class="numeric">Operaciones</th><th class="numeric">Neto</th><th>Estado</th></tr></thead>
                 <tbody data-bank-control-rows></tbody>
               </table>
             </div>
             <div class="bank-control-exports">
-              <p>CSV canónico <code>bank-accreditation-summary.v1</code>. Es evidencia agregada de control; no ordena transferencias ni reemplaza la revisión contable.</p>
-              <button class="bank-control-button secondary" data-bank-control-export="42" type="button" disabled>Descargar resumen J42</button>
-              <button class="bank-control-button secondary" data-bank-control-export="55" type="button" disabled>Descargar resumen J55</button>
+              <div>
+                <p class="bank-control-export-copy">Elegí una salida. El Excel incluye resumen y detalle agregado por repartición, con importes y estado recalculados. No contiene nombres, CUIL, CBU ni cuentas.</p>
+                <div class="bank-control-export-fields">
+                  <label class="bank-control-export-field" for="bankControlExportJurisdiction">Jurisdicción
+                    <select id="bankControlExportJurisdiction" data-bank-control-export-jurisdiction disabled>
+                      <option value="42">Jurisdicción 42</option>
+                      <option value="55">Jurisdicción 55</option>
+                    </select>
+                  </label>
+                  <label class="bank-control-export-field" for="bankControlExportBank">Banco o transferencia
+                    <select id="bankControlExportBank" data-bank-control-export-bank disabled>
+                      <option value="all">Todos los bancos y transferencias</option>
+                      <option value="credicoop">Credicoop</option>
+                      <option value="santander">Santander</option>
+                      <option value="nacion">Nación</option>
+                      <option value="transferencias">Transferencias especiales</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <button class="bank-control-button bank-control-export-action" data-bank-control-export-xlsx type="button" disabled>Descargar Excel de control</button>
+              <p class="bank-control-export-status" data-bank-control-export-status data-state="" role="status" aria-live="polite">Procesá la planilla para habilitar la descarga.</p>
             </div>
           </div>
         </section>

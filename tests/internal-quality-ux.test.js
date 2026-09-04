@@ -46,7 +46,8 @@ test('la nueva sección está publicada, protegida y enlazada por el portal inte
   assert.match(login, /calidad-operativa\.html/);
   assert.match(worker, /'\/calidad-operativa'/);
   assert.match(guide, /quality:\s*\{/);
-  assert.equal(rewrites.get('/calidad-operativa'), '/calidad-operativa.html');
+  assert.equal(vercel.cleanUrls, true);
+  assert.equal(rewrites.has('/calidad-operativa'), false);
   assert.match(headers.get('/calidad-operativa').get('Cache-Control'), /private, no-store/);
   assert.match(headers.get('/calidad-operativa.html').get('Cache-Control'), /private, no-store/);
 
