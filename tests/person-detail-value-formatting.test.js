@@ -41,7 +41,8 @@ test('las referencias PERSONAS muestran etiqueta e identificador sin coerciones 
 
   assert.equal(formatValue({ label: 'Mendoza', sourceId: '13' }), 'Mendoza · código 13');
   assert.equal(formatValue({ sourceId: '620' }), 'Código 620');
-  assert.equal(formatValue('[object Object]'), 'Detalle disponible en la trazabilidad');
+  assert.equal(formatValue('[object Object]'), '');
+  assert.equal(formatValue('Domicilio [object Object]'), '');
   assert.doesNotMatch(formatValue({ catalog: { label: 'Junín', sourceId: '5' } }), /\[object Object\]/);
 });
 
@@ -68,6 +69,52 @@ test('un domicilio estructurado se compone en una lectura humana sin serializar 
   assert.doesNotMatch(result, /\[object Object\]/);
 });
 
+test('el contrato PERSONAS usa los componentes estructurados cuando el texto legado fue coercionado', async () => {
+  const formatValue = valueFormatter(await readDashboard());
+  const territory = {
+    locality: { label: 'Junín', sourceId: '5' },
+    province: { label: 'Mendoza', sourceId: '13' },
+    postalCode: '5573',
+    inlineAddress: {
+      sourceDisplay: '[object Object]',
+      street: { label: 'San Martín', sourceId: '44' },
+      number: '123',
+      floor: { label: '2' },
+      unit: { sourceDisplay: 'B' },
+    },
+  };
+  const historical = {
+    sourceDisplay: '[object Object]',
+    street: { label: 'Belgrano', sourceId: '45' },
+    number: '456',
+    floor: { label: '3' },
+    unit: { label: 'C' },
+    locality: { label: 'Junín', sourceId: '5' },
+    province: { label: 'Mendoza', sourceId: '13' },
+  };
+
+  const values = [
+    formatValue(territory.locality),
+    formatValue(territory.province),
+    formatValue(territory.inlineAddress),
+    formatValue(historical.sourceDisplay) || formatValue({ street: historical.street, number: historical.number }),
+    formatValue(historical.locality),
+    formatValue(historical.province),
+    formatValue([historical.floor, historical.unit]),
+  ];
+
+  assert.deepEqual(values, [
+    'Junín · código 5',
+    'Mendoza · código 13',
+    'San Martín 123 · Piso 2 · Unidad B',
+    'Belgrano 456',
+    'Junín · código 5',
+    'Mendoza · código 13',
+    '3 · C',
+  ]);
+  assert.doesNotMatch(values.join(' | '), /\[object (?:Object|Array)\]/i);
+});
+
 test('objetos desconocidos y referencias circulares fallan de forma legible', async () => {
   const formatValue = valueFormatter(await readDashboard());
   const circular = { source: 'PERSONAS' };
@@ -86,6 +133,7 @@ test('la ficha usa el normalizador en campos y mantiene la estructura original t
   assert.match(detailField, /structuredValueText\(value\)/);
   assert.match(detailField, /structuredValueText\(formatter \? formatter\(value\) : value\)/);
   assert.match(familyValue, /structuredValueText\(value\)/);
+  assert.match(html, /familyValue\('Piso \/ unidad', \[domicile\.floor, domicile\.unit\]\)/);
   assert.match(html, /traceDetails\(personas\.territory, 'Campos de origen del territorio'\)/);
   assert.match(html, /traceDetails\(domicile, 'Campos de origen del domicilio'\)/);
   assert.doesNotMatch(detailField, /formatter \? formatter\(value\) : text\(value\)/);

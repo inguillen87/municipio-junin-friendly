@@ -64,7 +64,36 @@ function mockDetailSql(matchStatus = 'matched') {
       if (sql.includes('FROM grh_family')) return [];
       if (sql.includes('FROM employment_movement')) return [];
       if (sql.includes('FROM person_identity_assertion')) {
-        return [{ attributeName: 'address', rawValue: [{ sourceDisplay: 'Domicilio auxiliar' }], sourceSystem: 'PERSONAS' }];
+        return [
+          {
+            attributeName: 'address',
+            rawValue: [{
+              sourceId: 'DOMICILIO-1',
+              sourceDisplay: null,
+              street: { sourceId: '44', label: 'San Martín' },
+              number: '123',
+              floor: '2',
+              locality: { sourceId: '5', label: 'Junín' },
+              province: { sourceId: '13', label: 'Mendoza' },
+            }],
+            sourceSystem: 'PERSONAS',
+          },
+          {
+            attributeName: 'territory',
+            rawValue: {
+              locality: { sourceId: '5', label: 'Junín' },
+              province: { sourceId: '13', label: 'Mendoza' },
+              postalCode: '5573',
+              inlineAddress: {
+                street: { sourceId: '44', label: 'San Martín' },
+                number: '123',
+                floor: '2',
+                unit: 'B',
+              },
+            },
+            sourceSystem: 'PERSONAS',
+          },
+        ];
       }
       if (sql.includes('FROM source_xref')) return [{ sourceSystem: 'GRH', canonicalId: canonicalPersonId }];
       if (sql.includes('WHERE contract.person_id')) return [{ contractId, companyId: 1, legajo: '42', status: 'active' }];
@@ -138,12 +167,17 @@ test('employee sólo entrega PERSONAS cuando el crosswalk es matched', async () 
   assert.equal(matched.payload.data.personas.available, true);
   assert.equal(matched.payload.data.personas.sourceId, 'PERSONAS-99');
   assert.equal(matched.payload.data.personas.domiciles.length, 1);
+  assert.deepEqual(matched.payload.data.personas.territory.locality, { sourceId: '5', label: 'Junín' });
+  assert.deepEqual(matched.payload.data.personas.territory.province, { sourceId: '13', label: 'Mendoza' });
+  assert.deepEqual(matched.payload.data.personas.territory.inlineAddress.street, { sourceId: '44', label: 'San Martín' });
+  assert.deepEqual(matched.payload.data.personas.domiciles[0].street, { sourceId: '44', label: 'San Martín' });
 
   const ambiguous = await employee(mockDetailSql('ambiguous'), { query: { contractId: '00000000-0000-0000-0000-000000000001' } });
   assert.equal(ambiguous.status, 200);
   assert.equal(ambiguous.payload.data.personas.available, false);
   assert.equal(ambiguous.payload.data.personas.sourceId, null);
   assert.deepEqual(ambiguous.payload.data.personas.domiciles, []);
+  assert.deepEqual(ambiguous.payload.data.personas.territory, {});
   assert.deepEqual(ambiguous.payload.data.personas.assertions, []);
   assert.equal(ambiguous.payload.data.identityAssertions.some((item) => item.sourceSystem === 'PERSONAS'), false);
   assert.equal(ambiguous.payload.data.sourceReferences.some((item) => item.sourceSystem === 'PERSONAS'), false);

@@ -1616,7 +1616,7 @@
         if (typeof value === 'number') return Number.isFinite(value) ? formatNumber(value, false) : '';
         if (typeof value === 'string') {
           const raw = value.trim();
-          return /^\[object (?:Object|Array)\]$/i.test(raw) ? 'Detalle disponible en la trazabilidad' : raw;
+          return /\[object (?:Object|Array)\]/i.test(raw) ? '' : raw;
         }
         if (typeof value !== 'object') return text(value);
 
@@ -3236,7 +3236,7 @@
               familyValue('Departamento', domicile.department),
               familyValue('Provincia', domicile.province),
               familyValue('Barrio', domicile.barrio),
-              familyValue('Piso / unidad', [domicile.floor, domicile.unit].filter(function (part) { return text(part); }).join(' · ')),
+              familyValue('Piso / unidad', [domicile.floor, domicile.unit]),
               familyValue('ID original', domicile.sourceId)
             );
             card.append(header, fields);
