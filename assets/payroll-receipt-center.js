@@ -18,7 +18,7 @@ let selectedEmployee = null;
 let payrollItems = [];
 let selectedSummary = null;
 let redirecting = false;
-let periodsExpanded = false;
+let visiblePeriodCount = INITIAL_PERIODS;
 let payrollPagination = { page: 1, pages: 1, total: 0 };
 let loadedPayrollPages = 1;
 const busyButtonStates = new Map();
@@ -202,7 +202,7 @@ async function selectEmployee(employee) {
   selectedEmployee = employee;
   selectedSummary = null;
   payrollItems = [];
-  periodsExpanded = false;
+  visiblePeriodCount = INITIAL_PERIODS;
   payrollPagination = { page: 1, pages: 1, total: 0 };
   loadedPayrollPages = 1;
   clearMessage();
@@ -245,47 +245,57 @@ function paginationFrom(value, loaded) {
 }
 
 function renderPayrollItems() {
-  const visibleItems = periodsExpanded ? payrollItems : payrollItems.slice(0, INITIAL_PERIODS);
+  const visibleItems = payrollItems.slice(0, visiblePeriodCount);
   byId('periodList').replaceChildren();
   visibleItems.forEach((item, index) => byId('periodList').appendChild(payrollCard(item, index)));
   const total = Math.max(payrollPagination.total, payrollItems.length);
-  const hiddenCount = Math.max(0, total - INITIAL_PERIODS);
+  const remaining = Math.max(0, total - visibleItems.length);
+  const expanded = visibleItems.length > INITIAL_PERIODS;
   const toggle = byId('togglePeriods');
-  toggle.hidden = hiddenCount === 0;
-  toggle.setAttribute('aria-expanded', String(periodsExpanded));
-  toggle.textContent = periodsExpanded
-    ? `Ver sólo los ${Math.min(INITIAL_PERIODS, payrollItems.length)} más recientes`
-    : `Ver ${hiddenCount} período${hiddenCount === 1 ? '' : 's'} anterior${hiddenCount === 1 ? '' : 'es'}`;
+  const nextCount = Math.min(remaining, expanded ? PERIOD_PAGE_LIMIT : Math.max(0, PERIOD_PAGE_LIMIT - visibleItems.length));
+  toggle.hidden = remaining === 0;
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.textContent = `Ver ${nextCount} período${nextCount === 1 ? '' : 's'} más`;
+  byId('collapsePeriods').hidden = !expanded;
   byId('periodStatus').textContent = payrollItems.length
     ? `Mostrando ${visibleItems.length} de ${total} períodos informados por GRH.`
     : 'GRH no informó liquidaciones mensuales para esta ficha.';
 }
 
-async function togglePeriods() {
-  if (periodsExpanded) {
-    periodsExpanded = false;
-    renderPayrollItems();
-    return;
-  }
-  if (payrollItems.length >= payrollPagination.total) {
-    periodsExpanded = true;
+async function showMorePeriods() {
+  const total = Math.max(payrollPagination.total, payrollItems.length);
+  const targetCount = Math.min(total, visiblePeriodCount === INITIAL_PERIODS
+    ? PERIOD_PAGE_LIMIT
+    : visiblePeriodCount + PERIOD_PAGE_LIMIT);
+  if (payrollItems.length >= targetCount) {
+    visiblePeriodCount = targetCount;
     renderPayrollItems();
     return;
   }
   clearMessage();
-  setBusy(true, 'Cargando el historial completo…');
+  setBusy(true, 'Cargando más períodos…');
   try {
-    for (let page = loadedPayrollPages + 1; page <= payrollPagination.pages; page += 1) {
+    for (let page = loadedPayrollPages + 1; page <= payrollPagination.pages && payrollItems.length < targetCount; page += 1) {
       const payload = await api(`${DATA_URL}?${payrollParams(selectedEmployee.contractId, page)}`);
       const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
       payrollItems.push(...items);
       loadedPayrollPages = page;
     }
-    periodsExpanded = true;
+    visiblePeriodCount = Math.min(targetCount, payrollItems.length);
     renderPayrollItems();
   } catch (error) {
-    showMessage('error', 'No pudimos cargar todo el historial', `${error.message} Los períodos ya visibles siguen disponibles.`);
-  } finally { setBusy(false); }
+    showMessage('error', 'No pudimos cargar más períodos', `${error.message} Los períodos ya visibles siguen disponibles.`);
+  } finally {
+    setBusy(false);
+    const focusTarget = byId('togglePeriods').hidden ? byId('collapsePeriods') : byId('togglePeriods');
+    focusTarget.focus({ preventScroll: true });
+  }
+}
+
+function collapsePeriods() {
+  visiblePeriodCount = INITIAL_PERIODS;
+  renderPayrollItems();
+  byId('togglePeriods').focus({ preventScroll: true });
 }
 
 function previewRow(label, value, emphasized = false) {
@@ -332,7 +342,8 @@ async function logout() {
 async function initialize() {
   byId('employeeSearchForm').addEventListener('submit', searchEmployees);
   byId('downloadButton').addEventListener('click', downloadSelected);
-  byId('togglePeriods').addEventListener('click', togglePeriods);
+  byId('togglePeriods').addEventListener('click', showMorePeriods);
+  byId('collapsePeriods').addEventListener('click', collapsePeriods);
   byId('changeEmployee').addEventListener('click', () => { byId('employeeResults').hidden = false; byId('resultsStatus').textContent = 'Elegí otra ficha o realizá una nueva búsqueda.'; byId('employeeSearch').focus(); window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
   byId('logoutButton').addEventListener('click', logout);
   try {
