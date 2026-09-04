@@ -14,7 +14,8 @@
     "api/internal-grh-source-preview.js": { "maxDuration": 20 },
     "api/attendance-ingest.js": { "maxDuration": 20 },
     "api/internal-payroll-novelties.js": { "maxDuration": 20 },
-    "api/internal-payroll-control-import.js": { "maxDuration": 20 }
+    "api/internal-payroll-control-import.js": { "maxDuration": 20 },
+    "api/internal-payroll-reprocessing.js": { "maxDuration": 20 }
   },
   "rewrites": [
     { "source": "/api/ai-analyze", "destination": "/api/friendly-policy" },

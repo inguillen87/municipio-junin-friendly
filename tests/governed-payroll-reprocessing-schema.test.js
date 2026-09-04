@@ -128,4 +128,6 @@ test('package, release y Vercel incluyen el aplicador y SQL 035', async () => {
   assert.match(release, /envPrefix: 'PAYROLL_REPROCESSING'/);
   const ignore = await readFile(new URL('../.vercelignore', import.meta.url), 'utf8');
   assert.match(ignore, /!scripts\/migrations\/035-governed-payroll-reprocessing\.sql/);
+  const vercel = await readFile(new URL('../vercel.json', import.meta.url), 'utf8');
+  assert.match(vercel, /"api\/internal-payroll-reprocessing\.js": \{ "maxDuration": 20 \}/);
 });
