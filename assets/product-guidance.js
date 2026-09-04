@@ -14,7 +14,7 @@ function publicSection(section) {
   };
 }
 
-export const GUIDANCE_AS_OF = '2026-08-25T00:00:00.000Z';
+export const GUIDANCE_AS_OF = '2026-09-04T00:00:00.000Z';
 
 export const SECTION_CATALOG = deepFreeze([
   {
@@ -72,6 +72,13 @@ export const SECTION_CATALOG = deepFreeze([
     actions: ['distinguir la última corrida cerrada de la abierta', 'revisar la conciliación', 'consultar el historial controlado'],
     limits: ['no publica como KPI financiero una corrida abierta', 'los importes históricos son nominales y no incorporan IPC'],
     aliases: ['nomina', 'liquidacion', 'liquidaciones', 'haberes', 'sueldo', 'salario', 'corrida', 'corridas'],
+  },
+  {
+    id: 'recibos', label: 'Recibos y liquidaciones', targetPath: '/recibos-sueldo',
+    purpose: 'Buscar una persona, revisar períodos de liquidación reales y descargar un resumen individual de control cuando el cierre está conciliado.',
+    actions: ['buscar por apellido, legajo, DNI o CUIL', 'comparar el estado de los períodos informados por GRH', 'previsualizar importes', 'descargar un PDF local de control'],
+    limits: ['el PDF actual es un resumen real de importes agregados, no el recibo oficial', 'la base canónica todavía no contiene renglones por concepto, firma ni constancia de entrega', 'una liquidación abierta o con diferencia no habilita descarga'],
+    aliases: ['recibo', 'recibos', 'recibo de sueldo', 'recibos de sueldo', 'liquidacion individual', 'pdf de sueldo', 'resumen de liquidacion'],
   },
   {
     id: 'novedades', label: 'Novedades de nómina', targetPath: '/novedades-nomina',
@@ -174,6 +181,11 @@ export const TASK_CATALOG = deepFreeze([
     id: 'controlar_nomina', label: 'Controlar una corrida de nómina', sectionId: 'nomina',
     aliases: ['controlar nomina', 'revisar nomina', 'revisar liquidacion', 'corrida cerrada', 'corrida abierta'],
     steps: ['Abrí Nómina.', 'Diferenciá la última corrida cerrada de la corrida actual abierta.', 'Revisá la conciliación aritmética y la decisión de publicación informada por la API.', 'Consultá trazabilidad y limitaciones antes de comparar importes nominales.'],
+  },
+  {
+    id: 'consultar_recibo', label: 'Consultar una liquidación individual', sectionId: 'recibos',
+    aliases: ['consultar recibo', 'ver recibo', 'descargar recibo', 'recibo de sueldo', 'ver liquidacion individual', 'pdf de liquidacion'],
+    steps: ['Abrí Recibos y liquidaciones.', 'Buscá a la persona por apellido, legajo, DNI o CUIL.', 'Elegí la ficha laboral correcta.', 'Revisá los períodos y abrí uno marcado como cerrado y conciliado.', 'Confirmá importes y trazabilidad.', 'Descargá el PDF de control; no lo presentes como recibo oficial mientras falten conceptos, firma y entrega.'],
   },
   {
     id: 'auditar_calidad', label: 'Auditar la calidad del corte', sectionId: 'calidad',

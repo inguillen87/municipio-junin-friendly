@@ -4,9 +4,10 @@ import test from 'node:test';
 
 const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
 
-test('Nómina abre con cuatro trabajos contables reconocibles y deja lo técnico en segundo plano', () => {
+test('Nómina abre con cinco trabajos contables reconocibles y deja lo técnico en segundo plano', () => {
   assert.match(html, /¿Qué necesitás hacer hoy\?/);
-  assert.equal((html.match(/class="payroll-task-option"/g) || []).length, 4);
+  assert.equal((html.match(/class="payroll-task-option"/g) || []).length, 5);
+  assert.match(html, /<strong>Recibos y liquidaciones<\/strong>/);
   assert.match(html, /<strong>Control mensual<\/strong>/);
   assert.match(html, /href="reportes-rrhh\.html#bancarizacion"/);
   assert.match(html, /planilla bancaria del período/i);

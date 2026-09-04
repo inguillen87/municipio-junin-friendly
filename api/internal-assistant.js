@@ -814,6 +814,7 @@ function findTaskEntry(value) {
     estructura: 'explorar_estructura',
     integracion: 'revisar_integracion',
     nomina: 'controlar_nomina',
+    recibos: 'consultar_recibo',
     asistente: 'consultar_asistente',
     ausentismo: 'revisar_ausentismo',
     licencias: 'revisar_licencias_normativas',
@@ -921,7 +922,7 @@ export function classifyAssistantRequest(body = {}) {
   if (recordFocus && extractLegajo(body.message)) return 'employee_detail';
   if (recordFocus && extractEmployeeRecordSearch(body.message)) return 'employee_search';
   if (/\b(?:que significa|que quiere decir|defini(?:r|cion)|glosario|termino)\b/.test(message)) return 'glossary';
-  if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar))\b/.test(message)) return 'task_guidance';
+  if (/\b(?:como (?:hago|puedo|se hace|busco|abro|reviso|controlo|audito|exploro|uso|interpreto|veo|descargo|buscar|abrir|revisar|controlar|auditar|explorar|usar|interpretar|ver|descargar)|paso a paso|guia para|quiero (?:buscar|abrir|revisar|controlar|auditar|explorar|usar|descargar))\b/.test(message)) return 'task_guidance';
   if (/\b(?:que hace|para que sirve|que muestra|que (?:puedo|se puede) hacer en|explica(?:me)? (?:la )?(?:seccion|pantalla|modulo))\b/.test(message)) return 'section_explanation';
   const attendanceTopic = /\b(?:relojes?|marcaciones?|fichadas?|fichajes?|puntos?\s+de\s+marcacion|control\s+horario|huellas?\s+digitales?|biometri(?:a|co|cos|ca|cas)|conectores?)\b/.test(message);
   const attendanceStateQuestion = /\b(?:estado|cobertura|inventario|mapa|calor|donde|tenemos|cuant[oa]s?|conectad[oa]s?|activ[oa]s?|recibid[oa]s?|registrad[oa]s?|hoy|ahora|tiempo\s+real|ubicacion|georreferenciad[oa]s?)\b/.test(message);
@@ -2672,7 +2673,7 @@ function helpNavigationResult(body = {}) {
   }
   const sections = SECTION_CATALOG.map(publicSection);
   return {
-    answer: 'El recorrido principal está organizado en Inicio, Personas, Estructura, Integración, Nómina, Asistente, Ausentismo, Calidad, Reportes y Ayuda. Decime qué tarea necesitás realizar y te indico la ruta exacta sin asumir permisos ni funciones inexistentes.',
+    answer: 'El recorrido principal está organizado por tareas: Personas, Acciones, Nómina, Recibos, Novedades, Marcaciones, Reportes y herramientas de control. Decime qué necesitás resolver y te indico la ruta exacta sin asumir permisos ni funciones inexistentes.',
     data: { sections },
     steps: ['Elegí la tarea que querés resolver.', 'Abrí la sección sugerida desde el menú.', 'Revisá fuente, fecha de corte y límites antes de usar el resultado.'],
     targetPath: '/centro-ayuda',
@@ -2686,7 +2687,7 @@ function sectionExplanationResult(body = {}) {
   const section = findCatalogEntry(SECTION_CATALOG, guidanceQuery(body));
   if (!section) {
     return {
-      answer: 'Puedo explicar Inicio, Personas, Estructura, Integración, Nómina, Asistente, Ausentismo, Calidad, Reportes o Ayuda. Indicá el nombre de la sección para describir sólo funciones verificadas.',
+      answer: 'Puedo explicar Inicio, Personas, Acciones, Estructura, Integración, Nómina, Recibos, Novedades, Marcaciones, Asistente, Ausentismo, Calidad, Reportes o Ayuda. Indicá el nombre de la sección para describir sólo funciones verificadas.',
       data: { sections: SECTION_CATALOG.map(({ id, label, targetPath }) => ({ id, label, targetPath })) },
       steps: [],
       targetPath: '/centro-ayuda#modulos',
@@ -2710,7 +2711,7 @@ function taskGuidanceResult(body = {}) {
   const task = findTaskEntry(guidanceQuery(body));
   if (!task) {
     return {
-      answer: 'Puedo guiarte para buscar un empleado, revisar una ficha, explorar la estructura, controlar nómina, revisar la integración, revisar ausentismo, auditar calidad, interpretar reportes o usar el asistente. Indicá una de esas tareas para recibir pasos concretos.',
+      answer: 'Puedo guiarte para buscar un empleado, revisar una ficha, controlar nómina, consultar una liquidación individual, explorar la estructura, revisar ausentismo, auditar calidad, interpretar reportes o usar el asistente. Indicá una de esas tareas para recibir pasos concretos.',
       data: {
         tasks: TASK_CATALOG.map(({ id, label, sectionId, steps }) => ({ id, label, sectionId, steps })),
       },

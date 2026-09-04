@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Recibos y liquidaciones | MuniControl</title>
+  <script src="assets/internal-capability-gate.js"></script>
+  <script src="assets/internal-guide.js" defer></script>
+  <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <style>
+    :root { --navy:#092c3e; --green:#087f75; --green-dark:#05645d; --ink:#123448; --muted:#617785; --line:#ccd9d6; --surface:#fff; --soft:#f2f7f5; --amber:#a15b08; --amber-soft:#fff5dc; --red:#a52727; --shadow:0 16px 40px rgba(9,44,62,.08); }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; min-width:320px; color:var(--ink); background:#eef4f2; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input { font:inherit; }
+    button,a { -webkit-tap-highlight-color:transparent; }
+    button:focus-visible,a:focus-visible,input:focus-visible { outline:3px solid rgba(8,127,117,.28); outline-offset:2px; }
+    [hidden] { display:none!important; }
+    .skip-link { position:fixed; z-index:100; top:8px; left:8px; padding:10px 14px; color:#fff; background:var(--navy); transform:translateY(-150%); }
+    .skip-link:focus { transform:none; }
+    .app { min-height:100vh; display:grid; grid-template-columns:272px minmax(0,1fr); }
+    .sidebar { position:sticky; top:0; height:100vh; overflow:auto; padding:22px 18px; color:#fff; background:var(--navy); }
+    .brand { display:flex; align-items:center; gap:12px; padding:4px 8px 20px; color:#fff; text-decoration:none; border-bottom:1px solid rgba(255,255,255,.14); }
+    .brand-mark { width:48px; height:48px; display:grid; place-items:center; color:var(--navy); background:#fff; border-radius:11px; font:700 27px Georgia,serif; }
+    .brand strong { display:block; font-size:19px; }
+    .brand small { display:block; margin-top:3px; color:#b8d1da; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+    .nav-label { margin:24px 10px 9px; color:#91b5c2; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    .nav { display:grid; gap:5px; }
+    .nav a { min-height:45px; display:flex; align-items:center; gap:11px; padding:9px 12px; color:#eaf4f5; text-decoration:none; border-radius:9px; font-weight:650; }
+    .nav a:hover { background:rgba(255,255,255,.08); }
+    .nav a[aria-current="page"] { color:var(--navy); background:#fff9ed; }
+    .nav-code { width:32px; height:32px; display:grid; place-items:center; flex:none; border:1px solid currentColor; border-radius:7px; font-size:11px; }
+    .more-nav { margin-top:18px; padding-top:12px; border-top:1px solid rgba(255,255,255,.14); }
+    .more-nav summary { cursor:pointer; padding:10px; color:#c6dae1; font-weight:700; }
+    .more-nav .nav { margin-top:5px; }
+    .workspace { min-width:0; }
+    .topbar { min-height:82px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:14px 32px; background:#fff; border-bottom:1px solid var(--line); }
+    .crumb { display:flex; gap:8px; color:var(--muted); font-size:14px; }
+    .crumb a { color:var(--green-dark); }
+    .top-title { margin-top:5px; color:var(--navy); font-weight:780; }
+    .top-actions { display:flex; align-items:center; gap:12px; }
+    .identity { max-width:250px; padding:7px 12px; border:1px solid var(--line); border-radius:9px; }
+    .identity strong,.identity small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .identity small { color:var(--muted); font-size:11px; }
+    .button { min-height:45px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; color:var(--navy); background:#fff; border:1px solid #aec2c5; border-radius:8px; cursor:pointer; font-weight:760; text-decoration:none; }
+    .button:hover { border-color:var(--green); }
+    .button.primary { color:#fff; background:var(--green); border-color:var(--green); }
+    .button.primary:hover { background:var(--green-dark); }
+    .button:disabled { cursor:not-allowed; opacity:.52; }
+    main { width:min(1180px,calc(100% - 56px)); margin:0 auto; padding:52px 0 72px; }
+    .page-head { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:34px; align-items:end; margin-bottom:30px; }
+    .eyebrow { margin:0 0 10px; color:var(--green-dark); font-size:12px; font-weight:850; letter-spacing:.13em; text-transform:uppercase; }
+    h1 { margin:0; color:var(--navy); font-size:clamp(38px,5vw,60px); line-height:.98; letter-spacing:-.04em; }
+    .lead { max-width:760px; margin:17px 0 0; color:var(--muted); font-size:18px; line-height:1.55; }
+    .truth-card { padding:20px; background:#e8f5f1; border:1px solid #a6d2ca; border-radius:12px; }
+    .truth-card strong { color:var(--green-dark); }
+    .truth-card p { margin:7px 0 0; color:var(--muted); line-height:1.48; }
+    .flow { display:grid; gap:20px; }
+    .step { padding:26px; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); scroll-margin-top:18px; }
+    .step-head { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+    .step-number { width:34px; height:34px; display:grid; place-items:center; flex:none; color:#fff; background:var(--green); border-radius:50%; font-weight:850; }
+    h2 { margin:0; color:var(--navy); font-size:25px; letter-spacing:-.02em; }
+    .step-head p { margin:4px 0 0; color:var(--muted); }
+    .search-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; }
+    label { display:block; margin-bottom:7px; color:var(--navy); font-weight:760; }
+    .search-field { min-width:0; }
+    input { width:100%; min-height:50px; padding:10px 14px; color:var(--ink); background:#fff; border:1px solid #9fb5b9; border-radius:8px; }
+    input:focus { border-color:var(--green); }
+    .helper,.status-line { margin:9px 0 0; color:var(--muted); font-size:13px; }
+    .employee-results { display:grid; gap:8px; margin:17px 0 0; padding:0; list-style:none; }
+    .employee-result-button { width:100%; display:grid; grid-template-columns:minmax(190px,.9fr) minmax(260px,1.4fr) auto; align-items:center; gap:18px; padding:14px; color:var(--ink); text-align:left; background:#fbfdfc; border:1px solid var(--line); border-radius:9px; cursor:pointer; }
+    .employee-result-button:hover { border-color:var(--green); background:#f1faf7; }
+    .employee-result-main strong,.employee-result-main span { display:block; }
+    .employee-result-main span,.employee-result-context { color:var(--muted); font-size:13px; }
+    .employee-result-action { color:var(--green-dark); font-weight:800; }
+    .selected-employee { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:0 0 20px; padding:16px 18px; background:#e8f5f1; border:1px solid #a6d2ca; border-radius:10px; }
+    .selected-employee strong,.selected-employee span { display:block; }
+    .selected-employee span { margin-top:4px; color:var(--muted); font-size:13px; }
+    .period-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:18px; }
+    .period-card { padding:18px; background:#fbfdfc; border:1px solid var(--line); border-top:4px solid #93a9af; border-radius:10px; }
+    .period-card[data-state="ok"] { border-top-color:var(--green); }
+    .period-card[data-state="warning"] { border-top-color:var(--amber); }
+    .period-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .period-card h3 { margin:0; color:var(--navy); font-size:19px; text-transform:capitalize; }
+    .period-card-heading p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+    .status { flex:none; padding:5px 8px; border-radius:999px; font-size:11px; font-weight:800; }
+    .status.ok { color:#075f58; background:#dff3ed; }
+    .status.warning { color:#8b4f06; background:#fff0cf; }
+    .status.neutral { color:#536b77; background:#e8eef0; }
+    .period-amounts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:17px 0; }
+    .amount { padding:10px; background:#fff; border:1px solid #dce5e2; border-radius:7px; }
+    .amount span,.amount strong { display:block; }
+    .amount span { color:var(--muted); font-size:10px; font-weight:750; text-transform:uppercase; }
+    .amount strong { margin-top:5px; color:var(--navy); font-size:15px; }
+    .amount.emphasized { background:#e8f5f1; border-color:#9fcfc6; }
+    .period-note { min-height:38px; color:var(--muted); font-size:13px; line-height:1.4; }
+    .period-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    .period-actions small { color:var(--muted); }
+    .preview-card { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:24px; }
+    .preview-sheet { padding:22px; border:1px solid var(--line); border-radius:10px; }
+    .preview-sheet h3 { margin:0; color:var(--navy); font-size:24px; text-transform:capitalize; }
+    .preview-sheet > p { margin:5px 0 18px; color:var(--muted); }
+    .preview-row { display:flex; justify-content:space-between; gap:20px; padding:10px 5px; border-top:1px solid #dce5e2; }
+    .preview-row.emphasized { margin-top:5px; padding:14px 10px; color:var(--green-dark); background:#e8f5f1; border:1px solid #9fcfc6; border-radius:7px; font-size:18px; }
+    .preview-aside { padding:21px; background:#f4f8f7; border-radius:10px; }
+    .preview-aside h3 { margin:0; color:var(--navy); }
+    .preview-aside p { color:var(--muted); line-height:1.5; }
+    .preview-aside .button { width:100%; margin-top:9px; }
+    .trace { padding-top:14px; border-top:1px solid var(--line); font-size:12px; }
+    .message { margin-bottom:18px; padding:14px 17px; background:#fff; border:1px solid var(--line); border-left:4px solid var(--green); border-radius:8px; }
+    .message[data-kind="error"] { border-left-color:var(--red); }
+    .message[data-kind="warning"] { border-left-color:var(--amber); }
+    .message p { margin:5px 0 0; color:var(--muted); }
+    .auth-gate { min-height:100vh; display:grid; place-items:center; padding:24px; }
+    .auth-card { width:min(480px,100%); padding:32px; text-align:center; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+    .auth-card h1 { font-size:32px; }
+    .auth-card p { color:var(--muted); }
+    .loader { width:28px; height:28px; margin:18px auto 0; border:3px solid var(--line); border-top-color:var(--green); border-radius:50%; animation:spin .75s linear infinite; }
+    .busy { position:fixed; z-index:90; right:22px; bottom:22px; padding:13px 17px; color:#fff; background:var(--navy); border-radius:8px; box-shadow:var(--shadow); }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; } }
+    @media (max-width:950px) { .app { display:block; } .sidebar { position:relative; width:100%; height:auto; } .nav { display:flex; overflow:auto; } .nav a { flex:none; } .nav-label,.more-nav { display:none; } main { width:min(100% - 32px,1180px); padding-top:30px; } .page-head,.preview-card { grid-template-columns:1fr; } }
+    @media (max-width:690px) { .topbar { padding:12px 16px; } .identity { display:none; } .page-head { gap:18px; } .search-form { grid-template-columns:1fr; } .employee-result-button { grid-template-columns:1fr; gap:6px; } .employee-result-action { margin-top:4px; } .period-list { grid-template-columns:1fr; } .period-amounts { grid-template-columns:1fr; } .period-actions,.selected-employee { align-items:stretch; flex-direction:column; } .period-actions .button { width:100%; } .step { padding:18px; } }
+  </style>
+</head>
+<body data-mc-page="payroll-receipts">
+  <a class="skip-link" href="#mainContent">Saltar al contenido</a>
+  <div class="auth-gate" id="authGate"><div class="auth-card"><p class="eyebrow">Acceso municipal</p><h1 id="authTitle">Abriendo Recibos</h1><p id="authMessage">Validamos tu sesión y el acceso a Personas y Nómina.</p><div class="loader" id="authLoader" aria-hidden="true"></div><a class="button primary" id="authLink" href="login.html?next=recibos-sueldo.html" hidden>Volver a ingresar</a></div></div>
+  <div class="app" id="appShell" hidden>
+    <aside class="sidebar" aria-label="Navegación interna">
+      <a class="brand" href="internal-dashboard.html"><span class="brand-mark">M</span><span><strong>MuniControl</strong><small id="tenantBrand">Ámbito municipal</small></span></a>
+      <div class="nav-label">Trabajo diario</div>
+      <nav class="nav" aria-label="Navegación principal">
+        <a href="internal-dashboard.html"><span class="nav-code">IN</span><span>Inicio</span></a>
+        <a href="internal-dashboard.html#legajos"><span class="nav-code">PE</span><span>Personas</span></a>
+        <a href="centro-acciones.html"><span class="nav-code">AC</span><span>Acciones</span></a>
+        <a href="nomina-control.html"><span class="nav-code">NO</span><span>Nómina</span></a>
+        <a href="recibos-sueldo.html" aria-current="page"><span class="nav-code">RS</span><span>Recibos</span></a>
+      </nav>
+      <details class="more-nav"><summary>Más herramientas</summary><nav class="nav" aria-label="Herramientas complementarias"><a href="novedades-nomina.html"><span class="nav-code">NV</span><span>Novedades</span></a><a href="reportes-rrhh.html"><span class="nav-code">IR</span><span>Reportes</span></a><a href="relojes-marcaciones.html"><span class="nav-code">RM</span><span>Marcaciones</span></a><a href="asistente.html"><span class="nav-code">IA</span><span>Asistente</span></a></nav></details>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><div><nav class="crumb"><a href="internal-dashboard.html">MuniControl</a><span>/</span><span aria-current="page">Recibos</span></nav><div class="top-title">Liquidaciones individuales</div></div><div class="top-actions"><div class="identity"><strong id="userName">Usuario interno</strong><small id="userRole">Acceso municipal</small></div><button class="button" id="logoutButton" type="button">Cerrar sesión</button></div></header>
+      <main id="mainContent">
+        <section class="page-head"><div><p class="eyebrow">Nómina · consulta individual</p><h1>Recibos y liquidaciones</h1><p class="lead">Encontrá una persona, elegí un período cerrado y descargá su resumen de control. Todo el recorrido ocurre en dos pasos.</p></div><aside class="truth-card"><strong>Datos reales, alcance claro</strong><p>Los importes provienen de GRH y PostgreSQL. Mientras falte el detalle por concepto y la firma, el PDF se identifica como resumen de control y no como recibo oficial.</p></aside></section>
+        <div class="message" id="messageHost" role="status" aria-live="polite" hidden></div>
+        <div class="flow">
+          <section class="step" aria-labelledby="searchTitle"><div class="step-head"><span class="step-number">1</span><div><h2 id="searchTitle">Buscá a la persona</h2><p>Por apellido, legajo, DNI o CUIL.</p></div></div><form class="search-form" id="employeeSearchForm"><div class="search-field"><label for="employeeSearch">Persona o legajo</label><input id="employeeSearch" name="search" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Ej.: Pérez o 1042"></div><button class="button primary" type="submit">Buscar persona</button></form><p class="helper">La búsqueda consulta el directorio autorizado; no queda guardada en el navegador.</p><p class="status-line" id="resultsStatus" role="status" aria-live="polite">Ingresá un dato para comenzar.</p><ul class="employee-results" id="employeeResults"></ul></section>
+          <section class="step" id="periodSection" aria-labelledby="periodTitle" hidden><div class="step-head"><span class="step-number">2</span><div><h2 id="periodTitle">Elegí la liquidación</h2><p>Los cierres conciliados quedan listos para revisar y descargar.</p></div></div><div class="selected-employee" id="selectedEmployee"><div><strong id="selectedName">—</strong><span id="selectedMeta">—</span></div><button class="button" id="changeEmployee" type="button">Cambiar persona</button></div><p class="status-line" id="periodStatus" role="status" aria-live="polite"></p><div class="period-list" id="periodList"></div></section>
+          <section class="step" id="previewSection" aria-labelledby="previewTitle" hidden><div class="preview-card"><div class="preview-sheet"><p class="eyebrow">Vista previa</p><h3 id="previewTitle">—</h3><p id="previewEmployee">—</p><div id="previewAmounts"></div><p class="trace" id="previewTrace">—</p></div><aside class="preview-aside"><h3>Listo para descargar</h3><p>El PDF incluye persona, contexto laboral, período, importes y trazabilidad. Se genera en esta pestaña y no altera la liquidación.</p><button class="button primary" id="downloadButton" type="button">Descargar PDF de control</button><p><strong>Próxima capacidad:</strong> recibo oficial con conceptos, firma y constancia de publicación cuando esas líneas estén incorporadas a la base canónica.</p></aside></div></section>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="busy" id="busyStatus" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="assets/payroll-receipt-center.js"></script>
+</body>
+</html>

@@ -99,7 +99,7 @@ if (fs.existsSync(gitIgnoreUrl)) {
   assert.equal(process.env.VERCEL, '1', '.gitignore sólo puede faltar dentro del build aislado de Vercel');
 }
 
-for (const file of ['login.html', 'activar-cuenta.html', 'seguridad-cuenta.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
+for (const file of ['login.html', 'activar-cuenta.html', 'seguridad-cuenta.html', 'friendly-dashboard.html', 'modulos.html', 'reportes-rrhh.html', 'calidad-datos.html', 'datos-personales.html', 'internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'recibos-sueldo.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html']) {
   const html = read(file);
   for (const match of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(match[1])) continue;
@@ -117,7 +117,7 @@ assert.match(internalGuide, /sessionStorage/, 'la guía debe aislar el progreso 
 assert.doesNotMatch(internalGuide, /localStorage/, 'la guía no debe compartir progreso entre empleados del mismo navegador');
 assert.match(internalGuide, /product-guidance\.js/, 'la guía debe consumir el catálogo de producto compartido');
 assert.match(read('api/internal-assistant.js'), /product-guidance\.js/, 'la IA debe consumir el mismo catálogo de producto');
-for (const file of ['internal-dashboard.html', 'centro-acciones.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html']) {
+for (const file of ['internal-dashboard.html', 'centro-acciones.html', 'administracion-plataforma.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'recibos-sueldo.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html']) {
   assert.match(read(file), /assets\/internal-guide\.js/, `${file} debe cargar la ayuda contextual compartida`);
 }
 assert.match(read('api/internal-data.js'), /mendoza-title-vi\.js/, 'la API de licencias debe consumir el catalogo normativo versionado');

@@ -23,6 +23,7 @@ const HTML_ROUTES = [
   'estructura.html',
   'integracion-datos.html',
   'nomina-control.html',
+  'recibos-sueldo.html',
   'novedades-nomina.html',
   'gestion-comparativa.html',
   'presupuesto-control.html',
@@ -58,7 +59,7 @@ test('Vercel publica HTML con URLs limpias y conserva aliases sin destinos .html
   }
 
   const rewrites = new Map(config.rewrites.map(({ source, destination }) => [source, destination]));
-  for (const canonical of ['/login', '/centro-acciones', '/nomina-control', '/reportes-rrhh']) {
+  for (const canonical of ['/login', '/centro-acciones', '/nomina-control', '/recibos-sueldo', '/reportes-rrhh']) {
     assert.equal(rewrites.has(canonical), false, `${canonical} debe resolver por cleanUrls sin rewrite intermedio`);
   }
   assert.equal(rewrites.get('/internal'), '/internal-dashboard');
@@ -105,6 +106,7 @@ test('el login construido acepta next nuevo o legado y conserva query y hash seg
   );
   assert.equal(destination('?next=https%3A%2F%2Fevil.example%2F'), 'internal-dashboard');
   assert.equal(destination('?next=administracion-plataforma.html', 'platform'), 'administracion-plataforma');
+  assert.equal(destination('?next=recibos-sueldo.html', 'tenant'), 'recibos-sueldo');
 });
 
 test('el build aplica el limpiador después de copiar el shell y antes de calcular su versión', () => {

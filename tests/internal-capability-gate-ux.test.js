@@ -56,6 +56,8 @@ test('el gate compartido resuelve rutas internas con capacidades tenant exactas'
   assert.equal(gate.allowed(gate.requirements['internal-dashboard.html#legajos'], ['workforce.summary.read'], []), false);
   assert.equal(gate.allowed(gate.requirements['nomina-control.html'], ['payroll.read'], []), true);
   assert.equal(gate.allowed(gate.requirements['nomina-control.html'], ['workforce.summary.read'], []), false);
+  assert.equal(gate.allowed(gate.requirements['recibos-sueldo.html'], ['workforce.employee.read', 'payroll.read'], []), true);
+  assert.equal(gate.allowed(gate.requirements['recibos-sueldo.html'], ['payroll.read'], []), false);
 });
 
 test('la administración global exige rol propietario y capacidad efectiva de plataforma', () => {
@@ -114,7 +116,7 @@ test('las pantallas internas secundarias cargan una única compuerta reutilizabl
     'estructura.html', 'integracion-datos.html', 'asistente.html',
     'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html',
     'licencias-control.html', 'calidad-operativa.html', 'novedades-nomina.html',
-    'centro-ayuda.html', 'nomina-control.html',
+    'centro-ayuda.html', 'nomina-control.html', 'recibos-sueldo.html',
   ];
   for (const page of pages) {
     const html = read(page);

@@ -926,7 +926,7 @@
     function allowedDestination(contextKind) {
       var next = new URLSearchParams(window.location.search).get('next') || '';
       var platformSafeNext = ['administracion-plataforma.html', 'seguridad-cuenta.html'];
-      var tenantSafeNext = ['internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'relojes-marcaciones.html', 'seguridad-cuenta.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
+      var tenantSafeNext = ['internal-dashboard.html', 'centro-acciones.html', 'fuentes-tiempo.html', 'relojes-marcaciones.html', 'seguridad-cuenta.html', 'estructura.html', 'integracion-datos.html', 'nomina-control.html', 'recibos-sueldo.html', 'novedades-nomina.html', 'gestion-comparativa.html', 'presupuesto-control.html', 'ausentismo-control.html', 'licencias-control.html', 'calidad-operativa.html', 'asistente.html', 'centro-ayuda.html'];
       var platform = contextKind === 'platform';
       var fallback = platform ? 'administracion-plataforma.html' : 'internal-dashboard.html';
       var allowedNext = platform ? platformSafeNext : tenantSafeNext;

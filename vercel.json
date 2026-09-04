@@ -242,6 +242,14 @@
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },
     {
+      "source": "/recibos-sueldo",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
+      "source": "/recibos-sueldo.html",
+      "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
+    },
+    {
       "source": "/novedades-nomina",
       "headers": [{ "key": "Cache-Control", "value": "private, no-store, max-age=0" }]
     },

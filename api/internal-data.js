@@ -22,6 +22,102 @@ function queryValue(req, name, fallback = '') {
   return Array.isArray(value) ? String(value[0] ?? fallback) : String(value ?? fallback);
 }
 
+const EMPLOYEE_SEARCH_BODY_BYTES = 4096;
+
+class InternalDataRequestError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.name = 'InternalDataRequestError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function requestHeader(req, name) {
+  if (typeof req?.headers?.get === 'function') return String(req.headers.get(name) || '');
+  return String(req?.headers?.[name] || req?.headers?.[name.toLowerCase()] || req?.headers?.[name.toUpperCase()] || '');
+}
+
+function dataRequestFail(status, code, message) {
+  throw new InternalDataRequestError(status, code, message);
+}
+
+function productionLike(env) {
+  return env?.NODE_ENV === 'production' || env?.VERCEL_ENV === 'production' || env?.VERCEL_ENV === 'preview';
+}
+
+function assertPrivateSearchOrigin(req, env) {
+  const fetchSite = requestHeader(req, 'sec-fetch-site').trim().toLowerCase();
+  if (fetchSite && !['same-origin', 'none'].includes(fetchSite)) {
+    dataRequestFail(403, 'INTERNAL_DATA_ORIGIN_INVALID', 'Origen de solicitud no permitido');
+  }
+  const origin = requestHeader(req, 'origin').trim();
+  if (!origin) {
+    if (productionLike(env)) dataRequestFail(403, 'INTERNAL_DATA_ORIGIN_REQUIRED', 'Origen de solicitud no permitido');
+    return;
+  }
+  const configured = String(env?.IDENTITY_APP_ORIGIN || env?.INTERNAL_APP_ORIGIN || '').trim();
+  const candidate = configured || (env?.VERCEL_URL ? `https://${env.VERCEL_URL}` : '');
+  if (!candidate) {
+    if (productionLike(env)) dataRequestFail(503, 'INTERNAL_DATA_ORIGIN_NOT_CONFIGURED', 'Origen canónico no configurado');
+    return;
+  }
+  let actual;
+  let expected;
+  try {
+    actual = new URL(origin).origin;
+    expected = new URL(candidate).origin;
+  } catch {
+    dataRequestFail(403, 'INTERNAL_DATA_ORIGIN_INVALID', 'Origen de solicitud no permitido');
+  }
+  if (actual !== expected) dataRequestFail(403, 'INTERNAL_DATA_ORIGIN_INVALID', 'Origen de solicitud no permitido');
+}
+
+async function privateEmployeeSearchRequest(req, env) {
+  const mediaType = requestHeader(req, 'content-type').split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    dataRequestFail(415, 'INTERNAL_DATA_CONTENT_TYPE_REQUIRED', 'Content-Type debe ser application/json');
+  }
+  assertPrivateSearchOrigin(req, env);
+  const declaredLength = Number.parseInt(requestHeader(req, 'content-length'), 10);
+  if (Number.isFinite(declaredLength) && declaredLength > EMPLOYEE_SEARCH_BODY_BYTES) {
+    dataRequestFail(413, 'INTERNAL_DATA_BODY_TOO_LARGE', 'La búsqueda supera el tamaño permitido');
+  }
+  let body = req?.body;
+  if (body === undefined && req && typeof req[Symbol.asyncIterator] === 'function') {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += buffer.length;
+      if (size > EMPLOYEE_SEARCH_BODY_BYTES) dataRequestFail(413, 'INTERNAL_DATA_BODY_TOO_LARGE', 'La búsqueda supera el tamaño permitido');
+      chunks.push(buffer);
+    }
+    body = Buffer.concat(chunks).toString('utf8');
+  }
+  if (Buffer.isBuffer(body)) body = body.toString('utf8');
+  if (typeof body === 'string') {
+    if (Buffer.byteLength(body, 'utf8') > EMPLOYEE_SEARCH_BODY_BYTES) {
+      dataRequestFail(413, 'INTERNAL_DATA_BODY_TOO_LARGE', 'La búsqueda supera el tamaño permitido');
+    }
+    try { body = JSON.parse(body); } catch { dataRequestFail(400, 'INTERNAL_DATA_JSON_INVALID', 'JSON inválido'); }
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+      || Object.keys(body).some((key) => !['resource', 'search', 'page', 'limit'].includes(key))
+      || body.resource !== 'employees' || typeof body.search !== 'string'
+      || body.search.trim().length < 2 || body.search.trim().length > 100
+      || !Number.isSafeInteger(body.page) || body.page !== 1
+      || !Number.isSafeInteger(body.limit) || body.limit < 1 || body.limit > 25) {
+    dataRequestFail(400, 'INTERNAL_DATA_EMPLOYEE_SEARCH_INVALID', 'La búsqueda de personas es inválida');
+  }
+  return {
+    query: {
+      resource: 'employees', search: body.search.trim(), page: String(body.page), limit: String(body.limit),
+      status: 'all', crosswalk: 'all', includeFacets: '0',
+    },
+  };
+}
+
 function positiveInteger(value, fallback, maximum) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number) || number < 1) return fallback;
@@ -3731,12 +3827,14 @@ export function createInternalDataHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env;
 
   return async function handler(req, res) {
-    if (String(req.method || 'GET').toUpperCase() !== 'GET') {
-      res.setHeader('Allow', 'GET');
+    const method = String(req.method || 'GET').toUpperCase();
+    if (!['GET', 'POST'].includes(method)) {
+      res.setHeader('Allow', 'GET, POST');
       return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
     try {
-      const resource = queryValue(req, 'resource', 'summary').toLowerCase();
+      const dataRequest = method === 'POST' ? await privateEmployeeSearchRequest(req, env) : req;
+      const resource = queryValue(dataRequest, 'resource', 'summary').toLowerCase();
       const requiredCapabilities = capabilitiesForInternalDataResource(resource);
       const access = await requireAccess(req, res, {
         env,
@@ -3797,7 +3895,7 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, result.status, result.payload);
       }
       if (resource === 'employees') {
-        const result = await employees(sql, req);
+        const result = await employees(sql, dataRequest);
         return send(res, result.status, result.payload);
       }
       if (resource === 'employee') {
@@ -3806,6 +3904,9 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
+      if (error instanceof InternalDataRequestError) {
+        return send(res, error.status, { ok: false, code: error.code, error: error.message });
+      }
       const errorName = error instanceof Error ? error.name : 'UnknownError';
       const errorCode = typeof error?.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(error.code)
         ? error.code

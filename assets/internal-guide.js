@@ -64,6 +64,20 @@
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
       ]
     },
+    'payroll-receipts': {
+      sectionId: 'recibos', title: 'Recibos y liquidaciones',
+      tour: [
+        ['.page-head', 'Un recorrido corto', 'La pantalla concentra la tarea en buscar una persona y elegir un período.'],
+        ['#employeeSearchForm', 'Búsqueda autorizada', 'Ingresá apellido, legajo o identificador y elegí la ficha correcta.'],
+        ['#periodSection', 'Liquidaciones reales', 'Cada período muestra importes de GRH y explica por qué puede o no descargarse.'],
+        ['#previewSection', 'Control antes de descargar', 'Revisá persona, período, importes y trazabilidad antes de crear el PDF local.']
+      ],
+      explain: [
+        ['#employeeSearchForm', 'Buscar una persona', 'Consulta el directorio laboral autorizado sin guardar el término en el navegador.'],
+        ['#periodSection', 'Estado del período', 'Sólo un cierre conciliado habilita el PDF de control.'],
+        ['#previewSection', 'Alcance del PDF', 'Es un resumen individual real; todavía no es el recibo oficial con conceptos y firma.']
+      ]
+    },
     'payroll-novelties': {
       sectionId: 'novedades', title: 'Novedades de nómina',
       tour: [
@@ -253,6 +267,7 @@
     if (path.indexOf('administracion-plataforma') >= 0 || path === '/admin') return 'platformAdmin';
     if (path.indexOf('estructura') >= 0 || path.indexOf('organigrama') >= 0) return 'structure';
     if (path.indexOf('integracion') >= 0) return 'integration';
+    if (path.indexOf('recibos-sueldo') >= 0) return 'payroll-receipts';
     if (path.indexOf('nomina') >= 0) return 'payroll';
     if (path.indexOf('gestion-comparativa') >= 0) return 'management';
     if (path.indexOf('presupuesto-control') >= 0) return 'budget';

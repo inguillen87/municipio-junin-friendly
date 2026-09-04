@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { employee, employees } from '../api/internal-data.js';
+import { createInternalDataHandler, employee, employees } from '../api/internal-data.js';
+
+function response() {
+  return {
+    headers: {}, statusCode: null, payload: null,
+    setHeader(name, value) { this.headers[name] = value; },
+    status(value) { this.statusCode = value; return this; },
+    json(value) { this.payload = value; return this; },
+  };
+}
 
 function mockListSql() {
   const calls = [];
@@ -159,6 +168,59 @@ test('employees busca nombres por tokens parametrizados sin depender del orden a
   const accentCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM directory'));
   assert.match(accentCall.statement, /translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$2\)/s);
   assert.deepEqual(accentCall.values, ['%Perez%', '%Perez%']);
+});
+
+test('el directorio admite búsqueda POST efímera exacta sin poner el término en la URL', async () => {
+  const sql = mockListSql();
+  let accessOptions;
+  const handler = createInternalDataHandler({
+    requireCompatibleInternalAccess: async (_req, _res, options) => {
+      accessOptions = options;
+      return { mode: 'managed', principal: { tenant: {} }, session: {} };
+    },
+    getInternalSql: async () => sql,
+    env: { NODE_ENV: 'test' },
+  });
+  const res = response();
+  await handler({
+    method: 'POST',
+    query: {},
+    headers: { 'content-type': 'application/json' },
+    body: { resource: 'employees', search: 'Nombre Apellido', page: 1, limit: 12 },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.ok, true);
+  assert.deepEqual(accessOptions.requiredCapabilities, ['workforce.employee.read']);
+  assert.ok(sql.calls.some((statement) => statement.includes('SELECT * FROM directory')));
+
+  const invalid = response();
+  await handler({
+    method: 'POST',
+    query: {},
+    headers: { 'content-type': 'application/json' },
+    body: { resource: 'employees', search: 'A', page: 1, limit: 12 },
+  }, invalid);
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.payload.code, 'INTERNAL_DATA_EMPLOYEE_SEARCH_INVALID');
+});
+
+test('la búsqueda POST nominal exige mismo origen en entornos publicados', async () => {
+  let accessCalls = 0;
+  const handler = createInternalDataHandler({
+    requireCompatibleInternalAccess: async () => { accessCalls += 1; return null; },
+    env: { VERCEL_ENV: 'production', IDENTITY_APP_ORIGIN: 'https://friendly.example.test' },
+  });
+  const res = response();
+  await handler({
+    method: 'POST',
+    query: {},
+    headers: { 'content-type': 'application/json', origin: 'https://otro.example.test', 'sec-fetch-site': 'cross-site' },
+    body: { resource: 'employees', search: 'Persona', page: 1, limit: 12 },
+  }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'INTERNAL_DATA_ORIGIN_INVALID');
+  assert.equal(accessCalls, 0);
 });
 
 test('employee sólo entrega PERSONAS cuando el crosswalk es matched', async () => {

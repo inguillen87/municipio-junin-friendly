@@ -13,6 +13,7 @@
     'estructura.html': { any: ['workforce.structure.read'] },
     'integracion-datos.html': { any: ['lineage.read'] },
     'nomina-control.html': { any: ['payroll.read'] },
+    'recibos-sueldo.html': { all: ['workforce.employee.read', 'payroll.read'] },
     'novedades-nomina.html': { any: ['payroll.novelty.read'] },
     'gestion-comparativa.html': { any: ['management.analytics.read'] },
     'presupuesto-control.html': { any: ['budget.approved.read'] },

@@ -540,6 +540,7 @@ test('clasifica onboarding, explicación, recorridos y glosario antes que los do
   assert.equal(classifyAssistantRequest({ message: '¿Qué hace la sección Nómina?' }), 'section_explanation');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo hago para buscar un empleado?' }), 'task_guidance');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo reviso la nómina?' }), 'task_guidance');
+  assert.equal(classifyAssistantRequest({ message: '¿Cómo descargo el recibo de sueldo?' }), 'task_guidance');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo usar el asistente?' }), 'task_guidance');
   assert.equal(classifyAssistantRequest({ message: '¿Cómo revisar ausentismo?' }), 'task_guidance');
   assert.equal(classifyAssistantRequest({ message: '¿Qué significa activo liquidable?' }), 'glossary');
@@ -548,11 +549,11 @@ test('clasifica onboarding, explicación, recorridos y glosario antes que los do
   assert.equal(classifyAssistantRequest({ term: 'GRH' }), 'glossary');
 });
 
-test('catálogo de ayuda expone las diecisiete secciones reales y rutas existentes', () => {
+test('catálogo de ayuda expone las dieciocho secciones reales y rutas existentes', () => {
   const catalog = getAssistantGuidanceCatalog();
-  assert.equal(catalog.asOf, '2026-08-25T00:00:00.000Z');
+  assert.equal(catalog.asOf, '2026-09-04T00:00:00.000Z');
   assert.deepEqual(catalog.sections.map((section) => section.label), [
-    'Inicio', 'Personas', 'Centro de acciones', 'Relojes y marcaciones', 'Administración de plataforma', 'Estructura', 'Integración', 'Nómina', 'Novedades de nómina', 'Comparar gestiones', 'Presupuesto', 'Asistente', 'Ausentismo', 'Licencias normativas', 'Calidad', 'Reportes', 'Ayuda',
+    'Inicio', 'Personas', 'Centro de acciones', 'Relojes y marcaciones', 'Administración de plataforma', 'Estructura', 'Integración', 'Nómina', 'Recibos y liquidaciones', 'Novedades de nómina', 'Comparar gestiones', 'Presupuesto', 'Asistente', 'Ausentismo', 'Licencias normativas', 'Calidad', 'Reportes', 'Ayuda',
   ]);
   assert.equal(catalog.sections.find((section) => section.id === 'inicio').targetPath, '/internal-dashboard#inicio');
   assert.equal(catalog.sections.find((section) => section.id === 'personas').targetPath, '/internal-dashboard#legajos');
@@ -562,6 +563,7 @@ test('catálogo de ayuda expone las diecisiete secciones reales y rutas existent
   assert.equal(catalog.sections.find((section) => section.id === 'estructura').targetPath, '/estructura');
   assert.equal(catalog.sections.find((section) => section.id === 'integracion').targetPath, '/integracion-datos');
   assert.equal(catalog.sections.find((section) => section.id === 'nomina').targetPath, '/nomina-control');
+  assert.equal(catalog.sections.find((section) => section.id === 'recibos').targetPath, '/recibos-sueldo');
   assert.equal(catalog.sections.find((section) => section.id === 'novedades').targetPath, '/novedades-nomina');
   assert.equal(catalog.sections.find((section) => section.id === 'gestiones').targetPath, '/gestion-comparativa');
   assert.equal(catalog.sections.find((section) => section.id === 'presupuesto').targetPath, '/presupuesto-control');
@@ -572,7 +574,7 @@ test('catálogo de ayuda expone las diecisiete secciones reales y rutas existent
   assert.equal(catalog.sections.find((section) => section.id === 'reportes').targetPath, '/reportes-rrhh');
   assert.equal(catalog.sections.find((section) => section.id === 'ayuda').targetPath, '/centro-ayuda');
   assert.equal(catalog.sections.every((section) => !('aliases' in section)), true);
-  assert.equal(catalog.tasks.length, 14);
+  assert.equal(catalog.tasks.length, 15);
   assert.equal(catalog.glossary.length, 16);
 });
 
@@ -593,8 +595,8 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
   assert.ok(res.payload.steps.length >= 3);
   assert.equal(res.payload.sources[0].system, 'MUNICONTROL');
   assert.equal(res.payload.sources[0].relation, 'section_catalog');
-  assert.equal(res.payload.sources[0].asOf, '2026-08-25T00:00:00.000Z');
-  assert.equal(res.payload.asOf, '2026-08-25T00:00:00.000Z');
+  assert.equal(res.payload.sources[0].asOf, '2026-09-04T00:00:00.000Z');
+  assert.equal(res.payload.asOf, '2026-09-04T00:00:00.000Z');
   assert.equal(res.payload.privacy.guidanceContent, 'verified_product_catalog_only');
   assert.equal(res.payload.privacy.nominalDataExternalized, false);
   assert.equal(res.payload.provider.status, 'not_allowed_for_product_guidance');
@@ -641,6 +643,11 @@ test('guía tareas con pasos y destino sin ejecutar cambios administrativos', as
   assert.equal(payrollHelp.payload.data.task.id, 'controlar_nomina');
   assert.equal(payrollHelp.payload.targetPath, '/nomina-control');
 
+  const receiptHelp = await post({ message: '¿Cómo descargo el recibo de sueldo?' });
+  assert.equal(receiptHelp.payload.data.task.id, 'consultar_recibo');
+  assert.equal(receiptHelp.payload.targetPath, '/recibos-sueldo');
+  assert.match(receiptHelp.payload.steps.at(-1), /no lo presentes como recibo oficial/i);
+
   const absenceHelp = await post({ message: '¿Cómo revisar ausentismo?' });
   assert.equal(absenceHelp.payload.data.task.id, 'revisar_ausentismo');
   assert.equal(absenceHelp.payload.targetPath, '/ausentismo-control');
@@ -671,8 +678,8 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
   const help = await post({ message: 'Soy nuevo, necesito ayuda para empezar' });
   assert.equal(help.statusCode, 200);
   assert.equal(help.payload.intent, 'help_navigation');
-  assert.equal(help.payload.data.sections.length, 17);
-  assert.equal(help.payload.relatedSections.length, 17);
+  assert.equal(help.payload.data.sections.length, 18);
+  assert.equal(help.payload.relatedSections.length, 18);
   assert.equal(help.payload.targetPath, '/centro-ayuda');
 
   const res = responseRecorder();
@@ -701,7 +708,7 @@ test('ayuda general ofrece onboarding completo y GET anuncia las capacidades nue
     durableQuotaCertificationRequired: true,
     localDeterministicFallback: true, maximumExternalAttemptsPerRequest: 2,
   });
-  assert.equal(res.payload.guidance.sections.length, 17);
+  assert.equal(res.payload.guidance.sections.length, 18);
   assert.equal(res.payload.guidance.policy, 'verified_product_catalog_only');
 });
 
