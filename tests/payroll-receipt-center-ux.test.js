@@ -39,9 +39,11 @@ test('Nómina enlaza el centro como tarea principal y la ayuda conoce el recorri
   const payroll = read('nomina-control.html');
   const guidance = read('assets/product-guidance.js');
   const guide = read('assets/internal-guide.js');
+  const vercelIgnore = read('.vercelignore');
   assert.match(payroll, /href="recibos-sueldo\.html"/);
   assert.match(payroll, /Recibos y liquidaciones/);
   assert.match(guidance, /id: 'recibos'/);
   assert.match(guidance, /id: 'consultar_recibo'/);
   assert.match(guide, /'payroll-receipts'/);
+  assert.match(vercelIgnore, /^!recibos-sueldo\.html$/m);
 });

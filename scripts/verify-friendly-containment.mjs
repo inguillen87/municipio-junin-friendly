@@ -48,6 +48,7 @@ assert.match(ignore, /^!presupuesto-control\.html$/m, 'el presupuesto aprobado d
 assert.match(ignore, /^!centro-acciones\.html$/m, 'el Centro de acciones debe llegar al build de Vercel');
 assert.match(ignore, /^!fuentes-tiempo\.html$/m, 'la gobernanza temporal debe llegar al build de Vercel');
 assert.match(ignore, /^!administracion-plataforma\.html$/m, 'la administración de plataforma debe llegar al build de Vercel');
+assert.match(ignore, /^!recibos-sueldo\.html$/m, 'el Centro de recibos debe llegar al build de Vercel');
 assert.match(ignore, /^!activar-cuenta\.html$/m, 'la activación segura debe llegar al build de Vercel');
 assert.match(ignore, /^!seguridad-cuenta\.html$/m, 'el Centro de seguridad debe llegar al build de Vercel');
 assert.match(ignore, /^!assets\/identity-security\.css$/m, 'el shell institucional de identidad debe llegar al build de Vercel');
