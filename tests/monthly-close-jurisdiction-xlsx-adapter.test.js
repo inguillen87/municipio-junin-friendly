@@ -344,7 +344,7 @@ test('Nómina publica el flujo Excel recomendado y el build mantiene el worker p
   const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
   const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
   const worker = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(html, /08 · CONTROL MENSUAL/);
+  assert.match(html, /10 · CONTROL MENSUAL/);
   assert.match(html, /Convertir y conciliar el paquete mensual de GRH/);
   assert.match(html, /CONTROL DE JURISDICCION\.xlsx/);
   assert.match(html, /verifica las seis fórmulas del formato/);

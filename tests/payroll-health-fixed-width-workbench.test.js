@@ -167,4 +167,11 @@ test('módulo browser auto-inicializa por data attribute y no usa red, storage, 
   assert.doesNotMatch(source, /console\.|innerHTML|outerHTML|\.name\b/);
   assert.match(source, /officialSubmissionAllowed: false/);
   assert.match(source, /Generación y presentación oficial bloqueadas/);
+  const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
+  const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
+  assert.match(html, /09 · OSEP Y SEGURO MUTUAL/);
+  assert.match(html, /data-payroll-health-fixed-width-workbench/);
+  assert.equal((html.match(/assets\/payroll-health-fixed-width-workbench\.js/g) || []).length, 1);
+  assert.match(build, /'assets\/payroll-health-fixed-width\.js'/);
+  assert.match(build, /'assets\/payroll-health-fixed-width-workbench\.js'/);
 });

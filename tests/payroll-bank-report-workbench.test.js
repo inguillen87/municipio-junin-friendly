@@ -12,6 +12,8 @@ import {
 import { PayrollBankProfileError } from '../assets/payroll-bank-fixed-width-profiles.js';
 
 const source = fs.readFileSync(new URL('../assets/payroll-bank-report-workbench.js', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
+const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
 
 function bytes(width, count = 1, fill = 0x41) {
   const rows = [];
@@ -108,4 +110,9 @@ test('el módulo browser queda offline, sin persistencia, logs ni exposición de
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|caches\./);
   assert.doesNotMatch(source, /console\.|\.name\b|fileName/);
   assert.doesNotMatch(source, /generateBankMonthlyArtifact/);
+  assert.match(html, /08 · ARCHIVOS BANCARIOS/);
+  assert.match(html, /data-payroll-bank-report-workbench/);
+  assert.equal((html.match(/assets\/payroll-bank-report-workbench\.js/g) || []).length, 1);
+  assert.match(build, /'assets\/payroll-bank-fixed-width-profiles\.js'/);
+  assert.match(build, /'assets\/payroll-bank-report-workbench\.js'/);
 });

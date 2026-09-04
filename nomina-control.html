@@ -408,6 +408,13 @@
     .control-import-scope strong { overflow-wrap: anywhere; }
     .control-import-scope span { color: var(--muted); font-size: 11px; }
     .control-import-table td:nth-child(3) { min-width: 220px; font-variant-numeric: tabular-nums; }
+    .diagnostic-result-grid { display: grid; gap: 8px; }
+    .diagnostic-result-grid article { padding: 11px; overflow-wrap: anywhere; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .diagnostic-result-grid article[data-state="valid_structure"] { border-left: 4px solid var(--green); }
+    .diagnostic-result-grid article[data-state="invalid_structure"] { border-left: 4px solid var(--red); }
+    .diagnostic-result-grid article h4 { margin: 0 0 5px; color: var(--navy); }
+    .diagnostic-result-grid article p { margin: 3px 0; color: var(--muted); font-size: 10px; }
+    .diagnostic-result-grid article ul { margin: 7px 0 0; padding-left: 18px; font-size: 10px; }
     .control-import-detail { display: grid; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
     .control-import-detail h4 { margin: 0; color: var(--navy); font-size: 14px; }
     .control-import-detail .post-close-actions .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
@@ -992,10 +999,137 @@
           </div>
         </section>
 
+        <section class="section" aria-labelledby="bankDiagnosticTitle" data-payroll-bank-report-workbench aria-busy="false">
+          <header class="section-head">
+            <div>
+              <span class="section-index">08 · ARCHIVOS BANCARIOS</span>
+              <h2 id="bankDiagnosticTitle">Validar la estructura y conciliar totales antes de acreditar</h2>
+              <p>Revisa localmente los archivos observados de Credicoop, GT_PAGOS y transferencias, detecta anchos o registros inválidos y compara cantidades e importes agregados sin mostrar cuentas ni datos personales.</p>
+            </div>
+            <span class="state-badge warning">Precontrol local · no acredita pagos</span>
+          </header>
+          <p class="formula-lab-status" data-bank-diagnostic-status role="status" aria-live="polite">Elegí un perfil y un archivo para iniciar el diagnóstico local.</p>
+          <div class="post-close-grid" style="margin-top: 12px;">
+            <article class="panel">
+              <h3>Archivo observado y control de nómina</h3>
+              <p class="panel-note">El archivo se procesa sólo en este navegador. El sistema devuelve estructura, cantidad, incidencias y huella; nunca conserva su nombre o contenido.</p>
+              <form class="post-close-form" data-bank-diagnostic-form novalidate>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="bankDiagnosticProfile">Formato observado</label>
+                    <select id="bankDiagnosticProfile" data-bank-diagnostic-profile required></select>
+                  </div>
+                  <div class="post-close-field">
+                    <label for="bankDiagnosticScope">Ámbito</label>
+                    <select id="bankDiagnosticScope" data-bank-diagnostic-scope required></select>
+                  </div>
+                </div>
+                <div class="post-close-field">
+                  <label for="bankDiagnosticFile">Archivo bancario</label>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir archivo</span>
+                      <input class="post-close-file-input" id="bankDiagnosticFile" data-bank-diagnostic-file type="file" accept=".txt,.dat,text/plain,application/octet-stream" required aria-describedby="bankDiagnosticFileHelp bankDiagnosticFileState">
+                    </span>
+                    <span class="post-close-file-state" id="bankDiagnosticFileState" data-bank-diagnostic-file-state aria-live="polite">No hay un archivo seleccionado.</span>
+                  </div>
+                  <small id="bankDiagnosticFileHelp">Máximo 4 MiB y 10.000 registros. No pegues cuentas ni contenido en otros campos.</small>
+                </div>
+                <div>
+                  <h4>Conciliación agregada opcional</h4>
+                  <p class="panel-note">Completá los tres valores o dejalos vacíos. Los importes se informan en centavos, sin puntos ni comas.</p>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field"><label for="bankPayrollRows">Registros aprobados en nómina</label><input id="bankPayrollRows" data-bank-diagnostic-payroll-rows inputmode="numeric" pattern="[0-9]+" autocomplete="off"></div>
+                  <div class="post-close-field"><label for="bankPayrollCents">Neto aprobado, en centavos</label><input id="bankPayrollCents" data-bank-diagnostic-payroll-cents inputmode="numeric" pattern="[0-9]+" autocomplete="off"></div>
+                </div>
+                <div class="post-close-field"><label for="bankDeclaredCents">Total declarado por el archivo, en centavos</label><input id="bankDeclaredCents" data-bank-diagnostic-bank-cents inputmode="numeric" pattern="[0-9]+" autocomplete="off"></div>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit">Validar archivo bancario</button>
+                  <button class="button" type="button" data-bank-diagnostic-reset>Limpiar</button>
+                </div>
+              </form>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="bankDiagnosticResultTitle">
+              <h3 id="bankDiagnosticResultTitle">Diagnóstico y conciliación</h3>
+              <div data-bank-diagnostic-result hidden>
+                <p class="post-close-note" data-bank-diagnostic-structure></p>
+                <div class="source-preview-metrics" style="margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr));">
+                  <div class="source-preview-metric"><span>Bytes</span><strong data-bank-diagnostic-bytes>—</strong></div>
+                  <div class="source-preview-metric"><span>Registros</span><strong data-bank-diagnostic-records>—</strong></div>
+                </div>
+                <div style="margin-top: 12px;"><h4>Incidencias estructurales</h4><ul class="quality-list" data-bank-diagnostic-issues></ul></div>
+                <p class="post-close-evidence-summary" style="margin-top: 12px;"><strong>Huella SHA-256 del archivo</strong><span data-bank-diagnostic-fingerprint>—</span></p>
+                <p class="post-close-note" style="margin-top: 10px;" data-bank-diagnostic-reconciliation>No informada</p>
+              </div>
+              <div class="method-note" data-bank-diagnostic-blocked>Generación y acreditación bloqueadas hasta homologar el layout campo por campo con cada entidad.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="healthDiagnosticTitle" data-payroll-health-fixed-width-workbench aria-busy="false">
+          <header class="section-head">
+            <div>
+              <span class="section-index">09 · OSEP Y SEGURO MUTUAL</span>
+              <h2 id="healthDiagnosticTitle">Revisar lotes TXT antes de su presentación</h2>
+              <p>Valida uno o varios archivos contra los cuatro formatos físicos observados, reconoce CRLF, ancho por byte y registro terminal, y permite conciliar un total monetario agregado sin leerlo de posiciones todavía no homologadas.</p>
+            </div>
+            <span class="state-badge warning">Hasta 12 archivos · análisis local</span>
+          </header>
+          <p class="formula-lab-status" data-health-status role="status" aria-live="polite">Seleccioná uno o varios TXT.</p>
+          <div class="post-close-grid" style="margin-top: 12px;">
+            <article class="panel">
+              <h3>Paquete OSEP / Seguro Mutual</h3>
+              <p class="panel-note">La detección automática sólo se acepta cuando hay una única coincidencia exacta. No se muestran nombres ni contenido de los archivos.</p>
+              <form class="post-close-form" data-health-form novalidate>
+                <div class="post-close-field">
+                  <label for="healthFiles">Archivos TXT</label>
+                  <div class="post-close-file-picker">
+                    <span class="post-close-file-trigger">
+                      <span class="button post-close-file-button" aria-hidden="true">Elegir TXT</span>
+                      <input class="post-close-file-input" id="healthFiles" data-health-files type="file" accept=".txt,text/plain" multiple required aria-describedby="healthFilesHelp">
+                    </span>
+                    <span class="post-close-file-state">El contenido se analiza y descarta localmente.</span>
+                  </div>
+                  <small id="healthFilesHelp">Hasta 12 archivos, 8 MiB por archivo y 32 MiB totales.</small>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="healthProfile">Perfil físico</label>
+                    <select id="healthProfile" data-health-profile>
+                      <option value="auto">Detectar coincidencia única</option>
+                      <option value="osep-185-crlf.v1">OSEP · 185 bytes + CRLF</option>
+                      <option value="osep-206-crlf.v1">OSEP · 206 bytes + CRLF</option>
+                      <option value="osep-206-tab-footer25.v1">OSEP · 206 bytes + cierre observado</option>
+                      <option value="seguro-mutual-121-crlf.v1">Seguro Mutual · 121 bytes + CRLF</option>
+                    </select>
+                  </div>
+                  <div class="post-close-field"><label for="healthExpectedRecords">Registros esperados, opcional</label><input id="healthExpectedRecords" data-health-expected-records type="number" min="1" step="1" autocomplete="off"></div>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field"><label for="healthExpectedCents">Total esperado, en centavos</label><input id="healthExpectedCents" data-health-expected-cents inputmode="numeric" autocomplete="off"></div>
+                  <div class="post-close-field"><label for="healthArtifactCents">Total declarado, en centavos</label><input id="healthArtifactCents" data-health-artifact-cents inputmode="numeric" autocomplete="off"></div>
+                </div>
+                <small>Para conciliar importes, completá ambos totales agregados. No se infieren importes desde campos aún no homologados.</small>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit">Validar paquete de salud</button>
+                  <button class="button" type="button" data-health-reset>Limpiar</button>
+                </div>
+              </form>
+            </article>
+            <article class="panel post-close-results" aria-labelledby="healthDiagnosticResultTitle">
+              <h3 id="healthDiagnosticResultTitle">Resumen estructural</h3>
+              <div class="post-close-export" data-health-summary></div>
+              <div class="diagnostic-result-grid" data-health-results></div>
+              <div class="method-note" data-health-official-gate>Generación y presentación oficial bloqueadas hasta homologación byte a byte.</div>
+            </article>
+          </div>
+        </section>
+
         <section class="section" aria-labelledby="monthlyClosePrecheckTitle" data-monthly-close-precheck>
           <header class="section-head">
             <div>
-              <span class="section-index">08 · CONTROL MENSUAL</span>
+              <span class="section-index">10 · CONTROL MENSUAL</span>
               <h2 id="monthlyClosePrecheckTitle">Convertir y conciliar el paquete mensual de GRH</h2>
               <p>Abrí los tres resúmenes PDF tipo Mes y la planilla agregada que hoy usa el área. MuniControl recalcula conceptos, J42, J55 y el total general, detecta diferencias y genera insumos normalizados sin conservar los archivos.</p>
             </div>
@@ -1222,12 +1356,12 @@
         </section>
 
         <section class="section" aria-labelledby="historyTitle">
-          <header class="section-head"><div><span class="section-index">09 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
+          <header class="section-head"><div><span class="section-index">11 · HISTORIAL CONTROLADO</span><h2 id="historyTitle">Corridas informadas</h2><p>Los importes de períodos no publicables se ocultan. Todos los valores monetarios son nominales y no incorporan IPC.</p></div></header>
           <article class="panel"><div class="table-wrap"><table><caption class="visually-hidden">Historial de corridas de nómina</caption><thead><tr><th>Período</th><th>Estado</th><th class="numeric">Legajos</th><th class="numeric">Neto pagable</th><th class="numeric">Costo empleador proxy</th><th>Uso ejecutivo</th></tr></thead><tbody id="runRows"></tbody></table></div><div class="method-note">Comparar importes nominales entre períodos largos puede inducir conclusiones erróneas. La plataforma no presenta variaciones reales hasta contar con una serie de IPC y una metodología aprobada.</div></article>
         </section>
 
         <section class="section" aria-labelledby="auditTitle">
-          <header class="section-head"><div><span class="section-index">10 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
+          <header class="section-head"><div><span class="section-index">12 · TRAZABILIDAD Y CALIDAD</span><h2 id="auditTitle">Evidencia detrás de cada cifra</h2><p>La pantalla conserva el origen, las reglas y las limitaciones que condicionan la lectura ejecutiva.</p></div></header>
           <div class="audit-grid">
             <article class="panel"><h3>Trazabilidad de conceptos</h3><p class="panel-note">GRH gobierna la nómina. PERSONAS no interviene en estos importes.</p><ul class="trace-list"><li><strong>993 · Haberes sujetos</strong>Componente del bruto pagable.</li><li><strong>994 · Haberes no sujetos</strong>Componente del bruto pagable.</li><li><strong>995 · Asignaciones familiares</strong>Componente del bruto pagable.</li><li><strong>996 · Retenciones del agente</strong>Se descuenta para conciliar el neto.</li><li><strong>999 · Neto pagable</strong>Resultado esperado de la conciliación.</li><li><strong>990 · Aportes patronales</strong>Se incorpora únicamente al costo empleador proxy.</li></ul><div class="method-note" id="sourcePolicyDetail">Esperando política de fuente.</div></article>
             <div>
@@ -1524,6 +1658,8 @@
   <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
   <script type="module" src="assets/payroll-control-import-workflow.js"></script>
   <script type="module" src="assets/payroll-art-report-workbench.js"></script>
+  <script type="module" src="assets/payroll-bank-report-workbench.js"></script>
+  <script type="module" src="assets/payroll-health-fixed-width-workbench.js"></script>
   <script type="module" src="assets/monthly-close-grh-summary-adapter.js"></script>
   <script type="module" src="assets/monthly-close-jurisdiction-xlsx-adapter.js"></script>
   <script type="module" src="assets/monthly-close-local-precheck.js"></script>

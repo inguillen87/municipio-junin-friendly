@@ -380,6 +380,38 @@ async function inspect(viewport, label) {
     await page.screenshot({ path: artScreenshot, fullPage: false });
     screenshots.push(artScreenshot);
 
+    const bankDiagnostic = page.locator('[data-payroll-bank-report-workbench]');
+    assert.equal(await bankDiagnostic.isVisible(), true);
+    await bankDiagnostic.locator('[data-bank-diagnostic-file]').setInputFiles({
+      name: 'cuentas-bancarias-privadas.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.concat([Buffer.alloc(30, 0x41), Buffer.from('\r\n')]),
+    });
+    await bankDiagnostic.locator('[data-bank-diagnostic-payroll-rows]').fill('1');
+    await bankDiagnostic.locator('[data-bank-diagnostic-payroll-cents]').fill('10000');
+    await bankDiagnostic.locator('[data-bank-diagnostic-bank-cents]').fill('10000');
+    await bankDiagnostic.getByRole('button', { name: 'Validar archivo bancario' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-bank-diagnostic-status]')?.textContent.includes('Diagnóstico local finalizado'));
+    assert.match(await bankDiagnostic.locator('[data-bank-diagnostic-structure]').innerText(), /Coincide con la estructura observada/);
+    assert.equal(await bankDiagnostic.locator('[data-bank-diagnostic-records]').innerText(), '1');
+    assert.match(await bankDiagnostic.locator('[data-bank-diagnostic-reconciliation]').innerText(), /Conciliado/);
+    assert.doesNotMatch(await bankDiagnostic.innerText(), /cuentas-bancarias-privadas/);
+    assert.match(await bankDiagnostic.locator('[data-bank-diagnostic-blocked]').innerText(), /acreditación bloqueadas/);
+
+    const healthDiagnostic = page.locator('[data-payroll-health-fixed-width-workbench]');
+    assert.equal(await healthDiagnostic.isVisible(), true);
+    await healthDiagnostic.locator('[data-health-files]').setInputFiles({
+      name: 'osep-personas-privadas.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.concat([Buffer.alloc(121, 0x41), Buffer.from('\r\n')]),
+    });
+    await healthDiagnostic.getByRole('button', { name: 'Validar paquete de salud' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-health-status]')?.textContent.includes('Estructura física validada'));
+    assert.match(await healthDiagnostic.locator('[data-health-summary]').innerText(), /1 archivos · 1 registros · 0 incidencias/);
+    assert.match(await healthDiagnostic.locator('[data-health-results]').innerText(), /SEGURO_MUTUAL/);
+    assert.doesNotMatch(await healthDiagnostic.innerText(), /osep-personas-privadas/);
+    assert.match(await healthDiagnostic.locator('[data-health-official-gate]').innerText(), /presentación oficial bloqueadas/);
+
     const [xlsxDownload] = await Promise.all([
       page.waitForEvent('download'),
       postClose.locator('[data-post-close-export-xlsx]').click(),
@@ -498,6 +530,8 @@ async function inspect(viewport, label) {
       monthlyCloseVisible: Boolean(document.querySelector('[data-monthly-close-precheck]')?.getBoundingClientRect().width),
       persistedControlVisible: Boolean(document.querySelector('[data-payroll-control-import-workflow]')?.getBoundingClientRect().width),
       artVisible: Boolean(document.querySelector('[data-payroll-art-report-workbench]')?.getBoundingClientRect().width),
+      bankDiagnosticVisible: Boolean(document.querySelector('[data-payroll-bank-report-workbench]')?.getBoundingClientRect().width),
+      healthDiagnosticVisible: Boolean(document.querySelector('[data-payroll-health-fixed-width-workbench]')?.getBoundingClientRect().width),
       postCloseGeometry: (() => {
         const panel = document.querySelector('.post-close-results');
         const state = document.querySelector('[data-post-close-status]');
@@ -520,6 +554,8 @@ async function inspect(viewport, label) {
     assert.equal(layout.monthlyCloseVisible, true, `${label}: precontrol mensual oculto`);
     assert.equal(layout.persistedControlVisible, true, `${label}: corridas persistidas ocultas`);
     assert.equal(layout.artVisible, true, `${label}: reporte ART oculto`);
+    assert.equal(layout.bankDiagnosticVisible, true, `${label}: diagnóstico bancario oculto`);
+    assert.equal(layout.healthDiagnosticVisible, true, `${label}: diagnóstico OSEP/Mutual oculto`);
     assert.ok(layout.postCloseGeometry.panel.right <= viewport.width + 1, `${label}: panel poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.state.right <= viewport.width + 1, `${label}: estado poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.table.right <= viewport.width + 1, `${label}: tabla poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
