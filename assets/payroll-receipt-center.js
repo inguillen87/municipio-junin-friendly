@@ -9,6 +9,7 @@ const DATA_URL = '/api/internal-data';
 const LOGIN_URL = 'login.html?next=recibos-sueldo.html';
 const REQUIRED = ['workforce.employee.read', 'payroll.read'];
 const INITIAL_PERIODS = 6;
+const PERIOD_PAGE_LIMIT = 24;
 const byId = (id) => document.getElementById(id);
 const integerFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const monthFormatter = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -18,6 +19,8 @@ let payrollItems = [];
 let selectedSummary = null;
 let redirecting = false;
 let periodsExpanded = false;
+let payrollPagination = { page: 1, pages: 1, total: 0 };
+let loadedPayrollPages = 1;
 const busyButtonStates = new Map();
 
 function text(value) { return String(value ?? '').trim(); }
@@ -200,6 +203,8 @@ async function selectEmployee(employee) {
   selectedSummary = null;
   payrollItems = [];
   periodsExpanded = false;
+  payrollPagination = { page: 1, pages: 1, total: 0 };
+  loadedPayrollPages = 1;
   clearMessage();
   setBusy(true, 'Consultando liquidaciones reales…');
   byId('selectedEmployee').hidden = false;
@@ -212,10 +217,12 @@ async function selectEmployee(employee) {
   byId('periodSection').hidden = false;
   byId('previewSection').hidden = true;
   try {
-    const params = new URLSearchParams({ resource: 'employeepayroll', contractId: text(employee.contractId), page: '1', limit: '24' });
+    const params = payrollParams(employee.contractId, 1);
     const payload = await api(`${DATA_URL}?${params}`);
     payrollItems = Array.isArray(payload.data?.items) ? payload.data.items : [];
+    payrollPagination = paginationFrom(payload.meta?.pagination, payrollItems.length);
     renderPayrollItems();
+    byId('periodTitle').focus({ preventScroll: true });
     byId('periodSection').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   } catch (error) {
     byId('periodStatus').textContent = 'No se pudieron consultar las liquidaciones.';
@@ -223,19 +230,65 @@ async function selectEmployee(employee) {
   } finally { setBusy(false); }
 }
 
+function payrollParams(contractId, page) {
+  return new URLSearchParams({ resource: 'employeepayroll', contractId: text(contractId), page: String(page), limit: String(PERIOD_PAGE_LIMIT) });
+}
+
+function paginationFrom(value, loaded) {
+  const total = Number(value?.total);
+  const pages = Number(value?.pages);
+  return {
+    page: 1,
+    pages: Number.isSafeInteger(pages) && pages > 0 ? pages : 1,
+    total: Number.isSafeInteger(total) && total >= loaded ? total : loaded,
+  };
+}
+
 function renderPayrollItems() {
   const visibleItems = periodsExpanded ? payrollItems : payrollItems.slice(0, INITIAL_PERIODS);
   byId('periodList').replaceChildren();
   visibleItems.forEach((item, index) => byId('periodList').appendChild(payrollCard(item, index)));
-  const hiddenCount = Math.max(0, payrollItems.length - INITIAL_PERIODS);
+  const total = Math.max(payrollPagination.total, payrollItems.length);
+  const hiddenCount = Math.max(0, total - INITIAL_PERIODS);
   const toggle = byId('togglePeriods');
   toggle.hidden = hiddenCount === 0;
+  toggle.setAttribute('aria-expanded', String(periodsExpanded));
   toggle.textContent = periodsExpanded
     ? `Ver sólo los ${Math.min(INITIAL_PERIODS, payrollItems.length)} más recientes`
     : `Ver ${hiddenCount} período${hiddenCount === 1 ? '' : 's'} anterior${hiddenCount === 1 ? '' : 'es'}`;
   byId('periodStatus').textContent = payrollItems.length
-    ? `Mostrando ${visibleItems.length} de ${payrollItems.length} períodos informados por GRH.`
+    ? `Mostrando ${visibleItems.length} de ${total} períodos informados por GRH.`
     : 'GRH no informó liquidaciones mensuales para esta ficha.';
+}
+
+async function togglePeriods() {
+  if (periodsExpanded) {
+    periodsExpanded = false;
+    renderPayrollItems();
+    byId('periodTitle').focus({ preventScroll: true });
+    return;
+  }
+  if (payrollItems.length >= payrollPagination.total) {
+    periodsExpanded = true;
+    renderPayrollItems();
+    byId('periodTitle').focus({ preventScroll: true });
+    return;
+  }
+  clearMessage();
+  setBusy(true, 'Cargando el historial completo…');
+  try {
+    for (let page = loadedPayrollPages + 1; page <= payrollPagination.pages; page += 1) {
+      const payload = await api(`${DATA_URL}?${payrollParams(selectedEmployee.contractId, page)}`);
+      const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
+      payrollItems.push(...items);
+      loadedPayrollPages = page;
+    }
+    periodsExpanded = true;
+    renderPayrollItems();
+    byId('periodTitle').focus({ preventScroll: true });
+  } catch (error) {
+    showMessage('error', 'No pudimos cargar todo el historial', `${error.message} Los períodos ya visibles siguen disponibles.`);
+  } finally { setBusy(false); }
 }
 
 function previewRow(label, value, emphasized = false) {
@@ -282,7 +335,7 @@ async function logout() {
 async function initialize() {
   byId('employeeSearchForm').addEventListener('submit', searchEmployees);
   byId('downloadButton').addEventListener('click', downloadSelected);
-  byId('togglePeriods').addEventListener('click', () => { periodsExpanded = !periodsExpanded; renderPayrollItems(); });
+  byId('togglePeriods').addEventListener('click', togglePeriods);
   byId('changeEmployee').addEventListener('click', () => { byId('employeeResults').hidden = false; byId('resultsStatus').textContent = 'Elegí otra ficha o realizá una nueva búsqueda.'; byId('employeeSearch').focus(); window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
   byId('logoutButton').addEventListener('click', logout);
   try {

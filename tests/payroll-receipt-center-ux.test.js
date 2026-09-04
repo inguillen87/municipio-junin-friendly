@@ -13,7 +13,8 @@ test('Recibos ofrece una tarea breve, accesible y sin aparentar un documento ofi
   assert.match(html, /id="employeeSearchForm"/);
   assert.match(html, /id="periodSection"[^>]*hidden/);
   assert.match(html, /id="previewSection"[^>]*hidden/);
-  assert.match(html, /id="togglePeriods"[^>]*hidden/);
+  assert.match(html, /id="periodTitle" tabindex="-1"/);
+  assert.match(html, /id="togglePeriods"[^>]*aria-expanded="false"[^>]*aria-controls="periodList"[^>]*hidden/);
   assert.match(html, /role="status" aria-live="polite"/);
   assert.match(html, /id="tenantBrand">Ámbito municipal/);
   assert.doesNotMatch(html, /Friendly · Junín/);
@@ -30,8 +31,14 @@ test('el recorrido consulta endpoints gobernados, envía la búsqueda por POST y
   assert.match(source, /REQUIRED = \['workforce\.employee\.read', 'payroll\.read'\]/);
   assert.match(source, /item\.presentationStatus !== 'closed_reconciled'/);
   assert.match(source, /INITIAL_PERIODS = 6/);
+  assert.match(source, /PERIOD_PAGE_LIMIT = 24/);
   assert.match(source, /payrollItems\.slice\(0, INITIAL_PERIODS\)/);
   assert.match(source, /employeeResults'\)\.hidden = true/);
+  assert.match(source, /payload\.meta\?\.pagination/);
+  assert.match(source, /loadedPayrollPages \+ 1/);
+  assert.match(source, /page <= payrollPagination\.pages/);
+  assert.match(source, /aria-expanded', String\(periodsExpanded\)/);
+  assert.match(source, /periodTitle'\)\.focus\(\{ preventScroll: true \}\)/);
   assert.match(source, /Código GRH \$\{raw\} · sin homologar/);
   assert.match(source, /credentials: 'same-origin'/);
   assert.match(source, /cache: 'no-store'/);
