@@ -2,7 +2,7 @@ import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
-import payrollTypeContract from '../contracts/grh-payroll-type-map.v1.json' with { type: 'json' };
+import payrollTypeContract from '../contracts/grh-payroll-type-map.v2.json' with { type: 'json' };
 import {
   annualLeaveReference,
   getTitleViCatalog,
@@ -3013,7 +3013,7 @@ const EMPLOYEE_PAYROLL_RECONCILIATION = Object.freeze({
 });
 
 function verifiedPayrollTypeMappings(contract) {
-  if (contract?.contractVersion !== 'grh-payroll-type-map.v1'
+  if (contract?.contractVersion !== 'grh-payroll-type-map.v2'
       || contract?.sourceSystem !== 'GRH'
       || contract?.sourceField !== 'TIPO_31'
       || !Array.isArray(contract?.canonicalTypes)

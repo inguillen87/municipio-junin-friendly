@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "municontrol-certified-data-contract-files.v1",
+  "manifestVersion": "1.1.0",
+  "identity": {
+    "algorithm": "sha256",
+    "runtimeHexLength": 40,
+    "textNormalization": "utf8-lf",
+    "ordering": "repository-path"
+  },
+  "members": {
+    "files": [
+      {
+        "path": "contracts/certified-data-contract-files.v1.json",
+        "category": "classification_boundary",
+        "reason": "Versiona el límite auditable del contrato; modificarlo exige revisar la rotación."
+      },
+      {
+        "path": "contracts/grh-junin-mariadb-to-canonical.v1.json",
+        "category": "source_mapping",
+        "reason": "Declara el mapeo estructural de GRH al modelo canónico."
+      },
+      {
+        "path": "contracts/grh-payroll-type-map.v1.json",
+        "category": "source_mapping",
+        "reason": "Conserva el contrato base y el ledger previo de tipos de liquidación GRH."
+      },
+      {
+        "path": "contracts/grh-payroll-type-map.v2.json",
+        "category": "source_mapping",
+        "reason": "Declara la homologación vigente y fail-closed de TIPO_31 para GRH."
+      },
+      {
+        "path": "api/internal-data.js",
+        "category": "runtime_binding",
+        "reason": "Materializa respuestas canónicas y mapeos de fuente consumidos por la operación interna."
+      },
+      {
+        "path": "api/internal-actions.js",
+        "category": "runtime_binding",
+        "reason": "Despacha lecturas y decisiones del centro de acciones contra fachadas gobernadas."
+      },
+      {
+        "path": "api/internal-admin.js",
+        "category": "runtime_binding",
+        "reason": "Despacha operaciones administrativas y altas gobernadas."
+      },
+      {
+        "path": "api/internal-attendance.js",
+        "category": "runtime_binding",
+        "reason": "Materializa lecturas y operaciones del contrato de asistencia."
+      },
+      {
+        "path": "api/attendance-ingest.js",
+        "category": "runtime_binding",
+        "reason": "Valida y recibe eventos crudos de marcación antes de persistirlos."
+      },
+      {
+        "path": "api/internal-identity.js",
+        "category": "runtime_binding",
+        "reason": "Despacha identidad, membresías, binding y certificación del plano."
+      },
+      {
+        "path": "api/internal-payroll-control-import.js",
+        "category": "runtime_binding",
+        "reason": "Despacha la importación gobernada del control de nómina."
+      },
+      {
+        "path": "api/internal-payroll-monthly-close.js",
+        "category": "runtime_binding",
+        "reason": "Despacha preparación y decisiones del cierre mensual."
+      },
+      {
+        "path": "api/internal-payroll-novelties.js",
+        "category": "runtime_binding",
+        "reason": "Despacha preparación y decisiones de novedades salariales."
+      },
+      {
+        "path": "api/internal-payroll-reprocessing.js",
+        "category": "runtime_binding",
+        "reason": "Despacha solicitudes y decisiones de reprocesamiento."
+      },
+      {
+        "path": "scripts/internal-schema.sql",
+        "category": "database_schema",
+        "reason": "Define el esquema canónico inicial consumido por el runtime interno."
+      },
+      {
+        "path": "scripts/canonical-promote-current-grh.sql",
+        "category": "database_schema",
+        "reason": "Define la promoción gobernada desde GRH hacia entidades canónicas."
+      },
+      {
+        "path": "lib/internal-certified-release.js",
+        "category": "runtime_binding",
+        "reason": "Resuelve la identidad estable exigida por los gates del backend."
+      },
+      {
+        "path": "lib/internal-access-gateway.js",
+        "category": "runtime_binding",
+        "reason": "Comprueba sesión, tenant y contrato certificado antes del acceso."
+      },
+      {
+        "path": "lib/internal-admin.js",
+        "category": "runtime_binding",
+        "reason": "Vincula comandos administrativos con fachadas SQL versionadas."
+      },
+      {
+        "path": "lib/internal-attendance-gateway.js",
+        "category": "runtime_binding",
+        "reason": "Vincula recepción y gestión horaria con el contrato certificado."
+      },
+      {
+        "path": "lib/internal-identity-access.js",
+        "category": "runtime_binding",
+        "reason": "Vincula identidad, membresías y certificación con fachadas SQL versionadas."
+      },
+      {
+        "path": "lib/internal-platform-owner-policy.js",
+        "category": "runtime_contract",
+        "reason": "Define límites exclusivos del propietario global sobre tenants e identidades."
+      },
+      {
+        "path": "lib/internal-rbac.js",
+        "category": "runtime_contract",
+        "reason": "Define roles y capacidades efectivas que protegen lecturas y mutaciones."
+      },
+      {
+        "path": "lib/internal-resource-access.js",
+        "category": "runtime_contract",
+        "reason": "Asocia cada recurso interno con las capacidades obligatorias."
+      },
+      {
+        "path": "lib/internal-leave-workflow.js",
+        "category": "runtime_binding",
+        "reason": "Vincula el circuito de licencias con el plano tenant certificado."
+      },
+      {
+        "path": "lib/internal-monthly-close-contracts.js",
+        "category": "runtime_contract",
+        "reason": "Valida los contratos de entrada y salida del cierre mensual gobernado."
+      },
+      {
+        "path": "lib/internal-overtime-workflow.js",
+        "category": "runtime_binding",
+        "reason": "Vincula horas extraordinarias con fachadas y precondiciones gobernadas."
+      },
+      {
+        "path": "lib/internal-payroll-control-import.js",
+        "category": "runtime_binding",
+        "reason": "Vincula importaciones de control de nómina con el binding certificado."
+      },
+      {
+        "path": "lib/internal-payroll-monthly-close.js",
+        "category": "runtime_binding",
+        "reason": "Vincula el cierre mensual con las fachadas SQL certificadas."
+      },
+      {
+        "path": "lib/internal-payroll-novelty.js",
+        "category": "runtime_binding",
+        "reason": "Vincula novedades de nómina con comandos SQL gobernados."
+      },
+      {
+        "path": "lib/internal-payroll-reprocessing.js",
+        "category": "runtime_binding",
+        "reason": "Vincula reprocesamientos con el contrato certificado vigente."
+      },
+      {
+        "path": "lib/internal-time-source-registry.js",
+        "category": "runtime_binding",
+        "reason": "Vincula fuentes horarias con el binding y release certificados."
+      }
+    ],
+    "trees": [
+      {
+        "path": "scripts/migrations",
+        "extensions": [
+          ".sql"
+        ],
+        "category": "database_schema",
+        "reason": "Toda migración SQL puede alterar tablas, fachadas o precondiciones gobernadas."
+      }
+    ]
+  },
+  "releasePolicy": {
+    "ordinaryRelease": "Preservar INTERNAL_CERTIFIED_DATA_CONTRACT_SHA y no ejecutar certify_data_plane.",
+    "dataContractChange": "Detener la publicación ordinaria; validar migración e invariantes y completar la rotación gobernada."
+  }
+}

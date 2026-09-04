@@ -47,18 +47,40 @@ metadata Git, valores vacíos ni corrección silenciosa.
 
 ## Despliegue ordinario: el contrato no cambió
 
+El límite auditable del contrato está versionado en
+`contracts/certified-data-contract-files.v1.json`. Antes de publicar, el
+pipeline puede clasificar automáticamente la diferencia contra la base:
+
+```powershell
+npm run release:gate -- --base=origin/main --head=HEAD
+```
+
+Un resultado `RELEASE ORDINARIO` termina con código 0 y habilita estos pasos:
+
 1. Mantener `INTERNAL_CERTIFIED_DATA_CONTRACT_SHA` sin cambios.
-2. Desplegar el nuevo artefacto normalmente.
+2. Desplegar el nuevo artefacto normalmente, sin pedir una acción manual al
+   propietario de la plataforma.
 3. Verificar que las lecturas tenant y una operación gobernada sigan disponibles.
 
 No ejecutar `certify_data_plane` y no editar la política del tenant. El SHA del
 nuevo commit de Vercel puede ser distinto; eso es esperado.
+
+`npm run release:classify -- --base=<ref> --head=<ref>` entrega la misma
+clasificación sin bloquear y muestra la identidad candidata calculada desde el
+contenido contractual. Si se omite `--head`, incluye el árbol de trabajo y los
+archivos no versionados; si se omite `--base`, usa `RELEASE_BASE_SHA` o `HEAD^`.
+La opción `--json` permite consumir el resultado desde CI sin analizar texto.
 
 ## Rotación: el contrato de datos sí cambió
 
 Una rotación corresponde cuando cambia una fachada SQL, una migración, el
 binding exigido o una pre/postcondición gobernada que modifica lo que el runtime
 puede leer o escribir. No corresponde por un cambio puramente visual.
+
+El gate clasifica cualquiera de esos archivos como `CAMBIO DE CONTRATO DE
+DATOS` y termina con código 2. No actualiza Neon, no cambia variables de entorno
+y no certifica en nombre de una persona: detiene la publicación ordinaria para
+que el cambio siga fallando cerrado hasta completar el circuito gobernado.
 
 1. Identificar y revisar el cambio de contrato; probar su migración en una rama
    aislada de Neon antes de Producción.

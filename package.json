@@ -13,6 +13,8 @@
     "test:browser:time-sources": "node scripts/verify-time-source-browser.mjs",
     "test:browser:membership-governance": "npm run build && node scripts/verify-admin-membership-governance-browser.mjs",
     "build": "npm run test && node scripts/build-friendly.mjs",
+    "release:classify": "node scripts/classify-data-contract-release.mjs",
+    "release:gate": "node scripts/classify-data-contract-release.mjs --fail-on-contract-change",
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
     "db:actions:schema": "node --env-file=.env.local scripts/apply-action-center-schema.mjs",
     "db:actions:authority:schema": "node --env-file=.env.local scripts/apply-tenant-action-authority-schema.mjs",

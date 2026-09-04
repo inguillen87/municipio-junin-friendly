@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://municontrol.local/contracts/grh-payroll-type-map.v2.json",
+  "contractVersion": "grh-payroll-type-map.v2",
+  "supersedes": "grh-payroll-type-map.v1",
+  "sourceSystem": "GRH",
+  "sourceField": "TIPO_31",
+  "canonicalTypes": [
+    "monthly",
+    "first_fortnight",
+    "sac",
+    "vacation",
+    "supplementary",
+    "final",
+    "other"
+  ],
+  "verifiedMappings": [
+    {
+      "sourceCode": "F",
+      "canonicalType": "final",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "Liquidación Final",
+        "documentedMeaning": "liquidación final",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    },
+    {
+      "sourceCode": "M",
+      "canonicalType": "monthly",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "Mes",
+        "documentedMeaning": "mensual o segunda quincena",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    },
+    {
+      "sourceCode": "O",
+      "canonicalType": "other",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "Otros Conceptos",
+        "documentedMeaning": "otras liquidaciones",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    },
+    {
+      "sourceCode": "P",
+      "canonicalType": "first_fortnight",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "Primera Quincena",
+        "documentedMeaning": "primera quincena",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    },
+    {
+      "sourceCode": "S",
+      "canonicalType": "sac",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "SAC",
+        "documentedMeaning": "sueldo anual complementario",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    },
+    {
+      "sourceCode": "V",
+      "canonicalType": "vacation",
+      "evidence": {
+        "kind": "observed_ui_value_label_pair",
+        "label": "Vacaciones",
+        "documentedMeaning": "vacaciones anuales",
+        "corroboratingSource": "GRHW_Formulas_Acrobat.pdf, página física 28 / folio 16",
+        "surface": "GRH y GRH_WEB - selector Tipo de liquidación",
+        "observedOn": "2026-09-04"
+      }
+    }
+  ],
+  "unclassifiedSourceCodes": [],
+  "ledger": {
+    "version": "payroll-type-mapping-ledger.v2",
+    "algorithm": "sha256(version + LF + sha256(sql-bytes) + LF + sha256(contract-bytes))",
+    "table": "schema_migrations",
+    "column": "checksum_sha256"
+  },
+  "policy": {
+    "unknownResult": null,
+    "duplicateDetection": "block_when_same_contract_period_concept_cost_center_has_unknown_source_type",
+    "prohibited": "Do not infer future mappings from initials, frequency, month distribution or UI ordering.",
+    "promotionGate": "Each future mapping requires an explicit source label or an approved municipal catalog, a versioned contract update and regression tests.",
+    "evidenceScope": "The mapping classifies TIPO_31 only; it does not certify amounts, closing state or legal validity."
+  }
+}
