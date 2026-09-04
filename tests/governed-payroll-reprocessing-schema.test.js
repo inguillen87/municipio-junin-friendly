@@ -89,6 +89,7 @@ test('aplicador exige ledger, prerequisitos, transacción, lock y verificación 
     /await client\.query\('COMMIT'\)/,
     /await client\.query\('ROLLBACK'\)/,
     /verifyPayrollReprocessingFinalState\(client\)/,
+    /replace\(\/::text\/g, ''\)/,
   ]) assert.match(applier, pattern);
   assert.doesNotMatch(applier,
     /console\.log\([^)]*(?:databaseUrl|DATABASE_URL|connectionString)/);

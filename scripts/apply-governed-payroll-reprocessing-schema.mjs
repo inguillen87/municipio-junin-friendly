@@ -339,10 +339,18 @@ function normalized(value) {
   return String(value || '').replaceAll('"', '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function normalizedDeparser(value) {
+  return normalized(value)
+    .replace(/::character varying(?:\(\d+\))?/g, '')
+    .replace(/::varchar(?:\(\d+\))?/g, '')
+    .replace(/::text\[\]/g, '')
+    .replace(/::text/g, '');
+}
+
 function requireTokens(label, value, tokens) {
-  const source = normalized(value);
+  const source = normalizedDeparser(value);
   for (const token of tokens) {
-    if (!source.includes(normalized(token))) {
+    if (!source.includes(normalizedDeparser(token))) {
       throw new Error(`${label} no contiene ${token}`);
     }
   }
