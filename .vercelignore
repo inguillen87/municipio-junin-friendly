@@ -50,6 +50,7 @@ database/
 !scripts/migrations/033-payroll-art-report-capability.sql
 !scripts/migrations/034-payroll-control-import-binding-lock.sql
 !scripts/migrations/035-governed-payroll-reprocessing.sql
+!scripts/migrations/036-owner-tenant-operational-authority.sql
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
 !docs/GRH_TIME_SOURCE_DISCOVERY_20260819.md

@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#123247">
   <meta name="color-scheme" content="light">
   <title>Control de nómina | MuniControl</title>
+  <script src="assets/internal-capability-gate.js"></script>
   <meta name="description" content="Control interno de cierres, conciliación aritmética y trazabilidad de la nómina municipal.">
   <style>
     :root {
@@ -420,6 +421,26 @@
     .control-import-detail .post-close-actions .button.primary { color: #fff; background: var(--green); border-color: var(--green); }
     .control-import-events span { display: block; color: var(--muted); font-size: 10px; }
     [data-payroll-control-import-workflow][aria-busy="true"] { opacity: .82; }
+    .reprocessing-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+    .reprocessing-count { padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
+    .reprocessing-count span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .reprocessing-count strong { display: block; margin-top: 3px; color: var(--navy); font-size: 20px; font-variant-numeric: tabular-nums; }
+    .reprocessing-toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto auto; gap: 8px; align-items: end; margin-bottom: 10px; }
+    .reprocessing-toolbar .post-close-field { min-width: 0; }
+    .reprocessing-reference { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+    .reprocessing-reference input { min-width: 0; font: 650 11px/1.4 "SFMono-Regular", Consolas, monospace; }
+    .reprocessing-detail { display: grid; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .reprocessing-detail h4 { margin: 0; color: var(--navy); font-size: 14px; }
+    .reprocessing-timeline li { position: relative; padding-left: 15px; border-left: 3px solid var(--blue); }
+    .reprocessing-timeline span { display: block; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+    .reprocessing-boundary { border-left-color: var(--amber); }
+    .reprocessing-idempotency { display: block; overflow-wrap: anywhere; font: 650 10px/1.5 "SFMono-Regular", Consolas, monospace; }
+    .reprocessing-confirm { display: grid; gap: 10px; padding: 14px; border: 1px solid #d7bf8d; border-left: 4px solid var(--amber); border-radius: 4px; background: var(--amber-soft); }
+    .reprocessing-confirm p { margin: 0; }
+    .reprocessing-confirm .post-close-actions { margin-top: 0; }
+    .button.danger { color: var(--red); border-color: #d7aaa4; }
+    .button.danger:hover { background: var(--red-soft); border-color: var(--red); }
+    [data-payroll-reprocessing-workflow][aria-busy="true"] { opacity: .82; }
 
     .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -478,8 +499,9 @@
       .run-card { padding: 16px; }
       .run-summary { grid-template-columns: 1fr; gap: 12px; }
       .run-contracts { padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .metric-grid, .reconcile-grid, .formula-lab-results, .formula-catalog-grid, .source-preview-meta, .post-close-meta, .post-close-context { grid-template-columns: 1fr; }
+      .metric-grid, .reconcile-grid, .formula-lab-results, .formula-catalog-grid, .source-preview-meta, .post-close-meta, .post-close-context, .reprocessing-toolbar, .reprocessing-reference { grid-template-columns: 1fr; }
       .source-preview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .reprocessing-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .post-close-results .table-wrap { overflow: visible; border: 0; }
       .post-close-results table, .post-close-results tbody, .post-close-results tfoot { display: block; width: 100%; }
       .post-close-results thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -910,6 +932,139 @@
                 <p class="post-close-note" data-control-import-action-status data-state="warning" role="status" aria-live="polite">Seleccioná una corrida para ver las decisiones habilitadas.</p>
               </div>
               <div class="method-note">“Fuente aprobada” certifica esta carga agregada y su circuito maker-checker. No significa sueldo liquidado, pago realizado ni presentación fiscal generada.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="reprocessingTitle" data-payroll-reprocessing-workflow aria-busy="true">
+          <header class="section-head">
+            <div>
+              <span class="section-index">06.1 · ANULACIÓN Y RELIQUIDACIÓN</span>
+              <h2 id="reprocessingTitle">Gestionar correcciones de corridas con doble control</h2>
+              <p>Abre un expediente sobre una corrida GRH cerrada, conserva cada versión y separa a quien prepara de quien decide. Las acciones visibles provienen del servidor para esta identidad y estado.</p>
+            </div>
+            <span class="state-badge warning">Maker-checker · auditado</span>
+          </header>
+          <p class="formula-lab-status" data-reprocessing-status data-state="warning" role="status" aria-live="polite">Consultando expedientes…</p>
+          <div class="reprocessing-counts" data-reprocessing-counts aria-label="Expedientes por estado">
+            <div class="reprocessing-count"><span>Borradores</span><strong data-reprocessing-count="draft">—</strong></div>
+            <div class="reprocessing-count"><span>En revisión</span><strong data-reprocessing-count="submitted">—</strong></div>
+            <div class="reprocessing-count"><span>Autorizados</span><strong data-reprocessing-count="approved">—</strong></div>
+            <div class="reprocessing-count"><span>Rechazados</span><strong data-reprocessing-count="rejected">—</strong></div>
+            <div class="reprocessing-count"><span>Cancelados</span><strong data-reprocessing-count="cancelled">—</strong></div>
+          </div>
+          <div class="post-close-grid">
+            <article class="panel" data-reprocessing-prepare-panel hidden>
+              <h3>1. Preparar expediente</h3>
+              <p class="panel-note">Seleccioná una corrida cerrada informada por la fuente certificada. El motivo usa un catálogo controlado y el identificador de correlación es opaco: no escribas nombres, CUIL, cuentas ni importes.</p>
+              <form class="post-close-form" data-reprocessing-prepare-form novalidate>
+                <div class="post-close-field">
+                  <label for="reprocessingRun">Corrida GRH cerrada</label>
+                  <select id="reprocessingRun" data-reprocessing-run required>
+                    <option value="">Esperando corridas cerradas…</option>
+                  </select>
+                  <small>La lista se completa desde el mismo contrato de nómina visible en esta pantalla.</small>
+                </div>
+                <div class="post-close-context">
+                  <div class="post-close-field">
+                    <label for="reprocessingKind">Acción solicitada</label>
+                    <select id="reprocessingKind" data-reprocessing-kind required>
+                      <option value="reliquidate">Solicitar reliquidación</option>
+                      <option value="void">Solicitar anulación</option>
+                    </select>
+                  </div>
+                  <div class="post-close-field">
+                    <label for="reprocessingBusinessReason">Motivo de negocio</label>
+                    <select id="reprocessingBusinessReason" data-reprocessing-business-reason required></select>
+                  </div>
+                </div>
+                <div class="post-close-field">
+                  <label for="reprocessingPrepareReference">Identificador de correlación</label>
+                  <div class="reprocessing-reference">
+                    <input id="reprocessingPrepareReference" data-reprocessing-prepare-reference type="text" readonly aria-describedby="reprocessingPrepareReferenceHelp">
+                    <button class="button" type="button" data-reprocessing-copy-prepare-reference>Copiar</button>
+                    <button class="button" type="button" data-reprocessing-new-prepare-reference>Generar otro</button>
+                  </div>
+                  <small id="reprocessingPrepareReferenceHelp">Código generado por esta pantalla. No demuestra que exista evidencia ni crea un vínculo automático: copialo también en el expediente o repositorio externo autorizado para poder correlacionarlos.</small>
+                </div>
+                <div class="post-close-actions">
+                  <button class="button primary" type="submit" data-reprocessing-prepare>Preparar expediente</button>
+                </div>
+              </form>
+              <div class="method-note">Preparar sólo crea un borrador persistido. Otra identidad debe aprobarlo: quien lo preparó no puede decidirlo.</div>
+            </article>
+
+            <article class="panel post-close-results" aria-labelledby="reprocessingCasesTitle">
+              <h3 id="reprocessingCasesTitle">2. Consultar y decidir</h3>
+              <div class="control-import-scope">
+                <strong data-reprocessing-scope>Validando las capacidades de la sesión…</strong>
+                <span>La autorización efectiva se vuelve a comprobar en PostgreSQL para cada acción.</span>
+              </div>
+              <div class="reprocessing-toolbar">
+                <div class="post-close-field">
+                  <label for="reprocessingStatusFilter">Estado</label>
+                  <select id="reprocessingStatusFilter" data-reprocessing-filter>
+                    <option value="all">Todos</option>
+                    <option value="draft">Borradores</option>
+                    <option value="submitted">En revisión</option>
+                    <option value="approved">Autorizados</option>
+                    <option value="rejected">Rechazados</option>
+                    <option value="cancelled">Cancelados</option>
+                  </select>
+                </div>
+                <button class="button" type="button" data-reprocessing-refresh>Actualizar</button>
+                <button class="button" type="button" data-reprocessing-previous aria-label="Página anterior">Anterior</button>
+                <button class="button" type="button" data-reprocessing-next aria-label="Página siguiente">Siguiente</button>
+              </div>
+              <p class="panel-note" data-reprocessing-page>Sin página cargada.</p>
+              <div class="table-wrap">
+                <table>
+                  <caption class="visually-hidden">Expedientes de anulación y reliquidación</caption>
+                  <thead><tr><th>Corrida</th><th>Solicitud</th><th>Estado</th><th>Versión</th><th>Detalle</th></tr></thead>
+                  <tbody data-reprocessing-cases></tbody>
+                </table>
+                <p class="empty" data-reprocessing-empty>No hay expedientes para este filtro.</p>
+              </div>
+
+              <div class="reprocessing-detail" data-reprocessing-detail hidden>
+                <h4 data-reprocessing-detail-title>Detalle del expediente</h4>
+                <div class="post-close-meta" data-reprocessing-detail-meta></div>
+                <div>
+                  <h4>Historial de versiones</h4>
+                  <ul class="trace-list reprocessing-timeline" data-reprocessing-timeline></ul>
+                </div>
+                <div class="post-close-field" data-reprocessing-reject-field hidden>
+                  <label for="reprocessingRejectReason">Motivo de rechazo</label>
+                  <select id="reprocessingRejectReason" data-reprocessing-reject-reason>
+                    <option value="insufficient_evidence">Evidencia insuficiente</option>
+                    <option value="run_not_eligible">La corrida no es elegible</option>
+                    <option value="request_not_authorized">Solicitud no autorizada</option>
+                  </select>
+                </div>
+                <div class="post-close-field" data-reprocessing-action-reference-field hidden>
+                  <label for="reprocessingActionReference">Identificador de correlación de la decisión</label>
+                  <div class="reprocessing-reference">
+                    <input id="reprocessingActionReference" data-reprocessing-action-reference type="text" readonly>
+                    <button class="button" type="button" data-reprocessing-copy-action-reference>Copiar</button>
+                    <button class="button" type="button" data-reprocessing-new-action-reference>Generar otro</button>
+                  </div>
+                  <small>Este código sólo correlaciona la decisión si también se registra en el expediente externo autorizado.</small>
+                </div>
+                <div class="post-close-actions" data-reprocessing-actions></div>
+                <div class="reprocessing-confirm" data-reprocessing-confirm hidden aria-labelledby="reprocessingConfirmTitle">
+                  <h4 id="reprocessingConfirmTitle">Revisión final de la decisión</h4>
+                  <p data-reprocessing-confirm-summary>Revisá la corrida, la acción y la versión antes de continuar.</p>
+                  <p><strong>Límite:</strong> esta confirmación registra una decisión y no modifica GRH, no recalcula haberes ni ejecuta la anulación o reliquidación.</p>
+                  <div class="post-close-actions">
+                    <button class="button" type="button" data-reprocessing-confirm-cancel>Volver sin decidir</button>
+                    <button class="button" type="button" data-reprocessing-confirm-action>Confirmar decisión</button>
+                  </div>
+                </div>
+                <p class="post-close-note" data-reprocessing-action-status data-state="warning" role="status" aria-live="polite">Abrí un expediente para consultar las decisiones habilitadas.</p>
+                <p class="post-close-evidence-summary"><strong>Comprobante idempotente del envío</strong><span class="reprocessing-idempotency" data-reprocessing-idempotency>Sin operación iniciada en esta sesión.</span></p>
+              </div>
+
+              <div class="method-note reprocessing-boundary"><strong>Límite operativo:</strong> “Autorizar” habilita una ejecución externa posterior. No anula una corrida, no recalcula haberes, no liquida, no contabiliza, no publica y no modifica GRH por sí solo.</div>
             </article>
           </div>
         </section>
@@ -1461,6 +1616,37 @@
         host.appendChild(row);
       }
 
+      function renderReprocessingRuns(runs) {
+        var select = document.querySelector('[data-reprocessing-run]');
+        if (!select) return;
+        var previous = select.value;
+        var eligible = runs.filter(function (run) {
+          return isClosed(run) && typeof run.payrollRunId === 'string'
+            && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(run.payrollRunId);
+        });
+        select.replaceChildren();
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = eligible.length ? 'Seleccionar corrida cerrada' : 'No hay corridas cerradas elegibles';
+        select.appendChild(placeholder);
+        var seen = new Set();
+        eligible.forEach(function (run) {
+          if (seen.has(run.payrollRunId)) return;
+          seen.add(run.payrollRunId);
+          var option = document.createElement('option');
+          option.value = run.payrollRunId;
+          var contractLabel = isNumber(run.contracts) ? formatInteger(run.contracts) + ' contratos' : 'contratos no informados';
+          var runIdentifier = run.payrollRunId.slice(0, 8);
+          option.textContent = monthLabel(run.month)
+            + (run.payrollType ? ' · ' + run.payrollType : '')
+            + ' · ' + contractLabel
+            + ' · corrida ' + runIdentifier;
+          option.title = 'Identificador completo de corrida: ' + run.payrollRunId;
+          select.appendChild(option);
+        });
+        if (seen.has(previous)) select.value = previous;
+      }
+
       function renderClosed(run) {
         setText('closedMonth', monthLabel(run && run.month));
         setText('closedContracts', formatInteger(run && run.contracts));
@@ -1552,6 +1738,7 @@
         var closedPublishable = renderClosed(payload.latestClosed);
         renderOpen(payload.currentOpen);
         renderRuns(payload.runs);
+        renderReprocessingRuns(payload.runs);
         renderQuality(payload.quality);
         renderLimitations(payload.limitations);
 
@@ -1657,6 +1844,7 @@
   <script type="module" src="assets/grh-source-preview.js"></script>
   <script type="module" src="assets/payroll-post-close-reconciler.js"></script>
   <script type="module" src="assets/payroll-control-import-workflow.js"></script>
+  <script type="module" src="assets/payroll-reprocessing-workflow.js"></script>
   <script type="module" src="assets/payroll-art-report-workbench.js"></script>
   <script type="module" src="assets/payroll-bank-report-workbench.js"></script>
   <script type="module" src="assets/payroll-health-fixed-width-workbench.js"></script>

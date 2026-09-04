@@ -66,7 +66,7 @@ test('la interfaz ART queda sujeta a capacidad, fuente real y límites explícit
   assert.match(html, /Uso autorizado · salida no oficial/);
   assert.match(html, /un Excel de cuatro hojas y un PDF institucional interno/);
   assert.match(source, /payroll\.art_report\.generate/);
-  assert.match(source, /principal\.capabilities\.includes\(PAYROLL_ART_REQUIRED_CAPABILITY\)/);
+  assert.match(source, /principal\.reportCapabilities\.includes\(PAYROLL_ART_REQUIRED_CAPABILITY\)/);
   assert.match(source, /createPayrollArtOfficePack/);
   assert.match(source, /Descargar Excel/);
   assert.match(source, /Descargar PDF/);

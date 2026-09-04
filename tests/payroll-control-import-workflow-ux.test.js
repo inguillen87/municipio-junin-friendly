@@ -38,6 +38,7 @@ function envelope(overrides = {}) {
       principal: {
         roleKey: 'HUGO_APROBADOR_INTEGRAL',
         capabilities: ['payroll.control_import.read', 'payroll.control_import.validate'],
+        reportCapabilities: ['payroll.art_report.generate'],
       },
       batches: [batch()],
       recentEvents: [],
@@ -58,6 +59,20 @@ test('valida el contrato de bootstrap y rechaza comandos o conceptos inesperados
   })), false);
   assert.equal(validatePayrollControlBootstrap(envelope({
     batches: [batch({ rows: [{ concept: '701', amountCents: '1' }, { concept: '999', amountCents: '2' }] })],
+  })), false);
+  assert.equal(validatePayrollControlBootstrap(envelope({
+    principal: {
+      roleKey: 'HUGO_APROBADOR_INTEGRAL',
+      capabilities: ['payroll.control_import.read', 'payroll.art_report.generate'],
+      reportCapabilities: [],
+    },
+  })), false);
+  assert.equal(validatePayrollControlBootstrap(envelope({
+    principal: {
+      roleKey: 'HUGO_APROBADOR_INTEGRAL',
+      capabilities: ['payroll.control_import.read'],
+      reportCapabilities: ['payroll.f931.generate'],
+    },
   })), false);
 });
 

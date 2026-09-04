@@ -67,7 +67,17 @@ export function validatePayrollControlBootstrap(payload) {
   if (!isObject(payload) || payload.ok !== true || !isObject(payload.data)) return false;
   const { principal, batches, recentEvents, limits } = payload.data;
   if (!isObject(principal) || typeof principal.roleKey !== 'string'
-    || !Array.isArray(principal.capabilities)) return false;
+    || !Array.isArray(principal.capabilities)
+    || principal.capabilities.some((capability) => (
+      typeof capability !== 'string' || !capability.startsWith('payroll.control_import.')
+    ))
+    || new Set(principal.capabilities).size !== principal.capabilities.length
+    || !principal.capabilities.includes('payroll.control_import.read')
+    || !Array.isArray(principal.reportCapabilities)
+    || principal.reportCapabilities.some((capability) => (
+      capability !== 'payroll.art_report.generate'
+    ))
+    || new Set(principal.reportCapabilities).size !== principal.reportCapabilities.length) return false;
   if (!Array.isArray(batches) || batches.some((batch) => !validatePayrollControlBatch(batch))) return false;
   if (!Array.isArray(recentEvents) || !isObject(limits)) return false;
   if (limits.maxSourceBytes !== PAYROLL_CONTROL_IMPORT_MAX_BYTES

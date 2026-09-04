@@ -258,6 +258,7 @@ function persistedBootstrap() {
       roleKey: 'PLATFORM_OWNER_OPERATIVO_INTEGRAL',
       employmentLinked: true,
       capabilities: ['payroll.control_import.read', 'payroll.control_import.prepare'],
+      reportCapabilities: ['payroll.art_report.generate'],
     },
     batches: [persistedBatch()],
     recentEvents: [{ id: 1, batchId, command: 'prepare' }],
@@ -303,6 +304,36 @@ test('bootstrap, list y detail usan sólo la facade gobernada y validan flags de
   const unsafeSql = { query: async () => [{ result: unsafe }] };
   await assert.rejects(
     getPayrollControlImportBootstrap(unsafeSql, identityPrincipal(), actionSession()),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_CONTRACT_DRIFT',
+  );
+
+  const missingReportChannel = persistedBootstrap();
+  delete missingReportChannel.principal.reportCapabilities;
+  await assert.rejects(
+    getPayrollControlImportBootstrap(
+      { query: async () => [{ result: missingReportChannel }] },
+      identityPrincipal(), actionSession(),
+    ),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_CONTRACT_DRIFT',
+  );
+
+  const mixedCommandChannel = persistedBootstrap();
+  mixedCommandChannel.principal.capabilities.push('payroll.art_report.generate');
+  await assert.rejects(
+    getPayrollControlImportBootstrap(
+      { query: async () => [{ result: mixedCommandChannel }] },
+      identityPrincipal(), actionSession(),
+    ),
+    (error) => error.code === 'PAYROLL_CONTROL_IMPORT_CONTRACT_DRIFT',
+  );
+
+  const broadReportChannel = persistedBootstrap();
+  broadReportChannel.principal.reportCapabilities.push('payroll.f931.generate');
+  await assert.rejects(
+    getPayrollControlImportBootstrap(
+      { query: async () => [{ result: broadReportChannel }] },
+      identityPrincipal(), actionSession(),
+    ),
     (error) => error.code === 'PAYROLL_CONTROL_IMPORT_CONTRACT_DRIFT',
   );
 });

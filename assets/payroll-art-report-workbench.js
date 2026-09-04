@@ -183,7 +183,7 @@ export function createPayrollArtReportWorkbench(root, options = {}) {
         throw new Error('No se pudo validar el contexto autorizado.');
       }
       const principal = payload.data.principal;
-      const authorized = principal.capabilities.includes(PAYROLL_ART_REQUIRED_CAPABILITY)
+      const authorized = principal.reportCapabilities.includes(PAYROLL_ART_REQUIRED_CAPABILITY)
         && UUID.test(String(principal.tenantId || ''))
         && UUID.test(String(principal.membershipId || ''));
       if (!authorized) {

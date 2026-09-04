@@ -92,6 +92,7 @@ function bootstrap(overrides = {}) {
         'payroll.control_import.prepare',
         'payroll.control_import.audit.read',
       ],
+      reportCapabilities: ['payroll.art_report.generate'],
     },
     batches: [batch()],
     recentEvents: [{ id: 1, batchId: BATCH_ID, command: 'prepare' }],

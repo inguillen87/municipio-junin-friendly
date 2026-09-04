@@ -36,6 +36,7 @@
     "db:payroll:art-report-capability:schema": "node --env-file=.env.local scripts/apply-payroll-art-report-capability-schema.mjs --confirm-isolated-branch",
     "db:payroll:control-import-binding:schema": "node --env-file=.env.local scripts/apply-payroll-control-import-binding-lock-schema.mjs --confirm-isolated-branch",
     "db:payroll:reprocessing:schema": "node --env-file=.env.local scripts/apply-governed-payroll-reprocessing-schema.mjs --confirm-isolated-branch",
+    "db:iam:owner-tenant-authority:schema": "node --env-file=.env.local scripts/apply-owner-tenant-operational-authority-schema.mjs --confirm-isolated-branch",
     "db:payroll:operations:release": "node --env-file=.env.local scripts/apply-governed-payroll-operations-release-schema.mjs",
     "db:attendance:import-junin": "node --env-file=.env.local scripts/import-junin-attendance-inventory.mjs --confirm-isolated-branch",
     "db:platform:owners:schema": "node --env-file=.env.local scripts/apply-platform-owner-governance-schema.mjs",

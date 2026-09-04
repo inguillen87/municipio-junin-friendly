@@ -891,7 +891,9 @@ const PAYROLL_CONTROL_RELATIONS = Object.freeze({
   },
   runControl: {
     name: 'vw_nomina_totales',
-    requiredColumns: ['closure_status', 'arithmetic_reconciled', 'executive_publishable']
+    requiredColumns: [
+      'payroll_run_id', 'closure_status', 'arithmetic_reconciled', 'executive_publishable'
+    ]
   }
 });
 
@@ -975,7 +977,8 @@ export async function payrollControl(sql) {
       LIMIT 36
     `),
     sql.query(`
-      SELECT payroll_date AS month,
+      SELECT payroll_run_id AS "payrollRunId",
+             payroll_date AS month,
              payroll_type AS "payrollType",
              closure_status AS "closureStatus",
              contracts,

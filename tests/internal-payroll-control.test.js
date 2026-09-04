@@ -12,7 +12,9 @@ const REQUIRED_COLUMNS = {
     'employer_cost_proxy', 'arithmetic_difference', 'rounding_tolerance',
     'arithmetic_reconciled', 'executive_publishable'
   ],
-  vw_nomina_totales: ['closure_status', 'arithmetic_reconciled', 'executive_publishable']
+  vw_nomina_totales: [
+    'payroll_run_id', 'closure_status', 'arithmetic_reconciled', 'executive_publishable'
+  ]
 };
 
 function fixtureSql({ loaded = true, openPublished = false } = {}) {
@@ -50,6 +52,7 @@ function fixtureSql({ loaded = true, openPublished = false } = {}) {
       }
       if (query.includes('FROM vw_nomina_totales') && query.includes('ORDER BY payroll_date')) {
         return [{
+          payrollRunId: '10000000-0000-4000-8000-000000000001',
           month: '2026-07-31', payrollType: 'M', closureStatus: 'closed',
           contracts: 855, arithmeticReconciled: true, executivePublishable: true
         }];
@@ -82,6 +85,7 @@ test('payrollControl bloquea agosto abierto y publica sólo julio cerrado reconc
   assert.equal(payload.latestClosed.executivePublishable, true);
   assert.equal(payload.currentOpen.contracts, 854);
   assert.equal(payload.currentOpen.executivePublishable, false);
+  assert.equal(payload.runs[0].payrollRunId, '10000000-0000-4000-8000-000000000001');
   assert.equal(payload.quality.openRunsPublished, 0);
   assert.match(payload.sourcePolicy.closeEvidence, /histocal\.CIER_31 = 1/);
   assert.match(payload.sourcePolicy.arithmeticControl, /993 \+ 994 \+ 995 - 996 = 999/);

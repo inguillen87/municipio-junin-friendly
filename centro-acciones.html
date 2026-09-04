@@ -10,6 +10,7 @@
   <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#123247">
   <title>Centro de acciones | MuniControl</title>
+  <script src="assets/internal-capability-gate.js"></script>
   <meta name="description" content="Bandeja interna de solicitudes y decisiones trazables de la Municipalidad de Junín.">
   <style>
     :root {
@@ -476,8 +477,8 @@
               <p class="page-lead">Creá, revisá y resolvé solicitudes con evidencia, versión vigente y trazabilidad. Cada decisión conserva quién actuó, cuándo y con qué fuente.</p>
             </div>
             <div class="head-actions">
-              <button class="button" id="createOvertimeButton" type="button" disabled hidden>Cargar mayor esfuerzo</button>
-              <button class="button primary" id="createActionButton" type="button" disabled>Nueva solicitud</button>
+              <button class="button" id="createOvertimeButton" type="button" data-requires-any-capability="time.overtime.enter" disabled hidden>Cargar mayor esfuerzo</button>
+              <button class="button primary" id="createActionButton" type="button" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Nueva solicitud</button>
             </div>
           </header>
 
@@ -496,7 +497,7 @@
                 <span class="workflow-status" data-workflow-status="create">Verificando</span>
                 <h3>Crear borrador</h3>
                 <p>Elegí una persona autorizada, motivo y período. Todavía no concede la licencia.</p>
-                <button class="button primary" type="button" data-workflow-command="create" disabled>Crear solicitud</button>
+                <button class="button primary" type="button" data-workflow-command="create" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Crear solicitud</button>
               </li>
               <li class="workflow-step" data-workflow-step="edit" data-enabled="false">
                 <span class="workflow-status" data-workflow-status="edit">Verificando</span>
@@ -528,7 +529,7 @@
           <section class="queue-panel" aria-labelledby="queueTitle">
             <header class="queue-head">
               <div><h2 id="queueTitle">Bandeja de trabajo</h2><p id="queueSubtitle">La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
-              <div class="head-actions"><button class="button" id="queueOvertimeButton" type="button" disabled hidden>Cargar mayor esfuerzo</button><button class="button" id="queueCreateButton" type="button" disabled>Crear solicitud</button></div>
+              <div class="head-actions"><button class="button" id="queueOvertimeButton" type="button" data-requires-any-capability="time.overtime.enter" disabled hidden>Cargar mayor esfuerzo</button><button class="button" id="queueCreateButton" type="button" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Crear solicitud</button></div>
             </header>
 
             <div class="view-tabs" id="actionViews" role="tablist" aria-label="Alcance de la bandeja">
@@ -648,7 +649,7 @@
       </div>
       <footer class="wizard-footer">
         <button class="button" id="wizardCancel" type="button">Cancelar</button>
-        <div><button class="button" id="wizardBack" type="button" hidden>Anterior</button><button class="button primary" id="wizardNext" type="button">Continuar</button><button class="button primary" id="wizardSubmit" type="submit" hidden>Crear borrador</button></div>
+        <div><button class="button" id="wizardBack" type="button" hidden>Anterior</button><button class="button primary" id="wizardNext" type="button">Continuar</button><button class="button primary" id="wizardSubmit" type="submit" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" hidden>Crear borrador</button></div>
       </footer>
     </form>
   </dialog>
@@ -691,7 +692,7 @@
       </div>
       <footer class="wizard-footer">
         <button class="button" id="overtimeCancel" type="button">Cancelar</button>
-        <button class="button primary" id="overtimeSubmit" type="submit">Crear borrador</button>
+        <button class="button primary" id="overtimeSubmit" type="submit" data-requires-any-capability="time.overtime.enter">Crear borrador</button>
       </footer>
     </form>
   </dialog>

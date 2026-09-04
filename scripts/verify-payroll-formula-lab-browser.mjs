@@ -10,6 +10,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'p
 const screenshots = [];
 const downloads = [];
 const previewRequests = [];
+const payrollRunId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const secondPayrollRunId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const reprocessingCaseId = '11111111-1111-4111-8111-111111111111';
+const malformedReprocessingCaseId = '22222222-2222-4222-8222-222222222222';
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'application/javascript; charset=utf-8'],
@@ -36,11 +40,20 @@ const payrollFixture = Object.freeze({
     month: '2026-08-01', closureStatus: 'open', contracts: 3,
     arithmeticReconciled: false, executivePublishable: false,
   },
-  runs: [{
-    month: '2026-07-01', closureStatus: 'closed', contracts: 3,
-    netPayable: 250, employerCostProxy: 330,
-    arithmeticReconciled: true, executivePublishable: true,
-  }],
+  runs: [
+    {
+      payrollRunId,
+      month: '2026-07-01', payrollType: 'M', closureStatus: 'closed', contracts: 3,
+      netPayable: 250, employerCostProxy: 330,
+      arithmeticReconciled: true, executivePublishable: true,
+    },
+    {
+      payrollRunId: secondPayrollRunId,
+      month: '2026-07-01', payrollType: 'M', closureStatus: 'closed', contracts: 4,
+      netPayable: 251, employerCostProxy: 331,
+      arithmeticReconciled: true, executivePublishable: true,
+    },
+  ],
   quality: { sourceRowsReconciled: true, arithmeticReconciled: true, currentOpenBlocked: true },
   limitations: ['Fixture sintético de navegador; no habilita cálculo ni publicación.'],
 });
@@ -58,8 +71,8 @@ const controlImportBootstrapFixture = Object.freeze({
         'payroll.control_import.read',
         'payroll.control_import.prepare',
         'payroll.control_import.audit.read',
-        'payroll.art_report.generate',
       ],
+      reportCapabilities: ['payroll.art_report.generate'],
     },
     batches: [],
     recentEvents: [],
@@ -71,6 +84,102 @@ const controlImportBootstrapFixture = Object.freeze({
       sourceKinds: ['grh_observed', 'operator_control'],
       concepts: ['701', '703'],
     },
+  },
+});
+
+const reprocessingBootstrapFixture = Object.freeze({
+  ok: true,
+  contractVersion: 'payroll-reprocessing-case.v1',
+  approvalEffect: 'external_execution_authorization_only',
+  feature: {
+    canPrepare: true,
+    canApprove: true,
+    grhMutation: false,
+    payrollVoided: false,
+    payrollCalculated: false,
+    payrollPosted: false,
+  },
+  counts: { draft: 0, submitted: 2, approved: 0, rejected: 0, cancelled: 0 },
+  requestKinds: ['void', 'reliquidate'],
+  businessReasonCodes: [
+    'duplicate_run', 'incorrect_personnel', 'incorrect_concept', 'incorrect_amount',
+    'source_correction', 'legal_adjustment', 'other_controlled',
+  ],
+});
+
+function reprocessingCaseFixture(id, targetRunId, runSha256) {
+  return {
+    id,
+    contractVersion: 'payroll-reprocessing-case.v1',
+    requestKind: 'reliquidate',
+    status: 'submitted',
+    version: 2,
+    businessReasonCode: 'source_correction',
+    businessReasonReference: 'ref:33333333-3333-4333-8333-333333333333',
+    decisionReasonCode: 'ready_for_review',
+    decisionReasonReference: 'ref:44444444-4444-4444-8444-444444444444',
+    executionAuthorized: false,
+    approvalEffect: 'external_execution_authorization_only',
+    grhMutation: false,
+    payrollVoided: false,
+    payrollCalculated: false,
+    payrollPosted: false,
+    createdAt: '2026-09-03T12:00:00.000Z',
+    updatedAt: '2026-09-03T12:10:00.000Z',
+    target: {
+      payrollRunId: targetRunId,
+      runSha256,
+      payrollDate: '2026-07-31',
+      sourcePeriod: '2026-07',
+      sourceMonth: '2026-07-01',
+      payrollType: 'M',
+      closureStatus: 'closed',
+      sourceSystem: 'GRH',
+    },
+    timeline: [],
+  };
+}
+
+const reprocessingCases = Object.freeze([
+  reprocessingCaseFixture(reprocessingCaseId, payrollRunId, 'a'.repeat(64)),
+  reprocessingCaseFixture(malformedReprocessingCaseId, secondPayrollRunId, 'b'.repeat(64)),
+]);
+
+const reprocessingDetailFixture = Object.freeze({
+  ok: true,
+  approvalEffect: 'external_execution_authorization_only',
+  grhMutation: false,
+  payrollVoided: false,
+  payrollCalculated: false,
+  payrollPosted: false,
+  data: { ...reprocessingCases[0], allowedCommands: ['approve', 'reject'] },
+});
+
+const reprocessingListFixture = Object.freeze({
+  ok: true,
+  approvalEffect: 'external_execution_authorization_only',
+  grhMutation: false,
+  payrollVoided: false,
+  payrollCalculated: false,
+  payrollPosted: false,
+  data: { items: reprocessingCases, total: 2, page: 1, limit: 10 },
+});
+
+const internalAuthFixture = Object.freeze({
+  ok: true,
+  authenticated: true,
+  access: {
+    tenantCapabilities: [
+      'payroll.read',
+      'payroll.control_import.read',
+      'payroll.control_import.prepare',
+      'payroll.control_import.audit.read',
+      'payroll.reprocessing.read',
+      'payroll.reprocessing.prepare',
+      'payroll.reprocessing.approve',
+      'payroll.art_report.generate',
+    ],
+    platformCapabilities: [],
   },
 });
 
@@ -110,6 +219,11 @@ function safeFile(requestPath) {
 
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
+  if (request.method === 'GET' && url.pathname === '/api/internal-auth') {
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    response.end(JSON.stringify(internalAuthFixture));
+    return;
+  }
   if (request.method === 'GET' && url.pathname === '/api/internal-data' && url.searchParams.get('resource') === 'payrollControl') {
     if (request.headers['x-payroll-fixture'] === 'unavailable') {
       response.writeHead(503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -125,6 +239,29 @@ const server = http.createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     response.end(JSON.stringify(controlImportBootstrapFixture));
     return;
+  }
+  if (request.method === 'GET' && url.pathname === '/api/internal-payroll-reprocessing') {
+    const resource = url.searchParams.get('resource');
+    const payload = resource === 'bootstrap' ? reprocessingBootstrapFixture
+      : (resource === 'list' ? reprocessingListFixture
+        : (resource === 'detail' && url.searchParams.get('id') === reprocessingCaseId
+          ? reprocessingDetailFixture
+          : (resource === 'detail' && url.searchParams.get('id') === malformedReprocessingCaseId
+            ? {
+                ok: true,
+                approvalEffect: 'external_execution_authorization_only',
+                grhMutation: false,
+                payrollVoided: false,
+                payrollCalculated: false,
+                payrollPosted: false,
+                data: { malformed: true },
+              }
+            : null)));
+    if (payload) {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify(payload));
+      return;
+    }
   }
   if (request.method === 'POST' && url.pathname === '/api/internal-grh-source-preview') {
     const chunks = [];
@@ -177,6 +314,40 @@ async function inspect(viewport, label) {
     await page.goto(`${baseUrl}/nomina-control.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-payroll-formula-lab]');
     assert.equal(await page.locator('#mainContent').isVisible(), true);
+    await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
+    assert.equal(await page.locator('[data-reprocessing-run] option').count(), 3);
+    const runSelectorText = await page.locator('[data-reprocessing-run]').innerText();
+    assert.match(runSelectorText, /jul.*2026/i);
+    assert.match(runSelectorText, /3 contratos.*corrida dddddddd/i);
+    assert.match(runSelectorText, /4 contratos.*corrida eeeeeeee/i);
+    assert.match(
+      await page.locator('[data-payroll-reprocessing-workflow]').innerText(),
+      /No anula una corrida, no recalcula haberes, no liquida, no contabiliza, no publica y no modifica GRH/,
+    );
+    const reprocessingWorkflow = page.locator('[data-payroll-reprocessing-workflow]');
+    assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-cases] tr').count(), 2);
+    const reprocessingRowsText = await reprocessingWorkflow.locator('[data-reprocessing-cases]').innerText();
+    assert.match(reprocessingRowsText, /corrida dddddddd · huella a{12}…a{6}/i);
+    assert.match(reprocessingRowsText, /corrida eeeeeeee · huella b{12}…b{6}/i);
+
+    await reprocessingWorkflow.locator('[data-reprocessing-command="approve"]').click();
+    const confirmation = reprocessingWorkflow.locator('[data-reprocessing-confirm]');
+    assert.equal(await confirmation.isVisible(), true);
+    assert.match(
+      await confirmation.locator('[data-reprocessing-confirm-summary]').innerText(),
+      /Autorizar ejecución externa.*corrida dddddddd.*31(?: de)? jul(?: de)? 2026.*v2/i,
+    );
+    await confirmation.locator('[data-reprocessing-confirm-cancel]').click();
+    assert.equal(await confirmation.isHidden(), true);
+
+    await reprocessingWorkflow.locator('[data-reprocessing-cases] tr').nth(1).getByRole('button', { name: 'Abrir' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'error');
+    assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-detail]').isHidden(), true);
+    assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-actions] button').count(), 0);
+    assert.equal(await confirmation.isHidden(), true);
+    await reprocessingWorkflow.locator('[data-reprocessing-cases] tr').first().getByRole('button', { name: 'Abrir' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
+    assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-detail]').isVisible(), true);
     assert.match(await page.locator('#formulaLabTitle').innerText(), /Revisar una fórmula/);
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
 
@@ -529,6 +700,7 @@ async function inspect(viewport, label) {
       postCloseVisible: Boolean(document.querySelector('[data-payroll-post-close-reconciler]')?.getBoundingClientRect().width),
       monthlyCloseVisible: Boolean(document.querySelector('[data-monthly-close-precheck]')?.getBoundingClientRect().width),
       persistedControlVisible: Boolean(document.querySelector('[data-payroll-control-import-workflow]')?.getBoundingClientRect().width),
+      reprocessingVisible: Boolean(document.querySelector('[data-payroll-reprocessing-workflow]')?.getBoundingClientRect().width),
       artVisible: Boolean(document.querySelector('[data-payroll-art-report-workbench]')?.getBoundingClientRect().width),
       bankDiagnosticVisible: Boolean(document.querySelector('[data-payroll-bank-report-workbench]')?.getBoundingClientRect().width),
       healthDiagnosticVisible: Boolean(document.querySelector('[data-payroll-health-fixed-width-workbench]')?.getBoundingClientRect().width),
@@ -553,6 +725,7 @@ async function inspect(viewport, label) {
     assert.equal(layout.postCloseVisible, true, `${label}: control poscierre oculto`);
     assert.equal(layout.monthlyCloseVisible, true, `${label}: precontrol mensual oculto`);
     assert.equal(layout.persistedControlVisible, true, `${label}: corridas persistidas ocultas`);
+    assert.equal(layout.reprocessingVisible, true, `${label}: anulación y reliquidación ocultas`);
     assert.equal(layout.artVisible, true, `${label}: reporte ART oculto`);
     assert.equal(layout.bankDiagnosticVisible, true, `${label}: diagnóstico bancario oculto`);
     assert.equal(layout.healthDiagnosticVisible, true, `${label}: diagnóstico OSEP/Mutual oculto`);
@@ -560,6 +733,12 @@ async function inspect(viewport, label) {
     assert.ok(layout.postCloseGeometry.state.right <= viewport.width + 1, `${label}: estado poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.ok(layout.postCloseGeometry.table.right <= viewport.width + 1, `${label}: tabla poscierre fuera de viewport ${JSON.stringify(layout.postCloseGeometry)}`);
     assert.equal(layout.storedFormula, 0, `${label}: la fórmula no debe persistirse en storage`);
+
+    const reprocessing = page.locator('[data-payroll-reprocessing-workflow]');
+    await reprocessing.scrollIntoViewIfNeeded();
+    const reprocessingScreenshot = path.join(os.tmpdir(), `municontrol-payroll-reprocessing-${label}.png`);
+    await page.screenshot({ path: reprocessingScreenshot, fullPage: false });
+    screenshots.push(reprocessingScreenshot);
 
     await postClose.scrollIntoViewIfNeeded();
     const screenshot = path.join(os.tmpdir(), `municontrol-payroll-post-close-${label}.png`);
