@@ -23,9 +23,14 @@ function response() {
 function access() {
   return {
     mode: 'managed',
-    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
+    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3, mfa: true },
     principal: {
       user: { email: 'actor@junin.gob.ar' },
+      authorized: true,
+      platform: {
+        roles: ['PLATFORM_OWNER'],
+        capabilities: ['platform.tenants.manage'],
+      },
       tenant: {
         id: TENANT_ID,
         slug: 'junin-mendoza',
@@ -273,6 +278,58 @@ test('mutación reenvía pepper sólo al normalizador server-side y marca replay
   assert.equal(res.headers['Idempotency-Replayed'], 'true');
   assert.equal(calls[0][4], IDEMPOTENCY_ID);
   assert.equal(calls[0][5].identityPepper, 'x'.repeat(40));
+});
+
+test('alta de sede exige propietario global aunque exista permiso municipal de marcaciones', async () => {
+  for (const roleKey of [
+    'HUGO_APROBADOR_INTEGRAL', 'CONSULTA_INTEGRAL', 'JUNIN_ASISTENCIA_OPERADOR',
+  ]) {
+    let sqlCalls = 0;
+    let applyCalls = 0;
+    const municipalAccess = access();
+    municipalAccess.principal.platform = {
+      roles: [],
+      capabilities: ['platform.tenants.manage'],
+    };
+    municipalAccess.principal.tenant.roleKey = roleKey;
+    const handler = createInternalAttendanceHandler(internalDependencies({
+      requireCompatibleInternalAccess: async () => municipalAccess,
+      getInternalSql: async () => { sqlCalls += 1; return { fake: true }; },
+      applyAttendanceCommand: async () => { applyCalls += 1; return {}; },
+    }));
+    const res = response();
+    await handler({
+      method: 'POST', query: {},
+      headers: { 'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_ID },
+      body: { command: 'site.create', payload: {} },
+    }, res);
+    assert.equal(res.statusCode, 403, roleKey);
+    assert.equal(res.payload.code, 'ATTENDANCE_PLATFORM_OWNER_REQUIRED');
+    assert.equal(sqlCalls, 0);
+    assert.equal(applyCalls, 0);
+  }
+});
+
+test('alta de sede exige MFA de la sesión efectiva aunque el principal sea propietario', async () => {
+  let sqlCalls = 0;
+  let applyCalls = 0;
+  const ownerWithoutMfa = access();
+  ownerWithoutMfa.session.mfa = false;
+  const handler = createInternalAttendanceHandler(internalDependencies({
+    requireCompatibleInternalAccess: async () => ownerWithoutMfa,
+    getInternalSql: async () => { sqlCalls += 1; return { fake: true }; },
+    applyAttendanceCommand: async () => { applyCalls += 1; return {}; },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', query: {},
+    headers: { 'content-type': 'application/json', 'idempotency-key': IDEMPOTENCY_ID },
+    body: { command: 'site.create', payload: {} },
+  }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'ATTENDANCE_PLATFORM_OWNER_REQUIRED');
+  assert.equal(sqlCalls, 0);
+  assert.equal(applyCalls, 0);
 });
 
 function ingestDependencies(overrides = {}) {

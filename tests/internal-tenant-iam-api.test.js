@@ -37,7 +37,19 @@ function dependencies(overrides = {}) {
     requireCompatibleInternalAccess: async () => ({
       mode: 'managed',
       session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
-      principal: { user: { email: 'owner@example.test' }, tenant: null },
+      principal: {
+        authorized: true,
+        user: { email: 'owner@example.test' },
+        platform: {
+          roles: ['PLATFORM_OWNER'],
+          capabilities: [
+            'platform.tenants.manage', 'platform.crm.manage',
+            'platform.users.invite', 'platform.users.manage', 'platform.roles.manage',
+          ],
+        },
+        session: { mfa: true },
+        tenant: null,
+      },
     }),
     getInternalAdminSql: async () => ({ query: async () => [] }),
     getInternalAdminView: async () => ({
@@ -197,6 +209,82 @@ test('contexto legacy no puede enumerar ni mutar aunque alegue el email del owne
   await handler({ method: 'GET', headers: {}, query: { resource: 'bootstrap' } }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(res.payload.code, 'IDENTITY_PLATFORM_CONTEXT_REQUIRED');
+  assert.equal(sqlCalls, 0);
+});
+
+test('Hugo y consulta no enumeran ni mutan administración aunque aleguen capacidades platform', async () => {
+  for (const roleKey of ['HUGO_APROBADOR_INTEGRAL', 'CONSULTA_INTEGRAL']) {
+    let sqlCalls = 0;
+    let commandCalls = 0;
+    const handler = createInternalAdminHandler(dependencies({
+      requireCompatibleInternalAccess: async () => ({
+        mode: 'managed',
+        session: { id: SESSION_ID, email: 'actor@example.test', version: 4 },
+        principal: {
+          authorized: true,
+          user: { email: 'actor@example.test' },
+          platform: { roles: [], capabilities: ['platform.users.invite'] },
+          session: { mfa: true },
+          tenant: null,
+          tenantRoleKey: roleKey,
+        },
+      }),
+      getInternalAdminSql: async () => { sqlCalls += 1; return {}; },
+      applyInternalAdminCommand: async () => { commandCalls += 1; return {}; },
+    }));
+    const getRes = response();
+    await handler({ method: 'GET', headers: {}, query: { resource: 'bootstrap' } }, getRes);
+    assert.equal(getRes.statusCode, 403, roleKey);
+    assert.equal(getRes.payload.code, 'INTERNAL_ADMIN_PLATFORM_OWNER_REQUIRED');
+
+    const postRes = response();
+    await handler({
+      method: 'POST', query: {},
+      headers: { 'content-type': 'application/json', 'idempotency-key': KEY },
+      body: {
+        command: 'invite_user',
+        payload: {
+          tenantId: TENANT_ID, email: 'new@example.test',
+          displayName: 'Cuenta nueva', roleKey: 'CONSULTA_INTEGRAL',
+        },
+      },
+    }, postRes);
+    assert.equal(postRes.statusCode, 403, roleKey);
+    assert.equal(postRes.payload.code, 'INTERNAL_ADMIN_PLATFORM_OWNER_REQUIRED');
+    assert.equal(sqlCalls, 0);
+    assert.equal(commandCalls, 0);
+  }
+});
+
+test('propietario sin capacidad exacta no puede invitar', async () => {
+  let sqlCalls = 0;
+  const handler = createInternalAdminHandler(dependencies({
+    requireCompatibleInternalAccess: async () => ({
+      mode: 'managed',
+      session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
+      principal: {
+        authorized: true,
+        user: { email: 'owner@example.test' },
+        platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.tenants.manage'] },
+        session: { mfa: true }, tenant: null,
+      },
+    }),
+    getInternalAdminSql: async () => { sqlCalls += 1; return {}; },
+  }));
+  const res = response();
+  await handler({
+    method: 'POST', query: {},
+    headers: { 'content-type': 'application/json', 'idempotency-key': KEY },
+    body: {
+      command: 'invite_user',
+      payload: {
+        tenantId: TENANT_ID, email: 'new@example.test',
+        displayName: 'Cuenta nueva', roleKey: 'CONSULTA_INTEGRAL',
+      },
+    },
+  }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'INTERNAL_ADMIN_PLATFORM_OWNER_REQUIRED');
   assert.equal(sqlCalls, 0);
 });
 

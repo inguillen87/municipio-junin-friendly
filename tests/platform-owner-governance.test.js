@@ -396,8 +396,15 @@ test('API expone vista global y procesa solicitudes sólo en contexto Plataforma
       calls.push({ kind: 'access', options });
       return {
         mode: 'managed',
-        session: { id: SESSION_ID, email: 'owner-a@example.test', version: 7 },
-        principal: { tenant: null, platform: { capabilities: ['platform.roles.manage'] } },
+        session: { id: SESSION_ID, email: 'owner-a@example.test', version: 7, mfa: true },
+        principal: {
+          authorized: true,
+          tenant: null,
+          platform: {
+            roles: ['PLATFORM_OWNER'],
+            capabilities: ['platform.roles.manage'],
+          },
+        },
       };
     },
     getInternalAdminSql: async () => ({ query: async () => [] }),

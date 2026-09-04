@@ -1,3 +1,10 @@
+import {
+  PayrollMonthlyCloseApprovedProofError,
+  createPayrollMonthlyCloseApprovedPdf,
+  downloadPayrollMonthlyCloseApprovedProof,
+  isPayrollMonthlyCloseApprovedProofReady,
+} from './payroll-monthly-close-approved-report.js';
+
 export const PAYROLL_MONTHLY_CLOSE_API = '/api/internal-payroll-monthly-close';
 export const PAYROLL_MONTHLY_CLOSE_CONTRACT = 'payroll-monthly-close-run.v1';
 export const PAYROLL_MONTHLY_CLOSE_MAX_BYTES = 256 * 1024;
@@ -535,6 +542,8 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
   const cryptoImpl = options.cryptoImpl || globalThis.crypto;
   const locationImpl = options.locationImpl || globalThis.location;
   const FileReaderImpl = options.FileReaderImpl || globalThis.FileReader;
+  const createApprovedPdf = options.createApprovedPdf || createPayrollMonthlyCloseApprovedPdf;
+  const downloadApprovedProof = options.downloadApprovedProof || downloadPayrollMonthlyCloseApprovedProof;
   const nodes = {
     status: root.querySelector('[data-monthly-workflow-status]'),
     role: root.querySelector('[data-monthly-workflow-role]'),
@@ -563,6 +572,9 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     rejectReason: root.querySelector('[data-monthly-workflow-reject-reason]'),
     actions: root.querySelector('[data-monthly-workflow-actions]'),
     actionStatus: root.querySelector('[data-monthly-workflow-action-status]'),
+    approvedProof: root.querySelector('[data-monthly-workflow-approved-proof]'),
+    approvedProofDownload: root.querySelector('[data-monthly-workflow-approved-proof-download]'),
+    approvedProofStatus: root.querySelector('[data-monthly-workflow-approved-proof-status]'),
   };
   const state = { bootstrap: null, selectedId: null, detail: null, busy: false };
   const attempts = createPayrollMonthlyCloseAttemptManager({ cryptoImpl });
@@ -884,6 +896,36 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     nodes.actionStatus.dataset.state = run.allowedCommands.length ? 'ok' : 'warning';
   }
 
+  function renderApprovedProof(run) {
+    if (!nodes.approvedProof || !nodes.approvedProofDownload || !nodes.approvedProofStatus) return;
+    const ready = isPayrollMonthlyCloseApprovedProofReady(run);
+    nodes.approvedProof.hidden = !ready;
+    nodes.approvedProofDownload.disabled = !ready;
+    nodes.approvedProofStatus.textContent = ready
+      ? 'Disponible: cierre aprobado por control independiente, conciliado al centavo y sin bloqueos.'
+      : 'El comprobante se habilita únicamente después de una aprobación conciliada y sin bloqueos.';
+    nodes.approvedProofStatus.dataset.state = ready ? 'ok' : 'warning';
+  }
+
+  function downloadApprovedReport() {
+    if (state.busy || !state.detail || !nodes.approvedProofDownload || !nodes.approvedProofStatus) return;
+    nodes.approvedProofDownload.disabled = true;
+    nodes.approvedProofStatus.textContent = 'Verificando la aprobación y preparando el comprobante…';
+    nodes.approvedProofStatus.dataset.state = 'warning';
+    try {
+      const artifact = createApprovedPdf(state.detail);
+      const fileName = downloadApprovedProof(artifact);
+      nodes.approvedProofStatus.textContent = `Comprobante descargado: ${fileName}`;
+      nodes.approvedProofStatus.dataset.state = 'ok';
+    } catch (error) {
+      nodes.approvedProofStatus.textContent = error instanceof PayrollMonthlyCloseApprovedProofError
+        ? error.message : 'No se pudo generar un comprobante verificable.';
+      nodes.approvedProofStatus.dataset.state = 'error';
+    } finally {
+      nodes.approvedProofDownload.disabled = !isPayrollMonthlyCloseApprovedProofReady(state.detail);
+    }
+  }
+
   function renderDetail(run) {
     state.detail = run;
     nodes.detail.hidden = false;
@@ -893,6 +935,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     renderSources(run);
     renderEvents(run);
     renderActions(run);
+    renderApprovedProof(run);
   }
 
   async function loadDetail(id, options = {}) {
@@ -1082,6 +1125,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
   nodes.form?.addEventListener('submit', prepare);
   nodes.form?.addEventListener('reset', () => setTimeout(resetFileStates, 0));
   nodes.refresh?.addEventListener('click', () => load());
+  nodes.approvedProofDownload?.addEventListener('click', downloadApprovedReport);
   load();
   return { load, loadDetail, prepare, getState: () => ({ ...state }) };
 }

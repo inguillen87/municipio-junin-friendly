@@ -489,7 +489,14 @@ test('presenta circuito maker-checker, conciliación exacta y límites operativo
   assert.match(html, /data-monthly-workflow-government-reconciliation/);
   assert.match(html, /Un centavo de diferencia bloquea la aprobación/);
   assert.match(html, /data-monthly-workflow-actions/);
+  assert.match(html, /data-monthly-workflow-approved-proof/);
+  assert.match(html, /data-monthly-workflow-approved-proof-download/);
+  assert.match(html, /Descargar PDF aprobado/);
+  assert.match(html, /PDF interno, agregado y sin datos personales/);
+  assert.match(html, /No es recibo de sueldo, orden de pago, archivo bancario, F\.931\/LSD ni constancia fiscal/);
   assert.equal((html.match(/assets\/payroll-monthly-close-workflow\.js/g) || []).length, 1);
+  assert.equal((html.match(/assets\/payroll-monthly-close-approved-report\.js/g) || []).length, 0);
+  assert.match(build, /'assets\/payroll-monthly-close-approved-report\.js'/);
   assert.match(build, /'assets\/payroll-monthly-close-workflow\.js'/);
   assert.match(source, new RegExp(PAYROLL_MONTHLY_CLOSE_API.replaceAll('/', '\\/')));
   assert.match(source, /run\.allowedCommands\.forEach/);
@@ -497,6 +504,9 @@ test('presenta circuito maker-checker, conciliación exacta y límites operativo
   assert.match(source, /reconcileAttemptByKey/);
   assert.match(source, /resource=attempt/);
   assert.match(source, /'X-MuniControl-Command'/);
+  assert.match(source, /isPayrollMonthlyCloseApprovedProofReady/);
+  assert.match(source, /createPayrollMonthlyCloseApprovedPdf/);
+  assert.match(source, /downloadPayrollMonthlyCloseApprovedProof/);
   assert.doesNotMatch(source, /baselineRunIds/);
   assert.doesNotMatch(source, /'Idempotency-Key': cryptoImpl\.randomUUID/);
   assert.match(source, /new FileReaderImpl\(\)/);

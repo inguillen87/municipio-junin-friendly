@@ -11,15 +11,37 @@ import {
   internalAdminDatabaseError,
   normalizeInternalAdminCommand,
 } from '../lib/internal-admin.js';
+import { hasEffectivePlatformOwnerContext } from '../lib/internal-platform-owner-policy.js';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const RUNTIME_ROLE = 'municontrol_actions_runtime_app';
 const PLATFORM_ADMIN_CAPABILITIES = Object.freeze([
   'platform.tenants.manage',
   'platform.crm.manage',
+  'platform.users.invite',
   'platform.users.manage',
   'platform.roles.manage',
 ]);
+const COMMAND_CAPABILITY = Object.freeze({
+  create_tenant: 'platform.tenants.manage',
+  invite_user: 'platform.users.invite',
+  update_access: 'platform.users.manage',
+  suspend_membership: 'platform.users.manage',
+  request_existing_membership: 'platform.users.manage',
+  request_membership_reactivation: 'platform.users.manage',
+  approve_membership_change: 'platform.users.manage',
+  reject_membership_change: 'platform.users.manage',
+  lookup_employment: 'platform.users.manage',
+  link_employment: 'platform.users.manage',
+  revoke_employment_link: 'platform.users.manage',
+  update_account_profile: 'platform.users.manage',
+  assign_exclusive_capability: 'platform.roles.manage',
+  replace_action_scopes: 'platform.roles.manage',
+  request_platform_owner_grant: 'platform.roles.manage',
+  request_platform_owner_revoke: 'platform.roles.manage',
+  approve_platform_owner_change: 'platform.roles.manage',
+  reject_platform_owner_change: 'platform.roles.manage',
+});
 let cachedUrl = null;
 let cachedSqlPromise = null;
 
@@ -216,10 +238,17 @@ export function createInternalAdminHandler(dependencies = {}) {
           error: 'Cambiá al contexto Plataforma para administrar municipios y usuarios',
         });
       }
+      if (!hasEffectivePlatformOwnerContext(access.principal)) {
+        return send(res, 403, {
+          ok: false,
+          code: 'INTERNAL_ADMIN_PLATFORM_OWNER_REQUIRED',
+          error: 'La administración global está reservada al propietario vigente de la plataforma',
+        });
+      }
       const session = access.session;
-      const sql = await getSql(env);
       const releaseSha = certifiedReleaseSha(env);
       if (method === 'GET') {
+        const sql = await getSql(env);
         const resource = queryValue(req, 'resource', 'bootstrap');
         const limit = Number(queryValue(req, 'limit', '100'));
         const tenantId = queryValue(req, 'tenantId', '').trim().toLowerCase();
@@ -228,6 +257,16 @@ export function createInternalAdminHandler(dependencies = {}) {
       }
       const body = await readBody(req);
       const command = normalizeInternalAdminCommand(body, header(req, 'idempotency-key').trim());
+      const requiredCapability = COMMAND_CAPABILITY[command.command];
+      if (!requiredCapability
+          || !hasEffectivePlatformOwnerContext(access.principal, [requiredCapability])) {
+        return send(res, 403, {
+          ok: false,
+          code: 'INTERNAL_ADMIN_PLATFORM_OWNER_REQUIRED',
+          error: 'La operación exige propietario vigente y capacidad explícita de plataforma',
+        });
+      }
+      const sql = await getSql(env);
       const result = await applyCommand(sql, session, command, { releaseSha });
       const acceptedCommands = new Set([
         'request_existing_membership', 'request_membership_reactivation',

@@ -987,7 +987,7 @@
       sodRules: [],
       metrics: {},
       source: {},
-      identityAccess: { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] },
+      identityAccess: { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, platformOwner: false, canAdminPlatform: false, roles: [], capabilities: [] },
       identityPolicy: { present: false, version: null, dataPlaneReady: false, invitationDeliveryReady: false, sourceBindingId: '' },
       sourceOnboarding: {
         tenantId: '', binding: null, evidence: null, commands: new Set(), error: '', busy: '',
@@ -1711,15 +1711,21 @@
       var capabilities = list(platform.capabilities).map(function (value) {
         return text(typeof value === 'string' ? value : firstObject(value).key);
       }).filter(Boolean);
+      var roles = list(platform.roles).map(function (value) {
+        return text(typeof value === 'string' ? value : firstObject(value).key).toUpperCase();
+      }).filter(Boolean);
+      var platformOwner = roles.includes('PLATFORM_OWNER');
       return {
         authorized: access.authorized === true,
         platformContext: access.tenant === null && Object.keys(platform).length > 0,
         tenantContext: Object.keys(firstObject(access.tenant)).length > 0,
         mfa: session.mfa === true || ['mfa', 'recovery'].includes(authLevel),
         sessionVersion: authorityVersion(session.version, access.sessionVersion, root.sessionVersion),
-        canAdminPlatform: capabilities.some(function (capability) {
+        platformOwner: platformOwner,
+        canAdminPlatform: platformOwner && capabilities.some(function (capability) {
           return PLATFORM_ADMIN_CAPABILITIES.includes(capability);
         }),
+        roles: Array.from(new Set(roles)),
         capabilities: Array.from(new Set(capabilities))
       };
     }
@@ -1947,6 +1953,7 @@
       return state.identityAccess.authorized === true
         && state.identityAccess.platformContext === true
         && state.identityAccess.mfa === true
+        && state.identityAccess.platformOwner === true
         && capabilities.some(function (capability) {
           return state.identityAccess.capabilities.includes(capability);
         });
@@ -2266,6 +2273,7 @@
         && state.identityAccess.authorized === true
         && state.identityAccess.platformContext === true
         && state.identityAccess.mfa === true
+        && state.identityAccess.platformOwner === true
         && state.identityAccess.capabilities.includes('platform.tenants.manage');
     }
 
@@ -3244,7 +3252,7 @@
 
     async function loadIdentityAuthorization(requestedTenantId, version) {
       var identityLoaded = false;
-      state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] };
+      state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, platformOwner: false, canAdminPlatform: false, roles: [], capabilities: [] };
       state.sourceOnboarding.commands = new Set();
       state.sourceOnboarding.binding = null;
       state.sourceOnboarding.evidence = null;
@@ -3278,7 +3286,7 @@
       } catch (error) {
         if (version !== state.loadVersion) return;
         if (!identityLoaded || error.unauthorized) {
-          state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, canAdminPlatform: false, capabilities: [] };
+          state.identityAccess = { authorized: false, platformContext: false, tenantContext: false, mfa: false, sessionVersion: null, platformOwner: false, canAdminPlatform: false, roles: [], capabilities: [] };
           return;
         }
         if (activateSourceReleaseRecovery(error)) return;

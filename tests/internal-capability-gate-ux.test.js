@@ -58,12 +58,14 @@ test('el gate compartido resuelve rutas internas con capacidades tenant exactas'
   assert.equal(gate.allowed(gate.requirements['nomina-control.html'], ['workforce.summary.read'], []), false);
 });
 
-test('la administración global depende de una capacidad platform y no del nombre del rol', () => {
+test('la administración global exige rol propietario y capacidad efectiva de plataforma', () => {
   const { gate } = loadGate();
   const requirement = gate.requirements['administracion-plataforma.html'];
   assert.equal(gate.allowed(requirement, ['payroll.read'], []), false);
-  assert.equal(gate.allowed(requirement, [], ['platform.tenants.read']), true);
-  assert.equal(gate.allowed(requirement, [], ['tenant.admin']), false);
+  assert.equal(gate.allowed(requirement, [], ['platform.tenants.manage'], []), false);
+  assert.equal(gate.allowed(requirement, [], ['platform.tenants.read'], ['PLATFORM_OWNER']), false);
+  assert.equal(gate.allowed(requirement, [], ['platform.tenants.manage'], ['PLATFORM_OWNER']), true);
+  assert.equal(gate.allowed(requirement, [], ['tenant.admin'], ['PLATFORM_OWNER']), false);
 });
 
 test('apply oculta destinos y mutaciones no autorizados y deja visibles las lecturas permitidas', () => {
@@ -81,12 +83,21 @@ test('apply oculta destinos y mutaciones no autorizados y deja visibles las lect
   gate.apply(rootNode, {
     tenantCapabilities: ['workforce.employee.read'],
     platformCapabilities: [],
+    platformRoles: [],
   }, 'https://municipio.example/licencias-control.html');
   assert.equal(people.hidden, false);
   assert.equal(payroll.hidden, true);
   assert.equal(createLeave.hidden, true);
   assert.equal(platform.hidden, true);
   assert.equal(createLeave.getAttribute('aria-hidden'), 'true');
+
+  gate.apply(rootNode, {
+    tenantCapabilities: ['workforce.employee.read'],
+    platformCapabilities: ['platform.tenants.manage'],
+    platformRoles: ['PLATFORM_OWNER'],
+  }, 'https://municipio.example/licencias-control.html');
+  assert.equal(platform.hidden, false);
+  assert.equal(platform.hasAttribute('aria-hidden'), false);
 });
 
 test('el estado inicial queda cerrado antes de resolver la sesión', () => {

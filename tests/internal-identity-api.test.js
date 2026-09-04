@@ -789,14 +789,14 @@ test('logout limpia cookies v1 y v2 aun si la revocacion DB no se confirma', asy
   assert.match(res.headers['Set-Cookie'].join('\n'), /municontrol_internal_session=.*Max-Age=0/);
 });
 
-test('operaciones platform-only rechazan contexto tenant y aceptan contexto platform', async () => {
+test('operaciones platform-only exigen contexto y rol propietario efectivos', async () => {
   const token = issueIdentitySessionToken({
     id: SESSION_ID, email: 'marcelo@example.test', version: 1, identityVersion: 2,
   }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
-  const make = (tenant) => handlerWithQuery(async (sql) => {
+  const make = (tenant, roles = ['PLATFORM_OWNER']) => handlerWithQuery(async (sql) => {
     if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
       authorized: true, user: { email: 'marcelo@example.test' }, session: { id: SESSION_ID },
-      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.users.read'] }, tenant,
+      platform: { roles, capabilities: ['platform.users.read'] }, tenant,
     } }];
     if (sql.includes('tenant_identity_platform_invitations_view_v2')) {
       return [{ result: { allowedCommands: [], invitations: [] } }];
@@ -812,6 +812,43 @@ test('operaciones platform-only rechazan contexto tenant y aceptan contexto plat
     headers: { cookie: `${IDENTITY_SESSION_COOKIE}=${token}` } }, platformRes);
   assert.equal(platformRes.statusCode, 200);
   assert.deepEqual(platformRes.payload.invitations, []);
+
+  const nonOwnerRes = response();
+  await make(null, [])({ method: 'GET', query: { resource: 'invitations' },
+    headers: { cookie: `${IDENTITY_SESSION_COOKIE}=${token}` } }, nonOwnerRes);
+  assert.equal(nonOwnerRes.statusCode, 403);
+  assert.equal(nonOwnerRes.payload.code, 'IDENTITY_FORBIDDEN');
+});
+
+test('entrega de invitación no alcanza provider ni SQL nominal sin rol propietario', async () => {
+  const token = issueIdentitySessionToken({
+    id: SESSION_ID, email: 'actor@example.test', version: 1, identityVersion: 2,
+  }, { secret: SESSION_SECRET, now: NOW, ttlSeconds: 3600 });
+  let providerCalls = 0;
+  let nominalQueries = 0;
+  const handler = handlerWithQuery(async (sql) => {
+    if (sql.includes('tenant_identity_resolve_access')) return [{ result: {
+      authorized: true,
+      user: { email: 'actor@example.test' },
+      session: { id: SESSION_ID, mfa: true },
+      platform: { roles: [], capabilities: ['platform.users.invite'] },
+      tenant: null,
+    } }];
+    nominalQueries += 1;
+    throw new Error('consulta nominal no esperada');
+  }, {
+    deliverInvitation: async () => { providerCalls += 1; },
+  });
+  const res = response();
+  await handler(request('issue_invitation', { invitationId: TENANT_ID }, {
+    cookie: `${IDENTITY_SESSION_COOKIE}=${token}`,
+    idempotencyKey: KEY,
+    expectedVersion: 1,
+  }), res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.payload.code, 'IDENTITY_FORBIDDEN');
+  assert.equal(nominalQueries, 0);
+  assert.equal(providerCalls, 0);
 });
 
 test('switch_context valida server-side, rota SID y no extiende la expiracion absoluta', async () => {

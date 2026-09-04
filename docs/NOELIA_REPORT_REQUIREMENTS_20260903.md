@@ -33,7 +33,15 @@ La página 1 ubica el trabajo en `Liquidación de sueldos → Reportes → Ejecu
 
 El pedido dice “igual que GRH” en varios puntos. Eso define una meta de compatibilidad, no autoriza a asumir el esquema: cada salida debe fijarse mediante un perfil versionado y una muestra de conformidad.
 
-## Feedback de audio del 3 de septiembre
+## Feedback de audio del 2 y 3 de septiembre
+
+Los seis audios únicos del 2 de septiembre entre `18.20.49` y `18.25.09` —uno de los archivos `18.23.08` era una copia byte a byte— confirman un circuito manual posterior al cierre. La transcripción automática se usó sólo para identificar pasos de trabajo; los nombres técnicos dudosos y los códigos mencionados de memoria no se toman como reglas homologadas:
+
+- **Estadística por concepto antes de la entrega**: la operadora parte del reporte general de GRH, arma planillas de control y concilia los importes que después se informan. MuniControl debe reutilizar una única corrida cerrada y evitar volver a copiar totales.
+- **Paquete provincial, no presentación fiscal directa**: según el relato, el municipio prepara archivos y controles que luego carga en una plataforma provincial; el organismo provincial consolida la presentación global. Antes de integrar ARCA, MuniControl debe generar, validar y dejar trazable el paquete de entrega municipal, sin afirmar que presentó el F.931.
+- **Cajas asistenciales, OSEP y Seguro Mutual**: continúan después del cierre y hoy combinan reportes GRH con Excel. Deben salir del mismo período y población conciliados, con perfiles versionados y excepciones visibles.
+- **Separación J42/J55**: aportes, contribuciones y poblaciones no se comportan necesariamente igual en ambas jurisdicciones. No se programará una equivalencia hasta homologar conceptos, responsables y casos dorados.
+- **Subconjunto operativo de reportes**: aunque GRH ofrece muchas variantes, el uso mensual se concentra en pocos reportes. El catálogo de MuniControl debe priorizar ese recorrido frecuente y dejar el resto bajo demanda.
 
 Los audios `18.45.47` y `18.46.58` agregan dos pedidos funcionales. Se registran como requisitos de descubrimiento y no como reglas ya homologadas:
 

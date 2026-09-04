@@ -6,6 +6,7 @@ import {
   listAttendanceResources,
 } from '../lib/internal-attendance-gateway.js';
 import { getReportedAttendanceInventory } from '../lib/internal-attendance-reported-inventory.js';
+import { hasEffectivePlatformOwnerAuthority } from '../lib/internal-platform-owner-policy.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 
 const MAX_BODY_BYTES = 32 * 1024;
@@ -199,6 +200,17 @@ export function createInternalAttendanceHandler(dependencies = {}) {
           ok: false,
           code: 'ATTENDANCE_TENANT_MEMBERSHIP_REQUIRED',
           error: 'Marcaciones exige una membresía municipal activa',
+        });
+      }
+
+      if (method === 'POST' && body?.command === 'site.create'
+          && (!hasEffectivePlatformOwnerAuthority(
+            access.principal, ['platform.tenants.manage'],
+          ) || access.session?.mfa !== true)) {
+        return send(res, 403, {
+          ok: false,
+          code: 'ATTENDANCE_PLATFORM_OWNER_REQUIRED',
+          error: 'El alta de sedes está reservada al propietario vigente de la plataforma',
         });
       }
 

@@ -338,6 +338,89 @@
       font-size: clamp(.96rem, 1.6vw, 1.08rem);
     }
 
+    .work-today {
+      margin: 0 0 20px;
+      padding: clamp(18px, 2.8vw, 26px);
+      border: 1px solid #b8d5d0;
+      border-left: 4px solid var(--green);
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #f7fbf9 0%, #edf6f3 100%);
+      box-shadow: 0 3px 14px rgba(22, 50, 64, .045);
+    }
+
+    .work-today[data-mode="decide"] { border-left-color: var(--blue); }
+    .work-today[data-mode="consult"] { border-left-color: var(--navy-2); }
+
+    .work-today-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .work-today-head h2 { margin: 0; }
+    .work-today-head p { max-width: 760px; margin: 7px 0 0; color: var(--ink-soft); font-size: .88rem; }
+
+    .work-today-badge {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      max-width: 360px;
+      padding: 5px 10px;
+      border: 1px solid #a8c9c2;
+      border-radius: 999px;
+      background: var(--paper);
+      color: #185c46;
+      font-size: .7rem;
+      font-weight: 850;
+      line-height: 1.3;
+      text-align: right;
+    }
+
+    .work-today[data-mode="decide"] .work-today-badge { border-color: #9cc5cc; color: #115a65; }
+    .work-today[data-mode="consult"] .work-today-badge { border-color: var(--line-strong); color: var(--navy); }
+
+    .work-today-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 17px;
+    }
+
+    .work-today-card {
+      min-width: 0;
+      min-height: 174px;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper);
+      color: var(--ink);
+      text-decoration: none;
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .work-today-card:hover {
+      transform: translateY(-2px);
+      border-color: #93b8b1;
+      box-shadow: 0 8px 18px rgba(22, 50, 64, .08);
+    }
+
+    .work-today-card-kicker {
+      color: var(--blue);
+      font-size: .66rem;
+      font-weight: 900;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .work-today-card strong { margin-top: 8px; color: var(--navy); font-size: .98rem; }
+    .work-today-card-copy { margin-top: 7px; color: var(--ink-soft); font-size: .77rem; line-height: 1.45; }
+    .work-today-card-action { margin-top: auto; padding-top: 14px; color: var(--green); font-size: .75rem; font-weight: 850; }
+    .work-today-boundary { margin: 13px 0 0; color: var(--ink-soft); font-size: .73rem; }
+
     .status-line {
       min-height: 24px;
       display: flex;
@@ -986,6 +1069,10 @@
       .topbar-actions .button { min-height: 44px; padding: 8px 10px; font-size: .76rem; }
       .main-content { padding-top: 28px; }
       .page-heading { display: block; }
+      .work-today-head { display: block; }
+      .work-today-badge { max-width: 100%; margin-top: 12px; text-align: left; }
+      .work-today-grid { grid-template-columns: 1fr; }
+      .work-today-card { min-height: 0; }
       .kpi-grid, .availability-grid, .filters, .detail-fields, .detail-counts, .directory-scope { grid-template-columns: 1fr; }
       .directory-filters .search-field { grid-column: auto; }
       .kpi-card { min-height: 154px; }
@@ -1141,6 +1228,19 @@
               </div>
             </div>
           </header>
+
+          <section class="work-today" id="workToday" aria-labelledby="workTodayTitle" hidden>
+            <header class="work-today-head">
+              <div>
+                <p class="eyebrow" data-work-today-eyebrow>Accesos de tu sesión</p>
+                <h2 id="workTodayTitle" data-work-today-title>Mi trabajo hoy</h2>
+                <p data-work-today-summary>Preparando los accesos habilitados para tu sesión.</p>
+              </div>
+              <span class="work-today-badge" data-work-today-badge>Verificando perfil</span>
+            </header>
+            <div class="work-today-grid" data-work-today-list aria-label="Accesos operativos habilitados"></div>
+            <p class="work-today-boundary" data-work-today-boundary></p>
+          </section>
 
           <div class="kpi-grid" aria-label="Indicadores principales">
             <article class="kpi-card" id="kpiHistorical" aria-busy="true">
@@ -1443,6 +1543,7 @@
     <div class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>Este panel consulta la sesión y los datos internos mediante la API municipal.</p></div></div>
   </noscript>
 
+  <script src="assets/internal-work-today.js"></script>
   <script>
     (function () {
       'use strict';
@@ -1495,6 +1596,7 @@
         topbarViewTitle: document.getElementById('topbarViewTitle'),
         userName: document.getElementById('userName'),
         userRole: document.getElementById('userRole'),
+        workToday: document.getElementById('workToday'),
         refreshButton: document.getElementById('refreshButton'),
         logoutButton: document.getElementById('logoutButton'),
         summaryStatus: document.getElementById('summaryStatus'),
@@ -1816,6 +1918,8 @@
         const contract = access && typeof access === 'object' ? access : {};
         const tenantCapabilities = capabilitySet(contract.tenantCapabilities);
         const platformCapabilities = capabilitySet(contract.platformCapabilities);
+        const platformRoles = capabilitySet(contract.platformRoles);
+        const platformOwner = platformRoles.has('PLATFORM_OWNER');
         state.tenantCapabilities = tenantCapabilities;
         document.querySelectorAll('[data-any-capability]').forEach(function (item) {
           const required = text(item.dataset.anyCapability).split(/\s+/).filter(Boolean);
@@ -1823,9 +1927,10 @@
             && !required.some(function (capability) { return tenantCapabilities.has(capability); });
         });
         document.querySelectorAll('[data-platform-admin]').forEach(function (item) {
-          item.hidden = ![...platformCapabilities].some(function (capability) {
-            return capability.startsWith('platform.');
-          });
+          item.hidden = !platformOwner || ![
+            'platform.tenants.manage', 'platform.users.invite',
+            'platform.users.manage', 'platform.roles.manage'
+          ].some(function (capability) { return platformCapabilities.has(capability); });
         });
       }
 
@@ -1854,6 +1959,11 @@
           }
           state.user = user;
           applyNavigationAccess(payload.access);
+          if (window.MuniControlWorkToday && typeof window.MuniControlWorkToday.render === 'function') {
+            window.MuniControlWorkToday.render({ root: els.workToday, access: payload.access, roleLabel: user.role });
+          } else {
+            els.workToday.hidden = true;
+          }
           els.userName.textContent = user.name;
           els.userRole.textContent = user.role;
           els.authGate.hidden = true;

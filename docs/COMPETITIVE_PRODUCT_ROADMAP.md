@@ -5,6 +5,8 @@
 **Producto de referencia:** MuniControl Friendly, Municipio de Junín, Mendoza
 **Principio rector:** alcanzar y superar la cobertura funcional de las suites municipales existentes sin copiar código, identidad visual, textos ni procesos propietarios, y sin presentar datos sintéticos como verdad municipal.
 
+La ejecución de cada incremento debe cumplir los [principios de experiencia Friendly](./PRODUCT_UX_PRINCIPLES.md): recorridos comprensibles para perfiles municipales no técnicos, complejidad progresiva y datos con fuente, período y estado explícitos.
+
 ## 1. Fuentes públicas comparadas
 
 La matriz se basa en las ofertas públicas consultadas el 20 de agosto de 2026:

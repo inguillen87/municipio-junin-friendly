@@ -5,6 +5,8 @@ export const JURISDICTION_NET_CONTROL_HEADER =
 export const JURISDICTION_NET_CONTROL_TECHNICAL_DRIFT_MILLICENTS = 1n;
 export const JURISDICTION_NET_CONTROL_FORMULA_VERSION =
   'jurisdiction-net-control-formulas.v1';
+export const JURISDICTION_REPARTITION_ROSTER_VERSION =
+  'junin-jurisdiction-repartitions.v1';
 
 const PERIOD = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])$/;
 const JURISDICTION_LABEL = /^JURISDICCI(?:O|Ó)N (42|55)$/;
@@ -13,13 +15,14 @@ const RAW_DECIMAL = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/
 const MAX_INT64 = 9223372036854775807n;
 const MIN_INT64 = -9223372036854775808n;
 const EXPECTED_JURISDICTIONS = Object.freeze(['42', '55']);
-const EXPECTED_REPARTITIONS = Object.freeze({
+export const JURISDICTION_REPARTITION_ROSTER = Object.freeze({
   42: Object.freeze(['01', '02', '03', '04', '06', '07', '13', '14', '15', '16', '40']),
   55: Object.freeze([
     '17', '18', '19', '20', '21', '22', '23', '24', '25',
     '26', '27', '33', '35', '36', '37', '38', '39',
   ]),
 });
+const EXPECTED_REPARTITIONS = JURISDICTION_REPARTITION_ROSTER;
 const INPUT_KEYS = new Set([
   'period', 'byteLength', 'sha256', 'sheets', 'formulaContractVerified',
 ]);

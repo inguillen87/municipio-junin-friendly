@@ -194,7 +194,8 @@ test('administración ofrece un cambio explícito y versionado desde tenant a Pl
   assert.match(html, /IDENTITY_URL \+ '\?resource=bootstrap'/);
   assert.match(html, /postIdentityCommand\('switch_context', \{ context: \{ kind: 'platform' \} \}, access\.sessionVersion, commandKey\(\)\)/);
   assert.match(html, /sessionVersion: authorityVersion\(session\.version, access\.sessionVersion, root\.sessionVersion\)/);
-  assert.match(html, /canAdminPlatform: capabilities\.some/);
+  assert.match(html, /platformOwner: platformOwner/);
+  assert.match(html, /canAdminPlatform: platformOwner && capabilities\.some/);
 
   const authenticate = html.match(/async function authenticate\(\) \{([\s\S]*?)\n    function bindEvents/);
   assert.ok(authenticate, 'falta compuerta de autenticación administrativa');
@@ -236,13 +237,14 @@ test('administración vuelve a una operación tenant antes de abrir herramientas
     access: {
       authorized: true,
       tenant: null,
-      platform: { capabilities: ['platform.tenants.manage'] },
+      platform: { roles: ['PLATFORM_OWNER'], capabilities: ['platform.tenants.manage'] },
       session: { version: 7, authLevel: 'recovery' },
     },
   });
   assert.equal(access.platformContext, true);
   assert.equal(access.mfa, true, 'email MFA recovery también es segundo factor vigente');
   assert.equal(access.sessionVersion, 7);
+  assert.equal(access.platformOwner, true);
   assert.equal(access.canAdminPlatform, true);
 });
 

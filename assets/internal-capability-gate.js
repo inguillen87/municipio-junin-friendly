@@ -22,7 +22,13 @@
     'asistente.html': { any: ['assistant.use'] },
     'reportes-rrhh.html': { any: ['workforce.summary.read', 'management.analytics.read'] },
     'friendly-dashboard.html': { any: ['workforce.summary.read', 'management.analytics.read'] },
-    'administracion-plataforma.html': { platform: true }
+    'administracion-plataforma.html': {
+      platformOwner: true,
+      anyPlatform: [
+        'platform.tenants.manage', 'platform.users.invite',
+        'platform.users.manage', 'platform.roles.manage'
+      ]
+    }
   });
 
   function normalizedCapabilities(value) {
@@ -39,6 +45,12 @@
     });
   }
 
+  function normalizedPlatformRoles(value) {
+    return new Set(Array.isArray(value) ? value.map(function (entry) {
+      return String(entry || '').trim().toUpperCase();
+    }).filter(Boolean) : []);
+  }
+
   function normalizedRoute(href, baseHref) {
     try {
       var url = new URL(href, baseHref);
@@ -52,10 +64,16 @@
     }
   }
 
-  function allowed(requirement, tenantCapabilities, platformCapabilities) {
+  function allowed(requirement, tenantCapabilities, platformCapabilities, platformRoles) {
     var contract = requirement && typeof requirement === 'object' ? requirement : {};
     var tenant = tenantCapabilities instanceof Set ? tenantCapabilities : normalizedCapabilities(tenantCapabilities);
     var platform = platformCapabilities instanceof Set ? platformCapabilities : normalizedCapabilities(platformCapabilities);
+    var roles = platformRoles instanceof Set ? platformRoles : normalizedPlatformRoles(platformRoles);
+    if (contract.platformOwner === true && !roles.has('PLATFORM_OWNER')) return false;
+    var anyPlatform = Array.isArray(contract.anyPlatform) ? contract.anyPlatform : [];
+    var allPlatform = Array.isArray(contract.allPlatform) ? contract.allPlatform : [];
+    if (anyPlatform.length && !anyPlatform.some(function (capability) { return platform.has(capability); })) return false;
+    if (allPlatform.length && !allPlatform.every(function (capability) { return platform.has(capability); })) return false;
     if (contract.platform === true) {
       return Array.from(platform).some(function (capability) { return capability.startsWith('platform.'); });
     }
@@ -63,7 +81,8 @@
     var all = Array.isArray(contract.all) ? contract.all : [];
     if (any.length && !any.some(function (capability) { return tenant.has(capability); })) return false;
     if (all.length && !all.every(function (capability) { return tenant.has(capability); })) return false;
-    return any.length > 0 || all.length > 0;
+    return contract.platformOwner === true || anyPlatform.length > 0 || allPlatform.length > 0
+      || any.length > 0 || all.length > 0;
   }
 
   function setVisibility(node, visible) {
@@ -94,16 +113,17 @@
     var contract = access && typeof access === 'object' ? access : {};
     var tenant = normalizedCapabilities(contract.tenantCapabilities);
     var platform = normalizedCapabilities(contract.platformCapabilities);
+    var platformRoles = normalizedPlatformRoles(contract.platformRoles);
     var candidates = scope.querySelectorAll('a[href], [data-requires-any-capability], [data-requires-all-capability], [data-requires-platform-capability]');
     Array.prototype.forEach.call(candidates, function (node) {
       var requirement = elementRequirement(node, baseHref || global.location.href);
-      if (requirement) setVisibility(node, allowed(requirement, tenant, platform));
+      if (requirement) setVisibility(node, allowed(requirement, tenant, platform, platformRoles));
     });
     Array.prototype.forEach.call(scope.querySelectorAll('.nav-group'), function (group) {
       var destinations = Array.prototype.slice.call(group.querySelectorAll('a[href], button'));
       group.hidden = destinations.length > 0 && !destinations.some(function (item) { return !item.hidden; });
     });
-    return { tenantCapabilities: tenant, platformCapabilities: platform };
+    return { tenantCapabilities: tenant, platformCapabilities: platform, platformRoles: platformRoles };
   }
 
   function installFailClosedStyle() {

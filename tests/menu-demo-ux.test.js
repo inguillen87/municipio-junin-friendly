@@ -40,7 +40,7 @@ test('Actualizar sólo anuncia éxito cuando todas las consultas necesarias lo c
   assert.doesNotMatch(refresh, /Actualización finalizada/);
 });
 
-test('el portal ofrece Administración con capacidad global aun desde un tenant', () => {
+test('el portal ofrece Administración sólo al propietario global con capacidad efectiva', () => {
   const html = parseInlineScripts('internal-dashboard.html');
   const admin = parseInlineScripts('administracion-plataforma.html');
   const auth = read('api/internal-auth.js');
@@ -52,7 +52,10 @@ test('el portal ofrece Administración con capacidad global aun desde un tenant'
   assert.ok(start > 0 && end > start, 'debe existir el gate de navegación por capacidades');
   const navigationGate = html.slice(start, end);
   assert.match(navigationGate, /platformCapabilities/);
-  assert.match(navigationGate, /capability\.startsWith\('platform\.'\)/);
+  assert.match(navigationGate, /platformRoles/);
+  assert.match(navigationGate, /platformRoles\.has\('PLATFORM_OWNER'\)/);
+  assert.match(navigationGate, /'platform\.tenants\.manage'/);
+  assert.match(navigationGate, /'platform\.users\.invite'/);
   assert.doesNotMatch(navigationGate, /contract\.context !== 'platform'/);
   assert.match(admin, /function switchToPlatformContext\(\)/);
   assert.match(admin, /postIdentityCommand\('switch_context', \{ context: \{ kind: 'platform' \} \}/);

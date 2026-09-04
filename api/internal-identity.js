@@ -67,6 +67,7 @@ import {
   revokeIdentitySessionForLogout,
   takeIdentityRateLimit,
 } from '../lib/internal-identity-access.js';
+import { hasEffectivePlatformOwnerContext } from '../lib/internal-platform-owner-policy.js';
 
 const MAX_BODY_BYTES = 16 * 1024;
 const DUMMY_PASSWORD_HASH = 'scrypt$16384$8$1$R0dHR0dHR0dHR0dHR0dHRw$sCqc4_u2rJULQEkXAuvGyxs8APXfS0S3tj1-cWJAPYxQTt6ZXmFC5D3-SRBZSsBAjgWf6AMEXQnmA4nn7G1KJg';
@@ -482,6 +483,7 @@ function assertPlatformCapability(identity, capability) {
   const capabilities = identity?.principal?.platform?.capabilities;
   if (identity?.kind !== 'v2' || identity?.principal?.tenant !== null
       || !Array.isArray(capabilities) || !capabilities.includes(capability)
+      || !hasEffectivePlatformOwnerContext(identity.principal, [capability])
       || identity.session?.identityVersion == null) fail('IDENTITY_FORBIDDEN', 403, 'No autorizado');
 }
 

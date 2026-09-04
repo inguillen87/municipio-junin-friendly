@@ -597,8 +597,16 @@ test('API responde 202 a solicitudes y 200 a decisiones maker-checker', async ()
   const handler = createInternalAdminHandler({
     env: { NODE_ENV: 'test', INTERNAL_CERTIFIED_DATA_CONTRACT_SHA: RELEASE_SHA },
     requireCompatibleInternalAccess: async () => ({
-      mode: 'managed', session: { id: SESSION_ID, email: 'owner@example.test', version: 4 },
-      principal: { tenant: null },
+      mode: 'managed',
+      session: { id: SESSION_ID, email: 'owner@example.test', version: 4, mfa: true },
+      principal: {
+        authorized: true,
+        tenant: null,
+        platform: {
+          roles: ['PLATFORM_OWNER'],
+          capabilities: ['platform.users.manage'],
+        },
+      },
     }),
     getInternalAdminSql: async () => ({ query: async () => [] }),
     applyInternalAdminCommand: async (_sql, _session, command) => {

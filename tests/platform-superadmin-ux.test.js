@@ -36,6 +36,7 @@ test('los accesos rápidos se habilitan sólo con contexto, MFA y capacidades ef
   assert.match(capabilityGate[1], /identityAccess\.authorized === true/);
   assert.match(capabilityGate[1], /identityAccess\.platformContext === true/);
   assert.match(capabilityGate[1], /identityAccess\.mfa === true/);
+  assert.match(capabilityGate[1], /identityAccess\.platformOwner === true/);
   assert.match(capabilityGate[1], /identityAccess\.capabilities\.includes\(capability\)/);
 
   const render = html.match(/function renderSuperAdministration\(\) \{([\s\S]*?)\n    \}\n\n    function renderContext/);
@@ -49,7 +50,7 @@ test('los accesos rápidos se habilitan sólo con contexto, MFA y capacidades ef
   assert.match(render[1], /superAdminCreateTenant\.disabled = !canCreateTenant/);
   assert.match(render[1], /superAdminUsers\.disabled = !canOpenUsers/);
   assert.match(render[1], /superAdminAudit\.disabled = !canOpenAudit/);
-  assert.doesNotMatch(render[1], /PLATFORM_OWNER/);
+  assert.doesNotMatch(render[1], /email|marcelo/i);
 });
 
 test('cada acceso rápido reutiliza un flujo funcional ya existente', () => {

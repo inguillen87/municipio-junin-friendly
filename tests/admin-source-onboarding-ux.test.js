@@ -45,6 +45,7 @@ test('panel aparece sólo con contexto tenant y autoridad plataforma MFA explíc
     'state.identityAccess.authorized === true',
     'state.identityAccess.platformContext === true',
     'state.identityAccess.mfa === true',
+    'state.identityAccess.platformOwner === true',
     "state.identityAccess.capabilities.includes('platform.tenants.manage')",
   ]) assert.match(authorization, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
