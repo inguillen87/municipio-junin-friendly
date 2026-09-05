@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">MuniControl</title>
-  <desc id="desc">Dos arcos forman la M de MuniControl.</desc>
-  <rect width="512" height="512" rx="104" fill="#153A4B"/>
+  <desc id="desc">Ícono de MuniControl con área segura para recorte circular.</desc>
+  <rect width="512" height="512" fill="#153A4B"/>
   <g transform="translate(56 72) scale(1.5625)" fill="#FFFFFF">
     <path d="M32 192V105C32 65 57 40 88 40c16 0 29 5 40 14-26 19-48 42-48 76v62Z"/>
     <path d="M224 192V105c0-40-25-65-56-65-16 0-29 5-40 14 26 19 48 42 48 76v62Z"/>

@@ -31,6 +31,8 @@ Desktop.ini
 
 # Muestras locales de recibos con datos y firmas aportados; nunca son assets públicos.
 /output/pdf/noelia-bono-municontrol-revision.pdf
+/output/pdf/noelia-bono-municontrol-firma-grafica.pdf
+/output/brand/
 .env*
 .new_token.txt
 config/attendance-gateway.local.json

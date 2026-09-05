@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanFriendlyRouteReferences } from './clean-friendly-route-references.mjs';
+import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -39,6 +40,11 @@ const shellFiles = [
   'assets/internal-guide.js',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',
+  'assets/brand/municontrol-mark.svg',
+  'assets/brand/logo-horizontal.svg',
+  'assets/brand/logo-horizontal-inverse.svg',
+  'assets/brand/avatar.svg',
+  'assets/brand/municontrol-social-card-v1.png',
   'assets/identity-security.css',
   'assets/product-guidance.js',
   'assets/mendoza-title-vi.js',
@@ -127,6 +133,9 @@ const pwaFiles = [
   'assets/pwa/icon-maskable-512.png'
 ];
 const publicCacheInputs = [
+  'assets/municontrol-enterprise.css',
+  'assets/brand/logo-horizontal.svg',
+  'assets/brand/logo-horizontal-inverse.svg',
   'friendly-dashboard.html',
   'modulos.html',
   'reportes-rrhh.html',
@@ -175,13 +184,35 @@ for (const file of vendorFiles) {
   fs.copyFileSync(path.join(root, file.source), destination);
 }
 
+// Old icon URLs were immutable for a year. New content-addressed URLs avoid
+// asking users to clear browser caches or reinstall their municipal app.
+const identityHash = crypto.createHash('sha256');
+for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
+  identityHash.update(file).update(fs.readFileSync(path.join(root, file)));
+}
+const identityVersion = `identity-${identityHash.digest('hex').slice(0, 12)}`;
+for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
+  const destination = path.join(output, file.replace('assets/pwa/', `assets/pwa/${identityVersion}/`));
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(path.join(root, file), destination);
+}
+for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
+  const destination = path.join(output, file);
+  const fileSource = fs.readFileSync(destination, 'utf8');
+  const source = file.endsWith('.html') ? applyFriendlyPwaIdentity(fileSource) : fileSource;
+  const versioned = source.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`)
+    .replaceAll('url("pwa/', `url("pwa/${identityVersion}/`);
+  fs.writeFileSync(destination, versioned);
+}
+
 // El repositorio conserva nombres .html para permitir abrir cada pantalla de
 // forma aislada durante desarrollo. El artefacto publicado enlaza únicamente
 // las rutas canónicas sin extensión, evitando una redirección 308 en cada clic.
 for (const file of cleanReferenceFiles) {
   const destination = path.join(output, file);
   const source = fs.readFileSync(destination, 'utf8');
-  const cleaned = cleanFriendlyRouteReferences(source, htmlRouteFiles);
+  const routeCleaned = cleanFriendlyRouteReferences(source, htmlRouteFiles);
+  const cleaned = file.endsWith('.html') ? applyFriendlySocialMetadata(routeCleaned) : routeCleaned;
   if (cleaned !== source) fs.writeFileSync(destination, cleaned);
 }
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">MuniControl</title>
+  <desc id="desc">Dos arcos abiertos forman una M: una puerta común para la gestión municipal.</desc>
+  <g transform="translate(0 10)" fill="#153A4B">
+    <path d="M32 192V105C32 65 57 40 88 40c16 0 29 5 40 14-26 19-48 42-48 76v62Z"/>
+    <path d="M224 192V105c0-40-25-65-56-65-16 0-29 5-40 14 26 19 48 42 48 76v62Z"/>
+    <path fill="#167468" d="M108 192v-40a20 20 0 0 1 40 0v40Z"/>
+  </g>
+</svg>

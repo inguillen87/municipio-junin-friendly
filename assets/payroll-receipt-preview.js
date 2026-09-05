@@ -180,7 +180,12 @@ function pdfDocument(summary) {
   };
 
   rect(0, 754, 595, 88, colors.navy);
-  text(38, 805, 'MuniControl', 21, 'F2', colors.white);
+  // Vector mark embedded in every receipt PDF; no network, bitmap or external font.
+  commands.push('% MuniControl identity portal v1', 'q 0.15 0 0 -0.15 34 832 cm 1 1 1 rg',
+    '32 192 m 32 105 l 32 65 57 40 88 40 c 104 40 117 45 128 54 c 102 73 80 96 80 130 c 80 192 l h f',
+    '224 192 m 224 105 l 224 65 199 40 168 40 c 152 40 139 45 128 54 c 154 73 176 96 176 130 c 176 192 l h f',
+    '0.298 0.780 0.718 rg 108 192 m 108 152 l 108 140.954 116.954 132 128 132 c 139.046 132 148 140.954 148 152 c 148 192 l h f Q');
+  text(78, 805, 'MuniControl', 21, 'F2', colors.white);
   text(38, 782, 'RESUMEN INDIVIDUAL DE LIQUIDACION', 11, 'F2', colors.white);
   text(38, 766, `${summary.context.tenantLabel} · importes reales informados por GRH`, 8, 'F1', colors.white);
 

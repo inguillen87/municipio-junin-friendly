@@ -41,6 +41,18 @@ const payroll = Object.freeze({
   sourceCutoff: '2026-09-02T12:51:17.000Z',
 });
 
+test('todos los PDF individuales incluyen la marca vectorial sin afirmar firma oficial', () => {
+  for (const type of ['monthly', 'other']) {
+    const summary = createPayrollReceiptSummary(employee, { ...payroll, canonicalPayrollType: type }, { tenant, generatedAt: '2026-09-05T12:00:00.000Z' });
+    const artifact = createPayrollReceiptPdfArtifact(summary);
+    const pdf = new TextDecoder('latin1').decode(artifact.bytes);
+    assert.equal((pdf.match(/MuniControl identity portal v1/g) || []).length, 1);
+    assert.equal(artifact.officialReceipt, false);
+    assert.equal(summary.signed, false);
+    assert.doesNotMatch(pdf, /\/Subtype \/Image|\/Type \/Sig/);
+  }
+});
+
 test('genera un resumen individual real, tenant-bound, inmutable y explícitamente no oficial', () => {
   const summary = createPayrollReceiptSummary(employee, payroll, { tenant, generatedAt: '2026-09-04T12:00:00.000Z' });
   assert.equal(summary.contractVersion, PAYROLL_RECEIPT_PREVIEW_VERSION);

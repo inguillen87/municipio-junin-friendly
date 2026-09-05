@@ -14,6 +14,8 @@ const allowedFiles = new Map([
   ['/assets/identity-security.css', 'assets/identity-security.css'],
   ['/assets/municontrol-enterprise.css', 'assets/municontrol-enterprise.css'],
   ['/assets/pwa/icon.svg', 'assets/pwa/icon.svg'],
+  ['/assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal.svg'],
+  ['/assets/brand/logo-horizontal-inverse.svg', 'assets/brand/logo-horizontal-inverse.svg'],
   ['/assets/pwa/icon-180.png', 'assets/pwa/icon-180.png'],
   ['/manifest.webmanifest', 'manifest.webmanifest'],
 ]);
