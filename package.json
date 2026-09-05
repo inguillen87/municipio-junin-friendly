@@ -78,10 +78,13 @@
     "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "leaflet": "^1.9.4",
     "playwright": "^1.62.1"
   },
   "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "@neondatabase/serverless": "^1.0.2",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",

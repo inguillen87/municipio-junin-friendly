@@ -17,7 +17,11 @@ async function get(route, headers = {}) {
 }
 
 const manifest = JSON.parse(await fs.readFile(path.join(publicRoot, 'manifest.webmanifest'), 'utf8'));
+const login = await fs.readFile(path.join(publicRoot, 'login.html'), 'utf8');
+const island = login.match(/src="(\/assets\/islands\/install-share-[A-Z0-9]+\.js)"/)?.[1];
+assert.ok(island, 'React island present in reviewed build');
 const files = [...new Set([
+  island.slice(1), 'assets/install-share.css',
   'assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal-inverse.svg',
   'assets/brand/municontrol-mark.svg', 'assets/brand/avatar.svg',
   'assets/brand/municontrol-social-card-v1.png', 'assets/municontrol-enterprise.css',

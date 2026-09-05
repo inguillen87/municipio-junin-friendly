@@ -13,6 +13,7 @@ const allowedFiles = new Map([
   ['/seguridad-cuenta.html', 'seguridad-cuenta.html'],
   ['/assets/identity-security.css', 'assets/identity-security.css'],
   ['/assets/municontrol-enterprise.css', 'assets/municontrol-enterprise.css'],
+  ['/assets/install-share.css', 'assets/install-share.css'],
   ['/assets/pwa/icon.svg', 'assets/pwa/icon.svg'],
   ['/assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal.svg'],
   ['/assets/brand/logo-horizontal-inverse.svg', 'assets/brand/logo-horizontal-inverse.svg'],

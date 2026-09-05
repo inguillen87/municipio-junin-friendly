@@ -1,0 +1,113 @@
+#mc-install-share-root {
+  width: min(1160px, calc(100% - 48px));
+  margin: 16px auto 0;
+  color: #153a4b;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#mc-install-share-root .mc-install-share {
+  border: 1px solid #ccdcd9;
+  border-radius: 10px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+#mc-install-share-root summary {
+  min-height: 44px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+#mc-install-share-root summary::marker { color: #167468; }
+
+#mc-install-share-root .mc-install-share__content { padding: 0 16px 16px; }
+
+#mc-install-share-root p { margin: 0; }
+
+#mc-install-share-root .mc-install-share__intro { margin-bottom: 12px; }
+
+#mc-install-share-root .mc-install-share__help {
+  margin: 10px 0 14px;
+  color: #4b626a;
+  font-size: 13px;
+}
+
+#mc-install-share-root .mc-install-share__help p + p { margin-top: 5px; }
+
+#mc-install-share-root .mc-install-share__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#mc-install-share-root button,
+#mc-install-share-root .mc-install-share__actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 9px 14px;
+  border: 1px solid #b5cac6;
+  border-radius: 7px;
+  background: #fff;
+  color: #153a4b;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#mc-install-share-root button:hover,
+#mc-install-share-root .mc-install-share__actions a:hover { background: #eef6f3; }
+
+#mc-install-share-root button.mc-install-share__install {
+  border-color: #167468;
+  background: #167468;
+  color: #fff;
+}
+
+#mc-install-share-root button.mc-install-share__install:hover { background: #105b51; }
+
+#mc-install-share-root button:disabled { cursor: wait; opacity: 0.65; }
+
+#mc-install-share-root :is(summary, button, a, input):focus-visible {
+  outline: 3px solid #167468;
+  outline-offset: 3px;
+}
+
+#mc-install-share-root .mc-install-share__privacy {
+  margin-top: 10px;
+  color: #4b626a;
+  font-size: 12px;
+}
+
+#mc-install-share-root .mc-install-share__installed { margin-bottom: 12px; font-weight: 700; }
+
+#mc-install-share-root .mc-install-share__status:not(:empty) { margin-top: 10px; }
+
+#mc-install-share-root .mc-install-share__copy { display: block; margin-top: 10px; font-size: 13px; }
+
+#mc-install-share-root .mc-install-share__copy input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 9px;
+  border: 1px solid #b5cac6;
+  border-radius: 7px;
+  background: #f4f8f7;
+  color: #153a4b;
+  font-size: 16px;
+}
+
+@media (max-width: 600px) {
+  #mc-install-share-root { width: calc(100% - 32px); }
+  #mc-install-share-root .mc-install-share__actions > * { flex: 1 1 auto; }
+}

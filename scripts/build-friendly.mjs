@@ -4,10 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanFriendlyRouteReferences } from './clean-friendly-route-references.mjs';
 import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
+import { buildReactIslands } from './build-react-islands.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/install-share.css',
   'login.html',
   'activar-cuenta.html',
   'seguridad-cuenta.html',
@@ -233,4 +235,5 @@ versionHash.update(normalizeTextForHash(swTemplate.replaceAll(versionToken, ''))
 const cacheVersion = `build-${versionHash.digest('hex').slice(0, 16)}`;
 fs.writeFileSync(swOutput, swTemplate.replaceAll(versionToken, cacheVersion));
 
+await buildReactIslands(root, output);
 console.log(`Friendly static shell built (PWA ${cacheVersion}).`);
