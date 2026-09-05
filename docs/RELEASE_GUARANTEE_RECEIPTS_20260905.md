@@ -20,4 +20,15 @@
 
 ## Publicación
 
-Pendiente de registrar URL, ID y SHA tras verificar el despliegue. No confundir este checkpoint con evidencia de Producción.
+- Producción verificada: https://municipio-junin-friendly.vercel.app ; estado `READY`, subestado `PROMOTED`, destino `production`.
+- Deployment: `dpl_FdnGah5KmNeCM57Xe2bJnjevwNic`.
+- URL inmutable: https://municipio-junin-friendly-9e6ugwu5k-marcelos-projects-c26aa499.vercel.app .
+- SHA de código publicado, corroborado en metadatos de Vercel: `2163ad06f92a519beb41ccb6ba5fd0618d8e41f0`.
+- Build remoto: 14 segundos; 1607 pruebas aprobadas, cero fallas y una omitida. El resultado local sin omisiones no se presenta como resultado remoto.
+- El alias público devolvió HTTP200 y SHA-256 idéntico a `public/` para las dos páginas `/novedades-nomina`, `/recibos-sueldo` y cuatro recursos: `payroll-guarantee-xlsx-import.js`, `payroll-novelty-workbench.js`, `payroll-receipt-preview.js`, `vendor/fflate.min.js`.
+- `/novedades-nomina.html` redirige HTTP308 a `/novedades-nomina`.
+- La ruta de la muestra privada `/output/pdf/noelia-bono-municontrol-revision.pdf` devuelve HTTP404. La muestra no forma parte de la aplicación pública.
+- Consulta de logs del deployment, nivel error, última hora, máximo 20: sin entradas devueltas. Es una observación acotada posterior al despliegue, no una certificación de todos los flujos autenticados. No se configuraron ni verificaron drains externos.
+- No se escribieron novedades, cierres ni liquidaciones de prueba en producción. Continúan pendientes la emisión oficial de recibos con detalle canónico y firma digital propia, y la prueba autenticada de extremo a extremo con los tres usuarios.
+
+Este registro documental es posterior al despliegue; su eventual commit no sustituye al SHA de código publicado indicado arriba.
