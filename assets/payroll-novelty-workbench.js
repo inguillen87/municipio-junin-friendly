@@ -1,6 +1,7 @@
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 import { parsePayrollNoveltyRetro } from './payroll-novelty-retro-import.js';
+import { parseGuaranteeXlsx, GUARANTEE_XLSX_MAX_BYTES } from './payroll-guarantee-xlsx-import.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = 'login.html?next=novedades-nomina.html';
@@ -62,6 +63,10 @@ let handoffRequiresPayrollTypeSelection = false;
 let fileReadVersion = 0;
 let fileReadPending = false;
 let fileReadError = null;
+let guaranteeFileBytes = null;
+let guaranteeReport = null;
+let draftRevision = 0;
+let preflightPending = false;
 const pendingTransitionAttempts = new Map();
 
 const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
@@ -103,6 +108,8 @@ function clearMessage() {
 }
 
 function invalidatePreparedDraft() {
+  draftRevision += 1;
+  guaranteeReport = null;
   preparedDraft = null;
   preparedDraftKey = null;
   preparedEntryMode = null;
@@ -110,6 +117,8 @@ function invalidatePreparedDraft() {
   byId('prepareButton').disabled = true;
   byId('retroReport').hidden = true;
   byId('retroReport').replaceChildren();
+  byId('guaranteeReport').hidden = true;
+  byId('guaranteeReport').replaceChildren();
 }
 
 function errorMessage(error) {
@@ -306,6 +315,17 @@ function agileRows(periodMonth) {
 function bulkRows(periodMonth) {
   if (fileReadPending) throw new Error('Esperá a que termine la lectura del archivo antes de validar.');
   if (fileReadError) throw new Error(fileReadError);
+  if (byId('bulkFormat').value === 'guarantee') {
+    if (!guaranteeReport?.ok || guaranteeReport.source.period !== periodMonth.slice(0, 7)) {
+      throw new Error('Cargá el Excel de garantía y volvé a validarlo para este período.');
+    }
+    return guaranteeReport.rows.map((row, index) => ({
+      rowOrdinal: index + 1, legajo: row.legajo, conceptSourceId: row.conceptCode,
+      amountCents: amountToCents(row.amountDecimal), quantityDecimal: null,
+      costCenterSourceId: null, adjustmentMonth: null, movementType: null,
+      legalInstrument: null, observation: null, forced: false,
+    }));
+  }
   if (byId('bulkFormat').value === 'retro') {
     const report = parsePayrollNoveltyRetro(byId('bulkSource').value, {
       conceptSourceId: byId('retroConceptSourceId').value,
@@ -361,6 +381,32 @@ function renderRetroReport(report) {
     for (const error of report.errors) {
       const item = document.createElement('li');
       item.textContent = `Fila ${error.rowOrdinal}: ${error.message}`;
+      list.appendChild(item);
+    }
+    host.appendChild(list);
+  }
+}
+
+function renderGuaranteeReport(report) {
+  const host = byId('guaranteeReport');
+  host.replaceChildren();
+  host.hidden = false;
+  host.dataset.kind = report.ok ? 'success' : 'error';
+  const title = document.createElement('strong');
+  title.textContent = report.ok
+    ? `${report.summary.rowCount} legajos · concepto 195 · total ${moneyFromCents(report.summary.totalAmountCents)}`
+    : 'Revisá el Excel: no se enviará ninguna fila hasta resolver los errores.';
+  host.appendChild(title);
+  const note = document.createElement('p');
+  note.textContent = report.ok
+    ? `${report.summary.roundingCount} importes con más de dos decimales se redondearon por persona al centavo más cercano (medio centavo hacia arriba). El total suma esos importes; puede diferir del total de Excel sin redondear. No se recalcularon las fórmulas.`
+    : 'El archivo queda disponible en esta pestaña. Corregilo en Excel, guardalo y volvé a seleccionarlo.';
+  host.appendChild(note);
+  if (report.issues.length) {
+    const list = document.createElement('ul');
+    for (const issue of report.issues.slice(0, 25)) {
+      const item = document.createElement('li');
+      item.textContent = `Fila ${issue.rowNumber}${issue.column ? ` · columna ${issue.column}` : ''}: ${issue.message}`;
       list.appendChild(item);
     }
     host.appendChild(list);
@@ -430,6 +476,8 @@ function renderPreflight(draft) {
     body.appendChild(tr);
   }
   const modeLabel = preparedEntryMode === 'agile' ? 'Carga rápida: '
+    : preparedEntryMode === 'bulk' && byId('bulkFormat').value === 'guarantee'
+      ? `Excel de garantía · concepto 195 · ${draft.periodMonth.slice(0, 7)} · ${TYPE_LABELS[draft.payrollType]}: `
     : preparedEntryMode === 'bulk' && byId('bulkFormat').value === 'retro'
       ? `TXT RETRO · concepto ${draft.rows[0].conceptSourceId} · ${draft.periodMonth.slice(0, 7)} · ${TYPE_LABELS[draft.payrollType]}: ` : '';
   byId('previewCaption').textContent = draft.rows.length > 25
@@ -819,15 +867,24 @@ function updateMode() {
 
 function updateBulkFormat() {
   const isRetro = byId('bulkFormat').value === 'retro';
+  const isGuarantee = byId('bulkFormat').value === 'guarantee';
+  // A file read started under another format cannot populate this selection.
+  fileReadVersion += 1;
+  fileReadPending = false;
   byId('retroConceptField').hidden = !isRetro;
   byId('retroFormatHelp').hidden = !isRetro;
-  byId('csvFormatHelp').hidden = isRetro;
-  byId('bulkFileLabel').textContent = isRetro ? 'Archivo TXT RETRO UTF-8' : 'Archivo CSV UTF-8';
-  byId('bulkFile').accept = isRetro ? '.txt,text/plain' : '.csv,text/csv,text/plain';
+  byId('guaranteeFormatHelp').hidden = !isGuarantee;
+  byId('bulkTextField').hidden = isGuarantee;
+  byId('csvFormatHelp').hidden = isRetro || isGuarantee;
+  byId('bulkFileLabel').textContent = isGuarantee ? 'Planilla de garantía provincial (.xlsx)'
+    : isRetro ? 'Archivo TXT RETRO UTF-8' : 'Archivo CSV UTF-8';
+  byId('bulkFile').accept = isGuarantee ? '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : isRetro ? '.txt,text/plain' : '.csv,text/csv,text/plain';
   byId('bulkSource').placeholder = isRetro
     ? 'Pegá el contenido RETRO sin encabezado: 8 dígitos de legajo y 7 dígitos de importe, punto y 2 decimales.'
     : 'Pegá aquí el CSV con el encabezado exacto.';
   invalidatePreparedDraft();
+  byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
 }
 
 function renderAgileRows() {
@@ -919,20 +976,48 @@ function removeAgileRow(index) {
   renderAgileRows();
 }
 
-function preflight() {
+async function preflight() {
+  if (preflightPending) return;
   clearMessage();
   invalidatePreparedDraft();
+  const revision = draftRevision;
+  const entryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
+  const isGuarantee = entryMode === 'bulk' && byId('bulkFormat').value === 'guarantee';
   try {
     if (!hasCapability('payroll.novelty.prepare')) throw new Error('Tu perfil no tiene permiso para preparar novedades. Podés consultar los lotes habilitados.');
-    preparedEntryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
+    if (isGuarantee) {
+      if (fileReadPending) throw new Error('Esperá a que termine la lectura del archivo.');
+      if (fileReadError) throw new Error(fileReadError);
+      if (!guaranteeFileBytes) throw new Error('Seleccioná la planilla .xlsx de garantía provincial. No hace falta convertirla a TXT.');
+      const period = exactMonth(byId('periodMonth').value, 'Período').slice(0, 7);
+      preflightPending = true;
+      setBusy(true, 'Revisando el Excel en esta pestaña…');
+      const report = await parseGuaranteeXlsx(guaranteeFileBytes, { period, conceptCode: '195' });
+      if (revision !== draftRevision || !hasCapability('payroll.novelty.prepare')) return;
+      guaranteeReport = report;
+      if (!report.ok) {
+        const error = new Error('Revisá las filas señaladas. No se preparará un lote incompleto.');
+        error.guaranteeReport = report;
+        throw error;
+      }
+      renderGuaranteeReport(report);
+    }
+    preparedEntryMode = entryMode;
     preparedDraft = buildDraft();
     preparedDraftKey = crypto.randomUUID();
     renderPreflight(preparedDraft);
     showMessage('success', 'Validación previa superada', 'El servidor volverá a validar legajo, binding, duplicados y capacidades antes de crear el lote.');
   } catch (error) {
+    if (revision !== draftRevision) return;
     invalidatePreparedDraft();
     if (error.retroReport) renderRetroReport(error.retroReport);
+    if (error.guaranteeReport) renderGuaranteeReport(error.guaranteeReport);
     showMessage('error', 'Revisá la carga', errorMessage(error));
+  } finally {
+    if (isGuarantee && preflightPending) {
+      preflightPending = false;
+      setBusy(false);
+    }
   }
 }
 
@@ -976,13 +1061,25 @@ async function prepare() {
 
 async function handleFile(event) {
   const file = event.target.files?.[0];
-  if (!file) return;
+  if (!file) {
+    fileReadVersion += 1;
+    guaranteeFileBytes = null;
+    fileReadPending = false;
+    fileReadError = null;
+    invalidatePreparedDraft();
+    byId('bulkFileStatus').textContent = 'No hay un archivo seleccionado. Elegí la planilla que querés revisar.';
+    byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
+    return;
+  }
   const readVersion = ++fileReadVersion;
+  const isGuarantee = byId('bulkFormat').value === 'guarantee';
+  guaranteeFileBytes = null;
   invalidatePreparedDraft();
   fileReadError = null;
   fileReadPending = false;
-  if (file.size > 480 * 1024) {
-    fileReadError = 'El archivo supera el límite de lectura de 480 KiB. CSV admite 480 KiB; TXT RETRO, 256 KiB. Seleccioná un archivo más pequeño o corregí el contenido conservado.';
+  if (file.size > (isGuarantee ? GUARANTEE_XLSX_MAX_BYTES : 480 * 1024)) {
+    fileReadError = isGuarantee ? 'La planilla supera 2 MiB. Elegí el Excel de garantía de hasta 500 legajos.'
+      : 'El archivo supera el límite de lectura de 480 KiB. CSV admite 480 KiB; TXT RETRO, 256 KiB. Seleccioná un archivo más pequeño o corregí el contenido conservado.';
     byId('bulkFileStatus').textContent = fileReadError;
     byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
     showMessage('error', 'Archivo demasiado grande', fileReadError);
@@ -994,12 +1091,17 @@ async function handleFile(event) {
   try {
     const buffer = await file.arrayBuffer();
     if (readVersion !== fileReadVersion) return;
-    byId('bulkSource').value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer);
+    if (isGuarantee) guaranteeFileBytes = new Uint8Array(buffer);
+    else {
+      guaranteeFileBytes = null;
+      byId('bulkSource').value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer);
+    }
     byId('bulkFileStatus').textContent = `${file.name}: contenido leído en esta pestaña. Elegí el formato y validá para revisar todas las filas.`;
     invalidatePreparedDraft();
   } catch {
     if (readVersion !== fileReadVersion) return;
-    fileReadError = 'No se pudo leer como UTF-8. Conservamos el contenido anterior. Seleccioná el archivo correcto o pegá su contenido corregido antes de validar.';
+    fileReadError = isGuarantee ? 'No se pudo leer la planilla. Seleccioná nuevamente el Excel guardado; no se envió ningún dato.'
+      : 'No se pudo leer como UTF-8. Conservamos el contenido anterior. Seleccioná el archivo correcto o pegá su contenido corregido antes de validar.';
     byId('bulkFileStatus').textContent = fileReadError;
     showMessage('error', 'No se pudo leer el archivo', fileReadError);
   } finally {

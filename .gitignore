@@ -28,6 +28,9 @@ Desktop.ini
 *.zip
 
 .vercel
+
+# Muestras locales de recibos con datos y firmas aportados; nunca son assets públicos.
+/output/pdf/noelia-bono-municontrol-revision.pdf
 .env*
 .new_token.txt
 config/attendance-gateway.local.json

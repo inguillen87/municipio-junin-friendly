@@ -5,6 +5,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { before, after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { strToU8, zipSync } from 'fflate';
 
 const origin = 'http://127.0.0.1:41789';
 const record = (legajo = '42', amount = '0000123.45') => `${legajo.padStart(8, '0')}${amount}`;
@@ -12,6 +13,7 @@ const csvHeader = 'legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;
 const staticFiles = new Set([
   '/novedades-nomina.html', '/assets/payroll-novelty-workbench.js',
   '/assets/payroll-novelty-retro-import.js', '/assets/payroll-novelty-exporter.js',
+  '/assets/payroll-guarantee-xlsx-import.js',
   '/assets/payroll-novelty-xlsx-exporter.js', '/assets/internal-capability-gate.js',
   '/assets/internal-guide.js', '/assets/product-guidance.js',
   '/assets/municontrol-enterprise.css', '/assets/pwa/icon.svg',
@@ -24,7 +26,7 @@ async function openWorkbench(t, { capabilities = ['payroll.novelty.read', 'payro
   const context = await browser.newContext({ viewport: viewport || { width: 1280, height: 900 } });
   t.after(() => context.close());
   const page = await context.newPage();
-  const fixture = { capabilities, posts: [], failures: 0, errors: [], unexpected: [] };
+  const fixture = { capabilities, posts: [], failures: 0, errors: [], unexpected: [], pauseZipLoad: null };
   page.on('pageerror', (error) => fixture.errors.push(error.message));
   await page.route('**/*', async (route) => {
     const request = route.request();
@@ -56,6 +58,13 @@ async function openWorkbench(t, { capabilities = ['payroll.novelty.read', 'payro
         },
       });
     }
+    if (url.pathname === '/assets/vendor/fflate.min.js') {
+      if (fixture.pauseZipLoad) await fixture.pauseZipLoad();
+      return route.fulfill({
+        contentType: 'application/javascript',
+        body: await readFile(new URL('../node_modules/fflate/umd/index.js', import.meta.url)),
+      });
+    }
     if (!staticFiles.has(url.pathname)) {
       fixture.unexpected.push(url.pathname);
       return route.fulfill({ status: 404, body: 'Not available in isolated test' });
@@ -81,6 +90,120 @@ async function selectRetro(page, concept = '777') {
   await page.locator('#payrollType').selectOption('monthly');
   if (concept !== null) await page.locator('#retroConceptSourceId').fill(concept);
 }
+
+const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+function guaranteeWorkbook({
+  sheetName = '195 08.2026', header = 'COEF. 81%',
+  rows = [{ legajo: '42', amount: '1.005' }, { legajo: '43', amount: '2.004' }],
+} = {}) {
+  const xml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+  const inline = (ref, value) => `<c r="${ref}" t="inlineStr"><is><t>${xml(value)}</t></is></c>`;
+  const dataRows = rows.map((row, index) => {
+    const n = index + 2;
+    return `<row r="${n}"><c r="B${n}"><v>${row.legajo}</v></c>${inline(`C${n}`, `Persona inventada ${index + 1}`)}<c r="K${n}"><f>J${n}*0.81</f>${row.amount === null ? '' : `<v>${row.amount}</v>`}</c></row>`;
+  }).join('');
+  const last = rows.length + 2;
+  const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0).toFixed(6);
+  const parts = {
+    '[Content_Types].xml': '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+    '_rels/.rels': '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml': `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xml(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels': '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    'xl/worksheets/sheet1.xml': `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1">${inline('B1', 'Legajo')}${inline('C1', 'Apellido y Nombre')}${inline('K1', header)}</row>${dataRows}<row r="${last}"><c r="K${last}"><f>SUM(K2:K${last - 1})</f><v>${total}</v></c></row></sheetData></worksheet>`,
+  };
+  return Buffer.from(zipSync(Object.fromEntries(Object.entries(parts).map(([name, contents]) => [name, strToU8(contents)]))));
+}
+
+async function selectGuarantee(page, period = '2026-08') {
+  await page.locator('[name="sourceMode"][value="bulk"]').check();
+  await page.locator('#bulkFormat').selectOption('guarantee');
+  await page.locator('#periodMonth').fill(period);
+  await page.locator('#payrollType').selectOption('monthly');
+}
+
+async function loadGuarantee(page, options) {
+  await page.locator('#bulkFile').setInputFiles({
+    name: 'garantia-sintetica-195.xlsx', mimeType: xlsxMime, buffer: guaranteeWorkbook(options),
+  });
+  await page.locator('#bulkFileStatus').filter({ hasText: 'contenido leído' }).waitFor();
+}
+
+test('Excel garantía conserva el archivo, redondea exacto y crea únicamente filas revisadas', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await page.locator('#previewPanel').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#guaranteeReport').innerText(), /2 legajos.*195.*3,01/);
+  assert.match(await page.locator('#previewCaption').innerText(), /Excel de garantía.*2026-08.*Mensual/);
+  assert.equal(await page.locator('#bulkTextField').isVisible(), false);
+  assert.equal(fixture.posts.length, 0);
+  await page.locator('#prepareButton').click();
+  await page.locator('#messageHost').filter({ hasText: 'Lote creado y auditado' }).waitFor();
+  assert.deepEqual(fixture.posts[0].body.payload.rows.map((row) => [row.legajo, row.conceptSourceId, row.amountCents, row.quantityDecimal]),
+    [['42', '195', '101', null], ['43', '195', '200', null]]);
+  assert.doesNotMatch(JSON.stringify(fixture.posts[0].body), /Persona inventada|COEF|sheet|xlsx/i);
+  assert.equal(await page.locator('#bulkFile').evaluate((el) => el.files.length), 1);
+});
+
+test('Excel con período equivocado, plantilla distinta o duplicados no habilita un subconjunto', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page, '2026-09');
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await page.locator('#messageHost').filter({ hasText: 'Revisá la carga' }).waitFor();
+  assert.match(await page.locator('#guaranteeReport').innerText(), /mes.*no coincide/);
+  await page.locator('#periodMonth').fill('2026-08');
+  await page.locator('#preflightButton').click();
+  await page.locator('#previewPanel').waitFor({ state: 'visible' });
+  for (const options of [{ header: 'OTRA PLANILLA' }, { rows: [{ legajo: '42', amount: '1' }, { legajo: '42', amount: '2' }] }]) {
+    await loadGuarantee(page, options);
+    await page.locator('#preflightButton').click();
+    await page.locator('#messageHost').filter({ hasText: 'Revisá la carga' }).waitFor();
+    assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+    assert.equal(await page.locator('#previewPanel').isVisible(), false);
+  }
+  assert.equal(fixture.posts.length, 0);
+});
+
+test('cambiar período mientras carga el lector descarta el resultado anterior', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  let resume;
+  fixture.pauseZipLoad = () => new Promise((resolve) => { resume = resolve; });
+  const loaded = page.waitForRequest('**/assets/vendor/fflate.min.js');
+  await page.locator('#preflightButton').click();
+  await loaded;
+  await page.locator('#periodMonth').fill('2026-09');
+  resume();
+  await page.waitForFunction(() => document.body.dataset.busy === 'false');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+  assert.equal(await page.locator('#previewPanel').isVisible(), false);
+  assert.equal(fixture.posts.length, 0);
+  await page.locator('#periodMonth').fill('2026-08');
+  await page.locator('#preflightButton').click();
+  await page.locator('#previewPanel').waitFor({ state: 'visible' });
+});
+
+test('Excel desktop y móvil mantienen una carga corta con detalles plegados', async (t) => {
+  await mkdir(new URL('../tmp/', import.meta.url), { recursive: true });
+  for (const [name, viewport] of [['desktop', { width: 1280, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
+    const { page } = await openWorkbench(t, { viewport });
+    await selectGuarantee(page);
+    await loadGuarantee(page);
+    await page.locator('#preflightButton').click();
+    await page.locator('#previewPanel').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#guaranteeFormatHelp details').evaluate((el) => el.open), false);
+    for (const id of ['bulkFormat', 'bulkFile', 'guaranteeReport', 'preflightButton', 'prepareButton']) {
+      const box = await page.locator(`#${id}`).boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= viewport.width + 1, `${id} fits ${name}`);
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.locator('#bulkFields').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: fileURLToPath(new URL(`../tmp/guarantee-qa-${name}.png`, import.meta.url)), animations: 'disabled' });
+  }
+});
 
 test('RETRO requiere concepto explícito y crea sólo después de previsualizar; conserva CSV', async (t) => {
   const { page, fixture } = await openWorkbench(t);
@@ -247,6 +370,154 @@ test('RETRO móvil mantiene controles dentro de la pantalla y ayuda técnica ple
     assert.ok(box && box.x >= 0 && box.x + box.width <= 391, `${id} fits mobile viewport`);
   }
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+test('Excel garantía valida localmente y prepara sólo legajos e importes redondeados del concepto 195', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  assert.equal(await page.locator('#retroConceptField').isVisible(), false);
+  assert.equal(await page.locator('#bulkSource').isVisible(), false);
+  await loadGuarantee(page);
+  assert.equal(fixture.posts.length, 0, 'file selection must not upload the workbook');
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport').filter({ hasText: '2 legajos' }).waitFor();
+  assert.match(await page.locator('#guaranteeReport').innerText(), /concepto 195.*3,01/);
+  assert.match(await page.locator('#guaranteeReport').innerText(), /2 importes.*redondearon/);
+  assert.match(await page.locator('#previewCaption').innerText(), /Excel.*195.*2026-08.*Mensual/);
+  assert.equal(fixture.posts.length, 0, 'preflight must not call the API');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), false);
+  await page.locator('#prepareButton').click();
+  await page.locator('#messageHost').filter({ hasText: 'Lote creado y auditado' }).waitFor();
+  assert.equal(fixture.posts.length, 1);
+  const draft = fixture.posts[0].body.payload;
+  assert.equal(draft.periodMonth, '2026-08-01');
+  assert.equal(draft.payrollType, 'monthly');
+  assert.equal(draft.sourceMode, 'bulk');
+  assert.deepEqual(draft.rows.map((row) => [row.legajo, row.conceptSourceId, row.amountCents]), [
+    ['42', '195', '101'], ['43', '195', '200'],
+  ]);
+  assert.equal(draft.rows.every((row) => row.quantityDecimal === null && row.forced === false), true);
+  assert.equal(JSON.stringify(draft).includes('Persona inventada'), false);
+  assert.equal(JSON.stringify(draft).includes('workbook'), false);
+});
+
+test('Excel garantía rechaza período distinto, otro concepto/plantilla, legajos duplicados y fórmulas sin resultado', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  const cases = [
+    { options: {}, period: '2026-09', error: /período|periodo/i },
+    { options: { sheetName: '196 08.2026' }, period: '2026-08', error: /hoja|195|concepto/i },
+    { options: { header: 'COEF. 82%' }, period: '2026-08', error: /encabezado|columna|plantilla|81/i },
+    { options: { rows: [{ legajo: '42', amount: '1.005' }, { legajo: '42', amount: '2.004' }] }, period: '2026-08', error: /duplicad|repite|repetid/i },
+    { options: { rows: [{ legajo: '42', amount: null }] }, period: '2026-08', error: /resultado|guardad|cach/i },
+  ];
+  for (const scenario of cases) {
+    await selectGuarantee(page, scenario.period);
+    await loadGuarantee(page, scenario.options);
+    await page.locator('#preflightButton').click();
+    await page.locator('#guaranteeReport[data-kind="error"]').waitFor();
+    assert.match(await page.locator('#guaranteeReport').innerText(), scenario.error);
+    assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+    assert.equal(await page.locator('#previewPanel').isVisible(), false);
+    assert.equal(await page.locator('#bulkFile').evaluate((element) => element.files.length), 1);
+  }
+  assert.equal(fixture.posts.length, 0, 'invalid workbooks cannot send a valid subset');
+});
+
+test('Excel garantía conserva archivo al cambiar el período y exige una nueva validación', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="success"]').waitFor();
+  await page.locator('#periodMonth').fill('2026-09');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+  assert.equal(await page.locator('#guaranteeReport').isVisible(), false);
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="error"]').waitFor();
+  await page.locator('#periodMonth').fill('2026-08');
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="success"]').waitFor();
+  assert.equal(await page.locator('#bulkFile').evaluate((element) => element.files[0].name), 'garantia-sintetica-195.xlsx');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), false);
+  assert.equal(fixture.posts.length, 0);
+});
+
+test('Excel garantía descarta una lectura pendiente si el usuario cambia de formato', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  await page.evaluate(() => {
+    const original = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      const pending = original.call(this);
+      return new Promise((resolve) => { window.finishSyntheticFileRead = () => pending.then(resolve); });
+    };
+  });
+  await page.locator('#bulkFile').setInputFiles({ name: 'delayed.xlsx', mimeType: xlsxMime, buffer: guaranteeWorkbook() });
+  await page.locator('#bulkFileStatus').filter({ hasText: 'Leyendo el archivo' }).waitFor();
+  assert.equal(await page.locator('#preflightButton').isDisabled(), true);
+  await page.locator('#bulkFormat').selectOption('csv');
+  await page.locator('#bulkSource').fill(`${csvHeader}\n${['44', '777', '', '', '', '1.23', '', '', '', 'NO'].join(';')}`);
+  await page.evaluate(() => window.finishSyntheticFileRead());
+  await page.locator('#preflightButton').click();
+  assert.match(await page.locator('#previewRows').innerText(), /1,23/);
+  assert.equal(await page.locator('#guaranteeReport').isVisible(), false);
+  assert.equal(fixture.posts.length, 0);
+});
+
+test('Excel garantía descarta el resultado asíncrono cuando cambió el período durante el análisis', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  let release;
+  let started;
+  const zipStarted = new Promise((resolve) => { started = resolve; });
+  const zipPaused = new Promise((resolve) => { release = resolve; });
+  fixture.pauseZipLoad = () => { started(); return zipPaused; };
+  t.after(() => release());
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await zipStarted;
+  await page.locator('#periodMonth').fill('2026-09');
+  release();
+  await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+  assert.equal(await page.locator('#previewPanel').isVisible(), false);
+  assert.equal(await page.locator('#guaranteeReport').isVisible(), false);
+  assert.equal(fixture.posts.length, 0);
+  await page.locator('#periodMonth').fill('2026-08');
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="success"]').waitFor();
+  assert.equal(await page.locator('#prepareButton').isDisabled(), false);
+});
+
+test('quitar el Excel seleccionado elimina su previsualización y no permite reusar bytes ocultos', async (t) => {
+  const { page, fixture } = await openWorkbench(t);
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="success"]').waitFor();
+  await page.locator('#bulkFile').setInputFiles([]);
+  assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+  await page.locator('#preflightButton').click();
+  await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+  assert.equal(await page.locator('#prepareButton').isDisabled(), true);
+  assert.equal(await page.locator('#previewPanel').isVisible(), false);
+  assert.match(await page.locator('#messageHost').innerText(), /Seleccioná.*planilla/i);
+  assert.equal(fixture.posts.length, 0);
+});
+
+test('Excel garantía móvil mantiene carga, resumen y acciones dentro de 390 px', async (t) => {
+  const { page, fixture } = await openWorkbench(t, { viewport: { width: 390, height: 844 } });
+  await selectGuarantee(page);
+  await loadGuarantee(page);
+  await page.locator('#preflightButton').click();
+  await page.locator('#guaranteeReport[data-kind="success"]').waitFor();
+  assert.equal(await page.locator('#guaranteeFormatHelp details').evaluate((element) => element.open), false);
+  for (const id of ['bulkFormat', 'bulkFile', 'guaranteeReport', 'preflightButton', 'prepareButton']) {
+    const box = await page.locator(`#${id}`).boundingBox();
+    assert.ok(box && box.x >= 0 && box.x + box.width <= 391, `${id} fits the mobile viewport`);
+  }
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(fixture.posts.length, 0);
 });
 
 test('capturas RETRO opcionales con datos sintéticos y previsualización válida', {

@@ -242,7 +242,7 @@ function pdfDocument(summary) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     joinBytes([latinBytes(`<< /Length ${contentBytes.byteLength} >>\nstream\n`), contentBytes, latinBytes('endstream')]),
-    `<< /Title (${pdfLiteral(`Resumen de liquidación ${p.payrollDate} - legajo ${e.legajo}`)}) /Author (MuniControl) /Subject (Vista previa individual no oficial) /Creator (MuniControl) /Producer (MuniControl) >>`,
+    `<< /Title (${pdfLiteral(`Resumen de liquidación ${p.payrollDate} - ${p.payrollTypeLabel}${p.sourcePayrollTypeCode ? ` - GRH ${p.sourcePayrollTypeCode}` : ''} - legajo ${e.legajo}`)}) /Author (MuniControl) /Subject (Vista previa individual no oficial) /Creator (MuniControl) /Producer (MuniControl) >>`,
   ];
   const header = latinBytes('%PDF-1.4\n%âãÏÓ\n');
   const parts = [header];
@@ -282,9 +282,15 @@ export function createPayrollReceiptPdfArtifact(summary) {
     fail('RECEIPT_SUMMARY_INVALID', 'La vista previa no supera el contrato de generación.');
   }
   const bytes = pdfDocument(summary);
+  // Un mismo legajo puede tener mensual, bono y otras liquidaciones en el mes.
+  // El número de bono del GRH de referencia tampoco distingue siempre esos casos.
+  // Conservamos fecha completa y tipo; no inventamos un ID de corrida ausente en la API.
+  const typePart = `${safeFilePart(summary.payroll.payrollTypeLabel)}_${summary.payroll.sourcePayrollTypeCode
+    ? `grh-${summary.payroll.sourcePayrollTypeCode.toLowerCase()}`
+    : `tipo-${safeFilePart(summary.payroll.payrollType)}`}`;
   const artifact = Object.freeze({
     contractVersion: PAYROLL_RECEIPT_PREVIEW_VERSION,
-    fileName: `municontrol_resumen-liquidacion_${summary.payroll.payrollDate.slice(0, 7)}_legajo-${safeFilePart(summary.employee.legajo)}.pdf`,
+    fileName: `municontrol_resumen-liquidacion_${summary.payroll.payrollDate}_${typePart}_legajo-${safeFilePart(summary.employee.legajo)}.pdf`,
     mimeType: MIME_PDF,
     officialReceipt: false,
     containsPersonalData: true,

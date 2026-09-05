@@ -84,7 +84,7 @@ test('crea un PDF local íntegro con ámbito, alcance y trazabilidad visibles', 
   const summary = createPayrollReceiptSummary(employee, payroll, { tenant, generatedAt: '2026-09-04T12:00:00.000Z' });
   const artifact = createPayrollReceiptPdfArtifact(summary);
   const decoded = new TextDecoder('latin1').decode(artifact.bytes);
-  assert.equal(artifact.fileName, 'municontrol_resumen-liquidacion_2026-08_legajo-1042.pdf');
+  assert.equal(artifact.fileName, 'municontrol_resumen-liquidacion_2026-08-31_mensual-segunda-quincena_grh-m_legajo-1042.pdf');
   assert.equal(artifact.mimeType, 'application/pdf');
   assert.equal(artifact.officialReceipt, false);
   assert.equal(artifact.containsPersonalData, true);
@@ -93,7 +93,51 @@ test('crea un PDF local íntegro con ámbito, alcance y trazabilidad visibles', 
   assert.match(decoded, /No es el recibo oficial/);
   assert.match(decoded, /Junin Mendoza/);
   assert.match(decoded, /PÉREZ, MARÍA DEL CARMEN/);
+  assert.match(decoded, /\/Title \(Resumen de liquidación 2026-08-31 - Mensual \/ segunda quincena - GRH M - legajo 1042\)/);
   assert.match(decoded, /%%EOF/);
+});
+
+test('separa descargas del mismo legajo y mes por fecha completa y tipo de liquidación', () => {
+  const cases = [
+    { payrollDate: '2026-08-27', payrollType: 'M', canonicalPayrollType: 'monthly' },
+    { payrollDate: '2026-08-14', payrollType: 'O', canonicalPayrollType: 'other' },
+    { payrollDate: '2026-08-27', payrollType: 'O', canonicalPayrollType: 'other' },
+    { payrollDate: '2026-08-27', payrollType: 'S', canonicalPayrollType: 'sac' },
+    { payrollDate: '2026-08-27', payrollType: 'P', canonicalPayrollType: 'first_fortnight' },
+    { payrollDate: '2026-08-27', payrollType: 'V', canonicalPayrollType: 'vacation' },
+    { payrollDate: '2026-08-27', payrollType: 'F', canonicalPayrollType: 'final' },
+  ];
+  const names = cases.map((identity) => {
+    const summary = createPayrollReceiptSummary(employee, { ...payroll, ...identity }, { tenant });
+    assert.equal(summary.payroll.netPayable, payroll.netPayable);
+    assert.equal(summary.signed, false);
+    const artifact = createPayrollReceiptPdfArtifact(summary);
+    assert.ok(artifact.fileName.includes(identity.payrollDate));
+    assert.ok(artifact.fileName.includes(`grh-${identity.payrollType.toLowerCase()}`));
+    assert.match(artifact.fileName, /^[a-z0-9_-]+\.pdf$/);
+    return artifact.fileName;
+  });
+  assert.equal(new Set(names).size, cases.length);
+});
+
+test('conserva códigos históricos distintos aunque compartan etiqueta pendiente', () => {
+  const names = ['X', 'Y'].map((code) => createPayrollReceiptPdfArtifact(
+    createPayrollReceiptSummary(employee, {
+      ...payroll, payrollType: code, canonicalPayrollType: null,
+    }, { tenant }),
+  ).fileName);
+  assert.notEqual(names[0], names[1]);
+  assert.match(names[0], /_grh-x_legajo-1042\.pdf$/);
+  assert.match(names[1], /_grh-y_legajo-1042\.pdf$/);
+});
+
+test('usa el tipo canónico sin código GRH y mantiene el nombre estable al descargar otra vez', () => {
+  const source = { ...payroll, payrollType: 'monthly', canonicalPayrollType: 'monthly' };
+  const names = ['2026-09-04T12:00:00Z', '2026-09-05T16:00:00Z'].map((generatedAt) => (
+    createPayrollReceiptPdfArtifact(createPayrollReceiptSummary(employee, source, { tenant, generatedAt })).fileName
+  ));
+  assert.equal(names[0], names[1]);
+  assert.match(names[0], /2026-08-31_mensual_tipo-monthly_legajo-1042\.pdf$/);
 });
 
 test('bloquea períodos abiertos, diferencias y artefactos inventados', () => {
@@ -121,6 +165,16 @@ test('bloquea períodos abiertos, diferencias y artefactos inventados', () => {
     () => createPayrollReceiptSummary(employee, payroll, { tenant: { id: tenant.id, slug: 'ámbito inválido' } }),
     { code: 'RECEIPT_TENANT_INVALID' },
   );
+});
+
+test('no convierte en recibo conciliado diferencias como las de los ejemplos mensuales', () => {
+  for (const [netPayable, difference] of [['999999.90', '0.10'], ['999999.75', '0.25']]) {
+    assert.throws(() => createPayrollReceiptSummary(employee, {
+      ...payroll,
+      netPayable,
+      reconciliation: { status: 'matched', difference },
+    }, { tenant }), { code: 'RECEIPT_RECONCILIATION_INVALID' });
+  }
 });
 
 test('descarga únicamente el artefacto validado y revoca la URL temporal', () => {

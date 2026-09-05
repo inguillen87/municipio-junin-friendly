@@ -207,7 +207,7 @@
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Una novedad con observación, importe o unidades.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Conservá los datos y cambiá sólo el agente. Se registra como lote.</small></span></label>
-              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva</strong><small>CSV o TXT RETRO, hasta 500 filas, con previsualización.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Desde una planilla o archivo</strong><small>Excel de garantía, CSV o TXT RETRO. Revisá antes de guardar.</small></span></label>
             </div>
 
             <div class="form-grid">
@@ -243,14 +243,16 @@
 
             <div id="bulkFields" hidden>
               <div class="form-grid">
-                <div class="field half"><label for="bulkFormat">Formato del archivo</label><select id="bulkFormat"><option value="csv">CSV de novedades</option><option value="retro">TXT RETRO · legajo e importe</option></select></div>
+                <div class="field half"><label for="bulkFormat">¿Qué querés cargar?</label><select id="bulkFormat"><option value="csv">CSV de novedades</option><option value="retro">TXT RETRO · legajo e importe</option><option value="guarantee">Excel de garantía provincial · concepto 195</option></select></div>
                 <div class="field half" id="retroConceptField" hidden><label for="retroConceptSourceId">Concepto para todas las filas RETRO</label><input id="retroConceptSourceId" inputmode="numeric" maxlength="20" placeholder="Ingresá el código GRH" aria-describedby="retroConceptHelp"><small id="retroConceptHelp">Lo indicás vos. No se deduce del archivo ni se completa automáticamente.</small></div>
                 <div class="field full"><label for="bulkFile" id="bulkFileLabel">Archivo CSV UTF-8</label><input id="bulkFile" type="file" accept=".csv,text/csv,text/plain" aria-describedby="bulkFileStatus"><small id="bulkFileStatus" role="status" aria-live="polite">El archivo sólo se lee en esta pestaña. No se guarda ni se envía al cargarlo.</small></div>
-                <div class="field full"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá aquí el CSV con el encabezado exacto."></textarea></div>
+                <div class="field full" id="bulkTextField"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá aquí el CSV con el encabezado exacto."></textarea></div>
               </div>
               <div id="csvFormatHelp"><p class="panel-note">CSV UTF-8, hasta 480 KiB. Encabezado obligatorio:</p><div class="bulk-format">legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;movimiento;instrumento_legal;observacion;forzado</div></div>
               <div id="retroFormatHelp" hidden><p class="panel-note">Concepto, período y tipo de liquidación se aplican a todas las filas. Revisaremos el archivo completo antes de crear el lote.</p><details><summary>Ver formato admitido</summary><p class="panel-note"><strong>RETRO sin encabezado, hasta 256 KiB.</strong> Cada fila tiene 18 caracteres: 8 dígitos de legajo y un importe de 7 dígitos, punto y 2 decimales. Los ceros de relleno del legajo se normalizan; el texto original queda disponible. No se aceptan otros formatos TXT, comas, negativos ni centavos implícitos.</p><p class="panel-note">Si hay una fila inválida, se bloquea el lote completo hasta corregirla. Cargar este archivo no modifica GRH ni calcula haberes.</p></details></div>
               <div class="message" id="retroReport" role="status" aria-live="polite" hidden></div>
+              <div id="guaranteeFormatHelp" hidden><p class="panel-note"><strong>Usá tu Excel de garantía, sin armar el TXT.</strong> Recalculalo y guardalo en Excel antes de cargarlo. Revisaremos legajos e importes guardados para el concepto 195 y el período elegido.</p><details><summary>Qué lee MuniControl</summary><p class="panel-note">Plantilla observada de Noelia: una hoja «195 MM.AAAA», columna B «Legajo» y columna K «COEF. 81%», hasta 500 legajos y 2 MiB. Se usan los importes ya calculados, redondeados por persona a dos decimales. No se ejecutan ni modifican fórmulas. El total puede diferir unos centavos del total sin redondear de Excel.</p><p class="panel-note">El archivo y los nombres no se envían. Al crear el lote se envían los legajos e importes revisados para validarlos y guardarlos; la aprobación sigue siendo una acción posterior.</p></details></div>
+              <div class="message" id="guaranteeReport" role="status" aria-live="polite" hidden></div>
             </div>
 
             <div class="form-actions"><button class="button" id="preflightButton" type="button">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" disabled>Crear lote trazable</button></div>

@@ -82,6 +82,7 @@ const shellFiles = [
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',
   'assets/payroll-novelty-retro-import.js',
+  'assets/payroll-guarantee-xlsx-import.js',
   'assets/rrhh-report-pack.js',
   'datos-personales.html',
   'friendly-data.json'

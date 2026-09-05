@@ -10,7 +10,8 @@ test('Novedades ofrece carga individual, rápida y masiva con preflight, circuit
   assert.match(html, /data-mc-page="payroll-novelties"/);
   assert.match(html, /Carga individual/);
   assert.match(html, /Carga rápida por legajo/);
-  assert.match(html, /Carga masiva/);
+  assert.match(html, /Desde una planilla o archivo/);
+  assert.match(html, /Excel de garantía provincial · concepto 195/);
   assert.match(html, /name="sourceMode" value="agile"/);
   assert.match(html, /id="agileAddButton"/);
   assert.match(html, /id="agileClearButton"/);
