@@ -14,7 +14,9 @@ El acceso operativo fue comprobado. El intento con la credencial administrativa 
 
 ### Renovación de acceso al cerrar el incremento
 
-La primera sesión documentada abajo accedió a ambas aplicaciones. En la comprobación posterior de esta misma jornada se renovó correctamente **GRH Web** y se volvió a consultar Importación de Novedades: 21 formatos, 294 conceptos y seis tipos de liquidación. En **GRH antiguo**, las dos grafías de usuario operativo proporcionadas expresamente por el usuario fueron rechazadas; no se siguieron intentando credenciales. Por tanto, el acceso antiguo anterior no se presenta como sesión actualmente disponible. Las pestañas personales no se cerraron ni modificaron.
+La primera sesión documentada abajo accedió a ambas aplicaciones. En una comprobación posterior se renovó correctamente **GRH Web**: 21 formatos, 294 conceptos y seis tipos de liquidación. GRH antiguo rechazó entonces el ingreso operativo. Después de que el usuario reconfirmó la credencial, una sesión nueva de **GRH antiguo ingresó correctamente** y permitió consultar Importación de Novedades, Administración de Reportes y De Ítems. Se descargó el catálogo mediante su botón Excel: 47 definiciones de campo correspondientes a 20 formatos. El rechazo intermedio no prueba que la credencial sea incorrecta; su causa no se determinó. Las pestañas personales no se cerraron ni modificaron.
+
+El catálogo descargado y sus diferencias con el selector se registran en `GRH_OLD_FORMAT_EXPORT_20260904.md`. El intento adicional de descargar XML no produjo un archivo; no se presenta como conseguido.
 
 La cuenta operativa renovada no mostró ImsuTaco/ImsuLega. Los nuevos campos de imputación están sustentados por las capturas y audios de Noelia, no por una comprobación actual de esos formularios. Se registran en `NOELIA_ACCOUNTING_REQUIREMENTS_20260904.md`. No se ejecutó Guardar en ninguno de los sistemas de origen.
 
