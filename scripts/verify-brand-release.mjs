@@ -153,7 +153,7 @@ try {
       });
       assert.equal(state.overflow, false, `${file}/${width}: horizontal overflow`);
       assert.ok(state.brandWidth>=130, `${file}/${width}: brand readable`);
-      assert.match(state.brandImage,/logo-horizontal-inverse\.svg/, `${file}: logo blanco sobre encabezado oscuro`);
+      assert.match(state.brandImage, file === 'login.html' ? /logo-horizontal\.svg/ : /logo-horizontal-inverse\.svg/, `${file}: logo legible según el fondo del encabezado`);
       assert.equal(missing.length,0,JSON.stringify(missing));
       assert.deepEqual(unexpectedApi, []);
       assert.deepEqual(blockedExternal, []);

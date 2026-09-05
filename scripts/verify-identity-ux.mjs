@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const allowedFiles = new Map([
+  ['/assets/access.css', 'assets/access.css'],
   ['/login.html', 'login.html'],
   ['/activar-cuenta.html', 'activar-cuenta.html'],
   ['/seguridad-cuenta.html', 'seguridad-cuenta.html'],

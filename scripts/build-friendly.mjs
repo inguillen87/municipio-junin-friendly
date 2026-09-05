@@ -9,6 +9,7 @@ import { buildReactIslands } from './build-react-islands.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/access.css',
   'assets/install-share.css',
   'login.html',
   'activar-cuenta.html',

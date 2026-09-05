@@ -10,7 +10,7 @@ const publicRoot = path.join(root, 'public');
 const base = 'https://municipio-junin-friendly.vercel.app';
 const results = [];
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
-const normalized = (bytes, file) => /\.(?:svg|js|css|webmanifest)$/.test(file)
+const normalized = (bytes, file) => /\.(?:html|svg|js|css|webmanifest)$/.test(file)
   ? Buffer.from(bytes.toString('utf8').replace(/\r\n?/g, '\n')) : bytes;
 async function get(route, headers = {}) {
   return fetch(`${base}${route}`, { headers, signal: AbortSignal.timeout(20000) });
@@ -21,7 +21,8 @@ const login = await fs.readFile(path.join(publicRoot, 'login.html'), 'utf8');
 const island = login.match(/src="(\/assets\/islands\/install-share-[A-Z0-9]+\.js)"/)?.[1];
 assert.ok(island, 'React island present in reviewed build');
 const files = [...new Set([
-  island.slice(1), 'assets/install-share.css',
+  'login.html',
+  island.slice(1), 'assets/install-share.css', 'assets/access.css',
   'assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal-inverse.svg',
   'assets/brand/municontrol-mark.svg', 'assets/brand/avatar.svg',
   'assets/brand/municontrol-social-card-v1.png', 'assets/municontrol-enterprise.css',

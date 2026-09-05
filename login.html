@@ -8,612 +8,13 @@
   <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
   <meta name="description" content="Acceso al portal interno y a la vista agregada de MuniControl Friendly.">
   <title>Acceso | MuniControl Friendly</title>
-  <style>
-    :root {
-      --navy-950: #061e2c;
-      --navy-900: #08283a;
-      --navy-800: #10394e;
-      --navy-700: #1b5068;
-      --ink: #17232b;
-      --muted: #586974;
-      --line: #cbd5db;
-      --line-strong: #9dacb5;
-      --paper: #ffffff;
-      --canvas: #eef2f4;
-      --wash: #f6f8f9;
-      --accent: #c6ee6b;
-      --accent-dark: #263b12;
-      --danger: #a5252d;
-      --danger-wash: #fff4f4;
-      --focus: #147ca8;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; }
-
-    html { color-scheme: light; }
-
-    body {
-      min-width: 320px;
-      min-height: 100vh;
-      margin: 0;
-      background: var(--canvas);
-      color: var(--ink);
-      font-family: Arial, Helvetica, sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    button, input { font: inherit; }
-
-    button, a { -webkit-tap-highlight-color: transparent; }
-
-    .skip-link {
-      position: fixed;
-      z-index: 20;
-      top: 8px;
-      left: 8px;
-      padding: 10px 14px;
-      background: var(--paper);
-      color: var(--navy-950);
-      font-weight: 700;
-      transform: translateY(-150%);
-    }
-
-    .skip-link:focus { transform: translateY(0); }
-
-    .site-header {
-      background: var(--navy-950);
-      color: var(--paper);
-      border-bottom: 4px solid var(--accent);
-    }
-
-    .header-inner {
-      width: min(1160px, calc(100% - 48px));
-      min-height: 78px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 32px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-      min-width: 0;
-    }
-
-    .brand-mark {
-      width: 42px;
-      height: 42px;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      border: 1px solid #a9bcc6;
-      background: var(--paper);
-      color: var(--navy-950);
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 25px;
-      font-weight: 700;
-    }
-
-    .brand-name {
-      display: block;
-      font-size: 19px;
-      font-weight: 800;
-      line-height: 1.05;
-      letter-spacing: -0.01em;
-    }
-
-    .brand-place {
-      display: block;
-      margin-top: 4px;
-      color: #bdcbd2;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.2;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .header-context {
-      margin: 0;
-      color: #d9e2e6;
-      font-size: 13px;
-      text-align: right;
-    }
-
-    main {
-      width: min(1160px, calc(100% - 48px));
-      margin: 0 auto;
-      padding: 54px 0 46px;
-    }
-
-    .access-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(390px, 0.78fr);
-      gap: 72px;
-      align-items: start;
-    }
-
-    .context-panel { padding-top: 12px; }
-
-    .eyebrow {
-      margin: 0 0 16px;
-      color: var(--navy-700);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      max-width: 690px;
-      margin: 0;
-      color: var(--navy-950);
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: clamp(38px, 5vw, 62px);
-      font-weight: 400;
-      line-height: 1.02;
-      letter-spacing: -0.035em;
-    }
-
-    .intro {
-      max-width: 590px;
-      margin: 25px 0 0;
-      color: #3d515d;
-      font-size: 17px;
-      line-height: 1.65;
-    }
-
-    .route-note {
-      max-width: 610px;
-      margin: 31px 0 0;
-      padding: 17px 0 17px 19px;
-      border-left: 4px solid var(--navy-700);
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.55;
-    }
-
-    .route-note strong { color: var(--ink); }
-
-    .facts {
-      margin: 42px 0 0;
-      padding: 0;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      border-top: 1px solid var(--line-strong);
-      border-bottom: 1px solid var(--line-strong);
-      list-style: none;
-    }
-
-    .fact {
-      min-width: 0;
-      padding: 19px 18px 18px 0;
-    }
-
-    .fact + .fact {
-      padding-left: 18px;
-      border-left: 1px solid var(--line);
-    }
-
-    .fact-value {
-      display: block;
-      color: var(--navy-950);
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 31px;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .fact-label {
-      display: block;
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.35;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .source-line {
-      margin: 13px 0 0;
-      color: #71808a;
-      font-size: 11px;
-      line-height: 1.45;
-    }
-
-    .access-panel {
-      background: var(--paper);
-      border: 1px solid var(--line-strong);
-      border-top: 5px solid var(--navy-900);
-    }
-
-    .access-panel-header {
-      padding: 28px 30px 22px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .route-number {
-      display: block;
-      margin-bottom: 9px;
-      color: var(--navy-700);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    h2 {
-      margin: 0;
-      color: var(--navy-950);
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 29px;
-      font-weight: 400;
-      line-height: 1.15;
-    }
-
-    .panel-description {
-      margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .login-form { padding: 24px 30px 27px; }
-
-    .error-msg {
-      margin: 0 0 18px;
-      padding: 12px 13px;
-      border: 1px solid #df9ea2;
-      border-left: 4px solid var(--danger);
-      background: var(--danger-wash);
-      color: #761a20;
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.45;
-    }
-
-    .error-msg[hidden] { display: none; }
-
-    .form-group { margin-bottom: 18px; }
-
-    .form-label {
-      display: block;
-      margin-bottom: 7px;
-      color: #263945;
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .form-input {
-      width: 100%;
-      min-height: 46px;
-      padding: 10px 12px;
-      border: 1px solid var(--line-strong);
-      border-radius: 2px;
-      background: var(--paper);
-      color: var(--ink);
-      font-size: 15px;
-      outline: none;
-    }
-
-    .form-input::placeholder { color: #82909a; }
-
-    .form-input:hover { border-color: #71838e; }
-
-    .form-input:focus {
-      border-color: var(--focus);
-      box-shadow: 0 0 0 3px rgba(20, 124, 168, 0.18);
-    }
-
-    .password-field { position: relative; }
-
-    .password-field .form-input { padding-right: 78px; }
-
-    .toggle-pass {
-      position: absolute;
-      top: 50%;
-      right: 7px;
-      min-width: 64px;
-      min-height: 34px;
-      padding: 5px 8px;
-      border: 0;
-      background: transparent;
-      color: var(--navy-700);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      transform: translateY(-50%);
-    }
-
-    .toggle-pass:hover { text-decoration: underline; }
-
-    .toggle-pass:focus-visible,
-    .button:focus-visible {
-      outline: 3px solid rgba(20, 124, 168, 0.35);
-      outline-offset: 2px;
-    }
-
-    .form-help {
-      margin: -5px 0 20px;
-      color: #657680;
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .button {
-      width: 100%;
-      min-height: 48px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 9px;
-      padding: 11px 16px;
-      border-radius: 2px;
-      font-size: 14px;
-      font-weight: 800;
-      line-height: 1.2;
-      text-align: center;
-      cursor: pointer;
-    }
-
-    .button:disabled { cursor: wait; opacity: 0.72; }
-
-    .button-primary {
-      border: 1px solid var(--navy-950);
-      background: var(--navy-950);
-      color: var(--paper);
-    }
-
-    .button-primary:hover:not(:disabled) { background: var(--navy-800); }
-
-    .loading-indicator {
-      width: 13px;
-      height: 13px;
-      display: none;
-      border: 2px solid rgba(255, 255, 255, 0.45);
-      border-top-color: var(--paper);
-      border-radius: 50%;
-      animation: spin 0.75s linear infinite;
-    }
-
-    .button.is-loading .loading-indicator { display: inline-block; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .public-route {
-      padding: 23px 30px 27px;
-      border-top: 1px solid var(--line);
-      background: var(--wash);
-    }
-
-    .public-route-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 17px;
-    }
-
-    .public-route h3 {
-      margin: 0;
-      color: var(--navy-950);
-      font-size: 16px;
-      line-height: 1.25;
-    }
-
-    .public-route p {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .route-tag {
-      flex: 0 0 auto;
-      padding: 4px 7px;
-      border: 1px solid #91a0a8;
-      color: #445761;
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .button-secondary {
-      border: 1px solid var(--navy-800);
-      background: var(--paper);
-      color: var(--navy-900);
-    }
-
-    .button-secondary:hover:not(:disabled) { background: #e7eef1; }
-
-    .access-status {
-      min-height: 18px;
-      margin: 11px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.4;
-      text-align: center;
-    }
-
-    .first-access-link {
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 8px;
-      color: var(--navy-700);
-      font-size: 12px;
-      font-weight: 750;
-      text-align: center;
-      text-underline-offset: 3px;
-    }
-
-    .first-access-link:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
-
-    .access-links {
-      margin-top: 13px;
-      padding-top: 12px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      border-top: 1px solid var(--line);
-    }
-
-    .access-links a {
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--navy-700);
-      font-size: 12px;
-      font-weight: 750;
-      text-align: center;
-      text-underline-offset: 3px;
-    }
-
-    .mfa-panel { padding-top: 2px; }
-    .mfa-panel h3 { margin: 0; color: var(--navy-950); font-size: 17px; }
-    .mfa-panel > p { margin: 8px 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .mfa-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-    .mfa-actions .button { padding-left: 10px; padding-right: 10px; }
-    .mfa-alternate-actions { display: grid; gap: 2px; margin-top: 8px; }
-    .email-mfa-status { min-height: 18px; margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
-    .email-mfa-card { margin: 13px 0 16px; padding: 13px; border: 1px solid var(--focus); background: var(--wash); }
-    .email-mfa-card strong { display: block; color: var(--navy-950); font-size: 13px; }
-    .email-mfa-card > span { display: block; margin: 4px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.45; }
-    .email-mfa-card .button { width: 100%; }
-    .mfa-method-separator { margin: 0 0 13px !important; font-weight: 750; text-align: center; }
-    .text-button { min-height: 44px; border: 0; background: transparent; color: var(--navy-700); font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-    .text-button:disabled { color: #71818a; cursor: not-allowed; }
-    .text-button:focus-visible { outline: 3px solid rgba(20, 124, 168, 0.35); outline-offset: 2px; }
-
-    .context-options { display: grid; gap: 9px; margin: 0 0 18px; }
-    .context-option {
-      min-height: 58px;
-      display: grid;
-      grid-template-columns: 22px minmax(0, 1fr);
-      gap: 11px;
-      align-items: center;
-      padding: 11px 12px;
-      border: 1px solid var(--line-strong);
-      background: var(--paper);
-      cursor: pointer;
-    }
-    .context-option:has(input:checked) { border-color: var(--focus); background: #edf7fa; box-shadow: inset 4px 0 0 var(--focus); }
-    .context-option input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy-700); }
-    .context-option strong, .context-option span { display: block; }
-    .context-option strong { color: var(--navy-950); font-size: 13px; }
-    .context-option span { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.35; }
-
-    .login-manual-key { margin: 0 0 18px; padding: 13px; border: 1px solid #7ebbb4; background: #edf8f6; }
-    .login-manual-key strong, .login-manual-key code, .login-manual-key span { display: block; }
-    .login-manual-key strong { color: var(--navy-950); font-size: 12px; }
-    .login-manual-key code { margin-top: 8px; color: #075c57; font-family: Consolas, 'Courier New', monospace; font-size: 14px; font-weight: 800; line-height: 1.5; overflow-wrap: anywhere; user-select: all; }
-    .login-manual-key span { margin-top: 8px; color: #345c5a; font-size: 11px; line-height: 1.45; }
-    .login-recovery-codes { margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-strong); list-style: none; }
-    .login-recovery-codes li { padding: 10px 11px; border-bottom: 1px solid var(--line); color: var(--navy-950); font-family: Consolas, 'Courier New', monospace; font-size: 12px; font-weight: 800; overflow-wrap: anywhere; }
-    .login-recovery-codes li:nth-child(odd) { border-right: 1px solid var(--line); }
-    .recovery-confirm { display: grid; grid-template-columns: 20px 1fr; gap: 9px; align-items: start; margin: 0 0 17px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-    .recovery-confirm input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy-700); }
-
-    .site-footer {
-      border-top: 1px solid var(--line);
-      background: #e5ebee;
-    }
-
-    .footer-inner {
-      width: min(1160px, calc(100% - 48px));
-      min-height: 54px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      color: #60717b;
-      font-size: 11px;
-      line-height: 1.4;
-    }
-
-    .footer-inner strong { color: #334852; }
-
-    @media (max-width: 900px) {
-      .access-layout {
-        grid-template-columns: 1fr;
-        gap: 40px;
-      }
-
-      .access-panel { order: -1; }
-
-      .context-panel { padding-top: 0; }
-
-      .intro { max-width: 700px; }
-    }
-
-    @media (max-width: 560px) {
-      .header-inner,
-      main,
-      .footer-inner { width: min(100% - 32px, 1160px); }
-
-      .header-inner {
-        min-height: 70px;
-        gap: 12px;
-      }
-
-      .brand-mark { width: 37px; height: 37px; font-size: 22px; }
-      .brand-name { font-size: 17px; }
-      .brand-place { font-size: 9px; }
-      .header-context { display: none; }
-
-      main { padding: 34px 0 32px; }
-
-      h1 { font-size: 39px; }
-      .intro { margin-top: 18px; font-size: 15px; }
-      .route-note { margin-top: 24px; font-size: 13px; }
-      .facts { margin-top: 29px; }
-      .fact { padding: 15px 10px 14px 0; }
-      .fact + .fact { padding-left: 10px; }
-      .fact-value { font-size: 24px; }
-      .fact-label { font-size: 9px; letter-spacing: 0.02em; }
-
-      .access-layout { gap: 32px; }
-      .access-panel-header,
-      .login-form,
-      .public-route { padding-left: 20px; padding-right: 20px; }
-      .access-panel-header { padding-top: 23px; }
-      h2 { font-size: 26px; }
-      .access-links, .mfa-actions { grid-template-columns: 1fr; }
-      .login-recovery-codes { grid-template-columns: 1fr; }
-      .login-recovery-codes li:nth-child(odd) { border-right: 0; }
-
-      .footer-inner {
-        min-height: 64px;
-        padding: 10px 0;
-        flex-direction: column;
-        align-items: flex-start;
-        justify-content: center;
-        gap: 2px;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        scroll-behavior: auto !important;
-      }
-    }
-  </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="stylesheet" href="/assets/install-share.css">
+  <link rel="stylesheet" href="/assets/access.css">
   <!-- MC_REACT_ISLANDS -->
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 </head>
-<body>
+<body class="access-page">
   <a class="skip-link" href="#access-panel">Saltar al acceso</a>
 
   <header class="site-header">
@@ -622,59 +23,29 @@
         <span class="brand-mark" aria-hidden="true">M</span>
         <span>
           <span class="brand-name">MuniControl</span>
-          <span class="brand-place">Friendly · Junín, Mendoza</span>
         </span>
       </div>
-      <p class="header-context">Plataforma de gestión municipal</p>
+      <p class="header-context">Municipalidad de Junín <span>· Mendoza</span></p>
     </div>
   </header>
-
-  <div id="mc-install-share-root">
-    <details class="mc-install-share">
-      <summary>Usar MuniControl en tu celular</summary>
-      <p>En el menú de tu navegador, elegí Instalar aplicación o Agregar a la pantalla de inicio.</p>
-      <p>Para compartir la plataforma: <a href="https://municipio-junin-friendly.vercel.app/">MuniControl · Gestión municipal, más simple.</a></p>
-    </details>
-  </div>
 
   <main>
     <div class="access-layout">
       <section class="context-panel" aria-labelledby="page-title">
-        <p class="eyebrow">Acceso municipal</p>
-        <h1 id="page-title">Una entrada clara para cada consulta.</h1>
-        <p class="intro">
-          El portal interno permite trabajar con fichas y relaciones del respaldo municipal.
-          La vista agregada resume indicadores institucionales sin mostrar datos personales.
-        </p>
-
-        <p class="route-note">
-          <strong>¿Qué acceso corresponde?</strong><br>
-          Usá tu cuenta institucional para consultar legajos. Si solo necesitás una lectura general,
-          abrí la vista agregada sin completar el formulario.
-        </p>
-
-        <ul class="facts" aria-label="Cobertura verificada del respaldo GRH">
-          <li class="fact">
-            <span class="fact-value">2.450</span>
-            <span class="fact-label">Legajos históricos</span>
-          </li>
-          <li class="fact">
-            <span class="fact-value">882</span>
-            <span class="fact-label">Legajos activos</span>
-          </li>
-          <li class="fact">
-            <span class="fact-value">31.572</span>
-            <span class="fact-label">Registros de ausentismo</span>
-          </li>
-        </ul>
-        <p class="source-line">Fuente: respaldo GRH municipal verificado · corte de datos 06 de agosto de 2026.</p>
+        <p class="eyebrow">MuniControl Friendly</p>
+        <h2 id="page-title">Gestión municipal,<br><span>más simple.</span></h2>
+        <p class="intro">Las personas, los haberes y la gestión de tu municipio. En un mismo lugar.</p>
+        <div class="context-signature">
+          <span class="context-symbol" aria-hidden="true"></span>
+          <p>Hecho para quienes<br><strong>hacen funcionar el municipio.</strong></p>
+        </div>
       </section>
 
-      <section class="access-panel" id="access-panel" aria-labelledby="login-title">
+      <section class="access-panel" id="access-panel" tabindex="-1" aria-labelledby="login-title">
         <div class="access-panel-header">
-          <span class="route-number">Acceso 01 · Personal autorizado</span>
-          <h2 id="login-title">Portal interno</h2>
-          <p class="panel-description">Legajos, ausencias, licencias, vínculos y catálogos de gestión.</p>
+          <span class="route-number">Portal interno</span>
+          <h1 id="login-title">Bienvenido a tu espacio de trabajo</h1>
+          <p class="panel-description">Ingresá con tu cuenta para continuar.</p>
         </div>
 
         <form class="login-form" id="loginForm" onsubmit="doLogin(event)" autocomplete="on" novalidate aria-describedby="internal-help">
@@ -714,7 +85,7 @@
               </div>
             </div>
 
-            <p class="form-help" id="internal-help">Requiere una cuenta interna activa. El tenant y los permisos se verifican en el servidor.</p>
+            <p class="form-help" id="internal-help">Usá el correo con el que te dieron acceso al municipio.</p>
 
             <button type="submit" class="button button-primary" id="btnLogin">
               <span class="button-label">Ingresar al portal interno</span>
@@ -722,13 +93,13 @@
             </button>
             <div class="access-links">
               <a href="activar-cuenta.html">Activar una invitación</a>
-              <a href="login.html?next=centro-ayuda.html">Primer recorrido guiado</a>
+              <a href="login.html?next=centro-ayuda.html">Guía de primeros pasos</a>
             </div>
           </div>
 
           <div class="mfa-panel" id="contextStep" hidden>
-            <h3>Elegí el ámbito de trabajo</h3>
-            <p id="contextHelp">La contraseña fue validada. Seleccioná uno de los contextos autorizados por el servidor; ninguno se elige automáticamente.</p>
+            <h3>Elegí dónde trabajar</h3>
+            <p id="contextHelp">Tu contraseña es correcta. Elegí uno de los espacios habilitados para tu cuenta; ninguno se elige automáticamente.</p>
             <div class="context-options" id="contextOptions" role="radiogroup" aria-label="Contextos autorizados"></div>
             <div class="mfa-actions">
               <button type="button" class="button button-secondary" id="cancelContextButton">Cancelar</button>
@@ -737,8 +108,8 @@
           </div>
 
           <div class="mfa-panel" id="loginEnrollmentStep" hidden>
-            <h3>Protegé la cuenta con MFA</h3>
-            <p>Este contexto requiere segundo factor. Agregá la clave en tu aplicación autenticadora; el factor permanece pendiente hasta verificar el código.</p>
+            <h3>Configurá la verificación en dos pasos</h3>
+            <p>Para continuar, agregá esta clave en tu aplicación autenticadora e ingresá el código de seis dígitos que aparece allí.</p>
             <div class="login-manual-key">
               <strong>Clave de configuración manual</strong>
               <code id="loginManualMfaKey" aria-label="Clave manual de autenticación"></code>
@@ -750,13 +121,13 @@
             </div>
             <div class="mfa-actions">
               <button type="button" class="button button-secondary" id="cancelEnrollmentButton">Cancelar</button>
-              <button type="submit" class="button button-primary" id="completeEnrollmentButton">Activar MFA</button>
+              <button type="submit" class="button button-primary" id="completeEnrollmentButton">Activar verificación</button>
             </div>
           </div>
 
           <div class="mfa-panel" id="loginRecoveryStep" hidden>
             <h3>Códigos de recuperación</h3>
-            <p>Esta es la única visualización. Guardalos fuera de este dispositivo; MuniControl conserva sólo verificadores criptográficos.</p>
+            <p>Guardá estos códigos en un lugar seguro, fuera de este dispositivo. Después de esta pantalla no podrás volver a verlos.</p>
             <ul class="login-recovery-codes" id="loginRecoveryCodes" aria-label="Códigos de recuperación"></ul>
             <label class="recovery-confirm"><input id="loginRecoveryConfirmed" type="checkbox"><span>Confirmo que guardé los códigos en un lugar seguro.</span></label>
             <button type="button" class="button button-primary" id="finishLoginEnrollmentButton" disabled>Continuar al portal</button>
@@ -789,25 +160,30 @@
         </form>
 
         <div class="public-route">
-          <div class="public-route-top">
-            <div>
-              <h3>Vista agregada</h3>
-              <p>Indicadores generales, sin nombres, documentos ni fichas individuales.</p>
-            </div>
-            <span class="route-tag">Sin cuenta</span>
+          <div>
+            <h2>Indicadores del municipio</h2>
+            <p>Vista general, sin iniciar sesión.</p>
           </div>
-          <button type="button" class="button button-secondary" id="publicAccessBtn" onclick="openPublicView()">
-            Abrir vista agregada
+          <button type="button" class="public-access" id="publicAccessBtn" onclick="openPublicView()">
+            Consultar <span aria-hidden="true">→</span>
           </button>
         </div>
       </section>
     </div>
   </main>
 
+  <div id="mc-install-share-root">
+    <details class="mc-install-share">
+      <summary>Usar MuniControl en tu celular</summary>
+      <p>En el menú de tu navegador, elegí Instalar aplicación o Agregar a la pantalla de inicio.</p>
+      <p>Para compartir la plataforma: <a href="https://municipio-junin-friendly.vercel.app/">MuniControl · Gestión municipal, más simple.</a></p>
+    </details>
+  </div>
+
   <footer class="site-footer">
     <div class="footer-inner">
       <span><strong>Municipalidad de Junín</strong> · Mendoza</span>
-      <span>MuniControl Friendly · Datos con fuente y período</span>
+      <span>MuniControl Friendly · Gestión municipal, más simple.</span>
     </div>
   </footer>
 
@@ -1112,6 +488,7 @@
       loginFlow = { token: challenge.flowToken, version: Number(challenge.expectedVersion), expiresAt: challenge.expiresAt, email: email, idempotencyKey: commandKey() };
       usingRecovery = false;
       document.getElementById('credentialStep').hidden = true;
+      document.getElementById('contextStep').hidden = true;
       document.getElementById('mfaStep').hidden = false;
       selectMfaMethod('totp');
       document.getElementById('requestEmailMfaButton').focus();

@@ -125,7 +125,7 @@ test('login conserva deep links internos y rechaza destinos externos', () => {
   assert.equal(sessionContextKind({ tenantId: 'tenant-junin' }), 'tenant');
   assert.equal(sessionContextKind({ activeTenantId: null }), 'platform');
   assert.match(html, /var contextKind = sessionContextKind\(result\) \|\| selectedLoginContextKind/);
-  assert.match(html, /\.access-panel \{ order: -1; \}/);
+  assert.match(read('assets/access.css'), /\.access-panel \{ order: -1; \}/);
 });
 
 test('login permite solicitar y verificar email MFA sin reemplazar TOTP ni recovery', () => {
