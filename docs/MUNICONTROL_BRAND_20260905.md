@@ -49,3 +49,15 @@ El build normaliza una sola referencia a favicon, apple-touch-icon, manifest y c
 Marca común en acceso y encabezados laterales, iconos PWA renovados, nombres de iconos versionados en el build para no conservar caché antigua, logo vectorial en cada PDF del módulo de recibos. No se cambian importes, roles, pagos ni bases de datos.
 
 Recibo de Noelia: reemisión privada del bono de agosto2026 aportado, con todos los cinco conceptos y montos conciliados; nueva foto de firma/sello original y nuevo logo. Firma gráfica sin certificación digital. Originales conservados. No equivale a haber completado la emisión automática de todos los recibos nominales de la base.
+
+## Publicación comprobada - 5 de septiembre de 2026
+
+- Código de marca: `96bd6ce`; código final con primera isla React: `8824165773cacb79abd96cc7bc35e706b1818fbd`.
+- Producción `dpl_76uq4AT2cCxwaQ7QZt4nZxhBotEc`, READY, alias `https://municipio-junin-friendly.vercel.app`; SHA confirmado mediante API de Vercel usando la sesión CLI autorizada.
+- Worker `build-c5d7f19326168931`; íconos `identity-10f7064d3eda`; isla React `install-share-YSH2CM2Q.js`, 62.122 bytes gzip.
+- Suite local final: 1.641 aprobadas. Build remoto: 1.640 aprobadas, 0 fallos y una prueba de archivo XLSX municipal real omitida porque ese archivo privado no se publica.
+- Verificación pública: 22 comprobaciones de archivos servidos y metadata con agentes WhatsApp/Facebook; contenido coincidente con el build revisado. PDF privado local devuelve404 en su ruta de output pública.
+- Chrome sobre Producción a390px: React montado, desplegable funcional, campos de acceso vacíos, sin errores JavaScript ni desbordamiento. No se ingresaron credenciales ni se enviaron mensajes.
+- Consulta de errores de ejecución del deployment, últimos30 minutos: sin resultados al verificar. No constituye cobertura de todos los flujos autenticados.
+
+La instalación física en teléfonos y la actualización de caché propia de WhatsApp/Facebook no se verificaron desde sus aplicaciones. El PDF privado y el kit descargable se entregan en la tarea, no como archivos públicos de empleados.
