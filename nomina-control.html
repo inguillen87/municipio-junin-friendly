@@ -1985,13 +1985,17 @@
                     <div class="post-close-actions" data-monthly-workflow-actions></div>
                     <p class="post-close-note" data-monthly-workflow-action-status data-state="warning" role="status" aria-live="polite">Abrí una corrida para consultar las decisiones habilitadas.</p>
                     <div class="post-close-export" data-monthly-workflow-approved-proof hidden>
-                      <h4>Copia local del cierre</h4>
-                      <p>Resume el estado aprobado informado por el servidor. Se genera en este navegador, no posee firma digital y no es un comprobante verificable.</p>
+                      <h4>Carpeta de respaldo del cierre</h4>
+                      <p>Reúne el PDF, la conciliación y el inventario de fuentes de esta misma corrida. Se genera en este navegador, no posee firma digital y no es un comprobante verificable.</p>
                       <div class="post-close-export-actions">
-                        <button class="button" type="button" data-monthly-workflow-approved-proof-download disabled>Descargar copia local</button>
+                        <button class="button primary" type="button" data-monthly-workflow-folder-download disabled>Descargar carpeta de respaldo</button>
                       </div>
-                      <span class="post-close-export-status" data-monthly-workflow-approved-proof-status data-state="warning" role="status" aria-live="polite">La copia local se habilita después de una aprobación conciliada. No es un comprobante verificable.</span>
-                      <p>No es recibo de sueldo, orden de pago, archivo bancario, F.931/LSD ni constancia fiscal; no transmite datos ni modifica GRH.</p>
+                      <span class="post-close-export-status" data-monthly-workflow-approved-proof-status data-state="warning" role="status" aria-live="polite">El respaldo requiere un cierre aprobado y conciliado, con evidencia de aprobación disponible para esta sesión.</span>
+                      <details><summary>Alcance y copia PDF</summary>
+                        <p>No es la carpeta mensual completa ni una constancia de entrega o presentación. No incluye los archivos originales, ART, OSEP ni archivos para el banco.</p>
+                        <p>No es recibo de sueldo, orden de pago, archivo bancario, F.931/LSD ni constancia fiscal; no transmite datos ni modifica GRH.</p>
+                        <button class="button" type="button" data-monthly-workflow-approved-proof-download disabled>Descargar copia local en PDF</button>
+                      </details>
                     </div>
                   </div>
                   <div class="method-note">Aprobar significa aceptar este cierre agregado y su evidencia para el circuito interno. No liquida, no paga, no genera F.931/LSD, no crea archivos bancarios y no transmite información a terceros.</div>

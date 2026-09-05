@@ -73,6 +73,7 @@ const shellFiles = [
   'assets/monthly-close-grh-summary-worker.js',
   'assets/monthly-close-local-precheck.js',
   'assets/payroll-monthly-close-approved-report.js',
+  'assets/payroll-monthly-close-folder.js',
   'assets/payroll-monthly-close-workflow.js',
   'assets/payroll-type-presentation.js',
   'assets/payroll-receipt-preview.js',
@@ -80,6 +81,7 @@ const shellFiles = [
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',
+  'assets/payroll-novelty-retro-import.js',
   'assets/rrhh-report-pack.js',
   'datos-personales.html',
   'friendly-data.json'

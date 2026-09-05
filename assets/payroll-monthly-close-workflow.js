@@ -1,9 +1,12 @@
 import {
-  PayrollMonthlyCloseApprovedProofError,
   createPayrollMonthlyCloseApprovedPdf,
   downloadPayrollMonthlyCloseApprovedProof,
   isPayrollMonthlyCloseApprovedProofReady,
 } from './payroll-monthly-close-approved-report.js';
+import {
+  createPayrollMonthlyCloseFolder,
+  downloadPayrollMonthlyCloseFolder,
+} from './payroll-monthly-close-folder.js';
 
 export const PAYROLL_MONTHLY_CLOSE_API = '/api/internal-payroll-monthly-close';
 export const PAYROLL_MONTHLY_CLOSE_CONTRACT = 'payroll-monthly-close-run.v1';
@@ -544,6 +547,8 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
   const FileReaderImpl = options.FileReaderImpl || globalThis.FileReader;
   const createApprovedPdf = options.createApprovedPdf || createPayrollMonthlyCloseApprovedPdf;
   const downloadApprovedProof = options.downloadApprovedProof || downloadPayrollMonthlyCloseApprovedProof;
+  const createApprovedFolder = options.createApprovedFolder || createPayrollMonthlyCloseFolder;
+  const saveApprovedFolder = options.downloadApprovedFolder || downloadPayrollMonthlyCloseFolder;
   const nodes = {
     status: root.querySelector('[data-monthly-workflow-status]'),
     role: root.querySelector('[data-monthly-workflow-role]'),
@@ -574,6 +579,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     actionStatus: root.querySelector('[data-monthly-workflow-action-status]'),
     approvedProof: root.querySelector('[data-monthly-workflow-approved-proof]'),
     approvedProofDownload: root.querySelector('[data-monthly-workflow-approved-proof-download]'),
+    folderDownload: root.querySelector('[data-monthly-workflow-folder-download]'),
     approvedProofStatus: root.querySelector('[data-monthly-workflow-approved-proof-status]'),
   };
   const state = { bootstrap: null, selectedId: null, detail: null, busy: false };
@@ -588,6 +594,11 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     state.busy = value;
     root.setAttribute('aria-busy', String(value));
     root.querySelectorAll('button, input, select').forEach((node) => { node.disabled = value; });
+    if (!value) {
+      const ready = isPayrollMonthlyCloseApprovedProofReady(state.detail);
+      if (nodes.approvedProofDownload) nodes.approvedProofDownload.disabled = !ready;
+      if (nodes.folderDownload) nodes.folderDownload.disabled = !ready;
+    }
   }
 
   function redirectToLogin() {
@@ -595,7 +606,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     locationImpl.replace(`login.html?next=${encodeURIComponent(next)}`);
   }
 
-  async function api(url, init) {
+  async function api(url, init, { preserveSession = false } = {}) {
     let response;
     try {
       response = await fetchImpl(url, {
@@ -607,8 +618,10 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
       throw attemptError('No se recibió confirmación del servidor.');
     }
     if (response.status === 401) {
-      redirectToLogin();
-      throw attemptError('La sesión venció.', 'definitive');
+      if (!preserveSession) redirectToLogin();
+      throw attemptError(preserveSession
+        ? 'La sesión venció. Iniciá sesión en otra pestaña y reintentá; los datos de esta pantalla se conservaron.'
+        : 'La sesión venció.', 'definitive');
     }
     const payload = await response.json().catch(() => null);
     if (!response.ok || !isObject(payload) || payload.ok !== true) {
@@ -901,30 +914,56 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     const ready = isPayrollMonthlyCloseApprovedProofReady(run);
     nodes.approvedProof.hidden = !ready;
     nodes.approvedProofDownload.disabled = !ready;
+    if (nodes.folderDownload) nodes.folderDownload.disabled = !ready;
     nodes.approvedProofStatus.textContent = ready
-      ? 'Disponible: copia local del cierre informado como aprobado y conciliado. No posee firma digital.'
-      : 'La copia local se habilita después de una aprobación conciliada. No es un comprobante verificable.';
+      ? 'Respaldo disponible. Antes de descargar se volverán a consultar el cierre y los permisos de esta sesión.'
+      : 'El respaldo requiere un cierre aprobado y conciliado, con evidencia de aprobación disponible para esta sesión.';
     nodes.approvedProofStatus.dataset.state = ready ? 'ok' : 'warning';
   }
 
-  function downloadApprovedReport() {
+  async function downloadApprovedOutput(format) {
     if (state.busy || !state.detail || !nodes.approvedProofDownload || !nodes.approvedProofStatus) return;
-    nodes.approvedProofDownload.disabled = true;
-    nodes.approvedProofStatus.textContent = 'Preparando una copia local sin firma digital…';
+    if (!isPayrollMonthlyCloseApprovedProofReady(state.detail)) return;
+    const displayedRun = state.detail;
+    setBusy(true);
+    nodes.approvedProofStatus.textContent = 'Confirmando el cierre y los permisos antes de descargar…';
     nodes.approvedProofStatus.dataset.state = 'warning';
     try {
-      const artifact = createApprovedPdf(state.detail);
-      const fileName = downloadApprovedProof(artifact);
-      nodes.approvedProofStatus.textContent = `Copia local descargada: ${fileName}`;
+      const payload = await api(
+        `${PAYROLL_MONTHLY_CLOSE_API}?resource=detail&id=${encodeURIComponent(displayedRun.id)}`,
+        { cache: 'no-store' },
+        { preserveSession: true },
+      );
+      if (!validatePayrollMonthlyCloseDetail(payload)) {
+        throw new Error('No se pudo verificar el detalle vigente. Actualizá el cierre antes de descargar.');
+      }
+      const freshRun = payload.data.run;
+      const sameReference = ['id', 'version', 'period', 'jurisdiction', 'sourceSetSha256']
+        .every((key) => String(freshRun[key]) === String(displayedRun[key]));
+      if (!sameReference || state.detail !== displayedRun) {
+        throw new Error('El cierre cambió respecto de la vista abierta. Actualizá y revisá la corrida antes de descargar.');
+      }
+      if (!isPayrollMonthlyCloseApprovedProofReady(freshRun)) {
+        throw new Error('El cierre vigente no tiene una aprobación conciliada y verificable para esta sesión. Actualizá para revisar su estado.');
+      }
+      const artifact = format === 'folder' ? createApprovedFolder(freshRun) : createApprovedPdf(freshRun);
+      const fileName = format === 'folder' ? saveApprovedFolder(artifact) : downloadApprovedProof(artifact);
+      state.detail = freshRun;
+      nodes.approvedProofStatus.textContent = format === 'folder'
+        ? `Descarga de la carpeta de respaldo iniciada: ${fileName}. No es la carpeta mensual completa ni una presentación.`
+        : `Descarga de la copia local iniciada: ${fileName}`;
       nodes.approvedProofStatus.dataset.state = 'ok';
     } catch (error) {
-      nodes.approvedProofStatus.textContent = error instanceof PayrollMonthlyCloseApprovedProofError
-        ? error.message : 'No se pudo generar la copia local.';
+      const message = error instanceof Error ? error.message : 'No se pudo generar la descarga.';
+      nodes.approvedProofStatus.textContent = `${message} Conservamos los datos de esta pantalla. Revisá las descargas del navegador antes de reintentar.`;
       nodes.approvedProofStatus.dataset.state = 'error';
     } finally {
-      nodes.approvedProofDownload.disabled = !isPayrollMonthlyCloseApprovedProofReady(state.detail);
+      setBusy(false);
     }
   }
+
+  function downloadApprovedReport() { return downloadApprovedOutput('pdf'); }
+  function downloadApprovedFolder() { return downloadApprovedOutput('folder'); }
 
   function renderDetail(run) {
     state.detail = run;
@@ -1126,8 +1165,9 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
   nodes.form?.addEventListener('reset', () => setTimeout(resetFileStates, 0));
   nodes.refresh?.addEventListener('click', () => load());
   nodes.approvedProofDownload?.addEventListener('click', downloadApprovedReport);
+  nodes.folderDownload?.addEventListener('click', downloadApprovedFolder);
   load();
-  return { load, loadDetail, prepare, getState: () => ({ ...state }) };
+  return { load, loadDetail, prepare, downloadApprovedReport, downloadApprovedFolder, getState: () => ({ ...state }) };
 }
 
 if (typeof document !== 'undefined') {

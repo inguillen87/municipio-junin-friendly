@@ -1,5 +1,6 @@
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
+import { parsePayrollNoveltyRetro } from './payroll-novelty-retro-import.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = 'login.html?next=novedades-nomina.html';
@@ -58,6 +59,9 @@ let redirectIssued = false;
 let agileDraftRows = [];
 let agileTemplate = null;
 let handoffRequiresPayrollTypeSelection = false;
+let fileReadVersion = 0;
+let fileReadPending = false;
+let fileReadError = null;
 const pendingTransitionAttempts = new Map();
 
 const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
@@ -70,7 +74,8 @@ function setBusy(value, label = '') {
   document.body.dataset.busy = value ? 'true' : 'false';
   for (const button of document.querySelectorAll('button')) button.disabled = Boolean(value);
   if (!value) {
-    byId('prepareButton').disabled = preparedDraft === null;
+    byId('prepareButton').disabled = preparedDraft === null || fileReadPending || !hasCapability('payroll.novelty.prepare');
+    byId('preflightButton').disabled = fileReadPending || !hasCapability('payroll.novelty.prepare');
     renderAgileRows();
   }
   byId('busyStatus').hidden = !value;
@@ -103,6 +108,8 @@ function invalidatePreparedDraft() {
   preparedEntryMode = null;
   byId('previewPanel').hidden = true;
   byId('prepareButton').disabled = true;
+  byId('retroReport').hidden = true;
+  byId('retroReport').replaceChildren();
 }
 
 function errorMessage(error) {
@@ -297,6 +304,20 @@ function agileRows(periodMonth) {
 }
 
 function bulkRows(periodMonth) {
+  if (fileReadPending) throw new Error('Esperá a que termine la lectura del archivo antes de validar.');
+  if (fileReadError) throw new Error(fileReadError);
+  if (byId('bulkFormat').value === 'retro') {
+    const report = parsePayrollNoveltyRetro(byId('bulkSource').value, {
+      conceptSourceId: byId('retroConceptSourceId').value,
+    });
+    renderRetroReport(report);
+    if (!report.ok) {
+      const error = new Error('Corregí las filas indicadas en el contenido o seleccioná el TXT RETRO correcto. Se conserva el archivo y no se preparará un subconjunto.');
+      error.retroReport = report;
+      throw error;
+    }
+    return report.rows;
+  }
   const text = byId('bulkSource').value.replace(/\r\n?/g, '\n').trim();
   if (!text) throw new Error('Pegá o cargá un CSV antes de validar.');
   if (new TextEncoder().encode(text).byteLength > 480 * 1024) {
@@ -320,6 +341,30 @@ function bulkRows(periodMonth) {
     return rowFromValues(cells, index + 1, periodMonth);
   });
   return rows;
+}
+
+function renderRetroReport(report) {
+  const host = byId('retroReport');
+  host.replaceChildren();
+  host.hidden = false;
+  host.dataset.kind = report.ok ? 'success' : 'error';
+  const summary = document.createElement('strong');
+  summary.textContent = `${report.acceptedCount} filas con formato válido · ${report.rejectedCount} filas rechazadas · ${report.totalRows} filas leídas.`;
+  host.appendChild(summary);
+  const note = document.createElement('p');
+  note.textContent = report.ok
+    ? 'Revisá concepto, período y tipo de liquidación antes de crear el lote. El servidor todavía debe validar legajos, conceptos y movimientos existentes.'
+    : 'Todo el lote queda bloqueado hasta corregir las filas rechazadas. Las filas válidas no se enviarán por separado.';
+  host.appendChild(note);
+  if (report.errors.length) {
+    const list = document.createElement('ul');
+    for (const error of report.errors) {
+      const item = document.createElement('li');
+      item.textContent = `Fila ${error.rowOrdinal}: ${error.message}`;
+      list.appendChild(item);
+    }
+    host.appendChild(list);
+  }
 }
 
 function duplicateCheck(rows) {
@@ -384,12 +429,14 @@ function renderPreflight(draft) {
     }
     body.appendChild(tr);
   }
-  const modeLabel = preparedEntryMode === 'agile' ? 'Carga rápida: ' : '';
+  const modeLabel = preparedEntryMode === 'agile' ? 'Carga rápida: '
+    : preparedEntryMode === 'bulk' && byId('bulkFormat').value === 'retro'
+      ? `TXT RETRO · concepto ${draft.rows[0].conceptSourceId} · ${draft.periodMonth.slice(0, 7)} · ${TYPE_LABELS[draft.payrollType]}: ` : '';
   byId('previewCaption').textContent = draft.rows.length > 25
     ? `${modeLabel}se muestran 25 de ${draft.rows.length} filas válidas.`
     : `${modeLabel}${draft.rows.length} fila${draft.rows.length === 1 ? '' : 's'} válida${draft.rows.length === 1 ? '' : 's'}.`;
   byId('previewPanel').hidden = false;
-  byId('prepareButton').disabled = false;
+  byId('prepareButton').disabled = !hasCapability('payroll.novelty.prepare') || fileReadPending;
 }
 
 function capabilitySet(principal = bootstrapState?.principal) {
@@ -595,6 +642,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     const nextPrincipalKey = principalKey(payload.principal);
     const principalChanged = Boolean(priorPrincipalKey && priorPrincipalKey !== nextPrincipalKey);
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
+    if (principalChanged || !canPrepare) invalidatePreparedDraft();
     if (agileDraftRows.length && (principalChanged || !canPrepare)) {
       agileDraftRows = [];
       agileTemplate = null;
@@ -769,6 +817,19 @@ function updateMode() {
   invalidatePreparedDraft();
 }
 
+function updateBulkFormat() {
+  const isRetro = byId('bulkFormat').value === 'retro';
+  byId('retroConceptField').hidden = !isRetro;
+  byId('retroFormatHelp').hidden = !isRetro;
+  byId('csvFormatHelp').hidden = isRetro;
+  byId('bulkFileLabel').textContent = isRetro ? 'Archivo TXT RETRO UTF-8' : 'Archivo CSV UTF-8';
+  byId('bulkFile').accept = isRetro ? '.txt,text/plain' : '.csv,text/csv,text/plain';
+  byId('bulkSource').placeholder = isRetro
+    ? 'Pegá el contenido RETRO sin encabezado: 8 dígitos de legajo y 7 dígitos de importe, punto y 2 decimales.'
+    : 'Pegá aquí el CSV con el encabezado exacto.';
+  invalidatePreparedDraft();
+}
+
 function renderAgileRows() {
   const host = byId('agileRows');
   if (!host) return;
@@ -860,7 +921,9 @@ function removeAgileRow(index) {
 
 function preflight() {
   clearMessage();
+  invalidatePreparedDraft();
   try {
+    if (!hasCapability('payroll.novelty.prepare')) throw new Error('Tu perfil no tiene permiso para preparar novedades. Podés consultar los lotes habilitados.');
     preparedEntryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
     preparedDraft = buildDraft();
     preparedDraftKey = crypto.randomUUID();
@@ -868,11 +931,18 @@ function preflight() {
     showMessage('success', 'Validación previa superada', 'El servidor volverá a validar legajo, binding, duplicados y capacidades antes de crear el lote.');
   } catch (error) {
     invalidatePreparedDraft();
+    if (error.retroReport) renderRetroReport(error.retroReport);
     showMessage('error', 'Revisá la carga', errorMessage(error));
   }
 }
 
 async function prepare() {
+  if (!hasCapability('payroll.novelty.prepare')) {
+    invalidatePreparedDraft();
+    showMessage('error', 'Carga no habilitada', 'Tu perfil no tiene permiso para preparar novedades.');
+    return;
+  }
+  if (preparedEntryMode === 'bulk' && (fileReadPending || fileReadError)) return;
   if (!preparedDraft) return;
   if (!preparedDraftKey) preparedDraftKey = crypto.randomUUID();
   const completedEntryMode = preparedEntryMode;
@@ -904,21 +974,40 @@ async function prepare() {
   }
 }
 
-function handleFile(event) {
+async function handleFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  const readVersion = ++fileReadVersion;
+  invalidatePreparedDraft();
+  fileReadError = null;
+  fileReadPending = false;
   if (file.size > 480 * 1024) {
-    showMessage('error', 'Archivo demasiado grande', 'El límite es 480 KiB y 500 filas.');
-    event.target.value = '';
+    fileReadError = 'El archivo supera el límite de lectura de 480 KiB. CSV admite 480 KiB; TXT RETRO, 256 KiB. Seleccioná un archivo más pequeño o corregí el contenido conservado.';
+    byId('bulkFileStatus').textContent = fileReadError;
+    byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
+    showMessage('error', 'Archivo demasiado grande', fileReadError);
     return;
   }
-  const reader = new FileReader();
-  reader.addEventListener('load', () => {
-    byId('bulkSource').value = String(reader.result || '');
+  fileReadPending = true;
+  byId('preflightButton').disabled = true;
+  byId('bulkFileStatus').textContent = 'Leyendo el archivo; esperá antes de validar.';
+  try {
+    const buffer = await file.arrayBuffer();
+    if (readVersion !== fileReadVersion) return;
+    byId('bulkSource').value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer);
+    byId('bulkFileStatus').textContent = `${file.name}: contenido leído en esta pestaña. Elegí el formato y validá para revisar todas las filas.`;
     invalidatePreparedDraft();
-  });
-  reader.addEventListener('error', () => showMessage('error', 'No se pudo leer el archivo', 'Usá un CSV UTF-8 válido.'));
-  reader.readAsText(file, 'utf-8');
+  } catch {
+    if (readVersion !== fileReadVersion) return;
+    fileReadError = 'No se pudo leer como UTF-8. Conservamos el contenido anterior. Seleccioná el archivo correcto o pegá su contenido corregido antes de validar.';
+    byId('bulkFileStatus').textContent = fileReadError;
+    showMessage('error', 'No se pudo leer el archivo', fileReadError);
+  } finally {
+    if (readVersion === fileReadVersion) {
+      fileReadPending = false;
+      byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
+    }
+  }
 }
 
 async function logout() {
@@ -988,6 +1077,14 @@ function initialize() {
   byId('preflightButton').addEventListener('click', preflight);
   byId('prepareButton').addEventListener('click', prepare);
   byId('bulkFile').addEventListener('change', handleFile);
+  byId('bulkFormat').addEventListener('change', updateBulkFormat);
+  byId('bulkSource').addEventListener('input', () => {
+    fileReadVersion += 1;
+    fileReadPending = false;
+    fileReadError = null;
+    byId('bulkFileStatus').textContent = 'Contenido editado en esta pestaña. El archivo seleccionado se conserva; volvé a validar para revisar los cambios.';
+    byId('preflightButton').disabled = document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare');
+  });
   byId('agileAddButton').addEventListener('click', addAgileRow);
   byId('agileClearButton').addEventListener('click', clearAgileRows);
   byId('agileRows').addEventListener('click', (event) => {
@@ -1001,6 +1098,7 @@ function initialize() {
     byId('detailPanel').hidden = true;
   });
   updateMode();
+  updateBulkFormat();
   consumePayrollNoveltyHandoff();
   loadBootstrap();
 }
