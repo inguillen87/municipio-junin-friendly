@@ -22,6 +22,8 @@ Verificado en este incremento: 62.122 bytes gzip; 1.641 pruebas generales aproba
 
 ## Siguientes módulos, en orden
 
+Incremento visual de acceso publicado: [identidad aplicada y validación](ACCESS_DESIGN_20260905.md). El formulario conserva su controlador de identidad; la isla React continúa limitada a instalación/compartir. No atribuir este rediseño a una migración completa del login a React ni del resto de módulos.
+
 1. Componentes comunes de navegación, encabezado, formularios y estados de carga/error, manteniendo rutas actuales y separación de roles.
 2. Reportes prioritarios de Noelia: selección de período, jurisdicción, vista previa y descarga; reutilizar los motores de validación y exportación probados.
 3. Personas y recibos: migrar la presentación después de cerrar los contratos canónicos de detalle, conciliación y emisión. No confundir resumen de control con recibo oficial.
