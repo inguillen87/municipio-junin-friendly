@@ -152,6 +152,7 @@ test('la función no consulta red ni storage y la UI mantiene una acción princi
   const module = fs.readFileSync(new URL('../assets/payroll-monthly-close-folder.js', import.meta.url), 'utf8');
   assert.doesNotMatch(module, /\bfetch\s*\(|localStorage|sessionStorage|indexedDB|console\.|Date\.now|new Date/);
   const html = fs.readFileSync(new URL('../nomina-control.html', import.meta.url), 'utf8');
+  assert.match(html, /\.monthly-close-workspace > \[data-monthly-workflow-prepare-panel\]\[hidden\] \+ \.panel \{ grid-column: 1 \/ -1; \}/);
   const block = html.split('<div class="post-close-export" data-monthly-workflow-approved-proof hidden>')[1].split('</details>')[0];
   assert.equal((block.match(/class="button primary"/g) || []).length, 1);
   assert.match(block, /Descargar carpeta de respaldo/);
