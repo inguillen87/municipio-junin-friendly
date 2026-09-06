@@ -123,6 +123,17 @@ body[data-mc-workspace="reports"] {
 [data-mc-workspace="reports"] .loading, [data-mc-workspace="reports"] .load-error { min-height: 240px; border-radius: 12px; align-content: center; gap: 18px; }
 [data-mc-workspace="reports"] .load-error p { margin: 0; max-width: 560px; font-size: 14px; line-height: 1.6; }
 [data-mc-workspace="reports"] .export-pack { border-radius: 9px; overflow: clip; }
+[data-mc-workspace="reports"] .bank-nominal-exports { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 24px; border-bottom: 1px solid var(--line); background: #edf4f1; }
+[data-mc-workspace="reports"] .bank-nominal-exports h3 { margin: 0 0 6px; font-size: 17px; }
+[data-mc-workspace="reports"] .bank-nominal-exports p { max-width: 580px; margin: 0; font-size: 12px; color: var(--muted); }
+[data-mc-workspace="reports"] .bank-nominal-exports > p { flex-basis: 100%; max-width: none; }
+[data-mc-workspace="reports"] .bank-control-detail { border-top: 1px solid var(--line); }
+[data-mc-workspace="reports"] .bank-control-detail > summary { padding: 14px 24px; min-height: 48px; cursor: pointer; color: var(--navy); font-weight: 650; }
+[data-mc-workspace="reports"] .bank-control-detail > summary:hover { background: #f0f6f5; }
+[data-mc-workspace="reports"] .bank-control-totals { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+[data-mc-workspace="reports"] .bank-control-total { grid-column: span 3; }
+[data-mc-workspace="reports"] .bank-control-total:nth-child(n+5) { grid-column: span 4; border-top: 1px solid var(--line); }
+[data-mc-workspace="reports"] .bank-control-total strong { white-space: nowrap; overflow-wrap: normal; }
 
 @media (max-width: 1050px) {
   [data-mc-workspace="reports"] .header-inner { flex-wrap: wrap; padding: 14px 0; gap: 12px; }
@@ -159,6 +170,9 @@ body[data-mc-workspace="reports"] {
   [data-mc-workspace="reports"] .report-meta span { flex-wrap: wrap; }
   [data-mc-workspace="reports"] :is(.bank-control-fields, .schooling-fields, .f931-fields) { grid-template-columns: 1fr; }
   [data-mc-workspace="reports"] .loading, [data-mc-workspace="reports"] .load-error { padding: 24px; }
+  [data-mc-workspace="reports"] .bank-control-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-mc-workspace="reports"] .bank-control-total { grid-column: auto; }
+  [data-mc-workspace="reports"] .bank-control-total:nth-child(n+5) { grid-column: 1 / -1; }
 }
 @media print {
   [data-mc-workspace="reports"] .report-index { display: none; }

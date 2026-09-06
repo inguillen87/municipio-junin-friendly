@@ -23,6 +23,8 @@ try {
     await page.waitForFunction(() => !document.querySelector('#reportContent').hidden);
     assert.equal(await page.locator('[data-report-panel]:not([hidden])').count(), 1);
     assert.equal(await page.locator('.bank-control-requirements').getAttribute('open'), null);
+    assert.equal(await page.locator('[data-bank-control-submit]').innerText(), 'Preparar planillas');
+    assert.equal(await page.locator('[data-bank-control-export-nominal]').isDisabled(), true);
     await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({ path: path.join(output, `reportes-${width}.png`) });
     for (const target of ['escolaridades', 'f931', 'resumen']) {

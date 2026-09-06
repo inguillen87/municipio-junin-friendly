@@ -8,6 +8,7 @@ import {
   PayrollBankControlError,
   createBankAccreditationSummaryCsv,
   preparePayrollBankControlWorkbook,
+  preparePayrollBankNominalWorkbook,
 } from '../assets/payroll-bank-control-xlsx-adapter.js';
 
 const ACCOUNT_TYPES = Object.freeze({
@@ -197,7 +198,43 @@ test('limita BARCAR a Santander y verifica período, CUIL, cabecera y jurisdicci
   expectCode('BANK_CONTROL_HEADER_DRIFT', () => preparePayrollBankControlWorkbook(driftingHeaders));
 });
 
-test('worker, pantalla y empaquetado preservan el límite local y agregado', () => {
+test('el listado nominal explícito conserva datos de origen y reconcilia sin ampliar el contrato agregado', () => {
+  const input = workbook();
+  input.sheets[0].rows[1].cells.D = 'CTA BANCARIA';
+  input.sheets[0].rows[2].cells.D = '000012345678';
+  input.sheets[4].rows[1].cells.F = '0000000000000000000123';
+  const nominal = preparePayrollBankNominalWorkbook(input);
+  const control = preparePayrollBankControlWorkbook(input);
+  assert.deepEqual(nominal.total, control.total);
+  assert.equal(nominal.sheets.length, 8);
+  assert.equal(nominal.sheets[0].rows[0].name, 'PRIVATE-NAME-1');
+  assert.equal(nominal.sheets[0].rows[0].cuil, cuil(1));
+  assert.equal(nominal.sheets[0].rows[0].account, '000012345678');
+  assert.equal(nominal.sheets.find(s => s.sheetKey === 'transferencias-funcionarios').rows[0].cbu, '0000000000000000000123');
+  assert.equal(nominal.sheets.find(s => s.sheetKey === 'nacion-42').rows[0].account, null);
+  assert.doesNotMatch(JSON.stringify(control), /PRIVATE-NAME|000012345678|0000000000000000000123/);
+});
+
+test('la planilla nominal no exporta subconjuntos si el origen o una cabecera bancaria cambian', () => {
+  const invalid = workbook();
+  invalid.sheets[7].rows[2].cells.D = '-1.00';
+  assert.throws(() => preparePayrollBankNominalWorkbook(invalid));
+  const drift = workbook();
+  drift.sheets[0].rows[1].cells.D = 'CTA BANCARIA';
+  drift.sheets[0].rows.push(row(10, { B: 'C.U.I.L.', C: 'APELLIDO Y NOMBRE', D: 'C.B.U', E: 'NETO A COBRAR', F: 'REPARTICION' }));
+  expectCode('BANK_NOMINAL_ACCOUNT_HEADER_DRIFT', () => preparePayrollBankNominalWorkbook(drift));
+});
+
+test('un nombre que parece subtotal no excluye una operación con CUIL identificado', () => {
+  const input = workbook();
+  input.sheets[0].rows[2].cells.C = 'SUBTOTAL PERSONA DE PRUEBA';
+  const nominal = preparePayrollBankNominalWorkbook(input);
+  assert.equal(nominal.sheets[0].rows.length, 1);
+  assert.equal(nominal.sheets[0].rows[0].name, 'SUBTOTAL PERSONA DE PRUEBA');
+  assert.equal(nominal.total.operations, preparePayrollBankControlWorkbook(workbook()).total.operations);
+});
+
+test('worker, pantalla y empaquetado preservan límite local y separan planilla nominal del agregado', () => {
   const worker = fs.readFileSync(new URL('../assets/payroll-bank-control-xlsx-worker.js', import.meta.url), 'utf8');
   const html = fs.readFileSync(new URL('../reportes-rrhh.html', import.meta.url), 'utf8');
   const build = fs.readFileSync(new URL('../scripts/build-friendly.mjs', import.meta.url), 'utf8');
@@ -220,7 +257,9 @@ test('worker, pantalla y empaquetado preservan el límite local y agregado', () 
   assert.match(html, /data-bank-control-source-sha256/);
   assert.match(html, /tipo declarado al procesar/i);
   assert.match(html, /no queda validado por el archivo ni por la entidad/i);
-  assert.match(html, /no es un TXT bancario ni acredita pagos/i);
+  assert.match(html, /No genera un TXT de acreditación ni realiza pagos/i);
+  assert.match(html, /data-bank-control-export-nominal/);
+  assert.match(worker, /event.data.type === 'prepare-nominal'/);
   assert.match(html, /No hay subida, API, almacenamiento ni escritura en Neon/i);
   assert.equal((html.match(/data-bank-control-account=/g) || []).length, 3);
   assert.equal((html.match(/data-bank-control-export-xlsx/g) || []).length, 1);

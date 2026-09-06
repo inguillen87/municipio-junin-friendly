@@ -341,7 +341,7 @@ test('exportador y pantalla conservan procesamiento local, una acción principal
   assert.match(html, /data-bank-control-export-bank/);
   assert.equal((html.match(/data-bank-control-export-xlsx/g) || []).length, 1);
   assert.match(html, /Descargar Excel de control/);
-  assert.match(html, /no es un TXT bancario ni acredita pagos/i);
+  assert.match(html, /No genera un TXT de acreditación ni realiza pagos/i);
   assert.match(html, /No contiene nombres, CUIL, CBU ni cuentas/i);
   assert.match(build, /assets\/payroll-bank-control-exporter\.js/);
   assert.match(sw, /assets\/payroll-bank-control-exporter\.js/);

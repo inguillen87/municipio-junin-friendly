@@ -2,6 +2,7 @@ import {
   PAYROLL_BANK_CONTROL_MAX_BYTES,
   PayrollBankControlError,
   preparePayrollBankControlWorkbook,
+  preparePayrollBankNominalWorkbook,
 } from './payroll-bank-control-xlsx-adapter.js';
 
 const MAX_ZIP_ENTRIES = 256;
@@ -315,7 +316,7 @@ async function sha256Hex(bytes) {
 }
 
 self.addEventListener('message', async (event) => {
-  if (event.data?.type !== 'prepare' || !(event.data.arrayBuffer instanceof ArrayBuffer)
+  if (!['prepare', 'prepare-nominal'].includes(event.data?.type) || !(event.data.arrayBuffer instanceof ArrayBuffer)
       || typeof event.data.period !== 'string' || !event.data.accountTypes
       || typeof event.data.accountTypes !== 'object' || typeof event.data.fileName !== 'string') {
     self.postMessage({
@@ -328,6 +329,7 @@ self.addEventListener('message', async (event) => {
   }
   const bytes = new Uint8Array(event.data.arrayBuffer);
   let extracted = null;
+  let nominalExportErrorClass = null;
   if (bytes.byteLength <= 0 || bytes.byteLength > PAYROLL_BANK_CONTROL_MAX_BYTES) {
     self.postMessage({
       ok: false,
@@ -365,23 +367,33 @@ self.addEventListener('message', async (event) => {
       );
       return Object.freeze({ name, dimension: parsed.dimension, rows: parsed.rows });
     });
-    const control = preparePayrollBankControlWorkbook({
+    const input = {
       period: event.data.period,
       byteLength: bytes.byteLength,
       fileName: event.data.fileName,
       sha256,
       sheets,
       accountTypes: event.data.accountTypes,
-    });
-    // Only the aggregate control contract crosses the worker boundary. Sheet
-    // rows, shared strings, CUIL, names, account numbers and CBU die here.
-    self.postMessage({ ok: true, control });
+    };
+    const control = preparePayrollBankControlWorkbook(input);
+    if (event.data.type === 'prepare-nominal') {
+      const { createPayrollBankNominalXlsxArtifact, PayrollBankNominalExportError } = await import('./payroll-bank-nominal-exporter.js');
+      nominalExportErrorClass = PayrollBankNominalExportError;
+      const artifact = createPayrollBankNominalXlsxArtifact(preparePayrollBankNominalWorkbook(input));
+      // The nominal data cross only as the requested downloadable workbook,
+      // never as DOM rows, logs, API payloads or persistent browser storage.
+      self.postMessage({ ok: true, control, artifact }, [artifact.bytes.buffer]);
+    } else {
+      self.postMessage({ ok: true, control });
+    }
   } catch (error) {
+    const knownError = error instanceof PayrollBankControlError
+      || (nominalExportErrorClass && error instanceof nominalExportErrorClass);
     self.postMessage({
       ok: false,
-      code: error instanceof PayrollBankControlError
+      code: knownError
         ? error.code : 'BANK_CONTROL_XLSX_INVALID',
-      message: error instanceof PayrollBankControlError
+      message: knownError
         ? error.message : 'El archivo no coincide con la planilla de control esperada',
     });
   } finally {

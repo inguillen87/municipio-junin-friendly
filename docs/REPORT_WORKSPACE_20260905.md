@@ -26,7 +26,9 @@ Se corrigió un fallo operativo: `reportContent[hidden]` contenía también las 
 
 ## Publicación
 
-Pendiente de registrar identificador del despliegue, versión y comprobación del contenido servido. La compilación local no demuestra publicación.
+Publicado y comprobado: commit `8d116869ca0ea968a4c727e91eb84e88d89f29bc`, deployment `dpl_Go6LTTazDYucDGiyEoJuVXT8dy7N`, alias https://municipio-junin-friendly.vercel.app/reportes-rrhh. Target production, READY; 25,128 segundos de construcción según API. Framework: shell multipágina, islas React y APIs Node.js.
+
+`verify-brand-production.mjs` comprobó coincidencia por hash de HTML/CSS/islas/manifiesto/recursos públicos con el build revisado. `verify-report-workspace-production.mjs` recorrió las cuatro tareas a 390 y 1280 px en Producción: fuente cargada, menú exclusivo, impresión correcta, sin desbordamiento ni llamadas a APIs. Sin errores devueltos por logs de este deployment, nivel error, 30 minutos, límite 20. Drains y monitoreo continuo no auditados. Rollback previo: `dpl_5pTza8awYHNHuzW8XRMz8RiG1dds`.
 
 ## Siguiente alcance útil
 

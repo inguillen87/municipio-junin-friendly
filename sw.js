@@ -25,6 +25,7 @@ const PRECACHE_URLS = Object.freeze([
   '/assets/payroll-bank-control-exporter.js',
   '/assets/payroll-bank-control-xlsx-adapter.js',
   '/assets/payroll-bank-control-xlsx-worker.js',
+  '/assets/payroll-bank-nominal-exporter.js',
   '/assets/vendor/fflate.min.js',
   '/assets/municontrol-enterprise.css',
   '/assets/report-workspace.css',

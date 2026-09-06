@@ -26,6 +26,8 @@ assert.ok(reportIsland, 'Task navigation present in reviewed report build');
 const files = [...new Set([
   'login.html',
   'reportes-rrhh.html', 'assets/report-workspace.css', reportIsland.slice(1),
+  'assets/payroll-bank-control-xlsx-adapter.js', 'assets/payroll-bank-control-xlsx-worker.js',
+  'assets/payroll-bank-nominal-exporter.js',
   island.slice(1), 'assets/install-share.css', 'assets/access.css',
   'assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal-inverse.svg',
   'assets/brand/municontrol-mark.svg', 'assets/brand/avatar.svg',

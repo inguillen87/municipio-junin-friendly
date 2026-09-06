@@ -288,8 +288,10 @@ function parseRepartition(value) {
 }
 
 function parseNominalRow(row, header, sheetKind, accountTypes) {
-  if (isSummaryRow(row.cells)) return null;
   const cuilRaw = row.cells[header.cuil] ?? '';
+  // A person's name must never turn an identified payroll row into a subtotal.
+  const hasNominalIdentity = /^[0-9.\-\s]+$/.test(cuilRaw) && cuilRaw.replace(/\D/g, '').length === 11;
+  if (!hasNominalIdentity && isSummaryRow(row.cells)) return null;
   const cuil = normalizeCuil(cuilRaw);
   const name = String(row.cells[header.name] ?? '').trim();
   const net = String(row.cells[header.net] ?? '').trim();
@@ -547,6 +549,61 @@ export function preparePayrollBankControlWorkbook(input) {
   });
 }
 
+// Explicit nominal export path. The ordinary aggregate contract remains unchanged.
+export function preparePayrollBankNominalWorkbook(input) {
+  const control = preparePayrollBankControlWorkbook(input);
+  const titles = {
+    'credicoop-42': 'Credicoop J42', 'credicoop-55': 'Credicoop J55',
+    'santander-42': 'Santander J42', 'santander-55': 'Santander J55',
+    'nacion-42': 'Nación J42', 'nacion-55': 'Nación J55',
+    'transferencias-funcionarios': 'Transferencias funcionarios',
+    'transferencias-varias': 'Transferencias varias',
+  };
+  const sourceSheets = new Map(input.sheets.map(sheet => [identifySheet(sheet.name, input.period).key, sheet]));
+  const sheets = control.sheets.map(summary => {
+    const sheet = sourceSheets.get(summary.sheetKey);
+    const kind = identifySheet(sheet.name, input.period);
+    let activeHeader = null;
+    let extraHeader = {};
+    let firstExtraHeader = null;
+    const rows = [];
+    for (const row of sheet.rows) {
+      const header = detectHeader(row.cells);
+      if (header) {
+        activeHeader = header;
+        extraHeader = {};
+        for (const [column, value] of Object.entries(row.cells)) {
+          const label = compactText(value);
+          const field = ['CTABANCARIA', 'CUENTABANCARIA'].includes(label) ? 'account' : label === 'CBU' ? 'cbu' : null;
+          if (!field) continue;
+          if (extraHeader[field]) fail('BANK_NOMINAL_ACCOUNT_HEADER_INVALID', 'La cabecera repite un dato bancario.');
+          extraHeader[field] = column;
+        }
+        if (firstExtraHeader && ['account', 'cbu'].some(key => firstExtraHeader[key] !== extraHeader[key])) {
+          fail('BANK_NOMINAL_ACCOUNT_HEADER_DRIFT', 'Las cabeceras de cuenta o CBU cambian dentro de la hoja.');
+        }
+        firstExtraHeader ??= extraHeader;
+        continue;
+      }
+      if (!activeHeader) continue;
+      const nominal = parseNominalRow(row, activeHeader, kind, input.accountTypes);
+      if (!nominal) continue;
+      rows.push(Object.freeze({
+        cuil: normalizeCuil(row.cells[activeHeader.cuil]),
+        name: String(row.cells[activeHeader.name]).trim(),
+        netCents: nominal.netCents.toString(),
+        repartitionCode: nominal.repartitionCode,
+        repartitionLabel: String(row.cells[activeHeader.repartition]).trim(),
+        jurisdiction: nominal.jurisdiction,
+        account: extraHeader.account ? String(row.cells[extraHeader.account] ?? '').trim() || null : null,
+        cbu: extraHeader.cbu ? String(row.cells[extraHeader.cbu] ?? '').trim() || null : null,
+      }));
+    }
+    return Object.freeze({ sheetKey: summary.sheetKey, title: titles[summary.sheetKey], rows: Object.freeze(rows), operations: summary.operations, netCents: summary.netCents });
+  });
+  return Object.freeze({ period: control.period, source: Object.freeze({ fileName: input.fileName, sha256: input.sha256 }), total: control.total, sheets: Object.freeze(sheets) });
+}
+
 function assertExportable(control, jurisdiction) {
   if (!control || control.contractVersion !== PAYROLL_BANK_CONTROL_VERSION
       || control.exportContractVersion !== BANK_ACCREDITATION_SUMMARY_VERSION
@@ -593,6 +650,7 @@ export function createBankAccreditationSummaryCsv(control, jurisdiction) {
 export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, fileName, {
   WorkerImpl = globalThis.Worker,
   timeoutMs = 30_000,
+  includeNominal = false,
 } = {}) {
   if (!(arrayBuffer instanceof ArrayBuffer) || typeof WorkerImpl !== 'function') {
     return Promise.reject(new PayrollBankControlError(
@@ -622,7 +680,7 @@ export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, f
     ), timeoutMs);
     worker.addEventListener('message', (event) => {
       const payload = event.data;
-      if (payload?.ok === true) finish(resolve, payload.control);
+      if (payload?.ok === true) finish(resolve, includeNominal ? { control: payload.control, artifact: payload.artifact } : payload.control);
       else finish(reject, new PayrollBankControlError(
         typeof payload?.code === 'string' ? payload.code : 'BANK_CONTROL_XLSX_INVALID',
         typeof payload?.message === 'string'
@@ -637,7 +695,7 @@ export function runPayrollBankControlWorker(arrayBuffer, period, accountTypes, f
       ),
     ), { once: true });
     worker.postMessage({
-      type: 'prepare', arrayBuffer, period, accountTypes, fileName,
+      type: includeNominal ? 'prepare-nominal' : 'prepare', arrayBuffer, period, accountTypes, fileName,
     }, [arrayBuffer]);
   });
 }
@@ -660,6 +718,7 @@ export function mountPayrollBankControlXlsx(host = document) {
   const reset = root.querySelector('[data-bank-control-reset]');
   const status = root.querySelector('[data-bank-control-status]');
   const result = root.querySelector('[data-bank-control-result]');
+  const detail = root.querySelector('[data-bank-control-detail]');
   const operations = root.querySelector('[data-bank-control-operations]');
   const worksheets = root.querySelector('[data-bank-control-worksheets]');
   const uniqueRepartitions = root.querySelector('[data-bank-control-repartitions="unique"]');
@@ -671,6 +730,8 @@ export function mountPayrollBankControlXlsx(host = document) {
   const exportJurisdiction = root.querySelector('[data-bank-control-export-jurisdiction]');
   const exportBank = root.querySelector('[data-bank-control-export-bank]');
   const exportXlsx = root.querySelector('[data-bank-control-export-xlsx]');
+  const exportNominal = root.querySelector('[data-bank-control-export-nominal]');
+  const nominalStatus = root.querySelector('[data-bank-control-nominal-status]');
   const exportStatus = root.querySelector('[data-bank-control-export-status]');
   const sourceFileName = root.querySelector('[data-bank-control-source-name]');
   const sourceBytes = root.querySelector('[data-bank-control-source-bytes]');
@@ -684,6 +745,7 @@ export function mountPayrollBankControlXlsx(host = document) {
       || !rows || !exportJurisdiction || !exportBank || !exportXlsx || !exportStatus
       || ACCOUNT_TYPE_KEYS.some((key) => !accountInputs[key])) return false;
   let latest = null;
+  let latestNominal = null;
   let sequence = 0;
 
   const setStatus = (state, message) => {
@@ -713,6 +775,11 @@ export function mountPayrollBankControlXlsx(host = document) {
     );
   };
   const clearResult = () => {
+    if (detail) detail.open = false;
+    latestNominal?.bytes?.fill(0);
+    latestNominal = null;
+    if (exportNominal) exportNominal.disabled = true;
+    if (nominalStatus) nominalStatus.textContent = 'Prepará la planilla para habilitar la descarga completa.';
     latest = null;
     result.hidden = true;
     rows.replaceChildren();
@@ -771,7 +838,7 @@ export function mountPayrollBankControlXlsx(host = document) {
     syncExportScope();
     setStatus(
       'ok',
-      `${control.total.operations} operaciones recalculadas desde filas nominales válidas. Los datos personales ya fueron descartados.`,
+      `${control.total.operations} operaciones recalculadas.${exportNominal ? ' Los totales y la planilla completa usan las mismas filas del archivo.' : ''}`,
     );
   };
 
@@ -813,11 +880,32 @@ export function mountPayrollBankControlXlsx(host = document) {
     clearResult();
     setStatus('', 'Leyendo las ocho hojas y recalculando totales en este navegador…');
     try {
-      const control = await runPayrollBankControlWorker(
-        await file.arrayBuffer(), period.value, types, file.name,
+      const prepared = await runPayrollBankControlWorker(
+        await file.arrayBuffer(), period.value, types, file.name, { includeNominal: Boolean(exportNominal) },
       );
-      if (current !== sequence) return;
+      if (current !== sequence) { prepared?.artifact?.bytes?.fill(0); return; }
+      const control = exportNominal ? prepared.control : prepared;
+      const artifact = exportNominal ? prepared.artifact : null;
+      if (exportNominal && (!(artifact?.bytes instanceof Uint8Array)
+          || artifact.bytes.byteLength < 4 || artifact.bytes.byteLength > 32 * 1024 * 1024
+          || artifact.byteLength !== artifact.bytes.byteLength
+          || artifact.mimeType !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          || artifact.bytes[0] !== 0x50 || artifact.bytes[1] !== 0x4b || artifact.bytes[2] !== 3 || artifact.bytes[3] !== 4
+          || artifact.fileName !== `municontrol_planilla-bancaria_${control.period}.xlsx`
+          || artifact.containsPersonalRecords !== true || artifact.bankInstructionGenerated !== false
+          || artifact.bankAccreditationPerformed !== false
+          || artifact.operations !== control.total.operations || artifact.netCents !== control.total.netCents)) {
+        artifact?.bytes?.fill(0);
+        fail('BANK_NOMINAL_RESULT_INVALID', 'La planilla completa no concilia con el control. Revisá el archivo de origen.');
+      }
       render(control);
+      latestNominal = artifact;
+      if (exportNominal) {
+        exportNominal.disabled = false;
+        // Offer the next action, but never pull focus away from another task.
+        if (!root.closest('[hidden]')) exportNominal.focus();
+      }
+      if (nominalStatus) nominalStatus.textContent = `${control.total.operations} operaciones conciliadas en ocho hojas. Las cuentas se copian sólo cuando están informadas en el origen.`;
       fileInput.value = '';
     } catch (error) {
       if (current !== sequence) return;
@@ -834,6 +922,21 @@ export function mountPayrollBankControlXlsx(host = document) {
     }
   });
   exportJurisdiction.addEventListener('change', syncExportScope);
+  exportNominal?.addEventListener('click', () => {
+    if (!latestNominal || !latest) return;
+    try {
+      const url = URL.createObjectURL(new Blob([latestNominal.bytes], { type: latestNominal.mimeType }));
+      const link = document.createElement('a');
+      link.hidden = true;
+      link.href = url;
+      link.download = latestNominal.fileName;
+      document.body.appendChild(link);
+      try { link.click(); } finally { link.remove(); URL.revokeObjectURL(url); }
+      if (nominalStatus) nominalStatus.textContent = 'Planilla completa descargada. Contiene datos personales; compartila únicamente por el circuito municipal correspondiente. No acredita pagos.';
+    } catch {
+      if (nominalStatus) nominalStatus.textContent = 'No pudimos iniciar la descarga. La planilla sigue preparada; podés intentar nuevamente.';
+    }
+  });
   exportBank.addEventListener('change', syncExportScope);
   exportXlsx.addEventListener('click', () => {
     if (!latest) return;

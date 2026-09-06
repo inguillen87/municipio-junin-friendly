@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#173447">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/assets/pwa/icon-180.png">
-  <title>Informe ejecutivo de RRHH | MuniControl Friendly</title>
-  <meta name="description" content="Informe ejecutivo de recursos humanos de la Municipalidad de Junín, Mendoza, elaborado con datos agregados del sistema GRH.">
+  <title>Reportes y controles | MuniControl</title>
+  <meta name="description" content="Prepará planillas bancarias, consultá el informe de recursos humanos y revisá controles mensuales desde MuniControl.">
   <style>
     :root {
       color-scheme: light;
@@ -1111,7 +1111,7 @@
             <div>
               <span class="bank-control-kicker">Planilla mensual</span>
               <h2 id="bankControlTitle">Control de pagos por banco y jurisdicción</h2>
-              <p class="bank-control-copy">Importá la <strong>PLANILLA CONTROL GENERAL MM.YYYY.xlsx</strong>, recalculá operaciones y netos y descargá un Excel de control por jurisdicción, repartición y banco. El resultado no es un TXT bancario ni acredita pagos.</p>
+              <p class="bank-control-copy">Cargá la <strong>PLANILLA CONTROL GENERAL MM.YYYY.xlsx</strong>. Prepará el listado completo por banco, con subtotales por repartición, y el resumen de control. No genera un TXT de acreditación ni realiza pagos.</p>
             </div>
             <span class="bank-control-badge">8 hojas esperadas</span>
           </div>
@@ -1155,9 +1155,9 @@
                   </div>
                 </div>
               </div>
-              <small>El archivo se procesa en tu navegador. El resultado incluye totales de control, sin nombres ni cuentas personales. Elegí el tipo de cuenta que corresponde a cada banco; este dato no se verifica con la entidad.</small>
+              <small>El archivo se procesa en tu navegador, sin subirse al servidor. La planilla completa incluye los datos personales del origen; el resumen sólo incluye totales. Elegí el tipo de cuenta que corresponde a cada banco; no se verifica con la entidad.</small>
               <div class="bank-control-buttons">
-                <button class="bank-control-button" data-bank-control-submit type="submit">Recalcular control</button>
+                <button class="bank-control-button" data-bank-control-submit type="submit">Preparar planillas</button>
                 <button class="bank-control-button secondary" data-bank-control-reset type="button">Limpiar</button>
               </div>
               <p class="bank-control-status" data-bank-control-status data-state="" role="status" aria-live="polite">Seleccioná período, tipos de cuenta y la planilla mensual.</p>
@@ -1165,7 +1165,7 @@
             <details class="bank-control-requirements">
               <summary>Formato de la planilla y controles aplicados</summary>
               <p>El control falla cerrado si la estructura no coincide con la muestra observada.</p>
-              <p>No hay subida, API, almacenamiento ni escritura en Neon. Los datos personales se descartan antes de devolver el resultado.</p>
+              <p>No hay subida, API, almacenamiento ni escritura en Neon. El listado personal se conserva sólo dentro del Excel preparado en memoria y se descarta al limpiar, cambiar de archivo o cerrar la página.</p>
               <ul>
                 <li>Exactamente ocho hojas: Credicoop, Santander y Nación J42/J55, más transferencias de funcionarios y varias.</li>
                 <li>Se admite el rótulo observado <strong>BARCAR</strong> únicamente en Santander.</li>
@@ -1175,7 +1175,12 @@
               </ul>
             </details>
           </div>
-          <div class="bank-control-result" data-bank-control-result hidden aria-label="Resumen bancario agregado">
+          <div class="bank-control-result" data-bank-control-result hidden aria-label="Planillas bancarias preparadas">
+            <div class="bank-nominal-exports">
+              <div><h3>Planilla completa por banco</h3><p>Ocho hojas con personas, importes y subtotales. Cuenta o CBU sólo cuando están informados en la fuente.</p></div>
+              <button class="bank-control-button" data-bank-control-export-nominal type="button" disabled>Descargar planilla completa</button>
+              <p data-bank-control-nominal-status role="status" aria-live="polite">Prepará la planilla para habilitar la descarga completa.</p>
+            </div>
             <div class="bank-control-totals">
               <div class="bank-control-total"><span>Operaciones</span><strong data-bank-control-operations>—</strong></div>
               <div class="bank-control-total"><span>Hojas procesadas</span><strong data-bank-control-worksheets>—</strong></div>
@@ -1186,6 +1191,8 @@
               <div class="bank-control-total"><span>Neto J55</span><strong data-bank-control-total="55">—</strong></div>
             </div>
             <p class="bank-control-count-note">“Reparticiones únicas” cuenta cada repartición una sola vez. “Reparticiones por banco” vuelve a contarla cuando aparece en otro banco o transferencia.</p>
+            <details class="bank-control-detail" data-bank-control-detail>
+            <summary>Ver detalle por repartición y archivo de origen</summary>
             <div class="bank-control-source" aria-label="Trazabilidad local del archivo fuente">
               <div><span>Archivo fuente</span><strong data-bank-control-source-name>—</strong></div>
               <div><span>Bytes de origen</span><strong data-bank-control-source-bytes>—</strong></div>
@@ -1197,6 +1204,7 @@
                 <tbody data-bank-control-rows></tbody>
               </table>
             </div>
+            </details>
             <div class="bank-control-exports">
               <div>
                 <p class="bank-control-export-copy">Elegí una salida. El Excel incluye resumen y detalle agregado por repartición, con importes y estado recalculados. No contiene nombres, CUIL, CBU ni cuentas.</p>
