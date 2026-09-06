@@ -27,6 +27,8 @@ const PRECACHE_URLS = Object.freeze([
   '/assets/payroll-bank-control-xlsx-worker.js',
   '/assets/vendor/fflate.min.js',
   '/assets/municontrol-enterprise.css',
+  '/assets/report-workspace.css',
+  /* MC_REPORT_WORKSPACE_PRECACHE */
   '/assets/brand/logo-horizontal.svg',
   '/assets/brand/logo-horizontal-inverse.svg',
   '/friendly-data.json',

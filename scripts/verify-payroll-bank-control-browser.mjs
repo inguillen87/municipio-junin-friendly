@@ -41,6 +41,7 @@ if (fixture) {
 }
 
 const types = new Map([
+  ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
@@ -64,11 +65,11 @@ const server = http.createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const { port } = server.address();
 const downloadDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'municontrol-bank-control-'));
-const browser = await chromium.launch({ headless: true, downloadsPath: downloadDirectory });
+const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome', downloadsPath: downloadDirectory });
 
 try {
   const page = await browser.newPage({ acceptDownloads: true });
-  await page.goto(`http://127.0.0.1:${port}/reportes-rrhh.html`, { waitUntil: 'networkidle' });
+  await page.goto(`http://127.0.0.1:${port}/reportes-rrhh.html#bancarizacion`, { waitUntil: 'networkidle' });
   await page.locator('[data-bank-control-period]').fill('2026-08');
   for (const bank of ['credicoop', 'santander', 'nacion']) {
     await page.locator(`[data-bank-control-account="${bank}"]`).selectOption('cuenta_corriente');

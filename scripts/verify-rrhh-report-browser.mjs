@@ -49,7 +49,7 @@ await new Promise((resolve, reject) => {
 fs.mkdirSync(outputRoot, { recursive: true });
 const address = server.address();
 const baseUrl = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const artifacts = {};
 
 async function assertHealthy(page, label) {

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const outputRoot = path.join(os.tmpdir(), 'municontrol-f931-report-browser');
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -55,7 +55,7 @@ await new Promise((resolve, reject) => {
 
 fs.mkdirSync(outputRoot, { recursive: true });
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const artifacts = {};
 
 async function inspect(viewport, label, mode) {
@@ -68,8 +68,8 @@ async function inspect(viewport, label, mode) {
   page.on('response', (response) => { if (response.status() >= 400) issues.push(`HTTP ${response.status()} ${response.url()}`); });
 
   try {
-    await page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#reportContent:not([hidden])');
+    await page.goto(`${baseUrl}/reportes-rrhh.html#f931`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-report-panel="f931"]:not([hidden])');
     await page.waitForFunction(() => document.querySelectorAll('[data-f931-requirements] li').length === 11);
     assert.equal(await page.locator('[data-f931-generate]').isDisabled(), true);
     assert.equal(await page.locator('[data-f931-submit]').isDisabled(), true);
@@ -95,6 +95,7 @@ async function inspect(viewport, label, mode) {
     await page.waitForFunction(() => ['ok', 'warning'].includes(
       document.querySelector('[data-f931-status]')?.dataset.state,
     ));
+    await page.locator('[data-f931-result]:not([hidden])').waitFor();
 
     assert.equal(await page.locator('[data-f931-result]').isVisible(), true);
     assert.equal(await page.locator('[data-f931-structure]').innerText(), 'Estructura física válida');

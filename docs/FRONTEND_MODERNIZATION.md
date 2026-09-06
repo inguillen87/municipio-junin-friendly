@@ -20,6 +20,10 @@ React y React DOM fijados en 19.2.8; compilación con esbuild 0.28.2. La API mun
 
 Verificado en este incremento: 62.122 bytes gzip; 1.641 pruebas generales aprobadas; nueve casos del controlador de instalación; Chrome con React real a 320 y 1280 px, incluidos copia denegada, cancelación, aceptación pendiente de confirmar, teclado/formulario conservado y ausencia de desbordamiento. Las APIs nativas de compartir, clipboard e instalación se simulan en esta prueba: no se enviaron mensajes ni se instaló físicamente en un teléfono.
 
+## Segundo incremento: navegación por tarea en Reportes
+
+La navegación de Reportes y controles es una isla React independiente; acceso no la descarga. Conserva los formularios y exportadores existentes en su DOM y separa las herramientas locales del estado de carga del informe. Incluye enlaces directos, historial, recuperación de errores, formato visual coherente y detalles técnicos desplegables. [Alcance y evidencia](REPORT_WORKSPACE_20260905.md). No es una migración completa de Nómina ni de los motores de cálculo a React.
+
 ## Siguientes módulos, en orden
 
 Incremento visual de acceso publicado: [identidad aplicada y validación](ACCESS_DESIGN_20260905.md). El formulario conserva su controlador de identidad; la isla React continúa limitada a instalación/compartir. No atribuir este rediseño a una migración completa del login a React ni del resto de módulos.

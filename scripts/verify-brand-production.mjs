@@ -20,8 +20,12 @@ const manifest = JSON.parse(await fs.readFile(path.join(publicRoot, 'manifest.we
 const login = await fs.readFile(path.join(publicRoot, 'login.html'), 'utf8');
 const island = login.match(/src="(\/assets\/islands\/install-share-[A-Z0-9]+\.js)"/)?.[1];
 assert.ok(island, 'React island present in reviewed build');
+const report = await fs.readFile(path.join(publicRoot, 'reportes-rrhh.html'), 'utf8');
+const reportIsland = report.match(/src="(\/assets\/islands\/report-workspace-[A-Z0-9]+\.js)"/)?.[1];
+assert.ok(reportIsland, 'Task navigation present in reviewed report build');
 const files = [...new Set([
   'login.html',
+  'reportes-rrhh.html', 'assets/report-workspace.css', reportIsland.slice(1),
   island.slice(1), 'assets/install-share.css', 'assets/access.css',
   'assets/brand/logo-horizontal.svg', 'assets/brand/logo-horizontal-inverse.svg',
   'assets/brand/municontrol-mark.svg', 'assets/brand/avatar.svg',

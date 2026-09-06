@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const outputRoot = path.join(os.tmpdir(), 'municontrol-schooling-report-browser');
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -115,7 +115,7 @@ await new Promise((resolve, reject) => {
 
 fs.mkdirSync(outputRoot, { recursive: true });
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || 'chrome' });
 const artifacts = {};
 
 async function inspect(viewport, label, runDiagnostic) {
@@ -127,8 +127,8 @@ async function inspect(viewport, label, runDiagnostic) {
   page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   page.on('response', (response) => { if (response.status() >= 400) issues.push(`HTTP ${response.status()} ${response.url()}`); });
   try {
-    await page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#reportContent:not([hidden])');
+    await page.goto(`${baseUrl}/reportes-rrhh.html#escolaridades`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-report-panel="schooling"]:not([hidden])');
     await page.waitForFunction(() => document.querySelectorAll('[data-schooling-requirements] li').length === 10);
     assert.equal(await page.locator('[data-schooling-generation]').isDisabled(), true);
     assert.match(await page.locator('[data-schooling-gate]').innerText(), /Generación bloqueada/);

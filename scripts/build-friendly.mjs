@@ -9,6 +9,7 @@ import { buildReactIslands } from './build-react-islands.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/report-workspace.css',
   'assets/access.css',
   'assets/install-share.css',
   'login.html',
@@ -137,6 +138,7 @@ const pwaFiles = [
 ];
 const publicCacheInputs = [
   'assets/municontrol-enterprise.css',
+  'assets/report-workspace.css',
   'assets/brand/logo-horizontal.svg',
   'assets/brand/logo-horizontal-inverse.svg',
   'friendly-dashboard.html',
@@ -219,6 +221,11 @@ for (const file of cleanReferenceFiles) {
   if (cleaned !== source) fs.writeFileSync(destination, cleaned);
 }
 
+const islands = await buildReactIslands(root, output);
+const reportIsland = islands.find(island => island.name === 'report-workspace');
+if (!reportIsland) throw new Error('Falta la navegación compilada de reportes.');
+// Only the public report navigation is cached. Login and identity remain excluded.
+publicCacheInputs.push(reportIsland.href.slice(1));
 const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {
   versionHash.update(file);
@@ -227,7 +234,8 @@ for (const file of publicCacheInputs) {
   versionHash.update('\0');
 }
 const swOutput = path.join(output, 'sw.js');
-const swTemplate = fs.readFileSync(swOutput, 'utf8');
+const swTemplate = fs.readFileSync(swOutput, 'utf8')
+  .replace('/* MC_REPORT_WORKSPACE_PRECACHE */', `${JSON.stringify(reportIsland.href)},`);
 const versionToken = '__PWA_CACHE_VERSION__';
 if (!swTemplate.includes(versionToken)) {
   throw new Error(`Service worker sin token de versión ${versionToken}.`);
@@ -236,5 +244,4 @@ versionHash.update(normalizeTextForHash(swTemplate.replaceAll(versionToken, ''))
 const cacheVersion = `build-${versionHash.digest('hex').slice(0, 16)}`;
 fs.writeFileSync(swOutput, swTemplate.replaceAll(versionToken, cacheVersion));
 
-await buildReactIslands(root, output);
 console.log(`Friendly static shell built (PWA ${cacheVersion}).`);

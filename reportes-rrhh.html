@@ -886,10 +886,12 @@
     }
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
+  <link rel="stylesheet" href="/assets/report-workspace.css">
+  <!-- MC_REPORT_WORKSPACE -->
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 </head>
-<body>
-  <a class="skip-link" href="#contenido">Saltar al informe</a>
+<body data-mc-workspace="reports">
+  <a class="skip-link" id="reportWorkspaceSkip" href="#contenido">Saltar a la tarea</a>
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="friendly-dashboard.html" aria-label="MuniControl Friendly, volver al centro ejecutivo">
@@ -898,7 +900,7 @@
       </a>
       <nav class="header-nav" aria-label="Navegación principal">
         <a href="friendly-dashboard.html">Centro ejecutivo</a>
-        <a href="reportes-rrhh.html" aria-current="page">Informe RRHH</a>
+        <a href="reportes-rrhh.html" aria-current="page">Reportes y controles</a>
         <a href="calidad-datos.html">Calidad de datos</a>
         <a href="modulos.html">Mapa de producto</a>
         <a class="internal-link" href="/internal">Portal interno</a>
@@ -907,8 +909,8 @@
   </header>
 
   <div class="report-shell">
-    <aside class="report-index" aria-label="Índice del informe">
-      <div>
+    <aside class="report-index" aria-label="Elegir una tarea de reportes">
+      <div id="mc-report-workspace-root">
         <strong>Contenido</strong>
         <nav>
           <a href="#resumen">Resumen</a>
@@ -923,7 +925,7 @@
         </nav>
       </div>
       <div class="source-brief">
-        <b>Fuente de control</b>
+        <b>Fuente del informe de RRHH</b>
         <span id="asideDataset">Sistema GRH municipal</span><br>
         Corte <span id="asideDate">—</span><br>
         <span id="asidePrivacy">Solo datos agregados</span>
@@ -931,13 +933,21 @@
     </aside>
 
     <main class="report-main" id="contenido">
+      <header class="report-workspace-heading">
+        <h1 id="reportWorkspaceTitle">Reportes y controles</h1>
+        <p>Elegí una tarea. Prepará tus archivos y revisá los resultados antes de descargarlos.</p>
+      </header>
+      <section id="reportOverview" data-report-panel="overview" aria-labelledby="reportWorkspaceTitle">
       <div class="loading" id="loading" role="status">Leyendo el corte agregado de RRHH…</div>
-      <div class="load-error" id="loadError" hidden role="alert"></div>
+      <div class="load-error" id="loadError" hidden role="alert">
+        <p id="reportLoadErrorMessage"></p>
+        <button class="export-button secondary" id="retryReportLoad" type="button">Reintentar informe</button>
+      </div>
 
       <article class="report-content" id="reportContent" hidden>
         <header id="resumen">
           <p class="report-kicker">Informe ejecutivo · Recursos humanos</p>
-          <h1 class="report-title">Dotación, movimientos y ausentismo</h1>
+          <h2 class="report-title">Dotación, movimientos y ausentismo</h2>
           <p class="report-deck">Lectura institucional del sistema GRH. Las cifras describen registros administrativos y conservan sus límites; no se presentan como evaluación de desempeño.</p>
           <div class="report-meta" aria-label="Metadatos del informe">
             <span><b>Jurisdicción</b> <span id="jurisdiction">—</span></span>
@@ -1056,10 +1066,50 @@
           </div>
         </section>
 
-        <section class="bank-control-lab" id="bancarizacion" aria-labelledby="bankControlTitle" data-payroll-bank-control-xlsx aria-busy="false">
+
+        <section class="export-pack" id="descargas" aria-labelledby="exportPackTitle">
+          <div class="export-pack-head">
+            <div>
+              <span class="export-pack-kicker">Salida reproducible</span>
+              <h2 id="exportPackTitle">Paquete ejecutivo de RRHH</h2>
+              <p class="export-pack-copy">Descargá un Excel de cinco hojas o un PDF A4 construidos desde la misma instantánea agregada que ves en pantalla.</p>
+            </div>
+            <span class="export-pack-badge">Generación local</span>
+          </div>
+          <div class="export-pack-meta" aria-label="Trazabilidad del paquete">
+            <div class="export-meta-item"><span>Corte</span><strong id="exportCutoff">Validando…</strong></div>
+            <div class="export-meta-item"><span>Fuente</span><strong id="exportDataset">Validando…</strong></div>
+            <div class="export-meta-item"><span>Huella</span><strong id="exportSha">Validando…</strong></div>
+          </div>
+          <div class="export-pack-actions" id="exportPackActions" aria-busy="true">
+            <button class="export-button" id="downloadRrhhXlsx" type="button" disabled>Descargar Excel</button>
+            <button class="export-button secondary" id="downloadRrhhPdf" type="button" disabled>Descargar PDF</button>
+            <p class="export-status" id="reportPackStatus" data-state="loading" role="status" aria-live="polite">Validando el contrato del corte…</p>
+          </div>
+          <p class="export-pack-note">No consulta ni escribe en Neon. Los archivos no contienen nombres, documentos ni filas personales; tampoco constituyen un cierre de liquidación ni calculan remuneraciones.</p>
+        </section>
+
+        <section class="report-actions" aria-labelledby="continueTitle">
+          <div class="action-copy"><h2 id="continueTitle">Continuar según la tarea</h2><p>El informe responde preguntas agregadas. La consulta de legajos y relaciones personales pertenece al espacio autenticado.</p></div>
+          <nav class="action-links" aria-label="Continuar en MuniControl">
+            <a href="/internal"><span>Abrir portal interno</span><span aria-hidden="true">→</span></a>
+            <a href="calidad-datos.html"><span>Auditar calidad del corte</span><span aria-hidden="true">→</span></a>
+            <a href="modulos.html"><span>Ver mapa completo de producto</span><span aria-hidden="true">→</span></a>
+            <a href="friendly-dashboard.html"><span>Volver al centro ejecutivo</span><span aria-hidden="true">→</span></a>
+          </nav>
+        </section>
+
+        <footer class="report-footer">
+          <span>MuniControl Friendly · Informe ejecutivo de RRHH</span>
+          <span id="footerSource">Fuente en preparación</span>
+        </footer>
+      </article>
+      </section>
+
+        <section class="bank-control-lab" id="bancarizacion" data-report-panel="bank" aria-labelledby="bankControlTitle" data-payroll-bank-control-xlsx aria-busy="false">
           <div class="bank-control-head">
             <div>
-              <span class="bank-control-kicker">Automatización local · planilla de control mensual</span>
+              <span class="bank-control-kicker">Planilla mensual</span>
               <h2 id="bankControlTitle">Control de pagos por banco y jurisdicción</h2>
               <p class="bank-control-copy">Importá la <strong>PLANILLA CONTROL GENERAL MM.YYYY.xlsx</strong>, recalculá operaciones y netos y descargá un Excel de control por jurisdicción, repartición y banco. El resultado no es un TXT bancario ni acredita pagos.</p>
             </div>
@@ -1073,25 +1123,25 @@
                   <input id="bankControlPeriod" data-bank-control-period type="month" min="2000-01" max="2099-12" required>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlCredicoop">Credicoop · tipo declarado al procesar</label>
+                  <label for="bankControlCredicoop">Tipo de cuenta · Credicoop</label>
                   <select id="bankControlCredicoop" data-bank-control-account="credicoop" required>
-                    <option value="">Elegir explícitamente</option>
+                    <option value="">Elegir tipo de cuenta</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
                     <option value="caja_ahorro">Caja de ahorro</option>
                   </select>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlSantander">Santander · tipo declarado al procesar</label>
+                  <label for="bankControlSantander">Tipo de cuenta · Santander</label>
                   <select id="bankControlSantander" data-bank-control-account="santander" required>
-                    <option value="">Elegir explícitamente</option>
+                    <option value="">Elegir tipo de cuenta</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
                     <option value="caja_ahorro">Caja de ahorro</option>
                   </select>
                 </div>
                 <div class="bank-control-field">
-                  <label for="bankControlNacion">Nación · tipo declarado al procesar</label>
+                  <label for="bankControlNacion">Tipo de cuenta · Nación</label>
                   <select id="bankControlNacion" data-bank-control-account="nacion" required>
-                    <option value="">Elegir explícitamente</option>
+                    <option value="">Elegir tipo de cuenta</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
                     <option value="caja_ahorro">Caja de ahorro</option>
                   </select>
@@ -1105,16 +1155,17 @@
                   </div>
                 </div>
               </div>
-              <small>Todo se procesa en este navegador. No hay subida, API, almacenamiento ni escritura en Neon. CUIL, nombre, cuenta y CBU se descartan dentro del worker antes de devolver el resultado.</small>
+              <small>El archivo se procesa en tu navegador. El resultado incluye totales de control, sin nombres ni cuentas personales. Elegí el tipo de cuenta que corresponde a cada banco; este dato no se verifica con la entidad.</small>
               <div class="bank-control-buttons">
                 <button class="bank-control-button" data-bank-control-submit type="submit">Recalcular control</button>
                 <button class="bank-control-button secondary" data-bank-control-reset type="button">Limpiar</button>
               </div>
               <p class="bank-control-status" data-bank-control-status data-state="" role="status" aria-live="polite">Seleccioná período, tipos de cuenta y la planilla mensual.</p>
             </form>
-            <div class="bank-control-requirements">
-              <h3>Contrato validado antes de exportar</h3>
+            <details class="bank-control-requirements">
+              <summary>Formato de la planilla y controles aplicados</summary>
               <p>El control falla cerrado si la estructura no coincide con la muestra observada.</p>
+              <p>No hay subida, API, almacenamiento ni escritura en Neon. Los datos personales se descartan antes de devolver el resultado.</p>
               <ul>
                 <li>Exactamente ocho hojas: Credicoop, Santander y Nación J42/J55, más transferencias de funcionarios y varias.</li>
                 <li>Se admite el rótulo observado <strong>BARCAR</strong> únicamente en Santander.</li>
@@ -1122,7 +1173,7 @@
                 <li>La dimensión declarada no se usa para recorrer filas: sólo cuentan nodos OOXML reales.</li>
                 <li>Transferencias usa “transferencia especial”; en los tres bancos el tipo de cuenta se declara al procesar y no queda validado por el archivo ni por la entidad.</li>
               </ul>
-            </div>
+            </details>
           </div>
           <div class="bank-control-result" data-bank-control-result hidden aria-label="Resumen bancario agregado">
             <div class="bank-control-totals">
@@ -1173,7 +1224,7 @@
           </div>
         </section>
 
-        <section class="schooling-lab" id="escolaridades" aria-labelledby="schoolingTitle" data-payroll-schooling-report-workbench aria-busy="false">
+        <section class="schooling-lab" id="escolaridades" data-report-panel="schooling" aria-labelledby="schoolingTitle" data-payroll-schooling-report-workbench aria-busy="false">
           <div class="schooling-lab-head">
             <div>
               <span class="schooling-lab-kicker">Control previo · REP-08 solicitado</span>
@@ -1197,11 +1248,11 @@
               </div>
               <p class="schooling-status" data-schooling-status data-state="" role="status" aria-live="polite">Seleccioná un archivo XLSX para revisar su estructura.</p>
             </form>
-            <div class="schooling-requirements">
-              <h3>Qué falta para generar el reporte</h3>
+            <details class="schooling-requirements">
+              <summary>Qué falta para generar el reporte</summary>
               <p>La integridad técnica del archivo no reemplaza la homologación contable y funcional.</p>
               <ul data-schooling-requirements></ul>
-            </div>
+            </details>
           </div>
           <div class="schooling-result" data-schooling-result hidden aria-label="Resultado del diagnóstico">
             <div class="schooling-result-card"><span>Estructura</span><strong data-schooling-structure>—</strong></div>
@@ -1220,7 +1271,7 @@
           </p>
         </section>
 
-        <section class="f931-lab" id="f931" aria-labelledby="f931Title" data-payroll-f931-workbench aria-busy="false">
+        <section class="f931-lab" id="f931" data-report-panel="f931" aria-labelledby="f931Title" data-payroll-f931-workbench aria-busy="false">
           <div class="f931-lab-head">
             <div>
               <span class="f931-lab-kicker">Compatibilidad fiscal · REP-09 solicitado</span>
@@ -1265,11 +1316,11 @@
               </div>
               <p class="f931-status" data-f931-status data-state="" role="status" aria-live="polite">La detección automática sólo identifica las tres muestras por su huella exacta.</p>
             </form>
-            <div class="f931-requirements">
-              <h3>Qué falta para homologar</h3>
+            <details class="f931-requirements">
+              <summary>Qué falta para generar y presentar F.931</summary>
               <p>Una estructura válida no acredita campos, población, montos ni aceptación de ARCA.</p>
               <ul data-f931-requirements></ul>
-            </div>
+            </details>
           </div>
           <div class="f931-result" data-f931-result hidden aria-label="Resultado del precontrol F.931">
             <div class="f931-result-card"><span>Estructura</span><strong data-f931-structure>—</strong></div>
@@ -1294,44 +1345,6 @@
             </div>
           </div>
         </section>
-
-        <section class="export-pack" id="descargas" aria-labelledby="exportPackTitle">
-          <div class="export-pack-head">
-            <div>
-              <span class="export-pack-kicker">Salida reproducible</span>
-              <h2 id="exportPackTitle">Paquete ejecutivo de RRHH</h2>
-              <p class="export-pack-copy">Descargá un Excel de cinco hojas o un PDF A4 construidos desde la misma instantánea agregada que ves en pantalla.</p>
-            </div>
-            <span class="export-pack-badge">Generación local</span>
-          </div>
-          <div class="export-pack-meta" aria-label="Trazabilidad del paquete">
-            <div class="export-meta-item"><span>Corte</span><strong id="exportCutoff">Validando…</strong></div>
-            <div class="export-meta-item"><span>Fuente</span><strong id="exportDataset">Validando…</strong></div>
-            <div class="export-meta-item"><span>Huella</span><strong id="exportSha">Validando…</strong></div>
-          </div>
-          <div class="export-pack-actions" id="exportPackActions" aria-busy="true">
-            <button class="export-button" id="downloadRrhhXlsx" type="button" disabled>Descargar Excel</button>
-            <button class="export-button secondary" id="downloadRrhhPdf" type="button" disabled>Descargar PDF</button>
-            <p class="export-status" id="reportPackStatus" data-state="loading" role="status" aria-live="polite">Validando el contrato del corte…</p>
-          </div>
-          <p class="export-pack-note">No consulta ni escribe en Neon. Los archivos no contienen nombres, documentos ni filas personales; tampoco constituyen un cierre de liquidación ni calculan remuneraciones.</p>
-        </section>
-
-        <section class="report-actions" aria-labelledby="continueTitle">
-          <div class="action-copy"><h2 id="continueTitle">Continuar según la tarea</h2><p>El informe responde preguntas agregadas. La consulta de legajos y relaciones personales pertenece al espacio autenticado.</p></div>
-          <nav class="action-links" aria-label="Continuar en MuniControl">
-            <a href="/internal"><span>Abrir portal interno</span><span aria-hidden="true">→</span></a>
-            <a href="calidad-datos.html"><span>Auditar calidad del corte</span><span aria-hidden="true">→</span></a>
-            <a href="modulos.html"><span>Ver mapa completo de producto</span><span aria-hidden="true">→</span></a>
-            <a href="friendly-dashboard.html"><span>Volver al centro ejecutivo</span><span aria-hidden="true">→</span></a>
-          </nav>
-        </section>
-
-        <footer class="report-footer">
-          <span>MuniControl Friendly · Informe ejecutivo de RRHH</span>
-          <span id="footerSource">Fuente en preparación</span>
-        </footer>
-      </article>
     </main>
   </div>
 
@@ -1620,7 +1633,19 @@
         }
       }
 
+      let reportLoading = false;
+      let reportLoaded = false;
+
       async function start() {
+        if (reportLoading || reportLoaded) return;
+        reportLoading = true;
+        byId('reportOverview').setAttribute('aria-busy', 'true');
+        byId('retryReportLoad').disabled = true;
+        byId('loadError').hidden = true;
+        byId('loading').hidden = false;
+        byId('reportContent').hidden = true;
+        byId('downloadRrhhXlsx').disabled = true;
+        byId('downloadRrhhPdf').disabled = true;
         try {
           const response = await fetch('friendly-data.json', { cache: 'no-store', headers: { Accept: 'application/json' } });
           if (!response.ok) throw new Error(`La fuente respondió HTTP ${response.status}.`);
@@ -1629,14 +1654,22 @@
           fillReport(data);
           byId('loading').hidden = true;
           byId('reportContent').hidden = false;
-          prepareReportPack(data);
+          reportLoaded = true;
+          await prepareReportPack(data);
         } catch (error) {
           byId('loading').hidden = true;
           byId('loadError').hidden = false;
-          byId('loadError').textContent = `No se pudo abrir el informe: ${error.message} Reintentá cuando friendly-data.json esté disponible.`;
+          byId('reportLoadErrorMessage').textContent = 'No pudimos cargar el informe de RRHH. Podés reintentar sin salir de esta página. El control bancario, Escolaridades y F.931 siguen disponibles y conservan sus propias validaciones.';
+          setText('asideDataset', 'Sistema GRH municipal');
+          setText('asideDate', 'No disponible');
+        } finally {
+          reportLoading = false;
+          byId('retryReportLoad').disabled = false;
+          byId('reportOverview').setAttribute('aria-busy', 'false');
         }
       }
 
+      byId('retryReportLoad').addEventListener('click', start);
       start();
     }());
   </script>
