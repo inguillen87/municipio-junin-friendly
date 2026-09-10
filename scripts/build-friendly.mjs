@@ -34,6 +34,8 @@ const shellFiles = [
   'asistente.html',
   'centro-ayuda.html',
   'assets/internal-capability-gate.js',
+  'assets/attendance-clock-operations.css',
+  'assets/attendance-clock-operations.js',
   'assets/internal-guide.js',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',

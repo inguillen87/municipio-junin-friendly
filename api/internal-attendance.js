@@ -1,3 +1,4 @@
+import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
   AttendanceGatewayError,
@@ -162,6 +163,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const bootstrap = dependencies.getAttendanceBootstrap ?? getAttendanceBootstrap;
   const list = dependencies.listAttendanceResources ?? listAttendanceResources;
   const apply = dependencies.applyAttendanceCommand ?? applyAttendanceCommand;
+  const clockOperations = dependencies.getAttendanceClockOperations ?? getAttendanceClockOperations;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
 
@@ -232,6 +234,15 @@ export function createInternalAttendanceHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = requestedResource;
+        if (resource === 'clock-operations') {
+          assertQueryKeys(req, new Set(['resource', 'site', 'from', 'to', 'page', 'pageSize']));
+          const result = await clockOperations(sql, access.principal, {
+            site: queryValue(req, 'site', 'pm-10'),
+            from: queryValue(req, 'from'), to: queryValue(req, 'to'),
+            page: queryValue(req, 'page', '1'), pageSize: queryValue(req, 'pageSize', '50'),
+          }, tenantSession);
+          return send(res, 200, { ok: true, ...result });
+        }
         if (resource === 'bootstrap') {
           assertQueryKeys(req, new Set(['resource']));
           const result = await bootstrap(sql, access.principal, tenantSession);
