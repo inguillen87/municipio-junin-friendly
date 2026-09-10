@@ -50,3 +50,22 @@ jobs:
           name: attendance-source-snapshot
           path: attendance-source-snapshot.tar.gz
           retention-days: 1
+  production-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify public deployment and unauthenticated data boundary
+        run: node scripts/verify-clock-production.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clock-production-smoke
+          path: verification/clock-production-smoke.json
+          retention-days: 7
