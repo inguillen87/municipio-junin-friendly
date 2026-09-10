@@ -1,3 +1,4 @@
+import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 
@@ -62,7 +63,7 @@ const pendingTransitionAttempts = new Map();
 
 const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
   'periodMonth', 'payrollType', 'conceptSourceId', 'costCenterSourceId',
-  'adjustmentMonth', 'quantityDecimal', 'amountArs', 'movementType',
+  'adjustmentMonth', 'quantityDecimal', 'amountArs', 'manualAmountEnabled', 'movementType',
   'legalInstrument', 'observation', 'forced',
 ]);
 
@@ -271,7 +272,7 @@ function currentEntryValues() {
     byId('costCenterSourceId').value,
     byId('adjustmentMonth').value,
     byId('quantityDecimal').value,
-    byId('amountArs').value,
+    amountEntryPolicy({manual:byId('manualAmountEnabled').checked,forced:byId('forced').checked,value:byId('amountArs').value}).rawValue,
     byId('movementType').value,
     byId('legalInstrument').value,
     byId('observation').value,
@@ -808,6 +809,7 @@ function renderAgileRows() {
   for (const radio of document.querySelectorAll('[name="sourceMode"]')) {
     radio.disabled = hasRows && radio.value !== 'agile';
   }
+  syncAmountEntry();
   byId('agileTemplateLock').hidden = !hasRows;
   byId('agileTemplateLock').textContent = hasRows
     ? `Plantilla bloqueada: ${agileTemplate?.periodMonth || '—'} · ${TYPE_LABELS[agileTemplate?.payrollType] || agileTemplate?.payrollType || '—'}. Vaciá la lista para cambiar período, tipo o datos comunes.`
@@ -976,6 +978,18 @@ function consumePayrollNoveltyHandoff() {
   return true;
 }
 
+function syncAmountEntry() {
+  const toggle=byId('manualAmountEnabled'),forced=byId('forced').checked,locked=agileDraftRows.length>0;
+  if(forced)toggle.checked=true;
+  toggle.disabled=forced||locked;
+  const policy=amountEntryPolicy({manual:toggle.checked,forced,value:byId('amountArs').value});
+  byId('manualAmountFields').hidden=!policy.enabled;
+  byId('amountArs').disabled=!policy.enabled||locked;
+  byId('amountArs').required=policy.required;
+  if(!policy.enabled)byId('amountArs').value='';
+  byId('amountPolicyHelp').textContent=forced?'Excepción forzada: exige importe, fundamento y segunda aprobación.':policy.enabled?'Importe informado manualmente. Se conserva su origen y revisión.':'Carga habitual por concepto y unidades. La valorización corresponde al motor de liquidación; no se presupone cero.';
+}
+
 function initialize() {
   const current = new Date();
   byId('periodMonth').value = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
@@ -1000,6 +1014,9 @@ function initialize() {
     selectedBatchId = null;
     byId('detailPanel').hidden = true;
   });
+  byId('manualAmountEnabled').addEventListener('change',syncAmountEntry);
+  byId('forced').addEventListener('change',syncAmountEntry);
+  syncAmountEntry();
   updateMode();
   consumePayrollNoveltyHandoff();
   loadBootstrap();

@@ -203,7 +203,7 @@
             <header class="section-head"><div><span class="section-index">01 · CARGAR Y VALIDAR</span><h2 id="entryTitle">Preparar novedades</h2><p>La validación previa ocurre primero en el navegador y se repite de forma autoritativa en el servidor.</p></div><span class="status draft">Hasta <span id="maxRows">500</span>&nbsp;filas</span></header>
 
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
-              <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Una novedad con observación, importe o unidades.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Conservá los datos y cambiá sólo el agente. Se registra como lote.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
             </div>
@@ -220,7 +220,7 @@
               <div class="field"><label for="costCenterSourceId">Área / centro de costo</label><input id="costCenterSourceId" inputmode="numeric" maxlength="20" placeholder="Opcional"></div>
               <div class="field"><label for="adjustmentMonth">Mes de ajuste</label><input id="adjustmentMonth" type="month"><small>Debe ser igual o anterior al período.</small></div>
               <div class="field"><label for="quantityDecimal">Unidades</label><input id="quantityDecimal" inputmode="decimal" placeholder="Ej.: 2,5"></div>
-              <div class="field"><label for="amountArs">Importe ARS</label><input id="amountArs" inputmode="decimal" placeholder="Ej.: 12500,50"><small>Se conserva como centavos enteros.</small></div>
+              <div class="field"><label for="manualAmountEnabled"><input id="manualAmountEnabled" type="checkbox"> Informar importe manual (opcional)</label><div id="manualAmountFields" hidden><label for="amountArs">Importe excepcional · ARS</label><input id="amountArs" inputmode="decimal" placeholder="Sólo si corresponde" disabled><small>Se conserva en centavos exactos. No reemplaza silenciosamente una fórmula.</small></div><small id="amountPolicyHelp">Carga habitual por concepto y unidades. Sin importe informado no se presupone cero.</small></div>
               <div class="field"><label for="movementType">Movimiento</label><input id="movementType" maxlength="32" placeholder="standard, adjustment…"></div>
               <div class="field wide"><label for="legalInstrument">Instrumento legal</label><input id="legalInstrument" maxlength="160" placeholder="Resolución, decreto u ordenanza, si corresponde"></div>
               <div class="field full"><label for="observation">Observación</label><textarea id="observation" maxlength="500" placeholder="Describí brevemente el pedido o fundamento. Este texto queda en el lote restringido."></textarea><small>Máximo 500 caracteres. No adjuntes información clínica innecesaria.</small></div>
