@@ -1,0 +1,39 @@
+name: Attendance operations validation
+on:
+  push:
+    branches: ['feat/attendance-pm10-operations-20260910']
+  pull_request:
+    paths: ['api/*attendance*', 'lib/*attendance*', 'services/attendance-edge/**', 'assets/attendance-*', 'tests/*attendance*', 'scripts/*attendance*', 'scripts/migrations/*attendance*', 'relojes-marcaciones.html', '.github/workflows/attendance-operations.yml']
+permissions:
+  contents: read
+concurrency:
+  group: attendance-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Prepare tracked source snapshot (no runtime data or credentials)
+        run: git archive --format=tar.gz -o attendance-source-snapshot.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: attendance-source-snapshot
+          path: attendance-source-snapshot.tar.gz
+          retention-days: 1
+      - run: npm ci
+      - name: Repository tests
+        run: npm test
+      - name: Build
+        run: node scripts/build-friendly.mjs
+      - name: Attendance unit tests (when present)
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(tests/attendance-operations*.test.js)
+          if ((${#files[@]})); then node --test "${files[@]}"; fi
