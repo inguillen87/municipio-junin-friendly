@@ -3,7 +3,7 @@ on:
   push:
     branches: ['master', 'feat/attendance-pm10-operations-20260910']
   pull_request:
-    paths: ['api/*attendance*', 'lib/*attendance*', 'services/attendance-edge/**', 'assets/attendance-*', 'tests/*attendance*', 'scripts/*clock*', 'scripts/*attendance*', 'scripts/migrations/*clock*', 'scripts/migrations/*attendance*', 'relojes-marcaciones.html', '.github/workflows/attendance-operations.yml']
+    paths: ['api/*attendance*', 'lib/*attendance*', 'services/attendance-edge/**', 'assets/attendance-*', 'assets/clock-*', 'assets/payroll-novelty-*', 'tests/*attendance*', 'tests/clock-*', 'scripts/*clock*', 'scripts/*attendance*', 'scripts/migrations/*clock*', 'scripts/migrations/*attendance*', 'relojes-marcaciones.html', 'novedades-nomina.html', '.github/workflows/attendance-operations.yml']
 permissions:
   contents: read
 concurrency:
@@ -27,7 +27,7 @@ jobs:
       - name: Repository tests
         run: npm test
       - name: Clock operations unit and security tests
-        run: node --test tests/attendance-clock-operations.test.js tests/internal-attendance-api.test.js
+        run: node --test tests/attendance-clock-operations.test.js tests/internal-attendance-api.test.js tests/clock-dashboard-v2.test.js
       - name: Build
         run: node scripts/build-friendly.mjs
       - name: Commit validated integration only on attendance feature branch
@@ -54,7 +54,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     permissions:
       contents: read
     steps:
@@ -62,10 +62,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify public deployment and unauthenticated data boundary
+      - name: Verify compatible clock route
         run: node scripts/verify-clock-production.mjs
+      - name: Verify dashboard and optional amount deployment
+        run: node scripts/verify-clock-dashboard-production.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: clock-production-smoke
-          path: verification/clock-production-smoke.json
+          path: |
+            verification/clock-production-smoke.json
+            verification/clock-dashboard-production.json
           retention-days: 7

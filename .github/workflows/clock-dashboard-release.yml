@@ -1,0 +1,50 @@
+name: Clock dashboard release validation
+on:
+  push:
+    branches: ['feat/attendance-dashboard-20260910']
+permissions:
+  contents: write
+concurrency:
+  group: clock-dashboard-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Integrate source changes deterministically
+        run: node scripts/integrate-clock-dashboard.mjs
+      - run: npm ci
+      - name: All repository tests
+        run: |
+          mkdir -p verification
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+      - name: Build private application
+        run: node scripts/build-friendly.mjs
+      - name: Install Chromium for interface checks
+        run: npx playwright install --with-deps chromium
+      - name: Real browser with synthetic API responses
+        run: node scripts/verify-clock-dashboard-browser.mjs
+      - name: Commit only validated source integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/internal-attendance.js relojes-marcaciones.html novedades-nomina.html assets/payroll-novelty-workbench.js assets/clock-dashboard-zip.js scripts/build-friendly.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(attendance): integrate tested dashboard and optional amount workflow'
+            git push origin HEAD:feat/attendance-dashboard-20260910
+          fi
+          git rev-parse HEAD > verification/validated-source-sha.txt
+          git archive --format=tar.gz -o verification/clock-dashboard-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clock-dashboard-verification
+          path: verification/
+          retention-days: 7
