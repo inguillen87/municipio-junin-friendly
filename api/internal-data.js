@@ -1,3 +1,4 @@
+import { employeePayrollDetail } from '../lib/internal-payroll-detail.js';
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
@@ -3751,6 +3752,10 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'employeepayrolldetail') {
+        const result = await employeePayrollDetail(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'employeepayroll') {
