@@ -1,3 +1,5 @@
+import { reviewNoveltyCsv, NoveltyReviewError } from './payroll-novelty-review.js';
+import { mountNoveltyReviewPanel, mountNoveltyIssues } from './payroll-novelty-review-panel.js';
 import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
@@ -50,6 +52,10 @@ function issueLabel(issue) {
 }
 
 const byId = (id) => document.getElementById(id);
+let reviewPanel = null;
+let issuesPanel = null;
+let pendingFileReader = null;
+let fileReadVersion = 0;
 let bootstrapState = null;
 let preparedDraft = null;
 let preparedDraftKey = null;
@@ -73,6 +79,7 @@ function setBusy(value, label = '') {
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
     renderAgileRows();
+    reviewPanel?.render();
   }
   byId('busyStatus').hidden = !value;
   byId('busyStatus').textContent = label || 'Procesando solicitud…';
@@ -98,7 +105,11 @@ function clearMessage() {
   byId('messageHost').replaceChildren();
 }
 
-function invalidatePreparedDraft() {
+function invalidatePreparedDraft(event) {
+  if (event?.target?.closest?.('[data-review-only]')) return;
+  if (event?.target?.id !== 'bulkFile') cancelFileRead();
+  reviewPanel?.clear();
+  issuesPanel?.clear();
   preparedDraft = null;
   preparedDraftKey = null;
   preparedEntryMode = null;
@@ -190,29 +201,6 @@ function parseBoolean(value) {
   throw new Error('Forzado debe indicar SI o NO.');
 }
 
-function parseCsvLine(line) {
-  const cells = [];
-  let current = '';
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (quoted && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (char === ';' && !quoted) {
-      cells.push(current);
-      current = '';
-    } else current += char;
-  }
-  if (quoted) throw new Error('Hay una comilla sin cerrar en el archivo.');
-  cells.push(current);
-  return cells;
-}
-
 function rowFromValues(values, ordinal, periodMonth) {
   const [
     legajoValue, conceptValue, costCenterValue, adjustmentValue, quantityValue,
@@ -298,29 +286,11 @@ function agileRows(periodMonth) {
 }
 
 function bulkRows(periodMonth) {
-  const text = byId('bulkSource').value.replace(/\r\n?/g, '\n').trim();
-  if (!text) throw new Error('Pegá o cargá un CSV antes de validar.');
-  if (new TextEncoder().encode(text).byteLength > 480 * 1024) {
-    throw new Error('El archivo supera el límite operativo de 480 KiB.');
-  }
-  const lines = text.split('\n');
-  const expected = [
-    'legajo', 'concepto', 'centro_costo', 'mes_ajuste', 'unidades', 'importe_ars',
-    'movimiento', 'instrumento_legal', 'observacion', 'forzado',
-  ];
-  const header = parseCsvLine(lines.shift() || '').map((cell) => cell.trim().toLowerCase());
-  if (JSON.stringify(header) !== JSON.stringify(expected)) {
-    throw new Error(`El encabezado debe ser: ${expected.join(';')}`);
-  }
-  if (lines.length < 1 || lines.length > MAX_ROWS) {
-    throw new Error(`El lote debe tener entre 1 y ${MAX_ROWS} filas.`);
-  }
-  const rows = lines.map((line, index) => {
-    const cells = parseCsvLine(line);
-    if (cells.length !== expected.length) throw new Error(`Fila ${index + 1}: cantidad de columnas inválida.`);
-    return rowFromValues(cells, index + 1, periodMonth);
-  });
-  return rows;
+  // Exact CSV contract retained:
+  // 'legajo', 'concepto', 'centro_costo', 'mes_ajuste', 'unidades', 'importe_ars'
+  // 'movimiento', 'instrumento_legal', 'observacion', 'forzado'
+  if (pendingFileReader) throw new Error('Esperá a que termine la lectura del archivo.');
+  return reviewNoveltyCsv(byId('bulkSource').value, rowFromValues, periodMonth);
 }
 
 function duplicateCheck(rows) {
@@ -366,30 +336,7 @@ function moneyFromCents(value) {
 }
 
 function renderPreflight(draft) {
-  const body = byId('previewRows');
-  body.replaceChildren();
-  for (const row of draft.rows.slice(0, 25)) {
-    const tr = document.createElement('tr');
-    for (const value of [
-      row.rowOrdinal,
-      row.legajo,
-      row.conceptSourceId,
-      row.quantityDecimal ?? '—',
-      moneyFromCents(row.amountCents),
-      row.forced ? 'Sí' : 'No',
-      row.observation || '—',
-    ]) {
-      const td = document.createElement('td');
-      td.textContent = String(value);
-      tr.appendChild(td);
-    }
-    body.appendChild(tr);
-  }
-  const modeLabel = preparedEntryMode === 'agile' ? 'Carga rápida: ' : '';
-  byId('previewCaption').textContent = draft.rows.length > 25
-    ? `${modeLabel}se muestran 25 de ${draft.rows.length} filas válidas.`
-    : `${modeLabel}${draft.rows.length} fila${draft.rows.length === 1 ? '' : 's'} válida${draft.rows.length === 1 ? '' : 's'}.`;
-  byId('previewPanel').hidden = false;
+  reviewPanel.setRows(draft.rows);
   byId('prepareButton').disabled = false;
 }
 
@@ -596,7 +543,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     const nextPrincipalKey = principalKey(payload.principal);
     const principalChanged = Boolean(priorPrincipalKey && priorPrincipalKey !== nextPrincipalKey);
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
-    if (agileDraftRows.length && (principalChanged || !canPrepare)) {
+    if (principalChanged || !canPrepare) {
       agileDraftRows = [];
       agileTemplate = null;
       invalidatePreparedDraft();
@@ -631,6 +578,8 @@ async function loadBootstrap({ quiet = false } = {}) {
       await openBatch(selectedBatchId, { quiet: true });
     }
   } catch (error) {
+    invalidatePreparedDraft();
+    byId('entrySection').hidden = true;
     byId('pageContent').hidden = false;
     byId('loadingState').hidden = true;
     showMessage('error', 'No pudimos cargar novedades de nómina', errorMessage(error));
@@ -870,6 +819,7 @@ function preflight() {
     showMessage('success', 'Validación previa superada', 'El servidor volverá a validar legajo, binding, duplicados y capacidades antes de crear el lote.');
   } catch (error) {
     invalidatePreparedDraft();
+    if (error instanceof NoveltyReviewError) issuesPanel.show(error);
     showMessage('error', 'Revisá la carga', errorMessage(error));
   }
 }
@@ -906,24 +856,50 @@ async function prepare() {
   }
 }
 
+function cancelFileRead() {
+  fileReadVersion++;
+  const reader = pendingFileReader;
+  pendingFileReader = null;
+  if (reader?.readyState === 1) reader.abort();
+}
+
 function handleFile(event) {
+  cancelFileRead();
+  invalidatePreparedDraft(event);
   const file = event.target.files?.[0];
   if (!file) return;
-  if (file.size > 480 * 1024) {
-    showMessage('error', 'Archivo demasiado grande', 'El límite es 480 KiB y 500 filas.');
+  byId('bulkSource').value = '';
+  if (file.size > 480 * 1024 || !/\.csv$/i.test(file.name)) {
+    showMessage('error', 'Archivo no admitido', 'Usá un CSV UTF-8 de hasta 480 KiB y 500 filas. No se conservó una previsualización anterior.');
     event.target.value = '';
     return;
   }
-  const reader = new FileReader();
+  const reader = new FileReader(), version = fileReadVersion;
+  pendingFileReader = reader;
+  showMessage('info', 'Leyendo el archivo…', 'Todavía no se validó ni guardó ninguna fila.');
   reader.addEventListener('load', () => {
-    byId('bulkSource').value = String(reader.result || '');
-    invalidatePreparedDraft();
+    if (version !== fileReadVersion || pendingFileReader !== reader) return;
+    pendingFileReader = null;
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(reader.result);
+      byId('bulkSource').value = text;
+      invalidatePreparedDraft();
+      showMessage('success', 'Archivo leído, sin guardar', 'Presioná Validar y previsualizar para revisar todas las filas.');
+    } catch {
+      byId('bulkSource').value = '';
+      showMessage('error', 'Codificación no válida', 'Guardá el archivo como CSV UTF-8. No se reemplazaron caracteres ni importes.');
+    }
   });
-  reader.addEventListener('error', () => showMessage('error', 'No se pudo leer el archivo', 'Usá un CSV UTF-8 válido.'));
-  reader.readAsText(file, 'utf-8');
+  reader.addEventListener('error', () => {
+    if (version !== fileReadVersion) return;
+    pendingFileReader = null;
+    showMessage('error', 'No se pudo leer el archivo', 'Seleccioná nuevamente un CSV UTF-8 válido.');
+  });
+  reader.readAsArrayBuffer(file);
 }
 
 async function logout() {
+  invalidatePreparedDraft();
   try {
     await fetch('/api/internal-auth', { method: 'DELETE', credentials: 'same-origin' });
   } finally {
@@ -991,6 +967,9 @@ function syncAmountEntry() {
 }
 
 function initialize() {
+  reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
+  issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
+  window.addEventListener('pagehide', () => invalidatePreparedDraft());
   const current = new Date();
   byId('periodMonth').value = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
   for (const radio of document.querySelectorAll('[name="sourceMode"]')) radio.addEventListener('change', updateMode);

@@ -1,0 +1,40 @@
+/* All 500 rows remain available without an endless or truncated preview. */
+.novelty-review-kpis { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0; }
+.novelty-review-kpis>div { border:1px solid #d6e4e3;background:#f5faf8;border-radius:10px;padding:15px; }
+.novelty-review-kpis span { display:block;font-size:12px;color:#49646c; }
+.novelty-review-kpis strong { display:block;font-size:25px;line-height:1.4;color:#16464b;font-variant-numeric:tabular-nums; }
+.novelty-review-filters { display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:15px; }
+.novelty-review-filters label { flex:1 1 160px;display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;min-width:0; }
+.novelty-review-filters input,.novelty-review-filters select { width:100%;min-height:44px;border:1px solid #b9cecf;border-radius:7px;background:white;color:#163d4c;font:inherit;font-weight:400;padding:9px 11px; }
+.novelty-review-pager { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 0; }
+.novelty-review-pager span { font-size:13px; }
+#previewPanel .table-wrap { max-height:620px;overflow:auto; }
+#previewPanel th,#noveltyIssuesPanel th { position:sticky;top:0;z-index:1; }
+#previewPanel td { vertical-align:top; }
+#previewPanel details { min-width:130px;max-width:320px; }
+#previewPanel summary { cursor:pointer;min-height:40px;padding:7px 0;color:#08766f;font-weight:700; }
+.novelty-row-fields { margin:8px 0;min-width:235px;max-width:320px; }
+.novelty-row-fields dt { font-size:11px;font-weight:700;color:#456975;margin-top:9px; }
+.novelty-row-fields dd { margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px; }
+.novelty-unvalued { color:#73500d;background:#fffaf0; }
+#noveltyIssuesPanel { padding:20px;border:1px solid #e1b8a4;background:#fffaf6;border-radius:12px;margin-top:20px; }
+#noveltyIssuesPanel[hidden] { display:none!important; }
+#noveltyIssuesPanel .table-wrap { margin-top:14px;max-height:460px;overflow:auto; }
+#noveltyIssuesPanel td { white-space:normal;overflow-wrap:anywhere; }
+#noveltyIssuesPanel p { font-size:13px;line-height:1.6; }
+#noveltyIssuesPanel h3 { margin-top:0; }
+.novelty-review-filters :focus-visible,#previewPanel summary:focus-visible { outline:3px solid #b27a24;outline-offset:3px; }
+@media(max-width:700px) { .novelty-review-kpis {grid-template-columns:repeat(2,minmax(0,1fr));} .novelty-review-pager span {order:-1;flex-basis:100%;} #previewPanel {min-width:0;} }
+@media print { .novelty-review-filters,.novelty-review-pager {display:none!important;} }
+
+@media(max-width:700px) {
+  body[data-mc-page="payroll-novelties"] .topbar {flex-wrap:wrap;}
+  body[data-mc-page="payroll-novelties"] .top-actions {flex-wrap:wrap;max-width:100%;}
+  .novelty-review-pager .button {min-height:44px;}
+  #previewPanel header {flex-wrap:wrap;}
+  #previewPanel header>div {flex:1 1 200px;min-width:0;}
+  body[data-mc-page="payroll-novelties"] .field,
+  body[data-mc-page="payroll-novelties"] .field input,
+  body[data-mc-page="payroll-novelties"] .field select,
+  body[data-mc-page="payroll-novelties"] .field textarea {min-width:0;}
+}
