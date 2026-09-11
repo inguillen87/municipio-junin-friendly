@@ -1,13 +1,16 @@
 diff --git a/assets/payroll-novelty-review.css b/assets/payroll-novelty-review.css
-index 8b6af3d..aa4a6c7 100644
+index 8b6af3d..6492e8e 100644
 --- a/assets/payroll-novelty-review.css
 +++ b/assets/payroll-novelty-review.css
-@@ -26,3 +26,12 @@
+@@ -26,3 +26,15 @@
  .novelty-review-filters :focus-visible,#previewPanel summary:focus-visible { outline:3px solid #b27a24;outline-offset:3px; }
  @media(max-width:700px) { .novelty-review-kpis {grid-template-columns:repeat(2,minmax(0,1fr));} .novelty-review-pager span {order:-1;flex-basis:100%;} #previewPanel {min-width:0;} }
  @media print { .novelty-review-filters,.novelty-review-pager {display:none!important;} }
 +
 +@media(max-width:700px) {
++  body[data-mc-page="payroll-novelties"] .topbar {flex-wrap:wrap;}
++  body[data-mc-page="payroll-novelties"] .top-actions {flex-wrap:wrap;max-width:100%;}
++  .novelty-review-pager .button {min-height:44px;}
 +  #previewPanel header {flex-wrap:wrap;}
 +  #previewPanel header>div {flex:1 1 200px;min-width:0;}
 +  body[data-mc-page="payroll-novelties"] .field,
