@@ -2,9 +2,17 @@
 
 Usá este contexto como fuente de verdad para alinear `municipio-junin` Enterprise con el trabajo de `municipio-junin-friendly`. No reinicies el análisis, no dupliques bases y no escribas en producción sin verificar primero el estado actual.
 
+## Actualización del alcance: DOC-01 y operación propia
+
+MuniControl es el destino operativo propio que reemplaza progresivamente GRH. La base GRH en uso municipal no se modifica desde esta integración. Las referencias históricas a GRH como sistema rector corresponden sólo a los módulos todavía en convivencia.
+
+- DOC-01: firma gráfica genuina por identidad y municipio, custodia privada, emisión autorizada PDF/XLSX y retenciones detalladas. Ver [especificación](docs/FEATURE_FIRMA_EMISION_DOCUMENTAL_20260910.md) e issue #1. No activado por una imagen ni por iniciar sesión.
+- Cierre del sprint de jornadas/legajos: [alcance y validación](docs/SPRINT_CIERRE_LEGAJO_JORNADAS.md). No declarar firma, pago o sincronización continua como implementados por el solo hecho de publicar el tablero.
+- Las secciones siguientes conservan los cortes históricos originales; no son una auditoría de producción actual.
+
 ## Decisión de arquitectura
 
-- **GRH es el sistema rector laboral municipal.** Debe gobernar personas laborales, legajos, situación contractual, nómina, movimientos, estructura y ausencias.
+- **MuniControl es el modelo operativo de destino.** GRH aporta fuentes de migración y sigue operando los módulos no transferidos durante la convivencia. No sobrescribir las operaciones propias de MuniControl con una nueva copia de GRH.
 - **PERSONAS es una fuente auxiliar transversal.** Sólo enriquece identidad, domicilios y territorio. Nunca reemplaza ni sobrescribe empleo o nómina de GRH.
 - No unir ambas bases por `IDPERSONA`: sólo coinciden seis IDs y ninguno representa la misma identidad.
 - El vínculo correcto usa CUIL válido, DNI como respaldo, nombre normalizado y fecha de nacimiento como evidencia, conservando siempre los IDs originales y una tabla puente versionada.

@@ -1,3 +1,4 @@
+import { getAttendanceWorkdays } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
@@ -166,6 +167,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const apply = dependencies.applyAttendanceCommand ?? applyAttendanceCommand;
   const clockOperations = dependencies.getAttendanceClockOperations ?? getAttendanceClockOperations;
   const clockDashboard = dependencies.getAttendanceClockDashboard ?? getAttendanceClockDashboard;
+  const clockWorkdays = dependencies.getAttendanceWorkdays ?? getAttendanceWorkdays;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
 
@@ -236,6 +238,15 @@ export function createInternalAttendanceHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = requestedResource;
+        if (resource === 'clock-workdays') {
+          assertQueryKeys(req,new Set(['resource','site','from','to','page','pageSize','search','status','snapshot']));
+          const result=await clockWorkdays(sql,access.principal,{
+            site:queryValue(req,'site','pm-10'),from:queryValue(req,'from'),to:queryValue(req,'to'),
+            page:queryValue(req,'page','1'),pageSize:queryValue(req,'pageSize','25'),
+            search:queryValue(req,'search'),status:queryValue(req,'status','all'),snapshot:queryValue(req,'snapshot'),
+          },tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
         if (resource === 'clock-dashboard') {
           assertQueryKeys(req, new Set(['resource','site','from','to','page','pageSize','search','identity','hour','snapshot']));
           const result = await clockDashboard(sql, access.principal, {

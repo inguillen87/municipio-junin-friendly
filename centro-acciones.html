@@ -702,6 +702,7 @@
   <noscript><section class="auth-gate"><div class="gate-card"><h1>JavaScript es necesario</h1><p>El Centro de acciones verifica permisos y consulta el backend interno en tiempo real.</p></div></section></noscript>
 
   <script src="assets/internal-guide.js" defer></script>
+  <script src="assets/action-language.js"></script>
   <script>
     (function () {
       'use strict';
@@ -878,6 +879,12 @@
       function formatDate(value) { var date = normalizeDate(value); return date ? dateFormatter.format(date).replace(/\./g, '') : 'No informada'; }
       function formatDateTime(value) { var date = normalizeDate(value); return date ? dateTimeFormatter.format(date).replace(/\./g, '') : 'No informada'; }
       function formatNumber(value) { var parsed = integer(value); return parsed === null ? '—' : numberFormatter.format(parsed); }
+      var actionLanguage = window.MuniControlActionLanguage;
+      function leaveReasonText(detail) {
+        var code=detail.leave.reasonCode;
+        var match=state.bootstrap&&state.bootstrap.reasons&&state.bootstrap.reasons.find(function(r){return String(r.code??r.value)===String(code)&&(!detail.leave.policyVersionId||r.policyVersionId===detail.leave.policyVersionId);});
+        return actionLanguage.reason(detail.leave.reasonLabel||(match&&match.label),code);
+      }
       function titleCase(value) { return text(value).replaceAll('_', ' ').replace(/\b\w/g, function (character) { return character.toUpperCase(); }); }
       function statusLabel(value) { var key = lower(value); return STATUS_LABELS[key] || titleCase(key) || 'Estado no informado'; }
       function typeLabel(value) { var key = lower(value); return TYPE_LABELS[key] || titleCase(key) || 'Acción'; }
@@ -2045,10 +2052,10 @@
           fact('Estado',statusLabel(detail.status)),
           fact('Período solicitado',periodLabel(detail.leave)),
           fact('Modalidad',detail.leave.mode === 'minute' ? 'Franja horaria solicitada' : 'Días calendario solicitados'),
-          fact('Motivo',detail.leave.reasonLabel || detail.leave.reasonCode),
-          fact('Política',detail.leave.policyVersionId || 'No informada'),
-          fact('Regla',detail.leave.policyRuleId || 'No informada'),
-          fact('Evidencia',titleCase(detail.leave.evidenceStatus)),
+          fact('Motivo',leaveReasonText(detail)),
+          fact('Régimen de referencia',actionLanguage.policy(detail.leave.policyVersionId)),
+          fact('Tipo de regla',actionLanguage.label(detail.leave.policyRuleId,'Regla pendiente de identificación')),
+          fact('Evidencia',actionLanguage.label(detail.leave.evidenceStatus)),
           fact('Decidida',formatDateTime(detail.decidedAt)),
           fact('Actualizada',formatDateTime(detail.updatedAt)),
           fact('Versión',detail.version === null ? 'No informada' : String(detail.version))
@@ -2153,7 +2160,7 @@
         controlFacts.append(
           fact('Estado',statusLabel(detail.status)),
           fact('Próxima etapa',overtimeNextAction(detail.status)),
-          fact('Evidencia',titleCase(detail.leave.evidenceStatus)),
+          fact('Evidencia',actionLanguage.label(detail.leave.evidenceStatus)),
           fact('Fundamento de decisión',decisionLabel || 'No informado'),
           fact('Fundamento de cancelación',cancellationLabel || 'No informado'),
           fact('Actualizada',formatDateTime(first(detail.overtime.timestamps.updatedAt, detail.updatedAt)))
@@ -2253,12 +2260,12 @@
         var request = create('section','detail-section');
         request.append(create('h3','','Solicitud'), create('p','section-copy','Datos autorizados de la acción. No constituyen un cálculo de saldo, horas trabajadas ni sueldo.'));
         var requestFacts = create('dl','facts');
-        requestFacts.append(fact('Persona',detail.subjectName), fact('Tipo',typeLabel(detail.type)), fact('Período solicitado',periodLabel(detail.leave)), fact('Modalidad',detail.leave.mode === 'minute' ? 'Franja horaria solicitada' : 'Días calendario solicitados'), fact('Motivo',detail.leave.reasonLabel || detail.leave.reasonCode), fact('Confidencialidad',titleCase(detail.confidentiality)), fact('Versión',detail.version === null ? 'No informada' : String(detail.version)));
+        requestFacts.append(fact('Persona',detail.subjectName), fact('Tipo',typeLabel(detail.type)), fact('Período solicitado',periodLabel(detail.leave)), fact('Modalidad',detail.leave.mode === 'minute' ? 'Franja horaria solicitada' : 'Días calendario solicitados'), fact('Motivo',leaveReasonText(detail)), fact('Confidencialidad',actionLanguage.label(detail.confidentiality,'Clasificación no informada')), fact('Versión',detail.version === null ? 'No informada' : String(detail.version)));
         request.appendChild(requestFacts);
         if (detail.description) request.appendChild(create('p','decision-warning','Observación registrada: ' + detail.description));
         left.appendChild(request);
 
-        var gatesSection = create('section','detail-section'); gatesSection.append(create('h3','','Gates de cálculo y decisión'), create('p','section-copy','Los faltantes permanecen visibles y no se convierten en aprobaciones.'));
+        var gatesSection = create('section','detail-section'); gatesSection.append(create('h3','','Controles para resolver la solicitud'), create('p','section-copy','Los faltantes permanecen visibles y no se convierten en aprobaciones.'));
         var gates = detail.leave.gates.slice();
         if (!gates.length && detail.leave.calculationStatus !== 'calculable') gates.push('Saldo vigente, horas efectivamente trabajadas e impacto salarial no fueron calculados por esta pantalla.');
         var gateList = create('ul','gate-list'); gates.forEach(function (gate) { gateList.appendChild(create('li','',gate)); }); gatesSection.appendChild(gateList); left.appendChild(gatesSection);
@@ -2266,14 +2273,14 @@
         var evidenceSection = create('section','detail-section'); evidenceSection.append(create('h3','','Evidencia'), create('p','section-copy','Metadatos privados recibidos del backend; no se generan enlaces públicos.'));
         var evidenceList = create('ul','evidence-list');
         if (!detail.evidence.length) evidenceList.appendChild(create('li','','No hay evidencia publicada para esta sesión.'));
-        detail.evidence.forEach(function (item) { var node = create('li'); node.append(create('strong','',item.label), create('span','',item.status + (item.createdAt ? ' · ' + formatDateTime(item.createdAt) : '') + (item.hash ? ' · huella ' + item.hash.slice(0,12) + '…' : ''))); evidenceList.appendChild(node); });
+        detail.evidence.forEach(function (item) { var node = create('li'); node.append(create('strong','',item.label), create('span','',actionLanguage.label(item.status) + (item.createdAt ? ' · ' + formatDateTime(item.createdAt) : '') + (item.hash ? ' · huella ' + item.hash.slice(0,12) + '…' : ''))); evidenceList.appendChild(node); });
         evidenceSection.appendChild(evidenceList); left.appendChild(evidenceSection);
 
         var right = create('div');
         var decisionReceipt = renderLeaveDecisionReceipt(detail);
         if (decisionReceipt) right.appendChild(decisionReceipt);
         var control = create('section','detail-section'); control.append(create('h3','','Control administrativo'), create('p','section-copy','La referencia legal orienta el análisis; aprobar constituye una decisión administrativa.'));
-        var controlFacts = create('dl','facts'); controlFacts.append(fact('Estado',statusLabel(detail.status)), fact('Etapa',detail.stage || 'No informada'), fact('Política',detail.leave.policyVersionId || 'No informada'), fact('Regla',detail.leave.policyRuleId || 'No informada'), fact('Estado de cálculo',titleCase(detail.leave.calculationStatus)), fact('Evidencia',titleCase(detail.leave.evidenceStatus))); control.appendChild(controlFacts); right.appendChild(control);
+        var controlFacts = create('dl','facts'); controlFacts.append(fact('Estado',statusLabel(detail.status)), fact('Etapa',actionLanguage.label(detail.stage,'Etapa no informada')), fact('Régimen de referencia',actionLanguage.policy(detail.leave.policyVersionId)), fact('Tipo de regla',actionLanguage.label(detail.leave.policyRuleId,'Regla pendiente de identificación')), fact('Estado de cálculo',actionLanguage.label(detail.leave.calculationStatus)), fact('Evidencia',actionLanguage.label(detail.leave.evidenceStatus))); control.appendChild(controlFacts); right.appendChild(control);
 
         var timelineSection = create('section','detail-section'); timelineSection.append(create('h3','','Historial'), create('p','section-copy','Eventos de auditoría informados por el backend.'));
         var timeline = create('ol','timeline');
@@ -2497,7 +2504,7 @@
 
       function updateConfidentiality(){var decision=confidentialityDecision();el.actionConfidentiality.value=decision.value==='restricted'?'restricted':'standard';el.actionConfidentiality.disabled=true;el.actionConfidentialityHelp.textContent=decision.message;errorFor('actionConfidentialityError',decision.error);updateEmployeeNoteField();}
 
-      function renderWizardReview(){var value=wizardValue();var employee=el.actionEmployee.options[el.actionEmployee.selectedIndex];clear(el.wizardReview);el.wizardReview.append(fact('Persona',employee?employee.textContent:'No seleccionada'),fact('Motivo',value.reasonLabel||'No seleccionado'),fact('Período',formatDate(value.startsOn)+' → '+formatDate(value.endsOn)+(value.durationUnit==='minute'?' · '+value.startsAtLocal+' a '+value.endsAtLocal:'')),fact('Modalidad',value.durationUnit==='minute'?'Franja horaria solicitada':'Días calendario solicitados'),fact('Observación administrativa',value.employeeNote||'Sin descripción adicional'),fact('Registro del texto',value.confidentiality==='restricted'?'Se incorpora al borrador con tratamiento restringido':'Se incorpora al borrador autorizado'),fact('Política',value.policyVersionId||'No informada'),fact('Evidencia','Pendiente de verificación'),fact('Confidencialidad',titleCase(value.confidentiality)));}
+      function renderWizardReview(){var value=wizardValue();var employee=el.actionEmployee.options[el.actionEmployee.selectedIndex];clear(el.wizardReview);el.wizardReview.append(fact('Persona',employee?employee.textContent:'No seleccionada'),fact('Motivo',value.reasonLabel||'No seleccionado'),fact('Período',formatDate(value.startsOn)+' → '+formatDate(value.endsOn)+(value.durationUnit==='minute'?' · '+value.startsAtLocal+' a '+value.endsAtLocal:'')),fact('Modalidad',value.durationUnit==='minute'?'Franja horaria solicitada':'Días calendario solicitados'),fact('Observación administrativa',value.employeeNote||'Sin descripción adicional'),fact('Registro del texto',value.confidentiality==='restricted'?'Se incorpora al borrador con tratamiento restringido':'Se incorpora al borrador autorizado'),fact('Política',value.policyVersionId||'No informada'),fact('Evidencia','Pendiente de verificación'),fact('Confidencialidad',actionLanguage.label(value.confidentiality,'Clasificación no informada')));}
 
       function showWizardStep(step){state.wizardStep=Math.min(4,Math.max(1,step));document.querySelectorAll('[data-action-step]').forEach(function(panel){panel.hidden=Number(panel.dataset.actionStep)!==state.wizardStep;});document.querySelectorAll('[data-wizard-step-indicator]').forEach(function(indicator){var number=Number(indicator.dataset.wizardStepIndicator);var current=number===state.wizardStep;indicator.classList.toggle('is-current',current);indicator.classList.toggle('is-done',number<state.wizardStep);if(current)indicator.setAttribute('aria-current','step');else indicator.removeAttribute('aria-current');});el.wizardBack.hidden=state.wizardStep===1;el.wizardNext.hidden=state.wizardStep===4;el.wizardSubmit.hidden=state.wizardStep!==4;if(state.wizardStep===4)renderWizardReview();var active=el.actionWizard.querySelector('[data-action-step="'+state.wizardStep+'"]');var focusable=active&&active.querySelector('select,input,textarea,button');if(focusable&&el.actionWizard.open)window.setTimeout(function(){if(el.actionWizard.open)focusable.focus();},0);}
 

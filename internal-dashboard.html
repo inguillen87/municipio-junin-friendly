@@ -2825,7 +2825,11 @@
 
         const absence = create('a', 'button', 'Ver ausentismo operativo');
         absence.href = 'ausentismo-control.html';
-        actions.append(payroll, novelty, calculate, request, absence);
+        const downloads = create('button', 'button', 'Descargar haberes por mes');
+        downloads.type='button';downloads.disabled=payroll.disabled;
+        downloads.title='Abrir períodos y descargar un resumen PDF; el recibo firmado requiere emisión autorizada';
+        downloads.addEventListener('click',function(){payroll.click();});
+        actions.append(payroll, downloads, novelty, calculate, request, absence);
         section.appendChild(actions);
         if (unavailable.length) {
           const availability = create(
@@ -2967,7 +2971,21 @@
           actionContext.appendChild(availability);
         }
         novelty.addEventListener('click', function () { startPayrollNovelty(employee, item); });
-        actions.append(actionContext, novelty);
+        const summaryDownload=create('button','button','Descargar resumen · PDF');
+        summaryDownload.type='button';summaryDownload.dataset.payrollSummaryDownload='true';
+        summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');
+        summaryDownload.title='Totales del período consultado, sin firma ni certificación de pago';
+        summaryDownload.addEventListener('click',async function(){
+          if(summaryDownload.disabled)return;
+          summaryDownload.disabled=true;
+          try{
+            const module=await import('./assets/payroll-summary-pdf.js');
+            if(!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read')||!summaryDownload.isConnected)throw new Error('La ficha ya no está disponible');
+            module.downloadPayrollSummary({name:employee.name,legajo:employee.legajo},item);
+          }catch(error){toast('No se generó el resumen: '+error.message,'error');}
+          finally{summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
+        });
+        actions.append(actionContext, summaryDownload, novelty);
         card.appendChild(actions);
         return card;
       }
@@ -2979,7 +2997,7 @@
         const summaryText = create('span');
         summaryText.append(
           create('strong', '', 'Historial de liquidaciones'),
-          create('span', '', 'Totales mensuales reales del legajo. Resumen de fuente; no es un recibo oficial.')
+          create('span', '', 'Consultá períodos y descargá el resumen PDF. El recibo oficial firmado requiere emisión autorizada.')
         );
         summary.appendChild(summaryText);
         section.appendChild(summary);
