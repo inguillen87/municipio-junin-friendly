@@ -25,3 +25,97 @@ index ca7ed19..acc55b5 100644
    assert.match(card, /payroll-action-unavailable/);
    assert.match(card, /novelty\.setAttribute\('aria-describedby', availability\.id\)/);
    assert.match(card, /actionContext\.appendChild\(availability\)/);
+diff --git a/internal-dashboard.html b/internal-dashboard.html
+--- a/internal-dashboard.html
++++ b/internal-dashboard.html
+@@ -1604,6 +1604,7 @@
+         employeeController: null,
+         detailController: null,
+         payrollController: null,
++        payrollSummaryControllers: new Set(),
+         payrollActionDescriptionSequence: 0,
+         filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
+         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
+@@ -2715,6 +2716,8 @@
+       function closeDialog() {
+         if (state.detailController) state.detailController.abort();
+         if (state.payrollController) state.payrollController.abort();
++        state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
++        state.payrollSummaryControllers.clear();
+         if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
+         else els.employeeDialog.removeAttribute('open');
+       }
+@@ -2723,6 +2726,8 @@
+         if (!text(contractId) && !text(legajo)) return;
+         if (state.detailController) state.detailController.abort();
+         if (state.payrollController) state.payrollController.abort();
++        state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
++        state.payrollSummaryControllers.clear();
+         const controller = new AbortController();
+         state.detailController = controller;
+         els.dialogTitle.textContent = fallbackName || 'Ficha de legajo';
+@@ -3022,19 +3027,23 @@
+         summaryDownload.title='Totales del período consultado, sin firma ni certificación de pago';
+         const summaryStatus=create('p','payroll-summary-status','');summaryStatus.setAttribute('role','status');summaryStatus.setAttribute('aria-live','polite');summaryStatus.hidden=true;
+         summaryDownload.addEventListener('click',async function(){
+-          if(summaryDownload.disabled)return;
++          if(summaryDownload.disabled||!els.employeeDialog.open)return;
++          const controller=new AbortController();
++          state.payrollSummaryControllers.add(controller);
++          const timeout=setTimeout(function(){controller.abort();},25000);
++          const available=()=>!controller.signal.aborted&&els.employeeDialog.open&&summaryDownload.isConnected&&state.tenantCapabilities.has('workforce.employee.read')&&state.tenantCapabilities.has('payroll.read');
+           summaryDownload.disabled=true;summaryDownload.setAttribute('aria-busy','true');summaryStatus.hidden=false;summaryStatus.dataset.error='false';summaryStatus.textContent='Verificando el período y preparando el PDF…';
+           try{
+             const module=await import('./assets/payroll-summary-pdf.js');
+-            if(!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read')||!summaryDownload.isConnected)throw new Error('La ficha ya no está disponible');
++            if(!available())throw new Error('La ficha ya no está disponible');
+             if(!payrollQuery)throw new Error('Volvé a consultar el historial antes de descargar.');
+-            const payload=await requestJSON(DATA_URL+'?'+payrollQuery,{signal:AbortSignal.timeout(25000)});
+-            if(!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read')||!summaryDownload.isConnected)throw new Error('La ficha ya no está disponible');
++            const payload=await requestJSON(DATA_URL+'?'+payrollQuery,{signal:controller.signal});
++            if(!available())throw new Error('La ficha ya no está disponible');
+             const fresh=module.verifySalarySummarySnapshot(employee,item,payload);
+             module.downloadPayrollSummary(employee,fresh);
+             summaryStatus.textContent='Resumen PDF generado. '+(module.salarySummaryModel(employee,fresh).missingFields.length?'Incluye campos no informados, sin sustituirlos por cero. ':'')+'Revisá las descargas del navegador.';
+           }catch(error){summaryStatus.dataset.error='true';summaryStatus.textContent='No se generó el resumen: '+error.message;}
+-          finally{summaryDownload.removeAttribute('aria-busy');summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
++          finally{clearTimeout(timeout);state.payrollSummaryControllers.delete(controller);summaryDownload.removeAttribute('aria-busy');summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
+         });
+         const detailButton=create('button','button','Ver conceptos y descuentos');
+         detailButton.type='button';detailButton.dataset.payrollDetailOpen='true';
+diff --git a/scripts/verify-payroll-summary-055.mjs b/scripts/verify-payroll-summary-055.mjs
+--- a/scripts/verify-payroll-summary-055.mjs
++++ b/scripts/verify-payroll-summary-055.mjs
+@@ -10,7 +10,7 @@
+ const root=path.resolve(process.env.SUMMARY_ROOT||'public'),out=path.resolve('verification/summary-055'+(live?'-published':''));
+ fs.mkdirSync(out,{recursive:true});
+ const items=syntheticSummaries(),requests=[],checks=[],errors=[];
+-let drift=false,denied=false,slow=false,downloads=0;
++let drift=false,denied=false,slow=false,downloads=0,slowResponse=null,releaseSlowResponse=null;
+ const operational={version:'workforce-operational.v1',selectedStatus:'administrative_active',totalContracts:1,totalPeople:1,activeContracts:1,activePeople:1,payrollIncluded:1,activeOutsidePayroll:0,inactiveContracts:0,stateErrorContracts:0,unknownContracts:0,multipleActiveContracts:0,multipleActivePeople:0,lastClosedContracts:1,lastClosedMonth:'2026-07-01',sourceCutoffFrom:'2026-08-06T18:15:21Z',sourceCutoffTo:'2026-08-06T18:15:21Z',snapshotFrom:'2026-08-31',snapshotTo:'2026-08-31'};
+ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
+ try {
+@@ -32,7 +32,8 @@
+     else if(resource==='employeepayroll') {
+       const query=Object.fromEntries(url.searchParams);requests.push(query);
+       assert.equal(query.contractId,employee.contractId);
+-      if(slow||query.year==='2024')await new Promise(resolve=>setTimeout(resolve,350));
++      if(slow)await slowResponse;
++      else if(query.year==='2024')await new Promise(resolve=>setTimeout(resolve,350));
+       if(denied)return route.fulfill({status:403,json:{ok:false,error:'La sesión ya no tiene permiso de consulta de nómina.'}});
+       const year=url.searchParams.get('year'),page=Number(query.page||1),limit=Number(query.limit||12);
+       const filtered=items.filter(i=>!year||String(i.sourcePeriod)===year);
+@@ -106,9 +107,12 @@
+   await page.locator('#employeeDialog').screenshot({path:path.join(out,'history-mobile-qa.png')});
+   checks.push('mobile download works with bounded dialog, stacked buttons and reduced motion');
+   const previousDownloads=downloads;slow=true;
++  slowResponse=new Promise(resolve=>{releaseSlowResponse=resolve;});
+   const request=page.waitForRequest(r=>r.url().includes('resource=employeepayroll'));
+   await cards.first().locator('[data-payroll-summary-download]').click();await request;
+-  await page.getByRole('button',{name:'Cerrar ficha',exact:true}).click();await page.waitForTimeout(600);
++  await page.getByRole('button',{name:'Cerrar ficha',exact:true}).click();
++  assert.equal(await page.locator('#employeeDialog').isVisible(),false);
++  releaseSlowResponse();await page.waitForTimeout(600);
+   assert.equal(downloads,previousDownloads);assert.equal(await page.locator('#employeeDialog').isVisible(),false);
+   checks.push('closing the legajo during revalidation cancels its download');
+   assert.deepEqual(errors,[]);
