@@ -28,11 +28,20 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: mkdir -p verification
+      - name: Preserve reviewed concurrent production release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff 45bcbef68cb3bdff8eeab16941c6281c96bf43b3
       - name: Apply exact reviewed patch
         shell: bash
         run: |
@@ -62,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/verify-payroll-comparison-056.mjs 2>&1 | tee verification/comparison-browser.log
-      - name: Legajo summary, document library, report centre and roster regressions
+      - name: Legajo, reports, roster and concurrent novelty regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -71,6 +80,7 @@ jobs:
           node scripts/verify-document-library-legajo.mjs 2>&1 | tee verification/library-shell.log
           node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/report-centre.log
           node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster.log
+          node scripts/verify-novelty-review-056.mjs 2>&1 | tee verification/novelty-browser.log
       - name: Commit only validated implementation
         shell: bash
         run: |
@@ -81,7 +91,7 @@ jobs:
           if test -f scripts/patches/056.patch.b64.1; then git rm scripts/patches/056.patch.b64.{1,2,3}; fi
           if test -f scripts/patches/056.qa.patch; then git rm scripts/patches/056.qa.patch; fi
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(056): compare payroll concepts with exact differences and guarded exports'
+            git commit -m 'feat(056): compare payroll concepts; preserve concurrent novelty review release'
             git push origin HEAD:feat/comparar-liquidaciones-056
           fi
           git rev-parse HEAD > verification/validated-commit.txt
@@ -89,7 +99,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          git diff > verification/pending-changes.patch
+          git diff HEAD > verification/pending-changes.patch
           git archive --format=tar.gz -o verification/comparison-056-source.tar.gz HEAD
       - uses: actions/upload-artifact@v4
         if: always()
