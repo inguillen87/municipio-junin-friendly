@@ -1,0 +1,26 @@
+name: Legajo production smoke
+on:
+  push:
+    branches: ['master']
+permissions:
+  contents: read
+concurrency:
+  group: legajo-production
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check published resources and anonymous access denial
+        run: node scripts/verify-legajo-production.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legajo-production-verification
+          path: verification/legajo-production.json
+          retention-days: 7
