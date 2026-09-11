@@ -1,3 +1,4 @@
+import { employeePayrollDetail } from '../lib/internal-payroll-detail.js';
 import { DEFAULT_WORKFORCE_STATUS, WORKFORCE_STATUSES, directorySourceBinding, operationalDirectorySql, operationalScopeSelectSql, operationalScopeFromRow } from '../lib/workforce-operational-scope.js';
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
@@ -3736,6 +3737,10 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'employeepayrolldetail') {
+        const result = await employeePayrollDetail(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'employeepayroll') {

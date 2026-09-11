@@ -1144,6 +1144,7 @@
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/workforce-operations.css">
 <script type="module" src="assets/workforce-operations.js"></script>
+  <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -3014,7 +3015,17 @@
           }catch(error){toast('No se generó el resumen: '+error.message,'error');}
           finally{summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
         });
-        actions.append(actionContext, summaryDownload, novelty);
+        const detailButton=create('button','button','Ver conceptos y descuentos');
+        detailButton.type='button';detailButton.dataset.payrollDetailOpen='true';
+        const canReadDetail=()=>state.tenantCapabilities.has('workforce.employee.read')&&state.tenantCapabilities.has('payroll.read')&&card.isConnected;
+        detailButton.disabled=summaryDownload.disabled;
+        detailButton.addEventListener('click',async function(){
+          if(!canReadDetail())return;detailButton.disabled=true;
+          try{const module=await import('./assets/payroll-detail-panel.js');if(canReadDetail())await module.openPayrollDetail({host:card,employee,item,request:requestJSON,canRead:canReadDetail});}
+          catch(error){toast('No se pudo abrir el detalle: '+error.message,'error');}
+          finally{detailButton.disabled=!canReadDetail();}
+        });
+        actions.append(actionContext, detailButton, summaryDownload, novelty);
         card.appendChild(actions);
         return card;
       }
