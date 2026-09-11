@@ -46,6 +46,7 @@ database/
 !scripts/migrations/029-payroll-novelty-first-fortnight.sql
 !scripts/migrations/030-governed-account-profile-admin-view.sql
 !scripts/migrations/031-governed-employee-payroll-history.sql
+!scripts/migrations/032-payroll-type-mapping-fail-closed-schema.sql
 !scripts/migrations/032-payroll-type-mapping-fail-closed.sql
 !scripts/migrations/033-payroll-art-report-capability.sql
 !scripts/migrations/034-payroll-control-import-binding-lock.sql
@@ -134,3 +135,8 @@ api/whatsapp-test.js
 api/whatsapp-vecinos.js
 api/whatsapp-voice.js
 api/whatsapp-webhook.js
+
+# Source-only schema contracts required by npm test during Vercel builds.
+!scripts/migrations/048-payroll-detail-source.sql
+!scripts/migrations/049-payroll-detail-private-delivery.sql
+!scripts/migrations/050-payroll-detail-tls-delivery.sql
