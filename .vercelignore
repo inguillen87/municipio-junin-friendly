@@ -134,3 +134,6 @@ api/whatsapp-test.js
 api/whatsapp-vecinos.js
 api/whatsapp-voice.js
 api/whatsapp-webhook.js
+
+# Source-only SQL required by payroll detail build assertions. Never copied into public/.
+!scripts/migrations/048-payroll-detail-source.sql
