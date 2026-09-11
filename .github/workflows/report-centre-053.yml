@@ -1,0 +1,71 @@
+name: Report centre and payroll workspace acceptance
+on:
+  push:
+    branches: ['feat/report-centre-053']
+permissions:
+  contents: read
+concurrency:
+  group: report-centre-053
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply checksum-verified source only
+        run: |
+          if [ ! -f assets/report-centre.js ]; then
+            curl --fail --silent --show-error --max-time 60 -o /tmp/source.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789121321/municontrol-code-transfer/report-centre-053-8b5ee3ab.patch.gz'
+            echo '8b5ee3ab1c7678d5daad04f6a6e55690ae9a4e60f950372568c1d76be24aad0c  /tmp/source.patch.gz' | sha256sum -c -
+            gzip -dc /tmp/source.patch.gz > /tmp/source.patch
+            git apply --check /tmp/source.patch
+            git apply --index /tmp/source.patch
+          fi
+          node scripts/finalize-report-centre.mjs
+      - run: npm ci
+      - name: Full tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+      - name: Build
+        run: |
+          set -o pipefail
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Report centre browser acceptance
+        run: |
+          set -o pipefail
+          node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/report-centre-browser.log
+      - name: Reported summary PDF through the real legajo shell
+        run: |
+          set -o pipefail
+          node scripts/verify-report-summary-shell.mjs 2>&1 | tee verification/summary-browser.log
+      - name: Active roster regression
+        run: node scripts/verify-workforce-operations-browser.mjs
+      - name: Commit validated source only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .vercelignore assets/report-centre.css
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(reportes): task centre, direct source reports and working summary PDF'
+            git push origin HEAD:feat/report-centre-053
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive source without municipal records
+        if: always()
+        run: git archive --format=tar.gz -o verification/report-centre-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-centre-053-acceptance
+          path: verification/
+          retention-days: 5
