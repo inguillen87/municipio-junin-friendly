@@ -1,9 +1,13 @@
+import { mountPayrollComparison } from './payroll-comparison-panel.js';
 import { mountPayrollRoster } from './payroll-roster-panel.js';
 import {payrollSourceReport,sourceReportDocument} from './payroll-source-report-model.js';
 import {saveReport} from './report-document.js';
 import {civilMonthLabel} from './civil-date.js';
 const e=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 export function mountSourceReports(host){
+ const comparisonParent=document.createElement('div');host.before(comparisonParent);
+ // Mount next to the reader after its parent is attached by the workspace.
+ queueMicrotask(()=>{if(host.parentNode){host.before(comparisonParent);mountPayrollComparison(comparisonParent);}});
  host.innerHTML='<header class="rc-panel-head"><p class="rc-eyebrow">Liquidaciones incorporadas</p><h2>Haberes y descuentos desde MuniControl</h2><p>Elegí una corrida. El sistema consulta los conceptos guardados y prepara el reporte, sin archivos de entrada.</p></header><button type="button" class="rc-button" data-catalog>Consultar liquidaciones disponibles</button><p role="status" aria-live="polite" data-state></p><a href="login.html?next=reportes-rrhh.html%23haberes" data-login hidden>Ingresar al portal interno</a><form data-query hidden class="rc-filter"><label>Liquidación<select data-dataset required></select></label><button class="rc-button" type="submit">Ver reporte</button></form><div data-result hidden><div class="rc-source" data-source></div><div class="rc-filter"><label>Conceptos<select data-group><option value="all">Todos</option><option value="discounts">Descuentos</option><option value="contributions">Aportes 701 y 703</option><option value="totals">Totalizadores</option></select></label><label>Buscar por código o descripción<input type="search" maxlength="100" data-search></label></div><div class="rc-downloads"><button type="button" class="rc-button" data-format="pdf">Descargar PDF</button><button type="button" class="rc-button" data-format="xlsx">Descargar Excel</button><button type="button" class="rc-button secondary" data-format="csv">Descargar CSV</button></div><p data-scope></p><div class="rc-table-wrap"><table class="rc-table"><thead></thead><tbody></tbody></table></div></div>';
  const rosterHost=e('section');host.append(rosterHost);const roster=mountPayrollRoster(rosterHost);
  let current=null,version=0,busy=false;const $=s=>host.querySelector(s),status=$('[data-state]'),result=$('[data-result]');
