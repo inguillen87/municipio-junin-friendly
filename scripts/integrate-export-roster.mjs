@@ -12,6 +12,11 @@ edit('assets/payroll-source-reports.js',s=>{
  return s;
 });
 edit('scripts/build-friendly.mjs',s=>s.includes("'assets/payroll-roster-panel.js'")?s:replace(s,"  'assets/payroll-source-reports.js',","  'assets/payroll-source-reports.js',\n  'assets/export-sex-code.js',\n  'assets/payroll-roster-model.js',\n  'assets/payroll-roster-panel.js',"));
-edit('assets/report-document.js',s=>s.includes('d.rows.length>2000')?s:replace(s,'d.rows.length>1000','d.rows.length>2000'));
+edit('assets/report-document.js',s=>{
+ const limit=/\bd\.rows\.length\s*>\s*(1000|2000)\b/g;
+ const matches=[...s.matchAll(limit)];
+ if(matches.length!==1)throw Error('REPORT_ROW_LIMIT_SOURCE_DRIFT');
+ return s.replace(limit,'d.rows.length>2000');
+});
 edit('assets/report-centre.css',s=>s.includes('.rc-roster{')?s:s+'\n.rc-roster{margin-top:28px;border-top:2px solid #d5e7e4;padding-top:22px}.rc-roster h3{font-size:22px;margin:4px 0 12px}.rc-roster [hidden]{display:none!important}.rc-roster td{overflow-wrap:anywhere}.rc-roster [data-roster-status]{min-height:20px}\n');
 edit('.vercelignore',s=>s.includes('!scripts/migrations/054-payroll-export-roster.sql')?s:s+'\n!scripts/migrations/054-payroll-export-roster.sql\n');
