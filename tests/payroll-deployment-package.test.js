@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+const ignore=fs.readFileSync('.vercelignore','utf8').split(/\r?\n/);
+for(const path of ['scripts/migrations/048-payroll-detail-source.sql','scripts/migrations/049-payroll-detail-private-delivery.sql','scripts/migrations/050-payroll-detail-tls-delivery.sql'])test('Vercel build includes required payroll schema contract '+path,()=>{assert.ok(fs.existsSync(path));assert.ok(ignore.includes('!'+path));assert.ok(ignore.indexOf('!'+path)>ignore.indexOf('*.sql'))});
+test('deployment still excludes source backups and secrets',()=>{for(const p of ['.env*','*.sql.gz','*.backup*','data-rrhh/','.new_token.txt'])assert.ok(ignore.includes(p));assert.ok(!ignore.includes('!*.sql'));assert.ok(!ignore.includes('!*.sql.gz'))});
