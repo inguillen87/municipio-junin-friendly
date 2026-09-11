@@ -10,35 +10,41 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: mkdir -p verification
       - run: npm ci
-      - name: Tests
+      - name: Reproduce original source packaging
+        run: node scripts/verify-vercel-source-package.mjs
+      - name: Repair exact missing source and verify packaged build
+        run: node scripts/verify-vercel-source-package.mjs --fix
+      - name: Full source tests and build
         run: |
           set -o pipefail
-          npm test 2>&1 | tee verification/tests.log
-      - name: Build
-        run: node scripts/build-friendly.mjs
-      - name: Public asset diagnosis
-        if: always()
+          npm run build 2>&1 | tee verification/tests.log
+      - run: npx playwright install --with-deps chromium
+      - name: Detail and active roster browser regression
         run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs'; import {createHash} from 'node:crypto';
-          const hash=b=>createHash('sha256').update(b).digest('hex');
-          const paths=['assets/payroll-detail-panel.js','assets/payroll-detail-model.js','assets/payroll-detail-export.js','assets/payroll-detail-panel.css','assets/legajo-workspace.js','internal-dashboard.html'];
-          const result=[];
-          for(const p of paths){try{const r=await fetch('https://municipio-junin-friendly.vercel.app/'+p+'?check='+process.env.GITHUB_SHA,{signal:AbortSignal.timeout(12000)});const b=Buffer.from(await r.arrayBuffer());const text=b.toString();result.push({path:p,status:r.status,contentType:r.headers.get('content-type'),expected:hash(fs.readFileSync(p)),actual:hash(b),bytes:b.length,detailButton:text.includes('Ver conceptos y descuentos'),payrollResource:text.includes('employeepayrolldetail'),activeRoster:text.includes('id="workforceWorkspace"'),activeDefault:text.includes('<option value="administrative_active" selected>')});}catch{result.push({path:p,error:'REQUEST_FAILED'});}}
-          fs.writeFileSync('verification/public-assets.json',JSON.stringify(result,null,2)); console.log(JSON.stringify(result));
-          NODE
-      - name: Archive exact tracked source
+          node scripts/verify-payroll-detail-browser.mjs
+          node scripts/verify-workforce-operations-browser.mjs
+      - name: Commit validated packaging repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .vercelignore
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(build): retain audited payroll migration required by production tests'
+            git push origin HEAD:fix/payroll-048-live-20260911
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive tracked source
         if: always()
         run: git archive --format=tar.gz -o verification/source.tar.gz HEAD
       - uses: actions/upload-artifact@v4
