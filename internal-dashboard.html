@@ -1145,6 +1145,7 @@
 <link rel="stylesheet" href="assets/workforce-operations.css">
 <script type="module" src="assets/workforce-operations.js"></script>
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
+<link rel="stylesheet" href="assets/payroll-document-library.css">
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -2859,7 +2860,18 @@
         downloads.type='button';downloads.disabled=payroll.disabled;
         downloads.title='Abrir períodos y descargar un resumen PDF; el recibo firmado requiere emisión autorizada';
         downloads.addEventListener('click',function(){payroll.click();});
-        actions.append(payroll, downloads, novelty, calculate, request, absence);
+        const libraryButton=create('button','button','Liquidaciones detalladas');
+        libraryButton.type='button';libraryButton.dataset.dataPayrollDocumentLibraryOpen='true';
+        libraryButton.disabled=payroll.disabled;
+        libraryButton.title='Ver períodos con conceptos incorporados, incluso si no figuran en el resumen anterior';
+        libraryButton.addEventListener('click',async function(){
+          const live=()=>section.isConnected&&state.tenantCapabilities.has('workforce.employee.read')&&state.tenantCapabilities.has('payroll.read');
+          if(!live())return;libraryButton.disabled=true;
+          try{const module=await import('./assets/payroll-document-library.js');if(live())await module.openPayrollDocumentLibrary({host:els.dialogBody,employee,request:requestJSON,canRead:live});}
+          catch(error){if(live())toast('No se pudo abrir la biblioteca de liquidaciones.','error');}
+          finally{libraryButton.disabled=!live();}
+        });
+        actions.append(payroll, libraryButton, downloads, novelty, calculate, request, absence);
         section.appendChild(actions);
         if (unavailable.length) {
           const availability = create(

@@ -16,6 +16,8 @@ export async function openPayrollDetail({host,employee,item,request,canRead}){
   const payload=await request('/api/internal-data?'+query.toString(),{signal:controller.signal});if(!active||!section.isConnected||!canRead())return;
   if(!payload?.ok)throw new Error('No se pudo consultar el detalle.');
   if(payload.data?.available===false){status.textContent='Todavía no hay líneas de conceptos incorporadas para este período. El resumen mensual sigue disponible; no se inventaron descuentos.';return}
+  // DOCUMENT_DATASET_PINNED: do not open a different source version than the selected library item.
+  if(item.datasetId&&payload.data?.datasetId!==item.datasetId)throw new Error('Hay una versión distinta de esta liquidación. Actualizá la biblioteca antes de abrirla.');
   const model=createPayrollDetailModel(payload.data,employee);status.textContent=model.sourceLabel+' · '+model.rows.length+' conceptos conservados · '+(model.closureStatus==='closed'?'Cierre informado por la fuente':'Abierta / preliquidación');
   section.append(el('p','pd-scope','Detalle informativo del respaldo. No acredita pago ni emisión oficial; los aportes patronales no se descuentan otra vez al empleado.'));
   if(model.historyChanged)section.append(el('p','pd-warning','Este detalle proviene de un corte diferente y tiene importes distintos del resumen mensual de la ficha. Se muestran ambas fuentes, sin sustituir el histórico.'));
