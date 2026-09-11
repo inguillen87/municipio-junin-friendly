@@ -25,7 +25,10 @@ export async function openPayrollDetail({host,employee,item,request,canRead}){
    const fresh=await request('/api/internal-data?'+query.toString(),{signal:controller.signal});
    if(!active||!section.isConnected||!canRead())return;
    if(!fresh?.ok||fresh.data?.statementId!==model.statementId||fresh.data?.statementHash!==model.statementHash||fresh.data?.sourceHash!==model.sourceHash)throw new Error('El detalle cambió. Volvé a abrirlo antes de exportar.');
-   const verified=createPayrollDetailModel(fresh.data,employee),bytes=ext==='pdf'?createPayrollDetailPdf(verified):createPayrollDetailXlsx(verified);downloadDetail(bytes,ext,verified.period);feedback.textContent='Exportación completa del detalle consultado: '+verified.rows.length+' conceptos. Sin firma.';
+   const verified=createPayrollDetailModel(fresh.data,employee);
+   // EXPORT_PREVIEW_PINNED: reauthorization cannot silently change the reviewed comparison.
+   if(JSON.stringify(verified)!==JSON.stringify(model))throw new Error('La conciliación cambió. Volvé a abrir el detalle antes de exportar.');
+   const bytes=ext==='pdf'?createPayrollDetailPdf(verified):createPayrollDetailXlsx(verified);downloadDetail(bytes,ext,verified.period);feedback.textContent='Exportación completa del detalle consultado: '+verified.rows.length+' conceptos. Sin firma.';
   }catch(e){if(e.name!=='AbortError')feedback.textContent=e.message||'No se generó el archivo.'}finally{all.forEach(x=>x.disabled=!canRead())}}
   const pdf=button('Descargar detalle · PDF',()=>exportTo('pdf')),xlsx=button('Descargar detalle · Excel',()=>exportTo('xlsx'));actions.append(pdf,xlsx);section.append(actions,feedback);
   const bar=el('div','pd-filters'),count=el('p','pd-status'),tableWrap=el('div','pd-table-wrap'),table=el('table','pd-table'),thead=el('thead'),tr=el('tr'),tbody=el('tbody');
