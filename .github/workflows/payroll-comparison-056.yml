@@ -1,0 +1,123 @@
+name: Compare payroll concepts 056
+on:
+  push:
+    branches: ['feat/comparar-liquidaciones-056', 'master']
+    paths:
+      - '.github/workflows/payroll-comparison-056.yml'
+      - 'scripts/patches/056*'
+      - 'assets/payroll-comparison*'
+      - 'assets/report-centre.js'
+      - 'assets/payroll-navigation.js'
+      - 'reportes-rrhh.html'
+      - 'nomina-control.html'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-payroll-comparison*'
+      - 'scripts/payroll-comparison-synthetic.mjs'
+      - 'tests/payroll-comparison-056.test.js'
+permissions:
+  contents: read
+concurrency:
+  group: payroll-comparison-056-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply exact reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f scripts/patches/056.patch.b64.1; then
+            node --input-type=module -e 'import fs from "node:fs"; const encoded=[1,2,3].map(n=>fs.readFileSync("scripts/patches/056.patch.b64."+n,"utf8")).join("").replace(/\s/g,""); if(!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)||encoded.length!==32420)throw Error("INVALID_PATCH_ENCODING"); fs.writeFileSync("/tmp/056.patch.gz",Buffer.from(encoded,"base64"));'
+            echo '61e78ecbf920f53adaf6d8dfc154ff9a3d3e411fe3f416a41d9e469e05e4c636  /tmp/056.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/056.patch.gz > /tmp/056.patch
+            git apply --check /tmp/056.patch
+            git apply /tmp/056.patch
+          fi
+          if test -f scripts/patches/056.qa.patch; then
+            git apply --check scripts/patches/056.qa.patch
+            git apply scripts/patches/056.qa.patch
+          fi
+          git diff --check
+      - run: npm ci
+      - name: Full unit tests and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Compare sources, downloads, cancellation and isolation in browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-comparison-056.mjs 2>&1 | tee verification/comparison-browser.log
+      - name: Legajo summary, document library, report centre and roster regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/summary-browser.log
+          node scripts/verify-report-summary-shell.mjs 2>&1 | tee verification/summary-shell.log
+          node scripts/verify-document-library-legajo.mjs 2>&1 | tee verification/library-shell.log
+          node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/report-centre.log
+          node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster.log
+      - name: Commit only validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/payroll-comparison-model.js assets/payroll-comparison.js assets/payroll-comparison.css assets/payroll-navigation.js assets/report-centre.js docs/SPRINT_056_COMPARAR_LIQUIDACIONES.md nomina-control.html reportes-rrhh.html scripts/build-friendly.mjs scripts/payroll-comparison-synthetic.mjs scripts/verify-payroll-comparison-056.mjs scripts/verify-payroll-comparison-production-056.mjs scripts/verify-report-centre-browser.mjs tests/payroll-comparison-056.test.js
+          if test -f scripts/patches/056.patch.b64.1; then git rm scripts/patches/056.patch.b64.{1,2,3}; fi
+          if test -f scripts/patches/056.qa.patch; then git rm scripts/patches/056.qa.patch; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(056): compare payroll concepts with exact differences and guarded exports'
+            git push origin HEAD:feat/comparar-liquidaciones-056
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive evidence and source
+        if: always()
+        shell: bash
+        run: |
+          git diff > verification/pending-changes.patch
+          git archive --format=tar.gz -o verification/comparison-056-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comparison-056-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Match canonical production bytes and verify anonymous rejection
+        run: node scripts/verify-payroll-comparison-production-056.mjs
+      - name: Verify published UI with synthetic API only
+        env:
+          COMPARISON_LIVE_ASSETS: '1'
+        run: node scripts/verify-payroll-comparison-056.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comparison-056-production-verification
+          path: verification/
+          retention-days: 5
