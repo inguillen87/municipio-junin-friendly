@@ -39,6 +39,8 @@ const shellFiles = [
   'assets/workday-panel.js',
   'assets/payroll-summary-pdf.js',
   'assets/action-language.js',
+  'assets/workforce-operations.js',
+  'assets/workforce-operations.css',
   'assets/payroll-novelty-amount-policy.js',
   'assets/clock-dashboard-zip.js',
   'assets/clock-dashboard-export.js',

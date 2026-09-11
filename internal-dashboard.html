@@ -1142,6 +1142,8 @@
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/workforce-operations.css">
+<script type="module" src="assets/workforce-operations.js"></script>
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -1316,21 +1318,42 @@
         <section class="view" id="view-legajos" data-section="legajos" aria-labelledby="legajosTitle" hidden>
           <header class="page-heading">
             <div>
-              <p class="eyebrow">Directorio interno · GRH como fuente laboral</p>
+              <p class="eyebrow">Gestión de personal · MuniControl</p>
               <h1 id="legajosTitle" tabindex="-1">Personas y legajos</h1>
-              <p class="page-lead">Encontrá una ficha por nombre, legajo, DNI o CUIL. PERSONAS sólo amplía identidad y territorio cuando el vínculo está validado.</p>
+              <p class="page-lead">El padrón activo primero. Desde cada legajo consultá haberes, gestioná novedades o iniciá una licencia. El archivo histórico se consulta por separado.</p>
             </div>
           </header>
 
           <section class="panel" aria-labelledby="employeeTableTitle">
             <h2 class="sr-only" id="employeeTableTitle">Directorio de personas y legajos</h2>
-            <div class="directory-scope" id="directoryScope" aria-label="Cobertura del directorio" aria-live="polite">
-              <div class="scope-fact"><span>Legajos</span><strong id="scopeContracts">—</strong></div>
-              <div class="scope-fact"><span>Personas GRH</span><strong id="scopePeople">—</strong></div>
+            <section class="workforce-workspace" id="workforceWorkspace" aria-labelledby="workforceTitle">
+ <div class="workforce-heading"><div><p class="eyebrow">Operación de personal</p><h2 id="workforceTitle">Trabajá primero con el padrón activo</h2><p>Elegí un grupo para consultar sus legajos. Las bajas y el archivo completo permanecen disponibles sin mezclarse con el trabajo habitual.</p></div></div>
+ <div class="workforce-grid">
+  <button type="button" class="workforce-card" data-workforce-status="administrative_active" aria-pressed="true"><span>Legajos activos</span><strong data-workforce-count="activeContracts">—</strong><small>Consultar el padrón operativo →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="liquidable" aria-pressed="false"><span>Incluidos en corrida informada</span><strong data-workforce-count="payrollIncluded">—</strong><small>Inclusión de origen, no pago confirmado →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="gap" aria-pressed="false"><span>Activos fuera de la corrida</span><strong data-workforce-count="activeOutsidePayroll">—</strong><small>Revisar antes de preparar novedades →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="state_error" aria-pressed="false"><span>Estados a revisar</span><strong data-workforce-count="stateErrorContracts">—</strong><small>Inconsistencias separadas del padrón →</small></button>
+ </div>
+ <p id="workforceMultipleLabel">Personas distintas: por consultar.</p>
+ <div class="workforce-actions">
+  <button type="button" class="button" data-workforce-status="multiple_active" aria-pressed="false">Ver personas con varios legajos</button>
+  <button type="button" class="button" data-workforce-status="last_closed" aria-pressed="false">Ver liquidados del último mes cerrado</button>
+  <button type="button" class="button" data-workforce-status="inactive" aria-pressed="false">Consultar inactivos / histórico</button>
+ </div>
+ <p id="workforceClosedLabel">Mes cerrado de referencia: por consultar.</p>
+ <p class="workforce-source" id="workforceSource">Consultando el corte de la fuente. La cantidad de legajos no equivale a la cantidad de personas.</p>
+ <p class="workforce-selection" id="workforceSelection" role="status" aria-live="polite"></p>
+</section>
+
+<details class="workforce-history"><summary>Cobertura del archivo histórico y calidad de identidad</summary>
+<div class="directory-scope" id="directoryScope" aria-label="Cobertura del directorio" aria-live="polite">
+              <div class="scope-fact"><span>Legajos del archivo</span><strong id="scopeContracts">—</strong></div>
+              <div class="scope-fact"><span>Personas con legajo</span><strong id="scopePeople">—</strong></div>
               <div class="scope-fact"><span>Vinculadas</span><strong id="scopeMatched">—</strong></div>
               <div class="scope-fact"><span>Ambiguas</span><strong id="scopeAmbiguous">—</strong></div>
               <div class="scope-fact"><span>Sin coincidencia</span><strong id="scopeUnmatched">—</strong></div>
             </div>
+            </details>
             <form class="filters directory-filters" id="employeeFilters" role="search">
               <div class="field search-field">
                 <label for="employeeSearch">Nombre, legajo, DNI o CUIL</label>
@@ -1357,11 +1380,13 @@
               <div class="field">
                 <label for="statusFilter">Situación</label>
                 <select class="select" id="statusFilter" name="status">
-                  <option value="all">Todas</option>
-                  <option value="administrative_active">Activos administrativos</option>
-                  <option value="liquidable">Incluidos en liquidación</option>
+                  <option value="administrative_active" selected>Activos del padrón</option>
+                  <option value="all">Archivo completo · activos e histórico</option>
+                  <option value="multiple_active">Varios legajos activos por persona</option>
+                  <option value="last_closed">Liquidados del último mes cerrado</option>
+                  <option value="liquidable">Incluidos en la corrida informada</option>
                   <option value="gap">Activos fuera de liquidación</option>
-                  <option value="inactive">Inactivos administrativos</option>
+                  <option value="inactive">Histórico · legajos inactivos</option>
                   <option value="state_error">Estado a revisar</option>
                   <option value="unknown">Sin clasificación</option>
                 </select>
@@ -1377,7 +1402,7 @@
               </div>
               <div class="filter-actions">
                 <button class="button primary" type="submit">Buscar</button>
-                <button class="button" id="clearFilters" type="button">Limpiar</button>
+                <button class="button" id="clearFilters" type="button">Restablecer activos</button>
               </div>
             </form>
 
@@ -1576,7 +1601,7 @@
         detailController: null,
         payrollController: null,
         payrollActionDescriptionSequence: 0,
-        filters: { search: '', sector: '', organization: '', agreement: '', status: 'all', crosswalk: 'all' },
+        filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
         directoryFacetsLoaded: false,
         sectors: new Set(),
@@ -2423,6 +2448,7 @@
         return {
           rows: rows,
           pagination: { page: page, limit: limit, total: total, pages: pages },
+          operational: payload.operational && typeof payload.operational === 'object' ? payload.operational : {},
           scope: payload && payload.scope && typeof payload.scope === 'object' ? payload.scope : {},
           facets: payload && payload.facets && typeof payload.facets === 'object' ? payload.facets : {}
         };
@@ -2481,6 +2507,7 @@
           collectDirectoryFacets(result.facets);
           if (Object.keys(result.facets).length) state.directoryFacetsLoaded = true;
           renderDirectoryScope(result.scope);
+          window.dispatchEvent(new CustomEvent('municontrol:workforce-scope', {detail:result.operational}));
           collectRowSectors(result.rows);
           renderEmployees(result.rows, result.pagination);
           return { ok: true, resource: 'employees' };
@@ -2541,6 +2568,7 @@
           active_not_liquidated_historical: 'Activo sin liquidación actual',
           active_not_liquidated_prior_cycle: 'Activo en ciclo anterior',
           inactivo_administrativo: 'Inactivo administrativo',
+          estado_contrato_inconsistente: 'Estado de contrato inconsistente',
           sin_clasificar: 'Sin clasificar'
         })[normalized] || (text(value) ? readableKey(value, 'control') : 'No disponible');
       }
@@ -2624,6 +2652,7 @@
       }
 
       function renderEmployeesError(error) {
+        window.dispatchEvent(new Event('municontrol:workforce-reset'));
         const message = friendlyNetworkError(error, 'No se pudo conectar con la consulta de legajos.');
         els.employeeRows.replaceChildren();
         const row = create('tr');
@@ -3508,7 +3537,7 @@
           detailField('Estado administrativo', administrative.label),
           detailField('Incluido en liquidación', employee.liquidable, function (value) { return value ? 'Sí' : 'No'; }),
           detailField('Estado de liquidación', employee.payrollStatus, payrollStatusLabel),
-          detailField('Control 882 / 854', employee.controlState, controlStateLabel, 'derived'),
+          detailField('Inclusión en corrida', employee.controlState, controlStateLabel, 'derived'),
           detailField('Cierre de corrida', employee.payrollClosureStatus, function (value) { return readableKey(value, 'payroll'); }),
           detailField('Foto de estado', employee.statusSnapshotDate, formatDate),
           detailField('Fecha de ingreso', employee.fechaIngreso, formatDate),
@@ -3691,7 +3720,7 @@
         els.sectorFilter.value = '';
         els.organizationFilter.value = '';
         els.agreementFilter.value = '';
-        els.statusFilter.value = 'all';
+        els.statusFilter.value = 'administrative_active';
         els.crosswalkFilter.value = 'all';
         applyFilters();
         els.employeeSearch.focus();

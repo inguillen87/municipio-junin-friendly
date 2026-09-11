@@ -1,3 +1,4 @@
+import { DEFAULT_WORKFORCE_STATUS, WORKFORCE_STATUSES, directorySourceBinding, operationalDirectorySql, operationalScopeSelectSql, operationalScopeFromRow } from '../lib/workforce-operational-scope.js';
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
@@ -2899,10 +2900,7 @@ export async function managementAnalytics(sql) {
   };
 }
 
-const DIRECTORY_STATUS = new Set([
-  'all', 'active', 'administrative_active', 'liquidable', 'gap',
-  'inactive', 'state_error', 'unknown'
-]);
+const DIRECTORY_STATUS = new Set(WORKFORCE_STATUSES);
 const DIRECTORY_CROSSWALK = new Set(['all', 'matched', 'ambiguous', 'unmatched', 'rejected']);
 const DETAIL_EVENT_LIMIT = 25;
 const DETAIL_MOVEMENT_LIMIT = 20;
@@ -3015,7 +3013,7 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql() {
+function directoryBaseSql(sourceBound = false) {
   return `
     WITH directory AS (
       SELECT contract.id AS "contractId",
@@ -3031,16 +3029,19 @@ function directoryBaseSql() {
              contract.start_date AS "fechaIngreso",
              contract.end_date AS "fechaEgreso",
              contract.status AS "contractStatus",
-             latest_status.administrative_status AS "administrativeStatus",
+             contract.source_system AS "sourceSystem", contract.source_batch_id AS "sourceBatchId",
+             source_batch.source_cutoff AS "sourceCutoff",
+             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status
+                  ELSE latest_status.administrative_status END AS "administrativeStatus",
              latest_status.payroll_status AS "payrollStatus",
              latest_status.snapshot_date AS "statusSnapshotDate",
              COALESCE(
-               control.estado_control,
+               CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END,
                CASE WHEN latest_status.administrative_status = 'inactive'
                     THEN 'inactivo_administrativo' ELSE 'sin_clasificar' END
              ) AS "controlState",
-             COALESCE(latest_status.administrative_status IN (
-               'active', 'suspended', 'leave_without_pay', 'pending_termination', 'state_error'
+             COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
+               'active', 'suspended', 'leave_without_pay', 'pending_termination'
              ), false) AS activo,
              COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false)
                AS liquidable,
@@ -3073,6 +3074,7 @@ function directoryBaseSql() {
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
+      JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN grh_employees employee
         ON employee.company_id = contract.legacy_company_id
        AND employee.legajo = contract.legacy_legajo
@@ -3100,11 +3102,14 @@ function directoryBaseSql() {
         ORDER BY assignment.snapshot_date DESC
         LIMIT 1
       ) latest_assignment ON true
+      WHERE contract.source_system='GRH' AND source_batch.source_system='GRH'
+        AND source_batch.validation_state='published' AND source_batch.legacy_import_run_id IS NOT NULL
+        ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''}
     )
   `;
 }
 
-export async function employees(sql, req) {
+export async function employees(sql, req, binding = null) {
   const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
   const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
   const search = boundedQueryValue(req, 'search', 100);
@@ -3112,7 +3117,7 @@ export async function employees(sql, req) {
   const organization = boundedQueryValue(req, 'organization');
   const agreement = boundedQueryValue(req, 'agreement');
   const includeFacets = queryValue(req, 'includeFacets', '1') !== '0';
-  const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || 'all';
+  const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || DEFAULT_WORKFORCE_STATUS;
   const status = requestedStatus === 'active' ? 'administrative_active' : requestedStatus;
   const crosswalk = boundedQueryValue(req, 'crosswalk', 32).toLowerCase() || 'all';
   if (!DIRECTORY_STATUS.has(requestedStatus)) {
@@ -3123,7 +3128,8 @@ export async function employees(sql, req) {
   }
 
   const conditions = [];
-  const values = [];
+  const sourceValues = binding ? [binding.database, binding.companyId] : [];
+  const values = [...sourceValues];
   const parameter = (value) => {
     values.push(value);
     return `$${values.length}`;
@@ -3149,12 +3155,14 @@ export async function employees(sql, req) {
   if (status === 'administrative_active') conditions.push('directory.activo IS TRUE');
   if (status === 'liquidable') conditions.push('directory.liquidable IS TRUE');
   if (status === 'gap') conditions.push('directory.activo IS TRUE AND directory.liquidable IS NOT TRUE');
+  if (status === 'multiple_active') conditions.push('directory.activo IS TRUE AND directory."canonicalPersonId" IN (SELECT * FROM multiple_active_people)');
+  if (status === 'last_closed') conditions.push('directory."contractId" IN (SELECT employment_contract_id FROM closed_contracts)');
   if (status === 'inactive') conditions.push("directory.\"administrativeStatus\" = 'inactive'");
   if (status === 'state_error') conditions.push("directory.\"administrativeStatus\" = 'state_error'");
   if (status === 'unknown') conditions.push("directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown'");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = directoryBaseSql();
+  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding)));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const [[countRow], data, [scope], sectors, organizations, agreements] = await Promise.all([
@@ -3174,41 +3182,18 @@ export async function employees(sql, req) {
                legajo
       LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
     `, dataValues),
-    sql.query(`
-      SELECT (SELECT count(*)::int FROM employment_contract) AS "totalContracts",
-             (SELECT count(*)::int FROM person_identity) AS "totalPeople",
-             (SELECT count(*)::int FROM crosswalk_persona
-               WHERE valid_to IS NULL AND match_status = 'matched') AS matched,
-             (SELECT count(*)::int FROM crosswalk_persona
-               WHERE valid_to IS NULL AND match_status = 'ambiguous') AS ambiguous,
-             (SELECT count(*)::int FROM crosswalk_persona
-               WHERE valid_to IS NULL AND match_status = 'unmatched') AS unmatched
-    `),
-    includeFacets ? sql.query(`
-      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,sectorName}'), ''), 'Sin sector informado') AS value,
-             count(*)::int AS count
-      FROM employment_contract
-      GROUP BY 1 ORDER BY value
-    `) : Promise.resolve([]),
-    includeFacets ? sql.query(`
-      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,organizationName}'), ''), 'Sin organización informada') AS value,
-             count(*)::int AS count
-      FROM employment_contract
-      GROUP BY 1 ORDER BY value
-    `) : Promise.resolve([]),
-    includeFacets ? sql.query(`
-      SELECT COALESCE(NULLIF(btrim(source_payload #>> '{employment,agreementName}'), ''), 'Sin convenio informado') AS value,
-             count(*)::int AS count
-      FROM employment_contract
-      GROUP BY 1 ORDER BY value
-    `) : Promise.resolve([])
+    sql.query(operationalScopeSelectSql(baseSql), sourceValues),
+    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(sector, 'Sin sector informado') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([]),
+    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(organizacion, 'Sin organización informada') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([]),
+    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(convenio, 'Sin convenio informado') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([])
   ]);
   const total = Number(countRow?.total || 0);
   return {
     status: 200,
     payload: {
       ok: true,
-      data,
+      data: data.map(({sourceSystem, sourceBatchId, sourceCutoff, ...row}) => row),
+      operational: operationalScopeFromRow(scope, status),
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
       scope: {
         grain: 'employment_contract',
@@ -3459,14 +3444,14 @@ export async function employee(sql, req) {
            employee.profesion,
            employee.source_payload AS "legacyRawFields",
            latest_status.snapshot_date AS "statusSnapshotDate",
-           latest_status.administrative_status AS "administrativeStatus",
+           CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status ELSE latest_status.administrative_status END AS "administrativeStatus",
            latest_status.payroll_status AS "payrollStatus",
            latest_status.discrepancy_reason_code AS "discrepancyReasonCode",
            latest_status.discrepancy_explanation AS "discrepancyExplanation",
            payroll_run.closure_status AS "payrollClosureStatus",
-           control.estado_control AS "controlState",
-           COALESCE(latest_status.administrative_status IN (
-             'active', 'suspended', 'leave_without_pay', 'pending_termination', 'state_error'
+           CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END AS "controlState",
+           COALESCE(contract.status='active' AND latest_status.administrative_status IN (
+             'active', 'suspended', 'leave_without_pay', 'pending_termination'
            ), false) AS activo,
            COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false) AS liquidable,
            latest_assignment.snapshot_date AS "assignmentSnapshotDate",
@@ -3797,7 +3782,7 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, result.status, result.payload);
       }
       if (resource === 'employees') {
-        const result = await employees(sql, req);
+        const result = await employees(sql, req, directorySourceBinding(env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'employee') {
