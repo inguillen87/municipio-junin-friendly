@@ -72,7 +72,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add assets/payroll-comparison-model.js assets/payroll-comparison-panel.js assets/payroll-comparison-056.css assets/payroll-source-reports.js scripts/build-friendly.mjs scripts/verify-payroll-comparison-056.mjs scripts/verify-payroll-comparison-production-056.mjs tests/payroll-comparison-056.test.js docs/SPRINT_056_COMPARADOR_LIQUIDACIONES.md
+          git add assets/payroll-comparison-model.js assets/payroll-comparison-panel.js assets/payroll-comparison-056.css assets/payroll-source-reports.js scripts/build-friendly.mjs scripts/verify-payroll-comparison-056.mjs scripts/verify-payroll-comparison-production-056.mjs scripts/verify-report-centre-browser.mjs tests/payroll-comparison-056.test.js docs/SPRINT_056_COMPARADOR_LIQUIDACIONES.md
           if test -f scripts/patches/056.patch.b64.1; then git rm scripts/patches/056.patch.b64.{1,2,3}; fi
           if test -f scripts/patches/056.qa.patch; then git rm scripts/patches/056.qa.patch; fi
           if ! git diff --cached --quiet; then
