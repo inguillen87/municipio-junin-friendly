@@ -1,0 +1,59 @@
+name: Payroll document library acceptance
+on:
+  push:
+    branches: ['feat/payroll-document-library-20260911']
+permissions:
+  contents: read
+concurrency:
+  group: payroll-document-library
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Integrate and check idempotence
+        run: |
+          node scripts/integrate-payroll-document-library.mjs
+          git diff | sha256sum > /tmp/library-first
+          node scripts/integrate-payroll-document-library.mjs
+          git diff | sha256sum > /tmp/library-second
+          diff /tmp/library-first /tmp/library-second
+      - name: Full tests and build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee verification/tests.log
+      - run: npx playwright install --with-deps chromium
+      - name: Library and regression browser tests
+        run: |
+          node scripts/verify-payroll-document-library-browser.mjs
+          node scripts/verify-payroll-detail-browser.mjs
+          node scripts/verify-workforce-operations-browser.mjs
+      - name: Commit validated integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .vercelignore api/internal-data.js lib/internal-resource-access.js internal-dashboard.html assets/payroll-detail-panel.js scripts/build-friendly.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(legajo): connect private document library independently of historical summary'
+            git push origin HEAD:feat/payroll-document-library-20260911
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive exact tracked source
+        if: always()
+        run: git archive --format=tar.gz -o verification/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: payroll-document-library-acceptance
+          path: verification/
+          retention-days: 4
