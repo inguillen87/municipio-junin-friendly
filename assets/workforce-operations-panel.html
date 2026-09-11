@@ -1,0 +1,18 @@
+<section class="workforce-workspace" id="workforceWorkspace" aria-labelledby="workforceTitle">
+ <div class="workforce-heading"><div><p class="eyebrow">Operación de personal</p><h2 id="workforceTitle">Trabajá primero con el padrón activo</h2><p>Elegí un grupo para consultar sus legajos. Las bajas y el archivo completo permanecen disponibles sin mezclarse con el trabajo habitual.</p></div></div>
+ <div class="workforce-grid">
+  <button type="button" class="workforce-card" data-workforce-status="administrative_active" aria-pressed="true"><span>Legajos activos</span><strong data-workforce-count="activeContracts">—</strong><small>Consultar el padrón operativo →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="liquidable" aria-pressed="false"><span>Incluidos en corrida informada</span><strong data-workforce-count="payrollIncluded">—</strong><small>Inclusión de origen, no pago confirmado →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="gap" aria-pressed="false"><span>Activos fuera de la corrida</span><strong data-workforce-count="activeOutsidePayroll">—</strong><small>Revisar antes de preparar novedades →</small></button>
+  <button type="button" class="workforce-card" data-workforce-status="state_error" aria-pressed="false"><span>Estados a revisar</span><strong data-workforce-count="stateErrorContracts">—</strong><small>Inconsistencias separadas del padrón →</small></button>
+ </div>
+ <p id="workforceMultipleLabel">Personas distintas: por consultar.</p>
+ <div class="workforce-actions">
+  <button type="button" class="button" data-workforce-status="multiple_active" aria-pressed="false">Ver personas con varios legajos</button>
+  <button type="button" class="button" data-workforce-status="last_closed" aria-pressed="false">Ver liquidados del último mes cerrado</button>
+  <button type="button" class="button" data-workforce-status="inactive" aria-pressed="false">Consultar inactivos / histórico</button>
+ </div>
+ <p id="workforceClosedLabel">Mes cerrado de referencia: por consultar.</p>
+ <p class="workforce-source" id="workforceSource">Consultando el corte de la fuente. La cantidad de legajos no equivale a la cantidad de personas.</p>
+ <p class="workforce-selection" id="workforceSelection" role="status" aria-live="polite"></p>
+</section>

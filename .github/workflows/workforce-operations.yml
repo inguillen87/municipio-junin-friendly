@@ -1,0 +1,61 @@
+name: Operational workforce acceptance
+on:
+  push:
+    branches: ['feat/operational-workforce-20260910']
+permissions:
+  contents: read
+concurrency:
+  group: workforce-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Integrate and check idempotence
+        run: |
+          node scripts/integrate-workforce-operations.mjs
+          git diff | sha256sum > /tmp/first
+          node scripts/integrate-workforce-operations.mjs
+          git diff | sha256sum > /tmp/second
+          diff /tmp/first /tmp/second
+      - name: Full tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+      - name: Build
+        run: node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser acceptance
+        run: |
+          set -o pipefail
+          node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/browser.log
+      - name: Commit validated integration only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/internal-data.js internal-dashboard.html scripts/build-friendly.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(personas): active roster, source-bound cohorts and explicit history'
+            git push origin HEAD:feat/operational-workforce-20260910
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive tracked source
+        if: always()
+        run: git archive --format=tar.gz -o verification/workforce-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workforce-operations-acceptance
+          path: verification/
+          retention-days: 5
