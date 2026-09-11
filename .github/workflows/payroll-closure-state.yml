@@ -1,0 +1,59 @@
+name: Payroll closure evidence acceptance
+on:
+  push:
+    branches: ['fix/payroll-closure-state-20260911']
+permissions:
+  contents: read
+concurrency:
+  group: payroll-closure-state
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Integrate compatible closure labels
+        run: |
+          node scripts/integrate-payroll-closure-state.mjs
+          git diff | sha256sum > /tmp/closure-first
+          node scripts/integrate-payroll-closure-state.mjs
+          git diff | sha256sum > /tmp/closure-second
+          diff /tmp/closure-first /tmp/closure-second
+      - name: Full tests and build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee verification/tests.log
+      - run: npx playwright install --with-deps chromium
+      - name: Library, detail and unknown-state acceptance
+        run: |
+          node scripts/verify-payroll-document-library-browser.mjs
+          node scripts/verify-payroll-closure-browser.mjs
+          node scripts/verify-document-library-legajo.mjs
+      - name: Commit validated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .vercelignore assets/payroll-detail-model.js assets/payroll-detail-panel.js assets/payroll-detail-export.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(payroll): distinguish missing closure evidence in screen and exports'
+            git push origin HEAD:fix/payroll-closure-state-20260911
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive exact source
+        if: always()
+        run: git archive --format=tar.gz -o verification/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: payroll-closure-state-acceptance
+          path: verification/
+          retention-days: 4
