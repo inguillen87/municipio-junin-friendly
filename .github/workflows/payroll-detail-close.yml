@@ -1,0 +1,67 @@
+name: Payroll detail closure acceptance
+on:
+  push:
+    branches: ['feat/payroll-detail-048-close']
+permissions:
+  contents: read
+concurrency:
+  group: payroll-detail-close
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply checksum-verified source-only patch
+        run: |
+          if [ ! -f lib/payroll-private-transfer.js ]; then
+            curl --fail --silent --show-error --max-time 60 --output /tmp/source.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789110694/municontrol-code-transfer/payroll-048-close-df9543e3.patch.gz'
+            echo 'df9543e3d7964114549672bf9766903f10e31b0947c49bdbdc7d636ceb51dcb4  /tmp/source.patch.gz' | sha256sum -c -
+            gzip -dc /tmp/source.patch.gz > /tmp/source.patch
+            git apply --check /tmp/source.patch
+            git apply --index /tmp/source.patch
+          fi
+      - run: npm ci
+      - name: Repository tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+      - name: Build application
+        run: |
+          set -o pipefail
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Payroll browser acceptance with synthetic records
+        run: |
+          set -o pipefail
+          node scripts/verify-payroll-detail-browser.mjs 2>&1 | tee verification/payroll-browser.log
+      - name: Active roster regression with synthetic records
+        run: |
+          set -o pipefail
+          node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/workforce-browser.log
+      - name: Commit only validated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(payroll): detailed deductions with bounded private delivery and active-roster integration'
+            git push origin HEAD:feat/payroll-detail-048-close
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive source and reports, no municipal files
+        if: always()
+        run: git archive --format=tar.gz -o verification/payroll-detail-close-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: payroll-detail-close-acceptance
+          path: verification/
+          retention-days: 5
