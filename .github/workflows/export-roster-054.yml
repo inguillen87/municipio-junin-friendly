@@ -20,7 +20,15 @@ jobs:
           node-version: '22'
           cache: npm
       - run: mkdir -p verification
-      - run: node scripts/integrate-export-roster.mjs
+      - name: Integrate source and verify repeatability
+        run: |
+          node scripts/integrate-export-roster.mjs
+          node scripts/refine-roster-acceptance.mjs
+          git diff | sha256sum > /tmp/first
+          node scripts/integrate-export-roster.mjs
+          node scripts/refine-roster-acceptance.mjs
+          git diff | sha256sum > /tmp/second
+          diff /tmp/first /tmp/second
       - run: npm ci
       - name: Full tests and build
         run: |
@@ -28,20 +36,25 @@ jobs:
           npm test 2>&1 | tee verification/all-tests.log
           node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
       - run: npx playwright install --with-deps chromium
-      - run: node scripts/verify-export-roster-browser.mjs
+      - name: Roster downloads and data integrity
+        run: |
+          set -o pipefail
+          node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster-browser.log
       - run: node scripts/verify-report-centre-browser.mjs
       - run: node scripts/verify-report-summary-shell.mjs
       - name: Commit only validated integration
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add api/internal-data.js lib/internal-resource-access.js assets/payroll-source-reports.js scripts/build-friendly.mjs assets/report-document.js assets/report-centre.css .vercelignore
+          git add api/internal-data.js lib/internal-resource-access.js assets/payroll-source-reports.js scripts/build-friendly.mjs assets/report-document.js assets/report-centre.css .vercelignore scripts/verify-export-roster-browser.mjs
           if ! git diff --cached --quiet; then
             git commit -m 'feat(exportables): integrate source roster and F-M export workflow'
             git push origin HEAD:feat/export-roster-054
           fi
           git rev-parse HEAD > verification/validated-commit.txt
-          git archive --format=tar.gz -o verification/export-roster-source.tar.gz HEAD
+      - name: Archive tracked source
+        if: always()
+        run: git archive --format=tar.gz -o verification/export-roster-source.tar.gz HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:

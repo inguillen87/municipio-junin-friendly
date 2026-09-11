@@ -1,0 +1,25 @@
+name: Export roster production verification
+on:
+  push:
+    branches: ['master']
+permissions:
+  contents: read
+concurrency:
+  group: export-roster-production
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/verify-export-roster-production.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: export-roster-production-verification
+          path: verification/export-roster-production.json
+          retention-days: 5
