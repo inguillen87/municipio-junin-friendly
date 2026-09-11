@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           if test -f scripts/patches/055.patch.b64.1; then
-            cat scripts/patches/055.patch.b64.{1,2,3} | base64 --decode > /tmp/055.patch.gz
+            node --input-type=module -e 'import fs from "node:fs"; const parts=[1,2,3].map(n=>fs.readFileSync("scripts/patches/055.patch.b64."+n,"utf8")); console.log("Staged chunk lengths:",parts.map(s=>s.length)); const encoded=parts.join("").replace(/\s/g,""); if(!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)||encoded.length%4!==0)throw Error("INVALID_PATCH_ENCODING"); fs.writeFileSync("/tmp/055.patch.gz",Buffer.from(encoded,"base64"));'
             echo 'd7aa682932fd105e50d1cf55aadfc37d46c2b547a7b454568decc0f74cc1d2af  /tmp/055.patch.gz' | sha256sum --check -
             gzip -dc /tmp/055.patch.gz > /tmp/055.patch
             git apply --check /tmp/055.patch
