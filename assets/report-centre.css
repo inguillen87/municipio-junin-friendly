@@ -8,3 +8,8 @@
 
 /* Compact payroll task header; reference explanations belong to Resumen. */
 .payroll-nav-ready .page-head{gap:16px;margin-bottom:18px;padding-bottom:18px}.payroll-nav-ready .page-head .page-lead{font-size:14px;line-height:1.55;max-width:780px;margin-top:10px}.payroll-nav-ready .page-head .rc-downloads{grid-column:1/-1;margin:0}.payroll-nav-ready .page-head h1{margin:4px 0 10px;font-size:30px;line-height:1.15}.payroll-nav-ready #payrollTaskWorkspace>nav{margin-top:0}.payroll-nav-ready #task-resumen>.notice{margin:0 0 20px}.payroll-nav-ready #mainContent>footer{margin-top:12px}
+
+.rc-roster{margin-top:28px;border-top:2px solid #d5e7e4;padding-top:22px}.rc-roster h3{font-size:22px;margin:4px 0 12px}.rc-roster [hidden]{display:none!important}.rc-roster td{overflow-wrap:anywhere}.rc-roster [data-roster-status]{min-height:20px}
+
+/* Export roster readiness */
+.rc-roster .rc-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.rc-roster .rc-kpis>div{padding:18px;background:#f3faf8;border:1px solid #d5e7e4;border-top:3px solid #087f77;border-radius:10px}.rc-roster .rc-kpis span{font-size:13px;color:#425d69;display:block}.rc-roster .rc-kpis strong{display:block;font-size:30px;line-height:1.4;color:#163e50;margin-top:6px;font-variant-numeric:tabular-nums}.rc-roster .rc-kpis>div:last-child{border-top-color:#aa7416;background:#fffaf0}@media(max-width:620px){.rc-roster .rc-kpis{grid-template-columns:1fr}.rc-roster .rc-kpis>div{padding:12px}.rc-roster .rc-kpis strong{font-size:25px}}
