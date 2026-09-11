@@ -1,0 +1,4 @@
+import fs from 'node:fs';
+const edit=(path,fn)=>{const before=fs.readFileSync(path,'utf8'),after=fn(before);if(before!==after)fs.writeFileSync(path,after)};
+edit('assets/payroll-detail-export.js',s=>s.replace('y-=height;rule();y-=5','y-=height;rule();y-=12').replace("text(416,y,r.quantity??'—',8)","text(405,y,r.quantity===null?'—':r.quantity.replace('.',','),8)"));
+edit('assets/payroll-detail-panel.js',s=>{if(s.includes('EXPORT_PREVIEW_PINNED'))return s;const from="const verified=createPayrollDetailModel(fresh.data,employee),bytes=";if(!s.includes(from))throw new Error('Export integration drift');return s.replace(from,"const verified=createPayrollDetailModel(fresh.data,employee);\n   // EXPORT_PREVIEW_PINNED: reauthorization cannot silently change the reviewed comparison.\n   if(JSON.stringify(verified)!==JSON.stringify(model))throw new Error('La conciliación cambió. Volvé a abrir el detalle antes de exportar.');\n   const bytes=")});
