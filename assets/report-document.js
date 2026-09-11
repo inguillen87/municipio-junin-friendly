@@ -6,8 +6,9 @@ function checked(d){if(!d||!Array.isArray(d.columns)||d.columns.length<2||d.colu
 const shown=(v,c)=>v===null?'No informado':c.type==='money'?new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(Number(v)):c.type==='integer'?integer.format(v):String(v);
 const csvCell=v=>'"'+String(v??'').replace(/^[\s\u0000-\u001f]*[=+@-]/,"'$&").replaceAll('"','""')+'"';
 export function reportCsv(d){checked(d);return '\ufeff'+[d.columns.map(c=>c.label),...d.rows.map(row=>row.map((v,i)=>v===null?'':d.columns[i].type==='money'?v.replace('.',','):v))].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n'}
+function reportRowHeight(row,widths,header){return Math.max(header?32:30,...row.map((v,i)=>typeof v==='string'?lines(v,Math.max(6,Math.floor((widths[i]||23)*0.85))).length*15+10:30))}
 function sheet(rows,widths,filter=false,numericTypes=[]){
- const cells=rows.map((row,i)=>`<row r="${i+1}" ht="${i===0?32:30}" customHeight="1">`+row.map((value,j)=>{const ref=col(j)+(i+1);if(value&&typeof value==='object'&&'formula'in value)return`<c r="${ref}" s="${value.money?3:2}"><f>${xml(value.formula)}</f><v>${value.value}</v></c>`;if(i>0&&typeof value==='number')return`<c r="${ref}" s="${numericTypes[j]==='money'?3:2}"><v>${value}</v></c>`;return`<c r="${ref}" t="inlineStr" s="${i===0?1:0}"><is><t xml:space="preserve">${xml(value)}</t></is></c>`}).join('')+'</row>').join('');
+ const cells=rows.map((row,i)=>`<row r="${i+1}" ht="${reportRowHeight(row,widths,i===0)}" customHeight="1">`+row.map((value,j)=>{const ref=col(j)+(i+1);if(value&&typeof value==='object'&&'formula'in value)return`<c r="${ref}" s="${value.money?3:2}"><f>${xml(value.formula)}</f><v>${value.value}</v></c>`;if(i>0&&typeof value==='number')return`<c r="${ref}" s="${numericTypes[j]==='money'?3:2}"><v>${value}</v></c>`;return`<c r="${ref}" t="inlineStr" s="${i===0?1:0}"><is><t xml:space="preserve">${xml(value)}</t></is></c>`}).join('')+'</row>').join('');
  return`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${cells}</sheetData>${filter?`<autoFilter ref="A1:${col(widths.length-1)}${Math.max(1,rows.length)}"/>`:''}<printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.6" bottom="0.6" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddFooter>&amp;LMuniControl · consulta de datos&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter></worksheet>`;
 }
 export function reportXlsx(d){checked(d);
@@ -27,6 +28,11 @@ export function reportPdf(d){checked(d);const landscape=d.columns.length>5,W=lan
  const footer=()=>{text(left,H-31,'MuniControl · Datos de consulta · Sin firma ni presentación oficial',8);text(W-109,H-31,'Página '+pages.length,8);text(left,H-17,(d.metadata.find(r=>r[0]==='SHA-256')?.[1]||'').slice(0,82),6.5)};
  const widths=d.columns.map(c=>(c.width||23)/d.columns.reduce((n,c)=>n+(c.width||23),0)*width);
  function head(){ops=[];pages.push(ops);rect(0,0,W,85,'0.045 0.15 0.20');rect(0,85,W,3,'0.0 0.50 0.46');text(left,27,'MuniControl | Centro de reportes',11,true,'1 1 1');text(left,56,d.title,18,true,'1 1 1');text(left,75,String(d.metadata.find(r=>r[0]==='Corte de la fuente')?.[1]||d.metadata.find(r=>r[0]==='Período')?.[1]||'Consulta'),9,false,'0.80 0.91 0.92');y=112;
+  const contextKeys=new Set(['Municipio','Fuente','Estado','Tipo','Legajos de la corrida','Filas del filtro']);
+  for(const [label,value] of d.metadata.filter(r=>contextKeys.has(r[0]))){
+   for(const l of lines(label+': '+value,Math.floor(width/4.5))){text(left,y,l,8.5,label==='Estado');y+=12}
+  }
+  y+=10;
   for(const note of d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
   y+=8;rect(left,y,width,32,'0.09 0.24 0.30');let x=left;d.columns.forEach((c,i)=>{lines(c.label,Math.max(7,Math.floor((widths[i]-12)/4.5))).forEach((l,j)=>text(x+6,y+12+j*10,l,8,true,'1 1 1'));x+=widths[i]});y+=32;footer();
  }

@@ -5,3 +5,6 @@
 
 /* Hidden controls stay out of layout even when enhanced with flex/grid. */
 .rc-filter[hidden],[data-analysis-result][hidden],[data-result][hidden]{display:none!important}
+
+/* Compact payroll task header; reference explanations belong to Resumen. */
+.payroll-nav-ready .page-head{gap:16px;margin-bottom:18px;padding-bottom:18px}.payroll-nav-ready .page-head .page-lead{font-size:14px;line-height:1.55;max-width:780px;margin-top:10px}.payroll-nav-ready .page-head .rc-downloads{grid-column:1/-1;margin:0}.payroll-nav-ready .page-head h1{margin:4px 0 10px;font-size:30px;line-height:1.15}.payroll-nav-ready #payrollTaskWorkspace>nav{margin-top:0}.payroll-nav-ready #task-resumen>.notice{margin:0 0 20px}.payroll-nav-ready #mainContent>footer{margin-top:12px}
