@@ -1,4 +1,4 @@
-import { createPayrollDetailModel, money } from './payroll-detail-model.js';
+import { createPayrollDetailModel, money, payrollClosureLabel } from './payroll-detail-model.js';
 import { createPayrollDetailPdf, createPayrollDetailXlsx, downloadDetail } from './payroll-detail-export.js';
 const el=(tag,cls='',value='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=value;return n};
 const button=(label,run)=>{const b=el('button','pd-button',label);b.type='button';b.addEventListener('click',run);return b};
@@ -18,7 +18,7 @@ export async function openPayrollDetail({host,employee,item,request,canRead}){
   if(payload.data?.available===false){status.textContent='Todavía no hay líneas de conceptos incorporadas para este período. El resumen mensual sigue disponible; no se inventaron descuentos.';return}
   // DOCUMENT_DATASET_PINNED: do not open a different source version than the selected library item.
   if(item.datasetId&&payload.data?.datasetId!==item.datasetId)throw new Error('Hay una versión distinta de esta liquidación. Actualizá la biblioteca antes de abrirla.');
-  const model=createPayrollDetailModel(payload.data,employee);status.textContent=model.sourceLabel+' · '+model.rows.length+' conceptos conservados · '+(model.closureStatus==='closed'?'Cierre informado por la fuente':'Abierta / preliquidación');
+  const model=createPayrollDetailModel(payload.data,employee);status.textContent=model.sourceLabel+' · '+model.rows.length+' conceptos conservados · '+payrollClosureLabel(model.closureStatus);
   section.append(el('p','pd-scope','Detalle informativo del respaldo. No acredita pago ni emisión oficial; los aportes patronales no se descuentan otra vez al empleado.'));
   if(model.historyChanged)section.append(el('p','pd-warning','Este detalle proviene de un corte diferente y tiene importes distintos del resumen mensual de la ficha. Se muestran ambas fuentes, sin sustituir el histórico.'));
   const cards=el('div','pd-cards');for(const [code,label]of [['993','Haberes remunerativos'],['994','No remunerativos'],['995','Asignaciones'],['996','Descuentos'],['999','Neto informado']]){const c=el('div','pd-card');c.append(el('span','',label),el('strong','',money(model.totals[code]??null)));cards.append(c)}section.append(cards);

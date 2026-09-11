@@ -142,3 +142,5 @@ api/whatsapp-webhook.js
 !scripts/migrations/050-payroll-detail-tls-delivery.sql
 
 !scripts/migrations/051-payroll-document-library.sql
+
+!scripts/migrations/052-payroll-detail-closure-state.sql

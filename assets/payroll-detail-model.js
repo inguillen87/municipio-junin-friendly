@@ -15,7 +15,7 @@ function date(v){if(!/^\d{4}-\d{2}-\d{2}$/.test(v)||new Date(v+'T00:00:00Z').toI
 export function createPayrollDetailModel(data,employee){
  if(!data||data.version!=='payroll-detail.v1'||data.found!==true||data.available!==true||!Array.isArray(data.lines)||data.lines.length<1||data.lines.length>1000||data.officialReceipt!==false||data.signatureApplied!==false)throw new Error('Detalle de liquidación no disponible');
  const name=text(employee?.name||employee?.fullName||'Persona del legajo',150),legajo=text(String(employee?.legajo??''),12);
- if(!/^[0-9]{1,12}$/.test(legajo)||!['closed','open'].includes(data.closureStatus)||!/^\d+$/.test(String(data.sourcePeriod))||!Number.isInteger(data.sourceMonth)||data.sourceMonth<1||data.sourceMonth>12)throw new Error('Contexto de liquidación inválido');
+ if(!/^[0-9]{1,12}$/.test(legajo)||!['closed','open','unknown'].includes(data.closureStatus)||!/^\d+$/.test(String(data.sourcePeriod))||!Number.isInteger(data.sourceMonth)||data.sourceMonth<1||data.sourceMonth>12)throw new Error('Contexto de liquidación inválido');
  for(const k of ['statementHash','sourceHash'])if(!/^[a-f0-9]{64}$/.test(data[k]))throw new Error('Referencia de fuente inválida');
  if(!/^[a-f0-9-]{36}$/.test(data.statementId)||! /^[A-Z]$/.test(data.payrollType))throw new Error('Identificación de liquidación inválida');
  const seen=new Set(),totals={},groups=Object.fromEntries(Object.entries(GROUPS).map(([c,g])=>[c,{...g,code:c,rows:[],sum:0n,incomplete:false}]));
@@ -37,4 +37,11 @@ export function createPayrollDetailModel(data,employee){
  if(history){const h=history.netPayable;comparison.push({key:'netPayable',label:'Neto a pagar',history:typeof h==='string'?decimal(cents(h)):null,reported:totals['999']??null,difference:typeof h==='string'&&totals['999']!==undefined&&totals['999']!==null?decimal(cents(totals['999'])-cents(h)):null})}
  const groupsList=Object.values(groups).map(g=>({...g,sum:g.incomplete?null:decimal(g.sum)}));
  return Object.freeze({version:'payroll-detail-view.v1',name,legajo,date:date(data.payrollDate),period:String(data.sourcePeriod)+'-'+String(data.sourceMonth).padStart(2,'0'),payrollType:data.payrollType,closureStatus:data.closureStatus,sourceLabel:text(data.sourceLabel,240),sourceHash:data.sourceHash,statementHash:data.statementHash,statementId:data.statementId,rows,groups:groupsList,totals,checks,netDifference,historyComparison:comparison,historyCutoff:history?.sourceCutoff??null,historyChanged:comparison.some(c=>c.difference!==null&&c.difference!=='0.00'),hasCompleteDescriptions:rows.every(r=>!r.descriptionMissing),detailKnown,exactReconciliation:detailKnown&&checks.every(c=>c.difference==='0.00')&&netDifference==='0.00',officialReceipt:false,signatureApplied:false});
+}
+
+/** Source state, not payment approval. Missing evidence remains unknown. */
+export function payrollClosureLabel(state){
+ const labels={closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Estado de cierre no informado'};
+ if(!Object.hasOwn(labels,state))throw Error('Estado de cierre inválido');
+ return labels[state];
 }
