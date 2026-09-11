@@ -38,6 +38,8 @@ const shellFiles = [
   'assets/workday-panel.css',
   'assets/workday-panel.js',
   'assets/payroll-summary-pdf.js',
+  'assets/payroll-summary-model.js',
+  'assets/payroll-history-055.css',
   'assets/civil-date.js',
   'assets/task-workspace.js',
   'assets/report-analysis.js',
