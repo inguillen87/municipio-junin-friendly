@@ -1,0 +1,50 @@
+name: Export roster F-M acceptance
+on:
+  push:
+    branches: ['feat/export-roster-054']
+permissions:
+  contents: read
+concurrency:
+  group: export-roster-054
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: node scripts/integrate-export-roster.mjs
+      - run: npm ci
+      - name: Full tests and build
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-export-roster-browser.mjs
+      - run: node scripts/verify-report-centre-browser.mjs
+      - run: node scripts/verify-report-summary-shell.mjs
+      - name: Commit only validated integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/internal-data.js lib/internal-resource-access.js assets/payroll-source-reports.js scripts/build-friendly.mjs assets/report-document.js assets/report-centre.css .vercelignore
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(exportables): integrate source roster and F-M export workflow'
+            git push origin HEAD:feat/export-roster-054
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+          git archive --format=tar.gz -o verification/export-roster-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: export-roster-054-verification
+          path: verification/
+          retention-days: 5

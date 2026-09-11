@@ -1,0 +1,33 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import readXlsxFile from 'read-excel-file/node';
+const out='verification', root=path.resolve('public'), origin='https://roster.test';
+fs.mkdirSync(out,{recursive:true});
+const id='00000000-0000-4000-8000-000000000001';
+function cuil(dni){const n='20'+dni;const x=11-[5,4,3,2,7,6,5,4,3,2].reduce((a,w,i)=>a+w*Number(n[i]),0)%11;return n+(x===11?0:x===10?9:x);}
+const fixture={version:'payroll-export-roster.v1',found:true,official:false,datasetId:id,date:'2026-08-31',type:'M',total:3,sourceLabel:'Fuente sintética de QA · no municipal',closureStatus:'unknown',payloadHash:'a'.repeat(64),reportHash:'b'.repeat(64),rows:[['0012','Agente sintético F','F'],['0013','Agente sintético M','Masculino'],['0014','Agente sintético por revisar',null]].map(([legajo,name,sex])=>({legajo,name,sex,dni:'11222333',cuil:cuil('11222333'),contractMatches:1,identityCutoff:'2026-08-06 00:00:00+00',contractStatus:'active',concept993:'1000.10',concept995:'50.20'}))};
+let denial=false, drift=false, calls=0;const errors=[],checks=[];
+const browser=await chromium.launch({headless:true});
+try {
+ const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,serviceWorkers:'block'});
+ await context.route('**/*',async route=>{
+  const url=new URL(route.request().url());if(url.origin!==origin)return route.abort();
+  if(url.pathname==='/api/internal-data'){calls++;assert.equal(url.searchParams.get('resource'),'payrollexportroster');assert.equal(url.searchParams.get('datasetId'),id);return route.fulfill({status:denial?403:200,json:denial?{ok:false}:{ok:true,data:{...fixture,reportHash:drift?'c'.repeat(64):fixture.reportHash}}});}
+  if(url.pathname==='/'){return route.fulfill({contentType:'text/html',body:`<!doctype html><html lang="es"><meta charset="utf-8"><link rel="stylesheet" href="/assets/report-centre.css"><style>body{margin:24px;background:#f1f6f6;font-family:Arial}main{max-width:1300px;margin:auto;background:white;padding:24px;border-radius:16px}</style><main><h1>Datos de la liquidación · QA sintético</h1><section id="roster"></section></main><script type="module">import {mountPayrollRoster} from '/assets/payroll-roster-panel.js';const r=mountPayrollRoster(document.querySelector('#roster'));r.setDataset('${id}');window.clearRoster=()=>r.setDataset(null);</script></html>`});}
+  const p=path.resolve(root,'.'+url.pathname);if(!p.startsWith(root+path.sep)||!fs.existsSync(p)||!fs.statSync(p).isFile())return route.fulfill({status:404,body:''});
+  return route.fulfill({contentType:p.endsWith('.js')?'application/javascript':p.endsWith('.css')?'text/css':'application/octet-stream',body:fs.readFileSync(p)});
+ });
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(origin);await page.locator('[data-roster-load]').click();await page.locator('[data-roster-result]:not([hidden])').waitFor();
+ assert.equal(await page.locator('input[type=file]').count(),0);assert.equal(await page.locator('tbody tr').count(),3);assert.equal(await page.locator('[data-roster-sex]').innerText(),'2 / 3');checks.push('F/M comes from explicit source, no file input or guessed sex');
+ const event=page.waitForEvent('download');await page.locator('[data-roster-format=xlsx]').click();await(await event).saveAs(out+'/roster-fm-qa.xlsx');const rows=await readXlsxFile(out+'/roster-fm-qa.xlsx',{sheet:'Datos'});assert.equal(rows[1][0],'0012');assert.equal(rows[1][4],'F');assert.equal(rows[2][4],'M');assert.equal(typeof rows[1][2],'string');checks.push('XLSX preserves legajo, DNI, CUIL as text and exports F/M');
+ await page.locator('[data-roster-search]').fill('0013');assert.equal(await page.locator('tbody tr').count(),1);const csv=page.waitForEvent('download');await page.locator('[data-roster-format=csv]').click();await(await csv).saveAs(out+'/roster-filtered-qa.csv');assert.ok(!fs.readFileSync(out+'/roster-filtered-qa.csv','utf8').includes('0012'));checks.push('search filters the entire export');await page.locator('[data-roster-search]').fill('');
+ const pdf=page.waitForEvent('download');await page.locator('[data-roster-format=pdf]').click();await(await pdf).saveAs(out+'/roster-fm-qa.pdf');await page.screenshot({path:out+'/roster-fm-desktop-qa.png',fullPage:true});
+ await page.locator('[data-roster-mode]').selectOption('art-base');assert.match(await page.locator('[data-roster-scope]').innerText(),/Días pendientes/);assert.match(await page.locator('tbody tr').first().innerText(),/1.050,30/);const art=page.waitForEvent('download');await page.locator('[data-roster-format=xlsx]').click();await(await art).saveAs(out+'/art-base-qa.xlsx');const artRows=await readXlsxFile(out+'/art-base-qa.xlsx',{sheet:'Datos'});assert.equal(artRows[1][4],'No informado');assert.equal(artRows[1][7],1050.30);checks.push('ART base calculates 993+995 exactly, never substitutes days');
+ drift=true;await page.locator('[data-roster-format=pdf]').click();await page.locator('[data-roster-result][hidden]').waitFor({state:'attached'});assert.match(await page.locator('[data-roster-status]').innerText(),/cambiaron/);checks.push('source drift cancels export');drift=false;
+ await page.locator('[data-roster-load]').click();await page.locator('[data-roster-result]:not([hidden])').waitFor();denial=true;await page.locator('[data-roster-format=pdf]').click();await page.locator('[data-roster-result][hidden]').waitFor({state:'attached'});assert.equal(await page.locator('tbody tr').count(),0);checks.push('permission denial erases personal rows and prevents download');denial=false;
+ await page.locator('[data-roster-load]').click();await page.locator('[data-roster-result]:not([hidden])').waitFor();await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:out+'/roster-fm-mobile-qa.png',fullPage:true});checks.push('mobile bounds and reduced-motion supported');
+ await page.evaluate(()=>window.clearRoster());assert.equal(await page.locator('tbody tr').count(),0);assert.equal(await page.locator('[data-roster-load]').isDisabled(),true);checks.push('changing dataset invalidates the prior roster');assert.deepEqual(errors,[]);
+ fs.writeFileSync(out+'/export-roster-browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,requests:calls,syntheticData:true,municipalMfaSessionTested:false},null,2));console.log(JSON.stringify({checksPassed:checks.length,errors}));
+}finally{await browser.close();}
