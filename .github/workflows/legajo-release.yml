@@ -1,0 +1,63 @@
+name: Legajo release acceptance
+on:
+  push:
+    branches: ['feat/legajo-jornadas-release-20260910']
+permissions:
+  contents: read
+concurrency:
+  group: legajo-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Integrate tracked source and verify idempotence
+        run: |
+          node scripts/finalize-legajo-release.mjs
+          git diff | sha256sum > /tmp/before.txt
+          node scripts/finalize-legajo-release.mjs
+          git diff | sha256sum > /tmp/after.txt
+          diff /tmp/before.txt /tmp/after.txt
+      - name: Full repository tests
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+      - name: Build
+        run: |
+          set -o pipefail
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser acceptance with synthetic data only
+        run: |
+          set -o pipefail
+          node scripts/verify-legajo-workdays-browser.mjs 2>&1 | tee verification/browser.log
+      - name: Commit only validated generated sources
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CODEX_HANDOFF_JUNIN_ENTERPRISE.md api/internal-attendance.js assets/clock-dashboard-panel.html assets/clock-dashboard.js assets/workday-panel.js assets/workday-export.js centro-acciones.html internal-dashboard.html relojes-marcaciones.html scripts/build-friendly.mjs scripts/integrate-legajo-workdays.mjs scripts/verify-clock-dashboard-browser.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(legajo): integrate validated workdays, Spanish labels and PDF summaries'
+            git push origin HEAD:feat/legajo-jornadas-release-20260910
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive source without runtime data
+        if: always()
+        run: git archive --format=tar.gz -o verification/legajo-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legajo-release-acceptance
+          path: verification/
+          retention-days: 3

@@ -2,18 +2,6 @@
 
 Usá este contexto como fuente de verdad para alinear `municipio-junin` Enterprise con el trabajo de `municipio-junin-friendly`. No reinicies el análisis, no dupliques bases y no escribas en producción sin verificar primero el estado actual.
 
-## Actualización del plan — 10 de septiembre de 2026
-
-Se incorpora **DOC-01 — Firma y emisión de documentos por usuario** al alcance transversal de Legajos, Liquidaciones, Novedades, Reportes y Certificaciones habilitadas.
-
-- Especificación y fases: [FEATURE_FIRMA_EMISION_DOCUMENTAL_20260910.md](docs/FEATURE_FIRMA_EMISION_DOCUMENTAL_20260910.md).
-- Seguimiento: [Issue #1 — Firma por usuario, emisión PDF/Excel y retenciones detalladas](https://github.com/inguillen87/municipio-junin-friendly/issues/1).
-- Estado de DOC-01: **planificado; no activado en producción**. Se debe usar la firma gráfica genuina aportada para la responsable, asociada a su identidad y municipio, en custodia privada, nunca publicada en Git.
-- UX: desde el legajo y el período, vista previa, «Emitir con mi firma y exportar», descarga del original emitido e historial. Un borrador no lleva firma final; iniciar sesión o descargar no equivale a firmar.
-- PDF y Excel deben conservar el detalle completo de retenciones con código, descripción e importe y conciliar contra sus totales. No reconstruir conceptos a partir de un agregado mensual. TXT/CSV técnicos no reciben imágenes ni bytes adicionales.
-- Respetar las facultades documentales y el doble control del proceso. Una cuenta propietaria o técnica no firma automáticamente en nombre de la contadora. Firma gráfica, emisión trazable y firma digital criptográfica son capacidades distintas.
-- Este agregado no reemplaza los sprints pendientes de jornadas, licencias, colector permanente ni motor salarial. Los cortes históricos que siguen conservan sus fechas y no deben interpretarse como una nueva auditoría del estado productivo.
-
 ## Decisión de arquitectura
 
 - **GRH es el sistema rector laboral municipal.** Debe gobernar personas laborales, legajos, situación contractual, nómina, movimientos, estructura y ausencias.
