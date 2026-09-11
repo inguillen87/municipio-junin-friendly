@@ -74,8 +74,13 @@ class FakeElement {
     this.hidden = false;
     this.disabled = false;
     this.open = false;
+    this.isConnected = true;
   }
 
+  querySelectorAll(selector) {
+    assert.equal(selector, ".payroll-card");
+    return this.children.filter(child => child.className?.split(/\s+/).includes("payroll-card"));
+  }
   append(...children) { this.children.push(...children); }
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren(...children) { this.children = [...children]; }
@@ -328,7 +333,7 @@ test('colapsar el historial aborta la consulta salarial en curso', async () => {
 
 test('una acción salarial bloqueada expone la razón visible y la asocia al botón', async () => {
   const html = await read('internal-dashboard.html');
-  const card = containingFunction(html, 'function payrollCard(item, employee)');
+  const card = containingFunction(html, 'function payrollCard(item, employee, payrollQuery)');
   assert.match(card, /payroll-action-unavailable/);
   assert.match(card, /novelty\.setAttribute\('aria-describedby', availability\.id\)/);
   assert.match(card, /actionContext\.appendChild\(availability\)/);

@@ -9,7 +9,7 @@ s=once(s,"else if(resource==='employees')",`else if(resource==='employeepayrolld
 else if(resource==='employeepayrolldetail')payload={ok:true,data:syntheticDetail()};
 else if(resource==='employeepayroll')payload={ok:true,data:{items:[]},meta:{pagination:{total:0,page:1,pages:1}}};
 else if(resource==='employees')`);
-s=once(s,"data:{...rows[0],employmentHistory:","data:{...rows[0],name:'AGENTE QA 01',employmentHistory:");
+// Use the real API shape (nombre), never inject a fictitious name alias.
 s=once(s," assert.equal(requests[0].status",` await page.locator('#employeeRows button').first().click();
  await page.getByRole('button',{name:'Liquidaciones detalladas',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Liquidaciones detalladas',exact:true}).isEnabled(),true);

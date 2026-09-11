@@ -1147,6 +1147,7 @@
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
 <link rel="stylesheet" href="assets/report-centre.css">
+<link rel="stylesheet" href="assets/payroll-history-055.css">
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -1603,6 +1604,7 @@
         employeeController: null,
         detailController: null,
         payrollController: null,
+        payrollSummaryControllers: new Set(),
         payrollActionDescriptionSequence: 0,
         filters: { search: '', sector: '', organization: '', agreement: '', status: 'administrative_active', crosswalk: 'all' },
         pagination: { page: 1, limit: PAGE_LIMIT, total: null, pages: null },
@@ -2714,6 +2716,8 @@
       function closeDialog() {
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
+        state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
+        state.payrollSummaryControllers.clear();
         if (typeof els.employeeDialog.close === 'function') els.employeeDialog.close();
         else els.employeeDialog.removeAttribute('open');
       }
@@ -2722,6 +2726,8 @@
         if (!text(contractId) && !text(legajo)) return;
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
+        state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
+        state.payrollSummaryControllers.clear();
         const controller = new AbortController();
         state.detailController = controller;
         els.dialogTitle.textContent = fallbackName || 'Ficha de legajo';
@@ -2954,11 +2960,12 @@
 
       function payrollAmount(label, value) {
         const item = create('div', 'payroll-amount');
-        item.append(create('span', '', label), create('strong', '', formatMoneyExact(value)));
+        item.dataset.missing = String(value === null || value === undefined);
+        item.append(create('span', '', label), create('strong', '', value === null || value === undefined ? 'No informado' : formatMoneyExact(value)));
         return item;
       }
 
-      function payrollCard(item, employee) {
+      function payrollCard(item, employee, payrollQuery) {
         const card = create('article', 'payroll-card');
         const stateValue = text(item.presentationStatus) || 'uncertified';
         card.dataset.state = stateValue;
@@ -3020,14 +3027,23 @@
         summaryDownload.title='Totales del período consultado, sin firma ni certificación de pago';
         const summaryStatus=create('p','payroll-summary-status','');summaryStatus.setAttribute('role','status');summaryStatus.setAttribute('aria-live','polite');summaryStatus.hidden=true;
         summaryDownload.addEventListener('click',async function(){
-          if(summaryDownload.disabled)return;
-          summaryDownload.disabled=true;summaryStatus.hidden=false;summaryStatus.dataset.error='false';summaryStatus.textContent='Preparando resumen PDF…';
+          if(summaryDownload.disabled||!els.employeeDialog.open)return;
+          const controller=new AbortController();
+          state.payrollSummaryControllers.add(controller);
+          const timeout=setTimeout(function(){controller.abort();},25000);
+          const available=()=>!controller.signal.aborted&&els.employeeDialog.open&&summaryDownload.isConnected&&state.tenantCapabilities.has('workforce.employee.read')&&state.tenantCapabilities.has('payroll.read');
+          summaryDownload.disabled=true;summaryDownload.setAttribute('aria-busy','true');summaryStatus.hidden=false;summaryStatus.dataset.error='false';summaryStatus.textContent='Verificando el período y preparando el PDF…';
           try{
             const module=await import('./assets/payroll-summary-pdf.js');
-            if(!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read')||!summaryDownload.isConnected)throw new Error('La ficha ya no está disponible');
-            module.downloadPayrollSummary({name:employee.name,legajo:employee.legajo},item);summaryStatus.textContent='Resumen PDF generado. Revisá las descargas del navegador.';
+            if(!available())throw new Error('La ficha ya no está disponible');
+            if(!payrollQuery)throw new Error('Volvé a consultar el historial antes de descargar.');
+            const payload=await requestJSON(DATA_URL+'?'+payrollQuery,{signal:controller.signal});
+            if(!available())throw new Error('La ficha ya no está disponible');
+            const fresh=module.verifySalarySummarySnapshot(employee,item,payload);
+            module.downloadPayrollSummary(employee,fresh);
+            summaryStatus.textContent='Resumen PDF generado. '+(module.salarySummaryModel(employee,fresh).missingFields.length?'Incluye campos no informados, sin sustituirlos por cero. ':'')+'Revisá las descargas del navegador.';
           }catch(error){summaryStatus.dataset.error='true';summaryStatus.textContent='No se generó el resumen: '+error.message;}
-          finally{summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
+          finally{clearTimeout(timeout);state.payrollSummaryControllers.delete(controller);summaryDownload.removeAttribute('aria-busy');summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
         });
         const detailButton=create('button','button','Ver conceptos y descuentos');
         detailButton.type='button';detailButton.dataset.payrollDetailOpen='true';
@@ -3064,14 +3080,30 @@
         const more = create('button', 'button', 'Ver períodos anteriores');
         more.type = 'button';
         more.hidden = true;
-        body.append(meta, list, more);
+        const filter=create('form','payroll-history-filter');
+        const yearLabel=create('label','','Año del historial');
+        const yearInput=create('input');yearInput.type='number';yearInput.min='1900';yearInput.max='2100';yearInput.step='1';yearInput.placeholder='Todos los años';yearInput.setAttribute('aria-label','Año del historial');
+        const applyYear=create('button','button','Buscar año');applyYear.type='submit';
+        const clearYear=create('button','button','Ver todo el historial');clearYear.type='button';
+        yearLabel.append(yearInput);filter.append(yearLabel,applyYear,clearYear,create('small','','La búsqueda consulta todo el historial guardado, no sólo los períodos de esta página.'));
+        body.append(filter, meta, list, more);
         section.appendChild(body);
 
         let loaded = false;
         let loading = false;
         let nextPage = 1;
+        let selectedYear = '';
+        let generation = 0;
         let activeController = null;
         let reloadWhenIdle = false;
+        function changeYear(value) {
+          if (value && !/^(?:19[0-9]{2}|20[0-9]{2}|2100)$/.test(value)) {yearInput.reportValidity();return;}
+          generation++;if(activeController)activeController.abort();
+          selectedYear=value;loaded=false;loading=false;reloadWhenIdle=false;nextPage=1;list.replaceChildren();more.hidden=true;
+          if(section.open)loadPage();
+        }
+        filter.addEventListener('submit',function(event){event.preventDefault();if(yearInput.checkValidity())changeYear(yearInput.value.trim());});
+        clearYear.addEventListener('click',function(){yearInput.value='';changeYear('');});
         section.addEventListener('toggle', function () {
           if (!section.open) {
             reloadWhenIdle = false;
@@ -3089,6 +3121,7 @@
           state.payrollController = controller;
           activeController = controller;
           loading = true;
+          const requestGeneration = generation;
           more.disabled = true;
           meta.textContent = nextPage === 1 ? 'Consultando liquidaciones…' : 'Consultando períodos anteriores…';
           try {
@@ -3098,19 +3131,22 @@
               page: String(nextPage),
               limit: '12'
             });
+            if(selectedYear)params.set('year',selectedYear);
             const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
-            const items = Array.isArray(payload && payload.data && payload.data.items) ? payload.data.items : [];
+            if(requestGeneration!==generation||!section.isConnected||!section.open)return;
+            if(!Array.isArray(payload?.data?.items))throw new Error('La respuesta del historial no está completa. Reintentá.');
+            const items = payload.data.items;
             const pagination = payload && payload.meta && payload.meta.pagination && typeof payload.meta.pagination === 'object'
               ? payload.meta.pagination : {};
             if (nextPage === 1) list.replaceChildren();
-            items.forEach(function (item) { list.appendChild(payrollCard(item || {}, employee)); });
+            items.forEach(function (item) { list.appendChild(payrollCard(item || {}, employee, params.toString())); });
             const total = nonNegativeNumber(pagination.total);
             if (nextPage === 1 && !items.length) {
-              list.appendChild(create('div', 'notice warning', 'GRH no informó liquidaciones mensuales para este contrato.'));
+              list.appendChild(create('div', 'notice warning', 'No hay liquidaciones informadas para este contrato'+(selectedYear?' en '+selectedYear:'')+'.'));
             }
             meta.textContent = total === null
               ? formatNumber(list.children.length) + ' liquidaciones recibidas.'
-              : formatNumber(total) + ' liquidaciones mensuales informadas por GRH.';
+              : 'Mostrando ' + formatNumber(list.querySelectorAll('.payroll-card').length) + ' de ' + formatNumber(total) + ' liquidaciones informadas por GRH' + (selectedYear ? ' en ' + selectedYear : '') + '.';
             const currentPage = nonNegativeNumber(pagination.page) || nextPage;
             const pages = nonNegativeNumber(pagination.pages) || currentPage;
             more.hidden = currentPage >= pages;
@@ -3118,7 +3154,7 @@
             nextPage = currentPage + 1;
             loaded = true;
           } catch (error) {
-            if (error instanceof UnauthorizedError || error.name === 'AbortError') return;
+            if (requestGeneration!==generation||error instanceof UnauthorizedError || error.name === 'AbortError') return;
             meta.textContent = 'No se pudo consultar el historial salarial.';
             if (!loaded) {
               list.replaceChildren(create('div', 'notice error', text(error && error.message) || 'La consulta no está disponible.'));
@@ -3128,6 +3164,7 @@
             more.hidden = false;
           } finally {
             if (state.payrollController === controller) state.payrollController = null;
+            if(requestGeneration!==generation)return;
             if (activeController === controller) activeController = null;
             loading = false;
             more.disabled = false;
