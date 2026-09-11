@@ -24,7 +24,7 @@ BEGIN
      SELECT d.id AS dataset_id,d.payroll_date,d.source_period,d.source_month,d.payroll_type,
        d.source_closed_flag,d.source_label,d.imported_at,jsonb_array_length(st.lines) AS concept_count,
        row_number() OVER (PARTITION BY d.payroll_date,d.source_period,d.source_month,d.payroll_type
-         ORDER BY d.imported_at DESC,d.id DESC) AS revision_rank,
+         ORDER BY d.imported_at DESC,d.id ASC) AS revision_rank,
        count(*) OVER (PARTITION BY d.payroll_date,d.source_period,d.source_month,d.payroll_type) AS versions
      FROM payroll_detail_dataset d JOIN payroll_detail_statement st
        ON st.dataset_id=d.id AND st.tenant_id=d.tenant_id AND st.source_legajo=ec.legacy_legajo::text
