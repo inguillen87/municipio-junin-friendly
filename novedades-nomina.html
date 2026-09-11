@@ -152,6 +152,7 @@
     }
     @media print { .sidebar, .topbar, .button, .busy, .message, #entrySection { display: none !important; } .app { display: block; } main { max-width: none; padding: 0; } }
   </style>
+<style data-report-novelties-fix>#manualAmountEnabled{width:20px;height:20px;min-height:20px;flex:0 0 20px;margin:0}label[for="manualAmountEnabled"]{display:flex;gap:10px;align-items:center;min-height:44px}.field input[type="checkbox"]{width:20px;height:20px}#amountPolicyHelp{display:block;margin-top:8px}</style>
 </head>
 <body data-mc-page="payroll-novelties">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -211,7 +212,7 @@
             <div class="form-grid">
               <div class="field"><label for="periodMonth">Período de liquidación</label><input id="periodMonth" type="month" required></div>
               <div class="field"><label for="payrollType">Tipo de liquidación</label><select id="payrollType" required><option value="monthly">Mensual</option><option value="first_fortnight">Primera quincena</option><option value="sac">SAC</option><option value="vacation">Vacaciones</option><option value="supplementary">Complementaria</option><option value="final">Liquidación final</option><option value="other">Otra</option></select></div>
-              <div class="field"><span class="field-label">Estado inicial</span><div class="checkbox"><span>Borrador validado; todavía no enviado.</span></div></div>
+              <div class="field"><span class="field-label">Estado inicial</span><div class="checkbox"><span>Sin guardar; requiere validación y revisión.</span></div></div>
             </div>
 
             <div class="form-grid" id="individualFields">
@@ -257,7 +258,7 @@
           </section>
 
           <section class="section" aria-labelledby="batchesTitle">
-            <header class="section-head"><div><span class="section-index">02 · CIRCUITO MAKER-CHECKER</span><h2 id="batchesTitle">Lotes y decisiones</h2><p>Los botones aparecen únicamente cuando el backend confirma la capacidad y el estado permitido.</p></div></header>
+            <header class="section-head"><div><span class="section-index">02 · PREPARACIÓN Y REVISIÓN</span><h2 id="batchesTitle">Lotes y decisiones</h2><p>Los botones aparecen únicamente cuando el backend confirma la capacidad y el estado permitido.</p></div></header>
             <div class="empty" id="batchEmpty">Todavía no hay lotes visibles para esta sesión y binding certificado.</div>
             <div class="table-wrap" id="batchTable" hidden><table><thead><tr><th>Lote</th><th>Período</th><th>Liquidación</th><th>Filas</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="batchRows"></tbody></table></div>
           </section>

@@ -546,6 +546,8 @@
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/report-centre.css">
+<script type="module" src="assets/payroll-navigation.js"></script>
 </head>
 <body data-mc-page="payroll">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -1709,11 +1711,11 @@
       function isPublishable(run) { return Boolean(run && isClosed(run) && run.arithmeticReconciled === true && run.executivePublishable === true); }
       function monthLabel(value) {
         if (typeof value !== 'string' || !value.trim()) return 'Período no informado';
-        var match = value.trim().match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
-        if (!match) return value;
+        var match = value.trim().match(/^(\d{4})-(\d{2})(?:-\d{2}(?:T[0-9:.]+Z)?)?$/);
+        if (!match) return 'Período no informado';
         var year = Number(match[1]);
         var month = Number(match[2]);
-        if (month < 1 || month > 12) return value;
+        if (month < 1 || month > 12) return 'Período no informado';
         return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
       }
       function closureLabel(run) {

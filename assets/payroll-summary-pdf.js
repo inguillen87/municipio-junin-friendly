@@ -1,3 +1,4 @@
+import {civilDate} from './civil-date.js';
 /** Private, client-side salary SUMMARY. No signature, payment certification or official receipt. */
 const labels={monthly:'Mensual',first_fortnight:'Primera quincena',second_fortnight:'Segunda quincena',sac:'Sueldo anual complementario',vacation:'Vacaciones',supplementary:'Complementaria',final:'Liquidación final',other:'Otra liquidación'};
 export function money(value){const m=/^(-?)(0|[1-9][0-9]*)\.([0-9]{2})$/.exec(String(value??''));if(!m)throw new Error('Importe no disponible o inválido');return '$ '+m[1]+new Intl.NumberFormat('es-AR').format(BigInt(m[2]))+','+m[3]}
@@ -7,11 +8,11 @@ const cp={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x20
 function hex(value){let h='';for(const c of value){const n=c.codePointAt(0);h+=(n<=255?n:(cp[n]??63)).toString(16).padStart(2,'0')}return '<'+h+'>'}
 export function salarySummaryModel(employee,item){
  const name=clean(employee.fullName||employee.name||employee.full_name,150),legajo=clean(employee.legajo??employee.legacyLegajo,20);
- if(!/^\d{4}-\d{2}-\d{2}$/.test(String(item.payrollDate))||new Date(item.payrollDate+'T00:00:00Z').toISOString().slice(0,10)!==item.payrollDate)throw new Error('Período inválido');
+ const payrollDate=civilDate(item.payrollDate);
  const fields=['subjectEarnings','nonSubjectEarnings','familyAllowance','employeeWithholdings','netPayable','employerContributions'];fields.forEach(k=>money(item[k]));
  const difference=cents(item.subjectEarnings)+cents(item.nonSubjectEarnings)+cents(item.familyAllowance)-cents(item.employeeWithholdings)-cents(item.netPayable);
  const formatCents=n=>(n<0n?'-':'')+( (n<0n?-n:n)/100n)+'.'+String((n<0n?-n:n)%100n).padStart(2,'0');
- return {name,legajo,date:item.payrollDate,type:labels[item.canonicalPayrollType]||'Tipo no identificado',status:item.presentationStatus==='open'?'PRELIQUIDACIÓN / CONSULTA':item.closureStatus==='closed'||String(item.presentationStatus).startsWith('closed')?'RESUMEN DE FUENTE CERRADA':'CONSULTA / ESTADO NO CERTIFICADO',values:Object.fromEntries(fields.map(k=>[k,money(item[k])])),sourceCutoff:clean(item.sourceCutoff||'No informado',60),difference:money(formatCents(difference)),matches:difference>=-1n&&difference<=1n,concepts:Number.isSafeInteger(item.distinctConcepts)?String(item.distinctConcepts):'No informado'};
+ return {name,legajo,date:payrollDate,type:labels[item.canonicalPayrollType]||'Tipo no identificado',status:item.presentationStatus==='open'?'PRELIQUIDACIÓN / CONSULTA':item.closureStatus==='closed'||String(item.presentationStatus).startsWith('closed')?'RESUMEN DE FUENTE CERRADA':'CONSULTA / ESTADO NO CERTIFICADO',values:Object.fromEntries(fields.map(k=>[k,money(item[k])])),sourceCutoff:clean(item.sourceCutoff||'No informado',60),difference:money(formatCents(difference)),matches:difference>=-1n&&difference<=1n,concepts:Number.isSafeInteger(item.distinctConcepts)?String(item.distinctConcepts):'No informado'};
 }
 export function createPayrollSummaryPdf(employee,item){
  const m=salarySummaryModel(employee,item);let ops=[];

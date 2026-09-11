@@ -1146,6 +1146,7 @@
 <script type="module" src="assets/workforce-operations.js"></script>
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
+<link rel="stylesheet" href="assets/report-centre.css">
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -3017,14 +3018,15 @@
         summaryDownload.type='button';summaryDownload.dataset.payrollSummaryDownload='true';
         summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');
         summaryDownload.title='Totales del período consultado, sin firma ni certificación de pago';
+        const summaryStatus=create('p','payroll-summary-status','');summaryStatus.setAttribute('role','status');summaryStatus.setAttribute('aria-live','polite');summaryStatus.hidden=true;
         summaryDownload.addEventListener('click',async function(){
           if(summaryDownload.disabled)return;
-          summaryDownload.disabled=true;
+          summaryDownload.disabled=true;summaryStatus.hidden=false;summaryStatus.dataset.error='false';summaryStatus.textContent='Preparando resumen PDF…';
           try{
             const module=await import('./assets/payroll-summary-pdf.js');
             if(!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read')||!summaryDownload.isConnected)throw new Error('La ficha ya no está disponible');
-            module.downloadPayrollSummary({name:employee.name,legajo:employee.legajo},item);
-          }catch(error){toast('No se generó el resumen: '+error.message,'error');}
+            module.downloadPayrollSummary({name:employee.name,legajo:employee.legajo},item);summaryStatus.textContent='Resumen PDF generado. Revisá las descargas del navegador.';
+          }catch(error){summaryStatus.dataset.error='true';summaryStatus.textContent='No se generó el resumen: '+error.message;}
           finally{summaryDownload.disabled=!state.tenantCapabilities.has('workforce.employee.read')||!state.tenantCapabilities.has('payroll.read');}
         });
         const detailButton=create('button','button','Ver conceptos y descuentos');
@@ -3037,7 +3039,7 @@
           catch(error){toast('No se pudo abrir el detalle: '+error.message,'error');}
           finally{detailButton.disabled=!canReadDetail();}
         });
-        actions.append(actionContext, detailButton, summaryDownload, novelty);
+        actions.append(actionContext, detailButton, summaryDownload, novelty, summaryStatus);
         card.appendChild(actions);
         return card;
       }
