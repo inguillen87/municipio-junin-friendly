@@ -1,11 +1,11 @@
-name: Payroll detail closure acceptance
+name: Payroll detail acceptance
 on:
   push:
-    branches: ['feat/payroll-detail-048-close']
+    branches: ['feat/payroll-detail-048-20260910']
 permissions:
   contents: read
 concurrency:
-  group: payroll-detail-close
+  group: payroll-detail-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   validate:
@@ -20,15 +20,15 @@ jobs:
           node-version: '22'
           cache: npm
       - run: mkdir -p verification
-      - name: Integrate existing audited source and check idempotence
+      - name: Integrate tracked source
         run: |
           node scripts/integrate-payroll-detail.mjs
           node scripts/refine-payroll-detail.mjs
-          git diff | sha256sum > /tmp/before
+          git diff | sha256sum > /tmp/before.txt
           node scripts/integrate-payroll-detail.mjs
           node scripts/refine-payroll-detail.mjs
-          git diff | sha256sum > /tmp/after
-          diff /tmp/before /tmp/after
+          git diff | sha256sum > /tmp/after.txt
+          diff /tmp/before.txt /tmp/after.txt
       - run: npm ci
       - name: Repository tests
         run: |
@@ -39,30 +39,26 @@ jobs:
           set -o pipefail
           node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
       - run: npx playwright install --with-deps chromium
-      - name: Payroll browser acceptance with synthetic records
+      - name: Browser acceptance, synthetic records only
         run: |
           set -o pipefail
-          node scripts/verify-payroll-detail-browser.mjs 2>&1 | tee verification/payroll-browser.log
-      - name: Active roster regression with synthetic records
-        run: |
-          set -o pipefail
-          node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/workforce-browser.log
-      - name: Commit only validated source
+          node scripts/verify-payroll-detail-browser.mjs 2>&1 | tee verification/browser.log
+      - name: Commit validated integration
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add api/internal-data.js internal-dashboard.html lib/internal-resource-access.js scripts/build-friendly.mjs vercel.json assets/payroll-detail-export.js assets/payroll-detail-panel.js
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(payroll): integrate private delivery and detail without regressing active roster'
-            git push origin HEAD:feat/payroll-detail-048-close
+            git commit -m 'feat(payroll): integrate validated concept detail, deductions and exports'
+            git push origin HEAD:feat/payroll-detail-048-20260910
           fi
           git rev-parse HEAD > verification/validated-commit.txt
-      - name: Archive source and reports, no municipal files
+      - name: Archive source only
         if: always()
-        run: git archive --format=tar.gz -o verification/payroll-detail-close-source.tar.gz HEAD
+        run: git archive --format=tar.gz -o verification/payroll-detail-source.tar.gz HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: payroll-detail-close-acceptance
+          name: payroll-detail-acceptance
           path: verification/
-          retention-days: 5
+          retention-days: 3

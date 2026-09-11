@@ -1,0 +1,27 @@
+name: Preauthorized payroll source delivery
+on:
+  push:
+    branches: ['ops/payroll-private-delivery-20260911']
+    paths: ['ops/payroll-delivery-jobs.json']
+permissions:
+  contents: read
+concurrency:
+  group: payroll-private-delivery
+  cancel-in-progress: false
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute registered jobs without retrieving source bytes
+        run: node scripts/trigger-payroll-private-delivery.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: private-delivery-receipts
+          path: verification/private-delivery-receipts.json
+          retention-days: 3
