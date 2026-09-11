@@ -1,15 +1,14 @@
 # Sprint 048 · detalle de haberes y retenciones
 
-## Cierre de integración
-Se integra el detalle sobre el directorio con activos por defecto. La vista histórica permanece accesible y el grupo de nómina depende del período, no del número de activos. Las descripciones, cantidades, categorías y centavos se conservan del respaldo. Los resúmenes anteriores no se sobrescriben.
+## Integración
+Detalle de conceptos y descuentos con PDF/Excel desde el legajo, preservando el padrón activo por defecto y el histórico explícito. Los importes y descripciones provienen del respaldo; nunca se corrigen para cerrar una suma. Contribuciones patronales separadas de retenciones.
 
-## Traslado privado
-El extractor separa las corridas. Cada JSON se cifra localmente con OpenPGP/AES256; solamente los archivos cifrados se transfieren al almacenamiento privado. Los enlaces de lectura de duración limitada y las claves se registran en tablas privadas de Neon por un operador propietario. El ejecutor público sólo conoce los identificadores de trabajos expresamente autorizados y obtiene contadores; no recibe datos, URLs firmadas ni claves. La API obtiene la ubicación desde Neon, impone HTTPS y un host exacto, prohíbe redirecciones y limita tiempo/tamaño. Comprueba longitud y SHA-256 del cifrado antes de enviarlo al receptor que valida hash, conteos y origen del JSON descifrado. Un reenvío devuelve el comprobante anterior, sin duplicar ni editar importes. Las claves se eliminan del trabajo al aplicarlo. GET no ejecuta importaciones.
+## Traslado de fuente privado sin claves
+La transferencia final usa archivos gzip alojados de manera privada y leídos por HTTPS con enlace temporal. No transfiere claves de descifrado. La opción OpenPGP queda como mecanismo de compatibilidad, pero no es el transporte usado por esta carga. El registro de claves fue bloqueado por el servicio y no se reintenta por otro canal.
 
-Este mecanismo es un traslado inicial controlado del respaldo, no el colector de relojes ni una tarea periódica de nómina. Una descarga temporal no queda en el código, las capturas de CI, ni los archivos públicos del sitio.
+El operador preautoriza el origen exacto, hash del archivo y JSON, bytes y cantidad de registros en Neon. La API recibe solamente un identificador de trabajo, no URLs ni secretos del solicitante. Obtiene el enlace privado de la base y valida HTTPS, host y ruta exactos, sin redirecciones; limita descarga y descompresión, verifica ambos hashes e incorpora la fuente en una transacción. Las claves, archivos y enlaces temporales no forman parte del código ni los logs de CI. No se publica la fuente en un CDN abierto.
 
-## Documentos
-PDF y Excel del mismo detalle, descuentos primero, contribuciones patronales separadas, control de centavos explícito y fuente/corte visibles. No firma de Noelia ni certificación oficial; ese paso requiere el circuito DOC-01. No tasas o entidades inventadas. No se altera la nómina municipal ni el GRH original.
+Una respuesta de reenvío devuelve el comprobante anterior, sin duplicar datos. Los permisos de lectura de conceptos se verifican por usuario y municipio. El traslado inicial no programa tareas futuras ni reemplaza el colector de relojes.
 
-## Evidencia exigida
-Pruebas globales, browser sintético, controles negativos de traslado y privilegios, origen/hash/conteos de cada corrida, consultas agregadas de conciliación. La prueba pública de rechazo sin sesión no equivale al ingreso real de un funcionario.
+## Límites
+Los documentos son informativos y no se firman como Noelia. No se cambian sueldos, liquidaciones originales, aprobaciones o GRH. El cierre requiere verificar datos reales, conteos/hash y consultas, además de CI. Una prueba sin sesión no verifica el ingreso de un funcionario.

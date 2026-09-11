@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {gzipSync} from 'node:zlib';
+import {unpackAuthorizedPayload,fetchAuthorizedCipher} from '../lib/payroll-private-transfer.js';
+import {createPayrollSourceDeliveryHandler} from '../api/payroll-source-delivery.js';
+const hash=b=>createHash('sha256').update(b).digest('hex');
+const plain=Buffer.from(JSON.stringify({version:'synthetic',items:['áéíóú',1,2,3]}));
+const packed=gzipSync(plain);
+const jobId='10000000-0000-4000-8000-000000000000';
+const descriptor={state:'authorized',transport:'https_gzip',sourceUrl:'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-0000-4000-8000-000000000000/raw?sig=synthetic',cipherBytes:packed.length,cipherSha256:hash(packed),payloadBytes:plain.length,payloadSha256:hash(plain)};
+function response(){return{setHeader(){},status(n){this.code=n;return this},json(x){this.payload=x;return this}}}
+test('keyless transfer verifies compressed and original bytes',async()=>{const p=await fetchAuthorizedCipher(descriptor,async()=>new Response(packed));assert.deepEqual(unpackAuthorizedPayload(descriptor,p),plain)});
+for(const invalid of [undefined,0,-1,6000001,2.5,'50'])test('rejects invalid expanded size '+invalid,()=>assert.throws(()=>unpackAuthorizedPayload({...descriptor,payloadBytes:invalid},packed)));
+test('gzip expansion limited to declared size',()=>assert.throws(()=>unpackAuthorizedPayload({...descriptor,payloadBytes:8},gzipSync(Buffer.alloc(100000,1)))));
+test('wrong original hash rejected',()=>assert.throws(()=>unpackAuthorizedPayload({...descriptor,payloadSha256:'0'.repeat(64)},packed)));
+test('short original payload rejected',()=>assert.throws(()=>unpackAuthorizedPayload({...descriptor,payloadBytes:plain.length+1},packed)));
+test('invalid gzip rejected',()=>assert.throws(()=>unpackAuthorizedPayload(descriptor,Buffer.alloc(64))));
+test('gzip requires explicit authorized transport',()=>assert.throws(()=>unpackAuthorizedPayload({...descriptor,transport:'other'},packed)));
+test('API routes validated gzip to the keyless receiver',async()=>{const calls=[],res=response();await createPayrollSourceDeliveryHandler({getSql:async()=>({query:async(sql,params)=>{calls.push(sql);assert.equal(params[0],jobId);if(calls.length===1)return[{result:descriptor}];assert.match(sql,/payroll_detail_payload_delivery_v1/);assert.equal(params[1],'\\x'+plain.toString('hex'));return[{result:{datasetId:jobId,statements:1,lines:1,replayed:false,payrollModified:false}}]}}),fetchImpl:async()=>new Response(packed)})({method:'POST',headers:{'content-type':'application/json'},body:{jobId,mode:'pull'}},res);assert.equal(res.code,200);assert.equal(calls.length,2);assert.deepEqual(Object.keys(res.payload).sort(),['datasetId','lines','ok','payrollModified','replayed','statements']);assert.ok(!JSON.stringify(res.payload).includes('sourceUrl'))});
+test('invalid expanded payload never reaches the receiver',async()=>{let calls=0;const res=response();await createPayrollSourceDeliveryHandler({getSql:async()=>({query:async()=>{calls++;return[{result:{...descriptor,payloadSha256:'0'.repeat(64)}}]}}),fetchImpl:async()=>new Response(packed)})({method:'POST',headers:{'content-type':'application/json'},body:{jobId,mode:'pull'}},res);assert.equal(res.code,403);assert.equal(calls,1)});
