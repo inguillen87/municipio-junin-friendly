@@ -20,16 +20,16 @@ jobs:
           node-version: '22'
           cache: npm
       - run: mkdir -p verification
-      - name: Recover checksum-verified source only
+      - name: Refine tracked source and check idempotence
         run: |
-          if [ ! -f assets/report-centre.js ]; then
-            curl --fail --silent --show-error --max-time 60 -o /tmp/source.patch 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789122184/municontrol-code-transfer/report-centre-053-source.txt'
-            echo '8c699116d0c58928021a04cbacfeb78cd581293756e95100f9e5491078192c28  /tmp/source.patch' | sha256sum -c -
-            git apply --check /tmp/source.patch
-            git apply --index /tmp/source.patch
-          fi
           node scripts/finalize-report-centre.mjs
-          git add .vercelignore assets/report-centre.css scripts/verify-report-centre-browser.mjs
+          node scripts/refine-report-operability.mjs
+          git diff | sha256sum > /tmp/refine-first
+          node scripts/finalize-report-centre.mjs
+          node scripts/refine-report-operability.mjs
+          git diff | sha256sum > /tmp/refine-second
+          diff /tmp/refine-first /tmp/refine-second
+          git add .vercelignore assets/report-centre.css assets/payroll-navigation.js assets/report-document.js scripts/verify-report-centre-browser.mjs
       - run: npm ci
       - name: Full tests
         run: |
@@ -55,7 +55,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(reportes): task centre, direct source reports and working summary PDF'
+            git commit -m 'fix(reportes): keep context in exports and streamline payroll tasks'
             git push origin HEAD:feat/report-centre-053
           fi
           git rev-parse HEAD > verification/validated-commit.txt
