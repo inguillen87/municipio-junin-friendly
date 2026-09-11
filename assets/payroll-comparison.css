@@ -1,0 +1,34 @@
+/* Same workbench in Reportes and Nómina. No payroll information in CSS or storage. */
+.pc-workbench{min-width:0;max-width:100%}
+.pc-workbench [hidden]{display:none!important}
+.pc-workbench [data-pc-query]>label{flex:1 1 320px;max-width:100%}
+.pc-workbench [data-pc-query] select{max-width:100%;text-overflow:ellipsis}
+.pc-workbench [data-pc-status]{padding:10px 0;color:#315464;min-height:40px}
+.pc-workbench [data-pc-status][data-error=true]{color:#8d342e}
+.pc-guidance{font-size:12px;line-height:1.7;color:#4d6774;margin:12px 0}
+.pc-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0 12px}
+.pc-source-card{border:1px solid #c9dde2;background:#fff;border-radius:12px;padding:20px;min-width:0;overflow-wrap:anywhere}
+.pc-source-card:first-child{border-top:4px solid #355c70}
+.pc-source-card:last-child{border-top:4px solid #087e77}
+.pc-source-card h3{font-size:24px;line-height:1.2;letter-spacing:-.5px;margin:8px 0 12px;color:#173e4f}
+.pc-source-card p{font-size:12px;line-height:1.6;margin:7px 0}
+.pc-tag{display:inline-block;font-size:11px;line-height:1.5;font-weight:650;padding:6px 9px;border-radius:6px;background:#ebf3f4;color:#305768}
+.pc-tag[data-review=true]{background:#fff3dd;color:#755114}
+.pc-table-wrap{max-height:640px;margin:16px 0;background:#fff}
+.pc-table{min-width:970px}
+.pc-table caption{text-align:left;font-size:12px;font-weight:650;padding:14px;background:#fff;color:#3b5868}
+.pc-table th:first-child{min-width:230px;max-width:300px}
+.pc-table tbody th{position:static;background:#fff;text-transform:none;font-size:12px;letter-spacing:0;vertical-align:top;border-bottom:1px solid #e5eef0}
+.pc-table tbody th strong{display:block;color:#163d4f;margin-bottom:4px}
+.pc-table tbody th span{display:block;line-height:1.6;font-weight:500;overflow-wrap:anywhere}
+.pc-table td{min-width:130px}
+.pc-table td:last-child{min-width:210px;max-width:280px}
+.pc-table td small{display:block;font-size:10px;line-height:1.7;margin-top:5px;color:#567182;font-weight:400;white-space:normal}
+.pc-money{font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pc-trace{border-top:1px solid #d2e0e4;margin-top:20px;padding:16px 0}
+.pc-trace summary{cursor:pointer;font-size:13px;font-weight:700;min-height:36px;color:#244b5e}
+.pc-trace dl{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,3fr);gap:10px 20px;font-size:11px;line-height:1.6}
+.pc-trace dt{font-weight:700}.pc-trace dd{margin:0;overflow-wrap:anywhere}
+.pc-workbench :is(button,select,input,summary,[tabindex]):focus-visible{outline:3px solid #ac6812;outline-offset:3px}
+@media(max-width:640px){.pc-sources{grid-template-columns:1fr}.pc-source-card{padding:16px}.pc-workbench [data-pc-query]>label{flex-basis:100%}.pc-workbench [data-pc-query]>button{width:100%}.pc-trace dl{grid-template-columns:1fr;gap:5px}.pc-trace dd{margin-bottom:12px}.pc-kpis strong{font-size:24px}.pc-table-wrap{max-height:580px}}
+@media print{.pc-workbench [data-pc-catalog],.pc-workbench [data-pc-cancel],.pc-workbench [data-pc-login]{display:none!important}}
