@@ -153,6 +153,7 @@
     @media print { .sidebar, .topbar, .button, .busy, .message, #entrySection { display: none !important; } .app { display: block; } main { max-width: none; padding: 0; } }
   </style>
 <style data-report-novelties-fix>#manualAmountEnabled{width:20px;height:20px;min-height:20px;flex:0 0 20px;margin:0}label[for="manualAmountEnabled"]{display:flex;gap:10px;align-items:center;min-height:44px}.field input[type="checkbox"]{width:20px;height:20px}#amountPolicyHelp{display:block;margin-top:8px}</style>
+<link rel="stylesheet" href="assets/payroll-novelty-review.css">
 </head>
 <body data-mc-page="payroll-novelties">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -242,7 +243,7 @@
 
             <div id="bulkFields" hidden>
               <div class="form-grid">
-                <div class="field full"><label for="bulkFile">Archivo CSV UTF-8</label><input id="bulkFile" type="file" accept=".csv,text/csv,text/plain"><small>El archivo sólo se lee en esta sesión y no se guarda en el navegador.</small></div>
+                <div class="field full"><label for="bulkFile">Archivo CSV UTF-8</label><input id="bulkFile" type="file" accept=".csv,text/csv,text/plain"><small>CSV UTF-8 con 10 columnas, hasta 500 filas y 480 KiB. Se revisa completo antes de guardar; no se guarda automáticamente en el navegador.</small></div>
                 <div class="field full"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá aquí el CSV con el encabezado exacto."></textarea></div>
               </div>
               <p class="panel-note">Encabezado obligatorio:</p>
@@ -251,8 +252,9 @@
 
             <div class="form-actions"><button class="button" id="preflightButton" type="button">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" disabled>Crear lote trazable</button></div>
 
+            <section id="noveltyIssuesPanel" hidden></section>
             <div class="preview" id="previewPanel" hidden>
-              <header><div><h3>Previsualización antes de guardar</h3><p class="panel-note" id="previewCaption"></p></div><span class="status approved">Sin errores estructurales</span></header>
+              <header><div><h3>Previsualización antes de guardar</h3><p class="panel-note" id="previewCaption"></p></div><span class="status draft">Validación local · sin guardar</span></header>
               <div class="table-wrap"><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Forzado</th><th>Observación</th></tr></thead><tbody id="previewRows"></tbody></table></div>
             </div>
           </section>
