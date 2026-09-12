@@ -1,0 +1,12 @@
+{
+  "version": "0.59.0",
+  "endpoint": "https://municipio-junin-friendly.vercel.app/api/clock-collector",
+  "connectorKey": "junin-pm10-verified-snapshot",
+  "host": "172.100.97.131",
+  "port": 4370,
+  "serial": "CQTU225360168",
+  "pollSeconds": 60,
+  "stateDirectory": "/var/lib/municontrol-pm10",
+  "credentialDirectory": "/run/credentials/municontrol-pm10.service",
+  "approved": false
+}

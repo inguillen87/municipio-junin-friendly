@@ -1,0 +1,29 @@
+[Unit]
+Description=MuniControl PM-10 attendance collector
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=municontrol-pm10
+UMask=0077
+WorkingDirectory=/opt/municontrol-pm10
+ExecStart=/usr/bin/node /opt/municontrol-pm10/services/pm10-collector/service.mjs --config /etc/municontrol-pm10/config.json
+LoadCredential=commkey:/etc/municontrol-pm10/commkey
+LoadCredential=token:/etc/municontrol-pm10/token
+LoadCredential=spool-key:/etc/municontrol-pm10/spool-key
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=60
+TimeoutStopSec=35
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

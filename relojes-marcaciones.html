@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="assets/workday-panel.css">
   <script type="module" src="assets/workday-panel.js"></script>
 <script type="module" src="assets/clock-dashboard.js"></script>
+<link rel="stylesheet" href="assets/clock-collector.css">
+<script type="module" src="assets/clock-collector.js"></script>
   <style>
     :root{color-scheme:light;--navy:#123247;--navy-2:#1b465e;--teal:#0f766e;--teal-dark:#0b5b55;--canvas:#eef2f0;--surface:#fff;--surface-2:#f6f8f7;--ink:#132e3d;--muted:#5f7480;--line:#d5dfe1;--line-strong:#aebfc4;--amber:#8a570b;--amber-bg:#fff7e7;--red:#9d3838;--red-bg:#fff1f0;--green:#176553;--green-bg:#edf8f4;--blue:#245c7a;--blue-bg:#edf5f9;--shadow:0 16px 38px rgba(14,41,55,.12);--radius:6px;--sidebar:258px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box}html{min-width:320px;background:var(--canvas);scroll-behavior:smooth}body{min-width:320px;min-height:100vh;margin:0;color:var(--ink);background:var(--canvas);font-size:14px;line-height:1.45}button{font:inherit}button,a{-webkit-tap-highlight-color:transparent}button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid rgba(15,118,110,.28);outline-offset:2px}[hidden]{display:none!important}.sr-only{position:absolute!important;top:0!important;left:0!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}.skip-link{position:fixed;z-index:10000;top:8px;left:8px;padding:10px 14px;color:#fff;background:var(--navy);border-radius:4px;transform:translateY(-160%)}.skip-link:focus{transform:translateY(0)}
@@ -58,6 +60,19 @@
         <div class="error-banner" id="errorBanner" role="alert" hidden><div><strong>No pudimos actualizar marcaciones</strong><p id="errorMessage">El servicio interno no respondió.</p></div><button class="button" id="retryData" type="button">Reintentar</button></div>
         <div class="operation-banner" id="operationBanner" role="status" hidden><div><strong id="operationTitle">Datos físicos registrados</strong><p id="operationMessage">La información quedó guardada sin declarar una conexión que todavía no fue verificada.</p></div></div>
 
+<section id="collectorMonitor" class="cl-monitor" hidden aria-labelledby="collectorTitle" aria-busy="false">
+ <header class="cl-head"><div><span class="cl-eyebrow">PM-10 · Recepción automática</span><h2 id="collectorTitle">Sincronización del reloj</h2></div><button type="button" id="collectorRefresh">Actualizar estado</button></header>
+ <div class="cl-status" role="status"><strong id="collectorState">Comprobando sincronización</strong><p id="collectorExplanation">Consultando el receptor municipal.</p></div>
+ <div class="cl-path">
+  <article class="cl-step"><span>1 · Servicio municipal</span><strong id="collectorContact">—</strong><small>Última comunicación recibida por MuniControl.</small></article>
+  <article class="cl-step"><span>2 · Reloj de Edificio Viejo</span><strong id="collectorRead">—</strong><small>Última lectura completa informada por el colector.</small></article>
+  <article class="cl-step"><span>3 · Datos persistidos</span><strong id="collectorBatch">—</strong><small>Último lote confirmado en la base; no es un cálculo de asistencia.</small></article>
+ </div>
+ <div class="cl-kpis"><div><span>Registros nuevos conservados</span><strong id="collectorStored">—</strong></div><div><span>Eventos normalizados</span><strong id="collectorNormalized">—</strong></div><div><span>Registros observados</span><strong id="collectorObserved">—</strong></div><div><span>Cola informada por el servicio</span><strong id="collectorPending">—</strong></div></div>
+ <details><summary>Últimos 20 registros del canal automático</summary><div class="cl-table-wrap"><table><thead><tr><th>Fecha en el reloj</th><th>Recepción en MuniControl</th><th>Revisión</th><th>Códigos de origen</th></tr></thead><tbody id="collectorRows"></tbody></table></div><p class="cl-foot">Los códigos se preservan sin convertirlos en horas pagables. El historial descargado manualmente permanece en el tablero inferior.</p></details>
+ <details><summary>Qué falta para activar la instalación municipal</summary><ol class="cl-install"><li><strong>Servidor permanente y acceso al equipo</strong>Un servicio dentro de la red municipal, con acceso autorizado al reloj y salida HTTPS. No se abre el reloj a Internet.</li><li><strong>Credenciales separadas y prueba controlada</strong>La clave conocida del reloj queda sólo en el servidor municipal. El token del receptor se limita a este conector.</li><li><strong>Prueba con tu computadora apagada</strong>Una fichada nueva debe recibirse sola. Se verifican también reinicio, cola local ante un corte y reenvío sin duplicados.</li></ol></details>
+ <p class="cl-foot">Consulta de estado: <span id="collectorChecked">—</span>. Se actualiza cada 60 segundos con la página visible. Refrescar no solicita una lectura física ni modifica nómina.</p>
+</section>
 <section id="clockOperations" class="ck" data-clock-release="pm10-snapshot-v1" data-dashboard-release="clock-dashboard-v2" hidden aria-labelledby="clockTitle">
 <header class="ck-hero"><div><p class="ck-eyebrow">CENTRO DE CONTROL · ASISTENCIA</p><h2 id="clockTitle">Relojes y marcaciones</h2><p>Actividad verificable, personas vinculadas y decisiones con evidencia.</p></div><div class="ck-source-status"><strong id="clockMode">Consultando fuente</strong><small id="clockDevice">Identificación pendiente</small></div></header>
 <div class="ck-body"><div id="clockError" role="alert" class="ck-error" hidden></div>

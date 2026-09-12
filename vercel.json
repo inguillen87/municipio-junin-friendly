@@ -3,6 +3,7 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
+    "api/clock-collector.js": {"maxDuration":20},
     "api/payroll-source-delivery.js": { "maxDuration": 60 },
     "api/friendly-policy.js": { "maxDuration": 10 },
     "api/internal-auth.js": { "maxDuration": 10 },

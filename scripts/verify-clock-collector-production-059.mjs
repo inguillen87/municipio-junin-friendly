@@ -1,0 +1,8 @@
+import fs from 'node:fs';import {createHash} from 'node:crypto';
+const origin='https://municipio-junin-friendly.vercel.app',release=process.env.GITHUB_SHA,files=['assets/clock-collector-model.js','assets/clock-collector.js','assets/clock-collector.css'],hash=b=>createHash('sha256').update(b).digest('hex');
+const expected=Object.fromEntries(files.map(f=>[f,hash(fs.readFileSync(f))]));let ready=false;const end=Date.now()+270000;
+while(Date.now()<end){try{let ok=true;for(const f of files){const r=await fetch(origin+'/'+f+'?release='+release,{cache:'no-store',signal:AbortSignal.timeout(12000)});if(!r.ok||hash(Buffer.from(await r.arrayBuffer()))!==expected[f]){ok=false;break;}}if(ok){const html=await fetch(origin+'/relojes-marcaciones.html?release='+release,{cache:'no-store',signal:AbortSignal.timeout(12000)});if(html.ok&&(await html.text()).includes('id="collectorMonitor"')){ready=true;break;}}}catch{}await new Promise(r=>setTimeout(r,5000));}
+if(!ready)throw Error('COLLECTOR_DEPLOY_NOT_MATCHED');
+const a=await fetch(origin+'/api/internal-attendance?resource=collector-status&site=pm-10',{redirect:'manual',signal:AbortSignal.timeout(15000)});if(a.status!==401&&a.status!==403)throw Error('ANONYMOUS_MONITOR_NOT_DENIED');
+const b=await fetch(origin+'/api/clock-collector',{redirect:'manual',signal:AbortSignal.timeout(15000)});if(b.status!==405)throw Error('COLLECTOR_GET_NOT_DENIED');
+fs.mkdirSync('verification',{recursive:true});fs.writeFileSync('verification/collector059-production.json',JSON.stringify({release,checkedAt:new Date().toISOString(),assets:expected,anonymousMonitor:a.status,receiverGet:b.status,physicalCollectorInstalled:false,realMunicipalSessionTested:false},null,2));

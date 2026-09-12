@@ -148,3 +148,8 @@ api/whatsapp-webhook.js
 !scripts/migrations/053-payroll-source-report.sql
 
 !scripts/migrations/054-payroll-export-roster.sql
+
+!api/clock-collector.js
+!lib/clock-collector-contract.js
+!lib/internal-clock-collector.js
+!scripts/migrations/059-clock-collector.sql
