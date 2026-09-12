@@ -1,0 +1,122 @@
+name: Native multi-legajo novelties 057
+on:
+  push:
+    branches: ['feat/novelty-multiple-legajos-057', 'master']
+    paths:
+      - '.github/workflows/novelty-list-057.yml'
+      - 'scripts/patches/057*'
+      - 'assets/payroll-novelty*'
+      - 'novedades-nomina.html'
+      - 'scripts/verify-novelty-list*'
+      - 'tests/payroll-novelty-legajo-list-057.test.js'
+      - 'scripts/build-friendly.mjs'
+      - 'sw.js'
+permissions:
+  contents: read
+concurrency:
+  group: novelty-list-057-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply exact implementation prepared from production tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f scripts/patches/057.patch.b64.1; then
+            node --input-type=module -e 'import fs from "node:fs"; const text=Array.from({length:8},(_,i)=>fs.readFileSync("scripts/patches/057.patch.b64."+(i+1),"utf8")).join("").replace(/\s/g,""); if(text.length!==22128||!/^[A-Za-z0-9+/]*={0,2}$/.test(text))throw Error("INVALID_PATCH_ENCODING"); fs.writeFileSync("/tmp/057.patch.gz",Buffer.from(text,"base64"));'
+            echo '09122dbf36bb12bb9351b5a29e1874b42c18715fb80e09b3f14487512d9e4e00  /tmp/057.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/057.patch.gz > /tmp/057.patch
+            git apply --check /tmp/057.patch
+            git apply /tmp/057.patch
+          fi
+          if test -f scripts/patches/057.qa.patch; then
+            git apply --check scripts/patches/057.qa.patch
+            git apply scripts/patches/057.qa.patch
+          fi
+          git diff --check
+      - run: npm ci
+      - name: Full unit suite and static build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Native multi-legajo full browser acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-novelty-list-057.mjs 2>&1 | tee verification/novelty-list-browser.log
+      - name: Existing novelty, comparison, PDF, legajo and report regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-novelty-review-056.mjs 2>&1 | tee verification/novelty-review.log
+          node scripts/verify-payroll-comparison-056.mjs 2>&1 | tee verification/comparison.log
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/summary.log
+          node scripts/verify-report-summary-shell.mjs 2>&1 | tee verification/summary-shell.log
+          node scripts/verify-document-library-legajo.mjs 2>&1 | tee verification/library.log
+          node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/reports.log
+          node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster.log
+      - name: Commit validated source, not the assembly patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/payroll-novelty-legajo-list.css assets/payroll-novelty-legajo-list.js assets/payroll-novelty-workbench.js docs/SPRINT_057_NOVEDADES_VARIOS_LEGAJOS.md novedades-nomina.html scripts/build-friendly.mjs scripts/verify-novelty-list-057.mjs scripts/verify-novelty-list-production-057.mjs sw.js tests/payroll-novelty-legajo-list-057.test.js
+          if test -f scripts/patches/057.patch.b64.1; then git rm scripts/patches/057.patch.b64.{1,2,3,4,5,6,7,8}; fi
+          if test -f scripts/patches/057.qa.patch; then git rm scripts/patches/057.qa.patch; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(057): native multi-legajo novelty entry with atomic validation and full-batch review'
+            git push origin HEAD:feat/novelty-multiple-legajos-057
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive evidence and exact source
+        if: always()
+        shell: bash
+        run: |
+          git diff HEAD > verification/pending-changes.patch
+          git archive --format=tar.gz -o verification/novelty-list-057-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: novelty-list-057-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify canonical production bytes and anonymous denial
+        run: node scripts/verify-novelty-list-production-057.mjs
+      - name: Test published workbench with synthetic APIs only
+        env:
+          NOVELTY_LIST_LIVE_ASSETS: '1'
+        run: node scripts/verify-novelty-list-057.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: novelty-list-057-production-verification
+          path: verification/
+          retention-days: 5

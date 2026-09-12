@@ -154,6 +154,7 @@
   </style>
 <style data-report-novelties-fix>#manualAmountEnabled{width:20px;height:20px;min-height:20px;flex:0 0 20px;margin:0}label[for="manualAmountEnabled"]{display:flex;gap:10px;align-items:center;min-height:44px}.field input[type="checkbox"]{width:20px;height:20px}#amountPolicyHelp{display:block;margin-top:8px}</style>
 <link rel="stylesheet" href="assets/payroll-novelty-review.css">
+<link rel="stylesheet" href="assets/payroll-novelty-legajo-list.css">
 </head>
 <body data-mc-page="payroll-novelties">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -206,8 +207,8 @@
 
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
-              <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Conservá los datos y cambiá sólo el agente. Se registra como lote.</small></span></label>
-              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Uno o varios legajos, una misma novedad. Sin archivos.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · archivo CSV</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
             </div>
 
             <div class="form-grid">
@@ -230,13 +231,44 @@
             </div>
 
             <div class="agile-panel" id="agilePanel" hidden>
+              <ol class="agile-steps" aria-label="Preparación de una novedad para varios legajos">
+                <li><span aria-hidden="true">1</span> Definí la novedad de arriba</li>
+                <li aria-current="step"><span aria-hidden="true">2</span> Agregá los legajos</li>
+                <li><span aria-hidden="true">3</span> Validá y revisá el lote</li>
+              </ol>
+              <div class="agile-multiple">
+                <div>
+                  <h3>Una novedad para varios legajos</h3>
+                  <p>Escribí o pegá sólo los números de legajo. Se aplican los mismos datos de la novedad a cada uno; no necesitás preparar un archivo.</p>
+                  <label for="agileLegajos">Lista de legajos</label>
+                  <textarea id="agileLegajos" rows="4" maxlength="12000" spellcheck="false" autocomplete="off" aria-describedby="agileLegajosHelp agileListStatus" placeholder="1001&#10;1002&#10;1003"></textarea>
+                  <p id="agileLegajosHelp">Separá por saltos de línea, espacios, comas o punto y coma. No pegues DNI, nombres ni rangos. El sistema no corrige ni elimina legajos repetidos automáticamente.</p>
+                  <p id="agileListStatus" role="status" aria-live="polite"></p>
+                  <ul id="agileListIssues" hidden aria-label="Incidencias de la lista"></ul>
+                  <div class="agile-actions">
+                    <button class="button primary" id="agileListAddButton" type="button" disabled>Agregar lista al lote</button>
+                    <button class="button" id="agileListResetButton" type="button" disabled>Limpiar texto</button>
+                  </div>
+                </div>
+                <aside class="agile-common" aria-label="Datos que se aplican a todos los legajos">
+                  <strong>La misma novedad para todos</strong>
+                  <dl id="agileCommonSummary"></dl>
+                  <p>Al agregar el primer legajo se bloquean los datos comunes. Para otro concepto o período, prepará un lote diferente.</p>
+                  <p>Agregar a la lista no guarda ni liquida. La existencia y el vínculo de cada legajo se comprueban en el servidor al crear el lote.</p>
+                </aside>
+              </div>
               <div class="agile-toolbar">
-                <div><strong>Carga rápida en memoria</strong><p>Agregá el legajo actual. Se limpia sólo ese campo y se conservan concepto, período, unidades, importe y fundamento.</p></div>
+                <div><strong>También podés agregar de a uno</strong><p>Completá el campo Legajo de arriba y agregalo. La lista a pegar debe estar vacía.</p></div>
                 <div class="agile-actions"><button class="button primary" id="agileAddButton" type="button">Agregar legajo al lote</button><button class="button" id="agileClearButton" type="button" disabled>Vaciar lista</button></div>
               </div>
               <p class="agile-count" id="agileCount" role="status" aria-live="polite">0 filas preparadas.</p>
               <p class="panel-note" id="agileTemplateLock" role="status" aria-live="polite" hidden></p>
               <div class="empty" id="agileEmpty">Todavía no agregaste legajos. Completá la novedad de arriba y presioná “Agregar legajo al lote”.</div>
+              <div class="agile-list-filter" data-review-only="true">
+                <label for="agileSearch">Buscar legajo en el lote<input id="agileSearch" type="search" maxlength="20" inputmode="numeric" autocomplete="off" placeholder="Número de legajo"></label>
+                <button class="button" id="agileSearchReset" type="button">Ver todo el lote</button>
+              </div>
+              <p id="agileVisibleCount" role="status" aria-live="polite"></p>
               <div class="table-wrap" id="agileTable" hidden><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Fundamento</th><th>Acción</th></tr></thead><tbody id="agileRows"></tbody></table></div>
               <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. El servidor vuelve a validar todas las filas, el binding GRH y tus capacidades.</p>
             </div>
