@@ -1,3 +1,4 @@
+import { createEmployeePicker } from './employee-picker.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
 import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
@@ -57,6 +58,7 @@ function issueLabel(issue) {
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
 let sheetEditor = null;
+let employeePicker = null;
 let issuesPanel = null;
 let pendingFileReader = null;
 let fileReadVersion = 0;
@@ -79,6 +81,7 @@ const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
 ]);
 
 function setBusy(value, label = '') {
+  if (value) employeePicker?.close();
   document.body.dataset.busy = value ? 'true' : 'false';
   if (value) {
     for (const field of byId('entrySection').querySelectorAll('input, select, textarea')) {
@@ -571,6 +574,8 @@ async function loadBootstrap({ quiet = false } = {}) {
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
     const limitsChanged = bootstrapState && JSON.stringify(bootstrapState.limits) !== JSON.stringify(payload.limits);
     if (principalChanged || !canPrepare || limitsChanged) {
+      employeePicker?.close();
+      byId('pickedLegajoName').textContent = '';
       sheetEditor?.clear();
       agileDraftRows = [];
       agileTemplate = null;
@@ -612,6 +617,8 @@ async function loadBootstrap({ quiet = false } = {}) {
     byId('entrySection').hidden = true;
     byId('pageContent').hidden = false;
     byId('loadingState').hidden = true;
+    employeePicker?.close();
+    byId('pickedLegajoName').textContent = '';
     showMessage('error', 'No pudimos cargar novedades de nómina', errorMessage(error));
   } finally {
     if (!quiet) setBusy(false);
@@ -741,6 +748,7 @@ async function exportBatch(id, format) {
 }
 
 function updateMode() {
+  employeePicker?.close();
   const mode = document.querySelector('[name="sourceMode"]:checked')?.value;
   byId('individualFields').hidden = !['individual', 'agile'].includes(mode);
   byId('bulkFields').hidden = mode !== 'bulk';
@@ -817,6 +825,7 @@ function clearAgileInput() {
   byId('agileLegajos').value = '';
   byId('agileSearch').value = '';
   byId('legajo').value = '';
+  if (byId('pickedLegajoName')) byId('pickedLegajoName').textContent = '';
   byId('agileListIssues').replaceChildren();
 }
 
@@ -914,6 +923,7 @@ function addAgileRow() {
       agileTemplate = { periodMonth, payrollType, commonValues: [...commonValues] };
     }
     byId('legajo').value = '';
+    byId('pickedLegajoName').textContent = '';
     invalidatePreparedDraft();
     renderAgileRows();
     showMessage('success', 'Legajo agregado a la carga rápida', 'Los demás datos quedaron listos para reutilizar. La lista todavía no fue enviada al servidor.');
@@ -1034,6 +1044,7 @@ function handleFile(event) {
 }
 
 async function logout() {
+  employeePicker?.close();
   sheetEditor?.clear();
   invalidatePreparedDraft();
   try {
@@ -1103,7 +1114,39 @@ function syncAmountEntry() {
 }
 
 function initialize() {
-  sheetEditor = mountNoveltySheet(byId('sheetFields'), { onChange: invalidatePreparedDraft });
+  employeePicker = createEmployeePicker({
+    canUse: () => document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
+    onDirectoryInvalidated: () => { byId('pickedLegajoName').textContent = ''; sheetEditor?.clearLookupLabels(); },
+  });
+  sheetEditor = mountNoveltySheet(byId('sheetFields'), {
+    onChange: invalidatePreparedDraft,
+    pickEmployees: options => employeePicker.open(options),
+    maximumRows: agileMaximum,
+  });
+  byId('pickLegajoButton').addEventListener('click', () => {
+    try { employeePicker.open({onUse: items => {
+      if (byId('legajo').disabled) throw Error('La carga cambió. Volvé a abrir la búsqueda.');
+      byId('legajo').value = items[0].legajo;
+      byId('legajo').dispatchEvent(new Event('input', {bubbles:true}));
+      byId('pickedLegajoName').textContent = (items[0].nombre || 'Nombre no informado') + ' · ' + (items[0].sector || 'Sector no informado');
+    }}); } catch(error) { showMessage('error','No se pudo abrir el directorio',errorMessage(error)); }
+  });
+  byId('legajo').addEventListener('input', () => { byId('pickedLegajoName').textContent = ''; });
+  byId('agilePickButton').addEventListener('click', () => {
+    try {
+      const analysis = analyzeLegajoList(byId('agileLegajos').value, agileDraftRows.map(row => row.legajo), agileMaximum());
+      if (analysis.issues.length) throw Error('Corregí primero las incidencias de la lista escrita.');
+      const pending = byId('agileLegajos').value.trim().split(/[\s,;]+/).filter(Boolean);
+      const initial = byId('agileLegajos').value;
+      employeePicker.open({multiple:true, maximum:agileMaximum()-agileDraftRows.length-pending.length,
+        excluded:[...agileDraftRows.map(row=>row.legajo), ...pending], onUse:items=>{
+          if(byId('agileLegajos').value !== initial || document.querySelector('[name="sourceMode"]:checked')?.value !== 'agile') throw Error('La lista cambió. Volvé a abrir la búsqueda.');
+          byId('agileLegajos').value = [...pending,...items.map(item=>item.legajo)].join('\n');
+          byId('agileLegajos').dispatchEvent(new Event('input',{bubbles:true}));
+          showMessage('success','Legajos seleccionados, sin guardar','Revisá la lista y presioná Agregar lista al lote. Todavía no se creó ninguna novedad.');
+        }});
+    }catch(error){showMessage('error','Revisá la selección de legajos',errorMessage(error));}
+  });
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   window.addEventListener('pagehide', () => {

@@ -1,3 +1,4 @@
+import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
@@ -3114,6 +3115,16 @@ function directoryBaseSql(sourceBound = false) {
 }
 
 export async function employees(sql, req, binding = null) {
+  const view = req.query?.view;
+  const picker = view === 'novelty-selector';
+  if (view !== undefined) {
+    try {
+      if (!picker) throw Error('Vista de directorio no válida.');
+      assertEmployeePickerRequest(req.query, binding);
+    } catch (error) {
+      return {status:400,payload:{ok:false,code:'DIRECTORY_PICKER_INVALID',error:error.message}};
+    }
+  }
   const page = positiveInteger(queryValue(req, 'page', '1'), 1, 100000);
   const limit = positiveInteger(queryValue(req, 'limit', '25'), 25, 100);
   const search = boundedQueryValue(req, 'search', 100);
@@ -3139,17 +3150,16 @@ export async function employees(sql, req, binding = null) {
     return `$${values.length}`;
   };
   if (search) {
-    const term = parameter(`%${search}%`);
+    const term = parameter(`%${picker ? escapePickerLike(search) : search}%`);
     const nameTokens = [...new Set(search.split(/\s+/).map((token) => token.trim()).filter(Boolean))]
       .slice(0, 8);
     const tokenNameMatch = nameTokens.length
-      ? ` OR (${nameTokens.map((token) => `translate(lower(directory.nombre), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${parameter(`%${token}%`)}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})`
+      ? ` OR (${nameTokens.map((token) => `translate(lower(directory.nombre), 'áéíóúüñ', 'aeiouun') LIKE translate(lower(${parameter(`%${picker ? escapePickerLike(token) : token}%`)}), 'áéíóúüñ', 'aeiouun')`).join(' AND ')})`
       : '';
     conditions.push(`(
       directory.nombre ILIKE ${term}
       OR directory.legajo ILIKE ${term}
-      OR directory.dni ILIKE ${term}
-      OR directory.cuil ILIKE ${term}
+      ${picker ? '' : `OR directory.dni ILIKE ${term} OR directory.cuil ILIKE ${term}`}
       ${tokenNameMatch}
     )`);
   }
@@ -3173,7 +3183,7 @@ export async function employees(sql, req, binding = null) {
     sql.query(`${baseSql} SELECT count(*)::int AS total FROM directory ${where}`, values),
     sql.query(`
       ${baseSql}
-      SELECT * FROM directory
+      SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate"' : '*'} FROM directory
       ${where}
       ORDER BY CASE
                  WHEN activo AND liquidable THEN 0
@@ -3192,6 +3202,7 @@ export async function employees(sql, req, binding = null) {
     includeFacets ? sql.query(`${baseSql} SELECT COALESCE(convenio, 'Sin convenio informado') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([])
   ]);
   const total = Number(countRow?.total || 0);
+  if (picker) return {status:200,payload:employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope)};
   return {
     status: 200,
     payload: {

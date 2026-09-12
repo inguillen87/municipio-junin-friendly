@@ -156,6 +156,7 @@
 <link rel="stylesheet" href="assets/payroll-novelty-review.css">
 <link rel="stylesheet" href="assets/payroll-novelty-legajo-list.css">
 <link rel="stylesheet" href="assets/payroll-novelty-sheet.css">
+<link rel="stylesheet" href="assets/employee-picker.css">
 </head>
 <body data-mc-page="payroll-novelties">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -220,7 +221,7 @@
             </div>
 
             <div class="form-grid" id="individualFields">
-              <div class="field"><label for="legajo">Legajo</label><input id="legajo" inputmode="numeric" maxlength="20" placeholder="Ej.: 571"></div>
+              <div class="field"><label for="legajo">Legajo</label><input id="legajo" inputmode="numeric" maxlength="20" placeholder="Ej.: 571"><button type="button" class="button picker-open-button" id="pickLegajoButton">Buscar por nombre</button><p id="pickedLegajoName" class="picker-picked-name" role="status" aria-live="polite"></p></div>
               <div class="field"><label for="conceptSourceId">Concepto</label><input id="conceptSourceId" inputmode="numeric" maxlength="20" placeholder="Código GRH"></div>
               <div class="field"><label for="costCenterSourceId">Área / centro de costo</label><input id="costCenterSourceId" inputmode="numeric" maxlength="20" placeholder="Opcional"></div>
               <div class="field"><label for="adjustmentMonth">Mes de ajuste</label><input id="adjustmentMonth" type="month"><small>Debe ser igual o anterior al período.</small></div>
@@ -248,6 +249,7 @@
                   <p id="agileListStatus" role="status" aria-live="polite"></p>
                   <ul id="agileListIssues" hidden aria-label="Incidencias de la lista"></ul>
                   <div class="agile-actions">
+                    <button class="button" id="agilePickButton" type="button">Buscar y elegir legajos activos</button>
                     <button class="button primary" id="agileListAddButton" type="button" disabled>Agregar lista al lote</button>
                     <button class="button" id="agileListResetButton" type="button" disabled>Limpiar texto</button>
                   </div>
