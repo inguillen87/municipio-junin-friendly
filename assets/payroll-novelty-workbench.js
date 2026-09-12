@@ -1,3 +1,4 @@
+import { mountNoveltyDirectory } from './payroll-novelty-directory.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
 import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
@@ -57,6 +58,7 @@ function issueLabel(issue) {
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
 let sheetEditor = null;
+let directoryPicker = null;
 let issuesPanel = null;
 let pendingFileReader = null;
 let fileReadVersion = 0;
@@ -80,6 +82,7 @@ const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
 
 function setBusy(value, label = '') {
   document.body.dataset.busy = value ? 'true' : 'false';
+  if (value) directoryPicker?.close();
   if (value) {
     for (const field of byId('entrySection').querySelectorAll('input, select, textarea')) {
       if (!busyEntryFields.has(field)) busyEntryFields.set(field, field.disabled);
@@ -571,6 +574,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
     const limitsChanged = bootstrapState && JSON.stringify(bootstrapState.limits) !== JSON.stringify(payload.limits);
     if (principalChanged || !canPrepare || limitsChanged) {
+      directoryPicker?.close();
       sheetEditor?.clear();
       agileDraftRows = [];
       agileTemplate = null;
@@ -612,6 +616,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     byId('entrySection').hidden = true;
     byId('pageContent').hidden = false;
     byId('loadingState').hidden = true;
+    directoryPicker?.close();
     showMessage('error', 'No pudimos cargar novedades de nómina', errorMessage(error));
   } finally {
     if (!quiet) setBusy(false);
@@ -742,6 +747,7 @@ async function exportBatch(id, format) {
 
 function updateMode() {
   const mode = document.querySelector('[name="sourceMode"]:checked')?.value;
+  directoryPicker?.close();
   byId('individualFields').hidden = !['individual', 'agile'].includes(mode);
   byId('bulkFields').hidden = mode !== 'bulk';
   byId('agilePanel').hidden = mode !== 'agile';
@@ -1102,8 +1108,58 @@ function syncAmountEntry() {
   byId('amountPolicyHelp').textContent=forced?'Excepción forzada: exige importe, fundamento y segunda aprobación.':policy.enabled?'Importe informado manualmente. Se conserva su origen y revisión.':'Carga habitual por concepto y unidades. La valorización corresponde al motor de liquidación; no se presupone cero.';
 }
 
+function applyDirectoryPeople(people, mode, extra) {
+  const currentMode = document.querySelector('[name="sourceMode"]:checked')?.value;
+  if (document.body.dataset.busy === 'true' || currentMode !== mode || !hasCapability('payroll.novelty.prepare')) {
+    throw Error('Cambió la modalidad o el permiso. Volvé a abrir el buscador.');
+  }
+  const ids = people.map(person => person.legajo);
+  if (mode === 'individual') {
+    if (ids.length !== 1) throw Error('Elegí una sola persona para la carga individual.');
+    byId('legajo').value = ids[0];
+  } else if (mode === 'sheet') {
+    sheetEditor.addDirectoryPeople(ids, { ...extra, maximum: agileMaximum() });
+  } else {
+    assertAgilePreparation();
+    if (byId('legajo').value.trim() || byId('agileLegajos').value.trim()) {
+      throw Error('Hay legajos escritos sin agregar. Agregalos o limpiá esos campos antes de usar el padrón.');
+    }
+    const periodMonth = agileTemplate?.periodMonth || exactMonth(byId('periodMonth').value, 'Período');
+    const payrollType = agileTemplate?.payrollType || byId('payrollType').value;
+    if (!bootstrapState.limits.payrollTypes.includes(payrollType)) throw Error('Elegí un tipo de liquidación habilitado.');
+    const commonValues = agileTemplate?.commonValues || currentEntryValues().slice(1);
+    const next = appendLegajoList({raw:ids.join('\n'),existingRows:agileDraftRows,commonValues,periodMonth,parseRow:rowFromValues,maximum:agileMaximum()});
+    duplicateCheck(next);
+    agileDraftRows = next;
+    if (!agileTemplate) agileTemplate = {periodMonth,payrollType,commonValues:[...commonValues]};
+    renderAgileRows();
+  }
+  invalidatePreparedDraft();
+  showMessage('success', `${ids.length} legajo${ids.length===1?'':'s'} seleccionado${ids.length===1?'':'s'} desde el padrón`, 'Revisá concepto y unidades. Todavía no se guardó ningún lote; el servidor valida cada legajo al preparar.');
+}
+
+function openDirectoryPicker() {
+  try {
+    if (document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare')) return;
+    const mode = document.querySelector('[name="sourceMode"]:checked')?.value;
+    if (!['individual','agile','sheet'].includes(mode)) return;
+    const existing = mode==='agile' ? agileDraftRows.map(row=>row.legajo)
+      : mode==='sheet' ? sheetEditor.values().map(row=>row[0]) : [];
+    directoryPicker.open({mode,existing,maximum:agileMaximum()});
+  } catch(error) {
+    showMessage('error','No se pudo abrir el padrón',errorMessage(error));
+  }
+}
+
 function initialize() {
   sheetEditor = mountNoveltySheet(byId('sheetFields'), { onChange: invalidatePreparedDraft });
+  directoryPicker = mountNoveltyDirectory({getBootstrap:()=>bootstrapState,onApply:applyDirectoryPeople,onAccessLost:()=>{
+    sheetEditor.clear(); agileDraftRows=[]; agileTemplate=null; clearAgileInput();
+    byId('legajo').value=''; invalidatePreparedDraft(); renderAgileRows();
+    showMessage('error','El acceso al padrón cambió','Actualizá Novedades o ingresá nuevamente con tu cuenta municipal. Se descartó la selección.');
+  }});
+  byId('directoryChooseButton').addEventListener('click',openDirectoryPicker);
+  byId('sheetDirectoryButton').addEventListener('click',openDirectoryPicker);
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   window.addEventListener('pagehide', () => {

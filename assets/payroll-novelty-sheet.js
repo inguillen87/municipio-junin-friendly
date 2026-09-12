@@ -8,7 +8,8 @@ export function mountNoveltySheet(host, { onChange = () => {} } = {}) {
   const header = el('div',undefined,'sheet-heading');
   header.innerHTML='<div><p class="sheet-eyebrow">SIN ARCHIVOS · EDICIÓN DIRECTA</p><h3>Una planilla, varias novedades</h3><p>Agregá legajos y editá concepto y unidades en cada fila. El período y el tipo se toman de arriba.</p></div>';
   const toolbar=el('div',undefined,'sheet-toolbar'), add=button('Agregar fila','sheetAdd','primary'), group=button('Agregar varios legajos','sheetGroup'), restore=button('Deshacer eliminación','sheetUndo'), clear=button('Vaciar planilla','sheetClear','danger');
-  toolbar.append(add,group,restore,clear); const state=el('p','','sheet-state');state.id='sheetState';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+  const directory=button('Elegir personas del padrón','sheetDirectoryButton','primary');
+  toolbar.append(directory,add,group,restore,clear); const state=el('p','','sheet-state');state.id='sheetState';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
   const note=el('p','No hace falta informar un importe para cada empleado. Usá unidades; los importes manuales y el modo forzado quedan en “Más campos”. No se calcula un sueldo al editar.','sheet-note');
   const wrap=el('div',undefined,'table-wrap sheet-table'),table=el('table');
   table.innerHTML='<thead><tr><th scope="col">Fila</th><th scope="col">Legajo</th><th scope="col">Concepto</th><th scope="col">Unidades</th><th scope="col">Importe manual</th><th scope="col">Acciones</th></tr></thead>';
@@ -52,7 +53,7 @@ export function mountNoveltySheet(host, { onChange = () => {} } = {}) {
     }
     empty.hidden=rows.length>0;wrap.hidden=nav.hidden=!rows.length;
     range.textContent=rows.length?`${view.offset+1}–${Math.min(view.offset+size,rows.length)} de ${rows.length} · Página ${page} de ${view.pages}`:'Sin filas';
-    add.disabled=group.disabled=locked||rows.length>=500;clear.disabled=locked||!rows.length;restore.disabled=locked||!undo;
+    directory.disabled=add.disabled=group.disabled=locked||rows.length>=500;clear.disabled=locked||!rows.length;restore.disabled=locked||!undo;
     previous.disabled=locked||page<=1;next.disabled=locked||page>=view.pages;pageSize.disabled=locked;
     if(focusIndex!==null)host.querySelector(`[data-sheet-index="${focusIndex}"][data-sheet-field="0"]`)?.focus();
   }
@@ -68,6 +69,12 @@ export function mountNoveltySheet(host, { onChange = () => {} } = {}) {
   previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});pageSize.addEventListener('change',()=>{size=Number(pageSize.value);page=1;render();});
   render();state.textContent='Sin filas. La planilla se conserva sólo en esta pestaña hasta crear el lote.';
   return {
+    addDirectoryPeople(legajos,{concepto='',unidades='',maximum=500}={}){
+      if(locked)throw Error('La planilla está ocupada.');
+      if(!Array.isArray(legajos)||rows.length+legajos.length>maximum)throw Error('La selección supera el límite de filas de esta planilla.');
+      const first=rows.length,updated=appendSheetGroup(rows,{legajos:legajos.join('\n'),concepto,unidades});
+      rows=updated;undo=null;page=Math.floor(first/size)+1;notify(`${rows.length-first} personas agregadas desde el padrón.`);render(first);
+    },
     values:()=>rows.map(r=>[...r]),
     count:()=>rows.length,
     clear(){rows=[];undo=null;page=1;if(dialog.open)dialog.close();resetDialog();render();state.textContent='Planilla vacía. No se conservan filas en este editor.';},
