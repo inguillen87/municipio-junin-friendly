@@ -11,6 +11,7 @@ on:
       - 'novedades-nomina.html'
       - 'scripts/verify-novelty-sheet*'
       - 'tests/payroll-novelty-sheet-057.test.js'
+      - 'tests/payroll-novelty-ux.test.js'
 permissions:
   contents: read
 concurrency:
@@ -76,7 +77,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add assets/payroll-novelty-sheet.js assets/payroll-novelty-sheet-model.js assets/payroll-novelty-sheet.css assets/payroll-novelty-workbench.js assets/payroll-novelty-review-panel.js novedades-nomina.html scripts/build-friendly.mjs scripts/verify-novelty-sheet-057.mjs scripts/verify-novelty-sheet-production-057.mjs tests/payroll-novelty-sheet-057.test.js docs/SPRINT_057_PLANILLA_NOVEDADES.md
+          git add assets/payroll-novelty-sheet.js assets/payroll-novelty-sheet-model.js assets/payroll-novelty-sheet.css assets/payroll-novelty-workbench.js assets/payroll-novelty-review-panel.js novedades-nomina.html scripts/build-friendly.mjs scripts/verify-novelty-sheet-057.mjs scripts/verify-novelty-sheet-production-057.mjs tests/payroll-novelty-sheet-057.test.js tests/payroll-novelty-ux.test.js docs/SPRINT_057_PLANILLA_NOVEDADES.md
           if test -f scripts/patches/057.patch.b64.1; then git rm scripts/patches/057.patch.b64.{1,2}; fi
           if test -f scripts/patches/057.fix.patch; then git rm scripts/patches/057.fix.patch; fi
           if ! git diff --cached --quiet; then
