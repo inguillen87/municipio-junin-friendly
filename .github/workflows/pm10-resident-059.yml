@@ -32,9 +32,9 @@ jobs:
           set -euo pipefail
           mkdir -p verification
           if ! test -f services/pm10/core.mjs; then
-            curl --fail --silent --show-error --max-time 60 --output /tmp/pm10.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789252215/municontrol-code-transfer/pm10-059-a5082f67.patch.gz'
-            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  /tmp/pm10.patch.gz' | sha256sum --check -
-            gzip -dc /tmp/pm10.patch.gz > /tmp/pm10.patch
+            curl --fail --silent --show-error --max-time 60 --output verification/059.patch.gz 'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-3db0-820e-8696-3aa1d366a95b/raw?se=2026-09-12T22%3A37%3A49Z&sp=r&sv=2026-02-06&sr=b&scid=917471ff-5101-57e8-8d12-4c6d46ed763c&skoid=86ad43b0-1afa-4d46-a6d6-9e67f7cdc5bc&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-12T16%3A43%3A11Z&ske=2026-09-13T16%3A43%3A11Z&sks=b&skv=2026-02-06&sig=gIYsXehazSkChAApT/Q9sshZhMcn7WZzR8wuNVj9FzI%3D'
+            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  verification/059.patch.gz' | sha256sum --check -
+            gzip -dc verification/059.patch.gz > /tmp/pm10.patch
             git apply --check /tmp/pm10.patch
             git apply /tmp/pm10.patch
           fi
@@ -68,7 +68,7 @@ jobs:
           python - <<'PY'
           import pathlib,hashlib,json,zipfile,os
           paths=sorted(p for p in pathlib.Path('services/pm10').rglob('*') if p.is_file())
-          manifest={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+          manifest={p.as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
           pathlib.Path('verification/source-manifest.json').write_text(json.dumps({'source':manifest,'runner':os.environ['RUNNER_OS'],'realClockTested':False,'installerExecuted':False,'cloudTransmissionImplemented':False},indent=2),encoding='utf8')
           with zipfile.ZipFile('verification/MuniControl_PM10_059_Captura_Local.zip','w',zipfile.ZIP_DEFLATED) as z:
               for p in paths:z.write(p, 'pm10/'+p.relative_to('services/pm10').as_posix())
@@ -105,13 +105,12 @@ jobs:
                   if rel.parts[0]!='pm10' or '..' in rel.parts:raise RuntimeError('INVALID_SOURCE_PATH')
                   p=pathlib.Path('services')/str(rel)
                   content=z.read(name)
-                  if manifest.get(str(p))!=hashlib.sha256(content).hexdigest():raise RuntimeError('SOURCE_HASH_MISMATCH')
+                  if manifest.get(p.as_posix())!=hashlib.sha256(content).hexdigest():raise RuntimeError('SOURCE_HASH_MISMATCH')
                   p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(content)
           PY
           if ! test -f tests/pm10-resident-059.test.js; then
-            curl --fail --silent --show-error --max-time 60 --output /tmp/pm10.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789252215/municontrol-code-transfer/pm10-059-a5082f67.patch.gz'
-            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  /tmp/pm10.patch.gz' | sha256sum --check -
-            gzip -dc /tmp/pm10.patch.gz > /tmp/pm10.patch
+            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  /tmp/pm10-validated/059.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/pm10-validated/059.patch.gz > /tmp/pm10.patch
             git apply --include='tests/pm10-resident-059.test.js' --include='docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md' /tmp/pm10.patch
           fi
           git config user.name 'github-actions[bot]'
