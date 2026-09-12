@@ -1,0 +1,131 @@
+name: Active employee selector 058
+on:
+  push:
+    branches: ['feat/selector-legajos-058', 'master']
+    paths:
+      - '.github/workflows/employee-picker-058.yml'
+      - 'scripts/patches/058*'
+      - 'assets/employee-picker*'
+      - 'lib/employee-picker-view.js'
+      - 'api/internal-data.js'
+      - 'assets/payroll-novelty-workbench.js'
+      - 'assets/payroll-novelty-sheet.js'
+      - 'novedades-nomina.html'
+      - 'sw.js'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-employee-picker*'
+      - 'tests/employee-picker*'
+permissions:
+  contents: read
+concurrency:
+  group: employee-picker-058-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply exact reviewed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f scripts/patches/058.patch.b64.1; then
+            node --input-type=module -e 'import fs from "node:fs"; const parts=["1","2","2b","2c","2d","3"]; const s=parts.map(n=>fs.readFileSync("scripts/patches/058.patch.b64."+n,"utf8")).join("").replace(/\s/g,""); if(s.length!==32104||!/^[A-Za-z0-9+/]*={0,2}$/.test(s))throw Error("INVALID_PATCH_ENCODING"); fs.writeFileSync("/tmp/058.patch.gz",Buffer.from(s,"base64"));'
+            echo '082d85e3ef92e74e701cd2e9f5d8db419622420bc94ef5b2ee4345cc5395b9c8  /tmp/058.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/058.patch.gz > /tmp/058.patch
+            git apply --check /tmp/058.patch
+            git apply /tmp/058.patch
+          fi
+          if test -f scripts/patches/058.fix.patch; then
+            git apply --check scripts/patches/058.fix.patch
+            git apply scripts/patches/058.fix.patch
+          fi
+          git diff --check
+      - run: npm ci
+      - name: Full tests and static build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Full employee selector browser acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-employee-picker-058.mjs 2>&1 | tee verification/employee-picker-browser.log
+      - name: Preserve existing novelty modes, PDF and reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-novelty-sheet-057.mjs 2>&1 | tee verification/native-sheet.log
+          node scripts/verify-novelty-list-057.mjs 2>&1 | tee verification/legajo-list.log
+          node scripts/verify-novelty-review-056.mjs 2>&1 | tee verification/novelty-review.log
+          node scripts/verify-payroll-comparison-056.mjs 2>&1 | tee verification/comparison.log
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/summary-browser.log
+          node scripts/verify-report-summary-shell.mjs 2>&1 | tee verification/summary-shell.log
+          node scripts/verify-document-library-legajo.mjs 2>&1 | tee verification/library.log
+          node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/report-centre.log
+          node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster.log
+      - name: Commit validated implementation only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/internal-data.js assets/employee-picker-model.js assets/employee-picker.css assets/employee-picker.js assets/payroll-novelty-sheet.js assets/payroll-novelty-workbench.js docs/SPRINT_058_SELECTOR_LEGAJOS.md lib/employee-picker-view.js novedades-nomina.html scripts/build-friendly.mjs scripts/verify-employee-picker-058.mjs scripts/verify-employee-picker-production-058.mjs sw.js tests/employee-picker-api-058.test.js tests/employee-picker-model-058.test.js
+          if test -f scripts/patches/058.patch.b64.1; then git rm scripts/patches/058.patch.b64.{1,2,2b,2c,2d,3}; fi
+          if test -f scripts/patches/058.fix.patch; then git rm scripts/patches/058.fix.patch; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(058): scoped active employee picker for all novelty entry modes'
+            git push origin HEAD:feat/selector-legajos-058
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive evidence and reviewed source
+        if: always()
+        shell: bash
+        run: |
+          git diff HEAD > verification/pending-changes.patch
+          git archive --format=tar.gz -o verification/selector-058-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: employee-picker-058-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-friendly.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Verify canonical resources and real anonymous rejection
+        run: node scripts/verify-employee-picker-production-058.mjs
+      - name: Test published UI with synthetic API only
+        env:
+          EMPLOYEE_PICKER_LIVE_ASSETS: '1'
+        run: node scripts/verify-employee-picker-058.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: employee-picker-058-production-verification
+          path: verification/
+          retention-days: 5
