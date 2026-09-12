@@ -1,3 +1,4 @@
+import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
 import { reviewNoveltyCsv, NoveltyReviewError } from './payroll-novelty-review.js';
 import { mountNoveltyReviewPanel, mountNoveltyIssues } from './payroll-novelty-review-panel.js';
 import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
@@ -64,6 +65,7 @@ let selectedBatchId = null;
 let redirectIssued = false;
 let agileDraftRows = [];
 let agileTemplate = null;
+const busyEntryFields = new Map();
 let handoffRequiresPayrollTypeSelection = false;
 const pendingTransitionAttempts = new Map();
 
@@ -75,6 +77,15 @@ const AGILE_TEMPLATE_FIELD_IDS = Object.freeze([
 
 function setBusy(value, label = '') {
   document.body.dataset.busy = value ? 'true' : 'false';
+  if (value) {
+    for (const field of byId('entrySection').querySelectorAll('input, select, textarea')) {
+      if (!busyEntryFields.has(field)) busyEntryFields.set(field, field.disabled);
+      field.disabled = true;
+    }
+  } else {
+    for (const [field, disabled] of busyEntryFields) field.disabled = disabled;
+    busyEntryFields.clear();
+  }
   for (const button of document.querySelectorAll('button')) button.disabled = Boolean(value);
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
@@ -273,6 +284,9 @@ function individualRows(periodMonth) {
 }
 
 function agileRows(periodMonth) {
+  if (byId('agileLegajos').value.trim() || byId('legajo').value.trim()) {
+    throw new Error('Hay legajos escritos que todavía no se agregaron al lote. Agregalos o limpiá esos campos antes de validar.');
+  }
   if (!agileDraftRows.length) {
     throw new Error('Agregá al menos un legajo a la carga rápida antes de validar.');
   }
@@ -543,9 +557,11 @@ async function loadBootstrap({ quiet = false } = {}) {
     const nextPrincipalKey = principalKey(payload.principal);
     const principalChanged = Boolean(priorPrincipalKey && priorPrincipalKey !== nextPrincipalKey);
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
-    if (principalChanged || !canPrepare) {
+    const limitsChanged = bootstrapState && JSON.stringify(bootstrapState.limits) !== JSON.stringify(payload.limits);
+    if (principalChanged || !canPrepare || limitsChanged) {
       agileDraftRows = [];
       agileTemplate = null;
+      clearAgileInput();
       invalidatePreparedDraft();
     }
     bootstrapState = payload;
@@ -723,7 +739,8 @@ function renderAgileRows() {
   const host = byId('agileRows');
   if (!host) return;
   host.replaceChildren();
-  agileDraftRows.forEach((row, index) => {
+  const visibleRows = filterAgileRows(agileDraftRows, byId('agileSearch').value);
+  visibleRows.forEach(({ row, index }) => {
     const tr = document.createElement('tr');
     for (const value of [
       index + 1,
@@ -748,6 +765,13 @@ function renderAgileRows() {
     tr.appendChild(action);
     host.appendChild(tr);
   });
+  if (agileDraftRows.length && !visibleRows.length) {
+    const tr = document.createElement('tr'), td = document.createElement('td');
+    td.colSpan = 7;
+    td.textContent = 'Sin coincidencias. El lote conserva todos los legajos agregados.';
+    tr.appendChild(td); host.appendChild(tr);
+  }
+  byId('agileVisibleCount').textContent = `${visibleRows.length} visibles de ${agileDraftRows.length} legajos en el lote. Buscar no cambia lo que se guardará.`;
   byId('agileCount').textContent = `${agileDraftRows.length} fila${agileDraftRows.length === 1 ? '' : 's'} preparada${agileDraftRows.length === 1 ? '' : 's'}.`;
   byId('agileEmpty').hidden = agileDraftRows.length > 0;
   byId('agileTable').hidden = agileDraftRows.length === 0;
@@ -763,12 +787,104 @@ function renderAgileRows() {
   byId('agileTemplateLock').textContent = hasRows
     ? `Plantilla bloqueada: ${agileTemplate?.periodMonth || '—'} · ${TYPE_LABELS[agileTemplate?.payrollType] || agileTemplate?.payrollType || '—'}. Vaciá la lista para cambiar período, tipo o datos comunes.`
     : '';
+  renderAgileList();
+  if (document.body.dataset.busy === 'true') {
+    byId('entrySection').querySelectorAll('input, select, textarea, button').forEach(field => { field.disabled = true; });
+  }
+}
+
+function agileMaximum() {
+  const limit = bootstrapState?.limits?.maxRows;
+  return Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, MAX_ROWS) : MAX_ROWS;
+}
+
+function clearAgileInput() {
+  byId('agileLegajos').value = '';
+  byId('agileSearch').value = '';
+  byId('legajo').value = '';
+  byId('agileListIssues').replaceChildren();
+}
+
+function renderAgileList() {
+  const analysis = analyzeLegajoList(byId('agileLegajos').value, agileDraftRows.map(row => row.legajo), agileMaximum());
+  const issues = byId('agileListIssues'); issues.replaceChildren();
+  for (const issue of analysis.issues) {
+    const li = document.createElement('li');
+    li.textContent = (issue.position === null ? '' : `Posición ${issue.position}: `) + issue.message;
+    issues.appendChild(li);
+  }
+  issues.hidden = !analysis.issues.length;
+  byId('agileLegajos').setAttribute('aria-invalid', String(analysis.issues.length > 0));
+  byId('agileListStatus').textContent = analysis.issues.length
+    ? `${analysis.issues.length} incidencia(s). No se agregará ninguna parte de esta lista hasta corregirla.`
+    : analysis.count ? `${analysis.count} legajos listos para agregar · ${analysis.remaining} lugares disponibles.`
+      : `Hasta ${analysis.remaining} legajos más. El texto debe contener únicamente números de legajo.`;
+  const busy = document.body.dataset.busy === 'true';
+  byId('agileListAddButton').textContent = analysis.ready ? `Agregar ${analysis.count} legajo${analysis.count === 1 ? '' : 's'} al lote` : 'Agregar lista al lote';
+  byId('agileListAddButton').disabled = !analysis.ready || busy || !hasCapability('payroll.novelty.prepare');
+  byId('agileListResetButton').disabled = !byId('agileLegajos').value || busy;
+  byId('agileLegajos').disabled = busy;
+  const values = agileTemplate?.commonValues;
+  const summary = byId('agileCommonSummary'); summary.replaceChildren();
+  const rawAmount = values ? values[4] : (byId('manualAmountEnabled').checked || byId('forced').checked ? byId('amountArs').value : '');
+  let amountLabel = 'No informado';
+  if (rawAmount) {
+    try { amountLabel = moneyFromCents(amountToCents(rawAmount)); }
+    catch { amountLabel = 'Revisar importe'; }
+  }
+  const common = [
+    ['Período', (agileTemplate?.periodMonth || byId('periodMonth').value).slice(0, 7) || 'Por completar'],
+    ['Liquidación', TYPE_LABELS[agileTemplate?.payrollType || byId('payrollType').value] || 'Por completar'],
+    ['Concepto', values ? values[0] : byId('conceptSourceId').value || 'Por completar'],
+    ['Unidades', (values ? values[3] : byId('quantityDecimal').value) || 'No informadas'],
+    ['Importe por legajo', amountLabel],
+    ['Forzado', (values ? values[8] === 'SI' : byId('forced').checked) ? 'Sí · requiere fundamento' : 'No'],
+  ];
+  for (const [label, value] of common) {
+    const cell = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label; dd.textContent = value; cell.append(dt, dd); summary.appendChild(cell);
+  }
+}
+
+function assertAgilePreparation() {
+  if (document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare')
+      || document.querySelector('[name="sourceMode"]:checked')?.value !== 'agile') {
+    throw new Error('La carga rápida no está habilitada para esta sesión.');
+  }
+}
+
+function addAgileList() {
+  clearMessage();
+  try {
+    assertAgilePreparation();
+    if (byId('legajo').value.trim()) throw new Error('El campo Legajo de arriba tiene un número pendiente. Agregalo de a uno o limpiá ese campo antes de agregar la lista.');
+    const periodMonth = agileTemplate?.periodMonth || exactMonth(byId('periodMonth').value, 'Período');
+    const payrollType = agileTemplate?.payrollType || byId('payrollType').value;
+    if (!bootstrapState.limits.payrollTypes.includes(payrollType)) throw new Error('El tipo de liquidación no está habilitado.');
+    const commonValues = agileTemplate?.commonValues || currentEntryValues().slice(1);
+    const nextRows = appendLegajoList({ raw: byId('agileLegajos').value, existingRows: agileDraftRows,
+      commonValues, periodMonth, parseRow: rowFromValues, maximum: agileMaximum() });
+    duplicateCheck(nextRows);
+    const added = nextRows.length - agileDraftRows.length;
+    agileDraftRows = nextRows;
+    if (!agileTemplate) agileTemplate = { periodMonth, payrollType, commonValues: [...commonValues] };
+    byId('agileLegajos').value = '';
+    byId('agileSearch').value = '';
+    invalidatePreparedDraft(); renderAgileRows();
+    showMessage('success', `${added} legajos agregados al lote`, 'Se aplicó la misma novedad a todos. Revisá la lista y presioná Validar y previsualizar; todavía no se guardó nada.');
+    byId('preflightButton').focus();
+  } catch (error) {
+    invalidatePreparedDraft(); renderAgileList();
+    showMessage('error', 'No se agregó la lista', errorMessage(error));
+  }
 }
 
 function addAgileRow() {
   clearMessage();
   try {
-    if (agileDraftRows.length >= MAX_ROWS) throw new Error(`La carga rápida admite hasta ${MAX_ROWS} filas.`);
+    assertAgilePreparation();
+    if (byId('agileLegajos').value.trim()) throw new Error('Hay una lista pendiente. Agregá la lista o limpiá su texto antes de agregar un legajo de a uno.');
+    if (agileDraftRows.length >= agileMaximum()) throw new Error(`La carga rápida admite hasta ${agileMaximum()} filas.`);
     const periodMonth = exactMonth(byId('periodMonth').value, 'Período');
     const payrollType = byId('payrollType').value;
     const allowedTypes = bootstrapState?.limits?.payrollTypes || [];
@@ -795,6 +911,7 @@ function addAgileRow() {
 function clearAgileRows() {
   agileDraftRows = [];
   agileTemplate = null;
+  clearAgileInput();
   invalidatePreparedDraft();
   renderAgileRows();
   showMessage('success', 'Carga rápida vaciada', 'No se creó ni modificó ningún lote en el servidor.');
@@ -810,6 +927,7 @@ function removeAgileRow(index) {
 }
 
 function preflight() {
+  if (document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare')) return;
   clearMessage();
   try {
     preparedEntryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
@@ -825,7 +943,7 @@ function preflight() {
 }
 
 async function prepare() {
-  if (!preparedDraft) return;
+  if (!preparedDraft || document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare')) return;
   if (!preparedDraftKey) preparedDraftKey = crypto.randomUUID();
   const completedEntryMode = preparedEntryMode;
   setBusy(true, 'Validando y creando lote trazable…');
@@ -844,6 +962,7 @@ async function prepare() {
     if (completedEntryMode === 'agile') {
       agileDraftRows = [];
       agileTemplate = null;
+      clearAgileInput();
       renderAgileRows();
     }
     invalidatePreparedDraft();
@@ -969,7 +1088,10 @@ function syncAmountEntry() {
 function initialize() {
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
-  window.addEventListener('pagehide', () => invalidatePreparedDraft());
+  window.addEventListener('pagehide', () => {
+    agileDraftRows = []; agileTemplate = null; clearAgileInput();
+    invalidatePreparedDraft(); renderAgileRows();
+  });
   const current = new Date();
   byId('periodMonth').value = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
   for (const radio of document.querySelectorAll('[name="sourceMode"]')) radio.addEventListener('change', updateMode);
@@ -983,6 +1105,14 @@ function initialize() {
   byId('bulkFile').addEventListener('change', handleFile);
   byId('agileAddButton').addEventListener('click', addAgileRow);
   byId('agileClearButton').addEventListener('click', clearAgileRows);
+  byId('agileListAddButton').addEventListener('click', addAgileList);
+  byId('agileListResetButton').addEventListener('click', () => {
+    byId('agileLegajos').value = ''; invalidatePreparedDraft(); renderAgileList(); byId('agileLegajos').focus();
+  });
+  byId('agileSearch').addEventListener('input', renderAgileRows);
+  byId('agileSearchReset').addEventListener('click', () => { byId('agileSearch').value = ''; renderAgileRows(); });
+  byId('entrySection').addEventListener('input', renderAgileList);
+  byId('entrySection').addEventListener('change', renderAgileList);
   byId('agileRows').addEventListener('click', (event) => {
     const button = event.target.closest('button[data-agile-remove]');
     if (button) removeAgileRow(Number(button.dataset.agileRemove));
