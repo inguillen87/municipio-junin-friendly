@@ -51,6 +51,8 @@ const shellFiles = [
   'assets/payroll-comparison.css',
   'assets/payroll-source-report-model.js',
   'assets/payroll-source-reports.js',
+  'assets/payroll-source-picker.js',
+  'assets/payroll-source-picker.css',
   'assets/export-sex-code.js',
   'assets/payroll-roster-model.js',
   'assets/payroll-roster-panel.js',
