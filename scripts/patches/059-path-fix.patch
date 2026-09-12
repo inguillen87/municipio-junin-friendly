@@ -1,0 +1,33 @@
+--- a/services/pm10/core.mjs
++++ b/services/pm10/core.mjs
+@@ -66,7 +66,20 @@
+ }
+ export class Store{
+  constructor(root,key,settings){this.root=path.resolve(root);this.key=key;this.settings=config(settings);this.dir=path.join(this.root,'data');this.captures=path.join(this.dir,'captures')}
+- async open(){const real=await fs.realpath(this.root);if((process.platform==='win32'?real.toLowerCase():real)!==(process.platform==='win32'?this.root.toLowerCase():this.root))fail('STORAGE_SYMLINK_REJECTED');await fs.mkdir(this.captures,{recursive:true,mode:0o700});for(const p of [this.dir,this.captures]){const st=await fs.lstat(p);if(!st.isDirectory()||st.isSymbolicLink())fail('STORAGE_SYMLINK_REJECTED')}}
++ async open(){
++  // Windows 8.3 paths can name the same directory as their expanded realpath.
++  // Inspect every ancestor instead of comparing path spellings. Junctions and
++  // symbolic links are rejected; private descendants are checked before use.
++  const volume=path.parse(this.root).root;let current=volume;
++  for(const part of this.root.slice(volume.length).split(path.sep).filter(Boolean)){
++   current=path.join(current,part);const st=await fs.lstat(current);
++   if(!st.isDirectory()||st.isSymbolicLink())fail('STORAGE_SYMLINK_REJECTED');
++  }
++  for(const p of [this.dir,this.captures]){
++   try{await fs.mkdir(p,{mode:0o700})}catch(e){if(e.code!=='EEXIST')throw e}
++   const st=await fs.lstat(p);if(!st.isDirectory()||st.isSymbolicLink())fail('STORAGE_SYMLINK_REJECTED');
++  }
++ }
+  async state(){try{return validState(JSON.parse(unseal(await privateRead(path.join(this.dir,'state.enc'),8192),this.key,'state').toString('utf8')))}catch(e){if(e.code==='ENOENT'){
+    // An existing capture without a state is evidence of an interrupted first commit.
+    // Recover the highest local count without rereading or deleting the clock.
+--- a/services/pm10/tests/resident.test.mjs
++++ b/services/pm10/tests/resident.test.mjs
+@@ -49,3 +49,6 @@
+ test('outdated local success is never shown as recent/cloud',()=>context(async store=>{await worker(store).tick();const s=await store.status(new Date('2026-09-12T10:00:00Z'));assert.equal(s.localState,'NO_RECENT_LOCAL_READ');assert.equal(s.cloudAccepted,false)}));
+ test('installers require explicit enable and do not change firewall',async()=>{const win=await fs.readFile(new URL('../install/windows.ps1',import.meta.url),'utf8'),linux=await fs.readFile(new URL('../install/linux.sh',import.meta.url),'utf8'),unit=await fs.readFile(new URL('../install/municontrol-pm10.service',import.meta.url),'utf8');assert.match(win,/#Requires -RunAsAdministrator/);assert.match(win,/-LogonType ServiceAccount -RunLevel Limited/);assert.match(win,/-MultipleInstances IgnoreNew/);assert.match(win,/if \(\$EnableCapture\)/);assert.doesNotMatch(win+linux,/netsh|New-NetFirewallRule|iptables|ufw|curl |wget /);assert.match(unit,/NoNewPrivileges=true/);assert.match(unit,/ProtectSystem=strict/);assert.match(unit,/ReadOnlyPaths=.*secrets/);assert.match(linux,/--enable-capture/)});
+ test('previous validated TCP reader bytes are preserved exactly',async()=>{const b=await fs.readFile(new URL('../vendor/lector-fichadas.mjs',import.meta.url));assert.equal(createHash('sha256').update(b).digest('hex'),'bc2d2479675ae1a885b9b62b31fc915ae879506e626d1e7ea4d51a11ae886aa5')});
++
++test('root symbolic links or junctions are rejected',()=>context(async(store,root,key)=>{const link=root+'-link';await fs.symlink(root,link,process.platform==='win32'?'junction':'dir');try{await assert.rejects(new Store(link,key,store.settings).open(),{code:'STORAGE_SYMLINK_REJECTED'})}finally{await fs.unlink(link)}}));
++test('data junction is rejected before creating files in its target',()=>context(async(store,root,key)=>{await fs.rm(store.dir,{recursive:true,force:true});const elsewhere=await fs.mkdtemp(path.join(os.tmpdir(),'pm10-no-follow-'));await fs.symlink(elsewhere,store.dir,process.platform==='win32'?'junction':'dir');try{await assert.rejects(new Store(root,key,store.settings).open(),{code:'STORAGE_SYMLINK_REJECTED'});assert.deepEqual(await fs.readdir(elsewhere),[])}finally{await fs.unlink(store.dir);await fs.rm(elsewhere,{recursive:true,force:true})}}));
