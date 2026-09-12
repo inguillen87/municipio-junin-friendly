@@ -1,0 +1,122 @@
+name: Payroll worksheet 057
+on:
+  push:
+    branches: ['feat/novelty-sheet-057-ui', 'master']
+    paths:
+      - '.github/workflows/payroll-novelty-sheet-057.yml'
+      - 'scripts/patches/057.sheet*'
+      - 'assets/payroll-novelty-sheet*'
+      - 'assets/payroll-novelty-workbench.js'
+      - 'assets/payroll-novelty-review*'
+      - 'novedades-nomina.html'
+      - 'scripts/verify-novelty-sheet*'
+      - 'tests/payroll-novelty-sheet-057.test.js'
+permissions:
+  contents: read
+concurrency:
+  group: novelty-sheet-057-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Apply exact reviewed worksheet patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f scripts/patches/057.sheet.b64.1; then
+            cat scripts/patches/057.sheet.b64.{1,2,2b,3a,3b} | base64 --decode > /tmp/057.sheet.patch.gz
+            echo 'ddf1d51ba5ad4deb2aee6d9b1402f5eaa637914d5cbf43d7ebc66b8250e64237  /tmp/057.sheet.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/057.sheet.patch.gz > /tmp/057.sheet.patch
+            git apply --check /tmp/057.sheet.patch
+            git apply /tmp/057.sheet.patch
+          fi
+          if test -f scripts/patches/057.sheet.qa.patch; then
+            git apply --check scripts/patches/057.sheet.qa.patch
+            git apply scripts/patches/057.sheet.qa.patch
+          fi
+          git diff --check
+      - run: npm ci
+      - name: Full tests and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Full worksheet journey and backend-contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-novelty-sheet-057.mjs 2>&1 | tee verification/worksheet-browser.log
+      - name: Novelty, comparison, legajo and report regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-novelty-review-056.mjs 2>&1 | tee verification/novelty-review.log
+          node scripts/verify-payroll-comparison-056.mjs 2>&1 | tee verification/comparison.log
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/payroll-summary.log
+          node scripts/verify-report-summary-shell.mjs 2>&1 | tee verification/summary-shell.log
+          node scripts/verify-document-library-legajo.mjs 2>&1 | tee verification/legajo-library.log
+          node scripts/verify-report-centre-browser.mjs 2>&1 | tee verification/report-centre.log
+          node scripts/verify-export-roster-browser.mjs 2>&1 | tee verification/roster.log
+      - name: Commit only validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/payroll-novelty-sheet-model.js assets/payroll-novelty-sheet.js assets/payroll-novelty-sheet.css assets/payroll-novelty-workbench.js assets/payroll-novelty-review.js assets/payroll-novelty-review-panel.js novedades-nomina.html scripts/build-friendly.mjs scripts/verify-novelty-sheet-057.mjs scripts/verify-novelty-sheet-production-057.mjs tests/payroll-novelty-sheet-057.test.js docs/SPRINT_057_PLANILLA_NOVEDADES.md
+          if test -f scripts/patches/057.sheet.b64.1; then git rm scripts/patches/057.sheet.b64.{1,2,2b,3a,3b}; fi
+          if test -f scripts/patches/057.sheet.qa.patch; then git rm scripts/patches/057.sheet.qa.patch; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(057): editable payroll novelty worksheet without CSV input'
+            git push origin HEAD:feat/novelty-sheet-057-ui
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+      - name: Archive evidence and source
+        if: always()
+        shell: bash
+        run: |
+          git diff HEAD > verification/pending-changes.patch
+          git archive --format=tar.gz -o verification/worksheet-057-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: novelty-sheet-057-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify canonical production assets and anonymous rejection
+        run: node scripts/verify-novelty-sheet-production-057.mjs
+      - name: Exercise published UI with synthetic API only
+        env:
+          SHEET_LIVE_ASSETS: '1'
+        run: node scripts/verify-novelty-sheet-057.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: novelty-sheet-057-production
+          path: verification/
+          retention-days: 5
