@@ -1,0 +1,111 @@
+name: PM10 collector 059
+on:
+  push:
+    branches: ['feat/colector-pm10-059', 'master']
+    paths:
+      - '.github/workflows/clock-collector-059.yml'
+      - 'api/clock-collector.js'
+      - 'api/internal-attendance.js'
+      - 'assets/clock-collector*'
+      - 'lib/clock-collector-contract.js'
+      - 'lib/internal-clock-collector.js'
+      - 'services/pm10-collector/**'
+      - 'relojes-marcaciones.html'
+      - 'scripts/*clock-collector*'
+      - 'scripts/migrations/059-clock-collector.sql'
+      - 'tests/clock*059.test.js'
+permissions:
+  contents: read
+concurrency:
+  group: collector059-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - name: Stage exact source-only patch on isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! test -f services/pm10-collector/service.mjs; then
+            curl --fail --silent --show-error --max-time 45 --output /tmp/source059.gz 'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-8878-820e-bf12-c4788a91f9ac/raw?se=2026-09-12T22%3A46%3A43Z&sp=r&sv=2026-02-06&sr=b&scid=9926732e-68ab-515a-bf67-c57245ddc86a&skoid=86ad43b0-1afa-4d46-a6d6-9e67f7cdc5bc&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-12T11%3A49%3A45Z&ske=2026-09-13T11%3A49%3A45Z&sks=b&skv=2026-02-06&sig=8hdaGodbnqWGKemoFW%2BsRRBhvGy5tyv/HF9z7eKU9qM%3D'
+            echo '0f7845a192d5878d7771b2abe7a005a53293bdcf6f91365c3ce9a5555f9cb4f1  /tmp/source059.gz' | sha256sum --check -
+            gzip -dc /tmp/source059.gz > /tmp/source059.patch
+            git apply --check /tmp/source059.patch
+            git apply --index /tmp/source059.patch
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'feat(059): stage read-only collector and monitor for acceptance, not production'
+            git push origin HEAD:feat/colector-pm10-059
+          fi
+          git diff --check
+          git rev-parse HEAD > verification/tested-commit.txt
+      - run: npm ci
+      - name: All tests and static build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/all-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Monitor and existing clock regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-clock-collector-059.mjs 2>&1 | tee verification/monitor-browser.log
+          node scripts/verify-clock-dashboard-browser.mjs 2>&1 | tee verification/history-browser.log
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/summary-browser.log
+          node scripts/verify-employee-picker-058.mjs 2>&1 | tee verification/picker-browser.log
+      - name: Package municipal service without credentials
+        run: |
+          node scripts/package-clock-collector-059.mjs
+          cd verification
+          zip -qr PM10-collector-0.59.0.zip PM10-collector-0.59.0
+      - name: Archive source
+        if: always()
+        run: git archive --format=tar.gz -o verification/source059.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: collector059-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Canonical assets and real anonymous rejection
+        run: node scripts/verify-clock-collector-production-059.mjs
+      - name: Published monitor UI with synthetic API, never clock ingestion
+        env:
+          COLLECTOR_LIVE_ASSETS: '1'
+        run: node scripts/verify-clock-collector-059.mjs
+      - name: Package exact published service
+        run: |
+          node scripts/package-clock-collector-059.mjs
+          cd verification
+          zip -qr PM10-collector-0.59.0.zip PM10-collector-0.59.0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: collector059-production
+          path: verification/
+          retention-days: 5
