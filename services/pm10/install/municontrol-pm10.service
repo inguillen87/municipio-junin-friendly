@@ -1,0 +1,27 @@
+[Unit]
+Description=MuniControl PM10 - captura local cifrada, sin envio cloud
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=municontrol-pm10
+Group=municontrol-pm10
+WorkingDirectory=/opt/municontrol-pm10
+ExecStart=/usr/bin/node /opt/municontrol-pm10/cli.mjs run --root /var/lib/municontrol-pm10
+Restart=on-failure
+RestartSec=120
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/municontrol-pm10/data
+ReadOnlyPaths=/var/lib/municontrol-pm10/secrets /var/lib/municontrol-pm10/config.json
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

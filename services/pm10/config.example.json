@@ -1,0 +1,12 @@
+{
+  "version": "pm10-resident.v1",
+  "enabled": false,
+  "site": "pm-10",
+  "host": "172.100.97.131",
+  "port": 4370,
+  "serial": "CQTU225360168",
+  "intervalSeconds": 60,
+  "storageMaxBytes": 536870912,
+  "maxCaptures": 2048,
+  "reserveFreeBytes": 33554432
+}
