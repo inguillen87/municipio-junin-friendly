@@ -9,6 +9,7 @@ on:
       - 'docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md'
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: pm10-resident-${{ github.ref }}
   cancel-in-progress: true
@@ -26,17 +27,28 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Apply checksum-verified public source, no credentials or data
+      - uses: actions/download-artifact@v4
+        if: hashFiles('services/pm10/core.mjs') == ''
+        with:
+          name: pm10-059-Linux
+          run-id: 34723082384
+          github-token: ${{ github.token }}
+          path: bootstrap-059
+      - name: Apply checksum-verified source and platform correction
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p verification
           if ! test -f services/pm10/core.mjs; then
-            curl --fail --silent --show-error --max-time 60 --output verification/059.patch.gz 'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-3db0-820e-8696-3aa1d366a95b/raw?se=2026-09-12T22%3A37%3A49Z&sp=r&sv=2026-02-06&sr=b&scid=917471ff-5101-57e8-8d12-4c6d46ed763c&skoid=86ad43b0-1afa-4d46-a6d6-9e67f7cdc5bc&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-12T16%3A43%3A11Z&ske=2026-09-13T16%3A43%3A11Z&sks=b&skv=2026-02-06&sig=gIYsXehazSkChAApT/Q9sshZhMcn7WZzR8wuNVj9FzI%3D'
-            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  verification/059.patch.gz' | sha256sum --check -
-            gzip -dc verification/059.patch.gz > /tmp/pm10.patch
+            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  bootstrap-059/059.patch.gz' | sha256sum --check -
+            gzip -dc bootstrap-059/059.patch.gz > /tmp/pm10.patch
             git apply --check /tmp/pm10.patch
             git apply /tmp/pm10.patch
+            cp bootstrap-059/059.patch.gz verification/059.patch.gz
+          fi
+          if test -f scripts/patches/059-path-fix.patch; then
+            git apply --check scripts/patches/059-path-fix.patch
+            git apply scripts/patches/059-path-fix.patch
           fi
           git diff --check
       - name: Collector and original protocol tests using loopback only
@@ -86,19 +98,26 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: pm10-059-Linux
           path: /tmp/pm10-validated
-      - name: Integrate only the package tested on both operating systems
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-Windows
+          path: /tmp/pm10-windows
+      - name: Integrate only identical source tested on both systems
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import pathlib,hashlib,json,zipfile
           manifest=json.loads(pathlib.Path('/tmp/pm10-validated/source-manifest.json').read_text())['source']
+          win=json.loads(pathlib.Path('/tmp/pm10-windows/source-manifest.json').read_text())['source']
+          if manifest!=win:raise RuntimeError('PLATFORM_SOURCE_MISMATCH')
           with zipfile.ZipFile('/tmp/pm10-validated/MuniControl_PM10_059_Captura_Local.zip') as z:
               for name in z.namelist():
                   rel=pathlib.PurePosixPath(name)
@@ -117,8 +136,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add services/pm10 docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md tests/pm10-resident-059.test.js
           git add -f services/pm10/LICENSE-GPL-2.0.txt
+          if test -f scripts/patches/059-path-fix.patch; then git rm scripts/patches/059-path-fix.patch; fi
           if ! git diff --cached --quiet; then
-            git commit -m 'feat(059): resident PM10 local capture with encrypted durable storage and safe recovery'
+            git commit -m 'feat(059): resident PM10 local capture with encrypted storage and safe Windows/Linux recovery'
             git push origin HEAD:feat/pm10-residente-059
           fi
           mkdir -p verification
