@@ -1,0 +1,132 @@
+name: PM10 resident capture 059
+on:
+  push:
+    branches: ['feat/pm10-residente-059', 'master']
+    paths:
+      - '.github/workflows/pm10-resident-059.yml'
+      - 'services/pm10/**'
+      - 'tests/pm10-resident-059.test.js'
+      - 'docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md'
+permissions:
+  contents: read
+concurrency:
+  group: pm10-resident-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply checksum-verified public source, no credentials or data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          if ! test -f services/pm10/core.mjs; then
+            curl --fail --silent --show-error --max-time 60 --output /tmp/pm10.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789252215/municontrol-code-transfer/pm10-059-a5082f67.patch.gz'
+            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  /tmp/pm10.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/pm10.patch.gz > /tmp/pm10.patch
+            git apply --check /tmp/pm10.patch
+            git apply /tmp/pm10.patch
+          fi
+          git diff --check
+      - name: Collector and original protocol tests using loopback only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/pm10-resident-059.test.js 2>&1 | tee verification/collector-tests.log
+      - name: Parse Windows installer without installing or contacting device
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $Tokens = $null
+          $Errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'services\pm10\install\windows.ps1'), [ref]$Tokens, [ref]$Errors)
+          if ($Errors.Count -gt 0) { $Errors | Format-List; throw 'POWERSHELL_INSTALLER_SYNTAX_INVALID' }
+          '{"syntaxValid":true,"installerExecuted":false,"municipalClockContacted":false}' | Set-Content verification\windows-installer-check.json
+      - name: Full repository regression and static build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n services/pm10/install/linux.sh
+          npm ci
+          npm test 2>&1 | tee verification/repository-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - name: Record exact source and create installable source package
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,json,zipfile,os
+          paths=sorted(p for p in pathlib.Path('services/pm10').rglob('*') if p.is_file())
+          manifest={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+          pathlib.Path('verification/source-manifest.json').write_text(json.dumps({'source':manifest,'runner':os.environ['RUNNER_OS'],'realClockTested':False,'installerExecuted':False,'cloudTransmissionImplemented':False},indent=2),encoding='utf8')
+          with zipfile.ZipFile('verification/MuniControl_PM10_059_Captura_Local.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for p in paths:z.write(p, 'pm10/'+p.relative_to('services/pm10').as_posix())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-059-${{ runner.os }}
+          path: verification/
+          retention-days: 5
+  integrate:
+    if: github.ref == 'refs/heads/feat/pm10-residente-059'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-Linux
+          path: /tmp/pm10-validated
+      - name: Integrate only the package tested on both operating systems
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib,hashlib,json,zipfile
+          manifest=json.loads(pathlib.Path('/tmp/pm10-validated/source-manifest.json').read_text())['source']
+          with zipfile.ZipFile('/tmp/pm10-validated/MuniControl_PM10_059_Captura_Local.zip') as z:
+              for name in z.namelist():
+                  rel=pathlib.PurePosixPath(name)
+                  if rel.parts[0]!='pm10' or '..' in rel.parts:raise RuntimeError('INVALID_SOURCE_PATH')
+                  p=pathlib.Path('services')/str(rel)
+                  content=z.read(name)
+                  if manifest.get(str(p))!=hashlib.sha256(content).hexdigest():raise RuntimeError('SOURCE_HASH_MISMATCH')
+                  p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(content)
+          PY
+          if ! test -f tests/pm10-resident-059.test.js; then
+            curl --fail --silent --show-error --max-time 60 --output /tmp/pm10.patch.gz 'https://res.cloudinary.com/dkvzi1mrc/raw/upload/v1789252215/municontrol-code-transfer/pm10-059-a5082f67.patch.gz'
+            echo 'a5082f6708e91f10f198dfb2c9d827d6b7965b0f7a6a206febedf7204cfcbcac  /tmp/pm10.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/pm10.patch.gz > /tmp/pm10.patch
+            git apply --include='tests/pm10-resident-059.test.js' --include='docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md' /tmp/pm10.patch
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add services/pm10 docs/SPRINT_059_PM10_SERVICIO_RESIDENTE.md tests/pm10-resident-059.test.js
+          git add -f services/pm10/LICENSE-GPL-2.0.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(059): resident PM10 local capture with encrypted durable storage and safe recovery'
+            git push origin HEAD:feat/pm10-residente-059
+          fi
+          mkdir -p verification
+          git rev-parse HEAD > verification/validated-commit.txt
+          git archive --format=tar.gz -o verification/pm10-059-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm10-059-integrated-source
+          path: verification/
+          retention-days: 5
