@@ -1,0 +1,26 @@
+diff --git a/assets/employee-picker.js b/assets/employee-picker.js
+index 5c7089f..714252c 100644
+--- a/assets/employee-picker.js
++++ b/assets/employee-picker.js
+@@ -67,6 +67,8 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
+   $('[data-picker-next]').addEventListener('click',()=>{if(view&&!busy)search(view.pagination.page+1);});
+   $('[data-picker-close]').addEventListener('click',close);
+   dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
++  // Search inputs consume Escape natively; close the active modal consistently.
++  dialog.addEventListener('keydown',e=>{if(e.key==='Escape'&&dialog.open){e.preventDefault();e.stopPropagation();close();}});
+   apply.addEventListener('click',()=>{if(!options||busy||!canUse()||!selected.length)return;try{const use=options.onUse;use([...selected]);close();}catch(error){status.textContent=error.message;}});
+   window.addEventListener('pagehide',close);
+   return {close,open({multiple=false,maximum=1,excluded=[],onUse,initialSearch=''}={}){
+diff --git a/scripts/verify-employee-picker-058.mjs b/scripts/verify-employee-picker-058.mjs
+index 441d7e1..5f01184 100644
+--- a/scripts/verify-employee-picker-058.mjs
++++ b/scripts/verify-employee-picker-058.mjs
+@@ -64,7 +64,7 @@ try{
+  deny=0;malformed=true;await search('Persona');assert.equal(await dialog.locator('.picker-row').count(),0);assert.equal(await dialog.locator('[data-picker-apply]').isDisabled(),true);malformed=false;checks.push('inactive/malformed directory payload does not enter the selectable list');
+  hold=true;await query.fill('Persona');await dialog.locator('[data-picker-form] button').click();await page.waitForFunction(()=>document.querySelector('[data-picker-state]').textContent.includes('Consultando'));await page.keyboard.press('Escape');hold=false;release?.();await page.waitForTimeout(100);assert.equal(await dialog.isVisible(),false);assert.equal(await dialog.locator('.picker-row').count(),0);checks.push('closing an in-flight request aborts and prevents late results from repopulating private data');
+  await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#sheetFind').click();await search('Persona');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.ok(await dialog.evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.equal(await dialog.evaluate(n=>getComputedStyle(n).animationName),'none');await page.screenshot({path:out+'/selector-mobile-qa.png'});checks.push('bounded mobile layout, large controls and reduced-motion accessibility');
+- await page.keyboard.press('Escape');maximum=2;await boot();await page.locator('[name=sourceMode][value=agile]').check();await page.locator('#agilePickButton').click();await search('Persona');await select(0);await select(1);await select(2);assert.match(await dialog.locator('[data-picker-count]').innerText(),/2 legajos/);assert.match(await dialog.locator('[data-picker-state]').innerText(),/máximo de 2/);checks.push('server-supplied row capacity also limits name selection atomically');
++ await page.keyboard.press('Escape');maximum=2;await boot();await page.locator('[name=sourceMode][value=agile]').check();await page.locator('#agilePickButton').click();await search('Persona');await select(0);await select(1);await dialog.locator('[data-picker-results] input').nth(2).click();assert.match(await dialog.locator('[data-picker-count]').innerText(),/2 legajos/);assert.equal(await dialog.locator('[data-picker-results] input').nth(2).isChecked(),false);assert.match(await dialog.locator('[data-picker-state]').innerText(),/máximo de 2/);checks.push('server-supplied row capacity also limits name selection atomically');
+  await page.keyboard.press('Escape');canPrepare=false;await page.locator('#refreshButton').click();await page.locator('#busyStatus').waitFor({state:'hidden'});assert.equal(await page.locator('#entrySection').isVisible(),false);assert.equal(await dialog.isVisible(),false);checks.push('loss of prepare permission removes all entry launchers without changing roles');
+  assert.deepEqual(errors,[]);checks.push('no unhandled JavaScript errors through the full workbench');
+  fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,requests:calls.length,syntheticPrepareCalls:posts.length,liveAssets:live,apiDataSynthetic:true,realMunicipalSessionTested:false,municipalBackendWrites:false},null,2));console.log(JSON.stringify({checksPassed:checks.length,errors,syntheticPrepareCalls:posts.length}));
