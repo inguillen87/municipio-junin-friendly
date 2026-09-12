@@ -1,3 +1,5 @@
+import { mountNoveltySheet } from './payroll-novelty-sheet.js';
+import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
 import { reviewNoveltyCsv, NoveltyReviewError } from './payroll-novelty-review.js';
 import { mountNoveltyReviewPanel, mountNoveltyIssues } from './payroll-novelty-review-panel.js';
@@ -54,6 +56,7 @@ function issueLabel(issue) {
 
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
+let sheetEditor = null;
 let issuesPanel = null;
 let pendingFileReader = null;
 let fileReadVersion = 0;
@@ -91,6 +94,12 @@ function setBusy(value, label = '') {
     byId('prepareButton').disabled = preparedDraft === null;
     renderAgileRows();
     reviewPanel?.render();
+  }
+  sheetEditor?.setDisabled(value);
+  if (value && document.querySelector('[name="sourceMode"]:checked')?.value === 'sheet') {
+    byId('periodMonth').disabled = true;
+    byId('payrollType').disabled = true;
+    document.querySelectorAll('[name="sourceMode"]').forEach(radio => { radio.disabled = true; });
   }
   byId('busyStatus').hidden = !value;
   byId('busyStatus').textContent = label || 'Procesando solicitud…';
@@ -333,11 +342,14 @@ function buildDraft() {
   if (!allowedTypes.includes(payrollType)) throw new Error('El tipo de liquidación no está habilitado.');
   const rows = entryMode === 'bulk'
     ? bulkRows(periodMonth)
-    : entryMode === 'agile'
-      ? agileRows(periodMonth)
-      : individualRows(periodMonth);
+    : entryMode === 'sheet'
+      ? reviewSheetRows(sheetEditor.values(), rowFromValues, periodMonth)
+      : entryMode === 'agile'
+        ? agileRows(periodMonth)
+        : individualRows(periodMonth);
+  if (rows.length > agileMaximum()) throw new Error(`Este ámbito admite hasta ${agileMaximum()} filas por lote.`);
   duplicateCheck(rows);
-  const sourceMode = entryMode === 'agile' ? 'bulk' : entryMode;
+  const sourceMode = ['agile', 'sheet'].includes(entryMode) ? 'bulk' : entryMode;
   return { sourceMode, periodMonth, payrollType, rows };
 }
 
@@ -559,6 +571,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
     const limitsChanged = bootstrapState && JSON.stringify(bootstrapState.limits) !== JSON.stringify(payload.limits);
     if (principalChanged || !canPrepare || limitsChanged) {
+      sheetEditor?.clear();
       agileDraftRows = [];
       agileTemplate = null;
       clearAgileInput();
@@ -594,6 +607,7 @@ async function loadBootstrap({ quiet = false } = {}) {
       await openBatch(selectedBatchId, { quiet: true });
     }
   } catch (error) {
+    sheetEditor?.clear();
     invalidatePreparedDraft();
     byId('entrySection').hidden = true;
     byId('pageContent').hidden = false;
@@ -731,6 +745,7 @@ function updateMode() {
   byId('individualFields').hidden = !['individual', 'agile'].includes(mode);
   byId('bulkFields').hidden = mode !== 'bulk';
   byId('agilePanel').hidden = mode !== 'agile';
+  byId('sheetFields').hidden = mode !== 'sheet';
   renderAgileRows();
   invalidatePreparedDraft();
 }
@@ -959,6 +974,7 @@ async function prepare() {
     });
     selectedBatchId = hasCapability('payroll.novelty.nominal.read')
       ? payload.data?.id || null : null;
+    if (completedEntryMode === 'sheet') sheetEditor.clear();
     if (completedEntryMode === 'agile') {
       agileDraftRows = [];
       agileTemplate = null;
@@ -1018,6 +1034,7 @@ function handleFile(event) {
 }
 
 async function logout() {
+  sheetEditor?.clear();
   invalidatePreparedDraft();
   try {
     await fetch('/api/internal-auth', { method: 'DELETE', credentials: 'same-origin' });
@@ -1086,9 +1103,11 @@ function syncAmountEntry() {
 }
 
 function initialize() {
+  sheetEditor = mountNoveltySheet(byId('sheetFields'), { onChange: invalidatePreparedDraft });
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   window.addEventListener('pagehide', () => {
+    sheetEditor.clear();
     agileDraftRows = []; agileTemplate = null; clearAgileInput();
     invalidatePreparedDraft(); renderAgileRows();
   });

@@ -155,6 +155,7 @@
 <style data-report-novelties-fix>#manualAmountEnabled{width:20px;height:20px;min-height:20px;flex:0 0 20px;margin:0}label[for="manualAmountEnabled"]{display:flex;gap:10px;align-items:center;min-height:44px}.field input[type="checkbox"]{width:20px;height:20px}#amountPolicyHelp{display:block;margin-top:8px}</style>
 <link rel="stylesheet" href="assets/payroll-novelty-review.css">
 <link rel="stylesheet" href="assets/payroll-novelty-legajo-list.css">
+<link rel="stylesheet" href="assets/payroll-novelty-sheet.css">
 </head>
 <body data-mc-page="payroll-novelties">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -208,6 +209,7 @@
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Uno o varios legajos, una misma novedad. Sin archivos.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="sheet"><span><strong>Planilla en pantalla</strong><small>Varios legajos, conceptos y unidades. Sin subir archivos.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · archivo CSV</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
             </div>
 
@@ -272,6 +274,8 @@
               <div class="table-wrap" id="agileTable" hidden><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Fundamento</th><th>Acción</th></tr></thead><tbody id="agileRows"></tbody></table></div>
               <p class="panel-note">La lista vive sólo en esta pestaña hasta crear el lote trazable. El servidor vuelve a validar todas las filas, el binding GRH y tus capacidades.</p>
             </div>
+
+            <div id="sheetFields" hidden></div>
 
             <div id="bulkFields" hidden>
               <div class="form-grid">

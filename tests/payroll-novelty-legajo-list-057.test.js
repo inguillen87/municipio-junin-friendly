@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from '../assets/payroll-novelty-legajo-list.js';
 const common = ['44', null, null, '2.50', '', 'standard', 'Acta QA', 'Fundamento sintético', 'NO'];
 const parser = ([legajo, ...values], rowOrdinal, periodMonth) => ({ legajo, rowOrdinal, values, periodMonth });
@@ -76,7 +77,9 @@ test('helpers no consultan redes, no guardan datos y no interpolan HTML', () => 
 });
 test('integración mantiene contrato bulk, revisión, plantilla bloqueada y campos pendientes explícitos', () => {
   const s=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');
-  assert.match(s,/entryMode === 'agile' \? 'bulk' : entryMode/);
+  const mapping = s.match(/const sourceMode = ([^\n]+);/);
+  assert.ok(mapping);
+  for (const [entryMode,expected] of [['agile','bulk'],['sheet','bulk'],['bulk','bulk'],['individual','individual']]) assert.equal(vm.runInNewContext(mapping[1],{entryMode}),expected);
   assert.match(s,/appendLegajoList/); assert.match(s,/legajos escritos que todavía no se agregaron/);
   assert.match(s,/busyEntryFields/); assert.match(s,/hasCapability\('payroll.novelty.prepare'\)/);
   assert.match(s,/duplicateCheck\(nextRows\)/); assert.match(s,/clearAgileInput\(\)/);

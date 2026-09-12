@@ -99,8 +99,9 @@ export function mountNoveltyIssues(host) {
     clear() { issues = null; body.replaceChildren(); count.textContent = ''; host.hidden = true; },
     show(error) {
       issues = error.issues;
+      header.children[1].textContent = error.origin === 'screen' ? 'Origen' : 'Línea del CSV';
       count.textContent = `${issues.length} incidencias${error.rowCount ? ` en ${error.rowCount} filas examinadas` : ''}. No se guardó ninguna fila. Se muestra una causa por cada fila inválida y cada duplicado detectado.`;
-      body.replaceChildren(...issues.map(i => { const tr = el('tr'); for (const value of [i.rowOrdinal ?? 'Estructura', i.line, i.message]) tr.append(el('td', String(value))); return tr; }));
+      body.replaceChildren(...issues.map(i => { const tr = el('tr'); for (const value of [i.rowOrdinal ?? 'Estructura', i.line ?? 'Pantalla', i.message]) tr.append(el('td', String(value))); return tr; }));
       host.hidden = false;
     },
   };

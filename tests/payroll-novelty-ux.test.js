@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import test from 'node:test';
 
 const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
@@ -57,7 +58,11 @@ test('el workbench usa contrato gobernado y no inventa permisos ni persistencia 
   assert.match(source, /first_fortnight: 'Primera quincena'/);
   assert.match(source, /supplementary: 'Complementaria'/);
   assert.match(source, /other: 'Otra'/);
-  assert.match(source, /entryMode === 'agile' \? 'bulk' : entryMode/);
+  const sourceMode = source.match(/const sourceMode = ([^\n]+);/);
+  assert.ok(sourceMode, 'All input modes must explicitly map to the governed API contract');
+  for (const [entryMode, expected] of [['individual', 'individual'], ['bulk', 'bulk'], ['agile', 'bulk'], ['sheet', 'bulk']]) {
+    assert.equal(vm.runInNewContext(sourceMode[1], {entryMode}), expected);
+  }
   assert.match(source, /function addAgileRow/);
   assert.match(source, /function removeAgileRow/);
   assert.match(source, /function clearAgileRows/);
