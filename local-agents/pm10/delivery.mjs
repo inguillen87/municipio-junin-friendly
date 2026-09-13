@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// HTTPS sender only. It never opens a clock socket, reads a CommKey or deletes capture data.
+import {lstat,readFile,readdir} from 'node:fs/promises';
+import path from 'node:path';
+import {hash,atomicJson,safeDirectory} from './store.mjs';
+import {fault} from './config.mjs';
+export const ENDPOINT='https://municipio-junin-friendly.vercel.app/api/attendance-pm10';
+export const PART_SIZE=500;
+const hex=/^[a-f0-9]{64}$/;
+const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+export function validateSenderConfig(x){
+ const keys=['schema','approved','stateDir','tokenFile','connectorKey','pollSeconds'];
+ if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).sort().join()!==keys.sort().join()||x.schema!=='pm10-delivery-config.v1'||x.approved!==true)throw fault('DELIVERY_CONFIG_INVALID');
+ for(const k of ['stateDir','tokenFile'])if(typeof x[k]!=='string'||!path.isAbsolute(x[k])||/[\x00-\x1f]/.test(x[k])||path.resolve(x[k])===path.parse(x[k]).root)throw fault('DELIVERY_PATH_INVALID');
+ if(!/^[a-z0-9][a-z0-9._-]{7,127}$/.test(x.connectorKey)||!Number.isInteger(x.pollSeconds)||x.pollSeconds<60||x.pollSeconds>3600)throw fault('DELIVERY_CONFIG_INVALID');
+ return Object.freeze({...x,stateDir:path.resolve(x.stateDir),tokenFile:path.resolve(x.tokenFile)});
+}
+async function file(p,max,privateMode=false){const s=await lstat(p);if(!s.isFile()||s.isSymbolicLink()||s.size>max||(privateMode&&process.platform!=='win32'&&(s.mode&0o077)))throw fault('DELIVERY_FILE_UNSAFE');return readFile(p);}
+export async function loadSenderConfig(p){return validateSenderConfig(JSON.parse((await file(p,4096,true)).toString('utf8')));}
+export async function loadToken(p){const b=await file(p,256,true);try{const t=b.toString('utf8').replace(/\r?\n$/,'');if(!/^[A-Za-z0-9_-]{43,128}$/.test(t))throw fault('DELIVERY_TOKEN_INVALID');return t;}finally{b.fill(0);}}
+export function validateBatch(name,m,bytes){
+ if(!hex.test(name)||m?.version!=='pm10-local-batch.v1'||m.batchId!==name||!Buffer.isBuffer(bytes)||bytes.length<40||bytes.length>4194304||bytes.length%40||m.newUniqueRecords!==bytes.length/40||m.recordsSha256!==hash(bytes)||!hex.test(m.snapshotSha256)||hash(m.snapshotSha256+':'+m.recordsSha256)!==name||m.clockTimeZone!=='America/Argentina/Mendoza'||m.cloudConfirmed!==false)throw fault('DELIVERY_BATCH_CORRUPT');
+ if(!Number.isSafeInteger(m.snapshotRecordCount)||m.snapshotRecordCount<m.newUniqueRecords||m.snapshotRecordCount>104857||m.snapshotBytes!==4+m.snapshotRecordCount*40||!Array.isArray(m.ordinals)||m.ordinals.length!==m.newUniqueRecords||m.ordinals.some((n,i)=>!Number.isSafeInteger(n)||n<1||n>m.snapshotRecordCount||(i&&n<=m.ordinals[i-1])))throw fault('DELIVERY_BATCH_CORRUPT');
+ if(typeof m.capturedAt!=='string'||!/^20\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(m.capturedAt)||!Number.isFinite(Date.parse(m.capturedAt))||new Date(m.capturedAt).toISOString()!==m.capturedAt)throw fault('DELIVERY_BATCH_CORRUPT');
+ return {manifest:m,bytes};
+}
+export function partPayload(m,bytes,start){
+ if(!Number.isInteger(start)||start<0||start>=m.newUniqueRecords||start%PART_SIZE)throw fault('DELIVERY_PART_INVALID');
+ const end=Math.min(start+PART_SIZE,m.newUniqueRecords),part=bytes.subarray(start*40,end*40);
+ return {version:'pm10-delivery.v1',serial:'CQTU225360168',batchId:m.batchId,snapshotSha256:m.snapshotSha256,recordsSha256:m.recordsSha256,snapshotRecordCount:m.snapshotRecordCount,totalRecords:m.newUniqueRecords,partStart:start,capturedAt:m.capturedAt,partSha256:hash(part),ordinals:m.ordinals.slice(start,end),recordsBase64:part.toString('base64')};
+}
+export function checkReceipt(r,p){
+ const fields=['version','receiptId','batchId','partStart','partSha256','snapshotSha256','count','newCanonical','observed','duplicates','receivedAt','persisted','payrollModified','replayed'];
+ if(!r||typeof r!=='object'||Object.keys(r).sort().join()!==fields.sort().join()||r.version!=='pm10-receipt.v1'||!uuid.test(r.receiptId)||r.persisted!==true||r.payrollModified!==false||typeof r.replayed!=='boolean'||!Number.isFinite(Date.parse(r.receivedAt)))throw fault('DELIVERY_RECEIPT_INVALID');
+ for(const k of ['batchId','partStart','partSha256','snapshotSha256'])if(r[k]!==p[k])throw fault('DELIVERY_RECEIPT_INVALID');
+ if(!['count','newCanonical','observed','duplicates'].every(k=>Number.isSafeInteger(r[k])&&r[k]>=0)||r.count!==p.ordinals.length||r.newCanonical+r.observed+r.duplicates!==r.count)throw fault('DELIVERY_RECEIPT_INVALID');
+ return r;
+}
+export async function sendPart(p,token,connector,fetchImpl=fetch){
+ let response;
+ try{response=await fetchImpl(ENDPOINT,{method:'POST',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000),headers:{'content-type':'application/json','authorization':'Bearer '+token,'x-pm10-connector':connector},body:JSON.stringify(p)});}catch{throw fault('DELIVERY_NETWORK_RETRY');}
+ if(response.status===401||response.status===403){await response.body?.cancel();throw fault('DELIVERY_AUTH_BLOCKED');}
+ if(response.status===429||response.status>=500){await response.body?.cancel();throw fault('DELIVERY_NETWORK_RETRY');}
+ if(!response.body||response.redirected)throw fault('DELIVERY_RECEIPT_INVALID');
+ const reader=response.body.getReader();let n=0;const chunks=[];
+ try{for(;;){const {done,value}=await reader.read();if(done)break;n+=value.byteLength;if(n>8192){await reader.cancel();throw fault('DELIVERY_RECEIPT_INVALID');}chunks.push(Buffer.from(value));}}
+ catch(e){if(e.code==='DELIVERY_RECEIPT_INVALID')throw e;throw fault('DELIVERY_NETWORK_RETRY');}finally{reader.releaseLock();}
+ let json;try{json=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw fault('DELIVERY_RECEIPT_INVALID');}
+ if(response.status===409&&json?.code==='PM10_BUSY')throw fault('DELIVERY_NETWORK_RETRY');
+ if(response.status!==200||json?.ok!==true||Object.keys(json).sort().join()!=='ok,receipt')throw fault('DELIVERY_REJECTED');
+ return checkReceipt(json.receipt,p);
+}
+export class DeliveryStore{
+ constructor(root){this.captureRoot=root;this.root=path.join(root,'delivery');this.receiptDir=path.join(this.root,'receipts');}
+ async init(){
+  const st=await lstat(this.captureRoot);if(!st.isDirectory()||st.isSymbolicLink()||(process.platform!=='win32'&&(st.mode&0o077)))throw fault('DELIVERY_FILE_UNSAFE');
+  await safeDirectory(this.root);await safeDirectory(this.receiptDir);return this;
+ }
+ async *iterateBatches(){
+  const dir=path.join(this.captureRoot,'pending'),st=await lstat(dir);if(!st.isDirectory()||st.isSymbolicLink())throw fault('DELIVERY_FILE_UNSAFE');
+  for(const name of (await readdir(dir)).sort()){
+   if(/^\.pending-[a-f0-9-]+$/.test(name))continue;
+   if(!hex.test(name))throw fault('DELIVERY_BATCH_CORRUPT');
+   const root=path.join(dir,name),s=await lstat(root);if(!s.isDirectory()||s.isSymbolicLink())throw fault('DELIVERY_FILE_UNSAFE');
+   const names=(await readdir(root)).sort();if(names.join()!=='manifest.json,records.bin')throw fault('DELIVERY_BATCH_CORRUPT');
+   const m=JSON.parse((await file(path.join(root,'manifest.json'),4194304)).toString('utf8'));
+   yield validateBatch(name,m,await file(path.join(root,'records.bin'),4194304));
+  }
+ }
+ async batches(){const a=[];for await(const item of this.iterateBatches())a.push(item);return a;}
+ receiptFile(p){return path.join(this.receiptDir,p.batchId+'-'+p.partStart+'.json');}
+ async acknowledged(p){
+  let x;try{x=JSON.parse((await file(this.receiptFile(p),4096,true)).toString('utf8'));}catch(e){if(e.code==='ENOENT')return false;throw fault('DELIVERY_RECEIPT_CORRUPT');}
+  if(x.requestSha256!==hash(JSON.stringify(p)))throw fault('DELIVERY_RECEIPT_CORRUPT');checkReceipt(x.receipt,p);return x.receipt;
+ }
+ async confirm(p,r){checkReceipt(r,p);await atomicJson(this.receiptFile(p),{requestSha256:hash(JSON.stringify(p)),receipt:r});}
+ async deliver({token,connectorKey,fetchImpl=fetch,limit=4}){
+  if(!Number.isInteger(limit)||limit<1||limit>32)throw fault('DELIVERY_LIMIT_INVALID');
+  let sent=0,confirmedRecords=0,remainingParts=0,lastReceiptAt=null;
+  for await(const {manifest:m,bytes} of this.iterateBatches())for(let at=0;at<m.newUniqueRecords;at+=PART_SIZE){
+   const p=partPayload(m,bytes,at);let ack=await this.acknowledged(p);
+   if(!ack&&sent<limit){ack=await sendPart(p,token,connectorKey,fetchImpl);await this.confirm(p,ack);sent++;}
+   if(ack){confirmedRecords+=ack.count;if(!lastReceiptAt||Date.parse(ack.receivedAt)>Date.parse(lastReceiptAt))lastReceiptAt=ack.receivedAt;}else remainingParts++;
+  }
+  return {sent,confirmedRecords,remainingParts,lastReceiptAt,captureFilesRemoved:false,physicalClockVerified:false};
+ }
+}

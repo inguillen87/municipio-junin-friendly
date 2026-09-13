@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only
+[Unit]
+Description=MuniControl PM10 - envio HTTPS y confirmaciones de Neon
+Wants=network-online.target
+After=network-online.target municontrol-pm10.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+[Service]
+Type=simple
+User=municontrol-pm10
+Group=municontrol-pm10
+WorkingDirectory=/opt/municontrol-pm10
+ExecStart=/usr/bin/node /opt/municontrol-pm10/sender.mjs run --config /etc/municontrol-pm10/sender.json
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=25
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/municontrol-pm10/delivery
+LimitCORE=0
+[Install]
+WantedBy=multi-user.target

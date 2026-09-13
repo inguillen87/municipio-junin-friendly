@@ -73,6 +73,8 @@ const shellFiles = [
   'assets/clock-dashboard-export.js',
   'assets/clock-dashboard-model.js',
   'assets/clock-dashboard.css',
+  'assets/pm10-reception.css',
+  'assets/pm10-reception.js',
   'assets/clock-dashboard.js',
   'assets/attendance-clock-operations.css',
   'assets/attendance-clock-operations.js',

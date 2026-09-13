@@ -9,6 +9,8 @@
   <meta name="description" content="Inventario operativo de puntos, relojes, conectores y marcaciones de la Municipalidad de Junín.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
   <link rel="stylesheet" href="assets/clock-dashboard.css">
+  <link rel="stylesheet" href="assets/pm10-reception.css">
+  <script type="module" src="assets/pm10-reception.js"></script>
 <link rel="stylesheet" href="assets/workday-panel.css">
   <script type="module" src="assets/workday-panel.js"></script>
 <script type="module" src="assets/clock-dashboard.js"></script>
@@ -57,6 +59,17 @@
 
         <div class="error-banner" id="errorBanner" role="alert" hidden><div><strong>No pudimos actualizar marcaciones</strong><p id="errorMessage">El servicio interno no respondió.</p></div><button class="button" id="retryData" type="button">Reintentar</button></div>
         <div class="operation-banner" id="operationBanner" role="status" hidden><div><strong id="operationTitle">Datos físicos registrados</strong><p id="operationMessage">La información quedó guardada sin declarar una conexión que todavía no fue verificada.</p></div></div>
+
+<section id="pm10Reception" class="pm10-reception" aria-labelledby="pm10ReceptionTitle" hidden>
+<header><div><p class="pm10-kicker">PM-10 · Edificio Viejo</p><h2 id="pm10ReceptionTitle">Recepción del colector municipal</h2><span data-pm10="state" class="pm10-state" role="status">Consultando recepción</span></div><button type="button" data-pm10="refresh">Actualizar recepción</button></header>
+<p data-pm10="explanation">Verificamos lo que la base confirmó, no sólo el estado configurado del conector.</p>
+<p data-pm10="error" class="pm10-error" role="alert" hidden></p>
+<div class="pm10-metrics"><article><span>Nuevas marcaciones</span><strong data-pm10="new">—</strong><small>Eventos nuevos conservados en Neon</small></article><article><span>Ya conservadas</span><strong data-pm10="known">—</strong><small>Reconocidas sin volver a crear fichadas</small></article><article><span>Observaciones</span><strong data-pm10="observed">—</strong><small>Datos originales retenidos para revisar</small></article><article><span>Partes confirmadas</span><strong data-pm10="parts">—</strong><small>Acuses de la base, no cantidad de capturas</small></article></div>
+<div class="pm10-times"><div><span>Última recepción confirmada</span><strong data-pm10="received">—</strong></div><div><span>Última captura declarada en un lote</span><strong data-pm10="captured">—</strong></div></div>
+<p data-pm10="baseline">Captura histórica conservada por separado.</p>
+<details><summary>Últimos 50 registros nuevos recibidos</summary><div class="pm10-scroll"><table><thead><tr><th>Fecha del reloj</th><th>Persona</th><th>Legajo</th><th>Revisión</th><th>Recibida en la base</th></tr></thead><tbody data-pm10="rows"></tbody></table></div></details>
+<footer><p data-pm10="checked">Esperando verificación del servidor.</p><p>La captura histórica y sus jornadas permanecen separadas. Recibir una fichada no acredita jornada, horas pagables ni conexión permanente del equipo.</p></footer>
+</section>
 
 <section id="clockOperations" class="ck" data-clock-release="pm10-snapshot-v1" data-dashboard-release="clock-dashboard-v2" hidden aria-labelledby="clockTitle">
 <header class="ck-hero"><div><p class="ck-eyebrow">CENTRO DE CONTROL · ASISTENCIA</p><h2 id="clockTitle">Relojes y marcaciones</h2><p>Actividad verificable, personas vinculadas y decisiones con evidencia.</p></div><div class="ck-source-status"><strong id="clockMode">Consultando fuente</strong><small id="clockDevice">Identificación pendiente</small></div></header>

@@ -14,6 +14,7 @@
     "api/internal-attendance.js": { "maxDuration": 20 },
     "api/internal-grh-source-preview.js": { "maxDuration": 20 },
     "api/attendance-ingest.js": { "maxDuration": 20 },
+    "api/attendance-pm10.js": { "maxDuration": 20 },
     "api/internal-payroll-novelties.js": { "maxDuration": 20 },
     "api/internal-payroll-control-import.js": { "maxDuration": 20 },
     "api/internal-payroll-reprocessing.js": { "maxDuration": 20 },

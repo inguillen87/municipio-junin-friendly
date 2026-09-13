@@ -1,3 +1,4 @@
+import { getPm10Status } from '../lib/internal-pm10-status.js';
 import { getAttendanceWorkdays } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
@@ -238,6 +239,11 @@ export function createInternalAttendanceHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = requestedResource;
+        if (resource === 'pm10-reception') {
+          assertQueryKeys(req,new Set(['resource']));
+          const result=await (dependencies.getPm10Status ?? getPm10Status)(sql,access.principal,tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
         if (resource === 'clock-workdays') {
           assertQueryKeys(req,new Set(['resource','site','from','to','page','pageSize','search','status','snapshot']));
           const result=await clockWorkdays(sql,access.principal,{

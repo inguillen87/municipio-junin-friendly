@@ -1,6 +1,6 @@
 # PM-10: colector municipal de captura local · 059.1
 
-**Estado:** software de captura local preparado para instalación. **No se ha instalado en la municipalidad y no envía a Neon.** No es el cierre del circuito automático de asistencia. No sustituye al proveedor de nómina ni calcula horas.
+**Estado:** software de captura local preparado para instalación. **No se ha instalado en la municipalidad. La captura no envía por sí sola; el nuevo remitente 059.2 se configura por separado al final de este documento.** No es el cierre del circuito automático de asistencia. No sustituye al proveedor de nómina ni calcula horas.
 
 ## Qué hace
 
@@ -84,3 +84,26 @@ Los instaladores comprueban la ruta local antes de crear cuentas, directorios y 
 Diagnóstico sin conexión al reloj: node check-host.mjs. No lee claves ni asigna direcciones. Un resultado favorable no prueba disponibilidad física, exclusividad, capacidad del host ni autorización administrativa.
 
 Es un prechequeo, no un firewall: Cómputos debe validar la ruta y la restricción de salida por interfaz ante cambios durante una conexión ya iniciada. La unidad Linux permite AF_NETLINK para consultas locales, sin privilegios extra. No se instaló en la municipalidad ni se completó el receptor 059.2. Ver docs/SPRINT_059_1_1_RUTA_MUNICIPAL.md.
+
+## Envío confirmado 059.2 (servicio separado)
+
+La captura descrita arriba sigue funcionando igual. Este paquete agrega `sender.mjs` y `delivery.mjs` para enviar la cola al receptor PM-10. **No está instalado en el municipio por incluirse en este paquete.** La recepción requiere el receptor publicado, migración aplicada y activación administrativa del conector. No utiliza la CommKey como token de API.
+
+Tras instalar/comprobar la captura 059.1.1, Cómputos puede preparar el remitente:
+
+- Windows: ejecutar `install/install-sender-windows.ps1` como administrador, con el Node.js 22+ instalado para el equipo.
+- Linux: ejecutar `sudo bash install/install-sender-linux.sh`.
+
+Se solicita la clave pública `external_key` del conector, se genera un token local aleatorio y se muestra únicamente SHA-256 para registrarlo administrativamente. **La tarea queda deshabilitada en Windows; la unidad Linux no queda habilitada ni arrancada.** Comprobar registro del hash, ruta, exclusividad, permisos y espacio antes de activar. No repetir instalaciones para cambiar un token: la rotación debe ser coordinada.
+
+El estado del remitente está en `state/delivery/status.json` (Windows) o `/var/lib/municontrol-pm10/delivery/status.json` (Linux). `state/estado.html` continúa describiendo la captura local; no es el estado del remitente. El panel web autenticado muestra las recepciones de Neon. Las confirmaciones locales se guardan en `delivery/receipts` sin modificar ni borrar `pending`.
+
+```text
+node sender.mjs once --config /ruta/absoluta/sender.json
+node sender.mjs run --config /ruta/absoluta/sender.json
+node sender.mjs resume --config /ruta/absoluta/sender.json
+```
+
+`once` efectúa un ciclo; `run` repite cada intervalo; `resume` elimina únicamente un bloqueo de envío después de revisión humana, no inicia la captura ni borra acuses. No ejecutar dos remitentes para la misma carpeta. Los errores de red reintentan con espera persistida; un rechazo de autenticación o datos incompatibles detiene el envío. Los registros siguen conservados localmente, por lo que también hace falta monitorear el espacio. Este incremento no activa eliminación automática ni certifica días/horas de liquidación.
+
+Más detalle: `docs/SPRINT_059_2_RECEPCION_CONTINUA.md` del repositorio principal. El instalador no cambia direcciones, firewall, DNS ni GRH. El token y los datos locales requieren protección del host; permisos no equivalen a cifrado de disco.
