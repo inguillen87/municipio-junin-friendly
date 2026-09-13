@@ -1,0 +1,43 @@
+name: PM10 delivery 059.2
+on:
+  push:
+    branches: ['feat/pm10-delivery-0592']
+permissions:
+  contents: read
+concurrency:
+  group: pm10-delivery-0592
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Full application regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/application-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - name: Collector tests use synthetic routes and loopback only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test local-agents/pm10/tests/*.test.mjs 2>&1 | tee verification/collector-tests.log
+      - name: Archive exact source, no deployment secrets or municipal records
+        if: always()
+        run: |
+          git rev-parse HEAD > verification/source-commit.txt
+          git archive --format=tar.gz -o verification/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-delivery-0592-acceptance
+          path: verification/
+          retention-days: 5
