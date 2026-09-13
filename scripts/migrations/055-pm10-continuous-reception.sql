@@ -151,7 +151,7 @@ END $$;
 REVOKE ALL ON FUNCTION attendance_pm10_receive_v1(text,text,jsonb,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION attendance_pm10_receive_v1(text,text,jsonb,text) TO municontrol_actions_runtime_app;
 
-CREATE OR REPLACE FUNCTION attendance_pm10_status_v1(p_email text,p_session uuid,p_version int,p_release text,p_tenant uuid,p_membership uuid)
+CREATE OR REPLACE FUNCTION attendance_pm10_receipt_status_v1(p_email text,p_session uuid,p_version int,p_release text,p_tenant uuid,p_membership uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE ctx jsonb;d attendance_device%ROWTYPE;c attendance_connector%ROWTYPE;b platform_tenant_source_binding%ROWTYPE;nominal boolean;totals jsonb;latest jsonb;baseline bigint;
 BEGIN
@@ -178,5 +178,5 @@ BEGIN
  WHERE r.tenant_id=p_tenant AND r.device_id=d.id ORDER BY q.received_at DESC,r.source_ordinal DESC LIMIT 50)x;
  RETURN jsonb_build_object('version','pm10-status.v1','checkedAt',clock_timestamp(),'connectorState',coalesce(c.status,'not_configured'),'baselineRecords',baseline,'summary',totals,'records',latest,'nominalReadAllowed',nominal,'physicalClockVerified',false,'payrollModified',false);
 END $$;
-REVOKE ALL ON FUNCTION attendance_pm10_status_v1(text,uuid,int,text,uuid,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION attendance_pm10_status_v1(text,uuid,int,text,uuid,uuid) TO municontrol_actions_runtime_app;
+REVOKE ALL ON FUNCTION attendance_pm10_receipt_status_v1(text,uuid,int,text,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION attendance_pm10_receipt_status_v1(text,uuid,int,text,uuid,uuid) TO municontrol_actions_runtime_app;
