@@ -1,0 +1,25 @@
+name: PM10 receiver and delivery 059.2
+on:
+  push:
+    branches: ['feat/pm10-receiver-0592']
+permissions:
+  contents: read
+concurrency:
+  group: pm10-receiver-0592
+  cancel-in-progress: true
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive tracked source only, no runtime data
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD > verification/commit.txt
+          git archive --format=tar.gz -o verification/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm10-receiver-baseline
+          path: verification/
+          retention-days: 3
