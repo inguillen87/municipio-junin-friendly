@@ -1,0 +1,180 @@
+name: PM10 local capture 059
+on:
+  push:
+    branches: ['feat/pm10-capture-059', 'master']
+    paths:
+      - '.github/workflows/pm10-capture-059.yml'
+      - 'scripts/patches/059*'
+      - 'local-agents/pm10/**'
+      - 'docs/SPRINT_059_PM10_CAPTURA_LOCAL.md'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: pm10-capture-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recover source verified by the initial acceptance run
+        if: hashFiles('local-agents/pm10/service.mjs') == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-source
+          path: initial-source
+          run-id: 34748721710
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare exact source, never municipal capture data
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f local-agents/pm10/service.mjs ]; then
+            tar -xzf initial-source/pm10-source.tar.gz local-agents/pm10 docs/SPRINT_059_PM10_CAPTURA_LOCAL.md
+          fi
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';import {createHash} from 'node:crypto';
+          const root='local-agents/pm10/';
+          const mf=root+'SHA256SUMS.json',m=JSON.parse(fs.readFileSync(mf,'utf8'));
+          for(const [p,h] of Object.entries(m))if(createHash('sha256').update(fs.readFileSync(root+p)).digest('hex')!==h)throw Error('INITIAL_SOURCE_MISMATCH '+p);
+          const test=root+'tests/service.test.mjs';
+          fs.writeFileSync(test,fs.readFileSync(test,'utf8').replace(/[ \t]+$/gm,''));
+          const readme=root+'README.md';fs.writeFileSync(readme,fs.readFileSync(readme,'utf8').replace(', manuales systemd.service/systemd.exec','. La unidad systemd fue revisada como configuración de instalación, no ejecutada en un host municipal'));
+          for(const p of Object.keys(m))m[p]=createHash('sha256').update(fs.readFileSync(root+p)).digest('hex');
+          fs.writeFileSync(mf,JSON.stringify(m,null,2)+'\n');
+          const f='.vercelignore',s=fs.readFileSync(f,'utf8');
+          if(!s.split(/\r?\n/).includes('local-agents/'))fs.writeFileSync(f,s+'\n# Municipal services are not web deployment assets.\nlocal-agents/\n');
+          NODE
+          tar -czf /tmp/pm10-source.tar.gz local-agents/pm10 docs/SPRINT_059_PM10_CAPTURA_LOCAL.md .vercelignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm10-059-source
+          path: /tmp/pm10-source.tar.gz
+          retention-days: 5
+  capture-tests:
+    needs: source
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-source
+          path: incoming
+      - name: Extract reviewed source and verify manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xzf incoming/pm10-source.tar.gz
+          mkdir -p verification
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';import {createHash} from 'node:crypto';
+          const root='local-agents/pm10/';const m=JSON.parse(fs.readFileSync(root+'SHA256SUMS.json','utf8'));
+          for(const [file,sha] of Object.entries(m)){
+            if(typeof sha!=='string'||!file||file.startsWith('/')||file.includes('..'))throw Error('MANIFEST_INVALID');
+            if(createHash('sha256').update(fs.readFileSync(root+file)).digest('hex')!==sha)throw Error('MANIFEST_MISMATCH '+file);
+          }
+          NODE
+      - name: Unit and loopback protocol tests only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test local-agents/pm10/tests/*.test.mjs 2>&1 | tee verification/capture-tests.log
+      - name: Windows installer syntax, no task registration or clock connection
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $tokens=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'local-agents/pm10/install/install-windows.ps1'),[ref]$tokens,[ref]$errors) | Out-Null
+          if($errors.Count -gt 0){ $errors | Out-String | Write-Error; exit 1 }
+          'Windows PowerShell installer syntax valid; installer not executed.' | Out-File verification/installer-syntax.txt
+      - name: Linux installer syntax, no service installation
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash -n local-agents/pm10/install/install-linux.sh
+          echo 'Bash syntax valid; installer not executed.' > verification/installer-syntax.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-059-tests-${{ matrix.os }}
+          path: verification/
+          retention-days: 5
+  regression:
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-source
+          path: incoming
+      - run: tar -xzf incoming/pm10-source.tar.gz && mkdir -p verification
+      - run: npm ci
+      - name: Existing application tests and static build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/app-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+          test ! -e public/local-agents
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-059-regression
+          path: verification/
+          retention-days: 5
+  integrate:
+    if: github.ref == 'refs/heads/feat/pm10-capture-059'
+    needs: [capture-tests, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm10-059-source
+          path: incoming
+      - name: Preserve exact validated source and remove temporary transfer files
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xzf incoming/pm10-source.tar.gz
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add local-agents/pm10 docs/SPRINT_059_PM10_CAPTURA_LOCAL.md .vercelignore
+          for f in scripts/patches/059.patch.b64.1 scripts/patches/059.patch.b64.2 scripts/patches/059-source.url; do
+            if test -f "$f"; then git rm "$f"; fi
+          done
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(059): municipal PM10 capture service, persistent local queue and protected installers'
+            git push origin HEAD:feat/pm10-capture-059
+          fi
+          mkdir -p verification
+          git rev-parse HEAD > verification/validated-commit.txt
+          tar -czf verification/pm10-capture-source.tar.gz local-agents/pm10 docs/SPRINT_059_PM10_CAPTURA_LOCAL.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm10-059-validated-release
+          path: verification/
+          retention-days: 5

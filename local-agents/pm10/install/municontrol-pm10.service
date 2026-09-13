@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-only
+[Unit]
+Description=MuniControl PM10 - captura local, subida a Neon pendiente
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=municontrol-pm10
+Group=municontrol-pm10
+WorkingDirectory=/opt/municontrol-pm10
+ExecStart=/usr/bin/node /opt/municontrol-pm10/service.mjs run --config /etc/municontrol-pm10/config.json
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET
+StateDirectory=municontrol-pm10
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/municontrol-pm10
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target

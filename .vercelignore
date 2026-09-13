@@ -148,3 +148,6 @@ api/whatsapp-webhook.js
 !scripts/migrations/053-payroll-source-report.sql
 
 !scripts/migrations/054-payroll-export-roster.sql
+
+# Municipal services are not web deployment assets.
+local-agents/
