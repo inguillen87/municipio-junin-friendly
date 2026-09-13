@@ -3,7 +3,7 @@ import path from 'node:path';
 import {lstat, readFile} from 'node:fs/promises';
 import {TARGET, PORT, SERIAL} from './reader/lector-fichadas.mjs';
 import {validateCommKey} from './reader/zk-core-v3.mjs';
-export const VERSION='0.1.0';
+export const VERSION='0.1.1';
 export const SCHEMA='pm10-capture-agent.v1';
 export function fault(code){return Object.assign(new Error(code),{code});}
 export function safeCode(e){return typeof e?.code==='string'&&/^[A-Z][A-Z0-9_]{0,70}$/.test(e.code)?e.code:'LOCAL_ERROR';}

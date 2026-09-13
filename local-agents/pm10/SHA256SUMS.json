@@ -1,17 +1,20 @@
 {
   "INSTALAR_WINDOWS.cmd": "8034171620c6872cf157453bf1ac0b271ad7a023b1c9d819545d297c81681c37",
   "LICENSE": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
-  "README.md": "787a0140f3e600a72a752d679f2d6c6604783aa021ef2af61b116e43d3defbd0",
-  "config.mjs": "3df46faf194e4bef02e85b014a4f9f6068888e14647174ba23c8fad120580811",
-  "install/install-linux.sh": "c5d15d093247d2cb9f0b71e320948f56d0f8267a3644e5e0c05448c25143f305",
-  "install/install-windows.ps1": "4599c1bfaa75e9ece8ec6e1fb4c67bab2a1b9de00cb33dbcce4b90ccbf70a1cd",
-  "install/municontrol-pm10.service": "bb9b55b43a429bdf718035d39d54d6227da7795fbf27ca64447f530cf23714a6",
-  "package.json": "276f30fc47c9bd74f5a410f10818a96fdbc1b9177713022b6b55c31571214440",
+  "README.md": "a2937ed746125e65a6a2f3f8056520c63cc8d060a8f9a737f98d337ddf398bfb",
+  "check-host.mjs": "fc5a29090f7b7f589285a9daa9059a135af87039c4b2a20a5932a4dd8b7db1dc",
+  "config.mjs": "04567d2635488d7f6f34694e691b936b0b7512c0904bbe6d87fcad4b2349a72c",
+  "install/install-linux.sh": "415793f30c53b5e25fc1d4b48fe210e82672377c280e393ff2689b27820f614b",
+  "install/install-windows.ps1": "8c62de2e17edd4623ee1c3fc87c27448d2292952ecbf7d5d1b758c6b8eb0f434",
+  "install/municontrol-pm10.service": "5c7014874be5dfee84e6d6b50b509fcab1f3d09ea61b6125d8238144baa8db6d",
+  "package.json": "4b13f169e525d7d966c78b3dffb916443dfed74e7f93337bfefbf35961448f4a",
   "reader/REFERENCIAS.md": "78282385a732580fc90811300e22dc5a470b45777bb5cd762e071518c0ecf788",
   "reader/lector-fichadas.mjs": "bc2d2479675ae1a885b9b62b31fc915ae879506e626d1e7ea4d51a11ae886aa5",
   "reader/zk-core-v3.mjs": "fc16a5d7f3c5a236a3de8d0387e1ec849fb5eafd8711ba8f3bef69a8badf5dec",
-  "service.mjs": "8bbc2a5bc8e6369ed261c58f46e036c8c07da01508136784e9060d47e87ccfe1",
+  "route-guard.mjs": "2719bc1fe17026e0064f904b11764021ecf5ab221f43a0aa49ff3fa1990dcc10",
+  "service.mjs": "38eb86f9a31b5c26e2a3039a27974c2f40899b1f16e8beae1167010aaa183473",
   "store.mjs": "319ec3d53d3d795f6bb793ac396c6bf4cba01f6105ed038d42f2dbd1abe80e76",
   "tests/fixture.mjs": "1d3a55b32d0f4d7d755e219dbc00e8fdda83ca5e2e912dd9a6d63ccf947f640a",
-  "tests/service.test.mjs": "7b1732e9a202e0cfd2bbf104a451dc0deae089910084dd7c321eb635e624cf19"
+  "tests/route-guard.test.mjs": "10b038e1ebce7205d91293dc246211bf8ad70037d4270624988892ac92f6e534",
+  "tests/service.test.mjs": "655f8dc8f359d5eaea1f4c78667d0d96e0760de0d48db3c2fb2c41c38282b467"
 }

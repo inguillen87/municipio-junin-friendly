@@ -74,3 +74,13 @@ No cambiar rutas del servicio a mano ni agregar credenciales a sus argumentos.
 Este agente separado usa **GPL-2.0-only**, como el lector aportado, con atribuciones y referencias en `reader/REFERENCIAS.md`. No se importa en el código del navegador ni se incluye en el sitio estático.
 
 Referencias técnicas consultadas el 13/09/2026: Node.js `fs` (sincronización y modos; permisos POSIX no aplican a Windows), Microsoft `New-ScheduledTaskPrincipal` (LocalService/ServiceAccount). La unidad systemd fue revisada como configuración de instalación, no ejecutada en un host municipal. El diseño y las pruebas de la cola son de este sprint; no constituyen una garantía del fabricante.
+
+## Protección de ruta 059.1.1
+
+No se elige una IP libre ni se cambia la del equipo o reloj. La opción preferida es un host municipal asignado, usando su dirección existente; una VM nueva obtiene dirección desde el DHCP/IPAM institucional. No basta que una IP no responda.
+
+Los instaladores comprueban la ruta local antes de crear cuentas, directorios y tareas. Cada captura vuelve a comprobarla antes de leer la CommKey y abrir una conexión. Se exige el prefijo municipal /19 o más específico; se rechaza salida por defecto, rutas amplias, inactivas o ambiguas. Si falta la ruta, el agente entra en network_wait y sólo repite el chequeo local; retoma al volver una ruta aceptada. No elimina un bloqueo anterior de autenticación. El panel mantiene separadas captura local y recepción en Neon.
+
+Diagnóstico sin conexión al reloj: node check-host.mjs. No lee claves ni asigna direcciones. Un resultado favorable no prueba disponibilidad física, exclusividad, capacidad del host ni autorización administrativa.
+
+Es un prechequeo, no un firewall: Cómputos debe validar la ruta y la restricción de salida por interfaz ante cambios durante una conexión ya iniciada. La unidad Linux permite AF_NETLINK para consultas locales, sin privilegios extra. No se instaló en la municipalidad ni se completó el receptor 059.2. Ver docs/SPRINT_059_1_1_RUTA_MUNICIPAL.md.

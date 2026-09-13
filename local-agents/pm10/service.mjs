@@ -8,6 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {collect, SERIAL, MAX_BYTES} from './reader/lector-fichadas.mjs';
 import {fault,safeCode,loadConfig,readCredential,VERSION} from './config.mjs';
 import {CaptureStore,acquireLock,atomicJson,splitRaw} from './store.mjs';
+import {readMunicipalRoute,ROUTE_ERRORS} from './route-guard.mjs';
 
 const TRANSIENT=new Set(['CONNECT_TIMEOUT','RESPONSE_TIMEOUT','ECONNRESET','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','CONNECTION_ENDED','CONNECTION_CLOSED','DEADLINE_EXCEEDED']);
 export function nextDelaySeconds(failures,pollSeconds){return Math.min(900,pollSeconds*2**Math.min(Math.max(0,failures-1),4));}
@@ -31,7 +32,7 @@ export function ensureCapture(result){
  if(result.raw.length!==r.transfer?.plannedBytes||result.raw.length!==r.transfer?.receivedBytes||result.raw.length!==r.transfer?.confirmedChunkBytes)throw fault('BYTE_COUNT_MISMATCH');
  return r;
 }
-export async function runCycle(config,store,previous,{collectImpl=collect,credentialReader=readCredential,now=()=>new Date(),signal}={}){
+export async function runCycle(config,store,previous,{collectImpl=collect,credentialReader=readCredential,routeCheck=readMunicipalRoute,now=()=>new Date(),signal}={}){
  const state={...previous,...store.summary()};
  if(state.blocked)return {...state,status:'blocked'};
  const started=now();
@@ -40,6 +41,9 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
  try{
   // At least one maximum capture plus metadata must fit before any network operation.
   await store.capacity(MAX_BYTES+1048576);
+  // Re-check the selected local route before reading the secret or opening a socket.
+  const route=await routeCheck();
+  if(!route||route.localLookup!==true)throw fault('ROUTE_OUTPUT_INVALID');
   key=await credentialReader(config.credentialFile);
   const result=await collectImpl({commKey:key,approved:true,host:config.host,port:config.port,signal,totalMs:180000});
   const report=ensureCapture(result);
@@ -49,7 +53,14 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
    snapshotRecordCount:saved.snapshotRecordCount,deviceTimeLocal:report.metadata.deviceTimeBefore??null,
    newUniqueRecordsLastCycle:saved.newUniqueRecords,blocked:false,nextPollAt:new Date(now().getTime()+config.pollSeconds*1000).toISOString()});
  }catch(e){
-  const code=safeCode(e);state.lastError=code;state.failureCount=Math.min(1000,state.failureCount+1);
+  const code=safeCode(e);
+  if(ROUTE_ERRORS.has(code)){
+   // Route lookup retries are local only, so do not consume clock/auth retry budget.
+   return {...state,...store.summary(),status:'network_wait',lastError:code,blocked:false,
+    nextPollAt:new Date(now().getTime()+config.pollSeconds*1000).toISOString(),
+    cloudReception:'not_connected',cloudConfirmedRecords:0};
+  }
+  state.lastError=code;state.failureCount=Math.min(1000,state.failureCount+1);
   state.blocked=!TRANSIENT.has(code)||state.failureCount>=6;
   state.status=state.blocked?'blocked':'retry_wait';
   state.nextPollAt=state.blocked?null:new Date(now().getTime()+nextDelaySeconds(state.failureCount,config.pollSeconds)*1000).toISOString();
@@ -59,12 +70,13 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
 const esc=v=>String(v??'Sin registro').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readableDate(v){return v?new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',dateStyle:'short',timeStyle:'medium'}).format(new Date(v)):'Sin registro';}
 export function statusHtml(s){
- const labels={waiting:'Esperando la primera lectura',captured_locally:'Captura local disponible',blocked:'Lectura detenida: requiere revisión',retry_wait:'Esperando para reintentar',stopped:'Servicio detenido'};
+ const labels={waiting:'Esperando la primera lectura',network_wait:'Sin ruta municipal: no se consulta el reloj',captured_locally:'Captura local disponible',blocked:'Lectura detenida: requiere revisión',retry_wait:'Esperando para reintentar',stopped:'Servicio detenido'};
  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="30"><title>PM-10 · Colector municipal</title><style>
  body{margin:0;background:#edf3f3;color:#143b4d;font:16px system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:36px 24px}header{padding:28px;background:#123748;color:white;border-radius:16px}h1{margin:8px 0 12px;font-size:32px}h2{font-size:20px}p{line-height:1.55}small{display:block;font-size:13px}strong{font-variant-numeric:tabular-nums}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0}.card{background:white;border:1px solid #cfdedf;border-radius:14px;padding:24px}.metric{display:block;margin:12px 0;font-size:30px}.alert{border-left:5px solid #b37508;background:#fff5df;padding:20px;border-radius:10px;margin:18px 0}.good{color:#08786f}dl{display:grid;grid-template-columns:220px 1fr;gap:14px}dt{font-weight:650}dd{margin:0;overflow-wrap:anywhere}footer{margin-top:28px;font-size:13px;color:#476570}@media(max-width:650px){main{padding:16px}.cards{grid-template-columns:1fr}dl{grid-template-columns:1fr;gap:8px}dd{margin-bottom:12px}}
  </style><main><header><small>MUNICONTROL · AGENTE LOCAL · ${esc(VERSION)}</small><h1>PM-10 · Edificio Viejo</h1><p>${esc(labels[s.status]??'Estado por revisar')}</p><small>Este panel lee archivos del equipo municipal. No es el estado del servidor de MuniControl.</small></header>
  <div class="alert"><strong>Subida a Neon pendiente de integración.</strong><p>El servicio conserva los registros en una cola local. Captura local no significa recepción en la nube, asistencia aprobada ni horas liquidadas.</p></div>
  <div class="cards"><section class="card"><small>REGISTROS ÚNICOS LOCALES</small><strong class="metric">${esc(s.uniqueLocalRecords??0)}</strong><small>No son personas ni jornadas.</small></section><section class="card"><small>LOTES PENDIENTES LOCALES</small><strong class="metric">${esc(s.pendingLocalBatches??0)}</strong><small>No se eliminan automáticamente.</small></section><section class="card"><small>CONFIRMADOS POR NEON</small><strong class="metric">0</strong><small>Receptor continuo no conectado.</small></section></div>
+ ${s.status==='network_wait'?'<div class="alert"><strong>Lectura pausada antes de conectar.</strong><p>No se confirmó una ruta específica hacia la red municipal. Se revisará nuevamente la tabla de rutas local; no se prueban claves ni se escanea la red. Si vuelve la ruta, se retoma la captura. Esto no sustituye la restricción de salida por interfaz que debe validar Cómputos.</p></div>':''}
  <section class="card"><h2>Continuidad de la captura</h2><dl><dt>Último intento</dt><dd>${esc(readableDate(s.lastAttemptAt))}</dd><dt>Última captura completa</dt><dd>${esc(readableDate(s.lastCaptureAt))}</dd><dt>Siguiente intento</dt><dd>${esc(readableDate(s.nextPollAt))}</dd><dt>Hora local del reloj</dt><dd>${esc(s.deviceTimeLocal)}</dd><dt>Último código de error</dt><dd>${esc(s.lastError??'Sin error informado')}</dd><dt>Espacio de cola</dt><dd>${esc(((s.queueBytes??0)/1048576).toFixed(2))} MiB</dd><dt>Escrituras interrumpidas retenidas</dt><dd>${esc(s.interruptedWrites??0)}</dd></dl></section>
  <footer>Sin nombres, DNI ni huellas en este panel. El contenido de la carpeta pending sí contiene identificadores personales y no se debe compartir. Las lecturas se ejecutan sin borrar fichadas, modificar usuarios ni cambiar la hora del reloj. Actualización local cada 30 segundos.</footer></main></html>`;
 }
