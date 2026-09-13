@@ -11,11 +11,13 @@ source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo 'Captura local PM10; todavia NO sube datos a Neon. Un solo colector municipal por reloj.'
 read -r -p 'Escriba AUTORIZO para instalar: ' approval
 [ "$approval" = AUTORIZO ] || exit 1
+# Local routing lookup only, before user/directory/service changes.
+/usr/bin/node "$source_dir/check-host.mjs" || { echo 'Sin ruta municipal específica. No se instaló ni se contactó el reloj.' >&2; exit 1; }
 if ! id municontrol-pm10 >/dev/null 2>&1; then useradd --system --no-create-home --shell /usr/sbin/nologin municontrol-pm10; fi
 install -d -m 0755 /opt/municontrol-pm10
 install -d -m 0750 -o root -g municontrol-pm10 /etc/municontrol-pm10
 install -d -m 0700 -o municontrol-pm10 -g municontrol-pm10 /var/lib/municontrol-pm10
-for f in service.mjs store.mjs config.mjs package.json LICENSE; do install -m 0644 "$source_dir/$f" /opt/municontrol-pm10/; done
+for f in service.mjs store.mjs config.mjs route-guard.mjs check-host.mjs package.json LICENSE; do install -m 0644 "$source_dir/$f" /opt/municontrol-pm10/; done
 cp -R "$source_dir/reader" /opt/municontrol-pm10/
 chmod -R go-w /opt/municontrol-pm10
 read -r -s -p 'CommKey YA VALIDADA (oculta): ' key; printf '\n'

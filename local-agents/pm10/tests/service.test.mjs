@@ -5,7 +5,7 @@ import {mkdtemp,rm,writeFile,readFile,mkdir,readdir,stat,symlink} from 'node:fs/
 import path from 'node:path';import os from 'node:os';
 import {CaptureStore,acquireLock,atomicJson,hash,splitRaw} from '../store.mjs';
 import {validateConfig,readCredential,SCHEMA} from '../config.mjs';
-import {runCycle,initialState,loadState,ensureCapture,statusHtml,writeStatus,nextDelaySeconds} from '../service.mjs';
+import {runCycle as guardedRunCycle,initialState,loadState,ensureCapture,statusHtml,writeStatus,nextDelaySeconds} from '../service.mjs';
 import {collect,TARGET,PORT,SERIAL,makePacket} from '../reader/lector-fichadas.mjs';
 import {withClock,dataSet,fakeKey} from './fixture.mjs';
 const config=root=>validateConfig({schema:SCHEMA,mode:'capture_only',approved:true,host:TARGET,port:PORT,serial:SERIAL,stateDir:root,credentialFile:path.join(root,'commkey'),pollSeconds:60,maxQueueMiB:256,minFreeMiB:16});
@@ -13,6 +13,8 @@ async function temp(fn){const dir=await mkdtemp(path.join(os.tmpdir(),'pm10-059-
 async function storeAt(dir,opts={}){return new CaptureStore(dir,{freeBytes:async()=>1e10,...opts}).init();}
 const success=(raw=dataSet(3))=>({raw,parsed:{layout:'legacy-40-byte-candidate'},report:{authenticationAccepted:true,attendanceTransferComplete:true,finishedAt:'2026-09-13T09:00:00.000Z',metadata:{serialNumber:SERIAL,deviceTimeBefore:'2026-09-13T06:00:00'},transfer:{plannedBytes:raw.length,receivedBytes:raw.length,confirmedChunkBytes:raw.length},cleanup:{bufferReleaseConfirmed:true,exitConfirmed:true},error:null}});
 const fixedNow=()=>new Date('2026-09-13T09:00:00.000Z');
+// Existing protocol tests inject a synthetic route; real-route refusal is tested separately.
+const runCycle=(cfg,store,state,deps={})=>guardedRunCycle(cfg,store,state,{routeCheck:async()=>({prefix:'172.100.96.0/19',interface:'synthetic',localLookup:true}),...deps});
 for(const patch of [{approved:false},{host:'1.1.1.1'},{port:23},{serial:'wrong'},{mode:'cloud'},{pollSeconds:5},{maxQueueMiB:1},{endpoint:'https://example.invalid'},{credential:'999'}])test('config blocks unsafe variant '+Object.keys(patch),()=>assert.throws(()=>validateConfig({...config(os.tmpdir()),...patch})));
 test('credential read accepts protected known numeric key and trims one newline',()=>temp(async d=>{const f=path.join(d,'key');await writeFile(f,'876543\n',{mode:0o600});const k=await readCredential(f);assert.equal(k.toString(),'876543');k.fill(0);}));
 for(const key of ['', 'abc',' 1234','1234  ','123456789012345'])test('credential malformed '+key.length+':'+key.slice(0,1),()=>temp(async d=>{const f=path.join(d,'key');await writeFile(f,key,{mode:0o600});await assert.rejects(readCredential(f));}));

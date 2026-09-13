@@ -21,12 +21,15 @@ Write-Host 'Destino unico: PM-10 Edificio Viejo. Captura local sin subida a Neon
 Write-Host 'Coordine con Computos: no debe existir otro colector consultando este reloj.'
 $approval = Read-Host 'Escriba AUTORIZO para instalar en este equipo municipal'
 if ($approval -cne 'AUTORIZO') { throw 'Instalacion cancelada sin iniciar conexiones.' }
+# Local routing lookup only: no clock connections and no changes before this check.
+& $NodePath (Join-Path $Source 'check-host.mjs')
+Check-Exit 'ruta municipal local; instalacion cancelada antes de cambios'
 New-Item -ItemType Directory -Path $Base,$App,$State,$Private -Force | Out-Null
 & icacls.exe $Base /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-19:(OI)(CI)(RX)' | Out-Null
 Check-Exit 'permisos de instalacion'
 & icacls.exe $State /grant:r '*S-1-5-19:(OI)(CI)(M)' | Out-Null
 Check-Exit 'permisos de cola'
-foreach ($file in @('service.mjs','store.mjs','config.mjs','package.json','LICENSE')) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $App }
+foreach ($file in @('service.mjs','store.mjs','config.mjs','route-guard.mjs','check-host.mjs','package.json','LICENSE')) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $App }
 Copy-Item -LiteralPath (Join-Path $Source 'reader') -Destination (Join-Path $App 'reader') -Recurse
 $keyFile = Join-Path $Private 'commkey'
 $secure = Read-Host 'CommKey YA VALIDADA del reloj (oculta, no es clave de Windows)' -AsSecureString

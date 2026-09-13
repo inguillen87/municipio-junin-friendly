@@ -1,0 +1,103 @@
+name: PM10 local route guard 059.1.1
+on:
+  push:
+    branches: ['fix/pm10-route-guard-0591']
+permissions:
+  contents: read
+concurrency:
+  group: pm10-route-guard-0591
+  cancel-in-progress: true
+jobs:
+  collector:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Integrate reviewed source
+        run: node scripts/integrate-pm10-route-0591.mjs
+      - name: Agent tests, only synthetic routes and loopback sockets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          node --test local-agents/pm10/tests/*.test.mjs 2>&1 | tee verification/collector-tests.log
+      - name: Check local route on hosted runner without contacting clock
+        shell: bash
+        run: |
+          set +e
+          node local-agents/pm10/check-host.mjs > verification/local-preflight.json
+          code=$?
+          set -e
+          test "$code" -eq 2
+          node --input-type=module -e "import fs from 'node:fs'; const r=JSON.parse(fs.readFileSync('verification/local-preflight.json')); if(r.routePresent||r.clockContacted||r.credentialsRead||r.networkChanged||r.installationPerformed)throw Error('PREFLIGHT_MUST_NOT_CONNECT');"
+      - name: Windows installer syntax only
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'local-agents/pm10/install/install-windows.ps1'),[ref]$tokens,[ref]$errors) | Out-Null
+          if($errors.Count){throw ($errors | Out-String)}
+          'Installer parsed, not executed' | Set-Content verification/installer-syntax.txt
+      - name: Linux installer syntax only
+        if: runner.os == 'Linux'
+        run: |
+          bash -n local-agents/pm10/install/install-linux.sh
+          echo 'Installer parsed, not executed' > verification/installer-syntax.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-route-${{ matrix.os }}
+          path: verification/
+          retention-days: 5
+  application:
+    needs: collector
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Integrate and verify idempotence
+        run: |
+          node scripts/integrate-pm10-route-0591.mjs
+          git diff | sha256sum > /tmp/first
+          node scripts/integrate-pm10-route-0591.mjs
+          git diff | sha256sum > /tmp/second
+          diff /tmp/first /tmp/second
+          git diff --check
+      - run: npm ci
+      - name: Application regression and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          npm test 2>&1 | tee verification/application-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+      - name: Commit only verified collector changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add local-agents/pm10
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(pm10): require municipal route before local capture and installation'
+            git push origin HEAD:fix/pm10-route-guard-0591
+          fi
+          git rev-parse HEAD > verification/validated-commit.txt
+          git archive --format=tar.gz -o verification/collector-source.tar.gz HEAD local-agents/pm10 docs/SPRINT_059_1_1_RUTA_MUNICIPAL.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-route-application
+          path: verification/
+          retention-days: 5
