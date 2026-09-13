@@ -2,7 +2,7 @@ name: PM10 reception and sender 059.2
 on:
   push:
     branches: ['feat/pm10-reception-0592', 'master']
-    paths: ['.github/workflows/pm10-reception-0592.yml', 'local-agents/pm10/**', 'api/attendance-pm10.js', 'api/internal-attendance.js', 'lib/internal-pm10-*', 'assets/pm10-*', 'assets/clock-dashboard.js', 'relojes-marcaciones.html', 'scripts/migrations/055-pm10-continuous-reception.sql', 'scripts/verify-pm10-*', 'scripts/pm10-reception-synthetic.mjs', 'tests/pm10-*']
+    paths: ['.github/workflows/pm10-reception-0592.yml', 'local-agents/pm10/**', 'api/attendance-pm10.js', 'api/internal-attendance.js', 'lib/internal-pm10-*', 'assets/pm10-*', 'assets/clock-dashboard.js', 'relojes-marcaciones.html', 'scripts/migrations/055-pm10-continuous-reception.sql', 'scripts/refine-pm10-*', 'scripts/verify-pm10-*', 'scripts/pm10-reception-synthetic.mjs', 'tests/pm10-*']
 permissions:
   contents: read
 concurrency:
@@ -19,21 +19,25 @@ jobs:
       sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-      - name: Stage reviewed source only, not municipal data
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Isolate the reader without changing prototype functions
         id: source
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f local-agents/pm10/delivery.mjs ]; then
-            curl --fail --silent --show-error --max-time 45 -o /tmp/0592.patch.gz 'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-2e20-820e-97ba-4e3448cf01df/raw?se=2026-09-13T14%3A23%3A30Z&sp=r&sv=2026-02-06&sr=b&scid=c1b7980c-bb74-5461-ba25-e3d2dfdce4aa&skoid=86ad43b0-1afa-4d46-a6d6-9e67f7cdc5bc&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-13T14%3A00%3A42Z&ske=2026-09-14T14%3A00%3A42Z&sks=b&skv=2026-02-06&sig=KDaSliMJ7TEuj9IRwcIbg7lxlCqpqO3xUxEqtk6tQp8%3D'
-            echo '197d45276f69fd172628b4b443016fcb6a7b232776cb63522a9fdc1f81eef6e2  /tmp/0592.patch.gz' | sha256sum --check -
-            gzip -dc /tmp/0592.patch.gz > /tmp/0592.patch
-            git apply --check /tmp/0592.patch
-            git apply --index /tmp/0592.patch
-            git diff --cached --check
+          node scripts/refine-pm10-receipt-status.mjs
+          git diff | sha256sum > /tmp/status-first
+          node scripts/refine-pm10-receipt-status.mjs
+          git diff | sha256sum > /tmp/status-second
+          diff /tmp/status-first /tmp/status-second
+          git add lib/internal-pm10-status.js scripts/migrations/055-pm10-continuous-reception.sql
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'feat(pm10): staged source for acknowledged delivery and reception validation'
+            git commit -m 'fix(pm10): separate receipt status from an unpublished heartbeat prototype'
             git push origin HEAD:feat/pm10-reception-0592
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
