@@ -1,0 +1,142 @@
+name: PM10 reception and sender 059.2
+on:
+  push:
+    branches: ['feat/pm10-reception-0592', 'master']
+    paths: ['.github/workflows/pm10-reception-0592.yml', 'local-agents/pm10/**', 'api/attendance-pm10.js', 'api/internal-attendance.js', 'lib/internal-pm10-*', 'assets/pm10-*', 'assets/clock-dashboard.js', 'relojes-marcaciones.html', 'scripts/migrations/055-pm10-continuous-reception.sql', 'scripts/verify-pm10-*', 'scripts/pm10-reception-synthetic.mjs', 'tests/pm10-*']
+permissions:
+  contents: read
+concurrency:
+  group: pm10-reception-0592-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage reviewed source only, not municipal data
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f local-agents/pm10/delivery.mjs ]; then
+            curl --fail --silent --show-error --max-time 45 -o /tmp/0592.patch.gz 'https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-2e20-820e-97ba-4e3448cf01df/raw?se=2026-09-13T14%3A23%3A30Z&sp=r&sv=2026-02-06&sr=b&scid=c1b7980c-bb74-5461-ba25-e3d2dfdce4aa&skoid=86ad43b0-1afa-4d46-a6d6-9e67f7cdc5bc&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-13T14%3A00%3A42Z&ske=2026-09-14T14%3A00%3A42Z&sks=b&skv=2026-02-06&sig=KDaSliMJ7TEuj9IRwcIbg7lxlCqpqO3xUxEqtk6tQp8%3D'
+            echo '197d45276f69fd172628b4b443016fcb6a7b232776cb63522a9fdc1f81eef6e2  /tmp/0592.patch.gz' | sha256sum --check -
+            gzip -dc /tmp/0592.patch.gz > /tmp/0592.patch
+            git apply --check /tmp/0592.patch
+            git apply --index /tmp/0592.patch
+            git diff --cached --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'feat(pm10): staged source for acknowledged delivery and reception validation'
+            git push origin HEAD:feat/pm10-reception-0592
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  windows:
+    if: github.ref != 'refs/heads/master'
+    needs: source
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax only, never install on runner
+        shell: pwsh
+        run: |
+          $bad=$false
+          Get-ChildItem local-agents/pm10/install/*.ps1 | ForEach-Object {
+            $tokens=$null;$errors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
+            if($errors.Count){$errors | Out-String | Write-Host;$bad=$true}
+          }
+          if($bad){exit 1}
+      - name: Agent tests on Windows with synthetic routes and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          node --test local-agents/pm10/tests/*.test.mjs 2>&1 | tee verification/windows-collector.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-0592-windows
+          path: verification/
+          retention-days: 5
+  acceptance:
+    if: github.ref != 'refs/heads/master'
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: mkdir -p verification
+      - run: npm ci
+      - name: Full application, collector and protocol contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee verification/application-tests.log
+          node scripts/build-friendly.mjs 2>&1 | tee verification/build.log
+          node --test local-agents/pm10/tests/*.test.mjs 2>&1 | tee verification/linux-collector.log
+          node scripts/verify-pm10-protocol-alignment.mjs
+          bash -n local-agents/pm10/install/install-sender-linux.sh
+      - run: npx playwright install --with-deps chromium
+      - name: Reception panel and existing operational regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-pm10-reception-browser.mjs 2>&1 | tee verification/reception-browser.log
+          node scripts/verify-payroll-summary-055.mjs 2>&1 | tee verification/summary-browser.log
+          node scripts/verify-novelty-review-056.mjs 2>&1 | tee verification/novelty-browser.log
+          node scripts/verify-clock-dashboard-browser.mjs 2>&1 | tee verification/clock-browser.log
+      - name: Archive tested source and evidence only
+        if: always()
+        run: |
+          git rev-parse HEAD > verification/tested-source.txt
+          git diff --exit-code
+          git archive --format=tar.gz -o verification/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-0592-acceptance
+          path: verification/
+          retention-days: 5
+  production:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Published bytes and actual anonymous authorization denials
+        run: node scripts/verify-pm10-reception-production.mjs
+      - name: Production files with API intercepted in the browser only
+        env:
+          PM10_LIVE_ASSETS: '1'
+        run: node scripts/verify-pm10-reception-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm10-0592-production
+          path: verification/
+          retention-days: 5
