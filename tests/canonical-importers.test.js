@@ -141,7 +141,7 @@ test('importadores son transaccionales, bloqueados e idempotentes sin truncado',
   for (const source of [grh, personas]) {
     assert.match(source, /directCanonicalDatabaseUrl/);
     assert.match(source, /BEGIN/);
-    assert.match(source, /pg_advisory_xact_lock/);
+    assert.match(source, /pg_advisory_xact_lock|acquireGrhPublicationLocks/);
     assert.match(source, /COMMIT/);
     assert.match(source, /ROLLBACK/);
     assert.match(source, /ON CONFLICT DO NOTHING/);
@@ -162,13 +162,15 @@ test('todos los ejecutables canonicos usan el gate comun y los mutadores conserv
   }
   for (const source of [schema, promotion, grh, personas]) {
     assert.match(source, /BEGIN/);
-    assert.match(source, /pg_advisory_xact_lock/);
+    assert.match(source, /pg_advisory_xact_lock|acquireGrhPublicationLocks/);
     assert.match(source, /COMMIT/);
     assert.match(source, /ROLLBACK/);
   }
   assert.match(schema, /schema_migrations/);
   assert.match(schema, /checksum_sha256/);
-  assert.match(promotion, /verifyPromotion/);
+  assert.match(promotion, /await verifySources/);
+  assert.match(promotion, /await verifyStaging/);
+  assert.match(promotion, /GRH_PROMOTION_RESULT_MISMATCH/);
 });
 
 test('GRH core guarda una sola copia canonica y no inventa masa salarial', async () => {

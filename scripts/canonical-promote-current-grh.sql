@@ -1,12 +1,12 @@
--- Idempotent promotion of the latest completed curated GRH import.
--- Run only after 002-canonical-integration.sql on an isolated Neon branch.
+-- Promote only the explicitly verified curated run in the caller-owned transaction.
+-- Context is set with transaction-local set_config by promoteCanonicalGrhWithinTransaction.
+-- No latest-run fallback and no direct execution without the verified preflight.
 
-WITH latest_run AS (
+WITH selected_run AS (
   SELECT *
   FROM data_import_runs
-  WHERE status = 'completed'
-  ORDER BY completed_at DESC NULLS LAST, id DESC
-  LIMIT 1
+  WHERE id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND status = 'completed' AND source_name = 'grh_junin_curated'
 )
 INSERT INTO source_import_batch (
   id,
@@ -34,7 +34,7 @@ SELECT md5('source_import_batch|GRH|' || upper(source_sha256))::uuid,
          'legacyQualityFlags', quality_flags,
          'promotionProfile', 'current-curated-grh-v1'
        )
-FROM latest_run
+FROM selected_run
 WHERE source_cutoff IS NOT NULL
 ON CONFLICT DO NOTHING;
 
@@ -43,14 +43,17 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), rows AS (
   SELECT company_id,
          legajo,
          row_number() OVER (ORDER BY company_id, legajo) AS row_number,
          source_payload
-  FROM grh_employees
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_employees
 )
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
@@ -71,15 +74,18 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), rows AS (
   SELECT company_id,
          legajo,
          fecha,
          row_number() OVER (ORDER BY company_id, legajo, fecha) AS row_number,
          source_payload
-  FROM grh_absences
+  FROM (SELECT * FROM public.grh_absences
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_absences
 )
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
@@ -104,8 +110,10 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), rows AS (
   SELECT company_id,
          legajo,
@@ -113,7 +121,8 @@ WITH batch AS (
          fecha_inicio,
          row_number() OVER (ORDER BY company_id, periodo, legajo, fecha_inicio) AS row_number,
          source_payload
-  FROM grh_leaves
+  FROM (SELECT * FROM public.grh_leaves
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_leaves
 )
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
@@ -139,13 +148,16 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), rows AS (
   SELECT family_id,
          row_number() OVER (ORDER BY family_id) AS row_number,
          source_payload
-  FROM grh_family
+  FROM (SELECT * FROM public.grh_family
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_family
 )
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
@@ -166,14 +178,17 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), rows AS (
   SELECT catalog,
          source_key,
          row_number() OVER (ORDER BY catalog, source_key) AS row_number,
          source_payload
-  FROM grh_catalog_rows
+  FROM (SELECT * FROM public.grh_catalog_rows
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_catalog_rows
 )
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
@@ -194,8 +209,10 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), people AS (
   SELECT DISTINCT ON (employee.person_id)
          employee.person_id,
@@ -207,7 +224,8 @@ WITH batch AS (
          employee.domicilio,
          employee.localidad,
          employee.activo
-  FROM grh_employees employee
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.person_id IS NOT NULL
   ORDER BY employee.person_id, employee.activo DESC, employee.fecha_egreso DESC NULLS FIRST,
            employee.company_id, employee.legajo
@@ -240,33 +258,21 @@ SELECT md5('person_identity|GRH|persona|' || people.person_id::text)::uuid,
        )::numeric(5,2),
        'active'
 FROM people CROSS JOIN batch
-ON CONFLICT (id) DO UPDATE
-SET cuil = EXCLUDED.cuil,
-    dni = EXCLUDED.dni,
-    full_name = EXCLUDED.full_name,
-    birth_date = EXCLUDED.birth_date,
-    sex_code = EXCLUDED.sex_code,
-    data_quality_score = EXCLUDED.data_quality_score,
-    identity_state = EXCLUDED.identity_state,
-    updated_at = now()
-WHERE (person_identity.cuil, person_identity.dni, person_identity.full_name,
-       person_identity.birth_date, person_identity.sex_code,
-       person_identity.data_quality_score, person_identity.identity_state)
-  IS DISTINCT FROM
-      (EXCLUDED.cuil, EXCLUDED.dni, EXCLUDED.full_name,
-       EXCLUDED.birth_date, EXCLUDED.sex_code,
-       EXCLUDED.data_quality_score, EXCLUDED.identity_state);
+ON CONFLICT (id) DO NOTHING;
 
 WITH batch AS (
   SELECT sib.id, sib.source_cutoff
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), people AS (
   SELECT DISTINCT person_id
-  FROM grh_employees
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_employees
   WHERE person_id IS NOT NULL
 )
 INSERT INTO source_xref (
@@ -302,8 +308,10 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 )
 UPDATE person_identity_assertion assertion
 SET valid_to = batch.source_cutoff,
@@ -311,15 +319,24 @@ SET valid_to = batch.source_cutoff,
 FROM batch
 WHERE assertion.source_system = 'GRH'
   AND assertion.valid_to IS NULL
-  AND assertion.source_batch_id <> batch.id;
+  AND assertion.source_batch_id <> batch.id
+  AND assertion.source_entity = 'persona'
+  AND assertion.person_id IN (
+    SELECT md5('person_identity|GRH|persona|' || employee.person_id::text)::uuid
+    FROM public.grh_employees employee
+    WHERE employee.import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint
+      AND employee.person_id IS NOT NULL
+  );
 
 WITH batch AS (
   SELECT sib.id, sib.source_cutoff
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), people AS (
   SELECT DISTINCT ON (employee.person_id)
          employee.person_id,
@@ -332,7 +349,8 @@ WITH batch AS (
          employee.email,
          employee.domicilio,
          employee.localidad
-  FROM grh_employees employee
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.person_id IS NOT NULL
   ORDER BY employee.person_id, employee.activo DESC, employee.fecha_egreso DESC NULLS FIRST,
            employee.company_id, employee.legajo
@@ -390,8 +408,10 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 )
 INSERT INTO employment_contract (
   id, person_id, source_system, source_batch_id,
@@ -453,7 +473,8 @@ SELECT md5(
          ELSE NULL
        END,
        employee.source_payload
-FROM grh_employees employee
+FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
 CROSS JOIN batch
 WHERE employee.person_id IS NOT NULL
 ON CONFLICT (legacy_company_id, legacy_legajo) DO UPDATE
@@ -470,15 +491,20 @@ SET person_id = EXCLUDED.person_id,
     status_explanation = EXCLUDED.status_explanation,
     source_payload = EXCLUDED.source_payload,
     updated_at = now()
-WHERE employment_contract.source_batch_id <> EXCLUDED.source_batch_id;
+WHERE employment_contract.source_batch_id <> EXCLUDED.source_batch_id
+  AND employment_contract.person_id = EXCLUDED.person_id
+  AND employment_contract.id = EXCLUDED.id
+  AND employment_contract.source_system = 'GRH';
 
 WITH batch AS (
   SELECT sib.id, sib.source_cutoff
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 )
 INSERT INTO source_xref (
   source_system, source_entity, source_id, source_batch_id,
@@ -500,7 +526,8 @@ SELECT 'GRH',
        1.0000,
        jsonb_build_object('authority', 'GRH labor core'),
        batch.source_cutoff
-FROM grh_employees employee
+FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
 CROSS JOIN batch
 WHERE NOT EXISTS (
   SELECT 1
@@ -519,8 +546,10 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 )
 INSERT INTO employment_status_snapshot (
   employment_contract_id, snapshot_date,
@@ -564,14 +593,17 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), people AS (
   SELECT DISTINCT ON (employee.person_id)
          employee.person_id,
          employee.cuil,
          employee.fecha_nacimiento
-  FROM grh_employees employee
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.person_id IS NOT NULL
   ORDER BY employee.person_id, employee.activo DESC, employee.fecha_egreso DESC NULLS FIRST,
            employee.company_id, employee.legajo
@@ -594,6 +626,14 @@ SELECT batch.id,
        jsonb_build_object('promotedToCanonical', false, 'rawValueRetainedInStaging', true)
 FROM people CROSS JOIN batch
 WHERE NOT COALESCE(is_valid_cuil(people.cuil), false)
+  AND NOT EXISTS (
+    SELECT 1 FROM data_quality_issue existing
+    WHERE existing.source_batch_id = batch.id AND existing.source_entity = 'persona'
+      AND existing.source_id = people.person_id::text
+      AND existing.issue_code = CASE WHEN NULLIF(normalize_digits(people.cuil), '') IS NULL THEN 'CUIL_MISSING' ELSE 'CUIL_INVALID' END
+      AND existing.field_name = 'cuil'
+      AND existing.canonical_id = md5('person_identity|GRH|persona|' || people.person_id::text)::uuid
+  )
 ON CONFLICT DO NOTHING;
 
 WITH batch AS (
@@ -601,13 +641,16 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), people AS (
   SELECT DISTINCT ON (employee.person_id)
          employee.person_id,
          employee.fecha_nacimiento
-  FROM grh_employees employee
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.person_id IS NOT NULL
   ORDER BY employee.person_id, employee.activo DESC, employee.fecha_egreso DESC NULLS FIRST,
            employee.company_id, employee.legajo
@@ -631,6 +674,13 @@ SELECT batch.id,
 FROM people CROSS JOIN batch
 WHERE people.fecha_nacimiento IS NOT NULL
   AND people.fecha_nacimiento NOT BETWEEN DATE '1900-01-01' AND batch.source_cutoff::date
+  AND NOT EXISTS (
+    SELECT 1 FROM data_quality_issue existing
+    WHERE existing.source_batch_id = batch.id AND existing.source_entity = 'persona'
+      AND existing.source_id = people.person_id::text AND existing.issue_code = 'DATE_OUT_OF_RANGE'
+      AND existing.field_name = 'birth_date'
+      AND existing.canonical_id = md5('person_identity|GRH|persona|' || people.person_id::text)::uuid
+  )
 ON CONFLICT DO NOTHING;
 
 WITH batch AS (
@@ -638,14 +688,17 @@ WITH batch AS (
   FROM source_import_batch sib
   JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
   WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
-  ORDER BY dir.completed_at DESC NULLS LAST, dir.id DESC
-  LIMIT 1
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
 ), anomalous_dates AS (
   SELECT employee.company_id,
          employee.legajo,
          employee.fecha_ingreso AS observed_date,
          'start_date'::text AS field_name
-  FROM grh_employees employee CROSS JOIN batch
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee CROSS JOIN batch
   WHERE employee.fecha_ingreso IS NOT NULL
     AND employee.fecha_ingreso NOT BETWEEN DATE '1900-01-01' AND batch.source_cutoff::date
   UNION ALL
@@ -653,7 +706,8 @@ WITH batch AS (
          employee.legajo,
          employee.fecha_egreso,
          'end_date'::text
-  FROM grh_employees employee CROSS JOIN batch
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee CROSS JOIN batch
   WHERE employee.fecha_egreso IS NOT NULL
     AND employee.fecha_egreso NOT BETWEEN DATE '1900-01-01' AND batch.source_cutoff::date
   UNION ALL
@@ -661,7 +715,8 @@ WITH batch AS (
          employee.legajo,
          employee.fecha_egreso,
          'date_order'::text
-  FROM grh_employees employee
+  FROM (SELECT * FROM public.grh_employees
+    WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.fecha_ingreso IS NOT NULL
     AND employee.fecha_egreso IS NOT NULL
     AND employee.fecha_egreso < employee.fecha_ingreso
@@ -688,4 +743,12 @@ SELECT batch.id,
        anomalous_dates.observed_date::text,
        jsonb_build_object('promotedToCanonical', false, 'rawValueRetainedInStaging', true)
 FROM anomalous_dates CROSS JOIN batch
+WHERE NOT EXISTS (
+  SELECT 1 FROM data_quality_issue existing
+  WHERE existing.source_batch_id = batch.id AND existing.source_entity = 'legajo'
+    AND existing.source_id = jsonb_build_object('companyCode', anomalous_dates.company_id, 'employeeNumber', anomalous_dates.legajo)::text
+    AND existing.issue_code = CASE WHEN anomalous_dates.field_name = 'date_order' THEN 'DATE_ORDER_INVALID' ELSE 'DATE_OUT_OF_RANGE' END
+    AND existing.field_name = anomalous_dates.field_name
+    AND existing.canonical_id = md5('employment_contract|GRH|legajo|' || anomalous_dates.company_id::text || '|' || anomalous_dates.legajo)::uuid
+)
 ON CONFLICT DO NOTHING;

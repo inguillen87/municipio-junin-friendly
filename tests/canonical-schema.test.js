@@ -142,7 +142,7 @@ test('promoción GRH es idempotente y aísla CUIL/fechas no promovibles', async 
   assert.match(sql, /ON CONFLICT DO NOTHING/gi);
   assert.match(sql, /source_staging_row/i);
   for (const source of ['grh_employees', 'grh_absences', 'grh_leaves', 'grh_family', 'grh_catalog_rows']) {
-    assert.match(sql, new RegExp(`FROM ${source}\\b`, 'i'));
+    assert.match(sql, new RegExp(`FROM public\\.${source}\\s+WHERE import_run_id = current_setting`, 'i'));
   }
   assert.match(sql, /NOT COALESCE\(is_valid_cuil/i);
   assert.match(sql, /'CUIL_INVALID'/i);

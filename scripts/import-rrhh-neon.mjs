@@ -358,8 +358,7 @@ async function main() {
 
 // Dependencies are injected for offline tests; only the CLI loads private files
 // and resolves credentials. `source` must come from readAndVerifySources().
-export async function importCuratedRrhh({ client, source, log = console.log }) {
-  const startedAt = process.hrtime.bigint();
+export function prepareCuratedImport(source) {
   const { manifest, manifestSha256, datasets, embeddedMemberships } = source;
   const cutoffTimestamp = requiredText(manifest.source?.dumpCompletedAt, 'manifest.source.dumpCompletedAt');
   const cutoffDate = cutoffTimestamp.slice(0, 10);
@@ -403,6 +402,34 @@ export async function importCuratedRrhh({ client, source, log = console.log }) {
     mappingNotes: manifest.mappingNotes ?? [],
   };
 
+  const expectedCounts = {
+    employees: EXPECTED_COUNTS.employees, absences: EXPECTED_COUNTS.absences,
+    leaves: EXPECTED_COUNTS.leaves, family: EXPECTED_COUNTS.familyMembers,
+    catalog_rows: Object.values(expectedCatalogCounts).reduce((sum, count) => sum + count, 0),
+    catalogs: expectedCatalogCounts,
+  };
+  return {
+    expected: { sourceName: SOURCE_NAME, sourceSha256, sourceDatabase: manifest.source?.database,
+      cutoff: cutoffTimestamp, qualityFlags,
+      tableCounts: { ...expectedCounts, critical: EXPECTED_COUNTS, source: sourceCounts } },
+    projectTables: existingRunId => ({
+      grh_employees: mapEmployees(datasets.employees, existingRunId, cutoffDate),
+      grh_absences: mapAbsences(datasets.absences, existingRunId),
+      grh_leaves: mapLeaves(datasets.leaves, existingRunId),
+      grh_family: mapFamily(datasets.familyMembers, existingRunId),
+      grh_catalog_rows: mapCatalogs(datasets, existingRunId),
+    }),
+    expectedCounts, expectedCatalogCounts, sourceCounts, qualityFlags,
+    sourceSha256, manifestSha256, cutoffTimestamp, cutoffDate, activeMemberships, employeesWithActiveUnion,
+  };
+}
+
+export async function importCuratedRrhh({ client, source, log = console.log }) {
+  const startedAt = process.hrtime.bigint();
+  const { datasets } = source;
+  const { expected, projectTables, expectedCounts, expectedCatalogCounts, sourceCounts, qualityFlags,
+    sourceSha256, manifestSha256, cutoffTimestamp, cutoffDate, activeMemberships, employeesWithActiveUnion } = prepareCuratedImport(source);
+
   let runId = null;
   let inTransaction = false;
   let committed = false;
@@ -413,23 +440,7 @@ export async function importCuratedRrhh({ client, source, log = console.log }) {
     await client.query('SELECT pg_advisory_lock(hashtext($1))', [LOCK_NAME]);
     lockAcquired = true;
 
-    const expectedCounts = {
-      employees: EXPECTED_COUNTS.employees, absences: EXPECTED_COUNTS.absences,
-      leaves: EXPECTED_COUNTS.leaves, family: EXPECTED_COUNTS.familyMembers,
-      catalog_rows: Object.values(expectedCatalogCounts).reduce((sum, count) => sum + count, 0),
-      catalogs: expectedCatalogCounts,
-    };
-    const replay = await inspectCuratedReplay(client, {
-      sourceName: SOURCE_NAME, sourceSha256, sourceDatabase: manifest.source?.database,
-      cutoff: cutoffTimestamp, qualityFlags,
-      tableCounts: { ...expectedCounts, critical: EXPECTED_COUNTS, source: sourceCounts },
-    }, existingRunId => ({
-      grh_employees: mapEmployees(datasets.employees, existingRunId, cutoffDate),
-      grh_absences: mapAbsences(datasets.absences, existingRunId),
-      grh_leaves: mapLeaves(datasets.leaves, existingRunId),
-      grh_family: mapFamily(datasets.familyMembers, existingRunId),
-      grh_catalog_rows: mapCatalogs(datasets, existingRunId),
-    }));
+    const replay = await inspectCuratedReplay(client, expected, projectTables);
     if (replay.action === 'noop') {
       const evidence = {
         status: 'noop', reason: 'exact_replay', importRunId: replay.importRunId,

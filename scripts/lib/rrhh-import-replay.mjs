@@ -77,11 +77,8 @@ async function inspectFirstCuratedImport(client) {
   }
 }
 
-export async function inspectCuratedReplay(client, expected, projectTables) {
-  let transaction = false;
+async function inspectCuratedReplayBody(client, expected, projectTables) {
   try {
-    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-    transaction = true;
     const history = await client.query(`SELECT id::text, source_name, upper(source_sha256) AS source_sha256,
       source_cutoff IS NOT DISTINCT FROM $2::timestamp AS cutoff_matches,
       status, completed_at IS NOT NULL AS completed, quality_flags, table_counts
@@ -113,6 +110,32 @@ export async function inspectCuratedReplay(client, expected, projectTables) {
         row.legacy_import_run_id !== plan.importRunId || row.source_database !== expected.sourceDatabase)) fail('RRHH_IMPORT_REPLAY_COHORT_MISMATCH');
     }
     return { action: 'noop', importRunId: plan.importRunId };
+  } catch (error) {
+    if (Object.hasOwn(MESSAGES, error?.code)) throw error;
+    fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');
+  }
+}
+
+export async function inspectCuratedReplayWithinTransaction(client, expected, projectTables) {
+  try {
+    // PostgreSQL rejects SAVEPOINT outside a transaction. The caller owns its
+    // outcome and must roll back the whole publication if any phase fails.
+    await client.query('SAVEPOINT grh_curated_verification');
+    const result = await inspectCuratedReplayBody(client, expected, projectTables);
+    await client.query('RELEASE SAVEPOINT grh_curated_verification');
+    return result;
+  } catch (error) {
+    if (Object.hasOwn(MESSAGES, error?.code)) throw error;
+    fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');
+  }
+}
+
+export async function inspectCuratedReplay(client, expected, projectTables) {
+  let transaction = false;
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    transaction = true;
+    return await inspectCuratedReplayBody(client, expected, projectTables);
   } catch (error) {
     if (Object.hasOwn(MESSAGES, error?.code)) throw error;
     fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');

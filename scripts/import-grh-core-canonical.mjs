@@ -1,6 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
+import { acquireGrhPublicationLocks } from './lib/grh-publication-lock.mjs';
 
 import {
   directCanonicalDatabaseUrl,
@@ -16,10 +20,18 @@ import {
 } from './lib/canonical-import.mjs';
 
 const DATA_DIR = new URL('../rrhh-data/', import.meta.url);
-const MANIFEST_URL = new URL('grh-core-manifest.json', DATA_DIR);
-const LOCK_NAME = 'municipio-junin-friendly:canonical-grh-core:v2';
+const MANIFEST_FILE = 'grh-core-manifest.json';
 const IMPORT_CONTRACT_VERSION = 'grh-core-canonical-v2';
 const EXPECTED_PROFILE = 'grh-core-junin-2026-08';
+const EXPECTED_CURRENT_PAYROLL_DATE = '2026-08-31';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const OUTPUT_FILES = Object.freeze({
+  payrollRuns: 'grh-core-payroll-runs.json',
+  payrollSnapshot: 'grh-core-payroll-snapshot.json',
+  movements: 'grh-core-movements.json',
+  payrollMonthly: 'grh-core-payroll-monthly.json',
+  employmentReconciliation: 'grh-core-employment-reconciliation.json',
+});
 const EXPECTED_SOURCE_COUNTS = Object.freeze({
   calculo: 4_363_790,
   concepto: 294,
@@ -48,6 +60,29 @@ const SOURCE_TOTAL_FIELDS = Object.freeze([
   'netPayable',
 ]);
 
+class GrhCoreError extends Error {
+  constructor(code) {
+    super(`GRH_CORE_${code}`);
+    this.name = 'GrhCoreError';
+    this.code = this.message;
+  }
+}
+
+function safeCoreError(error, code) {
+  if (error?.code === 'GRH_PUBLICATION_BUSY') {
+    return Object.assign(new Error('GRH_PUBLICATION_BUSY'), { code: 'GRH_PUBLICATION_BUSY' });
+  }
+  return error instanceof GrhCoreError ? error : new GrhCoreError(code);
+}
+
+function freezeSource(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value)) freezeSource(nested);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 function compactSourceId(key) {
   return sha256Text(stableJson(key));
 }
@@ -66,19 +101,36 @@ function assertIsoDate(value, fieldName) {
   return text;
 }
 
+function assertPayrollDate(value, fieldName) {
+  const date = assertIsoDate(value, fieldName);
+  if (date < '2008-01-01' || date > EXPECTED_CURRENT_PAYROLL_DATE) {
+    throw new GrhCoreError('PAYROLL_DATE_OUTSIDE_AUGUST_PROFILE');
+  }
+  return date;
+}
+
 function assertManifest(manifest) {
   if (manifest?.schemaVersion !== 1 || manifest?.profile !== EXPECTED_PROFILE) {
-    throw new Error(`Perfil GRH core no soportado: ${manifest?.profile}`);
+    throw new GrhCoreError('UNSUPPORTED_PROFILE');
+  }
+  if (manifest?.source?.currentPayrollDate !== EXPECTED_CURRENT_PAYROLL_DATE) {
+    throw new GrhCoreError('INVALID_CURRENT_PAYROLL_DATE');
+  }
+  if (!/^[a-f0-9]{64}$/i.test(manifest?.source?.sha256 ?? '')) {
+    throw new GrhCoreError('INVALID_SOURCE_SHA256');
+  }
+  if (manifest?.source?.database !== undefined && manifest.source.database !== 'grh_junin') {
+    throw new GrhCoreError('INVALID_SOURCE_DATABASE');
   }
   if (manifest?.quality?.strictSnapshot !== true) {
-    throw new Error('El importador exige un snapshot GRH estricto, sin --allow-source-drift.');
+    throw new GrhCoreError('STRICT_SNAPSHOT_REQUIRED');
   }
   if (manifest?.quality?.crossSourceJoinByIdPersona !== 0) {
-    throw new Error('El manifiesto GRH informa un JOIN prohibido por IDPERSONA.');
+    throw new GrhCoreError('CROSS_SOURCE_ID_JOIN_FORBIDDEN');
   }
   for (const [table, expected] of Object.entries(EXPECTED_SOURCE_COUNTS)) {
     if (Number(manifest?.sourceCounts?.[table]) !== expected) {
-      throw new Error(`Conteo fuente GRH invalido en ${table}: ${manifest?.sourceCounts?.[table]} != ${expected}`);
+      throw new GrhCoreError('SOURCE_COUNTS_MISMATCH');
     }
   }
   const reconciliation = manifest.reconciliation ?? {};
@@ -90,11 +142,11 @@ function assertManifest(manifest) {
     || Number(reconciliation.activeAndLiquidated) + Number(reconciliation.activeNotLiquidated)
       !== Number(reconciliation.administrativeActive)
   ) {
-    throw new Error('La reconciliacion GRH 882/854/28 no supera el gate de aceptacion.');
+    throw new GrhCoreError('RECONCILIATION_COUNTS_MISMATCH');
   }
   const semantics = String(manifest?.quality?.moneySemantics ?? '');
   if (!semantics.includes('technicalSourceAmountSum') || !semantics.includes('never a financial KPI')) {
-    throw new Error('Falta la declaracion que prohibe usar technicalSourceAmountSum como KPI financiero.');
+    throw new GrhCoreError('FINANCIAL_SEMANTICS_REQUIRED');
   }
   if (
     manifest?.source?.currentPayrollClosureStatus !== 'open'
@@ -102,25 +154,64 @@ function assertManifest(manifest) {
     || manifest?.quality?.payrollRunClosure?.currentRun !== 'open'
     || manifest?.quality?.payrollRunClosure?.latestClosedDate !== '2026-07-31'
   ) {
-    throw new Error('El manifiesto no acredita agosto abierto y julio 2026 como ultimo cierre.');
+    throw new GrhCoreError('PAYROLL_CLOSURE_MISMATCH');
   }
   if (!String(manifest?.quality?.payrollRunClosure?.executiveFinancialRule ?? '').includes('closureStatus=closed')) {
-    throw new Error('Falta el gate que limita los KPI financieros a corridas cerradas.');
+    throw new GrhCoreError('CLOSED_RUN_FINANCIAL_GATE_REQUIRED');
   }
 }
 
-async function preflight() {
-  const manifest = JSON.parse(await readFile(MANIFEST_URL, 'utf8'));
+async function confinedFile(directory, filename) {
+  const resolved = await realpath(path.join(directory, filename));
+  if (path.dirname(resolved) !== directory || !(await stat(resolved)).isFile()) {
+    throw new GrhCoreError('SOURCE_FILE_OUTSIDE_DIRECTORY');
+  }
+  return resolved;
+}
+
+/** Verify private artifacts without opening a database connection. */
+export async function preflightGrhCore({ dataDir = DATA_DIR } = {}) {
+  try {
+    if (!(dataDir instanceof URL) || dataDir.protocol !== 'file:' || dataDir.search || dataDir.hash
+        || !dataDir.pathname.endsWith('/')) {
+      throw new GrhCoreError('FILE_DIRECTORY_URL_REQUIRED');
+    }
+    const directory = await realpath(fileURLToPath(dataDir));
+    const manifestPath = await confinedFile(directory, MANIFEST_FILE);
+    const manifestBytes = await readFile(manifestPath);
+    const manifest = JSON.parse(manifestBytes.toString('utf8'));
+    return await verifySourceArtifacts(manifest, directory, createHash('sha256').update(manifestBytes).digest('hex'));
+  } catch (error) {
+    throw safeCoreError(error, 'PREFLIGHT_FAILED');
+  }
+}
+
+async function verifySourceArtifacts(manifest, directory, manifestSha256) {
   assertManifest(manifest);
-  const artifacts = {};
   for (const outputName of Object.keys(OUTPUT_TABLES)) {
     const descriptor = manifest.outputs?.[outputName];
-    const file = requiredText(descriptor?.file, `outputs.${outputName}.file`);
-    const path = new URL(file, DATA_DIR);
+    if (descriptor?.file !== OUTPUT_FILES[outputName]) {
+      throw new GrhCoreError('UNEXPECTED_ARTIFACT_FILENAME');
+    }
+    if (!Number.isSafeInteger(descriptor.records) || descriptor.records < 0
+        || !Number.isSafeInteger(descriptor.bytes) || descriptor.bytes < 0
+        || !/^[a-f0-9]{64}$/i.test(descriptor.sha256 ?? '')) {
+      throw new GrhCoreError('INVALID_ARTIFACT_DESCRIPTOR');
+    }
+  }
+  const descriptors = Object.keys(OUTPUT_TABLES).map((name) => manifest.outputs[name]);
+  enforceLogicalSizeGate([
+    ...descriptors,
+    { bytes: descriptors.reduce((total, descriptor) => total + descriptor.records * 128, 0) },
+  ]);
+  const artifacts = {};
+  for (const outputName of Object.keys(OUTPUT_TABLES)) {
+    const descriptor = manifest.outputs[outputName];
+    const artifactPath = await confinedFile(directory, descriptor.file);
     artifacts[outputName] = {
-      path,
+      path: artifactPath,
       descriptor,
-      ...(await verifyStreamArtifact(path, descriptor, `GRH core ${outputName}`)),
+      ...(await verifyStreamArtifact(artifactPath, descriptor, `GRH core ${outputName}`)),
     };
   }
   const rowOverheadEstimate = Object.values(artifacts).reduce(
@@ -132,9 +223,24 @@ async function preflight() {
     { bytes: rowOverheadEstimate },
   ]);
   if (artifacts.payrollSnapshot.records !== 854 || artifacts.employmentReconciliation.records !== 2450) {
-    throw new Error('Los outputs GRH no preservan los conteos criticos 854/2450.');
+    throw new GrhCoreError('CRITICAL_OUTPUT_COUNTS_MISMATCH');
   }
-  return { manifest, artifacts, logicalBytes, rowOverheadEstimate };
+  return freezeSource({
+    manifest, manifestSha256, artifacts, logicalBytes, rowOverheadEstimate,
+    dataDir: pathToFileURL(`${directory}${path.sep}`).href,
+  });
+}
+
+async function revalidateSource(source) {
+  if (!source || typeof source.dataDir !== 'string' || !/^[a-f0-9]{64}$/i.test(source.manifestSha256 ?? '')) {
+    throw new GrhCoreError('VERIFIED_SOURCE_REQUIRED');
+  }
+  const verified = await preflightGrhCore({ dataDir: new URL(source.dataDir) });
+  if (verified.manifestSha256 !== source.manifestSha256
+      || stableJson(verified.manifest) !== stableJson(source.manifest)) {
+    throw new GrhCoreError('SOURCE_CHANGED_AFTER_PREFLIGHT');
+  }
+  return verified;
 }
 
 async function requireCanonicalContracts(client, batchId) {
@@ -162,24 +268,76 @@ async function requireCanonicalContracts(client, batchId) {
   }
 }
 
-async function resolveGrhBatch(client, manifest) {
+function explicitSourceIds(batchId, importRunId) {
+  if (typeof batchId !== 'string' || !UUID_PATTERN.test(batchId)) {
+    throw new GrhCoreError('EXPLICIT_BATCH_ID_REQUIRED');
+  }
+  if ((typeof importRunId !== 'string' && typeof importRunId !== 'number')
+      || (typeof importRunId === 'number' && !Number.isSafeInteger(importRunId))
+      || !/^[1-9]\d*$/.test(String(importRunId))
+      || BigInt(importRunId) > 9223372036854775807n) {
+    throw new GrhCoreError('EXPLICIT_IMPORT_RUN_ID_REQUIRED');
+  }
+  return { batchId: batchId.toLowerCase(), importRunId: String(importRunId) };
+}
+
+async function resolveGrhBatch(client, manifest, batchId, importRunId) {
   const sha256 = requiredText(manifest?.source?.sha256, 'source.sha256').toUpperCase();
+  const sourceCutoff = manifest.source.dumpCompletedAt ?? manifest.source.cutoff ?? null;
+  if (sourceCutoff !== null && (typeof sourceCutoff !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/.test(sourceCutoff))) {
+    throw new GrhCoreError('INVALID_SOURCE_CUTOFF');
+  }
   const result = await client.query(
-    `SELECT id, source_database, source_file_name, source_sha256
-       FROM source_import_batch
-      WHERE source_system = 'GRH' AND source_sha256 = $1`,
-    [sha256],
+    `SELECT batch.id, batch.source_database, batch.source_sha256,
+            batch.legacy_import_run_id::text AS import_run_id
+       FROM source_import_batch batch
+       JOIN data_import_runs imported ON imported.id = batch.legacy_import_run_id
+      WHERE batch.id = $1::uuid
+        AND batch.source_system = 'GRH'
+        AND batch.source_database = 'grh_junin'
+        AND batch.source_sha256 = $2
+        AND batch.validation_state = 'published'
+        AND imported.id = $3::bigint
+        AND imported.source_name = 'grh_junin_curated'
+        AND upper(imported.source_sha256) = batch.source_sha256
+        AND imported.status = 'completed' AND imported.completed_at IS NOT NULL
+        AND batch.source_cutoff = imported.source_cutoff AT TIME ZONE 'America/Argentina/Buenos_Aires'
+        AND ($4::text IS NULL OR batch.source_cutoff = CASE
+          WHEN $4::text ~ '(Z|[+-][0-9]{2}:[0-9]{2})$' THEN $4::timestamptz
+          ELSE $4::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires' END)
+      FOR SHARE OF batch, imported`,
+    [batchId, sha256, importRunId, sourceCutoff],
   );
   if (result.rowCount !== 1) {
-    throw new Error(
-      'Falta el batch GRH canonico del mismo dump; ejecute primero import-rrhh-neon y promote-canonical-grh.',
-    );
+    throw new GrhCoreError('CANONICAL_BATCH_PROVENANCE_MISMATCH');
   }
   const batch = result.rows[0];
-  if (batch.source_database !== 'grh_junin' || batch.source_sha256.trim() !== sha256) {
-    throw new Error('El batch GRH existente no corresponde al dump core verificado.');
+  if (batch.id !== batchId || batch.source_database !== 'grh_junin'
+      || batch.source_sha256.trim() !== sha256 || batch.import_run_id !== importRunId) {
+    throw new GrhCoreError('CANONICAL_BATCH_PROVENANCE_MISMATCH');
   }
   return batch.id;
+}
+
+async function rejectSnapshotCohortCollision(client, batchId, currentPayrollDate) {
+  const result = await client.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM payroll_snapshot_assignment snapshot
+       JOIN employment_contract contract ON contract.id = snapshot.employment_contract_id
+       WHERE contract.source_system = 'GRH' AND contract.source_batch_id = $1::uuid
+         AND snapshot.snapshot_date = $2::date AND snapshot.source_batch_id <> $1::uuid
+       UNION ALL
+       SELECT 1 FROM employment_status_snapshot snapshot
+       JOIN employment_contract contract ON contract.id = snapshot.employment_contract_id
+       WHERE contract.source_system = 'GRH' AND contract.source_batch_id = $1::uuid
+         AND snapshot.snapshot_date = $2::date AND snapshot.source_batch_id <> $1::uuid
+     ) AS cohort_collision`,
+    [batchId, currentPayrollDate],
+  );
+  if (result.rows[0]?.cohort_collision !== false) {
+    throw new GrhCoreError('SNAPSHOT_COHORT_COLLISION');
+  }
 }
 
 async function insertArtifactStaging(client, batchId, manifest) {
@@ -247,7 +405,7 @@ async function importPayrollRuns(client, batchId, artifact) {
     const rows = records.map((record) => {
       const key = record?.sourceKey;
       const companySourceId = requiredText(key?.companyCode, 'payrollRuns.sourceKey.companyCode');
-      const payrollDate = assertIsoDate(key?.payrollDate, 'payrollRuns.sourceKey.payrollDate');
+      const payrollDate = assertPayrollDate(key?.payrollDate, 'payrollRuns.sourceKey.payrollDate');
       const sourcePeriod = requiredInteger(key?.period, 'payrollRuns.sourceKey.period');
       const sourceMonth = requiredInteger(key?.month, 'payrollRuns.sourceKey.month');
       if (sourceMonth < 1 || sourceMonth > 12) throw new Error(`Mes de corrida fuera de rango: ${sourceMonth}`);
@@ -350,7 +508,8 @@ async function importPayrollSnapshot(client, batchId, artifact, currentPayrollDa
          JOIN employment_contract contract
            ON contract.legacy_company_id = input.company_code
           AND contract.legacy_legajo = input.employee_number
-          AND contract.source_system = 'GRH'
+         AND contract.source_system = 'GRH'
+          AND contract.source_batch_id = $1::uuid
          JOIN payroll_run run
            ON run.source_batch_id = $1::uuid
           AND run.company_source_id = input.company_code::text
@@ -429,7 +588,8 @@ async function importMovements(client, batchId, artifact) {
          JOIN employment_contract contract
            ON contract.legacy_company_id = input.company_code
           AND contract.legacy_legajo = input.employee_number
-          AND contract.source_system = 'GRH'
+         AND contract.source_system = 'GRH'
+          AND contract.source_batch_id = $1::uuid
        ), inserted AS (
          INSERT INTO employment_movement (
            id, employment_contract_id, movement_period, payroll_type,
@@ -459,7 +619,7 @@ async function importPayrollMonthly(client, batchId, artifact) {
   return forEachBatch(streamDeterministicJsonArray(artifact.path), 400, async (records) => {
     const rows = records.map((record) => {
       const { key, companyCode, employeeNumber } = sourceKey(record, 'payrollMonthly');
-      const payrollDate = assertIsoDate(key.payrollDate, 'payrollMonthly.sourceKey.payrollDate');
+      const payrollDate = assertPayrollDate(key.payrollDate, 'payrollMonthly.sourceKey.payrollDate');
       const sourcePeriod = requiredInteger(key.period, 'payrollMonthly.sourceKey.period');
       const sourceMonth = requiredInteger(key.month, 'payrollMonthly.sourceKey.month');
       const sourceId = compactSourceId(key);
@@ -523,7 +683,8 @@ async function importPayrollMonthly(client, batchId, artifact) {
          JOIN employment_contract contract
            ON contract.legacy_company_id = input.company_code
           AND contract.legacy_legajo = input.employee_number
-          AND contract.source_system = 'GRH'
+         AND contract.source_system = 'GRH'
+          AND contract.source_batch_id = $1::uuid
          JOIN payroll_run run
            ON run.source_batch_id = $1::uuid
           AND run.company_source_id = input.company_code::text
@@ -573,6 +734,18 @@ async function importPayrollMonthly(client, batchId, artifact) {
                 )
          FROM resolved
          CROSS JOIN LATERAL jsonb_array_elements_text(resolved.quality_flags) AS flag(value)
+         WHERE NOT EXISTS (
+           SELECT 1 FROM data_quality_issue existing
+           WHERE existing.source_batch_id = $1::uuid
+             AND existing.source_entity = 'calculo_monthly'
+             AND COALESCE(existing.source_id, '') = COALESCE(resolved.source_id, '')
+             AND existing.issue_code = flag.value
+             AND COALESCE(existing.field_name, '') = CASE flag.value
+               WHEN 'SOURCE_MONTH_MISMATCH' THEN 'source_month'
+               ELSE 'source_period' END
+             AND COALESCE(existing.canonical_id, '00000000-0000-0000-0000-000000000000'::uuid)
+               = COALESCE(resolved.contract_id, '00000000-0000-0000-0000-000000000000'::uuid)
+         )
          ON CONFLICT DO NOTHING RETURNING 1
        )
        SELECT (SELECT count(*)::int FROM input) AS input_count,
@@ -657,12 +830,15 @@ async function importReconciliation(client, batchId, artifact, currentPayrollDat
          JOIN employment_contract contract
            ON contract.legacy_company_id = input.company_code
           AND contract.legacy_legajo = input.employee_number
-          AND contract.source_system = 'GRH'
+         AND contract.source_system = 'GRH'
+          AND contract.source_batch_id = $1::uuid
          LEFT JOIN LATERAL (
            SELECT snapshot.payroll_run_id
            FROM payroll_snapshot_assignment snapshot
            WHERE snapshot.employment_contract_id = contract.id
              AND snapshot.snapshot_date = $3::date
+             AND snapshot.source_batch_id = $1::uuid
+             AND snapshot.source_system = 'GRH'
            ORDER BY snapshot.payroll_type
            LIMIT 1
          ) assignment ON true
@@ -738,6 +914,16 @@ async function insertAggregateQualityIssues(client, batchId, manifest) {
      FROM jsonb_to_recordset($2::jsonb) AS input(
        source_id text, source_entity text, issue_code text,
        field_name text, observed_value text, details jsonb
+     )
+     WHERE NOT EXISTS (
+       SELECT 1 FROM data_quality_issue existing
+       WHERE existing.source_batch_id = $1::uuid
+         AND existing.source_entity = input.source_entity
+         AND COALESCE(existing.source_id, '') = COALESCE(input.source_id, '')
+         AND existing.issue_code = input.issue_code
+         AND COALESCE(existing.field_name, '') = COALESCE(input.field_name, '')
+         AND COALESCE(existing.canonical_id, '00000000-0000-0000-0000-000000000000'::uuid)
+           = '00000000-0000-0000-0000-000000000000'::uuid
      )
      ON CONFLICT DO NOTHING`,
     [batchId, postgresJson(issues)],
@@ -818,68 +1004,177 @@ async function verifyDatabase(client, batchId, manifest) {
   return actual;
 }
 
-async function main() {
-  const preflightOnly = process.argv.includes('--preflight-only');
-  const databaseUrl = preflightOnly ? null : directCanonicalDatabaseUrl();
-  const source = await preflight();
-  if (preflightOnly) {
-    console.log(JSON.stringify({
-      status: 'preflight-ok',
-      source: 'GRH core',
-      logicalBytesEstimate: source.logicalBytes,
-      rowOverheadEstimate: source.rowOverheadEstimate,
-      outputs: Object.fromEntries(
-        Object.entries(source.artifacts).map(([name, artifact]) => [name, {
-          records: artifact.records,
-          bytes: artifact.bytes,
-          sha256: artifact.sha256,
-        }]),
-      ),
-    }, null, 2));
-    return;
-  }
-  const client = new Client({ connectionString: databaseUrl });
-  await client.connect();
+/** The caller owns the transaction and must roll it back after any rejection. */
+export async function importGrhCoreWithinTransaction({ client, source, batchId, importRunId, checkpoint = async () => {} } = {}) {
+  let stage = 'TRANSACTION_REQUIRED';
   try {
-    await client.query('BEGIN');
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [LOCK_NAME]);
-    const batchId = await resolveGrhBatch(client, source.manifest);
+    if (typeof client?.query !== 'function') throw new GrhCoreError('TRANSACTION_CLIENT_REQUIRED');
+    await client.query('SAVEPOINT grh_core_external_transaction');
+    await client.query('RELEASE SAVEPOINT grh_core_external_transaction');
+    ({ batchId, importRunId } = explicitSourceIds(batchId, importRunId));
+    if (typeof checkpoint !== 'function') throw new GrhCoreError('CHECKPOINT_CALLBACK_REQUIRED');
+    stage = 'PUBLICATION_LOCK_FAILED';
+    await acquireGrhPublicationLocks(client);
+    stage = 'SOURCE_REVALIDATION_FAILED';
+    source = await revalidateSource(source);
+    stage = 'BATCH_VALIDATION_FAILED';
+    await resolveGrhBatch(client, source.manifest, batchId, importRunId);
     await requireCanonicalContracts(client, batchId);
+    await rejectSnapshotCohortCollision(client, batchId, source.manifest.source.currentPayrollDate);
+    stage = 'ARTIFACT_STAGING_FAILED';
     await insertArtifactStaging(client, batchId, source.manifest);
-    await importPayrollRuns(client, batchId, source.artifacts.payrollRuns);
-    await importPayrollSnapshot(
+    await checkpoint('core_artifact_staging', Object.freeze({ records: Object.keys(OUTPUT_TABLES).length }));
+    stage = 'PAYROLL_RUNS_FAILED';
+    const payrollRuns = await importPayrollRuns(client, batchId, source.artifacts.payrollRuns);
+    await checkpoint('core_payroll_runs', Object.freeze({ records: payrollRuns }));
+    stage = 'PAYROLL_SNAPSHOT_FAILED';
+    const payrollSnapshot = await importPayrollSnapshot(
       client,
       batchId,
       source.artifacts.payrollSnapshot,
       source.manifest.source.currentPayrollDate,
     );
-    await importMovements(client, batchId, source.artifacts.movements);
-    await importPayrollMonthly(client, batchId, source.artifacts.payrollMonthly);
-    await importReconciliation(
+    await checkpoint('core_payroll_snapshot', Object.freeze({ records: payrollSnapshot }));
+    stage = 'MOVEMENTS_FAILED';
+    const movements = await importMovements(client, batchId, source.artifacts.movements);
+    await checkpoint('core_movements', Object.freeze({ records: movements }));
+    stage = 'PAYROLL_MONTHLY_FAILED';
+    const payrollMonthly = await importPayrollMonthly(client, batchId, source.artifacts.payrollMonthly);
+    await checkpoint('core_payroll_monthly', Object.freeze({ records: payrollMonthly }));
+    stage = 'RECONCILIATION_FAILED';
+    const reconciliation = await importReconciliation(
       client,
       batchId,
       source.artifacts.employmentReconciliation,
       source.manifest.source.currentPayrollDate,
       source.manifest.source.currentPayrollClosureStatus,
     );
+    await checkpoint('core_reconciliation', Object.freeze({ records: reconciliation }));
+    stage = 'QUALITY_ISSUES_FAILED';
     await insertAggregateQualityIssues(client, batchId, source.manifest);
+    await checkpoint('core_quality_issues', Object.freeze({ artifacts: Object.keys(OUTPUT_TABLES).length }));
+    stage = 'DATABASE_VERIFICATION_FAILED';
     const counts = await verifyDatabase(client, batchId, source.manifest);
-    await client.query('COMMIT');
-    console.log(JSON.stringify({
-      status: 'completed',
-      source: 'GRH core',
+    stage = 'FINAL_SOURCE_REVALIDATION_FAILED';
+    await revalidateSource(source);
+    stage = 'FINAL_CHECKPOINT_FAILED';
+    await checkpoint('core_verified', Object.freeze({ ...counts }));
+    return {
       batchId,
+      importRunId,
       logicalBytesEstimate: source.logicalBytes,
       rowOverheadEstimate: source.rowOverheadEstimate,
       counts,
       moneySemantics: 'source totals nominal; technicalSourceAmountSum is not a financial KPI',
-    }, null, 2));
+    };
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
-  } finally {
-    await client.end().catch(() => undefined);
+    throw safeCoreError(error, stage);
   }
 }
 
-await main();
+function singleCliValue(argv, name) {
+  const values = argv.filter((arg) => arg.startsWith(`--${name}=`));
+  if (values.length > 1) throw new GrhCoreError('AMBIGUOUS_CLI_ARGUMENT');
+  return values[0]?.slice(name.length + 3);
+}
+
+/** CLI lifecycle only: the caller supplies a new dedicated client and operation. */
+export async function runGrhCoreCliTransaction({ client, operation, apply = false } = {}) {
+  let transactionStarted = false;
+  let commitAttempted = false;
+  let committed = false;
+  let rollbackAttempted = false;
+  let rollbackConfirmed = false;
+  try {
+    if (typeof client?.connect !== 'function' || typeof client.query !== 'function'
+        || typeof client.end !== 'function' || typeof operation !== 'function' || typeof apply !== 'boolean') {
+      throw new GrhCoreError('CLI_TRANSACTION_INPUT_INVALID');
+    }
+    await client.connect();
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const result = await operation(client);
+    if (apply) {
+      commitAttempted = true;
+      await client.query('COMMIT');
+      committed = true;
+    } else {
+      rollbackAttempted = true;
+      await client.query('ROLLBACK');
+      rollbackConfirmed = true;
+    }
+    transactionStarted = false;
+    return {
+      ...result, ok: true, status: apply ? 'completed' : 'verified-rolled-back', source: 'GRH core',
+      committed, rollbackConfirmed, requiresLedgerReconciliation: false,
+    };
+  } catch (error) {
+    if (transactionStarted && !commitAttempted && !rollbackAttempted) {
+      rollbackAttempted = true;
+      try {
+        await client.query('ROLLBACK');
+        rollbackConfirmed = true;
+      } catch { /* Closing the dedicated connection is the only remaining cleanup. */ }
+    }
+    const uncertainCommit = commitAttempted && !committed;
+    return {
+      ok: false,
+      code: uncertainCommit ? 'GRH_CORE_COMMIT_UNCONFIRMED' : safeCoreError(error, 'CLI_FAILED').code,
+      committed: uncertainCommit ? null : committed,
+      rollbackConfirmed,
+      requiresLedgerReconciliation: uncertainCommit,
+    };
+  } finally {
+    if (typeof client?.end === 'function') {
+      try { await client.end(); } catch { /* Do not replace known commit evidence with a cleanup error. */ }
+    }
+  }
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const preflightOnly = argv.includes('--preflight-only');
+  const apply = argv.includes('--apply');
+  if (apply && preflightOnly) throw new GrhCoreError('AMBIGUOUS_CLI_MODE');
+  for (const arg of argv) {
+    if (!['--preflight-only', '--apply', '--confirm-isolated-branch'].includes(arg)
+        && !/^--(?:batch-id|import-run-id|data-dir|confirm-production-branch)=.+$/.test(arg)) {
+      throw new GrhCoreError('UNSUPPORTED_CLI_ARGUMENT');
+    }
+  }
+  const dataDirArg = singleCliValue(argv, 'data-dir');
+  const dataDir = dataDirArg === undefined ? DATA_DIR : new URL(dataDirArg);
+  const ids = preflightOnly ? null : explicitSourceIds(
+    singleCliValue(argv, 'batch-id'), singleCliValue(argv, 'import-run-id'),
+  );
+  const databaseUrl = preflightOnly ? null : directCanonicalDatabaseUrl();
+  const source = await preflightGrhCore({ dataDir });
+  if (preflightOnly) {
+    console.log(JSON.stringify({
+      status: 'preflight-ok', source: 'GRH core',
+      logicalBytesEstimate: source.logicalBytes,
+      rowOverheadEstimate: source.rowOverheadEstimate,
+      outputs: Object.fromEntries(Object.entries(source.artifacts).map(([name, artifact]) => [name, {
+        records: artifact.records, bytes: artifact.bytes, sha256: artifact.sha256,
+      }])),
+    }, null, 2));
+    return;
+  }
+  const client = new Client({ connectionString: databaseUrl });
+  const report = await runGrhCoreCliTransaction({
+    client, apply, operation: (transactionClient) => importGrhCoreWithinTransaction({ client: transactionClient, source, ...ids }),
+  });
+  if (report.ok) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.error(JSON.stringify(report));
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  try { await main(); } catch (error) {
+    console.error(JSON.stringify({ ok: false, code: safeCoreError(error, 'CLI_FAILED').code,
+      committed: false, requiresLedgerReconciliation: false }));
+    process.exitCode = 1;
+  }
+}
