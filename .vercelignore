@@ -1,4 +1,8 @@
 node_modules
+verification/
+MuniControl_Fuentes_Privadas*/
+MuniControl_Codex_Handoff*/
+*.dump
 .git
 .env*
 .new_token.txt
@@ -54,6 +58,7 @@ database/
 !scripts/migrations/036-owner-tenant-operational-authority.sql
 !scripts/migrations/037-payroll-control-import-lock-semantics.sql
 !scripts/migrations/038-governed-monthly-close-run.sql
+!scripts/migrations/056-pm10-continuous-dashboard.sql
 !scripts/apply-governed-monthly-close-schema.mjs
 !docs/COMPETITIVE_PRODUCT_ROADMAP.md
 !docs/IDENTITY_PRODUCTION_AUDIT_20260821.md
@@ -151,3 +156,5 @@ api/whatsapp-webhook.js
 
 # Municipal services are not web deployment assets.
 local-agents/
+
+!scripts/migrations/055-pm10-continuous-reception.sql

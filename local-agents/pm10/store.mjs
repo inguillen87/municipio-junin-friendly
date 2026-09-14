@@ -21,24 +21,56 @@ export async function safeDirectory(p){
  await mkdir(p,{recursive:true,mode:0o700});const s=await lstat(p);
  if(!s.isDirectory()||s.isSymbolicLink()||(process.platform!=='win32'&&(s.mode&0o077)))throw fault('STATE_DIRECTORY_UNSAFE');
 }
-export async function acquireLock(root){
- await safeDirectory(root);const dir=path.join(root,'process.lock');
- try{await mkdir(dir,{mode:0o700});}catch(e){
+async function lockOwner(dir){
+ const s=await lstat(dir);if(!s.isDirectory()||s.isSymbolicLink())throw fault('LOCK_INVALID');
+ let owner;
+ try{
+  const file=path.join(dir,'owner.json'),st=await lstat(file);
+  if(!st.isFile()||st.isSymbolicLink()||st.size>4096)throw fault('LOCK_NEEDS_REVIEW');
+  owner=JSON.parse(await readFile(file,'utf8'));
+ }catch{throw fault('LOCK_NEEDS_REVIEW');}
+ if(!owner||!Number.isSafeInteger(owner.pid)||owner.pid<1||owner.hostname!==os.hostname()||typeof owner.token!=='string'||!owner.token)throw fault('LOCK_NEEDS_REVIEW');
+ return owner;
+}
+function ownerIsDead(owner){
+ try{process.kill(owner.pid,0);return false;}
+ catch(e){if(e.code==='ESRCH')return true;throw fault('ALREADY_RUNNING');}
+}
+async function lockTransition(root){
+ const gate=path.join(root,'process.lock.transition');
+ try{await mkdir(gate,{mode:0o700});}
+ catch(e){
   if(e.code!=='EEXIST')throw e;
-  const s=await lstat(dir);if(!s.isDirectory()||s.isSymbolicLink())throw fault('LOCK_INVALID');
-  let owner;try{owner=JSON.parse(await readFile(path.join(dir,'owner.json'),'utf8'));}catch{throw fault('LOCK_NEEDS_REVIEW');}
-  if(!Number.isSafeInteger(owner.pid)||owner.pid<1||owner.hostname!==os.hostname())throw fault('LOCK_NEEDS_REVIEW');
-  let dead=false;try{process.kill(owner.pid,0);}catch(err){if(err.code==='ESRCH')dead=true;else throw fault('ALREADY_RUNNING');}
-  if(!dead)throw fault('ALREADY_RUNNING');
-  // Only a dead same-host PID is recoverable; a live process never expires by time.
-  const stale=path.join(root,'recovered-lock-'+randomUUID());
-  try{await rename(dir,stale);await mkdir(dir,{mode:0o700});}catch{throw fault('ALREADY_RUNNING');}
+  // Never recover this short-lived gate: doing so would recreate the same race.
+  // An interrupted transition is preserved for review; an ordinary dead owner
+  // in process.lock remains recoverable on the next start.
+  throw fault(ownerIsDead(await lockOwner(gate))?'LOCK_NEEDS_REVIEW':'ALREADY_RUNNING');
  }
- const token=randomUUID();await atomicJson(path.join(dir,'owner.json'),{pid:process.pid,hostname:os.hostname(),token});
- return async()=>{
-  let owner;try{owner=JSON.parse(await readFile(path.join(dir,'owner.json'),'utf8'));}catch{return;}
-  if(owner.token===token){await rm(dir,{recursive:true});await syncDir(root);}
- };
+ await atomicJson(path.join(gate,'owner.json'),{pid:process.pid,hostname:os.hostname(),token:randomUUID()});
+ return async()=>{await rm(gate,{recursive:true});await syncDir(root);};
+}
+export async function acquireLock(root){
+ await safeDirectory(root);const dir=path.join(root,'process.lock'),leave=await lockTransition(root);
+ const token=randomUUID();
+ try{
+  try{await mkdir(dir,{mode:0o700});}catch(e){
+   if(e.code!=='EEXIST')throw e;
+   if(!ownerIsDead(await lockOwner(dir)))throw fault('ALREADY_RUNNING');
+   // All acquisitions and releases use the gate. Nobody can replace the owner
+   // between checking the dead PID and retaining its directory as evidence.
+   await rename(dir,path.join(root,'recovered-lock-'+randomUUID()));
+   await mkdir(dir,{mode:0o700});
+  }
+  await atomicJson(path.join(dir,'owner.json'),{pid:process.pid,hostname:os.hostname(),token});
+ }finally{await leave();}
+ let releasing;
+ return ()=>releasing??=(async()=>{
+  const leaveRelease=await lockTransition(root);
+  try{
+   let owner;try{owner=await lockOwner(dir);}catch(e){if(e.code==='ENOENT')return;throw e;}
+   if(owner.token===token){await rm(dir,{recursive:true});await syncDir(root);}
+  }finally{await leaveRelease();}
+ })();
 }
 async function boundedFile(file,max){const s=await lstat(file);if(!s.isFile()||s.isSymbolicLink()||s.size>max)throw fault('QUEUE_CORRUPT');return readFile(file);}
 export function splitRaw(raw){

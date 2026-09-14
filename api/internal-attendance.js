@@ -1,3 +1,4 @@
+import { getPm10Status } from '../lib/internal-pm10-status.js';
 import { getAttendanceWorkdays } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
@@ -238,6 +239,11 @@ export function createInternalAttendanceHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = requestedResource;
+        if (resource === 'pm10-reception') {
+          assertQueryKeys(req,new Set(['resource']));
+          const result=await (dependencies.getPm10Status ?? getPm10Status)(sql,access.principal,tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
         if (resource === 'clock-workdays') {
           assertQueryKeys(req,new Set(['resource','site','from','to','page','pageSize','search','status','snapshot']));
           const result=await clockWorkdays(sql,access.principal,{
@@ -248,11 +254,12 @@ export function createInternalAttendanceHandler(dependencies = {}) {
           return send(res,200,{ok:true,...result});
         }
         if (resource === 'clock-dashboard') {
-          assertQueryKeys(req, new Set(['resource','site','from','to','page','pageSize','search','identity','hour','snapshot']));
+          assertQueryKeys(req, new Set(['resource','site','from','to','page','pageSize','search','identity','hour','snapshot','source']));
           const result = await clockDashboard(sql, access.principal, {
             site: queryValue(req,'site','pm-10'), from: queryValue(req,'from'), to: queryValue(req,'to'),
             page: queryValue(req,'page','1'), pageSize: queryValue(req,'pageSize','50'), search: queryValue(req,'search'),
             identity: queryValue(req,'identity','all'), hour: queryValue(req,'hour'), snapshot: queryValue(req,'snapshot'),
+            source: queryValue(req,'source'),
           }, tenantSession);
           return send(res,200,{ok:true,...result});
         }

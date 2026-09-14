@@ -1,0 +1,59 @@
+name: PM10 continuity validation
+on:
+  push:
+    branches: ['codex/municontrol-pm10-continuity-20260914']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pm10-continuity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  collector:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Synthetic collector and sender tests
+        run: node --test local-agents/pm10/tests/*.test.mjs
+      - name: Sender and receiver wire contract
+        run: node scripts/verify-pm10-protocol-alignment.mjs
+      - name: Linux installer syntax
+        if: runner.os == 'Linux'
+        run: |
+          bash -n local-agents/pm10/install/install-linux.sh
+          bash -n local-agents/pm10/install/install-sender-linux.sh
+      - name: Windows installer syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($script in @('install-windows.ps1', 'install-sender-windows.ps1')) {
+            $tokens=$null; $parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path "local-agents/pm10/install/$script"),[ref]$tokens,[ref]$parseErrors) | Out-Null
+            if($parseErrors.Count){ throw 'Installer syntax failed' }
+          }
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: node scripts/build-friendly.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Synthetic desktop and mobile workflows
+        run: |
+          node scripts/verify-clock-dashboard-v3-browser.mjs
+          node scripts/verify-clock-dashboard-browser.mjs
+          node scripts/verify-pm10-reception-browser.mjs

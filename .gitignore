@@ -61,4 +61,10 @@ __pycache__/
 
 .env*
 .neon
+
+# Private handoff packages and local verification artifacts never enter Git.
+/verification/
+MuniControl_Fuentes_Privadas*/
+MuniControl_Codex_Handoff*/
+*.dump
 .vercel

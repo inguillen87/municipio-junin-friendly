@@ -3,13 +3,30 @@ import {createClockXlsx} from './clock-dashboard-export.js';
 const root=document.getElementById('clockOperations');
 if(root){
  const $=key=>document.getElementById('clock'+key),text=(key,value)=>{$(key).textContent=String(value??'—')},num=v=>new Intl.NumberFormat('es-AR').format(Number(v)||0);
- const state={site:'pm-10',from:'',to:'',page:1,size:50,search:'',identity:'all',hour:null,data:null,loading:false,exporting:false,started:false,generation:0,controller:null,exportController:null,timer:null,tab:'workdays'};
+ const state={site:'pm-10',source:'continuous',from:'',to:'',page:1,size:50,search:'',identity:'all',hour:null,
+  data:null,cut:null,loading:false,exporting:false,started:false,denied:false,generation:0,
+  controller:null,exportController:null,timer:null,tab:'records'};
  const busy=()=>state.loading||state.exporting;
  function el(tag,value,cls){const e=document.createElement(tag);if(value!=null)e.textContent=String(value);if(cls)e.className=cls;return e}
  function date(value){if(!value||!Number.isFinite(Date.parse(value)))return 'Sin registro';return new Intl.DateTimeFormat('es-AR',{timeZone:state.data?.timezone||'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(value))}
  function cells(row,values){for(const v of values){const td=el('td');td.append(v instanceof Node?v:document.createTextNode(String(v??'—')));row.append(td)}}
- function controls(){root.querySelectorAll('[data-query]').forEach(e=>e.disabled=busy());$('Search').disabled=busy()||state.data?.nominalReadAllowed!==true;$('Previous').disabled=busy()||!state.data||state.page<=1;$('Next').disabled=busy()||!state.data||state.page>=state.data.pagination.pages;$('Export').disabled=busy()||!state.data?.records.length;for(const k of ['ExportAll','ExportXlsx'])$(k).disabled=busy()||!state.data?.pagination.total||!state.data?.dashboard.snapshotId||!state.data?.collection.importComplete;$('Print').disabled=busy()||!state.data;$('CancelExport').hidden=!state.exporting;root.setAttribute('aria-busy',String(busy()))}
- function tab(name,focus=false){state.tab=name;for(const [key,id]of Object.entries({workdays:'Workdays',overview:'Overview',records:'Records',issues:'IssuesWrap'}))$(id).hidden=key!==name;root.querySelectorAll('[data-clock-tab]').forEach(b=>{const active=b.dataset.clockTab===name;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;if(active&&focus)b.focus()})}
+ function controls(){
+  root.querySelectorAll('[data-query]').forEach(e=>e.disabled=busy()||state.denied);
+  $('Search').disabled=busy()||state.denied||state.data?.nominalReadAllowed!==true;
+  $('Previous').disabled=busy()||!state.data||state.page<=1;
+  $('Next').disabled=busy()||!state.data||state.page>=state.data.pagination.pages;
+  $('Export').disabled=busy()||!state.data?.records.length;
+  for(const k of ['ExportAll','ExportXlsx'])$(k).disabled=busy()||!state.data?.pagination.total||!state.cut||!state.data?.collection.importComplete;
+  $('Print').disabled=busy()||!state.data;$('CancelExport').hidden=!state.exporting;
+  $('TabWorkdays').disabled=state.source==='continuous';
+  root.setAttribute('aria-busy',String(busy()));
+ }
+ function tab(name,focus=false){
+  if(name==='workdays'&&state.source==='continuous')name='records';
+  state.tab=name;
+  for(const [key,id]of Object.entries({workdays:'Workdays',overview:'Overview',records:'Records',issues:'IssuesWrap'}))$(id).hidden=key!==name;
+  root.querySelectorAll('[data-clock-tab]').forEach(b=>{const active=b.dataset.clockTab===name;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;if(active&&focus)b.focus()});
+ }
  function filterHour(hour){if(busy())return;state.hour=state.hour===hour?null:hour;tab('records');load(true)}
  function charts(data){
   const hourly=Array.from({length:24},(_,hour)=>({hour,marks:data.hourly.find(x=>x.hour===hour)?.marks||0})),max=Math.max(1,...hourly.map(x=>x.marks));$('Hourly').replaceChildren();
@@ -20,33 +37,96 @@ if(root){
 
  }
  function render(data){
-  state.data=data;const s=data.summary,c=data.collection,p=data.pagination,device=data.dashboard.device,rate=percentage(s.mappedMarks,s.marks);
-  text('Title',data.site?data.site.key.toUpperCase()+' · '+data.site.label:state.site.toUpperCase()+' · sin captura');text('Mode',c.status==='operator_snapshot'?'Captura disponible · colector pendiente':c.status==='import_incomplete'?'Importación incompleta':'Sin descarga recibida');text('Device',device?[device.model,device.serial,device.firmware].filter(Boolean).join(' · '):'Sin metadatos de captura');
+  state.data=data;state.cut=data.dashboard.snapshotId;
+  text('ExportStatus','');
+  const s=data.summary,c=data.collection,p=data.pagination,device=data.dashboard.device,rate=percentage(s.mappedMarks,s.marks),continuous=data.dashboard.sourceMode==='continuous';
+  text('Title',data.site?data.site.key.toUpperCase()+' · '+data.site.label:state.site.toUpperCase()+' · sin datos');
+  text('Mode',c.status==='no_data'?'Datos no recibidos':continuous?'Histórico y recepciones confirmadas':c.status==='import_incomplete'?'Importación histórica incompleta':'Captura histórica');
+  text('SourceKind',continuous?'Recepciones confirmadas + histórico':'Captura histórica');
+  text('CapturedLabel',continuous?'Última captura completa conservada':'Descarga histórica del reloj');
+  text('Device',device?[device.model,device.serial,device.firmware].filter(Boolean).join(' · '):'Sin metadatos de captura');
+  $('Source').value=state.source;
+  text('WorkdaysNote',continuous?'Para consultar jornadas reconstruidas, elegí Captura histórica. Las recepciones nuevas todavía no se incluyen en ese cálculo.':'Jornadas reconstruidas sobre la captura histórica seleccionada. Sin liquidación automática.');
   for(const [k,v]of Object.entries({Marks:s.marks,People:s.people,Linked:s.mappedMarks,Unlinked:s.unmappedMarks,Observed:s.observedRows,SourceRows:s.sourceRows}))text(k,num(v));text('LinkRate',rate===null?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(rate)+'%');$('LinkBar').style.width=(rate||0)+'%';
-  for(const [k,v]of Object.entries({Captured:c.capturedAt,Received:c.receivedAt,Latest:s.latestMarkAt,Checked:data.generatedAt}))text(k,date(v));
+  for(const [k,v]of Object.entries({Captured:continuous?data.dashboard.telemetry.lastCompleteCaptureAt:c.capturedAt,Received:c.receivedAt,Latest:s.latestMarkAt,Checked:data.generatedAt}))text(k,date(v));
+  const telemetry=data.dashboard.telemetry;
+  text('Attempt',telemetry.lastAttemptAt?date(telemetry.lastAttemptAt):'No informado por el colector');
+  text('Backlog',telemetry.backlog===null?'No informado por el colector':num(telemetry.backlog));
+  text('Latency',telemetry.deliveryLatencySeconds===null?'Sin captura completa medible':num(telemetry.deliveryLatencySeconds)+' segundos');
+  text('CaptureScope',continuous?'Capturas completas conservadas; esto no certifica cobertura del período.':'La recepción posterior puede consultarse en la fuente continua.');
   text('Scope',data.filters?`${data.filters.from} → ${data.filters.to}${state.hour!==null?' · '+String(state.hour).padStart(2,'0')+' h':''}${state.identity!=='all'?' · '+(state.identity==='mapped'?'vinculadas':'sin vincular'):''}${state.search?' · búsqueda activa':''}`:'Sin período disponible');if(data.filters){$('From').value=data.filters.from;$('To').value=data.filters.to}
   $('Site').replaceChildren();for(const site of data.sites){const o=el('option',site.key.toUpperCase()+' · '+site.label);o.value=site.key;$('Site').append(o)}if(!data.sites.some(s=>s.key===state.site)){const o=el('option',state.site.toUpperCase()+' · sin recepción');o.value=state.site;$('Site').append(o)}$('Site').value=state.site;
   $('Insights').replaceChildren();for(const item of insights(data)){const card=el('article',null,'ck-insight '+item.tone);card.append(el('strong',item.title),el('p',item.detail));if(item.action){const b=el('button','Ver detalle →','ck-text');b.type='button';b.addEventListener('click',()=>item.action==='unmapped'?unmapped():tab('issues',true));card.append(b)}$('Insights').append(card)}
-  $('Rows').replaceChildren();for(const r of data.records){const tr=el('tr'),person=el('div'),declared=el('div'),details=el('details');person.append(el('span',r.personLabel,'ck-name'),el('small',r.legajo!=null?'Legajo '+r.legajo:'Sin contrato vinculado','ck-sub'));declared.append(el('span',referenceCode(r.punchCode,device?.model),'ck-badge slate'),el('small','Referencia SDK · no homologado','ck-sub'));details.append(el('summary','Ver códigos'),el('div',`Estado ${r.punchCode} · Método ${r.verificationCode} · Fila ${r.ordinal}`,'ck-code'),el('small',referenceMethod(r.verificationCode,device?.model),'ck-sub'),el('small',r.reviewState==='pending'?'Revisión laboral pendiente':'Revisión: '+r.reviewState,'ck-sub'));cells(tr,[date(r.occurredAt),person,declared,el('span',r.identityState==='mapped'?'Vinculada':'Por vincular','ck-badge '+(r.identityState==='mapped'?'':'amber')),details]);$('Rows').append(tr)}
-  if(!data.records.length){const tr=el('tr'),td=el('td','Sin fichadas para este filtro. Esto no constituye una ausencia.','ck-empty');td.colSpan=5;tr.append(td);$('Rows').append(tr)}
+  $('Rows').replaceChildren();for(const r of data.records){const tr=el('tr'),person=el('div'),declared=el('div'),details=el('details');person.append(el('span',r.personLabel,'ck-name'),el('small',r.legajo!=null?'Legajo '+r.legajo:r.identityState==='mapped'?'Vínculo laboral · datos reservados':'Sin contrato vinculado','ck-sub'));declared.append(el('span',referenceCode(r.punchCode,device?.model),'ck-badge slate'),el('small','Referencia SDK · no homologado','ck-sub'));details.append(el('summary','Ver códigos'),el('div',`Estado ${r.punchCode} · Método ${r.verificationCode} · Fila ${r.ordinal}`,'ck-code'),el('small',referenceMethod(r.verificationCode,device?.model),'ck-sub'),el('small',r.reviewState==='pending'?'Revisión laboral pendiente':'Revisión: '+r.reviewState,'ck-sub'));cells(tr,[date(r.occurredAt),person,declared,el('span',r.identityState==='mapped'?'Vinculada':'Por vincular','ck-badge '+(r.identityState==='mapped'?'':'amber')),details]);$('Rows').append(tr)}
+  if(!data.records.length){const tr=el('tr'),td=el('td','No se recibieron fichadas para este filtro. No se infieren ausencias.','ck-empty');td.colSpan=5;tr.append(td);$('Rows').append(tr)}
   text('Page',`Página ${p.pages?p.page:0} de ${p.pages} · ${num(p.total)} fichadas del filtro`);$('Identity').value=state.identity;$('Search').placeholder=data.nominalReadAllowed?'Nombre o legajo en todo el período':'Tu perfil no habilita búsqueda nominal';text('Privacy',data.nominalReadAllowed?'Nombres y legajos según tu permiso. Se muestran segundos: dos marcas del mismo minuto no son necesariamente duplicadas.':'Vista seudonimizada. Sin nombres, DNI ni plantillas biométricas.');
-  $('Issues').replaceChildren();const labels={year_context_review:'Año inconsistente con el contexto',future_timestamp:'Fecha posterior a la descarga',identity_format_review:'Identificador a revisar'};for(const issue of data.observations){const tr=el('tr');cells(tr,[issue.ordinal,issue.localTimestamp,issue.issues.map(x=>labels[x]||x).join(' · ')]);$('Issues').append(tr)}if(!data.observations.length){const tr=el('tr'),td=el('td','Sin observaciones en esta captura.');td.colSpan=3;tr.append(td);$('Issues').append(tr)}charts(data);root.dataset.state='ready';document.dispatchEvent(new CustomEvent('mc:clock-data',{detail:data}));
+  $('Issues').replaceChildren();const labels={year_context_review:'Año inconsistente con el contexto',future_timestamp:'Fecha posterior a la descarga',identity_format_review:'Identificador a revisar',identity_bytes_review:'Identificador original a revisar',timestamp_invalid:'Fecha inválida'};for(const issue of data.observations){const tr=el('tr');cells(tr,[issue.ordinal,issue.localTimestamp,issue.issues.map(x=>labels[x]||x).join(' · ')]);$('Issues').append(tr)}if(!data.observations.length){const tr=el('tr'),td=el('td','Sin observaciones en esta fuente.');td.colSpan=3;tr.append(td);$('Issues').append(tr)}charts(data);tab(state.tab);root.dataset.state='ready';document.dispatchEvent(new CustomEvent('mc:clock-data',{detail:data}));
  }
- function clearData(){document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;for(const k of ['Rows','Days','Issues','Hourly','DailyChart','Insights'])$(k).replaceChildren();for(const k of ['Marks','People','Linked','Unlinked','Observed','SourceRows','Page','LinkRate','Captured','Received','Latest','Device'])text(k,'—');$('LinkBar').style.width='0%';controls()}
- function params(extra={}){const q=new URLSearchParams({resource:'clock-dashboard',site:state.site,page:String(state.page),pageSize:String(state.size),search:state.search,identity:state.identity});if(state.from&&state.to){q.set('from',state.from);q.set('to',state.to)}if(state.hour!==null)q.set('hour',String(state.hour));for(const [k,v]of Object.entries(extra))if(v!=null)q.set(k,String(v));return q}
- async function read(query,signal){const r=await fetch('/api/internal-attendance?'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:AbortSignal.any([signal,AbortSignal.timeout(25000)])});if(r.status===401){state.started=false;clearInterval(state.timer);clearData();location.replace('login.html?next='+encodeURIComponent('relojes-marcaciones.html'));throw new Error('Sesión vencida')}let data;try{data=await r.json()}catch{throw new Error('Respuesta del servidor no disponible')}if(!r.ok||data.ok!==true)throw new Error(data.error||'No se pudo consultar el tablero');if(data.version!=='clock-operations.v1'||data.dashboard?.version!=='clock-dashboard.v2')throw new Error('Este entorno todavía no tiene la actualización del tablero');return data}
- async function load(reset=false){if(busy()||!state.started)return;if(reset)state.page=1;state.loading=true;const generation=++state.generation;state.controller=new AbortController();$('Error').hidden=true;controls();try{const data=await read(params(),state.controller.signal);if(generation===state.generation&&state.started)render(data)}catch(e){if(generation===state.generation&&state.started){clearData();text('Error',['AbortError','TimeoutError'].includes(e.name)?'La consulta demoró demasiado. Reintentá.':e.message);$('Error').hidden=false;root.dataset.state='error'}}finally{if(generation===state.generation){state.loading=false;controls()}}}
+ function clearData(){
+  document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;state.cut=null;
+  for(const k of ['Rows','Days','Issues','Hourly','DailyChart','Insights'])$(k).replaceChildren();
+  for(const k of ['Marks','People','Linked','Unlinked','Observed','SourceRows','Page','LinkRate','Captured','Received','Latest','Device','Checked','Attempt','Backlog','Latency','CaptureScope'])text(k,'—');
+  text('Mode','Sin confirmación actual');text('Privacy','');text('Scope','Consulta pendiente');
+  $('LinkBar').style.width='0%';controls();
+ }
+ function params(extra={}){
+  const q=new URLSearchParams({resource:'clock-dashboard',site:state.site,source:state.source,page:String(state.page),pageSize:String(state.size),search:state.search,identity:state.identity});
+  const from=state.from||(state.cut?state.data?.filters.from:null),to=state.to||(state.cut?state.data?.filters.to:null);
+  if(from&&to){q.set('from',from);q.set('to',to)}
+  if(state.cut)q.set('snapshot',state.cut);if(state.hour!==null)q.set('hour',String(state.hour));
+  for(const [k,v]of Object.entries(extra))if(v!=null)q.set(k,String(v));return q;
+ }
+ async function read(query,signal){
+  const r=await fetch('/api/internal-attendance?'+query,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:AbortSignal.any([signal,AbortSignal.timeout(25000)])});
+  if(r.status===401||r.status===403){
+   state.denied=true;clearInterval(state.timer);clearData();
+   if(r.status===401)location.replace('login.html?next='+encodeURIComponent('relojes-marcaciones.html'));
+   throw new Error('Acceso no disponible. Ingresá nuevamente con un perfil autorizado.');
+  }
+  let data;try{data=await r.json()}catch{throw new Error('Respuesta del servidor no disponible')}
+  if(r.status===409)throw new Error('Cambió la fuente de marcaciones. Presioná Actualizar para consultar el nuevo corte.');
+  if(!r.ok||data.ok!==true)throw new Error(data.error||'No se pudo consultar el tablero');
+  if(data.version!=='clock-operations.v1'||data.dashboard?.version!=='clock-dashboard.v3'||data.dashboard.sourceMode!==query.get('source'))throw new Error('Este entorno todavía no tiene la consulta continua habilitada');
+  if(query.has('snapshot')&&data.dashboard.snapshotId!==query.get('snapshot'))throw new Error('Cambió el corte de consulta. Actualizá antes de continuar.');
+  return data;
+ }
+ async function load(reset=false){
+  if(busy()||!state.started||state.denied)return;
+  if(reset){state.page=1;state.cut=null}
+  state.loading=true;const generation=++state.generation;state.controller=new AbortController();$('Error').hidden=true;controls();
+  try{const data=await read(params(),state.controller.signal);if(generation===state.generation&&state.started)render(data)}
+  catch(e){if(generation===state.generation&&state.started){clearData();text('Error',['AbortError','TimeoutError'].includes(e.name)?'La consulta demoró demasiado. Reintentá.':e.message);$('Error').hidden=false;root.dataset.state='error'}}
+  finally{if(generation===state.generation){state.loading=false;controls()}}
+ }
  function download(blob,name){const url=URL.createObjectURL(blob),a=el('a');a.href=url;a.download=name;a.rel='noopener';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
  function exportPage(){if(busy()||!state.data?.records.length)return;const d=state.data;download(new Blob([recordCsv(d,d.records,'Página '+state.page)],{type:'text/csv;charset=utf-8'}),`marcaciones-${d.site.key}-${d.filters.from}-pagina-${state.page}.csv`)}
  async function exportAll(format){if(busy()||!state.data?.dashboard.snapshotId||!state.data.collection.importComplete)return;const first=state.data,total=first.pagination.total,generation=state.generation;if(total>25000){text('ExportStatus','El filtro supera 25.000 filas. Reducí el período para exportar.');return}state.exporting=true;state.exportController=new AbortController();const timer=setTimeout(()=>state.exportController?.abort(),180000),rows=[],seen=new Set(),query=params({from:first.filters.from,to:first.filters.to,pageSize:100,snapshot:first.dashboard.snapshotId});controls();
-  try{for(let page=1;rows.length<total;page++){text('ExportStatus',`Preparando ${num(rows.length)} / ${num(total)} fichadas…`);query.set('page',String(page));const part=await read(query,state.exportController.signal);if(generation!==state.generation||!state.started)throw new Error('Cambió la sesión. No se generó el archivo.');verifyExport(first,part,page,seen);rows.push(...part.records)}if(rows.length!==total)throw new Error('No se pudo verificar la cantidad exportada');const filename=`marcaciones-${first.site.key}-${first.filters.from}-${first.filters.to}-filtro-completo.${format}`;const blob=format==='xlsx'?new Blob([createClockXlsx(first,rows)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}):new Blob([recordCsv(first,rows,'Filtro completo')],{type:'text/csv;charset=utf-8'});download(blob,filename);text('ExportStatus',`${num(total)} fichadas exportadas. Misma captura y filtros. Sin cálculo salarial.`)}catch(e){text('ExportStatus',['AbortError','TimeoutError'].includes(e.name)?'Exportación cancelada o demorada. No se generó un archivo parcial.':e.message)}finally{clearTimeout(timer);rows.length=0;seen.clear();state.exporting=false;state.exportController=null;controls()}}
+  try{for(let page=1;rows.length<total;page++){text('ExportStatus',`Preparando ${num(rows.length)} / ${num(total)} fichadas…`);query.set('page',String(page));const part=await read(query,state.exportController.signal);if(generation!==state.generation||!state.started)throw new Error('Cambió la sesión. No se generó el archivo.');verifyExport(first,part,page,seen);rows.push(...part.records)}if(rows.length!==total)throw new Error('No se pudo verificar la cantidad exportada');const filename=`marcaciones-${first.site.key}-${first.filters.from}-${first.filters.to}-filtro-completo.${format}`;const blob=format==='xlsx'?new Blob([createClockXlsx(first,rows)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}):new Blob([recordCsv(first,rows,'Filtro completo')],{type:'text/csv;charset=utf-8'});download(blob,filename);text('ExportStatus',`${num(total)} fichadas exportadas. Misma fuente, corte y filtros. Sin cálculo salarial.`)}catch(e){text('ExportStatus',['AbortError','TimeoutError'].includes(e.name)?'Exportación cancelada o demorada. No se generó un archivo parcial.':e.message)}finally{clearTimeout(timer);rows.length=0;seen.clear();state.exporting=false;state.exportController=null;controls()}}
  function unmapped(){if(busy())return;state.identity='unmapped';$('Identity').value='unmapped';tab('records');load(true)}
  function search(){if(busy())return;state.search=$('Search').value.trim();state.identity=$('Identity').value;load(true)}
- function start(){if(state.started)return;state.started=true;root.hidden=false;load();state.timer=setInterval(()=>{if(!document.hidden&&state.started&&!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))load()},60000)}
- $('Filter').addEventListener('submit',e=>{e.preventDefault();if(busy())return;state.site=$('Site').value;state.from=$('From').value;state.to=$('To').value;state.hour=null;load(true)});$('Refresh').addEventListener('click',()=>load());$('LatestDay').addEventListener('click',()=>{if(busy())return;state.from=state.to='';state.hour=null;load(true)});
+ function autoRefresh(){
+  if(document.hidden||!state.started||state.denied||state.page!==1||busy())return;
+  // Preserve focus, unsent filters and an open evidence detail while reading.
+  if(root.contains(document.activeElement)||root.querySelector('details[open]'))return;
+  load(true);
+ }
+ function start(){if(state.started||state.denied)return;state.started=true;root.hidden=false;tab(state.tab);load(true);state.timer=setInterval(autoRefresh,60000)}
+ function stop(){
+  state.generation++;state.started=false;state.controller?.abort();state.exportController?.abort();clearInterval(state.timer);
+  state.loading=false;state.search='';$('Search').value='';clearData();root.hidden=true;
+ }
+ $('Filter').addEventListener('submit',e=>{e.preventDefault();if(busy())return;state.site=$('Site').value;state.source=$('Source').value;state.from=$('From').value;state.to=$('To').value;state.hour=null;load(true)});
+ $('Source').addEventListener('change',()=>{if(busy())return;state.source=$('Source').value;state.from=state.to='';state.hour=null;tab(state.source==='historical'?'workdays':'records');load(true)});
+ $('Refresh').addEventListener('click',()=>load(true));$('LatestDay').addEventListener('click',()=>{if(busy())return;state.from=state.to='';state.hour=null;load(true)});
  root.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{if(busy()||!state.data?.filters)return;Object.assign(state,periodWindow(state.data.filters.to,Number(b.dataset.days)));state.hour=null;load(true)}));
- root.querySelectorAll('[data-clock-tab]').forEach(b=>{b.addEventListener('click',()=>tab(b.dataset.clockTab));b.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=['workdays','overview','records','issues'],i=names.indexOf(state.tab);tab(e.key==='Home'?names[0]:e.key==='End'?names[3]:names[(i+(e.key==='ArrowRight'?1:3))%4],true)})});
+ root.querySelectorAll('[data-clock-tab]').forEach(b=>{b.addEventListener('click',()=>tab(b.dataset.clockTab));b.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=state.source==='continuous'?['overview','records','issues']:['workdays','overview','records','issues'],i=names.indexOf(state.tab);tab(e.key==='Home'?names[0]:e.key==='End'?names.at(-1):names[(i+(e.key==='ArrowRight'?1:names.length-1))%names.length],true)})});
  $('SeeUnlinked').addEventListener('click',unmapped);$('ClearHour').addEventListener('click',()=>{if(busy())return;state.hour=null;load(true)});$('SearchApply').addEventListener('click',search);$('Identity').addEventListener('change',search);$('Search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search()}});$('Previous').addEventListener('click',()=>{if(!busy()&&state.page>1){state.page--;load()}});$('Next').addEventListener('click',()=>{if(!busy()&&state.page<(state.data?.pagination.pages||0)){state.page++;load()}});$('Export').addEventListener('click',exportPage);$('ExportAll').addEventListener('click',()=>exportAll('csv'));$('ExportXlsx').addEventListener('click',()=>exportAll('xlsx'));$('CancelExport').addEventListener('click',()=>state.exportController?.abort());$('Print').addEventListener('click',()=>{if(!busy()&&state.data)window.print()});
  document.addEventListener('mc:attendance-ready',start);document.addEventListener('mc:attendance-site',e=>{const site=String(e.detail?.site||'').toLowerCase();if(!/^[a-z0-9][a-z0-9._-]{1,95}$/.test(site)||busy())return;state.site=site;state.from=state.to=state.search='';state.identity='all';state.hour=null;$('Search').value='';tab('workdays');if(!state.started)start();else load(true);root.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})});
- document.getElementById('logoutButton')?.addEventListener('click',()=>{state.generation++;state.started=false;state.controller?.abort();state.exportController?.abort();clearInterval(state.timer);state.search='';$('Search').value='';clearData();root.hidden=true});if(document.getElementById('appShell')?.hidden===false)start();
+ document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){state.generation++;state.controller?.abort();state.exportController?.abort();state.loading=false;controls()}
+  else autoRefresh();
+ });
+ document.getElementById('logoutButton')?.addEventListener('click',stop);window.addEventListener('pagehide',stop);
+ window.addEventListener('pageshow',e=>{if(e.persisted)start()});
+ if(document.getElementById('appShell')?.hidden===false)start();
 }

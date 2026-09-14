@@ -26,6 +26,19 @@ if(root){
   const bytes=format==='xlsx'?workdayXlsx(first,rows):workdayCsv(rows),url=URL.createObjectURL(new Blob([bytes],{type:format==='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv;charset=utf-8'})),a=make('a');a.href=url;a.download=`jornadas-${source.site.key}-${first.filters.from}-${first.filters.to}.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('Status').textContent=count(rows.length)+' personas/días exportadas. No aprobadas para liquidar.';
  }catch(e){$('Status').textContent=e.name==='AbortError'?'Exportación cancelada; sin archivo parcial.':e.message}finally{clearTimeout(timer);rows.length=0;exporting=false;exportController=null;controls();if(reloadPending&&source){reloadPending=false;load()}}}
  $('Filter').addEventListener('submit',e=>{e.preventDefault();if(exporting)return;search=$('Search').value.trim();status=$('State').value;page=1;load()});$('State').addEventListener('change',()=>{$('Filter').requestSubmit()});$('Refresh').addEventListener('click',load);$('Prev').addEventListener('click',()=>{page--;load()});$('Next').addEventListener('click',()=>{page++;load()});$('Csv').addEventListener('click',()=>exportAll('csv'));$('Xlsx').addEventListener('click',()=>exportAll('xlsx'));$('Cancel').addEventListener('click',()=>exportController?.abort());
- document.addEventListener('mc:clock-data',e=>{const d=e.detail;if(!d?.filters||!d?.site||!d.dashboard?.snapshotId){reset();return}const key=JSON.stringify([d.site.key,d.filters.from,d.filters.to,d.dashboard.snapshotId,d.nominalReadAllowed]);if(key!==contextKey){exportController?.abort();controller?.abort();generation++;page=1;source=d;contextKey=key;search='';status='all';$('Search').value='';$('State').value='all';if(exporting)reloadPending=true;else load()}else source=d});document.addEventListener('mc:clock-cleared',reset);document.getElementById('logoutButton')?.addEventListener('click',reset);
+ document.addEventListener('mc:clock-data',e=>{
+  const incoming=e.detail;
+  if(incoming?.dashboard?.sourceMode==='continuous'){
+   reset();$('Status').textContent='Las recepciones continuas todavía no reconstruyen jornadas. Elegí Captura histórica para consultar el cálculo disponible.';return;
+  }
+  // v3 uses a read revision; the historical workday endpoint requires the
+  // physical capture UUID. Never send the revision as if it were that capture.
+  const capture=incoming?.dashboard?.version==='clock-dashboard.v3'?incoming.dashboard.historicalSnapshotId:incoming?.dashboard?.snapshotId;
+  if(!incoming?.filters||!incoming?.site||!capture){reset();return}
+  const d={...incoming,dashboard:{...incoming.dashboard,snapshotId:capture}};
+  const key=JSON.stringify([d.site.key,d.filters.from,d.filters.to,incoming.dashboard.snapshotId,capture,d.nominalReadAllowed]);
+  if(key!==contextKey){exportController?.abort();controller?.abort();generation++;page=1;source=d;contextKey=key;search='';status='all';$('Search').value='';$('State').value='all';if(exporting)reloadPending=true;else load()}else source=d;
+ });
+ document.addEventListener('mc:clock-cleared',reset);document.getElementById('logoutButton')?.addEventListener('click',reset);window.addEventListener('pagehide',reset);
  controls();
 }
