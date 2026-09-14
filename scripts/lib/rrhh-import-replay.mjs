@@ -4,6 +4,7 @@ const MESSAGES = Object.freeze({
   RRHH_IMPORT_REPLAY_REVIEW_REQUIRED: 'El respaldo ya tiene un intento o una procedencia diferente. Se requiere una migración revisada antes de volver a importarlo.',
   RRHH_IMPORT_REPLAY_COHORT_MISMATCH: 'El respaldo ya fue importado, pero sus tablas o su lote canónico no conservan el mismo corte. Se requiere una migración revisada; no se modificaron datos.',
   RRHH_IMPORT_REPLAY_UNAVAILABLE: 'No se pudo comprobar la repetición del respaldo. No se inició la importación.',
+  RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED: 'El respaldo actual se conserva. La actualización completa todavía debe coordinar las fuentes, los contratos y la nómina; no se inició la importación.',
 });
 
 function fail(code) { throw Object.assign(new Error(MESSAGES[code]), { code }); }
@@ -52,6 +53,30 @@ const COHORT_SQL = 'WITH ' + TABLES.map((table, index) => `${table}_expected AS 
   (SELECT * FROM ${table}_expected EXCEPT ALL SELECT * FROM public.${table})
 )`).join(',\n') + '\nSELECT ' + TABLES.map(table => `NOT EXISTS (SELECT 1 FROM ${table}_difference) AS ${table}`).join(', ');
 
+// A previously unseen SHA is not permission to replace an initialized store.
+// Until curated, canonical and core publication share one coordinated process,
+// the legacy write path is limited to first initialization of an empty store.
+// This inspection runs under the caller's existing curated-import session lock.
+async function inspectFirstCuratedImport(client) {
+  const state = await client.query(`SELECT EXISTS (SELECT 1 FROM public.data_import_runs) AS has_history,
+    (${TABLES.map(table => `EXISTS (SELECT 1 FROM public.${table})`).join(' OR ')}) AS has_curated_rows,
+    to_regclass('public.source_import_batch') IS NOT NULL AS has_batch_table,
+    to_regclass('public.employment_contract') IS NOT NULL AS has_contract_table`);
+  const fields = ['has_history', 'has_curated_rows', 'has_batch_table', 'has_contract_table'];
+  if (!Array.isArray(state?.rows) || state.rows.length !== 1 || fields.some(field => typeof state.rows[0]?.[field] !== 'boolean')) fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');
+  const current = state.rows[0];
+  if (current.has_history || current.has_curated_rows) fail('RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED');
+  if (current.has_batch_table !== current.has_contract_table) fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');
+  if (current.has_batch_table) {
+    const canonical = await client.query(`SELECT (
+      EXISTS (SELECT 1 FROM public.source_import_batch WHERE source_system = 'GRH')
+      OR EXISTS (SELECT 1 FROM public.employment_contract WHERE source_system = 'GRH')
+    ) AS has_canonical_rows`);
+    if (!Array.isArray(canonical?.rows) || canonical.rows.length !== 1 || typeof canonical.rows[0]?.has_canonical_rows !== 'boolean') fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');
+    if (canonical.rows[0].has_canonical_rows) fail('RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED');
+  }
+}
+
 export async function inspectCuratedReplay(client, expected, projectTables) {
   let transaction = false;
   try {
@@ -63,7 +88,10 @@ export async function inspectCuratedReplay(client, expected, projectTables) {
       FROM public.data_import_runs WHERE upper(source_sha256) = upper($1)
       ORDER BY id DESC LIMIT 1025`, [expected.sourceSha256, expected.cutoff]);
     let plan = planCuratedReplay(history.rows, expected);
-    if (plan.action === 'import') return plan;
+    if (plan.action === 'import') {
+      await inspectFirstCuratedImport(client);
+      return plan;
+    }
     const cohort = await client.query('SELECT import_run_id::text FROM ('
       + TABLES.map(table => `SELECT import_run_id FROM public.${table}`).join(' UNION ') + ') cohort');
     if (!Array.isArray(cohort.rows)) fail('RRHH_IMPORT_REPLAY_UNAVAILABLE');

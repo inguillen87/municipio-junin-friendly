@@ -53,6 +53,11 @@ function fakeClient(expected, options = {}) {
         writes.push(sql); throw Error('UNEXPECTED_WRITE');
       }
       if (options.reject && options.reject.test(sql)) throw Error('private database detail postgres://secret.invalid credential nominal-value');
+      if (/\bhas_history\b/.test(sql)) return Object.hasOwn(options, 'initializationResult')
+        ? options.initializationResult : { rows: [{ has_history: false, has_curated_rows: false,
+          has_batch_table: false, has_contract_table: false, ...options.initialization }] };
+      if (/\bhas_canonical_rows\b/.test(sql)) return Object.hasOwn(options, 'canonicalStateResult')
+        ? options.canonicalStateResult : { rows: [{ has_canonical_rows: options.canonicalRows ?? false }] };
       if (/FROM public.data_import_runs/.test(sql)) return { rows: options.runs ?? [completed(expected)] };
       if (/SELECT import_run_id::text FROM/.test(sql)) return { rows: (options.cohortIds ?? ['3']).map(import_run_id => ({ import_run_id })) };
       if (/^WITH grh_employees_expected/.test(sql)) {
@@ -96,6 +101,7 @@ for (const [name, change] of [
   const client = fakeClient(expected, { runs: [run] });
   await assert.rejects(inspectCuratedReplay(client, expected, () => assert.fail('must not project')), { code: 'RRHH_IMPORT_REPLAY_REVIEW_REQUIRED' });
   assert.deepEqual(client.writes, []);
+  assert.equal(client.calls.some(sql => /\bhas_history\b|\bhas_canonical_rows\b/.test(sql)), false);
   assert.equal(client.calls.at(-1), 'ROLLBACK');
 });
 
@@ -119,6 +125,7 @@ test('exact CLI execution path is read-only, under the existing lock, and emits 
   const output = await importCuratedRrhh({ client, source, log: value => client.logs.push(value) });
   assert.equal(output.status, 'noop'); assert.equal(output.importRunId, '3');
   assert.equal(output.writesPerformed, false); assert.equal(output.scope, 'curated_import_only');
+  assert.equal(client.calls.some(sql => /\bhas_history\b|\bhas_canonical_rows\b/.test(sql)), false);
   assert.equal(output.sourceSha256, SHA); assert.equal(output.manifestSha256, MANIFEST);
   assert.deepEqual(client.logs.map(JSON.parse), [output]);
   assert.doesNotMatch(client.logs.join(''), /Familiar sintético|999999|000101|postgres:|credential/);
@@ -201,13 +208,86 @@ test('failed lock acquisition never starts history inspection or a write', async
   assert.deepEqual(client.writes, []); assert.equal(client.calls.length, 3); assert.equal(client.calls.at(-1), 'end');
 });
 
-test('new source resumes the existing write path only after completing the read-only inspection', async () => {
-  const { source, expected } = fixture(), client = fakeClient(expected, { runs: [] });
+for (const canonicalSchema of [false, true]) test(`empty initial database permits first import: canonical schema ${canonicalSchema}`, async () => {
+  const { source, expected } = fixture(), client = fakeClient(expected, { runs: [], initialization: {
+    has_batch_table: canonicalSchema, has_contract_table: canonicalSchema,
+  } });
   await assert.rejects(importCuratedRrhh({ client, source, log() {} }), /UNEXPECTED_WRITE/);
   assert.equal(client.writes.length, 1); assert.match(client.writes[0], /INSERT INTO data_import_runs/);
   const attempt = client.calls.findIndex(sql => /INSERT INTO data_import_runs/.test(sql));
   assert.equal(client.calls[attempt - 1], 'ROLLBACK');
+  assert.equal(client.calls.filter(sql => /\bhas_history\b/.test(sql)).length, 1);
+  assert.equal(client.calls.filter(sql => /\bhas_canonical_rows\b/.test(sql)).length, Number(canonicalSchema));
 });
+
+for (const [label, options] of [
+  ['any previous attempt, including failed history', { initialization: { has_history: true } }],
+  ['any curated source row', { initialization: { has_curated_rows: true } }],
+  ['canonical GRH batch or contract', { initialization: { has_batch_table: true, has_contract_table: true }, canonicalRows: true }],
+]) test(`a new SHA cannot refresh an initialized database: ${label}`, async () => {
+  const { source, expected } = fixture(), client = fakeClient(expected, { runs: [], ...options });
+  await assert.rejects(importCuratedRrhh({ client, source, log() { assert.fail('no success output'); } }), error => {
+    assert.equal(error.code, 'RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED');
+    assert.doesNotMatch(error.message, /postgres:|credential|nominal-value/); return true;
+  });
+  assert.deepEqual(client.writes, []);
+  assert.equal(client.calls[1], 'SELECT pg_advisory_lock(hashtext($1))');
+  assert.equal(client.calls[2], 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  assert.deepEqual(client.calls.slice(-3), ['ROLLBACK', 'SELECT pg_advisory_unlock(hashtext($1))', 'end']);
+  assert.equal(client.calls.some(sql => /status = 'failed'|TRUNCATE|INSERT INTO data_import_runs/.test(sql)), false);
+});
+
+for (const initialization of [
+  { has_batch_table: true, has_contract_table: false },
+  { has_batch_table: false, has_contract_table: true },
+]) test('partially initialized canonical schema fails closed before an import run exists', async () => {
+  const { source, expected } = fixture(), client = fakeClient(expected, { runs: [], initialization });
+  await assert.rejects(importCuratedRrhh({ client, source, log() {} }), { code: 'RRHH_IMPORT_REPLAY_UNAVAILABLE' });
+  assert.deepEqual(client.writes, []);
+  assert.equal(client.calls.some(sql => /\bhas_canonical_rows\b/.test(sql)), false);
+});
+
+for (const field of ['has_history', 'has_curated_rows', 'has_batch_table', 'has_contract_table']) {
+  for (const invalid of [null, undefined, 0, 'false']) test(`initialization evidence is a strict boolean: ${field}/${String(invalid)}`, async () => {
+    const { expected } = fixture();
+    const client = fakeClient(expected, { runs: [], initialization: { [field]: invalid } });
+    await assert.rejects(inspectCuratedReplay(client, expected, () => assert.fail('no projection')), { code: 'RRHH_IMPORT_REPLAY_UNAVAILABLE' });
+    assert.deepEqual(client.writes, []); assert.equal(client.calls.at(-1), 'ROLLBACK');
+  });
+}
+
+for (const initializationResult of [null, {}, { rows: [] }, { rows: [{}] }, { rows: [null] },
+  { rows: [{}, {}] }, { rows: 'private nominal-value' },
+  { rows: { length: 1, 0: { has_history: false, has_curated_rows: false, has_batch_table: false, has_contract_table: false } } },
+]) test('malformed initialization response cannot authorize writes', async () => {
+  const { source, expected } = fixture(), client = fakeClient(expected, { runs: [], initializationResult });
+  await assert.rejects(importCuratedRrhh({ client, source, log() {} }), { code: 'RRHH_IMPORT_REPLAY_UNAVAILABLE' });
+  assert.deepEqual(client.writes, []); assert.equal(client.calls.at(-1), 'end');
+});
+
+for (const canonicalStateResult of [null, {}, { rows: [] }, { rows: [{}] }, { rows: [null] },
+  { rows: [{ has_canonical_rows: false }, { has_canonical_rows: false }] },
+  { rows: { length: 1, 0: { has_canonical_rows: false } } },
+  ...[null, undefined, 0, 'false'].map(value => ({ rows: [{ has_canonical_rows: value }] }))]) {
+  test('malformed canonical population evidence cannot authorize writes', async () => {
+    const { source, expected } = fixture(), client = fakeClient(expected, { runs: [],
+      initialization: { has_batch_table: true, has_contract_table: true }, canonicalStateResult });
+    await assert.rejects(importCuratedRrhh({ client, source, log() {} }), { code: 'RRHH_IMPORT_REPLAY_UNAVAILABLE' });
+    assert.deepEqual(client.writes, []); assert.equal(client.calls.at(-1), 'end');
+  });
+}
+
+for (const reject of [/\bhas_history\b/, /\bhas_canonical_rows\b/, /^ROLLBACK/]) {
+  test('initialization query or transaction failure is sanitized and cannot write a failed run', async () => {
+    const { source, expected } = fixture(), client = fakeClient(expected, { runs: [], reject,
+      initialization: { has_batch_table: true, has_contract_table: true } });
+    await assert.rejects(importCuratedRrhh({ client, source, log() {} }), error => {
+      assert.equal(error.code, 'RRHH_IMPORT_REPLAY_UNAVAILABLE');
+      assert.doesNotMatch(error.message, /postgres:|credential|nominal-value/); return true;
+    });
+    assert.deepEqual(client.writes, []); assert.equal(client.calls.at(-1), 'end');
+  });
+}
 
 test('safe errors never echo arbitrary database errors, credentials, URLs or nominal data', () => {
   assert.deepEqual(safeRrhhImportError(Error('postgres://user:secret@host nominal-value')), {
@@ -215,4 +295,7 @@ test('safe errors never echo arbitrary database errors, credentials, URLs or nom
   });
   const safe = safeRrhhImportError({ code: 'RRHH_IMPORT_REPLAY_COHORT_MISMATCH', message: 'secret' });
   assert.equal(safe.code, 'RRHH_IMPORT_REPLAY_COHORT_MISMATCH'); assert.doesNotMatch(safe.message, /secret/);
+  const refresh = safeRrhhImportError({ code: 'RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED', message: 'postgres://secret nominal-value' });
+  assert.equal(refresh.code, 'RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED');
+  assert.doesNotMatch(refresh.message, /secret|postgres:|nominal-value/);
 });

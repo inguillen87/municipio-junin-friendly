@@ -30,7 +30,15 @@ El importador ahora inspecciona la fuente bajo su mismo advisory lock y una tran
 
 Una coincidencia exacta devuelve `noop`, `writesPerformed:false` y `scope:curated_import_only`, sin INSERT ni TRUNCATE. Lotes mezclados, contenido diferente, procedencia ambigua o una inspección que no puede cerrarse se rechazan antes de iniciar escrituras. No se relajaron el perfil ni los conteos estrictos del importador de agosto.
 
-Esto no vuelve atómica toda la promoción: staging, promoción canónica y carga core siguen siendo fases separadas. Tampoco homologa cambios de persona, repara acciones históricas que dependen del lote del contrato ni certifica certificados escolares frente a una fuente diferente. La actualización de septiembre sigue bloqueada hasta verificar esas dependencias y su conservación.
+Esto no vuelve atómica toda la promoción: staging, promoción canónica y carga core siguen siendo fases separadas. Tampoco homologa cambios de persona ni certifica certificados escolares frente a una fuente diferente. La consulta histórica protegida se incorporó posteriormente en SQL059; su alcance está en `docs/ACTION_SOURCE_HISTORY.md`. La actualización de septiembre sigue bloqueada hasta verificar las dependencias restantes y su conservación.
+
+## Protección frente a un respaldo diferente
+
+Una huella nueva antes devolvía directamente permiso para importar. Ahora ese camino comprueba, dentro de la misma inspección de sólo lectura y bajo el lock existente, que no haya historial de importación ni filas en ninguna de las cinco tablas curadas. Si el esquema canónico existe, exige ambas tablas esperadas y ausencia de todo lote o contrato GRH, sin limitarse a empresa, base de origen, estado activo o huella entrante. Un esquema parcial, error de consulta o resultado incompleto bloquea el camino.
+
+Con datos existentes se devuelve `RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED` antes de insertar un intento o ejecutar TRUNCATE; tampoco se agrega un intento fallido. El mensaje informa que el respaldo actual se conserva y que falta coordinar fuentes, contratos y nómina. La repetición exacta conserva su verificación completa y su NOOP sin escrituras. La pantalla de revisión sigue sin ofrecer incorporación ni aprobación de fuentes.
+
+Sólo se conserva el camino de primera inicialización de un almacén vacío. Esta guarda no coordina procesos que usan otros locks, ni acredita una inicialización concurrente segura. El reemplazo de un almacén ya ocupado queda bloqueado; el diseño de una publicación transaccional completa sigue pendiente. No hay una opción para omitir esta comprobación.
 
 ## Evidencia y reversión
 
