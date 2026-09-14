@@ -20,3 +20,11 @@ Toda otra sesion no coincidente permanece bloqueada con diagnostico detallado.
 
 No se ha reutilizado codigo de administracion de usuarios, huellas, borrado o
 deshabilitacion. Se preserva la licencia GPL-2.0-only del piloto de partida.
+
+## Diagnostico aditivo 4.1.1 (14/09/2026)
+
+La revision 4.1.1 conserva el codigo exacto de error de limpieza en
+`report.cleanup.errorCode`. Permite distinguir `CANCELLED` de un cierre TCP
+previo durante la espera de EXIT. No cambia comandos, autenticacion, destinos,
+secuencias, pausas, lectura, validacion ni bytes de captura. El original 4.1.0
+permanece en la historia Git y en el paquete fuente privado aportado.

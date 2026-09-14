@@ -5,7 +5,7 @@ const live=process.env.PM10_LIVE_ASSETS==='1';let server,browser;const checks=[]
 let origin='https://municipio-junin-friendly.vercel.app';
 if(!live){server=http.createServer((req,res)=>{let p;try{p=path.resolve(base,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));}catch{return res.writeHead(400).end();}if(!p.startsWith(base+path.sep)||!fs.existsSync(p)||!fs.statSync(p).isFile())return res.writeHead(404).end();res.setHeader('Content-Type',p.endsWith('.js')?'application/javascript':p.endsWith('.css')?'text/css':p.endsWith('.html')?'text/html':'application/octet-stream');res.end(fs.readFileSync(p));});await new Promise(r=>server.listen(0,'127.0.0.1',r));origin='http://127.0.0.1:'+server.address().port;}
 function initial(){return{ok:true,version:'pm10-status.v1',checkedAt:'2026-09-13T13:00:00Z',connectorState:'suspended',baselineRecords:111,summary:{receipts:0,newMarks:0,knownRecords:0,observations:0,lastReceivedAt:null,lastCapturedAt:null},records:[],nominalReadAllowed:true,physicalClockVerified:false,payrollModified:false};}
-let source=initial(),mode='ok',deferred=null,gateDenied=false;const check=(text)=>checks.push(text);
+let source=initial(),mode='ok',deferred=null,gateDenied=false,recentReceipt=false;const check=(text)=>checks.push(text);
 try{
  browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});const ctx=await browser.newContext({viewport:{width:1440,height:1050}});
  await ctx.route('**/*',async route=>{const request=route.request(),u=new URL(request.url());if(u.origin!==origin)return route.abort();if(!u.pathname.startsWith('/api/'))return route.continue();requests.push({path:u.pathname,resource:u.searchParams.get('resource'),method:request.method()});
@@ -16,7 +16,7 @@ try{
    return route.fulfill({status:200,json:structuredClone(source)}).catch(()=>{});
   }
   let p;if(u.pathname==='/api/internal-auth')p={ok:true,authenticated:true,access:{tenantCapabilities:['attendance.read','workforce.employee.read'],platformCapabilities:[],platformRoles:[]}};
-  else if(resource==='bootstrap')p={ok:true,capabilities:['attendance.read'],summary:{siteCount:1,deviceCount:1,punchCount:150,rawEventCount:150,pendingReviewCount:150,unmatchedPunchCount:3},features:{}};
+  else if(resource==='bootstrap')p={ok:true,capabilities:['attendance.read'],summary:{siteCount:1,deviceCount:1,punchCount:150,rawEventCount:150,pendingReviewCount:150,unmatchedPunchCount:3},features:recentReceipt===null?{}:{hardwareConnected:recentReceipt}};
   else if(resource==='clock-dashboard')p=upgradeClockFixture(historicalData(u.searchParams),u.searchParams);
   else if(resource==='reported-inventory')p={data:[{code:'PM-10',name:'Edificio QA',address:'Domicilio sintético',model:'K20',reportedExtraction:'Red',latitude:-33.14,longitude:-68.48}]};
   else p={ok:true,resource,data:[],pagination:{page:1,pageSize:25,total:0,pages:0}};
@@ -33,6 +33,28 @@ try{
  source.records=[{occurredAt:'2026-09-12T11:00:00Z',receivedAt:'2026-09-13T13:00:00Z',personLabel:'PERSONA QA',legajo:'0012',state:'mapped',issueCodes:[],punchCode:0,verificationCode:1},{occurredAt:null,receivedAt:'2026-09-13T13:00:00Z',personLabel:'Identidad reservada',legajo:null,state:'observed',issueCodes:['timestamp_invalid'],punchCode:0,verificationCode:1}];await refresh();
  assert.equal(await v('new').textContent(),'3');assert.equal(await v('parts').textContent(),'2');assert.equal(await v('known').textContent(),'2');assert.equal(await v('observed').textContent(),'1');check('receipt metrics distinguish new, known, observed and parts');
  assert.notEqual(await v('received').textContent(),await v('captured').textContent());check('source timestamp is distinct from database arrival');
+ recentReceipt=true;await page.locator('#refreshButton').click();await page.waitForFunction(()=>document.getElementById('truthTitle').textContent==='Recepción reciente confirmada');
+ assert.match(await page.locator('#truthCopy').textContent(),/captura anterior pendiente de envío/);
+ assert.match(await page.locator('#truthCopy').textContent(),/no verifica conexión física, captura automática ni que la cola esté vacía/);
+ assert.match(await page.locator('#hardwareState').textContent(),/Acuse confirmado en la última consulta/);
+ assert.equal(await page.locator('#clockBacklog').textContent(),'No informado por el colector');
+ assert.notEqual(await v('received').textContent(),await v('captured').textContent());
+ check('recent acknowledgment of an older queued capture never implies physical connectivity, autonomous capture or empty backlog');
+ const truthStrip=page.locator('.truth-strip');
+ await truthStrip.evaluate(section=>{section.closest('details').open=true;const label=document.createElement('small');label.textContent='QA · DATOS SINTÉTICOS · captura anterior / acuse posterior';section.querySelector('div').prepend(label);});
+ await truthStrip.screenshot({path:path.join(out,'pm10-reception-evidence-desktop-qa.png')});
+ await page.setViewportSize({width:390,height:844});await truthStrip.scrollIntoViewIfNeeded();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await truthStrip.screenshot({path:path.join(out,'pm10-reception-evidence-mobile-qa.png')});
+ await page.setViewportSize({width:1440,height:1050});
+ check('reception evidence header remains legible on desktop and mobile with synthetic labels');
+ recentReceipt=false;await page.locator('#refreshButton').click();await page.locator('#hardwareState').filter({hasText:'Sin acuse reciente confirmado'}).waitFor({state:'attached'});
+ assert.match(await page.locator('#truthCopy').textContent(),/no permite saber si el reloj está conectado/);
+ check('without a recent acknowledgment the page does not declare the clock disconnected');
+ recentReceipt=null;await page.locator('#refreshButton').click();await page.waitForFunction(()=>!document.getElementById('refreshButton').disabled);
+ assert.equal(await page.locator('#hardwareFeature').textContent(),'No confirmada');
+ assert.equal(await page.locator('#clockBacklog').textContent(),'No informado por el colector');
+ check('an omitted receipt flag preserves unknown connectivity and unknown queue depth');
  assert.match(await v('rows').textContent(),/revisión laboral pendiente/);assert.match(await v('rows').textContent(),/Registro observado/);check('mapped is not payroll approved and invalid timestamp is retained');
  source.records[0].personLabel='<img src=x onerror="window.injected=true">';await refresh();assert.equal(await panel.locator('tbody img').count(),0);assert.equal(await page.evaluate(()=>window.injected),undefined);check('source labels rendered as text, never HTML');
  source.records[0].personLabel='PERSONA QA';await refresh();await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;right:12px;bottom:8px;z-index:9999;background:#123247;color:white;padding:8px;font:11px sans-serif}'});await panel.screenshot({path:path.join(out,'pm10-reception-desktop-qa.png')});check('desktop panel screenshot');

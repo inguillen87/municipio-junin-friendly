@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {checksum16, makeAuthPayload, validateCommKey, decodeClock, decodeCounts} from './zk-core-v3.mjs';
 
-export const VERSION = '4.1.0';
+export const VERSION = '4.1.1';
 export const TARGET = '172.100.97.131';
 export const PORT = 4370;
 export const SERIAL = 'CQTU225360168';
@@ -153,7 +153,7 @@ export async function collect({commKey,approved=false,host=TARGET,port=PORT,
     transfer:{plannedBytes:null,receivedBytes:0,confirmedChunkBytes:0,completedChunks:0,
       chunkSizeLimit:CHUNK_BYTES,neutralSessionDataFrames:0},
     diagnostics:{lastPhase:'STARTED',headerTrace:[],headersOmitted:0,wireBytesReceived:0},
-    cleanup:{bufferReleaseConfirmed:false,exitConfirmed:false,skippedReason:null},
+    cleanup:{bufferReleaseConfirmed:false,exitConfirmed:false,skippedReason:null,errorCode:null},
     exchanges:[],observations:[],error:null,
   };
   let session=0,reply=65534,opened=false,serialVerified=false,bufferAllocated=false;
@@ -343,11 +343,11 @@ export async function collect({commKey,approved=false,host=TARGET,port=PORT,
     if(opened && synchronized && !channel.error && !deadlineExpired && !signal?.aborted) {
       if(bufferAllocated) {
         try {ok(await request(1502));bufferAllocated=false;report.cleanup.bufferReleaseConfirmed=true;}
-        catch(e) {report.cleanup.skippedReason='BUFFER_RELEASE_NOT_CONFIRMED';channel.abort(safeCode(e));}
+        catch(e) {report.cleanup.skippedReason='BUFFER_RELEASE_NOT_CONFIRMED';report.cleanup.errorCode=safeCode(e);channel.abort(safeCode(e));}
       }
       if(synchronized && !channel.error) {
         try {ok(await request(1001));report.cleanup.exitConfirmed=true;}
-        catch(e) {report.cleanup.skippedReason='EXIT_NOT_CONFIRMED';channel.abort(safeCode(e));}
+        catch(e) {report.cleanup.skippedReason='EXIT_NOT_CONFIRMED';report.cleanup.errorCode=safeCode(e);channel.abort(safeCode(e));}
       }
     } else if(opened) report.cleanup.skippedReason='STREAM_UNSYNCHRONIZED_OR_CLOSED';
     if(bufferAllocated && !report.cleanup.bufferReleaseConfirmed)

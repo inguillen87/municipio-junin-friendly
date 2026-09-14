@@ -6,7 +6,7 @@
 
 Ejecuta el lector v4.1 que ya logró descargar el reloj, sin una consola interactiva en cada lectura. Una sola conexión por instalación; entre capturas espera 60 segundos, configurables. Verifica serie y transporte; sólo conserva capturas completas con liberación de buffer y salida de protocolo confirmadas. El equipo permanece habilitado para fichar: no se envía deshabilitación, borrado, reinicio, cambios de hora, altas de usuarios ni lectura de plantillas biométricas.
 
-El destino está limitado en el código a PM-10, Edificio Viejo, 172.100.97.131:4370, serie CQTU225360168. No hay escaneo de red ni lista de claves. Usa una CommKey **ya validada**, de 1 a 6 dígitos según el perfil v4.1, por un archivo local protegido. Una negativa de autenticación detiene los intentos hasta revisión humana. Los errores transitorios tienen espera creciente de hasta 15 minutos y se detienen después de seis fallos consecutivos.
+El destino está limitado en el código a PM-10, Edificio Viejo, 172.100.97.131:4370, serie CQTU225360168. No hay escaneo de red ni lista de claves. Usa una CommKey **ya validada**, de 1 a 6 dígitos según el perfil v4.1, por un archivo local protegido. Una negativa de autenticación detiene los intentos hasta revisión humana. Los fallos acreditados antes de establecer TCP, sin intentos de autenticación, se reintentan con esperas de 1 a 15 minutos sin consumir el límite de fallos de protocolo. Los fallos ambiguos durante el protocolo se detienen después de seis intentos consecutivos; el apagado ordenado cancela la lectura sin bloquear el siguiente arranque ni guardar una captura parcial. Ver [recuperación del servicio](../../docs/PM10_SERVICE_RECOVERY.md).
 
 **No necesita la computadora de Marcelo. Sí necesita un host municipal encendido y con ruta al reloj.** No deben operar dos instalaciones de este colector, ni otro software recolector, simultáneamente sobre PM-10. El bloqueo implementado es local; no se lo presenta como un bloqueo distribuido entre equipos.
 
@@ -69,7 +69,7 @@ No cambiar rutas del servicio a mano ni agregar credenciales a sus argumentos.
 
 ## Pruebas y licencia
 
-`node --test tests/*.test.mjs` ejecuta pruebas sintéticas, conexiones sólo a 127.0.0.1 y verificaciones de persistencia. No usa credenciales municipales. El lector fue conservado byte por byte del paquete v4.1 aportado; la serie/IP fijas son las del piloto, no una homologación de otros K20.
+`node --test tests/*.test.mjs` ejecuta pruebas sintéticas, conexiones sólo a 127.0.0.1 y verificaciones de persistencia. No usa credenciales municipales. El lector 4.1.1 añade al informe el código de error de limpieza para distinguir una parada solicitada de una falla previa. Conserva los comandos, pausas, validaciones y bytes de captura del 4.1.0 aportado, cuyo original sigue en Git y en el paquete fuente. La serie/IP fijas son las del piloto, no una homologación de otros K20.
 
 Este agente separado usa **GPL-2.0-only**, como el lector aportado, con atribuciones y referencias en `reader/REFERENCIAS.md`. No se importa en el código del navegador ni se incluye en el sitio estático.
 
@@ -81,7 +81,11 @@ No se elige una IP libre ni se cambia la del equipo o reloj. La opción preferid
 
 Los instaladores comprueban la ruta local antes de crear cuentas, directorios y tareas. Cada captura vuelve a comprobarla antes de leer la CommKey y abrir una conexión. Se exige el prefijo municipal /19 o más específico; se rechaza salida por defecto, rutas amplias, inactivas o ambiguas. Si falta la ruta, el agente entra en network_wait y sólo repite el chequeo local; retoma al volver una ruta aceptada. No elimina un bloqueo anterior de autenticación. El panel mantiene separadas captura local y recepción en Neon.
 
-Diagnóstico sin conexión al reloj: node check-host.mjs. No lee claves ni asigna direcciones. Un resultado favorable no prueba disponibilidad física, exclusividad, capacidad del host ni autorización administrativa.
+Diagnóstico sin conexión al reloj: `node check-host.mjs`. Lee metadatos locales del equipo, la ruta real del ejecutable Node, su dependencia de un perfil de usuario, los privilegios del proceso y la presencia de archivos/tareas o unidades PM10. No abre configuraciones ni claves, no asigna direcciones y no cambia servicios. Un Node fuera del perfil tampoco demuestra que la cuenta del servicio pueda ejecutarlo. Una tarea registrada o en ejecución no acredita captura ni recepción.
+
+Por compatibilidad con los instaladores, `localPrerequisitesReady`, `nodeAndRouteAvailable` y el código de salida sólo evalúan Node 22+ y ruta municipal (`exitCodeScope: route_node_only`): 0 si ambos están disponibles, 2 si falta alguno. No constituyen permiso de instalación ni acreditan un equipo institucional. El resultado separa `installationReady: false`, `installationReadiness: not_established`, `hostAssignment: not_evidenced` y `autonomyVerified: false` porque este diagnóstico no puede demostrar asignación municipal, disponibilidad continua ni exclusividad entre equipos. Un fallo de lectura de metadatos se informa como desconocido, sin modificar ese contrato del CLI.
+
+No se requiere una nueva autorización por este diagnóstico: hay que contrastar los insumos técnicos que todavía no estén acreditados en el host seleccionado. La prueba de autonomía sigue siendo una captura nueva con acuse persistido, reinicio y recuperación del enlace, con la computadora personal apagada. `operatorChecks` enumera el alcance pendiente; no ejecuta esas verificaciones.
 
 Es un prechequeo, no un firewall: debe validarse la ruta y la restricción de salida por interfaz ante cambios durante una conexión ya iniciada. La unidad Linux permite AF_NETLINK para consultas locales, sin privilegios extra. No se instaló en la municipalidad. Ver docs/SPRINT_059_1_1_RUTA_MUNICIPAL.md.
 

@@ -6,6 +6,53 @@ import vm from 'node:vm';
 const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const html = read('relojes-marcaciones.html');
 
+function renderedReceptionSummary(hardwareConnected, punchCount = 3) {
+  const output = new Map();
+  const classes = new Map();
+  const classList = id => ({ toggle(name, enabled) { classes.set(id + ':' + name, enabled); } });
+  const context = {
+    state: { summary: { punchCount }, features: { hardwareConnected } },
+    object: value => value || {}, number: value => Number(value) || 0,
+    formatCount: value => String(value ?? 0), setText: (id, value) => output.set(id, value),
+    el: { hardwareState: { classList: classList('state') }, hardwareFeature: { classList: classList('feature') } },
+  };
+  const start = html.indexOf('function renderSummary()');
+  const end = html.indexOf('function normalizeBootstrap(', start);
+  assert.ok(start >= 0 && end > start);
+  vm.runInNewContext(html.slice(start, end) + '\nrenderSummary();', context);
+  return { output, classes };
+}
+
+test('un acuse reciente también puede ser una captura antigua de la cola', () => {
+  // The bootstrap provides no capture timestamp or queue depth with this flag.
+  const { output, classes } = renderedReceptionSummary(true);
+  assert.equal(output.get('truthTitle'), 'Recepción reciente confirmada');
+  assert.match(output.get('truthCopy'), /captura anterior pendiente de envío/);
+  assert.match(output.get('truthCopy'), /no verifica conexión física, captura automática ni que la cola esté vacía/);
+  assert.match(output.get('truthCopy'), /En la última consulta/);
+  assert.match(output.get('hardwareState'), /Acuse confirmado/);
+  assert.equal(output.get('hardwareFeature'), 'Confirmada');
+  assert.equal(classes.get('state:connected'), true);
+  assert.equal(output.get('punchCount'), '3');
+});
+
+test('la falta de acuse reciente no declara el reloj desconectado ni la automatización pendiente', () => {
+  for (const count of [0, 3]) {
+    const { output, classes } = renderedReceptionSummary(false, count);
+    assert.match(output.get('truthTitle'), /sin recepción reciente confirmada/i);
+    assert.match(output.get('truthCopy'), /no permite saber si el reloj está conectado o si el colector está funcionando/);
+    assert.equal(output.get('hardwareFeature'), 'No confirmada');
+    assert.equal(classes.get('state:connected'), false);
+    assert.doesNotMatch([...output.values()].join(' '), /Equipos todavía no conectados|automatización pendiente/);
+  }
+});
+
+test('un flag ausente o textual no se convierte en un acuse confirmado', () => {
+  for (const flag of [undefined, null, 'true', 1]) {
+    assert.equal(renderedReceptionSummary(flag).output.get('hardwareState'), 'Sin acuse reciente confirmado');
+  }
+});
+
 test('la vista separa el inventario reportado del estado operativo del backend', () => {
   for (const fact of [
     '>13</strong><span>Puntos de marcación',
@@ -19,8 +66,9 @@ test('la vista separa el inventario reportado del estado operativo del backend',
   assert.match(html, /Evidencia recibida · no conexión/);
   assert.match(html, /no acredita que esos aparatos ya envíen eventos/i);
   assert.match(html, /hardwareConnected===true/);
-  assert.match(html, /Sin conexión confirmada/);
-  assert.match(html, /Conexión confirmada por backend/);
+  assert.match(html, /Sin acuse reciente confirmado/);
+  assert.match(html, /Recepción reciente confirmada/);
+  assert.doesNotMatch(html, /Conexión confirmada por backend|Hardware conectado|automatización pendiente|Equipos todavía no conectados/);
   for (const point of ['PM-01', 'PM-07', 'PM-13', 'Desarrollo Social', 'Delegación Medrano']) {
     assert.match(html, new RegExp(point));
   }

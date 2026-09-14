@@ -68,7 +68,7 @@ export async function readMunicipalRoute({platform=process.platform,run=execute,
    return parseLinuxRoute(stdout);
   }
   if(platform==='win32'){
-   if(typeof systemRoot!=='string'||!path.win32.isAbsolute(systemRoot))throw fault('ROUTE_LOOKUP_UNAVAILABLE');
+   if(typeof systemRoot!=='string'||!path.win32.isAbsolute(systemRoot)||!/^[a-z]:[\\/]/i.test(systemRoot)||/[\x00-\x1f]/.test(systemRoot))throw fault('ROUTE_LOOKUP_UNAVAILABLE');
    const binary=path.win32.join(systemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
    const {stdout}=await run(binary,['-NoLogo','-NoProfile','-NonInteractive','-Command',WINDOWS_ROUTE_COMMAND],options);
    return parseWindowsRoute(stdout);
