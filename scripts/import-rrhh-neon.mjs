@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 
 const DATA_DIR = new URL('../rrhh-data/', import.meta.url);
@@ -270,7 +271,9 @@ function mapLeaves(records, runId) {
   }));
 }
 
-function mapFamily(records, runId) {
+// Pure mapping: retain all curated source evidence inside the existing JSONB
+// payload. Certificate source fields are not coerced into dates or status.
+export function mapFamily(records, runId) {
   return records.map((member) => ({
     family_id: requiredText(member.sourceKey?.familyMemberId, 'family.sourceKey.familyMemberId'),
     company_id: parseInteger(member.employeeSourceKey?.companyCode, 'family.employeeSourceKey.companyCode'),
@@ -554,4 +557,8 @@ async function main() {
   }
 }
 
-await main();
+// Importing the pure mapper for offline verification must not read credentials,
+// load private artifacts or start a database import.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  await main();
+}

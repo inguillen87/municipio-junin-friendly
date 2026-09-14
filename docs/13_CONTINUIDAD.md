@@ -36,9 +36,9 @@ La candidata `feat/pm10-reception-0592` contiene código legible reutilizable. L
 
 ## Estado actual y siguiente acción
 
-MC-H00 cerrado en alcance local. MC-H02: comparación y recuperación realizadas. MC-H01: conexión operativa comprobada y copia restaurada. MC-C01/02/03 implementados y validados; promoción pública pendiente. No se activó un conector. No se modificó nómina.
+MC-H00 cerrado en alcance local. MC-H02: comparación y recuperación realizadas. MC-H01: conexión operativa comprobada y copia restaurada. MC-C01/02/03 implementados, validados y publicados técnicamente. El remitente sigue sin instalación municipal; no se activó el conector ni se modificó nómina.
 
-Siguiente acción: promover el artefacto final desde un árbol limpio y comprobar hashes y rechazos anónimos en el dominio público. La prueba física MC-C04 necesita host municipal permanente y CommKey por canal privado. La computadora identificada es Marcelo y no tiene el colector instalado. No se comprobó una fichada con la PC personal apagada.
+Siguiente acción: avanzar MC-D01/MC-D02 por dependencias, preservando los campos de certificados que omitía el extractor y diseñando el dominio propio sin ejecutar importaciones globales. La prueba física MC-C04 necesita host municipal permanente y CommKey por canal privado. La computadora identificada es Marcelo y no tiene el colector instalado. No se comprobó una fichada con la PC personal apagada.
 
 ## Cierre de validación — 04:27 UTC
 
@@ -49,6 +49,22 @@ Siguiente acción: promover el artefacto final desde un árbol limpio y comproba
 - Candidato `dpl_ESuYyBca9Vo9DpXZswu5mfXNrmHY`: READY, sin cambiar el alias público. Seis archivos servidos coinciden por SHA-256; API GET 405, envío sin credencial 401 y consulta anónima 401. No se promoverá este candidato porque su configuración de función se incorporó después del primer commit; se reconstruirá desde árbol limpio.
 - Reversión técnica: promover el deployment anterior `dpl_Fv5beMqg5qAWhMfpWw3UrNk66w4y`. Las migraciones son aditivas y el código anterior sigue disponible; no eliminar tablas de acuses ni restaurar toda la base para una reversión de interfaz. La copia privada restaurable queda como resguardo adicional.
 
+## Publicación comprobada — 04:33 UTC
+
+- Release de producto `a7266ccb1ed62075d8fcf546cd7f4ddc2f3f0eec`, integrado por avance directo de `master`; PR13 figura MERGED. CI exacta `34806144139`, todos los trabajos aprobados.
+- Se promovió el artefacto limpio `dpl_HiQJmngLwZxXezYCQfm9Hhtiuwcr`. La integración Git de Vercel generó después `dpl_8WfU1gSSrbBWErXAxSRadVHHgq5M` con el mismo SHA `a7266cc…`; es el deployment efectivo del dominio `municipio-junin-friendly.vercel.app`, READY, proyecto existente `prj_AoxjtYZS3aqVUKqlOaXbYkPhneTT`.
+- Dominio público verificado de nuevo después de ese cambio: HTML y assets coinciden por SHA-256; receptor GET405, POST sin token401, consulta privada401. Pantalla publicada: 22 comprobaciones de navegador sin errores, con respuestas sintéticas interceptadas. Esto no acredita una sesión municipal real ni una fichada física.
+- Paquete de código instalable fuera de Git: `MuniControl_PM10_Software_20260914_a7266cc.zip`, SHA-256 `c0ad6f3399e5e5818959dca7b2644a8b45af67c6a20b40e55691d1a3e76c558b`. Incluye código, licencia, huellas y guía; no fuentes, claves ni configuración privada.
+- La copia PostgreSQL de ensayo se apagó después de QA. Dump y restauración se conservan privados. MC-O01 sigue parcial: falta destino fuera de esta PC, retención y alarmas; la copia puntual no implica un servicio periódico de backups.
+- Continuación de esta tarea programada cada hora hasta las 08:00 de Argentina del 14/09: automatización `municontrol-avance-nocturno`. Priorizar el reloj si aparece acceso efectivo; mientras tanto, avanzar datos y pedidos exactos de Noelia. No contactar a terceros ni declarar autorizados sueldos/firmas/pagos/cierres.
+- La carpeta original sigue en `fc03daf…`, rama `codex/identity-gateway-benchmark`, con su enlace sin seguimiento intacto. Las fuentes privadas permanecen en Descargas. El backlog privado conserva los pedidos originales y añade únicamente estados/evidencia de ejecución, sin aceptación municipal ficticia.
+
 ## Límite de aceptación
 
 Código, pruebas sintéticas, SQL real aislado, publicación, sesión municipal y prueba física se registran por separado. Sueldos, firmas, pagos y cierres requieren su autoridad específica. Un reloj dado de alta o un refresco de pantalla no acredita autonomía.
+
+## MC-D01 — preservación de fechas de escolaridad
+
+El extractor ahora conserva `familia.PRES_14` y `VENC_14` en `sourceFields`, con tabla y clave de origen. Se comprobó sólo el DDL de ambos respaldos: `PRIMARY KEY (CODI_14)`, ambas columnas de tipo date nullable. Se distinguen columna ausente, NULL, vacío y valor inválido; el parser conserva además espacios dentro de cadenas SQL entre comillas. El mapeo del importador retiene ese objeto dentro del `source_payload` existente y puede probarse sin iniciar `main()` ni abrir una conexión.
+
+Validación: 7 pruebas Python de familia, 8 de crosswalk, 4 del mapeo Node, self-test del extractor y contención aprobados. Suite de aplicación: 2.173 aprobadas en Windows. Se añadió esta regresión Python a CI. No se ejecutó una importación, no se cambió el esquema y no se actualizó la población operativa. MC-D01 permanece parcial y MC-E02 pendiente: esto evita perder evidencia en futuras extracciones, no crea un certificado adjunto ni un reporte completo de escolaridad.

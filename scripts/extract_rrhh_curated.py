@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 PROFILE_NAME = "grh-junin-2026-08-06"
 EXPECTED_SOURCE_SHA256 = (
     "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92"
@@ -268,12 +268,18 @@ def parse_insert_rows(line: str) -> Iterator[list[str | None]]:
                 continue
 
             if char == "'":
+                # Whitespace before a quoted literal belongs to SQL syntax,
+                # while whitespace inside it is part of the source value.
+                if not token_was_quoted and not "".join(token).strip():
+                    token.clear()
                 quoted = True
                 token_was_quoted = True
                 index += 1
                 continue
             if char in ",)":
-                raw_value = "".join(token).strip()
+                raw_value = "".join(token)
+                if not token_was_quoted:
+                    raw_value = raw_value.strip()
                 value: str | None
                 if not token_was_quoted and raw_value.upper() == "NULL":
                     value = None
@@ -286,6 +292,11 @@ def parse_insert_rows(line: str) -> Iterator[list[str | None]]:
                 if char == ")":
                     yield row
                     break
+                continue
+            if token_was_quoted and char.isspace():
+                # Ignore SQL formatting after the closing quote, not the
+                # decoded whitespace collected while inside the literal.
+                index += 1
                 continue
             token.append(char)
             index += 1
@@ -733,6 +744,16 @@ def _family_record(row: Mapping[str, Any], indexes: Mapping[str, Any]) -> dict[s
         "courseCode": _as_code(row["CURS_14"]),
         "observations": _as_text(row["COBS_14"]),
         "deductionPercentage": _as_float(row["PORCDEDUCCION"]),
+        # Preserve decoded SQL values, including NULL, blanks and invalid dates.
+        # An absent source column stays absent; none of these values establishes
+        # certificate presentation, expiry, eligibility or a pending task.
+        "sourceFields": {
+            field: row[field] for field in ("PRES_14", "VENC_14") if field in row
+        },
+        "sourceProvenance": {
+            "table": "familia",
+            "primaryKey": {"CODI_14": row["CODI_14"]},
+        },
     }
 
 
@@ -1088,6 +1109,8 @@ def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str,
                 "category identity preserves the source composite key CODI_02 plus CODI_10",
                 "sector identity preserves the source composite key CODI_01 plus CODI_07",
                 "absence and leave semantic source fields are retained where labels are ambiguous",
+                "familyMembers.sourceFields retains familia.PRES_14 and familia.VENC_14 as decoded SQL values without date parsing or certificate-state inference; SQL NULL, empty values and absent columns remain distinct",
+                "familyMembers.sourceProvenance identifies the source table and primary key; the manifest source SHA-256 and import_run_id trace the originating snapshot",
                 "personas_junin is intentionally not cross-joined; identity resolution requires a separate reviewed pipeline",
             ],
         }
