@@ -51,7 +51,7 @@ La comprobación focal de estructura pasó 66 pruebas, incluidas las 17 nuevas d
 
 La prueba SQL se ejecutó en PostgreSQL local restaurado con datos sintéticos y terminó en `ROLLBACK`, con conservación del estado de referencia. Cubrió las cuatro lecturas históricas, nombre y sector originales, comandos vacíos, rechazo de los cinco comandos y de reintentos previos de ambos tipos de acción; también reasignación de persona, corrupción de claves/hash/identidad, valores de persona y fecha inválidos, acceso por área, confidencialidad, proyección salarial y revocación de sesión.
 
-Esta evidencia es local. La aplicación de 059 en la base operacional, la versión desplegada, las verificaciones del navegador publicado y una consulta con sesión municipal real deben registrarse separadamente en el cierre de publicación. Las pruebas sintéticas no acreditan esa sesión real ni una promoción de un nuevo respaldo.
+La evidencia SQL con fixtures es local. El producto f4913bce90485581a8564a46501b29d849eb49c5 pasó CI34831993004 y SQL059 se aplicó a las 10:14:28.648 UTC del 14/09/2026 sobre la rama operacional existente. La publicación dpl_E1GkfjXcjYE3C8k4HYLQSN1vfdUY quedó READY con ese SHA. Pasaron 14 recorridos sobre siete assets publicados usando APIs sintéticas. La consulta independiente verificó cuatro casos actuales y sus nueve eventos conservados. Una simulación local de corte posterior conservó la lectura de esos cuatro casos y revirtió sin diferencias en las 118 tablas. El cierre completo está en `docs/13_CONTINUIDAD.md`. No se acredita una sesión municipal real, casos históricos productivos ni la promoción de un nuevo respaldo.
 
 ## Reversión coordinada de base y aplicación
 
