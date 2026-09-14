@@ -7,6 +7,8 @@
   <meta name="color-scheme" content="light">
   <title>Integración y control de dotación | MuniControl</title>
   <script src="assets/internal-capability-gate.js"></script>
+  <link rel="stylesheet" href="assets/grh-backup-review.css">
+  <script type="module" src="assets/grh-backup-review.js"></script>
   <meta name="description" content="Control interno de dotación GRH y calidad de enriquecimiento con el padrón PERSONAS.">
   <style>
     :root {
@@ -190,6 +192,9 @@
 
       <div class="loading" id="loading" role="status" aria-live="polite">Preparando el control trazable…</div>
       <div id="errorHost" hidden></div>
+
+      <p id="backupReviewAccessNotice" role="status" hidden></p>
+      <section id="revisar-respaldo" data-grh-backup-review data-requires-any-capability="lineage.read" hidden></section>
 
       <main id="content" hidden>
         <section class="page-head" aria-labelledby="pageTitle">

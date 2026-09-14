@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
+import { inspectCuratedReplay, safeRrhhImportError } from './lib/rrhh-import-replay.mjs';
 
 const DATA_DIR = new URL('../rrhh-data/', import.meta.url);
 const MANIFEST_FILE = 'curated-manifest.json';
@@ -121,8 +122,8 @@ function activeUnionWorkplaces(employee, cutoffDate) {
   return [...new Set(activeWorkplaces)].join('; ') || null;
 }
 
-async function readAndVerifySources() {
-  const manifestBuffer = await readFile(new URL(MANIFEST_FILE, DATA_DIR));
+export async function readAndVerifySources(dataDir = DATA_DIR) {
+  const manifestBuffer = await readFile(new URL(MANIFEST_FILE, dataDir));
   const manifest = JSON.parse(manifestBuffer.toString('utf8'));
   const manifestSha256 = createHash('sha256').update(manifestBuffer).digest('hex').toUpperCase();
   const datasets = {};
@@ -133,7 +134,7 @@ async function readAndVerifySources() {
       throw new Error(`El manifiesto no describe correctamente ${outputName}/${fileName}`);
     }
 
-    const fileUrl = new URL(fileName, DATA_DIR);
+    const fileUrl = new URL(fileName, dataDir);
     const [buffer, fileStat] = await Promise.all([readFile(fileUrl), stat(fileUrl)]);
     const sha256 = createHash('sha256').update(buffer).digest('hex').toUpperCase();
     if (sha256 !== output.sha256) {
@@ -343,7 +344,6 @@ async function verifyDatabaseCounts(client, expectedCatalogCounts) {
 }
 
 async function main() {
-  const startedAt = process.hrtime.bigint();
   process.loadEnvFile?.('.env.local');
   const databaseUrl = process.env.DATABASE_URL_UNPOOLED;
   if (!databaseUrl) throw new Error('Falta DATABASE_URL_UNPOOLED en .env.local');
@@ -353,6 +353,13 @@ async function main() {
   }
 
   const source = await readAndVerifySources();
+  return importCuratedRrhh({ client: new Client({ connectionString: databaseUrl }), source });
+}
+
+// Dependencies are injected for offline tests; only the CLI loads private files
+// and resolves credentials. `source` must come from readAndVerifySources().
+export async function importCuratedRrhh({ client, source, log = console.log }) {
+  const startedAt = process.hrtime.bigint();
   const { manifest, manifestSha256, datasets, embeddedMemberships } = source;
   const cutoffTimestamp = requiredText(manifest.source?.dumpCompletedAt, 'manifest.source.dumpCompletedAt');
   const cutoffDate = cutoffTimestamp.slice(0, 10);
@@ -396,7 +403,6 @@ async function main() {
     mappingNotes: manifest.mappingNotes ?? [],
   };
 
-  const client = new Client({ connectionString: databaseUrl });
   let runId = null;
   let inTransaction = false;
   let committed = false;
@@ -406,6 +412,33 @@ async function main() {
     await client.connect();
     await client.query('SELECT pg_advisory_lock(hashtext($1))', [LOCK_NAME]);
     lockAcquired = true;
+
+    const expectedCounts = {
+      employees: EXPECTED_COUNTS.employees, absences: EXPECTED_COUNTS.absences,
+      leaves: EXPECTED_COUNTS.leaves, family: EXPECTED_COUNTS.familyMembers,
+      catalog_rows: Object.values(expectedCatalogCounts).reduce((sum, count) => sum + count, 0),
+      catalogs: expectedCatalogCounts,
+    };
+    const replay = await inspectCuratedReplay(client, {
+      sourceName: SOURCE_NAME, sourceSha256, sourceDatabase: manifest.source?.database,
+      cutoff: cutoffTimestamp, qualityFlags,
+      tableCounts: { ...expectedCounts, critical: EXPECTED_COUNTS, source: sourceCounts },
+    }, existingRunId => ({
+      grh_employees: mapEmployees(datasets.employees, existingRunId, cutoffDate),
+      grh_absences: mapAbsences(datasets.absences, existingRunId),
+      grh_leaves: mapLeaves(datasets.leaves, existingRunId),
+      grh_family: mapFamily(datasets.familyMembers, existingRunId),
+      grh_catalog_rows: mapCatalogs(datasets, existingRunId),
+    }));
+    if (replay.action === 'noop') {
+      const evidence = {
+        status: 'noop', reason: 'exact_replay', importRunId: replay.importRunId,
+        sourceSha256, manifestSha256, cutoff: cutoffTimestamp, counts: expectedCounts,
+        scope: 'curated_import_only', writesPerformed: false,
+      };
+      log(JSON.stringify(evidence, null, 2));
+      return evidence;
+    }
 
     const runResult = await client.query(
       `INSERT INTO data_import_runs
@@ -505,7 +538,7 @@ async function main() {
     inTransaction = false;
     committed = true;
 
-    console.log(
+    log(
       JSON.stringify(
         {
           status: 'completed',
@@ -538,7 +571,7 @@ async function main() {
           `UPDATE data_import_runs
            SET status = 'failed', completed_at = now(), error_message = $2
            WHERE id = $1`,
-          [runId, String(error?.message ?? error).slice(0, 4000)],
+          [runId, safeRrhhImportError(error).code],
         );
       } catch {
         // Preserve and rethrow the original import error.
@@ -560,5 +593,8 @@ async function main() {
 // Importing the pure mapper for offline verification must not read credentials,
 // load private artifacts or start a database import.
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  await main();
+  try { await main(); } catch (error) {
+    console.error(JSON.stringify(safeRrhhImportError(error)));
+    process.exitCode = 1;
+  }
 }
