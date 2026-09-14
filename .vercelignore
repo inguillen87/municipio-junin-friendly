@@ -160,3 +160,5 @@ local-agents/
 !scripts/migrations/055-pm10-continuous-reception.sql
 !scripts/migrations/057-family-schooling-certificates.sql
 !scripts/migrations/058-payroll-monthly-source-summary.sql
+!scripts/migrations/059-action-source-history.sql
+!scripts/rollback/059-action-source-history.sql

@@ -66,3 +66,4 @@ jobs:
           node scripts/verify-family-schooling-browser.mjs
           node scripts/verify-payroll-monthly-summary-browser.mjs
           node scripts/verify-grh-backup-review-browser.mjs
+          node scripts/verify-action-history-browser.mjs

@@ -801,6 +801,7 @@
         pageInfo: {},
         currentPage: 1,
         selected: null,
+        detailSequence: 0,
         wizardStep: 1,
         editing: null,
         initialSubjects: [],
@@ -1204,6 +1205,48 @@
 
       function isNominalProjection(value) { return value === 'nominal' || value === 'restricted_nominal'; }
 
+      function normalizeSourceContext(row) {
+        if (!Object.prototype.hasOwnProperty.call(row, 'sourceContext')) return null;
+        var source = object(row.sourceContext);
+        var instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+        if (Object.keys(source).length !== 3 || !['current','historical_read_only'].includes(source.status)
+            || !['sourceCutoffAt','currentCutoffAt'].every(function (key) { return typeof source[key] === 'string' && instant.test(source[key]) && Number.isFinite(Date.parse(source[key])); })) {
+          return { status: 'unverified' };
+        }
+        return { status: source.status, sourceCutoffAt: source.sourceCutoffAt, currentCutoffAt: source.currentCutoffAt };
+      }
+
+      var sourceDateFormatter = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      function sourceDate(value) { return sourceDateFormatter.format(new Date(value)); }
+      function sourceReadOnly(action) { return Boolean(action && (action.revalidationRequired || action.sourceContext && action.sourceContext.status !== 'current')); }
+      function sourceLabel(action) { return action.sourceContext && action.sourceContext.status === 'historical_read_only' ? 'Respaldo anterior · Sólo consulta' : 'Procedencia no confirmada · Sólo consulta'; }
+      function actionNextStep(action) {
+        if (action.revalidationRequired) return 'Actualizar detalle antes de continuar';
+        if (sourceReadOnly(action)) return 'Consultar historial';
+        if (!isNominalProjection(action.projection)) return action.status === 'approved' ? 'Controlar novedad aprobada' : 'Controlar el estado informado';
+        return action.type === 'overtime_entry' ? overtimeNextAction(action.status) : action.nextAction || action.stage || 'No informada';
+      }
+      function appendSourceContext(detail) {
+        if (!detail.sourceContext && !detail.revalidationRequired) return;
+        var section = create('section','detail-section'); section.dataset.actionSource = '';
+        var source = detail.sourceContext;
+        if (source) {
+          section.append(create('h3','',source.status === 'current' ? 'Respaldo de esta acción' : sourceLabel(detail)));
+          if (source.status === 'historical_read_only') section.appendChild(create('p','section-copy','Esta acción conserva su estado e historial. Corresponde a un respaldo anterior y no permite editar, enviar, aprobar, rechazar ni cancelar desde esta consulta.'));
+          if (source.status === 'unverified') section.appendChild(create('p','section-copy','No pudimos confirmar el respaldo de esta acción. Las operaciones permanecen bloqueadas.'));
+          if (source.sourceCutoffAt) {
+            var dates = create('dl','facts');
+            dates.append(fact('Fecha del respaldo de origen',sourceDate(source.sourceCutoffAt)), fact('Fecha del respaldo actual',sourceDate(source.currentCutoffAt)));
+            section.append(dates,create('p','section-copy','Fechas y horas de Argentina. La fecha del respaldo no es la fecha de creación ni de aprobación de la acción.'));
+          }
+        }
+        if (detail.revalidationRequired) {
+          section.appendChild(create('p','decision-warning','Mostramos la última consulta disponible. No se pudo actualizar el detalle; las operaciones permanecen bloqueadas hasta consultar nuevamente.'));
+          var retry = create('button','button','Actualizar detalle'); retry.type = 'button'; retry.addEventListener('click',function () { openAction(detail.id,detail.type); }); section.appendChild(retry);
+        }
+        el.actionDialogBody.appendChild(section);
+      }
+
       function normalizeAction(item, projectionCeiling) {
         var row = firstObject(item.action, item.case, item);
         var id = text(first(row.id, row.caseId, row.actionId));
@@ -1220,6 +1263,7 @@
           type: caseType,
           title: nominal ? text(first(row.title, row.label, row.summary)) : '',
           projection: projection,
+          sourceContext: normalizeSourceContext(row),
           subjectName: nominal ? text(first(subject.displayName, subject.name, subject.nombre, row.subjectName), 'Identidad no informada') : '',
           subjectContractId: nominal ? text(first(subject.contractId, subject.id, row.beneficiaryContractId)) : '',
           status: lower(first(row.status, row.state, 'pending')),
@@ -1335,7 +1379,7 @@
           },
           evidence: nominal ? firstArray(root.evidence, row.evidence, row.attachments, payload && payload.evidence).map(normalizeEvidence) : [],
           timeline: nominal ? firstArray(root.timeline, row.timeline, payload && payload.timeline, root.transitions, row.transitions, payload && payload.transitions, root.events, row.events, payload && payload.events).map(base.type === 'overtime_entry' ? normalizeOvertimeTimeline : normalizeTimeline) : [],
-          allowedCommands: allowed,
+          allowedCommands: sourceReadOnly(base) ? [] : allowed,
           actors: nominal && base.type === 'leave_request' ? {
             createdBy: text(actors.createdBy),
             submittedBy: text(actors.submittedBy),
@@ -1823,6 +1867,10 @@
           row.dataset.projection = action.projection;
           row.tabIndex = -1;
           var number = create('div'); number.append(create('strong','cell-title',action.displayId), create('span','cell-sub', action.updatedAt ? 'Act. ' + formatDateTime(action.updatedAt) : 'Sin actualización informada'));
+          if (action.sourceContext) {
+            if (sourceReadOnly(action)) number.appendChild(create('span','cell-sub',sourceLabel(action)));
+            if (action.sourceContext.sourceCutoffAt) number.appendChild(create('span','cell-sub','Respaldo: ' + sourceDate(action.sourceContext.sourceCutoffAt) + ' · Argentina'));
+          }
           appendCell(row, 'Número', number);
           var subject = create('div');
           subject.append(
@@ -1833,9 +1881,7 @@
           );
           appendCell(row, 'Tipo y alcance', subject);
           appendCell(row, 'Estado', create('span','state-pill ' + statusClass(action.status),statusLabel(action.status)));
-          appendCell(row, 'Próxima acción', isNominalProjection(action.projection)
-            ? (action.type === 'overtime_entry' ? overtimeNextAction(action.status) : action.nextAction || action.stage || 'No informada')
-            : action.status === 'approved' ? 'Controlar novedad aprobada' : 'Controlar el estado informado');
+          appendCell(row, 'Próxima acción', actionNextStep(action));
           var open = create('button','button open-row','Abrir'); open.type = 'button'; open.dataset.openAction = action.id; open.setAttribute('aria-label','Abrir ' + action.displayId);
           appendCell(row, 'Abrir', open);
           row.addEventListener('dblclick', function () { openAction(action.id); });
@@ -1958,7 +2004,7 @@
         return false;
       }
 
-      function commandAllowed(detail, command) { return detail.allowedCommands.includes(command) && capabilityForCommand(detail, command); }
+      function commandAllowed(detail, command) { return !sourceReadOnly(detail) && detail.allowedCommands.includes(command) && capabilityForCommand(detail, command); }
 
       function approvalEvidenceOptions(detail) {
         var configured = state.bootstrap.approvalEvidenceByConfidentiality;
@@ -1970,6 +2016,11 @@
       }
 
       function commandPanelContext(detail, commands) {
+        if (sourceReadOnly(detail)) return {
+          title: detail.revalidationRequired ? 'Actualizar antes de operar' : sourceLabel(detail),
+          copy: 'El estado administrativo se conserva tal como fue registrado. Esta consulta no habilita nuevas decisiones.',
+          empty: detail.revalidationRequired ? 'Actualizá el detalle para volver a comprobar las operaciones disponibles.' : 'Podés consultar la información autorizada; no hay operaciones habilitadas sobre esta acción.'
+        };
         if(detail.type==='overtime_entry')return {
           title:'Siguiente paso operativo',
           copy:'Cada botón exige allowedCommands vigente, capacidad explícita y, para la carga, responsabilidad exclusiva activa.',
@@ -2042,6 +2093,7 @@
         );
         banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
         el.actionDialogBody.appendChild(banner);
+        appendSourceContext(detail);
         el.actionDialogBody.appendChild(create('p','projection-note','Privacidad por función: esta proyección no contiene identidad, legajo, sector, notas, actores, historial ni comandos administrativos.'));
 
         var request = create('section','detail-section');
@@ -2128,9 +2180,10 @@
 
         var banner = create('div','detail-banner');
         var bannerCopy = create('div');
-        bannerCopy.append(create('strong','','Declaración de mayor esfuerzo'), create('p','',overtimeNextAction(detail.status)));
+        bannerCopy.append(create('strong','','Declaración de mayor esfuerzo'), create('p','',actionNextStep(detail)));
         banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
         el.actionDialogBody.appendChild(banner);
+        appendSourceContext(detail);
         el.actionDialogBody.appendChild(create('p','projection-note','Acceso nominal restringido: la identidad sólo se muestra porque esta sesión posee lectura explícita de mayor esfuerzo. La declaración no incluye tarifa, importe ni cálculo salarial.'));
 
         var grid = create('div','detail-grid');
@@ -2251,9 +2304,10 @@
         var bannerTitle = detail.status === 'approved'
           ? 'Licencia aprobada y registrada'
           : detail.status === 'rejected' ? 'Solicitud rechazada y registrada' : detail.title || typeLabel(detail.type);
-        var bannerCopy = create('div'); bannerCopy.append(create('strong','',bannerTitle), create('p','',detail.nextAction || detail.stage || 'Próxima acción no informada'));
+        var bannerCopy = create('div'); bannerCopy.append(create('strong','',bannerTitle), create('p','',actionNextStep(detail)));
         banner.append(bannerCopy, create('span','state-pill ' + statusClass(detail.status),statusLabel(detail.status)));
         el.actionDialogBody.appendChild(banner);
+        appendSourceContext(detail);
 
         var grid = create('div','detail-grid');
         var left = create('div');
@@ -2297,16 +2351,31 @@
         var summary = state.actions.find(function (action) { return action.id === id; });
         var projectionCeiling = summary && summary.projection;
         var previousDetail = state.selected && state.selected.id === id ? state.selected : null;
+        var sequence = ++state.detailSequence;
+        state.selected = null;
         state.lastFocus = document.activeElement;
         el.actionDialogTitle.textContent = 'Consultando acción'; el.actionDialogSubtitle.textContent = 'Cargando estado y trazabilidad.';
         clear(el.actionDialogBody); delete el.actionDialogBody.dataset.projection; var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
         if (!el.actionDialog.open) el.actionDialog.showModal();
         var caseType = caseTypeHint === 'overtime_entry' || (summary && summary.type === 'overtime_entry') ? 'overtime_entry' : 'leave_request';
-        try { renderActionDetail(normalizeDetail(await actionGet('detail',{ caseType: caseType, id: id }), projectionCeiling)); }
-        catch (error) { if (error.unauthorized) return; if (isActionBusy(error) && previousDetail) { renderActionDetail(previousDetail); toast(ACTION_BUSY_COPY,'error'); return; } clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',isActionBusy(error)?ACTION_BUSY_COPY:error.message)); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false'); }
+        try {
+          var loadedDetail = normalizeDetail(await actionGet('detail',{ caseType: caseType, id: id }), projectionCeiling);
+          if (sequence !== state.detailSequence || !el.actionDialog.open) return;
+          if (summary && sourceReadOnly(summary) && !sourceReadOnly(loadedDetail)) {
+            loadedDetail = Object.assign({},loadedDetail,{ sourceContext: summary.sourceContext, allowedCommands: [], revalidationRequired: true });
+          }
+          renderActionDetail(loadedDetail);
+        } catch (error) {
+          if (error.unauthorized || sequence !== state.detailSequence || !el.actionDialog.open) return;
+          if (previousDetail && ((error.status === 409 && isActionBusy(error)) || !error.status || error.status >= 500)) {
+            renderActionDetail(Object.assign({},previousDetail,{ allowedCommands: [], revalidationRequired: true }));
+            toast('No se pudo actualizar el detalle. Conservamos la consulta con las operaciones bloqueadas.','error'); return;
+          }
+          clear(el.actionDialogBody); var failed = create('div','error-state'); failed.append(create('strong','','No pudimos abrir la acción'),create('p','',isActionBusy(error)?ACTION_BUSY_COPY:'No se pudo confirmar el acceso al detalle. Volvé a consultar la bandeja.')); el.actionDialogBody.appendChild(failed); el.actionDialogBody.setAttribute('aria-busy','false');
+        }
       }
 
-      function closeActionDialog() { if (el.actionDialog.open) el.actionDialog.close(); if (state.lastFocus && typeof state.lastFocus.focus === 'function') state.lastFocus.focus(); }
+      function closeActionDialog() { state.detailSequence += 1; if (el.actionDialog.open) el.actionDialog.close(); if (state.lastFocus && typeof state.lastFocus.focus === 'function') state.lastFocus.focus(); }
 
       function renderDetailRefreshFailure(caseId,error) {
         state.selected=null;
@@ -2387,6 +2456,7 @@
 
       async function executeTransition(command, form) {
         var detail=state.selected; if(!detail || detail.version===null){toast('El backend no informó la versión esperada. La transición fue bloqueada.','error');return;}
+        if (!commandAllowed(detail,command)) { toast('La operación no está habilitada. Actualizá el detalle antes de continuar.','error'); return; }
         var overtime=detail.type==='overtime_entry';
         var body={caseType:overtime?'overtime_entry':'leave_request',command:command,caseId:detail.id,expectedVersion:detail.version};
         if(overtime){
