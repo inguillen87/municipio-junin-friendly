@@ -4,11 +4,14 @@ import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 import { inspectCuratedReplay, safeRrhhImportError } from './lib/rrhh-import-replay.mjs';
+import { getGrhSourceProfile, defaultGrhSourceProfile } from './lib/grh-source-profile.mjs';
 
 const DATA_DIR = new URL('../rrhh-data/', import.meta.url);
 const MANIFEST_FILE = 'curated-manifest.json';
 const LOCK_NAME = 'municipio-junin-friendly:rrhh-curated-import:v1';
 const SOURCE_NAME = 'grh_junin_curated';
+// Default profile selection is independent of the authorized writer contract.
+const WRITE_ENABLED_PROFILE = 'grh-junin-2026-08-06';
 
 const EXPECTED_COUNTS = Object.freeze({
   employees: 2450,
@@ -122,9 +125,25 @@ function activeUnionWorkplaces(employee, cutoffDate) {
   return [...new Set(activeWorkplaces)].join('; ') || null;
 }
 
-export async function readAndVerifySources(dataDir = DATA_DIR) {
+export async function readAndVerifySources(dataDir = DATA_DIR, { profileId = defaultGrhSourceProfile().id } = {}) {
+  const profile = getGrhSourceProfile(profileId);
   const manifestBuffer = await readFile(new URL(MANIFEST_FILE, dataDir));
   const manifest = JSON.parse(manifestBuffer.toString('utf8'));
+  if (manifest.profile !== profile.curated.profileId
+      || manifest.source?.sha256?.toUpperCase() !== profile.source.sha256
+      || manifest.source?.database !== profile.source.database
+      || manifest.source?.dumpCompletedAt?.replace(' ', 'T') !== profile.source.cutoff
+      || manifest.source?.sizeBytes !== profile.source.logicalBytes
+      || manifest.validation?.strictSnapshot !== true) {
+    throw Object.assign(new Error('RRHH_IMPORT_SOURCE_PROFILE_MISMATCH'), { code: 'RRHH_IMPORT_SOURCE_PROFILE_MISMATCH' });
+  }
+  for (const [name, expected] of Object.entries(profile.curated.expectedCounts)) {
+    const counts = manifest.validation.sourceCounts?.[name];
+    if (counts?.actual !== expected || counts.expected !== expected
+        || counts.distinctPrimaryKeys !== expected || counts.duplicatePrimaryKeyRows !== 0) {
+      throw Object.assign(new Error('RRHH_IMPORT_SOURCE_COUNTS_MISMATCH'), { code: 'RRHH_IMPORT_SOURCE_COUNTS_MISMATCH' });
+    }
+  }
   const manifestSha256 = createHash('sha256').update(manifestBuffer).digest('hex').toUpperCase();
   const datasets = {};
 
@@ -151,7 +170,7 @@ export async function readAndVerifySources(dataDir = DATA_DIR) {
     datasets[outputName] = records;
   }
 
-  for (const [outputName, expected] of Object.entries(EXPECTED_COUNTS)) {
+  for (const [outputName, expected] of Object.entries(profile.curated.expectedOutputCounts)) {
     const actual = datasets[outputName]?.length;
     if (actual !== expected) {
       throw new Error(`Conteo crítico inválido en ${outputName}: ${actual} != ${expected}`);
@@ -168,7 +187,7 @@ export async function readAndVerifySources(dataDir = DATA_DIR) {
     );
   }
 
-  return { manifest, manifestSha256, datasets, embeddedMemberships };
+  return { manifest, manifestSha256, datasets, embeddedMemberships, profileId: profile.id };
 }
 
 function makeMultiRowInsert(table, columns, rows, casts = {}) {
@@ -360,6 +379,9 @@ async function main() {
 // and resolves credentials. `source` must come from readAndVerifySources().
 export function prepareCuratedImport(source) {
   const { manifest, manifestSha256, datasets, embeddedMemberships } = source;
+  const profile = getGrhSourceProfile(manifest.profile);
+  const critical = Object.fromEntries(Object.keys(EXPECTED_COUNTS)
+    .map((key) => [key, profile.curated.expectedOutputCounts[key]]));
   const cutoffTimestamp = requiredText(manifest.source?.dumpCompletedAt, 'manifest.source.dumpCompletedAt');
   const cutoffDate = cutoffTimestamp.slice(0, 10);
   const sourceSha256 = requiredText(manifest.source?.sha256, 'manifest.source.sha256');
@@ -403,15 +425,15 @@ export function prepareCuratedImport(source) {
   };
 
   const expectedCounts = {
-    employees: EXPECTED_COUNTS.employees, absences: EXPECTED_COUNTS.absences,
-    leaves: EXPECTED_COUNTS.leaves, family: EXPECTED_COUNTS.familyMembers,
+    employees: critical.employees, absences: critical.absences,
+    leaves: critical.leaves, family: critical.familyMembers,
     catalog_rows: Object.values(expectedCatalogCounts).reduce((sum, count) => sum + count, 0),
     catalogs: expectedCatalogCounts,
   };
   return {
     expected: { sourceName: SOURCE_NAME, sourceSha256, sourceDatabase: manifest.source?.database,
       cutoff: cutoffTimestamp, qualityFlags,
-      tableCounts: { ...expectedCounts, critical: EXPECTED_COUNTS, source: sourceCounts } },
+      tableCounts: { ...expectedCounts, critical, source: sourceCounts } },
     projectTables: existingRunId => ({
       grh_employees: mapEmployees(datasets.employees, existingRunId, cutoffDate),
       grh_absences: mapAbsences(datasets.absences, existingRunId),
@@ -425,6 +447,9 @@ export function prepareCuratedImport(source) {
 }
 
 export async function importCuratedRrhh({ client, source, log = console.log }) {
+  if (source?.manifest?.profile !== WRITE_ENABLED_PROFILE) {
+    throw Object.assign(new Error('RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED'), { code: 'RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED' });
+  }
   const startedAt = process.hrtime.bigint();
   const { datasets } = source;
   const { expected, projectTables, expectedCounts, expectedCatalogCounts, sourceCounts, qualityFlags,

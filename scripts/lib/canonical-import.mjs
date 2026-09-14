@@ -212,8 +212,11 @@ export async function readVerifiedJson(path, descriptor, label) {
  * It deliberately rejects minified/multiline records so a changed producer
  * cannot be imported under an accidentally weaker parser contract.
  */
-export async function* streamDeterministicJsonArray(path) {
-  const input = createReadStream(path, { encoding: 'utf8' });
+export async function* streamDeterministicJsonArray(path, descriptor = null) {
+  const input = createReadStream(path);
+  const digest = descriptor ? createHash('sha256') : null;
+  let bytes = 0;
+  if (digest) input.on('data', chunk => { digest.update(chunk); bytes += chunk.length; });
   const lines = createInterface({ input, crlfDelay: Infinity });
   let opened = false;
   let closed = false;
@@ -246,6 +249,12 @@ export async function* streamDeterministicJsonArray(path) {
     yield record;
   }
   if (!opened || !closed) throw new Error(`${path}: array JSON incompleto`);
+  // Digest the exact bytes that produced the compared records, not a separate
+  // pass that could miss a file changed and restored between reads.
+  if (descriptor && (descriptor.bytes !== bytes || descriptor.records !== rowNumber
+      || digest.digest('hex').toUpperCase() !== descriptor.sha256?.toUpperCase())) {
+    throw Object.assign(new Error('GRH_CORE_STREAM_CONTENT_CHANGED'), { code: 'GRH_CORE_STREAM_CONTENT_CHANGED' });
+  }
 }
 
 export async function verifyStreamArtifact(path, descriptor, label) {

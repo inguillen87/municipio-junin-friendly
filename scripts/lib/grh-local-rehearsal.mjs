@@ -106,12 +106,13 @@ async function fingerprint(client) {
 }
 
 /** Always roll back. The caller must supply an idle, dedicated local connection. */
-export async function runLocalRollbackRehearsal({ client, operation }) {
+export async function runLocalRollbackRehearsal({ client, operation, maximumSequenceAdvances = {} }) {
   const report = {
     version: 'grh-local-publication-rehearsal.v1', status: 'blocked',
     committed: false, productionWrites: false, sourceRefreshAuthorized: false,
     localTargetVerified: false, transactionStarted: false, rollbackConfirmed: false,
     tablesUnchanged: null, sequencesUnchanged: null,
+    sequenceAdvances: {}, sequenceAdvancesWithinPolicy: null,
   };
   let before;
   let stage = 'target';
@@ -121,6 +122,14 @@ export async function runLocalRollbackRehearsal({ client, operation }) {
     await verifyLocalRehearsalTarget(client);
     report.localTargetVerified = true;
     if (typeof operation !== 'function') reject('GRH_REHEARSAL_OPERATION_REQUIRED');
+    if (!maximumSequenceAdvances || Array.isArray(maximumSequenceAdvances)
+        || typeof maximumSequenceAdvances !== 'object'
+        || Object.entries(maximumSequenceAdvances).some(([name, maximum]) =>
+          !['data_import_runs_id_seq', 'data_quality_issue_id_seq'].includes(name)
+          || !Number.isSafeInteger(maximum) || maximum < 0 || maximum > 1000)) {
+      reject('GRH_REHEARSAL_SEQUENCE_POLICY_INVALID');
+    }
+    maximumSequenceAdvances = Object.freeze({ ...maximumSequenceAdvances });
     // A dedicated connection is required: do not roll back a caller's pending work.
     // SAVEPOINT succeeds only when a transaction is already in progress.
     let alreadyInTransaction = false;
@@ -186,7 +195,18 @@ export async function runLocalRollbackRehearsal({ client, operation }) {
       const after = await fingerprint(client);
       report.tablesUnchanged = JSON.stringify(after.tables) === JSON.stringify(before.tables);
       report.sequencesUnchanged = JSON.stringify(after.sequences) === JSON.stringify(before.sequences);
-      if (!report.tablesUnchanged || !report.sequencesUnchanged) {
+      let sequencePolicyValid = Object.keys(before.sequences).join('|') === Object.keys(after.sequences).join('|');
+      for (const [name, previous] of Object.entries(before.sequences)) {
+        const next = after.sequences[name];
+        if (!next || (previous.is_called && !next.is_called)
+            || (!next.is_called && previous.last_value !== next.last_value)) { sequencePolicyValid = false; continue; }
+        const delta = BigInt(next.last_value) - BigInt(previous.last_value)
+          + (!previous.is_called && next.is_called ? 1n : 0n);
+        if (delta < 0n || delta > BigInt(maximumSequenceAdvances[name] ?? 0)) sequencePolicyValid = false;
+        if (delta !== 0n) report.sequenceAdvances[name] = delta.toString();
+      }
+      report.sequenceAdvancesWithinPolicy = sequencePolicyValid;
+      if (!report.tablesUnchanged || !sequencePolicyValid) {
         report.status = 'verification-failed';
         report.code = 'GRH_REHEARSAL_STATE_CHANGED';
       }

@@ -54,5 +54,5 @@ test('reconciliación no inventa causas de negocio para los 28 casos', async () 
   assert.match(source, /active_not_liquidated_previous_cycle/);
   assert.match(source, /active_not_liquidated_historical/);
   assert.doesNotMatch(source, /suspended|leave_without_pay|pending_termination/);
-  assert.match(source, /reconciled against the open August payroll snapshot/);
+  assert.match(source, /snapshot membership does not certify calculation or payment/);
 });

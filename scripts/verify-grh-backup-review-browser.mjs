@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { backupReviewFixture } from '../tests/fixtures/grh-backup-review-synthetic.js';
+import { coreReviewFixture } from '../tests/fixtures/grh-core-review-synthetic.js';
 
 const publishedOrigin = process.env.BACKUP_REVIEW_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'PUBLISHED_ORIGIN_NOT_ALLOWED');
@@ -75,6 +76,46 @@ try {
   checks.push('desktop and 390px mobile preserve labels, readable controls and contained table scrolling');
   await select(backupReviewFixture({ unchanged: true })); await open(); assert.match(await panel.locator('[data-br-verdict]').innerText(), /Sin diferencias.*no certifica todo GRH/); assert.equal(await panel.locator('[data-br-changed]').innerText(), '0');
   checks.push('zero detected changes never becomes a promotion approval or a whole-GRH reconciliation');
+  const beforeCoreChoice = requests.length; await select(coreReviewFixture()); assert.equal(requests.length, beforeCoreChoice);
+  const beforeCoreOpen = authCount; await open(); assert.ok(authCount > beforeCoreOpen);
+  assert.equal(await panel.locator('[data-br-result]').isVisible(), true); assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
+  assert.equal(await panel.locator('[data-br-added]').innerText(), '10'); assert.equal(await panel.locator('[data-br-removed]').innerText(), '5'); assert.equal(await panel.locator('[data-br-changed]').innerText(), '15');
+  assert.equal(await panel.locator('[data-br-changed-label]').innerText(), 'Registros modificados · 5 conjuntos');
+  assert.match(await panel.locator('[data-br-core-corrections]').innerText(), /4 registros conservan su clave y tienen contenido distinto/);
+  assert.match(await panel.locator('[data-br-issues]').innerText(), /24 registros conservan su clave/);
+  assert.match(await panel.locator('[data-br-limit]').innerText(), /no autoriza cargar o reemplazar datos, pagar ni dar de baja/);
+  assert.match(await panel.locator('[data-br-candidate]').innerText(), /10\/09\/2026 15:45:00.*zona horaria no informada/);
+  assert.ok((await panel.locator('[data-br-trace]').innerText()).includes(createHash('sha256').update(bytes(coreReviewFixture())).digest('hex')));
+  assert.match(await panel.locator('[data-br-trace]').innerText(), /no miden el espacio ocupado/);
+  checks.push('five-domain core comparison displays exact record totals and monthly corrections from the report, with no payment or personnel-termination claim');
+  await evidence('grh-core-review-desktop-qa', 1440, '#revisar-respaldo'); await evidence('grh-core-review-mobile-qa', 390, '#revisar-respaldo');
+  await evidence('grh-core-review-result-mobile-qa', 390, '[data-br-result]');
+  await evidence('grh-core-review-detail-desktop-qa', 1440, '[data-br-core-corrections]');
+  await evidence('grh-core-review-detail-mobile-qa', 390, '[data-br-core-corrections]');
+  assert.ok(await panel.locator('[data-br-table-region]').evaluate(n => n.scrollWidth > n.clientWidth), 'MOBILE_TABLE_MUST_SCROLL_INSIDE_PANEL');
+  await panel.locator('[data-br-table-region]').evaluate(n => { n.scrollLeft = n.scrollWidth; });
+  assert.ok(await panel.locator('[data-br-table-region]').evaluate(n => n.scrollLeft > 0));
+  await page.setViewportSize({ width: 1440, height: 1050 });
+  checks.push('core report remains readable on desktop and 390px mobile with contained accessible table scrolling');
+  await select(coreReviewFixture({ unchanged: true })); await open();
+  assert.match(await panel.locator('[data-br-verdict]').innerText(), /Sin diferencias.*no certifica todo GRH/);
+  assert.match(await panel.locator('[data-br-core-corrections]').innerText(), /0 registros/);
+  for (const mutate of [p => p.people = [{ nombre: 'PRIVATE_NOMINAL_MARKER' }], p => p.candidate.path = 'PRIVATE_NOMINAL_MARKER',
+    p => p.artifacts.movements.employeeName = 'PRIVATE_NOMINAL_MARKER', p => p.semantics.keys = 'PRIVATE_NOMINAL_MARKER',
+    p => p.artifacts.payrollMonthly.changed++, p => p.semantics.monthlyHistoryKeyOverlap++, p => p.publicationAuthorized = true]) {
+    const report = coreReviewFixture(); mutate(report); await select(report); await open();
+    assert.equal(await panel.locator('[data-br-result]').isVisible(), false); assert.match(await state.innerText(), /no cumple el contrato/);
+    assert.doesNotMatch(await page.locator('body').innerText(), /PRIVATE_NOMINAL_MARKER/); assert.equal(await input.evaluate(n => n.files.length), 1);
+  }
+  checks.push('core report rejects nominal fields, private paths, inconsistent totals and invented publication claims while preserving the selection');
+  await select(coreReviewFixture()); authStatus = 503; await open(); assert.equal(await input.evaluate(n => n.files.length), 1);
+  assert.equal(await panel.locator('[data-br-open]').isEnabled(), true); authStatus = 200; await open();
+  assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
+  await select(); await open(); assert.equal(await panel.locator('[data-br-domains] tr').count(), 7);
+  assert.equal(await panel.locator('[data-br-core-corrections]').isVisible(), false);
+  assert.equal(await panel.locator('[data-br-changed-label]').innerText(), 'Registros modificados · 7 tablas');
+  assert.match(await panel.locator('[data-br-limit]').innerText(), /detalle de las liquidaciones/);
+  checks.push('retry preserves a core selection and switching back restores the complete seven-table review');
   for (const mutate of [p => p.people = [{ name: 'PRIVATE_NOMINAL_MARKER' }], p => p.issues[0].code = 'PRIVATE_NOMINAL_MARKER', p => p.candidate.path = 'PRIVATE_NOMINAL_MARKER']) {
     const p = backupReviewFixture(); mutate(p); await select(p); await open(); assert.equal(await panel.locator('[data-br-result]').isVisible(), false); assert.match(await state.innerText(), /no cumple el contrato/); assert.doesNotMatch(await page.locator('body').innerText(), /PRIVATE_NOMINAL_MARKER/);
     assert.equal(await input.evaluate(n => n.files.length), 1);
@@ -95,6 +136,7 @@ try {
   await open(); assert.match(await state.innerText(), /Conservamos la selección/); assert.doesNotMatch(await page.locator('body').innerText(), /PRIVATE_NOMINAL_MARKER/); assert.equal(await input.evaluate(n => n.files.length), 1);
   await page.evaluate(() => { FileReader.prototype.readAsArrayBuffer = window.qaOriginalFileRead; delete window.qaOriginalFileRead; }); await open(); assert.equal(await panel.locator('[data-br-result]').isVisible(), true);
   checks.push('malformed session JSON and unexpected local-file exceptions never reveal server text or personal filenames');
+  await select(coreReviewFixture()); await open(); assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
   lineage = false; await open(); assert.equal(await panel.isVisible(), false); assert.equal(await input.evaluate(n => n.files.length), 0); assert.equal(await panel.locator('[data-br-domains] tr').count(), 0);
   checks.push('revoked lineage permission removes the report and file selection before reading again');
   await load(); assert.equal(await panel.isVisible(), false); assert.match(await page.locator('#backupReviewAccessNotice').innerText(), /permiso vigente/);
@@ -115,7 +157,7 @@ try {
   assert.ok(authCount > beforeBack); assert.equal(await panel.locator('[data-br-result]').isVisible(), false); assert.equal(await input.evaluate(n => n.files.length), 0);
   checks.push('bfcache restoration restarts the existing access gate without replaying a local file');
   assert.ok(requests.every(r => r.method === 'GET' && r.body === null));
-  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
+  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
   assert.ok(requests.filter(r => new URL(r.url).pathname.startsWith('/api/')).every(r => ['/api/internal-auth', '/api/internal-data'].includes(new URL(r.url).pathname)));
   checks.push('all network requests are content-free GETs; no filename, report, backup hash, nominal marker or upload leaves the browser');
   assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);

@@ -32,7 +32,7 @@ SELECT md5('source_import_batch|GRH|' || upper(source_sha256))::uuid,
        jsonb_build_object(
          'legacyTableCounts', table_counts,
          'legacyQualityFlags', quality_flags,
-         'promotionProfile', 'current-curated-grh-v1'
+         'promotionProfile', 'explicit-curated-grh-v2'
        )
 FROM selected_run
 WHERE source_cutoff IS NOT NULL
@@ -260,6 +260,39 @@ SELECT md5('person_identity|GRH|persona|' || people.person_id::text)::uuid,
 FROM people CROSS JOIN batch
 ON CONFLICT (id) DO NOTHING;
 
+-- Version only verified GRH references in the selected employment cohort.
+-- Historical references retain their original batch and target.
+WITH batch AS (
+  SELECT sib.id, sib.source_cutoff
+  FROM source_import_batch sib
+  JOIN data_import_runs dir ON dir.id = sib.legacy_import_run_id
+  WHERE sib.source_system = 'GRH' AND dir.status = 'completed'
+    AND dir.id = current_setting('municontrol.promotion_import_run_id')::bigint
+    AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
+    AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
+    AND sib.source_sha256 = upper(dir.source_sha256)
+), selected_refs AS (
+  SELECT DISTINCT 'persona'::text AS source_entity, person_id::text AS source_id,
+    'person_identity'::text AS canonical_entity,
+    md5('person_identity|GRH|persona|' || person_id::text)::uuid AS canonical_id
+  FROM public.grh_employees
+  WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint AND person_id IS NOT NULL
+  UNION ALL
+  SELECT 'legajo', jsonb_build_object('companyCode', company_id, 'employeeNumber', legajo)::text,
+    'employment_contract', md5('employment_contract|GRH|legajo|' || company_id::text || '|' || legajo)::uuid
+  FROM public.grh_employees
+  WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint AND person_id IS NOT NULL
+)
+UPDATE source_xref existing
+SET valid_to = batch.source_cutoff
+FROM batch, selected_refs selected, source_import_batch prior_batch
+WHERE existing.source_system = 'GRH' AND existing.source_entity = selected.source_entity
+  AND existing.source_id = selected.source_id AND existing.canonical_entity = selected.canonical_entity
+  AND existing.canonical_id = selected.canonical_id AND existing.valid_to IS NULL
+  AND existing.source_batch_id <> batch.id AND existing.valid_from < batch.source_cutoff
+  AND prior_batch.id = existing.source_batch_id AND prior_batch.source_system = 'GRH'
+  AND prior_batch.source_database = 'grh_junin' AND prior_batch.validation_state = 'published';
+
 WITH batch AS (
   SELECT sib.id, sib.source_cutoff
   FROM source_import_batch sib
@@ -316,11 +349,15 @@ WITH batch AS (
 UPDATE person_identity_assertion assertion
 SET valid_to = batch.source_cutoff,
     preferred = false
-FROM batch
+FROM batch, source_import_batch prior_batch
 WHERE assertion.source_system = 'GRH'
   AND assertion.valid_to IS NULL
   AND assertion.source_batch_id <> batch.id
   AND assertion.source_entity = 'persona'
+  AND assertion.valid_from < batch.source_cutoff
+  AND prior_batch.id = assertion.source_batch_id AND prior_batch.source_system = 'GRH'
+  AND prior_batch.source_database = 'grh_junin' AND prior_batch.validation_state = 'published'
+  AND assertion.person_id = md5('person_identity|GRH|persona|' || assertion.source_id)::uuid
   AND assertion.person_id IN (
     SELECT md5('person_identity|GRH|persona|' || employee.person_id::text)::uuid
     FROM public.grh_employees employee
@@ -348,7 +385,8 @@ WITH batch AS (
          employee.telefono,
          employee.email,
          employee.domicilio,
-         employee.localidad
+         employee.localidad,
+         COALESCE(employee.source_payload #>> '{identity,sexCode}', employee.sexo) AS raw_sex_code
   FROM (SELECT * FROM public.grh_employees
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
   WHERE employee.person_id IS NOT NULL
@@ -362,15 +400,16 @@ WITH batch AS (
          attribute.eligible,
          attribute.confidence
   FROM people
+  JOIN person_identity canonical ON canonical.id = md5('person_identity|GRH|persona|' || people.person_id::text)::uuid
   CROSS JOIN batch
   CROSS JOIN LATERAL (
     VALUES
-      ('cuil', people.cuil, NULLIF(normalize_digits(people.cuil), ''), is_valid_cuil(people.cuil), 1.0000::numeric),
-      ('dni', people.dni, NULLIF(normalize_digits(people.dni), ''), normalize_digits(people.dni) ~ '^[0-9]{5,12}$', 0.9500::numeric),
-      ('full_name', people.nombre, NULLIF(btrim(people.nombre), ''), NULLIF(btrim(people.nombre), '') IS NOT NULL, 0.9000::numeric),
-      ('birth_date', people.fecha_nacimiento::text, people.fecha_nacimiento::text,
-        people.fecha_nacimiento BETWEEN DATE '1900-01-01' AND batch.source_cutoff::date, 0.9000::numeric),
-      ('sex_code', people.sexo, NULLIF(btrim(people.sexo), ''), NULLIF(btrim(people.sexo), '') IS NOT NULL, 0.8500::numeric),
+      ('cuil', people.cuil, canonical.cuil::text, canonical.cuil IS NOT NULL, 1.0000::numeric),
+      ('dni', people.dni, canonical.dni::text, canonical.dni IS NOT NULL, 0.9500::numeric),
+      ('full_name', people.nombre, canonical.full_name::text, canonical.full_name IS NOT NULL, 0.9000::numeric),
+      ('birth_date', people.fecha_nacimiento::text, canonical.birth_date::text,
+        canonical.birth_date IS NOT NULL, 0.9000::numeric),
+      ('sex_code', people.raw_sex_code, canonical.sex_code::text, canonical.sex_code IS NOT NULL, 0.8500::numeric),
       ('email', people.email, lower(NULLIF(btrim(people.email), '')), NULLIF(btrim(people.email), '') IS NOT NULL, 0.7000::numeric),
       ('phone', people.telefono, NULLIF(normalize_digits(people.telefono), ''), NULLIF(normalize_digits(people.telefono), '') IS NOT NULL, 0.7000::numeric),
       ('address', people.domicilio, NULLIF(btrim(people.domicilio), ''), NULLIF(btrim(people.domicilio), '') IS NOT NULL, 0.6500::numeric),
@@ -529,7 +568,7 @@ SELECT 'GRH',
 FROM (SELECT * FROM public.grh_employees
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) employee
 CROSS JOIN batch
-WHERE NOT EXISTS (
+WHERE employee.person_id IS NOT NULL AND NOT EXISTS (
   SELECT 1
   FROM source_xref existing
   WHERE existing.source_system = 'GRH'

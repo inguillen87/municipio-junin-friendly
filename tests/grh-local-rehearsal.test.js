@@ -104,6 +104,32 @@ test('fallo de una etapa revierte la transacción completa y comprueba conservac
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE|EMPLOYEE|SQL/);
 });
 
+test('un nuevo corte declara avance acotado de secuencia sin afirmar que fue revertido', async () => {
+  const db = client({ sequenceChanged:true });
+  const report = await runLocalRollbackRehearsal({ client:db, operation:async()=>{},
+    maximumSequenceAdvances:{data_quality_issue_id_seq:1} });
+  assert.equal(report.status,'verified-rolled-back');
+  assert.equal(report.tablesUnchanged,true);
+  assert.equal(report.sequencesUnchanged,false);
+  assert.equal(report.sequenceAdvancesWithinPolicy,true);
+  assert.deepEqual(report.sequenceAdvances,{data_quality_issue_id_seq:'1'});
+  assert.equal(db.calls.some(({sql})=>/setval/i.test(sql)),false);
+});
+
+test('política de secuencias no permite cambios de filas ni saltos fuera del límite', async () => {
+  const report = await runLocalRollbackRehearsal({ client:client({tableChanged:true,sequenceChanged:true}),
+    operation:async()=>{},maximumSequenceAdvances:{data_quality_issue_id_seq:1} });
+  assert.equal(report.status,'verification-failed');
+  assert.equal(report.tablesUnchanged,false);
+  for(const maximumSequenceAdvances of [{unrelated_id_seq:1},{data_import_runs_id_seq:-1},
+    {data_quality_issue_id_seq:1001},{data_quality_issue_id_seq:'1'},null,[]]) {
+    const db=client();
+    const invalid=await runLocalRollbackRehearsal({client:db,operation:async()=>assert.fail('must not run'),maximumSequenceAdvances});
+    assert.equal(invalid.status,'blocked');
+    assert.equal(db.calls.some(({sql})=>sql.startsWith('BEGIN')),false);
+  }
+});
+
 test('un error SQL abortado se recupera mediante el centinela antes del rollback completo', async () => {
   const db = client();
   const report = await runLocalRollbackRehearsal({ client: db,

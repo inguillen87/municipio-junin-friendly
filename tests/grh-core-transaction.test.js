@@ -8,6 +8,7 @@ import test from 'node:test';
 import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { GRH_PUBLICATION_LOCKS } from '../scripts/lib/grh-publication-lock.mjs';
+import { getGrhSourceProfile } from '../scripts/lib/grh-source-profile.mjs';
 
 import { importGrhCoreWithinTransaction, preflightGrhCore, runGrhCoreCliTransaction } from '../scripts/import-grh-core-canonical.mjs';
 
@@ -15,7 +16,7 @@ const run = promisify(execFile);
 const importer = new URL('../scripts/import-grh-core-canonical.mjs', import.meta.url);
 const BATCH_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 const RUN_ID = '7';
-const SHA = 'A'.repeat(64);
+const SHA = 'CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92';
 const PRIVATE_DETAIL = 'private-person private-path postgres://user:secret@invalid/private';
 const FILES = {
   payrollRuns: 'grh-core-payroll-runs.json',
@@ -182,6 +183,41 @@ test('preflight rejects a non-file directory URL or ordinary filesystem string',
   for (const dataDir of [new URL('https://invalid/private/'), 'C:/private/', new URL('file:///private.json')]) {
     await assert.rejects(preflightGrhCore({ dataDir }), { code: 'GRH_CORE_FILE_DIRECTORY_URL_REQUIRED' });
   }
+});
+
+test('September preflight is explicit and verified but cannot authorize core history writes',async(t)=>{
+  const value=await fixture(t);
+  const profile=getGrhSourceProfile('grh-junin-2026-09-10');
+  const manifest=value.manifest;
+  manifest.profile=profile.core.profileId;
+  manifest.source={sha256:profile.source.sha256,database:profile.source.database,dumpCompletedAt:profile.source.cutoff,
+    currentPayrollDate:profile.source.currentPayrollDate,currentPayrollClosureStatus:'open',
+    latestClosedPayrollDate:profile.source.latestClosedPayrollDate};
+  manifest.sourceCounts=structuredClone(profile.core.expectedCounts);
+  manifest.reconciliation=structuredClone(profile.core.expectedReconciliation);
+  manifest.quality.payrollRunClosure.latestClosedDate=profile.source.latestClosedPayrollDate;
+  value.rows.payrollSnapshot=value.rows.payrollSnapshot.slice(0,847).map(row=>({...row,payrollDate:'2026-09-30',month:9}));
+  value.rows.employmentReconciliation=Array.from({length:2452},(_,index)=>({sourceKey:employeeKey(index),
+    administrativeActive:index<875,liquidatedCurrent:index<847,evidenceStatus:index<847?'active_liquidated_current':
+      index<875?'active_not_liquidated_never_observed':'administrative_inactive',lastPayrollDate:index<847?'2026-09-30':null}));
+  for(const [name,rows] of Object.entries(value.rows)) {
+    const content=`[\n${rows.map(row=>JSON.stringify(row)).join(',\n')}\n]\n`;
+    await writeFile(new URL(FILES[name],value.dataDir),content);
+    manifest.outputs[name]={file:FILES[name],records:rows.length,bytes:Buffer.byteLength(content),sha256:digest(content)};
+  }
+  await writeFile(new URL('grh-core-manifest.json',value.dataDir),JSON.stringify(manifest));
+  await assert.rejects(preflightGrhCore({dataDir:value.dataDir}),{code:'GRH_CORE_UNSUPPORTED_PROFILE'});
+  const source=await preflightGrhCore({dataDir:value.dataDir,profileId:profile.id});
+  assert.equal(source.artifacts.payrollSnapshot.records,847);
+  assert.equal(source.artifacts.employmentReconciliation.records,2452);
+  const client=clientDouble(manifest);
+  await assert.rejects(importGrhCoreWithinTransaction({client,source,batchId:BATCH_ID,importRunId:RUN_ID}),
+    {code:'GRH_CORE_SOURCE_REPLACEMENT_COORDINATION_REQUIRED'});
+  assert.equal(client.writes.length,0);
+  assert.equal(client.calls.some(({sql})=>sql.includes('FROM source_import_batch batch')),false);
+  manifest.source.sha256=profile.source.gzipSha256;
+  await writeFile(new URL('grh-core-manifest.json',value.dataDir),JSON.stringify(manifest));
+  await assert.rejects(preflightGrhCore({dataDir:value.dataDir,profileId:profile.id}),{code:'GRH_CORE_SOURCE_SHA256_PROFILE_MISMATCH'});
 });
 
 test('the transaction is required before batch lookup, artifact reads or writes', async () => {

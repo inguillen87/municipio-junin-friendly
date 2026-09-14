@@ -28,8 +28,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
+from extract_rrhh_curated import (
+    ExtractionError as SourceProfileError,
+    _sql_lines, load_source_profile, validate_profile_mode, validate_source_metadata,
+)
 
-SCRIPT_VERSION = "1.1.0"
+
+SCRIPT_VERSION = "1.2.0"
 PROFILE_NAME = "grh-core-junin-2026-08"
 SOURCE_NAME = "grh_junin"
 EXPECTED_SOURCE_SHA256 = (
@@ -264,30 +269,31 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
-def _valid_payroll_date(value: str | None) -> bool:
+def _valid_payroll_date(value: str | None, current_payroll_date: str = EXPECTED_CURRENT_PAYROLL_DATE) -> bool:
     if value is None:
         return False
     try:
         date.fromisoformat(value)
     except ValueError:
         return False
-    return MIN_VALID_PAYROLL_DATE <= value <= EXPECTED_CURRENT_PAYROLL_DATE
+    return MIN_VALID_PAYROLL_DATE <= value <= current_payroll_date
 
 
-def _valid_movement_year(value: int | None) -> bool:
-    return value is not None and 2008 <= value <= 2026
+def _valid_movement_year(value: int | None, current_payroll_date: str = EXPECTED_CURRENT_PAYROLL_DATE) -> bool:
+    return value is not None and 2008 <= value <= int(current_payroll_date[:4])
 
 
 def _classify_reconciliation(
     administrative_active: bool,
     liquidated_current: bool,
     last_payroll_date: str | None,
+    current_payroll_date: str = EXPECTED_CURRENT_PAYROLL_DATE,
 ) -> str:
     if not administrative_active:
         return "administrative_inactive"
     if liquidated_current:
         return "active_liquidated_current"
-    current = date.fromisoformat(EXPECTED_CURRENT_PAYROLL_DATE)
+    current = date.fromisoformat(current_payroll_date)
     previous_month_end = current.replace(day=1) - timedelta(days=1)
     if last_payroll_date is None:
         return "active_not_liquidated_never_observed"
@@ -296,7 +302,14 @@ def _classify_reconciliation(
     return "active_not_liquidated_historical"
 
 
-def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict[str, Any]:
+def extract(
+    source: Path, output_dir: Path, *, allow_source_drift: bool = False,
+    profile_id: str | None = None, fixture_mode: bool = False,
+) -> dict[str, Any]:
+    profile = load_source_profile(profile_id, "core")
+    validate_profile_mode(profile, allow_source_drift, fixture_mode)
+    expected_counts = profile["core"]["expectedCounts"]
+    current_payroll_date = profile["source"]["currentPayrollDate"]
     if not source.is_file():
         raise ExtractionError(f"GRH source not found: {source}")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -311,11 +324,16 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
     current_columns: list[str] = []
     counts: Counter[str] = Counter()
     source_hasher = hashlib.sha256()
+    source_metadata: dict[str, Any] = {}
     employees: dict[tuple[str, str], dict[str, str | None]] = {}
     snapshot_keys: set[tuple[str, str]] = set()
     snapshot_dates: Counter[str] = Counter()
+    snapshot_cohorts: Counter[tuple[int | None, int | None, str | None, str | None]] = Counter()
+    snapshot_ids: set[str | None] = set()
     payroll_run_keys: set[tuple[str, str, str, str, str]] = set()
     payroll_run_statuses: Counter[str] = Counter()
+    current_run_types: set[str] = set()
+    current_run_statuses: set[str] = set()
     invalid_payroll_run_dates: Counter[str] = Counter()
     latest_closed_payroll_date: str | None = None
     last_payroll: dict[tuple[str, str], str] = {}
@@ -329,224 +347,244 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
     duplicate_movement_keys = 0
 
     try:
-        with source.open("rb") as handle:
-            for raw_line in handle:
-                source_hasher.update(raw_line)
-                line = raw_line.decode("utf-8", errors="replace")
-                if current_table is None:
-                    match = re.match(r"CREATE TABLE `([^`]+)`", line)
-                    if match and match.group(1) in EXPECTED_COUNTS:
-                        current_table = match.group(1)
-                        current_columns = []
-                elif line.startswith(") ENGINE="):
-                    schemas[current_table] = list(current_columns)
-                    current_table = None
+        for line in _sql_lines(source, source_hasher, metadata=source_metadata):
+            if current_table is None:
+                match = re.match(r"CREATE TABLE `([^`]+)`", line)
+                if match and match.group(1) in expected_counts:
+                    current_table = match.group(1)
                     current_columns = []
-                else:
-                    match = re.match(r"\s*`([^`]+)`\s+", line)
-                    if match:
-                        current_columns.append(match.group(1))
+            elif line.startswith(") ENGINE="):
+                schemas[current_table] = list(current_columns)
+                current_table = None
+                current_columns = []
+            else:
+                match = re.match(r"\s*`([^`]+)`\s+", line)
+                if match:
+                    current_columns.append(match.group(1))
 
-                table = _insert_table(line)
-                if table not in EXPECTED_COUNTS:
-                    continue
-                if table not in schemas:
-                    raise ExtractionError(f"INSERT for {table} appeared before its schema")
-                missing = REQUIRED_COLUMNS[table] - set(schemas[table])
-                if missing:
-                    raise ExtractionError(
-                        f"Source table {table} is missing columns: {', '.join(sorted(missing))}"
+            table = _insert_table(line)
+            if table not in expected_counts:
+                continue
+            if table not in schemas:
+                raise ExtractionError(f"INSERT for {table} appeared before its schema")
+            missing = REQUIRED_COLUMNS[table] - set(schemas[table])
+            if missing:
+                raise ExtractionError(
+                    f"Source table {table} is missing columns: {', '.join(sorted(missing))}"
+                )
+
+            for values in parse_insert_rows(line):
+                row = _row(schemas[table], values, table)
+                counts[table] += 1
+                if table == "concepto":
+                    concept_code = _code(row.get("CODI_27"))
+                    if concept_code is None:
+                        raise ExtractionError("concepto.CODI_27 cannot be null")
+                    if concept_code in concepts:
+                        raise ExtractionError(f"Duplicate concepto.CODI_27: {concept_code}")
+                    concepts[concept_code] = {
+                        "name": _text(row.get("DETA_15")),
+                        "calculationClass": _code(row.get("CALC_15")),
+                        "typeCode": _code(row.get("TIPO_15")),
+                        "abbreviation": _text(row.get("ABRE_15")),
+                        "sourceTotalCode": _code(row.get("TOTA_15")),
+                    }
+                elif table == "histocal":
+                    company_code = _code(row.get("CODI_01"))
+                    payroll_date = _code(row.get("FECA_31"))
+                    source_period = _code(row.get("PERI_31"))
+                    source_month = _code(row.get("MES_31"))
+                    payroll_type = _code(row.get("TIPO_31"))
+                    if None in (company_code, payroll_date, source_period, source_month, payroll_type):
+                        raise ExtractionError("histocal payroll key cannot contain null values")
+                    if not _valid_payroll_date(payroll_date, current_payroll_date):
+                        invalid_payroll_run_dates[payroll_date or "<null>"] += 1
+                        continue
+                    closure_flag = _integer(row.get("CIER_31"), "histocal.CIER_31")
+                    if closure_flag not in (None, 1):
+                        raise ExtractionError(
+                            f"Unexpected histocal.CIER_31 value: {closure_flag!r}"
+                        )
+                    closure_status = (
+                        "closed" if closure_flag == 1
+                        else ("open" if payroll_date == current_payroll_date else "unknown")
                     )
-
-                for values in parse_insert_rows(line):
-                    row = _row(schemas[table], values, table)
-                    counts[table] += 1
-                    if table == "concepto":
-                        concept_code = _code(row.get("CODI_27"))
-                        if concept_code is None:
-                            raise ExtractionError("concepto.CODI_27 cannot be null")
-                        if concept_code in concepts:
-                            raise ExtractionError(f"Duplicate concepto.CODI_27: {concept_code}")
-                        concepts[concept_code] = {
-                            "name": _text(row.get("DETA_15")),
-                            "calculationClass": _code(row.get("CALC_15")),
-                            "typeCode": _code(row.get("TIPO_15")),
-                            "abbreviation": _text(row.get("ABRE_15")),
-                            "sourceTotalCode": _code(row.get("TOTA_15")),
-                        }
-                    elif table == "histocal":
-                        company_code = _code(row.get("CODI_01"))
-                        payroll_date = _code(row.get("FECA_31"))
-                        source_period = _code(row.get("PERI_31"))
-                        source_month = _code(row.get("MES_31"))
-                        payroll_type = _code(row.get("TIPO_31"))
-                        if None in (company_code, payroll_date, source_period, source_month, payroll_type):
-                            raise ExtractionError("histocal payroll key cannot contain null values")
-                        if not _valid_payroll_date(payroll_date):
-                            invalid_payroll_run_dates[payroll_date or "<null>"] += 1
-                            continue
-                        closure_flag = _integer(row.get("CIER_31"), "histocal.CIER_31")
-                        if closure_flag not in (None, 1):
-                            raise ExtractionError(
-                                f"Unexpected histocal.CIER_31 value: {closure_flag!r}"
-                            )
-                        closure_status = (
-                            "closed" if closure_flag == 1
-                            else ("open" if payroll_date == EXPECTED_CURRENT_PAYROLL_DATE else "unknown")
-                        )
-                        run_key = (
-                            company_code, payroll_date, source_period, source_month, payroll_type
-                        )
-                        if run_key in payroll_run_keys:
-                            raise ExtractionError(f"Duplicate histocal key: {run_key}")
-                        payroll_run_keys.add(run_key)
-                        payroll_run_statuses[closure_status] += 1
-                        if closure_status == "closed" and (
-                            latest_closed_payroll_date is None
-                            or payroll_date > latest_closed_payroll_date
-                        ):
-                            latest_closed_payroll_date = payroll_date
-                        writers["payrollRuns"].write({
-                            "sourceKey": {
-                                "companyCode": company_code,
-                                "payrollDate": payroll_date,
-                                "period": int(source_period),
-                                "month": int(source_month),
-                                "payrollType": payroll_type,
-                            },
-                            "closureStatus": closure_status,
-                            "sourceClosureFlag": closure_flag,
-                            "sourceDateIg": _code(row.get("fechaIG")),
-                            "executivePublishable": closure_status == "closed",
-                        })
-                    elif table == "legajo":
-                        employees[_employee_key(row)] = {
-                            "hireDate": _code(row.get("FING_12")),
-                            "exitDate": _code(row.get("FEGR_12")),
-                        }
-                    elif table == "histolegajo":
-                        key = _employee_key(row)
-                        payroll_date = _code(row.get("FECA_31"))
-                        if payroll_date is None:
-                            raise ExtractionError("histolegajo.FECA_31 cannot be null")
-                        snapshot_keys.add(key)
-                        snapshot_dates[payroll_date] += 1
-                        writers["payrollSnapshot"].write({
-                            "sourceKey": {
-                                "id": _code(row.get("ID")),
-                                "companyCode": key[0],
-                                "employeeNumber": key[1],
-                            },
+                    run_key = (
+                        company_code, payroll_date, source_period, source_month, payroll_type
+                    )
+                    if run_key in payroll_run_keys:
+                        raise ExtractionError(f"Duplicate histocal key: {run_key}")
+                    payroll_run_keys.add(run_key)
+                    payroll_run_statuses[closure_status] += 1
+                    if payroll_date == current_payroll_date:
+                        current_run_types.add(payroll_type)
+                        current_run_statuses.add(closure_status)
+                    if closure_status == "closed" and (
+                        latest_closed_payroll_date is None
+                        or payroll_date > latest_closed_payroll_date
+                    ):
+                        latest_closed_payroll_date = payroll_date
+                    writers["payrollRuns"].write({
+                        "sourceKey": {
+                            "companyCode": company_code,
                             "payrollDate": payroll_date,
-                            "period": _integer(row.get("PERI_31"), "histolegajo.PERI_31"),
-                            "month": _integer(row.get("MES_31"), "histolegajo.MES_31"),
+                            "period": int(source_period),
+                            "month": int(source_month),
+                            "payrollType": payroll_type,
+                        },
+                        "closureStatus": closure_status,
+                        "sourceClosureFlag": closure_flag,
+                        "sourceDateIg": _code(row.get("fechaIG")),
+                        "executivePublishable": closure_status == "closed",
+                    })
+                elif table == "legajo":
+                    employee_key = _employee_key(row)
+                    if employee_key in employees:
+                        raise ExtractionError("Duplicate legajo source key")
+                    employees[employee_key] = {
+                        "hireDate": _code(row.get("FING_12")),
+                        "exitDate": _code(row.get("FEGR_12")),
+                    }
+                elif table == "histolegajo":
+                    key = _employee_key(row)
+                    payroll_date = _code(row.get("FECA_31"))
+                    if payroll_date is None:
+                        raise ExtractionError("histolegajo.FECA_31 cannot be null")
+                    snapshot_id = _code(row.get("ID"))
+                    if snapshot_id is None or snapshot_id in snapshot_ids or key in snapshot_keys:
+                        raise ExtractionError("Null or duplicate histolegajo source key")
+                    snapshot_ids.add(snapshot_id)
+                    snapshot_keys.add(key)
+                    snapshot_dates[payroll_date] += 1
+                    snapshot_cohorts[(
+                        _integer(row.get("PERI_31"), "histolegajo.PERI_31"),
+                        _integer(row.get("MES_31"), "histolegajo.MES_31"),
+                        _code(row.get("TIPO_31")), payroll_date,
+                    )] += 1
+                    writers["payrollSnapshot"].write({
+                        "sourceKey": {
+                            "id": _code(row.get("ID")),
+                            "companyCode": key[0],
+                            "employeeNumber": key[1],
+                        },
+                        "payrollDate": payroll_date,
+                        "period": _integer(row.get("PERI_31"), "histolegajo.PERI_31"),
+                        "month": _integer(row.get("MES_31"), "histolegajo.MES_31"),
+                        "payrollType": _code(row.get("TIPO_31")),
+                        "agreement": {
+                            "id": _code(row.get("IDCONVENIO")),
+                            "name": _text(row.get("CONVENIO")),
+                        },
+                        "category": _text(row.get("CATEGORIA")),
+                        "role": _text(row.get("CARGO")),
+                        "budget": {
+                            "structure": _text(row.get("ESTRUCTURAPRESU")),
+                            "detail": _text(row.get("PRESUDETALLE")),
+                            "account": _text(row.get("CUENTA")),
+                        },
+                        "organization": {
+                            "departmentId": _code(row.get("IDREPARTICION")),
+                            "department": _text(row.get("REPARTICION")),
+                            "area": _text(row.get("AREA")),
+                        },
+                    })
+                elif table == "legamov":
+                    key = _employee_key(row)
+                    year = _integer(row.get("ANO_30"), "legamov.ANO_30")
+                    month = _integer(row.get("MES_30"), "legamov.MES_30")
+                    source_key = (
+                        key[0], _code(row.get("ANO_30")) or "", _code(row.get("MES_30")) or "",
+                        _code(row.get("TIPO_31")) or "", key[1], _code(row.get("CODI_27")) or "",
+                        _code(row.get("CODI_06")) or "",
+                    )
+                    if source_key in movement_keys:
+                        duplicate_movement_keys += 1
+                    else:
+                        movement_keys.add(source_key)
+                    if not _valid_movement_year(year, current_payroll_date):
+                        invalid_movement_years[str(year)] += 1
+                        continue
+                    writers["movements"].write({
+                        "sourceKey": {
+                            "companyCode": key[0], "year": year, "month": month,
                             "payrollType": _code(row.get("TIPO_31")),
-                            "agreement": {
-                                "id": _code(row.get("IDCONVENIO")),
-                                "name": _text(row.get("CONVENIO")),
-                            },
-                            "category": _text(row.get("CATEGORIA")),
-                            "role": _text(row.get("CARGO")),
-                            "budget": {
-                                "structure": _text(row.get("ESTRUCTURAPRESU")),
-                                "detail": _text(row.get("PRESUDETALLE")),
-                                "account": _text(row.get("CUENTA")),
-                            },
-                            "organization": {
-                                "departmentId": _code(row.get("IDREPARTICION")),
-                                "department": _text(row.get("REPARTICION")),
-                                "area": _text(row.get("AREA")),
-                            },
-                        })
-                    elif table == "legamov":
-                        key = _employee_key(row)
-                        year = _integer(row.get("ANO_30"), "legamov.ANO_30")
-                        month = _integer(row.get("MES_30"), "legamov.MES_30")
-                        source_key = (
-                            key[0], _code(row.get("ANO_30")) or "", _code(row.get("MES_30")) or "",
-                            _code(row.get("TIPO_31")) or "", key[1], _code(row.get("CODI_27")) or "",
-                            _code(row.get("CODI_06")) or "",
-                        )
-                        if source_key in movement_keys:
-                            duplicate_movement_keys += 1
-                        else:
-                            movement_keys.add(source_key)
-                        if not _valid_movement_year(year):
-                            invalid_movement_years[str(year)] += 1
-                            continue
-                        writers["movements"].write({
-                            "sourceKey": {
-                                "companyCode": key[0], "year": year, "month": month,
-                                "payrollType": _code(row.get("TIPO_31")),
-                                "employeeNumber": key[1], "conceptCode": _code(row.get("CODI_27")),
-                                "costCenterCode": _code(row.get("CODI_06")),
-                            },
-                            "quantity": _code(row.get("cant_30")),
-                            "installment": _code(row.get("CUOT_30")),
-                            "automatic": _code(row.get("AUTO_30")),
-                            "adjustment": _code(row.get("AJUS_30")),
-                            "forced": _code(row.get("FORZ_30")),
-                            "legalInstrument": _text(row.get("NRO_INSTRUMENTO_LEGAL")),
-                            "movementType": _text(row.get("TIPO_MOVIMIENTO")),
-                            "status": _text(row.get("ESTADO")),
-                        })
-                    elif table == "calculo":
-                        key = _employee_key(row)
-                        payroll_date = _code(row.get("FECA_31"))
-                        if not _valid_payroll_date(payroll_date):
-                            invalid_calculation_dates[payroll_date or "<null>"] += 1
-                            continue
-                        assert payroll_date is not None
-                        if payroll_date > last_payroll.get(key, ""):
-                            last_payroll[key] = payroll_date
-                        monthly_key = (
-                            key[0], key[1], payroll_date, _code(row.get("PERI_31")) or "",
-                            _code(row.get("MES_31")) or "", _code(row.get("TIPO_31")) or "",
-                        )
-                        aggregate = monthly.setdefault(monthly_key, {
-                            "itemCount": 0,
-                            "quantitySum": Decimal(0),
-                            "technicalSourceAmountSum": Decimal(0),
-                            "agreementCounts": Counter(),
-                            "sectorCounts": Counter(),
-                            "conceptCodes": set(),
-                            "sourceTotals": {
-                                field: Decimal(0) for field in PAYROLL_TOTAL_CONCEPTS.values()
-                            },
-                            "sourceTotalPresence": set(),
-                        })
-                        concept_code = _code(row.get("CODI_27")) or "<null>"
-                        amount = _decimal(row.get("IMPO_31"), "calculo.IMPO_31")
-                        calculation_concept_codes.add(concept_code)
-                        aggregate["itemCount"] += 1
-                        aggregate["quantitySum"] += _decimal(row.get("CANT_31"), "calculo.CANT_31")
-                        aggregate["technicalSourceAmountSum"] += amount
-                        if _code(row.get("IMPO_31")) is None:
-                            calculation_null_amounts += 1
-                        aggregate["agreementCounts"][_code(row.get("CODI_02")) or "<null>"] += 1
-                        aggregate["sectorCounts"][_code(row.get("CODI_07")) or "<null>"] += 1
-                        aggregate["conceptCodes"].add(concept_code)
-                        source_total_field = PAYROLL_TOTAL_CONCEPTS.get(concept_code)
-                        if source_total_field:
-                            aggregate["sourceTotals"][source_total_field] += amount
-                            aggregate["sourceTotalPresence"].add(source_total_field)
+                            "employeeNumber": key[1], "conceptCode": _code(row.get("CODI_27")),
+                            "costCenterCode": _code(row.get("CODI_06")),
+                        },
+                        "quantity": _code(row.get("cant_30")),
+                        "installment": _code(row.get("CUOT_30")),
+                        "automatic": _code(row.get("AUTO_30")),
+                        "adjustment": _code(row.get("AJUS_30")),
+                        "forced": _code(row.get("FORZ_30")),
+                        "legalInstrument": _text(row.get("NRO_INSTRUMENTO_LEGAL")),
+                        "movementType": _text(row.get("TIPO_MOVIMIENTO")),
+                        "status": _text(row.get("ESTADO")),
+                    })
+                elif table == "calculo":
+                    key = _employee_key(row)
+                    payroll_date = _code(row.get("FECA_31"))
+                    if not _valid_payroll_date(payroll_date, current_payroll_date):
+                        invalid_calculation_dates[payroll_date or "<null>"] += 1
+                        continue
+                    assert payroll_date is not None
+                    if payroll_date > last_payroll.get(key, ""):
+                        last_payroll[key] = payroll_date
+                    monthly_key = (
+                        key[0], key[1], payroll_date, _code(row.get("PERI_31")) or "",
+                        _code(row.get("MES_31")) or "", _code(row.get("TIPO_31")) or "",
+                    )
+                    aggregate = monthly.setdefault(monthly_key, {
+                        "itemCount": 0,
+                        "quantitySum": Decimal(0),
+                        "technicalSourceAmountSum": Decimal(0),
+                        "agreementCounts": Counter(),
+                        "sectorCounts": Counter(),
+                        "conceptCodes": set(),
+                        "sourceTotals": {
+                            field: Decimal(0) for field in PAYROLL_TOTAL_CONCEPTS.values()
+                        },
+                        "sourceTotalPresence": set(),
+                    })
+                    concept_code = _code(row.get("CODI_27")) or "<null>"
+                    amount = _decimal(row.get("IMPO_31"), "calculo.IMPO_31")
+                    calculation_concept_codes.add(concept_code)
+                    aggregate["itemCount"] += 1
+                    aggregate["quantitySum"] += _decimal(row.get("CANT_31"), "calculo.CANT_31")
+                    aggregate["technicalSourceAmountSum"] += amount
+                    if _code(row.get("IMPO_31")) is None:
+                        calculation_null_amounts += 1
+                    aggregate["agreementCounts"][_code(row.get("CODI_02")) or "<null>"] += 1
+                    aggregate["sectorCounts"][_code(row.get("CODI_07")) or "<null>"] += 1
+                    aggregate["conceptCodes"].add(concept_code)
+                    source_total_field = PAYROLL_TOTAL_CONCEPTS.get(concept_code)
+                    if source_total_field:
+                        aggregate["sourceTotals"][source_total_field] += amount
+                        aggregate["sourceTotalPresence"].add(source_total_field)
 
         source_sha256 = source_hasher.hexdigest().upper()
-        missing_tables = sorted(set(EXPECTED_COUNTS) - set(schemas))
+        missing_tables = sorted(set(expected_counts) - set(schemas))
         if missing_tables:
             raise ExtractionError(f"Required tables not found: {', '.join(missing_tables)}")
         if not allow_source_drift:
-            if source_sha256 != EXPECTED_SOURCE_SHA256:
-                raise ExtractionError(
-                    f"Unexpected GRH SHA-256: {source_sha256}; expected {EXPECTED_SOURCE_SHA256}"
-                )
+            validate_source_metadata(source_metadata, profile)
             mismatches = {
                 table: {"expected": expected, "actual": counts[table]}
-                for table, expected in EXPECTED_COUNTS.items()
+                for table, expected in expected_counts.items()
                 if counts[table] != expected
             }
             if mismatches:
                 raise ExtractionError(f"Source count mismatch: {json.dumps(mismatches)}")
+            cohort = profile["core"]["snapshotCohort"]
+            expected_cohort = (cohort["period"], cohort["month"], cohort["payrollType"], cohort["payrollDate"])
+            if snapshot_cohorts != Counter({expected_cohort: cohort["rows"]}):
+                raise ExtractionError("histolegajo cohort does not match selected profile")
+            if payroll_run_statuses != Counter(profile["core"]["expectedClosureStatusCounts"]):
+                raise ExtractionError("Payroll closure counts do not match selected profile")
+            if current_run_types != set(profile["core"]["currentRunTypes"]):
+                raise ExtractionError("Current payroll run types do not match selected profile")
+        if current_run_statuses != {profile["source"]["currentPayrollClosureStatus"]}:
+            raise ExtractionError("Current payroll closure does not match selected profile")
+        current_closure_status = next(iter(current_run_statuses))
         if duplicate_movement_keys:
             raise ExtractionError(f"Duplicate legamov keys found: {duplicate_movement_keys}")
         unknown_calculation_concepts = sorted(calculation_concept_codes - set(concepts))
@@ -560,7 +598,7 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
                 raise ExtractionError(
                     f"Payroll source total {concept_code}/{output_field} is missing or not type 9"
                 )
-        if set(snapshot_dates) != {EXPECTED_CURRENT_PAYROLL_DATE}:
+        if set(snapshot_dates) != {current_payroll_date}:
             raise ExtractionError(f"Unexpected histolegajo dates: {dict(snapshot_dates)}")
         monthly_run_keys = {
             (key[0], key[2], key[3], key[4], key[5]) for key in monthly
@@ -571,7 +609,7 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
                 f"calculo contains {len(missing_payroll_runs)} valid run keys absent from histocal: "
                 f"{missing_payroll_runs[:5]}"
             )
-        if latest_closed_payroll_date != "2026-07-31":
+        if latest_closed_payroll_date != profile["source"]["latestClosedPayrollDate"]:
             raise ExtractionError(
                 f"Unexpected latest closed payroll date: {latest_closed_payroll_date}"
             )
@@ -634,7 +672,7 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
                 active_keys.add(key)
             liquidated_current = key in current_keys
             status = _classify_reconciliation(
-                administrative_active, liquidated_current, last_payroll.get(key)
+                administrative_active, liquidated_current, last_payroll.get(key), current_payroll_date
             )
             reconciliation_counts[status] += 1
             reconciliation_writer.write({
@@ -655,6 +693,19 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
             raise ExtractionError(
                 f"Current payroll contains {len(liquidated_not_active)} administratively inactive legajos"
             )
+        reconciliation = {
+            "administrativeActive": len(active_keys),
+            "liquidatedCurrent": len(current_keys),
+            "activeAndLiquidated": len(active_liquidated),
+            "activeNotLiquidated": len(active_not_liquidated),
+            "liquidatedNotActive": len(liquidated_not_active),
+        }
+        if not allow_source_drift and reconciliation != profile["core"]["expectedReconciliation"]:
+            raise ExtractionError("Employment reconciliation does not match selected profile")
+        latest_closed_headcount = len({(key[0], key[1]) for key in monthly if key[2] == latest_closed_payroll_date})
+        if (not allow_source_drift and "latestClosedHeadcount" in profile["core"]
+                and latest_closed_headcount != profile["core"]["latestClosedHeadcount"]):
+            raise ExtractionError("Latest closed headcount does not match selected profile")
 
         for name, filename in OUTPUT_FILES.items():
             temp_paths[name].replace(output_dir / filename)
@@ -679,25 +730,29 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
         manifest = {
             "schemaVersion": 1,
             "scriptVersion": SCRIPT_VERSION,
-            "profile": PROFILE_NAME,
+            "profile": profile["core"]["profileId"],
+            "sourceProfileId": profile["id"],
+            "profileVersion": profile["profileVersion"],
             "source": {
                 "name": SOURCE_NAME,
                 "file": source.name,
-                "bytes": source.stat().st_size,
+                "bytes": source_metadata["logicalBytes"],
+                "logicalBytes": source_metadata["logicalBytes"],
+                "physicalSha256": source_metadata["physicalSha256"],
+                "physicalBytes": source_metadata["physicalBytes"],
+                "container": source_metadata["container"],
+                "database": source_metadata["database"],
+                "cutoff": source_metadata["cutoff"],
                 "sha256": source_sha256,
-                "currentPayrollDate": EXPECTED_CURRENT_PAYROLL_DATE,
-                "currentPayrollClosureStatus": "open",
+                "currentPayrollDate": current_payroll_date,
+                "currentPayrollClosureStatus": current_closure_status,
                 "latestClosedPayrollDate": latest_closed_payroll_date,
             },
             "sourceCounts": dict(sorted(counts.items())),
             "outputs": outputs,
             "reconciliation": {
-                "administrativeActive": len(active_keys),
-                "liquidatedCurrent": len(current_keys),
-                "activeAndLiquidated": len(active_liquidated),
-                "activeNotLiquidated": len(active_not_liquidated),
-                "liquidatedNotActive": len(liquidated_not_active),
-                "coveragePercent": round(len(active_liquidated) / len(active_keys) * 100, 2),
+                **reconciliation,
+                "coveragePercent": round(len(active_liquidated) / len(active_keys) * 100, 2) if active_keys else 0,
                 "evidenceStates": dict(sorted(reconciliation_counts.items())),
             },
             "quality": {
@@ -712,8 +767,9 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
                 },
                 "payrollRunClosure": {
                     "statuses": dict(sorted(payroll_run_statuses.items())),
-                    "currentRun": "open",
+                    "currentRun": current_closure_status,
                     "latestClosedDate": latest_closed_payroll_date,
+                    "latestClosedHeadcount": latest_closed_headcount,
                     "executiveFinancialRule": "Only closureStatus=closed can feed executive financial KPIs",
                 },
                 "invalidMovementYearsExcluded": {
@@ -740,10 +796,10 @@ def extract(source: Path, output_dir: Path, *, allow_source_drift: bool) -> dict
             },
             "methodology": [
                 "GRH is the employment and payroll source of truth.",
-                "The 882/854 difference is reconciled against the open August payroll snapshot; it is an operational control, not a closed financial KPI.",
-                "histocal.CIER_31=1 is the only source-level close evidence; July 2026 is the latest closed run and August 2026 remains open.",
+                f"The {len(active_keys)}/{len(current_keys)} administrative/snapshot comparison uses {current_payroll_date}; snapshot membership does not certify calculation or payment.",
+                f"histocal.CIER_31=1 is the only source-level close evidence; latest closed date is {latest_closed_payroll_date} and current status is {current_closure_status}.",
                 "calculo is reduced to employee/payroll-date/source-period/source-month/type grain; raw items remain in the immutable source dump.",
-                "Dates outside 2008-01-01..2026-08-31 are quarantined from analytical outputs.",
+                f"Dates outside {MIN_VALID_PAYROLL_DATE}..{current_payroll_date} are quarantined from analytical outputs.",
                 "No PERSONAS identifier is used or joined in this extraction.",
             ],
         }
@@ -769,6 +825,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=Path.home() / "Downloads" / "grh_junin_extracted.sql",
     )
     parser.add_argument("--output-dir", type=Path, default=Path("rrhh-data"))
+    parser.add_argument("--profile", help="Explicit known source profile; defaults to the August baseline.")
     parser.add_argument(
         "--allow-source-drift",
         action="store_true",
@@ -783,7 +840,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+    args = parse_args(sys.argv[1:] if argv is None else argv)
     if args.allow_source_drift and not args.fixture_mode:
         print(
             "GRH core extraction failed: --allow-source-drift requires --fixture-mode",
@@ -794,8 +851,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest = extract(
             args.grh_sql.resolve(), args.output_dir.resolve(),
             allow_source_drift=args.allow_source_drift,
+            profile_id=args.profile, fixture_mode=args.fixture_mode,
         )
-    except (ExtractionError, OSError) as error:
+    except (ExtractionError, SourceProfileError, OSError) as error:
         print(f"GRH core extraction failed: {error}", file=sys.stderr)
         return 1
     print(json.dumps({

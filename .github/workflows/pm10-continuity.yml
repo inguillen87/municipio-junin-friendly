@@ -55,6 +55,7 @@ jobs:
           python -B -m unittest discover -s tests -p test_extract_rrhh_family.py
           python -B -m unittest discover -s tests -p test_extract_personas_crosswalk.py
           python -B -m unittest discover -s tests -p test_compare_grh_snapshots.py
+          python -B -m unittest discover -s tests -p test_grh_source_profiles.py
           python -B scripts/extract_rrhh_curated.py --self-test
       - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium

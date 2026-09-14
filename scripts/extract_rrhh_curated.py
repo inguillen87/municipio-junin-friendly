@@ -23,18 +23,19 @@ hashes, mappings and integrity results without including person-level data.
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import os
 import re
 import sys
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 
-SCRIPT_VERSION = "1.1.0"
+SCRIPT_VERSION = "1.2.0"
 PROFILE_NAME = "grh-junin-2026-08-06"
 EXPECTED_SOURCE_SHA256 = (
     "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92"
@@ -182,13 +183,87 @@ class ExtractionError(RuntimeError):
     """Raised when a source or output invariant is not satisfied."""
 
 
-def _sql_lines(path: Path, hasher: hashlib._Hash | None = None) -> Iterator[str]:
-    """Yield decoded physical lines without loading the dump into memory."""
-    with path.open("rb") as handle:
-        for raw_line in handle:
-            if hasher is not None:
-                hasher.update(raw_line)
-            yield raw_line.decode("utf-8", errors="replace")
+def load_source_profile(profile_id: str | None = None, domain: str = "curated") -> dict[str, Any]:
+    """Resolve only a versioned, local profile; manifests never supply expectations."""
+    if domain not in {"curated", "core"}:
+        raise ExtractionError("Unknown extraction domain")
+    registry = json.loads((Path(__file__).parent / "lib" / "grh-source-profiles.json").read_text(encoding="utf-8"))
+    if registry.get("version") != "grh-source-profiles.v1":
+        raise ExtractionError("Unsupported GRH source profile registry")
+    selected = profile_id or registry["defaultProfileId"]
+    matches = [p for p in registry["profiles"] if selected in {p["id"], p[domain]["profileId"]}]
+    if len(matches) != 1:
+        raise ExtractionError("Unknown or ambiguous GRH source profile")
+    return matches[0]
+
+
+def _sql_lines(
+    path: Path, hasher: Any = None, *, metadata: dict[str, Any] | None = None,
+) -> Iterator[str]:
+    """Read SQL/gzip fully, retaining logical identity and separate container evidence."""
+    before = path.stat()
+    physical_sha = _sha256_file(path)
+    logical_sha = hashlib.sha256()
+    logical_bytes = 0
+    database = cutoff = None
+    with path.open("rb") as physical:
+        compressed = physical.read(2) == b"\x1f\x8b"
+        physical.seek(0)
+        handle = gzip.GzipFile(fileobj=physical) if compressed else physical
+        try:
+            for raw_line in handle:
+                logical_bytes += len(raw_line)
+                if logical_bytes > 2 * 1024 ** 3:
+                    raise ExtractionError("Source exceeds the logical size limit")
+                logical_sha.update(raw_line)
+                if hasher is not None:
+                    hasher.update(raw_line)
+                try:
+                    line = raw_line.decode("utf-8")
+                except UnicodeDecodeError:
+                    raise ExtractionError("Source contains invalid UTF-8") from None
+                if cutoff is not None and line.strip():
+                    raise ExtractionError("Source contains content after its completion marker")
+                match = re.fullmatch(r"-- Host: .*?\s+Database: ([A-Za-z_][A-Za-z_0-9]*)", line.strip())
+                if match:
+                    if database is not None and database != match.group(1):
+                        raise ExtractionError("Source declares conflicting databases")
+                    database = match.group(1)
+                if line.startswith("-- Dump completed on "):
+                    cutoff = line.removeprefix("-- Dump completed on ").strip().replace(" ", "T")
+                yield line
+        except (gzip.BadGzipFile, EOFError):
+            raise ExtractionError("Source gzip is invalid or incomplete") from None
+        finally:
+            if compressed:
+                handle.close()
+    after = path.stat()
+    if (before.st_size, before.st_mtime_ns, before.st_ino) != (after.st_size, after.st_mtime_ns, after.st_ino):
+        raise ExtractionError("Source changed during extraction")
+    if _sha256_file(path) != physical_sha:
+        raise ExtractionError("Source bytes changed during extraction")
+    if metadata is not None:
+        metadata.update({
+            "sha256": logical_sha.hexdigest().upper(), "logicalBytes": logical_bytes,
+            "physicalSha256": physical_sha, "physicalBytes": after.st_size,
+            "container": "gzip" if compressed else "sql", "database": database, "cutoff": cutoff,
+        })
+
+
+def validate_source_metadata(metadata: Mapping[str, Any], profile: Mapping[str, Any]) -> None:
+    expected = profile["source"]
+    for field_name in ("sha256", "logicalBytes", "database", "cutoff"):
+        if metadata.get(field_name) != expected[field_name]:
+            raise ExtractionError(f"Source does not match selected profile: {field_name}")
+    if metadata.get("container") == "gzip":
+        if (metadata.get("physicalSha256") != expected.get("gzipSha256")
+                or metadata.get("physicalBytes") != expected.get("gzipBytes")):
+            raise ExtractionError("Source gzip does not match selected profile")
+
+
+def validate_profile_mode(profile: Mapping[str, Any], allow_source_drift: bool, fixture_mode: bool) -> None:
+    if allow_source_drift and (not fixture_mode or profile["id"] != PROFILE_NAME):
+        raise ExtractionError("Source drift is only supported for explicit default-profile test fixtures")
 
 
 def _sha256_file(path: Path) -> str:
@@ -394,6 +469,7 @@ class ScanResult:
     leave_counts: Counter[tuple[str | None, str | None]]
     family_counts: Counter[tuple[str | None, str | None]]
     primary_keys_seen: dict[str, set[tuple[str | None, ...]]]
+    source_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def scan_source(source: Path) -> ScanResult:
@@ -410,8 +486,9 @@ def scan_source(source: Path) -> ScanResult:
     current_table: str | None = None
     current_columns: list[str] = []
     dump_completed_at: str | None = None
+    source_metadata: dict[str, Any] = {}
 
-    for line in _sql_lines(source, hasher):
+    for line in _sql_lines(source, hasher, metadata=source_metadata):
         if current_table is None:
             create_match = re.match(r"CREATE TABLE `([^`]+)`", line)
             if create_match:
@@ -446,6 +523,8 @@ def scan_source(source: Path) -> ScanResult:
             row = _table_row(columns, values, table)
             counts[table] += 1
             primary_key = _source_key(row, PRIMARY_KEYS[table])
+            if any(value is None or value == "" for value in primary_key):
+                raise ExtractionError(f"Null source primary key in {table}")
             if primary_key in primary_keys_seen[table]:
                 duplicate_primary_keys[table] += 1
             else:
@@ -466,7 +545,7 @@ def scan_source(source: Path) -> ScanResult:
 
     return ScanResult(
         source_sha256=hasher.hexdigest().upper(),
-        source_size_bytes=source.stat().st_size,
+        source_size_bytes=source_metadata["logicalBytes"],
         dump_completed_at=dump_completed_at,
         schemas=schemas,
         counts=counts,
@@ -477,13 +556,22 @@ def scan_source(source: Path) -> ScanResult:
         leave_counts=leave_counts,
         family_counts=family_counts,
         primary_keys_seen=primary_keys_seen,
+        source_metadata=source_metadata,
     )
 
 
-def validate_scan(scan: ScanResult, *, allow_source_drift: bool) -> None:
+def validate_scan(
+    scan: ScanResult, *, allow_source_drift: bool = False,
+    profile_id: str | None = None, fixture_mode: bool = False,
+) -> None:
+    profile = load_source_profile(profile_id)
+    validate_profile_mode(profile, allow_source_drift, fixture_mode)
     missing_tables = sorted(set(EXPECTED_COUNTS) - set(scan.schemas))
     if missing_tables:
         raise ExtractionError(f"Required source tables not found: {', '.join(missing_tables)}")
+    for table, required in REQUIRED_COLUMNS.items():
+        if required - set(scan.schemas[table]):
+            raise ExtractionError(f"Required source columns missing in {table}")
 
     if scan.duplicate_primary_keys:
         detail = ", ".join(
@@ -494,15 +582,11 @@ def validate_scan(scan: ScanResult, *, allow_source_drift: bool) -> None:
     if allow_source_drift:
         return
 
-    if scan.source_sha256 != EXPECTED_SOURCE_SHA256:
-        raise ExtractionError(
-            "Unexpected GRH dump SHA-256. Use --allow-source-drift only after reviewing "
-            f"the new snapshot. Expected {EXPECTED_SOURCE_SHA256}, found {scan.source_sha256}."
-        )
+    validate_source_metadata(scan.source_metadata, profile)
 
     mismatches = {
         table: {"expected": expected, "actual": scan.counts[table]}
-        for table, expected in EXPECTED_COUNTS.items()
+        for table, expected in profile["curated"]["expectedCounts"].items()
         if scan.counts[table] != expected
     }
     if mismatches:
@@ -998,7 +1082,12 @@ def _join_quality(scan: ScanResult, indexes: Mapping[str, Any]) -> dict[str, Any
     }
 
 
-def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str, Any]:
+def build_outputs(
+    source: Path, output_dir: Path, scan: ScanResult, *, profile_id: str | None = None,
+    allow_source_drift: bool = False, fixture_mode: bool = False,
+) -> dict[str, Any]:
+    profile = load_source_profile(profile_id)
+    validate_scan(scan, allow_source_drift=allow_source_drift, profile_id=profile_id, fixture_mode=fixture_mode)
     output_dir.mkdir(parents=True, exist_ok=True)
     indexes, memberships = _build_indexes(scan)
     temp_paths = {
@@ -1008,7 +1097,8 @@ def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str,
     writers = {entity: JsonArrayWriter(path) for entity, path in temp_paths.items()}
 
     try:
-        for line in _sql_lines(source):
+        output_source_metadata: dict[str, Any] = {}
+        for line in _sql_lines(source, metadata=output_source_metadata):
             table = _insert_table(line)
             if table not in OUTPUT_BY_TABLE:
                 continue
@@ -1023,6 +1113,9 @@ def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str,
                 else:
                     record = mapper(row)
                 writers[entity].write(record)
+
+        if output_source_metadata != scan.source_metadata:
+            raise ExtractionError("Source changed between scan and output passes")
 
         for writer in writers.values():
             writer.close()
@@ -1067,13 +1160,20 @@ def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str,
 
         manifest = {
             "schemaVersion": "1.0.0",
-            "profile": PROFILE_NAME,
+            "profile": profile["curated"]["profileId"],
+            "sourceProfileId": profile["id"],
+            "profileVersion": profile["profileVersion"],
             "source": {
                 "fileName": source.name,
                 "sizeBytes": scan.source_size_bytes,
                 "sha256": scan.source_sha256,
                 "dumpCompletedAt": scan.dump_completed_at,
                 "database": "grh_junin",
+                "cutoff": scan.source_metadata.get("cutoff"),
+                "logicalBytes": scan.source_size_bytes,
+                "physicalSha256": scan.source_metadata.get("physicalSha256"),
+                "physicalBytes": scan.source_metadata.get("physicalBytes"),
+                "container": scan.source_metadata.get("container"),
                 "format": "MariaDB 10.3 extended INSERT SQL dump",
             },
             "extractor": {
@@ -1083,16 +1183,17 @@ def build_outputs(source: Path, output_dir: Path, scan: ScanResult) -> dict[str,
                 "strategy": "two-pass streaming input and streaming JSON output",
                 "commandPowerShell": (
                     "python .\\scripts\\extract_rrhh_curated.py "
-                    "--grh-sql \"$env:USERPROFILE\\Downloads\\grh_junin_extracted.sql\" "
-                    "--output-dir \".\\rrhh-data\""
+                    f"--profile \"{profile['curated']['profileId']}\" "
+                    "--grh-sql \"<private-source.sql-or-gzip>\" "
+                    "--output-dir \"<private-output>\""
                 ),
             },
             "validation": {
-                "strictSnapshot": scan.source_sha256 == EXPECTED_SOURCE_SHA256,
-                "expectedSourceSha256": EXPECTED_SOURCE_SHA256,
+                "strictSnapshot": not allow_source_drift,
+                "expectedSourceSha256": profile["source"]["sha256"],
                 "sourceCounts": {
                     table: {
-                        "expected": EXPECTED_COUNTS[table],
+                        "expected": profile["curated"]["expectedCounts"][table],
                         "actual": scan.counts[table],
                         "primaryKey": list(PRIMARY_KEYS[table]),
                         "distinctPrimaryKeys": len(scan.primary_keys_seen[table]),
@@ -1169,8 +1270,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--allow-source-drift",
         action="store_true",
-        help="Allow a reviewed newer dump; counts and source hash remain recorded in the manifest.",
+        help="Disable source gates only for explicit default-profile test fixtures.",
     )
+    parser.add_argument("--fixture-mode", action="store_true")
+    parser.add_argument("--profile", help="Explicit known source profile; defaults to the August baseline.")
     parser.add_argument("--self-test", action="store_true", help="Run parser unit checks and exit.")
     return parser.parse_args(argv)
 
@@ -1181,6 +1284,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _self_test()
         return 0
 
+    profile = load_source_profile(args.profile)
+    validate_profile_mode(profile, args.allow_source_drift, args.fixture_mode)
+
     source = args.grh_sql.resolve()
     output_dir = args.output_dir.resolve()
     if not source.is_file():
@@ -1188,12 +1294,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"Scanning source: {source}")
     scan = scan_source(source)
-    validate_scan(scan, allow_source_drift=args.allow_source_drift)
+    validate_scan(scan, allow_source_drift=args.allow_source_drift, profile_id=args.profile, fixture_mode=args.fixture_mode)
     print(
         "Validated source counts: "
         + ", ".join(f"{table}={scan.counts[table]}" for table in sorted(EXPECTED_COUNTS))
     )
-    manifest = build_outputs(source, output_dir, scan)
+    manifest = build_outputs(source, output_dir, scan, profile_id=args.profile,
+                             allow_source_drift=args.allow_source_drift, fixture_mode=args.fixture_mode)
     print(f"Wrote manifest: {output_dir / 'curated-manifest.json'}")
     print(
         "Curated records: "

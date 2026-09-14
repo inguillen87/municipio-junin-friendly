@@ -5,6 +5,7 @@ import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@neondatabase/serverless';
 import { acquireGrhPublicationLocks } from './lib/grh-publication-lock.mjs';
+import { getGrhSourceProfile, defaultGrhSourceProfile } from './lib/grh-source-profile.mjs';
 
 import {
   directCanonicalDatabaseUrl,
@@ -109,15 +110,23 @@ function assertPayrollDate(value, fieldName) {
   return date;
 }
 
-function assertManifest(manifest) {
-  if (manifest?.schemaVersion !== 1 || manifest?.profile !== EXPECTED_PROFILE) {
+function assertManifest(manifest, profile) {
+  if (manifest?.schemaVersion !== 1 || manifest?.profile !== profile.core.profileId) {
     throw new GrhCoreError('UNSUPPORTED_PROFILE');
   }
-  if (manifest?.source?.currentPayrollDate !== EXPECTED_CURRENT_PAYROLL_DATE) {
+  if (manifest?.source?.currentPayrollDate !== profile.source.currentPayrollDate) {
     throw new GrhCoreError('INVALID_CURRENT_PAYROLL_DATE');
   }
   if (!/^[a-f0-9]{64}$/i.test(manifest?.source?.sha256 ?? '')) {
     throw new GrhCoreError('INVALID_SOURCE_SHA256');
+  }
+  if (manifest.source.sha256.toUpperCase() !== profile.source.sha256) {
+    throw new GrhCoreError('SOURCE_SHA256_PROFILE_MISMATCH');
+  }
+  if (profile.id !== defaultGrhSourceProfile().id
+      && ((manifest.source.dumpCompletedAt ?? manifest.source.cutoff)?.replace(' ', 'T') !== profile.source.cutoff
+        || manifest.source.database !== profile.source.database)) {
+    throw new GrhCoreError('SOURCE_PROVENANCE_PROFILE_MISMATCH');
   }
   if (manifest?.source?.database !== undefined && manifest.source.database !== 'grh_junin') {
     throw new GrhCoreError('INVALID_SOURCE_DATABASE');
@@ -128,17 +137,14 @@ function assertManifest(manifest) {
   if (manifest?.quality?.crossSourceJoinByIdPersona !== 0) {
     throw new GrhCoreError('CROSS_SOURCE_ID_JOIN_FORBIDDEN');
   }
-  for (const [table, expected] of Object.entries(EXPECTED_SOURCE_COUNTS)) {
+  for (const [table, expected] of Object.entries(profile.core.expectedCounts)) {
     if (Number(manifest?.sourceCounts?.[table]) !== expected) {
       throw new GrhCoreError('SOURCE_COUNTS_MISMATCH');
     }
   }
   const reconciliation = manifest.reconciliation ?? {};
   if (
-    Number(reconciliation.administrativeActive) !== 882
-    || Number(reconciliation.liquidatedCurrent) !== 854
-    || Number(reconciliation.activeNotLiquidated) !== 28
-    || Number(reconciliation.liquidatedNotActive) !== 0
+    Object.entries(profile.core.expectedReconciliation).some(([key, value]) => Number(reconciliation[key]) !== value)
     || Number(reconciliation.activeAndLiquidated) + Number(reconciliation.activeNotLiquidated)
       !== Number(reconciliation.administrativeActive)
   ) {
@@ -150,9 +156,9 @@ function assertManifest(manifest) {
   }
   if (
     manifest?.source?.currentPayrollClosureStatus !== 'open'
-    || manifest?.source?.latestClosedPayrollDate !== '2026-07-31'
+    || manifest?.source?.latestClosedPayrollDate !== profile.source.latestClosedPayrollDate
     || manifest?.quality?.payrollRunClosure?.currentRun !== 'open'
-    || manifest?.quality?.payrollRunClosure?.latestClosedDate !== '2026-07-31'
+    || manifest?.quality?.payrollRunClosure?.latestClosedDate !== profile.source.latestClosedPayrollDate
   ) {
     throw new GrhCoreError('PAYROLL_CLOSURE_MISMATCH');
   }
@@ -170,8 +176,9 @@ async function confinedFile(directory, filename) {
 }
 
 /** Verify private artifacts without opening a database connection. */
-export async function preflightGrhCore({ dataDir = DATA_DIR } = {}) {
+export async function preflightGrhCore({ dataDir = DATA_DIR, profileId = defaultGrhSourceProfile().id } = {}) {
   try {
+    const profile = getGrhSourceProfile(profileId);
     if (!(dataDir instanceof URL) || dataDir.protocol !== 'file:' || dataDir.search || dataDir.hash
         || !dataDir.pathname.endsWith('/')) {
       throw new GrhCoreError('FILE_DIRECTORY_URL_REQUIRED');
@@ -180,14 +187,14 @@ export async function preflightGrhCore({ dataDir = DATA_DIR } = {}) {
     const manifestPath = await confinedFile(directory, MANIFEST_FILE);
     const manifestBytes = await readFile(manifestPath);
     const manifest = JSON.parse(manifestBytes.toString('utf8'));
-    return await verifySourceArtifacts(manifest, directory, createHash('sha256').update(manifestBytes).digest('hex'));
+    return await verifySourceArtifacts(manifest, directory, createHash('sha256').update(manifestBytes).digest('hex'), profile);
   } catch (error) {
     throw safeCoreError(error, 'PREFLIGHT_FAILED');
   }
 }
 
-async function verifySourceArtifacts(manifest, directory, manifestSha256) {
-  assertManifest(manifest);
+async function verifySourceArtifacts(manifest, directory, manifestSha256, profile) {
+  assertManifest(manifest, profile);
   for (const outputName of Object.keys(OUTPUT_TABLES)) {
     const descriptor = manifest.outputs?.[outputName];
     if (descriptor?.file !== OUTPUT_FILES[outputName]) {
@@ -222,11 +229,12 @@ async function verifySourceArtifacts(manifest, directory, manifestSha256) {
     ...Object.values(artifacts),
     { bytes: rowOverheadEstimate },
   ]);
-  if (artifacts.payrollSnapshot.records !== 854 || artifacts.employmentReconciliation.records !== 2450) {
+  if (artifacts.payrollSnapshot.records !== profile.core.expectedCounts.histolegajo
+      || artifacts.employmentReconciliation.records !== profile.core.expectedCounts.legajo) {
     throw new GrhCoreError('CRITICAL_OUTPUT_COUNTS_MISMATCH');
   }
   return freezeSource({
-    manifest, manifestSha256, artifacts, logicalBytes, rowOverheadEstimate,
+    manifest, manifestSha256, artifacts, logicalBytes, rowOverheadEstimate, profileId: profile.id,
     dataDir: pathToFileURL(`${directory}${path.sep}`).href,
   });
 }
@@ -235,7 +243,7 @@ async function revalidateSource(source) {
   if (!source || typeof source.dataDir !== 'string' || !/^[a-f0-9]{64}$/i.test(source.manifestSha256 ?? '')) {
     throw new GrhCoreError('VERIFIED_SOURCE_REQUIRED');
   }
-  const verified = await preflightGrhCore({ dataDir: new URL(source.dataDir) });
+  const verified = await preflightGrhCore({ dataDir: new URL(source.dataDir), profileId: source.profileId });
   if (verified.manifestSha256 !== source.manifestSha256
       || stableJson(verified.manifest) !== stableJson(source.manifest)) {
     throw new GrhCoreError('SOURCE_CHANGED_AFTER_PREFLIGHT');
@@ -1017,6 +1025,11 @@ export async function importGrhCoreWithinTransaction({ client, source, batchId, 
     await acquireGrhPublicationLocks(client);
     stage = 'SOURCE_REVALIDATION_FAILED';
     source = await revalidateSource(source);
+    // Source verification alone cannot authorize a second version of monthly
+    // history. The current schema and consumers still require one core batch.
+    if (source.manifest.profile !== EXPECTED_PROFILE) {
+      throw new GrhCoreError('SOURCE_REPLACEMENT_COORDINATION_REQUIRED');
+    }
     stage = 'BATCH_VALIDATION_FAILED';
     await resolveGrhBatch(client, source.manifest, batchId, importRunId);
     await requireCanonicalContracts(client, batchId);
@@ -1138,7 +1151,7 @@ async function main() {
   if (apply && preflightOnly) throw new GrhCoreError('AMBIGUOUS_CLI_MODE');
   for (const arg of argv) {
     if (!['--preflight-only', '--apply', '--confirm-isolated-branch'].includes(arg)
-        && !/^--(?:batch-id|import-run-id|data-dir|confirm-production-branch)=.+$/.test(arg)) {
+        && !/^--(?:batch-id|import-run-id|data-dir|profile|confirm-production-branch)=.+$/.test(arg)) {
       throw new GrhCoreError('UNSUPPORTED_CLI_ARGUMENT');
     }
   }
@@ -1148,7 +1161,7 @@ async function main() {
     singleCliValue(argv, 'batch-id'), singleCliValue(argv, 'import-run-id'),
   );
   const databaseUrl = preflightOnly ? null : directCanonicalDatabaseUrl();
-  const source = await preflightGrhCore({ dataDir });
+  const source = await preflightGrhCore({ dataDir, profileId: singleCliValue(argv, 'profile') });
   if (preflightOnly) {
     console.log(JSON.stringify({
       status: 'preflight-ok', source: 'GRH core',

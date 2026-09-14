@@ -89,6 +89,7 @@ const shellFiles = [
   'assets/payroll-formula-linter.js',
   'assets/grh-source-preview.js',
   'assets/grh-backup-review-model.js',
+  'assets/grh-core-review-model.js',
   'assets/grh-backup-review.js',
   'assets/grh-backup-review.css',
   'assets/payroll-post-close-exporter.js',

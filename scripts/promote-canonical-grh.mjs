@@ -7,6 +7,7 @@ import { directCanonicalDatabaseUrl } from './lib/canonical-import.mjs';
 import { splitPostgresStatements } from './lib/sql-statements.mjs';
 import { inspectCuratedReplayWithinTransaction } from './lib/rrhh-import-replay.mjs';
 import { acquireGrhPublicationLocks } from './lib/grh-publication-lock.mjs';
+import { getGrhSourceProfile } from './lib/grh-source-profile.mjs';
 
 const PROMOTION_URL = new URL('./canonical-promote-current-grh.sql', import.meta.url);
 const TABLES = ['grh_employees', 'grh_absences', 'grh_leaves', 'grh_family', 'grh_catalog_rows'];
@@ -19,6 +20,11 @@ const MESSAGES = Object.freeze({
   GRH_PROMOTION_IDENTITY_CONFLICT: 'La identidad existente requiere revisión; no se reasigna ni sobrescribe.',
   GRH_PROMOTION_CONTRACT_CONFLICT: 'El contrato existente no conserva la misma persona y procedencia.',
   GRH_PROMOTION_CUTOFF_CONFLICT: 'El corte seleccionado colisiona con evidencia canónica ya conservada.',
+  GRH_PROMOTION_BASELINE_REQUIRED: 'La actualización requiere identificar explícitamente el respaldo canónico actual.',
+  GRH_PROMOTION_BASELINE_MISMATCH: 'El respaldo canónico actual no coincide con la base esperada.',
+  GRH_PROMOTION_DISAPPEARED_CONTRACT: 'Un legajo de la base no está en el candidato; requiere revisión antes de actualizar.',
+  GRH_PROMOTION_REFERENCE_CONFLICT: 'Una referencia de origen no conserva su identidad, procedencia o período.',
+  GRH_PROMOTION_ASSERTION_CONFLICT: 'La evidencia de identidad no conserva el perfil o la procedencia esperados.',
   GRH_PROMOTION_STAGING_CONFLICT: 'La evidencia inmutable del lote no coincide con la corrida seleccionada.',
   GRH_PROMOTION_RESULT_MISMATCH: 'La promoción no produjo el conjunto canónico esperado.',
   GRH_PROMOTION_BUSY: 'Otra operación retiene los datos necesarios; reintentá la transacción completa.',
@@ -40,17 +46,50 @@ function one(result, fields = []) {
   return result.rows[0];
 }
 function count(value) { return Number.isSafeInteger(value) && value >= 0; }
+const UUID=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+function batchUuid(sha) {
+  const hash=createHash('md5').update('source_import_batch|GRH|'+sha.toUpperCase()).digest('hex');
+  return [hash.slice(0,8),hash.slice(8,12),hash.slice(12,16),hash.slice(16,20),hash.slice(20)].join('-');
+}
+function profileCounts(profile) {
+  const output=profile.curated.expectedOutputCounts;
+  const names={sectors:'sectors',categories:'categories',unions:'unions',agreements:'agreements',
+    absenceReasons:'absence_reasons',familyRelationships:'family_relationships',jobRoles:'job_roles',
+    organizations:'organizations',exitReasons:'exit_reasons',employmentStatuses:'employment_statuses'};
+  const catalogs=Object.fromEntries(Object.entries(names).map(([key,name])=>[name,output[key]]));
+  const critical=Object.fromEntries(['employees','absences','leaves','familyMembers','sectors','categories','unions','agreements']
+    .map(key=>[key,output[key]]));
+  return {employees:output.employees,absences:output.absences,leaves:output.leaves,family:output.familyMembers,
+    catalog_rows:Object.values(catalogs).reduce((sum,value)=>sum+value,0),catalogs,critical,source:output};
+}
 function validateInput(importRunId, expected, verifiedProjection, checkpoint) {
   if (typeof importRunId !== 'string' || !/^[1-9][0-9]{0,18}$/.test(importRunId)
     || BigInt(importRunId) > 9223372036854775807n
     || expected?.sourceName !== 'grh_junin_curated' || expected?.sourceDatabase !== 'grh_junin'
     || typeof expected.sourceSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(expected.sourceSha256)
-    || typeof expected.cutoff !== 'string' || !/^2026-08-06[ T](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(expected.cutoff)
-    || expected.qualityFlags?.profile !== 'grh-junin-2026-08-06'
+    || typeof expected.cutoff !== 'string' || !/^20[0-9]{2}-[0-9]{2}-[0-9]{2}[ T](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(expected.cutoff)
     || expected.qualityFlags?.strictSnapshot !== true || expected.qualityFlags?.allOutputHashesVerified !== true
     || !/^[a-f0-9]{64}$/i.test(expected.qualityFlags?.manifestSha256 ?? '')
     || !expected.tableCounts || typeof expected.tableCounts !== 'object' || Array.isArray(expected.tableCounts)
     || typeof verifiedProjection !== 'function' || typeof checkpoint !== 'function') fail('GRH_PROMOTION_INPUT_INVALID');
+  let profile;
+  try { profile=getGrhSourceProfile(expected.qualityFlags?.profile); }
+  catch { fail('GRH_PROMOTION_INPUT_INVALID'); }
+  if (expected.qualityFlags.profile!==profile.curated.profileId
+    || expected.sourceSha256.toUpperCase()!==profile.source.sha256 || expected.sourceDatabase!==profile.source.database
+    || expected.cutoff.replace(' ','T')!==profile.source.cutoff
+    || stable(expected.tableCounts)!==stable(profileCounts(profile))) fail('GRH_PROMOTION_INPUT_INVALID');
+}
+function validateBaseline(value) {
+  if(value===undefined || value===null) return null;
+  if(!value || typeof value!=='object' || Array.isArray(value)
+    || Object.keys(value).sort().join(',')!=='batchId,cutoff,importRunId,sourceDatabase,sourceSha256'
+    || typeof value.importRunId!=='string' || !/^[1-9][0-9]{0,18}$/.test(value.importRunId)
+    || BigInt(value.importRunId)>9223372036854775807n || !UUID.test(value.batchId??'')
+    || typeof value.sourceSha256!=='string' || !/^[a-f0-9]{64}$/i.test(value.sourceSha256)
+    || value.batchId!==batchUuid(value.sourceSha256) || value.sourceDatabase!=='grh_junin'
+    || typeof value.cutoff!=='string' || !/^20[0-9]{2}-[0-9]{2}-[0-9]{2}[ T](?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(value.cutoff)) fail('GRH_PROMOTION_INPUT_INVALID');
+  return value;
 }
 
 const RUN_SQL = `/* grh-promotion:run */ SELECT id::text, source_name, upper(source_sha256) AS source_sha256,
@@ -68,6 +107,9 @@ const EXPECTED_PEOPLE = `WITH selected_source AS (
   ORDER BY e.person_id,e.activo DESC,e.fecha_egreso DESC NULLS FIRST,e.company_id,e.legajo
 ), expected_people AS (
   SELECT md5('person_identity|GRH|persona|' || p.person_id::text)::uuid AS id,
+    p.person_id::text AS source_id,p.cuil AS raw_cuil,p.dni AS raw_dni,p.nombre AS raw_full_name,
+    p.fecha_nacimiento::text AS raw_birth_date,
+    COALESCE(p.source_payload #>> '{identity,sexCode}',p.sexo) AS raw_sex_code,
     CASE WHEN is_valid_cuil(p.cuil) THEN normalize_digits(p.cuil) END AS cuil,
     NULLIF(normalize_digits(p.dni),'') AS dni,NULLIF(btrim(p.nombre),'') AS full_name,
     CASE WHEN p.fecha_nacimiento BETWEEN DATE '1900-01-01' AND s.cutoff::date THEN p.fecha_nacimiento END AS birth_date,
@@ -134,7 +176,7 @@ SELECT (SELECT count(*)::int FROM actual) AS actual_count,
 const BATCH_SQL = `/* grh-promotion:batch */ SELECT id::text,source_system,source_database,source_file_name,
   upper(source_sha256) AS source_sha256,legacy_import_run_id::text,
   source_cutoff IS NOT DISTINCT FROM ($3::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires') AS cutoff_matches,
-  validation_state FROM public.source_import_batch
+  validation_state,manifest->>'promotionProfile' AS promotion_profile FROM public.source_import_batch
   WHERE id=$2::uuid OR (source_system='GRH' AND (source_sha256=$4 OR legacy_import_run_id=$1::bigint))
   ORDER BY id FOR SHARE NOWAIT`;
 async function verifyBatch(client, importRunId, batchId, expected, required) {
@@ -144,6 +186,102 @@ async function verifyBatch(client, importRunId, batchId, expected, required) {
     || row.source_database!==expected.sourceDatabase || row.source_file_name!==expected.sourceName
     || row.source_sha256!==expected.sourceSha256.toUpperCase() || row.legacy_import_run_id!==importRunId
     || row.cutoff_matches!==true || row.validation_state!=='published')) fail('GRH_PROMOTION_SOURCE_MISMATCH');
+  return {exists:result.rows.length===1,promotionProfile:result.rows[0]?.promotion_profile??null};
+}
+const SELECTED_REFERENCES=`WITH selected_refs AS (
+  SELECT DISTINCT 'persona'::text AS source_entity,person_id::text AS source_id,
+    'person_identity'::text AS canonical_entity,md5('person_identity|GRH|persona|'||person_id::text)::uuid AS canonical_id
+  FROM public.grh_employees WHERE import_run_id=$1::bigint AND person_id IS NOT NULL
+  UNION ALL SELECT 'legajo',jsonb_build_object('companyCode',company_id,'employeeNumber',legajo)::text,
+    'employment_contract',md5('employment_contract|GRH|legajo|'||company_id::text||'|'||legajo)::uuid
+  FROM public.grh_employees WHERE import_run_id=$1::bigint AND person_id IS NOT NULL
+)`;
+async function verifyBaseline(client,baseline,expected,batchId,targetExists) {
+  if(!baseline) { if(!targetExists) fail('GRH_PROMOTION_BASELINE_REQUIRED'); return; }
+  const value=one(await client.query(`/* grh-promotion:baseline */ SELECT
+    b.source_system='GRH' AND b.source_database=$3 AND upper(b.source_sha256)=upper($4)
+    AND b.validation_state='published' AND b.legacy_import_run_id=$2::bigint
+    AND r.source_name='grh_junin_curated' AND r.status='completed' AND r.completed_at IS NOT NULL
+    AND upper(r.source_sha256)=upper($4) AND r.source_cutoff=$5::timestamp
+    AND b.source_cutoff=($5::timestamp AT TIME ZONE 'America/Argentina/Buenos_Aires') AS exact,
+    r.quality_flags->>'profile' AS profile
+    FROM public.source_import_batch b JOIN public.data_import_runs r ON r.id=b.legacy_import_run_id
+    WHERE b.id=$1::uuid FOR SHARE OF b,r NOWAIT`,
+  [baseline.batchId,baseline.importRunId,baseline.sourceDatabase,baseline.sourceSha256,baseline.cutoff]),['exact']);
+  let profile; try {profile=getGrhSourceProfile(value.profile);} catch {fail('GRH_PROMOTION_BASELINE_MISMATCH');}
+  if(!value.exact || profile.source.sha256!==baseline.sourceSha256.toUpperCase()
+    || profile.source.cutoff!==baseline.cutoff.replace(' ','T') || profile.source.database!==baseline.sourceDatabase
+    || (baseline.batchId!==batchId && baseline.cutoff.replace(' ','T')>=expected.cutoff.replace(' ','T'))
+    || (baseline.batchId===batchId && !targetExists)) fail('GRH_PROMOTION_BASELINE_MISMATCH');
+}
+async function verifyTransition(client,importRunId,batchId,baseline,targetExists) {
+  const value=one(await client.query(`/* grh-promotion:transition */ SELECT
+    NOT EXISTS (SELECT 1 FROM public.employment_contract c JOIN public.grh_employees e
+      ON e.company_id=c.legacy_company_id AND e.legajo=c.legacy_legajo
+      WHERE e.import_run_id=$1::bigint AND c.source_batch_id<>$2::uuid
+        AND ($4::boolean OR $3::uuid IS NULL OR c.source_batch_id<>$3::uuid)) AS cohort_matches,
+    NOT EXISTS (SELECT 1 FROM public.employment_contract c WHERE c.source_system='GRH'
+      AND c.source_batch_id=$3::uuid AND NOT EXISTS (SELECT 1 FROM public.grh_employees e
+        WHERE e.import_run_id=$1::bigint AND e.company_id=c.legacy_company_id AND e.legajo=c.legacy_legajo)) AS no_disappeared_contracts,
+    NOT EXISTS (SELECT 1 FROM public.employment_contract c WHERE c.source_system='GRH'
+      AND c.source_batch_id=$3::uuid AND (SELECT count(*)<>1 OR NOT bool_and(
+        s.source_schema='grh_junin' AND s.source_payload=c.source_payload
+        AND s.source_row_sha256=encode(digest(s.source_payload::text,'sha256'),'hex'))
+        FROM public.source_staging_row s WHERE s.batch_id=$3::uuid AND s.source_entity='legajo'
+          AND s.source_id=jsonb_build_object('companyCode',c.legacy_company_id,'employeeNumber',c.legacy_legajo)::text)) AS baseline_snapshots_match`,
+  [importRunId,batchId,baseline?.batchId??null,targetExists]),['cohort_matches','no_disappeared_contracts','baseline_snapshots_match']);
+  if(!value.cohort_matches) fail('GRH_PROMOTION_BASELINE_MISMATCH');
+  if(!value.no_disappeared_contracts) fail('GRH_PROMOTION_DISAPPEARED_CONTRACT');
+  if(!value.baseline_snapshots_match) fail('GRH_PROMOTION_STAGING_CONFLICT');
+}
+async function verifyReferences(client,importRunId,batchId,baseline,required=false) {
+  const value=one(await client.query(`/* grh-promotion:references */ ${SELECTED_REFERENCES}
+  SELECT NOT EXISTS (SELECT 1 FROM selected_refs e JOIN public.source_xref x
+    ON x.source_system='GRH' AND x.source_entity=e.source_entity AND x.source_id=e.source_id AND x.valid_to IS NULL
+    LEFT JOIN public.source_import_batch b ON b.id=x.source_batch_id
+    WHERE x.canonical_entity<>e.canonical_entity OR x.canonical_id<>e.canonical_id
+      OR b.source_system IS DISTINCT FROM 'GRH' OR b.source_database IS DISTINCT FROM 'grh_junin'
+      OR b.validation_state IS DISTINCT FROM 'published' OR x.valid_from IS DISTINCT FROM b.source_cutoff
+      OR (x.source_batch_id<>$2::uuid AND ($4::boolean OR $3::uuid IS NULL OR x.source_batch_id<>$3::uuid))) AS exact,
+    NOT EXISTS (SELECT 1 FROM selected_refs e WHERE NOT EXISTS (SELECT 1 FROM public.source_xref x
+      WHERE x.source_system='GRH' AND x.source_entity=e.source_entity AND x.source_id=e.source_id
+        AND x.canonical_entity=e.canonical_entity AND x.canonical_id=e.canonical_id
+        AND x.valid_to IS NULL AND x.source_batch_id=$2::uuid)) AS complete`,
+  [importRunId,batchId,baseline?.batchId??null,required]),['exact','complete']);
+  if(!value.exact || (required && !value.complete)) fail('GRH_PROMOTION_REFERENCE_CONFLICT');
+}
+async function verifyAssertions(client,importRunId,batchId,baseline,exactNewProfile=false,after=false) {
+  const value=one(await client.query(`/* grh-promotion:assertions */ ${EXPECTED_PEOPLE}, expected_natural AS (
+    SELECT e.id,e.source_id,a.attribute_name,to_jsonb(a.raw_value) AS raw_value,
+      a.normalized_value,a.normalized_value IS NOT NULL AS eligible
+    FROM expected_people e JOIN public.person_identity p ON p.id=e.id
+    CROSS JOIN LATERAL (VALUES ('cuil',e.raw_cuil,p.cuil::text),('dni',e.raw_dni,p.dni::text),
+      ('full_name',e.raw_full_name,p.full_name::text),('birth_date',e.raw_birth_date,p.birth_date::text),
+      ('sex_code',e.raw_sex_code,p.sex_code::text)) a(attribute_name,raw_value,normalized_value)
+    WHERE a.raw_value IS NOT NULL
+  ), actual_natural AS (
+    SELECT a.person_id AS id,a.source_id::text,a.attribute_name::text,a.raw_value,a.normalized_value,
+      a.eligible_for_promotion AS eligible
+    FROM public.person_identity_assertion a JOIN expected_people e ON e.id=a.person_id
+    WHERE a.source_system='GRH' AND a.source_entity='persona' AND a.source_batch_id=$2::uuid
+      AND a.valid_to IS NULL AND a.attribute_name IN ('cuil','dni','full_name','birth_date','sex_code')
+  ), difference AS (
+    (SELECT * FROM expected_natural EXCEPT ALL SELECT * FROM actual_natural)
+    UNION ALL (SELECT * FROM actual_natural EXCEPT ALL SELECT * FROM expected_natural)
+  ) SELECT NOT EXISTS (SELECT 1 FROM public.person_identity_assertion a JOIN expected_people e ON e.id=a.person_id
+    LEFT JOIN public.source_import_batch b ON b.id=a.source_batch_id
+    WHERE a.source_system='GRH' AND a.source_entity='persona' AND a.valid_to IS NULL AND (
+      a.source_id<>e.source_id OR b.source_system IS DISTINCT FROM 'GRH'
+      OR b.source_database IS DISTINCT FROM 'grh_junin' OR b.validation_state IS DISTINCT FROM 'published'
+      OR a.valid_from IS DISTINCT FROM b.source_cutoff
+      OR (a.source_batch_id<>$2::uuid AND ($4::boolean OR $3::uuid IS NULL OR a.source_batch_id<>$3::uuid)))) AS lineage_matches,
+    NOT EXISTS (SELECT 1 FROM difference) AND NOT EXISTS (
+      SELECT 1 FROM public.person_identity_assertion a JOIN expected_people e ON e.id=a.person_id
+      WHERE a.source_system='GRH' AND a.source_entity='persona' AND a.source_batch_id=$2::uuid
+        AND a.valid_to IS NULL AND a.attribute_name IN ('cuil','dni','full_name','birth_date','sex_code')
+        AND a.preferred IS DISTINCT FROM a.eligible_for_promotion) AS profile_matches`,
+  [importRunId,batchId,baseline?.batchId??null,after]),['lineage_matches','profile_matches']);
+  if(!value.lineage_matches || (exactNewProfile && !value.profile_matches)) fail('GRH_PROMOTION_ASSERTION_CONFLICT');
 }
 async function verifySources(client, importRunId, batchId) {
   const value=one(await client.query(SOURCE_GUARDS_SQL,[importRunId,batchId]),
@@ -157,6 +295,22 @@ async function verifyStaging(client, importRunId, batchId, allowEmpty) {
   if (!count(value.actual_count) || !count(value.expected_count) || value.expected_count<1) fail('GRH_PROMOTION_UNAVAILABLE');
   if (!value.exact && !(allowEmpty && value.actual_count===0)) fail('GRH_PROMOTION_STAGING_CONFLICT');
   return value.expected_count;
+}
+/** Read-only verification; the caller owns transaction, source locks and rollback. */
+export async function verifyCanonicalGrhStagingWithinTransaction(client, importRunId, batchId) {
+  if (!client || typeof client.query!=='function' || typeof importRunId!=='string'
+    || !/^[1-9][0-9]{0,18}$/.test(importRunId) || BigInt(importRunId)>9223372036854775807n
+    || typeof batchId!=='string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(batchId)) fail('GRH_PROMOTION_INPUT_INVALID');
+  try {
+    await client.query('SAVEPOINT grh_canonical_staging_verification');
+    const expectedCount=await verifyStaging(client,importRunId,batchId,false);
+    await client.query('RELEASE SAVEPOINT grh_canonical_staging_verification');
+    return expectedCount;
+  } catch(error) {
+    if(Object.hasOwn(MESSAGES,error?.code)) throw error;
+    if(error?.code==='25P01') fail('GRH_PROMOTION_TRANSACTION_REQUIRED');
+    fail('GRH_PROMOTION_UNAVAILABLE');
+  }
 }
 const RESULT_SQL = `/* grh-promotion:result */ ${EXPECTED_PEOPLE}
 SELECT (SELECT count(*)::int FROM expected_people) AS expected_people,
@@ -176,8 +330,9 @@ SELECT (SELECT count(*)::int FROM expected_people) AS expected_people,
           AND snapshot.administrative_status=CASE WHEN c.status IN ('active','inactive','state_error') THEN c.status ELSE 'unknown' END)) AS statuses_complete`;
 
 /** Caller owns the transaction and must roll it back on any rejection, including checkpoint failures. */
-export async function promoteCanonicalGrhWithinTransaction({client,importRunId,expectedSource,verifiedProjection,checkpoint=async()=>{}}) {
+export async function promoteCanonicalGrhWithinTransaction({client,importRunId,expectedSource,expectedBaseline,verifiedProjection,checkpoint=async()=>{}}) {
   validateInput(importRunId,expectedSource,verifiedProjection,checkpoint);
+  const baseline=validateBaseline(expectedBaseline);
   if (!client || typeof client.query!=='function') fail('GRH_PROMOTION_INPUT_INVALID');
   try {
     try { await client.query(`SAVEPOINT ${SAVEPOINT}`); }
@@ -185,8 +340,7 @@ export async function promoteCanonicalGrhWithinTransaction({client,importRunId,e
     await acquireGrhPublicationLocks(client);
     await client.query(`LOCK TABLE ${TABLES.map(table=>`public.${table}`).join(', ')} IN SHARE MODE NOWAIT`);
     const run=one(await client.query(RUN_SQL,[importRunId,expectedSource.cutoff]),['cutoff_matches','completed']);
-    const batchHash=createHash('md5').update('source_import_batch|GRH|'+expectedSource.sourceSha256.toUpperCase()).digest('hex');
-    const expectedBatchId=[batchHash.slice(0,8),batchHash.slice(8,12),batchHash.slice(12,16),batchHash.slice(16,20),batchHash.slice(20)].join('-');
+    const expectedBatchId=batchUuid(expectedSource.sourceSha256);
     if (run.id!==importRunId || run.source_name!==expectedSource.sourceName
       || run.source_sha256!==expectedSource.sourceSha256.toUpperCase() || !run.cutoff_matches || !run.completed || run.status!=='completed'
       || stable(run.quality_flags)!==stable(expectedSource.qualityFlags) || stable(run.table_counts)!==stable(expectedSource.tableCounts)
@@ -194,15 +348,22 @@ export async function promoteCanonicalGrhWithinTransaction({client,importRunId,e
     const replay=await inspectCuratedReplayWithinTransaction(client,expectedSource,verifiedProjection);
     if (replay.action!=='noop' || replay.importRunId!==importRunId) fail('GRH_PROMOTION_COHORT_MISMATCH');
     const batchId=run.batch_id;
-    await verifyBatch(client,importRunId,batchId,expectedSource,false);
+    const target=await verifyBatch(client,importRunId,batchId,expectedSource,false);
+    const targetExists=target.exists;
+    await verifyBaseline(client,baseline,expectedSource,batchId,targetExists);
     await client.query(`/* grh-promotion:lock-people */ SELECT 1 FROM public.person_identity p
       JOIN (SELECT DISTINCT md5('person_identity|GRH|persona|' || person_id::text)::uuid AS id
         FROM public.grh_employees WHERE import_run_id=$1::bigint AND person_id IS NOT NULL) selected ON selected.id=p.id
       ORDER BY p.id FOR UPDATE OF p NOWAIT`,[importRunId]);
     await client.query(`/* grh-promotion:lock-contracts */ SELECT 1 FROM public.employment_contract c
-      JOIN public.grh_employees e ON c.legacy_company_id=e.company_id AND c.legacy_legajo=e.legajo
-        OR c.id=md5('employment_contract|GRH|legajo|' || e.company_id::text || '|' || e.legajo)::uuid
-      WHERE e.import_run_id=$1::bigint ORDER BY c.id FOR UPDATE OF c NOWAIT`,[importRunId]);
+      WHERE c.source_batch_id=$2::uuid OR EXISTS (SELECT 1 FROM public.grh_employees e
+        WHERE e.import_run_id=$1::bigint AND ((c.legacy_company_id=e.company_id AND c.legacy_legajo=e.legajo)
+          OR c.id=md5('employment_contract|GRH|legajo|' || e.company_id::text || '|' || e.legajo)::uuid))
+      ORDER BY c.id FOR UPDATE OF c NOWAIT`,[importRunId,baseline?.batchId??null]);
+    await client.query(`/* grh-promotion:lock-references */ ${SELECTED_REFERENCES}
+      SELECT 1 FROM public.source_xref x JOIN selected_refs e ON x.source_system='GRH'
+        AND x.source_entity=e.source_entity AND x.source_id=e.source_id
+      WHERE x.valid_to IS NULL ORDER BY x.source_entity,x.source_id,x.valid_from FOR UPDATE OF x NOWAIT`,[importRunId]);
     await client.query(`/* grh-promotion:lock-statuses */ SELECT 1 FROM public.employment_status_snapshot s
       JOIN public.grh_employees e ON s.employment_contract_id=md5('employment_contract|GRH|legajo|' || e.company_id::text || '|' || e.legajo)::uuid
       WHERE e.import_run_id=$1::bigint ORDER BY s.employment_contract_id,s.snapshot_date FOR UPDATE OF s NOWAIT`,[importRunId]);
@@ -216,10 +377,13 @@ export async function promoteCanonicalGrhWithinTransaction({client,importRunId,e
         JOIN public.grh_employees e ON c.legacy_company_id=e.company_id AND c.legacy_legajo=e.legajo
         WHERE e.import_run_id=$1::bigint)
       ORDER BY b.id FOR SHARE OF b NOWAIT`,[importRunId]);
+    await verifyTransition(client,importRunId,batchId,baseline,targetExists);
     await verifySources(client,importRunId,batchId);
+    await verifyReferences(client,importRunId,batchId,baseline);
+    await verifyAssertions(client,importRunId,batchId,baseline);
     await verifyStaging(client,importRunId,batchId,true);
     const statements=splitPostgresStatements(await readFile(PROMOTION_URL,'utf8'));
-    if (statements.length!==16) fail('GRH_PROMOTION_UNAVAILABLE');
+    if (statements.length!==17) fail('GRH_PROMOTION_UNAVAILABLE');
     await checkpoint('promotion:validated');
     for (let index=0;index<statements.length;index++) {
       await client.query("SELECT set_config('municontrol.promotion_import_run_id',$1,true)",[importRunId]);
@@ -232,6 +396,8 @@ export async function promoteCanonicalGrhWithinTransaction({client,importRunId,e
     }
     await checkpoint('promotion:written');
     await verifySources(client,importRunId,batchId);
+    await verifyReferences(client,importRunId,batchId,baseline,true);
+    await verifyAssertions(client,importRunId,batchId,baseline,!targetExists || target.promotionProfile==='explicit-curated-grh-v2',true);
     const stagedRows=await verifyStaging(client,importRunId,batchId,false);
     const result=one(await client.query(RESULT_SQL,[importRunId,batchId]),['statuses_complete']);
     if (!['expected_people','canonical_people','expected_contracts','canonical_contracts'].every(key=>count(result[key]))
