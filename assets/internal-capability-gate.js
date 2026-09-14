@@ -20,7 +20,7 @@
     'licencias-control.html': { any: ['leave.policy.read', 'leave.preview.read'] },
     'calidad-operativa.html': { any: ['quality.read', 'lineage.read'] },
     'asistente.html': { any: ['assistant.use'] },
-    'reportes-rrhh.html': { any: ['workforce.summary.read', 'management.analytics.read'] },
+    'reportes-rrhh.html': { any: ['workforce.summary.read', 'management.analytics.read', 'workforce.employee.read'] },
     'friendly-dashboard.html': { any: ['workforce.summary.read', 'management.analytics.read'] },
     'administracion-plataforma.html': {
       platformOwner: true,

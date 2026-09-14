@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
@@ -62,3 +62,4 @@ jobs:
           node scripts/verify-clock-dashboard-v3-browser.mjs
           node scripts/verify-clock-dashboard-browser.mjs
           node scripts/verify-pm10-reception-browser.mjs
+          node scripts/verify-family-schooling-browser.mjs

@@ -158,3 +158,4 @@ api/whatsapp-webhook.js
 local-agents/
 
 !scripts/migrations/055-pm10-continuous-reception.sql
+!scripts/migrations/057-family-schooling-certificates.sql

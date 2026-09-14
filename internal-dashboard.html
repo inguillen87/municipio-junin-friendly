@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="assets/family-schooling.css">
   <meta name="theme-color" content="#123244">
   <meta name="color-scheme" content="light">
   <title>Panel interno | MuniControl</title>
@@ -2714,6 +2715,7 @@
       }
 
       function closeDialog() {
+        document.dispatchEvent(new Event('mc:family-schooling-close'));
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
         state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
@@ -2724,6 +2726,7 @@
 
       async function openEmployee(contractId, legajo, companyId, fallbackName) {
         if (!text(contractId) && !text(legajo)) return;
+        document.dispatchEvent(new Event('mc:family-schooling-close'));
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
         state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
@@ -3304,6 +3307,15 @@
         const head = create('div', 'detail-section-head');
         head.append(create('h3', '', 'Familiares'), create('span', 'evidence source', 'Fuente'));
         section.appendChild(head);
+        const certificateHost = create('div');
+        certificateHost.setAttribute('data-family-schooling-ficha', '');
+        section.appendChild(certificateHost);
+        const contractId = text(detail.employee.contractId);
+        if (contractId) import('./assets/family-schooling.js').then(function (module) {
+          if (certificateHost.isConnected && els.employeeDialog.open) module.mountFamilyCertificates(certificateHost, {
+            contractId: contractId, canPropose: state.tenantCapabilities.has('employee.record.propose')
+          });
+        }).catch(function () { if (certificateHost.isConnected) certificateHost.textContent = 'No se pudo abrir la carga de certificados. Cerrá y abrí nuevamente la ficha.'; });
         const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
         const received = detail.family.length;
         section.appendChild(create('p', 'detail-section-copy',

@@ -50,6 +50,7 @@ prisma/
 !scripts/canonical-promote-current-grh.sql
 !scripts/migrations/
 !scripts/migrations/*.sql
+!scripts/tests/057-family-schooling-certificates.test.sql
 *.sql.gz
 *.backup*
 
