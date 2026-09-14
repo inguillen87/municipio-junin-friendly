@@ -36,9 +36,18 @@ La candidata `feat/pm10-reception-0592` contiene código legible reutilizable. L
 
 ## Estado actual y siguiente acción
 
-MC-H00 cerrado en alcance local. MC-H02: comparación y recuperación realizadas. MC-H01: conexión operativa comprobada y copia restaurada; falta cerrar publicación verificable. MC-C01/02/03 implementados, en validación final. No se aplicó migración persistente en Neon ni se activó un conector. No se modificó nómina.
+MC-H00 cerrado en alcance local. MC-H02: comparación y recuperación realizadas. MC-H01: conexión operativa comprobada y copia restaurada. MC-C01/02/03 implementados y validados; promoción pública pendiente. No se activó un conector. No se modificó nómina.
 
-Siguiente acción: terminar SQL056 con contrato JS real, exclusividad multiproceso y conflictos concurrentes en la copia restaurada; cerrar hashes, CI Linux/Windows y publicación reversible. La prueba física MC-C04 necesita host municipal permanente y CommKey por canal privado. La computadora identificada es Marcelo y no tiene el colector instalado. No se comprobó una fichada con la PC personal apagada.
+Siguiente acción: promover el artefacto final desde un árbol limpio y comprobar hashes y rechazos anónimos en el dominio público. La prueba física MC-C04 necesita host municipal permanente y CommKey por canal privado. La computadora identificada es Marcelo y no tiene el colector instalado. No se comprobó una fichada con la PC personal apagada.
+
+## Cierre de validación — 04:27 UTC
+
+- Commit de implementación: `8f43aaf0755431267b71a4695827604c18a45394`, publicado en la rama de integración. CI GitHub `34805842106`: aplicación 2.168 aprobadas/1 omitida; colector Linux 197/197; Windows 192 aprobadas/5 omitidas; navegador 17+15+22 y contrato entre procesos 11/11. Cero fallos.
+- SQL real en QA con rollback: 15 grupos aprobados. Fuente histórica, datos, usuarios, membresías, sesiones y funciones de autenticación conservados. La respuesta SQL056 pasó además por el contrato JavaScript real.
+- Copia local restaurada: suspensión, revocación en ambos órdenes de bloqueo, exclusión de recepción, rollback y replay después de COMMIT aprobados. Quedó un único evento sintético comprometido sólo en esa copia local; nunca en Neon. Verificador con 10 rechazos de destinos no autorizados.
+- Migraciones operativas aplicadas y registradas en `schema_migrations` a las 04:26:49 UTC: 055 SHA-256 `440cd16d80b31f96446b85850b9e42a4ac1db93661ca46197e12dcc31fa363eb`; 056 `71b77fd44b397bb1f43fc176023ab89f1e0caf590e088bb25c0f74f72e3067b9`. Conteos 11.091 canónicos/11.111 históricos/5.853 vínculos y estado del conector sin cambios. Runtime ejecuta las funciones sin SELECT directo a crudos o clave HMAC.
+- Candidato `dpl_ESuYyBca9Vo9DpXZswu5mfXNrmHY`: READY, sin cambiar el alias público. Seis archivos servidos coinciden por SHA-256; API GET 405, envío sin credencial 401 y consulta anónima 401. No se promoverá este candidato porque su configuración de función se incorporó después del primer commit; se reconstruirá desde árbol limpio.
+- Reversión técnica: promover el deployment anterior `dpl_Fv5beMqg5qAWhMfpWw3UrNk66w4y`. Las migraciones son aditivas y el código anterior sigue disponible; no eliminar tablas de acuses ni restaurar toda la base para una reversión de interfaz. La copia privada restaurable queda como resguardo adicional.
 
 ## Límite de aceptación
 
