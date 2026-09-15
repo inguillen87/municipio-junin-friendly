@@ -90,7 +90,9 @@ test('real watchdogs keep one live owner, recover its crash, and preserve manual
   const owner=await readFile(path.join(p.control,'process.lock','owner.json'),'utf8');
   second=realWatchdog(root);assert.deepEqual(await second.exit,[0,null]);
   process.kill(first.child.pid,0);assert.equal(await readFile(path.join(p.control,'process.lock','owner.json'),'utf8'),owner);
-  first.child.kill();await first.exit;assert.throws(()=>process.kill(first.child.pid,0),{code:'ESRCH'});
+  // SIGTERM is a graceful stop on POSIX and correctly releases the lock.
+  // This fixture explicitly simulates a crash of its own synthetic process.
+  first.child.kill('SIGKILL');await first.exit;assert.throws(()=>process.kill(first.child.pid,0),{code:'ESRCH'});
   recovered=realWatchdog(root);
   await until(async()=>{const s=await readUserStatus(root);return s.status?.pid===recovered.child.pid&&s.status.state==='running';});
   assert.equal((await readdir(p.control)).filter(n=>n.startsWith('recovered-lock-')).length,1);
