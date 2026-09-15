@@ -362,6 +362,22 @@ test('listado pagina por recurso y rechaza proyecciones con secretos', async () 
   );
 });
 
+test('connector list accepts the SQL numeric token generation without exposing credentials', async () => {
+  const item = { id: IDEMPOTENCY_ID, deviceId: SESSION_ID, externalKey: 'pm10-connector',
+    driverKey: 'zk40-snapshot.v1', tokenVersion: 1, status: 'suspended', version: 1, lastAcceptedAt: null };
+  const result = await listAttendanceResources(fakeSql({resource:'connector',page:1,pageSize:25,total:1,items:[item]}),
+    identity(), {resource:'connector'}, session());
+  assert.deepEqual(result.data, [item]);
+  for (const bad of [{...item,tokenVersion:'1'}, {...item,tokenVersion:0},
+    {...item,tokenVersion:{value:1}}, {...item,tokenSha256:'b'.repeat(64)},
+    {...item,token:'private'}, {...item,nested:{tokenVersion:1}}]) {
+    await assert.rejects(listAttendanceResources(fakeSql({resource:'connector',page:1,pageSize:25,total:1,items:[bad]}),
+      identity(), {resource:'connector'}, session()), hasCode('ATTENDANCE_CONTRACT_DRIFT'));
+  }
+  await assert.rejects(listAttendanceResources(fakeSql({resource:'device',page:1,pageSize:25,total:1,items:[{tokenVersion:1}]}),
+    identity(), {resource:'device'}, session()), hasCode('ATTENDANCE_CONTRACT_DRIFT'));
+});
+
 test('auditoría acepta sólo la proyección mínima y exacta acordada con la UI', async () => {
   const item = {
     id: IDEMPOTENCY_ID,
