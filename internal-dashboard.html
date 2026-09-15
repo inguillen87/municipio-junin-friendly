@@ -1870,7 +1870,10 @@
           else { params.set('legajo', detail.legajo); if (detail.companyId) params.set('companyId', detail.companyId); }
           if (detail.section === 'family') {
             params.set('section', 'family');
-            if (detail.familyId !== null) params.set('familyId', detail.familyId);
+            if (detail.familyId !== null) {
+              params.set('familyId', detail.familyId);
+              params.set('familyKind', detail.familyRef?.kind || 'grh');
+            }
           }
         }
         const next = 'internal-dashboard.html' + (params.size ? '?' + params.toString() : '') + window.location.hash;
@@ -1981,12 +1984,16 @@
         const contractId = text(params.get('contractId'));
         const legajo = text(params.get('legajo'));
         const companyId = text(params.get('companyId'));
+        if (['contractId', 'legajo', 'companyId', 'section', 'familyKind', 'familyId'].some(function (key) { return params.getAll(key).length > 1; })) return null;
         if (contractId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) return null;
         if (!contractId && (!/^\d{1,20}$/.test(legajo) || (companyId && !/^\d{1,10}$/.test(companyId)))) return null;
         const familyId = params.get('familyId');
+        const familyKind = params.get('familyKind') || 'grh';
+        const familyRef = familyId === null ? null : { kind: familyKind,
+          id: familyKind === 'grh' && /^[0-9]{1,20}$/.test(familyId) || familyKind === 'own' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(familyId) ? familyId : '' };
         return contractId || legajo ? { contractId: contractId, legajo: legajo, companyId: companyId,
           section: params.get('section') === 'family' ? 'family' : null,
-          familyId: familyId === null ? null : (params.getAll('familyId').length === 1 && /^[0-9]{1,20}$/.test(familyId) ? familyId : '') } : null;
+          familyId: familyId === null ? null : familyRef.id, familyRef: familyRef } : null;
       }
 
       async function authenticate() {
@@ -3335,9 +3342,9 @@
         section.setAttribute('data-employee-family-section', '');
         const head = create('div', 'detail-section-head');
         const title = create('h3', '', 'Hijos y certificados'); title.id = 'employeeFamilyTitle'; title.tabIndex = -1;
-        head.append(title, create('span', 'evidence source', 'Fuente'));
+        head.append(title, create('span', 'evidence source', 'Registro municipal'));
         section.appendChild(head);
-        section.appendChild(create('p', 'detail-section-copy', 'Podés cargar un certificado PDF para los hijos que ya figuran en esta ficha. El alta de nuevos hijos todavía no está disponible.'));
+        section.appendChild(create('p', 'detail-section-copy', 'Consultá los hijos del legajo, agregá un vínculo declarado y registrá su certificado. Cada vínculo conserva su origen.'));
         const certificateHost = create('div');
         certificateHost.setAttribute('data-family-schooling-ficha', '');
         section.appendChild(certificateHost);
@@ -3345,26 +3352,29 @@
         if (contractId) import('./assets/family-schooling.js').then(function (module) {
           if (certificateHost.isConnected && els.employeeDialog.open) module.mountFamilyCertificates(certificateHost, {
             contractId: contractId, canPropose: state.tenantCapabilities.has('employee.record.propose'),
-            focusFamilyId: destination.section === 'family' ? (destination.familyId ?? null) : null
+            focusFamilyRef: destination.section === 'family' ? (destination.familyRef ?? (destination.familyId !== null && destination.familyId !== undefined ? { kind: 'grh', id: destination.familyId } : null)) : null
           });
         }).catch(function () { if (certificateHost.isConnected) certificateHost.textContent = 'No se pudo abrir la carga de certificados. Cerrá y abrí nuevamente la ficha.'; });
         else certificateHost.textContent = 'Esta ficha no incluye la referencia del legajo necesaria para consultar o cargar certificados.';
         const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
         const received = detail.family.length;
-        section.appendChild(create('p', 'detail-section-copy',
-          (total === null ? formatNumber(received) + ' registros recibidos.' : formatNumber(total) + ' registros informados; ' + formatNumber(received) + ' recibidos en esta ficha.')
+        const sourceDetails = create('details', 'fs-source-history');
+        sourceDetails.appendChild(create('summary', '', 'Consultar familiares del respaldo GRH'));
+        sourceDetails.appendChild(create('p', 'detail-section-copy',
+          'Detalle histórico del respaldo, independiente del registro de hijos y certificados que aparece arriba. '
+          + (total === null ? formatNumber(received) + ' filas recibidas.' : formatNumber(total) + ' filas informadas; ' + formatNumber(received) + ' recibidas.')
         ));
         if (!received) {
           const empty = create('div', 'notice warning');
           empty.textContent = total && total > 0
             ? 'La fuente informa familiares asociados, pero esta respuesta no incluyó el detalle.'
-            : 'La respuesta no incluyó familiares asociados.';
-          section.appendChild(empty);
+            : 'Esta respuesta histórica de GRH no contiene detalle familiar. No describe las altas propias de MuniControl.';
+          sourceDetails.appendChild(empty); section.appendChild(sourceDetails);
           return section;
         }
         const list = create('div', 'family-list');
         detail.family.forEach(function (member, index) { list.appendChild(familyCard(member || {}, index)); });
-        section.appendChild(list);
+        sourceDetails.appendChild(list); section.appendChild(sourceDetails);
         return section;
       }
 
@@ -3707,7 +3717,7 @@
         counts.append(
           detailCount('Ausencias', detail.meta.absenceTotal, detail.absences),
           detailCount('Licencias', detail.meta.leaveTotal, detail.leaves),
-          detailCount('Familiares', detail.meta.familyTotal, detail.family),
+          detailCount('Familiares en GRH', detail.meta.familyTotal, detail.family),
           detailCount('Movimientos', detail.meta.movementTotal, detail.movements)
         );
         coverage.appendChild(counts);

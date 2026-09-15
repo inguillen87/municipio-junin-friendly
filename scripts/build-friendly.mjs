@@ -42,6 +42,7 @@ const shellFiles = [
   'assets/workday-export.js',
   'assets/workday-panel.css',
   'assets/workday-panel.js',
+  'assets/workday-panel-model.js',
   'assets/payroll-summary-pdf.js',
   'assets/employee-picker.js',
   'assets/employee-picker-model.js',

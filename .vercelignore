@@ -164,3 +164,5 @@ local-agents/
 !scripts/rollback/059-action-source-history.sql
 !scripts/migrations/060-payroll-bank-source-report.sql
 !scripts/migrations/061-grh-core-source-version.sql
+!scripts/migrations/064-employee-family-members.sql
+!scripts/migrations/065-clock-workday-source-continuous.sql

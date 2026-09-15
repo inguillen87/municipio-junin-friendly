@@ -28,3 +28,14 @@ export function schoolingFixture(count = 75, { canRegister = true, contractId = 
     rows: contractId ? rows.filter(r => r.contractId === contractId) : rows,
     scope: { cohort: contractId ? 'contract_children' : 'administrative_active_with_children', sourceCutoffFrom: '2026-08-06T18:15:21Z', sourceCutoffTo: '2026-08-06T18:15:21Z', currentCensusCertified: false, payrollEligibilityCertified: false } } };
 }
+
+export function schoolingFixtureV2(count = 75, options = {}) {
+  const payload = schoolingFixture(count, options);
+  payload.data.version = 'family-schooling.v2';
+  payload.data.scope.unresolvedFamilyRows = 0;
+  for (const row of payload.data.rows) {
+    row.familyRef = { kind: 'grh', id: row.familyId }; delete row.familyId;
+    Object.assign(row, { validFrom: null, familyRecordedAt: null, declarationState: 'source', identityReviewRequired: false });
+  }
+  return payload;
+}

@@ -6,12 +6,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
-import { schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+import { schoolingFixtureV2 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
 import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'SCHOOLING_PUBLISHED_ORIGIN_NOT_ALLOWED');
 const base = path.resolve('public'), out = path.resolve('verification'), origin = publishedOrigin ?? 'https://municontrol.test';
+for (const asset of ['assets/family-schooling.js','assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css']) {
+  assert.ok(fs.existsSync(path.join(base, asset)) && fs.readFileSync(path.join(base, asset)).equals(fs.readFileSync(asset)), 'STALE_OR_MISSING_BUILD_ASSET: ' + asset);
+}
 const mode = publishedOrigin ? 'published_assets_with_synthetic_api' : 'local_build_with_synthetic_api';
 fs.mkdirSync(out, { recursive: true });
 const checks = [], errors = [], posts = [], downloads = [];
@@ -40,9 +43,11 @@ async function publicAsset(url, expected) {
   publishedAssets.add(assetUrl.pathname); return actual;
 }
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
-let reportRequests = 0, authRequests = 0;
+let reportRequests = 0, authRequests = 0, downloadRequests = 0;
 let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
 let delayedEmployee = null, alternateEmployee = false;
+let canDeclare = true, proposeCapability = true, childError = null, dropChildAck = false, contractToken = 'd'.repeat(64);
+const declarations = [], declaredByKey = new Map();
 const employee = { contractId: syntheticUuid(1), legajo: '000001', nombre: 'AGENTE SINTÉTICO 0001', companyId: 7,
   activo: true, liquidable: false, administrativeStatus: 'active', payrollStatus: 'not_liquidated', controlState: 'activo_no_incluido',
   crosswalkStatus: 'matched', sector: 'Sector QA', organizacion: 'Unidad QA', convenio: 'Convenio QA', cargo: 'Cargo QA' };
@@ -71,18 +76,20 @@ try {
       return route.fulfill({ status: 503, json: { ok: false, error: 'Demora sintética de la ficha anterior' } });
     }
     if (u.pathname === '/api/internal-family-certificates') {
+      assert.equal(u.searchParams.get('version'), '2', 'UNIFIED_API_VERSION_REQUIRED');
+      if (resource === 'download') downloadRequests++;
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
         if (postError) { const next = postError; postError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code, error: 'Fallo sintético controlado' } }); }
-        assert.match(body.familyId, /^[0-9]{1,20}$/); assert.equal(body.sha256, syntheticSchoolHash);
+        assert.ok(['grh','own'].includes(body.familyRef.kind)); assert.equal(body.sha256, syntheticSchoolHash);
         assert.deepEqual(Buffer.from(body.contentBase64, 'base64'), syntheticSchoolPdf);
-        const row = dataset.data.rows.find(r => r.contractId === body.contractId && r.familyId === body.familyId);
+        const row = dataset.data.rows.find(r => r.contractId === body.contractId && r.familyRef.kind === body.familyRef.kind && r.familyRef.id === body.familyRef.id);
         assert.equal(body.identityToken, row.identityToken);
         row.certificate = { id: syntheticUuid(20000 + posts.length), filename: body.filename, byteLength: syntheticSchoolPdf.length, sha256: body.sha256,
           presentedOn: body.presentedOn, expiresOn: body.expiresOn, recordedAt: '2026-09-14T15:10:10.123456+00:00' };
         row.historyCount++;
         if (failRefreshAfterSave) { failRead = 503; failRefreshAfterSave = false; }
-        return route.fulfill({ status: 201, json: { ok: true, data: { version: 'family-schooling-register.v1', certificateId: row.certificate.id, duplicate: false } } });
+        return route.fulfill({ status: 201, json: { ok: true, data: { version: 'family-schooling-register.v2', certificateId: row.certificate.id, duplicate: false } } });
       }
       if (resource === 'report') { reportRequests++; if (delayReport) { const pending = delayReport; delayReport = null; await pending; } }
       if (failRead) return route.fulfill({ status: failRead, json: { ok: false, code: failRead === 403 ? 'SCHOOL_CERTIFICATE_CAPABILITY_REQUIRED' : 'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE' } });
@@ -92,14 +99,42 @@ try {
         familyRequests++; payload.data.scope.cohort = 'contract_children'; payload.data.rows = payload.data.rows.filter(r => r.contractId === u.searchParams.get('contractId'));
         if (wrongFamily && payload.data.rows.length) payload.data.rows[0].contractId = syntheticUuid(2);
       }
+      payload.data.scope.unresolvedFamilyRows = payload.data.rows.filter(r => r.identityReviewRequired).length;
       return route.fulfill({ status: 200, json: payload });
+    }
+    if (u.pathname === '/api/internal-family-members') {
+      if (request.method() === 'GET') {
+        assert.equal(resource, 'context');
+        const subjectEmployee = u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee;
+        return route.fulfill({ status: 200, json: { ok: true, data: { version: 'employee-family-context.v1', canDeclare,
+          subject: { contractId: subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
+            sourceCutoff: '2026-08-06T18:15:21Z', identityToken: contractToken } } } });
+      }
+      const body = request.postDataJSON(), key = request.headers()['idempotency-key']; declarations.push({ body, key });
+      assert.deepEqual(Object.keys(body).sort(), ['birthDate','contractId','contractIdentityToken','dni','familyName','validFrom','validTo']);
+      if (childError) { const next = childError; childError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code } }); }
+      assert.equal(body.contractIdentityToken, contractToken);
+      const previous = declaredByKey.get(key);
+      if (previous) {
+        assert.deepEqual(previous.body, body);
+        return route.fulfill({ status: 200, json: { ok: true, data: { ...previous.result, duplicate: true } } });
+      }
+      const ref = { kind: 'own', id: syntheticUuid(30000 + declaredByKey.size) }, recordedAt = '2026-09-15T03:00:00.123456Z', identityToken = 'e'.repeat(64);
+      const row = { ...structuredClone(dataset.data.rows[0]), familyRef: ref, contractId: body.contractId, familyName: body.familyName,
+        birthDate: body.birthDate, validFrom: body.validFrom, familyEndDate: body.validTo, familyRecordedAt: recordedAt, declarationState: 'declared',
+        identityReviewRequired: false, identityToken, certificate: null, historyCount: 0 };
+      dataset.data.rows.push(row);
+      const result = { version: 'employee-family-declare.v1', familyRef: ref, identityToken, recordedAt, state: 'declared', duplicate: false };
+      declaredByKey.set(key, { body, result });
+      if (dropChildAck) { dropChildAck = false; return route.abort('timedout'); }
+      return route.fulfill({ status: 201, json: { ok: true, data: result } });
     }
     let payload = { ok: true, data: [] };
     if (u.pathname === '/api/internal-auth') {
       authRequests++;
       if (authDenied) return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
       payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' },
-        access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', 'employee.record.propose', ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
+        access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', ...(proposeCapability ? ['employee.record.propose'] : []), ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
     } else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
       scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } };
     else if (resource === 'employee') payload = { ok: true, data: { ...(alternateEmployee && u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee), ...(wrongEmployee ? { contractId: syntheticUuid(2) } : {}), employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
@@ -267,7 +302,8 @@ try {
   await report.locator('[data-fs-search]').fill('Hijo Sintético 0002');
   await report.locator('tbody a').first().click(); await exactChildVisible();
   assert.equal(new URL(page.url()).searchParams.get('familyId'), '2');
-  assert.match(await page.locator('[data-employee-family-section]').innerText(), /alta de nuevos hijos todavía no está disponible/);
+  assert.equal(await family.locator('[data-fs-add-child]').isVisible(), true);
+  assert.equal(await page.locator('.fs-source-history').getAttribute('open'), null);
   await syntheticLabel(); await page.screenshot({ path: path.join(out, 'family-schooling-target-desktop-qa.png') });
   checks.push('filtered report opens and focuses its exact child inside the authorized employee dialog without starting an upload');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -279,14 +315,16 @@ try {
   await syntheticLabel(); await page.screenshot({ path: path.join(out, 'family-schooling-target-mobile-qa.png') });
   checks.push('exact-child navigation remains within the mobile viewport and the existing dialog focus trap');
 
-  for (const familyId of ['999', '3', 'invalid', '2&familyId=1']) {
+  for (const familyId of ['999', '3', 'invalid']) {
     await page.goto(targetUrl.replace('familyId=2', 'familyId=' + familyId)); await familyReady();
     const missing = family.locator('[data-fs-target-status]'); assert.equal(await missing.isVisible(), true);
     assert.match(await missing.innerText(), /no aparece.*no se seleccionó otro hijo/);
     assert.equal(await missing.evaluate(n => n === document.activeElement), true);
     assert.equal(await family.locator('[data-fs-file]').count(), 0);
   }
-  checks.push('missing, other-contract, invalid and ambiguous child references show a clear notice without selecting a replacement');
+  await page.goto(targetUrl.replace('familyId=2', 'familyId=2&familyId=1')); await page.locator('#employeeRows button').first().waitFor();
+  assert.equal(await page.locator('dialog[open]').count(), 0);
+  checks.push('missing, other-contract and invalid child references show a clear notice; ambiguous query parameters never open a selection');
   wrongEmployee = true; const beforeWrongEmployee = familyRequests;
   await visit(targetUrl); await page.locator('#dialogBody .notice.error').waitFor();
   assert.equal(familyRequests, beforeWrongEmployee); assert.equal(await family.count(), 0); wrongEmployee = false;
@@ -337,6 +375,133 @@ try {
   await report.locator('[data-fs-consult]').waitFor(); assert.equal(new URL(page.url()).hash, '#certificados-escolares');
   assert.equal(posts.length, postsBeforeNavigation); payrollAccess = false;
   checks.push('Nómina exposes a visible mobile entry to the certificate report; all navigation remains read-only');
+
+  // Own declarations: simulated server persistence is independent of PDF state.
+  dataset = schoolingFixture();
+  const ownUrl = origin + '/personal?contractId=' + syntheticUuid(1) + '&section=family#legajos';
+  const childField = name => family.locator('[data-fs-child-field="' + name + '"]');
+  const childSubmit = family.locator('[data-fs-child-save]'), childStatus = family.locator('[data-fs-child-status]');
+  proposeCapability = false; await page.goto(ownUrl); await familyReady();
+  assert.equal(await family.locator('[data-fs-add-child]').isVisible(), false);
+  assert.equal(await family.locator('[data-fs-register]').count(), 0);
+  proposeCapability = true; canDeclare = false; await page.reload(); await familyReady();
+  assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);
+  assert.match(await family.locator('[data-fs-create-status]').innerText(), /No permite agregar hijos/);
+  canDeclare = true;
+  dataset.data.storage.capacityBytes = 0; dataset.data.storage.remainingBytes = 0; dataset.data.canRegister = false;
+  await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  await family.locator('[data-fs-add-child]').click();
+  assert.equal(await childField('familyName').evaluate(n => n === document.activeElement), true);
+  await childField('familyName').fill('Hija Declarada QA');
+  await page.setViewportSize({ width: 390, height: 844 }); await syntheticLabel(); await showEditor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await page.screenshot({ path: path.join(out, 'family-schooling-declaration-mobile-qa.png') });
+  await page.setViewportSize({ width: 1440, height: 1050 }); await showEditor();
+  await page.screenshot({ path: path.join(out, 'family-schooling-declaration-desktop-qa.png') });
+  dropChildAck = true;
+  await childSubmit.click(); await savedOrFailed();
+  assert.equal(dataset.data.rows.filter(r => r.familyRef.kind === 'own').length, 1);
+  assert.equal(await childField('familyName').inputValue(), 'Hija Declarada QA');
+  assert.equal(await childField('birthDate').inputValue(), '');
+  const attempt = declarations.at(-1);
+  assert.deepEqual([attempt.body.birthDate,attempt.body.dni,attempt.body.validFrom,attempt.body.validTo], [null,null,null,null]);
+  assert.match(await childStatus.innerText(), /formulario permanece abierto/);
+  await childSubmit.click(); await savedOrFailed();
+  assert.equal(declarations.at(-1).key, attempt.key); assert.deepEqual(declarations.at(-1).body, attempt.body);
+  assert.equal(dataset.data.rows.filter(r => r.familyRef.kind === 'own').length, 1);
+  assert.equal(await childField('familyName').count(), 0);
+  const ownRef = declaredByKey.get(attempt.key).result.familyRef;
+  const ownCard = family.locator('[data-fs-family-kind="own"][data-fs-family-id="' + ownRef.id + '"]');
+  assert.match(await ownCard.innerText(), /Declarado en MuniControl/);
+  assert.equal(await ownCard.locator('[data-fs-register]').count(), 0);
+  assert.equal(await page.locator('.fs-source-history').getAttribute('open'), null);
+  assert.doesNotMatch(await family.innerText(), /La respuesta no incluyó familiares asociados/);
+  checks.push('minimum name-only declaration works with exhausted PDF quota; a timed-out ACK replays identical data/key and creates exactly one own child');
+  checks.push('declaration permission is verified independently on server context; absent propose authority hides both mutation paths');
+  dataset.data.storage = structuredClone(schoolingFixture().data.storage); dataset.data.canRegister = true;
+  await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  await ownCard.locator('[data-fs-register]').click(); await fillCertificate();
+  postError = { status: 422, code: 'SCHOOL_CERTIFICATE_PDF_INVALID' };
+  await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
+  assert.match(await family.locator('[data-fs-form-status]').innerText(), /alta del hijo sigue guardada/);
+  assert.equal(dataset.data.rows.filter(r => r.familyRef.kind === 'own').length, 1);
+  await showEditor(); await page.screenshot({ path: path.join(out, 'family-schooling-own-pdf-error-qa.png') });
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  assert.deepEqual(posts.at(-1).body.familyRef, ownRef);
+  assert.equal(await ownCard.locator('[data-fs-document]').count(), 1);
+  assert.match(await family.locator('[data-fs-family-status]').innerText(), /Certificado guardado/);
+  await ownCard.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(out, 'family-schooling-own-certificate-qa.png') });
+  checks.push('declared child flows into an explicitly scoped v2 certificate; a PDF error retains both the persisted child and the PDF draft before successful retry');
+
+  const staleDownload = await ownCard.locator('[data-fs-document]').elementHandle();
+  failRead = 403; const beforeRevokedDownload = downloads.length;
+  await ownCard.locator('[data-fs-document]').click(); await savedOrFailed();
+  assert.equal(downloads.length, beforeRevokedDownload); assert.equal(await family.locator('.fs-child').count(), 0);
+  assert.equal(await family.locator('[data-fs-document]').count(), 0); assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);
+  assert.equal(await family.locator('[data-fs-storage]').isVisible(), false);
+  const deniedDownloadRequests = downloadRequests;
+  await staleDownload.evaluate(n => n.click()); assert.equal(downloadRequests, deniedDownloadRequests);
+  await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed(); assert.equal(await family.locator('.fs-child').count(), 0);
+  failRead = 0; await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  assert.equal(await ownCard.locator('[data-fs-document]').count(), 1);
+  checks.push('403 during PDF download clears consulted names, documents, storage and mutation authority; even the detached old action cannot request another download before revalidation');
+
+  await ownCard.locator('[data-fs-register]').click(); await fillCertificate();
+  postError = { status: 403, code: 'SCHOOL_CERTIFICATE_CAPABILITY_REQUIRED' };
+  await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
+  const revokedUploadKey = posts.at(-1).key;
+  assert.equal(await family.locator('.fs-child').count(), 0); assert.equal(await family.locator('[data-fs-document]').count(), 0);
+  assert.equal(await family.locator('[data-fs-save]').isDisabled(), true);
+  assert.match(await family.locator('.fs-editor h4').innerText(), /Carga de certificado pendiente/);
+  failRead = 403; await family.locator('[data-fs-recheck]').click(); await savedOrFailed(); await retained();
+  assert.equal(await family.locator('[data-fs-save]').isDisabled(), true); assert.equal(await family.locator('.fs-child').count(), 0);
+  failRead = 0; await family.locator('[data-fs-recheck]').click(); await savedOrFailed(); await retained();
+  assert.equal(await family.locator('[data-fs-save]').isEnabled(), true);
+  await family.locator('[data-fs-save]').click(); await savedOrFailed(); assert.equal(posts.at(-1).key, revokedUploadKey);
+  checks.push('403 during upload keeps only its local PDF/dates and exact target draft, disables saving, and requires a successful fresh read before the same-key retry');
+
+  await family.locator('[data-fs-add-child]').click(); await childField('familyName').fill('Otro Vínculo QA');
+  childError = { status: 403, code: 'EMPLOYEE_FAMILY_CAPABILITY_REQUIRED' };
+  await childSubmit.click(); await savedOrFailed(); const permissionKey = declarations.at(-1).key;
+  assert.equal(await childSubmit.isDisabled(), true); assert.equal(await childField('familyName').inputValue(), 'Otro Vínculo QA');
+  await family.locator('[data-fs-child-recheck]').click(); await savedOrFailed(); assert.equal(await childSubmit.isEnabled(), true);
+  childError = { status: 409, code: 'EMPLOYEE_FAMILY_IDENTITY_CHANGED' }; contractToken = 'c'.repeat(64);
+  await childSubmit.click(); await savedOrFailed();
+  assert.equal(declarations.at(-1).key, permissionKey);
+  await family.locator('[data-fs-child-recheck]').click(); await savedOrFailed();
+  assert.equal(await childSubmit.isDisabled(), true); assert.equal(await childField('familyName').inputValue(), 'Otro Vínculo QA');
+  assert.match(await childStatus.innerText(), /identidad del legajo cambió.*no se trasladó/);
+  assert.equal(dataset.data.rows.filter(r => r.familyRef.kind === 'own').length, 1);
+  await family.locator('[data-fs-child-cancel]').click(); contractToken = 'd'.repeat(64);
+  checks.push('revoked permission preserves the declaration draft and retry key; a reassigned employee identity cannot receive the old draft after requery');
+
+  // Matching source records are reviewed separately; never merged or counted as distinct verified children.
+  dataset.data.rows[0].identityReviewRequired = true;
+  dataset.data.rows.at(-1).identityReviewRequired = true;
+  await page.goto(origin + '/reportes#certificados-escolares'); await consulted();
+  assert.equal(await report.locator('[data-fs-children]').innerText(), '74');
+  assert.match(await report.locator('[data-fs-review-count]').innerText(), /2/);
+  const ownExportEvent = page.waitForEvent('download'); await report.locator('[data-fs-export]').click();
+  const ownExport = await ownExportEvent; const ownXlsxPath = path.join(out, 'family-schooling-own-synthetic.xlsx'); await ownExport.saveAs(ownXlsxPath);
+  const ownZip = unzipSync(fs.readFileSync(ownXlsxPath)), ownSheet = strFromU8(ownZip['xl/worksheets/sheet1.xml']);
+  assert.match(ownSheet, /Hija Declarada QA/); assert.match(ownSheet, /2026-09-15T03:00:00.123456Z/);
+  assert.match(ownSheet, /2026-08-06T18:15:21Z/); assert.doesNotMatch(ownSheet, new RegExp(ownRef.id));
+  await report.locator('[data-fs-search]').fill('Hija Declarada QA');
+  const href = await report.locator('tbody a').first().getAttribute('href');
+  assert.equal(new URL(href, origin).searchParams.get('familyKind'), 'own');
+  await report.locator('tbody a').first().click(); await familyReady();
+  assert.equal(await ownCard.evaluate(n => n === document.activeElement), true);
+  assert.match(await ownCard.innerText(), /Coincidencia por revisar/);
+  const ownDestination = page.url(); authDenied = true; await page.reload();
+  await page.waitForURL(u => ['/acceso','/login.html'].includes(u.pathname));
+  const ownNext = new URL(new URL(page.url()).searchParams.get('next'), origin);
+  assert.equal(ownNext.searchParams.get('familyKind'), 'own'); assert.equal(ownNext.searchParams.get('familyId'), ownRef.id);
+  authDenied = false; await page.goto(ownNext.href); await familyReady();
+  assert.equal(await ownCard.evaluate(n => n === document.activeElement), true);
+  await page.goto(ownDestination.replace('familyKind=own', 'familyKind=grh')); await familyReady();
+  assert.equal(await family.locator('[data-fs-target-status]').isVisible(), true);
+  checks.push('unified report and Excel preserve declaration date separately from GRH cutoff; suspected matches are flagged without merging/counting them as distinct verified children');
+  checks.push('own deep links retain their discriminator through login, focus the exact own child, and never reinterpret an own UUID as a GRH family');
   assert.deepEqual(errors, []);
   assert.equal(publishedFailures.size, 0, 'PUBLISHED_ASSET_VERIFICATION_FAILED');
   if (publishedOrigin) assert.ok(publishedAssets.size > 0, 'PUBLISHED_ASSETS_NOT_VERIFIED');

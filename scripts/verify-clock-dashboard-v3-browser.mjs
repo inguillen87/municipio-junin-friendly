@@ -4,6 +4,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {clockDashboardFixture,CONTINUOUS_CUT,HISTORICAL_CAPTURE} from '../tests/fixtures/clock-dashboard-v3-synthetic.js';
+import {summarizeWorkdays,WORKDAY_RULES,CONTINUOUS_WORKDAY_RULES} from '../lib/attendance-workdays.js';
 
 const base=path.resolve('public'),out=path.resolve('verification/clock-dashboard-v3');
 fs.mkdirSync(out,{recursive:true});
@@ -46,7 +47,15 @@ try{
   else if(resource==='bootstrap')result={ok:true,capabilities:['attendance.read'],summary:{siteCount:1,deviceCount:1,punchCount:153,rawEventCount:153,pendingReviewCount:153,unmatchedPunchCount:3},features:{}};
   else if(resource==='pm10-reception')result=receipt;
   else if(resource==='reported-inventory')result={data:[]};
-  else if(resource==='clock-workdays')result={ok:true,version:'clock-workdays.v1',snapshotId:q.get('snapshot'),payrollEligible:false,filters:{from:q.get('from'),to:q.get('to')},rows:[],summary:{days:0,people:0,ordinarySeconds:0,extraSeconds:0,reviewDays:0,closedDays:0},pagination:{total:0,page:1,pages:0,pageSize:25},rules:{version:'synthetic.v1',profileSupported:true}};
+  else if(['clock-workdays','clock-workdays-v2'].includes(resource)){
+   const v2=resource==='clock-workdays-v2';
+   result={ok:true,version:v2?'clock-workdays.v2':'clock-workdays.v1',snapshotId:v2?'cccccccc-cccc-5ccc-8ccc-cccccccccccc':q.get('snapshot'),payrollEligible:false,
+    site:{key:'pm-10',label:'Punto de prueba'},timezone:'America/Argentina/Mendoza',nominalReadAllowed:nominal,
+    filters:{from:q.get('from'),to:q.get('to'),search:q.get('search'),status:q.get('status')},rows:[],summary:summarizeWorkdays([]),periodSummary:summarizeWorkdays([]),
+    pagination:{total:0,page:Number(q.get('page')),pages:0,pageSize:Number(q.get('pageSize'))},rules:{...(v2?CONTINUOUS_WORKDAY_RULES:WORKDAY_RULES),profileSupported:false},
+    ...(v2?{sourceMode:'continuous',collection:{sourceComplete:true},coverageCertified:false,homologationStatus:'unverified',approvalStatus:'not_approved',
+     observations:[],observationSummary:{unplaced:0,placed:0,returned:0,hasMore:false,scope:'context_including_undated'}}:{})};
+  }
   else result={ok:true,resource,data:[],pagination:{page:1,pageSize:25,total:0,pages:0}};
   return route.fulfill({status:200,json:result}).catch(()=>{});
  });
@@ -59,7 +68,7 @@ try{
  await ready();assert.equal(await value('Marks').textContent(),'153');assert.equal(await value('Source').inputValue(),'continuous');
  const ids=await page.locator('[id^="clock"]').evaluateAll(elements=>elements.map(element=>element.id));assert.equal(new Set(ids).size,ids.length);
  assert.ok(await value('TabWorkdays').isEnabled());assert.equal(requests.filter(r=>r.resource==='clock-workdays').length,0);
- checks.push('continuous source selected with 153 synthetic marks; historical workdays is an available source-switch action');
+ checks.push('continuous source selected with 153 synthetic marks; workdays are available without querying while their panel is hidden');
  assert.match(await value('Attempt').textContent(),/No informado/);assert.match(await value('Backlog').textContent(),/No informado/);
  assert.match(await value('Latency').textContent(),/60 segundos/);checks.push('missing collector telemetry is not zero; measured receipt delay is separate');
 
@@ -85,7 +94,11 @@ try{
  assert.equal(downloads.length,before);checks.push('receipt during export produces no partial download');mode='ok';await refresh();
 
  await value('From').fill('2026-09-09');await value('To').fill('2026-09-11');await value('Apply').click();await ready();
- await value('TabWorkdays').click();await ready();assert.equal(await value('Marks').textContent(),'150');
+ await value('TabWorkdays').click();await ready();assert.equal(await value('Source').inputValue(),'continuous');
+ await page.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false');
+ assert.equal(requests.filter(r=>r.resource==='clock-workdays-v2').at(-1).query.has('snapshot'),false);
+ assert.ok(await value('Workdays').isVisible());
+ await value('Source').selectOption('historical');await ready();assert.equal(await value('Marks').textContent(),'150');
  assert.equal(await value('Source').inputValue(),'historical');assert.ok(await value('Workdays').isVisible());
  last=requests.filter(r=>r.resource==='clock-dashboard').at(-1);
  assert.equal(last.query.get('source'),'historical');assert.equal(last.query.get('site'),'pm-10');assert.equal(last.query.get('from'),'2026-09-09');assert.equal(last.query.get('to'),'2026-09-11');assert.equal(last.query.has('snapshot'),false);
@@ -93,20 +106,20 @@ try{
  const workdayQuery=requests.filter(r=>r.resource==='clock-workdays').at(-1).query;
  assert.equal(workdayQuery.get('snapshot'),HISTORICAL_CAPTURE);assert.equal(workdayQuery.get('from'),'2026-09-09');assert.equal(workdayQuery.get('to'),'2026-09-11');
  assert.match(await value('SourceKind').textContent(),/Captura histórica/);assert.match(await value('WorkdaysNote').textContent(),/Se conserva el punto y período/);
- assert.ok(await value('TabWorkdays').isEnabled());checks.push('clicking historical workdays switches source, preserves point and applied dates, and loads the physical capture instead of the continuous revision');
+ assert.ok(await value('TabWorkdays').isEnabled());checks.push('workdays retain continuous source and begin without dashboard revision; explicit historical selection preserves dates and loads the physical capture');
  await value('Source').selectOption('continuous');await ready();assert.ok(await value('Workdays').isHidden());
  const workdaysBeforeMissing=requests.filter(r=>r.resource==='clock-workdays').length;
- mode='no-historical';await value('TabWorkdays').click();await ready();
- assert.ok(await value('Workdays').isVisible());assert.match(await value('WorkdaysNote').textContent(),/No hay una captura histórica/);assert.match(await value('WorkdaysNote').textContent(),/presioná Actualizar/);
+ mode='no-historical';await value('Source').selectOption('historical');await ready();
+ assert.ok(await value('Workdays').isVisible());assert.match(await value('WorkdaysNote').textContent(),/No hay una captura histórica/);assert.match(await value('WorkdaysNote').textContent(),/recepciones confirmadas/);
  assert.equal(requests.filter(r=>r.resource==='clock-workdays').length,workdaysBeforeMissing);assert.equal(await page.locator('#wdRows').textContent(),'');assert.ok(await page.locator('#wdXlsx').isDisabled());
  mode='ok';await value('Refresh').click();await ready();
  await page.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false');
  assert.ok(requests.filter(r=>r.resource==='clock-workdays').length>workdaysBeforeMissing);
  checks.push('missing historical capture explains how to recover, clears old workdays and disables export without inventing a workday request; refresh recovers');
  await value('Source').selectOption('continuous');await ready();
- await value('TabRecords').focus();await page.keyboard.press('Home');await ready();assert.equal(await value('TabWorkdays').getAttribute('aria-selected'),'true');assert.equal(await value('Source').inputValue(),'historical');
+ await value('TabRecords').focus();await page.keyboard.press('Home');await ready();assert.equal(await value('TabWorkdays').getAttribute('aria-selected'),'true');assert.equal(await value('Source').inputValue(),'continuous');
  await page.keyboard.press('End');assert.equal(await value('TabIssues').getAttribute('aria-selected'),'true');
- checks.push('keyboard navigation reaches historical workdays and switches source through the same action');
+ checks.push('keyboard navigation reaches workdays without changing the selected source');
  await value('Source').selectOption('continuous');await ready();
 
  await value('TabRecords').click();await value('Search').fill('unsubmitted');

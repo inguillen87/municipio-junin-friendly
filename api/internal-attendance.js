@@ -1,5 +1,5 @@
 import { getPm10Status } from '../lib/internal-pm10-status.js';
-import { getAttendanceWorkdays } from '../lib/internal-attendance-workdays.js';
+import { getAttendanceWorkdays, getAttendanceWorkdaysV2 } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
@@ -169,6 +169,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const clockOperations = dependencies.getAttendanceClockOperations ?? getAttendanceClockOperations;
   const clockDashboard = dependencies.getAttendanceClockDashboard ?? getAttendanceClockDashboard;
   const clockWorkdays = dependencies.getAttendanceWorkdays ?? getAttendanceWorkdays;
+  const clockWorkdaysV2 = dependencies.getAttendanceWorkdaysV2 ?? getAttendanceWorkdaysV2;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
 
@@ -242,6 +243,16 @@ export function createInternalAttendanceHandler(dependencies = {}) {
         if (resource === 'pm10-reception') {
           assertQueryKeys(req,new Set(['resource']));
           const result=await (dependencies.getPm10Status ?? getPm10Status)(sql,access.principal,tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
+        if (resource === 'clock-workdays-v2') {
+          assertQueryKeys(req,new Set(['resource','source','site','from','to','page','pageSize','search','status','snapshot']));
+          const result=await clockWorkdaysV2(sql,access.principal,{
+            source:queryValue(req,'source'),site:queryValue(req,'site','pm-10'),
+            from:queryValue(req,'from'),to:queryValue(req,'to'),
+            page:queryValue(req,'page','1'),pageSize:queryValue(req,'pageSize','25'),
+            search:queryValue(req,'search'),status:queryValue(req,'status','all'),snapshot:queryValue(req,'snapshot'),
+          },tenantSession);
           return send(res,200,{ok:true,...result});
         }
         if (resource === 'clock-workdays') {
