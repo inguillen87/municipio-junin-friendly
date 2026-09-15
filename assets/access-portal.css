@@ -1,0 +1,155 @@
+.access-page {
+  --access-ink: #153a4b;
+  --access-green: #167468;
+  --access-paper: #f6f5f0;
+  --access-muted: #566a71;
+  --access-line: #d8dfdc;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  color: var(--access-ink);
+  background: var(--access-paper);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.access-page *, .access-page *::before, .access-page *::after { box-sizing: border-box; }
+.access-page [hidden] { display: none !important; }
+.access-page button, .access-page input { font: inherit; }
+.access-page a { color: var(--access-green); text-underline-offset: 4px; }
+.access-page :is(a, button, input):focus-visible { outline: 3px solid #237e76; outline-offset: 3px; }
+.access-page .skip-link { position: fixed; z-index: 10001; top: 8px; left: 16px; padding: 12px 18px; color: #fff; background: #153a4b; border-radius: 8px; transform: translateY(-150%); }
+.access-page .skip-link:focus { transform: translateY(0); }
+.access-page .site-header { background: #fff; border-bottom: 1px solid var(--access-line); }
+.access-page .header-inner { width: min(1184px, calc(100% - 64px)); min-height: 96px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.access-page .brand { display: flex; align-items: center; }
+.access-page .site-header .brand .brand-name { width: 182px; height: 39px; background-image: url("brand/logo-horizontal.svg"); }
+.access-page .brand-place { display: block; margin: 2px 0 0 7px; color: #536a73; font-size: 10px; font-weight: 650; line-height: 1.4; letter-spacing: .13em; text-transform: uppercase; }
+.access-page .header-context { display: grid; gap: 1px; margin: 0; color: var(--access-ink); text-align: right; font-size: 13px; font-weight: 650; }
+.access-page .header-context span + span { color: var(--access-muted); font-size: 12px; font-weight: 400; }
+.access-page main { width: min(1184px, calc(100% - 64px)); margin: auto; padding: 44px 0 48px; }
+.access-page .access-layout { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr); gap: 20px 48px; align-items: start; }
+.access-page .context-panel { position: relative; grid-row: 1 / 3; align-self: stretch; isolation: isolate; overflow: hidden; padding: 44px 42px 28px; border: 1px solid #1b4853; border-radius: 20px; background: #153a4b; color: #fff; }
+.access-page .eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; color: #b9dfd5; font-size: 10px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
+.access-page .eyebrow > span { width: 24px; height: 1px; background: #78b8a8; }
+.access-page h1 { max-width: 430px; margin: 0; font-size: clamp(30px, 3vw, 42px); font-weight: 650; line-height: 1.19; letter-spacing: -.045em; }
+.access-page .intro { max-width: 380px; margin: 21px 0 0; color: #c7d7db; font-size: 15px; line-height: 1.75; }
+.access-page .portal-illustration { position: absolute; z-index: -1; top: 220px; right: -93px; width: 355px; height: 355px; opacity: .075; pointer-events: none; }
+.access-page .portal-illustration img { display: block; width: 100%; height: auto; filter: brightness(0) invert(1); }
+.access-page .portal-areas { display: grid; gap: 24px; margin: 48px 0 34px; padding: 0; list-style: none; }
+.access-page .portal-areas li { display: flex; gap: 17px; align-items: flex-start; }
+.access-page .area-index { flex: 0 0 33px; display: grid; place-items: center; min-height: 33px; color: #92c6b9; border: 1px solid #ffffff29; border-radius: 8px; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.access-page .portal-areas strong { display: block; color: #f8fbfa; font-size: 14px; font-weight: 600; }
+.access-page .portal-areas li > span > span { display: block; margin-top: 2px; color: #b2c9ce; font-size: 12px; }
+.access-page .portal-signoff { display: flex; align-items: center; gap: 10px; margin: 0; padding-top: 20px; border-top: 1px solid #ffffff25; color: #a7c5ca; font-size: 10px; }
+.access-page .portal-signoff > span { color: #76af9f; }
+.access-page .access-panel { grid-column: 2; margin: 0; background: #fff; border: 1px solid #dde3df; border-radius: 18px; box-shadow: 0 12px 35px #183c4710; }
+.access-page .access-panel:focus { outline: none; }
+.access-page .access-panel-header { padding: 32px 32px 0; }
+.access-page .route-number { display: block; margin-bottom: 8px; color: var(--access-green); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.access-page h2 { margin: 0; font-size: 26px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; }
+.access-page .panel-description { margin: 9px 0 0; color: var(--access-muted); font-size: 13px; }
+.access-page .login-form { padding: 25px 32px 24px; }
+.access-page .form-group { margin-bottom: 18px; }
+.access-page .form-label { display: block; margin-bottom: 7px; color: #294954; font-size: 12px; font-weight: 650; }
+.access-page .form-input { width: 100%; min-height: 49px; padding: 12px 14px; border: 1px solid #bdcbc8; border-radius: 8px; background: #fff; color: #153a4b; font-size: 15px; line-height: 1.4; }
+.access-page .form-input::placeholder { color: #788b90; opacity: 1; }
+.access-page .form-input:hover { border-color: #809e99; }
+.access-page .form-input:focus { border-color: var(--access-green); box-shadow: 0 0 0 3px #16746812; }
+.access-page .password-field { position: relative; }
+.access-page .password-field .form-input { padding-right: 84px; }
+.access-page .toggle-pass { position: absolute; top: 3px; right: 5px; min-width: 70px; min-height: 43px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: #23685e; font-size: 12px; font-weight: 650; cursor: pointer; }
+.access-page .toggle-pass:hover { background: #eef6f2; box-shadow: none; }
+.access-page .form-help { margin: -3px 0 22px; color: var(--access-muted); font-size: 11px; line-height: 1.6; }
+.access-page .button { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 12px 16px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 650; line-height: 1.4; text-align: center; cursor: pointer; }
+.access-page .button-primary { background: var(--access-green); color: #fff; }
+.access-page .button-primary:hover:not(:disabled) { background: #105f56; box-shadow: 0 5px 14px #16746822; }
+.access-page .button-secondary { background: #fff; color: var(--access-ink); border-color: #bccbc7; }
+.access-page .button-secondary:hover:not(:disabled) { background: #eff5f1; box-shadow: none; }
+.access-page .button:disabled { opacity: .58; cursor: not-allowed; }
+.access-page .loading-indicator { display: none; width: 15px; height: 15px; border: 2px solid #ffffff70; border-top-color: #fff; border-radius: 50%; animation: access-spin .8s linear infinite; }
+.access-page .button.is-loading .loading-indicator { display: inline-block; }
+@keyframes access-spin { to { transform: rotate(360deg); } }
+.access-page .access-links { display: grid; gap: 0; margin-top: 18px; padding-top: 10px; border-top: 1px solid #e4e9e5; }
+.access-page .access-links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; color: #38645c; font-size: 12px; font-weight: 500; text-decoration: none; }
+.access-page .access-links a > span { color: #68857d; font-size: 15px; }
+.access-page .access-links a:hover { text-decoration: underline; }
+.access-page .access-status { margin: 0; color: var(--access-muted); font-size: 12px; line-height: 1.5; }
+.access-page .access-status:not(:empty) { margin-top: 16px; }
+.access-page .public-route { grid-column: 2; padding: 0 4px; }
+.access-page .public-route-top { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.access-page .public-route h3 { margin: 0; font-size: 13px; font-weight: 650; }
+.access-page .public-route p { max-width: 300px; margin: 4px 0 0; color: var(--access-muted); font-size: 12px; line-height: 1.6; }
+.access-page .route-tag { flex-shrink: 0; color: #627b72; font-size: 10px; padding: 4px 8px; border: 1px solid #d1ddd3; border-radius: 6px; }
+.access-page .public-route .button { justify-content: space-between; min-height: 44px; margin-top: 9px; padding: 8px 0; color: #1c695c; border: 0; background: transparent; font-size: 12px; }
+.access-page .public-route .button:hover { box-shadow: none; text-decoration: underline; }
+.access-page .public-route .button > span { font-size: 19px; font-weight: 400; }
+.access-page .error-msg { position: sticky; top: 12px; z-index: 4; margin-bottom: 20px; padding: 12px 14px; color: #873c38; background: #fff3ee; border: 1px solid #e9c3b7; border-radius: 8px; box-shadow: 0 4px 12px #63362d0a; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.access-page .mfa-panel h3 { margin: 0 0 10px; color: var(--access-ink); font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
+/* The completed context choice is kept in the DOM by the existing login flow.
+   Show it only while choosing, so its submit action cannot compete with MFA. */
+.access-page .login-form:has(#credentialStep:not([hidden])) #contextStep,
+.access-page .login-form:has(#mfaStep:not([hidden])) #contextStep { display: none; }
+.access-page .mfa-panel > p { margin: 0 0 20px; color: var(--access-muted); font-size: 13px; line-height: 1.6; }
+.access-page .context-options { display: grid; gap: 10px; margin-bottom: 22px; }
+.access-page .context-option { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 70px; padding: 12px; border: 1px solid #c6d5cd; border-radius: 9px; cursor: pointer; }
+.access-page .context-option:has(input:checked) { border-color: var(--access-green); background: #edf6f0; }
+.access-page .context-option input, .access-page .recovery-confirm input { width: 18px; height: 18px; margin: 0; accent-color: var(--access-green); }
+.access-page .context-option strong { display: block; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.access-page .context-option span > span { display: block; margin-top: 3px; color: var(--access-muted); font-size: 11px; overflow-wrap: anywhere; }
+.access-page .mfa-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.access-page .email-mfa-card { margin: 16px 0; padding: 16px; background: #f1f7f2; border: 1px solid #c4d9ce; border-radius: 10px; }
+.access-page .email-mfa-card strong { display: block; font-size: 14px; }
+.access-page .email-mfa-card > span { display: block; margin: 6px 0 13px; color: var(--access-muted); font-size: 12px; line-height: 1.6; }
+.access-page .email-mfa-status { margin: 0; color: #346052; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.access-page .email-mfa-status:not(:empty) { margin-top: 12px; }
+.access-page .mfa-method-separator { text-align: center; font-size: 11px !important; color: #788a83 !important; }
+.access-page .mfa-alternate-actions { display: grid; gap: 3px; margin-top: 12px; }
+.access-page .text-button { min-height: 44px; padding: 9px; border: 0; border-radius: 6px; color: var(--access-green); background: transparent; font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.access-page .text-button:hover:not(:disabled) { background: #f1f6f1; box-shadow: none; }
+.access-page .text-button:disabled { color: #798c83; cursor: not-allowed; }
+.access-page .login-manual-key { margin: 18px 0; padding: 16px; border: 1px solid #c4d9ce; border-radius: 10px; background: #f1f7f2; }
+.access-page .login-manual-key strong, .access-page .login-manual-key code, .access-page .login-manual-key > span { display: block; }
+.access-page .login-manual-key strong { font-size: 12px; }
+.access-page .login-manual-key code { margin: 9px 0; font: 650 14px/1.6 Consolas, monospace; overflow-wrap: anywhere; user-select: all; }
+.access-page .login-manual-key > span { color: var(--access-muted); font-size: 11px; line-height: 1.6; }
+.access-page .login-recovery-codes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 20px 0; padding: 0; list-style: none; }
+.access-page .login-recovery-codes li { padding: 9px; border: 1px solid #c4d9ce; border-radius: 5px; background: #f1f7f2; font: 600 12px/1.5 Consolas, monospace; overflow-wrap: anywhere; }
+.access-page .recovery-confirm { display: grid; grid-template-columns: 18px 1fr; gap: 11px; align-items: start; margin: 20px 0; color: var(--access-muted); font-size: 12px; }
+.access-page .site-footer { border-top: 1px solid #dce1d9; }
+.access-page .footer-inner { width: min(1184px, calc(100% - 64px)); min-height: 65px; margin: auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; color: #62736d; font-size: 10px; }
+.access-page .footer-inner strong { font-weight: 600; }
+@media (max-width: 1100px) { .access-page .access-layout { gap: 22px; } .access-page .context-panel { padding: 38px 30px 28px; } }
+@media (max-width: 900px) {
+  .access-page .header-inner, .access-page main, .access-page .footer-inner { width: min(520px, calc(100% - 40px)); }
+  .access-page .header-inner { min-height: 88px; }
+  .access-page .header-context { display: none; }
+  .access-page main { padding: 24px 0 32px; }
+  .access-page .access-layout { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .access-page .access-panel, .access-page .public-route { grid-column: auto; }
+  .access-page .context-panel { grid-row: auto; order: 1; margin-top: 2px; padding: 30px; }
+  .access-page .context-panel h1 { font-size: 31px; }
+  .access-page .intro { font-size: 14px; }
+  .access-page .portal-areas { gap: 19px; margin: 28px 0; }
+  .access-page .portal-signoff { font-size: 9px; }
+  .access-page .footer-inner { min-height: 74px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
+}
+@media (max-width: 440px) {
+  .access-page .header-inner, .access-page main, .access-page .footer-inner { width: calc(100% - 32px); }
+  .access-page .site-header .brand .brand-name { width: 166px; height: 35px; }
+  .access-page .brand-place { font-size: 9px; }
+  .access-page .access-panel-header { padding: 26px 22px 0; }
+  .access-page .login-form { padding: 22px; }
+  .access-page h2 { font-size: 25px; }
+  .access-page .form-input { font-size: 16px; }
+  .access-page .mfa-actions { grid-template-columns: 1fr; }
+  .access-page .login-recovery-codes { grid-template-columns: 1fr; }
+  .access-page .context-panel { padding: 28px 24px; }
+}
+@media (forced-colors: active) {
+  .access-page .site-header .brand .brand-name { background: none; }
+  .access-page .context-panel { border-color: CanvasText; }
+  .access-page .portal-illustration { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .access-page *, .access-page *::before, .access-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

@@ -1,5 +1,21 @@
 # Continuidad MuniControl — 14/09/2026
 
+## Checkpoint vigente — 15/09/2026, 01:06 UTC
+
+Este bloque prevalece sobre los apartados históricos siguientes. El repositorio y los worktrees originales se preservan; el integrador continúa en `codex/municontrol-pm10-continuity-20260914`.
+
+- **Publicado y comprobado:** PR25, commit `1b7a4f64df0c20a4303f148dca0bd2188d4bf909`, deployment `dpl_9LwZUX55nhhr32JM41QojoE5GS8L`, alias principal existente. CI `34915503719` y `34915506337` aprobadas. Nueve archivos públicos coinciden byte por byte con ese commit; el reporte bancario anónimo devuelve 401 y no-store.
+- **Banco:** consulta y Excel/PDF se generan desde la fuente incorporada del 19/08, sin pedir archivos al empleado. Migración aditiva 060 e importación idempotente aplicadas en la rama Neon operativa; tablas financieras previas intactas. Control real de agosto: 854 filas, tres hojas Excel y PDF de 53 páginas. Tipos de cuenta y datos bancarios sin verificar se muestran como observaciones. No se generan órdenes de pago ni se acredita homologación de TXT bancarios.
+- **Marca y portada:** se recuperó la identidad aprobada y publicada el 05/09, ausente del master anterior. Esta entrega rediseña la portada con esa identidad, tipografía sans, formulario prioritario en móvil y vista general secundaria. Conserva los 37 identificadores y la lógica de autenticación. Pruebas locales de escritorio y móvil cubren contraseña, errores, contexto, MFA, reintento por correo, inscripción, recuperación y navegación. La comprobación de publicación de esta portada se registra después del despliegue en la continuidad privada.
+- **PM-10 real:** colector provisional autorizado instalado y activo con inicio de sesión Windows; captura y envío separados. 11.344 registros confirmados en 23 acuses: 230 nuevos canónicos, 11.111 ya conocidos y tres observaciones de fecha futura. Sin partes pendientes. Las capturas posteriores continúan sin reenviar lo confirmado. La pantalla real se verificó durante el envío inicial; la comprobación visual del resultado final quedó pendiente al perder la sesión web.
+- **Límite operativo:** el colector depende de la PC encendida, sesión y VPN. No se verificó operación con la PC personal apagada, destino municipal permanente ni los otros doce relojes. No hubo cambios de usuarios, biometría, hora o red de los dispositivos.
+- **Septiembre:** el respaldo S11 todavía no está incorporado a Neon. El nuevo versionado 061 conserva correcciones y ausencias sin modificar historia; su ensayo local completo reproduce las cinco entidades S11 con 11.430 cambios y crecimiento de 17.473.536 bytes. No se activó ni se cambiaron las consultas actuales. Falta integrar consumidores y medir el crecimiento total con reserva antes de la transición operativa.
+- **Resguardo y permisos:** fuentes, respaldos, credenciales y exportaciones reales permanecen privados, fuera de Git/CI/Vercel. La restauración existente permitió ensayar 060 y 061. No se autorizaron sueldos, pagos, firmas ni cierres. No hay una automatización Codex nocturna vigente.
+
+Siguiente acción: publicar y comprobar la portada; cerrar el incremento 061 separado y conectar la actualización de septiembre sin sumar versiones incompatibles. Mantener visible el corte de cada reporte y completar la prueba física de autonomía cuando exista un destino permanente.
+
+## Historia de esta continuidad
+
 ## Alcance y baseline
 
 Integrador único: tarea Codex iniciada con el handoff del 14/09. El repositorio rector es `inguillen87/municipio-junin-friendly`. No se creó otra aplicación ni base operativa.
