@@ -54,7 +54,7 @@
 .access-page .form-group { margin-bottom: 18px; }
 .access-page .form-label { display: block; margin-bottom: 7px; color: #294954; font-size: 12px; font-weight: 650; }
 .access-page .form-input { width: 100%; min-height: 49px; padding: 12px 14px; border: 1px solid #bdcbc8; border-radius: 8px; background: #fff; color: #153a4b; font-size: 15px; line-height: 1.4; }
-.access-page .form-input::placeholder { color: #788b90; opacity: 1; }
+.access-page .form-input::placeholder { color: #68787d; opacity: 1; }
 .access-page .form-input:hover { border-color: #809e99; }
 .access-page .form-input:focus { border-color: var(--access-green); box-shadow: 0 0 0 3px #16746812; }
 .access-page .password-field { position: relative; }
@@ -73,7 +73,7 @@
 @keyframes access-spin { to { transform: rotate(360deg); } }
 .access-page .access-links { display: grid; gap: 0; margin-top: 18px; padding-top: 10px; border-top: 1px solid #e4e9e5; }
 .access-page .access-links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; color: #38645c; font-size: 12px; font-weight: 500; text-decoration: none; }
-.access-page .access-links a > span { color: #68857d; font-size: 15px; }
+.access-page .access-links a > span { color: #607b74; font-size: 15px; }
 .access-page .access-links a:hover { text-decoration: underline; }
 .access-page .access-status { margin: 0; color: var(--access-muted); font-size: 12px; line-height: 1.5; }
 .access-page .access-status:not(:empty) { margin-top: 16px; }
@@ -81,7 +81,7 @@
 .access-page .public-route-top { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
 .access-page .public-route h3 { margin: 0; font-size: 13px; font-weight: 650; }
 .access-page .public-route p { max-width: 300px; margin: 4px 0 0; color: var(--access-muted); font-size: 12px; line-height: 1.6; }
-.access-page .route-tag { flex-shrink: 0; color: #627b72; font-size: 10px; padding: 4px 8px; border: 1px solid #d1ddd3; border-radius: 6px; }
+.access-page .route-tag { flex-shrink: 0; color: #5d756c; font-size: 10px; padding: 4px 8px; border: 1px solid #d1ddd3; border-radius: 6px; }
 .access-page .public-route .button { justify-content: space-between; min-height: 44px; margin-top: 9px; padding: 8px 0; color: #1c695c; border: 0; background: transparent; font-size: 12px; }
 .access-page .public-route .button:hover { box-shadow: none; text-decoration: underline; }
 .access-page .public-route .button > span { font-size: 19px; font-weight: 400; }
@@ -104,7 +104,7 @@
 .access-page .email-mfa-card > span { display: block; margin: 6px 0 13px; color: var(--access-muted); font-size: 12px; line-height: 1.6; }
 .access-page .email-mfa-status { margin: 0; color: #346052; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .access-page .email-mfa-status:not(:empty) { margin-top: 12px; }
-.access-page .mfa-method-separator { text-align: center; font-size: 11px !important; color: #788a83 !important; }
+.access-page .mfa-method-separator { text-align: center; font-size: 11px !important; color: #6a7973 !important; }
 .access-page .mfa-alternate-actions { display: grid; gap: 3px; margin-top: 12px; }
 .access-page .text-button { min-height: 44px; padding: 9px; border: 0; border-radius: 6px; color: var(--access-green); background: transparent; font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .access-page .text-button:hover:not(:disabled) { background: #f1f6f1; box-shadow: none; }
