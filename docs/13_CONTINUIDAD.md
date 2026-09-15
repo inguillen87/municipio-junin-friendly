@@ -1,5 +1,11 @@
 # Continuidad MuniControl — 14/09/2026
 
+## Corrección del directorio — 15/09/2026
+
+El estado administrativo «Desconocido» ahora se combina correctamente con sector, organización, búsqueda y vinculación. Antes, la alternativa `unknown` podía saltarse filtros anteriores y la alternativa nula podía saltarse filtros posteriores. Se agrupa la condición para conservar el mismo alcance en el conteo y en cada página. No hay cambios de esquema ni escrituras municipales.
+
+Validación de este arreglo aislado desde `fe218de934d1516bb5681dfff40025c21437b424`: siete pruebas del directorio y construcción completa con 2.920 pruebas aprobadas, cero fallos u omitidas. Publicación pendiente de comprobar. La continuidad de septiembre, hijos/certificados y reversión sigue en la carpeta de integración; este arreglo no activa sus migraciones ni cambia el respaldo seleccionado. La reversión técnica consiste en volver al artefacto PR33, conservando los datos.
+
 ## Checkpoint vigente — 2026-09-15T04:13:16.459Z
 
 Este bloque prevalece sobre los apartados históricos. Integración en la rama `codex/municontrol-pm10-continuity-20260914`; repositorio original y worktree Civitas con sus cambios preservados. No se creó otra aplicación ni base operativa. El feedback recibido se agrega a las tareas existentes y conserva su orden por dependencias.
