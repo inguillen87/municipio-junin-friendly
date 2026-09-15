@@ -129,7 +129,9 @@ try {
   checks.push('a scope or capability refresh discards the entire cached selection and report');
   catalog = monthlyCatalog(25); await available(); for (let n = 0; n < 24; n++) await panel.locator('[data-ms-id]').nth(n).check(); await panel.locator('[data-ms-id]').nth(24).click();
   assert.equal(await panel.locator('[data-ms-id]:checked').count(), 24); assert.match(await state.innerText(), /hasta 24/); checks.push('selection enforces 24 explicit sources without silently dropping an accepted selection');
-  catalog = monthlyCatalog(); await page.getByRole('tab', { name: 'Resumen mensual', exact: true }).focus(); await page.keyboard.press('ArrowRight'); assert.equal(await page.getByRole('tab', { name: 'Comparar liquidaciones', exact: true }).evaluate(n => n === document.activeElement), true);
+  catalog = monthlyCatalog(); await page.getByRole('tab', { name: 'Resumen mensual', exact: true }).focus(); await page.keyboard.press('ArrowRight');
+  assert.equal(await page.getByRole('tab', { name: 'Planilla bancaria', exact: true }).evaluate(n => n === document.activeElement), true);
+  await page.keyboard.press('ArrowRight'); assert.equal(await page.getByRole('tab', { name: 'Comparar liquidaciones', exact: true }).evaluate(n => n === document.activeElement), true);
   checks.push('report navigation retains keyboard tab-list operation and labeled native selection controls');
   const beforeBack = calls.filter(c => c.path.includes('monthly-source-summary')).length; const navigation = page.waitForEvent('load');
   await page.evaluate(() => { window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); }); await navigation;
