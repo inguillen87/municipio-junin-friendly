@@ -162,3 +162,4 @@ local-agents/
 !scripts/migrations/058-payroll-monthly-source-summary.sql
 !scripts/migrations/059-action-source-history.sql
 !scripts/rollback/059-action-source-history.sql
+!scripts/migrations/060-payroll-bank-source-report.sql
