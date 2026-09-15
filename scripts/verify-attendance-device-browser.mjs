@@ -520,7 +520,7 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     contentType: 'application/javascript; charset=utf-8',
     headers: { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=31536000, immutable' },
   }));
-  await page.route(/https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/, (route) => {
+  await page.route(/https:\/\/tile\.openstreetmap\.org\/.*/, (route) => {
     evidence.tileRequests += 1;
     return route.fulfill({
       status: 200,
