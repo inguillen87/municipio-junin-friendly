@@ -163,3 +163,4 @@ local-agents/
 !scripts/migrations/059-action-source-history.sql
 !scripts/rollback/059-action-source-history.sql
 !scripts/migrations/060-payroll-bank-source-report.sql
+!scripts/migrations/061-grh-core-source-version.sql
