@@ -78,6 +78,7 @@ const shellFiles = [
   'assets/clock-dashboard.js',
   'assets/attendance-clock-operations.css',
   'assets/attendance-clock-operations.js',
+  'assets/attendance-connector-admin.js',
   'assets/internal-guide.js',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',

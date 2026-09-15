@@ -18,7 +18,7 @@ if(root){
   $('Export').disabled=busy()||!state.data?.records.length;
   for(const k of ['ExportAll','ExportXlsx'])$(k).disabled=busy()||!state.data?.pagination.total||!state.cut||!state.data?.collection.importComplete;
   $('Print').disabled=busy()||!state.data;$('CancelExport').hidden=!state.exporting;
-  $('TabWorkdays').disabled=state.source==='continuous';
+  $('TabWorkdays').disabled=busy()||state.denied;
   root.setAttribute('aria-busy',String(busy()));
  }
  function tab(name,focus=false){
@@ -26,6 +26,19 @@ if(root){
   state.tab=name;
   for(const [key,id]of Object.entries({workdays:'Workdays',overview:'Overview',records:'Records',issues:'IssuesWrap'}))$(id).hidden=key!==name;
   root.querySelectorAll('[data-clock-tab]').forEach(b=>{const active=b.dataset.clockTab===name;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;if(active&&focus)b.focus()});
+ }
+ function changeSource(source,name,focus=false){
+  if(busy()||state.denied||!state.started)return;
+  // Keep the selected point and applied dates, but never reuse another source's cut.
+  state.from=state.from||state.data?.filters?.from||'';state.to=state.to||state.data?.filters?.to||'';
+  state.source=source;state.hour=null;$('Source').value=source;
+  clearData();text('SourceKind',source==='historical'?'Consultando captura histórica':'Consultando recepciones confirmadas');
+  text('WorkdaysNote',source==='historical'?'Abriendo jornadas de la captura histórica para el punto y período seleccionados. Las recepciones nuevas no se incluyen en este cálculo.':'Seleccioná Jornadas históricas para abrir el cálculo disponible en la captura conservada.');
+  tab(name,focus);load(true).then(()=>{if(focus&&state.started&&!state.denied&&state.source===source&&state.tab===name)tab(name,true)});
+ }
+ function selectTab(name,focus=false){
+  if(name==='workdays'&&state.source==='continuous'){changeSource('historical',name,focus);return}
+  tab(name,focus);
  }
  function filterHour(hour){if(busy())return;state.hour=state.hour===hour?null:hour;tab('records');load(true)}
  function charts(data){
@@ -46,7 +59,7 @@ if(root){
   text('CapturedLabel',continuous?'Última captura completa conservada':'Descarga histórica del reloj');
   text('Device',device?[device.model,device.serial,device.firmware].filter(Boolean).join(' · '):'Sin metadatos de captura');
   $('Source').value=state.source;
-  text('WorkdaysNote',continuous?'Para consultar jornadas reconstruidas, elegí Captura histórica. Las recepciones nuevas todavía no se incluyen en ese cálculo.':'Jornadas reconstruidas sobre la captura histórica seleccionada. Sin liquidación automática.');
+  text('WorkdaysNote',continuous?'Seleccioná Jornadas históricas para abrir el cálculo de la captura conservada. Las recepciones nuevas todavía no se incluyen en ese cálculo.':data.dashboard.historicalSnapshotId?'Jornadas reconstruidas sobre la captura histórica seleccionada. Se conserva el punto y período de consulta. Sin liquidación automática.':'No hay una captura histórica disponible para este punto. Elegí «Histórico y recepciones confirmadas» para consultar las fichadas recibidas. Cuando se incorpore una captura histórica, presioná Actualizar.');
   for(const [k,v]of Object.entries({Marks:s.marks,People:s.people,Linked:s.mappedMarks,Unlinked:s.unmappedMarks,Observed:s.observedRows,SourceRows:s.sourceRows}))text(k,num(v));text('LinkRate',rate===null?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:1}).format(rate)+'%');$('LinkBar').style.width=(rate||0)+'%';
   for(const [k,v]of Object.entries({Captured:continuous?data.dashboard.telemetry.lastCompleteCaptureAt:c.capturedAt,Received:c.receivedAt,Latest:s.latestMarkAt,Checked:data.generatedAt}))text(k,date(v));
   const telemetry=data.dashboard.telemetry;
@@ -116,10 +129,10 @@ if(root){
   state.loading=false;state.search='';$('Search').value='';clearData();root.hidden=true;
  }
  $('Filter').addEventListener('submit',e=>{e.preventDefault();if(busy())return;state.site=$('Site').value;state.source=$('Source').value;state.from=$('From').value;state.to=$('To').value;state.hour=null;load(true)});
- $('Source').addEventListener('change',()=>{if(busy())return;state.source=$('Source').value;state.from=state.to='';state.hour=null;tab(state.source==='historical'?'workdays':'records');load(true)});
+ $('Source').addEventListener('change',()=>{const source=$('Source').value;changeSource(source,source==='historical'?'workdays':'records')});
  $('Refresh').addEventListener('click',()=>load(true));$('LatestDay').addEventListener('click',()=>{if(busy())return;state.from=state.to='';state.hour=null;load(true)});
  root.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{if(busy()||!state.data?.filters)return;Object.assign(state,periodWindow(state.data.filters.to,Number(b.dataset.days)));state.hour=null;load(true)}));
- root.querySelectorAll('[data-clock-tab]').forEach(b=>{b.addEventListener('click',()=>tab(b.dataset.clockTab));b.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=state.source==='continuous'?['overview','records','issues']:['workdays','overview','records','issues'],i=names.indexOf(state.tab);tab(e.key==='Home'?names[0]:e.key==='End'?names.at(-1):names[(i+(e.key==='ArrowRight'?1:names.length-1))%names.length],true)})});
+ root.querySelectorAll('[data-clock-tab]').forEach(b=>{b.addEventListener('click',()=>selectTab(b.dataset.clockTab));b.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=['workdays','overview','records','issues'],i=names.indexOf(state.tab);selectTab(e.key==='Home'?names[0]:e.key==='End'?names.at(-1):names[(i+(e.key==='ArrowRight'?1:names.length-1))%names.length],true)})});
  $('SeeUnlinked').addEventListener('click',unmapped);$('ClearHour').addEventListener('click',()=>{if(busy())return;state.hour=null;load(true)});$('SearchApply').addEventListener('click',search);$('Identity').addEventListener('change',search);$('Search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search()}});$('Previous').addEventListener('click',()=>{if(!busy()&&state.page>1){state.page--;load()}});$('Next').addEventListener('click',()=>{if(!busy()&&state.page<(state.data?.pagination.pages||0)){state.page++;load()}});$('Export').addEventListener('click',exportPage);$('ExportAll').addEventListener('click',()=>exportAll('csv'));$('ExportXlsx').addEventListener('click',()=>exportAll('xlsx'));$('CancelExport').addEventListener('click',()=>state.exportController?.abort());$('Print').addEventListener('click',()=>{if(!busy()&&state.data)window.print()});
  document.addEventListener('mc:attendance-ready',start);document.addEventListener('mc:attendance-site',e=>{const site=String(e.detail?.site||'').toLowerCase();if(!/^[a-z0-9][a-z0-9._-]{1,95}$/.test(site)||busy())return;state.site=site;state.from=state.to=state.search='';state.identity='all';state.hour=null;$('Search').value='';tab('workdays');if(!state.started)start();else load(true);root.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})});
  document.addEventListener('visibilitychange',()=>{

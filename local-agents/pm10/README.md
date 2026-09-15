@@ -59,6 +59,22 @@ sudo systemctl start municontrol-pm10
 
 No cambiar rutas del servicio a mano ni agregar credenciales a sus argumentos.
 
+## Instalación provisional en la sesión de Windows (opcional)
+
+Cuando se haya elegido temporalmente una PC del operador, `install/install-user-windows.ps1` prepara una instalación separada en `%LOCALAPPDATA%\MuniControl\Gateways\PM10`, sin administrador, UAC ni contraseña de Windows. Copia Node.js 22+ a `runtime/node.exe` y el programa a `app`, restringe permisos al usuario, SYSTEM y administradores, y crea accesos **Iniciar PM10** y **Detener PM10**. No modifica `config.json`, `sender.json`, `private`, capturas ni acuses, ni inicia lecturas. `-NodePath` permite indicar el ejecutable existente; `-NoStartup` omite el acceso de inicio de sesión.
+
+La configuración de captura se prepara en `config.json`, con `stateDir` apuntando a `state` y la CommKey protegida en `private/commkey`. El remitente usa `sender.json` y un token propio en `private`; se prepara después de registrar su hash y habilitar el conector. Se conserva el destino exclusivo PM-10 del lector: esta opción no incorpora otros relojes.
+
+**Requiere la PC encendida y su sesión disponible. No funciona con la PC apagada ni acredita operación al cerrar sesión.** No modifica suspensión, red, energía ni las tareas municipales LocalService. El acceso de inicio de sesión abre el supervisor oculto y respeta una detención guardada. **Iniciar PM10** habilita ambos procesos configurados; **Detener PM10** solicita su cierre ordenado y conserva la cola. No debe coexistir con otro colector del mismo reloj.
+
+El supervisor guarda `control/status.json`; los estados del capturador y remitente siguen en `state/status.json` y `state/delivery/status.json`. Desde la carpeta de instalación:
+
+```powershell
+& .\runtime\node.exe .\app\user-supervisor.mjs status --base $PWD.Path
+```
+
+Un proceso iniciado no acredita captura ni recepción. El supervisor conserva los bloqueos existentes, solicita cierre mediante IPC y limita a tres los arranques automáticos por proceso en cada ejecución; los reintentos de red continúan siendo responsabilidad del capturador y remitente. No elimina bloqueos de revisión ni rearma rechazos de autenticación. Antes de actualizar o trasladar, detener ambos y comprobar estado `stopped`; conservar configuraciones, cola y acuses. En el host definitivo se vuelve a comprobar ruta, permisos y exclusividad antes de arrancar.
+
 ## Aceptación del circuito completo
 
 - Host municipal concreto e instalación comprobada, con ruta permanente al reloj y una única instancia.
