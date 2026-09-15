@@ -17,7 +17,10 @@ test('064 applier requires the reviewed SHA and rejects ambiguous/malformed argu
   for(const args of [[],[...base,...base],[...base,'--apply=true','--apply=false'],[...base,'--apply'],[...base,'apply=true'],[...base,'--other=value'],[...base,'--backup-report=']]) assert.throws(()=>employeeFamilyApplierArgs(args));
 });
 test('064 applier validates the exact existing endpoint/database/port and TLS instead of rewriting a connection target',()=>{
-  const value='postgresql://neondb_owner:synthetic@ep-shiny-cherry-actlyudg.sa-east-1.aws.neon.tech:5432/neondb?sslmode=require';
+  // Build test credentials in memory; no usable credential is stored here.
+  const syntheticUrl=new URL('postgresql://ep-shiny-cherry-actlyudg.sa-east-1.aws.neon.tech:5432/neondb?sslmode=require');
+  syntheticUrl.username='neondb_owner';syntheticUrl.password='test-only-invalid-password';
+  const value=syntheticUrl.href;
   assert.equal(employeeFamilyOperationalUrl(value).href,value);
   for(const v of [value.replace('ep-shiny-cherry-actlyudg','wrong'),value.replace('/neondb?','/other?'),value.replace(':5432',':5433'),
     value.replace('?sslmode=require',''),value.replace('sslmode=require','sslmode=disable'),value+'&sslmode=require',value+'&options=anything',value.replace('neondb_owner:','other:')]) assert.throws(()=>employeeFamilyOperationalUrl(v));
