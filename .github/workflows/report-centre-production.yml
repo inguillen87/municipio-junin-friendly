@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-friendly.mjs
       - run: node scripts/verify-report-centre-production.mjs
       - uses: actions/upload-artifact@v4
         if: always()

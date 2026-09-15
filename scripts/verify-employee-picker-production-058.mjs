@@ -1,12 +1,14 @@
 /** Anonymous production smoke: never provides a real session or writes municipal data. */
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 const origin='https://municipio-junin-friendly.vercel.app';
 const files=['novedades-nomina.html','assets/employee-picker.js','assets/employee-picker-model.js','assets/employee-picker.css','assets/payroll-novelty-workbench.js','assets/payroll-novelty-sheet.js','sw.js'];
 const digest=b=>createHash('sha256').update(b).digest('hex');
+const build=publishedBuildVerification({origin,release:process.env.GITHUB_SHA||'manual'}),expectedHashes=build.expectedHashes(files);
 const out='verification/employee-picker-058-production';fs.mkdirSync(out,{recursive:true});
 let hashes=[],matched=false;
 for(let attempt=0;attempt<36;attempt++){
- hashes=await Promise.all(files.map(async file=>{try{const r=await fetch(origin+'/'+file+'?verify=058-'+Date.now(),{redirect:'error',signal:AbortSignal.timeout(20000)});const bytes=Buffer.from(await r.arrayBuffer()),expected=digest(fs.readFileSync('public/'+file));return {file,status:r.status,expected,actual:digest(bytes),matches:r.status===200&&digest(bytes)===expected};}catch(error){return{file,matches:false,error:error.message};}}));
+ hashes=await Promise.all(files.map(async file=>{try{const r=await build.fetchFile(file,20000);const bytes=Buffer.from(await r.arrayBuffer()),expected=expectedHashes[file];return {file,status:r.status,expected,actual:digest(bytes),matches:r.status===200&&digest(bytes)===expected};}catch(error){return{file,matches:false,error:error.message};}}));
  if(hashes.every(r=>r.matches)){matched=true;break;}
  await new Promise(resolve=>setTimeout(resolve,10000));
 }

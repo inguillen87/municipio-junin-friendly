@@ -1,17 +1,18 @@
 /** Read-only production verification. Does not authenticate or submit a novelty. */
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 const origin='https://municipio-junin-friendly.vercel.app';
 const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css','assets/payroll-novelty-legajo-list.js','assets/payroll-novelty-legajo-list.css'];
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
-const expected=Object.fromEntries(files.map(p=>[p,hash(fs.readFileSync(p))]));
 const commit=process.env.GITHUB_SHA||'manual',deadline=Date.now()+240000;
+const build=publishedBuildVerification({origin,release:commit}),expected=build.expectedHashes(files);
 let published=false;
 while(Date.now()<deadline){
   try{
     let matches=true;
     for(const file of files){
-      const r=await fetch(origin+'/'+file+'?release='+commit,{cache:'no-store',signal:AbortSignal.timeout(10000)});
+      const r=await build.fetchFile(file,10000);
       if(!r.ok||hash(Buffer.from(await r.arrayBuffer()))!==expected[file]){matches=false;break;}
     }
     if(matches){published=true;break;}

@@ -5,13 +5,15 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import readXlsxFile from 'read-excel-file/node';
 import { comparisonFixtures, IDS } from './payroll-comparison-synthetic.mjs';
+import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 
 const live = process.env.COMPARISON_LIVE_ASSETS === '1';
 const origin = live ? 'https://municipio-junin-friendly.vercel.app' : 'https://municontrol.test';
 const root = path.resolve('public'), out = 'verification/comparison-056';
+const build = publishedBuildVerification({origin,root});
 fs.mkdirSync(out, { recursive: true });
 const checks = [], errors = [], calls = [], downloads = [];
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? {executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE} : {}) });
 let mode = '', hold = false, waiting = [], catalogMode = '';
 async function until(predicate) {
   const end = Date.now() + 15000;
@@ -81,7 +83,7 @@ try {
     await $('[data-pc-compare]').click(); await visible('[data-pc-result]');
     await page.waitForFunction(() => !document.querySelector('#task-comparar [data-pc-format="pdf"]')?.disabled);
   }
-  await page.goto(origin + '/reportes-rrhh.html#comparar'); await visible('[data-pc-catalog]');
+  await page.goto(origin+(live?build.url('reportes-rrhh.html').pathname:'/reportes-rrhh.html')+'#comparar'); await visible('[data-pc-catalog]');
   assert.equal(await page.locator('.task-panel:visible').count(), 1);
   assert.equal(await page.locator('input[type=file]:visible').count(), 0);
   assert.equal(calls.length, 0); checks.push('Direct link opens only the comparison task without automatically reading payroll');
@@ -168,7 +170,7 @@ try {
   await $('[data-pc-base]').selectOption(IDS[2]); release(); await page.waitForTimeout(250);
   assert.equal(downloads.length,count); assert.equal(await rows().count(),0);
   checks.push('Changing a source while exporting aborts the previous comparison');
-  await page.goto(origin + '/nomina-control.html#comparar'); await visible('[data-pc-catalog]'); await compareFresh();
+  await page.goto(origin+(live?build.url('nomina-control.html').pathname:'/nomina-control.html')+'#comparar'); await visible('[data-pc-catalog]'); await compareFresh();
   assert.equal(await rows().count(),10); await page.screenshot({ path: out + '/comparison-payroll-task-qa.png', fullPage:true });
   checks.push('Same fully functional comparison task is available in Nómina');
   await page.getByRole('tab',{name:'Comparar liquidaciones',exact:true}).focus(); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');

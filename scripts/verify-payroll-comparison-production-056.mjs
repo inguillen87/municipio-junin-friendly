@@ -1,18 +1,19 @@
 /** Match canonical production bytes and check actual anonymous rejection. No authenticated payroll read. */
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 const origin = 'https://municipio-junin-friendly.vercel.app';
 const paths = ['reportes-rrhh.html','nomina-control.html','assets/payroll-comparison-model.js','assets/payroll-comparison.js','assets/payroll-comparison.css',
   'assets/report-centre.js','assets/payroll-navigation.js','assets/payroll-source-report-model.js','assets/report-document.js','assets/payroll-document-library-model.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const expected = Object.fromEntries(paths.map(file => [file, hash(fs.readFileSync(file))]));
 const commit = process.env.GITHUB_SHA || 'manual', deadline = Date.now() + 300000;
+const build = publishedBuildVerification({origin,release:commit}), expected = build.expectedHashes(paths);
 let published = false;
 while (Date.now() < deadline) {
   try {
     let matches = true;
     for (const file of paths) {
-      const response = await fetch(origin + '/' + file + '?release=' + commit, {cache:'no-store',signal:AbortSignal.timeout(12000)});
+      const response = await build.fetchFile(file);
       if (!response.ok || hash(new Uint8Array(await response.arrayBuffer())) !== expected[file]) { matches = false; break; }
     }
     if (matches) { published = true; break; }

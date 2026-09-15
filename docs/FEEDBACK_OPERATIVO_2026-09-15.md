@@ -2,6 +2,12 @@
 
 Recibido el 14/09/2026 por la noche de Argentina (15/09 UTC). El usuario indicó mantener el orden por dependencias y conservar los pedidos exactos de Noelia. Este registro amplía las tareas existentes; no las sustituye ni declara aceptación municipal.
 
+### Avance comprobado — 15/09/2026, 03:55 UTC
+
+PR31, commit `e05c3359f8a3a42fe1a8fae13e88733617b692c8`, ya sirve en el sitio principal. Se aplicaron 064/065 en la base existente: alta de hijos propios, certificados asociados e integración de recepciones continuas en «Jornadas y tiempos». Los 35 recorridos familiares y 14 de jornadas aprobaron usando los archivos publicados y APIs sintéticas. Las rutas consultadas sin sesión respondieron 401. No se realizó un alta municipal real ni se homologaron códigos del reloj, reglas laborales o horas pagables. El estado inicial descrito abajo se conserva como diagnóstico de origen; [13_CONTINUIDAD.md](13_CONTINUIDAD.md) registra los límites y la evidencia actuales.
+
+El feedback se agrega a las tareas existentes. Continúa primero la verificación de publicación y después el ensayo de septiembre; no se abandona un incremento en curso cada vez que llega una observación.
+
 ## Hijos y certificados — MC-E02 / MC-D02
 
 Noelia pide poder cargar hijos y sus certificados desde el recorrido de trabajo. La captura entregada corresponde a Control de nómina.
