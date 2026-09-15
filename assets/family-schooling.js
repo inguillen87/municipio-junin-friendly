@@ -87,9 +87,13 @@ export function mountSchoolingReport(host) {
     <form class="fs-filters" data-fs-filters><label>Buscar agente, legajo o hijo/a<input type="search" maxlength="100" autocomplete="off" data-fs-search></label><label>Registro del certificado<select data-fs-filter><option value="all">Todos</option><option value="registered">Con certificado registrado</option><option value="unregistered">Sin registro en MuniControl</option><option value="expired">Vencimiento informado superado</option><option value="no_expiry">Sin vencimiento informado</option></select></label><button type="button" class="fs-button" data-fs-reset>Restablecer filtros</button></form>
     <div class="fs-actions"><button type="button" class="fs-button primary" data-fs-export>Descargar Excel del filtro</button><p data-fs-range></p></div>
     <p class="fs-note">Las fechas del certificado provienen de su carga manual. “Sin registro” o una fecha ausente no permiten afirmar que no se presentó. Este control no aprueba escolaridad ni habilita haberes.</p>
-    <div class="fs-table-wrap" tabindex="0" role="region" aria-label="Detalle de hijos y certificados, desplazable"><table class="fs-table"><caption class="fs-sr">Legajos activos con hijos y último certificado registrado</caption><thead><tr><th scope="col">Agente / legajo</th><th scope="col">Hijo/a</th><th scope="col">Presentación registrada</th><th scope="col">Vencimiento registrado</th><th scope="col">Registro y documento</th><th scope="col">Ficha</th></tr></thead><tbody data-fs-rows></tbody></table></div>
+    <div class="fs-table-wrap" tabindex="0" role="region" aria-label="Detalle de hijos y certificados, desplazable"><table class="fs-table"><caption class="fs-sr">Legajos activos con hijos y último certificado registrado</caption><thead><tr><th scope="col">Agente / legajo</th><th scope="col">Hijo/a y origen</th><th scope="col">Presentación registrada</th><th scope="col">Vencimiento registrado</th><th scope="col">Registro y documento</th><th scope="col">Ficha</th></tr></thead><tbody data-fs-rows></tbody></table></div>
     <nav class="fs-pagination" aria-label="Páginas del reporte de hijos"><button type="button" class="fs-button" data-fs-previous>Anterior</button><span data-fs-page></span><button type="button" class="fs-button" data-fs-next>Siguiente</button></nav></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-status]'), result = $('[data-fs-result]');
+  // Keep table semantics when its existing cells become cards on small screens.
+  for (const [selector, role] of [['.fs-table', 'table'], ['.fs-table thead,.fs-table tbody', 'rowgroup'], ['.fs-table thead tr', 'row'], ['.fs-table th', 'columnheader']]) {
+    host.querySelectorAll(selector).forEach(element => element.setAttribute('role', role));
+  }
   let data = null, queriedAt = null, page = 1, busy = false, generation = 0, controller = null, destroyed = false;
   const available = () => !destroyed && host.isConnected && !host.closest('[hidden]') && !document.hidden;
   const view = () => schoolingFilter(data, { search: $('[data-fs-search]').value, status: $('[data-fs-filter]').value });
@@ -107,6 +111,7 @@ export function mountSchoolingReport(host) {
   function render() {
     const selected = view(), all = selected.rows, pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
     page = Math.min(page, pages);
+    const expiredKeys = new Set(schoolingFilter(data, { status: 'expired', asOf: selected.filters.asOf }).rows.map(row => row.key));
     for (const name of ['contracts', 'children', 'registered']) $('[data-fs-' + name + ']').textContent = selected.counts[name].toLocaleString('es-AR');
     $('[data-fs-review-count]').hidden = selected.counts.review === 0;
     $('[data-fs-review-count]').textContent = selected.counts.review + ' vínculos presentan coincidencias por revisar. Se muestran en el detalle y el Excel; no se suman como hijos distintos confirmados.';
@@ -123,7 +128,7 @@ export function mountSchoolingReport(host) {
       if (r.familyEndDate) child.append(node('small', 'Baja del vínculo: ' + schoolingDate(r.familyEndDate)));
       presented.textContent = schoolingDate(r.certificate?.presentedOn ?? null);
       expiry.textContent = schoolingDate(r.certificate?.expiresOn ?? null, 'Sin vencimiento informado');
-      cert.append(node('span', certificateState(r, selected.filters.asOf), 'fs-pill' + (r.certificate ? '' : ' muted')));
+      cert.append(node('span', certificateState(r, selected.filters.asOf), 'fs-pill' + (expiredKeys.has(r.key) ? ' warning' : r.certificate ? '' : ' muted')));
       if (r.certificate) {
         cert.append(node('small', 'Cargado: ' + schoolingDate(r.certificate.recordedAt)));
         const download = button('Descargar PDF'); download.setAttribute('aria-label', 'Descargar certificado PDF de ' + (r.familyName || 'hijo/a sin nombre informado'));
@@ -132,9 +137,14 @@ export function mountSchoolingReport(host) {
       const link = node('a', 'Abrir hijo y certificados', 'fs-link');
       link.href = 'internal-dashboard.html?contractId=' + encodeURIComponent(r.contractId) + '&section=family&familyKind=' + r.familyRef.kind + '&familyId=' + encodeURIComponent(r.familyRef.id) + '#legajos';
       link.referrerPolicy = 'no-referrer'; link.setAttribute('aria-label', 'Abrir certificados de ' + (r.familyName || 'hijo/a sin nombre informado') + ', legajo ' + r.legajo); action.append(link);
+      tr.setAttribute('role', 'row');
+      for (const [cell, label] of [[employee, 'Agente / legajo'], [child, 'Hijo/a y origen'], [presented, 'Presentación registrada'], [expiry, 'Vencimiento registrado'], [cert, 'Registro y documento'], [action, 'Ficha']]) {
+        cell.setAttribute('role', 'cell');
+        const heading = node('span', label, 'fs-cell-label'); heading.setAttribute('aria-hidden', 'true'); cell.prepend(heading);
+      }
       tr.append(employee, child, presented, expiry, cert, action); return tr;
     });
-    if (!rows.length) { const tr = node('tr'), td = node('td', 'No hay filas para este filtro. Podés cambiarlo o restablecer la búsqueda.'); td.colSpan = 6; tr.append(td); rows.push(tr); }
+    if (!rows.length) { const tr = node('tr'), td = node('td', 'No hay filas para este filtro. Podés cambiarlo o restablecer la búsqueda.'); tr.setAttribute('role', 'row'); td.setAttribute('role', 'cell'); td.colSpan = 6; tr.append(td); rows.push(tr); }
     $('[data-fs-rows]').replaceChildren(...rows); result.hidden = false; controls();
   }
   async function consult() {

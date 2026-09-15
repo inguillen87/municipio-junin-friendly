@@ -191,10 +191,42 @@ try {
   const zip = unzipSync(fs.readFileSync(excelPath)); assert.equal((strFromU8(zip['xl/worksheets/sheet1.xml']).match(/<row /g) || []).length, 76);
   assert.match(strFromU8(zip['xl/worksheets/sheet2.xml']), /2026-08-06T18:15:21Z/); checks.push('real Excel download contains all 75 filtered rows, with provenance and no external workbook');
   await syntheticLabel(); await frameReport(); await page.screenshot({ path: path.join(out, 'family-schooling-report-desktop-qa.png'), fullPage: true });
+  assert.equal(await report.locator('.fs-table').evaluate(n => getComputedStyle(n).display), 'table');
+  const expiredRow = report.locator('tbody tr').filter({ hasText: 'Hijo Sintético 0003' });
+  assert.equal(await expiredRow.locator('.fs-pill.warning').count(), 1);
+  assert.match(await expiredRow.locator('.fs-pill.warning').innerText(), /Vencimiento informado superado/);
+  assert.equal(await report.locator('tbody tr').filter({ hasText: 'Hijo Sintético 0002' }).locator('.fs-pill.warning').count(), 0);
+  checks.push('expired certificate uses the warning state while an undated certificate does not; desktop retains table layout');
   await page.setViewportSize({ width: 390, height: 844 }); await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await report.locator('[data-fs-search]').focus(); await page.keyboard.type('0075'); assert.equal(await report.locator('tbody tr').count(), 1);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const bounds = await report.locator('tbody tr').evaluate(row => ({
+      tableFits: row.closest('.fs-table-wrap').scrollWidth <= row.closest('.fs-table-wrap').clientWidth + 1,
+      fields: [...row.querySelectorAll('td,button,a')].map(n => { const r = n.getBoundingClientRect(); return {left:r.left,right:r.right,width:r.width}; }),
+      labels: [...row.querySelectorAll('td')].map(n => n.textContent),
+    }));
+    assert.equal(bounds.tableFits, true);
+    assert.ok(bounds.fields.every(b => b.left >= 0 && b.right <= width + 1 && b.width > 0));
+    assert.ok(bounds.labels.some(label => /Presentación registrada/.test(label)));
+    assert.ok(bounds.labels.some(label => /Vencimiento registrado/.test(label)));
+    assert.equal(await report.getByRole('table').count(), 1);
+    assert.equal(await report.getByRole('row').count(), 2);
+    assert.equal(await report.getByRole('cell').count(), 6);
+  }
+  const mobilePdfEvent = page.waitForEvent('download');
+  await report.getByRole('button', { name: 'Descargar certificado PDF de Hijo Sintético 0075', exact: true }).click();
+  const mobilePdf = await mobilePdfEvent, mobilePdfPath = path.join(out, 'family-schooling-mobile-synthetic.pdf');
+  await mobilePdf.saveAs(mobilePdfPath);
+  assert.deepEqual(fs.readFileSync(mobilePdfPath), syntheticSchoolPdf);
+  checks.push('320px and 390px cards expose all six labelled fields and actions without horizontal scrolling; mobile PDF download preserves exact bytes');
   await frameReport(); await page.screenshot({ path: path.join(out, 'family-schooling-report-mobile-qa.png'), fullPage: true }); checks.push('report supports keyboard filtering, bounded mobile layout and reduced motion');
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await report.locator('.fs-table').evaluate(n => getComputedStyle(n).display), 'table');
+  assert.equal(await report.locator('.fs-table thead').evaluate(n => getComputedStyle(n).position), 'static');
+  await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
+  checks.push('printing at mobile width retains the tabular report with its visible header');
   await page.setViewportSize({ width: 1440, height: 1050 }); await report.locator('[data-fs-reset]').click();
   const beforeChanged = downloads.length; dataset.data.rows[0].sourceCutoff = '2026-08-06T19:15:21Z';
   await report.locator('[data-fs-export]').click(); await page.waitForFunction(() => document.querySelector('[data-fs-status]')?.textContent.includes('Los datos cambiaron'));
