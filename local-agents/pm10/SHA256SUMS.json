@@ -32,7 +32,7 @@
   "tests/service-recovery.test.mjs": "d4e448409695bf2da120bc18bedd4e9e917675616fbcc64ff130540a4200558b",
   "tests/service.test.mjs": "655f8dc8f359d5eaea1f4c78667d0d96e0760de0d48db3c2fb2c41c38282b467",
   "tests/store.test.mjs": "5cea08a5458fa3456bf9f3af359594dbc4b2004ae0d7a7b606212fed329e993d",
-  "tests/user-supervisor.test.mjs": "68fc3a7fdc67bc1bc6b49dccb93008ca6a0ce52f8102664628300e844d2d2777",
+  "tests/user-supervisor.test.mjs": "7bf7a99a236ebccab06211af5f810b698fb8749b21f7d3a0da5b43f802e7b14a",
   "tests/user-watchdog-windows.integration.ps1": "c5b634bec0c37a2f8ea6d485f7181b8870386c70c7629b35461e787a2997f9e2",
   "user-supervisor.mjs": "a312edf96d1c622f6b066e8a79fb0e5a4c5efe3f49045a8ed4c1119c66f4c17f"
 }
