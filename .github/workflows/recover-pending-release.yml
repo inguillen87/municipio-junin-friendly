@@ -1,0 +1,39 @@
+name: Recover pending release files
+on:
+  push:
+    branches: ['internal-recovery-noelia-20260915']
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Recover only four pinned blobs; no code execution or deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p recovery
+          python - <<'PY'
+          import base64,gzip,json,os,urllib.request,hashlib,pathlib
+          root='https://api.github.com/repos/inguillen87/municipio-junin-friendly/git/blobs/'
+          shas=['992dd021385d29ae0e844736b42e37bf98da10cf','805cbca835984521ad4e05089de23b7b464fb464','4021182dd8ea0268eafa9ae17491b604bfef522b','c831467acaf5eda3ce5c2d62a63fc19c3fde37fc']
+          chunks=[]
+          for sha in shas:
+              req=urllib.request.Request(root+sha,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=20) as response: blob=json.load(response)
+              data=base64.b64decode(blob['content'])
+              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==sha
+              chunks.append(data.decode('utf-8'))
+          data=gzip.decompress(base64.b64decode(''.join(chunks)))
+          assert len(data)<2_000_000
+          pathlib.Path('recovery/pending-release.bin').write_bytes(data)
+          pathlib.Path('recovery/SHA256.txt').write_text(hashlib.sha256(data).hexdigest()+'  pending-release.bin\n')
+          print('Recovered bytes:',len(data),'sha256:',hashlib.sha256(data).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pending-noelia-release-recovered
+          path: recovery/
+          retention-days: 2
+          if-no-files-found: error
