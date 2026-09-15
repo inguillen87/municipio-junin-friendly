@@ -3173,7 +3173,7 @@ export async function employees(sql, req, binding = null) {
   if (status === 'last_closed') conditions.push('directory."contractId" IN (SELECT employment_contract_id FROM closed_contracts)');
   if (status === 'inactive') conditions.push("directory.\"administrativeStatus\" = 'inactive'");
   if (status === 'state_error') conditions.push("directory.\"administrativeStatus\" = 'state_error'");
-  if (status === 'unknown') conditions.push("directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown'");
+  if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding)));

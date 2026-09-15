@@ -161,6 +161,20 @@ test('employees busca nombres por tokens parametrizados sin depender del orden a
   assert.deepEqual(accentCall.values, ['%Perez%', '%Perez%']);
 });
 
+test('employees mantiene unknown dentro del mismo filtro de sector, organización y búsqueda', async () => {
+  const sql = mockListSql();
+  const result = await employees(sql, { query: {
+    status: 'unknown', sector: 'Sector A', organization: 'Organización A', search: 'Persona', includeFacets: '0'
+  } });
+  assert.equal(result.status, 200);
+  const directoryReads = sql.calls.filter(statement => /SELECT (?:count\(\*\)::int AS total|\*) FROM directory/.test(statement));
+  assert.equal(directoryReads.length, 2);
+  for (const statement of directoryReads) {
+    assert.match(statement, /AND \(directory\."administrativeStatus" IS NULL OR directory\."administrativeStatus" = 'unknown'\)(?:\s|$)/);
+    assert.doesNotMatch(statement, /WHERE directory\."administrativeStatus" IS NULL OR/);
+  }
+});
+
 test('employee sólo entrega PERSONAS cuando el crosswalk es matched', async () => {
   const matched = await employee(mockDetailSql('matched'), { query: { contractId: '00000000-0000-0000-0000-000000000001' } });
   assert.equal(matched.status, 200);
