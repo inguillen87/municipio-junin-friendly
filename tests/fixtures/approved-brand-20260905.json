@@ -1,0 +1,15 @@
+{
+  "sourceCommit": "96bd6cea63dd483ef041f509c225b949802a0cc0",
+  "files": {
+    "assets/brand/municontrol-mark.svg": "e0c9138bca4e6ab19a5b111a0c9cd0d5b58a02327f2f1fd3fad3c92d7e9cbb26",
+    "assets/brand/logo-horizontal.svg": "7ca27608169fef1ff8f090af60a1e8df0cd020b5ce6cf944ced4787db9d0303a",
+    "assets/brand/logo-horizontal-inverse.svg": "ed6627758d9712d69122b04a57fecfa8044faad471197d3236ffa3bfd9512c0d",
+    "assets/brand/avatar.svg": "9ef2fa7b045a3d29dfba1b21486227acf5d9e2e9a607a737a5cda52d34bd8746",
+    "assets/brand/municontrol-social-card-v1.png": "b7b3d6f888d9041a38af4c7b308fa6ffc306ccf57c228dcea0d8be7d3eebb841",
+    "assets/pwa/icon.svg": "774c9597c30bd018f94fbe0840839dbae7584265c259019014d3c15f6ba3a881",
+    "assets/pwa/icon-180.png": "75f2a9c2ef5a70fb9ccfe5cc23a4ce30a6fcb298d76bff81ccaacc62a0b13f7f",
+    "assets/pwa/icon-192.png": "64abda8a5b355724f65d5b8b1e34211617e87faacc07c17447cbf0c2f1ee9eab",
+    "assets/pwa/icon-512.png": "51d6728f5e335b4692ffd80a514e41e97bb4f5143c6e4f5ae1781a37591a70d3",
+    "assets/pwa/icon-maskable-512.png": "7c40b39f403a984cadafe32d809897d6c7319df15ca9569bb224a98200c3ee59"
+  }
+}

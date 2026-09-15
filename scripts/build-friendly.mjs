@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -48,6 +49,10 @@ const shellFiles = [
   'assets/report-analysis.js',
   'assets/report-document.js',
   'assets/report-centre.js',
+  'assets/payroll-bank-generator.js',
+  'assets/payroll-bank-generator-model.js',
+  'assets/payroll-bank-generator-export.js',
+  'assets/payroll-bank-generator.css',
   'assets/report-centre.css',
   'assets/payroll-comparison-model.js',
   'assets/payroll-comparison.js',
@@ -82,6 +87,11 @@ const shellFiles = [
   'assets/internal-guide.js',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',
+  'assets/brand/municontrol-mark.svg',
+  'assets/brand/logo-horizontal.svg',
+  'assets/brand/logo-horizontal-inverse.svg',
+  'assets/brand/avatar.svg',
+  'assets/brand/municontrol-social-card-v1.png',
   'assets/identity-security.css',
   'assets/product-guidance.js',
   'assets/mendoza-title-vi.js',
@@ -181,6 +191,9 @@ const pwaFiles = [
   'assets/pwa/icon-maskable-512.png'
 ];
 const publicCacheInputs = [
+  'assets/municontrol-enterprise.css',
+  'assets/brand/logo-horizontal.svg',
+  'assets/brand/logo-horizontal-inverse.svg',
   'friendly-dashboard.html',
   'modulos.html',
   'reportes-rrhh.html',
@@ -220,6 +233,24 @@ for (const file of vendorFiles) {
   const destination = path.join(output, file.destination);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(root, file.source), destination);
+}
+
+// Restore the verified identity using content-addressed icon URLs; older icon
+// URLs may still have a one-year immutable response in a browser cache.
+const identityHash = crypto.createHash('sha256');
+for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
+  identityHash.update(file).update(fs.readFileSync(path.join(root, file)));
+}
+const identityVersion = `identity-${identityHash.digest('hex').slice(0, 12)}`;
+for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
+  const destination = path.join(output, file.replace('assets/pwa/', `assets/pwa/${identityVersion}/`));
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(path.join(root, file), destination);
+}
+for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
+  const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
+  const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
+  fs.writeFileSync(destination, branded.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
 
 const versionHash = crypto.createHash('sha256');

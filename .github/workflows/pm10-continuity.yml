@@ -56,6 +56,7 @@ jobs:
           python -B -m unittest discover -s tests -p test_extract_personas_crosswalk.py
           python -B -m unittest discover -s tests -p test_compare_grh_snapshots.py
           python -B -m unittest discover -s tests -p test_grh_source_profiles.py
+          python -B -m unittest discover -s tests -p test_extract_grh_bank_source.py
           python -B scripts/extract_rrhh_curated.py --self-test
       - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
@@ -67,5 +68,7 @@ jobs:
           node scripts/verify-pm10-reception-browser.mjs
           node scripts/verify-family-schooling-browser.mjs
           node scripts/verify-payroll-monthly-summary-browser.mjs
+          node scripts/verify-payroll-bank-generator-browser.mjs
+          node scripts/verify-restored-brand-browser.mjs
           node scripts/verify-grh-backup-review-browser.mjs
           node scripts/verify-action-history-browser.mjs

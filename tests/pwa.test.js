@@ -79,6 +79,24 @@ function dispatchFetch(worker, request) {
   return responsePromise;
 }
 
+test('los logos públicos y su CSS siguen disponibles offline y versionan el caché', async () => {
+  const inputs = read('scripts/build-friendly.mjs').match(/const publicCacheInputs = \[([\s\S]*?)\];/)?.[1];
+  const assets = ['/assets/municontrol-enterprise.css', '/assets/brand/logo-horizontal.svg', '/assets/brand/logo-horizontal-inverse.svg'];
+  const worker = bootWorker({
+    cachedResponses: Object.fromEntries(assets.map(asset => [asset, new Response(`offline ${asset}`)])),
+    fetchImpl: async () => { throw new Error('sin conexión'); }
+  });
+  let installed;
+  worker.listeners.get('install')({ waitUntil(value) { installed = value; } });
+  await installed;
+  for (const asset of assets) {
+    assert.ok(worker.added.includes(asset), `${asset}: precache público`);
+    assert.ok(inputs.includes(asset.slice(1)), `${asset}: participa en la versión del caché`);
+    const response = await dispatchFetch(worker, { method: 'GET', url: `https://friendly.example${asset}`, mode: 'cors', headers: new Headers() });
+    assert.equal(await response.text(), `offline ${asset}`);
+  }
+});
+
 test('manifest PWA es instalable y referencia iconos locales válidos', () => {
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.equal(manifest.id, '/');
@@ -86,7 +104,7 @@ test('manifest PWA es instalable y referencia iconos locales válidos', () => {
   assert.equal(manifest.scope, '/');
   assert.equal(manifest.lang, 'es-AR');
   assert.equal(manifest.display, 'standalone');
-  assert.equal(manifest.theme_color, '#0b2637');
+  assert.equal(manifest.theme_color, '#153a4b');
 
   const icon192 = manifest.icons.find((icon) => icon.sizes === '192x192' && icon.purpose === 'any');
   const icon512 = manifest.icons.find((icon) => icon.sizes === '512x512' && icon.purpose === 'any');
@@ -329,7 +347,9 @@ test('build publica PWA con versión por contenido y Vercel usa cache headers co
   const headers = new Map(vercel.headers.map((entry) => [entry.source, new Map(entry.headers.map(({ key, value }) => [key, value]))]));
   assert.match(headers.get('/sw.js').get('Cache-Control'), /no-cache/);
   assert.equal(headers.get('/sw.js').get('Service-Worker-Allowed'), '/');
-  assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
+  assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /max-age=3600/);
+  assert.match(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /must-revalidate/);
+  assert.doesNotMatch(headers.get('/assets/pwa/(.*)').get('Cache-Control'), /immutable/);
   assert.match(headers.get('/attendance-readiness-evidence.v1.json').get('Cache-Control'), /max-age=300/);
   assert.match(headers.get('/attendance-policy-candidates.v1.json').get('Cache-Control'), /max-age=300/);
   for (const route of ['/api/(.*)', '/login', '/login.html', '/activar-cuenta', '/activar-cuenta.html', '/seguridad-cuenta', '/seguridad-cuenta.html', '/internal', '/internal-dashboard.html', '/centro-acciones', '/centro-acciones.html', '/fuentes-tiempo', '/fuentes-tiempo.html', '/estructura', '/datos-personales.html', '/nomina-control', '/novedades-nomina', '/novedades-nomina.html', '/gestion-comparativa', '/gestion-comparativa.html', '/presupuesto-control', '/presupuesto-control.html', '/ausentismo-control', '/ausentismo-control.html', '/calidad-operativa', '/calidad-operativa.html', '/asistente', '/ia', '/ia-hf', '/centro-ayuda', '/centro-ayuda.html', '/ayuda', '/assets/internal-guide.js', '/assets/identity-security.css', '/assets/product-guidance.js', '/assets/junin-budget-2026.js', '/admin']) {

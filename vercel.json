@@ -23,6 +23,7 @@
     "api/internal-payroll-control-import.js": { "maxDuration": 20 },
     "api/internal-payroll-reprocessing.js": { "maxDuration": 20 },
     "api/internal-payroll-monthly-source-summary.js": { "maxDuration": 30 },
+    "api/internal-payroll-bank-report.js": { "maxDuration": 30 },
     "api/internal-payroll-monthly-close.js": { "maxDuration": 20 }
   },
   "rewrites": [
@@ -141,7 +142,7 @@
     },
     {
       "source": "/assets/pwa/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
     },
     {
       "source": "/(.*)",
