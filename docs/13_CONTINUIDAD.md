@@ -1,5 +1,11 @@
 # Continuidad MuniControl — 14/09/2026
 
+## Incremento de certificados en celular — 15/09/2026
+
+El reporte escolar muestra tarjetas con los seis campos, fechas y acciones dentro del ancho de pantalla en celulares. Los vencimientos superados usan la advertencia ámbar del sistema. Se conservan tabla de escritorio, impresión, lectores accesibles, filtros y exportación completa. Este incremento parte de producción PR34 y no incorpora la actualización S11, cambios de API, base ni permisos.
+
+Construcción aislada: 2.920 pruebas aprobadas, sin fallos ni omisiones. Navegador Edge: 38 controles con respuestas sintéticas, incluidos 320/390px, descarga PDF de bytes exactos, Excel completo de75filas, teclado, permisos y conservación de borradores. Escritorio/móvil revisados. Publicación y archivos servidos se registrarán tras comprobarlos; estos resultados no acreditan una sesión municipal real.
+
 ## Corrección del directorio — 15/09/2026
 
 El estado administrativo «Desconocido» ahora se combina correctamente con sector, organización, búsqueda y vinculación. Antes, la alternativa `unknown` podía saltarse filtros anteriores y la alternativa nula podía saltarse filtros posteriores. Se agrupa la condición para conservar el mismo alcance en el conteo y en cada página. No hay cambios de esquema ni escrituras municipales.

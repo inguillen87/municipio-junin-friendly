@@ -2,3 +2,19 @@
 
 .family-schooling[aria-busy=true]>.fs-status:before{content:"";display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid #bfd8d0;border-top-color:#116d66;border-radius:50%;vertical-align:-2px;animation:fs-loading .8s linear infinite}@keyframes fs-loading{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.family-schooling[aria-busy=true]>.fs-status:before{animation:none}.family-schooling *{scroll-behavior:auto!important}}
 .fs-origin{color:#365d58;font-size:12px;margin:10px 0}.fs-review-note{padding:12px 14px;border:1px solid #e2c897;border-left:3px solid #9c6b24;border-radius:7px;background:#fff8e9;color:#695022;font-size:12px;overflow-wrap:anywhere}.fs-pill.warning{border-color:#dcc08a;background:#fff8e9;color:#695022}.fs-optional{grid-column:1/-1;border-top:1px solid #c8ddd6;padding-top:10px}.fs-optional summary{min-height:44px;display:list-item;align-content:center;cursor:pointer;font-weight:700;font-size:12px}.fs-optional-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:10px}.fs-create-editor{margin:0 0 22px}.fs-heading>.fs-actions{margin:0;flex-shrink:0;max-width:310px}.fs-source-history{margin:18px 0;border-top:1px solid #d5e2e5;padding-top:12px}.fs-source-history>summary{cursor:pointer;min-height:44px;align-content:center;font-size:12px;font-weight:700;color:#526b77}.family-schooling summary:focus-visible{outline:3px solid #ddaf52;outline-offset:3px}@media(max-width:700px){.fs-heading>.fs-actions{max-width:none;width:100%}.fs-heading>.fs-actions>.fs-button{flex:1;min-width:130px}.fs-optional-fields{grid-template-columns:1fr}.fs-create-editor .fs-actions>.fs-button{width:100%}}
+
+/* The same accessible table becomes stacked records only on small screens. */
+.fs-cell-label{display:none}
+@media screen and (max-width:700px){
+  .family-schooling .fs-table-wrap{overflow:visible;max-height:none;border:0;background:transparent}
+  .family-schooling .fs-table{display:block;min-width:0;width:100%;font-size:13px}
+  .family-schooling .fs-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .family-schooling .fs-table tbody{display:grid;gap:16px}
+  .family-schooling .fs-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;box-sizing:border-box;min-width:0;padding:16px;border:1px solid var(--fs-line);border-radius:10px;background:#fff}
+  .family-schooling .fs-table td{display:block;min-width:0;padding:0;border:0}
+  .family-schooling .fs-table td:nth-child(1),.family-schooling .fs-table td:nth-child(2),.family-schooling .fs-table td:nth-child(5),.family-schooling .fs-table td:nth-child(6),.family-schooling .fs-table td[colspan]{grid-column:1/-1}
+  .family-schooling .fs-table .fs-cell-label{display:block;margin-bottom:5px;color:var(--fs-muted);font-size:11px;font-weight:750}
+  .family-schooling .fs-table td:first-child strong,.family-schooling .fs-table td:nth-child(2) strong{font-size:15px}
+  .family-schooling .fs-table .fs-button,.family-schooling .fs-table .fs-link{box-sizing:border-box;width:100%;justify-content:center}
+  .family-schooling .fs-table .fs-button{font-size:13px;margin-top:10px}
+}
