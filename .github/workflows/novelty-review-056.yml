@@ -99,7 +99,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
       - name: Match published source bytes and verify anonymous rejection
         run: node scripts/verify-novelty-production-056.mjs

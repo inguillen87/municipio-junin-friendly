@@ -16,7 +16,7 @@ let browser,mode='ok',cut=WORKDAY_CUT,nominal=true,unplaced=false,externalBlocke
 const workRequests=()=>requests.filter(r=>r.resource==='clock-workdays-v2');
 try {
  browser=await chromium.launch({headless:true,...(process.env.WORKDAY_BROWSER_CHANNEL?{channel:process.env.WORKDAY_BROWSER_CHANNEL}:{})});
- const context=await browser.newContext({viewport:{width:1440,height:1050},acceptDownloads:true,serviceWorkers:'block'});
+ const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',acceptDownloads:true,serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url()),q=url.searchParams,resource=q.get('resource');
   if(/(?:^|\.)tile\.openstreetmap\.org$/.test(url.hostname) || /map-tiles/.test(url.pathname))
@@ -121,7 +121,7 @@ try {
  unplaced=true;cut='dddddddd-dddd-5ddd-8ddd-dddddddddddf';await refresh(108);
  assert.match(await value('Status').innerText(),/1 registros de contexto/);await filter('review','',2);
  assert.match(await value('Rows').innerText(),/prueba 108/);
- const blocked=value('Rows').locator('tr').filter({hasText:'Agente de prueba 108'}).first();assert.match(await blocked.innerText(),/00:00:00/);
+ const blocked=value('Rows').locator('tr').filter({hasText:'Agente de prueba 108'}).first();assert.match(await blocked.innerText(),/No reconstruido/);
  checks.push('unplaceable source records are visible and do not produce hours for the affected device');
 
  await filter('all','',108);await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;right:12px;bottom:10px;z-index:9999;color:white;background:#123649;padding:8px;font:11px sans-serif}'});

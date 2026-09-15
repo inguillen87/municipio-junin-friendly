@@ -1,14 +1,27 @@
 import { storedZip } from './clock-dashboard-zip.js';
+import {workdayTime} from './workday-panel-model.js';
 export const duration=seconds=>{if(!Number.isSafeInteger(seconds)||seconds<0)return '—';return String(Math.floor(seconds/3600)).padStart(2,'0')+':'+String(Math.floor(seconds/60)%60).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')};
 const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
 const continuous = data => data?.version === 'clock-workdays.v2';
 const refs = interval => interval.startEventRef ? [interval.startEventRef,...interval.pauseEventRefs,interval.endEventRef] : [interval.startOrdinal,...interval.pauseOrdinals,interval.endOrdinal];
 const sourceLabel = data => continuous(data) ? 'Histórico y recepciones completas en el corte consultado' : 'Captura conservada en MuniControl';
+const timeCell=(row,kind,data,xlsx=false)=>{
+ const seconds=continuous(data)?workdayTime(row,kind).seconds:row[kind+'Seconds'];
+ return seconds===null?'No reconstruido':xlsx?{seconds}:duration(seconds);
+};
+const reviewLabel=(row,data)=>{
+ const original=row.issues.map(i=>i.label);
+ if(continuous(data)&&workdayTime(row,'extra').pending.length)original.push('Marcas extra sin tramo completo; no se asigna duración a esas marcas');
+ if(continuous(data))for(const proof of row.reconstructedEvents||[]){
+  if(proof.day!==row.day){const event=row.events.find(e=>e.eventRef===proof.eventRef);original.push('Marca '+event.localTimestamp+' en tramo '+(proof.kind==='extra'?'extra':'ordinario')+' del '+proof.day)}
+ }
+ return original.join(' | ');
+};
 export function workdayCsv(rows,data){
  const v2=continuous(data),head=['Fecha de inicio','Persona','Legajo','Ordinario registrado','Extra registrado','Pausas','Tramos cerrados','Estado de secuencia','Observaciones','Efecto en nómina'];
  if(v2)head.push('Fuente','Corte de lectura','Reglas','Referencias de eventos','Observaciones de fuente sin ubicación en el contexto');
  return '\ufeff'+[head,...rows.map(r=>{
-  const values=[r.day,r.personLabel,r.legajo,duration(r.ordinarySeconds),duration(r.extraSeconds),duration(r.pauseSeconds),r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',r.issues.map(i=>i.label).join(' | '),v2?'Referencia no homologada · sin aprobación salarial':'No aprobado para liquidar'];
+  const values=[r.day,r.personLabel,r.legajo,timeCell(r,'ordinary',data),timeCell(r,'extra',data),timeCell(r,'pause',data),r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',reviewLabel(r,data),v2?'Referencia no homologada · sin aprobación salarial':'No aprobado para liquidar'];
   if(v2)values.push(sourceLabel(data),data.snapshotId,data.rules.version,r.events.map(e=>e.eventRef).join(' | '),data.observationSummary.unplaced);
   return values;
  })].map(r=>r.map(cell).join(';')).join('\r\n')+'\r\n';
@@ -17,9 +30,9 @@ const xml=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replac
 function sheet(rows,widths){return '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'+widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+'</cols><sheetData>'+rows.map((r,i)=>`<row r="${i+1}" ht="${i?32:28}" customHeight="1">`+r.map((v,j)=>typeof v==='object'&&v!==null?`<c r="${String.fromCharCode(65+j)}${i+1}" s="2"><v>${v.seconds/86400}</v></c>`:typeof v==='number'?`<c r="${String.fromCharCode(65+j)}${i+1}" s="0"><v>${v}</v></c>`:`<c r="${String.fromCharCode(65+j)}${i+1}" t="inlineStr" s="${i?0:1}"><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join('')+'</row>').join('')+'</sheetData><autoFilter ref="A1:'+String.fromCharCode(64+widths.length)+rows.length+'"/></worksheet>'}
 export function workdayXlsx(data,rows){
  const names=['Jornadas','Tramos','Control'],content=[
- [['Fecha de inicio','Persona','Legajo','Tiempo ordinario','Tiempo extra','Pausas','Tramos','Estado','Observaciones'],...rows.map(r=>[r.day,r.personLabel,r.legajo,{seconds:r.ordinarySeconds},{seconds:r.extraSeconds},{seconds:r.pauseSeconds},r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',r.issues.map(i=>i.label).join(' | ')])],
+ [['Fecha de inicio','Persona','Legajo','Tiempo ordinario','Tiempo extra','Pausas','Tramos','Estado','Observaciones'],...rows.map(r=>[r.day,r.personLabel,r.legajo,timeCell(r,'ordinary',data,true),timeCell(r,'extra',data,true),timeCell(r,'pause',data,true),r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',reviewLabel(r,data)])],
  [['Fecha de inicio','Persona','Legajo','Tipo','Entrada','Salida','Duración bruta','Pausas','Duración neta',continuous(data)?'Referencias estables de eventos':'Filas de origen'],...rows.flatMap(r=>r.intervals.map(i=>[r.day,r.personLabel,r.legajo,i.kind==='ordinary'?'Ordinario':'Extra',i.startLocal,i.endLocal,{seconds:i.elapsedSeconds},{seconds:i.pauseSeconds},{seconds:i.netSeconds},refs(i).join(', ')]))],
- [['Control','Valor'],['Alcance','Filtro completo de jornadas reconstruidas; no recibo ni novedad salarial'],['Punto',data.site?.label||'Sin punto'],['Desde',data.filters.from],['Hasta',data.filters.to],['Búsqueda',data.filters.search||'Sin búsqueda'],['Estado',({all:'Todos',review:'Revisar',closed:'Secuencia completa',extra:'Con tiempo extra',unlinked:'Sin vínculo'})[data.filters.status]],['Captura',data.snapshotId],['Reglas',data.rules.version],['Asignación diaria','Fecha de entrada del tramo; contexto previo y posterior'],['Redondeo','Ninguno; segundos exactos'],['Horas pagables','No calculadas: requiere turno y aprobación'],['Firma','Sin firma ni certificación'],['Fuente','Captura conservada en MuniControl']]
+ [['Control','Valor'],['Alcance','Filtro completo de jornadas reconstruidas; no recibo ni novedad salarial'],['Punto',data.site?.label||'Sin punto'],['Desde',data.filters.from],['Hasta',data.filters.to],['Búsqueda',data.filters.search||'Sin búsqueda'],['Estado',({all:'Todos',review:'Revisar',closed:'Secuencia completa',extra:'Con tiempo extra',extra_open:'Marcas extra sin tramo completo',unlinked:'Sin vínculo'})[data.filters.status]],['Captura',data.snapshotId],['Reglas',data.rules.version],['Asignación diaria','Fecha de entrada del tramo; contexto previo y posterior'],['Redondeo','Ninguno; segundos exactos'],['Horas pagables','No calculadas: requiere turno y aprobación'],['Firma','Sin firma ni certificación'],['Fuente','Captura conservada en MuniControl']]
  ];
  if(continuous(data)){
   const control=content[2];

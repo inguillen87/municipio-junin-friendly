@@ -4,9 +4,11 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { NOVELTY_CSV_HEADER } from '../assets/payroll-novelty-review.js';
+import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 const live = process.env.NOVELTY_LIVE_ASSETS === '1';
 const origin = live ? 'https://municipio-junin-friendly.vercel.app' : 'https://municontrol.test';
 const root = path.resolve('public'), out = 'verification/novelty-056' + (live ? '-published' : '');
+const build = publishedBuildVerification({origin,root});
 fs.mkdirSync(out, { recursive:true });
 const checks = [], errors = [], posts = [];
 let canPrepare = true, deny = false, rejectNext = false;
@@ -17,7 +19,7 @@ const bootstrap = () => ({
   ok:true, principal:{email:'qa@example.invalid',membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',capabilities:canPrepare?['payroll.novelty.prepare']:[]},
   limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[],
 });
-const browser = await chromium.launch({headless:true});
+const browser = await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
 try {
   const context = await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,serviceWorkers:'block'});
   await context.route('**/*', async route => {
@@ -94,7 +96,7 @@ try {
   await page.locator('#bulkFile').setInputFiles({name:'slow-new.csv',mimeType:'text/csv',buffer:Buffer.from(csv([values('8004')]))});await page.waitForFunction(()=>window.__readers[2]?.buffer);
   await page.evaluate(()=>{window.__readers[1].finish();window.__readers[2].finish();});assert.match(await page.locator('#bulkSource').inputValue(),/8004/);checks.push('superseded FileReader response cannot replace newest selected file');
   await page.locator('#preflightButton').click();canPrepare=false;await page.locator('#refreshButton').click();await page.locator('#readOnlySection:visible').waitFor();assert.equal(await page.locator('[data-review-row]').count(),0);assert.equal(await page.locator('#prepareButton').isDisabled(),true);checks.push('permission revocation clears bulk and individual prepared snapshots, not only agile');
-  canPrepare=true;await page.locator('#refreshButton').click();await page.locator('#entrySection:visible').waitFor();deny=true;await page.locator('#refreshButton').click();await page.waitForURL('**/login.html?next=novedades-nomina.html');checks.push('expired session redirects to login without a backend bypass');
+  canPrepare=true;await page.locator('#refreshButton').click();await page.locator('#entrySection:visible').waitFor();deny=true;await page.locator('#refreshButton').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===build.url('login.html').pathname&&['novedades-nomina.html',build.url('novedades-nomina.html').pathname].includes(url.searchParams.get('next')));checks.push('expired session redirects to canonical login without a backend bypass');
   assert.deepEqual(errors,[]);checks.push('no unhandled browser JavaScript errors');
   fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,productionApiWrites:0,realMunicipalSessionTested:false,liveAssets:live},null,2));
   console.log(JSON.stringify({checksPassed:checks.length,errors,liveAssets:live}));

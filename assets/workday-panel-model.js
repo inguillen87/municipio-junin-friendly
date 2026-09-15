@@ -18,6 +18,11 @@ export function verifyWorkdayResponse(data,query,{nominalReadAllowed=true}={}) {
  for(const s of [data.summary,data.periodSummary]){
   check(s && ['days','people','closedDays','reviewDays','ordinarySeconds','extraSeconds','pauseSeconds','intervalCount'].every(k=>integer(s[k])));
   check(s.payableSeconds===null && s.amountArs===null && s.closedDays+s.reviewDays===s.days);
+  if(v2 && ('ordinaryIntervalCount' in s || 'extraIntervalCount' in s)){
+   check(integer(s.ordinaryIntervalCount) && integer(s.extraIntervalCount)
+    && s.ordinaryIntervalCount+s.extraIntervalCount===s.intervalCount
+    && (s.ordinaryIntervalCount>0 || s.ordinarySeconds===0) && (s.extraIntervalCount>0 || s.extraSeconds===0));
+  }
  }
  check(data.summary.days===p.total);
  if(v2){
@@ -40,7 +45,7 @@ export function verifyWorkdayResponse(data,query,{nominalReadAllowed=true}={}) {
   if(!data.nominalReadAllowed)check(row.legajo===null && /^Persona [A-F0-9]{8}$/.test(row.personLabel));
   const eventRefs=new Set();
   for(const event of row.events){
-   check(safeText(event.localTimestamp,40) && safeText(event.label,200));
+   check(safeText(event.localTimestamp,40) && safeText(event.label,200) && integer(event.code) && event.code<=255);
    if(v2){check(hex.test(event.eventRef) && !eventRefs.has(event.eventRef));eventRefs.add(event.eventRef);
     check(event.source && ['historical','receipt'].includes(event.source.kind) && safeText(event.source.id,36)
      && Number.isSafeInteger(event.source.ordinal) && event.source.ordinal>0 && Array.isArray(event.issues) && event.issues.every(i=>safeText(i,100)));}
@@ -54,7 +59,26 @@ export function verifyWorkdayResponse(data,query,{nominalReadAllowed=true}={}) {
    sums[interval.kind]+=interval.netSeconds;sums.pause+=interval.pauseSeconds;
   }
   check(row.ordinarySeconds===sums.ordinary && row.extraSeconds===sums.extra && row.pauseSeconds===sums.pause);
+  if(v2 && 'reconstructedEvents' in row){
+   check(Array.isArray(row.reconstructedEvents));
+   const proof=new Map(row.reconstructedEvents.map(e=>[e.eventRef,e]));
+   check(proof.size===row.reconstructedEvents.length);
+   for(const e of proof.values()){
+    const event=row.events.find(event=>event.eventRef===e.eventRef);
+    check(event && ['ordinary','extra'].includes(e.kind) && [e.kind==='ordinary'?0:4,e.kind==='ordinary'?1:5,2,3].includes(event.code)
+     && /^\d{4}-\d{2}-\d{2}$/.test(e.day) && e.day>=data.context.from && e.day<=data.context.to);
+   }
+   for(const interval of row.intervals)check(intervalReferences(interval).every(ref=>proof.get(ref)?.kind===interval.kind&&proof.get(ref)?.day===row.day));
+  }
+  if(v2 && data.filters.status==='extra_open')check(workdayTime(row,'extra').pending.length>0);
   for(const issue of row.issues)check(safeText(issue.label,400) && (!v2 || Array.isArray(issue.eventRefs) && issue.eventRefs.every(ref=>hex.test(ref))));
+ }
+ if(v2 && 'ordinaryIntervalCount' in data.summary){
+  for(const kind of ['ordinary','extra']){
+   const shown=data.rows.reduce((n,r)=>n+r.intervals.filter(i=>i.kind===kind).length,0);
+   check(shown<=data.summary[kind+'IntervalCount']);
+   if(data.pagination.pages<=1)check(shown===data.summary[kind+'IntervalCount']);
+  }
  }
  return data;
 }
@@ -66,4 +90,28 @@ export function sameWorkdayCut(first,next){
   && JSON.stringify(first.rules)===JSON.stringify(next.rules) && JSON.stringify(first.collection)===JSON.stringify(next.collection)
   && JSON.stringify(first.summary)===JSON.stringify(next.summary) && JSON.stringify(first.observationSummary)===JSON.stringify(next.observationSummary)
   && JSON.stringify(first.observations)===JSON.stringify(next.observations);
+}
+
+// Present the verified DTO; pairing and elapsed-time decisions remain on the server.
+export const eventReference = event => event.eventRef ?? event.ordinal;
+export const intervalReferences = interval => interval.startEventRef
+ ? [interval.startEventRef,...interval.pauseEventRefs,interval.endEventRef]
+ : [interval.startOrdinal,...interval.pauseOrdinals,interval.endOrdinal];
+export function workdayTime(row,kind) {
+ const intervals=kind==='pause'?row.intervals:row.intervals.filter(i=>i.kind===kind);
+ const codes=kind==='ordinary'?[0,1]:kind==='extra'?[4,5]:[2,3];
+ const used=new Set(row.reconstructedEvents?.filter(e=>kind==='pause'||e.kind===kind).map(e=>e.eventRef)??intervals.flatMap(intervalReferences));
+ const pending=row.events.filter(e=>codes.includes(e.code)&&!used.has(eventReference(e)));
+ return {seconds:intervals.length?row[kind+'Seconds']:null,pending};
+}
+export function workdaySummaryTime(summary,kind) {
+ const count=summary[kind+'IntervalCount'];
+ // Older v2 responses did not include counts; zero cannot prove either state.
+ if(!Number.isSafeInteger(count))return {seconds:summary[kind+'Seconds'],known:false};
+ return {seconds:count>0?summary[kind+'Seconds']:null,known:true};
+}
+export function sequenceRows(row) {
+ const proof=new Map(row.reconstructedEvents?.map(e=>[e.eventRef,e])??row.intervals.flatMap(i=>intervalReferences(i).map(ref=>[ref,{day:row.day,kind:i.kind}])));
+ // Preserve source order, including simultaneous timestamps; never invent a tie-break.
+ return row.events.map(event=>({...event,calculated:proof.has(eventReference(event)),calculationDay:proof.get(eventReference(event))?.day}));
 }

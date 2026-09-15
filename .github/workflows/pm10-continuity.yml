@@ -64,6 +64,7 @@ jobs:
         run: |
           node scripts/verify-clock-dashboard-v3-browser.mjs
           node scripts/verify-continuous-workdays-browser.mjs
+          node scripts/verify-workday-review-browser.mjs
           node scripts/verify-clock-map-browser.mjs
           node scripts/verify-attendance-connector-browser.mjs
           node scripts/verify-clock-dashboard-browser.mjs
