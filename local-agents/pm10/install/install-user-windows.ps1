@@ -5,7 +5,8 @@
 param(
  [string]$BasePath = (Join-Path $env:LOCALAPPDATA 'MuniControl\Gateways\PM10'),
  [string]$NodePath = (Get-Command node.exe -ErrorAction Stop).Source,
- [switch]$NoStartup
+ [switch]$NoStartup,
+ [switch]$NoWatchdog
 )
 $ErrorActionPreference='Stop'
 $Base=[IO.Path]::GetFullPath($BasePath)
@@ -71,6 +72,10 @@ if(-not $NoStartup){
  $shortcut.TargetPath=$WScript
  $shortcut.Arguments=$StartupArguments;$shortcut.WorkingDirectory=$Base
  $shortcut.Description='PM10 provisional al iniciar sesion; respeta una detencion guardada';$shortcut.Save()
+}
+if(-not $NoWatchdog){
+ try{& (Join-Path $PSScriptRoot 'install-user-watchdog-windows.ps1') -BasePath $Base}
+ catch{Write-Warning ('No se pudo registrar la recuperacion periodica. Se conservo el inicio de sesion: '+$_.Exception.Message)}
 }
 Write-Host "Programa provisional preparado: $Base"
 Write-Host 'No se modificaron config.json, sender.json, claves, capturas ni acuses. No se inicio ningun colector.'

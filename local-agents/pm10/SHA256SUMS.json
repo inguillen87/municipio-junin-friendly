@@ -1,7 +1,7 @@
 {
   "INSTALAR_WINDOWS.cmd": "8034171620c6872cf157453bf1ac0b271ad7a023b1c9d819545d297c81681c37",
   "LICENSE": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
-  "README.md": "64efb8fb6ab0f803953b6c8c014fd0247765d205305e32db932c3cf80f99724c",
+  "README.md": "226b322c4c0504c15ce3223509c30cd827b2116b6981be44b01d1621c3d00430",
   "check-host.mjs": "fbaa2978a88966695ece47580e5219bdc80d7d072265b574f7b86446e53e47fa",
   "config.mjs": "7ecdc12dc8d5df7f0a7ccd2750703c1d5284d9afeeba0dbdcb7ca85793a1db87",
   "delivery-status.mjs": "5cf6edf955ce5bee28e9f853c2f3e672d7e226460e35b3cf9953618eeb3417a1",
@@ -10,7 +10,8 @@
   "install/install-linux.sh": "28478f0786f0cdda17d681344d9ba9931892bfabe3311baae0fecbb99a7e4ca4",
   "install/install-sender-linux.sh": "f8178e1202eb28129ba271eb9497d1fc8a0639fa041ffeabf78128c4ad639ec4",
   "install/install-sender-windows.ps1": "efa527d8969168815a5e37248a5201bed4da386cf7bcebec390b503624264221",
-  "install/install-user-windows.ps1": "2f895d42deebead9d65bc19a58f8041438b317c09cf9adefdf778aa74fa6530f",
+  "install/install-user-watchdog-windows.ps1": "8bfc67c2598819119d08cd00de8b5f6430b45cb61632f12af0c105ffd15e9dc7",
+  "install/install-user-windows.ps1": "e4b3730e268ca472cecbf66747c7b0d2a224f11628d82f14095673e0819ec603",
   "install/install-windows.ps1": "c4d74c0abe0487e57203ceae3dcf2f12b44b5633d48851dc3d075cf2e0513293",
   "install/municontrol-pm10-sender.service": "8f7a225e7a418d2dced3295aa02f065d851a5ebc3a02a4c2a5d77fd40889d10a",
   "install/municontrol-pm10.service": "5c7014874be5dfee84e6d6b50b509fcab1f3d09ea61b6125d8238144baa8db6d",
@@ -31,6 +32,7 @@
   "tests/service-recovery.test.mjs": "d4e448409695bf2da120bc18bedd4e9e917675616fbcc64ff130540a4200558b",
   "tests/service.test.mjs": "655f8dc8f359d5eaea1f4c78667d0d96e0760de0d48db3c2fb2c41c38282b467",
   "tests/store.test.mjs": "5cea08a5458fa3456bf9f3af359594dbc4b2004ae0d7a7b606212fed329e993d",
-  "tests/user-supervisor.test.mjs": "f071735c5a73561f06b5efa9657e1c8c45df8af815359c3b82fe818e842af317",
-  "user-supervisor.mjs": "7bfe3a453d26acc85f848b896c738eb5e60a341ac8b3bca3346e843cdc98a3a5"
+  "tests/user-supervisor.test.mjs": "68fc3a7fdc67bc1bc6b49dccb93008ca6a0ce52f8102664628300e844d2d2777",
+  "tests/user-watchdog-windows.integration.ps1": "c5b634bec0c37a2f8ea6d485f7181b8870386c70c7629b35461e787a2997f9e2",
+  "user-supervisor.mjs": "a312edf96d1c622f6b066e8a79fb0e5a4c5efe3f49045a8ed4c1119c66f4c17f"
 }

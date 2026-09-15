@@ -34,7 +34,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($script in @('install-windows.ps1', 'install-sender-windows.ps1', 'install-user-windows.ps1')) {
+          foreach ($script in @('install-windows.ps1', 'install-sender-windows.ps1', 'install-user-windows.ps1', 'install-user-watchdog-windows.ps1')) {
             $tokens=$null; $parseErrors=$null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path "local-agents/pm10/install/$script"),[ref]$tokens,[ref]$parseErrors) | Out-Null
             if($parseErrors.Count){ throw 'Installer syntax failed' }
@@ -68,6 +68,7 @@ jobs:
           node scripts/verify-pm10-reception-browser.mjs
           node scripts/verify-family-schooling-browser.mjs
           node scripts/verify-payroll-monthly-summary-browser.mjs
+          node scripts/verify-mutual-retentions-browser.mjs
           node scripts/verify-payroll-bank-generator-browser.mjs
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-report-centre-browser.mjs

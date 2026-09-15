@@ -61,11 +61,15 @@ No cambiar rutas del servicio a mano ni agregar credenciales a sus argumentos.
 
 ## Instalación provisional en la sesión de Windows (opcional)
 
-Cuando se haya elegido temporalmente una PC del operador, `install/install-user-windows.ps1` prepara una instalación separada en `%LOCALAPPDATA%\MuniControl\Gateways\PM10`, sin administrador, UAC ni contraseña de Windows. Copia Node.js 22+ a `runtime/node.exe` y el programa a `app`, restringe permisos al usuario, SYSTEM y administradores, y crea accesos **Iniciar PM10** y **Detener PM10**. No modifica `config.json`, `sender.json`, `private`, capturas ni acuses, ni inicia lecturas. `-NodePath` permite indicar el ejecutable existente; `-NoStartup` omite el acceso de inicio de sesión.
+Cuando se haya elegido temporalmente una PC del operador, `install/install-user-windows.ps1` prepara una instalación separada en `%LOCALAPPDATA%\MuniControl\Gateways\PM10`, sin administrador, UAC ni contraseña de Windows. Copia Node.js 22+ a `runtime/node.exe` y el programa a `app`, restringe permisos al usuario, SYSTEM y administradores, y crea accesos **Iniciar PM10** y **Detener PM10**. No modifica `config.json`, `sender.json`, `private`, capturas ni acuses. Una instalación nueva queda detenida. `-NodePath` permite indicar el ejecutable existente; `-NoStartup` omite el acceso de inicio de sesión; `-NoWatchdog` omite el registro de recuperación periódica.
 
 La configuración de captura se prepara en `config.json`, con `stateDir` apuntando a `state` y la CommKey protegida en `private/commkey`. El remitente usa `sender.json` y un token propio en `private`; se prepara después de registrar su hash y habilitar el conector. Se conserva el destino exclusivo PM-10 del lector: esta opción no incorpora otros relojes.
 
 **Requiere la PC encendida y su sesión disponible. No funciona con la PC apagada ni acredita operación al cerrar sesión.** No modifica suspensión, red, energía ni las tareas municipales LocalService. El acceso de inicio de sesión abre el supervisor oculto y respeta una detención guardada. **Iniciar PM10** habilita ambos procesos configurados; **Detener PM10** solicita su cierre ordenado y conserva la cola. No debe coexistir con otro colector del mismo reloj.
+
+El instalador también registra una tarea propia del usuario (`Interactive`, `Limited`) cada minuto y al iniciar sesión. Windows puede volver a abrir el supervisor si desaparece toda su familia de procesos. El modo `watchdog` lee la intención guardada y nunca la cambia: si se eligió **Detener PM10**, cada comprobación termina sin crear el supervisor. El lanzador oculto mantiene la tarea activa mientras el supervisor vive; `IgnoreNew` y los bloqueos existentes impiden duplicados. La tarea no solicita contraseña, no usa permisos elevados, no despierta la PC ni elimina bloqueos que requieren revisión. No certifica continuidad durante suspensión, apagado o cierre de sesión.
+
+El resultado del registro queda en `control/watchdog-install.json`. Si Windows lo rechaza, se conserva el error concreto y el acceso de inicio de sesión, sin cambiar políticas ni afirmar recuperación periódica. `install/install-user-watchdog-windows.ps1 -BasePath <carpeta>` permite registrar o comprobar esta recuperación en una instalación ya actualizada; una tarea existente con identidad o programación diferente se conserva para revisión. Para actualizar el programa primero usar **Detener PM10** y comprobar que sus procesos terminaron: la tarea respeta esa detención durante la actualización.
 
 El supervisor guarda `control/status.json`; los estados del capturador y remitente siguen en `state/status.json` y `state/delivery/status.json`. Desde la carpeta de instalación:
 
@@ -74,6 +78,8 @@ El supervisor guarda `control/status.json`; los estados del capturador y remiten
 ```
 
 Un proceso iniciado no acredita captura ni recepción. El supervisor conserva los bloqueos existentes, solicita cierre mediante IPC y limita a tres los arranques automáticos por proceso en cada ejecución; los reintentos de red continúan siendo responsabilidad del capturador y remitente. No elimina bloqueos de revisión ni rearma rechazos de autenticación. Antes de actualizar o trasladar, detener ambos y comprobar estado `stopped`; conservar configuraciones, cola y acuses. En el host definitivo se vuelve a comprobar ruta, permisos y exclusividad antes de arrancar.
+
+La prueba opcional `tests/user-watchdog-windows.integration.ps1` verifica el inicio periódico, la recuperación tras matar un supervisor sintético y el respeto de una detención manual en el ciclo siguiente. Crea una instalación y tarea temporales sin configuración de reloj ni remitente y las elimina al terminar. Requiere que Windows permita registrar tareas del usuario actual; nunca usa el reloj real. Las pruebas habituales de Node también cubren concurrencia con procesos reales, recuperación del bloqueo y controles inválidos.
 
 ## Aceptación del circuito completo
 

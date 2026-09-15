@@ -94,15 +94,24 @@ export async function supervise(base,{launch=fork,sleep=delay,now=()=>Date.now()
   }
  }
 }
+// Invoked by the independent Windows scheduler. Never changes the user's
+// requested state; ownership is decided by the existing atomic process lock,
+// not by a possibly stale status snapshot or a PID copied from that snapshot.
+export async function watchdog(base,{run=supervise}={}){
+ if(await desiredState(pathsFor(base))!=='running')return 'stopped';
+ try{await run(base);return 'stopped';}
+ catch(e){if(e.code==='ALREADY_RUNNING')return 'already_running';throw e;}
+}
 export async function main(argv=process.argv.slice(2)){
  if(argv.length!==3)throw fault('USER_SUPERVISOR_USAGE');
  const [mode,flag,value]=argv;
  if(mode==='worker-capture'&&flag==='--config')return captureWorker(value);
  if(mode==='worker-sender'&&flag==='--config')return senderWorker(value);
- if(flag!=='--base'||!['run','start','stop','status'].includes(mode))throw fault('USER_SUPERVISOR_USAGE');
+ if(flag!=='--base'||!['run','watchdog','start','stop','status'].includes(mode))throw fault('USER_SUPERVISOR_USAGE');
  pathsFor(value);
  if(mode==='status'){console.log(JSON.stringify(await readUserStatus(value),null,2));return;}
  if(mode==='stop'){await setDesired(value,'stopped');console.log('PM10_USER_STOP_REQUESTED');return;}
+ if(mode==='watchdog')return watchdog(value);
  if(mode==='start'){
   await setDesired(value,'running');
   const child=spawn(process.execPath,[SELF,'run','--base',value],{detached:true,windowsHide:true,stdio:'ignore'});
