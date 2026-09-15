@@ -1,0 +1,29 @@
+name: Isolated source review
+on:
+  push:
+    branches: ['chatgpt/clock-fleet-review-20260915']
+    paths: ['.github/workflows/chatgpt-source-review.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export only committed repository files
+        run: |
+          mkdir -p "$RUNNER_TEMP/municontrol-review"
+          git archive --format=zip --output="$RUNNER_TEMP/municontrol-review/source.zip" HEAD
+          git rev-parse HEAD > "$RUNNER_TEMP/municontrol-review/COMMIT.txt"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/municontrol-review/TREE.txt"
+          cd "$RUNNER_TEMP/municontrol-review"
+          sha256sum source.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: municontrol-pinned-source-review
+          path: ${{ runner.temp }}/municontrol-review/
+          retention-days: 1
+          if-no-files-found: error
