@@ -58,3 +58,20 @@ Conservar anulación, cambiar el nombre Proceso por Confirmar liquidación y res
 
 ## Corte de entrega 053
 Pruebas a cerrar: botón blanco PDF con fecha ISO real; navegación por tarea sin perder formularios; filtros/exportación del resultado completo; consulta de conceptos desde Neon; prueba negativa de sesión; ninguna modificación de importes originales. Firma DOC-01, motor de próxima nómina, reportes bancarios/fiscales y colector autónomo no se dan por cerrados por este sprint.
+
+## Ampliación expresa del 15/09/2026 · certificados asistidos y conexiones
+
+Detalle y criterios de aceptación: [Directivas de certificados IA y conexión de relojes](DIRECTIVAS_CERTIFICADOS_IA_Y_CONEXION_RELOJES_20260915.md). Esta ampliación agrega requisitos; no declara nuevas funciones en producción ni sustituye los módulos anteriores.
+
+| Referencia | Resultado esperado | Estado |
+|---|---|---|
+| ESC-IA-01 | Completar registro manual de nivel, curso, ciclo, presentación y vencimiento; distinguir declaración en papel de archivo adjunto | Pendiente de cierre integral de datos, API, formulario y exportación. |
+| ESC-IA-02 | Foto o PDF desde móvil, captura guiada y almacenamiento privado con recuperación sin duplicados | Requisito incorporado; la carga PDF acotada existente no certifica soporte de fotos ni capacidad general. |
+| ESC-IA-03 | Extraer campos explícitos con evidencia y precompletar; revisar y confirmar sin volver a transcribir | Requisito incorporado; proveedor y pruebas de precisión pendientes. No inventar fechas, curso o identidad. |
+| ESC-IA-04 | Empleado presenta para sus familiares y Noelia/RR.HH. revisa desde bandeja con permisos propios | Requisito incorporado; no ampliar permisos administrativos para simular autoservicio. |
+| ESC-IA-05 | Exportar planilla desde datos revisados y emitir avisos por fechas comprobadas | Pendiente de conectar el circuito completo; conservar activos con hijos y fechas del pedido original. |
+| CLK-IP | Respetar todos los PM actuales; usar la planilla sólo como lista de destinos IP/puerto | Directiva obligatoria. No renumerar, crear, eliminar ni asociar PM por orden, nombre o ID del software anterior. |
+
+La emisión del documento, su presentación administrativa, la carga digital y su vencimiento son fechas diferentes. El dato extraído no es una aprobación ni modifica una liquidación. La IA propone y el operador confirma; la carga manual queda disponible cuando sea necesaria.
+
+Las IP no reemplazan la identidad estable del equipo: se usan para conectarlo, verificando la serie esperada antes de aceptar eventos para una asociación existente. Cambiar el orden o los IDs de la planilla de conexiones no debe cambiar ningún PM ni su histórico.
