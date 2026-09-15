@@ -8,6 +8,7 @@ const LEGACY_CACHE_NAMES = new Set(['municontrol-junin-v2']);
 
 // Sólo contenido público, agregado y sin identidad personal.
 const PRECACHE_URLS = Object.freeze([
+  '/assets/app-routes.js',
   '/friendly-dashboard.html',
   '/modulos.html',
   '/reportes-rrhh.html',
@@ -62,6 +63,8 @@ const NEVER_INTERCEPT_PREFIXES = Object.freeze([
 ]);
 
 const NEVER_INTERCEPT_PATHS = new Set([
+  '/acceso', '/personal', '/acciones', '/relojes', '/tiempo', '/administracion', '/seguridad',
+  '/integracion', '/nomina', '/novedades', '/comparativa', '/ausentismo', '/licencias', '/datos',
   '/login',
   '/login.html',
   '/activar-cuenta',

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <script src="/assets/app-routes.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#08283a">
@@ -317,6 +318,7 @@
       var platform = contextKind === 'platform';
       var fallback = platform ? 'administracion-plataforma.html' : 'internal-dashboard.html';
       var allowedNext = platform ? platformSafeNext : tenantSafeNext;
+      if (window.MuniControlRoutes) return window.MuniControlRoutes.safeDestination(next, allowedNext, fallback);
       var hashAt = next.indexOf('#');
       var hash = hashAt >= 0 ? next.slice(hashAt) : '';
       var route = (hashAt >= 0 ? next.slice(0, hashAt) : next).replace(/^\/+/, '');

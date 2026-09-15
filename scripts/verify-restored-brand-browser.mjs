@@ -54,7 +54,8 @@ try {
         await page.waitForFunction(() => document.documentElement.getAttribute('data-mc-capability-ready') === 'true');
         assert.equal(await page.locator('a.brand-home').count(), 0);
         assert.equal(await page.locator('.brand-home').getAttribute('href'), null);
-        assert.equal(await page.locator('.nav-link[href="internal-dashboard.html#inicio"]').isVisible(), false);
+        assert.equal(await page.locator('.nav-link[href="/personal#inicio"]').count(), 1);
+        assert.equal(await page.locator('.nav-link[href="/personal#inicio"]').isVisible(), false);
         if (width < 700) {
           await page.locator('#menuButton').click();
           await page.waitForFunction(() => document.getElementById('sidebar').getBoundingClientRect().left >= -1);

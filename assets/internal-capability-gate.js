@@ -54,8 +54,9 @@
   function normalizedRoute(href, baseHref) {
     try {
       var url = new URL(href, baseHref);
+      var resolved = global.MuniControlRoutes && global.MuniControlRoutes.resolve(href, baseHref);
       var pathname = url.pathname.replace(/\/+$/, '');
-      var file = pathname.slice(pathname.lastIndexOf('/') + 1) || 'internal-dashboard.html';
+      var file = resolved ? resolved.file : pathname.slice(pathname.lastIndexOf('/') + 1) || 'internal-dashboard.html';
       var hash = url.hash.toLowerCase();
       if (file === 'internal-dashboard.html' && (hash === '#inicio' || hash === '#legajos')) return file + hash;
       return file;
@@ -69,6 +70,7 @@
     var tenant = tenantCapabilities instanceof Set ? tenantCapabilities : normalizedCapabilities(tenantCapabilities);
     var platform = platformCapabilities instanceof Set ? platformCapabilities : normalizedCapabilities(platformCapabilities);
     var roles = platformRoles instanceof Set ? platformRoles : normalizedPlatformRoles(platformRoles);
+    if (contract.denied === true) return false;
     if (contract.platformOwner === true && !roles.has('PLATFORM_OWNER')) return false;
     var anyPlatform = Array.isArray(contract.anyPlatform) ? contract.anyPlatform : [];
     var allPlatform = Array.isArray(contract.allPlatform) ? contract.allPlatform : [];
@@ -105,7 +107,15 @@
     if (any.length || all.length || platform) return { any: any, all: all, platform: platform };
     var href = node.getAttribute('href');
     if (!href) return null;
-    return ROUTE_REQUIREMENTS[normalizedRoute(href, baseHref)] || null;
+    var requirement = ROUTE_REQUIREMENTS[normalizedRoute(href, baseHref)];
+    if (requirement) return requirement;
+    if (!global.MuniControlRoutes || !global.MuniControlRoutes.resolve(href, baseHref)) {
+      try {
+        var url = new URL(href, baseHref);
+        if (url.origin === new URL(baseHref).origin && !/^(?:#|mailto:|tel:)/i.test(href) && !/\/(?:assets|api)\//.test(url.pathname)) return { denied: true };
+      } catch (_) { return { denied: true }; }
+    }
+    return null;
   }
 
   function apply(root, access, baseHref) {
@@ -132,6 +142,16 @@
     gatedRoutes = Array.from(new Set(gatedRoutes));
     var pendingSelectors = gatedRoutes.map(function (route) {
       return 'html:not([data-mc-capability-ready="true"]) a[href*="' + route + '"]';
+    });
+    if (!global.MuniControlRoutes) pendingSelectors.push('html:not([data-mc-capability-ready="true"]) a[href]');
+    if (global.MuniControlRoutes) global.MuniControlRoutes.definitions.forEach(function (entry) {
+      if (!ROUTE_REQUIREMENTS[entry.file]) return;
+      [entry.path].concat(entry.aliases).forEach(function (path) {
+        [path, path.slice(1)].filter(Boolean).forEach(function (href) {
+          var prefix = 'html:not([data-mc-capability-ready="true"]) a';
+          pendingSelectors.push(prefix + '[href="' + href + '"]', prefix + '[href^="' + href + '?"]', prefix + '[href^="' + href + '#"]');
+        });
+      });
     });
     pendingSelectors.push(
       'html:not([data-mc-capability-ready="true"]) [data-requires-any-capability]',

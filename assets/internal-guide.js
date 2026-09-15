@@ -244,7 +244,8 @@
   var previousBodyOverflow = '';
 
   function inferPage() {
-    var path = window.location.pathname.toLowerCase();
+    var route = window.MuniControlRoutes && window.MuniControlRoutes.resolve(window.location.href, window.location.href);
+    var path = route ? '/' + route.file : window.location.pathname.toLowerCase();
     if (path.indexOf('centro-acciones') >= 0) return 'actions';
     if (path.indexOf('relojes-marcaciones') >= 0) return 'attendance';
     if (path.indexOf('administracion-plataforma') >= 0 || path === '/admin') return 'platformAdmin';

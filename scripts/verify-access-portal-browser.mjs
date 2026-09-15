@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import '../assets/app-routes.js';
 
 const root = path.resolve('public'), output = path.resolve('verification'), origin = 'https://access-qa.test';
 fs.mkdirSync(output, { recursive: true });
@@ -49,9 +50,10 @@ try {
         if (body.command === 'begin_activation') return reply({ flowToken: 'qa-invite-only', expectedVersion: 1, expiresAt: expiry(), requiresMfa: true, mfaEnrollment: { manualKey: 'QA-INVITATION-KEY' } });
         throw Error('Unexpected identity command: ' + body.command);
       }
-      if (['/', '/relojes-marcaciones.html'].includes(url.pathname)) return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Destino local de prueba</title><h1>Destino local de prueba</h1>' });
+      if (['/', '/relojes', '/relojes-marcaciones.html'].includes(url.pathname)) return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Destino local de prueba</title><h1>Destino local de prueba</h1>' });
       if (url.pathname.startsWith('/api/')) throw Error('Unexpected API: ' + url.pathname);
-      const file = path.resolve(root, '.' + decodeURIComponent(url.pathname));
+      const routeInfo = globalThis.MuniControlRoutes.resolve(url.href, origin);
+      const file = path.resolve(root, routeInfo ? routeInfo.file : '.' + decodeURIComponent(url.pathname));
       if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { missing.push(url.pathname); return route.fulfill({ status: 404, body: '' }); }
       const type = { '.css': 'text/css', '.html': 'text/html', '.js': 'application/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' }[path.extname(file)] || 'application/octet-stream';
       return route.fulfill({ body: fs.readFileSync(file), contentType: type });
@@ -122,7 +124,7 @@ try {
     const errorBox = await page.locator('#errorMsg').boundingBox();
     assert.ok(errorBox.y >= 0 && errorBox.y + errorBox.height < (width < 700 ? 844 : 1000), 'MFA error remains in view after the code field receives focus');
     await screen('email-error');
-    await page.locator('#mfaInput').fill('123456'); await page.locator('#verifyMfaButton').click(); await page.waitForURL(origin + '/relojes-marcaciones.html');
+    await page.locator('#mfaInput').fill('123456'); await page.locator('#verifyMfaButton').click(); await page.waitForURL(origin + '/relojes');
     await page.goto(loginUrl); await begin('enroll'); await page.locator('#loginEnrollmentStep').waitFor({ state: 'visible' });
     await screen('enrollment');
     await page.locator('#loginEnrollmentTotp').fill('000000'); await page.locator('#completeEnrollmentButton').click();
@@ -132,12 +134,12 @@ try {
     assert.equal(await page.locator('#loginManualMfaKey').innerText(), '');
     assert.equal(await page.locator('#finishLoginEnrollmentButton').isDisabled(), true); await screen('recovery');
     assert.equal(await page.evaluate(() => Object.keys(sessionStorage).some(key => /flow|mfa|token|recovery/i.test(key))), false);
-    await page.locator('#loginRecoveryConfirmed').check(); await page.locator('#finishLoginEnrollmentButton').click(); await page.waitForURL(origin + '/relojes-marcaciones.html');
-    await page.goto(loginUrl); await page.locator('a[href="activar-cuenta.html"]').click(); await page.waitForURL(origin + '/activar-cuenta.html');
+    await page.locator('#loginRecoveryConfirmed').check(); await page.locator('#finishLoginEnrollmentButton').click(); await page.waitForURL(origin + '/relojes');
+    await page.goto(loginUrl); await page.locator('a[href="/activar-cuenta"]').click(); await page.waitForURL(origin + '/activar-cuenta');
     assert.equal(new URL(page.url()).search, '');
     await page.locator('#invitationCode').fill('QA-INVITATION-ONLY'); await page.locator('#verifyCodeButton').click(); await page.locator('#credentialsForm').waitFor({ state: 'visible' });
-    await page.locator('#cancelActivationButton').click(); await page.waitForURL(origin + '/login.html'); assert.equal(await page.locator('#passInput').inputValue(), '');
-    await page.goto(loginUrl); await page.locator('a[href="login.html?next=centro-ayuda.html"]').click(); await page.waitForURL(origin + '/login.html?next=centro-ayuda.html');
+    await page.locator('#cancelActivationButton').click(); await page.waitForURL(origin + '/acceso'); assert.equal(await page.locator('#passInput').inputValue(), '');
+    await page.goto(loginUrl); await page.locator('a[href="/acceso?next=centro-ayuda.html"]').click(); await page.waitForURL(origin + '/acceso?next=centro-ayuda.html');
     await page.locator('#publicAccessBtn').click(); await page.waitForURL(origin + '/');
     assert.deepEqual(errors, []); assert.deepEqual(missing, []);
     await context.close();

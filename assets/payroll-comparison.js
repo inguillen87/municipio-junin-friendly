@@ -57,7 +57,8 @@ export function mountPayrollComparison(host) {
   const status = $('[data-pc-status]'), result = $('[data-pc-result]');
   const baseSelect = $('[data-pc-base]'), targetSelect = $('[data-pc-target]');
   const formats = [...host.querySelectorAll('[data-pc-format]')];
-  const taskPage = location.pathname.endsWith('nomina-control.html') ? 'nomina-control.html' : 'reportes-rrhh.html';
+  const currentRoute = globalThis.MuniControlRoutes?.resolve(location.href, location.href);
+  const taskPage = (currentRoute?.file === 'nomina-control.html' || location.pathname.endsWith('nomina-control.html')) ? 'nomina-control.html' : 'reportes-rrhh.html';
   $('[data-pc-login]').href = 'login.html?next=' + encodeURIComponent(taskPage + '#comparar');
   let catalog = [], model = null, operation = null, sequence = 0;
   const filters = () => ({ group: $('[data-pc-group]').value, change: $('[data-pc-change]').value,
