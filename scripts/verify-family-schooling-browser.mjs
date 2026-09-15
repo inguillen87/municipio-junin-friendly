@@ -7,6 +7,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
 import { schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'SCHOOLING_PUBLISHED_ORIGIN_NOT_ALLOWED');
@@ -20,7 +21,11 @@ async function publicAsset(url, expected) {
   // Do not forward browser headers/cookies, use a bypass token, or follow a redirect.
   assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app');
   assert.ok(!url.pathname.startsWith('/api/'));
-  const response = await fetch(url.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
+  // Read the canonical static shell directly; legacy URLs now redirect. Never
+  // send the synthetic employee selection or any session information upstream.
+  const knownRoute = globalThis.MuniControlRoutes.resolve(url.href, publishedOrigin);
+  const assetUrl = new URL(knownRoute?.path || url.pathname, publishedOrigin);
+  const response = await fetch(assetUrl.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
   assert.equal(response.status, 200, 'PUBLISHED_ASSET_UNAVAILABLE');
   const reader = response.body.getReader(), chunks = []; let length = 0;
   try {
@@ -32,7 +37,7 @@ async function publicAsset(url, expected) {
   } finally { await reader.cancel().catch(() => {}); }
   const actual = Buffer.concat(chunks, length);
   assert.ok(actual.equals(expected), 'PUBLISHED_ASSET_CONTENT_MISMATCH');
-  publishedAssets.add(url.pathname); return actual;
+  publishedAssets.add(assetUrl.pathname); return actual;
 }
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
 let reportRequests = 0, authRequests = 0;

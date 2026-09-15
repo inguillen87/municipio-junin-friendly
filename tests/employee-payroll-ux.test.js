@@ -9,11 +9,12 @@ function containingFunction(source, needle) {
   const needleIndex = source.indexOf(needle);
   assert.notEqual(needleIndex, -1, `No se encontró ${needle}`);
   const prefix = source.slice(0, needleIndex + needle.length);
-  const declarations = [...prefix.matchAll(/(?:^|\n)\s*function\s+[A-Za-z_$][\w$]*\s*\(/g)];
+  const declarations = [...prefix.matchAll(/(?:^|\n)\s*(?:async\s+)?function\s+[A-Za-z_$][\w$]*\s*\(/g)];
   const declaration = declarations.at(-1);
   assert.ok(declaration, `No se encontró la función que contiene ${needle}`);
-  const start = declaration.index + declaration[0].search(/function\s+/);
-  const opening = source.indexOf('{', start);
+  const start = declaration.index + declaration[0].search(/(?:async\s+)?function\s+/);
+  // These declarations have plain parameters; a default object is not the body.
+  const opening = source.indexOf('{', source.indexOf(')', start) + 1);
   let depth = 0;
   for (let index = opening; index < source.length; index += 1) {
     if (source[index] === '{') depth += 1;
@@ -296,7 +297,7 @@ test('la consulta salarial usa AbortController y se cancela al cerrar o reemplaz
   const html = await read('internal-dashboard.html');
   const history = containingFunction(html, 'function renderEmployeePayrollHistory(employee)');
   const close = containingFunction(html, 'function closeDialog()');
-  const open = containingFunction(html, 'async function openEmployee(contractId, legajo, companyId, fallbackName)');
+  const open = containingFunction(html, 'async function openEmployee(');
   assert.match(history, /new AbortController\(\)/);
   assert.match(history, /requestJSON\([^;]+\{ signal: controller\.signal \}\)/);
   assert.match(history, /error\.name === 'AbortError'/);
