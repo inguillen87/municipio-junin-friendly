@@ -1,5 +1,5 @@
-import { monthlySummaryData, monthlySummaryRevision, monthlySummaryFilter, monthlyDecimal, monthlyClosure, monthlyType, monthlyObservations, sourceMonthlyPeriod, validMonthlyPeriod } from './payroll-monthly-summary-model.js';
-import { monthlySummaryXlsx, monthlySummaryPdf } from './payroll-monthly-summary-export.js';
+import { monthlySummaryData, monthlySummaryRevision, monthlySummaryFilter, monthlyDecimal, monthlyClosure, monthlyType, monthlyObservations, sourceMonthlyPeriod, validMonthlyPeriod, MUTUAL_RETENTIONS_PRESET, mutualRetentionCandidates, mutualRetentionsView, mutualDecimal } from './payroll-monthly-summary-model.js';
+import { monthlySummaryXlsx, monthlySummaryPdf, mutualRetentionsXlsx, mutualRetentionsPdf } from './payroll-monthly-summary-export.js';
 
 const ENDPOINT = '/api/internal-payroll-monthly-source-summary';
 const PAGE_SIZE = 50;
@@ -42,6 +42,18 @@ export function mountMonthlySummary(host) {
     <div class="rc-kpis"><div><span>Liquidaciones seleccionadas</span><strong data-ms-datasets></strong></div><div><span>Participaciones en liquidaciones</span><strong data-ms-participations></strong></div><div><span>Legajos únicos de la selección</span><strong data-ms-legajos></strong></div></div>
     <p class="ms-note">Un legajo puede participar en varias liquidaciones. Las ocurrencias son líneas de un concepto; las cantidades conservan su unidad de origen. No se suman componentes y totalizadores entre sí.</p>
     <details class="ms-trace"><summary>Ver fuentes exactas y corte de la consulta</summary><p data-ms-queried></p><div data-ms-trace></div></details>
+    <details class="ms-mutuals"><summary>Detalle de lo retenido a mutuales</summary>
+      <p class="ms-note">Elegí los descuentos que necesitás reunir. La selección se aplica a las liquidaciones consultadas arriba y es independiente del filtro del resumen general.</p>
+      <div class="ms-selection-actions"><button type="button" class="rc-button" data-mr-preset>Usar códigos de la muestra de agosto</button><button type="button" class="rc-button secondary" data-mr-clear>Quitar todos los conceptos</button></div>
+      <p class="ms-note" data-mr-origin></p><p class="ms-note">La muestra es un punto de partida editable; no confirma el alcance de otro período. Los nombres e importes se leen de la fuente consultada.</p>
+      <fieldset class="ms-fieldset"><legend>Conceptos para el detalle de mutuales</legend><label class="mr-search">Buscar un descuento para agregar<input type="search" maxlength="100" data-mr-search></label><div class="mr-options" data-mr-options></div></fieldset>
+      <p role="status" aria-live="polite" data-mr-status>Elegí conceptos para preparar el detalle.</p>
+      <div class="mr-totals"><div><span>Subtotal informado</span><strong data-mr-subtotal>No determinable</strong></div><div><span>Total de la selección</span><strong data-mr-total>No determinable</strong></div></div>
+      <p class="ms-note">Si hay conceptos ausentes, importes faltantes o totalizadores, el total queda pendiente. El subtotal suma únicamente importes verificables; no se recalculan descuentos ni porcentajes.</p>
+      <div class="rc-downloads"><button type="button" class="rc-button" data-mr-export="xlsx">Descargar Excel de mutuales</button><button type="button" class="rc-button secondary" data-mr-export="pdf">Descargar PDF de mutuales</button></div>
+      <p class="ms-note">Ambos archivos incluyen todos los conceptos seleccionados, período y fuentes exactas. Control interno, sin firma aplicada ni acreditación de pago.</p>
+      <div class="rc-table-wrap mr-table" tabindex="0" role="region" aria-label="Retenciones a mutuales, desplazable"><table class="rc-table"><thead><tr><th scope="col">Código / concepto</th><th scope="col">Importe retenido</th><th scope="col">Estado</th></tr></thead><tbody data-mr-rows></tbody></table></div>
+    </details>
     <div class="rc-filter"><label>Buscar código o concepto<input type="search" maxlength="100" data-ms-search></label><label>Datos del concepto<select data-ms-filter><option value="all">Todos</option><option value="missing">Con datos faltantes</option><option value="informed">Sin faltantes en las líneas incluidas</option></select></label></div>
     <p class="ms-note">Si falta un importe o cantidad en alguna línea, su suma figura como “No informado”. Un concepto ausente no equivale a cero.</p>
     <div class="rc-downloads"><button type="button" class="rc-button" data-ms-export="pdf">Descargar PDF</button><button type="button" class="rc-button secondary" data-ms-export="xlsx">Descargar Excel</button></div>
@@ -49,6 +61,8 @@ export function mountMonthlySummary(host) {
     <div class="ms-pagination"><button type="button" class="rc-button secondary" data-ms-previous>Anterior</button><p data-ms-page></p><button type="button" class="rc-button secondary" data-ms-next>Siguiente</button></div></section>`;
   const $ = s => host.querySelector(s), status = $('[data-ms-status]'), result = $('[data-ms-result]');
   let catalog = null, data = null, queriedAt = null, busy = false, generation = 0, controller = null, page = 1, suspended = false;
+  let mutualCodes = [], mutualChoiceData = null, mutualError = false;
+  $('[data-mr-origin]').textContent = MUTUAL_RETENTIONS_PRESET.source + ' · Códigos: ' + MUTUAL_RETENTIONS_PRESET.codes.join(', ') + '.';
   const available = () => !suspended && host.isConnected && !host.closest('[hidden]') && document.visibilityState !== 'hidden';
   const selectedIds = () => [...host.querySelectorAll('[data-ms-id]:checked')].map(n => n.value).sort();
   const view = () => monthlySummaryFilter(data, { search: $('[data-ms-search]').value, status: $('[data-ms-filter]').value });
@@ -57,10 +71,11 @@ export function mountMonthlySummary(host) {
     const selected = selectedIds().length; $('[data-ms-selected]').textContent = selected + ' liquidaciones seleccionadas';
     $('[data-ms-consult]').disabled = busy || !selected || selected > 24;
     host.querySelectorAll('[data-ms-export]').forEach(b => b.disabled = busy || !data || !view().rows.length);
+    host.querySelectorAll('[data-mr-export]').forEach(b => b.disabled = busy || !data || mutualError || !mutualCodes.length);
     $('[data-ms-previous]').disabled = busy || !data || page <= 1;
     $('[data-ms-next]').disabled = busy || !data || page * PAGE_SIZE >= view().rows.length;
   }
-  function clearResult() { data = null; queriedAt = null; result.hidden = true; $('[data-ms-rows]').replaceChildren(); $('[data-ms-trace]').replaceChildren(); }
+  function clearResult() { data = null; queriedAt = null; mutualChoiceData = null; result.hidden = true; $('[data-ms-rows]').replaceChildren(); $('[data-ms-trace]').replaceChildren(); $('[data-mr-options]').replaceChildren(); $('[data-mr-rows]').replaceChildren(); $('[data-mr-status]').textContent = 'Consultá nuevamente el resumen para preparar el detalle.'; $('[data-mr-subtotal]').textContent = 'No determinable'; $('[data-mr-total]').textContent = 'No determinable'; }
   function cancel() { generation++; controller?.abort(); controller = null; busy = false; }
   function start() { cancel(); controller = new AbortController(); busy = true; controls(); return { seq: generation, controller }; }
   const valid = job => job.seq === generation && !job.controller.signal.aborted && available();
@@ -116,8 +131,52 @@ export function mountMonthlySummary(host) {
       [r.unit || 'No informada', r.sourceRows.toLocaleString('es-AR'), r.distinctLegajos.toLocaleString('es-AR'), monthlyDecimal(r.quantity), monthlyDecimal(r.amount), monthlyObservations(r)].forEach((v, i) => tr.append(node('td', v, i >= 1 && i <= 4 ? 'ms-number' : ''))); return tr;
     });
     if (!rows.length) { const tr = node('tr'), td = node('td', 'No hay conceptos para este filtro. Cambiá la búsqueda o el estado.'); td.colSpan = 7; tr.append(td); rows.push(tr); }
-    $('[data-ms-rows]').replaceChildren(...rows); result.hidden = false; controls();
+    $('[data-ms-rows]').replaceChildren(...rows); renderMutuals(); result.hidden = false; controls();
   }
+  function filterMutualOptions() {
+    const fold = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const query = fold($('[data-mr-search]').value.trim());
+    host.querySelectorAll('[data-mr-option]').forEach(label => { label.hidden = !fold(label.textContent).includes(query); });
+  }
+  function renderMutuals() {
+    if (!data) return;
+    try { renderMutualSelection(); mutualError = false; }
+    catch (error) {
+      mutualError = true; mutualChoiceData = null;
+      $('[data-mr-options]').replaceChildren(); $('[data-mr-rows]').replaceChildren();
+      $('[data-mr-subtotal]').textContent = 'No determinable'; $('[data-mr-total]').textContent = 'No determinable';
+      $('[data-mr-status]').textContent = message(error) + ' El resumen general sigue disponible; revisá los códigos en la fuente antes de preparar mutuales.';
+    }
+  }
+  function renderMutualSelection() {
+    const report = mutualRetentionsView(data, mutualCodes);
+    mutualCodes = [...report.codes];
+    if (mutualChoiceData !== data) {
+      const indexed = new Map(data.rows.map(row => [Number(row.code), row]));
+      const candidates = new Map(mutualRetentionCandidates(data).map(r => [Number(r.code), { code: r.code, row: r }]));
+      for (const code of [...MUTUAL_RETENTIONS_PRESET.codes, ...mutualCodes]) if (!candidates.has(Number(code))) {
+        const row = indexed.get(Number(code)); candidates.set(Number(code), { code: row?.code ?? code, row });
+      }
+      $('[data-mr-options]').replaceChildren(...[...candidates].sort(([a], [b]) => a - b).map(([, { code, row }]) => {
+        const label = node('label', undefined, 'mr-option'), input = node('input'), name = node('span'); label.dataset.mrOption = ''; input.type = 'checkbox'; input.value = code; input.dataset.mrCode = '';
+        name.append(node('strong', code), node('span', row?.description || 'Sin líneas en esta selección')); label.append(input, name); return label;
+      }));
+      mutualChoiceData = data;
+    }
+    host.querySelectorAll('[data-mr-code]').forEach(input => { input.checked = mutualCodes.includes(input.value); });
+    filterMutualOptions();
+    $('[data-mr-status]').textContent = report.rows.length ? report.rows.length + ' conceptos seleccionados · ' + report.informedCount + ' con importe sumable · ' + report.absentCount + ' ausentes · ' + report.missingCount + ' con importe faltante · ' + report.unverifiedCount + ' no sumables.' : 'Elegí conceptos o usá la preconfiguración de la muestra.';
+    $('[data-mr-subtotal]').textContent = mutualDecimal(report.subtotal); $('[data-mr-total]').textContent = mutualDecimal(report.total);
+    $('[data-mr-rows]').replaceChildren(...report.rows.map(row => {
+      const tr = node('tr'), name = node('th'); name.scope = 'row'; name.append(node('strong', row.code), node('span', row.description));
+      tr.append(name, node('td', mutualDecimal(row.amount), 'ms-number'), node('td', row.observation)); return tr;
+    }));
+  }
+  function mutualSelectionChanged(codes) { cancel(); mutualCodes = codes; if (data) renderMutuals(); controls(); status.textContent = 'Selección de mutuales actualizada. La descarga vuelve a verificar las fuentes.'; }
+  $('[data-mr-preset]').addEventListener('click', () => mutualSelectionChanged([...MUTUAL_RETENTIONS_PRESET.codes]));
+  $('[data-mr-clear]').addEventListener('click', () => mutualSelectionChanged([]));
+  $('[data-mr-options]').addEventListener('change', event => { if (event.target.matches('[data-mr-code]')) mutualSelectionChanged([...host.querySelectorAll('[data-mr-code]:checked')].map(input => input.value)); });
+  $('[data-mr-search]').addEventListener('input', () => { filterMutualOptions(); $('[data-mr-options]').scrollTop = 0; });
   async function consultSummary() {
     if (busy || !available() || !selectedIds().length) return;
     const ids = selectedIds(), period = $('[data-ms-period]').value, job = start(); clearResult(); status.textContent = 'Reuniendo las liquidaciones seleccionadas…';
@@ -149,6 +208,21 @@ export function mountMonthlySummary(host) {
       a.href = url; a.download = 'municontrol_resumen-mensual_' + original.period + '.' + format; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
       status.textContent = (format === 'pdf' ? 'PDF' : 'Excel') + ' generado: ' + filtered.rows.length + ' conceptos del filtro y sus fuentes. Uso interno.';
     } catch (e) { if (valid(job)) { if (e.exportOnly) status.textContent = message(e); else failure(e); } } finally { if (job.seq === generation) { busy = false; controls(); } }
+  }));
+  host.querySelectorAll('[data-mr-export]').forEach(button => button.addEventListener('click', async () => {
+    if (busy || !data || mutualError || !mutualCodes.length || !available()) return;
+    const original = data, report = mutualRetentionsView(data, mutualCodes), when = queriedAt, job = start();
+    status.textContent = 'Verificando acceso y fuentes para el detalle de mutuales…';
+    try {
+      const fresh = await read('summary', job, original.period, original.sources.map(source => source.datasetId)); if (!valid(job)) return;
+      if (monthlySummaryRevision(fresh) !== monthlySummaryRevision(original)) throw Error('Cambió el resumen o alguna fuente, incluido su cierre. Volvé a consultar antes de descargar.');
+      const format = button.dataset.mrExport, bytes = format === 'pdf' ? mutualRetentionsPdf(original, report, when) : mutualRetentionsXlsx(original, report, when);
+      if (!valid(job)) return;
+      const url = URL.createObjectURL(new Blob([bytes], { type: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), link = node('a');
+      link.href = url; link.download = 'municontrol_mutuales_' + original.period + '.' + format; link.rel = 'noopener'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+      status.textContent = (format === 'pdf' ? 'PDF' : 'Excel') + ' de mutuales generado: ' + report.rows.length + ' conceptos seleccionados. ' + (report.total === null ? 'Total pendiente; revisá las observaciones.' : 'Total de la selección: ' + mutualDecimal(report.total) + '.');
+    } catch (error) { if (valid(job)) { if (error.exportOnly) status.textContent = message(error); else failure(error); } }
+    finally { if (job.seq === generation) { busy = false; controls(); } }
   }));
   function hidden() { if (available()) return; cancel(); clearResult(); controls(); status.textContent = 'Consultá nuevamente el resumen para continuar.'; }
   document.addEventListener('taskchange', hidden); document.addEventListener('visibilitychange', hidden);
