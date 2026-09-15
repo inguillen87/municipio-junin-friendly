@@ -1325,8 +1325,9 @@
             <div>
               <p class="eyebrow">Gestión de personal · MuniControl</p>
               <h1 id="legajosTitle" tabindex="-1">Personas y legajos</h1>
-              <p class="page-lead">El padrón activo primero. Desde cada legajo consultá haberes, gestioná novedades o iniciá una licencia. El archivo histórico se consulta por separado.</p>
+              <p class="page-lead">Buscá a la persona para consultar haberes, cargar certificados de sus hijos, gestionar novedades o iniciar una licencia. El archivo histórico se consulta por separado.</p>
             </div>
+            <a class="button" href="reportes-rrhh.html#certificados-escolares" data-requires-all-capability="workforce.employee.read">Reporte de hijos y certificados</a>
           </header>
 
           <section class="panel" aria-labelledby="employeeTableTitle">
@@ -1862,7 +1863,17 @@
       }
 
       function redirectToLogin() {
-        const next = 'internal-dashboard.html' + window.location.hash;
+        const detail = detailRequestFromLocation();
+        const params = new URLSearchParams();
+        if (detail) {
+          if (detail.contractId) params.set('contractId', detail.contractId);
+          else { params.set('legajo', detail.legajo); if (detail.companyId) params.set('companyId', detail.companyId); }
+          if (detail.section === 'family') {
+            params.set('section', 'family');
+            if (detail.familyId !== null) params.set('familyId', detail.familyId);
+          }
+        }
+        const next = 'internal-dashboard.html' + (params.size ? '?' + params.toString() : '') + window.location.hash;
         window.location.replace('login.html?next=' + encodeURIComponent(next));
       }
 
@@ -1972,7 +1983,10 @@
         const companyId = text(params.get('companyId'));
         if (contractId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractId)) return null;
         if (!contractId && (!/^\d{1,20}$/.test(legajo) || (companyId && !/^\d{1,10}$/.test(companyId)))) return null;
-        return contractId || legajo ? { contractId: contractId, legajo: legajo, companyId: companyId } : null;
+        const familyId = params.get('familyId');
+        return contractId || legajo ? { contractId: contractId, legajo: legajo, companyId: companyId,
+          section: params.get('section') === 'family' ? 'family' : null,
+          familyId: familyId === null ? null : (params.getAll('familyId').length === 1 && /^[0-9]{1,20}$/.test(familyId) ? familyId : '') } : null;
       }
 
       async function authenticate() {
@@ -2004,7 +2018,7 @@
           showView(initialView, false, false);
           loadSummary();
           if (initialView === 'legajos') loadEmployees(1);
-          if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo');
+          if (detailRequest) openEmployee(detailRequest.contractId, detailRequest.legajo, detailRequest.companyId, 'Ficha de legajo', detailRequest);
         } catch (error) {
           if (error instanceof UnauthorizedError) return;
           els.gateTitle.textContent = 'No pudimos verificar la sesión';
@@ -2588,7 +2602,7 @@
         return cell;
       }
 
-      function detailButton(label, employee, className) {
+      function detailButton(label, employee, className, destination) {
         const button = create('button', className || 'link-button', label);
         button.type = 'button';
         button.dataset.contractId = text(employee.contractId);
@@ -2596,7 +2610,7 @@
         button.dataset.legajo = text(employee.legajo);
         button.dataset.name = text(employee.nombre);
         button.addEventListener('click', function () {
-          openEmployee(button.dataset.contractId, button.dataset.legajo, button.dataset.companyId, button.dataset.name);
+          openEmployee(button.dataset.contractId, button.dataset.legajo, button.dataset.companyId, button.dataset.name, destination);
         });
         return button;
       }
@@ -2638,7 +2652,11 @@
             appendCell(row, 'Organización / sector', organization, 'cell-sector');
             appendCell(row, 'Convenio / cargo', employment);
             appendCell(row, 'Integración', create('span', 'state-pill ' + integration.className, integration.label));
-            appendCell(row, 'Acciones', legajo ? detailButton('Ver ficha', employee, 'button') : create('span', 'cell-muted', 'No disponible'));
+            const actions = create('div', 'cell-stack');
+            if (legajo) {
+              actions.append(detailButton('Ver ficha', employee, 'button'), detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
+            } else actions.append(create('span', 'cell-muted', 'No disponible'));
+            appendCell(row, 'Acciones', actions);
             els.employeeRows.appendChild(row);
           });
         }
@@ -2724,7 +2742,7 @@
         else els.employeeDialog.removeAttribute('open');
       }
 
-      async function openEmployee(contractId, legajo, companyId, fallbackName) {
+      async function openEmployee(contractId, legajo, companyId, fallbackName, destination = {}) {
         if (!text(contractId) && !text(legajo)) return;
         document.dispatchEvent(new Event('mc:family-schooling-close'));
         if (state.detailController) state.detailController.abort();
@@ -2751,12 +2769,14 @@
         try {
           const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
           const detail = normalizeEmployeeDetail(payload);
-          renderEmployeeDetail(detail);
+          if (controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
+          if (text(contractId) && text(detail.employee.contractId).toLowerCase() !== text(contractId).toLowerCase()) throw new Error('La respuesta no corresponde al legajo solicitado. Volvé a abrir la ficha.');
+          renderEmployeeDetail(detail, destination);
         } catch (error) {
-          if (error.name === 'AbortError' || error instanceof UnauthorizedError) return;
-          renderDetailError(error, contractId, legajo, companyId, fallbackName);
+          if (error.name === 'AbortError' || error instanceof UnauthorizedError || controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
+          renderDetailError(error, contractId, legajo, companyId, fallbackName, destination);
         } finally {
-          els.dialogBody.setAttribute('aria-busy', 'false');
+          if (state.detailController === controller) els.dialogBody.setAttribute('aria-busy', 'false');
         }
       }
 
@@ -2811,6 +2831,14 @@
         const companyId = text(employee.companyId);
         const legajo = text(employee.legajo);
         const contractId = text(employee.contractId);
+
+        const family = create('button', 'button', 'Hijos y certificados');
+        family.type = 'button';
+        family.addEventListener('click', function () {
+          const title = els.dialogBody.querySelector('#employeeFamilyTitle');
+          if (!title) return;
+          focusFamilySection(title);
+        });
 
         const payroll = create('button', 'button primary', 'Ver liquidaciones');
         payroll.type = 'button';
@@ -2881,7 +2909,7 @@
           catch(error){if(live())toast('No se pudo abrir la biblioteca de liquidaciones.','error');}
           finally{libraryButton.disabled=!live();}
         });
-        actions.append(payroll, libraryButton, downloads, novelty, calculate, request, absence);
+        actions.append(payroll, family, libraryButton, downloads, novelty, calculate, request, absence);
         section.appendChild(actions);
         if (unavailable.length) {
           const availability = create(
@@ -3302,20 +3330,25 @@
         return card;
       }
 
-      function renderFamilySection(detail) {
+      function renderFamilySection(detail, destination = {}) {
         const section = create('section', 'detail-section');
+        section.setAttribute('data-employee-family-section', '');
         const head = create('div', 'detail-section-head');
-        head.append(create('h3', '', 'Familiares'), create('span', 'evidence source', 'Fuente'));
+        const title = create('h3', '', 'Hijos y certificados'); title.id = 'employeeFamilyTitle'; title.tabIndex = -1;
+        head.append(title, create('span', 'evidence source', 'Fuente'));
         section.appendChild(head);
+        section.appendChild(create('p', 'detail-section-copy', 'Podés cargar un certificado PDF para los hijos que ya figuran en esta ficha. El alta de nuevos hijos todavía no está disponible.'));
         const certificateHost = create('div');
         certificateHost.setAttribute('data-family-schooling-ficha', '');
         section.appendChild(certificateHost);
         const contractId = text(detail.employee.contractId);
         if (contractId) import('./assets/family-schooling.js').then(function (module) {
           if (certificateHost.isConnected && els.employeeDialog.open) module.mountFamilyCertificates(certificateHost, {
-            contractId: contractId, canPropose: state.tenantCapabilities.has('employee.record.propose')
+            contractId: contractId, canPropose: state.tenantCapabilities.has('employee.record.propose'),
+            focusFamilyId: destination.section === 'family' ? (destination.familyId ?? null) : null
           });
         }).catch(function () { if (certificateHost.isConnected) certificateHost.textContent = 'No se pudo abrir la carga de certificados. Cerrá y abrí nuevamente la ficha.'; });
+        else certificateHost.textContent = 'Esta ficha no incluye la referencia del legajo necesaria para consultar o cargar certificados.';
         const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
         const received = detail.family.length;
         section.appendChild(create('p', 'detail-section-copy',
@@ -3333,6 +3366,30 @@
         detail.family.forEach(function (member, index) { list.appendChild(familyCard(member || {}, index)); });
         section.appendChild(list);
         return section;
+      }
+
+      function focusFamilySection(title) {
+        if (!title.isConnected || !els.employeeDialog.open) return;
+        title.focus({ preventScroll: true });
+        // Scroll only the existing dialog body: scrolling all ancestors can
+        // place the child behind the fixed dialog header on narrow screens.
+        const reveal = function () {
+          if (!title.isConnected || !els.employeeDialog.open || document.activeElement !== title) return;
+          els.employeeDialog.scrollTop = 0;
+          els.dialogBody.scrollTop += title.getBoundingClientRect().top - els.dialogBody.getBoundingClientRect().top - 12;
+        };
+        reveal();
+        if (typeof ResizeObserver === 'function') {
+          const observer = new ResizeObserver(reveal);
+          observer.observe(els.dialogBody); observer.observe(title.closest('[data-employee-family-section]'));
+          const stop = function () {
+            observer.disconnect(); title.removeEventListener('blur', stop);
+            document.removeEventListener('mc:family-schooling-close', stop);
+          };
+          title.addEventListener('blur', stop, { once: true });
+          document.addEventListener('mc:family-schooling-close', stop, { once: true });
+        }
+        Promise.resolve(document.fonts?.ready).then(function () { requestAnimationFrame(reveal); });
       }
 
       function eventTimestamp(value) {
@@ -3572,7 +3629,7 @@
         return section;
       }
 
-      function renderEmployeeDetail(detail) {
+      function renderEmployeeDetail(detail, destination = {}) {
         const employee = detail.employee;
         const legajo = text(employee.legajo);
         const name = text(employee.nombre);
@@ -3669,7 +3726,12 @@
         }
         els.dialogBody.appendChild(coverage);
 
-        els.dialogBody.appendChild(renderFamilySection(detail));
+        const familySection = renderFamilySection(detail, destination);
+        els.dialogBody.appendChild(familySection);
+        if (destination.section === 'family') {
+          const title = familySection.querySelector('#employeeFamilyTitle');
+          focusFamilySection(title);
+        }
 
         const eventSection = create('section', 'detail-section');
         const eventHead = create('div', 'detail-section-head');
@@ -3719,7 +3781,7 @@
         els.dialogBody.appendChild(traceSection);
       }
 
-      function renderDetailError(error, contractId, legajo, companyId, fallbackName) {
+      function renderDetailError(error, contractId, legajo, companyId, fallbackName, destination) {
         els.dialogBody.replaceChildren();
         const notice = create('div', 'notice error');
         notice.append(create('strong', '', 'No pudimos cargar esta ficha. '), document.createTextNode(friendlyNetworkError(error, 'No se pudo conectar con el detalle del legajo.')));
@@ -3727,7 +3789,7 @@
         const retry = create('button', 'button primary', 'Reintentar');
         retry.type = 'button';
         retry.style.marginTop = '14px';
-        retry.addEventListener('click', function () { openEmployee(contractId, legajo, companyId, fallbackName); });
+        retry.addEventListener('click', function () { openEmployee(contractId, legajo, companyId, fallbackName, destination); });
         els.dialogBody.appendChild(retry);
       }
 

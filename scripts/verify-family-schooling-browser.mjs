@@ -15,6 +15,7 @@ const mode = publishedOrigin ? 'published_assets_with_synthetic_api' : 'local_bu
 fs.mkdirSync(out, { recursive: true });
 const checks = [], errors = [], posts = [], downloads = [];
 const publishedAssets = new Set(), publishedFailures = new Set();
+let qaPage;
 async function publicAsset(url, expected) {
   // Do not forward browser headers/cookies, use a bypass token, or follow a redirect.
   assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app');
@@ -35,9 +36,12 @@ async function publicAsset(url, expected) {
 }
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
 let reportRequests = 0, authRequests = 0;
+let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
+let delayedEmployee = null, alternateEmployee = false;
 const employee = { contractId: syntheticUuid(1), legajo: '000001', nombre: 'AGENTE SINTÉTICO 0001', companyId: 7,
   activo: true, liquidable: false, administrativeStatus: 'active', payrollStatus: 'not_liquidated', controlState: 'activo_no_incluido',
   crosswalkStatus: 'matched', sector: 'Sector QA', organizacion: 'Unidad QA', convenio: 'Convenio QA', cargo: 'Cargo QA' };
+const secondEmployee = { ...employee, contractId: syntheticUuid(2), legajo: '000002', nombre: 'AGENTE SINTÉTICO 0002' };
 const browser = await chromium.launch({ headless: true, ...(process.env.SCHOOLING_BROWSER_CHANNEL || process.env.CLOCK_BROWSER_CHANNEL ? { channel: process.env.SCHOOLING_BROWSER_CHANNEL || process.env.CLOCK_BROWSER_CHANNEL } : {}) });
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'es-AR', acceptDownloads: true, serviceWorkers: 'block' });
@@ -46,7 +50,8 @@ try {
     if (u.origin !== origin) return route.abort();
     if (!u.pathname.startsWith('/api/')) {
       if (request.method() !== 'GET') return route.abort();
-      const file = path.resolve(base, '.' + decodeURIComponent(u.pathname));
+      const pages = { '/nomina': 'nomina-control.html', '/personal': 'internal-dashboard.html', '/reportes': 'reportes-rrhh.html', '/acceso': 'login.html' };
+      const file = path.resolve(base, pages[u.pathname] || '.' + decodeURIComponent(u.pathname));
       if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status: 404, body: '' });
       let body = fs.readFileSync(file);
       if (publishedOrigin) {
@@ -56,6 +61,10 @@ try {
       return route.fulfill({ status: 200, contentType: file.endsWith('.js') || file.endsWith('.mjs') ? 'application/javascript' : file.endsWith('.css') ? 'text/css' : file.endsWith('.html') ? 'text/html' : file.endsWith('.json') ? 'application/json' : 'application/octet-stream', body });
     }
     const resource = u.searchParams.get('resource');
+    if (resource === 'employee' && delayedEmployee) {
+      const pending = delayedEmployee; delayedEmployee = null; await pending;
+      return route.fulfill({ status: 503, json: { ok: false, error: 'Demora sintética de la ficha anterior' } });
+    }
     if (u.pathname === '/api/internal-family-certificates') {
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
@@ -74,20 +83,24 @@ try {
       if (failRead) return route.fulfill({ status: failRead, json: { ok: false, code: failRead === 403 ? 'SCHOOL_CERTIFICATE_CAPABILITY_REQUIRED' : 'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE' } });
       if (resource === 'download') return route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'content-length': String(syntheticSchoolPdf.length), 'content-disposition': 'attachment; filename="certificado-sintetico.pdf"' }, body: syntheticSchoolPdf });
       const payload = structuredClone(dataset);
-      if (resource === 'family') { payload.data.scope.cohort = 'contract_children'; payload.data.rows = payload.data.rows.filter(r => r.contractId === u.searchParams.get('contractId')); }
+      if (resource === 'family') {
+        familyRequests++; payload.data.scope.cohort = 'contract_children'; payload.data.rows = payload.data.rows.filter(r => r.contractId === u.searchParams.get('contractId'));
+        if (wrongFamily && payload.data.rows.length) payload.data.rows[0].contractId = syntheticUuid(2);
+      }
       return route.fulfill({ status: 200, json: payload });
     }
     let payload = { ok: true, data: [] };
     if (u.pathname === '/api/internal-auth') {
       authRequests++;
+      if (authDenied) return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
       payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' },
-        access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', 'employee.record.propose'], platformCapabilities: [], platformRoles: [] } };
-    } else if (resource === 'employees') payload = { ok: true, data: [employee], pagination: { page: 1, limit: 25, total: 1, pages: 1 },
+        access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', 'employee.record.propose', ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
+    } else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
       scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } };
-    else if (resource === 'employee') payload = { ok: true, data: { ...employee, employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
+    else if (resource === 'employee') payload = { ok: true, data: { ...(alternateEmployee && u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee), ...(wrongEmployee ? { contractId: syntheticUuid(2) } : {}), employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
     return route.fulfill({ status: 200, json: payload });
   });
-  const page = await context.newPage(); page.setDefaultTimeout(12000);
+  const page = await context.newPage(); qaPage = page; page.setDefaultTimeout(12000);
   page.on('pageerror', e => errors.push(e.message)); page.on('download', download => downloads.push(download));
   const report = page.locator('#certificados-escolares'), status = report.locator('[data-fs-status]');
   const family = page.locator('[data-family-schooling-ficha]');
@@ -231,6 +244,94 @@ try {
   await page.waitForFunction(() => document.querySelector('#employeeRows button'));
   assert.ok(authRequests > authBeforeBack); assert.equal(posts.length, postsBeforeBack); assert.equal(await page.locator('[data-fs-file]').count(), 0);
   checks.push('bfcache restore restarts normal session checks and never replays or retains an upload draft');
+
+  dataset = schoolingFixture(); const postsBeforeNavigation = posts.length;
+  const targetUrl = origin + '/internal-dashboard.html?contractId=' + syntheticUuid(1) + '&section=family&familyId=2#legajos';
+  async function visit(url) { return page.url() === url ? page.reload() : page.goto(url); }
+  async function exactChildVisible() {
+    await familyReady();
+    await page.evaluate(async () => { await document.fonts.ready; await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
+    const target = family.locator('[data-fs-family-id="2"]');
+    assert.equal(await target.evaluate(n => n === document.activeElement), true);
+    const bounded = await target.evaluate(n => { const r=n.getBoundingClientRect(), body=n.closest('.dialog-body').getBoundingClientRect(); return r.top>=body.top-1 && r.top<body.bottom && r.left>=body.left && r.right<=body.right+1; });
+    if (!bounded) await page.screenshot({ path: path.join(out, 'family-schooling-target-layout-failure-qa.png') });
+    assert.equal(bounded, true, JSON.stringify(await target.evaluate(n => {const body=n.closest('.dialog-body'),dialog=n.closest('dialog');return {card:n.getBoundingClientRect().toJSON(),body:body.getBoundingClientRect().toJSON(),bodyScroll:body.scrollTop,dialogScroll:dialog.scrollTop,dialog:dialog.getBoundingClientRect().toJSON()};}))); assert.equal(await page.locator('dialog[open]').count(), 1);
+    assert.equal(await family.locator('[data-fs-file]').count(), 0);
+  }
+  await page.goto(origin + '/reportes-rrhh.html#certificados-escolares'); await consulted();
+  await report.locator('[data-fs-search]').fill('Hijo Sintético 0002');
+  await report.locator('tbody a').first().click(); await exactChildVisible();
+  assert.equal(new URL(page.url()).searchParams.get('familyId'), '2');
+  assert.match(await page.locator('[data-employee-family-section]').innerText(), /alta de nuevos hijos todavía no está disponible/);
+  await syntheticLabel(); await page.screenshot({ path: path.join(out, 'family-schooling-target-desktop-qa.png') });
+  checks.push('filtered report opens and focuses its exact child inside the authorized employee dialog without starting an upload');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => innerWidth === 390 && matchMedia('(max-width:700px)').matches);
+  await page.evaluate(async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
+  await visit(targetUrl); await exactChildVisible();
+  await page.keyboard.press('Tab'); assert.equal(await page.evaluate(() => Boolean(document.activeElement.closest('dialog[open]'))), true);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+  await syntheticLabel(); await page.screenshot({ path: path.join(out, 'family-schooling-target-mobile-qa.png') });
+  checks.push('exact-child navigation remains within the mobile viewport and the existing dialog focus trap');
+
+  for (const familyId of ['999', '3', 'invalid', '2&familyId=1']) {
+    await page.goto(targetUrl.replace('familyId=2', 'familyId=' + familyId)); await familyReady();
+    const missing = family.locator('[data-fs-target-status]'); assert.equal(await missing.isVisible(), true);
+    assert.match(await missing.innerText(), /no aparece.*no se seleccionó otro hijo/);
+    assert.equal(await missing.evaluate(n => n === document.activeElement), true);
+    assert.equal(await family.locator('[data-fs-file]').count(), 0);
+  }
+  checks.push('missing, other-contract, invalid and ambiguous child references show a clear notice without selecting a replacement');
+  wrongEmployee = true; const beforeWrongEmployee = familyRequests;
+  await visit(targetUrl); await page.locator('#dialogBody .notice.error').waitFor();
+  assert.equal(familyRequests, beforeWrongEmployee); assert.equal(await family.count(), 0); wrongEmployee = false;
+  wrongFamily = true; await visit(targetUrl); await familyReady();
+  assert.equal(await family.locator('.fs-child').count(), 0); assert.match(await family.locator('[data-fs-family-status]').innerText(), /No se pudo verificar/); wrongFamily = false;
+  checks.push('a mismatched employee or family response cannot open certificates from a different contract');
+
+  const lowerContract = 'abcdef01-0000-4000-8000-000000000001';
+  employee.contractId = lowerContract; dataset.data.rows.slice(0, 2).forEach(row => row.contractId = lowerContract);
+  await visit(targetUrl.replace(syntheticUuid(1), lowerContract.toUpperCase())); await exactChildVisible();
+  employee.contractId = syntheticUuid(1); dataset = schoolingFixture();
+  checks.push('valid uppercase PostgreSQL UUID links reach the same canonical employee and exact child');
+
+  alternateEmployee = true; await page.goto(origin + '/internal-dashboard.html#legajos');
+  await page.locator('#employeeRows').getByRole('button', { name: 'Ver ficha', exact: true }).nth(1).waitFor();
+  let releaseOldEmployee; delayedEmployee = new Promise(resolve => releaseOldEmployee = resolve);
+  const oldRequest = page.waitForRequest(r => new URL(r.url()).searchParams.get('resource') === 'employee');
+  await page.locator('#employeeRows').getByRole('button', { name: 'Ver ficha', exact: true }).first().click(); await oldRequest;
+  await page.keyboard.press('Escape');
+  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).nth(1).click(); await familyReady();
+  releaseOldEmployee(); await page.evaluate(async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
+  assert.equal(await page.locator('#dialogTitle').innerText(), secondEmployee.nombre);
+  assert.deepEqual(await family.locator('[data-fs-family-id]').evaluateAll(nodes => nodes.map(n => n.dataset.fsFamilyId)), ['3', '4']);
+  assert.equal(await page.locator('#dialogBody .notice.error').count(), 0); alternateEmployee = false;
+  checks.push('closing a delayed employee and opening another preserves the new dialog when the old request fails');
+
+  authDenied = true; const beforeAuth = familyRequests; await visit(targetUrl);
+  await page.waitForURL(u => ['/acceso', '/login.html'].includes(u.pathname));
+  const next = new URL(new URL(page.url()).searchParams.get('next'), origin);
+  assert.equal(next.searchParams.get('contractId'), syntheticUuid(1)); assert.equal(next.searchParams.get('familyId'), '2');
+  assert.equal(next.searchParams.get('section'), 'family'); assert.equal(familyRequests, beforeAuth);
+  authDenied = false; await page.goto(next.href); await exactChildVisible();
+  checks.push('an expired session preserves the validated child destination and rechecks access before reopening it');
+
+  await page.goto(origin + '/internal-dashboard.html#legajos'); await page.locator('#employeeRows button').first().waitFor();
+  await page.locator('#employeeSearch').fill('000001'); await page.locator('#employeeFilters').evaluate(n => n.requestSubmit());
+  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  assert.equal(await page.locator('#employeeFamilyTitle').evaluate(n => n === document.activeElement), true);
+  await page.keyboard.press('Escape'); assert.equal(await page.locator('dialog[open]').count(), 0);
+  assert.equal(await page.locator('#employeeSearch').inputValue(), '000001'); assert.equal(await page.locator('#statusFilter').inputValue(), 'administrative_active');
+  await page.locator('#employeeRows').getByRole('button', { name: 'Ver ficha', exact: true }).click(); await familyReady();
+  await page.locator('.employee-quick-actions').getByRole('button', { name: 'Hijos y certificados', exact: true }).click();
+  assert.equal(await page.locator('#employeeFamilyTitle').evaluate(n => n === document.activeElement), true);
+  checks.push('Personas and the employee quick actions reach certificates without replacing roster filters or duplicating dialogs');
+
+  payrollAccess = true; await page.goto(origin + '/nomina-control.html');
+  await page.locator('.page-head').getByRole('link', { name: 'Hijos y certificados', exact: true }).click();
+  await report.locator('[data-fs-consult]').waitFor(); assert.equal(new URL(page.url()).hash, '#certificados-escolares');
+  assert.equal(posts.length, postsBeforeNavigation); payrollAccess = false;
+  checks.push('Nómina exposes a visible mobile entry to the certificate report; all navigation remains read-only');
   assert.deepEqual(errors, []);
   assert.equal(publishedFailures.size, 0, 'PUBLISHED_ASSET_VERIFICATION_FAILED');
   if (publishedOrigin) assert.ok(publishedAssets.size > 0, 'PUBLISHED_ASSETS_NOT_VERIFIED');
@@ -238,6 +339,7 @@ try {
     checksPassed: checks.length, checks, errors, syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false, serviceWorkersBlocked: true, browser: browser.version() };
   fs.writeFileSync(path.join(out, 'family-schooling-browser.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
 } catch (error) {
+  if (qaPage && !qaPage.isClosed()) await qaPage.screenshot({ path: path.join(out, 'family-schooling-navigation-failure-qa.png') }).catch(() => {});
   const failure = { mode, origin, ok: false, publishedAssetsMatch: publishedOrigin ? false : null,
     publishedAssetsChecked: [...publishedAssets].sort(), failedPublicAssets: [...publishedFailures].sort(), checksPassed: checks.length,
     code: publishedFailures.size ? 'PUBLISHED_ASSET_VERIFICATION_FAILED' : 'BROWSER_SCENARIO_FAILED',

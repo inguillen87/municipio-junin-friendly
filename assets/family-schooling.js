@@ -113,8 +113,9 @@ export function mountSchoolingReport(host) {
         const download = button('Descargar PDF'); download.setAttribute('aria-label', 'Descargar certificado PDF de ' + (r.familyName || 'hijo/a sin nombre informado'));
         download.addEventListener('click', () => getDocument(r.certificate)); cert.append(download);
       }
-      const link = node('a', 'Abrir ficha', 'fs-link'); link.href = 'internal-dashboard.html?contractId=' + encodeURIComponent(r.contractId) + '#legajos';
-      link.referrerPolicy = 'no-referrer'; link.setAttribute('aria-label', 'Abrir ficha del legajo ' + r.legajo); action.append(link);
+      const link = node('a', 'Abrir hijo y certificados', 'fs-link');
+      link.href = 'internal-dashboard.html?contractId=' + encodeURIComponent(r.contractId) + '&section=family&familyId=' + encodeURIComponent(r.familyId) + '#legajos';
+      link.referrerPolicy = 'no-referrer'; link.setAttribute('aria-label', 'Abrir certificados de ' + (r.familyName || 'hijo/a sin nombre informado') + ', legajo ' + r.legajo); action.append(link);
       tr.append(employee, child, presented, expiry, cert, action); return tr;
     });
     if (!rows.length) { const tr = node('tr'), td = node('td', 'No hay filas para este filtro. Podés cambiarlo o restablecer la búsqueda.'); td.colSpan = 6; tr.append(td); rows.push(tr); }
@@ -166,13 +167,15 @@ export function mountSchoolingReport(host) {
   return { consult, stop };
 }
 
-export function mountFamilyCertificates(host, { contractId, canPropose = false } = {}) {
+export function mountFamilyCertificates(host, { contractId, canPropose = false, focusFamilyId = null } = {}) {
   if (!host?.isConnected || host.dataset.schoolingMounted) return;
   host.dataset.schoolingMounted = 'true'; host.classList.add('family-schooling', 'fs-family');
   host.innerHTML = `<div class="fs-heading"><div><p class="fs-eyebrow">CARGA MANUAL · CONTROL INTERNO</p><h3>Certificados escolares de los hijos</h3><p>El archivo y sus fechas quedan vinculados al hijo seleccionado. Los registros anteriores se conservan.</p></div><button type="button" class="fs-button" data-fs-family-refresh>Actualizar certificados</button></div>
-    <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando certificados…</p><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Una fecha ausente no significa que no se presentó. Registrar un PDF no aprueba escolaridad ni habilita haberes.</p><div class="fs-family-list" data-fs-family-list></div>`;
+    <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando certificados…</p><p class="fs-note" role="status" data-fs-target-status hidden></p><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Una fecha ausente no significa que no se presentó. Registrar un PDF no aprueba escolaridad ni habilita haberes.</p><div class="fs-family-list" data-fs-family-list></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-family-status]'), list = $('[data-fs-family-list]');
   let data = null, editor = null, controller = null, generation = 0, destroyed = false, busy = false;
+  let focusPending = focusFamilyId !== null;
+  let focusObserver = null;
   const available = () => !destroyed && host.isConnected && Boolean(host.closest('dialog')?.open);
   const mayRegister = () => available() && data?.canRegister === true && canPropose;
   function controls() {
@@ -188,6 +191,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false }
     list.replaceChildren();
     for (const r of data.rows) {
       const card = node('article', undefined, 'fs-child'), top = node('div', undefined, 'fs-child-heading');
+      card.dataset.fsFamilyId = r.familyId; card.tabIndex = -1;
       top.append(node('h4', r.familyName || 'Hijo/a sin nombre informado'), node('span', r.administrativeActive ? 'Legajo activo al corte' : 'Legajo fuera del padrón activo', 'fs-pill muted'));
       card.append(top, node('p', 'Nacimiento: ' + schoolingDate(r.birthDate) + (r.familyEndDate ? ' · Baja del vínculo: ' + schoolingDate(r.familyEndDate) : ''), 'fs-note'));
       const dates = node('dl', undefined, 'fs-dates');
@@ -211,11 +215,42 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false }
     if (!mayRegister() && data.rows.length && data.storage.remainingBytes >= 10) list.append(node('p', 'Tu perfil permite consultar los certificados. La carga requiere permiso para proponer documentación del legajo.', 'fs-note'));
     controls();
   }
+  function focusRequestedChild() {
+    if (!focusPending || !available()) return;
+    focusPending = false;
+    const requested = typeof focusFamilyId === 'string' && /^[0-9]{1,20}$/.test(focusFamilyId) ? focusFamilyId : null;
+    const target = requested && Array.from(list.children).find(card => card.dataset.fsFamilyId === requested);
+    let destination = target;
+    if (!target) {
+      const notice = $('[data-fs-target-status]'); notice.hidden = false;
+      notice.textContent = 'El hijo seleccionado no aparece en los datos actuales de este legajo. Volvé al reporte para revisar el vínculo; no se seleccionó otro hijo.';
+      notice.tabIndex = -1; destination = notice;
+    }
+    destination.focus({ preventScroll: true });
+    const dialog = host.closest('dialog'), body = host.closest('.dialog-body');
+    const reveal = () => {
+      if (!available() || !destination.isConnected || document.activeElement !== destination) return;
+      if (body) {
+        dialog.scrollTop = 0;
+        body.scrollTop += destination.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
+      } else destination.scrollIntoView({ behavior: 'instant', block: 'start' });
+    };
+    reveal();
+    if (typeof ResizeObserver === 'function' && body) {
+      focusObserver?.disconnect(); focusObserver = new ResizeObserver(reveal);
+      focusObserver.observe(body); focusObserver.observe(host);
+      destination.addEventListener('blur', () => { focusObserver?.disconnect(); focusObserver = null; }, { once: true });
+    }
+    // A narrow dialog can reflow its header as fonts and the final status arrive.
+    // Reposition only while this same target still owns focus; never steal it back.
+    Promise.resolve(document.fonts?.ready).then(() => requestAnimationFrame(reveal));
+  }
   async function load(announcement) {
     if (busy || editor || !available()) return;
     controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
     try { const fresh = await readSchooling('family', controller, contractId); if (seq !== generation || !available()) return;
       data = fresh; render(); status.textContent = announcement || 'Certificados consultados. Las fechas corresponden al registro manual en MuniControl.';
+      focusRequestedChild();
     } catch (e) { if (seq === generation && available()) { data = null; list.replaceChildren(); $('[data-fs-storage]').hidden = true; status.textContent = announcement
       ? announcement + ' No pudimos actualizar la vista. Usá Actualizar certificados para volver a consultarla.' : message(e); } }
     finally { if (seq === generation && available()) { busy = false; controls(); } }
@@ -320,7 +355,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false }
       if (saved && available()) { await load('Certificado guardado. El registro anterior se conserva; esta carga no aprueba escolaridad ni haberes.'); $('[data-fs-family-refresh]').focus(); }
     });
   }
-  function stop() { destroyed = true; generation++; controller?.abort(); editor?.form.reset(); editor = null; data = null; list.replaceChildren();
+  function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.form.reset(); editor = null; data = null; list.replaceChildren();
     document.removeEventListener('mc:family-schooling-close', stop); window.removeEventListener('pagehide', stop); }
   $('[data-fs-family-refresh]').addEventListener('click', () => load());
   document.addEventListener('mc:family-schooling-close', stop); window.addEventListener('pagehide', stop);
