@@ -1,0 +1,55 @@
+name: Verify Noelia production delivery
+on:
+  push:
+    branches: ['internal-noelia-production-check-20260915']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify published assets, menu inclusion, branding and anonymous access
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,hashlib,json,pathlib,datetime,time
+          origin='https://municipio-junin-friendly.vercel.app'
+          paths=['assets/payroll-source-report-model.js','assets/payroll-source-reports.js','assets/report-centre.css','assets/report-document.js','assets/liquidaciones-menu.js','assets/liquidaciones-menu.css','assets/brand/logo-horizontal.svg','assets/brand/logo-horizontal-inverse.svg']
+          result={'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'sourceCommit':'7c34bede713c7f3769a35252e8f0c836b1ba9c1f','origin':origin,'assets':[],'pages':[],'accessChecks':[],'writes':False,'authenticatedSessionTested':False,'physicalClockTested':False}
+          errors=[]
+          def read(path):
+              req=urllib.request.Request(origin+'/'+path.lstrip('/'),headers={'Cache-Control':'no-cache','User-Agent':'MuniControl-delivery-verification/1.0'})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as response: return response.status,response.read(),dict(response.headers),response.url
+              except urllib.error.HTTPError as response: return response.code,response.read(),dict(response.headers),response.url
+          for p in paths:
+              expected=hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
+              status,data,headers,url=read(p);actual=hashlib.sha256(data).hexdigest()
+              matched=status==200 and expected==actual
+              result['assets'].append({'path':p,'status':status,'bytes':len(data),'expectedSha256':expected,'actualSha256':actual,'match':matched,'cacheControl':next((v for k,v in headers.items() if k.lower()=='cache-control'),None)})
+              if not matched:errors.append('asset:'+p)
+          for p in ['personal','nomina','novedades','relojes']:
+              status,data,headers,url=read(p);text=data.decode('utf-8',errors='replace')
+              included='src="/assets/liquidaciones-menu.js"' in text and 'href="/assets/liquidaciones-menu.css"' in text
+              result['pages'].append({'path':'/'+p,'status':status,'menuResourcesIncluded':included,'finalUrl':url})
+              if status!=200 or not included:errors.append('page:'+p)
+          for p in ['api/internal-data?resource=payrollsourcereport','api/internal-attendance?resource=pm10-reception']:
+              status,data,headers,url=read(p);cache=next((v for k,v in headers.items() if k.lower()=='cache-control'),'')
+              result['accessChecks'].append({'path':'/'+p,'status':status,'noStore':'no-store' in cache.lower()})
+              if status not in (401,403) or 'no-store' not in cache.lower():errors.append('access:'+p)
+          result['errors']=errors;result['passed']=not errors
+          pathlib.Path('verification').mkdir(exist_ok=True)
+          pathlib.Path('verification/noelia-production.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          assert not errors, str(errors)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: noelia-production-delivery-evidence
+          path: verification/noelia-production.json
+          retention-days: 5
+          if-no-files-found: error
