@@ -5,7 +5,7 @@ const git=(...args)=>execFileSync('git',args,{encoding:'utf8'}).trim();
 const manifest=JSON.parse(fs.readFileSync(path.join(meta,'.qa/native-manifest.json'),'utf8'));
 const additional=['scripts/build-friendly.mjs','.vercelignore'];
 assert.equal(git('rev-parse','HEAD'),base);
-function replaceOnce(file,old,next){const s=fs.readFileSync(file,'utf8');assert.equal(s.split(old).length-1,1,file);fs.writeFileSync(file,s.replace(old,next));}
+function replaceOnce(file,old,next){const s=fs.readFileSync(file,'utf8');assert.equal(s.split(old).length-1,1,file);fs.writeFileSync(file,s.replace(old,()=>next));}
 if(process.argv[2]==='apply'){
  assert.equal(git('hash-object','api/internal-data.js'),'5bdcfe5a516d8870adbf083f6519e932d615c716');
  assert.equal(git('hash-object','internal-dashboard.html'),'03c7aa9af19d29e0f1999257115a80f1e359b599');
