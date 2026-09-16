@@ -1,28 +1,37 @@
 name: Noelia report workspace
 on:
   push:
-    branches: ['master', 'chatgpt/noelia-report-workspace-20260915']
+    branches: ['master']
     paths:
       - 'src/islands/**'
       - 'tests/report-catalog*.test.js'
+      - 'tests/noelia-report-network-policy.test.js'
+      - 'scripts/noelia-report-network-policy.mjs'
       - 'scripts/verify-noelia-report-*.mjs'
+      - 'scripts/verify-report-catalog-browser.mjs'
+      - 'scripts/verify-report-centre-browser.mjs'
       - '.github/workflows/noelia-report-workspace.yml'
   pull_request:
+    branches: ['master']
     paths:
       - 'src/islands/**'
       - 'tests/report-catalog*.test.js'
+      - 'tests/noelia-report-network-policy.test.js'
+      - 'scripts/noelia-report-network-policy.mjs'
       - 'scripts/verify-noelia-report-*.mjs'
+      - 'scripts/verify-report-catalog-browser.mjs'
+      - 'scripts/verify-report-centre-browser.mjs'
       - '.github/workflows/noelia-report-workspace.yml'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: noelia-report-workspace-${{ github.event.pull_request.head.ref || github.ref_name }}
-  cancel-in-progress: true
+  group: noelia-report-workspace-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,40 +49,34 @@ jobs:
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-noelia-report-workspace-browser.mjs
           node scripts/verify-report-centre-browser.mjs
+          node scripts/verify-noelia-report-live-browser.mjs --local
       - name: Synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: noelia-report-workspace-browser-${{ github.run_id }}
+          name: noelia-report-workspace-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             verification/report-catalog-react-*.json
             verification/report-catalog-react-*.png
             verification/noelia-report-workspace-*.json
             verification/noelia-report-workspace-*.png
+            verification/noelia-report-network-local-*.json
+            verification/noelia-report-network-local-*.png
+            verification/report-centre-browser.json
+            verification/report-centre-browser-error.txt
           retention-days: 5
-  production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: node scripts/build-friendly.mjs
+      # Reuse this checkout, node_modules, build and Chromium. No second runner.
       - name: Verify published executable and license bytes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: node scripts/verify-noelia-report-production.mjs
-      - run: npx playwright install --with-deps chromium
       - name: Verify live public interface without municipal session
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: node scripts/verify-noelia-report-live-browser.mjs
       - name: Publication evidence
-        if: always()
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: noelia-report-workspace-production-${{ github.run_id }}
+          name: noelia-report-workspace-production-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             verification/noelia-report-production.json
             verification/noelia-report-live-*.json
