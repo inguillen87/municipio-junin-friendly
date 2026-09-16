@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { verifyReportCatalogViews } from './verify-report-catalog-views-browser.mjs';
 import { REPORT_SMOKE_ORIGIN as origin, reportSmokeRequestPolicy } from './noelia-report-network-policy.mjs';
 
 const args = process.argv.slice(2);
@@ -94,6 +95,8 @@ try {
     await catalog.getByRole('button', { name: 'Limpiar búsqueda', exact: true }).click();
   }
   checks.push('320px and 390px layouts preserve search, touch targets and reduced motion');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  checks.push(...await verifyReportCatalogViews(page, catalog, path.join(output, `${prefix}-views`)));
   assert.deepEqual(errors, []);
   assert.ok(local ? forwardedRequests === 0 : forwardedRequests > 0);
   const result = {

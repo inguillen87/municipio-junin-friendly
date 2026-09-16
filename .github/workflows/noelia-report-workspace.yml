@@ -9,6 +9,7 @@ on:
       - 'scripts/noelia-report-network-policy.mjs'
       - 'scripts/verify-noelia-report-*.mjs'
       - 'scripts/verify-report-catalog-browser.mjs'
+      - 'scripts/verify-report-catalog-views-browser.mjs'
       - 'scripts/verify-report-centre-browser.mjs'
       - '.github/workflows/noelia-report-workspace.yml'
   pull_request:
@@ -20,6 +21,7 @@ on:
       - 'scripts/noelia-report-network-policy.mjs'
       - 'scripts/verify-noelia-report-*.mjs'
       - 'scripts/verify-report-catalog-browser.mjs'
+      - 'scripts/verify-report-catalog-views-browser.mjs'
       - 'scripts/verify-report-centre-browser.mjs'
       - '.github/workflows/noelia-report-workspace.yml'
   workflow_dispatch:
@@ -42,6 +44,7 @@ jobs:
       - name: Full tests and reproducible build
         run: |
           node --check scripts/verify-noelia-report-live-browser.mjs
+          node --check scripts/verify-report-catalog-views-browser.mjs
           npm run build
       - run: npx playwright install --with-deps chromium
       - name: Existing catalog, new workspace and report regression

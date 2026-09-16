@@ -1,8 +1,8 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CATALOG_AREAS, CATALOG_FORMATS, catalogEntries, filterCatalog, catalogAreaCounts, normalizeCatalogSearch } from './report-catalog-model.js';
+import { CATALOG_SHORTCUTS, catalogShortcut } from './report-catalog-shortcuts.js';
 
-// Scoped, static presentation travels with the optional island. No global
-// stylesheet/build change, and the legacy catalog remains usable on load failure.
+// Scoped presentation belongs to the optional island; legacy fallback stays intact.
 const styles = `
 [data-catalog-workspace] .rc-task-areas{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
 [data-catalog-workspace] .rc-task-areas button{gap:9px;min-height:44px}
@@ -19,15 +19,30 @@ const styles = `
 [data-catalog-workspace] .rc-card[data-external-control=true]{border-color:#d6bc8b;background:#fffdf8}
 [data-catalog-workspace] .rc-card[data-external-control=true] .rc-origin{color:#775011;border-color:#e8d9bc}
 [data-catalog-workspace] .rc-empty{margin:0;border:1px dashed #b8cdd5;border-radius:12px;background:#fff;color:#365566}
-@media(max-width:620px){[data-catalog-workspace] .rc-task-areas button{flex:1 1 130px}[data-catalog-workspace] .rc-task-toolbar{align-items:stretch;padding:12px}[data-catalog-workspace] .rc-task-format{width:100%}[data-catalog-workspace] .rc-task-format select{flex:1;min-width:0}[data-catalog-workspace] .rc-task-reset{width:100%}[data-catalog-workspace] .rc-task-reset button{flex:1 1 130px}}
-@media print{[data-catalog-workspace] .rc-task-areas,[data-catalog-workspace] .rc-task-toolbar,[data-catalog-workspace] .rc-task-note{display:none!important}}
+[data-catalog-workspace] .rc-shortcuts{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+[data-catalog-workspace] .rc-shortcuts-label{font-size:12px;color:#405f6f;font-weight:700;margin-right:4px}
+[data-catalog-workspace] .rc-shortcuts button{min-height:44px}
+[data-catalog-workspace] .rc-display{display:flex;gap:4px;flex-wrap:wrap}
+[data-catalog-workspace] .rc-display button{min-height:44px}
+[data-catalog-workspace] .rc-catalog[data-catalog-view=list]{grid-template-columns:minmax(0,1fr);gap:10px}
+[data-catalog-workspace] [data-catalog-view=list] .rc-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.65fr) auto;grid-template-areas:'kind kind action' 'title format action' 'description origin action';gap:6px 18px;align-items:center;padding:18px;min-height:0}
+[data-catalog-workspace] [data-catalog-view=list] .rc-eyebrow{grid-area:kind}
+[data-catalog-workspace] [data-catalog-view=list] h3{grid-area:title;margin:0}
+[data-catalog-workspace] [data-catalog-view=list] .rc-card p{grid-area:description;margin:0}
+[data-catalog-workspace] [data-catalog-view=list] .rc-tag{grid-area:format;justify-self:start}
+[data-catalog-workspace] [data-catalog-view=list] .rc-origin{grid-area:origin;border:0;padding:0}
+[data-catalog-workspace] [data-catalog-view=list] .rc-card-action{grid-area:action;max-width:180px;margin:0}
+@media(max-width:720px){[data-catalog-workspace] [data-catalog-view=list] .rc-card{grid-template-columns:minmax(0,1fr);grid-template-areas:'kind' 'title' 'description' 'format' 'origin' 'action';gap:9px}[data-catalog-workspace] [data-catalog-view=list] .rc-card-action{max-width:none}}
+@media(max-width:620px){[data-catalog-workspace] .rc-task-areas button{flex:1 1 130px}[data-catalog-workspace] .rc-task-toolbar{align-items:stretch;padding:12px}[data-catalog-workspace] .rc-task-format{width:100%}[data-catalog-workspace] .rc-task-format select{flex:1;min-width:0}[data-catalog-workspace] .rc-task-reset{width:100%}[data-catalog-workspace] .rc-task-reset button{flex:1 1 130px}[data-catalog-workspace] .rc-display{width:100%}[data-catalog-workspace] .rc-display button{flex:1}}
+@media print{[data-catalog-workspace] .rc-task-areas,[data-catalog-workspace] .rc-task-toolbar,[data-catalog-workspace] .rc-task-note,[data-catalog-workspace] .rc-shortcuts{display:none!important}}
 `;
 
-// Public descriptions only. Payroll data, files and forms stay outside this root.
+// Payroll data and working forms remain outside this React root.
 export default function ReportCatalog({ cards, initialQuery = '', onReady }) {
   const [query, setQuery] = useState(initialQuery);
   const [area, setArea] = useState('all');
   const [format, setFormat] = useState('all');
+  const [view, setView] = useState('cards');
   const input = useRef(null);
   const countId = useId();
   const formatId = useId();
@@ -50,6 +65,13 @@ export default function ReportCatalog({ cards, initialQuery = '', onReady }) {
     setFormat('all');
     clear();
   }
+  function selectShortcut(id) {
+    const next = catalogShortcut(id);
+    setQuery(next.query);
+    setArea(next.area);
+    setFormat(next.format);
+    input.current?.focus();
+  }
 
   return <section data-catalog-workspace="v2" aria-label="Biblioteca de reportes">
     <style>{styles}</style>
@@ -59,6 +81,12 @@ export default function ReportCatalog({ cards, initialQuery = '', onReady }) {
         <input ref={input} type="search" data-catalog-search placeholder="Mutuales, recibos, bancarización…"
           maxLength={80} value={query} onChange={event => setQuery(event.target.value)} aria-describedby={countId} />
       </label>
+    </div>
+    <div className="rc-shortcuts" role="group" aria-label="Accesos rápidos de reportes">
+      <span className="rc-shortcuts-label">Ir a una tarea</span>
+      {CATALOG_SHORTCUTS.map(item => <button key={item.id} type="button" className="rc-button secondary"
+        data-catalog-shortcut={item.id} onClick={() => selectShortcut(item.id)}
+        title="Ajusta la búsqueda y el área; restablece el formato">{item.label}</button>)}
     </div>
     <div className="rc-task-areas" role="group" aria-label="Área de trabajo">
       {areas.map(item => <button key={item.id} type="button" data-catalog-area={item.id}
@@ -78,6 +106,11 @@ export default function ReportCatalog({ cards, initialQuery = '', onReady }) {
           {CATALOG_FORMATS.map(value => <option key={value} value={value}>{value}</option>)}
         </select>
       </label>
+      <div className="rc-display" role="group" aria-label="Presentación de reportes">
+        {[['cards', 'Tarjetas'], ['list', 'Lista compacta']].map(([value, label]) => <button key={value} type="button"
+          data-catalog-view-button={value} aria-pressed={view === value}
+          className={`rc-button${view === value ? '' : ' secondary'}`} onClick={() => setView(value)}>{label}</button>)}
+      </div>
       {query || hasFilters ? <div className="rc-task-reset">
         {query ? <button type="button" className="rc-button secondary" onClick={clear}>Limpiar búsqueda</button> : null}
         {hasFilters ? <button type="button" className="rc-button secondary" onClick={reset}>Restablecer filtros</button> : null}
@@ -85,7 +118,7 @@ export default function ReportCatalog({ cards, initialQuery = '', onReady }) {
     </div>
     <p className="rc-task-note">Los reportes internos usan los datos conservados y requieren los permisos correspondientes.
       {' '}Los datos agregados mantienen su fecha de corte. <strong>Controles externos</strong> revisa archivos del sistema anterior: no envía pagos ni presenta declaraciones.</p>
-    <div className="rc-catalog">
+    <div className="rc-catalog" data-catalog-view={view}>
       {visible.map(entry => <a key={entry.href} className="rc-card" href={entry.href} data-external-control={entry.external ? 'true' : undefined}>
         <span className="rc-eyebrow">{entry.kind}</span>
         <h3>{entry.title}</h3><p>{entry.description}</p><span className="rc-tag">{entry.tag}</span>
