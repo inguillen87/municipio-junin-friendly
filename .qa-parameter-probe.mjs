@@ -1,14 +1,15 @@
-// Diagnostic instrumentation only; requests and writes remain synthetic.
+// Adds diagnostics only AFTER the unmodified initial assertion fails.
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 const file='scripts/verify-payroll-parameters-browser.mjs';
 const original=fs.readFileSync(file,'utf8');
-let source=original.replace('const checks = [], errors = [], writes = [], calls = [], store = [], receipts = new Map();','let debugPage; const events=[], networkFailures=[], consoleErrors=[]; const checks = [], errors = [], writes = [], calls = [], store = [], receipts = new Map();');
-source=source.replace("const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message));", "const page = await context.newPage(); debugPage=page; page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message)); page.on('request',r=>events.push({type:'request',path:new URL(r.url()).pathname+new URL(r.url()).search})); page.on('requestfinished',r=>events.push({type:'finished',path:new URL(r.url()).pathname+new URL(r.url()).search})); page.on('requestfailed', r=>networkFailures.push({path:new URL(r.url()).pathname,error:r.failure()?.errorText})); page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text().slice(0,700));});");
-source=source.replace('} finally { await browser.close(); }',` } catch(error) {
- const state=debugPage?await debugPage.evaluate(()=>({url:location.pathname+location.hash,ready:document.readyState,mainHidden:document.querySelector('#mainContent')?.hidden,task:document.querySelector('#payrollTaskWorkspace')?.dataset.activeTask,parameterHTML:document.querySelector('#task-parametros')?.innerHTML.slice(0,2500),parameterText:document.querySelector('#task-parametros')?.innerText.slice(0,1800),gateState:document.documentElement.dataset.mcCapabilityState,gateReady:document.documentElement.dataset.mcCapabilityReady,hasWorkspace:!!document.querySelector('[data-parameter-workspace]'),selected:[...document.querySelectorAll('[role=tab][aria-selected=true]')].map(n=>n.textContent),pageError:document.querySelector('#errorHost')?.innerText})).catch(e=>({error:e.message})):null;
- const diagnostic={checks,errors,calls,events,networkFailures,consoleErrors,state,error:String(error.stack),apiResponsesSynthetic:true,actualWritesSent:0};
- fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify(diagnostic,null,2)); console.log('PARAMETER_BROWSER_FAILURE '+JSON.stringify(diagnostic));
- if(debugPage)await debugPage.screenshot({path:path.join(out,'failure.png')}).catch(()=>{}); throw error;
- } finally { await browser.close(); }`);
-try{fs.writeFileSync(file,source);for(let i=0;i<3;i++){console.log('COLD_BROWSER_ATTEMPT '+(i+1));const r=spawnSync(process.execPath,[file],{stdio:'inherit',timeout:90000});if(r.status!==0){process.exitCode=r.status??1;break;}}}finally{fs.writeFileSync(file,original);}
+const marker="await w.getByText('Parámetros disponibles.', { exact: false }).waitFor();";
+if(!original.includes(marker))throw Error('Missing startup assertion');
+const probe=original.replace(marker,marker.slice(0,-1)+`.catch(async(error)=>{
+ const state=await page.evaluate(()=>({url:location.pathname+location.hash,ready:document.readyState,mainHidden:document.querySelector('#mainContent')?.hidden,task:document.querySelector('#payrollTaskWorkspace')?.dataset.activeTask,parameterHTML:document.querySelector('#task-parametros')?.innerHTML.slice(0,3500),parameterText:document.querySelector('#task-parametros')?.innerText.slice(0,2000),gateState:document.documentElement.dataset.mcCapabilityState,gateReady:document.documentElement.dataset.mcCapabilityReady,selected:[...document.querySelectorAll('[role=tab][aria-selected=true]')].map(n=>n.textContent),pageError:document.querySelector('#errorHost')?.innerText}));
+ const diagnostic={state,calls,errors,error:String(error.stack),actualWritesSent:0};
+ console.log('STARTUP_FAILURE '+JSON.stringify(diagnostic));
+ fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify(diagnostic,null,2));
+ await page.screenshot({path:path.join(out,'failure.png')});throw error;
+ });`);
+try{fs.writeFileSync(file,probe);const r=spawnSync(process.execPath,[file],{stdio:'inherit',timeout:90000});process.exitCode=r.status??1;}finally{fs.writeFileSync(file,original);}

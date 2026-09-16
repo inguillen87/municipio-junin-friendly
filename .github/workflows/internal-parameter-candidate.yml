@@ -1,4 +1,4 @@
-name: Focused parameter startup diagnosis without previews
+name: Parameter clean-build startup evidence without preview
 on:
   push:
     branches: ['internal/payroll-parameters-20260916']
@@ -31,14 +31,19 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node scripts/build-friendly.mjs
+      - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Capture initialization ordering on the clean compiled page
+      - name: Inspect state only after the initial assertion fails
         run: node ../meta/.qa-parameter-probe.mjs
+      - name: Existing report and leave acceptance
+        run: |
+          node scripts/verify-report-catalog-browser.mjs
+          node scripts/verify-report-centre-browser.mjs
+          node scripts/verify-leave-workspace-browser.mjs
       - name: Synthetic diagnosis evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: parameter-startup-${{ github.run_id }}
+          name: parameter-clean-startup-${{ github.run_id }}
           path: app/verification/parameters-local/**
           retention-days: 3
