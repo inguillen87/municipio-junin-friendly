@@ -1,7 +1,8 @@
-name: Parameter candidate without Vercel preview
+name: Clean parameter release acceptance without preview
 on:
   push:
     branches: ['internal/payroll-parameters-20260916']
+    paths: ['.github/workflows/internal-parameter-candidate.yml']
 permissions:
   contents: read
 concurrency:
@@ -12,43 +13,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
+      # Exact clean release: no temporary manifest, diagnostic or Vercel override.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 3
+          ref: '5a52b8e3f8ba91b7ea2f4fb38f0f38789dade89d'
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - name: Check reviewed source hashes and restore production configuration for tests
+      - name: Assert exact release and no candidate metadata
         run: |
-          node --input-type=module <<'JS'
-          import fs from 'node:fs';
-          import { createHash } from 'node:crypto';
-          import assert from 'node:assert/strict';
-          for (const [file,expected] of Object.entries(JSON.parse(fs.readFileSync('.qa-parameters-manifest.json')))) {
-            const b=fs.readFileSync(file); assert.equal(createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex'),expected,file);
-          }
-          console.log('All seventeen reviewed files match.');
-          JS
-          git show 14d21542630e504571b5b41be6dacc7b272ac64a:vercel.json > vercel.json
+          test "$(git rev-parse HEAD)" = 5a52b8e3f8ba91b7ea2f4fb38f0f38789dade89d
+          test ! -e .qa-parameters-manifest.json
+          test ! -e .qa-parameter-probe.mjs
+          test ! -e .github/workflows/internal-parameter-candidate.yml
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node scripts/build-friendly.mjs
+      - name: Full tests and exact production build
+        run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Focused full-page diagnostic before repeating the suite
-        run: node .qa-parameter-probe.mjs
-      - name: Full suite and existing report/leave browser journeys
+      - name: Parameter, report and leave acceptance
         run: |
-          npm test
+          node scripts/verify-payroll-parameters-browser.mjs
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-report-centre-browser.mjs
           node scripts/verify-leave-workspace-browser.mjs
-      - name: Synthetic test evidence
+      - name: Synthetic acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: parameters-candidate-${{ github.run_id }}
+          name: parameters-clean-release-${{ github.run_id }}
           path: |
             verification/parameters-local/**
             verification/leave-workspace-local*
+            verification/report-catalog-react-*.json
+            verification/report-centre-browser.json
           retention-days: 3
