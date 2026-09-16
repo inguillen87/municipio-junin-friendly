@@ -1,25 +1,53 @@
-name: Read prior parameter regression failure without rebuilding
+name: Final parameter release acceptance without previews
 on:
   push:
     branches: ['internal/payroll-parameters-20260916']
     paths: ['.github/workflows/internal-parameter-candidate.yml']
 permissions:
   contents: read
-  actions: read
 jobs:
-  inspect:
+  acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 12
     steps:
-      - name: Summarize existing failure only, no build or deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          ref: '87c93bcb16e4955a5f6159164b83837a4cf3aa86'
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full suite and exact production build
         run: |
+          npm run build > "$RUNNER_TEMP/parameter-build.log" 2>&1 || { tail -60 "$RUNNER_TEMP/parameter-build.log"; exit 1; }
+          tail -12 "$RUNNER_TEMP/parameter-build.log"
+      - run: npx playwright install --with-deps chromium > /tmp/parameter-browser-install.log 2>&1
+      - name: Three cold openings and all affected regressions
+        run: |
+          mkdir -p verification/release-acceptance
           node --input-type=module <<'JS'
-          const url = 'https://api.github.com/repos/inguillen87/municipio-junin-friendly/actions/jobs/104724859035/logs';
-          const response = await fetch(url, {headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json'}, signal:AbortSignal.timeout(30000)});
-          if(!response.ok)throw Error('Prior log unavailable HTTP '+response.status);
-          const text=await response.text();
-          console.log(text.split('\n').filter(line=>!line.includes('GH_TOKEN')).slice(-95).join('\n').slice(-10000));
-          console.log('Read existing run only. No application tests, dependencies, records, commits or deployments created by this job.');
+          import fs from 'node:fs';
+          import {spawnSync} from 'node:child_process';
+          const jobs=['verify-payroll-parameters-browser','verify-payroll-parameters-browser','verify-payroll-parameters-browser','verify-report-catalog-browser','verify-report-centre-browser','verify-leave-workspace-browser','verify-noelia-report-workspace-browser'];
+          const results=[];
+          for (const [i,name] of jobs.entries()) {
+            const result=spawnSync(process.execPath,['scripts/'+name+'.mjs'],{encoding:'utf8',timeout:180000,maxBuffer:3000000});
+            fs.writeFileSync(`verification/release-acceptance/${i}-${name}.log`,(result.stdout||'')+(result.stderr||''));
+            console.log(name+' '+i+' exit='+result.status);
+            console.log(((result.stdout||'')+(result.stderr||'')).slice(-5000));
+            results.push({name,exit:result.status});
+            if(result.status!==0){fs.writeFileSync('verification/release-acceptance/results.json',JSON.stringify({ok:false,results}));process.exit(1);}
+          }
+          fs.writeFileSync('verification/release-acceptance/results.json',JSON.stringify({ok:true,commit:'87c93bcb16e4955a5f6159164b83837a4cf3aa86',results}));
           JS
+      - name: Synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parameters-final-${{ github.run_id }}
+          path: |
+            verification/release-acceptance/**
+            verification/parameters-local/**
+          retention-days: 3
