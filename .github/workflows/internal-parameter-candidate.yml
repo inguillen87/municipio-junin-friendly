@@ -1,8 +1,8 @@
-name: Clean parameter release acceptance without preview
+name: Focused parameter startup diagnosis without previews
 on:
   push:
     branches: ['internal/payroll-parameters-20260916']
-    paths: ['.github/workflows/internal-parameter-candidate.yml']
+    paths: ['.github/workflows/internal-parameter-candidate.yml', '.qa-parameter-probe.mjs']
 permissions:
   contents: read
 concurrency:
@@ -11,41 +11,34 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: app
     steps:
-      # Exact clean release: no temporary manifest, diagnostic or Vercel override.
+      - uses: actions/checkout@v4
+        with:
+          path: meta
+          persist-credentials: false
       - uses: actions/checkout@v4
         with:
           ref: '5a52b8e3f8ba91b7ea2f4fb38f0f38789dade89d'
+          path: app
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - name: Assert exact release and no candidate metadata
-        run: |
-          test "$(git rev-parse HEAD)" = 5a52b8e3f8ba91b7ea2f4fb38f0f38789dade89d
-          test ! -e .qa-parameters-manifest.json
-          test ! -e .qa-parameter-probe.mjs
-          test ! -e .github/workflows/internal-parameter-candidate.yml
+          cache-dependency-path: app/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Full tests and exact production build
-        run: npm run build
+      - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Parameter, report and leave acceptance
-        run: |
-          node scripts/verify-payroll-parameters-browser.mjs
-          node scripts/verify-report-catalog-browser.mjs
-          node scripts/verify-report-centre-browser.mjs
-          node scripts/verify-leave-workspace-browser.mjs
-      - name: Synthetic acceptance evidence
+      - name: Capture initialization ordering on the clean compiled page
+        run: node ../meta/.qa-parameter-probe.mjs
+      - name: Synthetic diagnosis evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: parameters-clean-release-${{ github.run_id }}
-          path: |
-            verification/parameters-local/**
-            verification/leave-workspace-local*
-            verification/report-catalog-react-*.json
-            verification/report-centre-browser.json
+          name: parameter-startup-${{ github.run_id }}
+          path: app/verification/parameters-local/**
           retention-days: 3
