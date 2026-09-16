@@ -1018,7 +1018,8 @@
                 <article class="metric-card"><span>Condicionales</span><strong id="conditionalCount">—</strong></article>
                 <article class="metric-card"><span>No calculables</span><strong id="notCalculableCount">—</strong></article>
               </div>
-              <div class="matrix-grid">
+              <div id="leaveRulesRoot" hidden></div>
+              <div class="matrix-grid" id="leaveRulesLegacy">
                 <article class="matrix-column is-calculable">
                   <h3>Calculable</h3>
                   <p>La norma y los hechos de entrada permiten un resultado reproducible.</p>
@@ -1231,6 +1232,27 @@
       var redirecting = false;
       var previewRequestId = 0;
       var normativeState = null;
+      var leaveRulesUi = null;
+      var leaveRulesRevision = 0;
+
+      function releaseLeaveRules() {
+        leaveRulesRevision += 1;
+        if (leaveRulesUi) leaveRulesUi.dispose();
+        leaveRulesUi = null;
+      }
+
+      function enhanceLeaveRules(rules) {
+        var revision = ++leaveRulesRevision;
+        if (leaveRulesUi) { leaveRulesUi.update(rules); return; }
+        import('__MC_LEAVE_RULES_BUNDLE__').then(function (module) {
+          if (revision !== leaveRulesRevision || redirecting) return;
+          leaveRulesUi = module.mountLeaveRules(byId('leaveRulesRoot'), byId('leaveRulesLegacy'), rules);
+        }).catch(function () {
+          // A failed optional enhancement never hides the legacy rule directory.
+          if (revision !== leaveRulesRevision) return;
+          releaseLeaveRules();
+        });
+      }
 
       var el = {};
 
@@ -1354,6 +1376,10 @@
 
       function normalizeStatus(value) {
         var code = normalizeCode(value);
+        // Local provenance never implies a complete applicability profile.
+        if (code.indexOf('official_local_') === 0) {
+          return { key: 'partial', label: 'Requiere revisión', className: 'is-partial' };
+        }
         if (code.indexOf('official_') === 0 && code.indexOf('requires_') < 0 && code.indexOf('not_complete') < 0) {
           return { key: 'ready', label: 'Fuente oficial', className: 'is-ready' };
         }
@@ -1824,6 +1850,7 @@
       function redirectToLogin() {
         if (redirecting) return;
         redirecting = true;
+        releaseLeaveRules();
         location.replace(LOGIN_URL);
       }
 
@@ -1873,6 +1900,7 @@
       }
 
       function showGlobalLoading(message) {
+        leaveRulesRevision += 1;
         el.loadingMessage.textContent = message || 'Consultando información.';
         el.loading.hidden = false;
         el.errorHost.hidden = true;
@@ -1881,6 +1909,7 @@
 
       function showGlobalError(error) {
         if (error && error.unauthorized) return;
+        releaseLeaveRules();
         clear(el.errorHost);
         var card = create('div', 'state-card');
         var title = create('h2', '', 'No pudimos preparar Licencias');
@@ -2018,6 +2047,7 @@
           group.empty.hidden = groups[group.key].length > 0;
           groups[group.key].forEach(function (rule) { renderRule(rule, group.list); });
         });
+        enhanceLeaveRules(state.matrix);
       }
 
       function renderMappings(state) {

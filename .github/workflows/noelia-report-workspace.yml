@@ -4,6 +4,13 @@ on:
     branches: ['master']
     paths:
       - 'src/islands/**'
+      - 'licencias-control.html'
+      - 'assets/app-routes.js'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/build-react-islands.mjs'
+      - 'tests/leave-workspace.test.js'
+      - 'tests/app-routes.test.js'
+      - 'scripts/verify-leave-workspace-*.mjs'
       - 'tests/report-catalog*.test.js'
       - 'tests/noelia-report-network-policy.test.js'
       - 'scripts/noelia-report-network-policy.mjs'
@@ -16,6 +23,13 @@ on:
     branches: ['master']
     paths:
       - 'src/islands/**'
+      - 'licencias-control.html'
+      - 'assets/app-routes.js'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/build-react-islands.mjs'
+      - 'tests/leave-workspace.test.js'
+      - 'tests/app-routes.test.js'
+      - 'scripts/verify-leave-workspace-*.mjs'
       - 'tests/report-catalog*.test.js'
       - 'tests/noelia-report-network-policy.test.js'
       - 'scripts/noelia-report-network-policy.mjs'
@@ -53,6 +67,7 @@ jobs:
           node scripts/verify-noelia-report-workspace-browser.mjs
           node scripts/verify-report-centre-browser.mjs
           node scripts/verify-noelia-report-live-browser.mjs --local
+          node scripts/verify-leave-workspace-browser.mjs
       - name: Synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,6 +82,7 @@ jobs:
             verification/noelia-report-network-local-*.png
             verification/report-centre-browser.json
             verification/report-centre-browser-error.txt
+            verification/leave-workspace-local*
           retention-days: 5
       # Reuse this checkout, node_modules, build and Chromium. No second runner.
       - name: Verify published executable and license bytes
@@ -74,7 +90,10 @@ jobs:
         run: node scripts/verify-noelia-report-production.mjs
       - name: Verify live public interface without municipal session
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: node scripts/verify-noelia-report-live-browser.mjs
+        run: |
+          node scripts/verify-noelia-report-live-browser.mjs
+          node scripts/verify-leave-workspace-production.mjs
+          node scripts/verify-leave-workspace-browser.mjs --published
       - name: Publication evidence
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
@@ -84,4 +103,6 @@ jobs:
             verification/noelia-report-production.json
             verification/noelia-report-live-*.json
             verification/noelia-report-live-*.png
+            verification/leave-workspace-production.json
+            verification/leave-workspace-live*
           retention-days: 14

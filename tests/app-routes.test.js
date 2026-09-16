@@ -102,3 +102,20 @@ test('si el contrato de rutas no carga, los destinos limpios permanecen cerrados
   assert.equal(node.hidden, true);
   assert.match(appended[0].textContent, /a\[href\]/);
 });
+
+test('runtime link normalization preserves authority, downloads, query and fragments', () => {
+  function anchor(href, download = false) {
+    return { nodeType: 1, tagName: 'A', hidden: true, count: 0, href,
+      hasAttribute: key => key === 'download' && download,
+      getAttribute(key) { return key === 'href' ? this.href : null; },
+      setAttribute(key, value) { assert.equal(key, 'href'); this.href = value; this.count++; },
+    };
+  }
+  const nodes = [anchor('nomina-control.html?period=2026-08#comparar'), anchor('#legajos'), anchor('?year=2026'), anchor('https://external.invalid/nomina-control.html'), anchor('reportes-rrhh.html', true)];
+  const stop = routes.observeLinks({ baseURI: 'https://muni.invalid/personal', querySelectorAll: () => nodes });
+  assert.deepEqual(nodes.map(n => n.href), ['/nomina?period=2026-08#comparar', '#legajos', '?year=2026', 'https://external.invalid/nomina-control.html', 'reportes-rrhh.html']);
+  assert.ok(nodes.every(n => n.hidden), 'rewriting a path never grants access');
+  routes.observeLinks({ baseURI: 'https://muni.invalid/personal', querySelectorAll: () => nodes });
+  assert.equal(nodes[0].count, 1, 'idempotent, no mutation loop');
+  assert.equal(typeof stop, 'function'); stop();
+});

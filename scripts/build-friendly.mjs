@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
-import { buildReactIslands } from './build-react-islands.mjs';
+import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
@@ -265,6 +265,7 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
 }
 
 await buildReactIslands(root, output);
+await buildLeaveRulesIsland(root, output);
 
 const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {

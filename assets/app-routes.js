@@ -80,5 +80,35 @@
     return route.path + route.search + hash;
   }
 
-  global.MuniControlRoutes = Object.freeze({ definitions: Object.freeze(definitions), resolve: resolve, canonicalHref: canonicalHref, loginHref: loginHref, safeDestination: safeDestination });
+  function normalizeLink(node, baseHref) {
+    if (!node || node.nodeType !== 1 || node.tagName !== 'A' || node.hasAttribute('download')) return;
+    var original = node.getAttribute('href');
+    var canonical = canonicalHref(original, baseHref);
+    if (canonical !== original) node.setAttribute('href', canonical);
+  }
+
+  function observeLinks(root) {
+    if (!root || !root.querySelectorAll) return function () {};
+    var baseHref = function () { return root.baseURI || (global.location && global.location.href) || 'https://municontrol.invalid/'; };
+    function normalizeTree(node) {
+      normalizeLink(node, baseHref());
+      if (node && node.querySelectorAll) node.querySelectorAll('a[href]').forEach(function (link) { normalizeLink(link, baseHref()); });
+    }
+    normalizeTree(root);
+    if (typeof global.MutationObserver !== 'function') return function () {};
+    var observer = new global.MutationObserver(function (records) {
+      records.forEach(function (record) {
+        if (record.type === 'attributes') normalizeLink(record.target, baseHref());
+        else record.addedNodes.forEach(normalizeTree);
+      });
+    });
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['href'] });
+    return function () { observer.disconnect(); };
+  }
+
+  global.MuniControlRoutes = Object.freeze({ definitions: Object.freeze(definitions), resolve: resolve, canonicalHref: canonicalHref, loginHref: loginHref, safeDestination: safeDestination, observeLinks: observeLinks });
+  if (global.document && typeof global.document.addEventListener === 'function') {
+    if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', function () { observeLinks(global.document); }, { once: true });
+    else observeLinks(global.document);
+  }
 })(typeof window === 'undefined' ? globalThis : window);
