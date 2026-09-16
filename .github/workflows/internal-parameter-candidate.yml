@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 3
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -33,12 +33,13 @@ jobs:
           JS
           git show 14d21542630e504571b5b41be6dacc7b272ac64a:vercel.json > vercel.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Full tests and production build
-        run: npm run build
+      - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Parameters and existing report/leave browser journeys
+      - name: Focused full-page diagnostic before repeating the suite
+        run: node .qa-parameter-probe.mjs
+      - name: Full suite and existing report/leave browser journeys
         run: |
-          node scripts/verify-payroll-parameters-browser.mjs
+          npm test
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-report-centre-browser.mjs
           node scripts/verify-leave-workspace-browser.mjs
