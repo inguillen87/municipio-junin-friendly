@@ -1,0 +1,187 @@
+diff --git a/.github/workflows/noelia-report-workspace.yml b/.github/workflows/noelia-report-workspace.yml
+index 5375110..90ac97a 100644
+--- a/.github/workflows/noelia-report-workspace.yml
++++ b/.github/workflows/noelia-report-workspace.yml
+@@ -6,0 +7,7 @@ on:
++      - 'licencias-control.html'
++      - 'assets/app-routes.js'
++      - 'scripts/build-friendly.mjs'
++      - 'scripts/build-react-islands.mjs'
++      - 'tests/leave-workspace.test.js'
++      - 'tests/app-routes.test.js'
++      - 'scripts/verify-leave-workspace-*.mjs'
+@@ -18,0 +26,7 @@ on:
++      - 'licencias-control.html'
++      - 'assets/app-routes.js'
++      - 'scripts/build-friendly.mjs'
++      - 'scripts/build-react-islands.mjs'
++      - 'tests/leave-workspace.test.js'
++      - 'tests/app-routes.test.js'
++      - 'scripts/verify-leave-workspace-*.mjs'
+@@ -55,0 +70 @@ jobs:
++          node scripts/verify-leave-workspace-browser.mjs
+@@ -69,0 +85 @@ jobs:
++            verification/leave-workspace-local*
+@@ -77 +93,4 @@ jobs:
+-        run: node scripts/verify-noelia-report-live-browser.mjs
++        run: |
++          node scripts/verify-noelia-report-live-browser.mjs
++          node scripts/verify-leave-workspace-production.mjs
++          node scripts/verify-leave-workspace-browser.mjs --published
+@@ -86,0 +106,2 @@ jobs:
++            verification/leave-workspace-production.json
++            verification/leave-workspace-live*
+diff --git a/assets/app-routes.js b/assets/app-routes.js
+index d62e323..8f79b66 100644
+--- a/assets/app-routes.js
++++ b/assets/app-routes.js
+@@ -83 +83,31 @@
+-  global.MuniControlRoutes = Object.freeze({ definitions: Object.freeze(definitions), resolve: resolve, canonicalHref: canonicalHref, loginHref: loginHref, safeDestination: safeDestination });
++  function normalizeLink(node, baseHref) {
++    if (!node || node.nodeType !== 1 || node.tagName !== 'A' || node.hasAttribute('download')) return;
++    var original = node.getAttribute('href');
++    var canonical = canonicalHref(original, baseHref);
++    if (canonical !== original) node.setAttribute('href', canonical);
++  }
++
++  function observeLinks(root) {
++    if (!root || !root.querySelectorAll) return function () {};
++    var baseHref = function () { return root.baseURI || (global.location && global.location.href) || 'https://municontrol.invalid/'; };
++    function normalizeTree(node) {
++      normalizeLink(node, baseHref());
++      if (node && node.querySelectorAll) node.querySelectorAll('a[href]').forEach(function (link) { normalizeLink(link, baseHref()); });
++    }
++    normalizeTree(root);
++    if (typeof global.MutationObserver !== 'function') return function () {};
++    var observer = new global.MutationObserver(function (records) {
++      records.forEach(function (record) {
++        if (record.type === 'attributes') normalizeLink(record.target, baseHref());
++        else record.addedNodes.forEach(normalizeTree);
++      });
++    });
++    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['href'] });
++    return function () { observer.disconnect(); };
++  }
++
++  global.MuniControlRoutes = Object.freeze({ definitions: Object.freeze(definitions), resolve: resolve, canonicalHref: canonicalHref, loginHref: loginHref, safeDestination: safeDestination, observeLinks: observeLinks });
++  if (global.document && typeof global.document.addEventListener === 'function') {
++    if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', function () { observeLinks(global.document); }, { once: true });
++    else observeLinks(global.document);
++  }
+diff --git a/docs/LICENCIAS_Y_RUTAS_20260916.md b/docs/LICENCIAS_Y_RUTAS_20260916.md
+new file mode 100644
+index 0000000..3a9c2ae
+--- /dev/null
++++ b/docs/LICENCIAS_Y_RUTAS_20260916.md
+@@ -0,0 +1,27 @@
++# Licencias y rutas profesionales · incremento 16/09/2026
++
++## Alcance funcional
++- Directorio de reglas de Licencias convertido progresivamente a un componente React independiente. Búsqueda por nombre, código, base normativa, condiciones y límites; insensible a tildes y orden de palabras. Filtros de calculabilidad combinables y contadores coherentes.
++- Detalle desplegable conserva condiciones, límites, unidad y referencia informada, incluido cero. Los filtros no aprueban licencias, no calculan saldo y no crean novedades salariales.
++- `official_local_*` ya no se muestra prematuramente como fuente oficial/verificada por el orden de condiciones de `normalizeStatus`. Conserva la clasificación de revisión prevista por la pantalla.
++- Los enlaces insertados o actualizados por JavaScript se normalizan usando el contrato existente: `/nomina`, `/licencias`, `/relojes`, `/personal`, `/reportes`, etc. Conservan parámetros, anclas y restricciones de acceso. Descargas y enlaces externos quedan intactos. No hay interceptación de clics ni router nuevo.
++
++## Integración incremental
++Se reutilizan React, ReactDOM, esbuild y Node ya presentes. No se agregan dependencias, frameworks, proveedores IA ni una reescritura del sistema. El componente es JSX y su modelo es JavaScript; este incremento no declara una migración TypeScript completa.
++
++La página mantiene su formulario de consulta, fuentes, mapeos y matriz original como respaldo. El bundle se carga después de recibir la respuesta normativa autorizada. Un fallo de carga mantiene visible la matriz anterior. Se invalidan importaciones tardías; los errores y la pérdida de sesión desmontan el componente. Actualizar conserva búsqueda y campos del formulario.
++
++## Fuentes y límites
++Revisado el paquete privado aportado por Marcelo, la reunión del 09/09 y las instrucciones de módulos. La matriz vigente `MATRIZ_ACEPTACION_NOELIA.md` conserva la precedencia de requisitos y pendientes. Los ZIP, muestras nominales, respaldos GRH, archivos bancarios y datos de conexión no forman parte del commit ni de `public/`.
++
++No cambia fórmulas, haberes, impuestos, cierres, autorizaciones, permisos, esquema SQL ni datos municipales. No conecta relojes ni modifica PM: la lista de IP sigue siendo configuración privada de conexión y no un criterio de asociación automática.
++
++## Pruebas y publicación
++141 pruebas focales/regresión aprobadas localmente, incluido contrato de rutas, permisos de navegación, reglas y consultas de licencias, PWA y reportes. Compilación local aprobada. Revisión visual DOM sin red en 1440/390 px sobre el código compilado. La ejecución local de la suite completa excedió el tiempo disponible; no se da por aprobada a partir de esa ejecución.
++
++El candidato debe superar la suite completa con Node 24 y recorridos de navegador antes de mover `master`. La rama técnica de preparación no debe integrarse a producción; mantiene Vercel deshabilitado sólo para esa rama. La publicación conserva el `vercel.json` productivo y usa un único avance fast-forward, sin sobrescritura forzada.
++
++Se reutiliza el workflow de Noelia para la validación del lote: misma instalación, compilación y navegador para reportes/licencias. El verificador productivo contrasta HTML, JavaScript, licencia y contrato de rutas; comprueba redirecciones históricas y denegación anónima real. Las APIs de las pruebas visuales son sintéticas, incluso al usar los recursos estáticos publicados. No equivale a aceptación con sesión municipal.
++
++## Reversión
++Revertir únicamente el commit del incremento. No hay migraciones ni datos que restaurar. No revertir trabajos concurrentes. Base de desarrollo: `2f97b8394841dbea8e8c17099fc8b3d177bd9673`.
+diff --git a/licencias-control.html b/licencias-control.html
+index eb997e4..f67d28a 100644
+--- a/licencias-control.html
++++ b/licencias-control.html
+@@ -1021 +1021,2 @@
+-              <div class="matrix-grid">
++              <div id="leaveRulesRoot" hidden></div>
++              <div class="matrix-grid" id="leaveRulesLegacy">
+@@ -1233,0 +1235,21 @@
++      var leaveRulesUi = null;
++      var leaveRulesRevision = 0;
++
++      function releaseLeaveRules() {
++        leaveRulesRevision += 1;
++        if (leaveRulesUi) leaveRulesUi.dispose();
++        leaveRulesUi = null;
++      }
++
++      function enhanceLeaveRules(rules) {
++        var revision = ++leaveRulesRevision;
++        if (leaveRulesUi) { leaveRulesUi.update(rules); return; }
++        import('__MC_LEAVE_RULES_BUNDLE__').then(function (module) {
++          if (revision !== leaveRulesRevision || redirecting) return;
++          leaveRulesUi = module.mountLeaveRules(byId('leaveRulesRoot'), byId('leaveRulesLegacy'), rules);
++        }).catch(function () {
++          // A failed optional enhancement never hides the legacy rule directory.
++          if (revision !== leaveRulesRevision) return;
++          releaseLeaveRules();
++        });
++      }
+@@ -1356,0 +1379,4 @@
++        // Local provenance never implies a complete applicability profile.
++        if (code.indexOf('official_local_') === 0) {
++          return { key: 'partial', label: 'Requiere revisión', className: 'is-partial' };
++        }
+@@ -1826,0 +1853 @@
++        releaseLeaveRules();
+@@ -1875,0 +1903 @@
++        leaveRulesRevision += 1;
+@@ -1883,0 +1912 @@
++        releaseLeaveRules();
+@@ -2020,0 +2050 @@
++        enhanceLeaveRules(state.matrix);
+diff --git a/scripts/build-friendly.mjs b/scripts/build-friendly.mjs
+index 8082318..da960c7 100644
+--- a/scripts/build-friendly.mjs
++++ b/scripts/build-friendly.mjs
+@@ -7 +7 @@ import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-f
+-import { buildReactIslands } from './build-react-islands.mjs';
++import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
+@@ -267,0 +268 @@ await buildReactIslands(root, output);
++await buildLeaveRulesIsland(root, output);
+diff --git a/scripts/build-react-islands.mjs b/scripts/build-react-islands.mjs
+index f9913d3..6c067fd 100644
+--- a/scripts/build-react-islands.mjs
++++ b/scripts/build-react-islands.mjs
+@@ -34,0 +35,27 @@ export async function buildReactIslands(root, output) {
++
++// Independent optional island: payroll calculation, leave requests and employee
++// forms remain owned by the existing page/API. Compiled only on a release build.
++export async function buildLeaveRulesIsland(root, output) {
++  const source = 'src/islands/leave-rules-entry.jsx';
++  const result = await build({
++    absWorkingDir: root, entryPoints: { 'leave-rules': source },
++    outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]',
++    bundle: true, minify: true, jsx: 'automatic', format: 'esm',
++    platform: 'browser', target: ['es2020'], sourcemap: false,
++    legalComments: 'linked', metafile: true, logLevel: 'warning',
++    define: { 'process.env.NODE_ENV': '"production"' },
++  });
++  const entry = Object.entries(result.metafile.outputs).find(([, metadata]) => metadata.entryPoint?.replaceAll('\\', '/') === source)?.[0];
++  assert.ok(entry, 'Leave rules must emit its entry point');
++  const absolute = path.resolve(root, entry);
++  const gzipBytes = gzipSync(await fs.readFile(absolute)).length;
++  assert.ok(gzipBytes < 90000, 'Leave rules must stay below 90 KB gzip');
++  const href = `/${path.relative(output, absolute).split(path.sep).join('/')}`;
++  const consumer = path.join(output, 'licencias-control.html');
++  const code = await fs.readFile(consumer, 'utf8');
++  const marker = '__MC_LEAVE_RULES_BUNDLE__';
++  assert.equal(code.split(marker).length - 1, 1, 'Leave import marker must be unique');
++  await fs.writeFile(consumer, code.replace(marker, href));
++  console.log(`React leave rules: ${gzipBytes} bytes gzip; no new API or data writes.`);
++  return { name: 'leave-rules', href, gzipBytes };
++}

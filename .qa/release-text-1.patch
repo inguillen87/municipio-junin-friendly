@@ -1,0 +1,213 @@
+diff --git a/scripts/verify-leave-workspace-browser.mjs b/scripts/verify-leave-workspace-browser.mjs
+new file mode 100644
+index 0000000..dfc9a5d
+--- /dev/null
++++ b/scripts/verify-leave-workspace-browser.mjs
+@@ -0,0 +1,148 @@
++// Compiled source, synthetic API contracts, zero municipal credentials or writes.
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { chromium } from 'playwright';
++import { getTitleViCatalog } from '../assets/mendoza-title-vi.js';
++import '../assets/app-routes.js';
++const args = process.argv.slice(2);
++assert.ok(args.length === 0 || args.length === 1 && args[0] === '--published');
++const published = args[0] === '--published';
++const origin = published ? 'https://municipio-junin-friendly.vercel.app' : 'http://127.0.0.1:4319';
++const root = path.resolve('public');
++const output = path.resolve('verification'); fs.mkdirSync(output, { recursive: true });
++const prefix = published ? 'leave-workspace-live' : 'leave-workspace-local';
++const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
++const checks = [], errors = [], forwarded = [];
++const legal = getTitleViCatalog();
++legal.applicability.status = 'official_local_pending';
++legal.keyRules = [
++  { id: 'annual-test', code: '21', label: 'Licencia anual de prueba', status: 'calculable', article: '38', conditions: ['Antigüedad reconocida'], limitations: ['No representa saldo'], value: 0 },
++  { id: 'family-test', code: '10', label: 'Cuidado de familiar de prueba', status: 'conditional', article: '50', conditions: ['Evidencia médica'], limitations: ['Revisión humana'] },
++  { id: 'hours-test', label: 'Horas efectivas de prueba', status: 'not_calculable', summary: 'Fichadas incompletas' },
++  { id: 'family-test', code: '10', label: 'Otra regla con el mismo ID', status: 'conditional', conditions: ['Documentación propia'] },
++  { id: 'xss-test', label: '<img src=x onerror="window.__bad=1">', status: 'conditional' },
++];
++const fixture = () => ({ ok: true, data: { legal, mappings: [], readiness: [] }, meta: { source: { sourceCutoff: '2026-08-06', name: 'FUENTE SINTÉTICA QA' } } });
++const auth = { ok: true, authenticated: true, user: { name: 'OPERADOR SINTÉTICO QA' }, access: { tenantCapabilities: ['leave.policy.read', 'leave.preview.read', 'absence.analytics.read', 'actions.read', 'leave.request.self.create', 'assistant.use'], platformCapabilities: [] } };
++let deny = false, dataError = false, empty = false, blockBundle = false;
++try {
++  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
++  await context.route('**/*', async route => {
++    const request = route.request(), url = new URL(request.url());
++    if (url.origin !== origin || request.method() !== 'GET') return route.abort();
++    if (url.pathname.startsWith('/api/')) {
++      if (deny) return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
++      if (url.pathname === '/api/internal-auth') return route.fulfill({ json: auth });
++      if (url.searchParams.get('resource') === 'leavenormative') {
++        if (dataError) return route.fulfill({ status: 503, json: { ok: false, error: 'Error sintético QA' } });
++        return route.fulfill({ json: empty ? { ok: true, data: { legal: { keyRules: [] } } } : fixture() });
++      }
++      return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
++    }
++    if (blockBundle && /\/islands\/leave-rules-/.test(url.pathname)) return route.abort();
++    const routeInfo = globalThis.MuniControlRoutes.resolve(url.href, origin);
++    const allowed = ['/licencias', '/acceso', '/licencias-control.html'].includes(url.pathname) || url.pathname.startsWith('/assets/') || ['/friendly-data.json', '/manifest.webmanifest'].includes(url.pathname);
++    if (!allowed) return route.abort();
++    if (published) { forwarded.push(url.pathname); return route.continue(); }
++    const pathname = routeInfo ? '/' + routeInfo.file : url.pathname;
++    const file = path.resolve(root, '.' + pathname);
++    if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status: 404, body: '' });
++    const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
++    return route.fulfill({ contentType: types[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
++  });
++  const page = await context.newPage(); page.setDefaultTimeout(15000);
++  page.on('pageerror', error => errors.push(error.message));
++  await page.goto(origin + '/licencias');
++  const workspace = page.locator('[data-leave-rules-workspace="v1"]');
++  await workspace.waitFor();
++  assert.equal(await page.locator('#municipalStatus').getAttribute('data-status'), 'partial');
++  assert.equal(await page.locator('#applicabilityStatus').getAttribute('data-status'), 'partial');
++  assert.equal(await workspace.locator('.lr-rule').count(), 5);
++  assert.equal(await page.locator('#leaveRulesLegacy').isVisible(), false);
++  assert.equal(await workspace.locator('img').count(), 0);
++  assert.equal(await page.evaluate(() => window.__bad), undefined);
++  checks.push('authorized synthetic catalogue mounts; local pending profile remains under review; duplicate IDs preserved and HTML escaped');
++  const input = workspace.getByRole('searchbox', { name: 'Buscar una regla' });
++  const categories = workspace.getByRole('group', { name: 'Calculabilidad de la regla' });
++  const clear = () => workspace.getByRole('button', { name: 'Limpiar búsqueda', exact: true }).click();
++  const reset = () => workspace.getByRole('button', { name: 'Restablecer filtros', exact: true }).click();
++  await input.fill('antiguedad');
++  assert.equal(await workspace.locator('.lr-rule').count(), 1);
++  await workspace.locator('summary').click();
++  assert.match(await workspace.locator('.lr-detail').innerText(), /Referencia informada\s*0/);
++  await categories.getByRole('button', { name: 'Requieren validación', exact: true }).click();
++  assert.equal(await workspace.locator('.lr-rule').count(), 0);
++  assert.match(await workspace.getByRole('status').innerText(), /0 de 5/);
++  await clear();
++  assert.equal(await categories.getByRole('button', { name: 'Requieren validación', exact: true }).getAttribute('aria-pressed'), 'true');
++  assert.equal(await workspace.locator('.lr-rule').count(), 3);
++  await reset();
++  assert.equal(await input.evaluate(node => node === document.activeElement), true);
++  await categories.getByRole('button', { name: 'No calculables', exact: true }).focus();
++  await page.keyboard.press('Space');
++  assert.equal(await workspace.locator('.lr-rule').count(), 1);
++  await reset();
++  checks.push('search, accents, categories, honest zero results, zero reference value, focus recovery and keyboard selection');
++
++  await page.locator('#legajoInput').fill('123');
++  await input.fill('medica');
++  await page.locator('#refreshButton').click();
++  await page.locator('#mainView:not([hidden])').waitFor();
++  assert.equal(await input.inputValue(), 'medica');
++  assert.equal(await page.locator('#legajoInput').inputValue(), '123');
++  assert.equal(await workspace.locator('.lr-rule').count(), 1);
++  await clear();
++  await page.evaluate(() => {
++    const host = document.createElement('div'); host.id = 'dynamicRouteQA';
++    host.innerHTML = '<a hidden href="nomina-control.html?period=2026-08#comparar">Nómina</a><a href="#matrixPanel">Sección</a><a download href="reportes-rrhh.html">Archivo</a><a href="https://external.invalid/nomina-control.html">Externo</a>';
++    document.body.append(host);
++  });
++  await page.waitForFunction(() => document.querySelector('#dynamicRouteQA a').getAttribute('href') === '/nomina?period=2026-08#comparar');
++  assert.deepEqual(await page.locator('#dynamicRouteQA a').evaluateAll(nodes => nodes.map(node => node.getAttribute('href'))), ['/nomina?period=2026-08#comparar', '#matrixPanel', 'reportes-rrhh.html', 'https://external.invalid/nomina-control.html']);
++  assert.equal(await page.locator('#dynamicRouteQA a').first().isVisible(), false);
++  await page.locator('#dynamicRouteQA').evaluate(node => node.remove());
++  checks.push('refresh retains filters and existing form; runtime URLs preserve query/hash and never alter downloads, outside origins or access restrictions');
++
++  await page.locator('#matrixPanel').scrollIntoViewIfNeeded();
++  await page.screenshot({ path: path.join(output, `${prefix}-desktop.png`) });
++  for (const width of [320, 390]) {
++    await page.setViewportSize({ width, height: 844 });
++    await page.emulateMedia({ reducedMotion: 'reduce' });
++    await input.fill('anual');
++    assert.ok(await workspace.evaluate(node => { const r = node.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; }), `workspace width ${width}`);
++    assert.ok(await categories.locator('button').evaluateAll(nodes => nodes.every(node => node.getBoundingClientRect().height >= 44)));
++    await workspace.scrollIntoViewIfNeeded();
++    await page.screenshot({ path: path.join(output, `${prefix}-mobile-${width}.png`) });
++    await clear();
++  }
++  checks.push('320px/390px, 44px touch targets and reduced motion');
++  dataError = true;
++  await page.locator('#refreshButton').click();
++  await page.locator('#errorHost:not([hidden])').waitFor();
++  assert.equal(await page.locator('[data-leave-rules-workspace]').count(), 0);
++  dataError = false; empty = true;
++  await page.getByRole('button', { name: 'Reintentar', exact: true }).click();
++  await workspace.waitFor();
++  assert.equal(await workspace.locator('.lr-rule').count(), 0);
++  assert.match(await workspace.locator('.lr-empty').innerText(), /no devolvió reglas/);
++  empty = false;
++  checks.push('errors discard old rule content and an empty authorized result never turns into example data');
++  blockBundle = true;
++  await page.reload();
++  await page.locator('#mainView:not([hidden])').waitFor();
++  assert.equal(await page.locator('#leaveRulesLegacy').isVisible(), true);
++  assert.equal(await page.locator('#leaveRulesLegacy .rule-card').count(), 5);
++  assert.equal(await page.locator('#previewForm').isVisible(), true);
++  blockBundle = false; deny = true;
++  await page.reload();
++  await page.waitForURL(url => url.pathname === '/acceso');
++  assert.equal(await page.locator('[data-leave-rules-workspace]').count(), 0);
++  checks.push('bundle failure retains legacy rules/form; synthetic session denial redirects without showing the private catalogue');
++  assert.deepEqual(errors, []);
++  const result = { ok: true, mode: published ? 'published-static-assets' : 'compiled-local', checks,
++    frontendRequestsForwarded: forwarded.length, municipalSessionTested: false, apiResponsesSynthetic: true, privateApiRequestsForwarded: 0, writesSent: 0 };
++  fs.writeFileSync(path.join(output, `${prefix}.json`), JSON.stringify(result, null, 2));
++  console.log(JSON.stringify(result));
++  await context.close();
++} finally { await browser.close(); }
+diff --git a/scripts/verify-leave-workspace-production.mjs b/scripts/verify-leave-workspace-production.mjs
+new file mode 100644
+index 0000000..3282a59
+--- /dev/null
++++ b/scripts/verify-leave-workspace-production.mjs
+@@ -0,0 +1,53 @@
++// Public deployment bytes and anonymous denials only. No municipal session.
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import { createHash } from 'node:crypto';
++import { setTimeout as sleep } from 'node:timers/promises';
++const origin = 'https://municipio-junin-friendly.vercel.app';
++const local = file => fs.readFileSync('public/' + file, 'utf8');
++const pattern = /import\('(\/assets\/islands\/leave-rules-[A-Z0-9]+\.js)'\)/;
++const expectedHtml = local('licencias-control.html');
++const expectedHref = expectedHtml.match(pattern)?.[1];
++assert.ok(expectedHref, 'Build the licence workspace before certification');
++const expectedBundle = local(expectedHref.slice(1));
++const normalize = text => text.replace(/\/\*! For license information please see leave-rules-[A-Z0-9]+\.js\.LEGAL\.txt \*\//g, '/*! For license information please see LEAVE_LICENSE */');
++async function read(href) {
++  const response = await fetch(origin + href, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(20000) });
++  assert.equal(response.status, 200, href);
++  return response.text();
++}
++let certified;
++for (let attempt = 1; attempt <= 24; attempt++) {
++  try {
++    const html = await read('/licencias');
++    const href = html.match(pattern)?.[1];
++    assert.ok(href, 'Published page must import the licence workspace');
++    assert.equal(html.replace(href, '__LEAVE_BUNDLE__'), expectedHtml.replace(expectedHref, '__LEAVE_BUNDLE__'), 'Published licence shell differs');
++    const bundle = await read(href);
++    assert.equal(normalize(bundle), normalize(expectedBundle), 'Published executable bytes differ');
++    assert.equal(await read(href + '.LEGAL.txt'), local(expectedHref.slice(1) + '.LEGAL.txt'));
++    assert.equal(await read('/assets/app-routes.js'), local('assets/app-routes.js'), 'Published route contract differs');
++    certified = { bundle: href, normalizedExecutableSha256: createHash('sha256').update(normalize(bundle)).digest('hex') };
++    break;
++  } catch (error) {
++    console.log(`Licence publication ${attempt}/24: ${error.message.split('\n')[0]}`);
++    if (attempt === 24) throw new Error('Expected licence workspace not certified', { cause: error });
++    await sleep(15000);
++  }
++}
++for (const [source, destination] of [['licencias-control.html', '/licencias'], ['nomina-control.html', '/nomina'], ['relojes-marcaciones.html', '/relojes']]) {
++  const response = await fetch(`${origin}/${source}?period=2026-08`, { redirect: 'manual', signal: AbortSignal.timeout(12000) });
++  assert.equal(response.status, 307, source);
++  const target = new URL(response.headers.get('location'), origin);
++  assert.equal(target.origin, origin);
++  assert.equal(target.pathname, destination);
++  assert.equal(target.searchParams.get('period'), '2026-08');
++}
++const denial = await fetch(origin + '/api/internal-data?resource=leavenormative', { redirect: 'error', signal: AbortSignal.timeout(12000) });
++assert.equal(denial.status, 401, 'Real API denies an anonymous normative read');
++assert.match(denial.headers.get('cache-control') || '', /no-store/);
++const result = { ok: true, commit: process.env.GITHUB_SHA || null, origin, ...certified,
++  redirectsVerified: 3, anonymousApiDenial: 401, municipalSessionTested: false, writesSent: 0 };
++fs.mkdirSync('verification', { recursive: true });
++fs.writeFileSync('verification/leave-workspace-production.json', JSON.stringify(result, null, 2));
++console.log(JSON.stringify(result));
