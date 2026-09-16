@@ -31,7 +31,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Full tests and reproducible build
-        run: npm run build
+        run: |
+          node --check scripts/verify-noelia-report-live-browser.mjs
+          npm run build
       - run: npx playwright install --with-deps chromium
       - name: Existing catalog, new workspace and report regression
         run: |
@@ -53,7 +55,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,8 +66,16 @@ jobs:
       - run: node scripts/build-friendly.mjs
       - name: Verify published executable and license bytes
         run: node scripts/verify-noelia-report-production.mjs
-      - uses: actions/upload-artifact@v4
+      - run: npx playwright install --with-deps chromium
+      - name: Verify live public interface without municipal session
+        run: node scripts/verify-noelia-report-live-browser.mjs
+      - name: Publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: noelia-report-workspace-production-${{ github.run_id }}
-          path: verification/noelia-report-production.json
+          path: |
+            verification/noelia-report-production.json
+            verification/noelia-report-live-*.json
+            verification/noelia-report-live-*.png
           retention-days: 14
