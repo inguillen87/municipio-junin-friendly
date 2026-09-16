@@ -14,6 +14,7 @@ if(process.argv[2]==='apply'){
  replaceOnce('assets/native-employee-create.js',"cache:'no-store',headers:{Accept:'application/json'}","cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/json'}");
  replaceOnce('assets/native-employee-create.css','.native-employee-dialog{width:','.native-employee-dialog{box-sizing:border-box;width:');
  replaceOnce('scripts/migrations/067-native-employee-registration.sql','END $$;\nCREATE OR REPLACE FUNCTION native_employee_create_v1','END $$;\n\nCREATE OR REPLACE FUNCTION native_employee_create_v1');
+ replaceOnce('scripts/verify-native-employee-browser.mjs',"await page.locator('#employeeDialog').waitFor();assert.match(await page.locator('#dialogSubtitle').innerText(),/Alta propia de MuniControl/);","await page.locator('#employeeDialog').waitFor();await page.waitForFunction(()=>document.querySelector('#dialogSubtitle')?.textContent.includes('Alta propia de MuniControl'));assert.match(await page.locator('#dialogSubtitle').innerText(),/Alta propia de MuniControl/);");
  replaceOnce('scripts/build-friendly.mjs',"  'assets/workforce-operations.css',","  'assets/workforce-operations.css',\n  'assets/native-employee-contract.js',\n  'assets/native-employee-create.js',\n  'assets/native-employee-create.css',");
  assert.ok(!fs.readFileSync('.vercelignore','utf8').includes('067-native-employee-registration.sql'));fs.appendFileSync('.vercelignore','\n!scripts/migrations/067-native-employee-registration.sql\n');
 }
