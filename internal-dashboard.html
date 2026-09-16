@@ -1145,6 +1145,8 @@
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/workforce-operations.css">
 <script type="module" src="assets/workforce-operations.js"></script>
+<link rel="stylesheet" href="assets/native-employee-create.css">
+<script type="module" src="assets/native-employee-create.js"></script>
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
 <link rel="stylesheet" href="assets/report-centre.css">
@@ -1327,6 +1329,7 @@
               <h1 id="legajosTitle" tabindex="-1">Personas y legajos</h1>
               <p class="page-lead">Buscá a la persona para consultar haberes, cargar certificados de sus hijos, gestionar novedades o iniciar una licencia. El archivo histórico se consulta por separado.</p>
             </div>
+            <button class="button primary" type="button" data-employee-create data-any-capability="employee.record.create" hidden>Nuevo legajo</button>
             <a class="button" href="reportes-rrhh.html#certificados-escolares" data-requires-all-capability="workforce.employee.read">Reporte de hijos y certificados</a>
           </header>
 
@@ -2559,6 +2562,7 @@
           suspended: 'Suspendido',
           leave_without_pay: 'Licencia sin goce',
           pending_termination: 'Baja pendiente',
+          pending_start: 'Alta futura',
           state_error: 'Estado a revisar',
           inactive: 'Inactivo',
           unknown: 'Sin clasificación'
@@ -2596,6 +2600,7 @@
           active_not_liquidated_prior_cycle: 'Activo en ciclo anterior',
           inactivo_administrativo: 'Inactivo administrativo',
           estado_contrato_inconsistente: 'Estado de contrato inconsistente',
+          alta_nativa_sin_liquidar: 'Alta propia · sin liquidación',
           sin_clasificar: 'Sin clasificar'
         })[normalized] || (text(value) ? readableKey(value, 'control') : 'No disponible');
       }
@@ -2637,7 +2642,7 @@
             const legajo = text(employee.legajo);
             const name = text(employee.nombre);
             const status = statusDisplay(employee.administrativeStatus, employee.activo);
-            const integration = crosswalkDisplay(employee.crosswalkStatus);
+            const integration = employee.recordOrigin === 'MUNICONTROL' ? {label:'Alta propia',className:'matched'} : crosswalkDisplay(employee.crosswalkStatus);
             const organization = create('div', 'cell-stack');
             organization.append(
               create('span', '', displayValue(employee.organizacion)),
@@ -2661,7 +2666,8 @@
             appendCell(row, 'Integración', create('span', 'state-pill ' + integration.className, integration.label));
             const actions = create('div', 'cell-stack');
             if (legajo) {
-              actions.append(detailButton('Ver ficha', employee, 'button'), detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
+              actions.append(detailButton('Ver ficha', employee, 'button'));
+              if(employee.recordOrigin !== 'MUNICONTROL') actions.append(detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
             } else actions.append(create('span', 'cell-muted', 'No disponible'));
             appendCell(row, 'Acciones', actions);
             els.employeeRows.appendChild(row);
@@ -3649,6 +3655,22 @@
           ? 'Legajo ' + legajo + ' · ' + integration.label + ' · fuente laboral GRH'
           : 'Legajo no disponible · fuente laboral GRH';
         els.dialogBody.replaceChildren();
+        if(employee.recordOrigin === 'MUNICONTROL') {
+          els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · Alta propia de MuniControl';
+          els.dialogBody.appendChild(detailSection('Datos personales', 'Identidad declarada en el alta. No se generó un registro ficticio de GRH.', [
+            detailField('Legajo',employee.legajo),detailField('Apellido y nombres',employee.nombre),detailField('DNI',employee.dni),detailField('CUIL',employee.cuil),
+            detailField('Nacimiento',employee.fechaNacimiento,formatDate),detailField('Sexo registrado',employee.sexo)
+          ]));
+          els.dialogBody.appendChild(detailSection('Vínculo laboral', 'El ingreso futuro no se cuenta como activo antes de su fecha.', [
+            detailField('Situación',statusDisplay(employee.administrativeStatus,employee.activo).label),detailField('Ingreso',employee.fechaIngreso,formatDate),
+            detailField('Convenio',employee.convenio),detailField('Categoría',employee.categoria),detailField('Repartición',employee.organizacion),
+            detailField('Sector',employee.sector),detailField('Cargo / función',employee.cargo)
+          ]));
+          els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
+            detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
+          ]));
+          return;
+        }
 
         els.dialogBody.appendChild(renderEmployeeQuickActions(employee));
         els.dialogBody.appendChild(renderEmployeePayrollHistory(employee));
@@ -3850,6 +3872,11 @@
       els.logoutButton.addEventListener('click', logout);
       els.closeDialog.addEventListener('click', closeDialog);
       els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
+      document.addEventListener('mc:native-employee-created', function(event) {
+        if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
+        els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;
+        els.statusFilter.value='all'; applyFilters();
+      });
       els.employeeFilters.addEventListener('submit', function (event) { event.preventDefault(); window.clearTimeout(searchTimer); applyFilters(); });
       els.employeeSearch.addEventListener('input', function () {
         window.clearTimeout(searchTimer);

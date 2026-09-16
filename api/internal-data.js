@@ -1,3 +1,4 @@
+import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
@@ -3018,13 +3019,14 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false) {
   return `
     WITH directory AS (
       SELECT contract.id AS "contractId",
              contract.person_id AS "canonicalPersonId",
              contract.legacy_company_id AS "companyId",
              contract.legacy_legajo AS legajo,
+             contract.source_system AS "recordOrigin",
              COALESCE(identity.full_name, employee.nombre) AS nombre,
              identity.dni,
              identity.cuil,
@@ -3036,16 +3038,16 @@ function directoryBaseSql(sourceBound = false) {
              contract.status AS "contractStatus",
              contract.source_system AS "sourceSystem", contract.source_batch_id AS "sourceBatchId",
              source_batch.source_cutoff AS "sourceCutoff",
-             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status
+             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END
                   ELSE latest_status.administrative_status END AS "administrativeStatus",
              latest_status.payroll_status AS "payrollStatus",
              latest_status.snapshot_date AS "statusSnapshotDate",
              COALESCE(
-               CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END,
+               CASE WHEN contract.source_system='MUNICONTROL' THEN 'alta_nativa_sin_liquidar' WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END,
                CASE WHEN latest_status.administrative_status = 'inactive'
                     THEN 'inactivo_administrativo' ELSE 'sin_clasificar' END
              ) AS "controlState",
-             COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
+             (contract.source_system='MUNICONTROL' AND contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date) OR COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
                'active', 'suspended', 'leave_without_pay', 'pending_termination'
              ), false) AS activo,
              COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false)
@@ -3079,7 +3081,7 @@ function directoryBaseSql(sourceBound = false) {
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
-      JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
+      LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN grh_employees employee
         ON employee.company_id = contract.legacy_company_id
        AND employee.legajo = contract.legacy_legajo
@@ -3107,9 +3109,10 @@ function directoryBaseSql(sourceBound = false) {
         ORDER BY assignment.snapshot_date DESC
         LIMIT 1
       ) latest_assignment ON true
-      WHERE contract.source_system='GRH' AND source_batch.source_system='GRH'
+      WHERE (contract.source_system='GRH' AND source_batch.source_system='GRH'
         AND source_batch.validation_state='published' AND source_batch.legacy_import_run_id IS NOT NULL
-        ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''}
+        ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''})
+        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}
     )
   `;
 }
@@ -3143,7 +3146,8 @@ export async function employees(sql, req, binding = null) {
   }
 
   const conditions = [];
-  const sourceValues = binding ? [binding.database, binding.companyId] : [];
+  const nativeBound = Boolean(binding?.tenantId);
+  const sourceValues = binding ? [binding.database, binding.companyId, ...(nativeBound ? [binding.tenantId] : [])] : [];
   const values = [...sourceValues];
   const parameter = (value) => {
     values.push(value);
@@ -3176,7 +3180,7 @@ export async function employees(sql, req, binding = null) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding)));
+  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const [[countRow], data, [scope], sectors, organizations, agreements] = await Promise.all([
@@ -3212,7 +3216,7 @@ export async function employees(sql, req, binding = null) {
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
       scope: {
         grain: 'employment_contract',
-        authority: 'GRH',
+        authority: nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
         personasRole: 'auxiliary_identity_and_territory_only',
         totalContracts: Number(scope?.totalContracts || 0),
         totalPeople: Number(scope?.totalPeople || 0),
@@ -3394,7 +3398,7 @@ function assertionValue(assertions, sourceSystem, attributeName) {
   return assertions.find((row) => row.sourceSystem === sourceSystem && row.attributeName === attributeName)?.rawValue ?? null;
 }
 
-export async function employee(sql, req) {
+export async function employee(sql, req, tenantId = null) {
   const contractId = boundedQueryValue(req, 'contractId', 64);
   const legajo = boundedQueryValue(req, 'legajo', 64);
   const companyId = boundedQueryValue(req, 'companyId', 32);
@@ -3422,11 +3426,14 @@ export async function employee(sql, req) {
         clause: `contract.legacy_legajo = $1 ${companyId ? 'AND contract.legacy_company_id = $2' : ''}`,
         values: companyId ? [legajo, companyIdNumber] : [legajo]
       };
+  const nativeScope = tenantId ? `OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$${identifierSql.values.length+1}::uuid)` : '';
+  const detailValues = [...identifierSql.values,...(tenantId ? [tenantId] : [])];
   const rows = await sql.query(`
     SELECT contract.id AS "contractId",
            contract.person_id AS "canonicalPersonId",
            contract.legacy_company_id AS "companyId",
            contract.legacy_legajo AS legajo,
+             contract.source_system AS "recordOrigin",
            contract.source_batch_id AS "contractSourceBatchId",
            contract.start_date AS "fechaIngreso",
            contract.end_date AS "fechaEgreso",
@@ -3459,13 +3466,13 @@ export async function employee(sql, req) {
            employee.profesion,
            employee.source_payload AS "legacyRawFields",
            latest_status.snapshot_date AS "statusSnapshotDate",
-           CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status ELSE latest_status.administrative_status END AS "administrativeStatus",
+           CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END ELSE latest_status.administrative_status END AS "administrativeStatus",
            latest_status.payroll_status AS "payrollStatus",
            latest_status.discrepancy_reason_code AS "discrepancyReasonCode",
            latest_status.discrepancy_explanation AS "discrepancyExplanation",
            payroll_run.closure_status AS "payrollClosureStatus",
-           CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END AS "controlState",
-           COALESCE(contract.status='active' AND latest_status.administrative_status IN (
+           CASE WHEN contract.source_system='MUNICONTROL' THEN 'alta_nativa_sin_liquidar' WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END AS "controlState",
+           (contract.source_system='MUNICONTROL' AND contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date) OR COALESCE(contract.status='active' AND latest_status.administrative_status IN (
              'active', 'suspended', 'leave_without_pay', 'pending_termination'
            ), false) AS activo,
            COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false) AS liquidable,
@@ -3512,10 +3519,10 @@ export async function employee(sql, req) {
       ORDER BY assignment.snapshot_date DESC
       LIMIT 1
     ) latest_assignment ON true
-    WHERE ${identifierSql.clause}
+    WHERE (${identifierSql.clause}) AND (contract.source_system='GRH' ${nativeScope})
     ORDER BY contract.legacy_company_id, contract.legacy_legajo
     LIMIT 2
-  `, identifierSql.values);
+  `, detailValues);
   if (!rows.length) return { status: 404, payload: { ok: false, code: 'EMPLOYEE_NOT_FOUND', error: 'Legajo no encontrado' } };
   if (rows.length > 1) {
     return {
@@ -3528,6 +3535,7 @@ export async function employee(sql, req) {
     };
   }
   const row = rows[0];
+  if (row.recordOrigin === 'MUNICONTROL') return nativeEmployeeDetail(row,recordYear);
   const relationParams = [row.companyId, row.legajo];
   const recordFrom = recordYear ? `${recordYear}-01-01` : null;
   const recordTo = recordYear ? `${recordYear + 1}-01-01` : null;
@@ -3627,7 +3635,8 @@ export async function employee(sql, req) {
     `, [[row.canonicalPersonId, row.contractId]]),
     sql.query(`
       SELECT contract.id AS "contractId", contract.legacy_company_id AS "companyId",
-             contract.legacy_legajo AS legajo, contract.start_date AS "startDate",
+             contract.legacy_legajo AS legajo,
+             contract.source_system AS "recordOrigin", contract.start_date AS "startDate",
              contract.end_date AS "endDate", contract.status,
              contract.source_payload #>> '{employment,organizationName}' AS organization,
              contract.source_payload #>> '{employment,sectorName}' AS sector,
@@ -3813,11 +3822,11 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, result.status, result.payload);
       }
       if (resource === 'employees') {
-        const result = await employees(sql, req, directorySourceBinding(env));
+        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id} : binding; })());
         return send(res, result.status, result.payload);
       }
       if (resource === 'employee') {
-        const result = await employee(sql, req);
+        const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null);
         return send(res, result.status, result.payload);
       }
       return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });

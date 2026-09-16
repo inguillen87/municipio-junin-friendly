@@ -166,3 +166,5 @@ local-agents/
 !scripts/migrations/061-grh-core-source-version.sql
 !scripts/migrations/064-employee-family-members.sql
 !scripts/migrations/065-clock-workday-source-continuous.sql
+
+!scripts/migrations/067-native-employee-registration.sql
