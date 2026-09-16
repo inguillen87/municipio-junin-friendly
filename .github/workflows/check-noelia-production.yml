@@ -1,0 +1,70 @@
+name: Verify published Noelia increment
+on:
+  push:
+    branches: ['internal-check-noelia-production-20260915']
+permissions:
+  contents: read
+jobs:
+  public-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read-only exact production assets, navigation injection and access boundary
+        run: |
+          python - <<'PY'
+          import pathlib,json,hashlib,urllib.request,urllib.error,time,datetime
+          origin='https://municipio-junin-friendly.vercel.app'
+          release='7c34bede713c7f3769a35252e8f0c836b1ba9c1f'
+          files=['assets/payroll-source-report-model.js','assets/payroll-source-reports.js','assets/report-centre.css','assets/report-document.js','assets/liquidaciones-menu.js','assets/liquidaciones-menu.css','assets/brand/logo-horizontal.svg','assets/brand/logo-horizontal-inverse.svg']
+          expected={p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in files}
+          def get(path):
+              req=urllib.request.Request(origin+path,headers={'Cache-Control':'no-cache','User-Agent':'MuniControl-release-check'})
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as r:
+                      assert r.url.startswith(origin+'/'), 'Unexpected redirect origin'
+                      return r.status,dict(r.headers),r.read(2_000_000)
+              except urllib.error.HTTPError as r:
+                  return r.code,dict(r.headers),b''
+          result={'release':release,'origin':origin,'writes':False,'authenticatedSessionTested':False,'clockContacted':False}
+          for attempt in range(1,9):
+              try:
+                  assets=[]
+                  for f in files:
+                      status,headers,data=get('/'+f+'?release-check='+release)
+                      assert status==200,f+' HTTP '+str(status)
+                      actual=hashlib.sha256(data).hexdigest()
+                      assert actual==expected[f],f+' still serves different bytes'
+                      assets.append({'path':f,'status':status,'sha256':actual})
+                  pages=[]
+                  for f in ['internal-dashboard.html','nomina-control.html','novedades-nomina.html']:
+                      status,headers,data=get('/'+f+'?release-check='+release)
+                      assert status==200,f+' HTTP '+str(status)
+                      assert b'/assets/liquidaciones-menu.js' in data, f+' menu script missing'
+                      assert b'/assets/liquidaciones-menu.css' in data, f+' menu stylesheet missing'
+                      pages.append({'path':f,'status':status,'menuScript':True,'menuStylesheet':True})
+                  gates=[]
+                  for p in ['/api/internal-data?resource=payrollsourcereport','/api/internal-attendance?resource=pm10-reception']:
+                      status,headers,data=get(p)
+                      assert status==401,p+' anonymous access should be 401, got '+str(status)
+                      cache=next((v for k,v in headers.items() if k.lower()=='cache-control'),'')
+                      assert 'no-store' in cache.lower(),p+' missing no-store'
+                      gates.append({'path':p,'anonymousStatus':status,'noStore':True})
+                  result.update({'checkedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'assets':assets,'pages':pages,'accessChecks':gates,'success':True})
+                  break
+              except Exception as e:
+                  print('Verification attempt',attempt, str(e),flush=True)
+                  if attempt==8:raise
+                  time.sleep(15)
+          pathlib.Path('verification').mkdir(exist_ok=True)
+          pathlib.Path('verification/production-noelia.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noelia-production-verification
+          path: verification/production-noelia.json
+          retention-days: 5
+          if-no-files-found: error
