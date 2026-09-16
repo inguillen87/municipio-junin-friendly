@@ -1,0 +1,117 @@
+diff --git a/api/internal-data.js b/api/internal-data.js
+index 5bdcfe5..75eb663 100644
+--- a/api/internal-data.js
++++ b/api/internal-data.js
+@@ -0,0 +1 @@
++import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
+@@ -3021 +3022 @@ function payrollMoneyFromCents(cents) {
+-function directoryBaseSql(sourceBound = false) {
++function directoryBaseSql(sourceBound = false, nativeBound = false) {
+@@ -3027,0 +3029 @@ function directoryBaseSql(sourceBound = false) {
++             contract.source_system AS "recordOrigin",
+@@ -3039 +3041 @@ function directoryBaseSql(sourceBound = false) {
+-             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status
++             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END
+@@ -3044 +3046 @@ function directoryBaseSql(sourceBound = false) {
+-               CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END,
++               CASE WHEN contract.source_system='MUNICONTROL' THEN 'alta_nativa_sin_liquidar' WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END,
+@@ -3048 +3050 @@ function directoryBaseSql(sourceBound = false) {
+-             COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
++             (contract.source_system='MUNICONTROL' AND contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date) OR COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
+@@ -3082 +3084 @@ function directoryBaseSql(sourceBound = false) {
+-      JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
++      LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
+@@ -3110 +3112 @@ function directoryBaseSql(sourceBound = false) {
+-      WHERE contract.source_system='GRH' AND source_batch.source_system='GRH'
++      WHERE (contract.source_system='GRH' AND source_batch.source_system='GRH'
+@@ -3112 +3114,2 @@ function directoryBaseSql(sourceBound = false) {
+-        ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''}
++        ${sourceBound ? 'AND source_batch.source_database=$1::text AND contract.legacy_company_id=$2::bigint' : ''})
++        ${nativeBound ? "OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint)" : ''}
+@@ -3146 +3149,2 @@ export async function employees(sql, req, binding = null) {
+-  const sourceValues = binding ? [binding.database, binding.companyId] : [];
++  const nativeBound = Boolean(binding?.tenantId);
++  const sourceValues = binding ? [binding.database, binding.companyId, ...(nativeBound ? [binding.tenantId] : [])] : [];
+@@ -3179 +3183 @@ export async function employees(sql, req, binding = null) {
+-  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding)));
++  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound));
+@@ -3215 +3219 @@ export async function employees(sql, req, binding = null) {
+-        authority: 'GRH',
++        authority: nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
+@@ -3397 +3401 @@ function assertionValue(assertions, sourceSystem, attributeName) {
+-export async function employee(sql, req) {
++export async function employee(sql, req, tenantId = null) {
+@@ -3424,0 +3429,2 @@ export async function employee(sql, req) {
++  const nativeScope = tenantId ? `OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$${identifierSql.values.length+1}::uuid)` : '';
++  const detailValues = [...identifierSql.values,...(tenantId ? [tenantId] : [])];
+@@ -3429,0 +3436 @@ export async function employee(sql, req) {
++             contract.source_system AS "recordOrigin",
+@@ -3462 +3469 @@ export async function employee(sql, req) {
+-           CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status ELSE latest_status.administrative_status END AS "administrativeStatus",
++           CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END ELSE latest_status.administrative_status END AS "administrativeStatus",
+@@ -3467,2 +3474,2 @@ export async function employee(sql, req) {
+-           CASE WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END AS "controlState",
+-           COALESCE(contract.status='active' AND latest_status.administrative_status IN (
++           CASE WHEN contract.source_system='MUNICONTROL' THEN 'alta_nativa_sin_liquidar' WHEN contract.status='state_error' THEN 'estado_contrato_inconsistente' ELSE control.estado_control END AS "controlState",
++           (contract.source_system='MUNICONTROL' AND contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date) OR COALESCE(contract.status='active' AND latest_status.administrative_status IN (
+@@ -3515 +3522 @@ export async function employee(sql, req) {
+-    WHERE ${identifierSql.clause}
++    WHERE (${identifierSql.clause}) AND (contract.source_system='GRH' ${nativeScope})
+@@ -3518 +3525 @@ export async function employee(sql, req) {
+-  `, identifierSql.values);
++  `, detailValues);
+@@ -3530,0 +3538 @@ export async function employee(sql, req) {
++  if (row.recordOrigin === 'MUNICONTROL') return nativeEmployeeDetail(row,recordYear);
+@@ -3630 +3638,2 @@ export async function employee(sql, req) {
+-             contract.legacy_legajo AS legajo, contract.start_date AS "startDate",
++             contract.legacy_legajo AS legajo,
++             contract.source_system AS "recordOrigin", contract.start_date AS "startDate",
+@@ -3816 +3825 @@ export function createInternalDataHandler(dependencies = {}) {
+-        const result = await employees(sql, req, directorySourceBinding(env));
++        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id} : binding; })());
+@@ -3820 +3829 @@ export function createInternalDataHandler(dependencies = {}) {
+-        const result = await employee(sql, req);
++        const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null);
+diff --git a/internal-dashboard.html b/internal-dashboard.html
+index 03c7aa9..a507fd2 100644
+--- a/internal-dashboard.html
++++ b/internal-dashboard.html
+@@ -1147,0 +1148,2 @@
++<link rel="stylesheet" href="assets/native-employee-create.css">
++<script type="module" src="assets/native-employee-create.js"></script>
+@@ -1329,0 +1332 @@
++            <button class="button primary" type="button" data-employee-create data-any-capability="employee.record.create" hidden>Nuevo legajo</button>
+@@ -2561,0 +2565 @@
++          pending_start: 'Alta futura',
+@@ -2598,0 +2603 @@
++          alta_nativa_sin_liquidar: 'Alta propia · sin liquidación',
+@@ -2640 +2645 @@
+-            const integration = crosswalkDisplay(employee.crosswalkStatus);
++            const integration = employee.recordOrigin === 'MUNICONTROL' ? {label:'Alta propia',className:'matched'} : crosswalkDisplay(employee.crosswalkStatus);
+@@ -2664 +2669,2 @@
+-              actions.append(detailButton('Ver ficha', employee, 'button'), detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
++              actions.append(detailButton('Ver ficha', employee, 'button'));
++              if(employee.recordOrigin !== 'MUNICONTROL') actions.append(detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
+@@ -3651,0 +3658,16 @@
++        if(employee.recordOrigin === 'MUNICONTROL') {
++          els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · Alta propia de MuniControl';
++          els.dialogBody.appendChild(detailSection('Datos personales', 'Identidad declarada en el alta. No se generó un registro ficticio de GRH.', [
++            detailField('Legajo',employee.legajo),detailField('Apellido y nombres',employee.nombre),detailField('DNI',employee.dni),detailField('CUIL',employee.cuil),
++            detailField('Nacimiento',employee.fechaNacimiento,formatDate),detailField('Sexo registrado',employee.sexo)
++          ]));
++          els.dialogBody.appendChild(detailSection('Vínculo laboral', 'El ingreso futuro no se cuenta como activo antes de su fecha.', [
++            detailField('Situación',statusDisplay(employee.administrativeStatus,employee.activo).label),detailField('Ingreso',employee.fechaIngreso,formatDate),
++            detailField('Convenio',employee.convenio),detailField('Categoría',employee.categoria),detailField('Repartición',employee.organizacion),
++            detailField('Sector',employee.sector),detailField('Cargo / función',employee.cargo)
++          ]));
++          els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
++            detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
++          ]));
++          return;
++        }
+@@ -3852,0 +3875,5 @@
++      document.addEventListener('mc:native-employee-created', function(event) {
++        if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
++        els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;
++        els.statusFilter.value='all'; applyFilters();
++      });
