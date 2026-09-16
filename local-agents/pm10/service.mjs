@@ -11,7 +11,9 @@ import {CaptureStore,acquireLock,atomicJson,splitRaw} from './store.mjs';
 import {readMunicipalRoute,ROUTE_ERRORS} from './route-guard.mjs';
 import {loadDeliveryStatus} from './delivery-status.mjs';
 
-const TRANSIENT=new Set(['CONNECT_TIMEOUT','RESPONSE_TIMEOUT','ECONNRESET','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','CONNECTION_ENDED','CONNECTION_CLOSED','DEADLINE_EXCEEDED']);
+// Interrupted sockets remain bounded by the six-failure transport budget.
+// Never rearm a persisted block or relax authentication/serial checks.
+const TRANSIENT=new Set(['CONNECT_TIMEOUT','RESPONSE_TIMEOUT','ECONNRESET','ECONNABORTED','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','CONNECTION_ENDED','CONNECTION_CLOSED','DEADLINE_EXCEEDED']);
 const PRECONNECT_ERRORS=new Set(['CONNECT_TIMEOUT','ECONNRESET','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT']);
 function connectionNotStarted(result){
  const r=result?.report;

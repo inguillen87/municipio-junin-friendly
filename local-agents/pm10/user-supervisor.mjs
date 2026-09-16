@@ -7,6 +7,7 @@ import {spawn,fork} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {acquireLock,atomicJson} from './store.mjs';
 import {fault,safeCode} from './config.mjs';
+import {readOperationStatus} from './operation-status.mjs';
 
 const SELF=fileURLToPath(import.meta.url);
 export function pathsFor(base){
@@ -32,7 +33,7 @@ export async function setDesired(base,desired){
 export async function readUserStatus(base){
  const p=pathsFor(base),status=await json(p.status,true);let processPresent=false;
  if(status&&Number.isSafeInteger(status.pid)&&status.pid>0){try{process.kill(status.pid,0);processPresent=true;}catch{}}
- return {desired:await desiredState(p),processPresent,status,
+ return {desired:await desiredState(p),processPresent,status,operation:await readOperationStatus(p.root),
   scope:'current_user_session',runsWhenComputerOff:false,operationWhileLoggedOutVerified:false};
 }
 
@@ -59,7 +60,12 @@ export async function supervise(base,{launch=fork,sleep=delay,now=()=>Date.now()
  const stop=()=>{stopping=true;};process.once('SIGINT',stop);process.once('SIGTERM',stop);
  const state={schema:'pm10-user-supervisor.v1',pid:process.pid,state:'starting',startedAt:new Date(now()).toISOString(),
   scope:'current_user_session',runsWhenComputerOff:false,operationWhileLoggedOutVerified:false,workers:{}};
- async function save(){state.updatedAt=new Date(now()).toISOString();await atomicJson(p.status,state);}
+ let nextObservation=0;
+ async function save(){
+  const timestamp=now();
+  if(timestamp>=nextObservation){state.operation=await readOperationStatus(p.root,{now:()=>new Date(timestamp)});nextObservation=timestamp+30000;}
+  state.updatedAt=new Date(timestamp).toISOString();await atomicJson(p.status,state);
+ }
  function launchWorker(name,config){
   const prior=state.workers[name],attempts=(prior?.starts??0)+1;
   const child=launch(SELF,['worker-'+name,'--config',config],{execPath:process.execPath,cwd:path.dirname(SELF),windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});

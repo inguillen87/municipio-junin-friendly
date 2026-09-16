@@ -45,7 +45,7 @@ $UserSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 & icacls.exe $Base /inheritance:r /grant:r "*${UserSid}:(OI)(CI)(F)" '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)'|Out-Null
 if($LASTEXITCODE -ne 0){throw 'No se pudieron restringir los permisos de la instalacion.'}
 if([IO.Path]::GetFullPath($NodePath) -ne $Node){Copy-Item -LiteralPath $NodePath -Destination $Node -Force}
-foreach($file in @('service.mjs','sender.mjs','delivery.mjs','store.mjs','config.mjs','route-guard.mjs','delivery-status.mjs','check-host.mjs','host-readiness.mjs','user-supervisor.mjs','package.json','LICENSE')){
+foreach($file in @('service.mjs','sender.mjs','delivery.mjs','store.mjs','config.mjs','route-guard.mjs','delivery-status.mjs','check-host.mjs','host-readiness.mjs','user-supervisor.mjs','operation-status.mjs','package.json','LICENSE')){
  Copy-Item -LiteralPath (Join-Path $Source $file) -Destination (Join-Path $App $file) -Force
 }
 $Reader=Join-Path $App 'reader';if(-not(Test-Path -LiteralPath $Reader)){New-Item -ItemType Directory -Path $Reader|Out-Null}

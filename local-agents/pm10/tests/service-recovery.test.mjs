@@ -193,3 +193,41 @@ test('local outage status explains the next retry without claiming receipt or at
  assert.match(html,/no llegó a establecer la conexión ni a enviar la clave/);
  assert.match(html,/hasta 15 minutos/);assert.match(html,/última captura completa se conservan/);
 });
+
+// Regression: a Windows/VPN socket abort is transport, not an AUTH rejection.
+test('ECONNABORTED retries with persisted deadline and the existing six-failure ceiling',()=>temporary(async root=>{
+ const store=await storeAt(root);await store.save(dataSet(2));let state=initialState(),calls=0;
+ let time=Date.parse('2026-09-16T09:00:00Z');
+ const deps={routeCheck,now:()=>new Date(time),credentialReader:async()=>fakeKey(),collectImpl:async()=>{calls++;throw Object.assign(Error('synthetic socket abort'),{code:'ECONNABORTED'});}};
+ for(let n=1;n<=6;n++){
+  state=await runCycle(config(root),store,state,deps);
+  assert.equal(state.failureCount,n);assert.equal(state.blocked,n===6);
+  assert.equal(state.lastError,'ECONNABORTED');assert.equal(store.summary().uniqueLocalRecords,2);
+  await writeStatus(root,state);state=await loadState(root);
+  if(n<6){const due=Date.parse(state.nextPollAt);assert.ok(due-time>=60000&&due-time<=900000);
+   time=due-1;await runCycle(config(root),store,state,deps);assert.equal(calls,n);time=due;}
+ }
+ assert.equal(state.nextPollAt,null);await runCycle(config(root),store,state,deps);assert.equal(calls,6);
+}));
+test('socket abort never clears an existing operator-review block',()=>temporary(async root=>{
+ let calls=0;const state=await runCycle(config(root),await storeAt(root),{...initialState(),blocked:true,lastError:'ECONNABORTED'},
+ {routeCheck:async()=>{calls++;},collectImpl:async()=>{calls++;}});
+ assert.equal(calls,0);assert.equal(state.blocked,true);assert.equal(state.lastError,'ECONNABORTED');
+}));
+test('successful capture after socket abort preserves old records and resets retry budget',()=>temporary(async root=>{
+ const store=await storeAt(root);await store.save(dataSet(2));let state;
+ await withClock({count:3},async port=>{
+  state=await runCycle(config(root),store,{...initialState(),failureCount:1,lastError:'ECONNABORTED'},
+  {routeCheck,credentialReader:async()=>fakeKey(),collectImpl:opts=>collect({...opts,host:'127.0.0.1',port,pacingMs:0,timeoutMs:1000,totalMs:5000})});
+ });
+ assert.equal(state.status,'captured_locally');assert.equal(state.failureCount,0);
+ assert.equal(state.blocked,false);assert.equal(store.summary().uniqueLocalRecords,3);
+ assert.equal(store.summary().pendingLocalBatches,2);
+}));
+test('AUTH rejection remains blocked even when its underlying error says ECONNABORTED',()=>temporary(async root=>{
+ const store=await storeAt(root);
+ const state=await runCycle(config(root),store,initialState(),{routeCheck,credentialReader:async()=>fakeKey(),collectImpl:async()=>
+  ({report:{status:'AUTH_NOT_ACCEPTED',authenticationAccepted:false,error:{code:'ECONNABORTED'}}})});
+ assert.equal(state.blocked,true);assert.equal(state.lastError,'AUTH_NOT_ACCEPTED');
+ assert.equal(store.summary().pendingLocalBatches,0);
+}));
