@@ -27,9 +27,8 @@ try {
   page.setDefaultTimeout(15000);
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/reportes-rrhh');
-  // The legacy host and the React owner carry the same readiness marker.
-  // Target the dedicated owner, as the lifecycle regression verifier does.
-  const catalog = page.locator('#mc-report-catalog-root.rc-react-catalog[data-react-catalog="ready"]');
+  // Scope to the component's explicit contract, not legacy mounting wrappers.
+  const catalog = page.locator('[data-catalog-workspace="v2"]');
   await catalog.waitFor();
   const search = catalog.locator('[data-catalog-search]');
   const format = catalog.locator('[data-catalog-format]');
