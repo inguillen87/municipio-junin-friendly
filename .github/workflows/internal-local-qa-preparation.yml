@@ -1,32 +1,47 @@
-name: One-time local QA preparation
+name: Reviewed licence candidate without previews
 on:
   push:
     branches: ['internal/local-qa-20260916']
-    paths: ['.github/workflows/internal-local-qa-preparation.yml']
+    paths: ['.qa/**', '.github/workflows/internal-local-qa-preparation.yml']
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: internal-licence-candidate
+  cancel-in-progress: true
 jobs:
-  prepare:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
         with:
+          path: meta
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
           ref: '2f97b8394841dbea8e8c17099fc8b3d177bd9673'
+          path: app
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Apply checksum-verified reviewed changes
+        run: node ../meta/.qa/candidate.mjs apply
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Package exact public source and locked dependencies for offline tests
+      - name: Full suite and actual build
+        run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Licence navigation and report regressions
         run: |
-          git rev-parse HEAD > SOURCE_COMMIT.txt
-          tar --exclude='./.git' --exclude='./public' --exclude='./verification' -czf "$RUNNER_TEMP/municontrol-local-qa.tar.gz" .
-          sha256sum "$RUNNER_TEMP/municontrol-local-qa.tar.gz"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: municontrol-local-qa-2f97b83
-          path: ${{ runner.temp }}/municontrol-local-qa.tar.gz
-          retention-days: 1
-          compression-level: 0
+          node scripts/verify-leave-workspace-browser.mjs
+          node scripts/verify-report-catalog-browser.mjs
+          node scripts/verify-report-centre-browser.mjs
+      - name: Create validated Git objects without moving production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../meta/.qa/candidate.mjs candidate
