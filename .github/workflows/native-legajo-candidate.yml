@@ -32,12 +32,14 @@ jobs:
       - name: Apply reviewed scoped changes
         run: node ../meta/.qa/integrate-native.mjs apply
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Complete application suite and build
-        run: npm run build
+      - name: Build before focused browser diagnosis
+        run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Native creation and existing workforce browser regressions
+      - name: Native creation browser diagnosis
+        run: node ../meta/.qa/probe-native.mjs
+      - name: Complete suite and workforce regression
         run: |
-          node scripts/verify-native-employee-browser.mjs
+          npm test
           node scripts/verify-workforce-operations-browser.mjs
       - name: Prepare validated commit without updating master
         env:
