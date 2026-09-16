@@ -1,0 +1,98 @@
+name: Validate Noelia recovered release
+on:
+  push:
+    branches: ['internal-noelia-release-20260915']
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Recover reviewed source patch and original production config
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,gzip,json,os,urllib.request,hashlib,pathlib,subprocess
+          root='https://api.github.com/repos/inguillen87/municipio-junin-friendly/git/blobs/'
+          chunks=[]
+          for sha in ['992dd021385d29ae0e844736b42e37bf98da10cf','805cbca835984521ad4e05089de23b7b464fb464','4021182dd8ea0268eafa9ae17491b604bfef522b','c831467acaf5eda3ce5c2d62a63fc19c3fde37fc']:
+              req=urllib.request.Request(root+sha,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=20) as response: blob=json.load(response)
+              data=base64.b64decode(blob['content'])
+              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==sha
+              chunks.append(data.decode())
+          patch=gzip.decompress(base64.b64decode(''.join(chunks)))
+          assert hashlib.sha256(patch).hexdigest()=='063909abc74bb1c492a38d056c7dfab1940a0cd6559f6b6b9a519b9a10b968aa'
+          subprocess.run(['git','apply','--unidiff-zero','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--unidiff-zero','-'],input=patch,check=True)
+          original=subprocess.check_output(['git','show','d7a9969c3f0745fdaa9056f33f7bd1ead5eca5e4:vercel.json'])
+          config=json.loads(original);config['git']={'deploymentEnabled':{'internal-*':False}}
+          pathlib.Path('vercel.json').write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
+          p=pathlib.Path('scripts/build-friendly.mjs');s=p.read_text()
+          s=s.replace("  'assets/internal-guide.js',", "  'assets/internal-guide.js',\n  'assets/liquidaciones-menu.js',\n  'assets/liquidaciones-menu.css',")
+          old="const routed = file.endsWith('.html') ? applyCleanRouteLinks(branded, file) : branded;"
+          new="const navigable = file.endsWith('.html') && /<aside\\b[^>]*class=\"[^\"]*\\bsidebar\\b/.test(branded)\n    ? branded.replace('</head>', '<link rel=\"stylesheet\" href=\"/assets/liquidaciones-menu.css\"><script type=\"module\" src=\"/assets/liquidaciones-menu.js\"></script></head>') : branded;\n  const routed = file.endsWith('.html') ? applyCleanRouteLinks(navigable, file) : navigable;"
+          assert s.count(old)==1;s=s.replace(old,new);p.write_text(s)
+          p=pathlib.Path('docs/COSTO_SALARIAL_CIERRE_20260915.md');s=p.read_text();s=s.replace('La rama `chatgpt/costo-salarial-cierre` tiene los despliegues Vercel automáticos deshabilitados mediante `git.deploymentEnabled`, sin cambiar master ni otras ramas.','Las ramas internas `internal-*` no generan despliegues Vercel automáticos; master y otras ramas conservan su comportamiento anterior.')
+          s+='\n## Navegación Liquidaciones\nDesplegable junto a Personas con siete destinos existentes: Resumen, Reportes y costo salarial, Novedades, Comparar, Historial, Parámetros (análisis) y Solicitudes de corrección. Respeta permisos y no hace consultas nuevas. No completa los siete módulos históricos ni el motor del módulo 7 (#37). Conserva logos, PM, formularios y rutas. La herramienta temporal de recuperación no se publica.\n'
+          p.write_text(s)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build including complete unit suite once
+        run: |
+          mkdir -p verification
+          set -o pipefail
+          npm run build 2>&1 | tee verification/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Cost component and three export formats
+        run: node scripts/verify-salary-cost-browser.mjs
+      - name: Menu capabilities, keyboard and mobile
+        run: node scripts/verify-liquidaciones-menu-browser.mjs
+      - name: Full reports and payroll page regression
+        run: node scripts/verify-report-centre-browser.mjs
+      - name: Preserve approved brand
+        run: node scripts/verify-restored-brand-browser.mjs
+      - name: Store tested blobs without updating a branch or production
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,json,os,urllib.request,hashlib,pathlib,zipfile
+          files=['assets/payroll-source-report-model.js','assets/payroll-source-reports.js','assets/report-centre.css','assets/report-document.js','assets/liquidaciones-menu.js','assets/liquidaciones-menu.css','scripts/build-friendly.mjs','scripts/salary-cost-synthetic.mjs','scripts/verify-salary-cost-browser.mjs','scripts/verify-liquidaciones-menu-browser.mjs','tests/liquidaciones-menu.test.js','tests/salary-cost-report.test.js','docs/COSTO_SALARIAL_CIERRE_20260915.md','vercel.json']
+          result={'base':'d7a9969c3f0745fdaa9056f33f7bd1ead5eca5e4','validationRun':os.environ['GITHUB_RUN_ID'],'files':[]}
+          for f in files:
+              data=pathlib.Path(f).read_bytes();body=json.dumps({'content':base64.b64encode(data).decode(),'encoding':'base64'}).encode()
+              req=urllib.request.Request('https://api.github.com/repos/inguillen87/municipio-junin-friendly/git/blobs',data=body,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
+              with urllib.request.urlopen(req,timeout=20) as response: blob=json.load(response)
+              expected=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest();assert blob['sha']==expected
+              result['files'].append({'path':f,'sha':expected,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)})
+          pathlib.Path('verification/tested-source.json').write_text(json.dumps(result,indent=2))
+          with zipfile.ZipFile('verification/tested-source.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for f in files:z.write(f,f)
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: noelia-release-validated-evidence
+          path: |
+            verification/build.log
+            verification/tested-source.json
+            verification/tested-source.zip
+            verification/salary-cost/
+            verification/liquidaciones-menu/
+            verification/report-centre-browser.json
+            verification/report-centre-browser-error.txt
+            verification/restored-brand-browser.json
+          retention-days: 5
+          if-no-files-found: error
