@@ -1,56 +1,69 @@
-name: Native legajo candidate - no previews
+name: Native legajo production verification - no previews
 on:
   push:
     branches: ['internal/native-legajo-067-20260916']
+    paths: ['.github/workflows/native-legajo-candidate.yml']
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: native-legajo-candidate
+  group: native-legajo-publication
   cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: app
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
-          path: meta
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          ref: '7a13f1608b5408fbf24ff7e963ceb9c98a00534a'
-          path: app
+          ref: 'e9a3f1ac14c33fd0d07c3f45012de5f229c1d762'
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: app/package-lock.json
-      - name: Apply reviewed scoped changes
-        run: node ../meta/.qa/integrate-native.mjs apply
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Build before focused browser diagnosis
-        run: node scripts/build-friendly.mjs
-      - run: npx playwright install --with-deps chromium
-      - name: Native creation browser diagnosis
-        run: node ../meta/.qa/probe-native.mjs
-      - name: Complete suite and workforce regression
+      - run: node scripts/build-friendly.mjs
+      - name: Verify public executable bytes and anonymous access denial
         run: |
-          npm test
-          node scripts/verify-workforce-operations-browser.mjs
-      - name: Prepare validated commit without updating master
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node ../meta/.qa/integrate-native.mjs candidate
-      - name: Synthetic browser evidence only
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {setTimeout as sleep} from 'node:timers/promises';
+          const origin='https://municipio-junin-friendly.vercel.app';
+          const assets=['assets/native-employee-contract.js','assets/native-employee-create.js','assets/native-employee-create.css'];
+          const hash=b=>createHash('sha256').update(b).digest('hex');
+          let hashes;
+          for(let attempt=1;attempt<=20;attempt++){
+            try{
+              hashes={};
+              for(const file of assets){
+                const response=await fetch(origin+'/'+file,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+                assert.equal(response.status,200,file);
+                const actual=Buffer.from(await response.arrayBuffer()),expected=fs.readFileSync('public/'+file);
+                assert.equal(hash(actual),hash(expected),'Published bytes differ: '+file);hashes[file]=hash(actual);
+              }
+              const response=await fetch(origin+'/personal',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+              assert.equal(response.status,200);const html=await response.text();
+              assert.ok(html.includes('data-employee-create'));assert.ok(html.includes('Nuevo legajo'));
+              for(const file of assets.filter(f=>!f.includes('contract')))assert.ok(html.includes(file));
+              break;
+            }catch(error){console.log('Publication check '+attempt+': '+error.message.split('\n')[0]);if(attempt===20)throw error;await sleep(12000);}
+          }
+          const denied=await fetch(origin+'/api/internal-native-employees?resource=bootstrap',{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000)});
+          assert.equal(denied.status,401,'Anonymous requests must remain rejected');assert.match(denied.headers.get('cache-control')||'',/no-store/);
+          const result={ok:true,commit:'e9a3f1ac14c33fd0d07c3f45012de5f229c1d762',checkedAt:new Date().toISOString(),origin,hashes,publicPageStatus:200,anonymousApiStatus:401,municipalSessionTested:false,realEmployeeWrites:0};
+          fs.mkdirSync('verification',{recursive:true});fs.writeFileSync('verification/native-employee-production.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+          JS
+      - run: npx playwright install --with-deps chromium
+      - name: Published form, permissions, recovery and mobile with synthetic APIs
+        run: node scripts/verify-native-employee-browser.mjs --published
+      - name: Publication evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: native-legajo-browser-${{ github.run_id }}
+          name: native-legajo-production-${{ github.run_id }}
           path: |
-            app/verification/native-employee-*.json
-            app/verification/native-employee-*.png
-          retention-days: 3
+            verification/native-employee-*.json
+            verification/native-employee-*.png
+          retention-days: 7
