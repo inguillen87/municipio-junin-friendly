@@ -33,12 +33,15 @@ jobs:
       - name: Apply checksum-verified reviewed changes
         run: node ../meta/.qa/candidate.mjs apply
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Full suite and actual build
-        run: npm run build
+      - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Licence navigation and report regressions
+      - name: Focused browser diagnostic before repeating full suite
+        run: node ../meta/.qa/probe.mjs
+      - name: Full suite and report regressions
         run: |
-          node scripts/verify-leave-workspace-browser.mjs
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py'
+          node scripts/verify-friendly-containment.mjs
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-report-centre-browser.mjs
       - name: Create validated Git objects without moving production
