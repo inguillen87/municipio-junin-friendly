@@ -90,6 +90,8 @@ const shellFiles = [
   'assets/attendance-clock-operations.js',
   'assets/attendance-connector-admin.js',
   'assets/internal-guide.js',
+  'assets/liquidaciones-menu.js',
+  'assets/liquidaciones-menu.css',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',
   'assets/brand/municontrol-mark.svg',
@@ -256,7 +258,9 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
   const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(branded, file) : branded;
+  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded)
+    ? branded.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script></head>') : branded;
+  const routed = file.endsWith('.html') ? applyCleanRouteLinks(navigable, file) : navigable;
   fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
 

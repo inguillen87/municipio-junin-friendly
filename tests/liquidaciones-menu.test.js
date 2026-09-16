@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {LIQUIDACIONES_TASKS,visibleLiquidacionesTasks,activeLiquidacionesTask} from '../assets/liquidaciones-menu.js';
+test('Liquidaciones groups working routes, no payroll execution',()=>{assert.equal(LIQUIDACIONES_TASKS.length,7);assert.ok(LIQUIDACIONES_TASKS.every(x=>/^\/(nomina#[a-z]+|novedades)$/.test(x.href)));assert.ok(Object.isFrozen(LIQUIDACIONES_TASKS));});
+test('no permission means no payroll menu',()=>assert.equal(visibleLiquidacionesTasks([]).length,0));
+test('novelty and payroll permissions remain separate',()=>{assert.deepEqual(visibleLiquidacionesTasks(['payroll.novelty.read']).map(x=>x.href),['/novedades']);assert.equal(visibleLiquidacionesTasks(['payroll.read']).length,6);assert.equal(visibleLiquidacionesTasks(['payroll.read','payroll.novelty.read']).length,7);});
+for(const path of ['/nomina','/nomina-control','/nomina-control.html'])test('canonical and legacy '+path,()=>{assert.equal(activeLiquidacionesTask(path),'/nomina#resumen');assert.equal(activeLiquidacionesTask(path,'#reportes'),'/nomina#reportes');assert.equal(activeLiquidacionesTask(path,'#arbitrary'),null);});
+test('other screens and novelties are unambiguous',()=>{assert.equal(activeLiquidacionesTask('/personal','#legajos'),null);assert.equal(activeLiquidacionesTask('/novedades-nomina.html'),'/novedades');});
+test('menu reuses gate, no additional requests or personal storage',()=>{const source=fs.readFileSync('assets/liquidaciones-menu.js','utf8');assert.doesNotMatch(source,/\bfetch\s*\(|innerHTML|localStorage|sessionStorage/);assert.match(source,/await gate.ready/);});
+test('each payroll task anchor already exists',()=>{const source=fs.readFileSync('assets/payroll-navigation.js','utf8');for(const task of LIQUIDACIONES_TASKS.filter(x=>x.href.startsWith('/nomina#')))assert.ok(source.includes("id:'"+task.href.split('#')[1]+"'"));});

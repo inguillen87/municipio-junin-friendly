@@ -16,5 +16,53 @@ export function sourceReportDocument(raw,filter={}){
  const fold=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const category=r=>Number(r.code)>=990&&Number(r.code)<=999?'Total de control':r.totalGroup==='996'?'Descuento':r.totalGroup==='990'?'Aporte patronal':r.totalGroup==='995'?'Asignación familiar':r.totalGroup==='994'?'Haber no remunerativo':r.totalGroup==='993'?'Haber remunerativo':'Concepto de origen';
  const rows=d.rows.filter(r=>(group==='all'||group==='discounts'&&r.totalGroup==='996'&&Number(r.code)<990||group==='contributions'&&['701','703'].includes(r.code)||group==='totals'&&Number(r.code)>=990&&Number(r.code)<=999)&&(!q||fold(r.code+' '+r.description).includes(fold(q))));
- return{title:'Conceptos de liquidación',columns:[{label:'Código',type:'text',width:11},{label:'Descripción',type:'text',width:48},{label:'Categoría',type:'text',width:25},{label:'Legajos con concepto',type:'integer',width:23},{label:'Importe informado',type:'money',width:24}],rows:rows.map(r=>[r.code,r.description,category(r),r.sourceRows,r.amount]),totals:[],notes:['Conceptos conservados en MuniControl. No es un cálculo nuevo, archivo de pago ni presentación fiscal.','Filtro: '+({all:'Todos',discounts:'Descuentos',contributions:'Aportes 701 y 703',totals:'Totalizadores'})[group]+(q?' · '+q:'')+'. No se suman totalizadores otra vez. La ausencia de un concepto no se presume importe cero.'],metadata:[['Período',d.date],['Tipo',d.type],['Estado',({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],['Fuente',d.sourceLabel],['Legajos de la corrida',d.statementCount],['SHA-256',d.reportHash],['Huella de conjunto',d.payloadHash],['Filas del filtro',rows.length]],filename:'municontrol_conceptos_'+d.date+'_'+d.type.toLowerCase()};
+ return{salaryCost:sourceSalaryCost(d),layout:'compact-concepts.v1',title:'Conceptos de liquidación',columns:[{label:'Código',type:'text',width:11},{label:'Descripción',type:'text',width:48},{label:'Categoría',type:'text',width:25},{label:'Legajos con concepto',type:'integer',width:23},{label:'Importe informado',type:'money',width:24}],rows:rows.map(r=>[r.code,r.description,category(r),r.sourceRows,r.amount]),totals:[],notes:['Conceptos conservados en MuniControl. No es un cálculo nuevo, archivo de pago ni presentación fiscal.','Filtro: '+({all:'Todos',discounts:'Descuentos',contributions:'Aportes 701 y 703',totals:'Totalizadores'})[group]+(q?' · '+q:'')+'. No se suman totalizadores otra vez. La ausencia de un concepto no se presume importe cero.'],metadata:[['Período',d.date],['Tipo',d.type],['Estado',({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],['Fuente',d.sourceLabel],['Legajos de la corrida',d.statementCount],['SHA-256',d.reportHash],['Huella de conjunto',d.payloadHash],['Filas del filtro',rows.length]],filename:'municontrol_conceptos_'+d.date+'_'+d.type.toLowerCase()};
+}
+
+
+// Directiva de Noelia: 993 + 994 + 995 + 701 + 703. The filter never changes its scope.
+export const SALARY_COST_CODES = Object.freeze(['993', '994', '995', '701', '703']);
+const cents = value => value === null ? null : BigInt(value.replace('.', ''));
+const decimal = value => value === null ? null : `${value < 0n ? '-' : ''}${(value < 0n ? -value : value) / 100n}.${String((value < 0n ? -value : value) % 100n).padStart(2, '0')}`;
+export function sourceSalaryCost(raw) {
+  const d = payrollSourceReport(raw);
+  if (d.mode !== 'report' || !d.found) throw Error('Consultá una liquidación');
+  const byCode = new Map(d.rows.map(row => [row.code, row]));
+  const amount = code => byCode.has(code) ? cents(byCode.get(code).amount) : null;
+  const sum = codes => {
+    const values = codes.map(amount);
+    return values.some(v => v === null) ? null : values.reduce((a, b) => a + b, 0n);
+  };
+  const difference = (a, b) => a === null || b === null ? null : a - b;
+  const earnings = sum(['993', '994', '995']);
+  const contributions = sum(['701', '703']);
+  const netCalculated = difference(earnings, amount('996'));
+  return {
+    version: 'salary-cost.v1', scope: 'complete-dataset',
+    formula: '993 + 994 + 995 + 701 + 703',
+    amount: decimal(sum(SALARY_COST_CODES)),
+    earnings: decimal(earnings), contributions: decimal(contributions),
+    components: SALARY_COST_CODES.map(code => ({
+      code, description: byCode.get(code)?.description ?? 'Concepto no incluido en la fuente',
+      amount: byCode.get(code)?.amount ?? null,
+      sourceRows: byCode.get(code)?.sourceRows ?? null,
+      missingAmounts: byCode.get(code)?.missingAmounts ?? null,
+    })),
+    missingCodes: SALARY_COST_CODES.filter(code => amount(code) === null),
+    controls: {
+      contributionsReported: decimal(amount('990')),
+      contributionsDifference: decimal(difference(amount('990'), contributions)),
+      withholdings: decimal(amount('996')), netCalculated: decimal(netCalculated),
+      netReported: decimal(amount('999')),
+      netDifference: decimal(difference(amount('999'), netCalculated)),
+    },
+    official: false, payrollModified: false,
+  };
+}
+
+export function formatSalaryAmount(value) {
+  if (value === null) return 'No calculable';
+  if (typeof value !== 'string' || !/^-?\d{1,14}\.\d{2}$/.test(value)) throw Error('Importe inválido');
+  const [whole, fraction] = value.replace('-', '').split('.');
+  return '$ ' + (value.startsWith('-') ? '-' : '') + whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + fraction;
 }
