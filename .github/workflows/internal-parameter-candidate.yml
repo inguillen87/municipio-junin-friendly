@@ -1,49 +1,25 @@
-name: Parameter clean-build startup evidence without preview
+name: Read prior parameter regression failure without rebuilding
 on:
   push:
     branches: ['internal/payroll-parameters-20260916']
-    paths: ['.github/workflows/internal-parameter-candidate.yml', '.qa-parameter-probe.mjs']
+    paths: ['.github/workflows/internal-parameter-candidate.yml']
 permissions:
   contents: read
-concurrency:
-  group: parameter-candidate
-  cancel-in-progress: true
+  actions: read
 jobs:
-  validate:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
-    defaults:
-      run:
-        working-directory: app
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: meta
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          ref: '5a52b8e3f8ba91b7ea2f4fb38f0f38789dade89d'
-          path: app
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - name: Inspect state only after the initial assertion fails
-        run: node ../meta/.qa-parameter-probe.mjs
-      - name: Existing report and leave acceptance
+      - name: Summarize existing failure only, no build or deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/verify-report-catalog-browser.mjs
-          node scripts/verify-report-centre-browser.mjs
-          node scripts/verify-leave-workspace-browser.mjs
-      - name: Synthetic diagnosis evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: parameter-clean-startup-${{ github.run_id }}
-          path: app/verification/parameters-local/**
-          retention-days: 3
+          node --input-type=module <<'JS'
+          const url = 'https://api.github.com/repos/inguillen87/municipio-junin-friendly/actions/jobs/104724859035/logs';
+          const response = await fetch(url, {headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json'}, signal:AbortSignal.timeout(30000)});
+          if(!response.ok)throw Error('Prior log unavailable HTTP '+response.status);
+          const text=await response.text();
+          console.log(text.split('\n').filter(line=>!line.includes('GH_TOKEN')).slice(-95).join('\n').slice(-10000));
+          console.log('Read existing run only. No application tests, dependencies, records, commits or deployments created by this job.');
+          JS
