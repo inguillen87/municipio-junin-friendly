@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { build } from 'esbuild';
+import { buildPayrollParameters } from './build-payroll-parameters.mjs';
 
 // Adapted from the reviewed Civitas island build. Only this declared public
 // catalog is compiled; the existing API, identity and payroll tools stay intact.
 export async function buildReactIslands(root, output) {
+  await buildPayrollParameters(root, output);
   const source = 'src/islands/report-catalog-entry.jsx';
   const result = await build({
     absWorkingDir: root,
