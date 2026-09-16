@@ -13,10 +13,12 @@ if(process.argv[2]==='apply'){
  for(const file of Object.keys(manifest)){if(['api/internal-data.js','internal-dashboard.html'].includes(file))continue;assert.ok(!fs.existsSync(file),file);fs.mkdirSync(path.dirname(file),{recursive:true});fs.copyFileSync(path.join(meta,file),file);}
  replaceOnce('assets/native-employee-create.js',"cache:'no-store',headers:{Accept:'application/json'}","cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/json'}");
  replaceOnce('assets/native-employee-create.css','.native-employee-dialog{width:','.native-employee-dialog{box-sizing:border-box;width:');
+ replaceOnce('scripts/migrations/067-native-employee-registration.sql','END $$;\nCREATE OR REPLACE FUNCTION native_employee_create_v1','END $$;\n\nCREATE OR REPLACE FUNCTION native_employee_create_v1');
  replaceOnce('scripts/build-friendly.mjs',"  'assets/workforce-operations.css',","  'assets/workforce-operations.css',\n  'assets/native-employee-contract.js',\n  'assets/native-employee-create.js',\n  'assets/native-employee-create.css',");
  assert.ok(!fs.readFileSync('.vercelignore','utf8').includes('067-native-employee-registration.sql'));fs.appendFileSync('.vercelignore','\n!scripts/migrations/067-native-employee-registration.sql\n');
 }
-for(const [file,expected]of Object.entries(manifest))assert.equal(hash(fs.readFileSync(file)),expected,'Reviewed SHA256: '+file);
+const mismatches=Object.entries(manifest).map(([file,expected])=>({file,expected,actual:hash(fs.readFileSync(file))})).filter(x=>x.expected!==x.actual);
+assert.deepEqual(mismatches,[],'Every reviewed application SHA256 must match');
 if(process.argv[2]==='candidate'){
  const repo='inguillen87/municipio-junin-friendly',files=[...Object.keys(manifest),...additional];
  async function api(resource,body){const response=await fetch(`https://api.github.com/repos/${repo}/${resource}`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});const result=await response.json();assert.ok(response.ok,`${response.status}: ${result.message||resource}`);return result;}
