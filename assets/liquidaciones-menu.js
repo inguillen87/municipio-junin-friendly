@@ -5,7 +5,7 @@ export const LIQUIDACIONES_TASKS = Object.freeze([
   {label:'Novedades',href:'/novedades',capability:'payroll.novelty.read'},
   {label:'Comparar liquidaciones',href:'/nomina#comparar',capability:'payroll.read'},
   {label:'Historial de corridas',href:'/nomina#historial',capability:'payroll.read'},
-  {label:'Parámetros · análisis',href:'/nomina#parametros',capability:'payroll.read'},
+  {label:'Parámetros salariales',href:'/nomina#parametros',capability:'payroll.read'},
   {label:'Solicitudes de corrección',href:'/nomina#correcciones',capability:'payroll.read'},
 ].map(task=>Object.freeze(task)));
 export function visibleLiquidacionesTasks(capabilities){const allowed=new Set(Array.isArray(capabilities)?capabilities:[]);return LIQUIDACIONES_TASKS.filter(task=>allowed.has(task.capability));}
@@ -30,7 +30,7 @@ export async function mountLiquidacionesMenu(){
   gate.apply(group,{tenantCapabilities:[...access.tenantCapabilities],platformCapabilities:[...access.platformCapabilities],platformRoles:[...access.platformRoles]},location.href);
   if(old){old.dataset.liquidacionesLegacy='';old.hidden=true;}
   function updateActive(){const active=activeLiquidacionesTask(location.pathname,location.hash);group.dataset.active=String(active!==null);for(const link of links.children){if(link.getAttribute('href')===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}if(active)group.open=true;}
-  updateActive();window.addEventListener('hashchange',updateActive);window.addEventListener('popstate',updateActive);
+  updateActive();window.addEventListener('hashchange',updateActive);window.addEventListener('popstate',updateActive);document.addEventListener('taskchange',updateActive);
   links.addEventListener('keydown',event=>{if(event.key==='Escape'){group.open=false;summary.focus();}});
   document.getElementById('logoutButton')?.addEventListener('click',()=>{group.hidden=true;});return group;
 }
