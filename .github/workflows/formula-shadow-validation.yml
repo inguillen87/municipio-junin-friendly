@@ -1,0 +1,26 @@
+name: Formula shadow validation - no deployments
+on:
+  push:
+    branches: ['internal-formula-shadow-20260916']
+permissions:
+  contents: read
+concurrency:
+  group: formula-shadow-validation
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Complete synthetic suite including exact formula laboratory
+        run: npm test
+      - name: Existing application build without deployment or database
+        run: node scripts/build-friendly.mjs
