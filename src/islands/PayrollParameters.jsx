@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AGREEMENT_LABELS, PARAMETER_RULES, PARAMETER_STATUSES, PARAMETER_COMMANDS, PARAMETER_REASONS, PARAMETER_REASON_LABELS, parameterRule, parseParameterMoney, parameterMoney, parameterPreview, verifiedParameterProposal } from '../../lib/payroll-parameter-contract.js';
 import { parameterRequest, parameterAttempt } from './payroll-parameter-client.js';
 import { parameterArtifact } from './payroll-parameter-export.js';
+import PayrollCatalog from './PayrollCatalog.jsx';
 const css = `
 [data-parameter-workspace]{color:#163e50;min-width:0;margin:18px 0 24px;font-size:14px;line-height:1.6}
 [data-parameter-workspace] *{box-sizing:border-box}
@@ -136,10 +137,11 @@ export default function PayrollParameters({ request = parameterRequest }) {
           <div className="pp-actions">{(selected.allowedCommands || []).filter(c => Object.hasOwn(PARAMETER_COMMANDS, c)).map(c => <button key={c} className={['submit','approve'].includes(c) ? 'pp-primary' : ''} disabled={disabled} onClick={() => { setReason('source_mismatch'); setConfirmation({ command: c }); }}>{PARAMETER_COMMANDS[c]}</button>)}</div>
           <div className="pp-actions">{['xlsx', 'pdf', 'csv'].map(ext => <button disabled={disabled} key={ext} onClick={() => download(ext)}>Descargar {ext === 'xlsx' ? 'Excel' : ext.toUpperCase()}</button>)}</div>
           {principal?.capabilities?.includes('payroll.parameter.audit.read') && <details className="pp-history"><summary>Historial del cambio</summary>{(selected.timeline || []).map(event => <div className="pp-event" key={event.id}><strong>{event.command === 'prepare' ? 'Borrador guardado' : PARAMETER_COMMANDS[event.command] || event.command}</strong><small>{date(event.occurredAt)} · {event.actorRoleKey} · Versión {event.resultingVersion}</small><small>Referencia: {event.reasonReference || 'Preparación inicial'}</small></div>)}</details>}
-          <p className="pp-scope">La propuesta queda registrada y revisable. Su aprobación no aplica todavía una vigencia al motor de liquidación ni modifica haberes.</p>
+          <p className="pp-scope">La aprobación conserva esta propuesta. Para incorporarla al catálogo vigente, revisá el impacto y confirmá su activación por separado. Ninguna de estas operaciones recalcula haberes.</p>
         </section>}
       </div>
     </div>}
+    {!blocked && <PayrollCatalog proposal={selected} onDenied={failure} />}
     <dialog ref={dialog} aria-labelledby="pp-confirm-title" onCancel={() => { if (!busy) setConfirmation(null); }}>
       <h3 id="pp-confirm-title">{confirmation?.command === 'prepare' ? 'Revisar antes de guardar' : PARAMETER_COMMANDS[confirmation?.command]}</h3>
       {confirmation?.command === 'prepare' ? <><p>Desde {confirmation.draft.validFrom} · {confirmation.draft.sourceReference}</p><Values draft={confirmation.draft}/></> : selected && <><p>Desde {selected.draft.validFrom} · Versión {selected.version}</p><p>{selected.draft.sourceReference}</p>{confirmation?.command === 'reject' && <label>Motivo del rechazo<select value={reason} onChange={e => setReason(e.target.value)}>{PARAMETER_REASONS.reject.map(r => <option key={r} value={r}>{PARAMETER_REASON_LABELS[r]}</option>)}</select></label>}</>}
