@@ -6,17 +6,15 @@ on:
       - 'lib/firmar-*.js'
       - 'api/internal-firmar.js'
       - 'api/firmar-callback.js'
-      - 'assets/firmar-journey*'
-      - 'assets/firmar-return*'
-      - 'assets/firmar-http-client.js'
-      - 'assets/firmar-connected-journey.css'
-      - 'src/islands/firmar-journey-panel.tsx'
-      - 'src/islands/firmar-return-panel.tsx'
-      - 'src/islands/firmar-connected-journey.tsx'
+      - 'api/internal-firmar-workspace.js'
+      - 'assets/firmar-*'
+      - 'src/islands/firmar-*.tsx'
       - 'tests/firmar-*.test.js'
       - 'scripts/verify-firmar-*.mjs'
       - 'scripts/fixtures/firmar-journal-*.sql'
+      - 'scripts/fixtures/firmar-workspace-*.sql'
       - 'scripts/migrations/071-firmar-attempt-journal.sql'
+      - 'scripts/migrations/072-firmar-personal-workspace.sql'
       - '.github/workflows/firmar-direct-integration.yml'
   workflow_dispatch:
 permissions:
@@ -52,7 +50,9 @@ jobs:
       - name: PostgreSQL reservation, return, receipt and access boundaries
         env:
           FIRMAR_SYNTHETIC_POSTGRES: 'true'
-        run: node scripts/verify-firmar-persistence.mjs
+        run: |
+          node scripts/verify-firmar-persistence.mjs
+          node scripts/verify-firmar-workspace-sql.mjs
       - name: Full application regression and existing build
         run: npm run build
       - name: Synthetic interaction browser
@@ -64,7 +64,9 @@ jobs:
       - name: Connected HTTP and PostgreSQL signing journey
         env:
           FIRMAR_SYNTHETIC_POSTGRES: 'true'
-        run: node scripts/verify-firmar-http-browser.mjs --postgres
+        run: |
+          node scripts/verify-firmar-http-browser.mjs --postgres
+          node scripts/verify-firmar-workspace-browser.mjs --postgres
       - name: Evidence with no real identity or document
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,4 +78,5 @@ jobs:
             verification/firmar-return-lifecycle/
             verification/firmar-persistence/
             verification/firmar-http/
+            verification/firmar-workspace/
           retention-days: 5
