@@ -4,10 +4,15 @@ on:
     branches: ['internal-firmar-direct-20260917']
     paths:
       - 'lib/firmar-*.js'
+      - 'api/internal-firmar.js'
+      - 'api/firmar-callback.js'
       - 'assets/firmar-journey*'
       - 'assets/firmar-return*'
+      - 'assets/firmar-http-client.js'
+      - 'assets/firmar-connected-journey.css'
       - 'src/islands/firmar-journey-panel.tsx'
       - 'src/islands/firmar-return-panel.tsx'
+      - 'src/islands/firmar-connected-journey.tsx'
       - 'tests/firmar-*.test.js'
       - 'scripts/verify-firmar-*.mjs'
       - 'scripts/fixtures/firmar-journal-*.sql'
@@ -56,6 +61,10 @@ jobs:
           node scripts/verify-firmar-journey-browser.mjs
           node scripts/verify-firmar-continuity-browser.mjs
           node scripts/verify-firmar-return-lifecycle-browser.mjs
+      - name: Connected HTTP and PostgreSQL signing journey
+        env:
+          FIRMAR_SYNTHETIC_POSTGRES: 'true'
+        run: node scripts/verify-firmar-http-browser.mjs --postgres
       - name: Evidence with no real identity or document
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,4 +75,5 @@ jobs:
             verification/firmar-continuity/
             verification/firmar-return-lifecycle/
             verification/firmar-persistence/
+            verification/firmar-http/
           retention-days: 5
