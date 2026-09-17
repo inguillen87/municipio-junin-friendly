@@ -3,10 +3,10 @@
 import {firmarReturnNotice} from './firmar-journey.js';
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v);
 export function takeFirmarReturnState(location,history){
- const raw=String(location.hash||'');
+ const raw=String(location.hash||''),hadQuery=Boolean(location.search);
  // Remove state before callbacks, status messages, analytics or other navigation.
  history.replaceState(null,'',location.pathname);
- if(location.search||!/^#[A-Za-z0-9_-]{43}$/.test(raw)||/[\x00-\x20]/.test(raw))throw Error('FIRMAR_RETURN_INVALID');
+ if(hadQuery||!/^#[A-Za-z0-9_-]{43}$/.test(raw)||/[\x00-\x20]/.test(raw))throw Error('FIRMAR_RETURN_INVALID');
  return raw.slice(1);
 }
 export function verifyFirmarReturnBinding(value){
