@@ -58,3 +58,19 @@ export function sheetPage(rows, page = 1, pageSize = 10) {
   return { rows: rows.slice((current - 1) * pageSize, current * pageSize).map(r => [...r]),
     page: current, pages, offset: (current - 1) * pageSize, total: rows.length };
 }
+
+/** Append a reviewed preparte atomically. Never replace existing administrative work. */
+export function appendPreparteRows(rows, incoming, limit = 500) {
+  assertRows(rows); assertRows(incoming);
+  if (!Number.isSafeInteger(limit) || limit<1 || limit>500 || !incoming.length || rows.length+incoming.length>limit) throw Error('La planilla no tiene espacio para todo el preparte. No se agregó ninguna fila.');
+  const canonical=value=>/^\d{1,20}$/.test(value.trim())?value.trim().replace(/^0+(?=\d)/,''):value.trim();
+  const occupied=new Set(rows.filter(row=>['44','95'].includes(canonical(row[1]))).map(row=>canonical(row[0])));
+  for (const row of incoming) {
+    if (!/^[1-9]\d{0,19}$/.test(row[0]) || !['44','95'].includes(row[1]) || !/^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(row[4]) ||
+      (row[1]==='95')!==(row[4]==='100') || row[2] || row[3] || row[5] || row[6] || row[9]!=='NO' ||
+      row[7].length<5 || row[7].length>160 || row[8].length<20 || row[8].length>500) throw Error('El preparte contiene una fila inválida. No se agregó ninguna fila.');
+    if (occupied.has(row[0])) throw Error('El legajo '+row[0]+' ya tiene mayor dedicación o Full Time en esta planilla. Revisá esa fila antes de agregar el preparte.');
+    occupied.add(row[0]);
+  }
+  return [...rows.map(row=>[...row]),...incoming.map(row=>[...row])];
+}

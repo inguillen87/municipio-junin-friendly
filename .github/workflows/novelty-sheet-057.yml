@@ -7,6 +7,13 @@ on:
       - 'scripts/patches/057*'
       - 'scripts/integrate-native-sheet-production-057.mjs'
       - 'assets/payroll-novelty-sheet*'
+      - 'assets/attendance-preparte*'
+      - 'lib/attendance-preparte.js'
+      - 'lib/internal-attendance-workdays.js'
+      - 'api/internal-attendance.js'
+      - 'tests/attendance-preparte.test.js'
+      - 'scripts/verify-attendance-preparte-browser.mjs'
+      - 'scripts/verify-preparte-publication.mjs'
       - 'assets/payroll-novelty-workbench.js'
       - 'assets/payroll-novelty-review-panel.js'
       - 'novedades-nomina.html'
@@ -133,12 +140,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Build expected publication once using this checkout
+        run: node scripts/build-friendly.mjs
       - name: Compare canonical production resources and unauthenticated rejection
         run: node scripts/verify-novelty-sheet-production-057.mjs
       - name: Verify published UI with synthetic API only
         env:
           SHEET_LIVE_ASSETS: '1'
         run: node scripts/verify-novelty-sheet-057.mjs
+      - name: Preparte publication, real access denial and synthetic operator flow
+        run: node scripts/verify-attendance-preparte-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,4 +1,5 @@
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import {
   PAYROLL_NOVELTY_MAX_BODY_BYTES,
   PayrollNoveltyError,
@@ -313,7 +314,10 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
         if (resource === 'bootstrap') {
           assertQueryKeys(req, new Set(['resource']));
           const result = await bootstrap(sql, access.principal, session);
-          return send(res, 200, { ok: true, ...result });
+          return send(res, 200, { ok: true, ...result, sourceFeatures: {
+            attendancePreparte: principalHasCapabilities(access.principal,
+              ['attendance.read','workforce.employee.read','payroll.novelty.prepare']),
+          } });
         }
         assertQueryKeys(req, new Set(['resource', 'id']));
         const id = queryValue(req, 'id').trim();

@@ -275,3 +275,28 @@ test('errores determinísticos conservan sólo código, mensaje y ordinal seguro
   assert.equal(res.payload.code, 'PAYROLL_NOVELTY_LEGAJO_NOT_FOUND');
   assert.doesNotMatch(JSON.stringify(res.payload), /confidencial|571/);
 });
+
+const PREPARTE_CAPS = ['attendance.read','workforce.employee.read','payroll.novelty.prepare'];
+for (const missing of [null, ...PREPARTE_CAPS]) test('preparte availability uses complete server authority, missing '+missing, async () => {
+  const current = access();
+  current.principal.tenant.effectiveCapabilities = PREPARTE_CAPS.filter(cap => cap !== missing);
+  const projected = { principal: { capabilities: ['payroll.novelty.prepare'] },
+    sourceFeatures: { attendancePreparte: true }, batches: [] };
+  const handler = createInternalPayrollNoveltiesHandler(dependencies({
+    requireCompatibleInternalAccess: async () => current,
+    getPayrollNoveltyBootstrap: async () => projected,
+  }));
+  const res = response();
+  await handler({ method:'GET', query:{ resource:'bootstrap' }, headers:{} }, res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.payload.sourceFeatures.attendancePreparte, missing === null);
+  assert.deepEqual(res.payload.principal.capabilities,['payroll.novelty.prepare']);
+  assert.equal(projected.sourceFeatures.attendancePreparte,true,'projection is never mutated');
+});
+test('unspecified complete authority cannot grant preparte through a fabricated feature response', async () => {
+  const res=response();
+  await createInternalPayrollNoveltiesHandler(dependencies({
+    getPayrollNoveltyBootstrap:async()=>({sourceFeatures:{attendancePreparte:true}}),
+  }))({method:'GET',query:{resource:'bootstrap'},headers:{}},res);
+  assert.equal(res.statusCode,200);assert.equal(res.payload.sourceFeatures.attendancePreparte,false);
+});

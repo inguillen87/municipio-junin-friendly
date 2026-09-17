@@ -37,6 +37,7 @@ export async function continuousWorkdayFixture(query=new URLSearchParams(),setti
   rulesVersion:'declared-intervals.v2',site:{key:query.get('site')||'pm-10',label:'Sitio de prueba'},timezone,nominalReadAllowed:nominal,
   filters:{from,to,anchoredToLatest:!query.has('from')},context:{from:shifted(from,-1),to:shifted(to,1),recordCount:events.length+observations.length,eventCount:events.length,observationCount:observations.length},
   collection:{status:'continuous_receipts',sourceComplete:true,captureCount:1,receiptCount:1,batchCount:1,lastReceiptAt:'2026-09-15T09:59:00Z',periodCoverageCertified:false,automaticCollectorVerified:false},events,observations};
+ if(settings.rawOnly===true)return raw;
  const data=await getAttendanceWorkdaysV2({query:async()=>[{result:raw}]},principal,{...Object.fromEntries(query),source:'continuous'},session);
  return {ok:true,...data};
 }

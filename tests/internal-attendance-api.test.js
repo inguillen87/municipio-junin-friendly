@@ -465,3 +465,26 @@ test('endpoint de gateway no filtra errores internos del driver', async () => {
   assert.equal(res.payload.code, 'ATTENDANCE_INGEST_VERSION_INVALID');
   assert.equal(JSON.stringify(res.payload).includes('z'.repeat(40)), false);
 });
+
+test('preparte requires the three permissions together and forwards only a month, site and evidence',async()=>{
+  const gates=[],calls=[];const handler=createInternalAttendanceHandler(internalDependencies({
+    requireCompatibleInternalAccess:async(_req,_res,options)=>{gates.push(options);return access();},
+    getAttendancePreparte:async(...args)=>{calls.push(args);return{version:'attendance-preparte.v1',rows:[],payrollCalculated:false};},
+  }));
+  const res=response();await handler({method:'GET',headers:{},query:{resource:'clock-preparte',period:'2026-09',site:'pm-10',evidence:'a'.repeat(64)}},res);
+  assert.equal(res.statusCode,200);assert.deepEqual(gates[0].requiredCapabilities,['attendance.read','workforce.employee.read','payroll.novelty.prepare']);
+  assert.equal(gates[0].capabilityMode,'all');assert.equal(gates[0].allowLegacy,false);assert.equal(calls.length,1);
+  assert.deepEqual(calls[0][2],{period:'2026-09',site:'pm-10',evidence:'a'.repeat(64)});assert.equal(res.payload.payrollCalculated,false);
+  assert.match(res.headers['Cache-Control'],/no-store/);
+});
+test('preparte cannot be scoped by client tenant, partial paging or search',async()=>{
+  for(const extra of [{tenantId:TENANT_ID},{page:'2'},{search:'example'},{snapshot:IDEMPOTENCY_ID}]){
+    let calls=0;const handler=createInternalAttendanceHandler(internalDependencies({getAttendancePreparte:async()=>{calls++;}})),res=response();
+    await handler({method:'GET',headers:{},query:{resource:'clock-preparte',period:'2026-09',...extra}},res);
+    assert.equal(res.statusCode,400);assert.equal(calls,0);
+  }
+});
+test('anonymous preparte request never reaches the source database',async()=>{
+  let calls=0;const handler=createInternalAttendanceHandler(internalDependencies({requireCompatibleInternalAccess:async()=>null,getInternalSql:async()=>{calls++;}}));
+  await handler({method:'GET',headers:{},query:{resource:'clock-preparte',period:'2026-09'}},response());assert.equal(calls,0);
+});

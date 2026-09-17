@@ -1,11 +1,11 @@
 import { analyzeLegajoList } from './payroll-novelty-legajo-list.js';
-import { emptySheetRow, appendSheetGroup, sheetPage } from './payroll-novelty-sheet-model.js';
+import { emptySheetRow, appendSheetGroup, appendPreparteRows, sheetPage } from './payroll-novelty-sheet-model.js';
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
 const button = (text, id, cls = '') => { const n = el('button', text, 'button ' + cls); n.type = 'button'; if (id) n.id = id; return n; };
 const fields = [[2,'Centro de costo',20],[3,'Mes de ajuste',7],[6,'Movimiento',32],[7,'Instrumento legal',160],[8,'Observación / fundamento',500]];
 export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = null, maximumRows = () => 500 } = {}) {
   host.classList.add('novelty-sheet'); host.dataset.reviewOnly = 'true';
-  let rows = [], page = 1, size = 10, locked = false, undo = null;
+  let rows = [], page = 1, size = 10, locked = false, undo = null, boundPeriod = null;
   const pickedNames = new Map();
   const header = el('div',undefined,'sheet-heading');
   header.innerHTML='<div><p class="sheet-eyebrow">SIN ARCHIVOS · EDICIÓN DIRECTA</p><h3>Una planilla, varias novedades</h3><p>Agregá legajos y editá concepto y unidades en cada fila. El período y el tipo se toman de arriba.</p></div>';
@@ -25,7 +25,7 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
   dialog.innerHTML='<form method="dialog"><header><p class="sheet-eyebrow">MISMO CONCEPTO · VARIOS LEGAJOS</p><h3 id="sheetGroupTitle">Agregar un grupo a la planilla</h3><p>Ingresá los legajos, uno por línea. No pegues DNI ni una tabla completa.</p></header><label>Legajos<textarea id="sheetGroupLegajos" rows="6" maxlength="12000" placeholder="1001&#10;1002&#10;1003" spellcheck="false" required></textarea></label><button type="button" id="sheetGroupFind" class="button">Buscar legajos activos</button><div class="sheet-group-fields"><label>Concepto<input id="sheetGroupConcept" inputmode="numeric" maxlength="20" required></label><label>Unidades iniciales (opcional)<input id="sheetGroupQuantity" inputmode="decimal" maxlength="24" placeholder="Ej.: 1"></label></div><p>Se agregan sin importe manual y sin modo forzado. Podés editar cada fila antes de validar.</p><p id="sheetGroupError" role="alert" hidden></p><footer><button type="button" id="sheetGroupCancel" class="button">Cancelar</button><button type="submit" id="sheetGroupApply" class="button primary">Agregar a la planilla</button></footer></form>';
   host.append(header,toolbar,state,note,empty,wrap,nav,dialog);
   const $=id=>host.querySelector('#'+id);
-  const notify=message=>{onChange();state.textContent=message+' Todavía sin guardar.';};
+  const notify=message=>{onChange();state.textContent=message+' Todavía sin guardar.'+(boundPeriod?' Período '+boundPeriod+' bloqueado hasta vaciar la planilla.':'');};
   function update(index, column, value) { if(locked||!rows[index])return;rows[index][column]=value;undo=null;restore.disabled=true;notify('Fila '+(index+1)+' modificada. Volvé a validar antes de guardar.'); }
   function input(index,column,label,maxLength,type='text'){
     const n=el(column===8?'textarea':'input');if(n.tagName==='INPUT')n.type=type;
@@ -68,7 +68,7 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
     }
     empty.hidden=rows.length>0;wrap.hidden=nav.hidden=!rows.length;
     range.textContent=rows.length?`${view.offset+1}–${Math.min(view.offset+size,rows.length)} de ${rows.length} · Página ${page} de ${view.pages}`:'Sin filas';
-    add.disabled=group.disabled=find.disabled=locked||rows.length>=Math.min(500,maximumRows());clear.disabled=locked||!rows.length;restore.disabled=locked||!undo;
+    add.disabled=group.disabled=find.disabled=locked||rows.length>=Math.min(500,maximumRows());clear.disabled=locked||(!rows.length&&!boundPeriod);restore.disabled=locked||!undo;
     previous.disabled=locked||page<=1;next.disabled=locked||page>=view.pages;pageSize.disabled=locked;
     if(focusIndex!==null)host.querySelector(`[data-sheet-index="${focusIndex}"][data-sheet-field="0"]`)?.focus();
   }
@@ -104,15 +104,23 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
   dialog.addEventListener('close',resetDialog);
   $('sheetGroupCancel').addEventListener('click',()=>dialog.close());
   dialog.querySelector('form').addEventListener('submit',event=>{event.preventDefault();if(locked)return;try{const first=rows.length;const updated=appendSheetGroup(rows,{legajos:$('sheetGroupLegajos').value,concepto:$('sheetGroupConcept').value,unidades:$('sheetGroupQuantity').value});rows=updated;undo=null;page=Math.floor(first/size)+1;dialog.close();notify(`${rows.length-first} legajos agregados. Revisá las unidades de cada fila.`);render(first);}catch(error){$('sheetGroupError').textContent=error.message;$('sheetGroupError').hidden=false;}});
-  clear.addEventListener('click',()=>{if(locked||!rows.length||!window.confirm('¿Vaciar las '+rows.length+' filas de esta planilla sin guardar? Los lotes del servidor no se modifican.'))return;rows=[];pickedNames.clear();undo=null;page=1;notify('Planilla vaciada.');render();add.focus();});
+  clear.addEventListener('click',()=>{if(locked||(!rows.length&&!boundPeriod)||!window.confirm('¿Vaciar las '+rows.length+' filas de esta planilla sin guardar? Los lotes del servidor no se modifican.'))return;rows=[];boundPeriod=null;pickedNames.clear();undo=null;page=1;notify('Planilla vaciada.');render();add.focus();});
   restore.addEventListener('click',()=>{if(locked||!undo||rows.length>=500)return;const item=undo;undo=null;rows.splice(item.index,0,item.row);page=Math.floor(item.index/size)+1;notify('Fila restaurada.');render(item.index);});
   previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});pageSize.addEventListener('change',()=>{size=Number(pageSize.value);page=1;render();});
   render();state.textContent='Sin filas. La planilla se conserva sólo en esta pestaña hasta crear el lote.';
   return {
     values:()=>rows.map(r=>[...r]),
+    boundPeriod:()=>boundPeriod,
+    appendPreparte(incoming,period){
+      if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period||'') || boundPeriod&&boundPeriod!==period)throw Error('El preparte pertenece a otro período.');
+      if(locked)throw Error('La planilla está procesando otra operación.');
+      const next=appendPreparteRows(rows,incoming,Math.min(500,maximumRows()));
+      boundPeriod=period;const first=rows.length;rows=next;undo=null;page=Math.floor(first/size)+1;
+      notify(incoming.length+' filas del preparte agregadas sin reemplazar las anteriores.');render(first);
+    },
     clearLookupLabels(){pickedNames.clear();render();},
     count:()=>rows.length,
-    clear(){pickedNames.clear();rows=[];undo=null;page=1;if(dialog.open)dialog.close();resetDialog();render();state.textContent='Planilla vacía. No se conservan filas en este editor.';},
+    clear(){pickedNames.clear();rows=[];boundPeriod=null;undo=null;page=1;if(dialog.open)dialog.close();resetDialog();render();state.textContent='Planilla vacía. No se conservan filas en este editor.';},
     setDisabled(value){locked=Boolean(value);host.querySelectorAll('input,textarea,select,button').forEach(n=>n.disabled=locked);if(!locked)render();},
     render,
   };

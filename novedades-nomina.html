@@ -156,6 +156,7 @@
 <link rel="stylesheet" href="assets/payroll-novelty-review.css">
 <link rel="stylesheet" href="assets/payroll-novelty-legajo-list.css">
 <link rel="stylesheet" href="assets/payroll-novelty-sheet.css">
+<link rel="stylesheet" href="assets/attendance-preparte.css">
 <link rel="stylesheet" href="assets/employee-picker.css">
 </head>
 <body data-mc-page="payroll-novelties">
@@ -219,6 +220,8 @@
               <div class="field"><label for="payrollType">Tipo de liquidación</label><select id="payrollType" required><option value="monthly">Mensual</option><option value="first_fortnight">Primera quincena</option><option value="sac">SAC</option><option value="vacation">Vacaciones</option><option value="supplementary">Complementaria</option><option value="final">Liquidación final</option><option value="other">Otra</option></select></div>
               <div class="field"><span class="field-label">Estado inicial</span><div class="checkbox"><span>Sin guardar; requiere validación y revisión.</span></div></div>
             </div>
+
+            <details id="attendancePreparte"></details>
 
             <div class="form-grid" id="individualFields">
               <div class="field"><label for="legajo">Legajo</label><input id="legajo" inputmode="numeric" maxlength="20" placeholder="Ej.: 571"><button type="button" class="button picker-open-button" id="pickLegajoButton">Buscar por nombre</button><p id="pickedLegajoName" class="picker-picked-name" role="status" aria-live="polite"></p></div>

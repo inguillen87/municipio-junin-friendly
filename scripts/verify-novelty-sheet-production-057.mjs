@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const origin='https://municipio-junin-friendly.vercel.app';
 const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css','assets/payroll-novelty-sheet.js','assets/payroll-novelty-sheet-model.js','assets/payroll-novelty-sheet.css'];
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
-const expected=Object.fromEntries(files.map(p=>[p,hash(fs.readFileSync(p))]));
+const expected=Object.fromEntries(files.map(p=>[p,hash(fs.readFileSync('public/'+p))]));
 const commit=process.env.GITHUB_SHA||'manual',deadline=Date.now()+240000;
 let published=false;
 while(Date.now()<deadline){

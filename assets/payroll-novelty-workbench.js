@@ -1,4 +1,5 @@
 import { createEmployeePicker } from './employee-picker.js';
+import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
 import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
@@ -58,6 +59,7 @@ function issueLabel(issue) {
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
 let sheetEditor = null;
+let attendancePreparte = null;
 let employeePicker = null;
 let issuesPanel = null;
 let pendingFileReader = null;
@@ -99,6 +101,7 @@ function setBusy(value, label = '') {
     reviewPanel?.render();
   }
   sheetEditor?.setDisabled(value);
+  attendancePreparte?.setDisabled(value);
   if (value && document.querySelector('[name="sourceMode"]:checked')?.value === 'sheet') {
     byId('periodMonth').disabled = true;
     byId('payrollType').disabled = true;
@@ -341,6 +344,7 @@ function buildDraft() {
   const payrollType = entryMode === 'agile' && agileTemplate
     ? agileTemplate.payrollType
     : byId('payrollType').value;
+  if(sheetEditor?.boundPeriod() && (periodMonth.slice(0,7)!==sheetEditor.boundPeriod() || payrollType!=='monthly' || entryMode!=='sheet')) throw Error('El preparte quedó vinculado al mes '+sheetEditor.boundPeriod()+'. Vaciá la planilla para cambiar de período.');
   const allowedTypes = bootstrapState?.limits?.payrollTypes || [];
   if (!allowedTypes.includes(payrollType)) throw new Error('El tipo de liquidación no está habilitado.');
   const rows = entryMode === 'bulk'
@@ -574,6 +578,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     const canPrepare = hasCapability('payroll.novelty.prepare', payload.principal);
     const limitsChanged = bootstrapState && JSON.stringify(bootstrapState.limits) !== JSON.stringify(payload.limits);
     if (principalChanged || !canPrepare || limitsChanged) {
+      attendancePreparte?.clear();
       employeePicker?.close();
       byId('pickedLegajoName').textContent = '';
       sheetEditor?.clear();
@@ -582,6 +587,7 @@ async function loadBootstrap({ quiet = false } = {}) {
       clearAgileInput();
       invalidatePreparedDraft();
     }
+    if(payload.sourceFeatures?.attendancePreparte!==true)attendancePreparte?.clear();
     bootstrapState = payload;
     byId('sessionScope').textContent = capabilityText(payload.principal);
     byId('entrySection').hidden = !canPrepare;
@@ -615,6 +621,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     sheetEditor?.clear();
     invalidatePreparedDraft();
     byId('entrySection').hidden = true;
+    attendancePreparte?.clear();
     byId('pageContent').hidden = false;
     byId('loadingState').hidden = true;
     employeePicker?.close();
@@ -805,6 +812,7 @@ function renderAgileRows() {
   for (const radio of document.querySelectorAll('[name="sourceMode"]')) {
     radio.disabled = hasRows && radio.value !== 'agile';
   }
+  if(sheetEditor?.boundPeriod()){byId('periodMonth').disabled=true;byId('payrollType').disabled=true;for(const radio of document.querySelectorAll('[name=sourceMode]'))radio.disabled=radio.value!=='sheet';}
   syncAmountEntry();
   byId('agileTemplateLock').hidden = !hasRows;
   byId('agileTemplateLock').textContent = hasRows
@@ -1044,6 +1052,7 @@ function handleFile(event) {
 }
 
 async function logout() {
+  attendancePreparte?.clear();
   employeePicker?.close();
   sheetEditor?.clear();
   invalidatePreparedDraft();
@@ -1119,10 +1128,29 @@ function initialize() {
     onDirectoryInvalidated: () => { byId('pickedLegajoName').textContent = ''; sheetEditor?.clearLookupLabels(); },
   });
   sheetEditor = mountNoveltySheet(byId('sheetFields'), {
-    onChange: invalidatePreparedDraft,
+    onChange: () => { invalidatePreparedDraft(); renderAgileRows(); },
     pickEmployees: options => employeePicker.open(options),
     maximumRows: agileMaximum,
   });
+  attendancePreparte = mountAttendancePreparte(byId('attendancePreparte'), {
+    canUse: () => document.body.dataset.busy !== 'true' && !byId('entrySection').hidden &&
+      hasCapability('payroll.novelty.prepare') && bootstrapState?.sourceFeatures?.attendancePreparte===true,
+    period: () => byId('periodMonth').value,
+    payrollType: () => byId('payrollType').value,
+    onDenied: error => { if(error.status===401){sheetEditor.clear();invalidatePreparedDraft();location.replace(LOGIN_URL);} },
+    onUse: ({rows,period}) => {
+      if(document.body.dataset.busy==='true' || !hasCapability('payroll.novelty.prepare') || preparedDraft)
+        throw Error('Finalizá o invalidá la revisión previa antes de agregar el preparte.');
+      if(agileDraftRows.length || byId('periodMonth').value!==period || byId('payrollType').value!=='monthly')
+        throw Error('El período, el tipo o una carga rápida pendiente impiden agregar este preparte.');
+      sheetEditor.appendPreparte(rows,period);
+      document.querySelector('[name="sourceMode"][value="sheet"]').checked=true;
+      updateMode();byId('sheetFields').scrollIntoView({block:'start'});
+    },
+  });
+  byId('periodMonth').addEventListener('change',()=>attendancePreparte.periodChanged());
+  byId('periodMonth').addEventListener('input',()=>attendancePreparte.periodChanged());
+  byId('payrollType').addEventListener('change',()=>attendancePreparte.periodChanged());
   byId('pickLegajoButton').addEventListener('click', () => {
     try { employeePicker.open({onUse: items => {
       if (byId('legajo').disabled) throw Error('La carga cambió. Volvé a abrir la búsqueda.');
@@ -1150,6 +1178,7 @@ function initialize() {
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   window.addEventListener('pagehide', () => {
+    attendancePreparte?.clear();
     sheetEditor.clear();
     agileDraftRows = []; agileTemplate = null; clearAgileInput();
     invalidatePreparedDraft(); renderAgileRows();

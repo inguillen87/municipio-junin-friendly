@@ -1,5 +1,5 @@
 import { getPm10Status } from '../lib/internal-pm10-status.js';
-import { getAttendanceWorkdays, getAttendanceWorkdaysV2 } from '../lib/internal-attendance-workdays.js';
+import { getAttendanceWorkdays, getAttendanceWorkdaysV2, getAttendancePreparte } from '../lib/internal-attendance-workdays.js';
 import { getAttendanceClockDashboard } from '../lib/internal-attendance-clock-dashboard.js';
 import { getAttendanceClockOperations } from '../lib/internal-attendance-clock-operations.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
@@ -170,6 +170,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
   const clockDashboard = dependencies.getAttendanceClockDashboard ?? getAttendanceClockDashboard;
   const clockWorkdays = dependencies.getAttendanceWorkdays ?? getAttendanceWorkdays;
   const clockWorkdaysV2 = dependencies.getAttendanceWorkdaysV2 ?? getAttendanceWorkdaysV2;
+  const clockPreparte = dependencies.getAttendancePreparte ?? getAttendancePreparte;
   const reportedInventory = dependencies.getReportedAttendanceInventory
     ?? getReportedAttendanceInventory;
 
@@ -192,9 +193,10 @@ export function createInternalAttendanceHandler(dependencies = {}) {
 
       const access = await requireAccess(req, res, {
         env,
-        requiredCapabilities: [requestedResource === 'audit'
+        requiredCapabilities: requestedResource === 'clock-preparte' ? ['attendance.read','workforce.employee.read','payroll.novelty.prepare'] : [requestedResource === 'audit'
           ? 'attendance.audit.read'
           : 'attendance.read'],
+        capabilityMode: 'all',
         requireDataPlaneReady: true,
         requireCertifiedDataBinding: true,
         allowLegacy: false,
@@ -243,6 +245,13 @@ export function createInternalAttendanceHandler(dependencies = {}) {
         if (resource === 'pm10-reception') {
           assertQueryKeys(req,new Set(['resource']));
           const result=await (dependencies.getPm10Status ?? getPm10Status)(sql,access.principal,tenantSession);
+          return send(res,200,{ok:true,...result});
+        }
+        if (resource === 'clock-preparte') {
+          assertQueryKeys(req,new Set(['resource','site','period','evidence']));
+          const result=await clockPreparte(sql,access.principal,{
+            site:queryValue(req,'site','pm-10'),period:queryValue(req,'period'),evidence:queryValue(req,'evidence'),
+          },tenantSession);
           return send(res,200,{ok:true,...result});
         }
         if (resource === 'clock-workdays-v2') {
