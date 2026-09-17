@@ -6,3 +6,8 @@
 @media(max-width:650px){#clockFleetReception{padding:16px}.fleet-head{flex-direction:column;gap:8px}.fleet-head .button{width:100%}.fleet-cards{grid-template-columns:1fr}.fleet-metrics{gap:7px}.fleet-metrics>div{padding:12px 8px}.fleet-metrics strong{font-size:23px}.fleet-metrics span{font-size:10px;line-height:1.5;display:block}.fleet-tools label{flex:1 1 100%}.fleet-tools .button{flex:1 1 auto}.fleet-note{padding:12px}.fleet-card{padding:16px}.fleet-head h2{font-size:23px}}
 @media(prefers-reduced-motion:reduce){#clockFleetReception *{scroll-behavior:auto!important;transition:none!important}}
 @media print{#clockFleetReception .fleet-tools,#clockFleetReception .fleet-actions,#clockFleetReception .fleet-footer label,#clockFleetReception .fleet-head button{display:none!important}.fleet-card{break-inside:avoid;box-shadow:none}}
+
+/* Allow the original clock-page breadcrumb/title to shrink at 320px without clipping controls. */
+body[data-mc-page="attendance"] .topbar-left{flex:1;min-width:0}body[data-mc-page="attendance"] .topbar-left>div{min-width:0;flex:1}body[data-mc-page="attendance"] .menu-button{flex:0 0 44px}body[data-mc-page="attendance"] .crumb{flex-wrap:wrap;overflow-wrap:anywhere}
+
+@media(max-width:520px){body[data-mc-page="attendance"] .topbar{gap:8px}body[data-mc-page="attendance"] .topbar .mc-guide-button{width:80px;max-width:80px;min-height:44px;padding:7px;font-size:11px;line-height:1.3;white-space:normal}body[data-mc-page="attendance"] .crumb{font-size:11px;gap:4px}}
