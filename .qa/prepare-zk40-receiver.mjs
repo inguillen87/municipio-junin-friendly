@@ -32,7 +32,10 @@ if(process.argv[2]==='apply'){
 }else if(process.argv[2]==='candidate'){
  async function api(resource,body){const response=await fetch(`https://api.github.com/repos/${repo}/${resource}`,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});const result=await response.json();assert.ok(response.ok,`${response.status}: ${result.message||resource}`);return result;}
  assert.equal((await api('git/ref/heads/master')).object.sha,base,'Production advanced; reconcile');
- const tree=await api('git/trees',{base_tree:git('rev-parse','HEAD^{tree}'),tree:files.map(file=>({path:file,mode:'100644',type:'blob',content:fs.readFileSync(file,'utf8')}))});
+ const entries=[];
+ for(const file of files){const bytes=fs.readFileSync(file);const blob=await api('git/blobs',{encoding:'base64',content:bytes.toString('base64')});assert.match(blob.sha,/^[a-f0-9]{40}$/);const entry={path:file,mode:'100644',type:'blob',sha:blob.sha};entries.push(entry);console.log('VERIFIED_BLOB='+JSON.stringify({...entry,sha256:hash(bytes)}));}
+ console.log('MIGRATION_SHA256='+hash(fs.readFileSync(files[4])));
+ const tree=await api('git/trees',{base_tree:git('rev-parse','HEAD^{tree}'),tree:entries});
  const commit=await api('git/commits',{tree:tree.sha,parents:[base],message:'feat(asistencia): receptor adicional vinculado a cada reloj autorizado\n\nRecepción ZK40 opt-in con token por conector, serie, sitio y municipio verificados. Conserva checksums, idempotencia, fuente, aislamiento y revisión de identidades del receptor PM10 sin cambiarlo. Instalación local de nuevos colectores pendiente; no se configura ni activa un dispositivo desde este commit.'});
- console.log('VALIDATED_CANDIDATE='+commit.sha);console.log('MIGRATION_SHA256='+hash(fs.readFileSync(files[4])));console.log('No production refs or databases changed by this workflow.');
+ console.log('VALIDATED_CANDIDATE='+commit.sha);console.log('No production refs or databases changed by this workflow.');
 }else throw Error('Invalid preparation step');
