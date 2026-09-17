@@ -1,0 +1,41 @@
+name: FirmAR direct integration - synthetic only
+on:
+  push:
+    branches: ['internal-firmar-direct-20260917']
+    paths:
+      - 'lib/firmar-direct-provider.js'
+      - 'assets/firmar-journey*'
+      - 'src/islands/firmar-journey-panel.tsx'
+      - 'tests/firmar-*.test.js'
+      - 'scripts/verify-firmar-journey-browser.mjs'
+      - '.github/workflows/firmar-direct-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: firmar-direct-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full application regression and existing build
+        run: npm run build
+      - name: Synthetic interaction browser
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/verify-firmar-journey-browser.mjs
+      - name: Evidence with no real identity or document
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmar-synthetic-journey
+          path: verification/firmar-journey/
+          retention-days: 5
