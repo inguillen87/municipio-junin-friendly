@@ -135,19 +135,31 @@ export function decodeAttendance(raw,beforeCount,afterCount){
  * be known. A neutral session (0) is accepted ONLY on CMD_DATA inside a pending,
  * authenticated ATTLOG transfer on the same socket and after serial verification.
  * It never overwrites the control session. Other mismatches stop the connection. */
-export async function collect({commKey,approved=false,host=TARGET,port=PORT,
-  timeoutMs=10000,pacingMs=200,totalMs=180000,signal=null,onProgress=()=>{}}={}) {
+// The legacy entry remains pinned to PM10. Other devices require an explicit identity.
+export async function collect(options={}){return collectBound({host:TARGET,port:PORT,serial:SERIAL},options,true);}
+export async function collectConfigured(identity,options={}){
+ try{
+  if(!identity||Object.keys(identity).sort().join()!=='approved,host,port,serial'||identity.approved!==true
+   ||typeof identity.host!=='string'||!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(identity.host)
+   ||identity.host.split('.').some(n=>Number(n)>255||(n.length>1&&n[0]==='0'))
+   ||!uint(identity.port,65535)||identity.port<1||typeof identity.serial!=='string'
+   ||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(identity.serial))fail('TARGET_IDENTITY_INVALID');
+ }catch(e){if(Buffer.isBuffer(options.commKey))options.commKey.fill(0);throw e;}
+ return collectBound(Object.freeze({...identity}),options,false);
+}
+async function collectBound(identity,{commKey,approved=false,host=identity.host,port=identity.port,
+  timeoutMs=10000,pacingMs=200,totalMs=180000,signal=null,onProgress=()=>{}}={},legacy=false) {
   try {
     if(!approved) fail('APPROVAL_REQUIRED');
-    if(!((host===TARGET&&port===PORT)||(host==='127.0.0.1'&&uint(port,65535)&&port>0))) fail('TARGET_NOT_ALLOWED');
+    if(!((host===identity.host&&port===identity.port)||(legacy&&host==='127.0.0.1'&&uint(port,65535)&&port>0))) fail('TARGET_NOT_ALLOWED');
     validateCommKey(commKey);
-    if(!uint(timeoutMs,15000)||timeoutMs<50||!uint(pacingMs,5000)||!uint(totalMs,180000)||totalMs<50) fail('INVALID_LIMIT');
+    if(!uint(timeoutMs,15000)||timeoutMs<50||!uint(pacingMs,5000)||!uint(totalMs,legacy?180000:900000)||totalMs<50) fail('INVALID_LIMIT');
   } catch(e) {if(Buffer.isBuffer(commKey))commKey.fill(0);throw e;}
 
   const report={
     schemaVersion:'municontrol.attendance-download-pilot.v4.1',clientVersion:VERSION,
     startedAt:new Date().toISOString(),finishedAt:null,endpoint:{host,port,transport:'tcp'},
-    expectedSerial:SERIAL,status:'STARTED',tcpConnected:false,authenticationAccepted:false,
+    expectedSerial:identity.serial,status:'STARTED',tcpConnected:false,authenticationAccepted:false,
     credentialAttempts:0,attendanceTransferComplete:false,biometricTemplatesRead:false,
     userDirectoryRead:false,configurationChanged:false,attendanceDeleted:false,metadata:{},
     transfer:{plannedBytes:null,receivedBytes:0,confirmedChunkBytes:0,completedChunks:0,
@@ -257,7 +269,7 @@ export async function collect({commKey,approved=false,host=TARGET,port=PORT,
     commKey.fill(0);opened=true;
     const serialFrame=ok(await request(11,Buffer.from('~SerialNumber\0')));
     report.metadata.serialNumber=clean(serialFrame.payload).replace(/^~SerialNumber=/,'');
-    if(report.metadata.serialNumber!==SERIAL) fail('SERIAL_MISMATCH','No se solicitan fichadas de otro equipo.');
+    if(report.metadata.serialNumber!==identity.serial) fail('SERIAL_MISMATCH','No se solicitan fichadas de otro equipo.');
     serialVerified=true;
     report.metadata.countsBefore=await sizes();
     report.metadata.deviceTimeBefore=decodeClock(ok(await request(201)).payload);

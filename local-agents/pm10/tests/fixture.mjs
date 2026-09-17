@@ -32,7 +32,7 @@ export async function withClock(opts,run) {
     let rc=2000,responseBody=Buffer.alloc(0),out,rs=sid,rr=reply;
     if(code===1000)rc=2005;
     else if(code===1102)rc=p.equals(makeAuthPayload(fakeKey(),sid))?2000:2005;
-    else if(code===11)responseBody=Buffer.from('~SerialNumber='+SERIAL+'\0');
+    else if(code===11)responseBody=Buffer.from('~SerialNumber='+(opts.serial??SERIAL)+'\0');
     else if(code===50) {responseBody=Buffer.alloc(112);responseBody.writeInt32LE(80,16);responseBody.writeInt32LE((countQueries++&&opts.afterCount!=null)?opts.afterCount:(opts.count??11109),32);}
     else if(code===201)responseBody=packedTime();
     else if(code===1503) {responseBody=Buffer.alloc(13);responseBody.writeUInt32LE(raw.length,1);responseBody.writeUInt32LE(raw.length,5);if(opts.immediate){rc=1501;responseBody=raw;rs=opts.dataSid??0;rr=opts.dataReply??0;}}

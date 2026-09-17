@@ -81,7 +81,9 @@ export function splitRaw(raw){
  return rows;
 }
 export class CaptureStore {
- constructor(root,{maxQueueBytes=256*1048576,minFreeBytes=64*1048576,freeBytes}={}){this.root=root;this.batchDir=path.join(root,'pending');this.maxQueueBytes=maxQueueBytes;this.minFreeBytes=minFreeBytes;this.freeBytes=freeBytes??(async()=>{const s=await statfs(root);return s.bavail*s.bsize;});this.seen=new Set();this.bytes=0;this.batches=0;this.incomplete=0;}
+ constructor(root,{maxQueueBytes=256*1048576,minFreeBytes=64*1048576,freeBytes,identity=null}={}){
+ if(identity&&(typeof identity.clockId!=='string'||typeof identity.serial!=='string'||!/^[a-z][a-z0-9-]{1,63}$/.test(identity.clockId)||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(identity.serial)||Object.keys(identity).sort().join()!=='clockId,serial'))throw fault('STORE_IDENTITY_INVALID');
+ this.identity=identity?Object.freeze({...identity}):null;this.root=root;this.batchDir=path.join(root,'pending');this.maxQueueBytes=maxQueueBytes;this.minFreeBytes=minFreeBytes;this.freeBytes=freeBytes??(async()=>{const s=await statfs(root);return s.bavail*s.bsize;});this.seen=new Set();this.bytes=0;this.batches=0;this.incomplete=0;}
  async init(){
   await safeDirectory(this.root);await safeDirectory(this.batchDir);
   this.seen.clear();this.bytes=0;this.batches=0;this.incomplete=0;
@@ -95,7 +97,7 @@ export class CaptureStore {
    if(name.startsWith('.pending-')){this.incomplete++;continue;}
    const data=await boundedFile(path.join(p,'records.bin'),MAX_RAW);
    const m=JSON.parse((await boundedFile(path.join(p,'manifest.json'),MAX_RAW*4)).toString('utf8'));
-   if(m.version!=='pm10-local-batch.v1'||m.batchId!==name||m.recordsSha256!==hash(data)||data.length!==m.newUniqueRecords*40||!Array.isArray(m.ordinals)||m.ordinals.length!==m.newUniqueRecords||!HEX.test(m.snapshotSha256)||hash(Buffer.from(m.snapshotSha256+':'+m.recordsSha256))!==name)throw fault('QUEUE_CORRUPT');
+   if(m.version!==(this.identity?'clock-local-batch.v1':'pm10-local-batch.v1')||(this.identity&&(m.clockId!==this.identity.clockId||m.serial!==this.identity.serial))||m.batchId!==name||m.recordsSha256!==hash(data)||data.length!==m.newUniqueRecords*40||!Array.isArray(m.ordinals)||m.ordinals.length!==m.newUniqueRecords||!HEX.test(m.snapshotSha256)||this.batchKey(m.snapshotSha256,m.recordsSha256)!==name)throw fault('QUEUE_CORRUPT');
    if(m.ordinals.some((n,i)=>!Number.isSafeInteger(n)||n<1||n>m.snapshotRecordCount||(i>0&&n<=m.ordinals[i-1])))throw fault('QUEUE_CORRUPT');
    for(let at=0;at<data.length;at+=40)this.seen.add(hash(data.subarray(at,at+40)));
    this.batches++;
@@ -108,8 +110,8 @@ export class CaptureStore {
   for(const r of rows){const h=hash(r.bytes);if(newHashes.has(h)){repeated++;continue;}if(this.seen.has(h))continue;newHashes.add(h);novel.push(r.bytes);ordinals.push(r.ordinal);}
   const snapshotSha256=hash(raw);
   if(!novel.length)return {saved:false,snapshotSha256,snapshotRecordCount:rows.length,newUniqueRecords:0,batchId:null};
-  const data=Buffer.concat(novel),recordsSha256=hash(data),id=hash(Buffer.from(snapshotSha256+':'+recordsSha256));
-  const manifest={version:'pm10-local-batch.v1',batchId:id,snapshotSha256,recordsSha256,
+  const data=Buffer.concat(novel),recordsSha256=hash(data),id=this.batchKey(snapshotSha256,recordsSha256);
+  const manifest={version:this.identity?'clock-local-batch.v1':'pm10-local-batch.v1',...(this.identity??{}),batchId:id,snapshotSha256,recordsSha256,
    snapshotRecordCount:rows.length,snapshotBytes:raw.length,newUniqueRecords:novel.length,
    repeatedWithinNewRecords:repeated,ordinals,capturedAt:metadata.capturedAt??null,
    deviceTimeLocal:metadata.deviceTimeLocal??null,clockTimeZone:'America/Argentina/Mendoza',
@@ -122,5 +124,6 @@ export class CaptureStore {
   for(const h of newHashes)this.seen.add(h);this.bytes+=data.length+manifestBytes.length;this.batches++;
   return {saved:true,snapshotSha256,snapshotRecordCount:rows.length,newUniqueRecords:novel.length,batchId:id};
  }
+ batchKey(snapshot,records){return hash(Buffer.from((this.identity?this.identity.clockId+':'+this.identity.serial+':':'')+snapshot+':'+records));}
  summary(){return {pendingLocalBatches:this.batches,uniqueLocalRecords:this.seen.size,queueBytes:this.bytes,interruptedWrites:this.incomplete,cloudConfirmedRecords:0};}
 }

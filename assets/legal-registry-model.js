@@ -17,11 +17,11 @@ export function normalizeLegalDraft(value){
  if(value.id!==null&&!legalUuid(value.id)||!Number.isInteger(value.expectedVersion)||value.expectedVersion<0||value.expectedVersion>999||value.id===null&&value.expectedVersion!==0||value.id!==null&&value.expectedVersion<1)fail('La versión de trabajo no es válida.');
  if(!['proyecto','acto_registrado'].includes(m.stage))fail('Indicá si es un proyecto o un acto registrado.','stage');
  if(!Array.isArray(m.articles)||m.articles.length>150)fail('Se admiten hasta 150 artículos en esta etapa.');
- const labels=new Set();const articles=m.articles.map(a=>{exactLegalObject(a,['label','text','page']);const label=legalText(a.label,1,60,'article'),text=legalText(a.text,1,12000,'article');if(!Number.isInteger(a.page)||a.page<1||a.page>30)fail('Indicá la página del PDF para cada artículo.','article');if(labels.has(label.toLowerCase()))fail('Hay etiquetas de artículo repetidas.','article');labels.add(label.toLowerCase());return{label,text,page:a.page};});
+ const labels=new Set();const articles=m.articles.map((a,i)=>{exactLegalObject(a,['label','text','page']);const label=legalText(a.label,1,60,'articleLabel'+i),text=legalText(a.text,1,12000,'articleText'+i);if(!Number.isInteger(a.page)||a.page<1||a.page>30)fail('Indicá la página del PDF para cada artículo.','articlePage'+i);if(labels.has(label.toLowerCase()))fail('Hay etiquetas de artículo repetidas.','articleLabel'+i);labels.add(label.toLowerCase());return{label,text,page:a.page};});
  const metadata={title:legalText(m.title,3,240,'title'),summary:legalText(m.summary,0,4000,'summary'),topics:legalText(m.topics,0,300,'topics'),sourceReference:legalText(m.sourceReference,3,500,'sourceReference'),stage:m.stage,issueDate:day(m.issueDate,'issueDate'),publicationDate:day(m.publicationDate,'publicationDate'),effectiveDate:day(m.effectiveDate,'effectiveDate'),articles};
  if(new TextEncoder().encode(JSON.stringify(metadata)).length>180000)fail('Los textos superan el límite de este registro.');
  const reason=legalText(value.reason,5,500,'reason');if(/[\r\n\t]/.test(reason))fail('El motivo debe ocupar una sola línea.','reason');
- if(value.document===null&&value.id===null)fail('Adjuntá el PDF fuente para registrar la norma.','document');
+ if(value.document===null&&value.id===null)fail('Adjuntá el PDF fuente para registrar la norma.','pdf');
  return{id:value.id,expectedVersion:value.expectedVersion,identity:{kind:ident.kind,issuer:ident.issuer,number,year:ident.year},metadata,document:value.document,reason};
 }
 export const blankLegalDraft=()=>({id:null,expectedVersion:0,identity:{kind:'ordenanza',issuer:'HCD',number:'',year:new Date().getFullYear()},metadata:{title:'',summary:'',topics:'',sourceReference:'',stage:'acto_registrado',issueDate:'',publicationDate:'',effectiveDate:'',articles:[]},document:null,reason:''});
@@ -47,3 +47,15 @@ export function verifyLegalResponse(op,data){
   if(!str(data.contentBase64,2900000)||!count(data.bytes,LEGAL_MAX_FILE)||data.bytes<10||!/^[a-f0-9]{64}$/.test(data.sha256||''))invalid();
  }else invalid();return data;
 }
+
+// Ephemeral UI comparison only. Never a permission, review certificate or storage layer.
+export function legalDraftFingerprint(draft){
+ if(!draft)return '';
+ return JSON.stringify([draft.id,draft.expectedVersion,
+  [draft.identity.kind,draft.identity.issuer,draft.identity.number,draft.identity.year],
+  [draft.metadata.title,draft.metadata.summary,draft.metadata.topics,draft.metadata.sourceReference,
+   draft.metadata.stage,draft.metadata.issueDate,draft.metadata.publicationDate,draft.metadata.effectiveDate,
+   draft.metadata.articles.map(a=>[a.label,a.text,a.page])],
+  draft.document?[draft.document.filename,draft.document.sha256]:null,draft.reason]);
+}
+export function legalDraftChanged(draft,baseline){return !!draft&&legalDraftFingerprint(draft)!==baseline;}

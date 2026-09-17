@@ -43,11 +43,11 @@ export async function loadState(root){
   return {...initialState(),...v,version:VERSION};
  }catch(e){if(e.code==='ENOENT')return initialState();throw fault('STATE_CORRUPT');}
 }
-export function ensureCapture(result){
+export function ensureCapture(result,expectedSerial=SERIAL){
  const r=result?.report;
  if(!r||r.authenticationAccepted!==true)throw fault(r?.status==='AUTH_NOT_ACCEPTED'?'AUTH_NOT_ACCEPTED':safeCode(r?.error??{code:'AUTHENTICATION_UNVERIFIED'}));
  if(r.error)throw fault(safeCode(r.error));
- if(r.metadata?.serialNumber!==SERIAL)throw fault('SERIAL_MISMATCH');
+ if(r.metadata?.serialNumber!==expectedSerial)throw fault('SERIAL_MISMATCH');
  const rows=splitRaw(result.raw);
  if(rows.length>0&&result.parsed?.layout!=='legacy-40-byte-candidate')throw fault('LAYOUT_NOT_CONFIRMED');
  if(result.raw.length!==r.transfer?.plannedBytes||result.raw.length!==r.transfer?.receivedBytes||result.raw.length!==r.transfer?.confirmedChunkBytes)throw fault('BYTE_COUNT_MISMATCH');
