@@ -1,0 +1,41 @@
+name: ZK40 receiver candidate - no preview
+on:
+  push:
+    branches: ['internal/zk40-candidate-20260917']
+permissions:
+  contents: write
+concurrency:
+  group: zk40-receiver-candidate
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: meta
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: app
+          ref: '505c06762ad69c371ce39603beedab3c3dcd476b'
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: node ../meta/.qa/prepare-zk40-receiver.mjs apply
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full application suite and build
+        run: npm run build
+      - name: Preserve old PM10 behavior
+        run: node --test local-agents/pm10/tests/*.test.mjs
+      - name: Create verified candidate without publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../meta/.qa/prepare-zk40-receiver.mjs candidate
