@@ -29,7 +29,7 @@
   "tests/delivery.test.mjs": "1617ea4cf213e057db3a609bf85aebd4a1bc841192c06715a3e2c76c04d85ca7",
   "tests/file-replacement.test.mjs": "39e222b3e4627a0f86e3fb908d1412f0e5660503455e6cdc8209b4951ceb6882",
   "tests/fixture.mjs": "bbf8b7036ec50eff054f9c4310fd6e4653cd2204161c54d5aef8f157e06e9bcf",
-  "tests/fleet-control.test.mjs": "1cbe9d8476a13b169538be6ed61c97ee2507df3924e7642945a12f5102332951",
+  "tests/fleet-control.test.mjs": "c69486dfe6ce0960e1b3dd357862a1bf48d40bfe68cc9f160ef3c4b860bddc35",
   "tests/fleet-runner.test.mjs": "367b144eb0ae8408539f6e5689630e447b6dd8364adf2de7e4fe04c612a7c8fa",
   "tests/host-readiness.test.mjs": "76399ccb13efe947df22fb39fa99de3a0b59a5f50412e216cb05a37977fffa8d",
   "tests/multi-clock-identity.test.mjs": "da12bd0cd4f1b5a47094d468f1e2d877c6a1f2edec4137826ebff54a0c07e7f2",
