@@ -58,6 +58,8 @@ export function createFirmarJourney({begin,readStatus,recoverAttempt,onChange,op
   const normalized=verifyFirmarJourneyStatus(reply,{requestId,attemptId:reply.attemptId});
   const nextUrl=reply.authorizationUrl==null?null:safeFirmarLaunchUrl(reply.authorizationUrl);
   if(normalized.state==='awaiting_authorization'&&Date.parse(reply.expiresAt)>now()&&!nextUrl)throw Error('FIRMAR_START_RESPONSE_INVALID');
+  if(normalized.state!=='awaiting_authorization'&&nextUrl)throw Error('FIRMAR_START_RESPONSE_INVALID');
+  if(normalized.state==='awaiting_authorization'&&Date.parse(reply.expiresAt)<=now())throw Error('FIRMAR_START_RESPONSE_INVALID');
   return {normalized,nextUrl,context:{requestId,attemptId:reply.attemptId,expiresAt:reply.expiresAt}};
  }
  function acceptStatus(value){
@@ -91,10 +93,13 @@ export function createFirmarJourney({begin,readStatus,recoverAttempt,onChange,op
   try{
    const reply=await begin({requestId,expectedVersion,signal:controller.signal});
    if(g!==generation||disposed)return;
-   if(reply?.state!=='awaiting_authorization')throw Error('FIRMAR_START_RESPONSE_INVALID');
-   const accepted=acceptReply(reply,requestId);current=accepted.context;launchUrl=accepted.nextUrl;lastState='awaiting_authorization';
-   try{if(popupAlive())windowRef.location.replace(launchUrl);}catch{shutPopup();}
-   emit('awaiting_authorization',{externalService:true});schedule(5000);
+   // A concurrent tab, early callback or recovered reservation can be ahead of this UI.
+   // Accept the saved state, not only a new launch URL; never regress it or submit again.
+   const accepted=acceptReply(reply,requestId,{allowExpired:true});current=accepted.context;launchUrl=accepted.nextUrl;
+   if(accepted.normalized.state==='awaiting_authorization'){
+    try{if(popupAlive())windowRef.location.replace(launchUrl);}catch{shutPopup();}
+   }else shutPopup();
+   acceptStatus(accepted.normalized);if(!finished)schedule(5000);
   }catch(error){
    if(g!==generation||disposed)return;clear();shutPopup();
    if([401,403].includes(error?.status)){sessionLost();return;}

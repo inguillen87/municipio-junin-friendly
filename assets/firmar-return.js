@@ -34,6 +34,7 @@ export function createFirmarReturn({resolveReturn,notifyHost,onChange,location,h
   }catch(error){
    if(disposed||g!==generation)return;
    if([401,403].includes(error?.status)){finished=true;token=null;emit('session_lost');}
+   else if(error?.status===409&&error?.code==='FIRMAR_BUSY')emit('return_retry',{retryAvailable:tries<3});
    else if([404,409,410].includes(error?.status)){finished=true;token=null;emit('invalid_return');}
    else emit('return_retry',{retryAvailable:tries<3});
   }finally{if(g===generation)running=false;}
