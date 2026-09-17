@@ -1,0 +1,55 @@
+name: Clock reception 070 - no previews
+on:
+  push:
+    branches: ['internal-clock-reception-070-20260917', 'master']
+    paths:
+      - 'api/attendance-zk40.js'
+      - 'lib/internal-zk40-reception.js'
+      - 'scripts/migrations/070-zk40-multiclock-reception.sql'
+      - 'tests/zk40*'
+      - '.github/workflows/clock-reception-070.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: clock-reception-070-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Existing collector regressions
+        run: node --test local-agents/pm10/tests/*.test.mjs
+  publication:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Public endpoint rejects anonymous access; no municipal test data
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {setTimeout as sleep} from 'node:timers/promises';
+          const origin='https://municipio-junin-friendly.vercel.app';
+          for(let i=0;i<40;i++){
+            const r=await fetch(origin+'/api/attendance-zk40',{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});
+            if(r.status===405){const b=await r.json();assert.equal(b.code,'METHOD_NOT_ALLOWED');assert.equal(r.headers.get('allow'),'POST');assert.match(r.headers.get('cache-control'),/no-store/);break;}
+            if(i===39)throw Error('Receiver was not published');await sleep(10000);
+          }
+          const noAuth=await fetch(origin+'/api/attendance-zk40',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',redirect:'error',signal:AbortSignal.timeout(15000)});
+          assert.equal(noAuth.status,401);assert.equal((await noAuth.json()).code,'ZK40_AUTH_DENIED');assert.match(noAuth.headers.get('cache-control'),/no-store/);
+          const existing=await fetch(origin+'/api/attendance-pm10',{redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(existing.status,405);
+          console.log(JSON.stringify({ok:true,receiverGetStatus:405,anonymousPostStatus:401,pm10GetStatus:405,realAttendanceRecordsSent:0,clockConnectionTested:false}));
+          JS

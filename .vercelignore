@@ -171,3 +171,4 @@ local-agents/
 
 !juridica-registro.html
 !scripts/migrations/069-native-legal-registry.sql
+!scripts/migrations/070-zk40-multiclock-reception.sql
