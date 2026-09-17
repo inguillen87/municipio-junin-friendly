@@ -9,6 +9,10 @@ on:
       - 'assets/payroll-novelty-sheet*'
       - 'assets/work-area-*'
       - 'assets/legal-registry*'
+      - 'assets/legal-version-comparison.js'
+      - 'src/islands/legal-version-comparison.tsx'
+      - 'tests/legal-version-comparison.test.js'
+      - 'scripts/verify-legal-comparison-browser.mjs'
       - 'api/internal-legal-registry.js'
       - 'lib/internal-legal-registry.js'
       - 'juridica-registro.html'
@@ -167,6 +171,8 @@ jobs:
         run: node scripts/verify-work-area-menu-browser.mjs --published
       - name: Native legal registry production and synthetic full workflow
         run: node scripts/verify-legal-registry-browser.mjs --published
+      - name: Documentary version comparison with synthetic read-only data
+        run: node scripts/verify-legal-comparison-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
