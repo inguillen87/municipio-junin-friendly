@@ -29,7 +29,7 @@ New-Item -ItemType Directory -Path $Base,$App,$State,$Private -Force | Out-Null
 Check-Exit 'permisos de instalacion'
 & icacls.exe $State /grant:r '*S-1-5-19:(OI)(CI)(M)' | Out-Null
 Check-Exit 'permisos de cola'
-foreach ($file in @('service.mjs','store.mjs','config.mjs','route-guard.mjs','delivery-status.mjs','check-host.mjs','host-readiness.mjs','package.json','LICENSE')) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $App }
+foreach ($file in @('service.mjs','store.mjs','file-replacement.mjs','config.mjs','route-guard.mjs','delivery-status.mjs','check-host.mjs','host-readiness.mjs','package.json','LICENSE')) { Copy-Item -LiteralPath (Join-Path $Source $file) -Destination $App }
 Copy-Item -LiteralPath (Join-Path $Source 'reader') -Destination (Join-Path $App 'reader') -Recurse
 $keyFile = Join-Path $Private 'commkey'
 $secure = Read-Host 'CommKey YA VALIDADA del reloj (oculta, no es clave de Windows)' -AsSecureString

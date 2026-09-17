@@ -7,6 +7,11 @@ on:
       - 'scripts/patches/057*'
       - 'scripts/integrate-native-sheet-production-057.mjs'
       - 'assets/payroll-novelty-sheet*'
+      - 'assets/internal-work-today*'
+      - 'internal-dashboard.html'
+      - 'local-agents/pm10/**'
+      - 'tests/work-today-mixed-scopes.test.js'
+      - 'scripts/verify-work-today-sections-browser.mjs'
       - 'assets/work-area-*'
       - 'assets/legal-registry*'
       - 'assets/legal-version-comparison.js'
@@ -157,6 +162,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Collector atomic replacement and protocol regressions
+        run: |
+          node --test local-agents/pm10/tests/*.test.mjs
+          node scripts/verify-pm10-protocol-alignment.mjs
       - name: Build expected publication once using this checkout
         run: node scripts/build-friendly.mjs
       - name: Compare canonical production resources and unauthenticated rejection
@@ -173,6 +182,8 @@ jobs:
         run: node scripts/verify-legal-registry-browser.mjs --published
       - name: Documentary version comparison with synthetic read-only data
         run: node scripts/verify-legal-comparison-browser.mjs --published
+      - name: Mixed-role task entry with published bytes and synthetic APIs
+        run: node scripts/verify-work-today-sections-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

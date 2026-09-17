@@ -17,7 +17,7 @@ if ! id municontrol-pm10 >/dev/null 2>&1; then useradd --system --no-create-home
 install -d -m 0755 /opt/municontrol-pm10
 install -d -m 0750 -o root -g municontrol-pm10 /etc/municontrol-pm10
 install -d -m 0700 -o municontrol-pm10 -g municontrol-pm10 /var/lib/municontrol-pm10
-for f in service.mjs store.mjs config.mjs route-guard.mjs delivery-status.mjs check-host.mjs host-readiness.mjs package.json LICENSE; do install -m 0644 "$source_dir/$f" /opt/municontrol-pm10/; done
+for f in service.mjs store.mjs file-replacement.mjs config.mjs route-guard.mjs delivery-status.mjs check-host.mjs host-readiness.mjs package.json LICENSE; do install -m 0644 "$source_dir/$f" /opt/municontrol-pm10/; done
 cp -R "$source_dir/reader" /opt/municontrol-pm10/
 chmod -R go-w /opt/municontrol-pm10
 read -r -s -p 'CommKey YA VALIDADA (oculta): ' key; printf '\n'

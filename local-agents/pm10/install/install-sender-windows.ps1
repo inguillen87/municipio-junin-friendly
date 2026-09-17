@@ -13,7 +13,7 @@ $major=& $NodePath -p 'process.versions.node.split(".")[0]'
 if($LASTEXITCODE -ne 0 -or [int]$major -lt 22){throw 'Se requiere Node.js 22 o superior.'}
 foreach ($p in @((Join-Path $Private 'api-token'),(Join-Path $Base 'sender.json'))) { if(Test-Path $p) {throw 'Existe una configuracion de envio. No se sobrescribio.'} }
 if(Get-ScheduledTask -TaskName $Task -ErrorAction SilentlyContinue){throw 'La tarea de envio ya existe.'}
-foreach ($f in @('store.mjs','config.mjs')) {if((Get-FileHash (Join-Path $Source $f)).Hash -ne (Get-FileHash (Join-Path $App $f)).Hash){throw "Revisar version instalada de $f"}}
+foreach ($f in @('store.mjs','file-replacement.mjs','config.mjs')) {if((Get-FileHash (Join-Path $Source $f)).Hash -ne (Get-FileHash (Join-Path $App $f)).Hash){throw "Revisar version instalada de $f"}}
 if((Read-Host 'Escriba AUTORIZO ENVIO para preparar el servicio') -cne 'AUTORIZO ENVIO'){throw 'Cancelado'}
 $Connector=Read-Host 'Clave publica external_key del conector (no token)'
 if($Connector -cnotmatch '^[a-z0-9][a-z0-9._-]{7,127}$'){throw 'Clave de conector invalida'}

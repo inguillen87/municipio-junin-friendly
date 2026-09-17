@@ -5,6 +5,7 @@ import {mkdir,lstat,readdir,readFile,open,rename,rm,statfs} from 'node:fs/promis
 import path from 'node:path';
 import os from 'node:os';
 import {fault} from './config.mjs';
+import {replaceFile} from './file-replacement.mjs';
 export const hash=b=>createHash('sha256').update(b).digest('hex');
 const HEX=/^[a-f0-9]{64}$/;
 const MAX_RAW=4194304;
@@ -15,7 +16,7 @@ async function syncDir(p){
 export async function atomicJson(file,value){
  const tmp=file+'.tmp-'+randomUUID();const h=await open(tmp,'wx',0o600);
  try{await h.writeFile(JSON.stringify(value,null,2)+'\n');await h.sync();}finally{await h.close();}
- await rename(tmp,file);await syncDir(path.dirname(file));
+ await replaceFile(tmp,file);await syncDir(path.dirname(file));
 }
 export async function safeDirectory(p){
  await mkdir(p,{recursive:true,mode:0o700});const s=await lstat(p);

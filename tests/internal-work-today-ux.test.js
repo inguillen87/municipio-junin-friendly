@@ -75,7 +75,7 @@ test('Marcelo ve preparación y gestión según capacidades efectivas, aunque ta
   const model = workToday.buildModel({
     tenantCapabilities: [
       'actions.read', 'leave.request.area.create', 'leave.request.area.decide',
-      'payroll.novelty.prepare', 'payroll.novelty.approve',
+      'payroll.novelty.prepare', 'payroll.novelty.approve', 'payroll.novelty.read', 'payroll.read',
       'payroll.monthly_close.prepare'
     ]
   }, 'Propietario de plataforma · Operación integral');
@@ -92,7 +92,7 @@ test('Hugo ve revisión y decisión sin accesos de preparación inventados', () 
   const workToday = loadWorkToday();
   const model = workToday.buildModel({
     tenantCapabilities: [
-      'actions.read', 'leave.request.area.decide', 'time.overtime.approve',
+      'actions.read', 'payroll.novelty.read', 'payroll.read', 'leave.request.area.decide', 'time.overtime.approve',
       'payroll.novelty.approve', 'payroll.control_import.validate',
       'payroll.reprocessing.approve', 'payroll.monthly_close.approve'
     ]
@@ -137,7 +137,7 @@ test('renderiza enlaces fijos con texto seguro y conserva oculto el bloque sin m
   const rootNode = fakeWorkTodayRoot();
   const model = workToday.render({
     root: rootNode,
-    access: { tenantCapabilities: ['payroll.monthly_close.approve'] },
+    access: { tenantCapabilities: ['payroll.monthly_close.approve','payroll.read'] },
     roleLabel: 'Aprobador institucional integral'
   });
   const list = rootNode.lookup.get('[data-work-today-list]');

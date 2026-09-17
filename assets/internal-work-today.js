@@ -132,7 +132,7 @@
         key: 'actions',
         capabilities: Object.freeze(['actions.read']),
         kicker: 'Solicitudes y decisiones',
-        title: 'Controlar expedientes',
+        title: 'Consultar solicitudes e historial',
         description: 'Consultá estados, historial y evidencia sin iniciar ni resolver operaciones.',
         action: 'Consultar Centro de acciones',
         href: 'centro-acciones.html'
@@ -177,35 +177,30 @@
     return required.some((capability) => available.has(capability));
   }
 
-  function resolveMode(available) {
-    if (hasAny(available, PREPARE_CAPABILITIES)) return 'prepare';
-    if (hasAny(available, DECIDE_CAPABILITIES)) return 'decide';
-    return 'consult';
-  }
-
-  function buildModel(access, roleLabel) {
-    const contract = access && typeof access === 'object' ? access : {};
-    const available = capabilities(contract.tenantCapabilities);
-    const mode = resolveMode(available);
-    const cards = CARDS[mode].filter((card) => hasAny(available, card.capabilities)).map((card) => ({
-      key: card.key,
-      kicker: card.kicker,
-      title: card.title,
-      description: card.description,
-      action: card.action,
-      href: card.href
-    }));
-    if (!cards.length) return null;
-    return {
-      mode,
-      eyebrow: MODES[mode].eyebrow,
-      title: MODES[mode].title,
-      summary: MODES[mode].summary,
-      badge: MODES[mode].badge,
-      boundary: MODES[mode].boundary,
-      roleLabel: String(roleLabel || '').trim(),
-      cards
-    };
+  const DESTINATIONS=Object.freeze({
+    'centro-acciones.html':['actions.read'], 'novedades-nomina.html':['payroll.novelty.read'],
+    'nomina-control.html':['payroll.read'], 'internal-dashboard.html#legajos':['workforce.employee.read'],
+    'reportes-rrhh.html':['workforce.summary.read','management.analytics.read'],
+    'juridica-registro.html':['legal.norm.read'],'relojes-marcaciones.html':['attendance.read']
+  });
+  const EXTRA=Object.freeze({prepare:[{key:'legal',capabilities:['legal.norm.register'],kicker:'Jurídica y Legislativa',title:'Registrar o corregir normas',description:'Incorporá documentos y artículos o registrá una nueva versión con fundamento.',action:'Abrir Registro normativo',href:'juridica-registro.html'}],decide:[],consult:[
+    {key:'legal',capabilities:['legal.norm.read'],kicker:'Jurídica y Legislativa',title:'Consultar normas y comparar versiones',description:'Buscá por ficha o artículo y recuperá el documento de la versión exacta.',action:'Consultar Registro normativo',href:'juridica-registro.html'},
+    {key:'clocks',capabilities:['attendance.read'],kicker:'Tiempo y asistencia',title:'Controlar recepción de relojes',description:'Revisá recepción, cobertura y vinculaciones. Una conexión no acredita asistencia.',action:'Consultar Relojes',href:'relojes-marcaciones.html'}
+  ]});
+  const normalizeSearch=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  function buildModel(access, roleLabel, requestedMode=null, query='') {
+    const contract=access&&typeof access==='object'?access:{};
+    const available=capabilities(contract.tenantCapabilities);
+    const byMode=Object.fromEntries(Object.keys(MODES).map(mode=>[mode,[...CARDS[mode],...EXTRA[mode]]
+      .filter(card=>hasAny(available,card.capabilities)&&DESTINATIONS[card.href]&&hasAny(available,DESTINATIONS[card.href]))]));
+    const modes=Object.keys(MODES).filter(mode=>byMode[mode].length);
+    if(!modes.length)return null;
+    const mode=modes.includes(requestedMode)?requestedMode:modes[0],terms=normalizeSearch(query).split(/\s+/).filter(Boolean);
+    const all=byMode[mode];const cards=all.filter(c=>terms.every(t=>normalizeSearch(c.kicker+' '+c.title+' '+c.description).includes(t)))
+      .map(({capabilities,...card})=>({...card}));
+    return {mode,modes:modes.map(key=>({key,label:({prepare:'Preparar',decide:'Revisar',consult:'Consultar'})[key],count:byMode[key].length})),
+      eyebrow:MODES[mode].eyebrow,title:MODES[mode].title,summary:MODES[mode].summary,badge:MODES[mode].badge,
+      boundary:MODES[mode].boundary,roleLabel:String(roleLabel||'').trim(),cards,total:all.length,query:String(query).slice(0,120)};
   }
 
   function clear(node) {
@@ -220,14 +215,51 @@
     return node;
   }
 
+  function renderOtherModes(root,settings,model){
+    const doc=root.ownerDocument||global.document;
+    if(typeof root.insertBefore!=='function')return;
+    let host=root.querySelector('[data-work-today-other-modes]');
+    if(!host){host=doc.createElement('div');host.className='work-today-other-modes';host.setAttribute('data-work-today-other-modes','');root.insertBefore(host,root.querySelector('[data-work-today-boundary]'));}
+    clear(host);host.hidden=!model;
+    if(!model)return;
+    model.modes.filter(mode=>mode.key!==model.mode).forEach(mode=>{
+      const other=buildModel(settings.access,settings.roleLabel,mode.key);
+      const group=doc.createElement('details');group.className='work-today-other-mode';group.setAttribute('data-work-today-mode',mode.key);
+      appendText(doc,group,'summary','',mode.label+' · '+other.total+' accesos disponibles');
+      const list=doc.createElement('div');list.className='work-today-grid';
+      other.cards.forEach(card=>{const link=doc.createElement('a');link.className='work-today-card';link.href=card.href;link.setAttribute('data-work-today-card',card.key);
+        appendText(doc,link,'span','work-today-card-kicker',card.kicker);appendText(doc,link,'strong','',card.title);
+        appendText(doc,link,'span','work-today-card-copy',card.description);appendText(doc,link,'span','work-today-card-action',card.action+' →');list.appendChild(link);});
+      group.appendChild(list);host.appendChild(group);
+    });
+  }
+
+  const workRoots=new WeakMap();
+  function bindWorkAccess(root,settings){
+    const doc=root.ownerDocument||global.document;if(typeof doc?.addEventListener!=='function')return;
+    const previous=workRoots.get(root);if(previous){previous.settings=settings;return;}
+    const state={settings};workRoots.set(root,state);
+    const empty=()=>render({...state.settings,access:{tenantCapabilities:[]},roleLabel:''});
+    doc.getElementById('logoutButton')?.addEventListener('click',empty);
+    global.addEventListener('pagehide',empty);
+    doc.addEventListener('municontrol:capabilities-ready',event=>{
+      const source=event.detail?.tenantCapabilities;
+      const list=Array.isArray(source)?source:source instanceof Set?Array.from(source):[];
+      render({...state.settings,access:{tenantCapabilities:list}});
+    });
+    new MutationObserver(()=>{if(doc.documentElement.dataset.mcCapabilityState==='denied')empty();})
+      .observe(doc.documentElement,{attributes:true,attributeFilter:['data-mc-capability-state']});
+  }
+
   function render(options) {
     const settings = options && typeof options === 'object' ? options : {};
     const root = settings.root;
     if (!root || typeof root.querySelector !== 'function') return null;
+    bindWorkAccess(root,settings);
     const model = buildModel(settings.access, settings.roleLabel);
     root.hidden = true;
     root.removeAttribute('data-mode');
-    if (!model) return null;
+    if (!model) { clear(root.querySelector('[data-work-today-list]'));renderOtherModes(root,settings,null);return null; }
 
     const title = root.querySelector('[data-work-today-title]');
     const eyebrow = root.querySelector('[data-work-today-eyebrow]');
@@ -241,7 +273,7 @@
     title.textContent = model.title;
     summary.textContent = model.summary;
     badge.textContent = model.roleLabel ? `${model.badge} · ${model.roleLabel}` : model.badge;
-    boundary.textContent = model.boundary;
+    boundary.textContent = model.boundary+' Los números indican accesos disponibles, no trámites pendientes.';
     clear(list);
     const documentRef = root.ownerDocument || global.document;
     model.cards.forEach((card) => {
@@ -255,6 +287,7 @@
       appendText(documentRef, link, 'span', 'work-today-card-action', `${card.action} →`);
       list.appendChild(link);
     });
+    renderOtherModes(root,settings,model);
     root.dataset.mode = model.mode;
     root.hidden = false;
     return model;

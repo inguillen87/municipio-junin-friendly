@@ -13,7 +13,7 @@ read -r -p 'Escriba AUTORIZO ENVIO para preparar el servicio: ' approval
 read -r -p 'Clave publica del conector (external_key, no token): ' connector
 [[ "$connector" =~ ^[a-z0-9][a-z0-9._-]{7,127}$ ]] || exit 1
 # Code dependencies must match the reviewed collector, not arbitrary installed files.
-for file in store.mjs config.mjs; do cmp -s "$source_dir/$file" "/opt/municontrol-pm10/$file" || { echo "Revisar version de $file antes de instalar." >&2; exit 1; };done
+for file in store.mjs file-replacement.mjs config.mjs; do cmp -s "$source_dir/$file" "/opt/municontrol-pm10/$file" || { echo "Revisar version de $file antes de instalar." >&2; exit 1; };done
 umask 0077
 /usr/bin/node --input-type=module - "$connector" <<'JS'
 import {randomBytes,createHash} from 'node:crypto';import fs from 'node:fs';

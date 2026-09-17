@@ -104,6 +104,7 @@ const shellFiles = [
   'assets/work-area-menu.js',
   'assets/work-area-menu.css',
   'assets/internal-work-today.js',
+  'assets/internal-work-today-sections.css',
   'assets/municontrol-enterprise.css',
   'assets/brand/municontrol-mark.svg',
   'assets/brand/logo-horizontal.svg',
