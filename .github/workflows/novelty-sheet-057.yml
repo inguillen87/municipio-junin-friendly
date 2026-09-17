@@ -8,6 +8,14 @@ on:
       - 'scripts/integrate-native-sheet-production-057.mjs'
       - 'assets/payroll-novelty-sheet*'
       - 'assets/work-area-*'
+      - 'assets/legal-registry*'
+      - 'api/internal-legal-registry.js'
+      - 'lib/internal-legal-registry.js'
+      - 'juridica-registro.html'
+      - 'src/islands/legal-registry-entry.tsx'
+      - 'scripts/build-legal-registry.mjs'
+      - 'scripts/verify-legal-registry*'
+      - 'tests/legal-registry.test.js'
       - 'assets/liquidaciones-menu.js'
       - 'scripts/verify-work-area-*.mjs'
       - 'modulos.html'
@@ -157,6 +165,8 @@ jobs:
         run: node scripts/verify-attendance-preparte-browser.mjs --published
       - name: Work-area navigation and legal roadmap publication
         run: node scripts/verify-work-area-menu-browser.mjs --published
+      - name: Native legal registry production and synthetic full workflow
+        run: node scripts/verify-legal-registry-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

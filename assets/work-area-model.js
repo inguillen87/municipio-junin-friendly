@@ -2,9 +2,10 @@
 export const WORK_AREAS = Object.freeze([
   ['personas','Personas y RRHH','RH'], ['asistencia','Tiempo y asistencia','AS'],
   ['liquidaciones','Liquidaciones','LI'], ['hacienda','Hacienda','HA'],
-  ['control','Reportes y control','CO'], ['sistema','Sistema y ayuda','SI'],
+  ['juridica','Jurídica y Legislativa','JL'], ['control','Reportes y control','CO'], ['sistema','Sistema y ayuda','SI'],
 ].map(([id,label,code])=>Object.freeze({id,label,code})));
 const FILE_AREA = Object.freeze({
+  'juridica-registro.html':'juridica',
   'internal-dashboard.html':'personas','centro-acciones.html':'personas',
   'estructura.html':'personas','licencias-control.html':'personas',
   'relojes-marcaciones.html':'asistencia','fuentes-tiempo.html':'asistencia',

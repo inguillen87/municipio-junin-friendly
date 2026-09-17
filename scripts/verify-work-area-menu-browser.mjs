@@ -39,7 +39,7 @@ try{
   const href=globalThis.MuniControlRoutes.canonicalHref('/'+file);await visit(origin+href);await page.locator('[data-work-area-nav]').waitFor();
   assert.equal(await page.locator('[data-work-area-nav]').count(),1);assert.ok(await page.evaluate(()=>window.originalNavigationNodes.every(n=>n.isConnected)),'original nodes preserved '+file);
   assert.equal(await page.locator('[data-work-area=liquidaciones]').count(),1);assert.equal(await page.locator('[data-work-area-nav] a[href="/administracion"]:visible').count(),0);
-  assert.equal(await page.locator('[data-work-area-nav] [data-work-area=juridica]').count(),0);
+  assert.equal(await page.locator('[data-work-area-nav] [data-work-area=juridica]').isHidden(),true);
   await page.locator('#mcWorkAreaSearch').fill('liquidaciones');assert.ok(await page.locator('[data-work-area=liquidaciones] a:visible').count()>=1);
   await page.locator('#mcWorkAreaSearch').fill('');checks.push('preserves routes, nodes and capability boundaries '+file);
  }

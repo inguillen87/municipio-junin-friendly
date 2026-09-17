@@ -8,6 +8,7 @@
     ['seguridad-cuenta.html', '/seguridad', ['/seguridad-cuenta']],
     ['friendly-dashboard.html', '/inicio', ['/', '/dashboard']],
     ['internal-dashboard.html', '/personal', ['/internal', '/internal-dashboard', '/rrhh']],
+    ['juridica-registro.html', '/juridica', ['/normativa', '/registro-normativo']],
     ['centro-acciones.html', '/acciones', ['/centro-acciones']],
     ['relojes-marcaciones.html', '/relojes', ['/relojes-marcaciones']],
     ['fuentes-tiempo.html', '/tiempo', ['/fuentes-tiempo']],

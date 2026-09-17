@@ -63,9 +63,29 @@
     },
     "api/internal-payroll-monthly-close.js": {
       "maxDuration": 20
+    },
+    "api/internal-legal-registry.js": {
+      "maxDuration": 30,
+      "includeFiles": "{lib/internal-family-certificates.js,node_modules/pdfjs-dist/legacy/build/pdf*.mjs,node_modules/@napi-rs/canvas*/**}"
     }
   },
   "rewrites": [
+    {
+      "source": "/juridica",
+      "destination": "/juridica-registro.html"
+    },
+    {
+      "source": "/juridica-registro",
+      "destination": "/juridica-registro.html"
+    },
+    {
+      "source": "/normativa",
+      "destination": "/juridica-registro.html"
+    },
+    {
+      "source": "/registro-normativo",
+      "destination": "/juridica-registro.html"
+    },
     {
       "source": "/api/ai-analyze",
       "destination": "/api/friendly-policy"
@@ -1221,9 +1241,94 @@
           "value": "private, no-store, max-age=0"
         }
       ]
+    },
+    {
+      "source": "/juridica",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/juridica-registro",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/juridica-registro.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/normativa",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/registro-normativo",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
     }
   ],
   "redirects": [
+    {
+      "source": "/registro-normativo",
+      "destination": "/juridica",
+      "permanent": false
+    },
+    {
+      "source": "/normativa",
+      "destination": "/juridica",
+      "permanent": false
+    },
+    {
+      "source": "/juridica-registro",
+      "destination": "/juridica",
+      "permanent": false
+    },
+    {
+      "source": "/juridica-registro.html",
+      "destination": "/juridica",
+      "permanent": false
+    },
     {
       "source": "/login.html",
       "destination": "/acceso",

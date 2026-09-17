@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
+import { buildLegalRegistry } from './build-legal-registry.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -95,6 +96,10 @@ const shellFiles = [
   'assets/internal-guide.js',
   'assets/liquidaciones-menu.js',
   'assets/liquidaciones-menu.css',
+  'juridica-registro.html',
+  'assets/legal-registry-model.js',
+  'assets/legal-registry.css',
+  'assets/legal-registry-entry-card.css',
   'assets/work-area-model.js',
   'assets/work-area-menu.js',
   'assets/work-area-menu.css',
@@ -272,10 +277,13 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
     ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
   const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
     ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
-  const routed = file.endsWith('.html') ? applyCleanRouteLinks(navigable, file) : navigable;
+  const legalLinked = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(navigable) && !['friendly-dashboard.html','administracion-plataforma.html','juridica-registro.html'].includes(file)
+    ? navigable.replace('</aside>', '<a class="nav-button" href="juridica-registro.html" data-any-capability="legal.norm.read" data-requires-any-capability="legal.norm.read"><span>Registro normativo</span></a></aside>') : navigable;
+  const routed = file.endsWith('.html') ? applyCleanRouteLinks(legalLinked, file) : legalLinked;
   fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
 
+await buildLegalRegistry(root, output);
 await buildReactIslands(root, output);
 await buildLeaveRulesIsland(root, output);
 
