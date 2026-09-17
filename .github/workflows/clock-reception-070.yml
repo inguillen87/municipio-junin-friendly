@@ -1,12 +1,19 @@
-name: Clock reception 070 - no previews
+name: Clock reception and fleet UI - no previews
 on:
   push:
-    branches: ['internal-clock-reception-070-20260917', 'master']
+    branches: ['internal-clock-reception-070-20260917', 'internal-clock-fleet-ui-20260917', 'master']
     paths:
       - 'api/attendance-zk40.js'
       - 'lib/internal-zk40-reception.js'
+      - 'api/internal-clock-fleet.js'
+      - 'lib/internal-clock-fleet.js'
+      - 'assets/clock-fleet-*'
+      - 'scripts/build-clock-fleet.mjs'
+      - 'scripts/verify-clock-fleet-*.mjs'
+      - 'scripts/verify-clock-map-browser.mjs'
       - 'scripts/migrations/070-zk40-multiclock-reception.sql'
       - 'tests/zk40*'
+      - 'tests/clock-fleet-production.test.js'
       - '.github/workflows/clock-reception-070.yml'
   workflow_dispatch:
 permissions:
@@ -18,7 +25,7 @@ jobs:
   validate:
     if: github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,27 +36,45 @@ jobs:
       - run: npm run build
       - name: Existing collector regressions
         run: node --test local-agents/pm10/tests/*.test.mjs
+      - name: Existing and new browser journeys - synthetic municipal APIs
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/verify-clock-fleet-browser.mjs
+          node scripts/verify-clock-map-browser.mjs
+          node scripts/verify-pm10-reception-browser.mjs
+          node scripts/verify-continuous-workdays-browser.mjs
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clock-fleet-validation
+          path: |
+            verification/clock-fleet/
+            verification/clock-map/
+          retention-days: 5
   publication:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Public endpoint rejects anonymous access; no municipal test data
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build expected assets once - full regression already required before promotion
+        run: node scripts/build-friendly.mjs
+      - name: Published artifact equality and anonymous boundaries
+        run: node scripts/verify-clock-fleet-publication.mjs
+      - name: Published navigation with synthetic API data
         run: |
-          node --input-type=module <<'JS'
-          import assert from 'node:assert/strict';
-          import {setTimeout as sleep} from 'node:timers/promises';
-          const origin='https://municipio-junin-friendly.vercel.app';
-          for(let i=0;i<40;i++){
-            const r=await fetch(origin+'/api/attendance-zk40',{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});
-            if(r.status===405){const b=await r.json();assert.equal(b.code,'METHOD_NOT_ALLOWED');assert.equal(r.headers.get('allow'),'POST');assert.match(r.headers.get('cache-control'),/no-store/);break;}
-            if(i===39)throw Error('Receiver was not published');await sleep(10000);
-          }
-          const noAuth=await fetch(origin+'/api/attendance-zk40',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',redirect:'error',signal:AbortSignal.timeout(15000)});
-          assert.equal(noAuth.status,401);assert.equal((await noAuth.json()).code,'ZK40_AUTH_DENIED');assert.match(noAuth.headers.get('cache-control'),/no-store/);
-          const existing=await fetch(origin+'/api/attendance-pm10',{redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(existing.status,405);
-          console.log(JSON.stringify({ok:true,receiverGetStatus:405,anonymousPostStatus:401,pm10GetStatus:405,realAttendanceRecordsSent:0,clockConnectionTested:false}));
-          JS
+          npx playwright install --with-deps chromium
+          node scripts/verify-clock-fleet-browser.mjs --published
+      - name: Publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clock-fleet-production-check
+          path: verification/clock-fleet/
+          retention-days: 5

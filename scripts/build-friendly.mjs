@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyFriendlyPwaIdentity, applyFriendlySocialMetadata } from './apply-friendly-social-metadata.mjs';
 import { buildLegalRegistry } from './build-legal-registry.mjs';
+import { buildClockFleet } from './build-clock-fleet.mjs';
 import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -287,6 +288,7 @@ for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manif
 await buildLegalRegistry(root, output);
 await buildReactIslands(root, output);
 await buildLeaveRulesIsland(root, output);
+buildClockFleet(root, output);
 
 const versionHash = crypto.createHash('sha256');
 for (const file of publicCacheInputs) {

@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import {patchClockFleetHtml} from './build-clock-fleet.mjs';
 
 const origin = 'https://clock-map.test', base = path.resolve(process.env.CLOCK_MAP_BUILD_DIR ?? 'public');
 const out = path.resolve('verification/clock-map'), html = fs.readFileSync(path.join(base, 'relojes-marcaciones.html'), 'utf8').replaceAll('\r\n', '\n');
-const source = fs.readFileSync('relojes-marcaciones.html', 'utf8').replaceAll('\r\n', '\n');
+const source = patchClockFleetHtml(fs.readFileSync('relojes-marcaciones.html', 'utf8').replaceAll('\r\n', '\n'));
 assert.ok(html.includes(source.slice(source.indexOf('function showMapFallback'), source.indexOf('function td('))), 'CLOCK_MAP_BUILD_STALE');
 fs.mkdirSync(out, { recursive: true });
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8f2ef"/><path d="M0 80h256M0 180h256M80 0v256M180 0v256" stroke="#abc9c0"/><text x="12" y="140" fill="#49655d">MAPA SINTÉTICO QA</text></svg>';
