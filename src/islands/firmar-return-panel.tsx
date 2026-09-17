@@ -8,7 +8,10 @@ export function FirmarReturnPanel(props:Props){
  useEffect(()=>{let active=true;let channel:BroadcastChannel|null=null;
   try{if(typeof BroadcastChannel==='function')channel=new BroadcastChannel('municontrol-firmar-return');}catch{}
   const c=createFirmarReturn({location:window.location,history:window.history,consumeState:()=>{if(token.current===undefined){try{token.current=takeFirmarReturnState(window.location,window.history);}catch{token.current=null;}}return token.current;},resolveReturn:(a:any)=>latest.current.resolveReturn(a),notifyHost:(n:any)=>channel?.postMessage(n),onChange:(s:any)=>{if(active){if(['return_bound','session_lost','invalid_return','return_expired'].includes(s.state))token.current=null;setState(s);}}});ref.current=c;
-  if(latest.current.sessionValid)void c.resume();else c.sessionLost();
+  // React can mount, clean up and mount effects again before a response. Defer
+  // the lookup so the discarded effect cannot consume the same return twice.
+  // The server resolver still must be idempotent and recheck live membership.
+  queueMicrotask(()=>{if(!active)return;if(latest.current.sessionValid)void c.resume();else c.sessionLost();});
   return()=>{active=false;c.dispose();ref.current=null;channel?.close();};
  },[]);
  useEffect(()=>{if(!props.sessionValid)ref.current?.sessionLost();},[props.sessionValid]);

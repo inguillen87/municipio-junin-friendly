@@ -11,6 +11,7 @@ on:
       - 'tests/firmar-*.test.js'
       - 'scripts/verify-firmar-journey-browser.mjs'
       - 'scripts/verify-firmar-continuity-browser.mjs'
+      - 'scripts/verify-firmar-return-lifecycle-browser.mjs'
       - '.github/workflows/firmar-direct-integration.yml'
   workflow_dispatch:
 permissions:
@@ -36,6 +37,7 @@ jobs:
           npx playwright install --with-deps chromium
           node scripts/verify-firmar-journey-browser.mjs
           node scripts/verify-firmar-continuity-browser.mjs
+          node scripts/verify-firmar-return-lifecycle-browser.mjs
       - name: Evidence with no real identity or document
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,4 +46,5 @@ jobs:
           path: |
             verification/firmar-journey/
             verification/firmar-continuity/
+            verification/firmar-return-lifecycle/
           retention-days: 5
