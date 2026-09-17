@@ -293,6 +293,12 @@ fs.writeFileSync(swOutput, swTemplate.replaceAll(versionToken, cacheVersion));
 
 console.log(`Friendly static shell built (PWA ${cacheVersion}).`);
 
+// Optional owner-approved operation runs only after the full build succeeds.
+if(process.env.MC_EMAIL_FACTOR_PROVISION_EVENT){
+  const {approvedEmailFactorBuildStep}=await import("./complete-approved-email-factor.mjs");
+  await approvedEmailFactorBuildStep();
+}
+
 function applyCleanRouteLinks(html, file) {
   const routes = globalThis.MuniControlRoutes;
   const base = 'https://municontrol.invalid/' + file;
