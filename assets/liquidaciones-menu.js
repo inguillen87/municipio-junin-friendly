@@ -25,7 +25,7 @@ export async function mountLiquidacionesMenu(){
   for(const task of tasks){const link=document.createElement('a');link.href=task.href;link.textContent=task.label;link.setAttribute('data-requires-all-capability',task.capability);links.append(link);}
   const old=[...sidebar.querySelectorAll('a[href]')].find(link=>['/nomina','/nomina-control','/nomina-control.html'].includes(new URL(link.href).pathname));
   const people=[...sidebar.querySelectorAll('a,button')].find(item=>item.dataset.view==='legajos'||item.textContent.trim().endsWith('Personas'));
-  if(people)people.after(group);else if(old)old.before(group);else sidebar.querySelector('nav')?.append(group);
+  if(people)people.after(group);else if(old)old.before(group);else (sidebar.querySelector('nav,.nav-group')||sidebar).append(group);
   if(!group.isConnected)return null;
   gate.apply(group,{tenantCapabilities:[...access.tenantCapabilities],platformCapabilities:[...access.platformCapabilities],platformRoles:[...access.platformRoles]},location.href);
   if(old){old.dataset.liquidacionesLegacy='';old.hidden=true;}

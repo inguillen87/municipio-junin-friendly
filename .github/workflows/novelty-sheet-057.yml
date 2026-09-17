@@ -7,6 +7,11 @@ on:
       - 'scripts/patches/057*'
       - 'scripts/integrate-native-sheet-production-057.mjs'
       - 'assets/payroll-novelty-sheet*'
+      - 'assets/work-area-*'
+      - 'assets/liquidaciones-menu.js'
+      - 'scripts/verify-work-area-*.mjs'
+      - 'modulos.html'
+      - 'tests/work-area-navigation.test.js'
       - 'assets/attendance-preparte*'
       - 'lib/attendance-preparte.js'
       - 'lib/internal-attendance-workdays.js'
@@ -150,6 +155,8 @@ jobs:
         run: node scripts/verify-novelty-sheet-057.mjs
       - name: Preparte publication, real access denial and synthetic operator flow
         run: node scripts/verify-attendance-preparte-browser.mjs --published
+      - name: Work-area navigation and legal roadmap publication
+        run: node scripts/verify-work-area-menu-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

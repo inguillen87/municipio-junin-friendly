@@ -1,0 +1,25 @@
+.mc-work-sidebar [data-work-area-empty],.mc-work-sidebar [data-work-area-duplicate],.mc-work-sidebar [data-work-filtered=true],.mc-work-sidebar [data-work-permission-denied=true]{display:none!important}
+.mc-work-sidebar .mc-work-navigation{display:block;width:100%;min-width:0;margin:14px 0;color:#e3f0f4}
+.mc-work-sidebar .mc-work-navigation [hidden]{display:none!important}.mc-work-sidebar .mc-work-body{display:grid;gap:12px;min-width:0}
+.mc-work-sidebar .mc-work-toggle{display:none}.mc-work-sidebar .mc-work-search{display:grid;gap:7px;min-width:0}
+.mc-work-sidebar .mc-work-search label{font:700 11px/1.5 inherit;color:#d2e4e9;text-transform:uppercase;letter-spacing:.07em}
+.mc-work-sidebar .mc-work-search input{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #ffffff40;border-radius:9px;background:#0c2c3b;color:#fff;font:inherit;font-size:13px}
+.mc-work-sidebar .mc-work-search input::placeholder{color:#b2c9d1}.mc-work-sidebar .mc-work-search small{font-size:10px;color:#a9c7d1}
+.mc-work-sidebar .mc-work-clear{justify-self:start;min-height:32px;padding:4px 0;border:0;background:none;color:#a0eee0;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}
+.mc-work-sidebar .mc-work-home,.mc-work-sidebar .mc-work-groups{display:grid;gap:6px;min-width:0}
+.mc-work-sidebar .mc-work-area{min-width:0;margin:0;border:1px solid #ffffff24;border-radius:11px;background:#ffffff05;overflow:clip}
+.mc-work-sidebar .mc-work-area>summary{display:flex;align-items:center;gap:9px;min-height:48px;padding:10px 11px;box-sizing:border-box;list-style:none;cursor:pointer;font:700 13px/1.5 system-ui,sans-serif;color:#e7f3f5;transition:background-color .14s}
+.mc-work-sidebar .mc-work-area>summary::-webkit-details-marker{display:none}.mc-work-sidebar .mc-work-area>summary::after{content:'›';margin-left:auto;font-size:22px;line-height:1;transform:rotate(90deg);transition:transform .14s}
+.mc-work-sidebar .mc-work-area[open]>summary::after{transform:rotate(-90deg)}.mc-work-sidebar .mc-work-area>summary:hover{background:#ffffff10}
+.mc-work-sidebar .mc-work-area[data-active=true]>summary{color:#153a49;background:#f3f5ed}
+.mc-work-sidebar .mc-work-icon{display:grid;place-items:center;flex:0 0 25px;height:25px;border:1px solid currentColor;border-radius:6px;font-size:9px;letter-spacing:.04em}
+.mc-work-sidebar .mc-work-items{display:grid!important;gap:3px;padding:4px 7px 8px;margin:0;min-width:0}
+.mc-work-sidebar .mc-work-items>[data-work-area-item],.mc-work-sidebar .mc-work-home>[data-work-area-item]{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:10px 9px;margin:0;border:0;border-left:2px solid transparent;border-radius:7px;background:transparent;color:#dbeaf0;font:600 12px/1.5 system-ui,sans-serif;text-decoration:none;white-space:normal;overflow-wrap:anywhere;text-align:left;cursor:pointer;justify-content:flex-start}
+.mc-work-sidebar .mc-work-items>[data-work-area-item]:hover,.mc-work-sidebar .mc-work-home>[data-work-area-item]:hover{background:#ffffff0d;color:#fff}
+.mc-work-sidebar .mc-work-items>[aria-current=page],.mc-work-sidebar .mc-work-home>[aria-current=page]{border-left-color:#64dec7;background:#ffffff17;color:#fff}
+.mc-work-sidebar .mc-work-items :is(.nav-code,.nav-index){display:none}.mc-work-sidebar .mc-work-home :is(.nav-code,.nav-index){flex:0 0 24px;font-size:10px}
+.mc-work-sidebar .mc-work-status{margin:0;font-size:11px;line-height:1.55;color:#acc6ce;overflow-wrap:anywhere}
+.mc-work-sidebar .mc-work-navigation :is(input,button,summary,a):focus-visible{outline:3px solid #7fe8d4;outline-offset:-3px}
+@media(max-width:1050px){.mc-work-sidebar .mc-work-navigation{margin:8px 0}.mc-work-sidebar .mc-work-toggle{display:flex;align-items:center;gap:14px;justify-content:space-between;box-sizing:border-box;width:100%;min-height:48px;padding:10px 13px;border:1px solid #ffffff45;border-radius:10px;background:#ffffff09;color:#ecf5f4;font:inherit;font-size:12px;text-align:left;cursor:pointer}.mc-work-sidebar .mc-work-toggle strong{font-size:12px;text-align:right;overflow-wrap:anywhere}.mc-work-sidebar .mc-work-toggle::after{content:'⌄';font-size:18px}.mc-work-sidebar .mc-work-toggle[aria-expanded=true]::after{content:'⌃'}.mc-work-sidebar .mc-work-body{padding-top:12px}.mc-work-sidebar .mc-work-search small{display:none}}
+@media(prefers-reduced-motion:reduce){.mc-work-sidebar .mc-work-navigation *,.mc-work-sidebar .mc-work-area>summary::after{transition:none!important;scroll-behavior:auto!important}}
+@media print{.mc-work-navigation{display:none!important}}

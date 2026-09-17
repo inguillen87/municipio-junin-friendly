@@ -95,6 +95,9 @@ const shellFiles = [
   'assets/internal-guide.js',
   'assets/liquidaciones-menu.js',
   'assets/liquidaciones-menu.css',
+  'assets/work-area-model.js',
+  'assets/work-area-menu.js',
+  'assets/work-area-menu.css',
   'assets/internal-work-today.js',
   'assets/municontrol-enterprise.css',
   'assets/brand/municontrol-mark.svg',
@@ -265,8 +268,10 @@ for (const file of pwaFiles.filter(file => file.startsWith('assets/pwa/'))) {
 for (const file of [...shellFiles.filter(file => file.endsWith('.html')), 'manifest.webmanifest', 'sw.js', 'assets/municontrol-enterprise.css']) {
   const destination = path.join(output, file), original = fs.readFileSync(destination, 'utf8');
   const branded = file.endsWith('.html') ? applyFriendlySocialMetadata(applyFriendlyPwaIdentity(original.replaceAll('MuniControl Friendly', 'MuniControl').replaceAll('Friendly · Junín, Mendoza', 'Municipalidad de Junín, Mendoza'))) : original;
-  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded)
-    ? branded.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script></head>') : branded;
+  const withGate = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(branded) && !['administracion-plataforma.html','friendly-dashboard.html'].includes(file) && !branded.includes('internal-capability-gate.js')
+    ? branded.replace('</head>', '<script src="/assets/internal-capability-gate.js"></script></head>') : branded;
+  const navigable = file.endsWith('.html') && /<aside\b[^>]*class="[^"]*\bsidebar\b/.test(withGate)
+    ? withGate.replace('</head>', '<link rel="stylesheet" href="/assets/liquidaciones-menu.css"><script type="module" src="/assets/liquidaciones-menu.js"></script><link rel="stylesheet" href="/assets/work-area-menu.css"><script type="module" src="/assets/work-area-menu.js"></script></head>') : withGate;
   const routed = file.endsWith('.html') ? applyCleanRouteLinks(navigable, file) : navigable;
   fs.writeFileSync(destination, routed.replaceAll('assets/pwa/', `assets/pwa/${identityVersion}/`).replaceAll('url("pwa/', `url("pwa/${identityVersion}/`));
 }
