@@ -2,7 +2,7 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {setTimeout as sleep} from 'node:timers/promises';
 const origin='https://municipio-junin-friendly.vercel.app',out='verification/clock-fleet';fs.mkdirSync(out,{recursive:true});
 const hash=b=>createHash('sha256').update(b).digest('hex');
-const files=['assets/clock-fleet-model.js','assets/clock-fleet-panel.js','assets/clock-fleet-panel.css','assets/pm10-reception.js','relojes-marcaciones.html'];
+const files=['assets/attendance-point-label.js','assets/clock-fleet-model.js','assets/clock-fleet-panel.js','assets/clock-fleet-panel.css','assets/pm10-reception.js','relojes-marcaciones.html'];
 const expected=Object.fromEntries(files.map(f=>[f,hash(fs.readFileSync('public/'+f))]));
 for(let attempt=1;attempt<=40;attempt++){
  try{for(const [file,sha]of Object.entries(expected)){const url=file.endsWith('.html')?origin+'/relojes':origin+'/'+file;const r=await fetch(url,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200,file);assert.equal(hash(Buffer.from(await r.arrayBuffer())),sha,file+' is not the release');}break;}

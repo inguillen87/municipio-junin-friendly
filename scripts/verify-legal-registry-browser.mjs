@@ -1,10 +1,16 @@
 // Actual compiled or published pages + real input/PDF validation. SQL/auth are synthetic.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import http from 'node:http';
 import {verifyLegalRegistryPublication} from './verify-legal-registry-publication.mjs';
 import {chromium} from 'playwright';import {createLegalRegistryHandler} from '../api/internal-legal-registry.js';
-import {ID,draft,pdf,digest,access,session} from '../tests/fixtures/legal-registry-synthetic.js';
+import {ID,draft,pdf,digest,access,session,syntheticLegalPdf} from '../tests/fixtures/legal-registry-synthetic.js';
 import '../assets/app-routes.js';
-const published=process.argv.includes('--published'),origin=published?'https://municipio-junin-friendly.vercel.app':'https://legal.test';
+const published=process.argv.includes('--published');
+// Nested PDF parser workers cannot be fulfilled by Playwright's page routes.
+// The loopback fallback serves only four static reader assets, never an API.
+const workerAssets=new Set(['/assets/legal-pdf-text-worker.js','/assets/legal-pdf-text-model.js','/assets/vendor/pdf.min.mjs','/assets/vendor/pdf.worker.min.mjs']);
+const workerServer=published?null:http.createServer((req,res)=>{const u=new URL(req.url,'http://localhost');if(req.method!=='GET'||u.search||!workerAssets.has(u.pathname)){res.statusCode=404;return res.end();}res.setHeader('content-type','application/javascript');res.setHeader('cache-control','no-store');res.end(fs.readFileSync(path.join('public',u.pathname)));});
+if(workerServer){await new Promise(resolve=>workerServer.listen(0,'127.0.0.1',resolve));workerServer.unref();}
+const origin=published?'https://municipio-junin-friendly.vercel.app':'http://127.0.0.1:'+workerServer.address().port;
 const root=path.resolve('public'),out='verification/legal-registry-'+(published?'published':'local');fs.mkdirSync(out,{recursive:true});
 if(published)await verifyLegalRegistryPublication(out);
 const errors=[],checks=[],requests=[],writes=[],versions=new Map(),attempts=new Map();
@@ -49,6 +55,20 @@ try{
  checks.push('portal Inicio card opens the real legal workspace and sidebar area with independent native registry');
  const newDraft=async()=>{await app.getByRole('button',{name:'Registrar norma',exact:true}).click();await app.locator('input[name="title"]').waitFor();};
  const fill=async()=>{const d=draft();for(const name of ['number','year'])await app.locator('input[name="'+name+'"]').fill(String(d.identity[name]));for(const name of ['title','topics','sourceReference','issueDate'])await app.locator('input[name="'+name+'"]').fill(d.metadata[name]);await app.locator('input[name="reason"]').fill(d.reason);await app.locator('input[type=file]').setInputFiles({name:d.document.filename,mimeType:'application/pdf',buffer:pdf});await page.waitForFunction(()=>document.querySelector('.legal-workspace [role=status]')?.textContent.includes('Archivo seleccionado'));await app.getByRole('button',{name:'Agregar artículo',exact:true}).click();await app.locator('[name=articleLabel0]').fill('Artículo 1');await app.locator('[name=articleText0]').fill(d.metadata.articles[0].text);};
+ const setPdf=async(buffer)=>{await app.locator('input[type=file]').setInputFiles({name:'fuente-qa.pdf',mimeType:'application/pdf',buffer});await page.waitForFunction(()=>document.querySelector('.legal-workspace [role=status]')?.textContent.includes('Archivo seleccionado'));};
+ await newDraft();await fill();const textPdf=syntheticLegalPdf(2,'Articulo 8: NO corresponde 25,5 %. ORIGINAL QA');await setPdf(textPdf);
+ await app.getByRole('button',{name:'Leer texto del PDF',exact:true}).click();await app.locator('.lr-pdf-source').waitFor();assert.match(await app.locator('.lr-pdf-source').textContent(),/NO corresponde 25,5 %/);assert.equal(writes.length,0);
+ await app.getByLabel('Página de la fuente',{exact:true}).selectOption('2');await app.locator('[name=pdfArticleLabel]').fill('Artículo 8');const addPdf=app.getByRole('button',{name:'Agregar texto revisado al borrador'});assert.equal(await addPdf.isDisabled(),true);
+ await app.getByLabel('Contrasté este fragmento con el PDF original.').check();await addPdf.click();assert.match(await app.locator('[name=articleText1]').inputValue(),/NO corresponde 25,5 %/);assert.equal(await app.locator('[name=articlePage1]').inputValue(),'2');assert.equal(writes.length,0);
+ await app.getByRole('button',{name:'Revisar antes de guardar'}).click();assert.match(await app.locator('.lr-review-articles').innerText(),/NO corresponde 25,5 %/);assert.match(await app.locator('.lr-review-articles').innerText(),new RegExp(digest(textPdf)));assert.equal(writes.length,0);
+ await app.getByRole('button',{name:'Volver a editar'}).click();await app.getByRole('button',{name:'Leer texto del PDF',exact:true}).click();await app.locator('.lr-pdf-source').waitFor();
+ await app.screenshot({path:out+'/pdf-aid-desktop.png'});for(const width of [390,320]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await app.locator('.lr-pdf-aid').screenshot({path:out+'/pdf-aid-'+width+'.png'});}await page.setViewportSize({width:1440,height:1050});
+ await setPdf(syntheticLegalPdf(1,''));await page.waitForFunction(()=>!document.querySelector('.lr-pdf-source'));await app.getByRole('button',{name:'Leer texto del PDF',exact:true}).click();await app.locator('.lr-pdf-source').waitFor();assert.match(await app.locator('.lr-pdf-aid').innerText(),/no tiene una capa de texto extraíble/);assert.equal(await app.getByRole('button',{name:'Agregar texto revisado al borrador'}).isDisabled(),true);
+ await setPdf(syntheticLegalPdf(31,'Too many pages'));await app.getByRole('button',{name:'Leer texto del PDF',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.lr-pdf-aid [role=status]')?.textContent.includes('No se pudo extraer'));assert.equal(await app.locator('.lr-pdf-source').count(),0);assert.equal(writes.length,0);
+ page.once('dialog',d=>d.accept());await app.getByRole('button',{name:'Cancelar',exact:true}).click();
+ checks.push('real two-page local PDF extraction preserves negation and decimal, binds page/hash and requires manual review without POST');
+ checks.push('final confirmation exposes every article and source hash, responsive source-to-draft view fits 320/390px');
+ checks.push('replacing the PDF clears extraction, empty text stays unknown and 31-page document fails without modifying the draft');
  let untouchedDialogs=0;const unexpectedDialog=async d=>{untouchedDialogs++;await d.dismiss();};page.on('dialog',unexpectedDialog);
  await newDraft();await app.getByRole('button',{name:'Cancelar',exact:true}).click();await app.getByRole('button',{name:'Registrar norma',exact:true}).waitFor();assert.equal(untouchedDialogs,0);
  await newDraft();await app.locator('input[name=title]').fill('Cambio temporal');await app.locator('input[name=title]').fill('');await app.getByRole('button',{name:'Cancelar',exact:true}).click();await app.getByRole('button',{name:'Registrar norma',exact:true}).waitFor();assert.equal(untouchedDialogs,0);page.off('dialog',unexpectedDialog);checks.push('untouched and reverted forms close without a discard warning');
@@ -74,4 +94,4 @@ try{
  denied=true;await app.getByRole('button',{name:'Descargar PDF original'}).click();await app.getByRole('heading',{name:'Acceso no disponible'}).waitFor();assert.equal(await app.locator('#lrRecordTitle').count(),0);assert.equal(await app.locator('.lr-history').count(),0);checks.push('permission rejection clears cached ficha and history');
  assert.deepEqual(errors,[]);assert.ok(requests.every(r=>r.method==='GET'||r.path==='/api/internal-legal-registry'));
  const result={ok:true,checksPassed:checks.length,checks,mode:published?'published-ui':'compiled-ui',realApiParser:true,realPdfValidation:true,authenticationAndSqlSynthetic:true,municipalSessionTested:false,realMunicipalWrites:0};fs.writeFileSync(out+'/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
-}catch(error){fs.writeFileSync(out+'/error.txt',String(error.stack));console.error(JSON.stringify({checks,errors,versions:versions.size,writes:writes.length,url:page?.url()}));if(page)await page.screenshot({path:out+'/failure.png'}).catch(()=>{});throw error;}finally{await browser.close();}
+}catch(error){fs.writeFileSync(out+'/error.txt',String(error.stack));console.error(JSON.stringify({checks,errors,versions:versions.size,writes:writes.length,url:page?.url()}));if(page)await page.screenshot({path:out+'/failure.png'}).catch(()=>{});throw error;}finally{await browser.close();workerServer?.close();}

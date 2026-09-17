@@ -100,6 +100,8 @@ const shellFiles = [
   'juridica-registro.html',
   'assets/legal-registry-model.js',
   'assets/legal-registry.css',
+  'assets/legal-pdf-text-model.js',
+  'assets/legal-pdf-text-worker.js',
   'assets/legal-registry-entry-card.css',
   'assets/work-area-model.js',
   'assets/work-area-menu.js',

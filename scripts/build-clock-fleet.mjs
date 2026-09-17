@@ -37,4 +37,4 @@ export function patchClockFleetHtml(html){
  for(const [before,after]of patches){if(html.split(before).length!==2)throw Error('Clock fleet integration point changed: '+before.slice(0,60));html=html.replace(before,()=>after);}
  return html;
 }
-export function buildClockFleet(root,output){for(const asset of ['clock-fleet-model.js','clock-fleet-panel.js','clock-fleet-panel.css'])fs.copyFileSync(path.join(root,'assets',asset),path.join(output,'assets',asset));const file=path.join(output,'relojes-marcaciones.html');fs.writeFileSync(file,patchClockFleetHtml(fs.readFileSync(file,'utf8')));}
+export function buildClockFleet(root,output){for(const asset of ['attendance-point-label.js','clock-fleet-model.js','clock-fleet-panel.js','clock-fleet-panel.css'])fs.copyFileSync(path.join(root,'assets',asset),path.join(output,'assets',asset));const file=path.join(output,'relojes-marcaciones.html');fs.writeFileSync(file,patchClockFleetHtml(fs.readFileSync(file,'utf8')));}

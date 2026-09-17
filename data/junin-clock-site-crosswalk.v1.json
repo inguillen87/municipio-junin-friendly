@@ -1,0 +1,16 @@
+{
+  "version": "junin-clock-site-crosswalk.v1",
+  "tenantSlug": "junin-mendoza",
+  "inventorySha256": "2897feadc03e15c7246f126556d76de7231b9f651975cc15c0c889d9bb2470b9",
+  "photoSha256": "86bc45979a3bbdf6af23e93659a613926515dac4ecaa57f15d4563747415d68f",
+  "scope": "display_names_only",
+  "physicalLocationVerified": false,
+  "vendorNumberIsMunicipalPoint": false,
+  "associations": [
+    { "clockId": "la-colonia", "pointCode": "PM-05" },
+    { "clockId": "galpon", "pointCode": "PM-03" },
+    { "clockId": "polideportivo-la-colonia", "pointCode": "PM-06" },
+    { "clockId": "compras", "pointCode": "PM-02" },
+    { "clockId": "edificio-nuevo", "pointCode": null, "reportedName": "Edificio Nuevo", "reason": "absent_from_P3_workbook" }
+  ]
+}

@@ -1,4 +1,5 @@
 import {assertClockFleet,clockFleetStatus,clockFleetRows,clockFleetSummary,clockFleetCsv,clockFleetSites} from './clock-fleet-model.js';
+import {attendancePointLabel} from './attendance-point-label.js';
 // Common fleet overview supplements (does not replace) the existing PM10 nominal view.
 const fleetRoot=document.getElementById('clockFleetReception');
 if(fleetRoot)mountClockFleet(fleetRoot);
@@ -40,7 +41,7 @@ export function mountClockFleet(panel){
   if(!rows.length){const empty=el('div',null,'fleet-empty');empty.append(el('strong',data.devices.length?'Sin coincidencias en este filtro':'No hay equipos registrados en este receptor'),el('p',data.devices.length?'Cambiá el filtro o limpiá la búsqueda.':'El alta y el primer envío deben completarse antes de aparecer como una recepción real.'));cards.append(empty);return;}
   for(const d of rows){
    const status=clockFleetStatus(d,data.checkedAt),card=el('article',null,'fleet-card');card.dataset.device=d.deviceId;
-   card.append(el('span',status.label,'fleet-status '+status.tone),el('h3',d.label),el('p',d.siteKey.toUpperCase()+' · '+(d.model||'Modelo no informado'),'fleet-device'));
+   card.append(el('span',status.label,'fleet-status '+status.tone),el('h3',attendancePointLabel(d.siteKey,d.label)),el('p',d.model||'Modelo no informado','fleet-device'));
    const dl=el('dl');for(const [a,b]of [['Último acuse',date(d.lastReceivedAt)],['Captura declarada',date(d.lastCapturedAt)],['Registros con acuse',fmt(d.recordsConfirmed)]])dl.append(el('dt',a),el('dd',b));card.append(dl,el('p',status.next,'fleet-next'));
    const actions=el('div',null,'fleet-actions');if(d.canConsult){const consult=button('Ver marcaciones',()=>{document.dispatchEvent(new CustomEvent('mc:attendance-site',{detail:{site:d.siteKey}}));const target=document.getElementById('clockOperations');target?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth'});document.getElementById('clockTitle')?.focus();},'button');actions.append(consult);}
    const map=button('Ubicar en mapa',()=>{document.dispatchEvent(new CustomEvent('mc:clock-fleet-map-focus',{detail:{siteKey:d.siteKey}}));},'button');actions.append(map);card.append(actions);

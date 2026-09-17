@@ -1,4 +1,5 @@
 import {csvCell} from './clock-dashboard-model.js';
+import {attendancePointCode} from './attendance-point-label.js';
 // Fleet reception is a server receipt view, not a device heartbeat or payable attendance.
 export const FLEET_MAX_DEVICES=200;
 export const FLEET_RECENT_MS=30*60*1000;
@@ -35,7 +36,7 @@ export function clockFleetRows(data,{search='',filter='all'}={}){
 export function clockFleetSummary(data){assertClockFleet(data);return {registered:data.devices.length,withReceipts:data.devices.filter(d=>d.receipts>0).length,attention:data.devices.filter(d=>clockFleetStatus(d,data.checkedAt).tone==='attention').length,records:data.devices.reduce((n,d)=>n+d.recordsConfirmed,0)};}
 export function clockFleetCsv(data,options={}){
  const rows=clockFleetRows(data,options),header=['Punto','Lugar','Modelo','Estado de recepción en el corte','Consulta UTC','Último acuse UTC','Captura declarada UTC','Partes confirmadas','Registros con acuse','Eventos incorporados','Observaciones','Duplicados','Alcance'];
- return '\ufeff'+[header,...rows.map(d=>[d.siteKey,d.label,d.model??'No informado',clockFleetStatus(d,data.checkedAt).label,data.checkedAt,d.lastReceivedAt??'',d.lastCapturedAt??'',d.receipts,d.recordsConfirmed,d.newCanonical,d.observations,d.duplicates,'Control de recepción por equipo; no personas, horas, cobertura ni cálculo salarial'])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';
+ return '\ufeff'+[header,...rows.map(d=>[attendancePointCode(d.siteKey),d.label,d.model??'No informado',clockFleetStatus(d,data.checkedAt).label,data.checkedAt,d.lastReceivedAt??'',d.lastCapturedAt??'',d.receipts,d.recordsConfirmed,d.newCanonical,d.observations,d.duplicates,'Control de recepción por equipo; no personas, horas, cobertura ni cálculo salarial'])].map(r=>r.map(csvCell).join(';')).join('\r\n')+'\r\n';
 }
 export function clockFleetSites(data){
  assertClockFleet(data);const sites=new Map();
