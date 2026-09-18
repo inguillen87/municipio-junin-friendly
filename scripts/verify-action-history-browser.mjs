@@ -14,7 +14,8 @@ const checks = [], errors = [], requests = [], publishedAssets = new Set(), publ
 let detailStatus = 200, detailCode = '', delayDetail = null, inconsistentCommands = true, invalidContext = false, legacy = false, payrollEscalation = false;
 async function publicAsset(url, expected) {
   assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app'); assert.ok(!url.pathname.startsWith('/api/'));
-  const r = await fetch(url.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
+  const requested=url.pathname==='/centro-acciones.html'?new URL('/acciones',url.origin):url;
+  const r = await fetch(requested.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
   assert.equal(r.status, 200, 'PUBLISHED_ASSET_UNAVAILABLE');
   const reader = r.body.getReader(), chunks = []; let length = 0;
   try { for (;;) { const { value, done } = await reader.read(); if (done) break; length += value.byteLength; assert.ok(length <= expected.length, 'PUBLISHED_ASSET_SIZE_MISMATCH'); chunks.push(value); } }
@@ -78,6 +79,18 @@ try {
     await page.screenshot({ path: path.join(out, name + '.png') });
   }
   await load();
+  const guide=page.locator('#actionWorkflowGuide'),apiReads=()=>requests.filter(r=>new URL(r.url).pathname.startsWith('/api/')).length;
+  const beforeGuideReads=apiReads(),closedHeight=await page.locator('#actionWorkflow').evaluate(e=>e.getBoundingClientRect().height);
+  assert.equal(await guide.evaluate(e=>e.open),false);
+  await guide.locator('summary').focus();await page.keyboard.press('Enter');
+  assert.equal(await guide.evaluate(e=>e.open),true);assert.equal(await guide.locator('[data-workflow-step]').count(),4);
+  const openHeight=await page.locator('#actionWorkflow').evaluate(e=>e.getBoundingClientRect().height);assert.ok(openHeight>closedHeight+100);
+  await guide.locator('summary').focus();await page.keyboard.press('Enter');assert.equal(await guide.evaluate(e=>e.open),false);
+  assert.equal(apiReads(),beforeGuideReads);checks.push('collapsible workflow retains four existing steps, opens by keyboard and makes no API request');
+  await page.getByRole('link',{name:'Ir a la bandeja',exact:true}).click();assert.equal(new URL(page.url()).hash,'#queueTitle');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'queueTitle');assert.equal(apiReads(),beforeGuideReads);
+  assert.ok(await page.locator('#queueTitle').evaluate(e=>e.getBoundingClientRect().top>=70));checks.push('direct queue link restores focus below the sticky header without requesting or modifying data');
+  await evidence('action-workspace-overview-320-qa',320);await page.setViewportSize({width:1440,height:1050});
   const row = page.locator(`[data-action-row="${historyIds[1]}"]`);
   assert.match(await row.innerText(), /Respaldo anterior · Sólo consulta/); assert.match(await row.innerText(), /31\/07\/2026.*23:30/);
   assert.equal(await row.locator('[data-label="Estado"]').innerText(), await page.locator(`[data-action-row="${historyIds[0]}"] [data-label="Estado"]`).innerText());
@@ -90,7 +103,14 @@ try {
   await evidence('action-history-detail-desktop-qa', 1440); await evidence('action-history-detail-mobile-qa', 390); await close();
   assert.equal(await page.locator(`[data-open-action="${historyIds[1]}"]`).evaluate(n => document.activeElement === n), true);
   checks.push('desktop/mobile layouts and Escape return focus to the exact action');
-  await page.setViewportSize({ width: 1440, height: 1050 }); await open(0); assert.ok(await body.locator('[data-action-command="approve"]').isVisible()); await close();
+  await page.setViewportSize({ width: 1440, height: 1050 }); await open(0); assert.ok(await body.locator('[data-action-command="approve"]').isVisible());
+  const beforeDecisionReads=apiReads();await body.locator('[data-action-command="approve"]').click();
+  await body.locator('#decisionReason').fill('Borrador de fundamento sintético, sin confirmar.');
+  await body.locator('#manualValidationConfirmed').check();assert.equal(apiReads(),beforeDecisionReads);
+  await evidence('action-workspace-decision-320-qa',320);await body.locator('.decision-form').screenshot({path:path.join(out,'action-workspace-form-320-qa.png')});await evidence('action-workspace-decision-desktop-qa',1440);await body.locator('.decision-form').screenshot({path:path.join(out,'action-workspace-form-desktop-qa.png')});
+  await body.locator('#decisionFormHost').getByRole('button',{name:'Volver',exact:true}).click();
+  assert.equal(await body.locator('form[data-command-form]').count(),0);assert.equal(apiReads(),beforeDecisionReads);
+  checks.push('decision form retains explicit confirmation, readable required controls and cancel without a write');await close();
   checks.push('current action retains explicit authorized approval command');
   detailStatus = 409; detailCode = 'ACTION_SESSION_BUSY'; await open(0); await noCommands(); assert.match(await body.innerText(), /última consulta disponible/); assert.doesNotMatch(await body.innerText(), /PRIVATE_SERVER_ERROR_MARKER/);
   detailStatus = 200; await body.getByRole('button', { name: 'Actualizar detalle', exact: true }).click(); await page.waitForSelector('#actionDialogBody [data-action-command="approve"]'); await close();

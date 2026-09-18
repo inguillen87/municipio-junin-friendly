@@ -79,6 +79,7 @@ const shellFiles = [
   'assets/payroll-detail-panel.css',
   'assets/payroll-detail-export.js',
   'assets/action-language.js',
+  'assets/action-workspace-layout.css',
   'assets/workforce-operations.js',
   'assets/workforce-operations.css',
   'assets/native-employee-contract.js',

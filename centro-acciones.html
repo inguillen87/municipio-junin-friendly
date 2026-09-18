@@ -391,6 +391,7 @@
       .queue-panel, .metric { box-shadow: none; break-inside: avoid; }
     }
   </style>
+  <link rel="stylesheet" href="assets/action-workspace-layout.css">
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
 </head>
@@ -477,6 +478,7 @@
               <p class="page-lead">Creá, revisá y resolvé solicitudes con evidencia, versión vigente y trazabilidad. Cada decisión conserva quién actuó, cuándo y con qué fuente.</p>
             </div>
             <div class="head-actions">
+              <a class="button operator-queue-link" href="#queueTitle">Ir a la bandeja</a>
               <button class="button" id="createOvertimeButton" type="button" data-requires-any-capability="time.overtime.enter" disabled hidden>Cargar mayor esfuerzo</button>
               <button class="button primary" id="createActionButton" type="button" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Nueva solicitud</button>
             </div>
@@ -492,6 +494,8 @@
               <div><h2 id="workflowTitle">Circuito operativo de licencias</h2><p>Un recorrido concreto para trabajar con solicitudes reales. Cada paso se habilita únicamente cuando el backend confirma la capacidad del perfil.</p></div>
               <span class="workflow-profile" id="workflowProfileStatus" role="status" aria-live="polite">Verificando operaciones…</span>
             </header>
+            <details class="operator-guide" id="actionWorkflowGuide">
+              <summary>Ver el circuito y sus cuatro pasos <span>Ayuda para preparar, revisar, enviar y cancelar.</span></summary>
             <ol class="workflow-grid">
               <li class="workflow-step" data-workflow-step="create" data-enabled="false">
                 <span class="workflow-status" data-workflow-status="create">Verificando</span>
@@ -518,6 +522,7 @@
                 <button class="button" type="button" data-workflow-command="cancel" disabled>Ver enviadas</button>
               </li>
             </ol>
+            </details>
             <p class="workflow-note">Los accesos del circuito sólo abren el formulario o filtran la bandeja. Editar, enviar y cancelar siempre exigen abrir un caso, validar su versión vigente y confirmar la operación.</p>
           </section>
 
@@ -528,7 +533,7 @@
 
           <section class="queue-panel" aria-labelledby="queueTitle">
             <header class="queue-head">
-              <div><h2 id="queueTitle">Bandeja de trabajo</h2><p id="queueSubtitle">La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
+              <div><h2 id="queueTitle" tabindex="-1">Bandeja de trabajo</h2><p id="queueSubtitle">La visibilidad de personas, áreas y decisiones depende del alcance de tu sesión.</p></div>
               <div class="head-actions"><button class="button" id="queueOvertimeButton" type="button" data-requires-any-capability="time.overtime.enter" disabled hidden>Cargar mayor esfuerzo</button><button class="button" id="queueCreateButton" type="button" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Crear solicitud</button></div>
             </header>
 
