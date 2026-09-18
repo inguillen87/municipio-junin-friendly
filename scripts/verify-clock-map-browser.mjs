@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import {patchClockFleetHtml} from './build-clock-fleet.mjs';
+import {getReportedAttendanceInventory} from '../lib/internal-attendance-reported-inventory.js';
 
 const origin = 'https://clock-map.test', base = path.resolve(process.env.CLOCK_MAP_BUILD_DIR ?? 'public');
 const out = path.resolve('verification/clock-map'), html = fs.readFileSync(path.join(base, 'relojes-marcaciones.html'), 'utf8').replaceAll('\r\n', '\n');
@@ -19,7 +20,8 @@ const sites = [
 const checks = [], errors = [], tileHeaders = [];
 const browser = await chromium.launch({ headless: true, ...(process.env.CLOCK_MAP_BROWSER_CHANNEL ? { channel: process.env.CLOCK_MAP_BROWSER_CHANNEL } : {}) });
 try {
-  async function scenario({ zeroStatus = false, noObserver = false, missingLeaflet = false, initialMode = 'success' } = {}) {
+  async function scenario({ zeroStatus = false, noObserver = false, missingLeaflet = false, initialMode = 'success', confirmedAddition = false, startHash = 'mapa' } = {}) {
+    const declared=confirmedAddition?getReportedAttendanceInventory({tenant:{slug:'junin-mendoza'}}):null;const displayedSites=declared?.data??sites,apiQueries=[];
     let mode = initialMode, release = null, held = null;
     if (mode === 'hold') held = new Promise(resolve => { release = resolve; });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, locale: 'es-AR', reducedMotion: 'reduce', serviceWorkers: 'block' });
@@ -52,10 +54,11 @@ try {
       }
       if (url.origin !== origin) return route.abort();
       if (url.pathname.startsWith('/api/')) {
+        apiQueries.push(url.pathname+url.search);
         if (url.pathname === '/api/internal-auth') return route.fulfill({ json: { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' }, access: { tenantCapabilities: ['attendance.read'], platformCapabilities: [] } } });
         const resource = url.searchParams.get('resource');
         if (url.pathname === '/api/internal-attendance' && resource === 'bootstrap') return route.fulfill({ json: { ok: true, capabilities: ['attendance.read'], summary: { siteCount: 2, deviceCount: 2 }, features: { hardwareConnected: false, hoursCalculated: false, payrollPosted: false, biometricTemplatesStored: false } } });
-        if (url.pathname === '/api/internal-attendance' && resource === 'reported-inventory') return route.fulfill({ json: { ok: true, data: sites, heatMetric: 'reported_site_density', source: { fileName: 'Inventario sintético QA', sheet: 'Pruebas' } } });
+        if (url.pathname === '/api/internal-attendance' && resource === 'reported-inventory') return route.fulfill({ json: { ok: true, data: displayedSites, heatMetric: 'reported_site_density', source: declared?.source??{ fileName: 'Inventario sintético QA', sheet: 'Pruebas' } } });
         return route.fulfill({ json: { ok: true, resource, data: [], pagination: { page: 1, pages: 0, total: 0 } } });
       }
       if (url.pathname === '/relojes') return route.fulfill({ contentType: 'text/html', headers: { 'referrer-policy': 'no-referrer' }, body: html });
@@ -65,13 +68,13 @@ try {
     });
     const page = await context.newPage(); page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
     if (mode === 'hold') await page.clock.install();
-    await page.goto(origin + '/relojes?privacy_probe=sensitive#mapa', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => document.querySelectorAll('#mapAccessibleList li').length === 2);
+    await page.goto(origin + '/relojes?privacy_probe=sensitive#'+startHash, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(n => document.querySelectorAll('#mapAccessibleList li').length === n,displayedSites.length);
     await page.evaluate(() => { const label = document.createElement('div'); label.textContent = 'QA SINTÉTICA · APIs y mapa simulados · Sin sesión municipal'; label.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#fff0cb;color:#453406;font:700 12px Arial;padding:8px;text-align:center'; document.body.append(label); });
     const loaded = () => page.waitForFunction(() => document.querySelector('#mapFallback').hidden === true);
     const failed = async () => { try { await page.waitForFunction(() => document.querySelector('#mapFallbackTitle').textContent === 'Mapa base no disponible' && !document.querySelector('#mapFallback').hidden); }
       catch (error) { console.log(JSON.stringify({ mode, errors, details: await page.evaluate(() => ({ title: document.querySelector('#mapFallbackTitle').textContent, hidden: document.querySelector('#mapFallback').hidden, status: document.querySelector('#mapStatus').textContent, resources: performance.getEntriesByType('resource').filter(item => item.name.includes('tile.openstreetmap')).map(item => ({ status: item.responseStatus, type: item.initiatorType })) })) })); throw error; } };
-    return { context, page, loaded, failed, setMode: value => { mode = value; }, release: () => release?.() };
+    return { context, page, loaded, failed, apiQueries, setMode: value => { mode = value; }, release: () => release?.() };
   }
   const good = await scenario(), page = good.page;
   await good.loaded(); assert.equal(await page.locator('.reported-marker').count(), 2);
@@ -121,7 +124,19 @@ try {
   const missing = await scenario({ missingLeaflet: true }); await missing.failed();
   assert.equal(await missing.page.locator('#mapAccessibleList').isVisible(), true); assert.match(await missing.page.locator('#mapFallbackCopy').innerText(), /biblioteca cartográfica/);
   await missing.context.close(); checks.push('unavailable Leaflet keeps the authorized points in the accessible list');
+  const updated=await scenario({confirmedAddition:true,startHash:'pm-14'});await updated.loaded();const pmPage=updated.page;
+  assert.equal(await pmPage.locator('.reported-marker').count(),14);assert.equal(await pmPage.locator('.map-pin-number').count(),14);
+  assert.match(await pmPage.locator('#mapSourceNote').innerText(),/13 puntos.*1 alta confirmada/);
+  const entry=pmPage.locator('[data-site-key="pm-14"]');assert.match(await entry.innerText(),/PM-14.*Edificio Nuevo/);assert.match(await entry.innerText(),/Román Cano e Hipólito Yrigoyen/);assert.match(await entry.innerText(),/referencia cartográfica del edificio/);
+  const before=updated.apiQueries.length;await entry.getByRole('button',{name:'Ubicar PM-14',exact:true}).click();assert.equal(updated.apiQueries.length,before);
+  await pmPage.locator('.leaflet-popup-content').waitFor();assert.match(await pmPage.locator('.leaflet-popup-content').innerText(),/-33.142220, -68.484521/);assert.match(await pmPage.locator('.leaflet-popup-content').innerText(),/no posición medida del reloj/);
+  assert.equal(await pmPage.locator('.confirmed-addition .map-pin-number').innerText(),'14');assert.equal(await pmPage.locator('.confirmed-addition.fleet-received').count(),0);
+  await pmPage.evaluate(()=>document.dispatchEvent(new CustomEvent('mc:clock-fleet-data',{detail:{checkedAt:'2026-09-18T12:00:00Z',sites:[{key:'pm-10',records:1,receipts:1,lastReceivedAt:'2026-09-18T11:00:00Z'}]}})));
+  assert.equal(await pmPage.locator('.confirmed-addition.fleet-received').count(),0);assert.match(await entry.innerText(),/Sin acuses asociados/);
+  checks.push('PM-14 uses a separate municipal addition and building reference; all 13 workbook points retained, no PM-10 receipts inherited');
+  for(const width of [1440,390,320]){await pmPage.setViewportSize({width,height:width===1440?1050:844});await pmPage.locator('#attendanceMap').scrollIntoViewIfNeeded();await entry.getByRole('button',{name:'Ubicar PM-14',exact:true}).click();await pmPage.locator('#attendanceMap').scrollIntoViewIfNeeded();assert.ok(await pmPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await pmPage.screenshot({path:path.join(out,'pm14-'+width+'.png')});}
+  checks.push('Numbered markers, PM-14 deep-link and accessible focus work at 1440/390/320px without additional API calls');await updated.context.close();
   assert.deepEqual(errors, []); assert.ok(tileHeaders.length > 0);
-  const result = { ok: true, checksPassed: checks.length, checks, syntheticDataOnly: true, realTileRequests: 0, municipalSessionTested: false, backendWrites: false, builtMapMatchesSource: true, browser: browser.version() };
+  const result = { ok: true, checksPassed: checks.length, checks, syntheticDataOnly: false, publicInventoryCoordinates:true, syntheticApiResponses:true, realTileRequests: 0, municipalSessionTested: false, backendWrites: false, builtMapMatchesSource: true, browser: browser.version() };
   fs.writeFileSync(path.join(out, 'browser-report.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
 } finally { await browser.close(); }

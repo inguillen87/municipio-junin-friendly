@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import inventory from '../data/junin-attendance-inventory.v1.json' with {type:'json'};
 import crosswalk from '../data/junin-clock-site-crosswalk.v1.json' with {type:'json'};
+import {getReportedAttendanceInventory} from '../lib/internal-attendance-reported-inventory.js';
 export const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export function prepareClockNames(config) {
   if(config?.schema!=='municontrol-clock-fleet.v1'||!Array.isArray(config.clocks)||config.clocks.length>16)throw Error('CLOCK_NAME_CONFIG_INVALID');
@@ -14,7 +15,7 @@ export function prepareClockNames(config) {
     if(seen.has(clock.clockId))throw Error('CLOCK_NAME_DUPLICATE');seen.add(clock.clockId);
     const match=crosswalk.associations.find(a=>a.clockId===clock.clockId);
     if(!match)throw Error('CLOCK_NAME_MAPPING_REQUIRED');
-    const point=match.pointCode?inventory.sites.find(s=>s.code===match.pointCode):null;
+    const point=match.pointCode?getReportedAttendanceInventory({tenant:{slug:"junin-mendoza"}}).data.find(s=>s.code===match.pointCode):null;
     if(match.pointCode&&!point)throw Error('CLOCK_NAME_POINT_MISSING');
     const next=point?point.code+' · '+point.name:'PM pendiente · '+match.reportedName;
     if(clock.label!==next)changes.push({clockId:clock.clockId,pointCode:match.pointCode,previousLabel:clock.label,label:next});

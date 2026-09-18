@@ -1,0 +1,27 @@
+{
+  "contractVersion": "junin-attendance-additions.v1",
+  "tenantSlug": "junin-mendoza",
+  "baseInventorySha256": "2897feadc03e15c7246f126556d76de7231b9f651975cc15c0c889d9bb2470b9",
+  "mappingVersion": "junin-pm14-confirmation-20260918.v1",
+  "source": {
+    "kind": "municipal_confirmation",
+    "confirmedOn": "2026-09-18",
+    "recordCount": 1,
+    "addressSource": "https://www.juninmendoza.gov.ar/",
+    "coordinateSource": "https://www.openstreetmap.org/node/4373026485",
+    "coordinateLicence": "OpenStreetMap contributors · ODbL 1.0",
+    "locationBasis": "public_map_building_reference",
+    "physicalLocationVerified": false
+  },
+  "sites": [
+    {
+      "code": "PM-14",
+      "name": "Edificio Nuevo",
+      "address": "Román Cano e Hipólito Yrigoyen, Junín, Mendoza",
+      "latitude": -33.1422201,
+      "longitude": -68.4845214,
+      "model": "No verificado",
+      "reportedExtraction": "network_pull"
+    }
+  ]
+}

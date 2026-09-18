@@ -18,11 +18,11 @@ test('a vendor number, unknown key or another tenant cannot obtain a Junin point
  assert.equal(attendancePointCode('12'),'12');assert.equal(attendancePointLabel('pm-10','PM-10 · Edificio Viejo'),'PM-10 · Edificio Viejo');
  for(const bad of ['pm 2','../pm-2',null,'<img>'])assert.throws(()=>attendancePointCode(bad));
 });
-test('local names preserve clock IDs, serials, paths, keys and settings; new building stays unassigned',()=>{
+test('local names preserve clock IDs, serials, paths, keys and settings; new building uses the municipal confirmation',()=>{
  const ids=['la-colonia','galpon','polideportivo-la-colonia','edificio-nuevo','compras'];
  const source={schema:'municontrol-clock-fleet.v1',stateDir:'private-state',clocks:ids.map((clockId,i)=>({clockId,label:'Old',serial:'SERIAL-'+i,credentialFile:'private-'+i,pollSeconds:900}))};
- const plan=prepareClockNames(source);assert.deepEqual(plan.changes.map(x=>x.pointCode),['PM-05','PM-03','PM-06',null,'PM-02']);
+ const plan=prepareClockNames(source);assert.deepEqual(plan.changes.map(x=>x.pointCode),['PM-05','PM-03','PM-06','PM-14','PM-02']);
  for(let i=0;i<ids.length;i++){const {label,...a}=plan.config.clocks[i],{label:old,...b}=source.clocks[i];assert.deepEqual(a,b);assert.equal(old,'Old');}
- assert.equal(plan.config.clocks[3].label,'PM pendiente · Edificio Nuevo');assert.equal(prepareClockNames(plan.config).changes.length,0);
+ assert.equal(plan.config.clocks[3].label,'PM-14 · Edificio Nuevo');assert.equal(prepareClockNames(plan.config).changes.length,0);
  assert.throws(()=>prepareClockNames({...source,clocks:[{clockId:'unknown'}]}));assert.throws(()=>prepareClockNames({...source,clocks:[source.clocks[0],source.clocks[0]]}));
 });

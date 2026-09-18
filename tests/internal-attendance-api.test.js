@@ -152,19 +152,23 @@ test('inventario reportado exige el gate completo y expone sólo el contrato geo
   assert.equal(res.payload.contract.version, 'attendance-reported-inventory.v1');
   assert.equal(res.payload.tenantSlug, 'junin-mendoza');
   assert.deepEqual(res.payload.source, {
-    kind: 'municipal_workbook',
+    kind: 'municipal_workbook_with_additions',
     status: 'reported_inventory',
-    recordCount: 13,
+    recordCount: 14,
     mappingVersion: 'junin-attendance-workbook-a4-k17.v1',
+    workbookRecordCount: 13,
+    additionalRecordCount: 1,
+    additionMappingVersion: 'junin-pm14-confirmation-20260918.v1',
   });
   assert.equal(res.payload.physicalConnectionConfirmed, false);
   assert.equal(res.payload.heatMetric, 'reported_site_density');
-  assert.equal(res.payload.data.length, 13);
+  assert.equal(res.payload.data.length, 14);
   assert.deepEqual(res.payload.data.map((site) => site.code),
-    Array.from({ length: 13 }, (_, index) => `PM-${String(index + 1).padStart(2, '0')}`));
+    Array.from({ length: 14 }, (_, index) => `PM-${String(index + 1).padStart(2, '0')}`));
   for (const site of res.payload.data) {
     assert.deepEqual(Object.keys(site), [
       'code', 'name', 'address', 'latitude', 'longitude', 'model', 'channel',
+      ...(site.code === 'PM-14' ? ['inventorySource','locationBasis','physicalLocationVerified','confirmedOn'] : []),
     ]);
     assert.equal(typeof site.latitude, 'number');
     assert.equal(typeof site.longitude, 'number');

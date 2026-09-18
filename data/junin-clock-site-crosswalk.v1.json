@@ -7,10 +7,28 @@
   "physicalLocationVerified": false,
   "vendorNumberIsMunicipalPoint": false,
   "associations": [
-    { "clockId": "la-colonia", "pointCode": "PM-05" },
-    { "clockId": "galpon", "pointCode": "PM-03" },
-    { "clockId": "polideportivo-la-colonia", "pointCode": "PM-06" },
-    { "clockId": "compras", "pointCode": "PM-02" },
-    { "clockId": "edificio-nuevo", "pointCode": null, "reportedName": "Edificio Nuevo", "reason": "absent_from_P3_workbook" }
-  ]
+    {
+      "clockId": "la-colonia",
+      "pointCode": "PM-05"
+    },
+    {
+      "clockId": "galpon",
+      "pointCode": "PM-03"
+    },
+    {
+      "clockId": "polideportivo-la-colonia",
+      "pointCode": "PM-06"
+    },
+    {
+      "clockId": "compras",
+      "pointCode": "PM-02"
+    },
+    {
+      "clockId": "edificio-nuevo",
+      "pointCode": "PM-14",
+      "reportedName": "Edificio Nuevo",
+      "reason": "municipal_confirmation_20260918"
+    }
+  ],
+  "additionMappingVersion": "junin-pm14-confirmation-20260918.v1"
 }
