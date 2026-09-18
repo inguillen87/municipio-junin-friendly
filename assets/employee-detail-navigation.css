@@ -1,0 +1,22 @@
+#employeeDialog .employee-section-nav{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;margin:0 0 22px;background:#edf7f4;border:1px solid #b2d1c5;border-radius:11px;box-shadow:0 4px 16px #173d4810}
+#employeeDialog .employee-section-nav>div:first-child{flex:1;min-width:0}
+#employeeDialog .employee-section-nav strong{display:block;font-size:14px;line-height:1.4;color:#133f4d}
+#employeeDialog .employee-section-nav span{display:block;margin-top:5px;color:#456b6d;font-size:12px;line-height:1.5}
+#employeeDialog .employee-section-controls{display:flex;align-items:flex-end;gap:10px;max-width:65%;min-width:0}
+#employeeDialog .employee-section-controls label{display:grid;gap:5px;font-size:11px;font-weight:700;min-width:0;color:#294f59}
+#employeeDialog .employee-section-controls select{width:100%;min-width:0;max-width:320px;min-height:44px;font:13px/1.4 system-ui;padding:10px 28px 10px 10px;border:1px solid #a8c7c5;border-radius:8px;background:white;color:#143d4c}
+#employeeDialog .employee-section-controls .button{min-height:44px;white-space:nowrap;font-size:12px;padding:10px 14px;border-radius:8px;background:#087c72;border-color:#087c72;color:white}
+#employeeDialog .employee-section-controls :is(button,select):focus-visible{outline:3px solid #ad7417;outline-offset:3px}
+#employeeDialog .dialog-body{scroll-padding-block-start:150px}
+#employeeDialog .detail-section h3[tabindex="-1"]:focus{outline:2px solid #148278;outline-offset:7px;border-radius:2px}
+@media(max-width:650px){
+ #employeeDialog .employee-section-nav{display:block;padding:12px;margin-bottom:18px}
+ #employeeDialog .employee-section-nav strong{font-size:12px;margin-bottom:10px}
+ #employeeDialog .employee-section-nav span{display:none}
+ #employeeDialog .employee-section-controls{max-width:none;gap:8px}
+ #employeeDialog .employee-section-controls label{flex:1}
+ #employeeDialog .employee-section-controls select{max-width:none;font-size:12px}
+ #employeeDialog .employee-section-controls .button{padding:10px;font-size:11px}
+ #employeeDialog .dialog-body{padding:14px;scroll-padding-block-start:155px}
+}
+@media(prefers-reduced-motion:reduce){#employeeDialog .employee-section-nav *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}

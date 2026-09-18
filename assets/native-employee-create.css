@@ -9,3 +9,51 @@
 .native-employee-dialog .ne-actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 0}.native-employee-dialog .button{font:inherit;font-weight:700;min-height:44px;padding:10px 16px;cursor:pointer}.native-employee-dialog button:disabled{opacity:.55;cursor:wait}.native-employee-dialog .ne-scope{font-size:12px;color:#4d6770;border-top:1px solid #d7e4e7;padding-top:14px;margin-top:20px}
 .native-employee-dialog .ne-review{display:grid;grid-template-columns:140px 1fr;gap:12px;padding:18px;background:#f5f9f9;border:1px solid #d3e2e3;border-radius:10px}.native-employee-dialog dt{font-weight:600;color:#436473}.native-employee-dialog dd{margin:0;overflow-wrap:anywhere}.native-employee-dialog :is(button,a,input,select):focus-visible{outline:3px solid #aa6b10;outline-offset:3px}
 @media(max-width:600px){.native-employee-dialog{padding:18px}.native-employee-dialog h2{font-size:23px}.native-employee-dialog .ne-grid{grid-template-columns:1fr}.native-employee-dialog .ne-review{grid-template-columns:1fr;gap:4px}.native-employee-dialog dd{margin-bottom:8px}.native-employee-dialog .ne-actions>*{flex:1 1 150px}}
+
+/* People workspace: consistent hierarchy and readable, responsive form sections. */
+.native-employee-dialog{width:min(1000px,calc(100% - 32px));padding:32px;border:1px solid #b9d1d6;background:#f6faf9;color:#163e4e;scroll-padding-block:28px}
+.native-employee-dialog .ne-heading{padding:0 58px 24px 0;border-bottom:0}
+.native-employee-dialog .ne-heading p{color:#08796e;font-size:10px;letter-spacing:.12em}
+.native-employee-dialog .ne-heading h2{font-size:30px;letter-spacing:-.025em;margin:9px 0 12px}
+.native-employee-dialog .ne-heading>span{display:block;max-width:710px;color:#46626c;line-height:1.7}
+.native-employee-dialog .ne-close{background:white;border:1px solid #c8dadc;top:22px;right:22px}
+.native-employee-dialog .ne-feedback{margin:0 0 22px;border:1px solid #bedbce;border-left:4px solid #16836c;border-radius:10px;background:#edf8f2;padding:14px 18px;line-height:1.7}
+.native-employee-dialog .ne-feedback[data-error=true]{border-color:#d4b371;border-left-color:#93600d;background:#fff7e7;color:#644913}
+.native-employee-dialog .ne-fields>section{margin:0 0 20px;padding:24px;border:1px solid #cbdcde;border-radius:13px;background:white}
+.native-employee-dialog .ne-fields>section>h3{margin:0 0 22px;font-size:18px;padding-bottom:14px;border-bottom:1px solid #e0e9e8}
+.native-employee-dialog .ne-grid{gap:20px 24px}
+.native-employee-dialog label{font-size:13px;gap:8px;line-height:1.55}
+.native-employee-dialog input,.native-employee-dialog select{min-height:48px;font-size:14px;border-color:#adcad0;border-radius:9px;padding:12px;background:#fff;scroll-margin-block:30px}
+.native-employee-dialog input::placeholder{color:#647b84;opacity:1}
+.native-employee-dialog small{font-size:12px;line-height:1.7;color:#526b76}
+.native-employee-dialog input:focus,.native-employee-dialog select:focus{border-color:#177f75}
+.native-employee-dialog .button{border-radius:9px;border:1px solid #b5cdd0;background:#fff;color:#193e4e;padding:12px 18px;line-height:1.45;text-align:center;text-decoration:none}
+.native-employee-dialog .button.primary{background:#087e74;border-color:#087e74;color:white}
+.native-employee-dialog button:disabled{opacity:.58;cursor:not-allowed}
+.native-employee-dialog .ne-actions{gap:12px;align-items:stretch;margin-top:24px}
+.native-employee-dialog .ne-scope{padding:15px 18px;margin:0;border:1px solid #cddfdc;border-radius:9px;background:#edf5f4;line-height:1.8}
+.native-employee-dialog .ne-review{grid-template-columns:minmax(145px,.7fr) minmax(0,1.8fr);margin:20px 0;padding:24px;gap:0;border-color:#b9d2ce;background:#fff;border-radius:12px}
+.native-employee-dialog .ne-review dt,.native-employee-dialog .ne-review dd{padding:13px 0;border-bottom:1px solid #e2ebe8;line-height:1.65}
+.native-employee-dialog .ne-review dt:last-of-type,.native-employee-dialog .ne-review dd:last-of-type{border-bottom:0}
+.native-employee-dialog .ne-review dt{font-size:12px;padding-right:20px;color:#506872}
+.native-employee-dialog .ne-review dd{font-size:14px;font-weight:600;color:#153e4a}
+.native-employee-dialog [data-ne-review]>h3,.native-employee-dialog [data-ne-success]>h3{font-size:22px;letter-spacing:-.02em;margin:0 0 12px}
+.native-employee-dialog [data-ne-pending]{padding:22px;background:#fffaee;border:1px solid #d8be86;border-radius:12px}
+.native-employee-dialog [data-ne-pending]>h3{font-size:20px;margin:0 0 10px;color:#715219}
+.native-employee-dialog [data-ne-key]{display:block;overflow-wrap:anywhere;font-family:ui-monospace,monospace;padding:12px;background:#fff;border-radius:6px;border:1px solid #e6dabc}
+.native-employee-dialog [data-ne-success]{padding:24px;background:#ecf8f1;border:1px solid #aacbb9;border-radius:12px}
+.native-employee-dialog [data-ne-success]>p{font-size:15px;line-height:1.8;overflow-wrap:anywhere}
+.native-employee-dialog :is(input,select):disabled{background:#eef3f3;color:#5b717a;border-color:#cad9db;opacity:1}
+@media(max-width:600px){
+ .native-employee-dialog{width:calc(100% - 16px);max-height:calc(100dvh - 16px);padding:20px 14px;border-radius:12px}
+ .native-employee-dialog .ne-heading{padding:0 42px 20px 0}.native-employee-dialog .ne-heading h2{font-size:24px;line-height:1.25}
+ .native-employee-dialog .ne-heading>span{font-size:13px;line-height:1.75}
+ .native-employee-dialog .ne-close{top:14px;right:12px;width:40px;height:40px}
+ .native-employee-dialog .ne-fields>section{padding:18px 14px;border-radius:10px}
+ .native-employee-dialog .ne-grid{grid-template-columns:1fr;gap:20px}
+ .native-employee-dialog .ne-review{grid-template-columns:1fr;padding:18px;gap:0}
+ .native-employee-dialog .ne-review dt{border:0;padding:12px 0 3px}.native-employee-dialog .ne-review dd{padding:0 0 12px;margin:0}
+ .native-employee-dialog .ne-actions{gap:10px}.native-employee-dialog .ne-actions>*{flex:1 1 100%}
+ .native-employee-dialog .ne-feedback{padding:12px 13px;font-size:13px}.native-employee-dialog [data-ne-pending],.native-employee-dialog [data-ne-success]{padding:18px}
+}
+@media(prefers-reduced-motion:reduce){.native-employee-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

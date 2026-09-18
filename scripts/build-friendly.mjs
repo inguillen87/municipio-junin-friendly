@@ -84,6 +84,8 @@ const shellFiles = [
   'assets/native-employee-contract.js',
   'assets/native-employee-create.js',
   'assets/native-employee-create.css',
+  'assets/employee-detail-navigation.js',
+  'assets/employee-detail-navigation.css',
   'assets/payroll-novelty-amount-policy.js',
   'assets/clock-dashboard-zip.js',
   'assets/clock-dashboard-export.js',
