@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {checksum16, makeAuthPayload, validateCommKey, decodeClock, decodeCounts} from './zk-core-v3.mjs';
 
-export const VERSION = '4.1.1';
+export const VERSION = '4.1.2';
 export const TARGET = '172.100.97.131';
 export const PORT = 4370;
 export const SERIAL = 'CQTU225360168';
@@ -16,7 +16,7 @@ const MAX_FRAME = MAX_BYTES + 8;
 const MAGIC = Buffer.from([0x50, 0x50, 0x82, 0x7d]);
 const NAMES = new Map([
   [1000,'CONNECT'], [1102,'AUTH'], [11,'SERIAL_READ'], [50,'COUNTS_READ'],
-  [201,'TIME_READ'], [1001,'EXIT'], [1503,'PREPARE_ATTENDANCE_BUFFER'],
+  [201,'TIME_READ'], [1100,'FIRMWARE_READ'], [1001,'EXIT'], [1503,'PREPARE_ATTENDANCE_BUFFER'],
   [1504,'READ_ATTENDANCE_CHUNK'], [1502,'RELEASE_TRANSFER_BUFFER'],
 ]);
 const sha = b => createHash('sha256').update(b).digest('hex');
@@ -37,7 +37,7 @@ export function makePacket(cmd,session,reply,payload=Buffer.alloc(0)) {
   if(cmd===1102) {
     if(payload.length!==4) fail('INVALID_PAYLOAD');
   } else if(cmd===11) {
-    if(!payload.equals(Buffer.from('~SerialNumber\0'))) fail('OPTION_NOT_ALLOWED');
+    if(!['~SerialNumber\0','~DeviceName\0'].some(v=>payload.equals(Buffer.from(v)))) fail('OPTION_NOT_ALLOWED');
   } else if(cmd===1503) {
     const allow=Buffer.alloc(11); allow[0]=1; allow.writeInt16LE(13,1);
     if(!payload.equals(allow)) fail('DATASET_NOT_ALLOWED');
@@ -147,10 +147,12 @@ export async function collectConfigured(identity,options={}){
  }catch(e){if(Buffer.isBuffer(options.commKey))options.commKey.fill(0);throw e;}
  return collectBound(Object.freeze({...identity}),options,false);
 }
-async function collectBound(identity,{commKey,approved=false,host=identity.host,port=identity.port,
+export async function readDeviceMetadata(identity,options={}){return collectConfigured(identity,{...options,metadataOnly:true});}
+async function collectBound(identity,{commKey,approved=false,host=identity.host,port=identity.port,metadataOnly=false,
   timeoutMs=10000,pacingMs=200,totalMs=180000,signal=null,onProgress=()=>{}}={},legacy=false) {
   try {
     if(!approved) fail('APPROVAL_REQUIRED');
+    if(typeof metadataOnly!=='boolean')fail('INVALID_ARGUMENT');
     if(!((host===identity.host&&port===identity.port)||(legacy&&host==='127.0.0.1'&&uint(port,65535)&&port>0))) fail('TARGET_NOT_ALLOWED');
     validateCommKey(commKey);
     if(!uint(timeoutMs,15000)||timeoutMs<50||!uint(pacingMs,5000)||!uint(totalMs,legacy?180000:900000)||totalMs<50) fail('INVALID_LIMIT');
@@ -271,6 +273,14 @@ async function collectBound(identity,{commKey,approved=false,host=identity.host,
     report.metadata.serialNumber=clean(serialFrame.payload).replace(/^~SerialNumber=/,'');
     if(report.metadata.serialNumber!==identity.serial) fail('SERIAL_MISMATCH','No se solicitan fichadas de otro equipo.');
     serialVerified=true;
+    if(metadataOnly){
+      const fw=ok(await request(1100)),name=ok(await request(11,Buffer.from('~DeviceName\0')));
+      const firmware=clean(fw.payload),model=clean(name.payload).replace(/^~?DeviceName=/,'');
+      if(!firmware||firmware.length>120||!model||model.length>120||fw.payload.length>256||name.payload.length>256)fail('METADATA_UNRESOLVED');
+      report.metadata.firmwareVersion=firmware;report.metadata.model=model;
+      report.status='METADATA_READ_FOR_REVIEW';report.metadataReadComplete=true;
+      return {report,raw:null,parsed:null};
+    }
     report.metadata.countsBefore=await sizes();
     report.metadata.deviceTimeBefore=decodeClock(ok(await request(201)).payload);
     const before=report.metadata.countsBefore?.counts?.attendanceRecordsReported;

@@ -28,3 +28,11 @@ La revision 4.1.1 conserva el codigo exacto de error de limpieza en
 previo durante la espera de EXIT. No cambia comandos, autenticacion, destinos,
 secuencias, pausas, lectura, validacion ni bytes de captura. El original 4.1.0
 permanece en la historia Git y en el paquete fuente privado aportado.
+
+## Inspección explícita de metadatos (4.1.2)
+
+`readDeviceMetadata` permite consultar la serie esperada, firmware (comando 1100) y `~DeviceName` (lectura de opción 11) sin preparar ni leer el búfer de asistencia. Se mantiene la autorización del destino, el control de checksum/sesión y el cierre de la conexión. La lista de opciones no admite escritura de configuración, claves, usuarios, plantillas ni reinicio.
+
+La inspección es una operación puntual de enrolamiento, no se agrega a cada lectura programada. Una clave rechazada no genera búsqueda de claves. Si el modelo no responde, el resultado permanece incompleto; no se sustituye por un nombre tomado de otra sede. La publicación del código no modifica los programas instalados ni cambia el endpoint de recepción de PM-10.
+
+Referencia técnica de las lecturas de versión/nombre: implementación y documentación primaria del proyecto pyzk, https://github.com/fananimi/pyzk . El colector utiliza su propio transporte limitado y no instala ni ejecuta los métodos administrativos de esa biblioteca.

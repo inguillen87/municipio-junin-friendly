@@ -31,7 +31,9 @@ export async function withClock(opts,run) {
     commands.push({code,session:requestSid,reply});
     let rc=2000,responseBody=Buffer.alloc(0),out,rs=sid,rr=reply;
     if(code===1000)rc=2005;
-    else if(code===1102)rc=p.equals(makeAuthPayload(fakeKey(),sid))?2000:2005;
+    else if(code===1102)rc=p.equals(makeAuthPayload(opts.commKey?Buffer.from(opts.commKey):fakeKey(),sid))?2000:2005;
+    else if(code===11&&p.equals(Buffer.from('~DeviceName\0')))responseBody=Buffer.from('~DeviceName='+(opts.model??'QA-K20')+'\0');
+    else if(code===1100)responseBody=Buffer.from(opts.firmware??'QA-FIRMWARE-1.0');
     else if(code===11)responseBody=Buffer.from('~SerialNumber='+(opts.serial??SERIAL)+'\0');
     else if(code===50) {responseBody=Buffer.alloc(112);responseBody.writeInt32LE(80,16);responseBody.writeInt32LE((countQueries++&&opts.afterCount!=null)?opts.afterCount:(opts.count??11109),32);}
     else if(code===201)responseBody=packedTime();
