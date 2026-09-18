@@ -25,3 +25,9 @@ La captura de formulario y detalle no equivale a aceptación de RRHH ni a certif
 Se utiliza el workflow productivo existente con instalación/build compartidos. El cotejo de assets de este recorrido usa la ruta canónica `/acciones` para comparar la página que procede de `centro-acciones.html`, manteniendo igualdad de bytes y el mismo origen. No se añade una excepción a la autenticación real: las llamadas a API de los ensayos se interceptan.
 
 La publicación y su verificación deben acreditarse por separado del resultado local. No se crea un preview ni un workflow adicional por este incremento.
+
+## Publicación y verificación de despliegue
+
+El incremento de interfaz se publicó como `c500c66946fc64dd2de0c96f2438974ce8177cee`; Vercel confirmó éxito. La primera ejecución CI de la prueba de acciones no pudo abrir la página durante el despliegue. Una comprobación posterior cotejó la página canónica y el CSS byte por byte y completó los 17 grupos del recorrido sobre los assets productivos, con API sintética y sin escrituras municipales.
+
+Se añadió al verificador una espera acotada por disponibilidad de la página/CSS exactos antes de iniciar el navegador, manteniendo el requisito de igualdad de bytes. Esta corrección adicional afecta sólo a verificación y documentación, no a la aplicación. No se afirma aprobación de la primera ejecución fallida; la conclusión del workflow posterior se registra por separado.

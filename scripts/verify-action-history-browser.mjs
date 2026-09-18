@@ -22,6 +22,20 @@ async function publicAsset(url, expected) {
   finally { await reader.cancel().catch(() => {}); }
   const bytes = Buffer.concat(chunks, length); assert.ok(bytes.equals(expected), 'PUBLISHED_ASSET_CONTENT_MISMATCH'); publishedAssets.add(url.pathname); return bytes;
 }
+// A successful deployment can lag behind the workflow. Require byte equality before the UI test.
+if (publishedOrigin) {
+  const targets=['centro-acciones.html','assets/action-workspace-layout.css'];
+  for(let attempt=0;attempt<20;attempt++) {
+    try {
+      for(const file of targets)await publicAsset(new URL('/'+file,publishedOrigin),fs.readFileSync(path.join(base,file)));
+      break;
+    } catch(error) {
+      if(attempt===19)throw error;
+      console.log('Esperando los archivos productivos de esta versión ('+(attempt+1)+'/20).');
+      await new Promise(resolve=>setTimeout(resolve,7500));
+    }
+  }
+}
 const channel = process.env.ACTION_HISTORY_BROWSER_CHANNEL || process.env.CLOCK_BROWSER_CHANNEL;
 const browser = await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
 try {
