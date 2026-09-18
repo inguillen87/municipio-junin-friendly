@@ -1,3 +1,4 @@
+import { publicBuildResolution } from './lib/public-build-resolution.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import { buildPayrollParameters } from './build-payroll-parameters.mjs';
 export async function buildReactIslands(root, output) {
   await buildPayrollParameters(root, output);
   const source = 'src/islands/report-catalog-entry.jsx';
-  const result = await build({
+  const result = await build({ ...publicBuildResolution,
     absWorkingDir: root,
     entryPoints: { 'report-catalog': source },
     outdir: path.join(output, 'assets/islands'),
@@ -39,7 +40,7 @@ export async function buildReactIslands(root, output) {
 // forms remain owned by the existing page/API. Compiled only on a release build.
 export async function buildLeaveRulesIsland(root, output) {
   const source = 'src/islands/leave-rules-entry.jsx';
-  const result = await build({
+  const result = await build({ ...publicBuildResolution,
     absWorkingDir: root, entryPoints: { 'leave-rules': source },
     outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]',
     bundle: true, minify: true, jsx: 'automatic', format: 'esm',

@@ -1,3 +1,4 @@
+import { publicBuildResolution } from './lib/public-build-resolution.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -5,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { build } from 'esbuild';
 export async function buildPayrollParameters(root, output) {
   const source = 'src/islands/payroll-parameters-entry.jsx';
-  const result = await build({ absWorkingDir: root, entryPoints: { 'payroll-parameters': source }, outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]', bundle: true, minify: true, jsx: 'automatic', format: 'esm', platform: 'browser', target: ['es2020'], sourcemap: false, legalComments: 'linked', metafile: true, logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' } });
+  const result = await build({ ...publicBuildResolution, absWorkingDir: root, entryPoints: { 'payroll-parameters': source }, outdir: path.join(output, 'assets/islands'), entryNames: '[name]-[hash]', bundle: true, minify: true, jsx: 'automatic', format: 'esm', platform: 'browser', target: ['es2020'], sourcemap: false, legalComments: 'linked', metafile: true, logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' } });
   const entry = Object.entries(result.metafile.outputs).find(([, info]) => info.entryPoint?.replaceAll('\\', '/') === source)?.[0];
   assert.ok(entry, 'Parameter workspace entry must be emitted');
   const absolute = path.resolve(root, entry), compressed = gzipSync(await fs.readFile(absolute)).length;

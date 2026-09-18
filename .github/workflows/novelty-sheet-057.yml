@@ -39,6 +39,11 @@ on:
       - 'juridica-registro.html'
       - 'src/islands/legal-registry-entry.tsx'
       - 'scripts/build-legal-registry.mjs'
+      - 'scripts/build-payroll-parameters.mjs'
+      - 'scripts/build-react-islands.mjs'
+      - 'scripts/lib/public-build-resolution.mjs'
+      - 'scripts/verify-public-island-parity.mjs'
+      - 'tests/public-build-resolution.test.js'
       - 'scripts/verify-legal-registry*'
       - 'tests/legal-registry.test.js'
       - 'assets/liquidaciones-menu.js'
@@ -182,6 +187,8 @@ jobs:
         run: |
           node --test local-agents/pm10/tests/*.test.mjs
           node scripts/verify-pm10-protocol-alignment.mjs
+      - name: Dependency-layout parity regression
+        run: node --test tests/public-build-resolution.test.js
       - name: Build expected publication once using this checkout
         run: node scripts/build-friendly.mjs
       - name: Compare canonical production resources and unauthenticated rejection
@@ -196,6 +203,8 @@ jobs:
         run: node scripts/verify-work-area-menu-browser.mjs --published
       - name: Native legal registry production and synthetic full workflow
         run: node scripts/verify-legal-registry-browser.mjs --published
+      - name: Exact parity of four public React modules
+        run: node scripts/verify-public-island-parity.mjs
       - name: Documentary version comparison with synthetic read-only data
         run: node scripts/verify-legal-comparison-browser.mjs --published
       - name: Version-bound article search and selection with synthetic data only
