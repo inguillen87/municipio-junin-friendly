@@ -8,6 +8,10 @@ on:
       - 'api/internal-clock-fleet.js'
       - 'lib/internal-clock-fleet.js'
       - 'assets/clock-fleet-*'
+      - 'local-agents/clock-fleet/**'
+      - 'local-agents/pm10/tests/fleet-*.test.mjs'
+      - 'scripts/install-fleet-capture-release.mjs'
+      - 'scripts/verify-fleet-local-panel.mjs'
       - 'assets/attendance-point-label.js'
       - 'lib/attendance-point-naming.js'
       - 'data/junin-clock-site-crosswalk.v1.json'
@@ -67,6 +71,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Capture recovery and local queue regression
+        run: node --test local-agents/pm10/tests/*.test.mjs
       - name: Build expected assets once - full regression already required before promotion
         run: node scripts/build-friendly.mjs
       - name: Published artifact equality and anonymous boundaries
@@ -75,10 +81,13 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           node scripts/verify-clock-fleet-browser.mjs --published
+          node scripts/verify-fleet-local-panel.mjs
       - name: Publication evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: clock-fleet-production-check
-          path: verification/clock-fleet/
+          path: |
+            verification/clock-fleet/
+            verification/fleet-local-panel/
           retention-days: 5

@@ -24,3 +24,13 @@ La configuración y claves son privadas y externas al repositorio. El estado tie
 Registrar o reconciliar punto, equipo y serie en el servidor; emitir credencial de ingesta por equipo; enviar lote con huella y versión; obtener acuse íntegro e idempotente; comprobar recuperación y métricas visibles en `/relojes`. Mantener los identificadores sin correspondencia en revisión. Ningún registro se convierte en ausencia u hora liquidable por el solo hecho de haber sido recibido.
 
 Licencia: GPL-2.0-only, como el lector compartido. Se conserva su documentación de protocolo en `../pm10/reader/REFERENCIAS.md`.
+
+## Recuperación de comunicación — 18/09/2026
+
+El supervisor distingue ahora un fallo probado ANTES de abrir TCP/autenticar de un error durante el protocolo. Cuando el lector informa que no abrió conexión, no presentó credenciales y falló en TCP_CONNECT, reintenta con espera progresiva hasta quince minutos sin consumir el presupuesto de seis fallos posteriores a la sesión. No borra bloqueos previos ni supone que todo timeout sea previo a la autenticación.
+
+Clave rechazada, serie diferente, transferencia incompleta y estados corruptos conservan sus controles. La clave configurada sigue siendo única: esta mejora no prueba alternativas, no cambia la clave del reloj ni captura plantillas biométricas. La clave `0` se utilizó en pruebas sintéticas del recorrido; no se incorpora a la configuración pública ni sustituye un archivo de credencial real.
+
+`capture-policy.mjs` y `operator-help.mjs` son dependencias de esta versión del supervisor y panel. El instalador `scripts/install-fleet-capture-release.mjs` actualiza sólo esos dos archivos y runner/overview, verificando manifiesto, archivos anteriores y copia privada de recuperación. No cambia servicios, tareas, colas, claves ni el lector de PM-10. Las tareas ya registradas cargan la versión nueva en el siguiente ciclo.
+
+El panel local incluye conteos de equipos, capturas guardadas y revisiones pendientes; explica la diferencia entre espera de red, reintento antes de sesión y bloqueo de protocolo. Las cifras no se anuncian como conectividad en vivo. El envío de los equipos adicionales a Neon sigue sin estar configurado por esta entrega.
