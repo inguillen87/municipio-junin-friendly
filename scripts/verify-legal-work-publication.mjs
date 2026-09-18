@@ -1,0 +1,8 @@
+// Exact release bytes and real anonymous denial only; no municipal business writes.
+import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {setTimeout as sleep} from 'node:timers/promises';
+const origin='https://municipio-junin-friendly.vercel.app',hash=b=>createHash('sha256').update(b).digest('hex');
+const launcher=fs.readFileSync('public/assets/legal-work-launcher.js','utf8'),bundle=launcher.match(/import\("([^\"]+)"\)/)?.[1];assert.ok(bundle?.startsWith('/assets/islands/legal-work-'));
+const files=['juridica-registro.html','assets/legal-work.css','assets/legal-work-launcher.js',bundle.slice(1)],expected=Object.fromEntries(files.map(f=>[f,hash(fs.readFileSync('public/'+f))]));
+for(let attempt=1;attempt<=24;attempt++){try{for(const f of files){const r=await fetch(origin+'/'+f,{cache:'no-store',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200,f);assert.equal(hash(Buffer.from(await r.arrayBuffer())),expected[f],f);}break;}catch(e){if(attempt===24)throw e;await sleep(7500);}}
+const r=await fetch(origin+'/api/internal-legal-work?resource=bootstrap',{headers:{'X-MuniControl-Intent':'legal-work-v1'},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(r.status,401);assert.match(r.headers.get('cache-control')||'',/no-store/);
+const report={ok:true,commit:process.env.GITHUB_SHA,checkedAt:new Date().toISOString(),files:expected,anonymousStatus:r.status,realMunicipalWrites:0};fs.mkdirSync('verification/legal-work-publication',{recursive:true});fs.writeFileSync('verification/legal-work-publication/result.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));

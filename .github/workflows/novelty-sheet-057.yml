@@ -1,7 +1,7 @@
 name: Native novelty sheet 057
 on:
   push:
-    branches: ['feat/planilla-novedades-057', 'master']
+    branches: ['feat/planilla-novedades-057', 'internal-legal-work-20260918', 'master']
     paths:
       - '.github/workflows/novelty-sheet-057.yml'
       - 'scripts/patches/057*'
@@ -63,6 +63,15 @@ on:
       - 'scripts/verify-novelty-sheet*'
       - 'tests/payroll-novelty-sheet-057.test.js'
       - 'tests/payroll-novelty-ux.test.js'
+      - 'assets/legal-work*'
+      - 'src/islands/legal-work-entry.tsx'
+      - 'lib/internal-legal-work.js'
+      - 'api/internal-legal-work.js'
+      - 'scripts/build-legal-work.mjs'
+      - 'scripts/verify-legal-work-browser.mjs'
+      - 'scripts/verify-legal-work-publication.mjs'
+      - 'scripts/migrations/076-legal-work-tracking.sql'
+      - 'tests/legal-work.test.js'
 permissions:
   contents: read
 concurrency:
@@ -70,7 +79,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   acceptance:
-    if: github.ref != 'refs/heads/master'
+    if: github.ref == 'refs/heads/feat/planilla-novedades-057'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -151,7 +160,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add assets/payroll-novelty-sheet.js assets/payroll-novelty-sheet-model.js assets/payroll-novelty-sheet.css assets/payroll-novelty-workbench.js assets/payroll-novelty-review-panel.js novedades-nomina.html scripts/build-friendly.mjs scripts/verify-novelty-sheet-057.mjs scripts/verify-novelty-sheet-production-057.mjs tests/payroll-novelty-sheet-057.test.js tests/payroll-novelty-ux.test.js tests/payroll-novelty-legajo-list-057.test.js docs/SPRINT_057_PLANILLA_NOVEDADES.md
+          git add assets/payroll-novelty-sheet.js assets/payroll-novelty-sheet-model.js assets/payroll-novelty-sheet.css assets/payroll-novelty-workbench.js assets/payroll-novelty-review-panel.js novedades-nomina.html scripts/verify-novelty-sheet-057.mjs scripts/verify-novelty-sheet-production-057.mjs tests/payroll-novelty-sheet-057.test.js tests/payroll-novelty-ux.test.js tests/payroll-novelty-legajo-list-057.test.js docs/SPRINT_057_PLANILLA_NOVEDADES.md
           if test -f scripts/patches/057.patch.b64.1; then git rm scripts/patches/057.patch.b64.{1,2}; fi
           if test -f scripts/patches/057.fix.patch; then git rm scripts/patches/057.fix.patch; fi
           git rm --ignore-unmatch scripts/patches/057.sheet.b64.1 scripts/patches/057.sheet.b64.2 scripts/patches/057.sheet.b64.2b scripts/patches/057.sheet.b64.3a scripts/patches/057.sheet.b64.3b
@@ -170,6 +179,36 @@ jobs:
         with:
           name: novelty-sheet-057-acceptance
           path: verification/
+          retention-days: 5
+  legal_work:
+    if: github.ref == 'refs/heads/internal-legal-work-20260918'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Full current application regression and build
+        run: |
+          mkdir -p verification/legal-work-browser
+          npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Complete work tracking journey with synthetic identity and SQL store
+        run: node scripts/verify-legal-work-browser.mjs
+      - name: Existing legal workflows remain intact
+        run: |
+          node scripts/verify-legal-registry-browser.mjs
+          node scripts/verify-legal-comparison-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-work-synthetic-acceptance
+          path: |
+            verification/legal-work-browser/
+            verification/legal-registry-local/
           retention-days: 5
   production:
     if: github.ref == 'refs/heads/master'
@@ -203,6 +242,10 @@ jobs:
         run: node scripts/verify-work-area-menu-browser.mjs --published
       - name: Native legal registry production and synthetic full workflow
         run: node scripts/verify-legal-registry-browser.mjs --published
+      - name: Legal work publication and anonymous denial
+        run: node scripts/verify-legal-work-publication.mjs
+      - name: Work tracking complete flow with published UI and synthetic writes only
+        run: node scripts/verify-legal-work-browser.mjs --published
       - name: Exact parity of four public React modules
         run: node scripts/verify-public-island-parity.mjs
       - name: Documentary version comparison with synthetic read-only data

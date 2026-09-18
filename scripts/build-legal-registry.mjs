@@ -1,4 +1,5 @@
 import { publicBuildResolution } from './lib/public-build-resolution.mjs';
+import {buildLegalWork} from './build-legal-work.mjs';
 import fs from 'node:fs/promises';import path from 'node:path';import assert from 'node:assert/strict';
 import {gzipSync} from 'node:zlib';import {build} from 'esbuild';
 export async function buildLegalRegistry(root,output){
@@ -10,5 +11,5 @@ export async function buildLegalRegistry(root,output){
  const href='/'+path.relative(output,absolute).split(path.sep).join('/'),file=path.join(output,'juridica-registro.html'),html=await fs.readFile(file,'utf8');
  const marker='__MC_LEGAL_REGISTRY_BUNDLE__';assert.equal(html.split(marker).length,2,'One legal registry bundle marker required');
  await fs.appendFile(path.join(output,"assets/legal-registry.css"),await fs.readFile(path.join(root,"assets/legal-article-workspace.css")));
- await fs.writeFile(file,html.replace(marker,href));console.log(`React/TSX legal registry: ${size} bytes gzip. Scoped native API; no external AI calls.`);return{href,gzipBytes:size};
+ await fs.writeFile(file,html.replace(marker,href));await buildLegalWork(root,output);console.log(`React/TSX legal registry: ${size} bytes gzip. Scoped native API; no external AI calls.`);return{href,gzipBytes:size};
 }
