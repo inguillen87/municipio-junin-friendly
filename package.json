@@ -84,10 +84,12 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@tesseract.js-data/spa": "1.0.0",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "read-excel-file": "9.3.10"
+    "read-excel-file": "9.3.10",
+    "tesseract.js": "7.0.0"
   }
 }
