@@ -1,0 +1,41 @@
+.legal-workspace .law-workspace{margin-top:28px;padding-top:24px;border-top:1px solid #c7dcd5}
+.law-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.law-heading>div{max-width:770px;min-width:0}
+.law-heading h3{font-size:23px;margin:5px 0 10px;letter-spacing:-.025em}.law-heading p{font-size:13px;color:#456774;line-height:1.75}
+.law-heading .law-eyebrow{color:#097967;font-size:10px;font-weight:800;letter-spacing:.09em;margin:0}
+.law-version{flex-shrink:0;border:1px solid #b8d4c8;border-radius:20px;padding:7px 12px;background:#eef8f3;color:#20574d;font-size:12px;font-weight:700}
+.law-search{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:20px 0 12px}
+.law-search>label{display:grid;gap:7px;flex:1 1 320px;font-size:13px;font-weight:650;min-width:0}
+.law-search input{width:100%;min-width:0;padding:12px 14px;min-height:46px;border:1px solid #afcad0;border-radius:9px;font:14px system-ui;color:#183f50}
+.law-search .button{min-height:46px}.law-result-count{font-size:12px;color:#42636b;margin:0 0 18px;line-height:1.7}
+.law-selection{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:15px;padding:18px 20px;background:#edf7f3;border:1px solid #b4d6c6;border-left:4px solid #1b8068;border-radius:11px}
+.law-selection>div:first-child{flex:1;min-width:220px}.law-selection strong{display:block;font-size:15px}.law-selection span{display:block;font-size:12px;line-height:1.6;margin-top:5px;color:#496d70}
+.law-actions{display:flex;gap:10px;flex-wrap:wrap}.law-actions .button{font-size:12px}
+.law-selected{width:100%;border-top:1px solid #c6ddd2;padding-top:9px}.law-selected summary{font-size:12px;font-weight:650;cursor:pointer;min-height:36px;padding:7px 0}
+.law-selected ol{columns:2;column-gap:30px;margin:8px 0;padding-left:22px;font-size:12px}.law-selected li{padding:3px 0;break-inside:avoid;overflow-wrap:anywhere}
+.law-message{min-height:22px;font-size:13px;color:#345b67;line-height:1.7;margin:12px 0}
+.legal-workspace .law-article{padding:22px;border:1px solid #cbdcde;border-radius:12px;margin:16px 0;background:white;scroll-margin-top:100px}
+.legal-workspace .law-article.selected{border-color:#75b6a2;box-shadow:inset 4px 0 #1e856f}
+.law-article-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.law-article-heading>div{display:flex;gap:12px;align-items:center;flex-wrap:wrap;min-width:0}
+.law-article h4{font-size:18px;line-height:1.5;margin:0;color:#163f50}.law-article h4:focus-visible{outline:3px solid #9b6b1b;outline-offset:4px}
+.legal-workspace label.law-choose{display:flex;gap:9px;align-items:center;min-height:44px;font-size:12px;font-weight:650;flex-shrink:0;cursor:pointer}
+.legal-workspace .law-choose input{width:19px;height:19px;min-height:19px;accent-color:#087b69;margin:0;flex:0 0 19px}
+.legal-workspace p.law-article-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.85;margin:18px 0;font-size:14px}
+.law-article mark{background:#fff0aa;color:#1f3942;border-radius:2px;padding:0 1px}
+.law-article details{border-top:1px solid #e0e9e5;padding-top:10px}.law-article summary{cursor:pointer;font-size:12px;font-weight:700;min-height:38px;padding:8px 0}
+.law-article details p{font-size:13px;line-height:1.7}.law-article details a{display:inline-block;font-size:13px;color:#006f67;min-height:36px;padding-block:7px;text-decoration:underline}
+.law-article p.law-source-note{font-size:11px;color:#57727b}
+.law-pagination{display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:20px 0;font-size:13px}
+.law-historical{padding:14px 18px;background:#fff6e6;border:1px solid #dfc789;border-radius:9px;color:#6c4c17;font-size:13px;line-height:1.7}
+
+/* Observed 320px layout: prevent the version badge and checkbox from squeezing the text. */
+@media(max-width:750px){
+ .law-heading,.law-article-heading{flex-direction:column;gap:12px}
+ .law-heading>div,.law-article-heading>div{width:100%;max-width:100%}
+ .law-selected ol{columns:1}
+ .law-selection>div:first-child{min-width:0;flex-basis:100%}
+ .law-actions{width:100%}
+ .law-actions .button{flex:1 1 100%}
+ .law-pagination{justify-content:space-between;flex-wrap:wrap;gap:10px}
+ .law-pagination span{order:-1;flex-basis:100%;text-align:center}
+ .law-pagination .button{font-size:12px;flex:1;padding:10px}
+}
