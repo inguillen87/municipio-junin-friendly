@@ -172,3 +172,6 @@ local-agents/
 !juridica-registro.html
 !scripts/migrations/069-native-legal-registry.sql
 !scripts/migrations/070-zk40-multiclock-reception.sql
+
+# Restore-safety contract used by source capacity regression tests.
+!scripts/migrations/075-restore-safe-identity-functions.sql

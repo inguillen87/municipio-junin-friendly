@@ -3,6 +3,7 @@ import {preflightGrhCore} from '../import-grh-core-canonical.mjs';
 import {stableJson,streamDeterministicJsonArray} from './canonical-import.mjs';
 import {getGrhSourceProfile} from './grh-source-profile.mjs';
 import {acquireGrhPublicationLocks} from './grh-publication-lock.mjs';
+import {readSourceCapacity} from './grh-source-capacity.mjs';
 
 export const GRH_VERSION_ENTITIES=Object.freeze(['payrollRuns','payrollSnapshot','movements','payrollMonthly','employmentReconciliation']);
 export const GRH_VERSION_STORAGE_BUDGET=Object.freeze({maximumDatabaseBytes:512*1024*1024,reserveBytes:16*1024*1024,maximumGrowthBytes:24*1024*1024});
@@ -133,8 +134,8 @@ export async function importGrhSourceVersionWithinTransaction({client,prepared,e
   const evidence=payload.entities[entity];if(checked.rows!==evidence.counts.baseline||checked.sha256!==evidence.baselineProjectionSha256)reject('GRH_VERSION_BASELINE_PROJECTION_MISMATCH');
   baselineFingerprints[entity]=(await client.query('SELECT grh_core_source_base_fingerprint_v1($1,$2) AS fingerprint',[baselineBatchId,entity])).rows[0].fingerprint;
  }
- const databaseBeforeBytes=Number((await client.query('SELECT pg_database_size(current_database())::text AS bytes')).rows[0].bytes);
- if(databaseBeforeBytes+GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes+GRH_VERSION_STORAGE_BUDGET.reserveBytes>GRH_VERSION_STORAGE_BUDGET.maximumDatabaseBytes)reject('GRH_VERSION_STORAGE_CAPACITY_REQUIRED');
+ const capacityBefore=await readSourceCapacity(client,GRH_VERSION_STORAGE_BUDGET),databaseBeforeBytes=capacityBefore.databaseBytes;
+ if(!capacityBefore.fits)reject('GRH_VERSION_STORAGE_CAPACITY_REQUIRED');
  const inserted=(await client.query(`INSERT INTO grh_core_source_version(tenant_id,source_binding_id,baseline_batch_id,baseline_import_run_id,
   source_sha256,baseline_source_sha256,payload_sha256,source_cutoff,baseline_cutoff,source_profile,manifest_sha256,baseline_manifest_sha256,
   source_database,source_company_id,entity_evidence,baseline_fingerprints,source_payroll_date,baseline_payroll_date)
@@ -158,10 +159,10 @@ export async function importGrhSourceVersionWithinTransaction({client,prepared,e
  for(const entity of GRH_VERSION_ENTITIES)await client.query('SELECT grh_core_source_version_assert_v1($1,$2)',[inserted.id,entity]);
  const afterBytes=Number((await client.query(`SELECT coalesce(sum(pg_total_relation_size(x)),0)::text AS bytes FROM unnest(ARRAY[
   'grh_core_source_version'::regclass,'grh_core_source_delta'::regclass,'grh_core_source_version_seal'::regclass]) x`)).rows[0].bytes);
- const databaseAfterBytes=Number((await client.query('SELECT pg_database_size(current_database())::text AS bytes')).rows[0].bytes);
- if(afterBytes-beforeBytes>GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes||databaseAfterBytes+GRH_VERSION_STORAGE_BUDGET.reserveBytes>GRH_VERSION_STORAGE_BUDGET.maximumDatabaseBytes)reject('GRH_VERSION_STORAGE_CAPACITY_EXCEEDED');
+ const capacityAfter=await readSourceCapacity(client,GRH_VERSION_STORAGE_BUDGET,0),databaseAfterBytes=capacityAfter.databaseBytes;
+ if(afterBytes-beforeBytes>GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes||!capacityAfter.fits)reject('GRH_VERSION_STORAGE_CAPACITY_EXCEEDED');
  return {versionId:inserted.id,inserted:true,payloadSha256,operational:false,deltaRows:payload.changes.length,storageBeforeBytes:beforeBytes,storageAfterBytes:afterBytes,
-  storageGrowthBytes:afterBytes-beforeBytes,databaseBeforeBytes,databaseAfterBytes,storageBudget:GRH_VERSION_STORAGE_BUDGET};
+  storageGrowthBytes:afterBytes-beforeBytes,databaseBeforeBytes,databaseAfterBytes,capacityBefore,capacityAfter,storageBudget:GRH_VERSION_STORAGE_BUDGET};
 }
 
 export async function readGrhSourceVersionEntity({client,versionId,entity,revision='candidate'}){
