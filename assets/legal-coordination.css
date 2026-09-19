@@ -1,0 +1,24 @@
+/* Coordination uses the existing municipal shell, controls and comparison typography. */
+.lc-shell{max-width:1060px}.lc-shell .lc-title{line-height:1.45;font-size:1.25rem;overflow-wrap:anywhere}
+.lc-shell>.button{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box;max-width:100%;white-space:normal}
+.lc-current-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.lc-value{min-width:0;border:1px solid #dce6e5;background:#f5faf8;border-radius:10px;padding:16px}
+.lc-value h3{font-size:.88rem;color:#42636b;margin:0 0 10px;line-height:1.5}.lc-value p{margin:0;line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+.lc-current,.lc-editor,.lc-review,.lc-pending{margin-top:18px}.lc-history{margin-top:20px}
+.lc-history summary{font-weight:700;font-size:1rem;line-height:1.5;cursor:pointer;min-height:44px;display:list-item}
+.lc-history ol{padding-left:22px}.lc-history li{padding:16px 0;border-top:1px solid #d2e1e2}.lc-history h3{font-size:1rem;line-height:1.5}
+.lc-history p,.lc-history small{overflow-wrap:anywhere;line-height:1.65;white-space:pre-wrap}
+.lc-editor .lf-grid{grid-template-columns:1fr}.lc-shell select,.lc-shell input{box-sizing:border-box;width:100%}
+.lc-editor .lf-tools{margin-bottom:0}.lc-editor .lf-tools .button:first-child{background:#176e65;color:#fff}
+.lc-conflict{border:1px solid #dbb796;border-left:4px solid #996035;background:#fff8ee;padding:18px;border-radius:10px;margin:18px 0;min-width:0}
+.lc-conflict h3{line-height:1.5}.lc-conflict .lc-value{background:#fff;margin:12px 0}.lc-conflict p{line-height:1.6;overflow-wrap:anywhere}
+.lc-conflict .button{min-height:44px;white-space:normal;margin:8px 10px 8px 0;max-width:100%;box-sizing:border-box}
+@media(max-width:650px){.lc-current-grid{grid-template-columns:1fr}.lc-shell .lf-tools .button{flex-basis:100%}.lc-value{padding:14px}.lc-conflict{padding:14px}.lc-conflict .button{width:100%}}
+
+/* The component is legible even when hosted outside the main shell during testing. */
+.lc-shell{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.55}
+.lc-shell h2{font-size:1.2rem;line-height:1.45}.lc-shell .lr-eyebrow{font-size:.74rem;font-weight:700;letter-spacing:.08em}
+.lc-shell .button{font:inherit;font-size:.9rem;font-weight:650;text-decoration:none;border:1px solid #b9ced3;border-radius:8px;padding:10px 16px;background:#fff;color:#173c46;cursor:pointer}
+.lc-shell .button:hover:not(:disabled){background:#eef6f4;border-color:#1a756c}.lc-shell .button:disabled{opacity:.55;cursor:wait}
+.lc-shell .lc-review .lf-tools .button:first-child,.lc-shell .lc-editor .lf-tools .button:first-child{background:#176e65;border-color:#176e65;color:#fff}
+.lc-shell .lc-review .lf-tools .button:first-child:hover:not(:disabled),.lc-shell .lc-editor .lf-tools .button:first-child:hover:not(:disabled){background:#12564f}
