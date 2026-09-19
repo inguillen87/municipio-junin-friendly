@@ -1,7 +1,8 @@
 import { storedZip } from './clock-dashboard-zip.js';
 import {workdayTime} from './workday-panel-model.js';
+import {WORKDAY_REVIEW_CAUSES,reviewCauseLabels,reviewCauseGuidance} from './workday-review-causes.js';
 export const duration=seconds=>{if(!Number.isSafeInteger(seconds)||seconds<0)return '—';return String(Math.floor(seconds/3600)).padStart(2,'0')+':'+String(Math.floor(seconds/60)%60).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')};
-const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';
+const cell=v=>'"'+String(v??'').replace(/^[\s\u0000-\u001f]*[=+@-]/,"'$&").replaceAll('"','""')+'"';
 const continuous = data => data?.version === 'clock-workdays.v2';
 const refs = interval => interval.startEventRef ? [interval.startEventRef,...interval.pauseEventRefs,interval.endEventRef] : [interval.startOrdinal,...interval.pauseOrdinals,interval.endOrdinal];
 const sourceLabel = data => continuous(data) ? 'Histórico y recepciones completas en el corte consultado' : 'Captura conservada en MuniControl';
@@ -20,9 +21,11 @@ const reviewLabel=(row,data)=>{
 export function workdayCsv(rows,data){
  const v2=continuous(data),head=['Fecha de inicio','Persona','Legajo','Ordinario registrado','Extra registrado','Pausas','Tramos cerrados','Estado de secuencia','Observaciones','Efecto en nómina'];
  if(v2)head.push('Fuente','Corte de lectura','Reglas','Referencias de eventos','Observaciones de fuente sin ubicación en el contexto');
+ if(data?.reviewFacets)head.push('Causa seleccionada','Causas de la jornada','Próximo paso sugerido');
  return '\ufeff'+[head,...rows.map(r=>{
   const values=[r.day,r.personLabel,r.legajo,timeCell(r,'ordinary',data),timeCell(r,'extra',data),timeCell(r,'pause',data),r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',reviewLabel(r,data),v2?'Referencia no homologada · sin aprobación salarial':'No aprobado para liquidar'];
   if(v2)values.push(sourceLabel(data),data.snapshotId,data.rules.version,r.events.map(e=>e.eventRef).join(' | '),data.observationSummary.unplaced);
+  if(data?.reviewFacets)values.push(WORKDAY_REVIEW_CAUSES[data.filters.cause].label,reviewCauseLabels(r),reviewCauseGuidance(r));
   return values;
  })].map(r=>r.map(cell).join(';')).join('\r\n')+'\r\n';
 }
@@ -53,8 +56,15 @@ export function workdayXlsx(data,rows){
    ...data.observations.map(e=>[e.eventRef,e.deviceKey,e.localTimestamp,e.source.kind==='receipt'?'Recepción confirmada':'Captura histórica',e.source.id,e.source.ordinal,e.issues.join(' | ')])
   ]);
  }
+ if(data.reviewFacets){
+  content[0][0].push('Causas de revisión','Próximo paso sugerido');
+  rows.forEach((row,i)=>content[0][i+1].push(reviewCauseLabels(row),reviewCauseGuidance(row)));
+  content[2].push(['Causa seleccionada',WORKDAY_REVIEW_CAUSES[data.filters.cause].label],['Alcance de causas','Estado y búsqueda aplicados antes de seleccionar la causa; categorías superpuestas, no sumar'],['Personas/días antes de causa',data.reviewFacets.totalDays],['Personas/días a revisar antes de causa',data.reviewFacets.reviewDays]);
+  for(const [key,entry]of Object.entries(WORKDAY_REVIEW_CAUSES))content[2].push(['Causa: '+entry.label,data.reviewFacets.counts[key]]);
+ }
  const manifest='<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+names.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')+'</Types>';
  const styles='<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="[h]:mm:ss"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF123649"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
  const widths=[[14,32,12,20,20,18,10,23,65],[14,32,12,14,23,23,20,18,20,continuous(data)?68:25],[38,95],[18,32,12,68,23,16,26,24,42,16,50],[68,68,23,24,42,16,50]];
+ if(data.reviewFacets)widths[0].push(36,80);
  return storedZip([['[Content_Types].xml',manifest],['_rels/.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],['xl/workbook.xml','<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+names.map((n,i)=>`<sheet name="${n}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')+'</sheets></workbook>'],['xl/_rels/workbook.xml.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+names.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')+'<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],['xl/styles.xml',styles],...content.map((rows,i)=>['xl/worksheets/sheet'+(i+1)+'.xml',sheet(rows,widths[i])])]);
 }

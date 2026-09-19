@@ -1,3 +1,4 @@
+import {verifyReviewCauses} from './workday-review-causes.js';
 const hex = /^[a-f0-9]{64}$/;
 const revision = /^[a-f0-9]{8}-[a-f0-9]{4}-5[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const safeText = (value,max=300) => typeof value==='string' && value.length<=max && !/[\x00-\x1f\x7f]/.test(value);
@@ -80,10 +81,11 @@ export function verifyWorkdayResponse(data,query,{nominalReadAllowed=true}={}) {
    if(data.pagination.pages<=1)check(shown===data.summary[kind+'IntervalCount']);
   }
  }
+ if(query.has('cause')){check(v2);verifyReviewCauses(data,query.get('cause'));}
  return data;
 }
 export function sameWorkdayCut(first,next){
- return first.version===next.version && first.snapshotId===next.snapshotId && first.site?.key===next.site?.key
+ return JSON.stringify(first.reviewFacets)===JSON.stringify(next.reviewFacets) && first.version===next.version && first.snapshotId===next.snapshotId && first.site?.key===next.site?.key
   && first.sourceMode===next.sourceMode && first.nominalReadAllowed===next.nominalReadAllowed
   && first.timezone===next.timezone && JSON.stringify(first.filters)===JSON.stringify(next.filters)
   && JSON.stringify(first.context)===JSON.stringify(next.context) && JSON.stringify(first.periodSummary)===JSON.stringify(next.periodSummary)
