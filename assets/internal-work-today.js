@@ -181,23 +181,27 @@
     'centro-acciones.html':['actions.read'], 'novedades-nomina.html':['payroll.novelty.read'],
     'nomina-control.html':['payroll.read'], 'internal-dashboard.html#legajos':['workforce.employee.read'],
     'reportes-rrhh.html':['workforce.summary.read','management.analytics.read'],
-    'juridica-registro.html':['legal.norm.read'],'relojes-marcaciones.html':['attendance.read']
+    'juridica-registro.html':['legal.norm.read'],'relojes-marcaciones.html':['attendance.read'],
+    'nomina-control.html#parametros':['payroll.read'],'nomina-control.html#comparar':['payroll.read'],'presupuesto-control.html':['budget.approved.read']
   });
   const EXTRA=Object.freeze({prepare:[{key:'legal',capabilities:['legal.norm.register'],kicker:'Jurídica y Legislativa',title:'Registrar o corregir normas',description:'Incorporá documentos y artículos o registrá una nueva versión con fundamento.',action:'Abrir Registro normativo',href:'juridica-registro.html'}],decide:[],consult:[
     {key:'legal',capabilities:['legal.norm.read'],kicker:'Jurídica y Legislativa',title:'Consultar normas y comparar versiones',description:'Buscá por ficha o artículo y recuperá el documento de la versión exacta.',action:'Consultar Registro normativo',href:'juridica-registro.html'},
     {key:'clocks',capabilities:['attendance.read'],kicker:'Tiempo y asistencia',title:'Controlar recepción de relojes',description:'Revisá recepción, cobertura y vinculaciones. Una conexión no acredita asistencia.',action:'Consultar Relojes',href:'relojes-marcaciones.html'}
   ]});
+  const FOCUSED=Object.freeze({prepare:[{key:'parameters',capabilities:['payroll.parameter.prepare'],all:['payroll.parameter.read'],kicker:'Contaduría · Parámetros',title:'Preparar parámetros salariales',description:'Guardá una propuesta fundamentada para su revisión independiente.',action:'Abrir Parámetros',href:'nomina-control.html#parametros'}],decide:[{key:'parameters',capabilities:['payroll.parameter.approve'],all:['payroll.parameter.read'],kicker:'Contaduría · Revisión',title:'Revisar parámetros propuestos',description:'Contrastá evidencia y versión antes de decidir; no se aprueba desde este acceso.',action:'Revisar Parámetros',href:'nomina-control.html#parametros'}],consult:[{key:'comparison',capabilities:['payroll.read'],kicker:'Liquidaciones · Comparación',title:'Comparar liquidaciones',description:'Revisá períodos, alcances y diferencias sin modificar corridas.',action:'Consultar Comparación',href:'nomina-control.html#comparar'},{key:'budget',capabilities:['budget.approved.read'],kicker:'Contaduría · Presupuesto',title:'Consultar presupuesto aprobado',description:'Consultá el crédito aprobado, sin confundirlo con ejecución o pagos.',action:'Consultar Presupuesto',href:'presupuesto-control.html'}]});
   const normalizeSearch=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   function buildModel(access, roleLabel, requestedMode=null, query='') {
     const contract=access&&typeof access==='object'?access:{};
     const available=capabilities(contract.tenantCapabilities);
-    const byMode=Object.fromEntries(Object.keys(MODES).map(mode=>[mode,[...CARDS[mode],...EXTRA[mode]]
-      .filter(card=>hasAny(available,card.capabilities)&&DESTINATIONS[card.href]&&hasAny(available,DESTINATIONS[card.href]))]));
+    const byMode=Object.fromEntries(Object.keys(MODES).map(mode=>[mode,[...CARDS[mode],...EXTRA[mode],...FOCUSED[mode]]
+      .filter(card=>hasAny(available,card.capabilities)&&(card.all||[]).every(c=>available.has(c))&&DESTINATIONS[card.href]&&hasAny(available,DESTINATIONS[card.href]))]));
+    const platform=capabilities(contract.platformCapabilities),roles=Array.isArray(contract.platformRoles)?contract.platformRoles:[];
+    if(roles.includes('PLATFORM_OWNER')&&['platform.tenants.manage','platform.users.invite','platform.users.manage','platform.roles.manage'].some(c=>platform.has(c)))byMode.consult.push({key:'administration',kicker:'Superadministración',title:'Administrar municipios, usuarios y roles',description:'Revisá la cartera y sus accesos. Este enlace no concede permisos ni modifica usuarios.',action:'Abrir Administración',href:'administracion-plataforma.html'});
     const modes=Object.keys(MODES).filter(mode=>byMode[mode].length);
     if(!modes.length)return null;
     const mode=modes.includes(requestedMode)?requestedMode:modes[0],terms=normalizeSearch(query).split(/\s+/).filter(Boolean);
     const all=byMode[mode];const cards=all.filter(c=>terms.every(t=>normalizeSearch(c.kicker+' '+c.title+' '+c.description).includes(t)))
-      .map(({capabilities,...card})=>({...card}));
+      .map(({capabilities,all,...card})=>({...card}));
     return {mode,modes:modes.map(key=>({key,label:({prepare:'Preparar',decide:'Revisar',consult:'Consultar'})[key],count:byMode[key].length})),
       eyebrow:MODES[mode].eyebrow,title:MODES[mode].title,summary:MODES[mode].summary,badge:MODES[mode].badge,
       boundary:MODES[mode].boundary,roleLabel:String(roleLabel||'').trim(),cards,total:all.length,query:String(query).slice(0,120)};
@@ -239,13 +243,13 @@
     const doc=root.ownerDocument||global.document;if(typeof doc?.addEventListener!=='function')return;
     const previous=workRoots.get(root);if(previous){previous.settings=settings;return;}
     const state={settings};workRoots.set(root,state);
-    const empty=()=>render({...state.settings,access:{tenantCapabilities:[]},roleLabel:''});
+    const empty=()=>render({...state.settings,access:{tenantCapabilities:[]},roleLabel:'',mode:null,query:''});
     doc.getElementById('logoutButton')?.addEventListener('click',empty);
     global.addEventListener('pagehide',empty);
     doc.addEventListener('municontrol:capabilities-ready',event=>{
       const source=event.detail?.tenantCapabilities;
       const list=Array.isArray(source)?source:source instanceof Set?Array.from(source):[];
-      render({...state.settings,access:{tenantCapabilities:list}});
+      const detail=event.detail||{};const items=v=>Array.isArray(v)?v:v instanceof Set?Array.from(v):[];render({...state.settings,access:{tenantCapabilities:list,platformCapabilities:items(detail.platformCapabilities),platformRoles:items(detail.platformRoles)}});
     });
     new MutationObserver(()=>{if(doc.documentElement.dataset.mcCapabilityState==='denied')empty();})
       .observe(doc.documentElement,{attributes:true,attributeFilter:['data-mc-capability-state']});
@@ -256,7 +260,7 @@
     const root = settings.root;
     if (!root || typeof root.querySelector !== 'function') return null;
     bindWorkAccess(root,settings);
-    const model = buildModel(settings.access, settings.roleLabel);
+    const model = buildModel(settings.access, settings.roleLabel, settings.mode, settings.query);
     root.hidden = true;
     root.removeAttribute('data-mode');
     if (!model) { clear(root.querySelector('[data-work-today-list]'));renderOtherModes(root,settings,null);return null; }

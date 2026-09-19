@@ -117,7 +117,7 @@ test('admin ve consulta y control sin CTA de mutación', () => {
 
   assert.equal(model.mode, 'consult');
   assert.equal(model.title, 'Consultar y controlar');
-  assert.deepEqual(Array.from(cardKeys(model)), ['people', 'actions', 'novelties', 'payroll', 'reports']);
+  assert.deepEqual(Array.from(cardKeys(model)), ['people', 'actions', 'novelties', 'payroll', 'reports', 'comparison']);
   assert.ok(model.cards.every((card) => /^(Consultar|Ver)/.test(card.action)));
   assert.doesNotMatch(JSON.stringify(model), /Crear|Aprobar|Rechazar|Cancelar/);
   assert.match(model.boundary, /no crean, envían, aprueban, rechazan ni cancelan/);

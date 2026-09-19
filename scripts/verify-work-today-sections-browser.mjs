@@ -31,6 +31,15 @@ try{
  await panel.screenshot({path:out+'/desktop.png'});checks.push('native disclosure supports Enter, Space and keyboard focus');
  for(const width of [390,320]){await page.setViewportSize({width,height:844});await page.emulateMedia({reducedMotion:'reduce'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.ok(await review.locator('summary').evaluate(n=>n.getBoundingClientRect().height>=44));await panel.screenshot({path:out+'/mobile-'+width+'.png'});}
  checks.push('320 and 390 px preserve readable actions and touch targets');
+ await page.evaluate(base=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set([...base,'payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','budget.approved.read']),platformCapabilities:new Set(['platform.users.manage']),platformRoles:new Set(['PLATFORM_OWNER'])}})),all);
+ await panel.locator('[data-work-today-list] [data-work-today-card=parameters]').waitFor();
+ assert.equal(await panel.locator('[data-work-today-mode=decide] [data-work-today-card=parameters]').count(),1);
+ assert.equal(await panel.locator('[data-work-today-card=administration]').count(),1);assert.equal(await panel.locator('[data-work-today-card=budget]').count(),1);
+ checks.push('parameter preparation and approval, approved budget and platform administration remain explicitly permission-bound');
+ await page.evaluate(base=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(base),platformCapabilities:new Set(['platform.users.manage']),platformRoles:new Set()}})),all);
+ assert.equal(await panel.locator('[data-work-today-card=administration]').count(),0);assert.equal(await panel.locator('[data-work-today-card=parameters]').count(),0);
+ checks.push('revoking platform owner and parameter rights removes those links immediately');
+
  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(['workforce.employee.read','legal.norm.read']),platformCapabilities:new Set(),platformRoles:new Set()}})));
  assert.equal(await panel.getAttribute('data-mode'),'consult');assert.equal(await panel.locator('[data-work-today-other-modes] a').count(),0);assert.equal(await panel.locator('a').count(),2);assert.equal(await panel.locator('a[href="/nomina"],a[href="/novedades"]').count(),0);checks.push('capability downgrade removes old preparation and review links from DOM');
  await page.evaluate(()=>{document.documentElement.dataset.mcCapabilityState='denied';});await panel.waitFor({state:'hidden'});assert.equal(await panel.locator('a').count(),0);checks.push('denied session clears rather than merely covering previous task cards');
