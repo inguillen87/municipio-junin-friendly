@@ -188,3 +188,7 @@ local-agents/
 
 # Read-only agenda function source required for regression checks.
 !scripts/migrations/080-legal-followup-agenda.sql
+
+# Legal coordination surface and reviewed schema contract.
+!internal-legal-coordination.html
+!scripts/migrations/081-legal-coordination.sql

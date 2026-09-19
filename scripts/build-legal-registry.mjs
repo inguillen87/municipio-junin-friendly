@@ -11,6 +11,6 @@ export async function buildLegalRegistry(root,output){
  const marker='__MC_LEGAL_REGISTRY_BUNDLE__';assert.equal(html.split(marker).length,2,'One legal registry bundle marker required');
  await fs.appendFile(path.join(output,"assets/legal-registry.css"),await fs.readFile(path.join(root,"assets/legal-article-workspace.css")));
  await fs.appendFile(path.join(output,"assets/legal-registry.css"),await fs.readFile(path.join(root,"assets/legal-documentary-panel.css")));
- for(const asset of ['internal-legal-followups.html','assets/legal-followups-model.js','assets/legal-followup-review.js','assets/legal-followups-ui.js','assets/legal-followups.css','assets/legal-agenda-model.js','assets/legal-agenda-ui.js'])await fs.copyFile(path.join(root,asset),path.join(output,asset));
+ for(const asset of ['internal-legal-followups.html','internal-legal-coordination.html','assets/legal-followups-model.js','assets/legal-followup-review.js','assets/legal-followups-ui.js','assets/legal-followups.css','assets/legal-agenda-model.js','assets/legal-agenda-ui.js','assets/legal-coordination-model.js','assets/legal-coordination-ui.js','assets/legal-coordination.css'])await fs.copyFile(path.join(root,asset),path.join(output,asset));
  await fs.writeFile(file,html.replace(marker,href));console.log(`React/TSX legal registry: ${size} bytes gzip. Scoped native API; no external AI calls.`);return{href,gzipBytes:size};
 }
