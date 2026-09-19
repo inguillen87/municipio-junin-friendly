@@ -19,7 +19,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node scripts/build-friendly.mjs
       - run: node scripts/verify-report-centre-production.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: report-centre-production-verification

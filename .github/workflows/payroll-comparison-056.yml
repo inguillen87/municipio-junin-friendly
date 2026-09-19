@@ -101,7 +101,7 @@ jobs:
         run: |
           git diff HEAD > verification/pending-changes.patch
           git archive --format=tar.gz -o verification/comparison-056-source.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: comparison-056-acceptance
@@ -126,7 +126,7 @@ jobs:
         env:
           COMPARISON_LIVE_ASSETS: '1'
         run: node scripts/verify-payroll-comparison-056.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: comparison-056-production-verification

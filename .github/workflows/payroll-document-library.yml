@@ -53,7 +53,7 @@ jobs:
       - name: Archive exact tracked source
         if: always()
         run: git archive --format=tar.gz -o verification/source.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: payroll-document-library-acceptance

@@ -165,7 +165,7 @@ jobs:
         run: |
           git diff HEAD > verification/pending-changes.patch
           git archive --format=tar.gz -o verification/native-sheet-source.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: novelty-sheet-057-acceptance
@@ -215,7 +215,7 @@ jobs:
         run: node scripts/verify-action-history-browser.mjs
       - name: Mixed-role task entry with published bytes and synthetic APIs
         run: node scripts/verify-work-today-sections-browser.mjs --published
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: novelty-sheet-057-production-verification
