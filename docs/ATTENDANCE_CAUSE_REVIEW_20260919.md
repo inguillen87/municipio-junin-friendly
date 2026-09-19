@@ -47,3 +47,11 @@ Reversión: revertir exclusivamente esta entrega de aplicación, sin deshacer ca
 El primer despliegue no llegó a activarse: la exclusión general de archivos HTML impedía que la prueba de coherencia leyera `assets/clock-dashboard-panel.html` y `assets/workday-panel.html`. Se añadieron excepciones sólo para esos dos fragmentos de código y una prueba específica de esa inclusión. Se conserva la exclusión general; no se incorporan HTML privados ni se elimina la prueba de consistencia. Esto requiere un segundo commit correctivo, no otro cambio funcional ni una reinstalación de bases.
 
 La compilación completa después de corregir el empaquetado terminó con **3.810 pruebas aprobadas, cero fallos, omisiones o cancelaciones**: se agregó un control de inclusión respecto de las 3.809 anteriores. No cambiaron el motor, la interfaz o los recorridos de navegador por esta corrección. El pase productivo sólo se declara después de verificar el nuevo despliegue y sus archivos publicados.
+
+## Comprobación efectiva de producción
+
+Vercel confirmó READY para la entrega funcional `fa67a656004bf221b6ecddbf040502a023a9420b` y el alias productivo apuntó a ese mismo commit. Se contrastaron los cinco archivos JS/CSS y el HTML publicados contra la compilación local y la consulta anónima de jornadas respondió 401.
+
+El recorrido publicado terminó con **23 comprobaciones aprobadas, cero errores**, con APIs privadas y mapas interceptados; no se utilizó una sesión municipal real. El recorrido local se repitió después y mantuvo sus 22 comprobaciones aprobadas. La última aserción de navegación se corrigió para comprobar la ruta real de cada entorno: Vercel canonicaliza el acceso a `/acceso`, mientras el servidor sintético sirve `/login.html`; en ambos se exige origen exacto y retorno a `relojes-marcaciones.html`. No se cambió la aplicación para eludir una denegación, no se aceptan destinos externos y no se omite la prueba de sesión vencida.
+
+Se versiona esa corrección del verificador junto con este registro. No incorpora otro cambio de interfaz, motor, fuente o reglas salariales.

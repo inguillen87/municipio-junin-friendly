@@ -150,7 +150,7 @@ try{
  checks.push('revocation on export page two removes nominal rows and downloads nothing');
  mode='ok';nominal=false;await page.locator('#clockRefresh').click();await ready(114);assert.ok(await el('Search').isDisabled());assert.doesNotMatch(await el('Rows').innerText(),/Agente abierto|Caso |Legajo/);
  await el('State').selectOption('extra_open');await ready(110);checks.push('non-nominal access retains the evidence filter without exposing identities');
- mode='expired';await el('Refresh').click();await page.waitForURL('**/login.html?**');checks.push('expired session clears the panel and redirects to login');
+ mode='expired';await el('Refresh').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===(published?'/acceso':'/login.html')&&url.searchParams.get('next')==='relojes-marcaciones.html');checks.push('expired session clears the panel and redirects to login');
  assert.deepEqual(errors,[]);
  const report={checksPassed:checks.length,checks,errors,syntheticApi:true,syntheticTiles:true,municipalSessionTested:false,productionAssetsTested:published,privateApisIntercepted:true,backendWrites:false,base,
   assetMode,wipOverlayEnabled:useWipOverlay,assets:assetEvidence,locale:'es-AR',externalRequestsBlocked:externalBlocked,
