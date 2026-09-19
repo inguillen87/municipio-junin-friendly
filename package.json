@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
+    "test": "node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node --test tests/*.test.js",
     "test:browser": "node scripts/verify-friendly-browser.mjs",
     "test:attendance-browser": "node scripts/verify-attendance-governance-browser.mjs",
     "test:payroll-formula-browser": "node scripts/build-friendly.mjs && node scripts/verify-payroll-formula-lab-browser.mjs",
@@ -75,21 +75,26 @@
     "data:extract:core": "python scripts/extract_grh_core.py",
     "data:extract:personas": "python scripts/extract-personas-crosswalk.py",
     "data:preflight:canonical": "node scripts/import-grh-core-canonical.mjs --preflight-only && node scripts/import-personas-crosswalk-canonical.mjs --preflight-only",
-    "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs"
+    "data:import": "node --env-file=.env.local scripts/import-rrhh-neon.mjs",
+    "check:platform": "node scripts/verify-platform-baseline.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "leaflet": "^1.9.4",
-    "playwright": "^1.62.1"
+    "leaflet": "1.9.4",
+    "playwright": "1.63.0"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
+    "@neondatabase/serverless": "1.1.0",
     "@tesseract.js-data/spa": "1.0.0",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "read-excel-file": "9.3.10",
     "tesseract.js": "7.0.0"
-  }
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "npm@11.19.0"
 }

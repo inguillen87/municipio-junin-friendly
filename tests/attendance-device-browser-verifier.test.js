@@ -216,7 +216,7 @@ test('verificador sirve public, intercepta toda API y no conoce Neon ni credenci
     packageJson.scripts['test:browser:attendance-devices'],
     'node scripts/build-friendly.mjs && node scripts/verify-attendance-device-browser.mjs',
   );
-  assert.equal(packageJson.devDependencies.leaflet, '^1.9.4');
+  assert.equal(packageJson.devDependencies.leaflet, '1.9.4');
 });
 
 test('resúmenes públicos informan evidencia y fallo sin detalles internos', () => {
