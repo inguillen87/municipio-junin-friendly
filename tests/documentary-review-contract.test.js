@@ -20,3 +20,10 @@ test('SQL only reads latest tenant-scoped revisions and invokes existing authori
  const body=sql.split('AS $$')[1].split('END $$;')[0];assert.doesNotMatch(body,/\b(INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP)\b/i);
  assert.match(sql,/REVOKE ALL ON FUNCTION/);assert.match(sql,/GRANT EXECUTE ON FUNCTION/);
 });
+test('deployment preserves only the reviewed SQL contract needed by the build',()=>{
+ const lines=fs.readFileSync('.vercelignore','utf8').split(/\r?\n/).map(x=>x.trim());
+ assert.ok(lines.includes('*.sql'));
+ assert.ok(lines.includes('!scripts/migrations/078-legal-documentary-review.sql'));
+ assert.equal(lines.includes('!scripts/migrations/077-legal-followups.sql'),false);
+ assert.equal(lines.includes('!*.sql'),false);
+});

@@ -34,3 +34,9 @@ No se cambiaron conexiones productivas, planes, relojes, legajos ni liquidacione
 La publicacion se efectua mediante un solo commit y despliegue. El estado final y los bytes publicados se comprueban por separado; una compilacion local no equivale a un despliegue confirmado. No se incluyen respaldos, SQL de datos municipales ni credenciales en Git.
 
 Referencias tecnicas primarias consultadas: https://www.postgresql.org/docs/18/sql-createfunction.html y https://www.postgresql.org/docs/18/ddl-rowsecurity.html. El estado de implementacion procede de las lecturas y pruebas del proyecto, no de esas referencias generales.
+
+## Correccion de empaquetado del despliegue
+
+El primer build de Vercel detecto que .vercelignore excluia la migracion SQL 078 requerida por una prueba estatica. No se desactivo la prueba: se agrego una excepcion para ese archivo exacto, conservando la exclusion general de archivos SQL y del borrador 077. Un control adicional verifica esta inclusion acotada. La publicacion de la interfaz queda condicionada a que el nuevo despliegue termine y sus bytes se contrasten con la compilacion local.
+
+Despues del ajuste de empaquetado se repitio la compilacion completa: 3.728 pruebas aprobadas, cero fallos, omisiones o cancelaciones. Es una prueba adicional respecto de las 3.727 anteriores. El codigo funcional del panel y de la API no cambio en esta correccion.

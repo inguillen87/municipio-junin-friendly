@@ -175,3 +175,6 @@ local-agents/
 
 # Restore-safety contract used by source capacity regression tests.
 !scripts/migrations/075-restore-safe-identity-functions.sql
+
+# Read-only documentary review schema contract required by the production build tests.
+!scripts/migrations/078-legal-documentary-review.sql
