@@ -4,6 +4,8 @@ import { getActionCenterSql } from './internal-actions.js';
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import { schoolCertificateHttp } from './internal-family-certificates.js';
 import { legalUuid } from '../assets/legal-registry-model.js';
+import { documentaryReview } from '../lib/internal-documentary-review.js';
+import { documentaryInput } from '../assets/legal-documentary-review.js';
 import {
   LegalError, legalFail, legalSafeError, prepareLegalDraft,
   legalOperation, legalDownload,
@@ -71,8 +73,12 @@ function query(req, method) {
   }
   const op = q.resource;
   const fields = { bootstrap:['resource'], list:['resource','q','kind','year','page'],
-    detail:['resource','id','version'], download:['resource','id','version'], attempt:['resource','key'] }[op];
+    detail:['resource','id','version'], download:['resource','id','version'], attempt:['resource','key'], documentary_review:['resource','filter','page'] }[op];
   if (!fields || Object.keys(q).sort().join('|') !== fields.sort().join('|')) legalFail('INPUT_INVALID');
+  if (op === 'documentary_review') {
+    if (!/^[1-9][0-9]{0,2}$/.test(q.page)) legalFail('INPUT_INVALID');
+    return {op,input:documentaryInput(q.filter,+q.page)};
+  }
   if (op === 'list') {
     if (!/^[1-9][0-9]{0,2}$/.test(q.page) || +q.page > 200 || q.q.length > 160) legalFail('INPUT_INVALID');
     return {op,input:{q:q.q,kind:q.kind,year:q.year,page:+q.page}};
@@ -110,7 +116,8 @@ export function createLegalRegistryHandler(deps = {}) {
       const attempt = op === 'save' ? schoolCertificateHttp.header(req,'idempotency-key') : key;
       if (['save','attempt'].includes(op) && (!legalUuid(attempt) || attempt[14] !== '4')) legalFail('INPUT_INVALID');
       const payload = op === 'save' ? await prepareLegalDraft(await readLegalBody(req), deps.validatePdf) : input;
-      const data = await legalOperation(await (deps.getSql ?? getActionCenterSql)(env), access.principal, session, op, payload, attempt ?? null);
+      const sql = await (deps.getSql ?? getActionCenterSql)(env);
+      const data = op === 'documentary_review' ? await documentaryReview(sql,access.principal,session,payload) : await legalOperation(sql, access.principal, session, op, payload, attempt ?? null);
       if (op === 'download') {
         const bytes = legalDownload(data);
         res.setHeader('Content-Type','application/pdf');

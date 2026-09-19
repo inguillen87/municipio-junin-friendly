@@ -103,6 +103,8 @@ const shellFiles = [
   'assets/liquidaciones-menu.css',
   'juridica-registro.html',
   'assets/legal-registry-model.js',
+  'assets/legal-documentary-review.js',
+  'assets/legal-documentary-panel.js',
   'assets/legal-registry.css',
   'assets/legal-pdf-text-model.js',
   'assets/legal-pdf-text-worker.js',
