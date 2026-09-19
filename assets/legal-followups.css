@@ -12,3 +12,11 @@
 .la-shell[aria-busy=true]{cursor:progress}.la-shell nav{align-items:center}.la-shell .button{min-height:44px;white-space:normal}
 @media(max-width:700px){.la-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.la-filters label{flex-basis:100%}.la-filters .button{flex:1 1 130px}.la-shell .lf-card .button{width:100%;justify-content:center}}
 @media(max-width:360px){.la-tiles{gap:8px}.la-shell .la-tile{padding:12px}.la-shell .la-tile[aria-pressed=true]{padding:11px}.la-tile strong{font-size:1.5rem}}
+
+/* Explicit review step: full original and proposed content before any write. */
+.lf-change-review>h2{margin-top:0;line-height:1.4}.lf-change-field{border:1px solid #d5e3e4;border-radius:10px;margin:16px 0;padding:16px;min-width:0;background:#fafcfb}
+.lf-change-field h3{margin:0 0 12px;font-size:1rem;line-height:1.5}.lf-field-changed{border-left:4px solid #176e65;background:#f0f8f5}
+.lf-change-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;min-width:0}.lf-change-pair>div{min-width:0;border-radius:8px;padding:12px;background:#fff;border:1px solid #dce6e5}
+.lf-change-pair h4{font-size:.8rem;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:#526b74}.lf-change-pair p,.lf-change-reason p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:0}
+.lf-change-reason{border-top:1px solid #ccdddd;padding-top:14px;margin:20px 0}.lf-change-reason h3{font-size:1rem;line-height:1.5}.lf-change-review .lf-tools{margin-bottom:0}.lf-change-review .button:first-child{background:#176e65;color:#fff}
+@media(max-width:600px){.lf-change-pair{grid-template-columns:1fr}.lf-change-field{padding:12px}.lf-change-review .lf-tools .button{flex-basis:100%}}

@@ -1,3 +1,4 @@
+import {followupReview,reviewFieldText} from './legal-followup-review.js';
 import {FOLLOWUP_STATES,FollowupInputError,followupId,normalizeFollowup,verifyFollowupResponse,followupTiming} from './legal-followups-model.js';
 import {verifyLegalResponse,LEGAL_KINDS} from './legal-registry-model.js';
 const host=document.getElementById('followupRoot');
@@ -5,6 +6,7 @@ const API='/api/internal-legal-followups';
 if(host){if(location.search==='')import('./legal-agenda-ui.js').then(m=>m.mountLegalAgenda(host)).catch(()=>{host.textContent='No se pudo cargar la agenda. Actualizá la página.';});else void start(host);}
 async function start(root){
  let norm=null,data=null,draft=null,baseline='',pending=null,detail=null,busy=false,blocked=false,epoch=0,alive=true,message='',error=false,mode='all';
+ let originalDraft=null,reviewed=null;
  const controllers=new Set();
  const params=new URLSearchParams(location.search),normId=params.get('norma'),version=params.get('version'),focusId=params.get('seguimiento');
  const valid=followupId(normId)&&/^[1-9][0-9]{0,3}$/.test(version||'')&&+version<=1000&&((params.size===2&&focusId===null)||(params.size===3&&followupId(focusId)))&&new Set(params.keys()).size===params.size&&[...params.keys()].every(k=>['norma','version','seguimiento'].includes(k));
@@ -12,7 +14,7 @@ async function start(root){
  const button=(parent,label,fn,disabled=false)=>{const b=add(parent,'button',label,'button');b.type='button';b.disabled=busy||disabled;b.addEventListener('click',fn);return b;};
  const say=(text,isError=false)=>{message=text;error=isError;};
  const stop=()=>{epoch++;for(const c of controllers)c.abort();controllers.clear();};
- const wipe=()=>{stop();norm=null;data=null;draft=null;pending=null;detail=null;baseline='';};
+ const wipe=()=>{stop();norm=null;data=null;draft=null;pending=null;detail=null;baseline='';originalDraft=null;reviewed=null;};
  const deny=()=>{wipe();blocked=true;say('La sesión o el alcance cambió. Se descartó la información privada. Volvé a ingresar.',true);render();};
  const dirty=()=>!!draft&&JSON.stringify(draft)!==baseline;
  async function request(op,input={},attempt=null){
@@ -38,15 +40,15 @@ async function start(root){
  function begin(row=null){
   if(!data?.canManage||busy||pending)return;
   draft=row?{id:row.id,normId:row.normId,normVersion:row.normVersion,expectedVersion:row.version,title:row.title,dueDate:row.dueDate,status:row.status,note:row.note,reason:''}:{id:null,normId,normVersion:+version,expectedVersion:0,title:'',dueDate:'',status:'open',note:'',reason:''};
-  baseline=JSON.stringify(draft);detail=null;say('Prepará el seguimiento. Todavía no se guardó nada.');render();root.querySelector('[name=title]')?.focus();
+  originalDraft=row?structuredClone(row):null;reviewed=null;baseline=JSON.stringify(draft);detail=null;say('Prepará el seguimiento. Todavía no se guardó nada.');render();root.querySelector('[name=title]')?.focus();
  }
  async function open(row,edit=false){detail=null;await run(async token=>{const d=await request('detail',{id:row.id});if(token!==epoch)return;if(d.record.normId!==normId)throw Error('La referencia del seguimiento no coincide.');detail=d.record;if(data)data.canManage=d.canManage;});if(edit&&detail&&data?.canManage&&detail.version<100)begin(detail);}
- function cancel(){if(pending||busy)return;if(dirty()&&!confirm('¿Descartar los cambios sin guardar?'))return;draft=null;detail=null;baseline='';say('Formulario cerrado sin modificar registros.');render();}
+ function cancel(){if(pending||busy)return;if(dirty()&&!confirm('¿Descartar los cambios sin guardar?'))return;draft=null;detail=null;baseline='';originalDraft=null;reviewed=null;say('Formulario cerrado sin modificar registros.');render();}
  async function send(recover=false){
   if(!pending)return;const attempt=pending;
   await run(async token=>{try{const receipt=await request(recover?'attempt':'save',recover?{key:attempt.key}:attempt.body,recover?null:attempt.key);
     if(token!==epoch)return;if(receipt.recordVersion!==attempt.body.expectedVersion+1||attempt.body.id&&receipt.id!==attempt.body.id)throw Error('La confirmación no coincide con el intento.');
-    pending=null;draft=null;baseline='';detail=null;say('Guardado confirmado · revisión '+receipt.recordVersion+'.');
+    pending=null;draft=null;baseline='';detail=null;originalDraft=null;reviewed=null;say('Guardado confirmado · revisión '+receipt.recordVersion+'.');
     try{await refresh();}catch(e){if([401,403].includes(e.status))throw e;say('Guardado confirmado. No se pudo actualizar la lista; usá Actualizar antes de otra acción.',true);}
    }catch(e){if(token===epoch&&!recover&&e.status>=400&&e.status<500&&e.status!==408){pending=null;say(e.message,true);}throw e;}});
  }
@@ -61,6 +63,7 @@ async function start(root){
   const source=add(root,'a','Abrir ficha y PDF fuente','button');source.href='/juridica?'+new URLSearchParams({norma:normId,version});
   add(root,'p','Para coordinación del área: pendiente, resuelto o cancelado con motivo e historial. No evalúa vigencia, no cambia la norma y no envía avisos. No cargues documentación reservada o datos personales ajenos al circuito.','lf-boundary');
   if(pending){const panel=add(root,'section','','lf-form lf-review');add(panel,'h2',busy?'Consultando confirmación…':'Confirmación pendiente');add(panel,'p','No inicies otra carga: conservamos la misma clave para recuperar el resultado sin duplicar registros.');const controls=add(panel,'div','','lf-tools');button(controls,'Consultar este intento',()=>send(true));button(controls,'Reenviar mismo intento',()=>send(false));return;}
+  if(reviewed){renderReview();return;}
   if(draft){renderForm();return;}
   const tools=add(root,'div','','lf-tools');button(tools,'Actualizar',()=>run(async token=>{detail=null;await refresh();if(token===epoch)say('Listado actualizado.');}));
   if(data?.canManage)button(tools,'Nuevo seguimiento',()=>begin(),data.rows.length>=100);
@@ -76,13 +79,38 @@ async function start(root){
    const actions=add(card,'div','','lf-tools');button(actions,'Ver historial',()=>open(row));if(data.canManage)button(actions,'Gestionar seguimiento',()=>open(row,true),row.version>=100);
   }
  }
+ function backToDraft(){if(busy||pending)return;reviewed=null;say('Podés corregir tu propuesta. No se guardó ninguna revisión.');render();root.querySelector('[name=title]')?.focus();}
+ async function confirmReview(){
+  if(!reviewed||busy||pending||blocked)return;const selection=reviewed,token=epoch;let accepted=false;
+  await run(async()=>{const fresh=selection.body.id?await request('detail',{id:selection.body.id}):await request('list',{normId});if(token!==epoch||!alive)return;
+   if(!fresh.canManage){deny();return;}
+   if(selection.body.id&&JSON.stringify(fresh.record)!==JSON.stringify(originalDraft)){reviewed=null;throw Error('El seguimiento o su referencia cambió. Tu texto se conserva, pero no se guardó. Consultá el historial actual antes de volver a editar.');}
+   accepted=true;
+  });
+  if(!accepted||token!==epoch||!alive||blocked||reviewed!==selection)return;
+  pending={key:crypto.randomUUID(),body:selection.body};reviewed=null;void send();
+ }
+ function renderReview(){
+  const review=reviewed,panel=add(root,'section','','lf-form lf-change-review');panel.setAttribute('aria-label','Revisión previa al guardado');
+  const heading=add(panel,'h2',review.isNew?'Revisar alta del seguimiento':'Revisar cambios antes de guardar');heading.tabIndex=-1;heading.dataset.reviewHeading='';
+  add(panel,'p',review.isNew?'Se creará la revisión 1. Todavía no existe un seguimiento guardado.':`Se propone la revisión ${review.nextRevision} sobre la revisión ${review.originalRevision}. ${review.changeCount} campos cambian.`,'lf-note');
+  add(panel,'p',`La norma de referencia conserva su versión ${review.normVersion}. El motivo y el historial no se eliminan.`,'lf-boundary');
+  for(const field of review.fields){const box=add(panel,'section','','lf-change-field'+(field.changed?' lf-field-changed':''));box.dataset.reviewField=field.key;add(box,'h3',field.label+(field.changed?' · '+(review.isNew?'Nuevo':'Cambia'):' · Sin cambios'));
+   const pair=add(box,'div','','lf-change-pair');if(!review.isNew){const before=add(pair,'div','','lf-change-before');add(before,'h4','Antes');add(before,'p',reviewFieldText(field.key,field.before));}
+   const after=add(pair,'div','','lf-change-after');add(after,'h4',review.isNew?'Se registrará':'Propuesto');add(after,'p',reviewFieldText(field.key,field.after));
+  }
+  const reason=add(panel,'section','','lf-change-reason');add(reason,'h3','Motivo que quedará en el historial');add(reason,'p',review.body.reason);
+  add(panel,'p','Este cambio organiza el seguimiento interno. No modifica la norma, no emite un dictamen, no calcula un plazo legal y no envía notificaciones.','lf-note');
+  const controls=add(panel,'div','','lf-tools');button(controls,'Confirmar y guardar',confirmReview);button(controls,'Volver a editar',backToDraft);button(controls,'Descartar propuesta',cancel);
+  panel.addEventListener('keydown',e=>{if(e.key==='Escape'&&!busy){e.preventDefault();backToDraft();}});
+ }
  function renderForm(){
   const form=add(root,'form','','lf-form');add(form,'h2',draft.id?'Registrar una nueva revisión':'Preparar seguimiento');const fields=add(form,'fieldset');fields.disabled=busy;const grid=add(fields,'div','','lf-grid');
   const field=(name,label,type,max,wide=false)=>{const l=add(grid,'label',label,wide?'lf-wide':'');const node=add(l,type==='textarea'?'textarea':'input');node.name=name;if(type!=='textarea')node.type=type;node.value=draft[name];if(max)node.maxLength=max;node.required=['title','reason'].includes(name);if(type==='date'){node.min='1900-01-01';node.max='2100-12-31';}node.addEventListener('input',()=>{draft[name]=node.value;});return node;};
   field('title','Tarea o asunto','text',160,true);field('dueDate','Fecha objetivo interna (opcional)','date');const sl=add(grid,'label','Estado'),select=add(sl,'select');select.name='status';for(const [k,v]of Object.entries(FOLLOWUP_STATES)){if(!draft.id&&k!=='open')continue;const o=add(select,'option',v);o.value=k;}select.value=draft.status;select.onchange=()=>{draft.status=select.value;};
   field('note','Nota de trabajo (opcional)','textarea',2000,true);field('reason','Motivo del alta o del cambio','text',500,true);add(fields,'p',`Se conservará la norma v${draft.normVersion}. Resolver o cancelar no borra su historial.`,'lf-note');
   const controls=add(fields,'div','','lf-tools');const submit=button(controls,'Revisar y confirmar',()=>{});submit.type='submit';button(controls,'Cancelar',cancel);
-  form.onsubmit=e=>{e.preventDefault();if(busy)return;try{const body=normalizeFollowup({...draft,title:draft.title.trim(),note:draft.note.trim(),reason:draft.reason.trim()});if(!confirm(`¿Confirmar ${body.id?'una nueva revisión':'el alta'} de «${body.title}»?\nEstado: ${FOLLOWUP_STATES[body.status]}\nFecha objetivo: ${body.dueDate||'Sin fecha'}\nMotivo: ${body.reason}\nNo modifica la norma ni calcula plazos legales.`))return;draft=body;pending={key:crypto.randomUUID(),body};void send();}catch(e){say(e instanceof FollowupInputError?e.message:'Revisá el formulario.',true);render();}};
+  form.onsubmit=e=>{e.preventDefault();if(busy)return;try{draft=normalizeFollowup({...draft,title:draft.title.trim(),note:draft.note.trim(),reason:draft.reason.trim()});reviewed=followupReview(draft,originalDraft);say('Revisá el contenido completo antes de confirmar. Todavía no se guardó nada.');render();root.querySelector('[data-review-heading]')?.focus();}catch(e){say(e.message||'Revisá el formulario.',true);render();}};
  }
  const before=e=>{if(dirty()||pending){e.preventDefault();e.returnValue='';}};
  const pagehide=()=>{alive=false;wipe();root.replaceChildren();};
