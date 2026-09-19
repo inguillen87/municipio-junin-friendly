@@ -19,7 +19,7 @@ jobs:
           node-version-file: .nvmrc
       - name: Execute registered jobs without retrieving source bytes
         run: node scripts/trigger-payroll-private-delivery.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: private-delivery-receipts

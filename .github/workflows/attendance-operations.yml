@@ -45,7 +45,7 @@ jobs:
         run: git diff --exit-code -- api/internal-attendance.js relojes-marcaciones.html scripts/build-friendly.mjs
       - name: Prepare tracked source snapshot (no runtime data or credentials)
         run: git archive --format=tar.gz -o attendance-source-snapshot.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: attendance-source-snapshot
           path: attendance-source-snapshot.tar.gz
@@ -66,7 +66,7 @@ jobs:
         run: node scripts/verify-clock-production.mjs
       - name: Verify dashboard and optional amount deployment
         run: node scripts/verify-clock-dashboard-production.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: clock-production-smoke
           path: |

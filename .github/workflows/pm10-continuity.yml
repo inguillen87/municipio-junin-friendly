@@ -81,7 +81,7 @@ jobs:
           node scripts/verify-action-history-browser.mjs
       - name: React catalog synthetic browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: report-catalog-react-validation
           path: |

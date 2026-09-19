@@ -87,7 +87,7 @@ jobs:
         run: |
           git diff > verification/pending-changes.patch
           git archive --format=tar.gz -o verification/summary-055-source.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: summary-055-acceptance
@@ -112,7 +112,7 @@ jobs:
         env:
           SUMMARY_LIVE_ASSETS: '1'
         run: node scripts/verify-payroll-summary-055.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: summary-055-production-verification
