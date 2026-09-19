@@ -41,3 +41,9 @@ Durante QA se detectó que la página publicada y la plantilla embebida conserva
 La promoción se hace en un solo commit, sin nuevos workflows, dependencias, planes o recursos de cómputo. Después de Vercel se verifica el SHA activo, cinco módulos/estilos y el HTML publicado frente a la compilación local; se exige 401 anónimo y se repite el recorrido con assets publicados e interceptación de API privada. El resultado de esa verificación se registra separadamente: el éxito local no es por sí mismo una publicación.
 
 Reversión: revertir exclusivamente esta entrega de aplicación, sin deshacer cambios concurrentes. No hay una migración o registros municipales que revertir. El acceso al servidor, la instalación del colector, las restantes identidades de relojes, las novedades aprobadas de asistencia y la liquidación autónoma siguen siendo cierres distintos.
+
+## Corrección del empaquetado de Vercel
+
+El primer despliegue no llegó a activarse: la exclusión general de archivos HTML impedía que la prueba de coherencia leyera `assets/clock-dashboard-panel.html` y `assets/workday-panel.html`. Se añadieron excepciones sólo para esos dos fragmentos de código y una prueba específica de esa inclusión. Se conserva la exclusión general; no se incorporan HTML privados ni se elimina la prueba de consistencia. Esto requiere un segundo commit correctivo, no otro cambio funcional ni una reinstalación de bases.
+
+La compilación completa después de corregir el empaquetado terminó con **3.810 pruebas aprobadas, cero fallos, omisiones o cancelaciones**: se agregó un control de inclusión respecto de las 3.809 anteriores. No cambiaron el motor, la interfaz o los recorridos de navegador por esta corrección. El pase productivo sólo se declara después de verificar el nuevo despliegue y sus archivos publicados.

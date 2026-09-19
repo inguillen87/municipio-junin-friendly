@@ -82,3 +82,11 @@ test('cause classification module is shipped with the panel, without adding pers
  const fs=await import('node:fs/promises');assert.match(await fs.readFile('scripts/build-friendly.mjs','utf8'),/'assets\/workday-review-causes.js'/);
  assert.doesNotMatch(await fs.readFile('assets/workday-review-causes.js','utf8'),/\bfetch\s*\(|localStorage|sessionStorage|indexedDB|innerHTML/);
 });
+test('deployment includes the two source-only workday templates without lifting the HTML exclusion',async()=>{
+ const fs=await import('node:fs/promises');const rules=(await fs.readFile('.vercelignore','utf8')).split(/\r?\n/).map(s=>s.trim());
+ assert.ok(rules.includes('*.html'));
+ assert.ok(rules.includes('!assets/clock-dashboard-panel.html'));
+ assert.ok(rules.includes('!assets/workday-panel.html'));
+ assert.equal(rules.includes('!*.html'),false);
+ assert.equal(rules.includes('!assets/*.html'),false);
+});

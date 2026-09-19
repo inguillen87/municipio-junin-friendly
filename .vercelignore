@@ -181,3 +181,7 @@ local-agents/
 # Native normative follow-up page and reviewed source-only schema contract.
 !internal-legal-followups.html
 !scripts/migrations/079-native-legal-followups.sql
+
+# Non-private HTML fragments required by the workday template consistency tests.
+!assets/clock-dashboard-panel.html
+!assets/workday-panel.html
