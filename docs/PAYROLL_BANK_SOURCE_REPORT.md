@@ -24,3 +24,9 @@ Revertir la publicación a la versión anterior deja el almacén aditivo preserv
 ## Verificación
 
 Las pruebas cubren filtros completos, precisión decimal, XLSX legible, PDF completo, respuesta tardía, error transitorio, fuente cambiada, sesión revocada y ausencia de permisos. Los ensayos de PostgreSQL se ejecutan en la restauración local existente; sus fuentes y salidas nominales permanecen privadas. Los fixtures de CI son sintéticos.
+
+## Incremento del 19/09/2026: conciliación y paquete de control
+
+La planilla ahora contrasta CBU compartidos, netos ausentes/cero/negativos y agrupaciones completas por banco/jurisdicción. El botón Descargar paquete de control reúne Excel, PDF, conciliación, observaciones y manifiesto de integridad con una sola revalidación. Las observaciones completas se preservan aunque se filtre a un solo legajo. Detalle y evidencia: [NOELIA_BANK_CONTROL_PACKAGE_20260919.md](NOELIA_BANK_CONTROL_PACKAGE_20260919.md).
+
+Es un paquete de CONTROL INTERNO, no una remesa de pago: no contiene TXT de acreditación homologado, no aprueba ni envía transferencias. Se conservan los pendientes del Proyecto Integral y la fuente bancaria de origen.

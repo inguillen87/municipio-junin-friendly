@@ -1,4 +1,5 @@
 import { storedZip } from './clock-dashboard-zip.js';
+import {bankReportReconciliation,bankControlNotes} from './payroll-bank-reconciliation.js';
 import { monthlyExcelDecimal, monthlyPdfLines } from './payroll-monthly-summary-export.js';
 import { bankReportFilter, bankNames, accountNames, bankAccountLabel, bankObservations, bankMoney } from './payroll-bank-generator-model.js';
 
@@ -16,6 +17,7 @@ function checked(data, view, when) {
   if (selected.rows.length !== view.rows.length || selected.rows.some((row, index) => row !== view.rows[index])) throw Error('El filtro no corresponde a la fuente consultada.');
 }
 export function bankControlRows(data, view, when) {
+  const review=bankReportReconciliation(data);
   return [['Control y procedencia', 'Valor'], ['Reporte', 'Planilla bancaria · control interno'], ['Uso', 'No es un archivo bancario de pago. No ordena transferencias ni acredita pagos.'],
     ['Período de imputación', data.dataset.period], ['Fecha de liquidación', data.dataset.date], ['Tipo de liquidación', data.dataset.type],
     ['Fuente de nómina', data.dataset.sourceLabel], ['ID de liquidación', data.dataset.datasetId], ['SHA-256 de nómina', data.dataset.sourceSha256], ['Huella del contenido de nómina', data.dataset.payloadHash],
@@ -27,6 +29,9 @@ export function bankControlRows(data, view, when) {
     ['Filas de la liquidación', String(data.rows.length)], ['Filas exportadas', String(view.rows.length)], ['Con observaciones', String(view.observed)], ['Netos ausentes', String(view.missingAmounts)],
     ['Neto del filtro', view.total === null ? 'No evaluable: hay netos ausentes' : bankMoney(view.total)], ['Suma de netos informados', bankMoney(view.knownTotal)],
     ['Cobertura', 'Se incluyen todas las filas del filtro, no sólo la página visible. No certifica todas las liquidaciones del mes.'],
+    ['Control completo · CBU compartidos', String(review.sharedCbuGroups)+' grupos / '+review.sharedCbuRows+' legajos; revisar, no implica irregularidad'],
+    ['Control completo · netos cero/negativos', String(review.zeroNetRows)+' cero / '+review.negativeNetRows+' negativos; importes conservados'],
+    ['Contrastes', 'Los CBU compartidos se detectan sobre toda la liquidación, incluso si el filtro muestra un solo legajo. No autorizan ni bloquean por sí solos un pago.'],
     ['Tipos de cuenta', 'Se conservan los códigos originales. Un tipo no verificado no se presume caja de ahorro ni cuenta corriente.'],
     ['Jurisdicción', 'Corresponde al historial disponible para la corrida; no se reconstruye con el reparto actual.'],
     ['Precisión Excel', 'CBU, cuentas, CUIL y códigos son texto. Netos de hasta 15 cifras significativas son numéricos; importes mayores quedan como texto exacto.']];
@@ -47,8 +52,10 @@ function sheet(rows, widths, filter = false) {
 }
 export function bankReportXlsx(data, view, when) {
   checked(data, view, when);
+  const review=bankReportReconciliation(data);
+  const observations=row=>[bankObservations(row),bankControlNotes(review,row)].filter(Boolean).join(' · ');
   const rows = [['Legajo', 'Apellido y nombre', 'CUIL', 'Banco código', 'Banco', 'Tipo cuenta código', 'Tipo de cuenta', 'Cuenta', 'CBU', 'Jurisdicción', 'Repartición código', 'Repartición', 'Neto a pagar en origen', 'Observaciones'],
-    ...view.rows.map(row => [shown(row.legajo), shown(row.name), shown(row.cuil), shown(row.bankCode), shown(row.bankLabel), shown(row.accountTypeCode), accountNames[row.accountType] || 'Sin verificar', shown(row.accountNumber), shown(row.cbu), shown(row.jurisdiction), shown(row.repartitionCode), shown(row.repartitionLabel), exactExcelMoney(row.netAmount), bankObservations(row)])];
+    ...view.rows.map(row => [shown(row.legajo), shown(row.name), shown(row.cuil), shown(row.bankCode), shown(row.bankLabel), shown(row.accountTypeCode), accountNames[row.accountType] || 'Sin verificar', shown(row.accountNumber), shown(row.cbu), shown(row.jurisdiction), shown(row.repartitionCode), shown(row.repartitionLabel), exactExcelMoney(row.netAmount), observations(row)])];
   const summary = [['Banco', 'Jurisdicción', 'Repartición código', 'Repartición', 'Filas', 'Con observaciones', 'Neto informado'], ...groups(data, view).map(group => [shown(group.bank), shown(group.jurisdiction), shown(group.code), shown(group.label), String(group.count), String(group.observed), exactExcelMoney(group.total)])];
   const tables = [sheet(rows, [12, 36, 18, 14, 22, 16, 23, 24, 29, 16, 18, 32, 25, 55], true), sheet(summary, [22, 18, 18, 36, 12, 20, 27], true), sheet(bankControlRows(data, view, when), [36, 110])], names = ['Planilla', 'Resumen', 'Control'];
   const styles = '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00;[Red]-#,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><name val="Calibri"/><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF143849"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf fontId="0" fillId="0" borderId="0" xfId="0"><alignment wrapText="1" vertical="center"/></xf><xf fontId="1" fillId="2" borderId="0" xfId="0"><alignment wrapText="1" vertical="center"/></xf><xf fontId="0" fillId="0" borderId="0" xfId="0" numFmtId="164" applyNumberFormat="1"><alignment wrapText="1" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
@@ -61,6 +68,8 @@ export function bankReportXlsx(data, view, when) {
 
 export function bankReportPdf(data, view, when) {
   checked(data, view, when);
+  const review=bankReportReconciliation(data);
+  const observations=row=>[bankObservations(row),bankControlNotes(review,row)].filter(Boolean).join(' · ');
   const pages = []; let ops, y, activeTitle = '';
   const winAnsi = { 0x20ac: 128, 0x2026: 133, 0x2018: 145, 0x2019: 146, 0x201c: 147, 0x201d: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2212: 45 };
   const hex = value => '<' + [...String(value)].map(char => {
@@ -117,7 +126,7 @@ export function bankReportPdf(data, view, when) {
     reference('B', shown(row.bankCode) + ' · ' + shown(row.bankLabel)),
     reference('T', bankAccountLabel(row)), shown(row.accountNumber), shown(row.cbu),
     reference('R', shown(row.jurisdiction) + ' · ' + shown(row.repartitionCode) + ' · ' + shown(row.repartitionLabel)),
-    bankMoney(row.netAmount), bankObservations(row).split(' · ').map(value => reference('O', value)).join(', ')]);
+    bankMoney(row.netAmount), observations(row).split(' · ').map(value => reference('O', value)).join(', ')]);
   table('Todas las filas · B/T/R/O: ver leyenda de códigos', ['Legajo', 'Nombre', 'CUIL', 'Banco', 'Tipo', 'Cuenta', 'CBU', 'Jur. / rep.', 'Neto en origen', 'Obs.'], nominal, [41, 167, 75, 40, 32, 70, 116, 40, 105, 92], true);
   table('Leyenda completa · códigos de la planilla', ['Código', 'Dato', 'Descripción exacta'], legend, [10, 25, 95], true);
   const control = bankControlRows(data, view, when); table('Fuentes y alcance', control[0], control.slice(1), [31, 100]);

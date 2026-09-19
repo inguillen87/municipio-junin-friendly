@@ -1,6 +1,9 @@
 import { bankReportData, bankReportFilter, bankReportRevision, bankNames, bankMoney, bankAccountLabel, bankObservations } from './payroll-bank-generator-model.js';
 import { bankReportXlsx, bankReportPdf } from './payroll-bank-generator-export.js';
 import { monthlyType } from './payroll-monthly-summary-model.js';
+import {bankReportReconciliation,bankControlNotes,assertBankReportUnchanged} from './payroll-bank-reconciliation.js';
+import {bankControlPackage} from './payroll-bank-control-package.js';
+import {renderBankReview} from './payroll-bank-review-panel.js';
 
 const API = '/api/internal-payroll-bank-report';
 const PAGE_SIZE = 50;
@@ -28,13 +31,14 @@ export function mountPayrollBankGenerator(host) {
       <div class="rc-filter pbg-filters"><label>Banco<select data-pbg-bank><option value="all">Todos los bancos</option><option value="credicoop">Credicoop</option><option value="santander">Santander</option><option value="nacion">Nación</option><option value="unknown">Sin identificar</option></select></label><label>Jurisdicción<select data-pbg-jurisdiction><option value="all">Todas</option></select></label><label>Tipo de cuenta<select data-pbg-account><option value="all">Todos los tipos</option><option value="caja_ahorro">Caja de ahorro verificada</option><option value="cuenta_corriente">Cuenta corriente verificada</option><option value="unknown">Tipo sin verificar</option></select></label><label>Control<select data-pbg-issues><option value="all">Todas las filas</option><option value="observed">Con observaciones</option><option value="informed">Sin observaciones informadas</option></select></label><label>Buscar persona o repartición<input type="search" data-pbg-search maxlength="100" placeholder="Legajo, nombre, CUIL o repartición"></label></div>
       <p class="pbg-note" data-pbg-account-note>Los tipos sin verificar conservan el código original. La cuenta no se reconstruye ni se completa manualmente.</p>
       <div class="rc-kpis"><div><span>Filas del filtro</span><strong data-pbg-count></strong></div><div><span>Neto del filtro</span><strong data-pbg-total></strong><small data-pbg-missing></small></div><div><span>Con observaciones</span><strong data-pbg-observed></strong></div></div>
-      <div class="rc-downloads"><button type="button" class="rc-button" data-pbg-export="xlsx">Descargar Excel de control</button><button type="button" class="rc-button secondary" data-pbg-export="pdf">Descargar PDF</button></div>
+      <section data-pbg-reconcile class="pbg-reconcile" aria-label="Conciliación de la liquidación completa"></section>
+      <div class="rc-downloads"><button type="button" class="rc-button" data-pbg-export="package">Descargar paquete de control</button><button type="button" class="rc-button secondary" data-pbg-export="xlsx">Descargar Excel de control</button><button type="button" class="rc-button secondary" data-pbg-export="pdf">Descargar PDF</button></div>
       <p data-pbg-range></p><div class="rc-table-wrap pbg-table" tabindex="0" role="region" aria-label="Personas y cuentas bancarias, desplazable"><table class="rc-table"><caption class="pbg-sr">Detalle de todas las filas de la liquidación disponibles para filtrar</caption><thead><tr><th scope="col">Legajo / persona</th><th scope="col">CUIL</th><th scope="col">Banco / cuenta</th><th scope="col">CBU</th><th scope="col">Jurisdicción / repartición</th><th scope="col">Neto en origen</th><th scope="col">Observaciones</th></tr></thead><tbody data-pbg-rows></tbody></table></div>
       <div class="pbg-pagination"><button class="rc-button secondary" data-pbg-prev type="button">Anterior</button><p data-pbg-page></p><button class="rc-button secondary" data-pbg-next type="button">Siguiente</button></div>
       <details class="pbg-trace"><summary>Ver fuentes exactas y alcance</summary><p data-pbg-trace></p><p>El neto corresponde al dato de la liquidación. La jurisdicción corresponde al historial disponible para esa corrida; un dato ausente no se completa con el reparto actual.</p><p>Las observaciones se conservan en ambas descargas. No se excluyen cuentas incompletas ni se consideran pagos aprobados.</p></details>
     </section>`;
   const $ = selector => host.querySelector(selector), status = $('[data-pbg-status]'), result = $('[data-pbg-result]');
-  let catalog = null, data = null, busy = false, generation = 0, controller = null, page = 1, when = null, suspended = false;
+  let catalog = null, data = null, reconciliation = null, busy = false, generation = 0, controller = null, page = 1, when = null, suspended = false;
   const available = () => !suspended && host.isConnected && !host.closest('[hidden]') && document.visibilityState !== 'hidden';
   const filters = () => ({ bank: $('[data-pbg-bank]').value, jurisdiction: $('[data-pbg-jurisdiction]').value, account: $('[data-pbg-account]').value, issues: $('[data-pbg-issues]').value, search: $('[data-pbg-search]').value });
   const view = () => bankReportFilter(data, filters());
@@ -47,7 +51,7 @@ export function mountPayrollBankGenerator(host) {
     $('[data-pbg-next]').disabled = busy || !data || page >= Math.ceil(view().rows.length / PAGE_SIZE);
   }
   function cancel() { generation++; controller?.abort(); controller = null; busy = false; }
-  function clearResult() { data = null; when = null; result.hidden = true; $('[data-pbg-rows]').replaceChildren(); $('[data-pbg-trace]').textContent = ''; }
+  function clearResult() { data = null; reconciliation=null; when = null; result.hidden = true; $('[data-pbg-rows]').replaceChildren(); $('[data-pbg-reconcile]').replaceChildren(); for(const key of ['trace','source','period','date','cutoff','count','total','missing','observed','range','page'])$('[data-pbg-'+key+']').textContent=''; }
   function start() { cancel(); busy = true; controller = new AbortController(); controls(); return { seq: generation, signal: controller.signal }; }
   const valid = job => job.seq === generation && available();
   async function read(resource, job, datasetId) {
@@ -99,7 +103,7 @@ export function mountPayrollBankGenerator(host) {
     const rows = selected.rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(row => {
       const tr = node('tr'), identity = node('th'); identity.scope = 'row'; identity.append(node('strong', shown(row.legajo)), node('span', shown(row.name))); tr.append(identity, node('td', shown(row.cuil), 'pbg-code'));
       const account = node('td'); account.append(node('strong', shown(row.bankLabel)), node('span', bankAccountLabel(row)), node('span', 'Cuenta ' + shown(row.accountNumber), 'pbg-code')); tr.append(account, node('td', shown(row.cbu), 'pbg-code'));
-      tr.append(node('td', shown(row.jurisdiction) + ' · ' + shown(row.repartitionCode) + ' · ' + shown(row.repartitionLabel)), node('td', bankMoney(row.netAmount), 'pbg-money'), node('td', bankObservations(row))); return tr;
+      tr.append(node('td', shown(row.jurisdiction) + ' · ' + shown(row.repartitionCode) + ' · ' + shown(row.repartitionLabel)), node('td', bankMoney(row.netAmount), 'pbg-money'), node('td', [bankObservations(row),bankControlNotes(reconciliation,row)].filter(Boolean).join(' · '))); return tr;
     });
     if (!rows.length) { const tr = node('tr'), td = node('td', 'No hay filas para este filtro. Cambiá banco, jurisdicción, tipo o búsqueda.'); td.colSpan = 7; tr.append(td); rows.push(tr); }
     $('[data-pbg-rows]').replaceChildren(...rows); result.hidden = false; controls();
@@ -112,6 +116,7 @@ export function mountPayrollBankGenerator(host) {
       const old = $('[data-pbg-jurisdiction]').value, choices = [...new Set(data.rows.map(row => row.jurisdiction).filter(value => value !== null))].sort();
       $('[data-pbg-jurisdiction]').replaceChildren(new Option('Todas', 'all'), ...choices.map(value => new Option('Jurisdicción ' + value, value)), new Option('No informada', 'unknown'));
       if (choices.includes(old) || old === 'unknown') $('[data-pbg-jurisdiction]').value = old;
+      reconciliation=bankReportReconciliation(data);renderBankReview($('[data-pbg-reconcile]'),reconciliation);
       accountOptions(); render(); status.textContent = 'Planilla generada desde la fuente. Revisá las observaciones y descargá el resultado del filtro.';
     } catch (error) { if (valid(job)) failure(error); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }
@@ -129,12 +134,14 @@ export function mountPayrollBankGenerator(host) {
     const original = data, selected = view(), queried = when, job = start(); status.dataset.error = ''; status.textContent = 'Verificando permiso y fuente antes de descargar…';
     try {
       const fresh = await read('report', job, original.dataset.datasetId); if (!valid(job)) return;
-      if (bankReportRevision(fresh) !== bankReportRevision(original)) throw Object.assign(Error('Fuente modificada'), { code: 'SOURCE_CHANGED' });
-      const format = button.dataset.pbgExport, bytes = format === 'pdf' ? bankReportPdf(original, selected, queried) : bankReportXlsx(original, selected, queried);
+      assertBankReportUnchanged(original,fresh);
+      const format = button.dataset.pbgExport;
+      const bundle = format==='package' ? await bankControlPackage(original,selected,queried,{signal:job.signal}) : null;
+      const bytes = bundle ? bundle.bytes : format === 'pdf' ? bankReportPdf(original, selected, queried) : bankReportXlsx(original, selected, queried);
       if (!valid(job)) return;
-      const url = URL.createObjectURL(new Blob([bytes], { type: format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), a = node('a');
-      a.href = url; a.download = 'municontrol_planilla-bancaria_' + original.dataset.period + '_' + original.dataset.datasetId.slice(0, 8) + '.' + format; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
-      status.textContent = (format === 'pdf' ? 'PDF' : 'Excel de control') + ' generado con ' + selected.rows.length + ' filas del filtro y sus observaciones.';
+      const url = URL.createObjectURL(new Blob([bytes], { type: bundle ? 'application/zip' : format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), a = node('a');
+      a.href = url; a.download = bundle ? bundle.filename : 'municontrol_planilla-bancaria_' + original.dataset.period + '_' + original.dataset.datasetId.slice(0, 8) + '.' + format; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+      status.textContent = bundle ? 'Paquete de control generado con '+selected.rows.length+' filas del filtro. Incluye Excel, PDF, conciliación completa y manifiesto. SHA-256: '+bundle.sha256+'. No es una remesa de pago.' : (format === 'pdf' ? 'PDF' : 'Excel de control') + ' generado con ' + selected.rows.length + ' filas del filtro y sus observaciones.';
     } catch (error) { if (valid(job)) failure(error, error.code !== 'SOURCE_CHANGED'); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }));
   function hidden() { if (available()) return; cancel(); clearResult(); controls(); status.textContent = 'Generá nuevamente la planilla para continuar.'; }

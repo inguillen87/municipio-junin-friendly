@@ -37,7 +37,8 @@ function storedZip(entries) {
   let localOffset = 0;
   for (const [name, text] of entries) {
     const nameBytes = encoder.encode(name);
-    const data = encoder.encode(text);
+    if (typeof text !== 'string' && !(text instanceof Uint8Array)) throw new TypeError('ZIP_ENTRY_MUST_BE_TEXT_OR_BYTES');
+    const data = typeof text === 'string' ? encoder.encode(text) : text;
     const checksum = crc32(data);
     const localHeader = new Uint8Array(30);
     const localView = new DataView(localHeader.buffer);
