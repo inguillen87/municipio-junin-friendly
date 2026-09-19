@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Requires a dedicated local account, approved host config and local queues prepared by municipal IT.
+[Unit]
+Description=MuniControl municipal clock coordinator
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=municontrol-clock
+Group=municontrol-clock
+WorkingDirectory=/opt/municontrol
+ExecStartPre=/opt/municontrol/runtime/node /opt/municontrol/app/clock-fleet/gateway.mjs check --config /etc/municontrol/gateway.json
+ExecStart=/opt/municontrol/runtime/node /opt/municontrol/app/clock-fleet/gateway.mjs run --config /etc/municontrol/gateway.json
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=60
+TimeoutStopSec=45
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/municontrol/clock-gateway
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

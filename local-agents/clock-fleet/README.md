@@ -34,3 +34,7 @@ Clave rechazada, serie diferente, transferencia incompleta y estados corruptos c
 `capture-policy.mjs` y `operator-help.mjs` son dependencias de esta versión del supervisor y panel. El instalador `scripts/install-fleet-capture-release.mjs` actualiza sólo esos dos archivos y runner/overview, verificando manifiesto, archivos anteriores y copia privada de recuperación. No cambia servicios, tareas, colas, claves ni el lector de PM-10. Las tareas ya registradas cargan la versión nueva en el siguiente ciclo.
 
 El panel local incluye conteos de equipos, capturas guardadas y revisiones pendientes; explica la diferencia entre espera de red, reintento antes de sesión y bloqueo de protocolo. Las cifras no se anuncian como conectividad en vivo. El envío de los equipos adicionales a Neon sigue sin estar configurado por esta entrega.
+
+## Host municipal permanente - 19/09/2026
+
+Se agrega un coordinador de los workers existentes y preparacion de arranque sin usuario interactivo; alcance y transferencia en [MUNICIPAL_HOST.md](MUNICIPAL_HOST.md). El preflight informa explicitamente cuantos lectores y remitentes estan configurados. No agrega ni habilita el remitente ZK40 de los nuevos equipos, no instala nada en el municipio y no certifica por si solo autonomia 24/7. La captura/cola/sender anterior permanece compatible, sin cambiar sus claves o formatos.

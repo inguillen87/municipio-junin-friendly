@@ -3,7 +3,12 @@
   "control.mjs": "255ae56aaf40a9496d23ecc60093b70495421f78a0ce858d61cbde791218e4f8",
   "overview.mjs": "a71256550b05761ad0c27da06e9c6e6ecbdd85834bf95b3258b22d5e349b4b64",
   "install-user-windows.ps1": "6e4c6f7b1b234d1ebc6eeb3d181d7f56864c75ae2de58c226388d4908d8d8d0f",
-  "README.md": "7b84f909a2c00247a0574ca67eb0f5493e4e18abdaf3d0767bf299ee64304260",
+  "README.md": "f404d338778b492566aa265a1ffd9960ed112e1a6ee8142403858f5ebc313534",
   "capture-policy.mjs": "298b4ff9c682c978dc98e2afa0293f260dd4fd931c8e3b2916bb0a2f413b4807",
-  "operator-help.mjs": "3ff2a7cd67599034cac732586e69269b7bd66becaccadda80351ec7109826e60"
+  "operator-help.mjs": "3ff2a7cd67599034cac732586e69269b7bd66becaccadda80351ec7109826e60",
+  "gateway.mjs": "04202ae2f5b7efb1400f99cd39319c580e81617d5dcf03448d93dad1671948d4",
+  "gateway-config.mjs": "9d63170744365c102375ee9f65b83ffd5a654ca15c86c711d2a34fb7b4a4b82b",
+  "install-machine-windows.ps1": "f9e850b90de65dc72b7ef714ab43296988f60c89992616cfd574adbb29483baf",
+  "municontrol-clock-gateway.service": "743e8b6762cc990bbe0e8cb3df21dd2c359152a52d383f9cec8d677a768cc530",
+  "MUNICIPAL_HOST.md": "9d24c5c59931be24300d11a79289a183c1d3ae18b11d72e3572d7e16132fbd56"
 }

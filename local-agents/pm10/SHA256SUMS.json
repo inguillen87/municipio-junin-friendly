@@ -42,5 +42,6 @@
   "tests/user-supervisor.test.mjs": "7bf7a99a236ebccab06211af5f810b698fb8749b21f7d3a0da5b43f802e7b14a",
   "tests/user-watchdog-windows.integration.ps1": "c5b634bec0c37a2f8ea6d485f7181b8870386c70c7629b35461e787a2997f9e2",
   "user-supervisor.mjs": "7fcd4675bd3a016c36563a451000919d18c8406a3bf0acf660069f57274ba8a0",
-  "tests/metadata-inspection.test.mjs": "b1b5d1d591244334037eb5b5e64a01ed9bc8ce0b58572d3e2f0de79375937745"
+  "tests/metadata-inspection.test.mjs": "b1b5d1d591244334037eb5b5e64a01ed9bc8ce0b58572d3e2f0de79375937745",
+  "tests/fleet-gateway.test.mjs": "13bc0dbe71db83e0951fa75bf80b217f2b38f8fd4102263f750c4832312c4da8"
 }

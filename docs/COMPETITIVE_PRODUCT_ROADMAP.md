@@ -1,5 +1,7 @@
 # MuniControl — hoja de ruta competitiva GovTech
 
+> Seguimiento 19/09/2026: el estado de agosto conservado abajo es una linea base historica, no el estado actual de produccion. El plan transversal actualizado y los criterios de aceptacion de relojes/Hugo/Noelia/Mariano estan en [Proyecto integral Junin](PROYECTO_INTEGRAL_JUNIN_20260919.md); el cierre operativo de esta entrega, en [Continuidad y host municipal](CLOCK_HOST_RECOVERY_RELEASE_20260919.md).
+
 **Versión de análisis:** 2026-08-21
 
 **Producto de referencia:** MuniControl Friendly, Municipio de Junín, Mendoza
