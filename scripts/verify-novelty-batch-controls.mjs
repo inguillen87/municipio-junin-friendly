@@ -1,0 +1,89 @@
+/** Real workbench and draft parser; all private requests, including POSTs, use synthetic fixtures. */
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {setTimeout as sleep} from 'node:timers/promises';
+import {chromium} from 'playwright';
+import {NOVELTY_CSV_HEADER, noveltyBatchControl} from '../assets/payroll-novelty-review.js';
+const live=process.argv.includes('--published');
+const origin=live?'https://municipio-junin-friendly.vercel.app':'https://municontrol.test';
+const root=path.resolve('public'),out='verification/novelty-batch-controls-'+(live?'published':'local');
+fs.mkdirSync(out,{recursive:true});
+const checks=[],errors=[],posts=[];
+const files=['assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css'];
+if(live){
+  const hash=bytes=>createHash('sha256').update(bytes).digest('hex');let matched=false;
+  for(let i=0;i<90;i++){
+    try{for(const file of files){const r=await fetch(origin+'/'+file,{cache:'no-store',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200);assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(fs.readFileSync(path.join(root,file))));}matched=true;break;}
+    catch{if(i<89)await sleep(5000);}
+  }
+  assert.ok(matched,'Published assets must match the tested revision');
+  const response=await fetch(origin+'/api/internal-payroll-novelties?resource=bootstrap',{signal:AbortSignal.timeout(15000)});
+  assert.equal(response.status,401);checks.push('published bytes match and anonymous novelty API is rejected');
+}
+let canPrepare=true,rejectNext=false;
+const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',capabilities:canPrepare?['payroll.novelty.prepare']:[]},
+  limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
+const values=Array.from({length:60},(_,i)=>[String(6001+i%30),i<30?'44':'144','',i%5===0?'2026-08':'','1',['','0','-2,50','100,01'][i%4],'standard','Acta sintética QA','Fundamento sintético para revisión',i%4===3?'SI':'NO']);
+const csv=NOVELTY_CSV_HEADER.join(';')+'\r\n'+values.map(row=>row.map(v=>'"'+v.replaceAll('"','""')+'"').join(';')).join('\r\n')+'\r\n';
+const browser=await chromium.launch({headless:true});let page;
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,serviceWorkers:'block',locale:'es-AR'});
+ await context.route('**/*',async route=>{
+  const request=route.request(),u=new URL(request.url());if(u.origin!==origin)return route.abort();
+  if(u.pathname.startsWith('/api/')){
+   if(u.pathname==='/api/internal-payroll-novelties'){
+    if(request.method()==='POST'){
+     assert.ok(canPrepare,'Revoked prepare must not POST');posts.push({body:request.postDataJSON(),key:request.headers()['idempotency-key']});
+     if(rejectNext){rejectNext=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética perdida'}});}
+     return route.fulfill({json:{ok:true,data:{id:'00000000-0000-4000-8000-000000000003'}}});
+    }
+    return route.fulfill({json:bootstrap()});
+   }
+   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read'],platformCapabilities:[],platformRoles:[]}}});
+   return route.fulfill({json:{ok:true,data:[]}});
+  }
+  if(live)return route.continue();
+  const file=path.resolve(root,'.'+decodeURIComponent(u.pathname));
+  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
+  return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream'});
+ });
+ page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
+ const preview=page.locator('#previewPanel'),table=page.locator('#previewRows');
+ await page.goto(origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.locator('#periodMonth').fill('2026-09');await page.locator('[name=sourceMode][value=bulk]').check();
+ const validate=async()=>{await page.locator('#bulkSource').fill(csv);await page.locator('#preflightButton').click();await preview.waitFor({state:'visible'});};
+ await validate();assert.equal(posts.length,0);assert.equal(await table.locator('[data-review-row]').count(),25);
+ assert.match(await page.locator('#reviewValuation').innerText(),/60 filas.*1\.462,65.*15 filas sin importe/);
+ await page.locator('#reviewConceptControl > summary').click();assert.equal(await page.locator('#reviewConceptRows tr').count(),2);
+ checks.push('complete 60-row control preserves null, signed amounts and two concepts without a request to save');
+ await page.getByRole('button',{name:'Ver filas del concepto 44',exact:true}).click();assert.equal(await page.locator('#reviewConcept').inputValue(),'44');assert.match(await page.locator('#reviewRange').innerText(),/de 30/);
+ assert.equal(await page.locator('#prepareButton').isEnabled(),true);assert.match(await page.locator('#reviewValuation').innerText(),/60 filas/);
+ for(const [kind,count]of [['zero',8],['negative',7],['adjustment',6]]){await page.locator('#reviewKind').selectOption(kind);assert.equal(await table.locator('[data-review-row]').count(),count);}
+ checks.push('exact concept selection and zero/negative/adjustment filters never change the whole-draft counts or save scope');
+ const pending=page.waitForEvent('download');await page.locator('#reviewControlDownload').click();const download=await pending;await download.saveAs(out+'/control-synthetic.csv');
+ const downloaded=fs.readFileSync(out+'/control-synthetic.csv','utf8');assert.match(downloaded,/"LOTE";"Todos";"60";"30"/);assert.match(downloaded,/"CONCEPTO";"144";"30"/);assert.doesNotMatch(downloaded,/6001|Fundamento sintético/);
+ assert.equal(posts.length,0);checks.push('CSV export covers all concepts despite the active filter and contains no nominal identities or free text');
+ await page.locator('#reviewReset').click();await page.locator('#reviewConcept').selectOption('144');await page.locator('#reviewKind').selectOption('missing');assert.equal(await table.locator('[data-review-row]').count(),7);
+ checks.push('concept 44 never matches 144 and missing amounts do not include explicit zero');
+ await page.locator('#reviewReset').click();
+ for(const width of [1440,390,320]){await page.setViewportSize({width,height:width>700?1000:844});await page.emulateMedia({reducedMotion:'reduce'});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page overflow at '+width);
+  assert.ok(await page.locator('#reviewControlDownload').evaluate(n=>n.getBoundingClientRect().height>=44));
+  await preview.screenshot({path:out+'/control-'+width+'-synthetic.png'});
+ }checks.push('desktop, 390px and 320px keep the summary, table region and touch controls usable');
+ await page.locator('#reviewSearch').fill('no-result-qa');assert.equal(await table.locator('[data-review-row]').count(),0);assert.equal(await page.locator('#prepareButton').isEnabled(),true);
+ rejectNext=true;await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'No se pudo preparar'}).waitFor();await page.locator('#prepareButton:enabled').waitFor();
+ await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'Lote creado y auditado'}).waitFor();
+ assert.equal(posts.length,2);assert.equal(posts[0].key,posts[1].key);assert.deepEqual(posts[0].body,posts[1].body);assert.equal(posts[1].body.payload.rows.length,60);assert.equal(posts[1].body.command,'prepare');
+ const summary=noveltyBatchControl(posts[1].body.payload.rows);assert.equal(summary.knownAmountCents,'146265');assert.equal(summary.missing,15);assert.equal(summary.forced,15);
+ checks.push('empty filtered view still saves the original 60 rows once per idempotency key, with no amount rewriting');
+ await validate();await page.locator('#bulkSource').fill('invalid');assert.equal(await page.locator('#reviewConceptRows tr').count(),0);assert.equal(await page.locator('#reviewValuation').innerText(),'');assert.equal(await page.locator('#reviewConcept option').count(),0);
+ checks.push('editing the source purges summary, concept choices and the previous validated snapshot');
+ await validate();canPrepare=false;await page.locator('#refreshButton').click();await page.locator('#readOnlySection:visible').waitFor();assert.equal(await page.locator('#reviewConceptRows tr').count(),0);assert.equal(await page.locator('#reviewValuation').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+ checks.push('revoking preparation rights clears the controls together with the existing draft');assert.deepEqual(errors,[]);
+ const report={ok:true,checksPassed:checks.length,checks,liveAssets:live,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,realMunicipalWrites:0,realMunicipalSessionTested:false};
+ fs.writeFileSync(out+'/result.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}catch(e){fs.writeFileSync(out+'/error.txt',String(e.stack));if(page)await page.screenshot({path:out+'/failure.png'}).catch(()=>{});throw e;}
+finally{await browser.close();}

@@ -1,4 +1,4 @@
-import { noveltyReviewPage, noveltyIssuesCsv } from './payroll-novelty-review.js';
+import { noveltyReviewPage, noveltyIssuesCsv, noveltyBatchControl, noveltyControlCsv, NOVELTY_REVIEW_KINDS } from './payroll-novelty-review.js';
 const el = (tag, text, cls) => {
   const n = document.createElement(tag);
   if (text !== undefined) n.textContent = text;
@@ -13,20 +13,21 @@ const amount = value => {
 };
 
 export function mountNoveltyReviewPanel(host) {
-  let rows = null, page = 1;
+  let rows = null, page = 1, fullControl = null;
   const controls = el('div', undefined, 'novelty-review-controls');
   controls.dataset.reviewOnly = 'true';
   const kpis = el('div', undefined, 'novelty-review-kpis'); kpis.id = 'reviewCounts';
   const search = el('input'); search.type = 'search'; search.maxLength = 100; search.id = 'reviewSearch';
   search.placeholder = 'Legajo, concepto o fundamento';
+  const concept = el('select'); concept.id = 'reviewConcept';
   const kind = el('select'); kind.id = 'reviewKind';
-  for (const [value, label] of [['all', 'Todas las filas'], ['missing', 'Sin importe informado'], ['manual', 'Con importe informado'], ['forced', 'Forzadas']]) {
+  for (const [value, label] of Object.entries(NOVELTY_REVIEW_KINDS)) {
     const option = el('option', label); option.value = value; kind.append(option);
   }
   const size = el('select'); size.id = 'reviewPageSize';
   for (const n of [25, 50, 100]) { const option = el('option', String(n)); option.value = String(n); size.append(option); }
   const filters = el('div', undefined, 'novelty-review-filters');
-  for (const [name, input] of [['Buscar en el lote', search], ['Mostrar', kind], ['Filas por página', size]]) {
+  for (const [name, input] of [['Buscar en el lote', search], ['Concepto exacto', concept], ['Mostrar', kind], ['Filas por página', size]]) {
     const label = el('label', name); label.append(input); filters.append(label);
   }
   const reset = button('Limpiar filtros', 'reviewReset'); filters.append(reset);
@@ -41,9 +42,45 @@ export function mountNoveltyReviewPanel(host) {
   const range = el('span'); range.id = 'reviewRange'; range.setAttribute('role', 'status'); range.setAttribute('aria-live', 'polite');
   nav.append(previous, range, next); host.append(nav);
   const body = host.querySelector('tbody');
+  const totals = el('p', undefined, 'novelty-control-totals'); totals.id = 'reviewValuation';
+  const summaryBox = el('details', undefined, 'novelty-control'); summaryBox.id = 'reviewConceptControl';
+  const summaryTitle = el('summary', 'Control de todos los conceptos'); summaryBox.append(summaryTitle);
+  const explanation = el('p', 'La suma es aritmética de los importes escritos, no el neto salarial ni una valoración de las unidades. No se suman horas y porcentajes. Los legajos pueden aparecer en varios conceptos; no sumes esos conteos como personas distintas.', 'panel-note');
+  const summaryWrap = el('div', undefined, 'table-wrap'); summaryWrap.tabIndex = 0;
+  summaryWrap.setAttribute('role', 'region'); summaryWrap.setAttribute('aria-label', 'Control del lote completo por concepto');
+  const summaryTable = el('table'), summaryHead = el('thead'), summaryHeader = el('tr');
+  const caption = el('caption', 'Lote completo antes de guardar. Los filtros de abajo no cambian este control.');
+  for (const label of ['Concepto', 'Filas / legajos', 'Importes informados', 'Sin importe', 'Forzadas', 'Cero / negativos', 'Mes de ajuste', 'Revisar']) {
+    const th = el('th', label); th.scope = 'col'; summaryHeader.append(th);
+  }
+  const summaryBody = el('tbody'); summaryBody.id = 'reviewConceptRows';
+  summaryHead.append(summaryHeader); summaryTable.append(caption, summaryHead, summaryBody); summaryWrap.append(summaryTable);
+  const exportControl = button('Descargar control previo · CSV', 'reviewControlDownload');
+  summaryBox.append(explanation, summaryWrap, exportControl); kpis.after(totals, summaryBox);
+  exportControl.addEventListener('click', () => {
+    if (!rows || host.hidden || !host.isConnected || exportControl.disabled) return;
+    const url = URL.createObjectURL(new Blob([noveltyControlCsv(rows)], { type: 'text/csv;charset=utf-8' }));
+    const a = el('a'); a.href = url; a.download = 'municontrol_control_previo_novedades.csv';
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
+  function renderControl() {
+    totals.textContent = `Lote completo: ${fullControl.rows} filas · Suma aritmética informada: ${amount(fullControl.knownAmountCents)} · ${fullControl.missing ? `${fullControl.missing} filas sin importe: cobertura parcial` : 'Todos los importes informados'}. No es el neto de una liquidación.`;
+    summaryTitle.textContent = `Control por concepto · ${fullControl.concepts.length} conceptos · ${fullControl.adjustments} filas con mes de ajuste`;
+    summaryBody.replaceChildren();
+    for (const c of fullControl.concepts) {
+      const tr = el('tr'); tr.dataset.reviewConcept = c.conceptSourceId;
+      const th = el('th', c.conceptSourceId); th.scope = 'row'; tr.append(th);
+      for (const text of [`${c.rows} filas / ${c.distinctLegajos} legajos`, `${amount(c.knownAmountCents)}${c.missing ? ' · parcial' : ''}`, c.missing, c.forced, `${c.zero} / ${c.negative}`, c.adjustments]) tr.append(el('td', String(text)));
+      const td = el('td'), open = el('button', 'Ver filas', 'button compact'); open.type = 'button';
+      open.dataset.reviewConceptOpen = c.conceptSourceId; open.setAttribute('aria-label', 'Ver filas del concepto ' + c.conceptSourceId);
+      open.addEventListener('click', () => { concept.value = c.conceptSourceId; search.value = ''; kind.value = 'all'; page = 1; render(); range.tabIndex = -1; range.focus(); });
+      td.append(open); tr.append(td); summaryBody.append(tr);
+    }
+  }
+
   function render() {
     if (!rows) return;
-    const view = noveltyReviewPage(rows, { search: search.value, kind: kind.value, page, pageSize: Number(size.value) });
+    const view = noveltyReviewPage(rows, { search: search.value, kind: kind.value, concept: concept.value, page, pageSize: Number(size.value) });
     page = view.page;
     kpis.replaceChildren();
     for (const [label, value] of [['Filas del lote', view.total], ['Legajos distintos', view.distinctLegajos], ['Sin importe informado', view.missing], ['Forzadas', view.forced]]) {
@@ -69,13 +106,18 @@ export function mountNoveltyReviewPanel(host) {
     }
     if (!view.filtered) { const tr = el('tr'), td = el('td', 'No hay filas para este filtro. Limpiá los filtros para revisar el lote completo.'); td.colSpan = 7; tr.append(td); body.append(tr); }
   }
-  for (const input of [search, kind, size]) input.addEventListener(input === search ? 'input' : 'change', () => { page = 1; render(); });
-  reset.addEventListener('click', () => { search.value = ''; kind.value = 'all'; page = 1; render(); });
+  for (const input of [search, concept, kind, size]) input.addEventListener(input === search ? 'input' : 'change', () => { page = 1; render(); });
+  reset.addEventListener('click', () => { search.value = ''; concept.value = 'all'; kind.value = 'all'; page = 1; render(); });
   previous.addEventListener('click', () => { page--; render(); }); next.addEventListener('click', () => { page++; render(); });
   return {
     render,
-    setRows(value) { rows = value; page = 1; search.value = ''; kind.value = 'all'; render(); host.hidden = false; },
-    clear() { rows = null; page = 1; body.replaceChildren(); kpis.replaceChildren(); range.textContent = ''; search.value = ''; kind.value = 'all'; host.querySelector('#previewCaption').textContent = ''; note.textContent = ''; host.hidden = true; },
+    setRows(value) {
+      this.clear(); fullControl = noveltyBatchControl(value); rows = value.map(row => Object.freeze({ ...row }));
+      const all = el('option', 'Todos los conceptos'); all.value = 'all'; concept.append(all);
+      for (const c of fullControl.concepts) { const option = el('option', `${c.conceptSourceId} · ${c.rows} filas`); option.value = c.conceptSourceId; concept.append(option); }
+      concept.value = 'all'; renderControl(); render(); host.hidden = false;
+    },
+    clear() { rows = null; fullControl = null; page = 1; summaryBox.open = false; summaryBody.replaceChildren(); summaryTitle.textContent = 'Control de todos los conceptos'; totals.textContent = ''; concept.replaceChildren(); body.replaceChildren(); kpis.replaceChildren(); range.textContent = ''; search.value = ''; kind.value = 'all'; host.querySelector('#previewCaption').textContent = ''; note.textContent = ''; host.hidden = true; },
   };
 }
 

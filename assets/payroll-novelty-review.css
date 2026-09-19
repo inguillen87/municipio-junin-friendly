@@ -38,3 +38,17 @@
   body[data-mc-page="payroll-novelties"] .field select,
   body[data-mc-page="payroll-novelties"] .field textarea {min-width:0;}
 }
+
+/* Full-draft concept review stays separate from the filtered row preview. */
+#previewPanel .novelty-control { min-width:0;max-width:none;width:100%;box-sizing:border-box;border:1px solid #c7dedd;border-radius:12px;padding:14px 16px;margin:14px 0 20px;background:#f5faf9; }
+#previewPanel .novelty-control summary { min-height:44px;line-height:1.5;overflow-wrap:anywhere; }
+#previewPanel .novelty-control .table-wrap { max-height:360px;max-width:100%;background:#fff;margin:12px 0; }
+#previewPanel .novelty-control table { min-width:760px;width:100%; }
+#previewPanel .novelty-control th,#previewPanel .novelty-control td { white-space:normal;vertical-align:top; }
+#previewPanel .novelty-control caption { text-align:left;padding:12px;font-size:12px;color:#3e6268; }
+#previewPanel .novelty-control .button { min-height:44px;white-space:normal; }
+.novelty-control-totals { border-left:4px solid #197e76;background:#eef8f5;border-radius:6px;padding:12px 16px;line-height:1.6;font-size:13px;overflow-wrap:anywhere; }
+#reviewControlDownload { margin-top:4px;max-width:100%; }
+#reviewRange:focus { outline:3px solid #b27a24;outline-offset:4px; }
+@media(max-width:400px) { #previewPanel .novelty-control { padding:10px; } #reviewControlDownload { width:100%; } }
+@media print { #reviewControlDownload,[data-review-concept-open] { display:none!important; } }
