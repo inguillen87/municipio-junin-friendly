@@ -52,3 +52,8 @@
 #reviewRange:focus { outline:3px solid #b27a24;outline-offset:4px; }
 @media(max-width:400px) { #previewPanel .novelty-control { padding:10px; } #reviewControlDownload { width:100%; } }
 @media print { #reviewControlDownload,[data-review-concept-open] { display:none!important; } }
+
+/* Keep the per-concept action reachable in the first column on small screens. */
+#reviewConceptRows th[scope="row"] { min-width:112px; }
+#reviewConceptRows th[scope="row"] .button { margin-top:8px; font-size:12px; }
+#previewPanel .novelty-control .table-wrap:focus-visible { outline:3px solid #b27a24; outline-offset:3px; }

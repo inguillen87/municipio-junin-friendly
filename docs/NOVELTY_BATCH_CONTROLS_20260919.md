@@ -27,3 +27,15 @@ El nuevo recorrido verifica el desglose de 60 filas, filtro exacto entre 44/144,
 ## Límites y continuidad
 
 Esta fase mejora preparación y revisión, no activa cálculo salarial propio, descuentos automáticos, homologación bancaria, cierre de septiembre ni cambio de base. La infraestructura VPN continúa separada: no se contrató servidor ni se modificaron colectores, certificados o conexiones. Los pendientes de Mariano y del Proyecto Integral siguen vigentes.
+
+## Correccion de la regresion y cierre local del 19/09
+
+El log de GitHub Actions identifico el fallo concreto: la prueba de caducidad esperaba la ruta canonica /acceso, pero el workbench redirigia a login.html?next=novedades-nomina.html. Se corrigio el codigo funcional para usar el registro de rutas compartido (loginHref/canonicalHref), conservando destino /novedades, rechazo de sesiones y permisos. No se cambio ni desactivo la asercion de navegador para aceptar una direccion equivocada.
+
+Se agregaron dos pruebas de navegacion y se repitio todo con Node 24.21.0 del proyecto: **3.793 pruebas aprobadas, cero fallos, omisiones o cancelaciones**, compilacion completa aprobada. Los 21 controles del verificador previo y los ocho del nuevo workbench pasaron localmente. Los POST de creacion y reintento permanecieron interceptados; no se guardaron novedades municipales.
+
+En moviles, el boton Ver filas de cada concepto se movio a la primera columna. Asi queda accesible sin desplazar la tabla hasta su extremo derecho; se conserva el scroll horizontal interno de la tabla, el foco y la estructura semantica. Se revisaron capturas sinteticas a 390 px y se repitieron los recorridos 1440/390/320 px.
+
+El job candidato de GitHub y el pase a master se verifican aparte antes de anunciar produccion. La nueva comprobacion de navegador publicada compara los tres assets de revision; el verificador anterior cubre los recursos y la navegacion del workbench. El intento de ampliar por otro archivo los controles de publicacion fue bloqueado por la herramienta y no se aplico; no se presenta como ejecutado.
+
+El analisis de costo cero para el colector se registra en CLOCK_ZERO_COST_OPTIONS_20260919.md. No se habilitaron proveedores, tarjetas, VPN, cron ni cuentas de reloj durante este cierre.

@@ -1,3 +1,4 @@
+import './app-routes.js';
 import { createEmployeePicker } from './employee-picker.js';
 import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
@@ -10,7 +11,7 @@ import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 
 const API_URL = '/api/internal-payroll-novelties';
-const LOGIN_URL = 'login.html?next=novedades-nomina.html';
+const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
 const MAX_ROWS = 500;
 const PAYROLL_NOVELTY_HANDOFF_KEY = 'municontrol.payroll-novelty-handoff.v1';
 const PAYROLL_NOVELTY_HANDOFF_MAX_AGE_MS = 5 * 60 * 1000;
@@ -1060,7 +1061,7 @@ async function logout() {
     await fetch('/api/internal-auth', { method: 'DELETE', credentials: 'same-origin' });
   } finally {
     sessionStorage.removeItem('mjunin_user');
-    location.replace('login.html');
+    location.replace(globalThis.MuniControlRoutes.canonicalHref('login.html'));
   }
 }
 

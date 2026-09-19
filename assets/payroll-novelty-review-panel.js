@@ -50,7 +50,7 @@ export function mountNoveltyReviewPanel(host) {
   summaryWrap.setAttribute('role', 'region'); summaryWrap.setAttribute('aria-label', 'Control del lote completo por concepto');
   const summaryTable = el('table'), summaryHead = el('thead'), summaryHeader = el('tr');
   const caption = el('caption', 'Lote completo antes de guardar. Los filtros de abajo no cambian este control.');
-  for (const label of ['Concepto', 'Filas / legajos', 'Importes informados', 'Sin importe', 'Forzadas', 'Cero / negativos', 'Mes de ajuste', 'Revisar']) {
+  for (const label of ['Concepto', 'Filas / legajos', 'Importes informados', 'Sin importe', 'Forzadas', 'Cero / negativos', 'Mes de ajuste']) {
     const th = el('th', label); th.scope = 'col'; summaryHeader.append(th);
   }
   const summaryBody = el('tbody'); summaryBody.id = 'reviewConceptRows';
@@ -71,10 +71,10 @@ export function mountNoveltyReviewPanel(host) {
       const tr = el('tr'); tr.dataset.reviewConcept = c.conceptSourceId;
       const th = el('th', c.conceptSourceId); th.scope = 'row'; tr.append(th);
       for (const text of [`${c.rows} filas / ${c.distinctLegajos} legajos`, `${amount(c.knownAmountCents)}${c.missing ? ' · parcial' : ''}`, c.missing, c.forced, `${c.zero} / ${c.negative}`, c.adjustments]) tr.append(el('td', String(text)));
-      const td = el('td'), open = el('button', 'Ver filas', 'button compact'); open.type = 'button';
+      const open = el('button', 'Ver filas', 'button compact'); open.type = 'button';
       open.dataset.reviewConceptOpen = c.conceptSourceId; open.setAttribute('aria-label', 'Ver filas del concepto ' + c.conceptSourceId);
       open.addEventListener('click', () => { concept.value = c.conceptSourceId; search.value = ''; kind.value = 'all'; page = 1; render(); range.tabIndex = -1; range.focus(); });
-      td.append(open); tr.append(td); summaryBody.append(tr);
+      th.append(el('br'), open); summaryBody.append(tr);
     }
   }
 
