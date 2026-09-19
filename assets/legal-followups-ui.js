@@ -2,12 +2,12 @@ import {FOLLOWUP_STATES,FollowupInputError,followupId,normalizeFollowup,verifyFo
 import {verifyLegalResponse,LEGAL_KINDS} from './legal-registry-model.js';
 const host=document.getElementById('followupRoot');
 const API='/api/internal-legal-followups';
-if(host)void start(host);
+if(host){if(location.search==='')import('./legal-agenda-ui.js').then(m=>m.mountLegalAgenda(host)).catch(()=>{host.textContent='No se pudo cargar la agenda. Actualizá la página.';});else void start(host);}
 async function start(root){
  let norm=null,data=null,draft=null,baseline='',pending=null,detail=null,busy=false,blocked=false,epoch=0,alive=true,message='',error=false,mode='all';
  const controllers=new Set();
- const params=new URLSearchParams(location.search),normId=params.get('norma'),version=params.get('version');
- const valid=followupId(normId)&&/^[1-9][0-9]{0,3}$/.test(version||'')&&+version<=1000&&params.size===2&&new Set(params.keys()).size===2;
+ const params=new URLSearchParams(location.search),normId=params.get('norma'),version=params.get('version'),focusId=params.get('seguimiento');
+ const valid=followupId(normId)&&/^[1-9][0-9]{0,3}$/.test(version||'')&&+version<=1000&&((params.size===2&&focusId===null)||(params.size===3&&followupId(focusId)))&&new Set(params.keys()).size===params.size&&[...params.keys()].every(k=>['norma','version','seguimiento'].includes(k));
  const add=(parent,tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined&&text!==null)node.textContent=String(text);if(cls)node.className=cls;parent.append(node);return node;};
  const button=(parent,label,fn,disabled=false)=>{const b=add(parent,'button',label,'button');b.type='button';b.disabled=busy||disabled;b.addEventListener('click',fn);return b;};
  const say=(text,isError=false)=>{message=text;error=isError;};
@@ -31,7 +31,8 @@ async function start(root){
   await run(async token=>{
    const c=new AbortController();controllers.add(c);const timer=setTimeout(()=>c.abort(),25000);
    try{const r=await fetch('/api/internal-legal-registry?'+new URLSearchParams({resource:'detail',id:normId,version}),{credentials:'same-origin',cache:'no-store',signal:c.signal});const payload=await r.json();if(!r.ok||!payload?.ok)throw Object.assign(Error('No se pudo verificar la norma de referencia.'),{status:r.status});const verified=verifyLegalResponse('detail',payload.data).record;if(verified.id!==normId||verified.version!==+version)throw Error('Referencia documental no verificada.');if(token!==epoch||!alive)return;norm=verified;}finally{clearTimeout(timer);controllers.delete(c);}
-   await refresh();if(token===epoch)say('Seguimientos internos consultados. Las fechas objetivo no son vencimientos legales ni generan notificaciones.');
+   await refresh();if(token===epoch&&focusId){if(!data.rows.some(r=>r.id===focusId))throw Error('El seguimiento solicitado no pertenece a esta norma o ya no está disponible.');const focused=await request('detail',{id:focusId});if(token===epoch&&focused.record.normId===normId){detail=focused.record;data.canManage=focused.canManage;}}
+   if(token===epoch)say('Seguimientos internos consultados. Las fechas objetivo no son vencimientos legales ni generan notificaciones.');
   });
  }
  function begin(row=null){
@@ -39,7 +40,7 @@ async function start(root){
   draft=row?{id:row.id,normId:row.normId,normVersion:row.normVersion,expectedVersion:row.version,title:row.title,dueDate:row.dueDate,status:row.status,note:row.note,reason:''}:{id:null,normId,normVersion:+version,expectedVersion:0,title:'',dueDate:'',status:'open',note:'',reason:''};
   baseline=JSON.stringify(draft);detail=null;say('Prepará el seguimiento. Todavía no se guardó nada.');render();root.querySelector('[name=title]')?.focus();
  }
- async function open(row,edit=false){await run(async token=>{const d=await request('detail',{id:row.id});if(token!==epoch)return;if(d.record.normId!==normId)throw Error('La referencia del seguimiento no coincide.');detail=d.record;if(data)data.canManage=d.canManage;});if(edit&&detail&&data?.canManage&&detail.version<100)begin(detail);}
+ async function open(row,edit=false){detail=null;await run(async token=>{const d=await request('detail',{id:row.id});if(token!==epoch)return;if(d.record.normId!==normId)throw Error('La referencia del seguimiento no coincide.');detail=d.record;if(data)data.canManage=d.canManage;});if(edit&&detail&&data?.canManage&&detail.version<100)begin(detail);}
  function cancel(){if(pending||busy)return;if(dirty()&&!confirm('¿Descartar los cambios sin guardar?'))return;draft=null;detail=null;baseline='';say('Formulario cerrado sin modificar registros.');render();}
  async function send(recover=false){
   if(!pending)return;const attempt=pending;
@@ -56,6 +57,7 @@ async function start(root){
   if(!norm){if(!busy)button(root,'Reintentar consulta',initialize);return;}
   add(root,'p',`${LEGAL_KINDS[norm.kind]} ${norm.number}/${norm.year} · ${norm.metadata.title}`,'lf-source');
   add(root,'p',`Versión de referencia ${version} de ${norm.currentVersion}${+version<norm.currentVersion?' · Referencia histórica':''}. Cada seguimiento conserva la versión que lo originó.`,'lf-note');
+  const agenda=add(root,'a','Volver a la agenda del área','button');agenda.href='/internal-legal-followups.html';
   const source=add(root,'a','Abrir ficha y PDF fuente','button');source.href='/juridica?'+new URLSearchParams({norma:normId,version});
   add(root,'p','Para coordinación del área: pendiente, resuelto o cancelado con motivo e historial. No evalúa vigencia, no cambia la norma y no envía avisos. No cargues documentación reservada o datos personales ajenos al circuito.','lf-boundary');
   if(pending){const panel=add(root,'section','','lf-form lf-review');add(panel,'h2',busy?'Consultando confirmación…':'Confirmación pendiente');add(panel,'p','No inicies otra carga: conservamos la misma clave para recuperar el resultado sin duplicar registros.');const controls=add(panel,'div','','lf-tools');button(controls,'Consultar este intento',()=>send(true));button(controls,'Reenviar mismo intento',()=>send(false));return;}
@@ -65,7 +67,7 @@ async function start(root){
   if(!data)return;
   const filterLabel=add(tools,'label','Estado ');const filter=add(filterLabel,'select',null,'lf-filter');filter.setAttribute('aria-label','Filtrar seguimientos por estado');for(const [key,label]of Object.entries({all:'Todos',...FOLLOWUP_STATES})){const o=add(filter,'option',label);o.value=key;}filter.value=mode;filter.disabled=busy;filter.onchange=()=>{mode=filter.value;render();};
   add(root,'p',`${data.rows.length} seguimientos registrados · Fecha de referencia: ${data.today.split('-').reverse().join('/')} (Mendoza).`,'lf-note');
-  if(detail){const history=add(root,'section','','lf-form lf-history');add(history,'h2','Historial del seguimiento');add(history,'h3',detail.title);button(history,'Cerrar historial',()=>{detail=null;render();});const ol=add(history,'ol');for(const h of detail.history){const li=add(ol,'li');add(li,'strong',`Revisión ${h.version} · ${FOLLOWUP_STATES[h.status]}`);add(li,'p',h.title);add(li,'p','Fecha objetivo: '+(h.dueDate||'Sin fecha'));add(li,'p',h.note||'Sin nota');add(li,'p','Motivo: '+h.reason);add(li,'small',`${h.recordedBy} · ${new Date(h.recordedAt).toLocaleString('es-AR',{timeZone:'America/Argentina/Mendoza'})}`);}}
+  if(detail){const history=add(root,'section','','lf-form lf-history');add(history,'h2','Historial del seguimiento');add(history,'h3',detail.title);if(data.canManage&&detail.version<100)button(history,'Gestionar este seguimiento',()=>begin(detail));button(history,'Cerrar historial',()=>{detail=null;render();});const ol=add(history,'ol');for(const h of detail.history){const li=add(ol,'li');add(li,'strong',`Revisión ${h.version} · ${FOLLOWUP_STATES[h.status]}`);add(li,'p',h.title);add(li,'p','Fecha objetivo: '+(h.dueDate||'Sin fecha'));add(li,'p',h.note||'Sin nota');add(li,'p','Motivo: '+h.reason);add(li,'small',`${h.recordedBy} · ${new Date(h.recordedAt).toLocaleString('es-AR',{timeZone:'America/Argentina/Mendoza'})}`);}}
   const cards=add(root,'div','','lf-cards'),rows=data.rows.filter(r=>mode==='all'||r.status===mode);
   if(!rows.length)add(cards,'p',data.rows.length?'No hay seguimientos con este estado.':'Todavía no hay seguimientos registrados para esta norma.','lf-alert');
   for(const row of rows){const card=add(cards,'article','','lf-card');card.dataset.followupId=row.id;const timing=followupTiming(row,data.today);

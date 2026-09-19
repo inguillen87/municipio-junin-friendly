@@ -7,6 +7,7 @@ import {strictLegalJson} from './internal-legal-registry.js';
 import {legalContext,legalSafeError} from '../lib/internal-legal-registry.js';
 import {followupId,normalizeFollowup,verifyFollowupResponse,FollowupInputError} from '../assets/legal-followups-model.js';
 export const config={api:{bodyParser:false}};
+import {verifyAgenda} from '../assets/legal-agenda-model.js';
 const LIMIT=16000;
 const ERRORS={INPUT_INVALID:[422,'Revisá los datos del seguimiento.'],NOT_FOUND:[404,'No se encontró el seguimiento o la norma dentro de tu acceso.'],VERSION_CONFLICT:[409,'El seguimiento cambió. Conservá tu texto, consultá el historial y abrí la versión actual.'],SOURCE_IMMUTABLE:[422,'La norma y su versión de referencia no se cambian.'],IDEMPOTENCY_CONFLICT:[409,'La clave ya pertenece a otro contenido. Consultá el intento original.'],CAPACITY:[409,'Se alcanzó el límite inicial de seguimientos o revisiones. No se eliminó información.'],NO_CHANGE:[422,'No hay cambios en el título, fecha, estado o nota.'],BUSY:[409,'Otra operación está en curso. Reintentá con la misma información.']};
 function fail(){throw new FollowupInputError();}
@@ -14,6 +15,7 @@ export function followupQuery(req){
  const q=req.query||{},u=new URL(req.url||'','http://local.invalid').searchParams;
  if(Object.values(q).some(v=>typeof v!=='string')||u.size!==Object.keys(q).length||new Set(u.keys()).size!==u.size||[...u].some(([k,v])=>q[k]!==v))fail();
  if(req.method==='POST'){if(u.size)fail();return{op:'save',input:{}};}
+ if(q.resource==='agenda'){if(Object.keys(q).length!==1)fail();return{op:'agenda',input:{}};}
  const allowed={list:['resource','normId'],detail:['resource','id'],attempt:['resource','key']}[q.resource];
  if(!allowed||Object.keys(q).sort().join('|')!==allowed.sort().join('|'))fail();
  if(q.resource==='list'){if(!followupId(q.normId))fail();return{op:'list',input:{normId:q.normId}};}
@@ -39,9 +41,9 @@ export function createLegalFollowupHandler(deps={}){const env=deps.env??process.
   if(writing&&(!followupId(attempt)||attempt[14]!=='4'))fail();
   const payload=op==='save'?await followupBody(req):input;
   const sql=await(deps.getSql??getActionCenterSql)(env);
-  const rows=await sql.query('SELECT public.legal_followup_operation_v1($1::jsonb,$2::text,$3::jsonb,$4::uuid) AS result',[JSON.stringify(context),op,JSON.stringify(payload),attempt??null]);
+  const rows=op==='agenda'?await sql.query('SELECT public.legal_followup_agenda_v1($1::jsonb) AS result',[JSON.stringify(context)]):await sql.query('SELECT public.legal_followup_operation_v1($1::jsonb,$2::text,$3::jsonb,$4::uuid) AS result',[JSON.stringify(context),op,JSON.stringify(payload),attempt??null]);
   const raw=(Array.isArray(rows)?rows:rows?.rows)?.[0]?.result;let data;
-  try{data=verifyFollowupResponse(op,raw);if(op==='list'&&data.normId!==payload.normId||op==='detail'&&data.record.id!==payload.id||op==='save'&&payload.id&&data.id!==payload.id)throw Error('SCOPE');}catch{throw Error('FOLLOWUP_RESPONSE_INVALID');}
+  try{data=op==='agenda'?verifyAgenda(raw):verifyFollowupResponse(op,raw);if(op==='list'&&data.normId!==payload.normId||op==='detail'&&data.record.id!==payload.id||op==='save'&&payload.id&&data.id!==payload.id)throw Error('SCOPE');}catch{throw Error('FOLLOWUP_RESPONSE_INVALID');}
   if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(op==='save'&&!data.replayed?201:200).json({ok:true,data});
  }catch(e){
   if(e instanceof FollowupInputError)return res.status(422).json({ok:false,code:'FOLLOWUP_INPUT_INVALID',error:e.message});

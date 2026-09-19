@@ -185,3 +185,6 @@ local-agents/
 # Non-private HTML fragments required by the workday template consistency tests.
 !assets/clock-dashboard-panel.html
 !assets/workday-panel.html
+
+# Read-only agenda function source required for regression checks.
+!scripts/migrations/080-legal-followup-agenda.sql
