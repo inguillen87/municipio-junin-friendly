@@ -24,7 +24,7 @@ export function mountDocumentaryReview(host,{onDenied=()=>{}}={}){
    add(card,'span',`${LEGAL_KINDS[row.kind]} ${row.number}/${row.year} · ${row.issuer} · Versión ${row.version}`,'ldr-meta');add(card,'h3',row.title);
    const labels=Object.keys(row.flags).filter(k=>row.flags[k]).map(k=>DOCUMENTARY_FILTERS[k]);add(card,'p',labels.join(' · ')||'Sin campos ausentes entre los revisados. Esto no certifica completitud jurídica.','ldr-flags');
    const link=add(card,'a','Abrir ficha de esta versión','button');link.href=documentaryReference(row);link.dataset.documentaryOpen=row.id;
-   const follow=add(card,'a','Seguimientos internos','button');follow.href='/internal-legal-followups.html?'+new URLSearchParams({norma:row.id,version:String(row.version)});follow.setAttribute('data-requires-any-capability','legal.norm.read');
+   const follow=add(card,'a','Seguimientos internos','button');follow.href='/internal-legal-followups.html?'+new URLSearchParams({norma:row.id,version:String(row.version)});follow.setAttribute('data-requires-any-capability','legal.norm.read');const matter=add(card,'a','Crear asunto jur?dico','button');matter.href='/internal-legal-matters.html?'+new URLSearchParams({norma:row.id,version:String(row.version)});matter.setAttribute('data-requires-any-capability','legal.norm.read');
   }
   const nav=add(results,'nav','','ldr-pagination');nav.setAttribute('aria-label','Páginas de revisión documental');
   const prev=add(nav,'button','Anterior','button');prev.type='button';prev.disabled=busy||data.page<=1;prev.addEventListener('click',()=>load(data.filter,data.page-1));

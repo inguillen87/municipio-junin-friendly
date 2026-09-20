@@ -192,3 +192,7 @@ local-agents/
 # Legal coordination surface and reviewed schema contract.
 !internal-legal-coordination.html
 !scripts/migrations/081-legal-coordination.sql
+
+# Native legal matter workflow and reviewed schema contract.
+!internal-legal-matters.html
+!scripts/migrations/082-legal-matters.sql

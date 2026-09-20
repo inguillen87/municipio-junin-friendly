@@ -10,6 +10,7 @@
     'juridica-registro.html': { any: ['legal.norm.read'] },
     'internal-legal-followups.html': { any: ['legal.norm.read'] },
     'internal-legal-coordination.html': { any: ['legal.norm.read'] },
+    'internal-legal-matters.html': { any: ['legal.norm.read'] },
     'centro-acciones.html': { any: ['actions.read'] },
     'fuentes-tiempo.html': { any: ['time.source.read', 'time.catalog.read'] },
     'relojes-marcaciones.html': { any: ['attendance.read'] },
