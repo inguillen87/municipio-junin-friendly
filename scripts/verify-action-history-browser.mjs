@@ -10,7 +10,14 @@ if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://munici
 const origin = publishedOrigin ?? 'https://municontrol.test', base = path.resolve('public'), out = path.resolve('verification');
 const mode = publishedOrigin ? 'published_assets_with_synthetic_api' : 'local_build_with_synthetic_api';
 fs.mkdirSync(out, { recursive: true });
-const checks = [], errors = [], requests = [], publishedAssets = new Set(), publishedFailures = new Set();
+const checks = [], errors = [], requests = [], publishedAssets = new Set(), publishedFailures = new Map();
+function publicFailureDetails() {
+  return [...publishedFailures].map(([asset, error]) => ({ asset, name: error.name, message: error.message, code: error.code ?? null,
+    cause: error.cause ? { name: error.cause.name, message: error.cause.message, code: error.cause.code ?? null } : null }));
+}
+function writeFailureReport(error, phase) {
+  fs.writeFileSync(path.join(out, 'action-history-browser.json'), JSON.stringify({ ok: false, mode, phase, checksPassed: checks.length, publishedAssetsMatch: publishedOrigin ? false : null, failedPublicAssets: [...publishedFailures.keys()], publicAssetFailures: publicFailureDetails(), error: { name: error.name, message: error.message, code: error.code ?? null }, syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false }, null, 2));
+}
 let detailStatus = 200, detailCode = '', delayDetail = null, inconsistentCommands = true, invalidContext = false, legacy = false, payrollEscalation = false;
 async function publicAsset(url, expected) {
   assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app'); assert.ok(!url.pathname.startsWith('/api/'));
@@ -24,14 +31,15 @@ async function publicAsset(url, expected) {
 }
 // A successful deployment can lag behind the workflow. Require byte equality before the UI test.
 if (publishedOrigin) {
-  const targets=['centro-acciones.html','assets/action-workspace-layout.css'];
+  const targets=['centro-acciones.html','assets/action-workspace-layout.css','assets/internal-capability-gate.js'];
   for(let attempt=0;attempt<20;attempt++) {
+    let currentAsset;
     try {
-      for(const file of targets)await publicAsset(new URL('/'+file,publishedOrigin),fs.readFileSync(path.join(base,file)));
+      for(const file of targets){currentAsset='/'+file;await publicAsset(new URL(currentAsset,publishedOrigin),fs.readFileSync(path.join(base,file)));}
       break;
     } catch(error) {
-      if(attempt===19)throw error;
-      console.log('Esperando los archivos productivos de esta versión ('+(attempt+1)+'/20).');
+      if(attempt===19){publishedFailures.set(currentAsset,error);writeFailureReport(error,'preflight');throw error;}
+      console.log('Esperando los archivos productivos de esta versión ('+(attempt+1)+'/20): '+currentAsset+' · '+error.message);
       await new Promise(resolve=>setTimeout(resolve,7500));
     }
   }
@@ -47,7 +55,7 @@ try {
     if (!url.pathname.startsWith('/api/')) {
       const file = path.resolve(base, '.' + decodeURIComponent(url.pathname));
       if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status: 404, body: '' });
-      let body = fs.readFileSync(file); if (publishedOrigin) { try { body = await publicAsset(url, body); } catch { publishedFailures.add(url.pathname); return route.abort(); } }
+      let body = fs.readFileSync(file); if (publishedOrigin) { try { body = await publicAsset(url, body); } catch (error) { if (!publishedFailures.has(url.pathname)) publishedFailures.set(url.pathname, error); console.error('Published asset verification failed:', JSON.stringify(publicFailureDetails().find(failure => failure.asset === url.pathname))); return route.abort(); } }
       return route.fulfill({ status: 200, contentType: /\.m?js$/.test(file) ? 'application/javascript' : file.endsWith('.css') ? 'text/css' : file.endsWith('.html') ? 'text/html' : 'application/octet-stream', body });
     }
     if (url.pathname === '/api/internal-auth') return route.fulfill({ json: { ok: true, user: { id: 'qa-operator', email: 'synthetic@local.invalid', displayName: 'Operador de prueba sintética' }, access: { tenantCapabilities: historyCapabilities, platformCapabilities: [], platformRoles: [] } } });
@@ -146,10 +154,10 @@ try {
   await page.locator('#actionTypeFilter').selectOption('overtime_entry'); await page.waitForSelector(`[data-open-action="${historyIds[3]}"]`); await open(3); await noCommands(); assert.equal(await body.getAttribute('data-projection'), 'restricted_nominal'); assert.match(await body.innerText(), /Respaldo anterior · Sólo consulta/); assert.equal(await body.locator('.error-state').count(), 0); await close();
   checks.push('restricted overtime history is readable with no transition or approval recommendation');
   assert.ok(requests.every(r => r.method === 'GET' && r.body === null)); assert.doesNotMatch(JSON.stringify(requests), /QA_ACTOR_MARKER|Persona de prueba|PRIVATE_SOURCE_MARKER/);
-  assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);
+  assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0, JSON.stringify(publicFailureDetails())); if (publishedOrigin) assert.ok(publishedAssets.size > 0);
   checks.push('all APIs are synthetic GET only; no backend writes or nominal query parameters');
   const result = { ok: true, mode, checksPassed: checks.length, checks, errors, publishedAssetsMatch: publishedOrigin ? true : null, publishedAssetsChecked: [...publishedAssets].sort(), syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false, serviceWorkersBlocked: true, browser: browser.version() };
   fs.writeFileSync(path.join(out, 'action-history-browser.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
 } catch (error) {
-  fs.writeFileSync(path.join(out, 'action-history-browser.json'), JSON.stringify({ ok: false, mode, checksPassed: checks.length, publishedAssetsMatch: publishedOrigin ? false : null, failedPublicAssets: [...publishedFailures], syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false }, null, 2)); throw error;
+  writeFailureReport(error,'browser'); throw error;
 } finally { await browser.close(); }

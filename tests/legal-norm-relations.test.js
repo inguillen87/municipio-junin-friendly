@@ -26,3 +26,35 @@ test('anonymous, legacy and unrelated capabilities never reach SQL',async()=>{fo
 test('query injection, cross-origin and bad idempotency fail before SQL',async()=>{const bad=[get({resource:'list',normId:A,tenantId:TENANT}),post(create()),post(create())];bad[1].headers.origin='https://other.invalid';bad[2].headers['idempotency-key']='bad';for(const req of bad){const t=setup(),r=res();await t.handler(req,r);assert.ok([403,422].includes(r.statusCode));assert.equal(t.calls.length,0);}});
 test('workflow errors are actionable without SQL internals',async()=>{for(const[m,status,part]of [['RELATION_ARTICLE_NOT_FOUND',422,'artículo'],['RELATION_DUPLICATE',409,'declarada'],['private SQL',503,'confirmar']]){const t=setup({error:Error(m)}),r=res();await t.handler(post(create()),r);assert.equal(r.statusCode,status);assert.match(r.value.error,new RegExp(part,'i'));assert.doesNotMatch(r.value.error,/private SQL/);}});
 test('migration is append-only exact-revision and never infers repeal',()=>{const s=fs.readFileSync('scripts/migrations/090-legal-norm-relations.sql','utf8');assert.equal((s.match(/CREATE TABLE public\.legal_norm_relation \(/g)||[]).length,1);assert.equal((s.match(/CREATE FUNCTION public\.legal_norm_relation_operation_v1/g)||[]).length,1);assert.match(s,/source_norm_version/);assert.match(s,/target_norm_version/);assert.match(s,/legal_norm_relation_event_immutable/);assert.match(s,/article_exists_v1/);assert.equal(s.includes('never infer legal status, repeal or validity automatically'),true);});
+
+test('status review normalizes only status fields and rejects create-only fields',()=>{
+ const command={command:'set_status',id:R,expectedSequence:1,status:'cancelled',reason:'  Motivo revisado  '};
+ assert.deepEqual(normalizeRelationCommand(command),{...command,reason:'Motivo revisado'});
+ for(const extra of [{sourceArticleLabel:''},{targetArticleLabel:''},{basisNote:undefined}])assert.throws(()=>normalizeRelationCommand({...command,...extra}));
+ assert.throws(()=>normalizeRelationCommand({...command,reason:'Motivo\ncon dos líneas'}));
+});
+
+test('API rejects valid-shaped responses for another exact version or relation',async()=>{
+ const detail={version:'legal-norm-relation-detail.v1',id:R,history:[{sequence:1,status:'declared',relationType:'modifies',sourceArticleLabel:'Artículo 2',targetArticleLabel:'Artículo 1',basisNote:'Fundamento revisado',reason:'Alta revisada',recordedBy:session.email,recordedAt:'2026-09-21T12:00:00Z'}]};
+ for(const [query,value]of [
+  [{resource:'bootstrap',sourceNormId:A,sourceVersion:'1'},{version:'legal-norm-relation-bootstrap.v1',canManage:true,source,targets:[]}],
+  [{resource:'target',normId:B,version:'2'},{version:'legal-norm-relation-target.v1',target}],
+  [{resource:'detail',id:B},detail],
+  [{resource:'list',normId:B},{version:'legal-norm-relation-list.v1',normId:A,canManage:true,rows:[]}]
+ ]){const t=setup({value}),r=res();await t.handler(get(query),r);assert.equal(r.statusCode,503);assert.equal(r.value.data,undefined);}
+});
+
+test('history rejects missing revisions, noninteger sequences and malformed audit fields',()=>{
+ const event={sequence:1,status:'declared',relationType:'modifies',sourceArticleLabel:'Artículo 2',targetArticleLabel:'Artículo 1',basisNote:'Fundamento revisado',reason:'Alta revisada',recordedBy:session.email,recordedAt:'2026-09-21T12:00:00Z'};
+ const response=history=>({version:'legal-norm-relation-detail.v1',id:R,history});
+ assert.equal(verifyRelationResponse('detail',response([{...event,sequence:2},event])).history.length,2);
+ for(const patch of [{sequence:999},{sequence:1.5},{sequence:'1'},{reason:{}},{recordedBy:null},{basisNote:3},{sourceArticleLabel:null},{targetArticleLabel:[]}])assert.throws(()=>verifyRelationResponse('detail',response([{...event,...patch}])));
+ assert.throws(()=>verifyRelationResponse('detail',response([{...event,sequence:3},event])));
+});
+
+test('status receipts must match the reviewed identity, sequence and requested state',async()=>{
+ const command={command:'set_status',id:R,expectedSequence:1,status:'cancelled',reason:'Cancelación revisada'};
+ const value={version:'legal-norm-relation-receipt.v1',id:R,sequence:2,status:'cancelled',replayed:false};
+ const valid=setup({value}),ok=res();await valid.handler(post(command),ok);assert.equal(ok.statusCode,201);
+ for(const patch of [{id:A},{sequence:3},{status:'declared'}]){const t=setup({value:{...value,...patch}}),r=res();await t.handler(post(command),r);assert.equal(r.statusCode,503);}
+});

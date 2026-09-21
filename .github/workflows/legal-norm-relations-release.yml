@@ -1,7 +1,7 @@
 name: Legal norm relations release
 on:
   push:
-    branches: ['codex/legal-norm-relations-20260921','master']
+    branches: ['codex/legal-norm-relations-20260921','codex/legal-relations-close-20260921','master']
     paths:
       - 'api/internal-legal-norm-relations.js'
       - 'assets/legal-norm-relations*'
@@ -9,6 +9,9 @@ on:
       - 'src/islands/legal-registry-entry.tsx'
       - 'scripts/migrations/090-legal-norm-relations.sql'
       - 'scripts/verify-legal-norm-relations-browser.mjs'
+      - 'scripts/verify-legal-norm-relations-sql.mjs'
+      - 'scripts/verify-action-history-browser.mjs'
+      - 'scripts/verify-legal-publication.mjs'
       - 'tests/legal-norm-relations.test.js'
       - 'scripts/build-legal-registry.mjs'
       - '.github/workflows/legal-norm-relations-release.yml'
@@ -31,3 +34,61 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-legal-norm-relations-browser.mjs
+      - run: node scripts/verify-legal-alert-center-browser.mjs
+      - run: node scripts/verify-action-history-browser.mjs
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: relations_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: relations_qa_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d relations_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:relations_qa_only@127.0.0.1:5432/relations_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Prepare disposable database prerequisites
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - name: Generate actual migration tests without connecting to municipal data
+        run: node scripts/verify-legal-norm-relations-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/relations.sql --write-lock-sql=verification/relations-lock.sql
+      - name: Verify SQL, permissions, history, duplicates and concurrent writers
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/relations-lock.sql > verification/relations-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'RELATION_QA_LOCK_READY' verification/relations-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/relations-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/relations.sql
+          wait "$blocker"
+          trap - EXIT

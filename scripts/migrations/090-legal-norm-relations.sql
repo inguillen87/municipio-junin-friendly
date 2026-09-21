@@ -85,7 +85,7 @@ DECLARE
  source_version integer;
  target_id uuid;
  target_version integer;
- relation_id uuid;
+ v_relation_id uuid;
  current public.legal_norm_relation_event%ROWTYPE;
  prior public.legal_norm_relation_event%ROWTYPE;
  fingerprint text;
@@ -229,7 +229,7 @@ BEGIN
    OR jsonb_typeof(d->'id') IS DISTINCT FROM 'string'
    OR d->>'id' !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'
   THEN RAISE EXCEPTION 'RELATION_INPUT_INVALID'; END IF;
-  relation_id:=(d->>'id')::uuid;
+  v_relation_id:=(d->>'id')::uuid;
   SELECT coalesce(jsonb_agg(jsonb_build_object(
    'sequence',e.sequence,'status',e.status,'relationType',e.relation_type,
    'sourceArticleLabel',e.source_article_label,'targetArticleLabel',e.target_article_label,
@@ -237,9 +237,9 @@ BEGIN
   ) ORDER BY e.sequence DESC),'[]'::jsonb)
   INTO rows
   FROM public.legal_norm_relation_event e
-  WHERE e.tenant_id=t AND e.relation_id=relation_id;
+  WHERE e.tenant_id=t AND e.relation_id=v_relation_id;
   IF jsonb_array_length(rows)=0 THEN RAISE EXCEPTION 'RELATION_NOT_FOUND'; END IF;
-  RETURN jsonb_build_object('version','legal-norm-relation-detail.v1','id',relation_id,'history',rows);
+  RETURN jsonb_build_object('version','legal-norm-relation-detail.v1','id',v_relation_id,'history',rows);
  END IF;
 
  IF op IN ('save','attempt') AND (
@@ -259,7 +259,8 @@ BEGIN
  END IF;
 
  command:=d->>'command';
- IF command NOT IN ('create','set_status') THEN RAISE EXCEPTION 'RELATION_INPUT_INVALID'; END IF;
+ IF jsonb_typeof(d->'command') IS DISTINCT FROM 'string' OR command NOT IN ('create','set_status')
+ THEN RAISE EXCEPTION 'RELATION_INPUT_INVALID'; END IF;
 
  IF current_setting('transaction_isolation')<>'read committed'
   OR NOT pg_try_advisory_xact_lock(hashtextextended('legal-norm-relation:'||t::text,0))
@@ -322,6 +323,8 @@ BEGIN
 
   IF (SELECT count(*) FROM public.legal_norm_relation WHERE tenant_id=t)>=5000
    OR (SELECT count(*) FROM public.legal_norm_relation WHERE tenant_id=t AND source_norm_id=source_id)>=500
+   OR (SELECT count(*) FROM public.legal_norm_relation WHERE tenant_id=t AND (source_norm_id=source_id OR target_norm_id=source_id))>=1000
+   OR (SELECT count(*) FROM public.legal_norm_relation WHERE tenant_id=t AND (source_norm_id=target_id OR target_norm_id=target_id))>=1000
   THEN RAISE EXCEPTION 'RELATION_CAPACITY'; END IF;
 
   relation_type_value:=d->>'relationType';
@@ -339,26 +342,26 @@ BEGIN
     AND x.source_norm_id=source_id AND x.source_norm_version=source_version
     AND x.target_norm_id=target_id AND x.target_norm_version=target_version
     AND le.status='declared' AND le.relation_type=relation_type_value
-    AND le.source_article_label=d->>'sourceArticleLabel'
-    AND le.target_article_label=d->>'targetArticleLabel'
+    AND lower(btrim(le.source_article_label))=lower(btrim(d->>'sourceArticleLabel'))
+    AND lower(btrim(le.target_article_label))=lower(btrim(d->>'targetArticleLabel'))
   ) THEN RAISE EXCEPTION 'RELATION_DUPLICATE'; END IF;
 
   INSERT INTO public.legal_norm_relation(
    tenant_id,source_norm_id,source_norm_version,target_norm_id,target_norm_version
   ) VALUES(t,source_id,source_version,target_id,target_version)
-  RETURNING id INTO relation_id;
+  RETURNING id INTO v_relation_id;
 
   INSERT INTO public.legal_norm_relation_event(
    tenant_id,relation_id,sequence,status,relation_type,source_article_label,target_article_label,
    basis_note,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256
   ) VALUES(
-   t,relation_id,1,'declared',relation_type_value,d->>'sourceArticleLabel',d->>'targetArticleLabel',
+   t,v_relation_id,1,'declared',relation_type_value,d->>'sourceArticleLabel',d->>'targetArticleLabel',
    d->>'basisNote',d->>'reason',member,(ctx->>'sessionId')::uuid,ctx->>'email',k,fingerprint
   );
 
   RETURN jsonb_build_object(
    'version','legal-norm-relation-receipt.v1',
-   'id',relation_id,'sequence',1,'status','declared','replayed',false
+   'id',v_relation_id,'sequence',1,'status','declared','replayed',false
   );
  END IF;
 
@@ -374,10 +377,10 @@ BEGIN
   OR length(d->>'reason') NOT BETWEEN 5 AND 500
  THEN RAISE EXCEPTION 'RELATION_INPUT_INVALID'; END IF;
 
- relation_id:=(d->>'id')::uuid;
+ v_relation_id:=(d->>'id')::uuid;
  SELECT * INTO current
  FROM public.legal_norm_relation_event e
- WHERE e.tenant_id=t AND e.relation_id=relation_id
+ WHERE e.tenant_id=t AND e.relation_id=v_relation_id
  ORDER BY e.sequence DESC LIMIT 1;
  IF NOT FOUND THEN RAISE EXCEPTION 'RELATION_NOT_FOUND'; END IF;
  IF current.sequence<>(d->>'expectedSequence')::int
@@ -391,6 +394,28 @@ BEGIN
   )
  THEN RAISE EXCEPTION 'RELATION_TRANSITION_INVALID'; END IF;
 
+ -- A cancelled declaration may have been replaced. Reopening must obey the
+ -- same active-duplicate rule as creation under the tenant transaction lock.
+ IF next_status='declared' AND EXISTS(
+  SELECT 1
+  FROM public.legal_norm_relation original
+  JOIN public.legal_norm_relation other
+   ON other.tenant_id=original.tenant_id AND other.id<>original.id
+   AND other.source_norm_id=original.source_norm_id
+   AND other.source_norm_version=original.source_norm_version
+   AND other.target_norm_id=original.target_norm_id
+   AND other.target_norm_version=original.target_norm_version
+  JOIN LATERAL (
+   SELECT e.* FROM public.legal_norm_relation_event e
+   WHERE e.tenant_id=other.tenant_id AND e.relation_id=other.id
+   ORDER BY e.sequence DESC LIMIT 1
+  ) le ON true
+  WHERE original.tenant_id=t AND original.id=v_relation_id
+   AND le.status='declared' AND le.relation_type=current.relation_type
+   AND lower(btrim(le.source_article_label))=lower(btrim(current.source_article_label))
+   AND lower(btrim(le.target_article_label))=lower(btrim(current.target_article_label))
+ ) THEN RAISE EXCEPTION 'RELATION_DUPLICATE'; END IF;
+
  seq:=current.sequence+1;
  IF seq>100 THEN RAISE EXCEPTION 'RELATION_CAPACITY'; END IF;
 
@@ -398,13 +423,13 @@ BEGIN
   tenant_id,relation_id,sequence,status,relation_type,source_article_label,target_article_label,
   basis_note,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256
  ) VALUES(
-  t,relation_id,seq,next_status,current.relation_type,current.source_article_label,current.target_article_label,
+  t,v_relation_id,seq,next_status,current.relation_type,current.source_article_label,current.target_article_label,
   current.basis_note,d->>'reason',member,(ctx->>'sessionId')::uuid,ctx->>'email',k,fingerprint
  );
 
  RETURN jsonb_build_object(
   'version','legal-norm-relation-receipt.v1',
-  'id',relation_id,'sequence',seq,'status',next_status,'replayed',false
+  'id',v_relation_id,'sequence',seq,'status',next_status,'replayed',false
  );
 EXCEPTION
  WHEN unique_violation THEN RAISE EXCEPTION 'RELATION_DUPLICATE';
