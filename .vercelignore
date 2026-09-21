@@ -219,3 +219,7 @@ local-agents/
 # Read-only municipality-wide contractual agenda.
 !internal-legal-contract-agenda.html
 !scripts/migrations/088-legal-contract-agenda.sql
+
+# Unified read-only legal alert center.
+!internal-legal-alert-center.html
+!scripts/migrations/089-legal-alert-center.sql
