@@ -208,3 +208,7 @@ local-agents/
 # Append-only legal expediente passes and actuaciones.
 !internal-legal-case-actions.html
 !scripts/migrations/085-legal-case-actions.sql
+
+# Versioned contractual register.
+!internal-legal-contracts.html
+!scripts/migrations/086-legal-contracts.sql
