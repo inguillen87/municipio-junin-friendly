@@ -1,0 +1,39 @@
+name: Legal case documents release
+on:
+  push:
+    branches: ['codex/legal-case-documents-20260920', 'master']
+    paths:
+      - 'api/internal-legal-case-documents.js'
+      - 'assets/legal-case-documents*'
+      - 'assets/legal-expedients-ui.js'
+      - 'internal-legal-case-documents.html'
+      - 'scripts/migrations/084-legal-case-documents.sql'
+      - 'scripts/verify-legal-case-documents-browser.mjs'
+      - 'tests/legal-case-documents.test.js'
+      - '.github/workflows/legal-case-documents-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: legal-case-documents-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-legal-case-documents-browser.mjs
+      - run: node scripts/verify-legal-expedients-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-case-documents-${{ github.run_id }}
+          path: verification/legal-case-documents-local/**
+          retention-days: 3
