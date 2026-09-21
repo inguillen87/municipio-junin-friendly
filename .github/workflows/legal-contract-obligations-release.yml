@@ -1,0 +1,24 @@
+name: Legal contract obligations release
+on:
+  push:
+    branches: ['codex/legal-contract-obligations-20260920','master']
+    paths:
+      - 'api/internal-legal-contract-obligations.js'
+      - 'assets/legal-contract-obligations*'
+      - 'assets/legal-contracts-ui.js'
+      - 'internal-legal-contract-obligations.html'
+      - 'scripts/migrations/087-legal-contract-obligations.sql'
+      - 'tests/legal-contract-obligations.test.js'
+      - 'scripts/build-legal-registry.mjs'
+      - '.github/workflows/legal-contract-obligations-release.yml'
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version-file: .nvmrc, cache: npm}
+      - run: npm ci --ignore-scripts
+      - run: npm run build

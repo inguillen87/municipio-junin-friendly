@@ -212,3 +212,6 @@ local-agents/
 # Versioned contractual register.
 !internal-legal-contracts.html
 !scripts/migrations/086-legal-contracts.sql
+
+!internal-legal-contract-obligations.html
+!scripts/migrations/087-legal-contract-obligations.sql
