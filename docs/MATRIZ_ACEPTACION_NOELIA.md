@@ -2,6 +2,8 @@
 
 Esta matriz no declara que el reemplazo de GRH esté completo. Distingue requerimientos de la documentación entregada, avances comprobables en código y funciones pendientes. Los PDF originales y sus capturas permanecen fuera del repositorio; no se publica información nominal ni la firma. Una fórmula visible en una captura no se sustituye por una tasa supuesta.
 
+Actualización al 21/09: consultar [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para los avances posteriores a esta matriz: paquete bancario de control, catálogo efectivo acotado 066 y escolaridad manual 091. Los pendientes originales siguientes conservan su alcance; un validador o paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
+
 ## 1. Datos del municipio y 2. Reportes
 Fuente: `1º-2º MODULO DATOS MUNI- REPORTES`, páginas 1–3; `REUNION 09/09/2026`, páginas 1–2.
 
@@ -65,7 +67,7 @@ Detalle y criterios de aceptación: [Directivas de certificados IA y conexión d
 
 | Referencia | Resultado esperado | Estado |
 |---|---|---|
-| ESC-IA-01 | Completar registro manual de nivel, curso, ciclo, presentación y vencimiento; distinguir declaración en papel de archivo adjunto | Pendiente de cierre integral de datos, API, formulario y exportación. |
+| ESC-IA-01 | Completar registro manual de nivel, curso, ciclo, presentación y vencimiento; distinguir declaración en papel de archivo adjunto | Implementación 091: registro inmutable, papel/PDF, historial y Excel. Gates e instalación/publicación se verifican en cada release; ver [entrega 091](NOELIA_ESCOLARIDAD_MANUAL_091.md). |
 | ESC-IA-02 | Foto o PDF desde móvil, captura guiada y almacenamiento privado con recuperación sin duplicados | Requisito incorporado; la carga PDF acotada existente no certifica soporte de fotos ni capacidad general. |
 | ESC-IA-03 | Extraer campos explícitos con evidencia y precompletar; revisar y confirmar sin volver a transcribir | Requisito incorporado; proveedor y pruebas de precisión pendientes. No inventar fechas, curso o identidad. |
 | ESC-IA-04 | Empleado presenta para sus familiares y Noelia/RR.HH. revisa desde bandeja con permisos propios | Requisito incorporado; no ampliar permisos administrativos para simular autoservicio. |

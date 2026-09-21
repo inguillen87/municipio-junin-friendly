@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
-import { schoolingFixtureV2 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+import { schoolingFixtureV3 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
 import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
@@ -42,6 +42,8 @@ async function publicAsset(url, expected) {
   assert.ok(actual.equals(expected), 'PUBLISHED_ASSET_CONTENT_MISMATCH');
   publishedAssets.add(assetUrl.pathname); return actual;
 }
+const schoolAttempts = new Map(), schoolHistories = new WeakMap();
+let dropSchoolAck = false;
 let dataset = schoolingFixture(), failRead = 0, postError = null, failRefreshAfterSave = false, delayReport = null;
 let reportRequests = 0, authRequests = 0, downloadRequests = 0;
 let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
@@ -76,23 +78,32 @@ try {
       return route.fulfill({ status: 503, json: { ok: false, error: 'Demora sintética de la ficha anterior' } });
     }
     if (u.pathname === '/api/internal-family-certificates') {
-      assert.equal(u.searchParams.get('version'), '2', 'UNIFIED_API_VERSION_REQUIRED');
+      assert.equal(u.searchParams.get('version'), '3', 'UNIFIED_API_VERSION_REQUIRED');
       if (resource === 'download') downloadRequests++;
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
         if (postError) { const next = postError; postError = null; return route.fulfill({ status: next.status, json: { ok: false, code: next.code, error: 'Fallo sintético controlado' } }); }
-        assert.ok(['grh','own'].includes(body.familyRef.kind)); assert.equal(body.sha256, syntheticSchoolHash);
-        assert.deepEqual(Buffer.from(body.contentBase64, 'base64'), syntheticSchoolPdf);
+        assert.ok(['grh','own'].includes(body.familyRef.kind));
+        if (body.evidenceMode === 'pdf') { assert.equal(body.sha256, syntheticSchoolHash); assert.deepEqual(Buffer.from(body.contentBase64, 'base64'), syntheticSchoolPdf); }
+        else assert.deepEqual([body.filename,body.sha256,body.contentBase64],[null,null,null]);
+        const replay = schoolAttempts.get(key);
+        if (replay) { assert.deepEqual(replay.body,body); return route.fulfill({status:200,json:{ok:true,data:{...replay.receipt,duplicate:true}}}); }
         const row = dataset.data.rows.find(r => r.contractId === body.contractId && r.familyRef.kind === body.familyRef.kind && r.familyRef.id === body.familyRef.id);
         assert.equal(body.identityToken, row.identityToken);
-        row.certificate = { id: syntheticUuid(20000 + posts.length), filename: body.filename, byteLength: syntheticSchoolPdf.length, sha256: body.sha256,
-          presentedOn: body.presentedOn, expiresOn: body.expiresOn, recordedAt: '2026-09-14T15:10:10.123456+00:00' };
-        row.historyCount++;
+        if (body.expectedCertificateId !== (row.certificate?.id ?? null)) return route.fulfill({status:409,json:{ok:false,code:'SCHOOL_CERTIFICATE_REVISION_CONFLICT'}});
+        const history = schoolHistories.get(row) ?? (row.certificate ? [structuredClone(row.certificate)] : []);
+        row.certificate = { recordKind: 'schooling_record', institution: body.institution, educationLevel: body.educationLevel, course: body.course, schoolYear: body.schoolYear, issuedOn:body.issuedOn, evidenceMode:body.evidenceMode, paperReference:body.paperReference, reason:body.reason, supersedesId:body.expectedCertificateId, recordedBy:'qa@example.invalid', id: syntheticUuid(20000 + posts.length), filename: body.filename, byteLength: body.evidenceMode === 'pdf' ? syntheticSchoolPdf.length : null, sha256: body.sha256,
+          presentedOn: body.presentedOn, expiresOn: body.expiresOn, recordedAt: '2026-09-21T12:00:00.' + String(posts.length).padStart(6,'0') + 'Z' };
+        row.historyCount++; schoolHistories.set(row,[structuredClone(row.certificate),...history]);
+        const receipt = {version:'family-schooling-register.v3',certificateId:row.certificate.id,duplicate:false}; schoolAttempts.set(key,{body:structuredClone(body),receipt});
+        if(dropSchoolAck){dropSchoolAck=false;return route.abort('timedout');}
         if (failRefreshAfterSave) { failRead = 503; failRefreshAfterSave = false; }
-        return route.fulfill({ status: 201, json: { ok: true, data: { version: 'family-schooling-register.v2', certificateId: row.certificate.id, duplicate: false } } });
+        return route.fulfill({ status: 201, json: { ok: true, data: { version: 'family-schooling-register.v3', certificateId: row.certificate.id, duplicate: false } } });
       }
       if (resource === 'report') { reportRequests++; if (delayReport) { const pending = delayReport; delayReport = null; await pending; } }
       if (failRead) return route.fulfill({ status: failRead, json: { ok: false, code: failRead === 403 ? 'SCHOOL_CERTIFICATE_CAPABILITY_REQUIRED' : 'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE' } });
+      if (resource === 'attempt') { const found=schoolAttempts.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.receipt,duplicate:true}}:{ok:false,code:'SCHOOL_CERTIFICATE_NOT_FOUND'}}); }
+      if (resource === 'history') { const row=dataset.data.rows.find(r=>r.contractId===u.searchParams.get('contractId')&&r.familyRef.kind===u.searchParams.get('familyKind')&&r.familyRef.id===u.searchParams.get('familyId')); assert.equal(row.identityToken,u.searchParams.get('identityToken')); const rows=schoolHistories.get(row)??(row.certificate?[row.certificate]:[]); return route.fulfill({status:200,json:{ok:true,data:{version:'family-schooling-history.v3',contractId:row.contractId,familyRef:row.familyRef,identityToken:row.identityToken,rows,total:rows.length}}}); }
       if (resource === 'download') return route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'content-length': String(syntheticSchoolPdf.length), 'content-disposition': 'attachment; filename="certificado-sintetico.pdf"' }, body: syntheticSchoolPdf });
       const payload = structuredClone(dataset);
       if (resource === 'family') {
@@ -153,6 +164,7 @@ try {
     await page.waitForFunction(() => document.querySelector('[data-family-schooling-ficha]')?.getAttribute('aria-busy') === 'false');
   }
   async function fillCertificate() {
+    await family.locator('[data-fs-school-field="reason"]').fill('Actualización de certificado escolar QA');
     await family.locator('[data-fs-file]').setInputFiles({ name: 'certificado-sintetico.pdf', mimeType: 'application/pdf', buffer: syntheticSchoolPdf });
     await family.locator('[data-fs-presented]').fill('2026-04-04'); await family.locator('[data-fs-expires]').fill('2025-12-31');
   }
@@ -170,9 +182,9 @@ try {
     await page.evaluate(async () => { document.activeElement?.blur(); await document.fonts.ready; await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
     await family.locator('.fs-editor').evaluate(n => {
       const body = n.closest('.dialog-body'), dialog = n.closest('dialog'); dialog.scrollTop = 0;
-      body.scrollTop += n.getBoundingClientRect().top - body.getBoundingClientRect().top - 12;
+      body.scrollTop += n.getBoundingClientRect().top - body.getBoundingClientRect().top - (body.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12;
     });
-    await page.waitForFunction(() => { const form = document.querySelector('.fs-editor'), body = form?.closest('.dialog-body'); return form && Math.abs(form.getBoundingClientRect().top - body.getBoundingClientRect().top - 12) < 3; });
+    await page.waitForFunction(() => { const form = document.querySelector('.fs-editor'), body = form?.closest('.dialog-body'); return form && Math.abs(form.getBoundingClientRect().top - body.getBoundingClientRect().top - (body.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12) < 3; });
   }
 
   await page.goto(origin + '/reportes-rrhh.html#certificados-escolares'); await report.locator('[data-fs-consult]').waitFor();
@@ -260,12 +272,14 @@ try {
   const retryKey = posts.at(-1).key; assert.match(retryKey, /^[a-f0-9-]{36}$/);
   postError = { status: 409, code: 'SCHOOL_CERTIFICATE_SESSION_BUSY' }; await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
   assert.equal(posts.at(-1).key, retryKey); assert.match(await family.locator('[data-fs-form-status]').innerText(), /otra operación en curso/);
-  assert.equal(await family.locator('[data-fs-recheck]').isVisible(), false); checks.push('transient failure and session contention preserve PDF/dates and retry the same idempotency key');
+  assert.equal(await family.locator('[data-fs-recheck]').isVisible(), true); checks.push('transient failure and session contention preserve PDF/dates and retry the same idempotency key');
   postError = { status: 503, code: 'SCHOOL_CERTIFICATE_STORAGE_FULL' }; await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
   assert.equal(posts.at(-1).key, retryKey); assert.match(await family.locator('[data-fs-form-status]').innerText(), /no tiene espacio disponible/);
   assert.doesNotMatch(await family.locator('[data-fs-form-status]').innerText(), /no tiene permiso/);
   assert.equal(await family.locator('[data-fs-recheck]').isVisible(), true);
   checks.push('PDF above reported free space shows an advisory without blocking deduplication; STORAGE_FULL preserves the same draft and retry key');
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  await family.locator('[data-fs-register]').first().click(); await fillCertificate();
   postError = { status: 409, code: 'SCHOOL_CERTIFICATE_IDENTITY_CHANGED' }; dataset.data.rows[0].identityToken = 'b'.repeat(64); dataset.data.rows[0].familyName = 'Hijo Sintético Revisado';
   await family.locator('[data-fs-save]').click(); await savedOrFailed(); assert.equal(await family.locator('[data-fs-save]').isDisabled(), true);
   await family.locator('[data-fs-recheck]').click(); await savedOrFailed(); await retained();
@@ -463,7 +477,7 @@ try {
   assert.equal(await ownCard.locator('[data-fs-document]').count(), 1);
   assert.match(await family.locator('[data-fs-family-status]').innerText(), /Certificado guardado/);
   await ownCard.scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(out, 'family-schooling-own-certificate-qa.png') });
-  checks.push('declared child flows into an explicitly scoped v2 certificate; a PDF error retains both the persisted child and the PDF draft before successful retry');
+  checks.push('declared child flows into an explicitly scoped v3 certificate; a PDF error retains both the persisted child and the PDF draft before successful retry');
 
   const staleDownload = await ownCard.locator('[data-fs-document]').elementHandle();
   failRead = 403; const beforeRevokedDownload = downloads.length;
@@ -534,6 +548,97 @@ try {
   assert.equal(await family.locator('[data-fs-target-status]').isVisible(), true);
   checks.push('unified report and Excel preserve declaration date separately from GRH cutoff; suspected matches are flagged without merging/counting them as distinct verified children');
   checks.push('own deep links retain their discriminator through login, focus the exact own child, and never reinterpret an own UUID as a GRH family');
+
+  // ESC-IA-01: administrative records use no live API or municipal documents.
+  dataset = schoolingFixture(2); dataset.data.storage.remainingBytes = 0; dataset.data.canRegister = true;
+  await page.goto(origin + '/personal?contractId=' + syntheticUuid(1) + '&section=family#legajos'); await familyReady();
+  const schoolCard = family.locator('[data-fs-family-id="2"]');
+  const schoolField = name => family.locator('[data-fs-school-field="' + name + '"]');
+  async function paperEditor() {
+    await schoolCard.locator('[data-fs-register]').click();
+    await family.locator('[data-fs-evidence-mode]').selectOption('paper_declared');
+    await schoolField('paperReference').fill('Mesa de entradas QA, carpeta escolar 2026');
+    await schoolField('reason').fill('Recepción administrativa del certificado en papel');
+    await family.locator('[data-fs-presented]').fill('2026-09-20');
+  }
+  await paperEditor();
+  for (const [name,value] of Object.entries({institution:'Escuela Sintética QA',educationLevel:'Primario',course:'6.º B',schoolYear:'2026',issuedOn:'2026-09-10'})) await schoolField(name).fill(value);
+  for (const width of [320,390,1440]) {
+    await page.setViewportSize({width,height:900}); await showEditor();
+    const bounds=await family.locator('.fs-editor').evaluate(n=>[...n.querySelectorAll('input,select,button')].filter(e=>e.getClientRects().length).map(e=>({left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right})));
+    assert.ok(bounds.every(r=>r.left>=0&&r.right<=width+1));
+    await page.screenshot({path:path.join(out,'schooling-record-paper-'+width+'-qa.png')});
+  }
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  const paperPost=posts.at(-1), paperRow=dataset.data.rows[1];
+  assert.equal(paperPost.body.evidenceMode,'paper_declared');
+  assert.deepEqual([paperPost.body.filename,paperPost.body.sha256,paperPost.body.contentBase64,paperPost.body.expiresOn],[null,null,null,null]);
+  assert.equal(paperPost.body.issuedOn,'2026-09-10'); assert.equal(paperPost.body.presentedOn,'2026-09-20');
+  assert.equal(paperPost.body.schoolYear,2026); assert.equal(await schoolCard.locator('[data-fs-document]').count(),0);
+  await schoolCard.locator('.fs-school-details summary').click();
+  assert.match(await schoolCard.innerText(),/Escuela Sintética QA/); assert.match(await schoolCard.innerText(),/6.º B/);
+  await schoolCard.locator('[data-fs-history]').click(); await savedOrFailed();
+  assert.equal(await schoolCard.locator('.fs-history-item').count(),2); assert.equal(await schoolCard.locator('.fs-history-item [data-fs-document]').count(),1);
+  assert.match(await schoolCard.locator('[data-fs-history-result]').innerText(),/Mesa de entradas QA/);
+  checks.push('paper declaration saves complete explicit schooling fields with exhausted PDF quota; distinct dates and missing expiry are preserved, with downloadable legacy PDF in immutable history');
+  await paperEditor(); await schoolField('course').fill('6.º C'); dropSchoolAck=true;
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  const uncertain=posts.at(-1), countAfterLost=paperRow.historyCount;
+  assert.equal(await schoolField('course').isDisabled(),true); assert.match(await family.locator('[data-fs-form-status]').innerText(),/no se pudo confirmar/);
+  assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
+  const writesBeforeClose=posts.length; await page.keyboard.press('Escape');
+  assert.equal(await page.locator('dialog[open]').count(),0);
+  await page.locator('#employeeRows').getByRole('button',{name:'Hijos y certificados',exact:true}).first().click(); await familyReady();
+  assert.equal(posts.length,writesBeforeClose); assert.equal(await schoolField('course').inputValue(),'6.º C'); assert.equal(await schoolField('course').isDisabled(),true);
+  assert.equal(await family.locator('[data-fs-cancel]').isDisabled(),true);
+
+  await family.locator('[data-fs-recheck]').click(); await savedOrFailed();
+  assert.equal(paperRow.historyCount,countAfterLost); assert.equal(posts.at(-1).key,uncertain.key); assert.equal(await schoolField('course').count(),0);
+  assert.match(await family.locator('[data-fs-family-status]').innerText(),/recuperó la confirmación/);
+  checks.push('lost registration response locks the exact draft, survives dialog close/reopen in volatile memory and recovers its receipt without another write or duplicate');
+  await paperEditor(); await schoolField('course').fill('Propuesta conservada');
+  const existingHistory=schoolHistories.get(paperRow);
+  paperRow.certificate={...structuredClone(paperRow.certificate),id:syntheticUuid(90000),course:'Revisión de otro operador',supersedesId:paperRow.certificate.id};
+  paperRow.historyCount++; schoolHistories.set(paperRow,[structuredClone(paperRow.certificate),...existingHistory]);
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  assert.equal(await family.locator('[data-fs-save]').isDisabled(),true);
+  await family.locator('[data-fs-recheck]').click(); await savedOrFailed();
+  assert.equal(await schoolField('course').inputValue(),'Propuesta conservada'); assert.equal(await family.locator('[data-fs-save]').isDisabled(),true);
+  assert.match(await family.locator('[data-fs-identity-review]').innerText(),/Revisión de otro operador/);
+  await family.locator('[data-fs-confirm-revision]').click(); await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  assert.equal(posts.at(-1).body.expectedCertificateId,syntheticUuid(90000)); assert.equal(paperRow.certificate.course,'Propuesta conservada');
+  await schoolCard.locator('[data-fs-history]').click(); await savedOrFailed();
+  assert.equal(await schoolCard.locator('.fs-history-item').count(),5);
+  checks.push('concurrent record blocks a stale save; explicit review preserves the local proposal and all five historical records');
+  failRead=403; await schoolCard.locator('[data-fs-history]').click(); await savedOrFailed();
+  assert.equal(await family.locator('.fs-child').count(),0); assert.equal(await family.locator('.fs-history-item').count(),0); failRead=0;
+  checks.push('revoked history access removes consulted schooling metadata, references, actors and documents from the DOM');
+  await page.goto(origin+'/reportes#certificados-escolares'); await consulted();
+  await report.locator('[data-fs-search]').fill('0002');
+  const completeEvent=page.waitForEvent('download'); await report.locator('[data-fs-export]').click();
+  const completePath=path.join(out,'schooling-record-complete-synthetic.xlsx'); await (await completeEvent).saveAs(completePath);
+  const completeZip=unzipSync(fs.readFileSync(completePath)), completeSheet=strFromU8(completeZip['xl/worksheets/sheet1.xml']);
+  assert.match(completeSheet,/Propuesta conservada/); assert.match(completeSheet,/Presentación en papel declarada/); assert.match(completeSheet,/Ciclo lectivo informado/);
+  assert.match(completeSheet,/<autoFilter ref="A1:Z2"/); assert.doesNotMatch(completeSheet,/<f>/);
+  checks.push('the complete filtered Excel carries the latest schooling record, declared-paper provenance and 26 valid column references without formulas');
+  await page.goto(origin+'/personal?contractId='+syntheticUuid(1)+'&section=family#legajos'); await familyReady();
+  await paperEditor(); postError={status:503,code:'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE'};
+  await family.locator('[data-fs-save]').click(); await savedOrFailed();
+  assert.equal(await schoolField('reason').isDisabled(),true);
+  await family.locator('[data-fs-recheck]').click(); await savedOrFailed();
+  assert.equal(await schoolField('reason').isDisabled(),true); assert.equal(await schoolField('paperReference').inputValue(),'Mesa de entradas QA, carpeta escolar 2026');
+  postError={status:503,code:'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE'};
+  await family.locator('[data-fs-save]').click(); await savedOrFailed(); failRead=403;
+  await family.locator('[data-fs-recheck]').click(); await savedOrFailed();
+  assert.equal(await family.locator('.fs-child').count(),0); assert.equal(await schoolField('reason').isDisabled(),true); assert.equal(await family.locator('[data-fs-save]').isDisabled(),true);
+  failRead=0; await family.locator('[data-fs-recheck]').click(); await savedOrFailed();
+  assert.equal(await schoolField('reason').isDisabled(),true); const retainedAttempt=posts.at(-1).key; await family.locator('[data-fs-save]').click(); await savedOrFailed(); assert.equal(posts.at(-1).key,retainedAttempt);
+  checks.push('attempt404 keeps the unresolved snapshot locked; denied attempt403 clears consulted records and renewed access permits only a same-key retry until confirmation');
+  dataset.data.rows[1].identityReviewRequired=true; await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
+  assert.equal(await schoolCard.locator('[data-fs-register]').count(),0); assert.match(await schoolCard.innerText(),/Coincidencia por revisar/);
+  checks.push('an ambiguous family remains consultable with a visible warning but cannot open a new schooling registration');
+
+
   assert.deepEqual(errors, []);
   assert.equal(publishedFailures.size, 0, 'PUBLISHED_ASSET_VERIFICATION_FAILED');
   if (publishedOrigin) assert.ok(publishedAssets.size > 0, 'PUBLISHED_ASSETS_NOT_VERIFIED');

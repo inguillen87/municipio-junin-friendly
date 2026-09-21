@@ -18,3 +18,7 @@
   .family-schooling .fs-table .fs-button,.family-schooling .fs-table .fs-link{box-sizing:border-box;width:100%;justify-content:center}
   .family-schooling .fs-table .fs-button{font-size:13px;margin-top:10px}
 }
+
+.fs-history-item{padding:16px 0;border-top:1px solid var(--fs-line);overflow-wrap:anywhere}.fs-certificate-history h5{font-size:15px}.fs-history-item h6{font-size:13px;margin:0}.fs-dates dd{overflow-wrap:anywhere}.fs-certificate-history{margin:16px 0}.fs-editor label{min-width:0}
+
+.fs-school-details{margin:12px 0}.fs-school-details>summary{cursor:pointer;min-height:44px;align-content:center;font-weight:700;font-size:12px}

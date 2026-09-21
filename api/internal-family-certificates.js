@@ -5,6 +5,7 @@ import {
   SCHOOL_CERTIFICATE_MAX_BODY_BYTES, SCHOOL_CERTIFICATE_READ_CAPABILITY, SCHOOL_CERTIFICATE_WRITE_CAPABILITY,
   schoolCertificateFail, schoolCertificateSafeError, schoolCertificateUuid, schoolCertificateContractId,
   prepareSchoolCertificate, readSchoolCertificates, registerSchoolCertificate, downloadSchoolCertificate,
+  readSchoolCertificateHistory, readSchoolCertificateAttempt, schoolCertificateFamilyRef,
 } from '../lib/internal-family-certificates.js';
 
 export const config = { api: { bodyParser: false } };
@@ -49,18 +50,21 @@ function query(req, method) {
     if (seen.size !== Object.keys(values).length) schoolCertificateFail('QUERY_INVALID');
   }
   if (method === 'POST') {
-    if (Object.keys(values).some(key => key !== 'version') || Object.hasOwn(values, 'version') && values.version !== '2') schoolCertificateFail('QUERY_INVALID');
+    if (Object.keys(values).some(key => key !== 'version') || Object.hasOwn(values, 'version') && !['2', '3'].includes(values.version)) schoolCertificateFail('QUERY_INVALID');
     return values;
   }
   const resource = values.resource;
-  const field = resource === 'family' ? 'contractId' : resource === 'download' ? 'certificateId' : null;
-  const allowed = resource === 'report' ? ['resource'] : field ? ['resource', field] : [];
+  const field = resource === 'family' ? 'contractId' : resource === 'download' ? 'certificateId' : resource === 'attempt' && values.version === '3' ? 'key' : null;
+  const allowed = resource === 'report' ? ['resource'] : resource === 'history' && values.version === '3'
+    ? ['resource', 'contractId', 'familyKind', 'familyId', 'identityToken'] : field ? ['resource', field] : [];
   if (Object.hasOwn(values, 'version')) {
-    if (!allowed.length || values.version !== '2') schoolCertificateFail('QUERY_INVALID');
+    if (!allowed.length || !['2', '3'].includes(values.version)) schoolCertificateFail('QUERY_INVALID');
     allowed.push('version');
   }
   if (!allowed.length || Object.keys(values).length !== allowed.length || Object.keys(values).some(key => !allowed.includes(key))
       || field && !(field === 'contractId' ? schoolCertificateContractId(values[field]) : schoolCertificateUuid(values[field]))) schoolCertificateFail('QUERY_INVALID');
+  if (resource === 'history' && (!schoolCertificateContractId(values.contractId) || !schoolCertificateFamilyRef({ kind: values.familyKind, id: values.familyId })
+    || !/^[a-f0-9]{64}$/.test(values.identityToken))) schoolCertificateFail('QUERY_INVALID');
   return values;
 }
 function checkLength(req, maxBytes = SCHOOL_CERTIFICATE_MAX_BODY_BYTES) {
@@ -131,13 +135,13 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
       const method = req.method ?? 'GET';
       if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, POST'); schoolCertificateFail('METHOD_NOT_ALLOWED'); }
       const q = query(req, method);
-      const version = q.version === '2' ? 2 : 1;
+      const version = q.version === '3' ? 3 : q.version === '2' ? 2 : 1;
       if (method === 'POST') {
         assertOrigin(req, env);
         if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(header(req, 'content-type'))) schoolCertificateFail('CONTENT_TYPE_REQUIRED');
         checkLength(req);
       }
-      const requiredCapabilities = [SCHOOL_CERTIFICATE_READ_CAPABILITY, ...(method === 'POST' ? [SCHOOL_CERTIFICATE_WRITE_CAPABILITY] : [])];
+      const requiredCapabilities = [SCHOOL_CERTIFICATE_READ_CAPABILITY, ...(method === 'POST' || q.resource === 'attempt' ? [SCHOOL_CERTIFICATE_WRITE_CAPABILITY] : [])];
       const access = await accessFn(req, res, { env, requiredCapabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
       if (!access) return undefined;
       if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership'
@@ -155,6 +159,9 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
         return res.status(data.duplicate ? 200 : 201).json({ ok: true, data });
       }
       const sql = await sqlFn(env);
+      if (q.resource === 'attempt') return res.status(200).json({ ok: true, data: await readSchoolCertificateAttempt(sql, access.principal, session, q.key) });
+      if (q.resource === 'history') return res.status(200).json({ ok: true, data: await readSchoolCertificateHistory(sql, access.principal, session,
+        { contractId: q.contractId, familyRef: { kind: q.familyKind, id: q.familyId }, identityToken: q.identityToken }) });
       if (q.resource === 'download') {
         const result = await downloadSchoolCertificate(sql, access.principal, session, q.certificateId, { version });
         res.setHeader('Content-Type', 'application/pdf');

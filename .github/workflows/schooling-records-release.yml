@@ -1,0 +1,118 @@
+name: Schooling administrative records release
+on:
+  push:
+    branches: ['codex/noelia-schooling-record-20260921', 'master']
+    paths:
+      - 'api/internal-family-certificates.js'
+      - 'lib/internal-family-certificates.js'
+      - 'assets/family-schooling*'
+      - 'scripts/migrations/091-*'
+      - 'scripts/verify-schooling-records-sql.mjs'
+      - 'scripts/verify-family-schooling-*.mjs'
+      - 'tests/*schooling*'
+      - 'tests/*family*'
+      - 'tests/fixtures/family-schooling-synthetic.js'
+      - '.github/workflows/schooling-records-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: schooling-records-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-family-schooling-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schooling-records-browser
+          path: verification/
+          retention-days: 5
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: schooling_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: schooling_qa_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d schooling_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:schooling_qa_only@127.0.0.1:5432/schooling_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-schooling-records-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/schooling.sql --write-lock-sql=verification/schooling-lock.sql
+      - name: Verify actual migrations and independent concurrent writer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling-lock.sql > verification/schooling-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'SCHOOLING_QA_LOCK_READY' verification/schooling-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/schooling-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling.sql
+          wait "$blocker"
+          trap - EXIT
+  production:
+    if: github.ref == 'refs/heads/master'
+    needs: [verify, sql]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-friendly.mjs
+      - run: node scripts/verify-family-schooling-production.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-family-schooling-browser.mjs
+        env:
+          SCHOOLING_PUBLISHED_ORIGIN: https://municipio-junin-friendly.vercel.app
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schooling-records-production
+          path: verification/
+          retention-days: 5

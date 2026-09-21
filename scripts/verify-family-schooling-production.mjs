@@ -31,6 +31,10 @@ const statuses = {
   anonymousReport:await privateCheck('?resource=report'),
   anonymousDownload:await privateCheck('?resource=download&certificateId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   anonymousUpload:await privateCheck('',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}),
+  anonymousV3Report:await privateCheck('?resource=report&version=3'),
+  anonymousV3History:await privateCheck('?resource=history&version=3&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&familyKind=grh&familyId=1&identityToken='+'a'.repeat(64)),
+  anonymousV3Attempt:await privateCheck('?resource=attempt&version=3&key=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+  anonymousV3Upload:await privateCheck('?version=3',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}),
 };
 fs.mkdirSync('verification',{recursive:true});
 const result = {commit,checkedAt:new Date().toISOString(),origin,publishedAssetsMatch:true,expected,statuses,

@@ -39,3 +39,13 @@ export function schoolingFixtureV2(count = 75, options = {}) {
   }
   return payload;
 }
+
+export function schoolingFixtureV3(count = 75, options = {}) {
+  const payload = schoolingFixtureV2(count, options);
+  payload.data.version = 'family-schooling.v3';
+  for (const row of payload.data.rows) if (row.certificate) Object.assign(row.certificate, {
+    recordKind: 'legacy_pdf', institution: null, educationLevel: null, course: null, schoolYear: null,
+    issuedOn: null, evidenceMode: 'pdf', paperReference: null, reason: null, supersedesId: null, recordedBy: null,
+  });
+  return payload;
+}
