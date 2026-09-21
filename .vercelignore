@@ -196,3 +196,7 @@ local-agents/
 # Native legal matter workflow and reviewed schema contract.
 !internal-legal-matters.html
 !scripts/migrations/082-legal-matters.sql
+
+# Native legal expediente header and matter-link workflow.
+!internal-legal-expedients.html
+!scripts/migrations/083-legal-expedients.sql

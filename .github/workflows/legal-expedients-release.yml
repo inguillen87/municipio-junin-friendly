@@ -1,0 +1,39 @@
+name: Legal expedients release
+on:
+  push:
+    branches: ['codex/legal-expedients-20260920', 'master']
+    paths:
+      - 'api/internal-legal-expedients.js'
+      - 'assets/legal-expedients*'
+      - 'assets/legal-matters-ui.js'
+      - 'internal-legal-expedients.html'
+      - 'scripts/migrations/083-legal-expedients.sql'
+      - 'scripts/verify-legal-expedients-browser.mjs'
+      - 'tests/legal-expedients.test.js'
+      - '.github/workflows/legal-expedients-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: legal-expedients-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-legal-expedients-browser.mjs
+      - run: node scripts/verify-legal-matters-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-expedients-${{ github.run_id }}
+          path: verification/legal-expedients-local/**
+          retention-days: 3
