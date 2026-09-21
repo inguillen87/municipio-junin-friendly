@@ -223,3 +223,7 @@ local-agents/
 # Unified read-only legal alert center.
 !internal-legal-alert-center.html
 !scripts/migrations/089-legal-alert-center.sql
+
+# Explicit human-reviewed relations between exact norm revisions.
+!internal-legal-norm-relations.html
+!scripts/migrations/090-legal-norm-relations.sql
