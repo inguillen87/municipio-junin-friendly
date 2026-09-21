@@ -111,6 +111,8 @@ const shellFiles = [
   'assets/legal-documentary-panel.js',
   'assets/legal-registry.css',
   'assets/legal-pdf-text-model.js',
+  'assets/document-reader-model.js',
+  'assets/document-reader-source.js',
   'assets/legal-pdf-text-worker.js',
   'assets/legal-registry-entry-card.css',
   'assets/work-area-model.js',
