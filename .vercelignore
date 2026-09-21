@@ -204,3 +204,7 @@ local-agents/
 # Immutable private PDF documents for legal expedients.
 !internal-legal-case-documents.html
 !scripts/migrations/084-legal-case-documents.sql
+
+# Append-only legal expediente passes and actuaciones.
+!internal-legal-case-actions.html
+!scripts/migrations/085-legal-case-actions.sql
