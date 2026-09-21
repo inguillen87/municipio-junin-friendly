@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { unzipSync, strFromU8 } from 'fflate';
-import { FIXED_MAX_ROWS, fixedBootstrap, fixedEmployee, fixedList, fixedDetail, fixedReceipt, fixedForm, fixedAmount, fixedMoney, fixedMoneyInput, fixedText, fixedPeriod, fixedCoverage, fixedState, fixedView, fixedExportData, fixedPrincipalKey } from '../assets/payroll-fixed-novelties-model.js';
+import { FIXED_MAX_ROWS, fixedBootstrap, fixedEmployee, fixedList, fixedDetail, fixedReceipt, fixedForm, fixedAmount, fixedMoney, fixedMoneyInput, fixedText, fixedPeriod, fixedCoverage, fixedState, fixedView, fixedExportData, fixedPrincipalKey, fixedCapability } from '../assets/payroll-fixed-novelties-model.js';
 import { fixedCsv, fixedXlsx } from '../assets/payroll-fixed-novelties-export.js';
 import { fixedFixture, fixedApprovedRecord, fixedSubject, fixedUuid } from './fixtures/payroll-fixed-novelties-synthetic.js';
 
@@ -72,11 +72,25 @@ test('instrument and reasons are normalized, bounded plain text with no controls
 test('bootstrap preserves minimum capabilities, employment requirement and exact limits', () => {
   const f = fixture(); f.state.role = 'readonly'; f.state.employmentLinked = false;
   const b = fixedBootstrap(wrap(f.bootstrap())); assert.equal(b.principal.employmentLinked, false);
-  assert.equal(b.principal.capabilities.includes('payroll.novelty.prepare'), false); assert.equal(b.limits.maxRecords, FIXED_MAX_ROWS);
+  assert.equal(b.principal.capabilities.includes('payroll.fixed.prepare'), false); assert.equal(b.limits.maxRecords, FIXED_MAX_ROWS);
   assert.equal(fixedPrincipalKey(b), [f.principal().tenantId, f.principal().membershipId, f.principal().certifiedBindingId].join(':'));
   for (const change of [d => d.limits.maxRecords = 5000, d => d.effects.payrollCalculated = true, d => d.principal.capabilities.push(d.principal.capabilities[0]), d => d.extra = true]) {
     const d = structuredClone(f.bootstrap()); change(d); assert.throws(() => fixedBootstrap(wrap(d)));
   }
+});
+test('dedicated fixed permissions come from the registry while the monthly host still gates nominal access', () => {
+  const read = ['payroll.novelty.read', 'payroll.novelty.nominal.read'];
+  const monthly = new Set([...read, 'payroll.novelty.prepare', 'payroll.novelty.approve', 'payroll.novelty.export']);
+  const registry = { principal: { capabilities: [...read, 'payroll.fixed.prepare', 'payroll.fixed.approve', 'payroll.novelty.export'] } };
+  for (const cap of ['payroll.fixed.prepare', 'payroll.fixed.approve']) {
+    assert.equal(monthly.has(cap), false); assert.equal(fixedCapability(registry, monthly, cap), true);
+    assert.equal(fixedCapability({ principal: { capabilities: [...monthly] } }, monthly, cap), false);
+    assert.equal(fixedCapability(registry, new Set(['payroll.novelty.read']), cap), false);
+    assert.equal(fixedCapability({ principal: { capabilities: [cap] } }, monthly, cap), false);
+  }
+  assert.equal(fixedCapability(registry, monthly, 'payroll.novelty.export'), true);
+  assert.equal(fixedCapability(registry, new Set(read), 'payroll.novelty.export'), false);
+  assert.equal(fixedCapability(null, monthly, 'payroll.fixed.prepare'), false);
 });
 test('exact employee lookup preserves historical source precision and rejects mismatched identity', () => {
   const subject = fixedSubject('1001'); subject.sourceCutoff = '2026-09-01T12:00:00.123456Z';

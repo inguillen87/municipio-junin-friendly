@@ -2,6 +2,13 @@ import { civilDate } from './civil-date.js';
 
 export const FIXED_MAX_ROWS = 500;
 export const FIXED_TYPES = Object.freeze({ monthly: 'Mensual', first_fortnight: 'Primera quincena', sac: 'SAC', vacation: 'Vacaciones', supplementary: 'Complementaria', final: 'Liquidación final', other: 'Otra' });
+export function fixedCapability(bootstrap, outerCapabilities, capability) {
+  const effective = new Set(bootstrap?.principal?.capabilities || []);
+  if (!(outerCapabilities instanceof Set) || !['payroll.novelty.read','payroll.novelty.nominal.read'].every(cap => effective.has(cap) && outerCapabilities.has(cap))) return false;
+  // The monthly bootstrap filters to novelty.*. Dedicated fixed authority must
+  // come from this registry's bootstrap, while its host still gates nominal read.
+  return effective.has(capability) && (['payroll.fixed.prepare','payroll.fixed.approve'].includes(capability) || outerCapabilities.has(capability));
+}
 const fail = () => { throw Error('No se pudo verificar el registro de novedades fijas. Volvé a consultar.'); };
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);

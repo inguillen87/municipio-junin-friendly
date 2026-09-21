@@ -9,7 +9,7 @@ import { fixedBootstrap, fixedEmployee, fixedList, fixedDetail, fixedReceipt, fi
 // exercised by the real migration verifier, never mocked as production evidence.
 const fixture = () => fixedFixture();
 const session = { id: uuid(900), email: 'preparer@example.invalid', version: 1, releaseSha: 'a'.repeat(40) };
-const principal = (caps = ['payroll.novelty.read', 'payroll.novelty.nominal.read', 'payroll.novelty.prepare', 'payroll.novelty.approve', 'payroll.novelty.export']) => ({
+const principal = (caps = ['payroll.novelty.read', 'payroll.novelty.nominal.read', 'payroll.fixed.prepare', 'payroll.fixed.approve', 'payroll.novelty.export']) => ({
   user: { email: session.email }, tenant: { source: 'membership', id: uuid(1), membershipId: uuid(2), certifiedReleaseSha: session.releaseSha, effectiveCapabilities: caps },
 });
 const propose = patch => ({ recordId: null, expectedVersion: 0, contractId: fixedSubject().contractId, legajo: '1001', identityToken: fixedSubject().identityToken,
@@ -62,9 +62,15 @@ test('API authenticates nominal authority before parsing even an empty or malfor
 });
 test('API requires command capability after nominal auth and before any SQL call', async () => {
   for (const command of ['propose', 'review']) {
-    const { handler, calls } = setup(receipt(command), ['payroll.novelty.read', 'payroll.novelty.nominal.read']), res = response();
+    for (const caps of [[], ['payroll.novelty.prepare','payroll.novelty.approve'], [command === 'propose' ? 'payroll.fixed.approve' : 'payroll.fixed.prepare']]) {
+      const { handler, calls } = setup(receipt(command), ['payroll.novelty.read', 'payroll.novelty.nominal.read', ...caps]), res = response();
+      await handler(request(command, command === 'propose' ? propose() : review()), res);
+      assert.equal(res.statusCode, 403); assert.equal(calls.sql.length, 0);
+    }
+    const dedicated = command === 'propose' ? 'payroll.fixed.prepare' : 'payroll.fixed.approve';
+    const { handler, calls } = setup(receipt(command), ['payroll.novelty.read', 'payroll.novelty.nominal.read', dedicated]), res = response();
     await handler(request(command, command === 'propose' ? propose() : review()), res);
-    assert.equal(res.statusCode, 403); assert.equal(calls.sql.length, 0);
+    assert.equal(res.statusCode, 201); assert.equal(calls.sql.length, 1);
   }
   const denied = setup(receipt(), ['payroll.novelty.read']), res = response(); await denied.handler(request(), res);
   assert.equal(res.statusCode, 403); assert.equal(denied.calls.sql.length, 0);
@@ -72,7 +78,7 @@ test('API requires command capability after nominal auth and before any SQL call
 test('POST binds context server-side and preserves one exact attempt on receipt replay', async () => {
   for (const duplicate of [false, true]) {
     const { handler, calls } = setup(receipt('propose', { duplicate })), res = response(); await handler(request(), res);
-    assert.equal(res.statusCode, duplicate ? 200 : 201); assert.match(calls.sql[0].statement, /payroll_fixed_propose_v1/);
+    assert.equal(res.statusCode, duplicate ? 200 : 201); assert.match(calls.sql[0].statement, /payroll_fixed_registry_propose_v1/);
     assert.deepEqual(JSON.parse(calls.sql[0].values[0]), { actorEmail: session.email, actorSessionId: session.id, actorSessionVersion: 1,
       membershipId: uuid(2), releaseSha: session.releaseSha, tenantId: uuid(1) });
     assert.deepEqual(JSON.parse(calls.sql[0].values[1]), propose()); assert.equal(calls.sql[0].values[2], uuid(777));
@@ -139,14 +145,15 @@ test('response validators reject drift, foreign identity, wrong version and fabr
 test('attempt recovery rechecks command permission and confirms only a matching duplicate receipt', async () => {
   const { handler, calls } = setup(receipt('review', { duplicate: true })), res = response();
   await handler({ method: 'GET', query: { resource: 'attempt', command: 'review', key: uuid(777) } }, res);
-  assert.equal(res.statusCode, 200); assert.ok(calls.auth[0].requiredCapabilities.includes('payroll.novelty.approve'));
+  assert.equal(res.statusCode, 200); assert.ok(calls.auth[0].requiredCapabilities.includes('payroll.fixed.approve'));
   assert.deepEqual(calls.sql[0].values.slice(1), ['review', uuid(777)]);
-  const denied = setup(receipt(), ['payroll.novelty.read', 'payroll.novelty.nominal.read']), no = response();
+  const denied = setup(receipt(), ['payroll.novelty.read', 'payroll.novelty.nominal.read', 'payroll.novelty.prepare', 'payroll.novelty.approve']), no = response();
   await denied.handler({ method: 'GET', query: { resource: 'attempt', command: 'propose', key: uuid(777) } }, no); assert.equal(no.statusCode, 403); assert.equal(denied.calls.sql.length, 0);
   await assert.rejects(fixedCall({ query: async () => [{ result: receipt() }] }, principal(), session, 'attempt', { command: 'propose', key: uuid(777) }), code('CONTRACT_DRIFT'));
 });
 test('safe errors expose only actionable codes and preserve auth failure mapping', async () => {
   for (const [raw, status, expected] of [['PAYROLL_FIXED_OVERLAP', 409, 'OVERLAP'], ['PAYROLL_FIXED_CAPACITY_LIMIT', 503, 'CAPACITY_LIMIT'],
+    ['PAYROLL_FIXED_LEGACY_RECONCILIATION_REQUIRED', 409, 'LEGACY_RECONCILIATION_REQUIRED'],
     ['PAYROLL_NOVELTY_EMPLOYMENT_REQUIRED', 403, 'EMPLOYMENT_REQUIRED'], ['ACTION_SESSION_INVALID', 401, 'SESSION_INVALID'], ['raw db name with credentials', 503, 'UNAVAILABLE']]) {
     const { handler } = setup(new Error(raw)), res = response(); await handler(request(), res); assert.equal(res.statusCode, status); assert.equal(res.body.code, 'PAYROLL_FIXED_' + expected);
     if (expected === 'UNAVAILABLE') assert.ok(!JSON.stringify(res.body).includes('credentials'));

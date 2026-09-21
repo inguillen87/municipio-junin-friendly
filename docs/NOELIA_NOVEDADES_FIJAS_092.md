@@ -24,6 +24,14 @@ La aprobación tiene efecto `control_export_only`: no genera novedades mensuales
 
 No se incorpora proveedor, plan, conexión o fuente activa nueva. El formulario no persiste datos nominales en el navegador. Las pruebas de navegador interceptan todas las API privadas y las de PostgreSQL usan una base desechable; ninguna representa una sesión real de Noelia o una aprobación municipal.
 
+## Compatibilidad con la entrega anterior
+
+La entrega del 8 de septiembre (`3ba78a8`, migración 044 de la rama `codex/art-report-prod-20260904`) había publicado un registro del concepto 80. Esa rama no es antecesora del master actual y su API e interfaz no están en este checkout, pero sus tres tablas y 24 funciones siguen instaladas. La comprobación del 21 de septiembre encontró cero filas en las tres tablas, en PG17 y PG18. No se considera inexistente ni se sobrescribe ese trabajo.
+
+El primer intento transaccional de 092 detectó una firma incompatible y se revirtió completamente. La versión compatible usa exclusivamente funciones `payroll_fixed_registry_*_v1`, conserva las funciones, permisos y tablas anteriores y exige los permisos dedicados ya existentes `payroll.fixed.prepare` y `payroll.fixed.approve`. No concede autoridad nueva por tener permiso de carga mensual.
+
+Si existen registros en el circuito anterior, la instalación y las operaciones del nuevo registro se detienen hasta conciliarlos. No hay importación automática, borrado ni mezcla silenciosa de ambas historias. La verificación de instalación compara las huellas de todas las funciones previas, políticas, vínculos y fuentes antes y después.
+
 ## Entrega y verificación
 
 La migración 092 es aditiva y conserva las novedades mensuales existentes. Tablas privadas, eventos inmutables, restricciones y fachadas con permisos mínimos forman parte del mismo commit que la API, la interfaz y los verificadores. Se verifica PostgreSQL 17 y 18 antes de instalar en Neon. La instalación comprueba capacidad disponible, versión de servidor, destino exacto y ausencia de registros de prueba.

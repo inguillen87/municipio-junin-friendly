@@ -59,7 +59,7 @@ try{
       else throw Error('Unexpected fixed API resource:'+resource);
       return route.fulfill({status:data?200:404,json:data?envelope(data):{ok:false,code:'PAYROLL_FIXED_NOT_FOUND',error:'No se encontró el intento sintético'}});
     }
-    if(u.pathname==='/api/internal-payroll-novelties')return route.fulfill({status:200,json:{ok:true,principal:{email:state.role+'@example.invalid',...fixture.principal()},limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:fixedPayrollTypes},batches:[]}});
+    if(u.pathname==='/api/internal-payroll-novelties')return route.fulfill({status:200,json:{ok:true,principal:{email:state.role+'@example.invalid',...fixture.principal(),capabilities:fixture.cap().filter(cap=>cap.startsWith('payroll.novelty.'))},limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:fixedPayrollTypes},batches:[]}});
     if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{email:state.role+'@example.invalid',name:'OPERADOR SINTÉTICO',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read',...fixture.cap()],platformCapabilities:[],platformRoles:[]}}});
     return route.fulfill({status:200,json:{ok:true,data:[]}});
   });

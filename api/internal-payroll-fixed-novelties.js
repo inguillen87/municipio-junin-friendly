@@ -32,7 +32,7 @@ export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
       if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, POST'); fixedFail('METHOD_NOT_ALLOWED'); }
       const q = query(req, method); let command, payload, key;
       const readOperation = q.resource === 'attempt' ? q.command : q.resource;
-      const extraForRead = { propose: 'payroll.novelty.prepare', review: 'payroll.novelty.approve', export: 'payroll.novelty.export' }[readOperation];
+      const extraForRead = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export' }[readOperation];
       const capabilities = [...FIXED_READ_CAPS, ...(extraForRead ? [extraForRead] : [])];
       const access = await (deps.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess)(req, res, { env, requiredCapabilities: capabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
       if (!access) return;
@@ -48,7 +48,7 @@ export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
         key = http.header(req, 'idempotency-key'); if (!key) fixedFail('IDEMPOTENCY_KEY_REQUIRED'); if (!fixedUuid(key)) fixedFail('IDEMPOTENCY_KEY_INVALID'); key = key.toLowerCase();
       }
       const operation = method === 'POST' ? command : q.resource === 'attempt' ? q.command : q.resource;
-      const extra = { propose: 'payroll.novelty.prepare', review: 'payroll.novelty.approve', export: 'payroll.novelty.export' }[operation];
+      const extra = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export' }[operation];
       if (extra && !principalHasCapabilities(access.principal, [extra])) fixedFail('CAPABILITY_REQUIRED');
       const sql = await (deps.getInternalSql ?? getActionCenterSql)(env);
       const data = await fixedCall(sql, access.principal, session, method === 'POST' ? command : q.resource, method === 'POST' ? { payload, key } : q);

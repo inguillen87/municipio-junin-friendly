@@ -12,7 +12,7 @@ export function fixedApprovedRecord(n,overrides={}){
 }
 export function fixedFixture(){
   const state={role:'preparer',employmentLinked:true,denied:false,records:[],histories:new Map(),attempts:new Map(),sequence:0,epoch:0};
-  const cap=()=>['payroll.novelty.read','payroll.novelty.nominal.read',...(state.role==='preparer'?['payroll.novelty.prepare','payroll.novelty.export']:state.role==='reviewer'?['payroll.novelty.approve','payroll.novelty.export']:[])];
+  const cap=()=>['payroll.novelty.read','payroll.novelty.nominal.read',...(state.role==='preparer'?['payroll.fixed.prepare','payroll.novelty.export']:state.role==='reviewer'?['payroll.fixed.approve','payroll.novelty.export']:[])];
   const principal=()=>({tenantId:fixedUuid(1),membershipId:fixedUuid(state.role==='preparer'?2:state.role==='reviewer'?3:4),certifiedBindingId:fixedUuid(5),capabilities:cap(),employmentLinked:state.employmentLinked});
   const allowed=r=>{const row=structuredClone(r);row.canPropose=state.role==='preparer'&&state.employmentLinked&&r.identityCurrent&&!r.pending;for(const p of [row.approved,row.pending,row.latest])if(p)p.canReview=!!r.identityCurrent&&p.review===null&&state.role==='reviewer'&&p.proposedBy!=='reviewer@example.invalid';return row;};
   const intersects=(v,month)=>{if(!month||!v)return !month;const last=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10);return v.validFrom<=last&&(!v.validTo||v.validTo>=month);};

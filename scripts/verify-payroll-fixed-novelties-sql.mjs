@@ -32,7 +32,8 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  assert.ok([17,18].includes(Number(serverMajor)),'Expected PostgreSQL major must be 17 or 18');
  const schema='mc_qa_fixed_092_'+randomUUID().replaceAll('-','');
  const migration=fs.readFileSync(path.join(migrationDir,'092-payroll-fixed-novelties.sql'),'utf8');
- for(const operation of ['bootstrap','employee','list','detail','attempt','export','propose','review'])assert.ok(migration.includes('CREATE OR REPLACE FUNCTION public.payroll_fixed_'+operation+'_v1('),'Migration 092 is incomplete: missing '+operation+' facade');
+ for(const operation of ['bootstrap','employee','list','detail','attempt','export','propose','review'])assert.ok(migration.includes('CREATE OR REPLACE FUNCTION public.payroll_fixed_registry_'+operation+'_v1('),'Migration 092 is incomplete: missing '+operation+' facade');
+ assert.ok(!/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.payroll_fixed_(?!registry_)/i.test(migration),'Migration must preserve the installed legacy function namespace');
  const authorization=latestFunction('payroll_novelty_assert_context_v1');
  const relocate=source=>source.replaceAll('public.',schema+'.')
   .replaceAll(schema+'.digest(','public.digest(')
@@ -54,7 +55,7 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  const exec=sql=>statements.push(sql);
  const ok=(expression,label)=>{statements.push(`PERFORM qa_assert((${expression}),${q(label)}); checks:=checks+1;`);checks++;};
  const rejects=(statement,error,label)=>ok(`qa_rejects(${statement},${q(error)})`,label);
- const call=(operation,actor='maker',tail='')=>`payroll_fixed_${operation}_v1(${actor}${tail?', '+tail:''})`;
+ const call=(operation,actor='maker',tail='')=>`payroll_fixed_registry_${operation}_v1(${actor}${tail?', '+tail:''})`;
  const rejectCall=(operation,tail,values,error,label,actor='maker')=>rejects(`format(${q('SELECT '+call(operation,'%1$L::jsonb',tail))},${[actor,...values].join(',')})`,'PAYROLL_FIXED_'+error,label);
  const propose=(payload,key=q(randomUUID())+'::uuid',actor='maker')=>call('propose',actor,`${payload},${key}`);
  const review=(payload,key=q(randomUUID())+'::uuid',actor='checker')=>call('review',actor,`${payload},${key}`);
@@ -76,6 +77,8 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  CREATE TABLE employment_contract(id uuid PRIMARY KEY,person_id uuid,source_system text,source_batch_id uuid,legacy_company_id bigint,legacy_legajo text,status text);
  CREATE TABLE employment_status_snapshot(employment_contract_id uuid,source_system text,source_batch_id uuid,administrative_status text,snapshot_date date,recorded_at timestamptz DEFAULT clock_timestamp());
  CREATE TABLE tenant_action_employment_link(membership_id uuid,tenant_id uuid,source_binding_id uuid,employment_contract_id uuid,active boolean);
+ CREATE TABLE iam_capability(capability_key text PRIMARY KEY,label text,description text,scope_kind text,sensitivity text);
+ CREATE TABLE iam_capability_conflict(capability_key text,conflicts_with_key text,reason text,PRIMARY KEY(capability_key,conflicts_with_key));
  CREATE TABLE capabilities(membership_id uuid,capability_key text);
  CREATE FUNCTION tenant_iam_assert_no_sod_conflict(uuid) RETURNS void LANGUAGE sql AS 'SELECT NULL::void';
  CREATE FUNCTION tenant_iam_effective_capabilities(mid uuid) RETURNS TABLE(capability_key text) LANGUAGE sql SET search_path=pg_catalog,${schema},pg_temp AS $f$ SELECT c.capability_key FROM capabilities c WHERE c.membership_id=mid $f$;
@@ -84,6 +87,29 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  CREATE FUNCTION qa_assert(value boolean,label text) RETURNS void LANGUAGE plpgsql AS $f$ BEGIN IF value IS DISTINCT FROM true THEN RAISE EXCEPTION 'FIXED_NOVELTIES_QA_FAILED: %',label; END IF; END $f$;
  CREATE FUNCTION qa_rejects(statement text,wanted text) RETURNS boolean LANGUAGE plpgsql SET search_path=pg_catalog,${schema},public,pg_temp AS $f$
  BEGIN EXECUTE statement; RETURN false; EXCEPTION WHEN OTHERS THEN IF SQLERRM=wanted THEN RETURN true; END IF; RAISE; END $f$;
+ `;
+ // Deliberate compatibility sentinels, not a reconstruction of migration044.
+ // Production verification must compare the real 24 function definitions/ACLs separately.
+ // p_id is the historical argument name that exposed the failed namespace collision.
+ const legacyFixtures=`
+ CREATE TABLE payroll_fixed_assignment(id uuid PRIMARY KEY,tenant_id uuid NOT NULL);
+ CREATE TABLE payroll_fixed_change(id uuid PRIMARY KEY,tenant_id uuid NOT NULL);
+ CREATE TABLE payroll_fixed_event(id bigint PRIMARY KEY,tenant_id uuid NOT NULL);
+ REVOKE ALL ON payroll_fixed_assignment,payroll_fixed_change,payroll_fixed_event FROM PUBLIC,municontrol_actions_runtime_app;
+ CREATE FUNCTION payroll_fixed_bootstrap_v1(p_context jsonb) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,${schema},pg_temp AS $sentinel$ SELECT jsonb_build_object('legacySentinel','bootstrap','context',p_context) $sentinel$;
+ CREATE FUNCTION payroll_fixed_detail_v1(p_context jsonb,p_id uuid) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,${schema},pg_temp AS $sentinel$ SELECT jsonb_build_object('legacySentinel','detail','id',p_id,'context',p_context) $sentinel$;
+ REVOKE ALL ON FUNCTION payroll_fixed_bootstrap_v1(jsonb),payroll_fixed_detail_v1(jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;
+ GRANT EXECUTE ON FUNCTION payroll_fixed_bootstrap_v1(jsonb),payroll_fixed_detail_v1(jsonb,uuid) TO municontrol_actions_runtime_app;
+ INSERT INTO iam_capability VALUES('payroll.fixed.prepare','Preparar novedades fijas','Ensayo aislado','tenant','privileged'),('payroll.fixed.approve','Revisar novedades fijas','Ensayo aislado','tenant','restricted');
+ INSERT INTO iam_capability_conflict VALUES('payroll.fixed.approve','payroll.fixed.prepare','Una persona distinta debe revisar');
+ CREATE FUNCTION qa_legacy_fingerprint() RETURNS text LANGUAGE sql SET search_path=pg_catalog,${schema},pg_temp AS $fingerprint$
+ SELECT md5(jsonb_build_object(
+  'functions',(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'definition',pg_get_functiondef(p.oid),'acl',p.proacl,'owner',p.proowner) ORDER BY p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=${q(schema)} AND p.proname IN ('payroll_fixed_bootstrap_v1','payroll_fixed_detail_v1')),
+  'tables',(SELECT jsonb_agg(jsonb_build_object('oid',c.oid,'name',c.relname,'acl',c.relacl,'rls',c.relrowsecurity,'owner',c.relowner) ORDER BY c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=${q(schema)} AND c.relname IN ('payroll_fixed_assignment','payroll_fixed_change','payroll_fixed_event')),
+  'capabilities',(SELECT jsonb_agg(to_jsonb(c) ORDER BY capability_key) FROM iam_capability c),
+  'conflicts',(SELECT jsonb_agg(to_jsonb(c) ORDER BY capability_key,conflicts_with_key) FROM iam_capability_conflict c)
+ )::text)
+ $fingerprint$;
  `;
  const fixtures=`
  INSERT INTO platform_tenant VALUES(${q(ids.tenant)},'active'),(${q(ids.foreignTenant)},'active'),(${q(ids.blockedTenant)},'active');
@@ -97,16 +123,25 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  INSERT INTO capabilities SELECT id,c FROM tenant_membership CROSS JOIN unnest(ARRAY['payroll.novelty.prepare','payroll.novelty.export']) c WHERE user_email IN ('maker@example.invalid','outsider@example.invalid','blocked@example.invalid');
  INSERT INTO capabilities SELECT id,'payroll.novelty.approve' FROM tenant_membership WHERE user_email IN ('maker@example.invalid','checker@example.invalid','same-person@example.invalid','unlinked@example.invalid','outsider@example.invalid');
  INSERT INTO capabilities VALUES(${q(ids.unlinked)},'payroll.novelty.prepare');
+ INSERT INTO capabilities SELECT membership_id,replace(capability_key,'payroll.novelty.','payroll.fixed.') FROM capabilities WHERE capability_key IN ('payroll.novelty.prepare','payroll.novelty.approve');
  INSERT INTO person_identity VALUES(${q(ids.makerPerson)},'Preparador de ensayo'),(${q(ids.checkerPerson)},'Revisor de ensayo'),(${q(ids.targetPerson)},'Agente destinatario de ensayo'),(${q(ids.foreignPerson)},'Agente de otro municipio'),(${q(ids.blockedPerson)},'Agente para concurrencia');
  INSERT INTO source_import_batch VALUES(${q(ids.sourceBatch)},'GRH','qa_fixed_source','published',92001,'2026-09-10T00:00:00Z'),(${q(ids.foreignBatch)},'GRH','qa_fixed_foreign','published',92002,'2026-09-10T00:00:00Z'),(${q(ids.blockedBatch)},'GRH','qa_fixed_blocked','published',92003,'2026-09-10T00:00:00Z');
  INSERT INTO employment_contract VALUES(${q(ids.makerContract)},${q(ids.makerPerson)},'GRH',${q(ids.sourceBatch)},101,'901','active'),(${q(ids.checkerContract)},${q(ids.checkerPerson)},'GRH',${q(ids.sourceBatch)},101,'902','active'),(${q(ids.targetContract)},${q(ids.targetPerson)},'GRH',${q(ids.sourceBatch)},101,'903','active'),(${q(ids.foreignContract)},${q(ids.foreignPerson)},'GRH',${q(ids.foreignBatch)},202,'904','active'),(${q(ids.blockedContract)},${q(ids.blockedPerson)},'GRH',${q(ids.blockedBatch)},303,'905','active');
  INSERT INTO employment_status_snapshot SELECT id,'GRH',source_batch_id,'active','2026-09-10',clock_timestamp() FROM employment_contract;
  INSERT INTO tenant_action_employment_link VALUES(${q(ids.maker)},${q(ids.tenant)},${q(ids.binding)},${q(ids.makerContract)},true),(${q(ids.checker)},${q(ids.tenant)},${q(ids.binding)},${q(ids.checkerContract)},true),(${q(ids.samePerson)},${q(ids.tenant)},${q(ids.binding)},${q(ids.makerContract)},true),(${q(ids.outsider)},${q(ids.foreignTenant)},${q(ids.foreignBinding)},${q(ids.foreignContract)},true),(${q(ids.blocked)},${q(ids.blockedTenant)},${q(ids.blockedBinding)},${q(ids.blockedContract)},true);
  `;
+ ok('qa_legacy_fingerprint()=legacy_before','092 preserves legacy function bodies, p_id signature, grants, tables and existing IAM configuration');
+ ok(`payroll_fixed_bootstrap_v1(maker)->>'legacySentinel'='bootstrap' AND payroll_fixed_detail_v1(maker,${q(ids.targetContract)}::uuid)->>'id'=${q(ids.targetContract)}`,'both historical sentinel signatures remain callable with their original behavior');
  exec("ctx:=payroll_novelty_assert_context_v1(maker,'payroll.novelty.prepare');");
  ok(`ctx->>'tenantId'=${q(ids.tenant)} AND ctx->>'certifiedBindingId'=${q(ids.binding)} AND ctx->>'actorPersonId'=${q(ids.makerPerson)}`,'original authorization resolves certified scope and actual actor person');
  exec("ctx:=payroll_novelty_assert_context_v1(same_person,'payroll.novelty.approve');");
  ok(`ctx->>'membershipId'=${q(ids.samePerson)} AND ctx->>'actorPersonId'=${q(ids.makerPerson)}`,'independent login cannot change its linked canonical person');
+ // The monthly workflow grants cannot substitute for the dedicated fixed grants.
+ exec(`DELETE FROM capabilities WHERE membership_id=${q(ids.maker)} AND capability_key IN ('payroll.fixed.prepare','payroll.fixed.approve');`);
+ badPropose("'{}'::jsonb",'CAPABILITY_REQUIRED','monthly preparer alone cannot write fixed records');
+ badReview("'{}'::jsonb",'CAPABILITY_REQUIRED','monthly reviewer alone cannot review fixed records','maker');
+ exec(`INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.fixed.prepare'),(${q(ids.maker)},'payroll.fixed.approve');
+ DELETE FROM capabilities WHERE capability_key IN ('payroll.novelty.prepare','payroll.novelty.approve');`);
  exec(`result:=${call('bootstrap')};`);
  ok(`result->>'version'='payroll-fixed-bootstrap.v1' AND result#>>'{principal,certifiedBindingId}'=${q(ids.binding)} AND result#>>'{limits,maxRecords}'='500' AND result#>>'{limits,maxHistory}'='100'`,'real bootstrap exposes certified scope and bounded record/history limits');
  ok("result#>>'{effects,approvalEffect}'='control_export_only' AND result#>>'{effects,grhMutation}'='false' AND result#>>'{effects,payrollCalculated}'='false' AND result#>>'{effects,payrollPosted}'='false'",'fixed novelties never claim GRH mutation, calculation or payroll posting');
@@ -227,12 +262,12 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
   [`UPDATE platform_tenant_source_binding SET verified=false WHERE id='${ids.binding}'`,`UPDATE platform_tenant_source_binding SET verified=true WHERE id='${ids.binding}'`,'BINDING_REQUIRED','uncertified binding fails closed'],
   [`DELETE FROM capabilities WHERE membership_id='${ids.maker}' AND capability_key='payroll.novelty.nominal.read'`,`INSERT INTO capabilities VALUES('${ids.maker}','payroll.novelty.nominal.read')`,'CAPABILITY_REQUIRED','nominal read permission is rechecked even for a known attempt'],
  ]){exec(mutation+';');rejectCall('attempt',"'propose',%2$L::uuid",[q(initialKey)],error,label);exec(undo+';');}
- exec(`DELETE FROM capabilities WHERE membership_id=${q(ids.maker)} AND capability_key='payroll.novelty.prepare';`);
+ exec(`DELETE FROM capabilities WHERE membership_id=${q(ids.maker)} AND capability_key='payroll.fixed.prepare';`);
  badPropose('initial_payload','CAPABILITY_REQUIRED','revoked preparation permission blocks idempotent replay','maker',q(initialKey));
- exec(`INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.novelty.prepare');
- DELETE FROM capabilities WHERE membership_id=${q(ids.checker)} AND capability_key='payroll.novelty.approve';`);
+ exec(`INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.fixed.prepare');
+ DELETE FROM capabilities WHERE membership_id=${q(ids.checker)} AND capability_key='payroll.fixed.approve';`);
  badReview('initial_review','CAPABILITY_REQUIRED','revoked approval permission blocks prior review replay','checker',q(initialReviewKey));
- exec(`INSERT INTO capabilities VALUES(${q(ids.checker)},'payroll.novelty.approve');
+ exec(`INSERT INTO capabilities VALUES(${q(ids.checker)},'payroll.fixed.approve');
  DELETE FROM capabilities WHERE membership_id=${q(ids.maker)} AND capability_key='payroll.novelty.export';`);
  rejectCall('export',"DATE '2026-06-01',%2$L",['snapshot'],'CAPABILITY_REQUIRED','export capability is revalidated after selection');
  exec(`INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.novelty.export');`);
@@ -285,10 +320,47 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
   ok(`(SELECT relrowsecurity FROM pg_class WHERE oid=${q(schema+'.'+table)}::regclass)`,`${table} has RLS enabled`);
  }
  const facadeSignatures=['bootstrap(jsonb)','employee(jsonb,text)','list(jsonb,date)','detail(jsonb,uuid)','attempt(jsonb,text,uuid)','export(jsonb,date,text)','propose(jsonb,jsonb,uuid)','review(jsonb,jsonb,uuid)'].map(signature=>signature.replace('(','_v1('));
- for(const signature of facadeSignatures)ok(`has_function_privilege('municontrol_actions_runtime_app',${q(schema+'.payroll_fixed_'+signature)},'EXECUTE')`,'runtime receives bounded facade '+signature);
- ok(`NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=${q(schema)} AND p.proname LIKE 'payroll_fixed_%' AND p.proname NOT IN ('payroll_fixed_bootstrap_v1','payroll_fixed_employee_v1','payroll_fixed_list_v1','payroll_fixed_detail_v1','payroll_fixed_attempt_v1','payroll_fixed_export_v1','payroll_fixed_propose_v1','payroll_fixed_review_v1') AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE'))`,'runtime cannot execute any internal fixed-novelty helper');
+ for(const signature of facadeSignatures)ok(`has_function_privilege('municontrol_actions_runtime_app',${q(schema+'.payroll_fixed_registry_'+signature)},'EXECUTE')`,'runtime receives bounded facade '+signature);
+ ok(`NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=${q(schema)} AND p.proname LIKE 'payroll_fixed_registry_%' AND p.proname NOT IN ('payroll_fixed_registry_bootstrap_v1','payroll_fixed_registry_employee_v1','payroll_fixed_registry_list_v1','payroll_fixed_registry_detail_v1','payroll_fixed_registry_attempt_v1','payroll_fixed_registry_export_v1','payroll_fixed_registry_propose_v1','payroll_fixed_registry_review_v1') AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE'))`,'runtime cannot execute any internal fixed-novelty helper');
  ok(`NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE n.nspname=${q(schema)} AND p.proname LIKE 'payroll_fixed_%' AND a.grantee=0 AND a.privilege_type='EXECUTE')`,'PUBLIC cannot execute fixed-novelty facades or helpers');
  ok(`NOT has_function_privilege('municontrol_actions_runtime_app',${q(schema+'.payroll_novelty_assert_context_v1(jsonb,text)')},'EXECUTE')`,'original authorization helper remains private as in migration026');
+ // A later legacy write fails closed for every new boundary, including replays.
+ // These are compatibility fixtures only; no legacy municipal rows are changed.
+ exec('SELECT jsonb_build_array((SELECT count(*) FROM payroll_fixed_novelty),(SELECT count(*) FROM payroll_fixed_novelty_event)) INTO counts_before;');
+ for(const [table,legacyId] of [['payroll_fixed_assignment',q(randomUUID())+'::uuid'],['payroll_fixed_change',q(randomUUID())+'::uuid'],['payroll_fixed_event','1']]){
+  exec(`BEGIN INSERT INTO ${table} VALUES(${legacyId},${q(ids.tenant)}::uuid);`);
+  rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED',table+' population disables the new registry');
+  if(table==='payroll_fixed_assignment'){
+   rejectCall('employee',"'903'",[],'LEGACY_RECONCILIATION_REQUIRED','legacy population blocks nominal lookup');
+   rejectCall('list',"DATE '2026-06-01'",[],'LEGACY_RECONCILIATION_REQUIRED','legacy population blocks list and snapshot');
+   rejectCall('detail','%2$L::uuid',['record_id'],'LEGACY_RECONCILIATION_REQUIRED','legacy population blocks detail');
+   rejectCall('attempt',"'propose',%2$L::uuid",[q(initialKey)],'LEGACY_RECONCILIATION_REQUIRED','legacy population blocks receipt recovery');
+   rejectCall('export',"DATE '2026-06-01',%2$L",['snapshot'],'LEGACY_RECONCILIATION_REQUIRED','legacy population blocks export');
+   badPropose('initial_payload','LEGACY_RECONCILIATION_REQUIRED','legacy population blocks proposal replay','maker',q(initialKey));
+   badReview('initial_review','LEGACY_RECONCILIATION_REQUIRED','legacy population blocks review replay','checker',q(initialReviewKey));
+  }
+  ok(`(SELECT count(*)=1 FROM ${table}) AND jsonb_build_array((SELECT count(*) FROM payroll_fixed_novelty),(SELECT count(*) FROM payroll_fixed_novelty_event))=counts_before`,table+' guard neither deletes legacy evidence nor appends new events');
+  exec("RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_LEGACY_FIXTURE'; EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;");
+ }
+ exec(`BEGIN INSERT INTO payroll_fixed_assignment VALUES(gen_random_uuid(),${q(ids.foreignTenant)}::uuid);`);
+ rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED','legacy rows in a foreign tenant still require global reconciliation');
+ rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED','foreign actor cannot bypass the global legacy guard','outsider');
+ exec("RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_LEGACY_FIXTURE'; EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;");
+ for(const table of ['payroll_fixed_assignment','payroll_fixed_change','payroll_fixed_event']){
+  exec(`BEGIN ALTER TABLE ${table} RENAME TO qa_missing_legacy;`);
+  rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED','missing '+table+' fails closed');
+  exec("RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_LEGACY_FIXTURE'; EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;");
+ }
+ for(const capability of ['payroll.fixed.prepare','payroll.fixed.approve']){
+  exec(`BEGIN DELETE FROM iam_capability WHERE capability_key=${q(capability)};`);
+  rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED','missing installed '+capability+' requires reconciliation');
+  exec("RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_LEGACY_FIXTURE'; EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;");
+ }
+ exec("BEGIN UPDATE iam_capability_conflict SET capability_key='payroll.fixed.prepare',conflicts_with_key='payroll.fixed.approve';");
+ rejectCall('bootstrap','',[],'LEGACY_RECONCILIATION_REQUIRED','reverse-only conflict cannot replace the installed approve-to-prepare policy');
+ exec("RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_LEGACY_FIXTURE'; EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;");
+ ok(`(SELECT count(*)=3 FROM pg_locks l JOIN pg_class c ON c.oid=l.relation JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=${q(schema)} AND c.relname IN ('payroll_fixed_assignment','payroll_fixed_change','payroll_fixed_event') AND l.pid=pg_backend_pid() AND l.mode='ShareLock' AND l.granted)`,'new operations retain SHARE locks on every legacy table until transaction end');
+ ok('qa_legacy_fingerprint()=legacy_before AND NOT EXISTS(SELECT 1 FROM payroll_fixed_assignment) AND NOT EXISTS(SELECT 1 FROM payroll_fixed_change) AND NOT EXISTS(SELECT 1 FROM payroll_fixed_event)','all compatibility probes restore original legacy sentinels, IAM, ACLs and empty tables');
  // Reach the actual event limit using the real propose/review writers, including their capacity guard.
  exec(`review_payload:=jsonb_build_object('recordId',zero_receipt->>'recordId','proposalId',zero_receipt->>'proposalId','expectedVersion',1,'decision','reject','reason','Revisión de capacidad de ensayo');
  PERFORM ${review('review_payload')};
@@ -316,7 +388,18 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  ok(`(SELECT count(*)=500 FROM payroll_fixed_novelty WHERE tenant_id=${q(ids.tenant)}::uuid AND certified_binding_id=${q(ids.binding)}::uuid)`,'root capacity rejection does not leave an orphan identity');
 
  const pins=`IF nullif(current_setting('neon.project_id',true),'') IS NOT NULL OR nullif(current_setting('neon.branch_id',true),'') IS NOT NULL OR current_database()<>'fixed_novelties_qa' OR current_setting('server_version_num')::int/10000<>${Number(serverMajor)} THEN RAISE EXCEPTION 'FIXED_NOVELTIES_QA_LOCAL_CI_REQUIRED'; END IF;`;
- const report={ok:true,checksPassed:checks,serverMajor:Number(serverMajor),migrationSha256:sha(migration),authorizationMigration:authorization.file,authorizationVersions:authorization.versions,authorizationSha256:sha(authorization.sql),syntheticSchemaRolledBack:true,municipalRowsWritten:0,concurrentConnectionCheck:requireConcurrency,limitations:['IAM capability resolver and separation-of-duties helper use synthetic fixtures; original session, membership, MFA, release, binding, authority, capability and employment-person checks run unchanged.']};
+ const installationChecks=[];
+ for(const table of ['payroll_fixed_assignment','payroll_fixed_change','payroll_fixed_event']){
+  installationChecks.push(`BEGIN
+   INSERT INTO ${table} VALUES(${table==='payroll_fixed_event'?'1':'gen_random_uuid()'},${q(ids.tenant)}::uuid);
+   PERFORM qa_assert(qa_rejects(${q(relocate(migration))},'PAYROLL_FIXED_LEGACY_RECONCILIATION_REQUIRED'),${q('092 installation rejects populated '+table)}); checks:=checks+1;
+   PERFORM qa_assert(to_regclass(${q(schema+'.payroll_fixed_novelty')}) IS NULL AND to_regclass(${q(schema+'.payroll_fixed_novelty_event')}) IS NULL AND to_regprocedure(${q(schema+'.payroll_fixed_registry_legacy_guard_v1()')}) IS NULL,'failed installation leaves no new tables or helpers'); checks:=checks+1;
+   PERFORM qa_assert((SELECT count(*)=1 FROM ${table}) AND qa_legacy_fingerprint()=legacy_before,'failed installation preserves legacy rows, functions, ACLs and IAM'); checks:=checks+1;
+   RAISE EXCEPTION USING ERRCODE='P0921',MESSAGE='QA_RESTORE_INSTALL_FIXTURE';
+   EXCEPTION WHEN SQLSTATE 'P0921' THEN NULL; END;`);
+  checks+=3;
+ }
+ const report={ok:true,checksPassed:checks,serverMajor:Number(serverMajor),migrationSha256:sha(migration),authorizationMigration:authorization.file,authorizationVersions:authorization.versions,authorizationSha256:sha(authorization.sql),syntheticSchemaRolledBack:true,municipalRowsWritten:0,concurrentConnectionCheck:requireConcurrency,legacyCompatibilitySentinels:true,limitations:['IAM capability resolver and separation-of-duties helper use synthetic fixtures; original session, membership, MFA, release, binding, authority, capability and employment-person checks run unchanged.','Legacy coexistence uses two function/ACL sentinels with historical p_id and three minimal tables, not migration044; compare all real legacy definitions, permissions and row fingerprints separately before and after deployment.','Second-connection contention covers the binding advisory lock; legacy table SHARE lock retention is inspected in the main transaction.']};
  const sql=`-- Isolated fixed novelties QA, actual migration SHA256 ${report.migrationSha256}.
  BEGIN ISOLATION LEVEL READ COMMITTED;
  SET LOCAL statement_timeout='90s';
@@ -325,7 +408,7 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  DECLARE maker jsonb:=${j(actors.maker)}; checker jsonb:=${j(actors.checker)}; same_person jsonb:=${j(actors.samePerson)}; reader jsonb:=${j(actors.reader)}; unlinked jsonb:=${j(actors.unlinked)}; outsider jsonb:=${j(actors.outsider)}; blocked jsonb:=${j(actors.blocked)};
  ctx jsonb; subject jsonb; result jsonb; payload jsonb; initial_payload jsonb; initial_review jsonb; review_payload jsonb; capacity_receipt jsonb;
  receipt jsonb; approved_receipt jsonb; change_receipt jsonb; second_payload jsonb; second_receipt jsonb; annul_payload jsonb; annul_receipt jsonb; zero_receipt jsonb;
- record_id uuid; proposal_id uuid; snapshot text; contracts_before text; checks integer:=0; qa_i integer;
+ record_id uuid; proposal_id uuid; snapshot text; contracts_before text; legacy_before text; counts_before jsonb; checks integer:=0; qa_i integer;
  BEGIN
  ${pins}
  IF to_regclass('public.payroll_fixed_novelty') IS NOT NULL OR to_regclass('public.payroll_novelty_batch') IS NOT NULL THEN RAISE EXCEPTION 'FIXED_NOVELTIES_QA_EMPTY_CI_DATABASE_REQUIRED'; END IF;
@@ -334,7 +417,10 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  CREATE SCHEMA ${schema};
  SET LOCAL search_path=${schema},pg_catalog,public,pg_temp;
  ${baseTables}
- ${relocate(migration)}
+ ${legacyFixtures}
+ legacy_before:=qa_legacy_fingerprint();
+ ${installationChecks.join('\n')}
+ EXECUTE ${q(relocate(migration))};
  ${fixtures}
  ${statements.join('\n')}
  RAISE EXCEPTION USING ERRCODE='P0920',MESSAGE='FIXED_NOVELTIES_QA_ROLLBACK_SUCCESS';

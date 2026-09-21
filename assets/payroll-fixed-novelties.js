@@ -1,4 +1,4 @@
-import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,
+import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,
   fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 
@@ -17,6 +17,7 @@ function errorMessage(error){
     MAKER_CHECKER_REQUIRED:'La revisión debe hacerla otra persona con permiso vigente.',EMPLOYMENT_REQUIRED:'Falta verificar el vínculo laboral del operador. No se crean vínculos automáticamente.',IDEMPOTENCY_REUSE:'La clave pertenece a otros datos. Verificá el intento antes de iniciar otra operación.',
     SNAPSHOT_CHANGED:'Cambió el resultado consultado. Actualizá la consulta antes de exportar.',SESSION_BUSY:'Hay otra operación en curso. Reintentá con los mismos datos.',
     NOT_FOUND:'No se encontró el registro o legajo solicitado.',ROW_LIMIT:'El resultado supera el límite permitido. No se muestra una lista parcial.',CAPACITY_LIMIT:'No hay capacidad disponible para guardar. Los datos del formulario se conservan.',
+    LEGACY_RECONCILIATION_REQUIRED:'Hay novedades fijas de un registro anterior pendientes de conciliar. No se guardaron cambios. Hace falta conciliar ese registro antes de continuar.',
     INVALID_PAYLOAD:'Revisá los datos informados. La propuesta se conserva.',DATES_INVALID:'Revisá las fechas de alta y vencimiento.'};
   const suffix=String(error.code||'').replace(/^PAYROLL_FIXED_/,'');
   return messages[suffix]||(error.name==='AbortError'||error.name==='TimeoutError'?'La consulta demoró demasiado. Reintentá.':error.status?'No se pudo completar la operación. Tus datos se conservan.':error instanceof TypeError?'No se pudo conectar. Tus datos se conservan.':error.message||'No se pudo completar la operación.');
@@ -35,9 +36,9 @@ export function mountFixedNovelties(shell){
   const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null;
   let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open;
-  const can=cap=>Boolean(bootstrap&&bootstrap.principal.capabilities.includes(cap)&&access.has(cap)&&hasRead(access));
-  const allowedPrepare=()=>can('payroll.novelty.prepare')&&bootstrap.principal.employmentLinked;
-  const allowedReview=()=>can('payroll.novelty.approve')&&bootstrap.principal.employmentLinked;
+  const can=cap=>fixedCapability(bootstrap,access,cap);
+  const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
+  const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
   const selected=()=>fixedView(data,{search:$('[data-fn-search]').value,status:$('[data-fn-filter]').value});
   function status(text){if(mounted)$('[data-fn-status]').textContent=text;}
   function clearConsulted(){
@@ -71,7 +72,7 @@ export function mountFixedNovelties(shell){
       const retry=editor.form.querySelector('[data-fn-retry]');retry.hidden=!attempt;retry.disabled=busy||externalBusy||!(attempt?.command==='review'?allowedReview():allowedPrepare());
     }
     if(detail){for(const name of ['correct','annul']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.canPropose||!allowedPrepare();}
-      for(const name of ['approve','reject']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.pending?.canReview||!can('payroll.novelty.approve');}}
+      for(const name of ['approve','reject']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.pending?.canReview||!allowedReview();}}
   }
   async function request(query,options={}){
     const activeController=controller;
@@ -88,7 +89,7 @@ export function mountFixedNovelties(shell){
   async function loadBootstrap(){
     const next=fixedBootstrap(await request({resource:'bootstrap'})),oldKey=bootstrap?fixedPrincipalKey(bootstrap):editor?.principalKey||attempt?.principalKey;
     if(oldKey&&oldKey!==fixedPrincipalKey(next)){clearAll();const message='Cambió el municipio, la membresía o la fuente. Se descartó el borrador anterior; no se reenvió. Volvé a consultar.';status(message);throw Error(message);}
-    bootstrap=next;access=new Set(next.principal.capabilities);if(!hasRead(access)){clearConsulted();throw Error('No hay permiso para consultar novedades nominales.');}return next;
+    bootstrap=next;if(!hasRead(access)||!hasRead(new Set(next.principal.capabilities))){clearConsulted();throw Error('No hay permiso para consultar novedades nominales.');}return next;
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
   async function loadList(){
@@ -122,7 +123,7 @@ export function mountFixedNovelties(shell){
     if(r.canPropose&&allowedPrepare()){
       const correct=button(r.approved?'Proponer corrección':'Preparar nueva propuesta','correct');correct.addEventListener('click',()=>openEditor(r,'set'));actions.append(correct);
       if(r.approved?.operation==='set'){const annul=button('Proponer anulación','annul');annul.addEventListener('click',()=>openEditor(r,'annul'));actions.append(annul);}}
-    if(r.pending?.canReview&&can('payroll.novelty.approve'))for(const decision of ['approve','reject']){const b=button(decision==='approve'?'Revisar y aprobar':'Revisar y rechazar',decision);b.addEventListener('click',()=>openReview(r,decision));actions.append(b);}
+    if(r.pending?.canReview&&allowedReview())for(const decision of ['approve','reject']){const b=button(decision==='approve'?'Revisar y aprobar':'Revisar y rechazar',decision);b.addEventListener('click',()=>openReview(r,decision));actions.append(b);}
     const close=button('Cerrar detalle','close');close.addEventListener('click',()=>{if(editor)return;detail=null;renderDetail();});actions.append(close);target.append(actions);
     const history=node('details');history.dataset.fnHistory='';history.append(node('summary','Historial completo · '+detail.history.length+' propuesta(s)'));
     const entries=node('ol',undefined,'fn-history');for(const p of detail.history){const li=node('li');li.dataset.fnHistoryId=p.id;
@@ -208,7 +209,7 @@ export function mountFixedNovelties(shell){
       sendAttempt();
     }catch(error){editor.feedback.textContent=errorMessage(error);}
   }
-  function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
+  function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
   async function sendAttempt(){
     if(!attempt||!editor||!(attempt.command==='review'?allowedReview():allowedPrepare()))return;
     const pending=attempt,active=editor;
