@@ -256,4 +256,4 @@ REVOKE ALL ON FUNCTION public.legal_contract_counterparties_valid_v1(jsonb),
  FROM PUBLIC,municontrol_actions_runtime_app;
 GRANT EXECUTE ON FUNCTION public.legal_contract_operation_v1(jsonb,text,jsonb,uuid) TO municontrol_actions_runtime_app;
 COMMENT ON FUNCTION public.legal_contract_operation_v1(jsonb,text,jsonb,uuid)
- IS 'Versioned contractual register linked to matter/expediente. Administrative states only;
+ IS 'Versioned contractual register linked to matter/expediente. Administrative states only; no legal validity, signature, payment or payroll effects';
