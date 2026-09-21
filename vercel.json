@@ -49,6 +49,9 @@
     "api/internal-payroll-novelties.js": {
       "maxDuration": 20
     },
+    "api/internal-payroll-fixed-novelties.js": {
+      "maxDuration": 20
+    },
     "api/internal-payroll-control-import.js": {
       "maxDuration": 20
     },

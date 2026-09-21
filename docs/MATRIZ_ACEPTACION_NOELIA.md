@@ -43,6 +43,8 @@ Fuente: `5º MODULO NOVEDADDES DE LIQUIDACION`, páginas 1–4.
 | 5.4 Fijas | Código 80 Responsabilidad jerárquica con alta y vencimiento; documentado 31/12/2050, unidad 1 e importe 1. No extender esa convención a todos los conceptos. |
 | 5.5 Eliminación masiva | Resolver errores de concepto, tipo o mes. Diseño nuevo propuesto: baja/corrección auditada con vista previa; no borrar evidencia sin control. |
 
+Incremento 092: [registro y revisión de novedades fijas](NOELIA_NOVEDADES_FIJAS_092.md). Agrega vigencias declaradas, propuestas, decisiones independientes, corrección/anulación individual e historial. Su exportación es de control; no activa consumo salarial automático ni cierra la corrección masiva 5.5. Instalación y publicación sujetas a los gates de su release.
+
 La reunión pide importe opcional, no obligatorio. La ausencia de importe no se convierte en cero. La valoración depende de fórmulas vigentes, no de ocultar el campo.
 
 ## 6. Parámetros

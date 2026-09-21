@@ -9,6 +9,7 @@ import { mountNoveltyReviewPanel, mountNoveltyIssues } from './payroll-novelty-r
 import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
+import { mountFixedNovelties } from './payroll-fixed-novelties.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -61,6 +62,7 @@ const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
 let sheetEditor = null;
 let attendancePreparte = null;
+let fixedNovelties = null;
 let employeePicker = null;
 let issuesPanel = null;
 let pendingFileReader = null;
@@ -95,7 +97,8 @@ function setBusy(value, label = '') {
     for (const [field, disabled] of busyEntryFields) field.disabled = disabled;
     busyEntryFields.clear();
   }
-  for (const button of document.querySelectorAll('button')) button.disabled = Boolean(value);
+  for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell]')) button.disabled = Boolean(value);
+  fixedNovelties?.setExternalBusy(value);
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
     renderAgileRows();
@@ -590,6 +593,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     }
     if(payload.sourceFeatures?.attendancePreparte!==true)attendancePreparte?.clear();
     bootstrapState = payload;
+    fixedNovelties?.setAccess({ capabilities: [...capabilitySet(payload.principal)], principalKey: nextPrincipalKey });
     byId('sessionScope').textContent = capabilityText(payload.principal);
     byId('entrySection').hidden = !canPrepare;
     byId('readOnlySection').hidden = canPrepare;
@@ -619,6 +623,7 @@ async function loadBootstrap({ quiet = false } = {}) {
       await openBatch(selectedBatchId, { quiet: true });
     }
   } catch (error) {
+    fixedNovelties?.deny();
     sheetEditor?.clear();
     invalidatePreparedDraft();
     byId('entrySection').hidden = true;
@@ -1124,6 +1129,7 @@ function syncAmountEntry() {
 }
 
 function initialize() {
+  fixedNovelties = mountFixedNovelties(byId('fixedNovelties'));
   employeePicker = createEmployeePicker({
     canUse: () => document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
     onDirectoryInvalidated: () => { byId('pickedLegajoName').textContent = ''; sheetEditor?.clearLookupLabels(); },
