@@ -14,7 +14,9 @@ RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public,pg_temp
     OR jsonb_typeof(x->'role')<>'string'
     OR x->>'role' NOT IN ('provider','contractor','consultant','lessee','lessor','other')
     OR jsonb_typeof(x->'taxId')<>'string'
-    OR (x->>'taxId'<>'' AND x->>'taxId' !~ '^[0-9]{11}
+    OR (x->>'taxId'<>'' AND x->>'taxId' !~ '^[0-9]{11}$')
+  ) ELSE false END
+$$;
 
 CREATE FUNCTION public.legal_contract_validate_payload_v1(d jsonb)
 RETURNS void LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
