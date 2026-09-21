@@ -215,3 +215,7 @@ local-agents/
 
 !internal-legal-contract-obligations.html
 !scripts/migrations/087-legal-contract-obligations.sql
+
+# Read-only municipality-wide contractual agenda.
+!internal-legal-contract-agenda.html
+!scripts/migrations/088-legal-contract-agenda.sql

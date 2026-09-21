@@ -1,0 +1,30 @@
+name: Legal contract agenda release
+on:
+  push:
+    branches: ['codex/legal-contract-agenda-20260920','master']
+    paths:
+      - 'api/internal-legal-contract-agenda.js'
+      - 'assets/legal-contract-agenda*'
+      - 'assets/legal-contracts-ui.js'
+      - 'internal-legal-contract-agenda.html'
+      - 'scripts/migrations/088-legal-contract-agenda.sql'
+      - 'tests/legal-contract-agenda.test.js'
+      - 'scripts/build-legal-registry.mjs'
+      - '.github/workflows/legal-contract-agenda-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: legal-contract-agenda-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build

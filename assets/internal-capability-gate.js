@@ -16,6 +16,7 @@
     'internal-legal-case-actions.html': { any: ['legal.norm.read'] },
     'internal-legal-contracts.html': { any: ['legal.norm.read'] },
     'internal-legal-contract-obligations.html': { any: ['legal.norm.read'] },
+    'internal-legal-contract-agenda.html': { any: ['legal.norm.read'] },
     'centro-acciones.html': { any: ['actions.read'] },
     'fuentes-tiempo.html': { any: ['time.source.read', 'time.catalog.read'] },
     'relojes-marcaciones.html': { any: ['attendance.read'] },
