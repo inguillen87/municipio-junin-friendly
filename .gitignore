@@ -50,6 +50,8 @@ prisma/
 !scripts/canonical-promote-current-grh.sql
 !scripts/migrations/
 !scripts/migrations/*.sql
+!scripts/clock-database/
+!scripts/clock-database/*.sql
 !scripts/tests/057-family-schooling-certificates.test.sql
 !scripts/tests/058-payroll-monthly-source-summary.test.sql
 !scripts/tests/059-action-source-history.test.sql

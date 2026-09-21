@@ -16,6 +16,8 @@ lookups.json
 transcripts_audios.json
 backend/
 infra/
+scripts/clock-database/
+scripts/verify-clock-source-postgres.mjs
 docs/*
 tenants/
 database/

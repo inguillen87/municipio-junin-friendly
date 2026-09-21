@@ -1,0 +1,82 @@
+name: Dedicated clock database - no previews
+on:
+  push:
+    branches: ['internal-clock-database-20260921', 'master']
+    paths:
+      - 'scripts/clock-database/**'
+      - 'scripts/verify-clock-source-postgres.mjs'
+      - 'tests/clock-source-*.test.js'
+      - '.github/workflows/clock-source-database.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: clock-source-database-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: clock_source_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: clock_source_disposable_qa_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d clock_source_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:clock_source_disposable_qa_only@127.0.0.1:5432/clock_source_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/verify-clock-source-postgres.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/clock-source.sql --write-lock-sql=verification/clock-source-lock.sql
+      - name: Apply actual standalone migration and exercise its security and replay contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD=clock_source_disposable_qa_only -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres -d clock_source_qa -v ON_ERROR_STOP=1 < verification/clock-source-lock.sql > verification/clock-source-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'CLOCK_SOURCE_QA_LOCK_READY' verification/clock-source-lock.log; then ready=true; break; fi
+            if ! kill -0 "$blocker" 2>/dev/null; then cat verification/clock-source-lock.log; exit 1; fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          docker exec -e PGPASSWORD=clock_source_disposable_qa_only -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres -d clock_source_qa -v ON_ERROR_STOP=1 < verification/clock-source.sql | tee verification/clock-source-result.log
+          wait "$blocker"
+          trap - EXIT
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clock-source-postgres-${{ matrix.postgres }}
+          path: verification/clock-source*.log
+          retention-days: 5
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/clock-database/tests/*.test.mjs
+      - run: npm run build
+      - name: Existing collectors and senders remain compatible
+        run: node --test local-agents/pm10/tests/*.test.mjs
