@@ -1,7 +1,7 @@
 name: Legal alert center release
 on:
   push:
-    branches: ['codex/legal-alert-center-20260921','master']
+    branches: ['codex/legal-alert-center-20260921','codex/legal-close-20260921','master']
     paths:
       - 'api/internal-legal-alert-center.js'
       - 'assets/legal-alert-center*'
@@ -10,6 +10,8 @@ on:
       - 'internal-legal-alert-center.html'
       - 'scripts/migrations/089-legal-alert-center.sql'
       - 'tests/legal-alert-center.test.js'
+      - 'tests/legal-alert-center-api.test.js'
+      - 'scripts/verify-legal-alert-center-browser.mjs'
       - 'scripts/build-legal-registry.mjs'
       - '.github/workflows/legal-alert-center-release.yml'
 permissions:
@@ -29,3 +31,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-legal-alert-center-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-alert-center-${{ github.run_id }}
+          path: verification/legal-alert-center-local/**
+          retention-days: 3
