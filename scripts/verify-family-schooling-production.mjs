@@ -1,19 +1,28 @@
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
+import '../assets/app-routes.js';
 
 const origin = 'https://municipio-junin-friendly.vercel.app';
 const files = ['internal-dashboard.html','reportes-rrhh.html','assets/family-schooling.js',
   'assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css',
   'assets/report-centre.js','assets/internal-capability-gate.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const expected = Object.fromEntries(files.map(file => [file,hash(fs.readFileSync(new URL('../'+file,import.meta.url)))]));
+const expected = Object.fromEntries(files.map(file => {
+  const built = new URL('../public/'+file,import.meta.url);
+  if (!fs.existsSync(built) || !fs.statSync(built).isFile()) {
+    throw Error('SCHOOLING_BUILD_ASSET_MISSING: public/'+file+'; run the Friendly build before verifying production');
+  }
+  return [file,hash(fs.readFileSync(built))];
+}));
+const publishedPaths = Object.fromEntries(files.map(file => [file,
+  globalThis.MuniControlRoutes.resolve('/'+file,origin)?.path || '/'+file]));
 const commit = process.env.GITHUB_SHA || 'manual';
 const deadline = Date.now()+240000;
 let ready = false;
 while (Date.now()<deadline) {
   try {
     const results = await Promise.all(files.map(async file => {
-      const response = await fetch(origin+'/'+file+'?release='+encodeURIComponent(commit), {cache:'no-store',signal:AbortSignal.timeout(10000)});
+      const response = await fetch(origin+publishedPaths[file]+'?release='+encodeURIComponent(commit), {cache:'no-store',credentials:'omit',redirect:'manual',signal:AbortSignal.timeout(10000)});
       return response.status === 200 && hash(Buffer.from(await response.arrayBuffer())) === expected[file];
     }));
     if (results.every(Boolean)) { ready=true; break; }

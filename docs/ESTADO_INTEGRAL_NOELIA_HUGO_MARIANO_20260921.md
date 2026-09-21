@@ -12,12 +12,13 @@ Corte de auditoría: 21/09/2026, base `02c6cd9afb11ce5410a7ff4d25b712361ba22382`
 | 5. Novedades | Planilla, carga individual/masiva/archivos, revisión y exportación; importe ausente permanece distinto de cero. | Novedades fijas con vigencia y corrección/anulación masiva auditada. La aprobación actual es `export_only`. |
 | 6. Parámetros | Propuesta, revisión y catálogo efectivo limitado a auxiliares 88/90 con activación separada. | Maestro completo, escalas y fórmulas vigentes; actualización conjunta 606/607/612/550. |
 | 7. Liquidación | Históricos, conciliación y autorización de reprocesamiento externo. | Motor salarial propio, confirmación/cierre reproducibles, contabilización y aceptación operativa. |
+| DOC-01. Firma y emisión | Especificación e identificación del circuito por usuario incorporadas al plan. | Firma institucional, emisión trazable, permisos y entrega de documentos; el PDF de control actual no acredita firma ni emisión oficial. |
 
 El paquete bancario es control interno: no ordena transferencias ni prueba pago. El catálogo 066 mejora el documento original de autonomía, pero no es un motor completo. El respaldo candidato de septiembre no se activa por terminar una interfaz. No se inventan fórmulas, días trabajados, factores, cuentas ni fechas ausentes.
 
 La fase ESC-IA-01 de este incremento completa el registro administrativo manual de escolaridad: papel declarado sin adjunto o PDF, institución/nivel/curso/ciclo, fechas diferenciadas, motivo e historial. Su instalación y publicación requieren los gates del documento de entrega. Quedan fuera fotografía, extracción IA, autoservicio y aprobación salarial; siguen en ESC-IA-02 a ESC-IA-05.
 
-Fuentes: `MATRIZ_ACEPTACION_NOELIA.md`, `PROYECTO_INTEGRAL_JUNIN_20260919.md`, `NOELIA_BANK_CONTROL_PACKAGE_20260919.md`, `CATALOGO_AUXILIARES_VIGENTES_066.md`, `DIRECTIVAS_CERTIFICADOS_IA_Y_CONEXION_RELOJES_20260915.md`; contratos efectivos de `internal-payroll-novelty`, `internal-payroll-reprocessing` e `internal-payroll-monthly-close`.
+Fuentes: `MATRIZ_ACEPTACION_NOELIA.md`, `PROYECTO_INTEGRAL_JUNIN_20260919.md`, `NOELIA_BANK_CONTROL_PACKAGE_20260919.md`, `CATALOGO_AUXILIARES_VIGENTES_066.md`, `DIRECTIVAS_CERTIFICADOS_IA_Y_CONEXION_RELOJES_20260915.md`, `FEATURE_FIRMA_EMISION_DOCUMENTAL_20260910.md`; contratos efectivos de `internal-payroll-novelty`, `internal-payroll-reprocessing` e `internal-payroll-monthly-close`.
 
 ## Hugo
 
