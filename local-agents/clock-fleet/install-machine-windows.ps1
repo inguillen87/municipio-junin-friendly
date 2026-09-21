@@ -10,20 +10,32 @@ $Allowed=[IO.Path]::GetFullPath($env:ProgramData).TrimEnd('\')+'\MuniControl\'
 if(-not $Base.StartsWith($Allowed,[StringComparison]::OrdinalIgnoreCase) -or $Base.Contains('"')){throw 'GATEWAY_PROGRAMDATA_REQUIRED'}
 function Assert-LocalPath([string]$Path){$p=[IO.Path]::GetFullPath($Path);if(-not $p.StartsWith($Base+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'GATEWAY_PATH_OUTSIDE_BASE'};$item=Get-Item -LiteralPath $p;while($item){if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'GATEWAY_REPARSE_DENIED'};$item=if($item -is [IO.FileInfo]){$item.Directory}else{$item.Parent};if($item -and $item.FullName -eq [IO.Path]::GetPathRoot($p)){break}};return $p}
 $Node=Assert-LocalPath (Join-Path $Base 'runtime\node.exe')
+$Verifier=Assert-LocalPath (Join-Path $Base 'verify-release.mjs')
 $Script=Assert-LocalPath (Join-Path $Base 'app\clock-fleet\gateway.mjs')
 $ConfigFile=Assert-LocalPath (Join-Path $Base 'config\gateway.json')
 $Config=Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
 if($Config.approvedHost -ine $env:COMPUTERNAME){throw 'GATEWAY_APPROVED_HOST_MISMATCH'}
 $State=Assert-LocalPath $Config.stateDir
-$Writable=@($State)
-foreach($worker in $Config.workers){$file=Assert-LocalPath $worker.configFile;$c=Get-Content -LiteralPath $file -Raw|ConvertFrom-Json;$Writable+=Assert-LocalPath $c.stateDir;if($c.credentialFile){$null=Assert-LocalPath $c.credentialFile};if($c.tokenFile){$null=Assert-LocalPath $c.tokenFile};foreach($clock in $c.clocks){$null=Assert-LocalPath $clock.credentialFile}}
+$Writable=@($State);$Secrets=@()
+foreach($worker in $Config.workers){$file=Assert-LocalPath $worker.configFile;$c=Get-Content -LiteralPath $file -Raw|ConvertFrom-Json;$Writable+=Assert-LocalPath $c.stateDir;if($c.credentialFile){$Secrets+=Assert-LocalPath $c.credentialFile};if($c.tokenFile){$Secrets+=Assert-LocalPath $c.tokenFile};foreach($clock in $c.clocks){if($clock.credentialFile){$Secrets+=Assert-LocalPath $clock.credentialFile};if($clock.tokenFile){$Secrets+=Assert-LocalPath $clock.tokenFile}}}
 $StatePrefix=(Join-Path $Base 'state').TrimEnd('\')+'\'
 foreach($dir in $Writable){if(-not $dir.StartsWith($StatePrefix,[StringComparison]::OrdinalIgnoreCase)){throw 'GATEWAY_STATE_MUST_BE_ISOLATED'}}
+foreach($secret in $Secrets){foreach($dir in $Writable){if($secret.StartsWith($dir.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'GATEWAY_SECRET_IN_WRITABLE_STATE'}}}
 if((Get-AuthenticodeSignature -LiteralPath $Node).Status -ne 'Valid'){throw 'GATEWAY_RUNTIME_SIGNATURE_INVALID'}
+$Major=& $Node -p 'Number(process.versions.node.split(".")[0])'
+if($LASTEXITCODE -ne 0 -or [int]$Major -lt 22){throw 'GATEWAY_RUNTIME_VERSION_INVALID'}
+$Verified=& $Node $Verifier $Base
+if($LASTEXITCODE -ne 0){throw 'GATEWAY_RELEASE_VERIFICATION_FAILED'}
+$Release=$Verified|ConvertFrom-Json
+if($Release.ok -ne $true -or $Release.sourceDirty -ne $false){throw 'GATEWAY_RELEASE_NOT_CLEAN'}
 $Preflight=& $Node $Script check --config $ConfigFile
 if($LASTEXITCODE -ne 0){throw 'GATEWAY_PREFLIGHT_FAILED'}
 $Report=$Preflight|ConvertFrom-Json
 if($Report.captureIdentities -lt 1){throw 'GATEWAY_NO_CAPTURE_CONFIGURED'}
+if($Activate){
+ $Desired=& $Node --input-type=module -e 'import {pathToFileURL} from "node:url"; const {desiredState}=await import(pathToFileURL(process.argv[2]).href); console.log(await desiredState(process.argv[1]));' $State $Script
+ if($LASTEXITCODE -ne 0 -or $Desired -ne 'running'){throw 'GATEWAY_EXPLICIT_START_REQUIRED'}
+}
 $Task='MuniControl-MunicipalClockGateway'
 if(Get-ScheduledTask -TaskName $Task -ErrorAction SilentlyContinue){throw 'GATEWAY_TASK_EXISTS_REVIEW_REQUIRED'}
 $Legacy=@(Get-ScheduledTask | Where-Object {$_.TaskName -like 'MuniControl*' -and $_.State -ne 'Disabled'})

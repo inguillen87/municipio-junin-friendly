@@ -2,7 +2,7 @@
 
 Reutiliza el transporte de lectura 4.1 de PM-10; no es otro lector independiente. Un proceso puede atender hasta 16 identidades aprobadas con estado, bloqueo, cola y tiempos propios. Una autenticación fallida, pérdida de ruta o serie distinta no permite descargar ni atribuir datos a otro equipo.
 
-**Este incremento automatiza captura local. No tiene remitente a Neon para los nuevos equipos.** Los lotes `clock-local-batch.v1` no son compatibles con el remitente específico de PM-10: esa separación evita atribuir marcaciones a Edificio Viejo por accidente. La recepción remota y sus acuses constituyen el siguiente cierre, no un estado supuesto.
+**La captura local incorpora ahora un remitente ZK40 separado y opcional.** `sender.mjs` lee los lotes `clock-local-batch.v1` y los entrega al receptor existente con identidad y acuses por equipo. Esos lotes siguen sin ser compatibles con el remitente específico de PM-10: la separación evita atribuir marcaciones a Edificio Viejo por accidente. Tener el software preparado no equivale a tenerlo instalado, inscrito o recibiendo en el municipio.
 
 ## Operación
 `runner.mjs once --config <ruta-absoluta>` hace un ciclo de cada reloj que esté habilitado y haya llegado a su próxima fecha. `run` mantiene los ciclos. Ambos tienen bloqueo global y por equipo. Nunca se borran marcaciones del dispositivo ni se leen plantillas biométricas o el directorio de personas.
@@ -20,8 +20,8 @@ Cada cola deduplica registros binarios exactos dentro de su propia identidad. Un
 
 La configuración y claves son privadas y externas al repositorio. El estado tiene cuota por equipo y mínimo de espacio libre; falta de espacio detiene la captura sin descartar pendientes. No exponer los relojes directamente a Internet.
 
-## Próximo cierre
-Registrar o reconciliar punto, equipo y serie en el servidor; emitir credencial de ingesta por equipo; enviar lote con huella y versión; obtener acuse íntegro e idempotente; comprobar recuperación y métricas visibles en `/relojes`. Mantener los identificadores sin correspondencia en revisión. Ningún registro se convierte en ausencia u hora liquidable por el solo hecho de haber sido recibido.
+## Activación pendiente
+Registrar o reconciliar punto, equipo y serie en el servidor; emitir credencial de ingesta por equipo; verificar capacidad antes de enviar históricos; obtener acuse íntegro e idempotente y comprobar recuperación y métricas visibles en `/relojes`. El remitente limita cada equipo a cuatro partes de hasta 500 registros por ciclo y conserva los originales. Mantener los identificadores sin correspondencia en revisión. Ningún registro se convierte en ausencia u hora liquidable por el solo hecho de haber sido recibido. Una cola vacía sin acuses tampoco acredita conectividad o inscripción.
 
 Licencia: GPL-2.0-only, como el lector compartido. Se conserva su documentación de protocolo en `../pm10/reader/REFERENCIAS.md`.
 
@@ -37,4 +37,4 @@ El panel local incluye conteos de equipos, capturas guardadas y revisiones pendi
 
 ## Host municipal permanente - 19/09/2026
 
-Se agrega un coordinador de los workers existentes y preparacion de arranque sin usuario interactivo; alcance y transferencia en [MUNICIPAL_HOST.md](MUNICIPAL_HOST.md). El preflight informa explicitamente cuantos lectores y remitentes estan configurados. No agrega ni habilita el remitente ZK40 de los nuevos equipos, no instala nada en el municipio y no certifica por si solo autonomia 24/7. La captura/cola/sender anterior permanece compatible, sin cambiar sus claves o formatos.
+El coordinador preparado el 19/09 se amplía el 21/09 con `fleet-delivery`, cierre ordenado por IPC e instaladores Windows/Linux. Alcance, configuración y transferencia en [MUNICIPAL_HOST.md](MUNICIPAL_HOST.md). El preflight informa cuántos lectores y remitentes están configurados. La instalación municipal y la prueba con la PC personal apagada permanecen pendientes; los instaladores dejan el servicio deshabilitado por defecto. La captura y las colas anteriores permanecen compatibles, sin cambiar sus claves o formatos.

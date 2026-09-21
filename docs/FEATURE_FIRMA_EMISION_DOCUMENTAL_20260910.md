@@ -2,6 +2,8 @@
 
 **Fecha:** 10/09/2026. **Estado:** especificación incorporada al plan; implementación, vinculación de la firma y activación productiva pendientes.
 
+**Seguimiento al 21/09/2026:** el usuario espera recibir la aprobación el 22/09/2026. Sigue pendiente; no acredita facultades de firma, activación ni emisión documental. Cuando se reciba, registrar responsable, fecha, alcance y versión autorizada, conservando la custodia privada y los controles DOC-01. La fecha prevista no constituye una aprobación automática.
+
 **Seguimiento:** [Issue #1](https://github.com/inguillen87/municipio-junin-friendly/issues/1).
 
 Extensión de la [hoja de ruta competitiva](./COMPETITIVE_PRODUCT_ROADMAP.md), los [principios UX](./PRODUCT_UX_PRINCIPLES.md) y el [handoff general](../CODEX_HANDOFF_JUNIN_ENTERPRISE.md). No sustituye los sprints de jornadas, licencias, conceptos, liquidación y colector permanente. No marca ninguno de ellos como terminado.

@@ -1,7 +1,7 @@
 name: Clock reception and fleet UI - no previews
 on:
   push:
-    branches: ['internal-clock-reception-070-20260917', 'internal-clock-fleet-ui-20260917', 'master']
+    branches: ['internal-clock-reception-070-20260917', 'internal-clock-fleet-ui-20260917', 'internal-municipal-clock-host-20260921', 'master']
     paths:
       - 'api/attendance-zk40.js'
       - 'lib/internal-zk40-reception.js'
@@ -9,7 +9,10 @@ on:
       - 'lib/internal-clock-fleet.js'
       - 'assets/clock-fleet-*'
       - 'local-agents/clock-fleet/**'
-      - 'local-agents/pm10/tests/fleet-*.test.mjs'
+      - 'local-agents/pm10/**'
+      - 'scripts/build-municipal-clock-release.mjs'
+      - 'scripts/verify-municipal-clock-release.mjs'
+      - 'scripts/verify-zk40-postgres.mjs'
       - 'scripts/install-fleet-capture-release.mjs'
       - 'scripts/verify-fleet-local-panel.mjs'
       - 'assets/attendance-point-label.js'
@@ -20,6 +23,10 @@ on:
       - 'scripts/verify-clock-fleet-*.mjs'
       - 'scripts/verify-clock-map-browser.mjs'
       - 'scripts/migrations/070-zk40-multiclock-reception.sql'
+      - 'scripts/migrations/055-pm10-continuous-reception.sql'
+      - 'scripts/migrations/045-clock-snapshot-operations.sql'
+      - 'scripts/migrations/022-attendance-device-gateway.sql'
+      - 'scripts/migrations/002-canonical-integration.sql'
       - 'tests/zk40*'
       - 'tests/clock-fleet-production.test.js'
       - '.github/workflows/clock-reception-070.yml'
@@ -30,6 +37,97 @@ concurrency:
   group: clock-reception-070-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  collector:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Original PM10 and fleet delivery regressions
+        run: node --test local-agents/pm10/tests/*.test.mjs
+      - name: Parse Linux installer without executing it
+        if: runner.os == 'Linux'
+        run: bash -n local-agents/clock-fleet/install-machine-linux.sh
+      - name: Parse Windows installer without executing it
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installParseTokens = $null
+          $installParseErrors = $null
+          $installScript = Join-Path $PWD 'local-agents/clock-fleet/install-machine-windows.ps1'
+          [void][System.Management.Automation.Language.Parser]::ParseFile($installScript, [ref]$installParseTokens, [ref]$installParseErrors)
+          if ($installParseErrors.Count -gt 0) {
+            $installParseErrors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+      - name: Build and verify the municipal host package
+        run: node scripts/build-municipal-clock-release.mjs --output verification/municipal-clock-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: municipal-clock-release-${{ matrix.os }}
+          path: verification/municipal-clock-release/
+          if-no-files-found: error
+          retention-days: 5
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: zk40_reception_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: zk40_disposable_qa_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zk40_reception_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:zk40_disposable_qa_only@127.0.0.1:5432/zk40_reception_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-zk40-postgres.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/zk40.sql --write-lock-sql=verification/zk40-lock.sql
+      - name: Actual 055 and 070, tenant and device isolation, concurrent importer and rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/zk40-lock.sql > verification/zk40-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'ZK40_QA_LOCK_READY' verification/zk40-lock.log; then ready=true; break; fi
+            if ! kill -0 "$blocker" 2>/dev/null; then cat verification/zk40-lock.log; exit 1; fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/zk40.sql | tee verification/zk40-result.log
+          wait "$blocker"
+          trap - EXIT
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clock-reception-postgres-${{ matrix.postgres }}
+          path: verification/zk40*.log
+          retention-days: 5
   validate:
     if: github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
@@ -42,8 +140,6 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run build
-      - name: Existing collector regressions
-        run: node --test local-agents/pm10/tests/*.test.mjs
       - name: Existing and new browser journeys - synthetic municipal APIs
         run: |
           npx playwright install --with-deps chromium
@@ -62,6 +158,7 @@ jobs:
           retention-days: 5
   publication:
     if: github.ref == 'refs/heads/master'
+    needs: [collector, sql]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -71,8 +168,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Capture recovery and local queue regression
-        run: node --test local-agents/pm10/tests/*.test.mjs
       - name: Build expected assets once - full regression already required before promotion
         run: node scripts/build-friendly.mjs
       - name: Published artifact equality and anonymous boundaries
