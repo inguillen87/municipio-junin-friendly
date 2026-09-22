@@ -69,6 +69,9 @@ jobs:
       - run: mkdir -p verification
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres effective_consumers_qa
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres curated_consumers_qa
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres reference_rotation_qa
+      - run: node scripts/verify-grh-reference-rotation-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/reference-rotation.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=reference_rotation_qa -v ON_ERROR_STOP=1 < verification/reference-rotation.sql
       - run: node scripts/verify-grh-effective-source-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/effective-source.sql
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=effective_source_qa -v ON_ERROR_STOP=1 < verification/effective-source.sql
       - run: node scripts/verify-grh-effective-consumers-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/effective-consumers.sql

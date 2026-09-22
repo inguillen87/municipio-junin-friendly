@@ -1,0 +1,124 @@
+-- All values are synthetic. The canonical table definitions are real; unrelated
+-- target/authority triggers are deliberately outside this focused UPDATE test.
+INSERT INTO data_import_runs VALUES
+ (30,'grh_junin_curated',repeat('a',64),'completed'),
+ (40,'grh_junin_curated',repeat('b',64),'completed');
+INSERT INTO source_import_batch(id,source_system,source_database,source_file_name,source_sha256,source_cutoff,legacy_import_run_id,validation_state) VALUES
+ (md5('source_import_batch|GRH|'||repeat('A',64))::uuid,'GRH','grh_junin','synthetic candidate',repeat('A',64),'2026-09-10 15:17:30+00',30,'published'),
+ (md5('source_import_batch|GRH|'||repeat('B',64))::uuid,'GRH','grh_junin','synthetic empty run',repeat('B',64),'2026-09-10 15:17:30+00',40,'published'),
+ (md5('qa-prior')::uuid,'GRH','grh_junin','synthetic prior',repeat('C',64),'2026-08-06 15:15:21+00',NULL,'published'),
+ (md5('qa-other-db')::uuid,'GRH','other_database','synthetic foreign database',repeat('D',64),'2026-08-06 15:15:21+00',NULL,'published'),
+ (md5('qa-other-system')::uuid,'PERSONAS','grh_junin','synthetic other system',repeat('E',64),'2026-08-06 15:15:21+00',NULL,'published'),
+ (md5('qa-unpublished')::uuid,'GRH','grh_junin','synthetic unpublished',repeat('F',64),'2026-08-06 15:15:21+00',NULL,'validated');
+
+INSERT INTO grh_employees VALUES (30,7,'101',9001),(30,7,'102',9001),(30,8,'101',9002),(30,7,'103',NULL),(20,7,'777',9200);
+INSERT INTO grh_employees SELECT 30,7,(200+i)::text,9100+i FROM generate_series(1,11) i;
+INSERT INTO projection_employees SELECT * FROM grh_employees;
+
+-- Explicit expected set; labels do not drive the extracted UPDATE.
+CREATE TABLE qa_expected(qa_case text PRIMARY KEY,should_close boolean NOT NULL);
+INSERT INTO qa_expected VALUES
+ ('close-person-9001',true),('close-person-9002',true),
+ ('close-contract-7-101',true),('close-contract-7-102',true),('close-contract-8-101',true),
+ ('closed-history',false),('current-batch',false),('from-equals-cutoff',false),('from-after-cutoff',false),
+ ('prior-other-database',false),('prior-other-system',false),('prior-unpublished',false),
+ ('existing-other-system',false),('wrong-canonical-entity',false),('wrong-canonical-id',false),
+ ('wrong-source-entity',false),('null-person-contract',false),('other-run-person',false),
+ ('other-company-contract',false),('unselected-person',false),('physical-decoy',false);
+
+INSERT INTO source_xref(source_system,source_entity,source_id,source_batch_id,canonical_entity,canonical_id,match_method,confidence,evidence,valid_from,valid_to,qa_case)
+SELECT CASE WHEN x.label='existing-other-system' THEN 'PERSONAS' ELSE 'GRH' END,
+ CASE WHEN x.label='wrong-source-entity' THEN 'other_entity' ELSE 'persona' END,
+ x.person_id::text,
+ CASE x.label
+  WHEN 'current-batch' THEN md5('source_import_batch|GRH|'||repeat('A',64))::uuid
+  WHEN 'prior-other-database' THEN md5('qa-other-db')::uuid
+  WHEN 'prior-other-system' THEN md5('qa-other-system')::uuid
+  WHEN 'existing-other-system' THEN md5('qa-other-system')::uuid
+  WHEN 'prior-unpublished' THEN md5('qa-unpublished')::uuid
+  ELSE md5('qa-prior')::uuid END,
+ CASE WHEN x.label='wrong-canonical-entity' THEN 'employment_contract' ELSE 'person_identity' END,
+ CASE WHEN x.label='wrong-canonical-id' THEN md5('qa-wrong-canonical')::uuid ELSE md5('person_identity|GRH|persona|'||x.person_id)::uuid END,
+ 'grh_person_seed',1,jsonb_build_object('synthetic',true,'case',x.label),
+ CASE x.label WHEN 'from-equals-cutoff' THEN '2026-09-10 15:17:30+00'::timestamptz
+  WHEN 'from-after-cutoff' THEN '2026-09-11 00:00:00+00'::timestamptz ELSE '2026-08-06 15:15:21+00'::timestamptz END,
+ CASE WHEN x.label='closed-history' THEN '2026-08-31 00:00:00+00'::timestamptz ELSE NULL END,x.label
+FROM (VALUES
+ ('close-person-9001',9001),('close-person-9002',9002),('closed-history',9101),('current-batch',9102),
+ ('from-equals-cutoff',9103),('from-after-cutoff',9104),('prior-other-database',9105),('prior-other-system',9106),
+ ('prior-unpublished',9107),('existing-other-system',9108),('wrong-canonical-entity',9109),
+ ('wrong-canonical-id',9110),('wrong-source-entity',9111),('other-run-person',9200),('unselected-person',9199),('physical-decoy',9393)
+) x(label,person_id);
+INSERT INTO source_xref(source_system,source_entity,source_id,source_batch_id,canonical_entity,canonical_id,match_method,confidence,evidence,valid_from,qa_case)
+SELECT 'GRH','legajo',jsonb_build_object('companyCode',company,'employeeNumber',legajo)::text,md5('qa-prior')::uuid,
+ 'employment_contract',md5('employment_contract|GRH|legajo|'||company||'|'||legajo)::uuid,'grh_legajo',1,
+ jsonb_build_object('synthetic',true,'case',label),'2026-08-06 15:15:21+00',label
+FROM (VALUES ('close-contract-7-101',7,'101'),('close-contract-7-102',7,'102'),('close-contract-8-101',8,'101'),
+ ('null-person-contract',7,'103'),('other-company-contract',99,'101')) x(label,company,legajo);
+
+CREATE TABLE qa_baseline AS SELECT * FROM source_xref;
+CREATE TABLE qa_run_baseline AS SELECT * FROM data_import_runs;
+CREATE TABLE qa_batch_baseline AS SELECT * FROM source_import_batch;
+SET LOCAL municontrol.promotion_import_run_id='30';
+
+DO $cases$
+DECLARE mode text; testcase record; changed bigint; after_first jsonb; after_second jsonb;
+ mutation text; iteration integer; expected jsonb; observed jsonb; query_name text;
+BEGIN
+ FOR iteration IN 1..2 LOOP
+  mode:=CASE iteration WHEN 1 THEN 'physical' ELSE 'revision' END;
+  query_name:='rotate_'||mode;
+  DELETE FROM source_xref; INSERT INTO source_xref SELECT * FROM qa_baseline;
+  -- The revision path must read the view, not accidentally use the physical table.
+  IF mode='revision' THEN INSERT INTO grh_employees VALUES(30,7,'999',9393); END IF;
+  EXECUTE format('SELECT %I()',query_name) INTO changed;
+  PERFORM assert_ok(changed=5,mode||': five eligible references close');
+  FOR testcase IN SELECT * FROM qa_expected ORDER BY qa_case LOOP
+   SELECT to_jsonb(b) INTO expected FROM qa_baseline b WHERE b.qa_case=testcase.qa_case;
+   IF testcase.should_close THEN
+    expected:=jsonb_set(expected,'{valid_to}',to_jsonb('2026-09-10 15:17:30+00'::timestamptz));
+   END IF;
+   SELECT to_jsonb(x) INTO observed FROM source_xref x WHERE x.qa_case=testcase.qa_case;
+   PERFORM assert_ok(observed IS NOT DISTINCT FROM expected,mode||': '||testcase.qa_case);
+  END LOOP;
+  PERFORM assert_ok((SELECT count(*) FROM source_xref)=(SELECT count(*) FROM qa_baseline),mode||': no inserted or deleted references');
+  PERFORM assert_ok(NOT EXISTS((SELECT * FROM data_import_runs EXCEPT ALL SELECT * FROM qa_run_baseline)
+   UNION ALL(SELECT * FROM qa_run_baseline EXCEPT ALL SELECT * FROM data_import_runs)),mode||': runs unchanged');
+  PERFORM assert_ok(NOT EXISTS((SELECT * FROM source_import_batch EXCEPT ALL SELECT * FROM qa_batch_baseline)
+   UNION ALL(SELECT * FROM qa_batch_baseline EXCEPT ALL SELECT * FROM source_import_batch)),mode||': batches unchanged');
+  SELECT jsonb_agg(to_jsonb(x) ORDER BY qa_case) INTO after_first FROM source_xref x;
+  EXECUTE format('SELECT %I()',query_name) INTO changed;
+  SELECT jsonb_agg(to_jsonb(x) ORDER BY qa_case) INTO after_second FROM source_xref x;
+  PERFORM assert_ok(changed=0 AND after_first=after_second,mode||': replay preserves the full history');
+
+  -- A valid empty run and a missing run cannot reuse another run's employees.
+  DELETE FROM source_xref; INSERT INTO source_xref SELECT * FROM qa_baseline;
+  PERFORM set_config('municontrol.promotion_import_run_id','40',true);
+  EXECUTE format('SELECT %I()',query_name) INTO changed;
+  PERFORM assert_ok(changed=0,mode||': exact empty run');
+  PERFORM set_config('municontrol.promotion_import_run_id','999',true);
+  EXECUTE format('SELECT %I()',query_name) INTO changed;
+  PERFORM assert_ok(changed=0,mode||': missing run');
+  PERFORM set_config('municontrol.promotion_import_run_id','30',true);
+
+  -- Every candidate provenance predicate is evaluated by the actual UPDATE.
+  FOREACH mutation IN ARRAY ARRAY[
+   $m$UPDATE data_import_runs SET status='failed' WHERE id=30$m$,
+   $m$UPDATE data_import_runs SET source_name='other_curated' WHERE id=30$m$,
+   $m$UPDATE data_import_runs SET source_sha256=repeat('9',64) WHERE id=30$m$,
+   $m$UPDATE source_import_batch SET source_database='other_database' WHERE legacy_import_run_id=30$m$,
+   $m$UPDATE source_import_batch SET source_system='PERSONAS' WHERE legacy_import_run_id=30$m$,
+   $m$UPDATE source_import_batch SET source_sha256=repeat('8',64) WHERE legacy_import_run_id=30$m$,
+   $m$UPDATE source_import_batch SET legacy_import_run_id=NULL WHERE legacy_import_run_id=30$m$
+  ] LOOP
+   EXECUTE mutation;
+   EXECUTE format('SELECT %I()',query_name) INTO changed;
+   PERFORM assert_ok(changed=0,mode||': candidate provenance '||mutation);
+   UPDATE data_import_runs r SET status=b.status,source_name=b.source_name,source_sha256=b.source_sha256 FROM qa_run_baseline b WHERE b.id=r.id;
+   UPDATE source_import_batch s SET source_database=b.source_database,source_system=b.source_system,source_sha256=b.source_sha256,legacy_import_run_id=b.legacy_import_run_id FROM qa_batch_baseline b WHERE b.id=s.id;
+  END LOOP;
+  PERFORM assert_ok(NOT EXISTS((SELECT * FROM source_xref EXCEPT ALL SELECT * FROM qa_baseline)
+   UNION ALL(SELECT * FROM qa_baseline EXCEPT ALL SELECT * FROM source_xref)),mode||': all no-op guards preserve full rows');
+ END LOOP;
+ PERFORM assert_ok((SELECT count(*) FROM qa_checks)=72,'both source paths and all cases executed');
+END $cases$;

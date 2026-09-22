@@ -269,6 +269,8 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Version only verified GRH references in the selected employment cohort.
 -- Historical references retain their original batch and target.
+-- Reuse one selected employee projection for both reference types. Rebuilding
+-- the versioned source inside this join can exceed the publication time limit.
 WITH batch AS (
   SELECT sib.id, sib.source_cutoff
   FROM source_import_batch sib
@@ -278,17 +280,19 @@ WITH batch AS (
     AND dir.source_name = 'grh_junin_curated' AND sib.source_database = 'grh_junin'
     AND sib.id = md5('source_import_batch|GRH|' || upper(dir.source_sha256))::uuid
     AND sib.source_sha256 = upper(dir.source_sha256)
-), selected_refs AS (
+), selected_employees AS MATERIALIZED (
+  SELECT company_id, legajo, person_id
+  FROM public.grh_employees
+  WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint AND person_id IS NOT NULL
+), selected_refs AS MATERIALIZED (
   SELECT DISTINCT 'persona'::text AS source_entity, person_id::text AS source_id,
     'person_identity'::text AS canonical_entity,
     md5('person_identity|GRH|persona|' || person_id::text)::uuid AS canonical_id
-  FROM public.grh_employees
-  WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint AND person_id IS NOT NULL
+  FROM selected_employees
   UNION ALL
   SELECT 'legajo', jsonb_build_object('companyCode', company_id, 'employeeNumber', legajo)::text,
     'employment_contract', md5('employment_contract|GRH|legajo|' || company_id::text || '|' || legajo)::uuid
-  FROM public.grh_employees
-  WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint AND person_id IS NOT NULL
+  FROM selected_employees
 )
 UPDATE source_xref existing
 SET valid_to = batch.source_cutoff
