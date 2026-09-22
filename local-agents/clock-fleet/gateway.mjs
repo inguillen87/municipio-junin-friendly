@@ -58,6 +58,7 @@ async function runWorker(kind,config){
  try{
   if(kind==='fleet-capture'||kind==='legacy-capture'){await captureWorker(async args=>{const {main}=await import(pathToFileURL(path.resolve(ROOT,WORKERS[kind])).href);return main(args);},config);}
   else if(kind==='legacy-delivery'){const {loadSenderConfig}=await import('../pm10/delivery.mjs'),{runSender}=await import('../pm10/sender.mjs');await deliveryWorker(loadSenderConfig,runSender,config);}
+  else if(kind==='fleet-source-delivery'){const {loadSourceSenderConfig}=await import('./source-delivery.mjs'),{runSourceSender}=await import('./source-sender.mjs');await deliveryWorker(loadSourceSenderConfig,runSourceSender,config);}
   else{const {loadFleetSenderConfig}=await import('./delivery.mjs'),{runFleetSender}=await import('./sender.mjs');await deliveryWorker(loadFleetSenderConfig,runFleetSender,config);}
  }finally{if(process.connected)process.disconnect();}
 }

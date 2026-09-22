@@ -38,3 +38,13 @@ El panel local incluye conteos de equipos, capturas guardadas y revisiones pendi
 ## Host municipal permanente - 19/09/2026
 
 El coordinador preparado el 19/09 se amplía el 21/09 con `fleet-delivery`, cierre ordenado por IPC e instaladores Windows/Linux. Alcance, configuración y transferencia en [MUNICIPAL_HOST.md](MUNICIPAL_HOST.md). El preflight informa cuántos lectores y remitentes están configurados. La instalación municipal y la prueba con la PC personal apagada permanecen pendientes; los instaladores dejan el servicio deshabilitado por defecto. La captura y las colas anteriores permanecen compatibles, sin cambiar sus claves o formatos.
+
+## Archivo separado de fuentes — 21/09/2026
+
+`source-sender.mjs once|run --config <ruta-absoluta>` usa una configuración privada `clock-fleet-source-config.v1` con `approved`, `enabled`, `stateDir`, `tenantId`, `windowSeconds` y `clocks`. Los relojes conservan los campos validados de la configuración de entrega de flota. El intervalo debe ser múltiplo de 900 segundos, entre 900 y 3600. El destino está fijado en el código; no se acepta una URL proporcionada por la configuración.
+
+Este modo requiere enrolamiento y credenciales propias en la base de relojes. Queda deshabilitado hasta completar esos controles. Guarda `clock-source-receipt.v1` en `delivery-source`; no convierte un acuse canónico previo ni borra los originales. El tenant, serie, hashes, parte y cantidad deben coincidir. El estado `source_stored` sólo significa fuente guardada, con conciliación laboral pendiente.
+
+Un único coordinador reclama una ventana durable antes de enviar y atiende los equipos de forma serial, rotando el primero. Los reintentos esperan la siguiente ventana; un reinicio no adelanta ese plazo. La actividad tiene presupuesto temporal y cada equipo envía hasta cuatro partes por ventana. Un bloqueo requiere revisar la causa y `resume --config <ruta-absoluta> --clock <id>`, que tampoco envía inmediatamente. Una ventana no garantiza un costo: debe observarse el consumo real del proyecto y conservar su plan gratuito.
+
+El gateway reconoce `fleet-source-delivery`. No permite configurarlo junto a otro remitente sobre la misma cola. PM10 conserva su circuito actual. El paquete contiene el código, nunca la configuración privada, los tokens ni las colas municipales.

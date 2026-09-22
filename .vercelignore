@@ -18,6 +18,7 @@ backend/
 infra/
 scripts/clock-database/
 scripts/verify-clock-source-postgres.mjs
+scripts/verify-clock-source-integration-postgres.mjs
 docs/*
 tenants/
 database/

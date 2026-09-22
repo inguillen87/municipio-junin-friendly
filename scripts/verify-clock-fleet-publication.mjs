@@ -2,7 +2,7 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {setTimeout as sleep} from 'node:timers/promises';
 const origin='https://municipio-junin-friendly.vercel.app',out='verification/clock-fleet';fs.mkdirSync(out,{recursive:true});
 const hash=b=>createHash('sha256').update(b).digest('hex');
-const files=['assets/attendance-point-label.js','assets/clock-fleet-model.js','assets/clock-fleet-panel.js','assets/clock-fleet-panel.css','assets/pm10-reception.js','relojes-marcaciones.html'];
+const files=['assets/attendance-point-label.js','assets/clock-fleet-model.js','assets/clock-fleet-panel.js','assets/clock-fleet-panel.css','assets/clock-source-model.js','assets/clock-source-panel.js','assets/pm10-reception.js','relojes-marcaciones.html'];
 const expected=Object.fromEntries(files.map(f=>[f,hash(fs.readFileSync('public/'+f))]));
 for(let attempt=1;attempt<=40;attempt++){
  try{for(const [file,sha]of Object.entries(expected)){const url=file.endsWith('.html')?origin+'/relojes':origin+'/'+file;const r=await fetch(url,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200,file);assert.equal(hash(Buffer.from(await r.arrayBuffer())),sha,file+' is not the release');}break;}
@@ -13,5 +13,8 @@ assert.equal(r.status,401,'Fleet is not public municipal data');assert.match(r.h
 const invalid=await fetch(origin+'/api/internal-clock-fleet?tenant=not-allowed',{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(invalid.status,400);
 const legacy=await fetch(origin+'/api/attendance-pm10',{redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(legacy.status,405);
 const additional=await fetch(origin+'/api/attendance-zk40',{redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(additional.status,405);
-const report={ok:true,commit:process.env.GITHUB_SHA||null,checkedAt:new Date().toISOString(),files:expected,anonymousFleetRead:401,scopeOverrideRejected:400,existingPm10Method:405,additionalClockMethod:405,nominalDataRequested:false,realMunicipalSessionTested:false,clockRequests:0,municipalWrites:0};
+const source=await fetch(origin+'/api/internal-clock-source',{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(source.status,401);assert.match(source.headers.get('cache-control')||'',/no-store/);
+const override=await fetch(origin+'/api/internal-clock-source?tenant=not-allowed',{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(override.status,400);
+const ingest=await fetch(origin+'/api/clock-source-ingest',{redirect:'error',signal:AbortSignal.timeout(15000)});assert.equal(ingest.status,405);
+const report={ok:true,commit:process.env.GITHUB_SHA||null,checkedAt:new Date().toISOString(),files:expected,anonymousFleetRead:401,scopeOverrideRejected:400,existingPm10Method:405,additionalClockMethod:405,anonymousSourceRead:401,sourceScopeOverrideRejected:400,sourceIngestMethod:405,nominalDataRequested:false,realMunicipalSessionTested:false,clockRequests:0,municipalWrites:0};
 fs.writeFileSync(out+'/publication.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));

@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 // Source-owned, unique patch points; failed integration stops the build instead of publishing broken controls.
 const patches=[
-  ['</head>', '<link rel="stylesheet" href="/assets/clock-fleet-panel.css"><script type="module" src="/assets/clock-fleet-panel.js"></script></head>'],
+  ['</head>', '<link rel="stylesheet" href="/assets/clock-fleet-panel.css"><script type="module" src="/assets/clock-fleet-panel.js"></script><script type="module" src="/assets/clock-source-panel.js"></script></head>'],
   [
     "<section id=\"pm10Reception\"",
-    "<section id=\"clockFleetReception\" hidden aria-label=\"Central de recepción por equipo\"></section>\n<section id=\"pm10Reception\""
+    "<section id=\"clockFleetReception\" hidden aria-label=\"Central de recepción por equipo\"></section>\n<section id=\"clockSourceArchive\" hidden aria-label=\"Archivo original de relojes\"></section>\n<section id=\"pm10Reception\""
   ],
   [
     "popup.append(title,list,pending,open);return popup",
@@ -37,4 +37,4 @@ export function patchClockFleetHtml(html){
  for(const [before,after]of patches){if(html.split(before).length!==2)throw Error('Clock fleet integration point changed: '+before.slice(0,60));html=html.replace(before,()=>after);}
  return html;
 }
-export function buildClockFleet(root,output){for(const asset of ['attendance-point-label.js','clock-fleet-model.js','clock-fleet-panel.js','clock-fleet-panel.css'])fs.copyFileSync(path.join(root,'assets',asset),path.join(output,'assets',asset));const file=path.join(output,'relojes-marcaciones.html');fs.writeFileSync(file,patchClockFleetHtml(fs.readFileSync(file,'utf8')));}
+export function buildClockFleet(root,output){for(const asset of ['attendance-point-label.js','clock-fleet-model.js','clock-fleet-panel.js','clock-fleet-panel.css','clock-source-model.js','clock-source-panel.js'])fs.copyFileSync(path.join(root,'assets',asset),path.join(output,'assets',asset));const file=path.join(output,'relojes-marcaciones.html');fs.writeFileSync(file,patchClockFleetHtml(fs.readFileSync(file,'utf8')));}

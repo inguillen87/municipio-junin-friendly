@@ -1,10 +1,20 @@
 name: Dedicated clock database - no previews
 on:
   push:
-    branches: ['internal-clock-database-20260921', 'master']
+    branches: ['internal-clock-database-20260921', 'internal-clock-source-integration-20260921', 'master']
     paths:
       - 'scripts/clock-database/**'
       - 'scripts/verify-clock-source-postgres.mjs'
+      - 'scripts/verify-clock-source-integration-postgres.mjs'
+      - 'scripts/verify-clock-source-browser.mjs'
+      - 'scripts/build-clock-fleet.mjs'
+      - 'api/clock-source-ingest.js'
+      - 'api/internal-clock-source.js'
+      - 'lib/clock-source*.js'
+      - 'assets/clock-source*.js'
+      - 'assets/clock-fleet-panel.css'
+      - 'local-agents/clock-fleet/**'
+      - 'local-agents/pm10/tests/*source*.test.mjs'
       - 'tests/clock-source-*.test.js'
       - '.github/workflows/clock-source-database.yml'
   workflow_dispatch:
@@ -60,6 +70,13 @@ jobs:
           docker exec -e PGPASSWORD=clock_source_disposable_qa_only -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres -d clock_source_qa -v ON_ERROR_STOP=1 < verification/clock-source.sql | tee verification/clock-source-result.log
           wait "$blocker"
           trap - EXIT
+      - name: Generate phase-2 SQL against the unchanged foundation
+        run: node scripts/verify-clock-source-integration-postgres.mjs --ci --expected-major=${{ matrix.postgres }} --write-sql=verification/clock-source-integration.sql
+      - name: Exercise aggregate boundaries and effective SQL LOGIN privileges then roll back
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD=clock_source_disposable_qa_only -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres -d clock_source_qa -v ON_ERROR_STOP=1 < verification/clock-source-integration.sql | tee verification/clock-source-integration-result.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,5 +95,18 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test scripts/clock-database/tests/*.test.mjs
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Private source panel and existing fleet remain separate
+        run: |
+          node scripts/verify-clock-source-browser.mjs
+          node scripts/verify-clock-fleet-browser.mjs
       - name: Existing collectors and senders remain compatible
         run: node --test local-agents/pm10/tests/*.test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clock-source-browser
+          path: |
+            verification/clock-source-browser/
+            verification/clock-fleet/
+          retention-days: 5

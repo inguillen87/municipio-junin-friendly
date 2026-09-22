@@ -11,7 +11,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 export const RELEASE_FILES = Object.freeze({
   'clock-fleet': ['capture-policy.mjs','control.mjs','delivery.mjs','gateway-config.mjs','gateway.mjs',
     'install-machine-windows.ps1','install-machine-linux.sh','MUNICIPAL_HOST.md','municontrol-clock-gateway.service',
-    'operator-help.mjs','overview.mjs','README.md','runner.mjs','sender.mjs'],
+    'operator-help.mjs','overview.mjs','README.md','runner.mjs','sender.mjs','source-delivery.mjs','source-sender.mjs'],
   pm10: ['config.mjs','delivery.mjs','delivery-status.mjs','file-replacement.mjs','LICENSE','route-guard.mjs',
     'sender.mjs','service.mjs','store.mjs','reader/lector-fichadas.mjs','reader/zk-core-v3.mjs','reader/REFERENCIAS.md']
 });

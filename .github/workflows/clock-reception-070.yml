@@ -1,7 +1,7 @@
 name: Clock reception and fleet UI - no previews
 on:
   push:
-    branches: ['internal-clock-reception-070-20260917', 'internal-clock-fleet-ui-20260917', 'internal-municipal-clock-host-20260921', 'master']
+    branches: ['internal-clock-reception-070-20260917', 'internal-clock-fleet-ui-20260917', 'internal-municipal-clock-host-20260921', 'internal-clock-source-integration-20260921', 'master']
     paths:
       - 'api/attendance-zk40.js'
       - 'lib/internal-zk40-reception.js'

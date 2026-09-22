@@ -3,11 +3,11 @@
 import path from 'node:path';import os from 'node:os';import {lstat,readFile} from 'node:fs/promises';
 import {fault} from '../pm10/config.mjs';import {loadConfig} from '../pm10/config.mjs';
 import {loadSenderConfig} from '../pm10/delivery.mjs';import {loadFleetConfig} from './runner.mjs';
-export const WORKERS=Object.freeze({'fleet-capture':'runner.mjs','legacy-capture':'../pm10/service.mjs','legacy-delivery':'../pm10/sender.mjs','fleet-delivery':'sender.mjs'});
+export const WORKERS=Object.freeze({'fleet-capture':'runner.mjs','legacy-capture':'../pm10/service.mjs','legacy-delivery':'../pm10/sender.mjs','fleet-delivery':'sender.mjs','fleet-source-delivery':'source-sender.mjs'});
 const plain=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join()===keys.sort().join();
 export function absoluteLocal(value){if(typeof value!=='string'||!path.isAbsolute(value)||/[\x00-\x1f"]/.test(value)||value.startsWith('\\\\')||path.resolve(value)===path.parse(value).root)throw fault('GATEWAY_PATH_INVALID');return path.resolve(value);}
 export function gatewayConfig(value,hostname=os.hostname()){
- if(!plain(value,['schema','approved','approvedHost','stateDir','workers'])||value.schema!=='municipal-clock-gateway.v1'||value.approved!==true||typeof value.approvedHost!=='string'||!value.approvedHost.trim()||value.approvedHost.toLowerCase()!==hostname.toLowerCase()||!Array.isArray(value.workers)||value.workers.length<1||value.workers.length>4)throw fault('GATEWAY_HOST_CONFIG_INVALID');
+ if(!plain(value,['schema','approved','approvedHost','stateDir','workers'])||value.schema!=='municipal-clock-gateway.v1'||value.approved!==true||typeof value.approvedHost!=='string'||!value.approvedHost.trim()||value.approvedHost.toLowerCase()!==hostname.toLowerCase()||!Array.isArray(value.workers)||value.workers.length<1||value.workers.length>Object.keys(WORKERS).length)throw fault('GATEWAY_HOST_CONFIG_INVALID');
  const seen=new Set();const workers=value.workers.map(w=>{if(!plain(w,['kind','configFile','enabled'])||!Object.hasOwn(WORKERS,w.kind)||seen.has(w.kind)||typeof w.enabled!=='boolean')throw fault('GATEWAY_WORKER_INVALID');seen.add(w.kind);return Object.freeze({...w,configFile:absoluteLocal(w.configFile)});});
  return Object.freeze({...value,stateDir:absoluteLocal(value.stateDir),workers:Object.freeze(workers)});
 }
@@ -34,6 +34,7 @@ export async function inspectGateway(config){
   if(w.kind==='fleet-capture'){const f=await loadFleetConfig(w.configFile);workerRoots.push(f.stateDir);for(const c of f.clocks.filter(c=>c.enabled))identities.push({capture:true,clockId:c.clockId,serial:c.serial,stateDir:path.join(f.stateDir,c.clockId)});}
   else if(w.kind==='legacy-capture'){const c=await loadConfig(w.configFile);workerRoots.push(c.stateDir);identities.push({capture:true,clockId:null,serial:c.serial,stateDir:c.stateDir});}
   else if(w.kind==='fleet-delivery'){const {loadFleetSenderConfig}=await import('./delivery.mjs');const d=await loadFleetSenderConfig(w.configFile);workerRoots.push(d.stateDir);for(const c of d.clocks.filter(c=>c.enabled))identities.push({capture:false,clockId:c.clockId,serial:c.serial,stateDir:path.join(d.stateDir,c.clockId),connectorKey:c.connectorKey});}
+  else if(w.kind==='fleet-source-delivery'){const {loadSourceSenderConfig}=await import('./source-delivery.mjs');const d=await loadSourceSenderConfig(w.configFile);if(!d.enabled)throw fault('GATEWAY_SOURCE_DISABLED');workerRoots.push(d.stateDir);for(const c of d.clocks.filter(c=>c.enabled))identities.push({capture:false,clockId:c.clockId,serial:c.serial,stateDir:path.join(d.stateDir,c.clockId),connectorKey:c.connectorKey});}
   else{const d=await loadSenderConfig(w.configFile);const {SERIAL}=await import('../pm10/reader/lector-fichadas.mjs');workerRoots.push(d.stateDir);identities.push({capture:false,clockId:null,serial:SERIAL,stateDir:d.stateDir,connectorKey:d.connectorKey});}
  }
  for(const root of workerRoots)if(overlaps(queueKey(config.stateDir),queueKey(root)))throw fault('GATEWAY_STATE_OVERLAP');
