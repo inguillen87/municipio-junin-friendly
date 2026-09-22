@@ -1300,7 +1300,10 @@ function initialize() {
     const raw=event.detail?.tenantCapabilities;if(!raw)return;
     gateSeen=true;acceptDirectoryGate(event.detail);
     const caps=new Set(raw);
-    if(!caps.has('payroll.novelty.read') || !caps.has('payroll.novelty.nominal.read') || bootstrapState?.principal?.capabilities?.some(cap=>!caps.has(cap))) {
+    // The first gate result is not a revocation of a bootstrap still in flight.
+    // GRH preparation can legitimately omit nominal-read capability. Only a
+    // previously established scope can lose authority and invalidate requests.
+    if(bootstrapState?.principal && (!caps.has('payroll.novelty.read') || bootstrapState.principal.capabilities.some(cap=>!caps.has(cap)))) {
       clearConsulted();
       showMessage('info','El acceso cambió','Los datos consultados se retiraron. Actualizá la consulta para verificar tus permisos; el envío pendiente conserva su misma clave.');
     }

@@ -16,9 +16,13 @@ let changed = false, newReceipt = false, denied = false, canPrepare = true, dela
 const bootstrap = () => ({ ok: true, principal: {
   email: 'qa@example.invalid', membershipId: '00000000-0000-4000-8000-000000000001',
   tenantId: '00000000-0000-4000-8000-000000000002',
-  capabilities: canPrepare ? ['payroll.novelty.prepare'] : [] },
+  certifiedBindingId: '00000000-0000-4000-8000-000000000004',
+  capabilities: ['payroll.novelty.read', ...(canPrepare ? ['payroll.novelty.prepare'] : [])] },
   sourceFeatures: { attendancePreparte: canPrepare },
-  limits: { contractVersion: 'payroll-novelty-batch.v1', approvalEffect: 'export_only', grhMutation: false,
+  feature: { contractVersion: 'payroll-novelty-batch.v2', approvalEffect: 'export_only' },
+  limits: { contractVersion: 'payroll-novelty-batch.v2', sourceModes: ['individual','bulk'],
+    native: { maxRows: 1, sourceModes: ['individual'], payrollTypes: ['monthly'] },
+    approvalEffect: 'export_only', grhMutation: false,
     payrollCalculated: false, payrollPosted: false, maxRows: 500,
     payrollTypes: ['monthly','first_fortnight','sac','vacation','supplementary','final','other'] }, batches: [] });
 const browser = await chromium.launch({ headless: true,
@@ -32,12 +36,18 @@ try {
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/internal-auth') return route.fulfill({ json: { ok: true, authenticated: true,
         user: { email: 'qa@example.invalid', name: 'Operador QA', role: 'ADMIN_INTERNO' },
-        access: { tenantCapabilities: ['payroll.read'], platformCapabilities: [], platformRoles: [] } } });
+        access: { tenantCapabilities: ['payroll.read','payroll.novelty.read', ...(canPrepare ? ['payroll.novelty.prepare'] : [])], platformCapabilities: [], platformRoles: [] } } });
       if (url.pathname === '/api/internal-payroll-novelties') {
         if (request.method() !== 'GET') {
           posts.push({ key: request.headers()['idempotency-key'], body: request.postDataJSON() });
-          return route.fulfill({ json: { ok: true, data: { id: '00000000-0000-4000-8000-000000000003' } } });
+          assert.equal(url.searchParams.has('version'), false, 'GRH preparte keeps the v1 prepare endpoint');
+          const draft = posts.at(-1).body.payload;
+          return route.fulfill({ json: { ok: true, data: { ...draft,
+            id: '00000000-0000-4000-8000-000000000003', contractVersion: 'payroll-novelty-batch.v1',
+            status: 'draft', version: 1, rowCount: draft.rows.length, rows: [], exportable: false,
+            grhMutation: false, payrollCalculated: false, payrollPosted: false } } });
         }
+        assert.equal(url.searchParams.get('version'), '2');
         return route.fulfill({ json: bootstrap() });
       }
       if (url.pathname === '/api/internal-attendance') {

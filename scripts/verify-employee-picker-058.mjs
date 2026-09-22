@@ -7,7 +7,7 @@ const checks=[],errors=[],calls=[],posts=[];
 let deny=0,malformed=false,hold=false,release=null,canPrepare=true,maximum=500,sourceCutoff='2026-09-01';
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const employees=Array.from({length:23},(_,i)=>({contractId:id(i+1),legajo:String(1001+i),nombre:'Persona sintética '+String(i+1).padStart(2,'0'),sector:i%2?'Administración de prueba':'Servicios de prueba',convenio:'Convenio de prueba',activo:true,statusSnapshotDate:'2026-09-01'}));
-const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:id(80),tenantId:id(81),capabilities:canPrepare?['payroll.novelty.prepare']:[]},limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:maximum,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
+const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:id(80),tenantId:id(81),certifiedBindingId:id(82),capabilities:['payroll.novelty.read',...(canPrepare?['payroll.novelty.prepare']:[])]},feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',sourceModes:['individual','bulk'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:maximum,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
 const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
 let page;
 try{
@@ -16,10 +16,11 @@ try{
   const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
   if(u.pathname.startsWith('/api/')){
    if(u.pathname==='/api/internal-payroll-novelties'){
-    if(route.request().method()==='POST'){posts.push(route.request().postDataJSON());return route.fulfill({status:200,json:{ok:true,data:{id:id(90)}}});}
+    if(route.request().method()==='POST'){posts.push(route.request().postDataJSON());assert.equal(u.searchParams.has('version'),false,'legacy directory selection keeps v1 prepare');const draft=posts.at(-1).payload;return route.fulfill({status:200,json:{ok:true,data:{...draft,id:id(90),contractVersion:'payroll-novelty-batch.v1',status:'draft',version:1,rowCount:draft.rows.length,rows:[],exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false}}});}
+    assert.equal(u.searchParams.get('version'),'2');
     return route.fulfill({status:200,json:bootstrap()});
    }
-   if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{name:'QA',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read','workforce.employee.read'],platformCapabilities:[],platformRoles:[]}}});
+   if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{name:'QA',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read','workforce.employee.read','payroll.novelty.read',...(canPrepare?['payroll.novelty.prepare']:[])],platformCapabilities:[],platformRoles:[]}}});
    if(u.pathname==='/api/internal-data'&&u.searchParams.get('view')==='novelty-selector'){
     calls.push(Object.fromEntries(u.searchParams));
     if(hold)await new Promise(resolve=>{release=resolve;});
