@@ -63,9 +63,9 @@ test('directory and detail select jurisdiction only from canonical native column
 });
 for(const major of ['17','18'])test('095 offline QA wraps actual migrations with preserved legacy and rollback '+major,()=>{
  const qa=buildNativeJurisdictionQa({serverMajor:major,requireConcurrency:true});
- assert.equal(qa.report.jurisdictionChecksPassed,45);assert.equal(qa.report.checksPassed,254);assert.match(qa.sql,/095 preserves original registration JSON/);assert.match(qa.sql,/14-field exact replay/);assert.match(qa.sql,/095 refuses altered jurisdiction constraint/);assert.match(qa.sql,/ROLLBACK;/);assert.match(qa.lockSql,/FIXED_NOVELTIES_QA_LOCK_READY/);
+ assert.equal(qa.report.jurisdictionChecksPassed,59);assert.equal(qa.report.checksPassed,268);assert.match(qa.sql,/095 preserves original registration JSON/);assert.match(qa.sql,/14-field exact replay/);assert.match(qa.sql,/095 refuses altered jurisdiction constraint/);assert.match(qa.sql,/095 rejects a changed literal in the observed/);assert.match(qa.sql,/095 reapplies over retained observed guards/);assert.match(qa.sql,/ROLLBACK;/);assert.match(qa.lockSql,/FIXED_NOVELTIES_QA_LOCK_READY/);
  assert.doesNotMatch(qa.sql,/INSERT\s+INTO\s+public\./i);
 });
 test('095 keeps historical sources unchanged and pins full original or installed bodies',()=>{
- const sql=fs.readFileSync('scripts/migrations/095-native-employee-jurisdiction.sql','utf8');assert.match(sql,/ADD COLUMN IF NOT EXISTS jurisdiction_code text/);assert.match(sql,/original_sha256,installed_sha256/);assert.match(sql,/jsonb_object_keys\(d-'jurisdictionCode'\)/);assert.match(sql,/NOT IN \('42','55'\)/);assert.doesNotMatch(sql,/INSERT INTO iam_|UPDATE public.employment_contract|CREATE OR REPLACE FUNCTION public.payroll_fixed_/);
+ const sql=fs.readFileSync('scripts/migrations/095-native-employee-jurisdiction.sql','utf8');assert.match(sql,/ADD COLUMN IF NOT EXISTS jurisdiction_code text/);assert.match(sql,/NOT IN\(item.original_sha256,item.installed_sha256,item.observed_067_sha256\)/);assert.match(sql,/jsonb_object_keys\(d-'jurisdictionCode'\)/);assert.match(sql,/NOT IN \('42','55'\)/);assert.doesNotMatch(sql,/INSERT INTO iam_|UPDATE public.employment_contract|CREATE OR REPLACE FUNCTION public.payroll_fixed_/);
 });

@@ -6,17 +6,19 @@ DECLARE item record; body text; column_info record; check_expression text;
 BEGIN
  IF to_regclass('public.native_employee_registration') IS NULL OR to_regclass('public.employment_contract') IS NULL
  THEN RAISE EXCEPTION 'NATIVE_JURISDICTION_PREREQUISITE'; END IF;
+ -- Accept only exact reviewed 067 and 095 bodies, including the observed compact 067 variant.
+ -- Formatting is not normalized beyond line endings and the isolated QA schema.
  FOR item IN SELECT * FROM (VALUES
- ('native_employee_create_v1','jsonb,jsonb,text,uuid','43c323e6e5e4b7495cf2178a0bb8ae82c0db54ea348efa69124b6ebb0d80cea1','3ac060547845052e8466262025400bebd7267f680c41c962627dc45d384f4632'),
- ('native_employee_receipt_v1','public.native_employee_registration','05142758d60110776e232ab7894d78e82c2a52c787fba493c5f3c1517a630f8b','1a57c2445f344f37d59c8c798237efefa0bb4671d101d9a177744c8fbac2c18e'),
- ('native_employee_context_v1','jsonb,boolean','30d651a79381467d916475803e5d8ad3d5bd49b8fe611729fb159063d10fd6ed','30d651a79381467d916475803e5d8ad3d5bd49b8fe611729fb159063d10fd6ed'),
- ('native_employee_contract_guard_v1','','05717239f4f770498a0f4b3d118165b61fb3343bdbfc3c0083bd4537d92321f3','05717239f4f770498a0f4b3d118165b61fb3343bdbfc3c0083bd4537d92321f3'),
- ('native_employee_person_guard_v1','','16a592a2cc7e0e18490d4a1cabb0bf06ab4b55c418decc259d7a65dbfa4ac8ea','16a592a2cc7e0e18490d4a1cabb0bf06ab4b55c418decc259d7a65dbfa4ac8ea')
- ) pin(name,args,original_sha256,installed_sha256) LOOP
+ ('native_employee_create_v1','jsonb,jsonb,text,uuid','43c323e6e5e4b7495cf2178a0bb8ae82c0db54ea348efa69124b6ebb0d80cea1','3ac060547845052e8466262025400bebd7267f680c41c962627dc45d384f4632','460b108e71cdfa5d873d2e9d1538b27ee0abc372aff75970fc7519d3e2f7f796'),
+ ('native_employee_receipt_v1','public.native_employee_registration','05142758d60110776e232ab7894d78e82c2a52c787fba493c5f3c1517a630f8b','1a57c2445f344f37d59c8c798237efefa0bb4671d101d9a177744c8fbac2c18e','4e7160053e38011b59431a6113b0cd96239c6d863e008be032d9509656ccef86'),
+ ('native_employee_context_v1','jsonb,boolean','30d651a79381467d916475803e5d8ad3d5bd49b8fe611729fb159063d10fd6ed','30d651a79381467d916475803e5d8ad3d5bd49b8fe611729fb159063d10fd6ed','0511c6a642c569791839195fb36b61ff5aa22acf0a360980e7ad45458c28cf7c'),
+ ('native_employee_contract_guard_v1','','05717239f4f770498a0f4b3d118165b61fb3343bdbfc3c0083bd4537d92321f3','05717239f4f770498a0f4b3d118165b61fb3343bdbfc3c0083bd4537d92321f3','0fe76b5db164a2c5f89cc20b38c8150e37c1dd99974aeee9f1a4d89dad83110a'),
+ ('native_employee_person_guard_v1','','16a592a2cc7e0e18490d4a1cabb0bf06ab4b55c418decc259d7a65dbfa4ac8ea','16a592a2cc7e0e18490d4a1cabb0bf06ab4b55c418decc259d7a65dbfa4ac8ea','90a913b6b87cd8a3a9ef12e93b21dc0d89b52b8e11bbd96982e500b016648db6')
+ ) pin(name,args,original_sha256,installed_sha256,observed_067_sha256) LOOP
   SELECT replace(replace(p.prosrc,E'\r\n',E'\n'),n.nspname||'.','public'||'.') INTO body
   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
   WHERE p.oid=to_regprocedure('public.'||item.name||'('||item.args||')') AND p.prosecdef;
-  IF body IS NULL OR encode(public.digest(body,'sha256'),'hex') NOT IN(item.original_sha256,item.installed_sha256)
+  IF body IS NULL OR encode(public.digest(body,'sha256'),'hex') NOT IN(item.original_sha256,item.installed_sha256,item.observed_067_sha256)
   THEN RAISE EXCEPTION 'NATIVE_JURISDICTION_PREREQUISITE'; END IF;
  END LOOP;
  IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.employment_contract'::regclass

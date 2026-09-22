@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildNativeFixedQa} from './verify-native-fixed-novelties-sql.mjs';
+import {splitPostgresStatements} from './lib/sql-statements.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const q=x=>"'"+String(x).replaceAll("'","''")+"'";
 const j=x=>q(JSON.stringify(x))+'::jsonb';
@@ -16,6 +17,16 @@ export function buildNativeJurisdictionQa({serverMajor,requireConcurrency=false}
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(')
   .replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,`SET search_path=pg_catalog,${schema},public,pg_temp`);
  const install=q(relocate(migration));
+ const observed=JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/native-employee-installed-067.json'),'utf8'));
+ assert.equal(observed.version,'native-employee-installed-067.v1');assert.equal(observed.functions.length,5);
+ const oldStatements=splitPostgresStatements(fs.readFileSync(path.join(root,'scripts/migrations/067-native-employee-registration.sql'),'utf8'));
+ const observedDefinitions=observed.functions.map(f=>{
+  assert.equal(sha(f.body),f.sha256,'Observed 067 fixture hash must remain exact');
+  assert.ok(migration.includes("'"+f.sha256+"'"),'Migration must pin the exact observed body');
+  const definition=oldStatements.find(s=>s.includes('FUNCTION '+f.name+'('));assert.ok(definition);
+  const a=definition.indexOf('$$'),b=definition.lastIndexOf('$$');assert.ok(a>=0&&b>a);
+  return{...f,definition:definition.slice(0,a+2)+f.body+definition.slice(b)};
+ });
  // Reuse the exact legacy draft literal already consumed by the real 067 writer.
  const legacy=/native_receipt:=native_employee_create_v1\(maker,('(?:[^']|'')*'::jsonb),catalog_version,native_key\);/.exec(base.sql);
  assert.ok(legacy,'Original 13-field creation must precede 095');
@@ -28,8 +39,28 @@ export function buildNativeJurisdictionQa({serverMajor,requireConcurrency=false}
  const fault=(mutation,body)=>exec(`BEGIN ${mutation} ${body} RAISE EXCEPTION USING ERRCODE='P0952',MESSAGE='RESTORE_JURISDICTION_FAULT'; EXCEPTION WHEN SQLSTATE 'P0952' THEN NULL; END;`);
  const fingerprint=`(SELECT md5(string_agg(pg_get_functiondef(p.oid)||coalesce(p.proacl::text,'')||p.proowner::text,E'\n' ORDER BY p.oid)) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname NOT IN('native_employee_create_v1','native_employee_receipt_v1'))`;
  exec(`legacy_draft:=${legacy[1]};before_other_functions:=${fingerprint};
- SELECT to_jsonb(r) INTO legacy_registration FROM native_employee_registration r WHERE r.contract_id=native_contract;
- EXECUTE ${install};`);
+ SELECT to_jsonb(r) INTO legacy_registration FROM native_employee_registration r WHERE r.contract_id=native_contract;`);
+ // Exercise the exact observed deployment variant in a savepoint, then restore
+ // the original 067 installation for the existing complete regression suite.
+ const observedStart=statements.length;
+ for(const f of observedDefinitions){
+  exec(`EXECUTE ${q(relocate(f.definition))};`);
+  ok(`(SELECT encode(public.digest(replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(schema+'.')},'public.'),'sha256'),'hex')=${q(f.sha256)} FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname=${q(f.name)})`,'observed deployed 067 body is exact: '+f.name);
+ }
+ ok("(native_employee_create_v1(maker,legacy_draft,catalog_version,native_key)-'replayed')=(native_receipt-'replayed')",'observed 067 variant recovers the exact existing legacy receipt before 095');
+ for(const f of observedDefinitions){
+  const literal=/'(?:[^']|'')*'/.exec(f.body)?.[0];assert.ok(literal);
+  const changed=f.definition.replace(f.body,()=>f.body.replace(literal,()=>"'095_UNAUTHORIZED_LITERAL'"));
+  const start=statements.length;rejects(install,'NATIVE_JURISDICTION_PREREQUISITE','095 rejects a changed literal in the observed '+f.name);
+  const assertion=statements.splice(start).join('\n');fault(`EXECUTE ${q(relocate(changed))};`,assertion);
+ }
+ exec(`observed_other_functions:=${fingerprint}; EXECUTE ${install};`);
+ ok(`${fingerprint}=observed_other_functions`,'095 preserves exact observed context and both guards including ACL and owner');
+ ok("(native_employee_create_v1(maker,legacy_draft,catalog_version,native_key)-'replayed')=(native_receipt-'replayed')",'095 applied over observed 067 preserves exact 13-field request replay');
+ exec(`EXECUTE ${install};`);
+ ok(`${fingerprint}=observed_other_functions AND (native_employee_attempt_v1(maker,native_key)-'replayed')=(native_receipt-'replayed')`,'095 reapplies over retained observed guards without changing historical acknowledgement');
+ const observedBlock=statements.splice(observedStart).join('\n');fault('',observedBlock);
+ exec(`EXECUTE ${install};`);
  ok(`${fingerprint}=before_other_functions`,'095 preserves every unrelated function, ACL and owner including 093');
  ok("(SELECT c.jurisdiction_code IS NULL FROM employment_contract c WHERE c.id=native_contract)",'pre-095 native hire remains not reported without invented jurisdiction');
  ok("(SELECT to_jsonb(r)=legacy_registration FROM native_employee_registration r WHERE r.contract_id=native_contract)",'095 preserves original registration JSON and original request hash');
@@ -91,7 +122,7 @@ export function buildNativeJurisdictionQa({serverMajor,requireConcurrency=false}
  exec("RAISE EXCEPTION USING ERRCODE='P0951',MESSAGE='RESTORE_DECLARED_JURISDICTION_FIXTURES'; EXCEPTION WHEN SQLSTATE 'P0951' THEN NULL; END;");
  ok("(SELECT count(*)=1 FROM native_employee_registration) AND (SELECT c.jurisdiction_code IS NULL FROM employment_contract c WHERE c.id=native_contract)",'declared fixtures roll back before unchanged native and GRH regressions');
  const block=`
- DECLARE legacy_draft jsonb; legacy_registration jsonb; before_other_functions text; installed_functions text; altered_definition text;
+ DECLARE legacy_draft jsonb; legacy_registration jsonb; before_other_functions text; observed_other_functions text; installed_functions text; altered_definition text;
  declared_proposal jsonb; declared_approval jsonb; new_legacy jsonb; draft42 jsonb; draft55 jsonb; receipt42 jsonb; receipt55 jsonb; subject42 jsonb; key42 uuid:=gen_random_uuid(); key55 uuid:=gen_random_uuid();
  BEGIN
  ${statements.join('\n')}

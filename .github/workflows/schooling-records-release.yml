@@ -1,5 +1,6 @@
 name: Schooling administrative records release
 on:
+  workflow_dispatch:
   push:
     branches: ['codex/noelia-schooling-record-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:

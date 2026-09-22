@@ -29,6 +29,7 @@ on:
       - 'tests/*native-fixed*'
       - 'tests/payroll-deployment-package.test.js'
       - 'tests/fixtures/payroll-fixed-novelties-synthetic.js'
+      - 'tests/fixtures/native-employee-installed-067.json'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
 permissions:
   contents: read

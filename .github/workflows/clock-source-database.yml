@@ -1,7 +1,7 @@
 name: Dedicated clock database - no previews
 on:
   push:
-    branches: ['internal-clock-database-20260921', 'internal-clock-source-integration-20260921', 'master']
+    branches: ['internal-clock-database-20260921', 'internal-clock-source-integration-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:
       - 'scripts/clock-database/**'
       - 'scripts/verify-clock-source-postgres.mjs'

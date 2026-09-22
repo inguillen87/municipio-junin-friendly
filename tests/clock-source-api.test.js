@@ -6,6 +6,9 @@ import { assertSourceFleet, assertSourceReceipt, sourceBindingCoordinates, sourc
 import { getClockSourceSql, readClockSourceFleet, receiveClockSource, sourceConnectionConfig } from '../lib/clock-source-store.js';
 import { readSourceBody } from '../lib/clock-source-http.js';
 import { sourceCoreInventory } from '../lib/clock-source-core.js';
+import { IncomingMessage } from 'node:http';
+import { Socket } from 'node:net';
+import { PassThrough, Readable } from 'node:stream';
 
 const tenantId='00000000-0000-4000-8000-000000000001', deviceId='00000000-0000-4000-8000-000000000002', siteId='00000000-0000-4000-8000-000000000003';
 const at='2026-09-21T12:00:00.123456Z';
@@ -63,6 +66,65 @@ test('wire parser rejects duplicate escaped keys, object bypass, bad UTF8 and la
   for (const body of ['{"serial":"a","ser\\u0069al":"b"}',payload(),Buffer.from([0xff]),'x'.repeat(40001)]) await assert.rejects(readSourceBody({body}));
   const stream={async *[Symbol.asyncIterator](){yield Buffer.alloc(20001);yield Buffer.alloc(20000);}};await assert.rejects(readSourceBody(stream),e=>e.code==='CLOCK_SOURCE_BODY_TOO_LARGE');
   assert.deepEqual(await readSourceBody({body:JSON.stringify(payload())}),payload());
+});
+// Reproduce @vercel/node's real boundary: an already-consumed IncomingMessage,
+// restored raw PassThrough data/end events, and a lazy JSON.parse body getter.
+// https://github.com/vercel/vercel/blob/main/packages/node/src/serverless-functions/helpers.ts
+async function vercelRequest(bytes,{bodyGetter,contentLength=bytes.length}={}) {
+  const req=new IncomingMessage(new Socket());Object.assign(req,{method:'POST',url:'/api/clock-source-ingest',headers:{...post().headers,'content-length':String(contentLength)},complete:true});
+  req.push(bytes);req.push(null);for await(const unused of req)void unused;
+  const restored=new PassThrough(),originalOn=req.on.bind(req);let getterReads=0;
+  req.read=restored.read.bind(restored);
+  req.on=req.addListener=(event,listener)=>['data','end'].includes(event)?restored.on(event,listener):originalOn(event,listener);
+  restored.end(bytes);
+  Object.defineProperty(req,'body',{configurable:true,enumerable:true,get(){getterReads++;return bodyGetter?bodyGetter():JSON.parse(bytes.toString('utf8'));}});
+  return {req,restored,getterReads:()=>getterReads};
+}
+test('Vercel restored bytes reach ingest without evaluating the parsed body getter',async()=>{
+  const p=payload(),runtime=await vercelRequest(Buffer.from(JSON.stringify(p)),{bodyGetter:()=>{throw Error('getter must never run');}});let writes=0;
+  assert.equal(runtime.req.readableEnded,true);
+  const r=await run(createClockSourceIngestHandler({getSql:async()=>({}),receive:async(_sql,_key,_hash,body)=>{writes++;assert.deepEqual(body,p);return receipt(p);}}),runtime.req);
+  assert.equal(r.statusCode,200);assert.equal(writes,1);assert.equal(runtime.getterReads(),0);
+  assert.equal(runtime.restored.listenerCount('data'),0);assert.equal(runtime.restored.listenerCount('end'),0);
+});
+test('Vercel restored duplicates and invalid UTF8 cannot be hidden by a valid parsed object',async()=>{
+  const valid=JSON.stringify(payload());
+  for(const bytes of [Buffer.from(valid.replace('{','{"ser\\u0069al":"SYNTHETIC-001",')),Buffer.concat([Buffer.from(valid.slice(0,-1)+',"ignored":"'),Buffer.from([0xff]),Buffer.from('"}')])]){
+    const runtime=await vercelRequest(bytes,{bodyGetter:payload});
+    const r=await run(createClockSourceIngestHandler({getSql:async()=>assert.fail('raw rejection precedes SQL')}),runtime.req);
+    assert.equal(r.statusCode,400);assert.equal(r.body.code,'CLOCK_SOURCE_PAYLOAD_INVALID');assert.equal(runtime.getterReads(),0);
+  }
+});
+test('restored and ordinary raw streams retain the 40KB boundary and exact declared length',async()=>{
+  const valid=JSON.stringify(payload()),boundary=Buffer.from(valid+' '.repeat(40000-Buffer.byteLength(valid)));
+  assert.deepEqual(await readSourceBody(Readable.from([boundary.subarray(0,100),boundary.subarray(100)])),payload());
+  const large=await vercelRequest(Buffer.concat([boundary,Buffer.from(' ')]));
+  await assert.rejects(readSourceBody(large.req),e=>e.code==='CLOCK_SOURCE_BODY_TOO_LARGE');assert.equal(large.getterReads(),0);
+  for(const declared of [boundary.length-1,boundary.length+1]){
+    const wrong=await vercelRequest(boundary,{contentLength:declared});await assert.rejects(readSourceBody(wrong.req),e=>e.code==='CLOCK_SOURCE_PAYLOAD_INVALID');
+  }
+});
+test('a getter or already parsed object without raw stream cannot bypass wire validation',async()=>{
+  let calls=0;const req={};Object.defineProperty(req,'body',{get(){calls++;return payload();}});
+  await assert.rejects(readSourceBody(req),e=>e.code==='CLOCK_SOURCE_PAYLOAD_INVALID');assert.equal(calls,0);
+  await assert.rejects(readSourceBody({body:payload()}),e=>e.code==='CLOCK_SOURCE_PAYLOAD_INVALID');
+});
+test('premature abort, close, transport error and timeout fail closed and remove stream listeners',async()=>{
+  for(const event of ['aborted','close','error','timeout']){
+    const req=new PassThrough(),pending=readSourceBody(req,{timeoutMs:20});
+    if(event!=='timeout')queueMicrotask(()=>req.emit(event,...(event==='error'?[Error('private transport details')]:[])));
+    await assert.rejects(pending,e=>e.code==='CLOCK_SOURCE_UNAVAILABLE'&&!e.message.includes('private'));
+    for(const name of ['data','end','error','aborted','close'])assert.equal(req.listenerCount(name),0);
+    req.destroy();
+  }
+});
+test('incomplete transfer cannot acknowledge or connect to SQL',async()=>{
+  for(const event of ['aborted','error']){
+    const req=new PassThrough();Object.assign(req,{method:'POST',url:'/api/clock-source-ingest',headers:post().headers});
+    const pending=run(createClockSourceIngestHandler({getSql:async()=>assert.fail('incomplete body must not connect')}),req);
+    req.write(Buffer.from('{"version":'));queueMicrotask(()=>req.emit(event,...(event==='error'?[Error('secret transport')]:[])));
+    const r=await pending;assert.equal(r.statusCode,503);assert.equal(r.body.ok,false);assert.equal(r.body.receipt,undefined);req.destroy();
+  }
 });
 test('unknown provider errors are redacted and unavailable does not imply no records',async()=>{
   const r=await run(createClockSourceIngestHandler({getSql:async()=>{throw Error('postgresql://secret@private.invalid payload=PII');}}),post());
