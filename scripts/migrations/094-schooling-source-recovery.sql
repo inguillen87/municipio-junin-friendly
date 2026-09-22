@@ -49,9 +49,12 @@ BEGIN
   THEN RAISE EXCEPTION 'SCHOOL_CERTIFICATE_SOURCE_PREREQUISITE'; END IF;
   SELECT jsonb_agg(jsonb_build_array(a.attname,format_type(a.atttypid,a.atttypmod),a.attnotnull,replace(pg_get_expr(d.adbin,d.adrelid),'public.','public'||'.')) ORDER BY a.attnum)
    INTO columns_json FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid=table_oid AND a.attnum>0 AND NOT a.attisdropped;
+  -- PostgreSQL 18 also catalogs table NOT NULL constraints here. Their exact
+  -- column semantics are already pinned by attnotnull above on both majors.
   SELECT jsonb_agg(jsonb_build_array(c.conname,replace(pg_get_constraintdef(c.oid),'public.','public'||'.'),c.convalidated) ORDER BY c.conname)
-   INTO constraints_json FROM pg_constraint c WHERE c.conrelid=table_oid;
+   INTO constraints_json FROM pg_constraint c WHERE c.conrelid=table_oid AND c.contype<>'n';
   IF columns_json IS DISTINCT FROM item.columns_expected OR constraints_json IS DISTINCT FROM item.constraints_expected
+   OR EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=table_oid AND contype='n' AND NOT convalidated)
    OR EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=table_oid AND attnum>0 AND (attisdropped OR attgenerated<>'' OR attidentity<>''))
   THEN RAISE EXCEPTION 'SCHOOL_CERTIFICATE_SOURCE_PREREQUISITE'; END IF;
  END LOOP;

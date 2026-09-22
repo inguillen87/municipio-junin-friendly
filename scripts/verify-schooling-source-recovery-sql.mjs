@@ -36,6 +36,8 @@ export function buildSchoolingSourceQa({serverMajor}){
  for(const[name,args] of pinnedFunctions)ok(`qa_guard_rejects((SELECT replace(pg_get_functiondef(p.oid),p.prosrc,p.prosrc||E'\\n-- altered body') FROM pg_proc p WHERE p.oid=to_regprocedure(${quote(name+'('+args+')')})),${quote(guard094)})`,'altered pinned body rejected: '+name);
  for(const mutation of [
   'ALTER TABLE school_certificate_source_date ALTER COLUMN legajo DROP NOT NULL',
+  'ALTER TABLE school_certificate_source_date ALTER COLUMN source_fields DROP NOT NULL',
+  'ALTER TABLE school_certificate_source_recovery ALTER COLUMN source_declared_cutoff DROP NOT NULL',
   'ALTER TABLE school_certificate_source_date DROP CONSTRAINT school_certificate_source_date_family_id_check',
   'ALTER TABLE school_certificate_source_date DISABLE ROW LEVEL SECURITY',
   'ALTER TABLE school_certificate_source_date DISABLE TRIGGER school_certificate_source_date_immutable',
