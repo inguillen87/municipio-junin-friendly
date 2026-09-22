@@ -3,6 +3,7 @@ on:
   push:
     branches: ['codex/noelia-fixed-novelties-20260921', 'internal-noelia-native-fixed-20260921', 'master']
     paths:
+      - '.vercelignore'
       - 'api/internal-payroll-fixed-novelties.js'
       - 'lib/internal-payroll-fixed-novelties.js'
       - 'assets/payroll-fixed-novelties*'
@@ -17,6 +18,7 @@ on:
       - 'scripts/verify-payroll-fixed-novelties-*.mjs'
       - 'tests/*fixed-novelties*'
       - 'tests/*native-fixed*'
+      - 'tests/payroll-deployment-package.test.js'
       - 'tests/fixtures/payroll-fixed-novelties-synthetic.js'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
 permissions:

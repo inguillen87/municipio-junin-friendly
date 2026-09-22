@@ -170,6 +170,7 @@ local-agents/
 !scripts/migrations/065-clock-workday-source-continuous.sql
 
 !scripts/migrations/067-native-employee-registration.sql
+!scripts/migrations/092-payroll-fixed-novelties.sql
 !scripts/migrations/093-native-fixed-novelties.sql
 
 !juridica-registro.html
