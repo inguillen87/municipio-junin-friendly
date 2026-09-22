@@ -4,7 +4,7 @@ import {validateSchoolCertificateReport,readSchoolCertificates,prepareSchoolCert
 import {createInternalFamilyCertificatesHandler} from '../api/internal-family-certificates.js';
 import {schoolingFixtureV4,syntheticUuid} from './fixtures/family-schooling-synthetic.js';
 import {schoolingData} from '../assets/family-schooling-model.js';
-import {validateSchoolingRecoveryPayload,importSchoolingSource} from '../scripts/import-schooling-source.mjs';
+import {validateSchoolingRecoveryPayload,importSchoolingSource,importSchoolingSourceWithinTransaction} from '../scripts/import-schooling-source.mjs';
 
 const copy=x=>structuredClone(x), source=()=>schoolingFixtureV4(4).data;
 const assertSchoolingPayload=p=>schoolingData(p,{version:4});
@@ -50,7 +50,58 @@ test('technical recovery defaults to read-only and never asserts success before 
  const payload=recovery(),calls=[];let committed=false;
  const client={query:async(s,v)=>{calls.push({s,v});if(s==='COMMIT'){await new Promise(resolve=>setTimeout(resolve,10));committed=true;return {rows:[]};}return {rows:s.startsWith('SELECT ')?[{result:{version:'schooling-source-import.v1',applied:false,replayed:false,rows:1,matched:1,sourceSha256:payload.sourceSha256,rowsetSha256:'d'.repeat(64),originalRowsModified:0,manualRecordsCreated:0,payrollModified:false}}]:[]};}};
  const result=await importSchoolingSource(client,{tenantId:tenant,bindingId:membership,batchId:syntheticUuid(53),payload,operator:'authorized recovery qa'});
- assert.equal(committed,true);assert.equal(result.applied,false);assert.match(calls[0].s,/READ ONLY$/);assert.equal(calls[2].v[5],false);
+ assert.equal(committed,true);assert.equal(result.applied,false);assert.match(calls[0].s,/READ ONLY$/);assert.equal(calls.find(c=>c.s.startsWith('SELECT ')).v[5],false);
+ assert.equal(calls.filter(c=>c.s==='COMMIT').length,1);assert.equal(calls.filter(c=>c.s.startsWith('BEGIN ')).length,1);
+});
+
+const recoveryOptions=()=>({tenantId:tenant,bindingId:membership,batchId:syntheticUuid(53),payload:recovery(),operator:'authorized recovery qa',apply:true});
+const recoveryReceipt=(options,replayed=false)=>({version:'schooling-source-import.v1',applied:options.apply,replayed,rows:options.payload.rows.length,matched:options.payload.rows.length,sourceSha256:options.payload.sourceSha256,rowsetSha256:'d'.repeat(64),originalRowsModified:0,manualRecordsCreated:0,payrollModified:false});
+
+test('composable recovery preserves exact coordinates and source bytes without owning publication boundaries',async()=>{
+ const options=recoveryOptions(),calls=[],expected=recoveryReceipt(options,true);
+ const client={query:async(s,v)=>{calls.push({s,v});return {rows:s.startsWith('SELECT ')?[{result:expected}]:[]};}};
+ const result=await importSchoolingSourceWithinTransaction(client,options);
+ assert.deepEqual(result,expected);assert.equal(result.replayed,true);
+ assert.deepEqual(calls.map(c=>c.s.split(' ')[0]),['SAVEPOINT','RELEASE','SELECT']);
+ assert.deepEqual(calls[2].v,[tenant,membership,syntheticUuid(53),JSON.stringify(options.payload),options.operator,true]);
+ assert.equal(calls.some(c=>/^(BEGIN|COMMIT|ROLLBACK|SET|END)\b/.test(c.s)),false);
+});
+
+test('autocommit connection is rejected before any recovery facade can write',async()=>{
+ const calls=[];const client={query:async(s)=>{calls.push(s);throw Object.assign(new Error('no transaction'),{code:'25P01'});}};
+ await assert.rejects(importSchoolingSourceWithinTransaction(client,recoveryOptions()),{code:'RECOVERY_TRANSACTION_REQUIRED'});
+ assert.deepEqual(calls,['SAVEPOINT schooling_source_import_transaction']);
+});
+
+test('subsequent publication failure can roll back recovery because helper never commits early',async()=>{
+ const options=recoveryOptions(),calls=[];let pending=false,persisted=false;
+ const client={query:async(s)=>{calls.push(s);if(s.startsWith('SELECT public.school_certificate_source_import_v4')){pending=true;return {rows:[{result:recoveryReceipt(options)}]};}if(s==='COMMIT'){persisted=pending;pending=false;}if(s==='ROLLBACK')pending=false;return {rows:[]};}};
+ await client.query('BEGIN');await importSchoolingSourceWithinTransaction(client,options);
+ assert.equal(pending,true);assert.equal(persisted,false);assert.equal(calls.includes('COMMIT'),false);
+ // Simulate the next publication stage failing; only the caller rolls back.
+ await client.query('ROLLBACK');assert.equal(pending,false);assert.equal(persisted,false);
+ assert.equal(calls.filter(s=>s==='ROLLBACK').length,1);
+});
+
+for(const reason of ['owner','identity','isolation','receipt'])test('composable recovery leaves '+reason+' failure to caller rollback',async()=>{
+ const options=recoveryOptions(),calls=[];const failure=Object.assign(new Error('SOURCE_'+reason.toUpperCase()),{code:'P0001'});
+ const client={query:async(s)=>{calls.push(s);if(!s.startsWith('SELECT '))return {rows:[]};if(reason!=='receipt')throw failure;return {rows:[{result:{...recoveryReceipt(options),sourceSha256:'f'.repeat(64)}}]};}};
+ await assert.rejects(importSchoolingSourceWithinTransaction(client,options),reason==='receipt'?/RECOVERY_RECEIPT_INVALID/:e=>e===failure);
+ assert.equal(calls.some(s=>/^(BEGIN|COMMIT|ROLLBACK|END)\b/.test(s)),false);
+});
+
+test('within-transaction defaults to verification and validates before querying',async()=>{
+ const options=recoveryOptions();delete options.apply;const calls=[];
+ const client={query:async(s,v)=>{calls.push({s,v});return {rows:s.startsWith('SELECT ')?[{result:recoveryReceipt({...options,apply:false})}]:[]};}};
+ assert.equal((await importSchoolingSourceWithinTransaction(client,options)).applied,false);
+ assert.equal(calls.find(c=>c.v).v[5],false);calls.length=0;
+ await assert.rejects(importSchoolingSourceWithinTransaction(client,{...options,batchId:'invalid'}),/RECOVERY_COORDINATES_INVALID/);assert.equal(calls.length,0);
+});
+
+test('validated recovery payload is captured before awaiting a transaction check',async()=>{
+ const options=recoveryOptions(),expectedPayload=JSON.stringify(options.payload),expected=recoveryReceipt(options);let sent;
+ const client={query:async(s,v)=>{if(s.startsWith('SAVEPOINT'))options.payload.sourceSha256='f'.repeat(64);if(s.startsWith('SELECT ')){sent=v[3];return {rows:[{result:expected}]};}return {rows:[]};}};
+ await importSchoolingSourceWithinTransaction(client,options);assert.equal(sent,expectedPayload);
 });
 test('lost commit or malformed source receipt rolls back and cannot announce applied',async()=>{
  const payload=recovery();for(const badReceipt of [false,true]){const calls=[];const client={query:async(s)=>{calls.push(s);if(s==='COMMIT')throw Error('connection lost');return {rows:s.startsWith('SELECT ')?[{result:{version:'schooling-source-import.v1',applied:true,replayed:false,rows:1,matched:badReceipt?0:1,sourceSha256:payload.sourceSha256,rowsetSha256:'d'.repeat(64),originalRowsModified:0,manualRecordsCreated:0,payrollModified:false}}]:[]};}};

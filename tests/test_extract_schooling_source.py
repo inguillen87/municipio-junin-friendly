@@ -1,10 +1,13 @@
 """Offline synthetic SQL dumps only; no municipal data or credentials."""
 import hashlib
+import contextlib
+import io
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import extract_schooling_source as recovery
 
@@ -66,6 +69,62 @@ class SourceRecoveryTests(unittest.TestCase):
         text=dump([row(),row(CODI_14='2',CODI_01='202')])
         with self.assertRaises(ValueError):self.extract(text)
         with self.assertRaises(Exception):self.extract(dump([row(),row(CODI_14='2')])+'INSERT INTO `familia` VALUES (1);\n')
+
+    def test_known_profiles_are_explicit_and_default_remains_august(self):
+        self.assertEqual(recovery.DEFAULT_SOURCE_PROFILE, 'grh-junin-2026-08-06')
+        self.assertEqual(recovery.SOURCE_PROFILE_CHILDREN, {
+            'grh-junin-2026-08-06': 2684, 'grh-junin-2026-09-10': 2686})
+        for selected, children in recovery.SOURCE_PROFILE_CHILDREN.items():
+            profile=recovery.curated.load_source_profile(selected)
+            original={'version':'schooling-source-recovery.v1','sourceSha256':profile['source']['sha256'].lower()}
+            with patch.object(recovery,'extract',return_value=(original.copy(),{'children':children})) as extract:
+                payload,report=recovery.extract_known_source(Path('not-opened.sql'),selected)
+            self.assertEqual(extract.call_args.args[1],profile)
+            self.assertEqual(payload,original)
+            self.assertEqual(report['sourceProfileId'],selected)
+
+    def test_unknown_profiles_fail_before_source_is_read(self):
+        for selected in ['unknown','grh-core-junin-2026-09','','grh-junin-2026-09-11',None]:
+            with patch.object(recovery,'extract') as extract:
+                with self.assertRaisesRegex(ValueError,'SCHOOLING_SOURCE_PROFILE_UNSUPPORTED'):
+                    recovery.extract_known_source(Path('not-opened.sql'),selected)
+                extract.assert_not_called()
+
+    def test_each_profile_rejects_the_other_child_cohort(self):
+        for selected,expected in recovery.SOURCE_PROFILE_CHILDREN.items():
+            with patch.object(recovery,'extract',return_value=({}, {'children':expected+1})):
+                with self.assertRaisesRegex(ValueError,'SOURCE_PROFILE_COHORT_COUNT_MISMATCH'):
+                    recovery.extract_known_source(Path('not-opened.sql'),selected)
+
+    def test_cli_routes_default_and_explicit_september_before_creating_output(self):
+        for options,selected in [([],recovery.DEFAULT_SOURCE_PROFILE),(['--profile','grh-junin-2026-09-10'],'grh-junin-2026-09-10')]:
+            with patch.object(sys,'argv',['extract','--source','known.sql','--output-dir','not-created',*options]), \
+                 patch.object(recovery,'extract_known_source',side_effect=RuntimeError('test-stop')) as extract, \
+                 patch.object(recovery,'private_directory') as output:
+                with self.assertRaisesRegex(RuntimeError,'test-stop'):recovery.main()
+                extract.assert_called_once_with(Path('known.sql'),selected)
+                output.assert_not_called()
+        with patch.object(sys,'argv',['extract','--source','known.sql','--output-dir','not-created','--profile','unknown']), \
+             patch.object(recovery,'extract_known_source') as extract, contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):recovery.main()
+            extract.assert_not_called()
+
+    def test_exact_profile_metadata_rejects_mixed_cutoff_hash_database_or_container(self):
+        for selected in recovery.SOURCE_PROFILE_CHILDREN:
+            profile=recovery.curated.load_source_profile(selected)
+            source=profile['source']
+            metadata={key:source[key] for key in ('sha256','logicalBytes','database','cutoff')}
+            metadata.update(container='gzip',physicalSha256=source['gzipSha256'],physicalBytes=source['gzipBytes'])
+            recovery.curated.validate_source_metadata(metadata,profile)
+            for key,value in [('sha256','0'*64),('logicalBytes',1),('database','foreign'),('cutoff','2026-09-11T00:00:00'),('physicalSha256','f'*64),('physicalBytes',1)]:
+                with self.assertRaises(recovery.curated.ExtractionError):
+                    recovery.curated.validate_source_metadata({**metadata,key:value},profile)
+
+    def test_unknown_real_source_is_rejected_by_default_and_explicit_profiles(self):
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'unknown.sql';path.write_text(dump([row(),row(CODI_14='2')]),encoding='utf-8',newline='')
+            for selected in recovery.SOURCE_PROFILE_CHILDREN:
+                with self.assertRaises(recovery.curated.ExtractionError):recovery.extract_known_source(path,selected)
 
 
 if __name__=='__main__':unittest.main()

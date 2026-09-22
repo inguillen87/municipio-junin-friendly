@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Recover only GRH family keys, exact identity hashes and historical dates.
 
-Never writes to a database. The CLI accepts only the already-published August
-source profile. Its output contains no names, documents, credentials or sessions.
+Never writes to a database. August remains the default; the known September
+backup requires explicit selection. Extraction does not publish either source.
+Its output contains no names, documents, credentials or sessions.
 """
 import argparse
 from collections import Counter
@@ -15,6 +16,12 @@ import re
 import subprocess
 
 import extract_rrhh_curated as curated
+
+DEFAULT_SOURCE_PROFILE = 'grh-junin-2026-08-06'
+SOURCE_PROFILE_CHILDREN = {
+    DEFAULT_SOURCE_PROFILE: 2684,
+    'grh-junin-2026-09-10': 2686,
+}
 
 
 def identity_hash(row):
@@ -42,7 +49,7 @@ def field_state(fields, key):
 
 
 def extract(source, profile=None):
-    profile = profile or curated.load_source_profile('grh-junin-2026-08-06')
+    profile = profile or curated.load_source_profile(DEFAULT_SOURCE_PROFILE)
     metadata, schemas, records = {}, {}, {'familia': [], 'vinculo': []}
     current, columns, primary = None, [], False
     for line in curated._sql_lines(Path(source), metadata=metadata):
@@ -100,6 +107,20 @@ def extract(source, profile=None):
     return payload, aggregate
 
 
+def extract_known_source(source, profile_id=DEFAULT_SOURCE_PROFILE):
+    """Only reviewed registry profiles may produce an operational recovery file."""
+    if profile_id not in SOURCE_PROFILE_CHILDREN:
+        raise ValueError('SCHOOLING_SOURCE_PROFILE_UNSUPPORTED')
+    profile = curated.load_source_profile(profile_id)
+    payload, aggregate = extract(source, profile)
+    if aggregate['children'] != SOURCE_PROFILE_CHILDREN[profile_id]:
+        raise ValueError('SOURCE_PROFILE_COHORT_COUNT_MISMATCH')
+    # Profile expectations come only from versioned code, never from the dump.
+    # The payload shape and its exact source hash/cutoff remain unchanged.
+    aggregate['sourceProfileId'] = profile_id
+    return payload, aggregate
+
+
 def private_directory(directory):
     directory = Path(directory)
     if not directory.is_absolute() or directory.exists():
@@ -119,10 +140,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True)
     parser.add_argument('--output-dir', required=True)
+    parser.add_argument('--profile', choices=tuple(SOURCE_PROFILE_CHILDREN), default=DEFAULT_SOURCE_PROFILE)
     args = parser.parse_args()
-    payload, aggregate = extract(Path(args.source))
-    if aggregate['children'] != 2684:
-        raise ValueError('PUBLISHED_COHORT_COUNT_MISMATCH')
+    payload, aggregate = extract_known_source(Path(args.source), args.profile)
     directory = private_directory(args.output_dir)
     data = (json.dumps(payload, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
     aggregate['payloadSha256'] = hashlib.sha256(data).hexdigest()

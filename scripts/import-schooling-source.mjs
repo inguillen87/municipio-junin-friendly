@@ -32,20 +32,44 @@ export function validateSchoolingRecoveryPayload(payload) {
  assert.ok(Buffer.byteLength(JSON.stringify(payload))<=2097152,'RECOVERY_PAYLOAD_TOO_LARGE');
  return payload;
 }
-export async function importSchoolingSource(client,{tenantId,bindingId,batchId,payload,operator,apply=false}) {
+function validateRecoveryOptions({tenantId,bindingId,batchId,payload,operator,apply=false}) {
  for(const id of [tenantId,bindingId,batchId]) assert.match(id,uuid,'RECOVERY_COORDINATES_INVALID');
  validateSchoolingRecoveryPayload(payload);
  assert.ok(typeof operator==='string' && operator.trim()===operator && operator.length>=5 && operator.length<=160 && !/[\x00-\x1f\x7f]/.test(operator),'RECOVERY_OPERATOR_INVALID');
  assert.equal(typeof apply,'boolean','RECOVERY_APPLY_INVALID');
+ return {tenantId,bindingId,batchId,payload,operator,apply};
+}
+/** Caller owns the transaction and must roll it back on any error. The returned
+ * SQL receipt describes this transaction only; it is not a durable ACK until
+ * the caller has successfully committed every publication stage.
+ * No connection, transaction boundary, timeout or isolation is changed here.
+ */
+export async function importSchoolingSourceWithinTransaction(client,options) {
+ const {tenantId,bindingId,batchId,payload,operator,apply}=validateRecoveryOptions(options);
+ assert.equal(typeof client?.query,'function','RECOVERY_CLIENT_REQUIRED');
+ const payloadJson=JSON.stringify(payload),expectedRows=payload.rows.length,expectedSourceSha=payload.sourceSha256;
+ // SAVEPOINT fails before the facade can write when an autocommit connection
+ // is accidentally supplied. Never recover or commit the caller's transaction.
+ try { await client.query('SAVEPOINT schooling_source_import_transaction'); }
+ catch(error) {
+  if(error?.code==='25P01') throw Object.assign(new Error('RECOVERY_TRANSACTION_REQUIRED'),{code:'RECOVERY_TRANSACTION_REQUIRED'});
+  throw error;
+ }
+ await client.query('RELEASE SAVEPOINT schooling_source_import_transaction');
+ const rows=(await client.query('SELECT public.school_certificate_source_import_v4($1::uuid,$2::uuid,$3::uuid,$4::jsonb,$5::text,$6::boolean) AS result',
+  [tenantId,bindingId,batchId,payloadJson,operator,apply])).rows;
+ const r=rows?.[0]?.result;
+ assert.ok(rows?.length===1 && exact(r,['version','applied','replayed','rows','matched','sourceSha256','rowsetSha256','originalRowsModified','manualRecordsCreated','payrollModified']),'RECOVERY_RECEIPT_INVALID');
+ assert.ok(r.version==='schooling-source-import.v1' && r.applied===apply && typeof r.replayed==='boolean' && r.rows===expectedRows && r.matched===r.rows
+  && r.sourceSha256===expectedSourceSha && hex.test(r.rowsetSha256) && r.originalRowsModified===0 && r.manualRecordsCreated===0 && r.payrollModified===false,'RECOVERY_RECEIPT_INVALID');
+ return r;
+}
+export async function importSchoolingSource(client,options) {
+ const validated=validateRecoveryOptions(options),{apply}=validated;
  await client.query(`BEGIN ISOLATION LEVEL READ COMMITTED ${apply?'READ WRITE':'READ ONLY'}`);
  try {
   await client.query("SET LOCAL lock_timeout='3s'; SET LOCAL statement_timeout='60s'");
-  const rows=(await client.query('SELECT public.school_certificate_source_import_v4($1::uuid,$2::uuid,$3::uuid,$4::jsonb,$5::text,$6::boolean) AS result',
-   [tenantId,bindingId,batchId,JSON.stringify(payload),operator,apply])).rows;
-  const r=rows?.[0]?.result;
-  assert.ok(rows?.length===1 && exact(r,['version','applied','replayed','rows','matched','sourceSha256','rowsetSha256','originalRowsModified','manualRecordsCreated','payrollModified']),'RECOVERY_RECEIPT_INVALID');
-  assert.ok(r.version==='schooling-source-import.v1' && r.applied===apply && typeof r.replayed==='boolean' && r.rows===payload.rows.length && r.matched===r.rows
-   && r.sourceSha256===payload.sourceSha256 && hex.test(r.rowsetSha256) && r.originalRowsModified===0 && r.manualRecordsCreated===0 && r.payrollModified===false,'RECOVERY_RECEIPT_INVALID');
+  const r=await importSchoolingSourceWithinTransaction(client,validated);
   await client.query('COMMIT');
   return r;
  } catch(error) { await client.query('ROLLBACK').catch(()=>{}); throw error; }
