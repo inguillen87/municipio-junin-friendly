@@ -979,7 +979,7 @@
           <span class="section-number">02</span>
           <div class="section-title-row">
             <h2 id="managementTitle">Movimientos de dotación</h2>
-            <p>Altas y bajas registrales entre 2019 y 2026. El corte 2026 llega al 6 de agosto y no debe extrapolarse como cierre anual.</p>
+            <p id="managementCutoff">Altas y bajas registrales hasta el corte informado. El último año mostrado está incompleto.</p>
           </div>
           <div class="management-compare" id="managementCompare"></div>
           <div class="chart-block">
@@ -1520,6 +1520,7 @@
         setText('asideDate', snapshot);
         setText('jurisdiction', `${municipality}, ${data.jurisdiction.province}`);
         setText('snapshotDate', snapshot);
+        setText('managementCutoff', `Altas y bajas registrales hasta el ${snapshot}. El último año mostrado está incompleto.`);
         byId('snapshotDate').dateTime = String(data.source.snapshotAt).slice(0, 10);
         setText('schemaVersion', `Contrato ${data.schemaVersion}`);
         setText('metricHistorical', nf.format(data.workforce.historicalRecords));

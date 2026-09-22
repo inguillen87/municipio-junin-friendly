@@ -110,6 +110,8 @@ async function inspect(viewport, label, downloadFiles) {
     assert.match(await page.locator('#metricActive').innerText(), /875/);
     assert.match(await page.locator('#metricAbsences').innerText(), /31[.\s]?702/);
     await page.getByRole('tab', {name:'Informe completo',exact:true}).click();
+    assert.equal(await page.locator('#snapshotDate').getAttribute('datetime'), '2026-09-10');
+    assert.ok((await page.locator('#managementCutoff').innerText()).includes(await page.locator('#snapshotDate').innerText()), 'La leyenda de movimientos debe mostrar el mismo corte que la fuente del informe');
     assert.match(await page.locator('#exportCutoff').innerText(), /2026/);
     assert.match(await page.locator('#exportDataset').innerText(), /GRH/i);
     assert.match(await page.locator('#exportSha').innerText(), /^sha256:[a-f0-9]{12}/i);
