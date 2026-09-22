@@ -1,7 +1,7 @@
 name: Attendance operations validation
 on:
   push:
-    branches: ['master', 'feat/attendance-pm10-operations-20260910']
+    branches: ['master', 'feat/attendance-pm10-operations-20260910', 'internal-noelia-feedback-20260921']
   pull_request:
     paths: ['api/*attendance*', 'lib/*attendance*', 'services/attendance-edge/**', 'assets/attendance-*', 'assets/clock-*', 'assets/payroll-novelty-*', 'tests/*attendance*', 'tests/clock-*', 'scripts/*clock*', 'scripts/*attendance*', 'scripts/migrations/*clock*', 'scripts/migrations/*attendance*', 'relojes-marcaciones.html', 'novedades-nomina.html', '.github/workflows/attendance-operations.yml']
 permissions:

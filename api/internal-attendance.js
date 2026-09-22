@@ -16,6 +16,22 @@ import { actionMutationSession, getActionCenterSql } from './internal-actions.js
 const MAX_BODY_BYTES = 32 * 1024;
 const MUTATION_METHODS = new Set(['POST']);
 
+function hasCurrentOwnerMfaSession(access) {
+  // The signed cookie contains session coordinates, never MFA authority. That
+  // authority comes from the current database-resolved identity session.
+  const signed = access?.session, current = access?.principal?.session;
+  return typeof signed?.id === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(signed.id)
+    && typeof current?.id === 'string' && current.id.toLowerCase() === signed.id.toLowerCase()
+    && Number.isSafeInteger(signed.version) && signed.version > 0
+    && Number.isSafeInteger(current.version) && current.version === signed.version
+    && typeof signed.email === 'string' && signed.email.includes('@')
+    && typeof access.principal.user?.email === 'string'
+    && access.principal.user.email.trim().toLowerCase() === signed.email.trim().toLowerCase()
+    && current.mfa === true && ['mfa', 'recovery'].includes(current.authLevel)
+    && typeof current.expiresAt === 'string' && Number.isFinite(Date.parse(current.expiresAt))
+    && Date.parse(current.expiresAt) > Date.now();
+}
+
 function setResponseHeaders(res) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Vary', 'Cookie');
@@ -216,7 +232,7 @@ export function createInternalAttendanceHandler(dependencies = {}) {
       if (method === 'POST' && body?.command === 'site.create'
           && (!hasEffectivePlatformOwnerAuthority(
             access.principal, ['platform.tenants.manage'],
-          ) || access.session?.mfa !== true)) {
+          ) || !hasCurrentOwnerMfaSession(access))) {
         return send(res, 403, {
           ok: false,
           code: 'ATTENDANCE_PLATFORM_OWNER_REQUIRED',

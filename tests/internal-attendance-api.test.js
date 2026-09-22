@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHmac } from 'node:crypto';
 
 import { createAttendanceIngestHandler } from '../api/attendance-ingest.js';
 import { createInternalAttendanceHandler } from '../api/internal-attendance.js';
-import { AttendanceGatewayError } from '../lib/internal-attendance-gateway.js';
+import { AttendanceGatewayError, applyAttendanceCommand } from '../lib/internal-attendance-gateway.js';
+import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
+import { IDENTITY_SESSION_COOKIE, issueIdentitySessionToken, verifyIdentitySessionToken } from '../lib/internal-identity-crypto.js';
 
 const TENANT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MEMBERSHIP_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -23,10 +26,11 @@ function response() {
 function access() {
   return {
     mode: 'managed',
-    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3, mfa: true },
+    session: { id: SESSION_ID, email: 'actor@junin.gob.ar', version: 3 },
     principal: {
       user: { email: 'actor@junin.gob.ar' },
       authorized: true,
+      session: { id: SESSION_ID, version: 3, authLevel: 'mfa', mfa: true, expiresAt: new Date(Date.now() + 3600000).toISOString() },
       platform: {
         roles: ['PLATFORM_OWNER'],
         capabilities: ['platform.tenants.manage'],
@@ -318,7 +322,7 @@ test('alta de sede exige MFA de la sesión efectiva aunque el principal sea prop
   let sqlCalls = 0;
   let applyCalls = 0;
   const ownerWithoutMfa = access();
-  ownerWithoutMfa.session.mfa = false;
+  ownerWithoutMfa.principal.session.mfa = false;
   const handler = createInternalAttendanceHandler(internalDependencies({
     requireCompatibleInternalAccess: async () => ownerWithoutMfa,
     getInternalSql: async () => { sqlCalls += 1; return { fake: true }; },
@@ -491,4 +495,66 @@ test('preparte cannot be scoped by client tenant, partial paging or search',asyn
 test('anonymous preparte request never reaches the source database',async()=>{
   let calls=0;const handler=createInternalAttendanceHandler(internalDependencies({requireCompatibleInternalAccess:async()=>null,getInternalSql:async()=>{calls++;}}));
   await handler({method:'GET',headers:{},query:{resource:'clock-preparte',period:'2026-09'}},response());assert.equal(calls,0);
+});
+
+// Exercise the real cookie verifier, compatibility gateway and identity access
+// resolver before the real attendance normalizer/facade. SQL transports alone
+// are synthetic; there is no authority or command-facade bypass.
+const SITE_SESSION_SECRET='synthetic-attendance-session-secret-'.repeat(2);
+function resolvedSiteFlow({alter=()=>{},noPrincipal=false,forgeClaim=false,tamperClaim=false}={}){
+  const authority=structuredClone(access().principal);
+  Object.assign(authority.tenant,{dataPlaneReady:true,sourceBindings:[{system:'GRH',database:'qa_source',companyId:7,verified:true}]});
+  alter(authority);
+  let token=issueIdentitySessionToken({id:SESSION_ID,email:'actor@junin.gob.ar',version:3,identityVersion:4},{secret:SITE_SESSION_SECRET});
+  if(forgeClaim||tamperClaim){
+    const [prefix,encoded,signature]=token.split('.');const claims=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));
+    const next=Buffer.from(JSON.stringify({...claims,mfa:true,authLevel:'recovery'})).toString('base64url'),unsigned=prefix+'.'+next;
+    token=unsigned+'.'+(tamperClaim?signature:createHmac('sha256',SITE_SESSION_SECRET).update(unsigned).digest('base64url'));
+  }
+  const queries=[],commands=[];let sqlConnections=0,observedAccess;
+  const identitySql={query:async(statement,values)=>{queries.push({statement,values});assert.match(statement,/tenant_identity_resolve_access\(/);return[{result:noPrincipal?null:authority}];}};
+  const handler=createInternalAttendanceHandler(internalDependencies({
+    env:{NODE_ENV:'production',IDENTITY_APP_ORIGIN:'https://municipio.example',FRIENDLY_TENANT_ID:TENANT_ID,FRIENDLY_GRH_SOURCE_DATABASE:'qa_source',FRIENDLY_GRH_COMPANY_ID:'7'},
+    requireCompatibleInternalAccess:async(req,res,options)=>{
+      observedAccess=await requireCompatibleInternalAccess(req,res,{...options,sql:identitySql,secrets:{sessionSecret:SITE_SESSION_SECRET}});return observedAccess;
+    },
+    getInternalSql:async()=>{sqlConnections++;return{query:async(statement,values)=>{commands.push({statement,values});return[{result:{data:{id:IDEMPOTENCY_ID},replayed:false}}];}};},
+    applyAttendanceCommand,
+  }));
+  const request={method:'POST',query:{},headers:{cookie:IDENTITY_SESSION_COOKIE+'='+token,origin:'https://municipio.example','sec-fetch-site':'same-origin','content-type':'application/json','idempotency-key':IDEMPOTENCY_ID},
+    body:{command:'site.create',payload:{externalKey:'qa-site',label:'Sitio sintético QA',timezone:'America/Argentina/Mendoza',networkEnabled:true,removableMediaEnabled:false}}};
+  return{handler,request,authority,queries,commands,token,get sqlConnections(){return sqlConnections;},get observedAccess(){return observedAccess;}};
+}
+for(const level of ['mfa','recovery'])test('site.create accepts current SQL '+level+' with a real signed cookie that has no MFA claim',async()=>{
+  const flow=resolvedSiteFlow({alter:p=>p.session.authLevel=level}),res=response();await flow.handler(flow.request,res);
+  assert.equal(res.statusCode,200);assert.equal(flow.sqlConnections,1);assert.equal(flow.commands.length,1);
+  assert.equal(Object.hasOwn(flow.observedAccess.session,'mfa'),false);assert.equal(flow.observedAccess.principal.session.mfa,true);
+  assert.deepEqual(flow.queries[0].values,['actor@junin.gob.ar',SESSION_ID,3,4,['attendance.read'],'all']);
+  assert.match(flow.commands[0].statement,/SELECT attendance_gateway_apply_command_v1\(/);
+  assert.deepEqual(flow.commands[0].values.slice(0,8),['actor@junin.gob.ar',SESSION_ID,3,RELEASE_SHA,TENANT_ID,MEMBERSHIP_ID,'site.create',IDEMPOTENCY_ID]);
+  const body=JSON.parse(flow.commands[0].values[9]);assert.equal(body.externalKey,'qa-site');assert.equal(body.label,'Sitio sintético QA');assert.equal(body.timezone,'America/Argentina/Mendoza');
+});
+for(const [name,alter]of[
+ ['password session',p=>{p.session.authLevel='password';p.session.mfa=false;}],
+ ['password level with inconsistent MFA true',p=>p.session.authLevel='password'],
+ ['missing principal session',p=>delete p.session],['missing MFA',p=>delete p.session.mfa],['string MFA',p=>p.session.mfa='true'],
+ ['missing auth level',p=>delete p.session.authLevel],['different session id',p=>p.session.id=IDEMPOTENCY_ID],['missing session id',p=>delete p.session.id],
+ ['different session version',p=>p.session.version=4],['string version',p=>p.session.version='3'],['missing version',p=>delete p.session.version],
+ ['different identity',p=>p.user.email='another@example.invalid'],['expired SQL session',p=>p.session.expiresAt='2000-01-01T00:00:00Z'],['invalid SQL expiry',p=>p.session.expiresAt='invalid'],['missing SQL expiry',p=>delete p.session.expiresAt],
+ ['non-owner platform role',p=>p.platform.roles=['PLATFORM_ADMIN']],['missing platform manage capability',p=>p.platform.capabilities=[]],
+])test('site.create fails closed before attendance SQL for '+name,async()=>{
+ const flow=resolvedSiteFlow({alter}),res=response();await flow.handler(flow.request,res);assert.equal(res.statusCode,403);assert.equal(res.payload.code,'ATTENDANCE_PLATFORM_OWNER_REQUIRED');assert.equal(flow.sqlConnections,0);assert.equal(flow.commands.length,0);
+});
+test('revoked or unauthorized database principal cannot use an otherwise valid signed cookie',async()=>{
+ for(const config of [{noPrincipal:true},{alter:p=>p.authorized=false}]){const flow=resolvedSiteFlow(config),res=response();await flow.handler(flow.request,res);assert.ok([401,403].includes(res.statusCode));assert.equal(flow.sqlConnections,0);assert.equal(flow.commands.length,0);}
+});
+test('a forged cookie MFA claim never becomes current authority, with or without a valid test signature',async()=>{
+ const signed=resolvedSiteFlow({forgeClaim:true,alter:p=>{p.session.authLevel='password';p.session.mfa=false;}}),res=response();
+ assert.equal(Object.hasOwn(verifyIdentitySessionToken(signed.token,{secret:SITE_SESSION_SECRET}),'mfa'),false);await signed.handler(signed.request,res);assert.equal(res.statusCode,403);assert.equal(signed.sqlConnections,0);
+ const tampered=resolvedSiteFlow({tamperClaim:true}),denied=response();await tampered.handler(tampered.request,denied);assert.equal(denied.statusCode,401);assert.equal(tampered.queries.length,0);assert.equal(tampered.sqlConnections,0);
+});
+test('reusing the signed cookie rechecks current MFA authority and certified municipal binding',async()=>{
+ const flow=resolvedSiteFlow(),accepted=response();await flow.handler(flow.request,accepted);assert.equal(accepted.statusCode,200);
+ flow.authority.session.mfa=false;const denied=response();await flow.handler(flow.request,denied);assert.equal(denied.statusCode,403);assert.equal(flow.queries.length,2);assert.equal(flow.commands.length,1);
+ const foreign=resolvedSiteFlow({alter:p=>p.tenant.sourceBindings[0].companyId=8}),blocked=response();await foreign.handler(foreign.request,blocked);assert.equal(blocked.statusCode,503);assert.equal(blocked.payload.code,'IDENTITY_SOURCE_BINDING_REQUIRED');assert.equal(foreign.commands.length,0);
 });
