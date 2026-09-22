@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {filterLegalAlerts,legalAlertCategory,legalAlertCounts,verifyLegalAlertCenterResponse} from '../assets/legal-alert-center-model.js';
+import {filterLegalAlerts,legalAlertCategory,legalAlertCounts,legalAlertStatusLabel,legalAlertCoordinationNeedsReview,verifyLegalAlertCenterResponse,verifyLegalAlertCenterResponseV2} from '../assets/legal-alert-center-model.js';
 const F='dddddddd-dddd-4ddd-8ddd-dddddddddddd',N='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',O='ffffffff-ffff-4fff-8fff-ffffffffffff',C='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const follow=(p={})=>({sourceType:'followup',itemId:F,itemVersion:2,title:'Revisar ordenanza',dueDate:'2026-09-21',status:'open',responsibleLabel:'',sourceId:N,sourceVersion:1,sourceKind:'ordenanza',sourceNumber:'9000',sourceYear:2026,sourceTitle:'Norma sintética',recordedAt:'2026-09-20T20:00:00Z',...p});
 const obligation=(p={})=>({sourceType:'contract_obligation',itemId:O,itemVersion:1,title:'Entrega técnica',dueDate:'2026-09-25',status:'open',responsibleLabel:'responsable@example.invalid',sourceId:C,sourceVersion:1,sourceKind:'servicio',sourceNumber:'C-001',sourceYear:2026,sourceTitle:'Contrato sintético',recordedAt:'2026-09-20T21:00:00Z',...p});
@@ -15,3 +15,60 @@ test('date windows handle year boundaries, undated items and closed past items',
 test('unified categories remain descriptive rather than legal conclusions',()=>{assert.equal(legalAlertCategory(follow({dueDate:'2026-09-20'}),'2026-09-21'),'past');assert.equal(legalAlertCategory(follow(),'2026-09-21'),'today');assert.equal(legalAlertCategory(obligation(),'2026-09-21'),'next7');assert.equal(legalAlertCategory(obligation({status:'fulfilled_observed'}),'2026-09-21'),'resolved');});
 test('counts stay exclusive and source filter is explicit',()=>{const rows=[follow(),obligation()];const c=legalAlertCounts(rows,'2026-09-21');assert.equal(c.all,2);assert.equal(c.today,1);assert.equal(c.next7,1);assert.equal(filterLegalAlerts(rows,'2026-09-21',{source:'followup'}).length,1);assert.equal(filterLegalAlerts(rows,'2026-09-21',{query:'tecnica'}).length,1);});
 test('migration is bounded read-only and excludes inferred conclusions',()=>{const s=fs.readFileSync('scripts/migrations/089-legal-alert-center.sql','utf8');assert.equal(s.split('CREATE FUNCTION public.legal_alert_center_v1').length-1,1);assert.equal(s.includes('legal_norm_context_v1(p,false)'),true);assert.equal(s.includes('population>1500'),true);assert.equal(s.includes('America/Argentina/Mendoza'),true);assert.doesNotMatch(s,/\b(?:INSERT|UPDATE|DELETE)\b/i);assert.equal(s.includes('no private notes, actor emails, inferred deadlines or legal conclusions'),true);});
+
+const coordination={responsibleId:null,responsibleEligible:null,nextAction:'',coordinationRevision:0,coordinationFollowupVersion:0,owningArea:''};
+const followV2=p=>({...follow(),...coordination,...p});
+const obligationV2=p=>({...obligation(),...coordination,...p});
+const matter=p=>({...follow({sourceType:'matter',itemId:C,status:'assigned'}),...coordination,responsibleId:O,responsibleEligible:true,responsibleLabel:'Persona sintética',nextAction:'Consultar documentación',owningArea:'Asesoría jurídica',...p});
+const payloadV2=rows=>({...payload(rows),version:'legal-alert-center.v2'});
+test('v2 accepts all three exact sources while v1 remains an explicit independent contract',()=>{
+ const d=payloadV2([followV2(),obligationV2(),matter()]);assert.equal(verifyLegalAlertCenterResponseV2(d),d);
+ assert.throws(()=>verifyLegalAlertCenterResponse(d));assert.throws(()=>verifyLegalAlertCenterResponseV2(payload([])));
+ assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([follow()])));
+ assert.throws(()=>verifyLegalAlertCenterResponse({...payload([follow({sourceType:'matter',status:'assigned'})])}));
+});
+test('all five pending matter states keep their civil date category; only closed or cancelled resolve',()=>{
+ for(const status of ['assigned','in_review','returned','responded','reviewed']){
+  for(const [dueDate,category]of [['2026-09-20','past'],['2026-09-21','today'],['2026-09-28','next7'],['2026-09-29','later'],['','undated']]){
+   const row=matter({status,dueDate});verifyLegalAlertCenterResponseV2(payloadV2([row]));assert.equal(legalAlertCategory(row,'2026-09-21'),category);assert.ok(legalAlertStatusLabel(row));
+  }
+ }
+ for(const status of ['closed','cancelled']){const row=matter({status,nextAction:''});verifyLegalAlertCenterResponseV2(payloadV2([row]));assert.equal(legalAlertCategory(row,'2026-09-21'),'resolved');}
+ for(const status of ['draft','open','done','fulfilled_observed'])assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([matter({status})])));
+});
+test('coordinator eligibility is current and stale coordination stays visible without an inferred reassignment',()=>{
+ const r=followV2({responsibleId:O,responsibleEligible:false,responsibleLabel:'Asignación anterior',nextAction:'Leer expediente',coordinationRevision:2,coordinationFollowupVersion:1});
+ verifyLegalAlertCenterResponseV2(payloadV2([r]));assert.equal(legalAlertCoordinationNeedsReview(r),true);assert.equal(r.responsibleId,O);
+ assert.equal(legalAlertCoordinationNeedsReview({...r,coordinationFollowupVersion:2}),false);
+ assert.equal(legalAlertCoordinationNeedsReview(followV2()),false);
+ assert.equal(legalAlertCoordinationNeedsReview(matter()),false);
+ verifyLegalAlertCenterResponseV2(payloadV2([followV2({coordinationRevision:1,coordinationFollowupVersion:2,nextAction:'Consultar aun sin responsable'})]));
+});
+test('v2 rejects incoherent, missing and excessive coordination fields',()=>{
+ const rows=[followV2({responsibleEligible:false}),followV2({responsibleId:O}),followV2({responsibleId:'bad',responsibleEligible:true}),
+ followV2({coordinationRevision:101}),followV2({coordinationRevision:-1}),followV2({coordinationRevision:1,coordinationFollowupVersion:0}),
+ followV2({coordinationRevision:1,coordinationFollowupVersion:3}),followV2({coordinationFollowupVersion:1}),
+ followV2({nextAction:'unreviewed'}),followV2({responsibleLabel:'Sin identidad'}),followV2({owningArea:'No corresponde'}),
+ followV2({coordinationRevision:1,coordinationFollowupVersion:1,nextAction:'x'.repeat(501)}),matter({owningArea:'x'.repeat(121)}),
+ matter({responsibleId:null,responsibleEligible:null}),matter({coordinationRevision:1}),matter({status:'closed'}),matter({nextAction:''}),
+ obligationV2({responsibleId:O,responsibleEligible:true}),obligationV2({nextAction:'No consta'}),obligationV2({coordinationRevision:1}),matter({unexpected:'private'})];
+ for(const row of rows)assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([row])));
+ const row=followV2();delete row.responsibleId;assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([row])));
+});
+test('matter source retains the exact historical norm version and source year bounds',()=>{
+ for(const sourceYear of [1700,1899,2200])verifyLegalAlertCenterResponseV2(payloadV2([matter({sourceYear,sourceVersion:1000})]));
+ for(const p of [{sourceVersion:1001},{sourceYear:1699},{sourceYear:2201}])assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([matter(p)])));
+});
+test('v2 counts and accent-insensitive search include matter area, next action, responsible and state',()=>{
+ const rows=[followV2(),obligationV2(),matter({status:'reviewed',dueDate:'2026-09-20'})],today='2026-09-21';
+ assert.deepEqual(legalAlertCounts(rows,today),{all:3,past:1,today:1,next7:1,later:0,undated:0,resolved:0});
+ for(const query of ['asesoria','documentacion','persona sintetica','revisado'])assert.deepEqual(filterLegalAlerts(rows,today,{source:'matter',query}),[rows[2]]);
+ assert.equal(filterLegalAlerts(rows,today,{source:'matter',category:'resolved'}).length,0);
+});
+test('v2 validates the complete population of 1500 before pagination and rejects overflow or duplicate identities',()=>{
+ const rows=Array.from({length:1500},(_,i)=>matter({itemId:'00000000-0000-4000-8000-'+i.toString(16).padStart(12,'0')}));
+ assert.equal(verifyLegalAlertCenterResponseV2(payloadV2(rows)).population,1500);
+ assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([...rows,matter()])));
+ assert.throws(()=>verifyLegalAlertCenterResponseV2(payloadV2([matter(),matter()])));
+ assert.throws(()=>verifyLegalAlertCenterResponseV2({...payloadV2(rows),population:1499}));
+});

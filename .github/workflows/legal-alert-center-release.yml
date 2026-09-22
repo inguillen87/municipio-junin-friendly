@@ -1,7 +1,7 @@
 name: Legal alert center release
 on:
   push:
-    branches: ['codex/legal-alert-center-20260921','codex/legal-close-20260921','master']
+    branches: ['codex/legal-alert-center-20260921','codex/legal-close-20260921','internal-legal-alerts-matters-20260922','master']
     paths:
       - 'api/internal-legal-alert-center.js'
       - 'assets/legal-alert-center*'
@@ -9,6 +9,17 @@ on:
       - 'internal-legal-followups.html'
       - 'internal-legal-alert-center.html'
       - 'scripts/migrations/089-legal-alert-center.sql'
+      - 'scripts/migrations/002-canonical-integration.sql'
+      - 'scripts/migrations/100-legal-alert-center-matters.sql'
+      - 'scripts/migrations/069-native-legal-registry.sql'
+      - 'scripts/migrations/079-native-legal-followups.sql'
+      - 'scripts/migrations/081-legal-coordination.sql'
+      - 'scripts/migrations/082-legal-matters.sql'
+      - 'scripts/migrations/086-legal-contracts.sql'
+      - 'scripts/migrations/087-legal-contract-obligations.sql'
+      - 'scripts/verify-legal-alert-center-sql.mjs'
+      - 'scripts/fixtures/legal-alert-center-100-qa.sql.txt'
+      - 'scripts/lib/sql-statements.mjs'
       - 'tests/legal-alert-center.test.js'
       - 'tests/legal-alert-center-api.test.js'
       - 'scripts/verify-legal-alert-center-browser.mjs'
@@ -38,4 +49,40 @@ jobs:
         with:
           name: legal-alert-center-${{ github.run_id }}
           path: verification/legal-alert-center-local/**
+          retention-days: 3
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: legal_alert_center_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: legal_alert_local_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d legal_alert_center_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: legal_alert_local_qa_only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: mkdir -p verification
+      - run: node scripts/verify-legal-alert-center-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/legal-alert-center.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=legal_alert_center_qa -v ON_ERROR_STOP=1 < verification/legal-alert-center.sql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-alert-center-sql-pg${{ matrix.postgres }}
+          path: verification/legal-alert-center.sql
           retention-days: 3

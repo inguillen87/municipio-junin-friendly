@@ -1,0 +1,194 @@
+-- Synthetic source records only. Actual table constraints and immutable triggers stay enabled.
+INSERT INTO platform_tenant VALUES(qa_id(1),'active'),(qa_id(2),'active');
+INSERT INTO internal_users VALUES('viewer@example.invalid',true,'managed',1),('eligible@example.invalid',true,'managed',1),('foreign@example.invalid',true,'managed',1);
+INSERT INTO tenant_membership VALUES
+ (qa_id(10),qa_id(1),'viewer@example.invalid','active'),
+ (qa_id(11),qa_id(1),'eligible@example.invalid','active'),
+ (qa_id(20),qa_id(2),'foreign@example.invalid','active');
+INSERT INTO tenant_identity_session SELECT qa_id(CASE WHEN id=qa_id(10) THEN 110 WHEN id=qa_id(11) THEN 111 ELSE 120 END),user_email,tenant_id,1,1,'membership','mfa','active',now()+interval '1 hour',now() FROM tenant_membership;
+INSERT INTO capabilities SELECT id,'legal.norm.read' FROM tenant_membership;
+
+DO $empty$ DECLARE r jsonb;BEGIN
+ r:=legal_alert_center_v2(qa_context(10));
+ PERFORM qa_assert(r->>'version'='legal-alert-center.v2' AND r->'rows'='[]'::jsonb AND (r->>'population')::int=0,'empty center remains empty');
+ PERFORM qa_assert((SELECT count(*)=7 FROM jsonb_object_keys(r)) AND r->>'timezone'='America/Argentina/Mendoza' AND (r->>'limit')::int=1500,'exact envelope and unchanged timezone');
+ PERFORM qa_assert(r->>'today'=to_char((clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza')::date,'YYYY-MM-DD'),'current local day is explicit');
+END $empty$;
+
+INSERT INTO legal_norm(id,tenant_id,kind,issuer,number,year,current_version) VALUES
+ (qa_id(101),qa_id(1),'ordenanza','HCD','QA100',2026,2),
+ (qa_id(201),qa_id(2),'resolucion','EJECUTIVO','QA200',2025,1);
+INSERT INTO legal_norm_document(id,tenant_id,norm_id,filename,content,sha256,pages)
+ SELECT qa_id(CASE WHEN tenant_id=qa_id(1) THEN 102 ELSE 202 END),tenant_id,id,'fixture.pdf',convert_to('%PDF synthetic QA','UTF8'),repeat('a',64),1 FROM legal_norm;
+INSERT INTO legal_norm_revision(tenant_id,norm_id,version,document_id,metadata,search_text,reason,actor_membership_id,actor_session_id,actor_email)
+ SELECT n.tenant_id,n.id,v,d.id,jsonb_build_object('title',CASE WHEN v=1 THEN 'Exact historical normative title' ELSE 'Newer title must not leak' END),'PRIVATE_SEARCH','PRIVATE_REASON',
+ CASE WHEN n.tenant_id=qa_id(1) THEN qa_id(10) ELSE qa_id(20) END,CASE WHEN n.tenant_id=qa_id(1) THEN qa_id(110) ELSE qa_id(120) END,'PRIVATE_ACTOR@example.invalid'
+ FROM legal_norm n JOIN legal_norm_document d ON d.norm_id=n.id CROSS JOIN LATERAL generate_series(1,n.current_version) v;
+
+CREATE FUNCTION qa_add_followup(n integer,t integer,norm integer) RETURNS void LANGUAGE plpgsql AS $seed$
+ BEGIN
+ INSERT INTO legal_followup(id,tenant_id,norm_id,norm_version) VALUES(qa_id(n),qa_id(t),qa_id(norm),1);
+ INSERT INTO legal_followup_event(tenant_id,followup_id,version,title,due_date,status,note,reason,actor_membership_id,actor_session_id,actor_email,request_key,request_sha256,recorded_at)
+ VALUES(qa_id(t),qa_id(n),1,'Recorded followup',NULL,'open','PRIVATE_FOLLOWUP_NOTE','PRIVATE_REASON',CASE WHEN t=1 THEN qa_id(10) ELSE qa_id(20) END,CASE WHEN t=1 THEN qa_id(110) ELSE qa_id(120) END,'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('a',64),'2026-09-01 12:00:00+00');
+ END $seed$;
+SELECT qa_add_followup(301,1,101),qa_add_followup(302,1,101),qa_add_followup(303,2,201);
+INSERT INTO legal_followup_event SELECT (jsonb_populate_record(NULL::legal_followup_event,to_jsonb(e)||jsonb_build_object('version',2,'title','Latest recorded followup','recorded_at','2026-09-02T12:00:00+00','request_key',gen_random_uuid()))).* FROM legal_followup_event e WHERE followup_id=qa_id(301);
+CREATE FUNCTION qa_add_coordination(rev integer,member integer,action text,at_time timestamptz) RETURNS void LANGUAGE plpgsql AS $seed$
+ BEGIN
+ INSERT INTO legal_coordination_event(tenant_id,followup_id,revision,followup_version,responsible_membership_id,responsible_label,next_action,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256,recorded_at)
+ VALUES(qa_id(1),qa_id(301),rev,1,CASE WHEN member IS NULL THEN NULL ELSE qa_id(member) END,CASE WHEN member IS NULL THEN NULL ELSE 'Recorded responsible label' END,action,'PRIVATE_COORDINATION_REASON',qa_id(10),qa_id(110),'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('b',64),at_time);
+ END $seed$;
+SELECT qa_add_coordination(1,10,'Old action','2026-09-01 13:00:00+00'),qa_add_coordination(2,11,'Current recorded next action','2026-09-03 12:00:00+00');
+
+DO $matters$ DECLARE state_name text;n integer:=400;BEGIN
+ FOREACH state_name IN ARRAY ARRAY['assigned','in_review','returned','responded','reviewed','closed','cancelled'] LOOP
+ n:=n+1;
+ INSERT INTO legal_matter(id,tenant_id,norm_id,norm_version) VALUES(qa_id(n),qa_id(1),qa_id(101),1);
+ INSERT INTO legal_matter_event(tenant_id,matter_id,revision,state,matter_type,title,owning_area,responsible_membership_id,responsible_label,next_action,target_date,observations,evidence_article_label,evidence_note,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256,recorded_at)
+ VALUES(qa_id(1),qa_id(n),1,state_name,'consulta','Recorded matter '||state_name,'Recorded legal area',qa_id(11),'Recorded responsible label',CASE WHEN state_name IN('closed','cancelled') THEN '' ELSE 'Recorded next action' END,CASE WHEN state_name='assigned' THEN NULL ELSE DATE '2026-09-04' END,'PRIVATE_OBSERVATIONS','PRIVATE_ARTICLE','PRIVATE_EVIDENCE','PRIVATE_REASON',qa_id(10),qa_id(110),'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('c',64),'2026-09-01 12:00:00+00');
+ END LOOP;
+ INSERT INTO legal_matter(id,tenant_id,norm_id,norm_version) VALUES(qa_id(408),qa_id(2),qa_id(201),1);
+ INSERT INTO legal_matter_event SELECT (jsonb_populate_record(NULL::legal_matter_event,to_jsonb(e)||jsonb_build_object('tenant_id',qa_id(2),'matter_id',qa_id(408),'responsible_membership_id',qa_id(20),'actor_membership_id',qa_id(20),'actor_session_id',qa_id(120),'request_key',gen_random_uuid()))).* FROM legal_matter_event e WHERE matter_id=qa_id(401);
+ INSERT INTO legal_matter_event SELECT (jsonb_populate_record(NULL::legal_matter_event,to_jsonb(e)||jsonb_build_object('revision',2,'title','Latest assigned matter','recorded_at','2026-09-05T12:00:00+00','request_key',gen_random_uuid()))).* FROM legal_matter_event e WHERE matter_id=qa_id(401);
+END $matters$;
+INSERT INTO legal_contract(id,tenant_id,number,year,contract_type) VALUES(qa_id(501),qa_id(1),'QA-CONTRACT',2026,'servicio');
+INSERT INTO legal_contract_revision(tenant_id,contract_id,revision,state,title,object_text,counterparties,currency,amount_minor,approval_reference,responsible_membership_id,responsible_label,matter_id,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256)
+ SELECT qa_id(1),qa_id(501),v,'registered',CASE WHEN v=1 THEN 'Exact contract title' ELSE 'Newer contract title must not leak' END,'PRIVATE_CONTRACT_OBJECT','[{"name":"Synthetic supplier","role":"provider","taxId":""}]','NONE',NULL,'PRIVATE_APPROVAL',qa_id(11),'Recorded contract responsible',qa_id(401),'PRIVATE_REASON',qa_id(10),qa_id(110),'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('d',64) FROM generate_series(1,2) v;
+INSERT INTO legal_contract_obligation(id,tenant_id,contract_id) VALUES(qa_id(601),qa_id(1),qa_id(501));
+INSERT INTO legal_contract_obligation_event(tenant_id,obligation_id,sequence,contract_id,contract_revision,status,obligation_type,title,description,clause_locator,due_date,due_basis,currency,amount_minor,unit,responsible_membership_id,responsible_label,evidence_note,decision_note,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256,recorded_at)
+ VALUES(qa_id(1),qa_id(601),1,qa_id(501),1,'open','documentation','Recorded obligation','PRIVATE_DESCRIPTION','PRIVATE_CLAUSE',NULL,'PRIVATE_DUE_BASIS','NONE',NULL,'',qa_id(11),'Recorded obligation responsible','PRIVATE_EVIDENCE','','PRIVATE_REASON',qa_id(10),qa_id(110),'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('e',64),'2026-09-01 12:00:00+00');
+
+DO $behavior$
+DECLARE c jsonb:=qa_context(10);r jsonb;old_result jsonb;row_data jsonb;source_before jsonb;original_hash text;mutation text;state_name text;actual jsonb;
+BEGIN
+ source_before:=qa_source_state();old_result:=legal_alert_center_v1(c);r:=legal_alert_center_v2(c);original_hash:=r->>'revision';
+ PERFORM qa_assert(qa_source_state()=source_before,'v1 and v2 read no source mutation');
+ PERFORM qa_assert((r->>'population')::int=10 AND jsonb_array_length(r->'rows')=10,'three sources counted once using latest events');
+ PERFORM qa_assert((old_result->>'population')::int=3 AND old_result->>'version'='legal-alert-center.v1','v1 remains two sources and its original envelope');
+ PERFORM qa_assert(legal_alert_center_v2(c)=r,'same snapshot has stable order and revision');
+ PERFORM qa_assert(r->>'revision'=encode(digest(convert_to(jsonb_build_object('today',r->>'today','rows',r->'rows')::text,'UTF8'),'sha256'),'hex'),'revision covers all fields and current eligibility');
+ PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'rows') x WHERE (x->>'responsibleEligible')::boolean IS DISTINCT FROM CASE WHEN x->>'responsibleId' IS NULL THEN NULL::boolean ELSE legal_coordination_member_v1(qa_id(1),(x->>'responsibleId')::uuid) IS NOT NULL END),'materialized membership cohort equals direct 081 eligibility for every card');
+ PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'rows') x WHERE (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(x) key) IS DISTINCT FROM ARRAY['coordinationFollowupVersion','coordinationRevision','dueDate','itemId','itemVersion','nextAction','owningArea','recordedAt','responsibleEligible','responsibleId','responsibleLabel','sourceId','sourceKind','sourceNumber','sourceTitle','sourceType','sourceVersion','sourceYear','status','title']),'exact 20-field rows without private extras');
+ PERFORM qa_assert(r::text NOT LIKE '%PRIVATE_%' AND r::text NOT LIKE '%@example.invalid%' AND r::text NOT LIKE '%Newer%','private notes actors evidence and newer source metadata excluded');
+ SELECT x INTO row_data FROM jsonb_array_elements(r->'rows') x WHERE x->>'itemId'=qa_id(301)::text;
+ PERFORM qa_assert((row_data->>'itemVersion')::int=2 AND row_data->>'title'='Latest recorded followup','followup latest version selected');
+ PERFORM qa_assert(row_data->>'responsibleId'=qa_id(11)::text AND (row_data->>'responsibleEligible')::boolean AND row_data->>'responsibleLabel'='Recorded responsible label','latest recorded assignment and current eligibility');
+ PERFORM qa_assert(row_data->>'nextAction'='Current recorded next action' AND (row_data->>'coordinationRevision')::int=2 AND (row_data->>'coordinationFollowupVersion')::int=1,'stale coordination reference is exposed without rewriting version');
+ PERFORM qa_assert((row_data->>'recordedAt')::timestamptz='2026-09-03 12:00:00+00'::timestamptz,'recordedAt includes the newer coordination record');
+ PERFORM qa_assert(row_data->>'dueDate'='' AND row_data->>'owningArea'='','no inferred followup deadline or area');
+ SELECT x INTO row_data FROM jsonb_array_elements(r->'rows') x WHERE x->>'itemId'=qa_id(302)::text;
+ PERFORM qa_assert(row_data->'responsibleId'='null'::jsonb AND row_data->'responsibleEligible'='null'::jsonb AND row_data->>'responsibleLabel'='' AND row_data->>'nextAction'='' AND (row_data->>'coordinationRevision')::int=0 AND (row_data->>'coordinationFollowupVersion')::int=0,'no coordination means explicit empty values');
+ PERFORM qa_assert((row_data->>'recordedAt')::timestamptz='2026-09-01 12:00:00+00'::timestamptz,'uncoordinated followup keeps event timestamp');
+ SELECT x INTO row_data FROM jsonb_array_elements(r->'rows') x WHERE x->>'itemId'=qa_id(401)::text;
+ PERFORM qa_assert(row_data->>'sourceType'='matter' AND (row_data->>'itemVersion')::int=2 AND row_data->>'title'='Latest assigned matter','latest matter revision selected');
+ PERFORM qa_assert(row_data->>'sourceId'=qa_id(101)::text AND (row_data->>'sourceVersion')::int=1 AND row_data->>'sourceTitle'='Exact historical normative title','matter retains exact norm identity and historical version');
+ PERFORM qa_assert(row_data->>'responsibleId'=qa_id(11)::text AND (row_data->>'responsibleEligible')::boolean AND row_data->>'owningArea'='Recorded legal area' AND row_data->>'nextAction'='Recorded next action','matter uses registered responsibility area and action');
+ PERFORM qa_assert((row_data->>'coordinationRevision')::int=0 AND (row_data->>'coordinationFollowupVersion')::int=0 AND row_data->>'dueDate'='','matter coordination zeros and no invented deadline');
+ FOREACH state_name IN ARRAY ARRAY['assigned','in_review','returned','responded','reviewed','closed','cancelled'] LOOP
+  PERFORM qa_assert((SELECT count(*)=1 FROM jsonb_array_elements(r->'rows') x WHERE x->>'sourceType'='matter' AND x->>'status'=state_name),'matter state preserved: '||state_name);
+ END LOOP;
+ PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r->'rows') WITH ORDINALITY a(x,n),jsonb_array_elements(r->'rows') WITH ORDINALITY b(x,n) WHERE a.x->>'status' IN('closed','cancelled') AND b.x->>'status' IN('assigned','in_review','returned','responded','reviewed','open') AND a.n<b.n),'all five pending matter states sort before final states');
+ SELECT x INTO row_data FROM jsonb_array_elements(r->'rows') x WHERE x->>'itemId'=qa_id(601)::text;
+ PERFORM qa_assert(row_data->>'sourceTitle'='Exact contract title' AND (row_data->>'sourceVersion')::int=1 AND row_data->>'responsibleLabel'='Recorded obligation responsible','obligation keeps exact source revision and recorded label');
+ PERFORM qa_assert(row_data->'responsibleId'='null'::jsonb AND row_data->'responsibleEligible'='null'::jsonb AND row_data->>'nextAction'='' AND row_data->>'owningArea'='' AND (row_data->>'coordinationRevision')::int=0 AND (row_data->>'coordinationFollowupVersion')::int=0,'obligation extensions do not invent authority or actions');
+ actual:=legal_alert_center_v2(qa_context(20));
+ PERFORM qa_assert((actual->>'population')::int=2 AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(actual->'rows') x WHERE x->>'sourceId'<>qa_id(201)::text),'foreign tenant sees only its own followup and matter');
+ PERFORM qa_assert(qa_rejects(c||jsonb_build_object('tenantId',qa_id(2)),'LEGAL_SESSION_INVALID'),'forged tenant rejected by actual context');
+ PERFORM qa_assert(qa_rejects(c||jsonb_build_object('membershipId',qa_id(20)),'LEGAL_SESSION_INVALID'),'foreign membership rejected');
+ PERFORM qa_assert(qa_rejects(c||'{"actorSessionVersion":2}','LEGAL_SESSION_INVALID'),'session version revalidated');
+ PERFORM qa_assert(qa_rejects(c||'{"extra":true}','LEGAL_SESSION_INVALID'),'extra authority fields rejected');
+ PERFORM qa_assert(qa_rejects('null','LEGAL_SESSION_INVALID'),'null context rejected');
+ -- Every eligibility change uses the unmodified 081 helper; labels remain historical.
+ FOREACH mutation IN ARRAY ARRAY[
+  'UPDATE tenant_membership SET status=''suspended'' WHERE id=qa_id(11)',
+  'UPDATE internal_users SET active=false WHERE email=''eligible@example.invalid''',
+  'UPDATE internal_users SET auth_mode=''external'' WHERE email=''eligible@example.invalid''',
+  'DELETE FROM capabilities WHERE membership_id=qa_id(11)'
+ ] LOOP
+  EXECUTE mutation;actual:=legal_alert_center_v2(c);
+  PERFORM qa_assert(actual->>'revision'<>original_hash
+   AND (SELECT jsonb_agg(x-'responsibleEligible' ORDER BY x->>'itemId') FROM jsonb_array_elements(actual->'rows') x)=(SELECT jsonb_agg(x-'responsibleEligible' ORDER BY x->>'itemId') FROM jsonb_array_elements(r->'rows') x)
+   AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(actual->'rows') x WHERE x->>'responsibleId'=qa_id(11)::text AND (x->>'responsibleEligible')::boolean),'eligibility and hash change while all other fields remain exact: '||mutation);
+  UPDATE tenant_membership SET status='active' WHERE id=qa_id(11);
+  UPDATE internal_users SET active=true,auth_mode='managed' WHERE email='eligible@example.invalid';
+  INSERT INTO capabilities SELECT qa_id(11),'legal.norm.read' WHERE NOT EXISTS(SELECT 1 FROM capabilities WHERE membership_id=qa_id(11));
+ END LOOP;
+ PERFORM qa_assert(legal_alert_center_v2(c)=r,'restored authority restores identical source snapshot');
+ -- Current reader authority is independently rechecked, not cached with the source rows.
+ FOREACH mutation IN ARRAY ARRAY[
+  'UPDATE tenant_identity_session SET status=''revoked'' WHERE id=qa_id(110)',
+  'UPDATE tenant_identity_session SET auth_level=''password'' WHERE id=qa_id(110)',
+  'UPDATE tenant_identity_session SET expires_at=now()-interval ''1 second'' WHERE id=qa_id(110)',
+  'UPDATE tenant_identity_session SET last_seen_at=now()-interval ''2 hours'' WHERE id=qa_id(110)',
+  'UPDATE internal_users SET identity_version=2 WHERE email=''viewer@example.invalid''',
+  'UPDATE internal_users SET active=false WHERE email=''viewer@example.invalid''',
+  'UPDATE tenant_membership SET status=''suspended'' WHERE id=qa_id(10)',
+  'UPDATE platform_tenant SET status=''suspended'' WHERE id=qa_id(1)'
+ ] LOOP
+  EXECUTE mutation;PERFORM qa_assert(qa_rejects(c,'LEGAL_SESSION_INVALID'),'current reader context revalidated: '||mutation);
+  UPDATE tenant_identity_session SET status='active',auth_level='mfa',expires_at=now()+interval '1 hour',last_seen_at=now() WHERE id=qa_id(110);
+  UPDATE internal_users SET identity_version=1,active=true WHERE email='viewer@example.invalid';
+  UPDATE tenant_membership SET status='active' WHERE id=qa_id(10);UPDATE platform_tenant SET status='active' WHERE id=qa_id(1);
+ END LOOP;
+ DELETE FROM capabilities WHERE membership_id=qa_id(10);
+ PERFORM qa_assert(qa_rejects(c,'LEGAL_FORBIDDEN'),'revoked legal read capability denied');
+ INSERT INTO capabilities VALUES(qa_id(10),'legal.norm.read');
+ INSERT INTO sod_blocked VALUES(qa_id(10));
+ PERFORM qa_assert(qa_rejects(c,'IAM_SOD_CONFLICT'),'existing context invokes SoD guard');DELETE FROM sod_blocked;
+ UPDATE tenant_identity_session SET auth_level='recovery' WHERE id=qa_id(110);
+ PERFORM qa_assert((legal_alert_center_v2(c)->>'population')::int=10,'existing recovery authentication remains accepted');
+ UPDATE tenant_identity_session SET auth_level='mfa' WHERE id=qa_id(110);
+ -- Append a genuine unassignment shape; action can remain, but the assignee label disappears.
+ PERFORM qa_add_coordination(3,NULL,'Recorded unassigned action','2026-09-06 12:00:00+00');
+ actual:=legal_alert_center_v2(c);SELECT x INTO row_data FROM jsonb_array_elements(actual->'rows') x WHERE x->>'itemId'=qa_id(301)::text;
+ PERFORM qa_assert(row_data->'responsibleId'='null'::jsonb AND row_data->'responsibleEligible'='null'::jsonb AND row_data->>'responsibleLabel'='' AND row_data->>'nextAction'='Recorded unassigned action','unassignment preserves action without inventing responsible');
+ PERFORM qa_assert(actual->>'revision'<>original_hash AND (row_data->>'coordinationRevision')::int=3 AND (row_data->>'itemVersion')::int=2 AND (row_data->>'recordedAt')::timestamptz='2026-09-06 12:00:00+00'::timestamptz,'coordination append advances center hash and recordedAt only');
+ INSERT INTO legal_followup_event SELECT (jsonb_populate_record(NULL::legal_followup_event,to_jsonb(e)||jsonb_build_object('version',3,'recorded_at','2026-09-07T12:00:00+00','request_key',gen_random_uuid()))).* FROM legal_followup_event e WHERE followup_id=qa_id(301) AND version=2;
+ actual:=legal_alert_center_v2(c);SELECT x INTO row_data FROM jsonb_array_elements(actual->'rows') x WHERE x->>'itemId'=qa_id(301)::text;
+ PERFORM qa_assert((row_data->>'recordedAt')::timestamptz='2026-09-07 12:00:00+00'::timestamptz AND (row_data->>'coordinationFollowupVersion')::int=1 AND (row_data->>'itemVersion')::int=3,'newer followup event wins timestamp while coordination reference stays exact');
+ PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM qa_original_functions b JOIN pg_proc p ON p.oid=b.oid WHERE (p.prosrc,p.proacl,p.proowner) IS DISTINCT FROM (b.prosrc,b.proacl,b.proowner)),'all existing function bodies ACLs and owners unchanged');
+END $behavior$;
+
+DO $access$ DECLARE name text;c jsonb:=qa_context(10);r jsonb;BEGIN
+ PERFORM qa_assert((SELECT provolatile='s' AND prosecdef AND proconfig=ARRAY['search_path=pg_catalog, legal_alert_center_100_qa, public, pg_temp'] FROM pg_proc WHERE oid='legal_alert_center_v2(jsonb)'::regprocedure),'stable security definer has pinned search path');
+ PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='legal_alert_center_v2(jsonb)'::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE'),'PUBLIC cannot execute v2');
+ PERFORM qa_assert(has_function_privilege('municontrol_actions_runtime_app','legal_alert_center_v2(jsonb)','EXECUTE'),'runtime can execute only bounded v2 facade');
+ PERFORM qa_assert(NOT has_function_privilege('municontrol_actions_runtime_app','legal_norm_context_v1(jsonb,boolean)','EXECUTE') AND NOT has_function_privilege('municontrol_actions_runtime_app','legal_coordination_member_v1(uuid,uuid)','EXECUTE'),'private context and eligibility helpers remain inaccessible');
+ FOREACH name IN ARRAY ARRAY['legal_norm','legal_norm_document','legal_norm_revision','legal_followup','legal_followup_event','legal_coordination_event','legal_matter','legal_matter_event','legal_contract','legal_contract_revision','legal_contract_obligation','legal_contract_obligation_event'] LOOP
+  PERFORM qa_assert(NOT has_table_privilege('municontrol_actions_runtime_app',name,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AND (SELECT relrowsecurity FROM pg_class WHERE oid=name::regclass),'RLS and no direct runtime table privilege: '||name);
+ END LOOP;
+ SET LOCAL ROLE municontrol_actions_runtime_app;
+ r:=legal_alert_center_v2(c);
+ PERFORM qa_assert((r->>'population')::int=10,'actual SET ROLE runtime reads facade successfully');
+ PERFORM qa_assert(qa_sql_rejects('SELECT * FROM legal_matter_event','42501'),'actual runtime SELECT rejected');
+ PERFORM qa_assert(qa_sql_rejects('UPDATE legal_followup_event SET title=''forbidden''','42501'),'actual runtime UPDATE rejected');
+ RESET ROLE;
+ PERFORM qa_assert(qa_sql_rejects('UPDATE legal_matter_event SET title=''forbidden''','55000'),'source append-only trigger preserved');
+END $access$;
+
+DO $limits$ DECLARE c jsonb:=qa_context(10);r jsonb;before_state jsonb;BEGIN
+ before_state:=qa_source_state();
+ BEGIN
+  -- Bulk source fixtures deliberately exercise the reader bound, not write-facade quotas.
+  INSERT INTO legal_followup(id,tenant_id,norm_id,norm_version) SELECT qa_id(10000+i),qa_id(1),qa_id(101),1 FROM generate_series(1,1490) i;
+  INSERT INTO legal_followup_event SELECT (jsonb_populate_record(NULL::legal_followup_event,to_jsonb(e)||jsonb_build_object('followup_id',qa_id(10000+i),'request_key',gen_random_uuid()))).* FROM legal_followup_event e CROSS JOIN generate_series(1,1490) i WHERE followup_id=qa_id(302);
+  r:=legal_alert_center_v2(c);
+  PERFORM qa_assert((r->>'population')::int=1500 AND jsonb_array_length(r->'rows')=1500,'1500 complete rows returned without truncation');
+  PERFORM qa_add_followup(12000,1,101);
+  PERFORM qa_assert(qa_rejects(c,'LEGAL_ALERT_CENTER_UNAVAILABLE'),'1501 rows rejected without a partial response');
+  RAISE EXCEPTION USING ERRCODE='P1001';
+ EXCEPTION WHEN SQLSTATE 'P1001' THEN NULL;END;
+ -- Subtransaction rolls back its check-table writes, so record the executed boundary checks here.
+ PERFORM qa_assert(qa_source_state()=before_state,'1500 and 1501 tested; source fixtures rolled back');
+ BEGIN
+  INSERT INTO legal_followup(id,tenant_id,norm_id,norm_version) SELECT qa_id(20000+i),qa_id(1),qa_id(101),1 FROM generate_series(1,1490) i;
+  INSERT INTO legal_followup_event SELECT (jsonb_populate_record(NULL::legal_followup_event,to_jsonb(e)||jsonb_build_object('followup_id',qa_id(20000+i),'title',repeat('Ñ',160),'request_key',gen_random_uuid()))).* FROM legal_followup_event e CROSS JOIN generate_series(1,1490) i WHERE followup_id=qa_id(302);
+  INSERT INTO legal_coordination_event(tenant_id,followup_id,revision,followup_version,responsible_membership_id,responsible_label,next_action,reason,actor_membership_id,actor_session_id,actor_label,request_key,request_sha256)
+  SELECT qa_id(1),qa_id(20000+i),1,1,qa_id(11),repeat('Ñ',254),repeat('Ñ',500),'PRIVATE_REASON',qa_id(10),qa_id(110),'PRIVATE_ACTOR@example.invalid',gen_random_uuid(),repeat('f',64) FROM generate_series(1,1490) i;
+  PERFORM qa_assert((SELECT count(*)=1492 FROM legal_followup WHERE tenant_id=qa_id(1)),'byte-limit fixture stays at 1500 total alerts');
+  PERFORM qa_assert(qa_rejects(c,'LEGAL_ALERT_CENTER_UNAVAILABLE'),'UTF8 byte limit rejects oversized complete result');
+  RAISE EXCEPTION USING ERRCODE='P1002';
+ EXCEPTION WHEN SQLSTATE 'P1002' THEN NULL;END;
+ PERFORM qa_assert(qa_source_state()=before_state,'UTF8 2MB rejection tested; source fixtures rolled back');
+ PERFORM qa_assert((legal_alert_center_v2(c)->>'population')::int=10,'reader remains usable after rejected snapshots');
+END $limits$;
