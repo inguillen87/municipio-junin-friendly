@@ -181,11 +181,40 @@ try {
   }
   async function showEditor() {
     await page.evaluate(async () => { document.activeElement?.blur(); await document.fonts.ready; await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); });
-    await family.locator('.fs-editor').evaluate(n => {
-      const body = n.closest('.dialog-body'), dialog = n.closest('dialog'); dialog.scrollTop = 0;
-      body.scrollTop += n.getBoundingClientRect().top - body.getBoundingClientRect().top - (body.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12;
-    });
-    await page.waitForFunction(() => { const form = document.querySelector('.fs-editor'), body = form?.closest('.dialog-body'); return form && Math.abs(form.getBoundingClientRect().top - body.getBoundingClientRect().top - (body.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12) < 3; });
+    await page.evaluate(() => { window.__schoolingEditorFrame = { stable: 0, frames: 0 }; });
+    try {
+      await page.waitForFunction(() => {
+        const form = document.querySelector('[data-family-schooling-ficha] .fs-editor'), body = form?.closest('.dialog-body'), dialog = form?.closest('dialog');
+        if (!form || !body || !dialog?.open) return false;
+        const state = window.__schoolingEditorFrame; state.frames++;
+        dialog.scrollTop = 0;
+        const bodyRect = body.getBoundingClientRect(), nav = body.querySelector('.employee-section-nav');
+        const navBottom = nav ? nav.getBoundingClientRect().bottom : bodyRect.top;
+        const targetTop = Math.max(bodyRect.top, navBottom) + 12;
+        const desired = body.scrollTop + form.getBoundingClientRect().top - targetTop;
+        const maxScroll = Math.max(0, body.scrollHeight - body.clientHeight), targetScroll = Math.max(0, Math.min(maxScroll, desired));
+        // Responsive layout/scroll anchoring can move the form after the first
+        // paint. Recalculate until stable, keeping the existing 12-second bound.
+        body.scrollTo({ top: targetScroll, behavior: 'instant' });
+        const rect = form.getBoundingClientRect(), bottom = Math.min(bodyRect.bottom, innerHeight);
+        const controls = [...form.querySelectorAll('input:not([type="hidden"]),select,textarea,button')];
+        const control = controls.find(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+        const controlRect = control?.getBoundingClientRect();
+        const clearPoint = (x, y) => form.contains(document.elementFromPoint(x, y));
+        const visible = rect.top >= Math.max(bodyRect.top, navBottom) - 1 && rect.top + 24 < bottom && rect.left >= 0 && rect.right <= innerWidth + 1;
+        const unobscured = visible && clearPoint(rect.left + rect.width / 2, rect.top + 20) && controlRect && controlRect.top >= navBottom && controlRect.bottom <= bottom && clearPoint(controlRect.left + controlRect.width / 2, controlRect.top + controlRect.height / 2);
+        const aligned = Math.abs(rect.top - targetTop) < 3 || ((desired < 0 || desired > maxScroll) && Math.abs(body.scrollTop - targetScroll) < 2);
+        const geometry = [rect.top, rect.height, rect.width, bodyRect.top, bodyRect.height, navBottom, body.scrollTop, body.scrollHeight];
+        state.stable = aligned && unobscured && state.geometry?.every((v, i) => Math.abs(v - geometry[i]) < 1) ? state.stable + 1 : 0;
+        Object.assign(state, { geometry, viewport: [innerWidth, innerHeight], desired, targetScroll, maxScroll, offset: rect.top - targetTop, aligned, visible, unobscured: Boolean(unobscured) });
+        return state.stable >= 3;
+      });
+    } catch (error) {
+      // Geometry only: preserve useful CI evidence without input values/names.
+      const geometry = await page.evaluate(() => window.__schoolingEditorFrame).catch(() => null);
+      fs.writeFileSync(path.join(out, 'family-schooling-editor-frame-failure.json'), JSON.stringify({ mode, geometry }, null, 2));
+      throw error;
+    }
   }
 
   await page.goto(origin + '/reportes-rrhh.html#certificados-escolares'); await report.locator('[data-fs-consult]').waitFor();
