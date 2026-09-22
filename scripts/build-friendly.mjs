@@ -173,6 +173,7 @@ const shellFiles = [
   'assets/payroll-novelty-exporter.js',
   'assets/payroll-novelty-xlsx-exporter.js',
   'assets/payroll-novelty-workbench.js',
+  'assets/payroll-native-monthly-model.js',
   'assets/payroll-fixed-novelties.js',
   'assets/payroll-fixed-novelties-model.js',
   'assets/payroll-fixed-novelties-export.js',

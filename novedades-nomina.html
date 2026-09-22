@@ -201,6 +201,10 @@
           </section>
 
           <div class="message" id="messageHost" role="status" aria-live="polite" hidden></div>
+          <section class="message" id="nativeMonthlyPending" role="status" aria-live="polite" hidden>
+            <strong>Hay un envío pendiente de confirmación</strong><p>Conservamos el mismo contenido mientras consultamos su resultado. No cierres esta pantalla. Si cambió tu acceso, actualizá primero la consulta.</p>
+            <button class="button primary" id="nativeMonthlyRetry" type="button">Reintentar el mismo envío</button>
+          </section>
 
           <details class="section fixed-novelties" id="fixedNovelties" data-fixed-shell hidden>
             <summary><span class="section-index">NOVEDADES FIJAS</span><strong>Altas, vencimientos y revisión</strong><span>Conservá cada propuesta y su vigencia. No genera liquidaciones.</span></summary>
@@ -213,6 +217,13 @@
 
           <section class="section" id="entrySection" aria-labelledby="entryTitle" hidden>
             <header class="section-head"><div><span class="section-index">01 · CARGAR Y VALIDAR</span><h2 id="entryTitle">Preparar novedades</h2><p>La validación previa ocurre primero en el navegador y se repite de forma autoritativa en el servidor.</p></div><span class="status draft">Hasta <span id="maxRows">500</span>&nbsp;filas</span></header>
+
+            <section class="boundary" id="nativeMonthlyPanel" aria-labelledby="nativeMonthlyTitle" style="margin-bottom:20px;overflow-wrap:anywhere" hidden>
+              <h3 id="nativeMonthlyTitle">Novedad de una persona</h3>
+              <p id="nativeMonthlySubject" role="status" aria-live="polite"></p>
+              <div class="form-actions"><button class="button" id="nativeMonthlyPick" type="button" hidden>Elegir persona y vínculo</button><button class="button" id="nativeMonthlyRefresh" type="button" hidden>Actualizar vínculo</button><button class="button" id="nativeMonthlyClear" type="button" hidden>Quitar selección</button></div>
+              <small>Para un alta propia: elegí el período mensual, completá una novedad y enviá el lote a revisión independiente. La aprobación habilita un archivo de control; no liquida haberes.</small>
+            </section>
 
             <div class="mode-switch" role="radiogroup" aria-label="Modo de carga">
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
@@ -317,7 +328,7 @@
             <div class="detail-summary"><div><span>Período</span><strong id="detailPeriod">—</strong></div><div><span>Liquidación</span><strong id="detailType">—</strong></div><div><span>Filas</span><strong id="detailCount">—</strong></div><div><span>Validaciones</span><strong id="detailIssues">—</strong></div></div>
             <div class="table-wrap"><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Validación</th></tr></thead><tbody id="detailRows"></tbody></table></div>
             <div class="detail-toolbar"><div class="field" id="rejectReasonField" hidden><label for="rejectReason">Motivo de rechazo</label><select id="rejectReason"><option value="invalid_rows">Filas inválidas</option><option value="unsupported_concept">Concepto sin homologar</option><option value="duplicate_or_conflict">Duplicado o conflicto</option></select></div><div class="detail-actions" id="detailActions"></div></div>
-            <p class="panel-note"><strong>Excel de revisión:</strong> conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.</p>
+            <p class="panel-note" id="detailExportNote"><strong>Excel de revisión:</strong> conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.</p>
           </section>
         </div>
       </main>

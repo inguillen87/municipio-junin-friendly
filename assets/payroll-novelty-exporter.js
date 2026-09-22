@@ -1,3 +1,5 @@
+import { verifyMonthlyBatch } from './payroll-native-monthly-model.js';
+
 const CONTRACT_VERSION = 'payroll-novelty-batch.v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONTH = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])-01$/;
@@ -105,6 +107,12 @@ function canonicalRow(row, index, periodMonth) {
 }
 
 export function createPayrollNoveltyCsv(snapshot) {
+  if (snapshot?.contractVersion === 'payroll-novelty-batch.v2') {
+    const table = nativePayrollNoveltyExportTable(snapshot);
+    const numeric = new Set([2, 3, 4, 5, 7, 8]);
+    return `\uFEFF${[table.headers.join(';'), table.values.map((value, index) =>
+      csvCell(value, { numeric: numeric.has(index) })).join(';')].join('\r\n')}\r\n`;
+  }
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)
       || snapshot.contractVersion !== CONTRACT_VERSION
       || !UUID.test(String(snapshot.id || ''))
@@ -156,13 +164,58 @@ export function createPayrollNoveltyCsv(snapshot) {
   return `\uFEFF${lines.join('\r\n')}\r\n`;
 }
 
+/** Native control export. The v1 serializer above remains unchanged. */
+export function nativePayrollNoveltyExportTable(snapshot) {
+  if (snapshot?.contractVersion !== 'payroll-novelty-batch.v2'
+      || snapshot.sourceMode !== 'individual' || snapshot.payrollType !== 'monthly'
+      || snapshot.rowCount !== 1 || !Array.isArray(snapshot.rows) || snapshot.rows.length !== 1) {
+    fail('PAYROLL_NOVELTY_EXPORT_NOT_ALLOWED', 'Sólo se exporta una novedad mensual individual de alta propia');
+  }
+  const original = snapshot.rows[0];
+  try { verifyMonthlyBatch(snapshot, { mode: 'export' }); } catch {
+    fail('PAYROLL_NOVELTY_EXPORT_ROW_INVALID', 'La identidad del alta propia no es válida');
+  }
+  const subject = original.subject;
+  if (original.identityCurrent !== true
+      || original.employmentContractId !== subject.contractId
+      || original.legajo !== subject.legajo
+      || (original.legajoSnapshot !== undefined && original.legajoSnapshot !== subject.legajo)
+      || original.rowOrdinal !== 1
+      || ![original.quantityDecimal, original.amountCents].every((value) =>
+        value === null || (typeof value === 'string' && value.length > 0))) {
+    fail('PAYROLL_NOVELTY_EXPORT_ROW_INVALID', 'Debe consultarse la identidad vigente antes de exportar');
+  }
+  // Reuse all v1 approval, non-posting, exact decimal and row checks, without
+  // pretending that the native subject comes from GRH.
+  createPayrollNoveltyCsv({ ...snapshot, contractVersion: CONTRACT_VERSION });
+  const row = canonicalRow(original, 0, snapshot.periodMonth);
+  return Object.freeze({
+    headers: Object.freeze([
+      'periodo', 'tipo_liquidacion', 'orden', 'legajo', 'concepto', 'centro_costo',
+      'mes_ajuste', 'unidades', 'importe_centavos', 'movimiento', 'instrumento_legal',
+      'observacion', 'forzado', 'lote_municontrol', 'origen_registro', 'contrato_uuid',
+      'registro_alta_uuid', 'fecha_alta', 'nombre_empleado', 'alcance_control',
+    ]),
+    values: Object.freeze([
+      snapshot.periodMonth, snapshot.payrollType, String(row.ordinal), row.legajo,
+      row.conceptSourceId, row.costCenterSourceId, row.adjustmentMonth,
+      row.quantityDecimal, row.amountCents, row.movementType, row.legalInstrument,
+      row.observation, row.forced, snapshot.id, 'MUNICONTROL', subject.contractId,
+      subject.registrationId, subject.registeredAt, subject.employeeName ?? '',
+      'Control administrativo de alta propia; no calcula, liquida ni contabiliza salarios',
+    ]),
+  });
+}
+
 export function payrollNoveltyCsvFileName(snapshot) {
   const period = String(snapshot?.periodMonth || '').slice(0, 7);
   const id = String(snapshot?.id || '').slice(0, 8).toLowerCase();
   if (!/^\d{4}-\d{2}$/.test(period) || !/^[0-9a-f]{8}$/.test(id)) {
     fail('PAYROLL_NOVELTY_EXPORT_NOT_ALLOWED', 'La instantánea no posee identidad exportable');
   }
-  return `novedades-aprobadas-${period}-${id}.csv`;
+  return snapshot?.contractVersion === 'payroll-novelty-batch.v2'
+    ? `control-novedad-alta-propia-${period}-${id}.csv`
+    : `novedades-aprobadas-${period}-${id}.csv`;
 }
 
 export function downloadPayrollNoveltyCsv(snapshot, documentRef = document) {

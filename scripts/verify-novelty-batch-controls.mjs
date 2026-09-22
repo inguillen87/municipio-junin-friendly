@@ -23,8 +23,8 @@ if(live){
   assert.equal(response.status,401);checks.push('published bytes match and anonymous novelty API is rejected');
 }
 let canPrepare=true,rejectNext=false;
-const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',capabilities:canPrepare?['payroll.novelty.prepare']:[]},
-  limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
+const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',certifiedBindingId:'00000000-0000-4000-8000-000000000004',capabilities:canPrepare?['payroll.novelty.prepare']:[]},
+  feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',sourceModes:['individual','bulk'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
 const values=Array.from({length:60},(_,i)=>[String(6001+i%30),i<30?'44':'144','',i%5===0?'2026-08':'','1',['','0','-2,50','100,01'][i%4],'standard','Acta sintética QA','Fundamento sintético para revisión',i%4===3?'SI':'NO']);
 const csv=NOVELTY_CSV_HEADER.join(';')+'\r\n'+values.map(row=>row.map(v=>'"'+v.replaceAll('"','""')+'"').join(';')).join('\r\n')+'\r\n';
 const browser=await chromium.launch({headless:true});let page;
@@ -37,11 +37,11 @@ try{
     if(request.method()==='POST'){
      assert.ok(canPrepare,'Revoked prepare must not POST');posts.push({body:request.postDataJSON(),key:request.headers()['idempotency-key']});
      if(rejectNext){rejectNext=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética perdida'}});}
-     return route.fulfill({json:{ok:true,data:{id:'00000000-0000-4000-8000-000000000003'}}});
+     return route.fulfill({json:{ok:true,data:{...posts.at(-1).body.payload,id:'00000000-0000-4000-8000-000000000003',contractVersion:'payroll-novelty-batch.v1',status:'draft',version:1,rowCount:posts.at(-1).body.payload.rows.length,exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false}}});
     }
     return route.fulfill({json:bootstrap()});
    }
-   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read'],platformCapabilities:[],platformRoles:[]}}});
+   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare'],platformCapabilities:[],platformRoles:[]}}});
    return route.fulfill({json:{ok:true,data:[]}});
   }
   if(live)return route.continue();
@@ -74,8 +74,8 @@ try{
   await preview.screenshot({path:out+'/control-'+width+'-synthetic.png'});
  }checks.push('desktop, 390px and 320px keep the summary, table region and touch controls usable');
  await page.locator('#reviewSearch').fill('no-result-qa');assert.equal(await table.locator('[data-review-row]').count(),0);assert.equal(await page.locator('#prepareButton').isEnabled(),true);
- rejectNext=true;await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'No se pudo preparar'}).waitFor();await page.locator('#prepareButton:enabled').waitFor();
- await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'Lote creado y auditado'}).waitFor();
+ rejectNext=true;await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'La confirmación del envío está pendiente'}).waitFor();await page.locator('#nativeMonthlyRetry:enabled').waitFor();assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+ await page.locator('#nativeMonthlyRetry').click();await page.locator('#messageHost').filter({hasText:'Lote creado y auditado'}).waitFor();
  assert.equal(posts.length,2);assert.equal(posts[0].key,posts[1].key);assert.deepEqual(posts[0].body,posts[1].body);assert.equal(posts[1].body.payload.rows.length,60);assert.equal(posts[1].body.command,'prepare');
  const summary=noveltyBatchControl(posts[1].body.payload.rows);assert.equal(summary.knownAmountCents,'146265');assert.equal(summary.missing,15);assert.equal(summary.forced,15);
  checks.push('empty filtered view still saves the original 60 rows once per idempotency key, with no amount rewriting');

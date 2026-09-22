@@ -236,11 +236,11 @@ test('el handoff usa M homologado como mensual y mantiene P S V O F fail-closed'
   assert.match(html, /item\.canonicalPayrollType \|\| item\.payrollType/);
   assert.match(html, /Código GRH/);
   assert.match(workbench, /handoffRequiresPayrollTypeSelection\s*=\s*!payrollType/);
-  assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection\)[\s\S]{0,360}placeholder\.value\s*=\s*''/);
-  assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection && !current\) select\.value = ''/);
+  assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection\)[\s\S]{0,360}option\.value\s*=\s*''/);
+  assert.match(workbench, /if \(handoffRequiresPayrollTypeSelection&&!current\) select\.value=''/);
   const loadIndex = workbench.indexOf('consumePayrollNoveltyHandoff();');
   assert.ok(loadIndex >= 0);
-  assert.ok(workbench.indexOf('loadBootstrap();', loadIndex) > loadIndex,
+  assert.ok(workbench.indexOf('loadBootstrap().then(', loadIndex) > loadIndex,
     'el bootstrap que reconstruye el select debe ejecutarse después de consumir el handoff');
 });
 

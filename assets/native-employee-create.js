@@ -35,7 +35,7 @@ const formMarkup=`<header class="ne-heading"><p>PERSONAS · ALTA PROPIA</p><h2 i
  </fieldset></form>
  <section data-ne-review hidden><h3>3. Revisar antes de crear</h3><dl class="ne-review"></dl><p>Al confirmar se guardarán la persona, el contrato y el registro de esta operación.</p><div class="ne-actions"><button class="button" type="button" data-ne-back>Volver a editar</button><button class="button primary" type="button" data-ne-confirm>Confirmar y crear legajo</button></div></section>
  <section data-ne-pending hidden><h3>Confirmación pendiente</h3><p>El formulario conserva la misma clave. No prepares otra alta hasta conocer el resultado.</p><small data-ne-key></small><div class="ne-actions"><button type="button" class="button primary" data-ne-recover>Consultar este intento</button><button type="button" class="button" data-ne-resend>Reenviar el mismo intento</button></div></section>
- <section data-ne-success hidden><h3>Legajo creado</h3><p data-ne-receipt></p><div class="ne-actions"><a class="button primary" data-ne-open>Abrir ficha</a><a class="button" data-ne-fixed>Preparar novedad fija</a><button type="button" class="button" data-ne-close>Cerrar</button></div><p>La novedad requiere permiso vigente y revisión independiente. Este alta no genera haberes.</p></section>
+ <section data-ne-success hidden><h3>Legajo creado</h3><p data-ne-receipt></p><div class="ne-actions"><a class="button primary" data-ne-open>Abrir ficha</a><a class="button" data-ne-monthly>Preparar novedad mensual</a><a class="button" data-ne-fixed>Preparar novedad fija</a><button type="button" class="button" data-ne-close>Cerrar</button></div><p>La novedad requiere permiso vigente y revisión independiente. Este alta no genera haberes.</p></section>
  <button type="button" class="ne-close" data-ne-cancel aria-label="Cerrar alta">×</button>`;
 export function mountEmployeeCreate(button){
  if(!button||button.dataset.employeeCreateMounted)return;button.dataset.employeeCreateMounted='true';
@@ -76,6 +76,7 @@ export function mountEmployeeCreate(button){
   pending=null;prepared=null;form.reset();show('success');$('[data-ne-receipt]').textContent=receipt.name+' · Legajo '+receipt.legajo+' · Ingreso '+receipt.startDate+' · Jurisdicción '+receipt.jurisdictionCode;
   $('[data-ne-open]').href='/personal?contractId='+encodeURIComponent(receipt.contractId)+'#legajos';message('Alta guardada en Neon. Ya podés abrir su ficha.');
   $('[data-ne-fixed]').href='/novedades-nomina.html?fixedContractId='+encodeURIComponent(receipt.contractId)+'#fixedNovelties';
+  $('[data-ne-monthly]').href='/novedades-nomina.html?monthlyContractId='+encodeURIComponent(receipt.contractId)+'#nativeMonthlyPanel';
   document.dispatchEvent(new CustomEvent('mc:native-employee-created',{detail:{contractId:receipt.contractId,legajo:receipt.legajo}}));
  }
  async function send(recovery=false){if(busy||blocked||!pending)return;const attempt=pending,token=generation;toggleBusy(true);message(recovery?'Consultando el resultado del mismo intento…':'Guardando el alta…');

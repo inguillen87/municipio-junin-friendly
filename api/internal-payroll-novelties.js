@@ -8,6 +8,12 @@ import {
   preparePayrollNovelty,
   readPayrollNovelty,
   transitionPayrollNovelty,
+  getPayrollNoveltyBootstrapV2,
+  getPayrollNoveltyEmployeeV2,
+  prepareNativePayrollNovelty,
+  readPayrollNoveltyV2,
+  transitionPayrollNoveltyV2,
+  exportPayrollNoveltyV2,
 } from '../lib/internal-payroll-novelty.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 
@@ -38,6 +44,11 @@ const SAFE_LIBRARY_MESSAGES = Object.freeze({
   PAYROLL_NOVELTY_SESSION_INVALID: 'La sesión operativa ya no es válida',
   PAYROLL_NOVELTY_RELEASE_NOT_CERTIFIED: 'El contrato de datos activo no está certificado',
   PAYROLL_NOVELTY_BINDING_REQUIRED: 'El binding GRH certificado no está disponible',
+  PAYROLL_NOVELTY_CONTRACT_NOT_FOUND: 'El vínculo laboral seleccionado no está disponible',
+  PAYROLL_NOVELTY_NATIVE_ONLY: 'Este circuito requiere un alta propia de MuniControl',
+  PAYROLL_NOVELTY_IDENTITY_CHANGED: 'Cambió la identidad del vínculo. Revisá el alta; la novedad no se reasignó',
+  PAYROLL_NOVELTY_PERIOD_OUTSIDE_EMPLOYMENT: 'El período informado no coincide con las fechas del vínculo laboral',
+  PAYROLL_NOVELTY_VERSION_UNSUPPORTED: 'Actualizá la pantalla para consultar este lote',
   TENANT_IAM_SOD_CONFLICT: 'La membresía combina capacidades incompatibles',
 });
 
@@ -208,6 +219,27 @@ function assertQueryKeys(req, allowed) {
   }
 }
 
+function requestVersion(req, method) {
+  const query = req.query || {};
+  const params = new URL(req.url || '', 'http://local.invalid').searchParams;
+  if (!Object.hasOwn(query, 'version') && !params.has('version')) return 1;
+  if (query.version !== '2' || params.getAll('version').length !== 1
+      || params.get('version') !== '2') {
+    fail('PAYROLL_NOVELTY_QUERY_INVALID', 400, 'La versión de consulta no es válida');
+  }
+  const resource = query.resource;
+  const keys = method === 'POST' ? ['version']
+    : resource === 'bootstrap' ? ['resource', 'version']
+      : resource === 'employee' ? ['resource', 'version', 'contractId']
+        : ['detail', 'export'].includes(resource) ? ['resource', 'version', 'id'] : [];
+  if (!keys.length || Object.keys(query).length !== keys.length || params.size !== keys.length
+      || keys.some(key => typeof query[key] !== 'string'
+        || params.getAll(key).length !== 1 || params.get(key) !== query[key])) {
+    fail('PAYROLL_NOVELTY_QUERY_INVALID', 400, 'La consulta contiene parámetros no permitidos');
+  }
+  return 2;
+}
+
 function idempotencyKey(req) {
   const value = firstHeader(req, 'idempotency-key').trim();
   if (!value) {
@@ -266,6 +298,12 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
   const prepare = dependencies.preparePayrollNovelty ?? preparePayrollNovelty;
   const transition = dependencies.transitionPayrollNovelty ?? transitionPayrollNovelty;
   const exportBatch = dependencies.exportPayrollNovelty ?? exportPayrollNovelty;
+  const bootstrapV2 = dependencies.getPayrollNoveltyBootstrapV2 ?? getPayrollNoveltyBootstrapV2;
+  const employeeV2 = dependencies.getPayrollNoveltyEmployeeV2 ?? getPayrollNoveltyEmployeeV2;
+  const prepareV2 = dependencies.prepareNativePayrollNovelty ?? prepareNativePayrollNovelty;
+  const detailV2 = dependencies.readPayrollNoveltyV2 ?? readPayrollNoveltyV2;
+  const transitionV2 = dependencies.transitionPayrollNoveltyV2 ?? transitionPayrollNoveltyV2;
+  const exportV2 = dependencies.exportPayrollNoveltyV2 ?? exportPayrollNoveltyV2;
 
   return async function internalPayrollNoveltiesHandler(req, res) {
     const method = String(req?.method || 'GET').toUpperCase();
@@ -276,6 +314,7 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
           ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido',
         });
       }
+      const version = requestVersion(req, method);
       if (MUTATION_METHODS.has(method)) {
         assertSameOrigin(req, env);
         assertJson(req);
@@ -308,6 +347,19 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
 
       if (method === 'GET') {
         const resource = queryValue(req, 'resource', 'bootstrap').trim().toLowerCase();
+        if (version === 2) {
+          const result = resource === 'bootstrap'
+            ? await bootstrapV2(sql, access.principal, session)
+            : resource === 'employee'
+              ? await employeeV2(sql, access.principal, session, req.query.contractId)
+              : resource === 'detail'
+                ? await detailV2(sql, access.principal, session, req.query.id)
+                : await exportV2(sql, access.principal, session, req.query.id);
+          return send(res, 200, { ok: true, ...result, ...(resource === 'bootstrap' ? {
+            sourceFeatures: { attendancePreparte: principalHasCapabilities(access.principal,
+              ['attendance.read','workforce.employee.read','payroll.novelty.prepare']) },
+          } : {}) });
+        }
         if (!GET_RESOURCES.has(resource)) {
           fail('PAYROLL_NOVELTY_RESOURCE_INVALID', 400, 'resource no soportado');
         }
@@ -329,8 +381,8 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
 
       const key = idempotencyKey(req);
       const result = body.command === 'prepare'
-        ? await prepare(sql, access.principal, session, body.payload, key)
-        : await transition(
+        ? await (version === 2 ? prepareV2 : prepare)(sql, access.principal, session, body.payload, key)
+        : await (version === 2 ? transitionV2 : transition)(
           sql, access.principal, session, body.command, body.payload, key,
         );
       if (result?.replayed === true) res.setHeader('Idempotency-Replayed', 'true');

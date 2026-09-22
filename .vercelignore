@@ -249,3 +249,6 @@ local-agents/
 !scripts/migrations/098-grh-curated-source-version.sql
 !scripts/migrations/099-grh-curated-consumers.sql
 !scripts/fixtures/grh-*.sql.txt
+
+# Native monthly novelty contract and rollback-only SQL release fixtures.
+!scripts/migrations/101-native-monthly-novelties.sql

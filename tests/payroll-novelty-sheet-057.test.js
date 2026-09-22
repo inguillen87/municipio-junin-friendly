@@ -48,7 +48,8 @@ test('invalid shape/size/page refuses instead of inventing data',()=>{
  assert.throws(()=>reviewSheetRows([],parse,''));assert.throws(()=>reviewSheetRows([['1']],parse,''));assert.throws(()=>sheetPage([],0));assert.throws(()=>sheetPage([],1,7));assert.throws(()=>sheetPage(Array.from({length:501},()=>emptySheetRow())));
 });
 test('integration uses same governed bulk payload, explicit confirmation and production shell list',()=>{
- const s=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');assert.match(s,/reviewSheetRows\(sheetEditor.values\(\), rowFromValues, periodMonth\)/);assert.match(s,/\['agile', 'sheet'\]\.includes\(entryMode\) \? 'bulk'/);assert.match(s,/completedEntryMode === 'sheet'\) sheetEditor.clear/);
+ const s=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');assert.match(s,/reviewSheetRows\(sheetEditor.values\(\), rowFromValues, periodMonth\)/);assert.match(s,/\['agile', 'sheet'\]\.includes\(entryMode\) \? 'bulk'/);assert.match(s,/if \(pending\.entryMode==='sheet'\) sheetEditor.clear/);
+ assert.match(s,/verifyMonthlyBatch\(response\.data,\{mode:'receipt'\}\)[\s\S]*if \(pending\.entryMode==='sheet'\) sheetEditor.clear/);
  const b=fs.readFileSync('scripts/build-friendly.mjs','utf8');for(const n of ['payroll-novelty-sheet.js','payroll-novelty-sheet-model.js','payroll-novelty-sheet.css'])assert.ok(b.includes(n));
  const ui=fs.readFileSync('assets/payroll-novelty-sheet.js','utf8');assert.doesNotMatch(ui,/fetch\(|localStorage|sessionStorage/);assert.match(ui,/window.confirm/);assert.match(ui,/onChange\(\)/);
 });

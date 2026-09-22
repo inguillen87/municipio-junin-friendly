@@ -13,7 +13,7 @@ fs.mkdirSync(out,{recursive:true});
 const checks=[],errors=[],posts=[];
 let canPrepare=true,deny=false,failNext=false,holdPost=false,releasePost=null,maximum=500;
 let principalEmail='qa@example.invalid';
-const bootstrap=()=>({ok:true,principal:{email:principalEmail,membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',capabilities:canPrepare?['payroll.novelty.prepare']:[]},limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:maximum,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
+const bootstrap=()=>({ok:true,principal:{email:principalEmail,membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',certifiedBindingId:'00000000-0000-4000-8000-000000000004',capabilities:canPrepare?['payroll.novelty.prepare']:[]},feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',sourceModes:['individual','bulk'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:maximum,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
 const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true,serviceWorkers:'block'});
@@ -27,11 +27,11 @@ try{
          posts.push({body:route.request().postDataJSON(),key:route.request().headers()['idempotency-key']});
          if(holdPost)await new Promise(resolve=>{releasePost=resolve;});
          if(failNext){failNext=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta sintética interrumpida'}});}
-         return route.fulfill({status:200,json:{ok:true,data:{id:'00000000-0000-4000-8000-000000000003'}}});
+         return route.fulfill({status:200,json:{ok:true,data:{...posts.at(-1).body.payload,id:'00000000-0000-4000-8000-000000000003',contractVersion:'payroll-novelty-batch.v1',status:'draft',version:1,rowCount:posts.at(-1).body.payload.rows.length,exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false}}});
        }
        return route.fulfill({status:200,json:bootstrap()});
      }
-     if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{name:'QA',email:principalEmail,role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read'],platformCapabilities:[],platformRoles:[]}}});
+     if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{name:'QA',email:principalEmail,role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare'],platformCapabilities:[],platformRoles:[]}}});
      return route.fulfill({status:200,json:{ok:true,data:[]}});
    }
    if(live)return route.continue();
@@ -97,8 +97,8 @@ try{
  await page.locator('#reviewNext').click();await page.locator('#reviewNext').click();assert.equal(await page.locator('[data-review-row]').last().getAttribute('data-review-row'),'60');
  checks.push('sixty natively entered legajos flow through all pages of the existing full review');
  await page.locator('#reviewSearch').fill('300060');failNext=true;await page.locator('#prepareButton').click();
- await page.locator('#messageHost').filter({hasText:'No se pudo preparar'}).waitFor();await page.locator('#prepareButton:enabled').waitFor();
- holdPost=true;await page.locator('#prepareButton').click();
+ await page.locator('#messageHost').filter({hasText:'La confirmación del envío está pendiente'}).waitFor();await page.locator('#nativeMonthlyRetry:enabled').waitFor();assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+ holdPost=true;await page.locator('#nativeMonthlyRetry').click();
  for(let i=0;i<50&&!releasePost;i++)await new Promise(r=>setTimeout(r,20));assert.ok(releasePost);
  assert.equal(await page.locator('#agileLegajos').isDisabled(),true);assert.equal(await page.locator('#legajo').isDisabled(),true);
  assert.equal(await page.locator('#prepareButton').isDisabled(),true);
@@ -137,7 +137,7 @@ try{
  await add('1001;1002');principalEmail='other-qa@example.invalid';await page.locator('#refreshButton').click();await page.locator('#preflightButton:enabled').waitFor();
  assert.equal(await page.locator('#agileRows tr').count(),0);
  checks.push('principal change cannot inherit another preparer local batch');
- await page.locator('#agileLegajos').fill('1001');await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));
+ await page.locator('[name=sourceMode][value=agile]').check();await page.locator('#agileLegajos').fill('1001');await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));
  assert.equal(await page.locator('#agileLegajos').inputValue(),'');assert.equal(await page.locator('#agileRows tr').count(),0);
  checks.push('pagehide removes legajo preparation from memory-backed UI; no persistent local cache');
  deny=true;await page.locator('#refreshButton').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===build.url('login.html').pathname&&['novedades-nomina.html',build.url('novedades-nomina.html').pathname].includes(url.searchParams.get('next')));

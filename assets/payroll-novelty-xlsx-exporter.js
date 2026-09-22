@@ -1,6 +1,7 @@
 import {
   createPayrollNoveltyCsv,
   payrollNoveltyCsvFileName,
+  nativePayrollNoveltyExportTable,
 } from './payroll-novelty-exporter.js';
 
 export const PAYROLL_NOVELTY_XLSX_MIME =
@@ -55,6 +56,7 @@ function inlineStringCell(reference, value, style = 0) {
 }
 
 function worksheetXml(context) {
+  if (context.nativeTable) return nativeWorksheetXml(context.nativeTable);
   const headers = [
     'periodo', 'tipo_liquidacion', 'orden', 'legajo', 'concepto', 'centro_costo',
     'mes_ajuste', 'unidades', 'importe_centavos', 'movimiento', 'instrumento_legal',
@@ -85,6 +87,20 @@ function worksheetXml(context) {
   <autoFilter ref="A1:N${lastRow}"/>
   <pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
   <pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/>
+</worksheet>`;
+}
+
+function nativeWorksheetXml(table) {
+  const render = (values, number, style) => `<row r="${number}">${values.map((value, index) =>
+    inlineStringCell(`${String.fromCharCode(65 + index)}${number}`, value, style)).join('')}</row>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:T2"/>
+  <sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols><col min="1" max="10" width="20" customWidth="1"/><col min="11" max="19" width="38" customWidth="1"/><col min="20" max="20" width="85" customWidth="1"/></cols>
+  <sheetData>${render(table.headers, 1, 1)}${render(table.values, 2, 0)}</sheetData>
+  <autoFilter ref="A1:T2"/>
 </worksheet>`;
 }
 
@@ -206,16 +222,30 @@ function storedZip(entries) {
 
 export function payrollNoveltyXlsxFileName(snapshot) {
   const csvName = payrollNoveltyCsvFileName(snapshot);
+  if (snapshot?.contractVersion === 'payroll-novelty-batch.v2') {
+    return `municontrol_${csvName.slice(0, -4)}.xlsx`;
+  }
   const match = csvName.match(/^novedades-aprobadas-(\d{4}-\d{2})-([a-f0-9]{8})\.csv$/);
   return `municontrol_revision-novedades-nomina_${match[1]}_${match[2]}.xlsx`;
 }
 
 export function createPayrollNoveltyXlsxArtifact(snapshot) {
-  const context = validatedReviewContext(snapshot);
+  const nativeTable = snapshot?.contractVersion === 'payroll-novelty-batch.v2'
+    ? nativePayrollNoveltyExportTable(snapshot) : null;
+  const context = nativeTable
+    ? { period: snapshot.periodMonth.slice(0, 7), batchId: snapshot.id, nativeTable }
+    : validatedReviewContext(snapshot);
+  const entries = workbookEntries(context);
+  if (context.nativeTable) {
+    const core = entries.find((entry) => entry[0] === 'docProps/core.xml');
+    core[1] = core[1].replace('Revisión de novedades de nómina', 'Control de novedad de alta propia');
+    const workbook = entries.find((entry) => entry[0] === 'xl/workbook.xml');
+    workbook[1] = workbook[1].replace('Novedades aprobadas', 'Control de alta propia');
+  }
   return Object.freeze({
     fileName: payrollNoveltyXlsxFileName(snapshot),
     mimeType: PAYROLL_NOVELTY_XLSX_MIME,
-    bytes: storedZip(workbookEntries(context)),
+    bytes: storedZip(entries),
   });
 }
 

@@ -1,5 +1,17 @@
 # Estado integral de los pedidos de Noelia, Hugo y Mariano
 
+## Actualización comprobada del 22/09/2026
+
+Esta sección actualiza el corte histórico que sigue. Sobre `f192733b9b86507530a5d8e8d05fe64a5ecd4e0b`, septiembre está publicado en ambas bases con corte de fuente del **10/09/2026 a las 15:17:30, sin zona horaria declarada**. Agosto continúa como último mes cerrado; septiembre no se presenta como liquidación cerrada ni como datos del 22/09.
+
+Las altas propias y novedades fijas 093/095 ya integran el producto. El Centro Unificado de Alertas incluye asuntos mediante 100, instalado en ambas bases y publicado con Vercel success. Continúan pendientes el acervo jurídico real, las entregas de avisos y la aceptación integral de los usuarios.
+
+La auditoría de acuses locales de los cinco relojes a las 08:47 UTC encontró 77.258 registros recibidos y dos colas todavía en curso, sin errores activos en ese corte. Esta cifra corresponde a acuses guardados; no es una nueva consulta a Neon ni prueba de cobertura o funcionamiento sin la PC personal. El servidor municipal, su cuenta de servicio y la prueba con la PC apagada siguen pendientes.
+
+El siguiente incremento en validación es [Novedades mensuales nativas 101](NOELIA_NATIVE_MONTHLY_101.md). Cierra el enlace entre alta propia y novedad mensual individual. Los gates de instalación y publicación se certifican separadamente; no se declaran completos aquí. El motor salarial propio, integración contable y homologaciones de salidas siguen pendientes.
+
+## Corte histórico del 21/09/2026
+
 Corte de auditoría: 21/09/2026, actualización sobre `a3767bbb6e2ce82a01fe75212375c7fabdc22709`. Ninguno de los tres circuitos integrales puede declararse terminado. Los incrementos publicados y sus pruebas no equivalen a aceptación municipal, aceptación bancaria, cálculo salarial ni operación autónoma de relojes.
 
 ## Noelia
