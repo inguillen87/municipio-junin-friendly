@@ -2,8 +2,9 @@ import { pickerSearch, pickerQuery, pickerResult, addPickerSelection } from './e
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const dateLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'fecha no informada';
 /** One modal reused by individual, agile and native-sheet entry. All state is in memory. */
-export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{}}={}) {
-  const dialog=node('dialog',undefined,'employee-picker');dialog.id='employeePicker';dialog.setAttribute('aria-labelledby','employeePickerTitle');
+export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker'}={}) {
+  if(!/^[A-Za-z][A-Za-z0-9]{1,60}$/.test(instanceId))throw Error('Identificador de búsqueda inválido.');
+  const dialog=node('dialog',undefined,'employee-picker');dialog.id=instanceId;dialog.setAttribute('aria-labelledby',instanceId+'Title');
   dialog.innerHTML=`<header class="picker-header"><div><p class="picker-eyebrow">DIRECTORIO MUNICIPAL · SELECCIÓN ASISTIDA</p><h2 id="employeePickerTitle">Buscar legajos activos</h2><p>Elegí personas por nombre o legajo. No hace falta copiar datos de un Excel.</p></div><button class="button" type="button" data-picker-close aria-label="Cerrar búsqueda de legajos">Cerrar</button></header>
   <div class="picker-body"><form data-picker-form class="picker-search"><label for="employeePickerSearch">Nombre, apellido o legajo<input id="employeePickerSearch" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Ej.: apellido o número de legajo" required></label><button type="submit" class="button primary">Buscar</button></form>
   <p class="picker-state" role="status" aria-live="polite" data-picker-state></p><a href="login.html?next=novedades-nomina.html" data-picker-login hidden>Ingresar nuevamente al portal</a>
@@ -11,8 +12,9 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   <nav class="picker-pages" aria-label="Páginas de resultados" hidden data-picker-pages><button class="button" type="button" data-picker-previous>Anterior</button><span data-picker-range></span><button class="button" type="button" data-picker-next>Siguiente</button></nav>
   <section class="picker-chosen" data-picker-chosen hidden aria-labelledby="employeePickerChosen"><h3 id="employeePickerChosen">Tu selección</h3><p>La selección se conserva al cambiar de búsqueda o de página; no se seleccionan resultados ocultos.</p><div data-picker-chips></div></section></div>
   <footer class="picker-footer"><div><strong data-picker-count>Sin legajos seleccionados</strong><p>Activo según el último estado incorporado, no una certificación de liquidación. Crear el lote vuelve a validar cada vínculo.</p></div><button type="button" class="button primary" data-picker-apply disabled>Usar selección</button></footer>`;
+  if(instanceId!=='employeePicker')for(const item of dialog.querySelectorAll('[id],[for],[aria-labelledby]'))for(const attribute of ['id','for','aria-labelledby']){const value=item.getAttribute(attribute);if(value?.startsWith('employeePicker'))item.setAttribute(attribute,value.replace('employeePicker',instanceId));}
   document.body.append(dialog);
-  const $=s=>dialog.querySelector(s),input=$('#employeePickerSearch'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]');
+  const $=s=>dialog.querySelector(s),input=$('#'+instanceId+'Search'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]');
   let requestVersion=0,controller=null,selected=[],options=null,view=null,query='',busy=false,scopeKey=null,opener=null;
   function stop(){requestVersion++;controller?.abort();controller=null;busy=false;}
   function clearResults(){view=null;results.replaceChildren();$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}

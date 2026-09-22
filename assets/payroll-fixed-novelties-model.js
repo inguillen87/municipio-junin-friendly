@@ -89,10 +89,12 @@ function values(value) {
   day(value.validFrom); day(value.validTo,true); if (value.validTo !== null && value.validTo < value.validFrom) fail(); return {...value};
 }
 function subject(value) {
-  if (!exact(value,['contractId','legajo','employeeName','identityToken','sourceCutoff']) || !uuid(value.contractId) || !code(value.legajo)
+  const native=value?.origin==='MUNICONTROL';
+  if (!exact(value,['contractId','legajo','employeeName','identityToken','sourceCutoff',...(native?['origin','registrationId','registeredAt']:[])]) || !uuid(value.contractId) || !code(value.legajo)
     || !hash(value.identityToken) || value.employeeName !== null && !safeText(value.employeeName,300)) fail();
-  instant(value.sourceCutoff); return {...value};
+  if(native){if(value.sourceCutoff!==null||typeof value.registrationId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.registrationId))fail();instant(value.registeredAt);}else instant(value.sourceCutoff);return {...value};
 }
+export const fixedOriginLabel=value=>value.origin==='MUNICONTROL'?'Alta propia de MuniControl':'Fuente GRH';
 function effects(value) {
   if (!exact(value,['approvalEffect','grhMutation','payrollCalculated','payrollPosted']) || value.approvalEffect !== 'control_export_only'
     || value.grhMutation !== false || value.payrollCalculated !== false || value.payrollPosted !== false) fail(); return {...value};
@@ -138,9 +140,10 @@ export function fixedBootstrap(payload) {
     ||!Array.isArray(d.payrollTypes)||d.payrollTypes.length!==Object.keys(FIXED_TYPES).length||new Set(d.payrollTypes).size!==d.payrollTypes.length||d.payrollTypes.some(t=>!Object.hasOwn(FIXED_TYPES,t))) fail();
   return freeze({...d,principal:{...p,capabilities:[...p.capabilities]},limits:{...d.limits},payrollTypes:[...d.payrollTypes],effects:effects(d.effects)});
 }
-export function fixedEmployee(payload, legajo) {
+export function fixedEmployee(payload, expected) {
   const d=envelope(payload,'payroll-fixed-employee.v1',['subject']),next=subject(d.subject);
-  if(next.legajo!==legajo)fail();return freeze(next);
+  if(typeof expected==='string'){if(next.legajo!==expected||next.origin==='MUNICONTROL')fail();}
+  else if(!exact(expected,['contractId'])||!uuid(expected.contractId)||next.contractId!==expected.contractId)fail();return freeze(next);
 }
 export function fixedList(payload, periodMonth=null) {
   const d=envelope(payload,'payroll-fixed-list.v1',['periodMonth','rows','total','snapshotToken','effects']);

@@ -172,7 +172,7 @@ test('control downloads neutralize formula text, preserve full values and omit p
   assert.ok(csv.startsWith('\ufeff')); assert.match(csv, /"'=SUM\(1;2\)"/); assert.match(csv, /"'-12345"/); assert.match(csv, /"'@filtro"/);
   assert.match(csv, /-1\.250000/); assert.match(csv, /sin prorrateo/);
   const book = unzipSync(fixedXlsx(checked)), sheet = strFromU8(book['xl/worksheets/sheet1.xml']), control = strFromU8(book['xl/worksheets/sheet2.xml']);
-  assert.match(sheet, /A1:Q2/); assert.match(sheet, /t="inlineStr"/); assert.match(sheet, /Acto A &amp; B &quot;sintético&quot;/); assert.doesNotMatch(sheet, /<f[ >]/);
+  assert.match(sheet, /A1:S2/); assert.match(sheet, /t="inlineStr"/); assert.match(sheet, /Acto A &amp; B &quot;sintético&quot;/); assert.doesNotMatch(sheet, /<f[ >]/);
   assert.match(control, /No es liquidación/); assert.match(control, /no se calculan, suman ni prorratean/);
   for (const secret of [checked.rows[0].subject.identityToken, checked.rows[0].recordId, checked.rows[0].proposalId, checked.rows[0].subject.contractId, 'preparer@example.invalid', 'reviewer@example.invalid']) {
     assert.equal(csv.includes(secret), false); assert.equal(sheet.includes(secret), false); assert.equal(control.includes(secret), false);

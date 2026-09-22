@@ -5,13 +5,14 @@ export const fixedEffects=Object.freeze({approvalEffect:'control_export_only',gr
 export const fixedPayrollTypes=['monthly','first_fortnight','sac','vacation','supplementary','final','other'];
 export const fixedValues=(overrides={})=>({conceptSourceId:'80',costCenterSourceId:null,payrollType:'monthly',quantityDecimal:'1',amountCents:null,forced:false,forcedReason:null,legalInstrument:'Acto administrativo sintético QA',validFrom:'2026-09-15',validTo:'2026-12-31',...overrides});
 export const fixedSubject=(legajo='1001')=>({contractId:fixedUuid(Number(legajo)),legajo,employeeName:'AGENTE SINTÉTICO '+legajo,identityToken:createHash('sha256').update('fixed-qa:'+legajo).digest('hex'),sourceCutoff:'2026-09-01T12:00:00.000000Z'});
+export const fixedNativeSubject=(legajo='9001')=>({...fixedSubject(legajo),contractId:fixedUuid(19000+Number(legajo)),origin:'MUNICONTROL',registrationId:fixedUuid(29000+Number(legajo)),registeredAt:'2026-09-21T11:00:00.123456Z',sourceCutoff:null,identityToken:createHash('sha256').update('fixed-native-qa:'+legajo).digest('hex')});
 export function fixedApprovedRecord(n,overrides={}){
   const subject=fixedSubject(String(1001+n)),id=fixedUuid(20000+n);
   const proposal={id:fixedUuid(30000+n),recordId:id,version:1,operation:'set',values:fixedValues(overrides),reason:'Alta administrativa sintética',proposedAt:'2026-09-20T12:00:00.000000Z',proposedBy:'preparer@example.invalid',review:{decision:'approve',reason:'Cotejo sintético de datos declarados',reviewedAt:'2026-09-20T13:00:00.000000Z',reviewedBy:'reviewer@example.invalid',version:2},canReview:false};
   return {id,version:2,subject,identityCurrent:true,approved:proposal,pending:null,latest:proposal,canPropose:true};
 }
 export function fixedFixture(){
-  const state={role:'preparer',employmentLinked:true,denied:false,records:[],histories:new Map(),attempts:new Map(),sequence:0,epoch:0};
+  const state={role:'preparer',employmentLinked:true,denied:false,records:[],subjects:new Map(),histories:new Map(),attempts:new Map(),sequence:0,epoch:0};
   const cap=()=>['payroll.novelty.read','payroll.novelty.nominal.read',...(state.role==='preparer'?['payroll.fixed.prepare','payroll.novelty.export']:state.role==='reviewer'?['payroll.fixed.approve','payroll.novelty.export']:[])];
   const principal=()=>({tenantId:fixedUuid(1),membershipId:fixedUuid(state.role==='preparer'?2:state.role==='reviewer'?3:4),certifiedBindingId:fixedUuid(5),capabilities:cap(),employmentLinked:state.employmentLinked});
   const allowed=r=>{const row=structuredClone(r);row.canPropose=state.role==='preparer'&&state.employmentLinked&&r.identityCurrent&&!r.pending;for(const p of [row.approved,row.pending,row.latest])if(p)p.canReview=!!r.identityCurrent&&p.review===null&&state.role==='reviewer'&&p.proposedBy!=='reviewer@example.invalid';return row;};
@@ -30,8 +31,8 @@ export function fixedFixture(){
     if(command==='propose'){
       if(state.role!=='preparer')return{status:403,code:'PAYROLL_FIXED_CAPABILITY_REQUIRED'};
       if(row?.pending)return{status:409,code:'PAYROLL_FIXED_PENDING_EXISTS'};
-      const subject=row?.subject||fixedSubject(payload.legajo);
-      if(payload.contractId!==subject.contractId||payload.identityToken!==subject.identityToken||row?.identityCurrent===false)return{status:409,code:'PAYROLL_FIXED_IDENTITY_CHANGED'};
+      const subject=row?.subject||state.subjects.get(payload.contractId)||fixedSubject(payload.legajo);
+      if(payload.contractId!==subject.contractId||payload.legajo!==subject.legajo||payload.identityToken!==subject.identityToken||row?.identityCurrent===false)return{status:409,code:'PAYROLL_FIXED_IDENTITY_CHANGED'};
       if(!row){row={id:fixedUuid(40000+(++state.sequence)),version:0,subject,identityCurrent:true,approved:null,pending:null,latest:null,canPropose:true};state.records.unshift(row);}
       row.version++;
       const proposal={id:fixedUuid(50000+(++state.sequence)),recordId:row.id,version:row.version,operation:payload.operation,values:structuredClone(payload.values),reason:payload.reason,proposedAt:'2026-09-21T12:00:00.123456Z',proposedBy:'preparer@example.invalid',review:null,canReview:false};

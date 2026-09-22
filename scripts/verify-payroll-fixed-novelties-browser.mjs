@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {unzipSync,strFromU8} from 'fflate';
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
-import {fixedFixture,fixedUuid,fixedSubject,fixedValues,fixedApprovedRecord,fixedPayrollTypes} from '../tests/fixtures/payroll-fixed-novelties-synthetic.js';
+import {fixedFixture,fixedUuid,fixedSubject,fixedNativeSubject,fixedValues,fixedApprovedRecord,fixedPayrollTypes} from '../tests/fixtures/payroll-fixed-novelties-synthetic.js';
 import '../assets/app-routes.js';
 
 const live=process.env.FIXED_NOVELTIES_PUBLISHED_ORIGIN;
@@ -13,8 +13,8 @@ if(live!==undefined)assert.equal(live,'https://municipio-junin-friendly.vercel.a
 const origin=live || 'https://municontrol.test',base=path.resolve('public'),out=path.resolve('verification/fixed-novelties-browser'+(live?'-published':''));
 const build=publishedBuildVerification({origin,root:base,release:process.env.GITHUB_SHA || 'manual'});
 fs.mkdirSync(out,{recursive:true});
-const fixture=fixedFixture(),{state}=fixture,checks=[],errors=[],posts=[],publishedAssets=new Set(),failedAssets=[];
-let dropAck=false,failNext=null,hideAttempt=false,denyResource=null,changeOnExport=false,holdAck=null;
+const fixture=fixedFixture(),{state}=fixture,checks=[],errors=[],posts=[],employeeReads=[],publishedAssets=new Set(),failedAssets=[];
+let dropAck=false,failNext=null,hideAttempt=false,denyResource=null,changeOnExport=false,holdAck=null,directoryAllowed=true,holdEmployee=null;
 const envelope=data=>({ok:true,data});
 const browser=await chromium.launch({headless:true,...(process.env.FIXED_NOVELTIES_BROWSER_CHANNEL?{channel:process.env.FIXED_NOVELTIES_BROWSER_CHANNEL}:{})});
 let page;
@@ -47,7 +47,12 @@ try{
       }
       const month=u.searchParams.get('periodMonth');let data;
       if(resource==='bootstrap')data=fixture.bootstrap();
-      else if(resource==='employee')data={version:'payroll-fixed-employee.v1',subject:fixedSubject(u.searchParams.get('legajo'))};
+      else if(resource==='employee'){
+        const contractId=u.searchParams.get('contractId'),legajo=u.searchParams.get('legajo');employeeReads.push({contractId,legajo});
+        const subject=contractId?(state.subjects.get(contractId)||state.records.find(r=>r.subject.contractId===contractId)?.subject||fixedSubject(String(Number(contractId.slice(-12))))):[...state.subjects.values()].some(s=>s.legajo===legajo)?null:fixedSubject(legajo);
+        data=subject?{version:'payroll-fixed-employee.v1',subject}:null;
+        if(holdEmployee){const wait=holdEmployee;holdEmployee=null;await wait;}
+      }
       else if(resource==='list')data=fixture.list(month);
       else if(resource==='detail')data=fixture.detail(u.searchParams.get('recordId'));
       else if(resource==='attempt')data=hideAttempt?null:state.attempts.get(state.role+':'+u.searchParams.get('command')+':'+u.searchParams.get('key'))?.receipt;
@@ -60,7 +65,12 @@ try{
       return route.fulfill({status:data?200:404,json:data?envelope(data):{ok:false,code:'PAYROLL_FIXED_NOT_FOUND',error:'No se encontró el intento sintético'}});
     }
     if(u.pathname==='/api/internal-payroll-novelties')return route.fulfill({status:200,json:{ok:true,principal:{email:state.role+'@example.invalid',...fixture.principal(),capabilities:fixture.cap().filter(cap=>cap.startsWith('payroll.novelty.'))},limits:{contractVersion:'payroll-novelty-batch.v1',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:fixedPayrollTypes},batches:[]}});
-    if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{email:state.role+'@example.invalid',name:'OPERADOR SINTÉTICO',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read',...fixture.cap()],platformCapabilities:[],platformRoles:[]}}});
+    if(u.pathname==='/api/internal-auth')return route.fulfill({status:200,json:{ok:true,authenticated:true,user:{email:state.role+'@example.invalid',name:'OPERADOR SINTÉTICO',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read',...fixture.cap(),...(directoryAllowed?['workforce.employee.read']:[])],platformCapabilities:[],platformRoles:[]}}});
+    if(u.pathname==='/api/internal-data'&&u.searchParams.get('view')==='novelty-selector'){
+      if(!directoryAllowed)return route.fulfill({status:403,json:{ok:false,error:'Sin permiso de consulta de personal'}});
+      const rows=[...state.subjects.values()].map(s=>({contractId:s.contractId,legajo:s.legajo,nombre:s.employeeName,sector:'Sector sintético',convenio:'Convenio sintético',activo:true,statusSnapshotDate:null}));
+      return route.fulfill({json:{ok:true,version:'employee-picker.v1',data:rows,pagination:{page:1,limit:20,total:rows.length,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}}});
+    }
     return route.fulfill({status:200,json:{ok:true,data:[]}});
   });
   page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));
@@ -117,6 +127,34 @@ try{
   const csvEvent=page.waitForEvent('download');await host.locator('[data-fn-csv]').click();const csv=await csvEvent,csvPath=path.join(out,'fixed-novelties-synthetic.csv');await csv.saveAs(csvPath);const csvText=fs.readFileSync(csvPath,'utf8');assert.ok(csvText.includes('1061'));assert.ok(csvText.includes("'=QA fórmula prohibida"));checks.push('CSV protects formula-like references and exports the complete approved control scope');
   changeOnExport=true;let staleDownloads=0;const track=()=>staleDownloads++;page.on('download',track);await host.locator('[data-fn-xlsx]').click();await page.waitForTimeout(200);page.off('download',track);assert.equal(staleDownloads,0);checks.push('server snapshot change blocks stale export and requires a fresh consultation');
   await refresh();
+  // The link carries only the canonical contract UUID. No native legajo is
+  // converted into a GRH lookup and navigation alone never creates a proposal.
+  const native=fixedNativeSubject(),beforeNative=posts.length;state.subjects.set(native.contractId,native);directoryAllowed=false;
+  await page.goto(origin+'/novedades-nomina.html?fixedContractId='+native.contractId+'#fixedNovelties');
+  await host.locator('[data-fn-subject]').filter({hasText:'Alta propia de MuniControl'}).waitFor();assert.equal(posts.length,beforeNative);assert.equal(await field('legajo').getAttribute('readonly'),'');assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});
+  checks.push('saved native registration link selects its explicit contract UUID and provenance without automatic mutation');
+  assert.equal(await host.locator('[data-fn-choose]').isVisible(),false);checks.push('contract handoff uses payroll authority alone while directory selection stays hidden without workforce.employee.read');
+  await field('conceptSourceId').fill('80');await field('payrollType').selectOption('monthly');await field('quantityDecimal').fill('1');await field('validFrom').fill('2026-09-21');await field('legalInstrument').fill('Acto de alta propia sintético');await field('reason').fill('Novedad de alta propia para revisión');dropAck=true;
+  await save();await host.locator('[data-fn-retry]').waitFor();const nativeAttempt=posts.at(-1);assert.equal(nativeAttempt.body.payload.contractId,native.contractId);assert.equal(nativeAttempt.body.payload.identityToken,native.identityToken);assert.equal(await field('quantityDecimal').isDisabled(),true);
+  await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(posts.at(-1).key,nativeAttempt.key);assert.deepEqual(posts.at(-1).body,nativeAttempt.body);
+  const nativeRecord=state.records.find(r=>r.subject.contractId===native.contractId);assert.equal(state.records.filter(r=>r.subject.contractId===native.contractId).length,1);assert.equal(nativeRecord.subject.sourceCutoff,null);
+  checks.push('native lost-ACK retry preserves exact UUID/token/payload/key and creates one pending proposal without a GRH snapshot');
+  await role('reviewer');await review(nativeRecord.id);assert.equal(nativeRecord.approved.values.quantityDecimal,'1');assert.match(await host.innerText(),/Alta propia de MuniControl/);
+  await role('preparer');await host.locator('[data-fn-period]').fill('2026-09');await refresh();await host.locator('[data-fn-search]').fill(native.legajo);
+  const nativeDownload=page.waitForEvent('download');await host.locator('[data-fn-csv]').click();const nativeCsv=await nativeDownload,nativePath=path.join(out,'fixed-native-synthetic.csv');await nativeCsv.saveAs(nativePath);const nativeText=fs.readFileSync(nativePath,'utf8');assert.match(nativeText,/Alta propia de MuniControl/);assert.match(nativeText,/No corresponde · alta propia/);assert.equal(nativeText.includes(native.identityToken),false);assert.equal(nativeText.includes(native.registrationId),false);
+  checks.push('independent approval and control export label native provenance without fake cutoff, token or private registration IDs');
+  directoryAllowed=true;await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),[...fixture.cap(),'workforce.employee.read']);
+  await host.locator('[data-fn-search]').fill('');await host.locator('[data-fn-new]').click();await host.locator('[data-fn-choose]').click();const chooser=page.locator('#fixedEmployeePicker');await chooser.waitFor();assert.equal(await page.locator('#employeePicker').count(),1);await chooser.locator('input[type=search]').fill('9001');await chooser.getByRole('button',{name:'Buscar',exact:true}).click();await chooser.locator('input[type=radio]').check();await chooser.locator('[data-picker-apply]').click();await host.locator('[data-fn-subject]').filter({hasText:'Alta propia de MuniControl'}).waitFor();assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});
+  checks.push('assisted selection has a separate accessible modal and verifies the selected native UUID rather than joining by legajo');
+  await host.locator('[data-fn-choose]').click();await chooser.waitFor();directoryAllowed=false;await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),fixture.cap());assert.equal(await chooser.isVisible(),false);assert.equal(await host.locator('[data-fn-choose]').isVisible(),false);assert.match(await host.locator('[data-fn-subject]').innerText(),/Alta propia de MuniControl/);checks.push('directory permission revocation closes its private chooser without granting access or discarding the payroll-authorized subject');
+  state.subjects.set(native.contractId,{...native,identityToken:'f'.repeat(64)});await refresh();assert.match(await host.locator('[data-fn-form-status]').innerText(),/Cambió la identidad/);assert.equal(await host.locator('[data-fn-preview]').isDisabled(),true);assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});await host.locator('[data-fn-cancel]').click();state.subjects.set(native.contractId,native);
+  checks.push('native identity refresh rechecks the same UUID and blocks a stale token without rebasing or reassignment');
+  directoryAllowed=true;await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),[...fixture.cap(),'workforce.employee.read']);
+  await host.locator('[data-fn-new]').click();await host.locator('[data-fn-choose]').click();await chooser.waitFor();await chooser.locator('input[type=search]').fill('9001');await chooser.getByRole('button',{name:'Buscar',exact:true}).click();await chooser.locator('input[type=radio]').check();
+  let releaseEmployee;holdEmployee=new Promise(resolve=>{releaseEmployee=resolve;});const heldRead=page.waitForRequest(request=>new URL(request.url()).searchParams.get('contractId')===native.contractId);await chooser.locator('[data-picker-apply]').click();await heldRead;
+  await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));releaseEmployee();await page.waitForTimeout(100);assert.equal(await host.locator('[data-fn-subject]').innerText(),'');assert.equal(await host.locator('[data-fn-preview]').isDisabled(),true);
+  await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),[...fixture.cap(),'workforce.employee.read']);await refresh();assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});await host.locator('[data-fn-subject]').filter({hasText:'Alta propia de MuniControl'}).waitFor();assert.equal(await field('legajo').getAttribute('readonly'),'');await host.locator('[data-fn-cancel]').click();
+  checks.push('revocation during native lookup discards the late response; restored authority rechecks the explicitly selected UUID without falling back to legajo');
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:width===1440?1050:844});await page.emulateMedia({reducedMotion:'reduce'});await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;bottom:5px;right:5px;z-index:99999;background:#123649;color:white;padding:6px;font:11px sans-serif}'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await host.screenshot({path:path.join(out,'fixed-list-'+width+'-qa.png')});}
   checks.push('desktop and 390/320px mobile keep the real list and primary controls inside the viewport');
   await page.setViewportSize({width:390,height:844});await fill('2001');await host.locator('[data-fn-editor]').screenshot({path:path.join(out,'fixed-editor-390-qa.png')});

@@ -8,6 +8,7 @@ const commit=process.env.GITHUB_SHA || 'manual';
 const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js',
   'assets/payroll-fixed-novelties.js','assets/payroll-fixed-novelties-model.js',
   'assets/payroll-fixed-novelties-export.js','assets/payroll-fixed-novelties.css',
+  'assets/employee-picker.js','assets/native-employee-create.js',
   'assets/app-routes.js','sw.js'];
 const build=publishedBuildVerification({origin,release:commit});
 const expected=build.expectedHashes(files);
@@ -28,6 +29,7 @@ if(!ready)throw Error('FIXED_NOVELTIES_PUBLISHED_BUILD_MISMATCH');
 const denied={};
 const queries={bootstrap:'?resource=bootstrap',list:'?resource=list&periodMonth=2026-09-01',
   employee:'?resource=employee&legajo=99999999999999999999',
+  nativeEmployee:'?resource=employee&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   detail:'?resource=detail&recordId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   attempt:'?resource=attempt&command=propose&key=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   export:'?resource=export&periodMonth=2026-09-01&snapshotToken='+'a'.repeat(64)};

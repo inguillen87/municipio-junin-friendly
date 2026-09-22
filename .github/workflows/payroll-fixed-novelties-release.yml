@@ -1,16 +1,22 @@
 name: Fixed payroll novelties release
 on:
   push:
-    branches: ['codex/noelia-fixed-novelties-20260921', 'master']
+    branches: ['codex/noelia-fixed-novelties-20260921', 'internal-noelia-native-fixed-20260921', 'master']
     paths:
       - 'api/internal-payroll-fixed-novelties.js'
       - 'lib/internal-payroll-fixed-novelties.js'
       - 'assets/payroll-fixed-novelties*'
       - 'assets/payroll-novelty-workbench.js'
+      - 'assets/employee-picker.js'
+      - 'assets/native-employee-create.js'
       - 'novedades-nomina.html'
       - 'scripts/migrations/092-*'
+      - 'scripts/migrations/093-*'
+      - 'scripts/verify-native-fixed-novelties-sql.mjs'
+      - 'scripts/verify-native-employee-browser.mjs'
       - 'scripts/verify-payroll-fixed-novelties-*.mjs'
       - 'tests/*fixed-novelties*'
+      - 'tests/*native-fixed*'
       - 'tests/fixtures/payroll-fixed-novelties-synthetic.js'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
 permissions:
@@ -32,6 +38,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
+      - run: node scripts/verify-native-employee-browser.mjs
       - name: Existing monthly novelty regression
         run: node scripts/verify-novelty-sheet-057.mjs
       - uses: actions/upload-artifact@v4
@@ -70,7 +77,7 @@ jobs:
           node-version-file: .nvmrc
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
-      - run: node scripts/verify-payroll-fixed-novelties-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
+      - run: node scripts/verify-native-fixed-novelties-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
       - name: Verify actual migrations and independent concurrent writer
         shell: bash
         run: |
@@ -112,6 +119,7 @@ jobs:
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
         env:
           FIXED_NOVELTIES_PUBLISHED_ORIGIN: https://municipio-junin-friendly.vercel.app
+      - run: node scripts/verify-native-employee-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

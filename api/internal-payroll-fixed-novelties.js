@@ -2,7 +2,7 @@ import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 import { schoolCertificateHttp as http } from './internal-family-certificates.js';
-import { FIXED_MAX_BODY, FIXED_READ_CAPS, fixedCall, fixedFail, fixedSafeError, fixedUuid, fixedLegajo, fixedHash, fixedPeriod, prepareFixedCommand } from '../lib/internal-payroll-fixed-novelties.js';
+import { FIXED_MAX_BODY, FIXED_READ_CAPS, fixedCall, fixedFail, fixedSafeError, fixedUuid, fixedContractId, fixedLegajo, fixedHash, fixedPeriod, prepareFixedCommand } from '../lib/internal-payroll-fixed-novelties.js';
 
 export const config = { api: { bodyParser: false } };
 function query(req, method) {
@@ -15,13 +15,13 @@ function query(req, method) {
   }
   if (method === 'POST') { if (Object.keys(values).length) fixedFail('QUERY_INVALID'); return {}; }
   const resource = values.resource ?? 'bootstrap';
-  const keys = { bootstrap: values.resource ? ['resource'] : [], employee: ['resource', 'legajo'], list: values.periodMonth === undefined ? ['resource'] : ['resource', 'periodMonth'],
+  const keys = { bootstrap: values.resource ? ['resource'] : [], employee: ['resource', values.contractId === undefined ? 'legajo' : 'contractId'], list: values.periodMonth === undefined ? ['resource'] : ['resource', 'periodMonth'],
     detail: ['resource', 'recordId'], attempt: ['resource', 'command', 'key'], export: ['resource', 'periodMonth', 'snapshotToken'] }[resource];
   if (!keys || Object.keys(values).length !== keys.length || Object.keys(values).some(key => !keys.includes(key))
-    || resource === 'employee' && !fixedLegajo(values.legajo) || resource === 'detail' && !fixedUuid(values.recordId)
+    || resource === 'employee' && (values.contractId === undefined ? !fixedLegajo(values.legajo) : !fixedContractId(values.contractId)) || resource === 'detail' && !fixedUuid(values.recordId)
     || resource === 'attempt' && (!['propose', 'review'].includes(values.command) || !fixedUuid(values.key))
     || values.periodMonth !== undefined && !fixedPeriod(values.periodMonth) || resource === 'export' && !fixedHash(values.snapshotToken)) fixedFail('QUERY_INVALID');
-  return { ...values, resource, ...(values.recordId ? { recordId: values.recordId.toLowerCase() } : {}), ...(values.key ? { key: values.key.toLowerCase() } : {}) };
+  return { ...values, resource, ...(values.contractId ? { contractId: values.contractId.toLowerCase() } : {}), ...(values.recordId ? { recordId: values.recordId.toLowerCase() } : {}), ...(values.key ? { key: values.key.toLowerCase() } : {}) };
 }
 export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
   const env = deps.env ?? process.env;
