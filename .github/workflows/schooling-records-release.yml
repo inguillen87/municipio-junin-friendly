@@ -1,17 +1,31 @@
 name: Schooling administrative records release
 on:
   push:
-    branches: ['codex/noelia-schooling-record-20260921', 'master']
+    branches: ['codex/noelia-schooling-record-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:
       - 'api/internal-family-certificates.js'
+      - 'api/internal-attendance.js'
       - 'lib/internal-family-certificates.js'
       - 'assets/family-schooling*'
       - 'scripts/migrations/091-*'
+      - 'scripts/migrations/094-*'
+      - 'scripts/migrations/002-*'
+      - 'scripts/migrations/007-*'
+      - 'scripts/migrations/057-*'
+      - 'scripts/migrations/064-*'
       - 'scripts/verify-schooling-records-sql.mjs'
+      - 'scripts/verify-schooling-source-recovery-sql.mjs'
+      - 'scripts/import-schooling-source.mjs'
+      - 'scripts/extract_schooling_source.py'
+      - 'scripts/extract_rrhh_curated.py'
+      - 'scripts/lib/grh-source-profiles.json'
       - 'scripts/verify-family-schooling-*.mjs'
       - 'tests/*schooling*'
+      - 'tests/internal-attendance-api.test.js'
+      - 'tests/internal-access-gateway.test.js'
       - 'tests/*family*'
       - 'tests/fixtures/family-schooling-synthetic.js'
+      - '.vercelignore'
       - '.github/workflows/schooling-records-release.yml'
 permissions:
   contents: read
@@ -29,6 +43,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Verify offline source extractor with synthetic records
+        run: python3 -B -m unittest discover -s tests -p test_extract_schooling_source.py
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-family-schooling-browser.mjs
@@ -89,9 +105,22 @@ jobs:
             sleep 0.1
           done
           test "$ready" = true
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling.sql | tee verification/schooling-sql.log
           wait "$blocker"
           trap - EXIT
+      - name: Generate historical schooling source recovery SQL checks
+        run: node scripts/verify-schooling-source-recovery-sql.mjs --ci --expected-major=${{ matrix.postgres }} --write-sql=verification/schooling-source.sql
+      - name: Verify source recovery after administrative records
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling-source.sql | tee verification/schooling-source-sql.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schooling-records-sql-pg${{ matrix.postgres }}
+          path: verification/
+          retention-days: 5
   production:
     if: github.ref == 'refs/heads/master'
     needs: [verify, sql]

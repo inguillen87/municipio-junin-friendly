@@ -1,5 +1,7 @@
 // Shared input rules only. No stored identities, credentials or example employees.
-export const EMPLOYEE_FIELDS = Object.freeze(['legajo','fullName','dni','cuil','birthDate','sexCode','startDate','agreementCode','categoryCode','organizationId','sectorCode','jobTitle','legalReference']);
+export const LEGACY_EMPLOYEE_FIELDS = Object.freeze(['legajo','fullName','dni','cuil','birthDate','sexCode','startDate','agreementCode','categoryCode','organizationId','sectorCode','jobTitle','legalReference']);
+export const EMPLOYEE_FIELDS = Object.freeze([...LEGACY_EMPLOYEE_FIELDS,'jurisdictionCode']);
+export const EMPLOYEE_JURISDICTION_CODES = Object.freeze(['42','55']);
 export class EmployeeInputError extends Error { constructor(message, field = '') { super(message); this.name = 'EmployeeInputError'; this.field = field; } }
 export function validCuil(value) {
   if (!/^\d{11}$/.test(value) || /^0+$/.test(value)) return false;
@@ -11,10 +13,13 @@ export function isoDay(value) {
   const date = new Date(value + 'T12:00:00Z');
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value;
 }
-export function employeeDraft(input, today = new Date().toISOString().slice(0,10)) {
-  if (!input || Array.isArray(input) || Object.keys(input).sort().join('|') !== [...EMPLOYEE_FIELDS].sort().join('|')) throw new EmployeeInputError('El formulario contiene campos no admitidos.');
+export function employeeDraft(input, today = new Date().toISOString().slice(0,10), {requireJurisdiction=false} = {}) {
+  const declared = input && Object.hasOwn(input,'jurisdictionCode');
+  const fields = declared ? EMPLOYEE_FIELDS : LEGACY_EMPLOYEE_FIELDS;
+  if (!input || Array.isArray(input) || Object.keys(input).sort().join('|') !== [...fields].sort().join('|')) throw new EmployeeInputError('El formulario contiene campos no admitidos.');
+  if ((requireJurisdiction && !declared) || (declared && !EMPLOYEE_JURISDICTION_CODES.includes(input.jurisdictionCode))) throw new EmployeeInputError('Seleccioná la jurisdicción declarada: 42 o 55.','jurisdictionCode');
   const draft = {};
-  for (const key of EMPLOYEE_FIELDS) {
+  for (const key of fields) {
     if (typeof input[key] !== 'string') throw new EmployeeInputError('Revisá este campo.', key);
     draft[key] = input[key].normalize('NFC').trim();
     if (/[\u0000-\u001f\u007f<>]/.test(draft[key])) throw new EmployeeInputError('No se admiten etiquetas ni caracteres de control.',key);

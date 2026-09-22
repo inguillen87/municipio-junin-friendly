@@ -1,7 +1,7 @@
 name: Fixed payroll novelties release
 on:
   push:
-    branches: ['codex/noelia-fixed-novelties-20260921', 'internal-noelia-native-fixed-20260921', 'master']
+    branches: ['codex/noelia-fixed-novelties-20260921', 'internal-noelia-native-fixed-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:
       - '.vercelignore'
       - 'api/internal-payroll-fixed-novelties.js'
@@ -13,6 +13,15 @@ on:
       - 'novedades-nomina.html'
       - 'scripts/migrations/092-*'
       - 'scripts/migrations/093-*'
+      - 'scripts/migrations/095-*'
+      - 'scripts/verify-native-jurisdiction-sql.mjs'
+      - 'tests/native-jurisdiction*'
+      - 'api/internal-native-employees.js'
+      - 'api/internal-data.js'
+      - 'lib/internal-native-employees.js'
+      - 'lib/native-employee-directory.js'
+      - 'assets/native-employee-contract.js'
+      - 'internal-dashboard.html'
       - 'scripts/verify-native-fixed-novelties-sql.mjs'
       - 'scripts/verify-native-employee-browser.mjs'
       - 'scripts/verify-payroll-fixed-novelties-*.mjs'
@@ -79,7 +88,7 @@ jobs:
           node-version-file: .nvmrc
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
-      - run: node scripts/verify-native-fixed-novelties-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
+      - run: node scripts/verify-native-jurisdiction-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
       - name: Verify actual migrations and independent concurrent writer
         shell: bash
         run: |

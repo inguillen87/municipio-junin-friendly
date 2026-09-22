@@ -232,3 +232,12 @@ local-agents/
 # Explicit human-reviewed relations between exact norm revisions.
 !internal-legal-norm-relations.html
 !scripts/migrations/090-legal-norm-relations.sql
+
+!scripts/migrations/095-native-employee-jurisdiction.sql
+
+# Exact source contracts and offline extractor dependencies used by release QA.
+!scripts/migrations/091-schooling-administrative-records.sql
+!scripts/migrations/094-schooling-source-recovery.sql
+!scripts/extract_schooling_source.py
+!scripts/extract_rrhh_curated.py
+!tests/test_extract_schooling_source.py

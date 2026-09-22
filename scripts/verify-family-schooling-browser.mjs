@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
-import { schoolingFixtureV3 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+import { schoolingFixtureV4 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
 import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
@@ -78,7 +78,7 @@ try {
       return route.fulfill({ status: 503, json: { ok: false, error: 'Demora sintética de la ficha anterior' } });
     }
     if (u.pathname === '/api/internal-family-certificates') {
-      assert.equal(u.searchParams.get('version'), '3', 'UNIFIED_API_VERSION_REQUIRED');
+      assert.equal(u.searchParams.get('version'), ['report','family'].includes(resource) ? '4' : '3', 'UNIFIED_API_VERSION_REQUIRED');
       if (resource === 'download') downloadRequests++;
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
@@ -106,6 +106,7 @@ try {
       if (resource === 'history') { const row=dataset.data.rows.find(r=>r.contractId===u.searchParams.get('contractId')&&r.familyRef.kind===u.searchParams.get('familyKind')&&r.familyRef.id===u.searchParams.get('familyId')); assert.equal(row.identityToken,u.searchParams.get('identityToken')); const rows=schoolHistories.get(row)??(row.certificate?[row.certificate]:[]); return route.fulfill({status:200,json:{ok:true,data:{version:'family-schooling-history.v3',contractId:row.contractId,familyRef:row.familyRef,identityToken:row.identityToken,rows,total:rows.length}}}); }
       if (resource === 'download') return route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'content-length': String(syntheticSchoolPdf.length), 'content-disposition': 'attachment; filename="certificado-sintetico.pdf"' }, body: syntheticSchoolPdf });
       const payload = structuredClone(dataset);
+      for (const row of payload.data.rows) { const source=row.certificate??row.sourceSchooling; row.effectiveDates={origin:row.certificate?'manual':row.sourceSchooling?'grh_source':'none',presentedOn:source?.presentedOn??null,expiresOn:source?.expiresOn??null}; }
       if (resource === 'family') {
         familyRequests++; payload.data.scope.cohort = 'contract_children'; payload.data.rows = payload.data.rows.filter(r => r.contractId === u.searchParams.get('contractId'));
         if (wrongFamily && payload.data.rows.length) payload.data.rows[0].contractId = syntheticUuid(2);
@@ -133,7 +134,7 @@ try {
       const ref = { kind: 'own', id: syntheticUuid(30000 + declaredByKey.size) }, recordedAt = '2026-09-15T03:00:00.123456Z', identityToken = 'e'.repeat(64);
       const row = { ...structuredClone(dataset.data.rows[0]), familyRef: ref, contractId: body.contractId, familyName: body.familyName,
         birthDate: body.birthDate, validFrom: body.validFrom, familyEndDate: body.validTo, familyRecordedAt: recordedAt, declarationState: 'declared',
-        identityReviewRequired: false, identityToken, certificate: null, historyCount: 0 };
+        identityReviewRequired: false, identityToken, certificate: null, historyCount: 0, sourceSchooling: null, effectiveDates:{origin:"none",presentedOn:null,expiresOn:null} };
       dataset.data.rows.push(row);
       const result = { version: 'employee-family-declare.v1', familyRef: ref, identityToken, recordedAt, state: 'declared', duplicate: false };
       declaredByKey.set(key, { body, result });
@@ -192,6 +193,9 @@ try {
   assert.equal(await report.locator('[data-fs-contracts]').innerText(), '38'); assert.equal(await report.locator('[data-fs-children]').innerText(), '75');
   assert.equal(await report.locator('[data-fs-registered]').innerText(), '50'); assert.equal(await report.locator('tbody tr').count(), 50);
   assert.match(await report.innerText(), /ausente no permiten afirmar que no se presentó/);
+  const historical=report.locator('tbody tr').filter({hasText:'Hijo Sintético 0001'}), manual=report.locator('tbody tr').filter({hasText:'Hijo Sintético 0002'});
+  assert.match(await historical.innerText(),/11\/3\/2026/);assert.match(await historical.innerText(),/Fecha histórica de GRH · por revisar/);assert.equal(await historical.getByRole('button',{name:/Descargar PDF/}).count(),0);
+  assert.match(await manual.innerText(),/Registro manual en MuniControl/);assert.match(await manual.innerText(),/Sin vencimiento informado/);checks.push('historical source dates are visible with provenance; manual empty expiry never inherits the GRH expiry or creates a document');
   checks.push('actual report page queries an atomic synthetic cohort; distinct contracts, children and recorded certificates remain separate');
   await report.locator('[data-fs-search]').fill('0075'); assert.equal(await report.locator('tbody tr').count(), 1);
   assert.match(await report.locator('tbody').innerText(), /Hijo Sintético 0075/); checks.push('search covers children beyond the first visible page');
@@ -201,7 +205,7 @@ try {
   const excelEvent = page.waitForEvent('download'); await report.locator('[data-fs-export]').click(); const excel = await excelEvent;
   const excelPath = path.join(out, 'family-schooling-synthetic.xlsx'); await excel.saveAs(excelPath);
   const zip = unzipSync(fs.readFileSync(excelPath)); assert.equal((strFromU8(zip['xl/worksheets/sheet1.xml']).match(/<row /g) || []).length, 76);
-  assert.match(strFromU8(zip['xl/worksheets/sheet2.xml']), /2026-08-06T18:15:21Z/); checks.push('real Excel download contains all 75 filtered rows, with provenance and no external workbook');
+  assert.match(strFromU8(zip['xl/worksheets/sheet2.xml']), /2026-08-06T18:15:21Z/);assert.match(strFromU8(zip['xl/worksheets/sheet1.xml']),/Origen de las fechas mostradas/);assert.match(strFromU8(zip['xl/worksheets/sheet1.xml']),/2026-03-11/);assert.match(strFromU8(zip['xl/worksheets/sheet1.xml']),/Fecha histórica de GRH/); checks.push('real Excel download contains all 75 filtered rows, with provenance and no external workbook');
   await syntheticLabel(); await frameReport(); await page.screenshot({ path: path.join(out, 'family-schooling-report-desktop-qa.png'), fullPage: true });
   assert.equal(await report.locator('.fs-table').evaluate(n => getComputedStyle(n).display), 'table');
   const expiredRow = report.locator('tbody tr').filter({ hasText: 'Hijo Sintético 0003' });
@@ -221,8 +225,8 @@ try {
     }));
     assert.equal(bounds.tableFits, true);
     assert.ok(bounds.fields.every(b => b.left >= 0 && b.right <= width + 1 && b.width > 0));
-    assert.ok(bounds.labels.some(label => /Presentación registrada/.test(label)));
-    assert.ok(bounds.labels.some(label => /Vencimiento registrado/.test(label)));
+    assert.ok(bounds.labels.some(label => /Presentación informada/.test(label)));
+    assert.ok(bounds.labels.some(label => /Vencimiento informado/.test(label)));
     assert.equal(await report.getByRole('table').count(), 1);
     assert.equal(await report.getByRole('row').count(), 2);
     assert.equal(await report.getByRole('cell').count(), 6);
@@ -240,7 +244,7 @@ try {
   await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
   checks.push('printing at mobile width retains the tabular report with its visible header');
   await page.setViewportSize({ width: 1440, height: 1050 }); await report.locator('[data-fs-reset]').click();
-  const beforeChanged = downloads.length; dataset.data.rows[0].sourceCutoff = '2026-08-06T19:15:21Z';
+  const beforeChanged = downloads.length; dataset.data.rows[0].sourceCutoff = '2026-08-06T19:15:21Z'; dataset.data.rows[0].sourceSchooling.sourceCutoff=dataset.data.rows[0].sourceCutoff;
   await report.locator('[data-fs-export]').click(); await page.waitForFunction(() => document.querySelector('[data-fs-status]')?.textContent.includes('Los datos cambiaron'));
   assert.equal(downloads.length, beforeChanged); assert.equal(await report.locator('tbody tr').count(), 0); checks.push('same-day source timestamp change cancels export and clears obsolete rows');
   await consulted(); let release; delayReport = new Promise(resolve => release = resolve); const priorRequests = reportRequests, priorDownloads = downloads.length;
@@ -256,10 +260,14 @@ try {
   dataset.data.storage.remainingBytes = 100; dataset.data.storage.usedBytes = dataset.data.storage.capacityBytes - 100;
   await report.locator('tbody a').first().click(); await familyReady();
   assert.equal(await page.locator('dialog[open]').count(), 1); assert.equal(await family.locator('.fs-child').count(), 2);
-  assert.equal(new URL(page.url()).searchParams.get('contractId'), syntheticUuid(1)); checks.push('report opens the actual scoped employee dialog and its independent certificate panel');
+  assert.equal(new URL(page.url()).searchParams.get('contractId'), syntheticUuid(1));
+  const sourceCard=family.locator('[data-fs-family-id="1"]');assert.match(await sourceCard.innerText(),/Fecha histórica de GRH · por revisar/);assert.match(await sourceCard.innerText(),/11\/3\/2026/);assert.equal(await sourceCard.locator('[data-fs-history],[data-fs-document]').count(),0);
+  await sourceCard.getByText('Fechas históricas de GRH',{exact:true}).click();assert.match(await sourceCard.innerText(),/sin zona horaria informada/);assert.match(await sourceCard.innerText(),/no incluyen un certificado adjunto/);
+  for(const width of [320,390]){await page.setViewportSize({width,height:844});assert.ok(await sourceCard.evaluate(n=>n.scrollWidth<=n.clientWidth+1));await sourceCard.screenshot({path:path.join(out,'schooling-source-card-'+width+'-qa.png')});}await page.setViewportSize({width:1440,height:1050});
+  checks.push('source-only family card preserves provenance and declared cutoff on mobile without fake PDF/history');checks.push('report opens the actual scoped employee dialog and its independent certificate panel');
   await family.locator('[data-fs-register]').first().focus(); await page.keyboard.press('Enter');
   assert.equal(await family.locator('[data-fs-file]').evaluate(n => n === document.activeElement), true);
-  assert.equal(await page.locator('dialog dialog').count(), 0); await fillCertificate();
+  assert.equal(await page.locator('dialog dialog').count(), 0);assert.equal(await family.locator('[data-fs-presented]').inputValue(),'');assert.equal(await family.locator('[data-fs-expires]').inputValue(),'');checks.push('new manual registration does not prefill historical source dates');await fillCertificate();
   assert.match(await family.locator('[data-fs-storage]').innerText(), /capacidad inicial limitada.*100 bytes/);
   assert.equal(await family.locator('[data-fs-file-storage]').isVisible(), true); assert.equal(await family.locator('[data-fs-save]').isEnabled(), true);
   await family.locator('[data-fs-file]').setInputFiles({ name: 'demasiado-grande.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(2097153) });
@@ -575,7 +583,7 @@ try {
   assert.deepEqual([paperPost.body.filename,paperPost.body.sha256,paperPost.body.contentBase64,paperPost.body.expiresOn],[null,null,null,null]);
   assert.equal(paperPost.body.issuedOn,'2026-09-10'); assert.equal(paperPost.body.presentedOn,'2026-09-20');
   assert.equal(paperPost.body.schoolYear,2026); assert.equal(await schoolCard.locator('[data-fs-document]').count(),0);
-  await schoolCard.locator('.fs-school-details summary').click();
+  await schoolCard.getByText('Ver datos de escolaridad',{exact:true}).click();
   assert.match(await schoolCard.innerText(),/Escuela Sintética QA/); assert.match(await schoolCard.innerText(),/6.º B/);
   await schoolCard.locator('[data-fs-history]').click(); await savedOrFailed();
   assert.equal(await schoolCard.locator('.fs-history-item').count(),2); assert.equal(await schoolCard.locator('.fs-history-item [data-fs-document]').count(),1);
@@ -619,8 +627,8 @@ try {
   const completePath=path.join(out,'schooling-record-complete-synthetic.xlsx'); await (await completeEvent).saveAs(completePath);
   const completeZip=unzipSync(fs.readFileSync(completePath)), completeSheet=strFromU8(completeZip['xl/worksheets/sheet1.xml']);
   assert.match(completeSheet,/Propuesta conservada/); assert.match(completeSheet,/Presentación en papel declarada/); assert.match(completeSheet,/Ciclo lectivo informado/);
-  assert.match(completeSheet,/<autoFilter ref="A1:Z2"/); assert.doesNotMatch(completeSheet,/<f>/);
-  checks.push('the complete filtered Excel carries the latest schooling record, declared-paper provenance and 26 valid column references without formulas');
+  assert.match(completeSheet,/<autoFilter ref="A1:AH2"/); assert.doesNotMatch(completeSheet,/<f>/);
+  checks.push('the complete filtered Excel carries the latest schooling record, declared-paper provenance and 34 valid column references without formulas');
   await page.goto(origin+'/personal?contractId='+syntheticUuid(1)+'&section=family#legajos'); await familyReady();
   await paperEditor(); postError={status:503,code:'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE'};
   await family.locator('[data-fs-save]').click(); await savedOrFailed();

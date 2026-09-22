@@ -30,9 +30,9 @@ while (Date.now()<deadline) {
   await new Promise(resolve=>setTimeout(resolve,5000));
 }
 if (!ready) throw Error('SCHOOLING_PUBLISHED_ASSET_MISMATCH');
-async function privateCheck(query, options) {
-  const response = await fetch(origin+'/api/internal-family-certificates'+query, {...options,redirect:'manual',signal:AbortSignal.timeout(15000)});
-  if (![401,403].includes(response.status)) throw Error('SCHOOLING_ANONYMOUS_ACCESS_NOT_DENIED');
+async function privateCheck(query, options, requiredStatus) {
+  const response = await fetch(origin+'/api/internal-family-certificates'+query, {...options,credentials:'omit',cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if (requiredStatus ? response.status !== requiredStatus : ![401,403].includes(response.status)) throw Error('SCHOOLING_ANONYMOUS_ACCESS_NOT_DENIED');
   if (!/no-store/.test(response.headers.get('cache-control') || '')) throw Error('SCHOOLING_PRIVATE_CACHE_HEADERS_MISSING');
   return response.status;
 }
@@ -44,6 +44,8 @@ const statuses = {
   anonymousV3History:await privateCheck('?resource=history&version=3&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&familyKind=grh&familyId=1&identityToken='+'a'.repeat(64)),
   anonymousV3Attempt:await privateCheck('?resource=attempt&version=3&key=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
   anonymousV3Upload:await privateCheck('?version=3',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}),
+  anonymousV4Report:await privateCheck('?resource=report&version=4',undefined,401),
+  anonymousV4Family:await privateCheck('?resource=family&version=4&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,401),
 };
 fs.mkdirSync('verification',{recursive:true});
 const result = {commit,checkedAt:new Date().toISOString(),origin,publishedAssetsMatch:true,expected,statuses,

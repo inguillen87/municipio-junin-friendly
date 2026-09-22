@@ -3670,9 +3670,9 @@
             detailField('Nacimiento',employee.fechaNacimiento,formatDate),detailField('Sexo registrado',employee.sexo)
           ]));
           els.dialogBody.appendChild(detailSection('Vínculo laboral', 'El ingreso futuro no se cuenta como activo antes de su fecha.', [
-            detailField('Situación',statusDisplay(employee.administrativeStatus,employee.activo).label),detailField('Ingreso',employee.fechaIngreso,formatDate),
-            detailField('Convenio',employee.convenio),detailField('Categoría',employee.categoria),detailField('Repartición',employee.organizacion),
-            detailField('Sector',employee.sector),detailField('Cargo / función',employee.cargo)
+            detailField('Situación',statusDisplay(employee.administrativeStatus,employee.activo).label),detailField('Ingreso',employee.fechaIngreso,formatDate),detailField('Jurisdicción',employee.jurisdictionCode || 'No informada en el alta'),
+            detailField('Convenio',employee.convenio),detailField('Categoría',employee.categoria),detailField('Sector',employee.organizacion),
+            detailField('Repartición',employee.sector),detailField('Cargo / función',employee.cargo)
           ]));
           els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
             detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)

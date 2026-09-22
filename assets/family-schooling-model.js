@@ -132,6 +132,37 @@ export function schoolingRegistrationResult(payload) {
 }
 export function schoolingData(payload, { resource = 'report', contractId, version = 1 } = {}) {
   const d = payload?.data;
+  if (version === 4) {
+    if (payload?.ok !== true || d?.version !== 'family-schooling.v4' || !Array.isArray(d.rows) || d.rows.length > MAX_SCHOOLING_ROWS) fail();
+    const extensions = new Map();
+    const rows = d.rows.map(r => {
+      if (!plain(r) || !Object.hasOwn(r, 'sourceSchooling') || !Object.hasOwn(r, 'effectiveDates')) fail();
+      const { sourceSchooling, effectiveDates, ...base } = r;
+      const ref = familyReference(r.familyRef), source = sourceSchooling;
+      if (source !== null) {
+        if (ref.kind !== 'grh' || !exact(source, ['presentedOn', 'expiresOn', 'presentationState', 'expiryState', 'sourceSystem', 'sourceTable', 'sourceKey',
+          'sourceSha256', 'sourceImportRunId', 'sourceBatchId', 'sourceCutoff', 'sourceDeclaredCutoff', 'loadedAt', 'reviewState', 'documentAvailable'])
+          || source.sourceSystem !== 'GRH' || source.sourceTable !== 'familia' || source.sourceKey !== ref.id || !/^[1-9][0-9]{0,17}$/.test(source.sourceKey) || !hash.test(source.sourceSha256)
+          || !Number.isSafeInteger(source.sourceImportRunId) || source.sourceImportRunId < 1 || !uuid.test(source.sourceBatchId)
+          || source.reviewState !== 'historical_unreviewed' || source.documentAvailable !== false) fail();
+        for (const [key, state] of [['presentedOn', 'presentationState'], ['expiresOn', 'expiryState']]) {
+          if (!['valid', 'null', 'absent', 'invalid'].includes(source[state]) || (source[state] === 'valid') !== (source[key] !== null)) fail();
+          certificateDay(source[key], true);
+        }
+        instant(source.sourceCutoff); instant(source.loadedAt);
+        if (r.sourceCutoff === null || Date.parse(source.sourceCutoff) !== Date.parse(instant(r.sourceCutoff))) fail();
+        if (typeof source.sourceDeclaredCutoff !== 'string' || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(source.sourceDeclaredCutoff)) fail();
+        day(source.sourceDeclaredCutoff.slice(0, 10));
+      }
+      const expected = schoolingEffectiveDates({ certificate: r.certificate, sourceSchooling: source });
+      if (!exact(effectiveDates, ['origin', 'presentedOn', 'expiresOn']) || Object.keys(expected).some(key => effectiveDates[key] !== expected[key])) fail();
+      extensions.set(r.contractId + ':' + familyReferenceKey(ref), Object.freeze({ sourceSchooling: source === null ? null : Object.freeze({ ...source }), effectiveDates: Object.freeze({ ...effectiveDates }) }));
+      return base;
+    });
+    // Reuse the complete v3 contract. Source dates never synthesize a manual certificate.
+    const base = schoolingData({ ok: true, data: { ...d, version: 'family-schooling.v3', rows } }, { resource, contractId, version: 3 });
+    return Object.freeze({ ...base, version: d.version, rows: Object.freeze(base.rows.map(row => Object.freeze({ ...row, ...extensions.get(row.key) }))) });
+  }
   if (![1, 2, 3].includes(version) || payload?.ok !== true || d?.version !== `family-schooling.v${version}` || typeof d.canRegister !== 'boolean'
     || !Array.isArray(d.rows) || d.rows.length > MAX_SCHOOLING_ROWS
     || d.scope?.cohort !== (resource === 'report' ? 'administrative_active_with_children' : 'contract_children')
@@ -203,9 +234,21 @@ export function schoolingDate(value, empty = 'Fecha no informada') {
   return new Intl.DateTimeFormat('es-AR', { timeZone: 'UTC' }).format(new Date(date + 'T12:00:00Z'));
 }
 export function certificateState(row, asOf = currentCivilDay()) {
+  if (!row.certificate && row.sourceSchooling) {
+    if (!row.sourceSchooling.expiresOn) return 'Sin vencimiento válido en la fuente GRH';
+    return row.sourceSchooling.expiresOn < asOf ? 'Fecha histórica GRH superada · por revisar' : 'Con fecha histórica GRH · por revisar';
+  }
   if (!row.certificate) return 'Sin registro en MuniControl';
   if (!row.certificate.expiresOn) return 'Sin vencimiento informado';
   return row.certificate.expiresOn < asOf ? 'Vencimiento informado superado' : 'Con vencimiento informado';
+}
+export function schoolingEffectiveDates(row) {
+  if (row.certificate) return { origin: 'manual', presentedOn: row.certificate.presentedOn, expiresOn: row.certificate.expiresOn };
+  if (row.sourceSchooling) return { origin: 'grh_source', presentedOn: row.sourceSchooling.presentedOn, expiresOn: row.sourceSchooling.expiresOn };
+  return { origin: 'none', presentedOn: null, expiresOn: null };
+}
+export function schoolingDateOrigin(row) {
+  return row.certificate ? 'Registro manual en MuniControl' : row.sourceSchooling ? 'Fecha histórica de GRH · por revisar' : 'Sin fechas registradas';
 }
 const folded = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export function schoolingFilter(data, { search = '', status = 'all', asOf = currentCivilDay() } = {}) {
@@ -214,13 +257,13 @@ export function schoolingFilter(data, { search = '', status = 'all', asOf = curr
   const q = folded(search.trim());
   const rows = data.rows.filter(r => (!q || folded(r.legajo + ' ' + (r.employeeName || '') + ' ' + (r.familyName || '')).includes(q))
     && (status === 'all' || status === 'registered' && r.certificate || status === 'unregistered' && !r.certificate
-      || status === 'expired' && r.certificate?.expiresOn && r.certificate.expiresOn < asOf
-      || status === 'no_expiry' && r.certificate && r.certificate.expiresOn === null))
+      || status === 'expired' && schoolingEffectiveDates(r).expiresOn && schoolingEffectiveDates(r).expiresOn < asOf
+      || status === 'no_expiry' && (r.certificate || r.sourceSchooling) && schoolingEffectiveDates(r).expiresOn === null))
     .sort((a, b) => (a.employeeName || '').localeCompare(b.employeeName || '', 'es') || a.legajo.localeCompare(b.legajo) || (a.familyName || '').localeCompare(b.familyName || '', 'es') || a.key.localeCompare(b.key));
   return { rows, filters: { search: search.trim(), status, asOf }, counts: {
     contracts: new Set(rows.map(r => r.contractId)).size, children: rows.filter(r => !r.identityReviewRequired).length,
     registered: rows.filter(r => r.certificate).length, unregistered: rows.filter(r => !r.certificate).length,
-    ...(['family-schooling.v2', 'family-schooling.v3'].includes(data.version) ? { review: rows.filter(r => r.identityReviewRequired).length, records: rows.length } : {}),
+    ...(['family-schooling.v2', 'family-schooling.v3', 'family-schooling.v4'].includes(data.version) ? { review: rows.filter(r => r.identityReviewRequired).length, records: rows.length } : {}),
   } };
 }
 // Capacity and registration permission do not change the report rows. The fresh

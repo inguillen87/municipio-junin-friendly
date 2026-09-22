@@ -49,3 +49,16 @@ export function schoolingFixtureV3(count = 75, options = {}) {
   });
   return payload;
 }
+
+export function schoolingFixtureV4(count = 75, options = {}) {
+  const payload = schoolingFixtureV3(count, options); payload.data.version = 'family-schooling.v4';
+  payload.data.rows.forEach((row, i) => {
+    row.sourceSchooling = i < 2 ? { presentedOn: '2026-03-11', expiresOn: i === 0 ? '2027-03-31' : '2025-12-31', presentationState: 'valid', expiryState: 'valid',
+      sourceSystem: 'GRH', sourceTable: 'familia', sourceKey: row.familyRef.id, sourceSha256: 'a'.repeat(64), sourceImportRunId: 3,
+      sourceBatchId: syntheticUuid(90000), sourceCutoff: row.sourceCutoff, sourceDeclaredCutoff: '2026-08-06T15:15:21',
+      loadedAt: '2026-09-21T12:30:00Z', reviewState: 'historical_unreviewed', documentAvailable: false } : null;
+    const source = row.certificate ?? row.sourceSchooling;
+    row.effectiveDates = { origin: row.certificate ? 'manual' : row.sourceSchooling ? 'grh_source' : 'none', presentedOn: source?.presentedOn ?? null, expiresOn: source?.expiresOn ?? null };
+  });
+  return payload;
+}

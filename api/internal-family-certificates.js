@@ -58,7 +58,7 @@ function query(req, method) {
   const allowed = resource === 'report' ? ['resource'] : resource === 'history' && values.version === '3'
     ? ['resource', 'contractId', 'familyKind', 'familyId', 'identityToken'] : field ? ['resource', field] : [];
   if (Object.hasOwn(values, 'version')) {
-    if (!allowed.length || !['2', '3'].includes(values.version)) schoolCertificateFail('QUERY_INVALID');
+    if (!allowed.length || !(resource === 'report' || resource === 'family' ? ['2', '3', '4'] : ['2', '3']).includes(values.version)) schoolCertificateFail('QUERY_INVALID');
     allowed.push('version');
   }
   if (!allowed.length || Object.keys(values).length !== allowed.length || Object.keys(values).some(key => !allowed.includes(key))
@@ -135,7 +135,7 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
       const method = req.method ?? 'GET';
       if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, POST'); schoolCertificateFail('METHOD_NOT_ALLOWED'); }
       const q = query(req, method);
-      const version = q.version === '3' ? 3 : q.version === '2' ? 2 : 1;
+      const version = q.version === '4' ? 4 : q.version === '3' ? 3 : q.version === '2' ? 2 : 1;
       if (method === 'POST') {
         assertOrigin(req, env);
         if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(header(req, 'content-type'))) schoolCertificateFail('CONTENT_TYPE_REQUIRED');

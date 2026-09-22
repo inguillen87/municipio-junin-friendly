@@ -1,4 +1,4 @@
-import { schoolingData, schoolingFilter, schoolingRevision, schoolingDate, certificateState,
+import { schoolingData, schoolingFilter, schoolingRevision, schoolingDate, certificateState, schoolingEffectiveDates, schoolingDateOrigin,
   certificateFile, certificateFields, certificateEvidenceLabel, schoolingHistoryData, schoolingRegistrationResult, MAX_CERTIFICATE_BYTES, familyReference,
   familyContextData, familyDeclarationFields, familyDeclarationResult } from './family-schooling-model.js';
 import { schoolingXlsx } from './family-schooling-export.js';
@@ -53,9 +53,9 @@ async function request(url, controller, options = {}) {
   return response;
 }
 async function readSchooling(resource, controller, contractId) {
-  const q = new URLSearchParams({ resource, version: '3' }); if (contractId) q.set('contractId', contractId);
+  const q = new URLSearchParams({ resource, version: '4' }); if (contractId) q.set('contractId', contractId);
   const response = await request(ENDPOINT + '?' + q, controller);
-  return schoolingData(await response.json(), { resource, contractId, version: 3 });
+  return schoolingData(await response.json(), { resource, contractId, version: 4 });
 }
 async function readFamilyContext(controller, contractId) {
   const response = await request(FAMILY_ENDPOINT + '?' + new URLSearchParams({ resource: 'context', contractId }), controller);
@@ -95,19 +95,29 @@ function certificateDetails(certificate) {
   }
   return details;
 }
+function sourceSchoolingDetails(row) {
+  const source = row.sourceSchooling, details = node('details', undefined, 'fs-school-details');
+  details.append(node('summary', 'Fechas históricas de GRH'));
+  const states = { null: 'Sin fecha informada', absent: 'Campo ausente en la fuente', invalid: 'Fecha de origen no válida; por revisar' };
+  details.append(node('p', 'Presentación: ' + (source.presentationState === 'valid' ? schoolingDate(source.presentedOn) : states[source.presentationState]), 'fs-note'),
+    node('p', 'Vencimiento: ' + (source.expiryState === 'valid' ? schoolingDate(source.expiresOn) : states[source.expiryState]), 'fs-note'),
+    node('p', 'Fuente GRH · corte ' + schoolingDate(source.sourceCutoff) + '. Fecha declarada por la fuente: ' + schoolingDate(source.sourceDeclaredCutoff.slice(0, 10)) + ' ' + source.sourceDeclaredCutoff.slice(11) + ' (sin zona horaria informada).', 'fs-note'),
+    node('p', 'Datos históricos por revisar; no incluyen un certificado adjunto ni aprueban escolaridad.' + (row.certificate ? ' Para la consulta y el Excel prevalecen ambas fechas del registro manual, aunque su vencimiento esté vacío.' : ''), 'fs-note'));
+  return details;
+}
 
 export function mountSchoolingReport(host) {
   if (!host || host.dataset.schoolingMounted) return;
   host.dataset.schoolingMounted = 'true'; host.classList.add('family-schooling');
-  host.innerHTML = `<header class="fs-heading"><div><p class="fs-eyebrow">REGISTRO MUNICIPAL · CONTROL INTERNO</p><h2>Legajos activos con hijos</h2><p>Consultá los vínculos incorporados y los certificados registrados manualmente en MuniControl.</p></div><button type="button" class="fs-button primary" data-fs-consult>Consultar reporte</button></header>
+  host.innerHTML = `<header class="fs-heading"><div><p class="fs-eyebrow">REGISTRO MUNICIPAL · CONTROL INTERNO</p><h2>Legajos activos con hijos</h2><p>Consultá los vínculos, las fechas históricas de GRH y los certificados registrados en MuniControl.</p></div><button type="button" class="fs-button primary" data-fs-consult>Consultar reporte</button></header>
     <p class="fs-status" role="status" aria-live="polite" data-fs-status>Consultá el padrón para ver los hijos y sus fechas registradas.</p>
     <a href="login.html?next=reportes-rrhh.html%23certificados-escolares" data-fs-login hidden>Ingresar al portal interno</a>
     <div data-fs-result hidden><p class="fs-source" data-fs-source></p><p class="fs-source" data-fs-storage></p>
     <div class="fs-counts"><div><span>Legajos del filtro</span><strong data-fs-contracts></strong></div><div><span>Vínculos sin coincidencias</span><strong data-fs-children></strong></div><div><span>Vínculos con registro escolar</span><strong data-fs-registered></strong></div></div><p class="fs-review-note" data-fs-review-count hidden></p>
     <form class="fs-filters" data-fs-filters><label>Buscar agente, legajo o hijo/a<input type="search" maxlength="100" autocomplete="off" data-fs-search></label><label>Registro del certificado<select data-fs-filter><option value="all">Todos</option><option value="registered">Con registro de escolaridad</option><option value="unregistered">Sin registro en MuniControl</option><option value="expired">Vencimiento informado superado</option><option value="no_expiry">Sin vencimiento informado</option></select></label><button type="button" class="fs-button" data-fs-reset>Restablecer filtros</button></form>
     <div class="fs-actions"><button type="button" class="fs-button primary" data-fs-export>Descargar Excel del filtro</button><p data-fs-range></p></div>
-    <p class="fs-note">Las fechas del certificado provienen de su carga manual. “Sin registro” o una fecha ausente no permiten afirmar que no se presentó. Este control no aprueba escolaridad ni habilita haberes.</p>
-    <div class="fs-table-wrap" tabindex="0" role="region" aria-label="Detalle de hijos y certificados, desplazable"><table class="fs-table"><caption class="fs-sr">Legajos activos con hijos y último certificado registrado</caption><thead><tr><th scope="col">Agente / legajo</th><th scope="col">Hijo/a y origen</th><th scope="col">Presentación registrada</th><th scope="col">Vencimiento registrado</th><th scope="col">Registro y documento</th><th scope="col">Ficha</th></tr></thead><tbody data-fs-rows></tbody></table></div>
+    <p class="fs-note">Las fechas muestran su origen: registro manual en MuniControl o fuente histórica GRH por revisar. El registro manual prevalece para ambas fechas. “Sin registro” o una fecha ausente no permiten afirmar que no se presentó. Este control no aprueba escolaridad ni habilita haberes.</p>
+    <div class="fs-table-wrap" tabindex="0" role="region" aria-label="Detalle de hijos y certificados, desplazable"><table class="fs-table"><caption class="fs-sr">Legajos activos con hijos y último certificado registrado</caption><thead><tr><th scope="col">Agente / legajo</th><th scope="col">Hijo/a y origen</th><th scope="col">Presentación informada</th><th scope="col">Vencimiento informado</th><th scope="col">Registro y documento</th><th scope="col">Ficha</th></tr></thead><tbody data-fs-rows></tbody></table></div>
     <nav class="fs-pagination" aria-label="Páginas del reporte de hijos"><button type="button" class="fs-button" data-fs-previous>Anterior</button><span data-fs-page></span><button type="button" class="fs-button" data-fs-next>Siguiente</button></nav></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-status]'), result = $('[data-fs-result]');
   // Keep table semantics when its existing cells become cards on small screens.
@@ -147,19 +157,21 @@ export function mountSchoolingReport(host) {
       if (r.certificate) child.append(node('small', [r.certificate.institution, r.certificate.educationLevel, r.certificate.course, r.certificate.schoolYear && 'Ciclo ' + r.certificate.schoolYear].filter(Boolean).join(' · ') || 'Datos escolares sin informar'));
       if (r.identityReviewRequired) child.append(node('span', 'Coincidencia por revisar', 'fs-pill warning'));
       if (r.familyEndDate) child.append(node('small', 'Baja del vínculo: ' + schoolingDate(r.familyEndDate)));
-      presented.textContent = schoolingDate(r.certificate?.presentedOn ?? null);
-      expiry.textContent = schoolingDate(r.certificate?.expiresOn ?? null, 'Sin vencimiento informado');
+      const dates = schoolingEffectiveDates(r);
+      presented.append(node('span', schoolingDate(dates.presentedOn)), node('small', schoolingDateOrigin(r)));
+      expiry.textContent = schoolingDate(dates.expiresOn, 'Sin vencimiento informado');
       cert.append(node('span', certificateState(r, selected.filters.asOf), 'fs-pill' + (expiredKeys.has(r.key) ? ' warning' : r.certificate ? '' : ' muted')));
       if (r.certificate) {
         cert.append(node('small', certificateEvidenceLabel(r.certificate)), node('small', 'Cargado: ' + schoolingDate(r.certificate.recordedAt)));
         if (r.certificate.filename) { const download = button('Descargar PDF'); download.setAttribute('aria-label', 'Descargar certificado PDF de ' + (r.familyName || 'hijo/a sin nombre informado'));
         download.addEventListener('click', () => getDocument(r.certificate)); cert.append(download); }
       }
+      if (r.sourceSchooling) cert.append(sourceSchoolingDetails(r));
       const link = node('a', 'Abrir hijo y certificados', 'fs-link');
       link.href = 'internal-dashboard.html?contractId=' + encodeURIComponent(r.contractId) + '&section=family&familyKind=' + r.familyRef.kind + '&familyId=' + encodeURIComponent(r.familyRef.id) + '#legajos';
       link.referrerPolicy = 'no-referrer'; link.setAttribute('aria-label', 'Abrir certificados de ' + (r.familyName || 'hijo/a sin nombre informado') + ', legajo ' + r.legajo); action.append(link);
       tr.setAttribute('role', 'row');
-      for (const [cell, label] of [[employee, 'Agente / legajo'], [child, 'Hijo/a y origen'], [presented, 'Presentación registrada'], [expiry, 'Vencimiento registrado'], [cert, 'Registro y documento'], [action, 'Ficha']]) {
+      for (const [cell, label] of [[employee, 'Agente / legajo'], [child, 'Hijo/a y origen'], [presented, 'Presentación informada'], [expiry, 'Vencimiento informado'], [cert, 'Registro y documento'], [action, 'Ficha']]) {
         cell.setAttribute('role', 'cell');
         const heading = node('span', label, 'fs-cell-label'); heading.setAttribute('aria-hidden', 'true'); cell.prepend(heading);
       }
@@ -274,10 +286,12 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       card.append(node('p', r.familyRef.kind === 'own' ? 'Declarado en MuniControl el ' + schoolingDate(r.familyRecordedAt) + (r.validFrom ? ' · Vigencia informada desde ' + schoolingDate(r.validFrom) : '') : 'Vínculo incorporado desde GRH · corte ' + schoolingDate(r.sourceCutoff), 'fs-origin'));
       if (r.identityReviewRequired) card.append(node('p', 'Coincidencia por revisar: este vínculo puede corresponder a un hijo que también figura en otra fuente. Sus documentos no se unieron ni reasignaron.', 'fs-review-note'));
       const dates = node('dl', undefined, 'fs-dates');
-      for (const [label, value] of [['Presentación registrada', schoolingDate(r.certificate?.presentedOn ?? null)], ['Vencimiento registrado', schoolingDate(r.certificate?.expiresOn ?? null, 'Sin vencimiento informado')]]) {
+      const effective = schoolingEffectiveDates(r);
+      for (const [label, value] of [['Presentación informada', schoolingDate(effective.presentedOn)], ['Vencimiento informado', schoolingDate(effective.expiresOn, 'Sin vencimiento informado')]]) {
         const field = node('div'); field.append(node('dt', label), node('dd', value)); dates.append(field);
       }
-      card.append(dates, node('p', certificateState(r), 'fs-note'));
+      card.append(dates, node('p', schoolingDateOrigin(r) + ' · ' + certificateState(r), 'fs-note'));
+      if (r.sourceSchooling) card.append(sourceSchoolingDetails(r));
       const actions = node('div', undefined, 'fs-actions');
       if (r.certificate) {
         if (r.certificate.filename) { const download = button('Descargar PDF registrado'); download.dataset.fsDocument = ''; download.setAttribute('aria-label', 'Descargar certificado de ' + (r.familyName || 'hijo/a sin nombre informado'));
