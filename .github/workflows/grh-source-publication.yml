@@ -1,0 +1,85 @@
+name: GRH coordinated source publication checks
+on:
+  workflow_dispatch:
+  push:
+    branches: ['internal-september-publication-20260922', 'master']
+    paths:
+      - 'api/internal-data.js'
+      - 'api/internal-assistant.js'
+      - 'lib/workforce-operational-scope.js'
+      - 'scripts/*grh*'
+      - 'scripts/lib/grh-*'
+      - 'scripts/migrations/09[6-9]-*'
+      - 'scripts/fixtures/grh-*'
+      - 'tests/*grh*'
+      - 'tests/fixtures/grh-*'
+      - 'scripts/generate-friendly-source-aggregate.mjs'
+      - 'tests/friendly-source-aggregate.test.js'
+      - 'friendly-data.json'
+      - '.github/workflows/grh-source-publication.yml'
+permissions:
+  contents: read
+concurrency:
+  group: grh-source-publication-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: python3 -B -m unittest discover -s tests -p test_extract_schooling_source.py
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: effective_source_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: grh_local_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d effective_source_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: grh_local_qa_only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci --ignore-scripts
+      - run: mkdir -p verification
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres effective_consumers_qa
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres curated_consumers_qa
+      - run: node scripts/verify-grh-effective-source-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/effective-source.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=effective_source_qa -v ON_ERROR_STOP=1 < verification/effective-source.sql
+      - run: node scripts/verify-grh-effective-consumers-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/effective-consumers.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=effective_consumers_qa -v ON_ERROR_STOP=1 < verification/effective-consumers.sql
+      - run: node scripts/verify-grh-curated-source-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/curated-source.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=effective_source_qa -v ON_ERROR_STOP=1 < verification/curated-source.sql
+      - run: node scripts/verify-grh-curated-consumers-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/curated-consumers.sql
+      - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=curated_consumers_qa -v ON_ERROR_STOP=1 < verification/curated-consumers.sql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grh-publication-sql-pg${{ matrix.postgres }}
+          path: verification/
+          retention-days: 5

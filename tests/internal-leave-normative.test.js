@@ -133,7 +133,7 @@ test('leaveNormative publica readiness y conflictos agregados sin datos personal
   assert.equal(result.payload.meta.legalDecisionAllowed, false);
   assert.equal(result.payload.meta.policyVersionId, 'mendoza-ley-5811-title-vi.v1');
   assert.doesNotMatch(JSON.stringify(result.payload), /PERSONA DE PRUEBA|dni|cuil|domicilio/i);
-  assert.match(sql.calls[0].sql, /EXISTS .*grh_absences.*import_run_id/s);
+  assert.match(sql.calls[0].sql, /EXISTS .*grh_effective_absences_v1.*import_run_id/s);
 });
 
 test('leavePreview devuelve referencia condicional, evidencia GRH y bloquea saldo/horas', async () => {

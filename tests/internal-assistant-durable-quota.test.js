@@ -41,6 +41,8 @@ function endpoint(overrides = {}) {
   const dependencies = {
     requireCompatibleInternalAccess: overrides.requireCompatibleInternalAccess
       || (async () => managedAccess()),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => ({ query: async () => [] }),
     integrationQuality: async () => ({
       source: { cutoff: '2026-08-06T15:15:21.000Z' },

@@ -148,7 +148,7 @@ test('importing the module has no CLI, filesystem-source or connection side effe
   const { stdout, stderr } = await run(process.execPath, ['--input-type=module', '-e',
     `const m = await import(${JSON.stringify(importer.href)}); process.stdout.write(Object.keys(m).sort().join(','));`],
   { env: { ...process.env, DATABASE_URL_UNPOOLED: '', DATABASE_URL: '' } });
-  assert.equal(stdout, 'importGrhCoreWithinTransaction,preflightGrhCore,runGrhCoreCliTransaction');
+  assert.equal(stdout, 'importGrhCoreWithinTransaction,importGrhOperationalSnapshotWithinTransaction,preflightGrhCore,runGrhCoreCliTransaction');
   assert.equal(stderr, '');
 });
 

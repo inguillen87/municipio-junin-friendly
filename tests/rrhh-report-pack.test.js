@@ -13,7 +13,20 @@ import {
 } from '../assets/rrhh-report-pack.js';
 
 const GENERATED_AT = '2026-09-02T21:30:00.000Z';
-const fixture = JSON.parse(fs.readFileSync(new URL('../friendly-data.json', import.meta.url), 'utf8'));
+const fixture = JSON.parse(fs.readFileSync(new URL('./fixtures/friendly-data.august-approved.json', import.meta.url), 'utf8'));
+
+test('published September aggregate exports the reviewed source and current totals', () => {
+  const current = JSON.parse(fs.readFileSync(new URL('../friendly-data.json', import.meta.url), 'utf8'));
+  const snapshot = createRrhhReportSnapshot(current, { generatedAt: '2026-09-22T00:00:00.000Z' });
+  assert.equal(snapshot.source.cutoffDate, '2026-09-10');
+  assert.equal(snapshot.source.sha256, 'sha256:5a604acfe5ea32832b630d8aab29e494038d4c8940b231e283a53d14112665c7');
+  assert.equal(snapshot.workforce.historicalRecords, 2452);
+  assert.equal(snapshot.workforce.active, 875);
+  assert.equal(snapshot.absence.totalEvents, 31702);
+  const pack = createRrhhReportPack(current, { generatedAt: snapshot.generatedAt });
+  assert.equal(pack.xlsx.fileName, 'municontrol_informe-rrhh_2026-09-10_5a604acfe5ea.xlsx');
+  assert.equal(pack.pdf.fileName, 'municontrol_informe-rrhh_2026-09-10_5a604acfe5ea.pdf');
+});
 
 function copyFixture() {
   return structuredClone(fixture);

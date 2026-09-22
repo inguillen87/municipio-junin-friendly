@@ -1,0 +1,109 @@
+CREATE TEMP TABLE qa_checks(name text PRIMARY KEY);
+CREATE FUNCTION pg_temp.ok(value boolean,label text) RETURNS void LANGUAGE plpgsql AS $f$
+BEGIN IF value IS DISTINCT FROM true THEN RAISE EXCEPTION 'QA failed %',label; END IF; INSERT INTO qa_checks VALUES(label); END $f$;
+CREATE FUNCTION pg_temp.denied(statement text,expected text,label text) RETURNS void LANGUAGE plpgsql AS $f$
+DECLARE caught text; BEGIN BEGIN EXECUTE statement; EXCEPTION WHEN OTHERS THEN caught:=SQLERRM; END;
+ IF caught IS NULL OR position(expected IN caught)=0 THEN RAISE EXCEPTION 'QA failed %: %',label,caught; END IF; INSERT INTO qa_checks VALUES(label); END $f$;
+CREATE TEMP TABLE qa_ids AS SELECT
+ '11111111-1111-4111-8111-111111111111'::uuid b,'22222222-2222-4222-8222-222222222222'::uuid c,
+ '33333333-3333-4333-8333-333333333333'::uuid v,'44444444-4444-4444-8444-444444444444'::uuid tenant,
+ '55555555-5555-4555-8555-555555555555'::uuid binding,'66666666-6666-4666-8666-666666666666'::uuid employee,
+ '88888888-8888-4888-8888-888888888888'::uuid curated;
+INSERT INTO data_import_runs(id,source_name,source_sha256,source_cutoff,status) VALUES
+ (1,'grh_junin_curated',repeat('A',64),'2026-08-06 15:15:21','completed'),(2,'grh_junin_curated',repeat('B',64),'2026-09-10 15:17:30','completed');
+INSERT INTO source_import_batch(id,source_system,source_database,source_file_name,source_sha256,source_cutoff,legacy_import_run_id,validation_state)
+ SELECT b,'GRH','synthetic_grh','synthetic',repeat('A',64),'2026-08-06T18:15:21Z'::timestamptz,1,'published' FROM qa_ids UNION ALL
+ SELECT c,'GRH','synthetic_grh','synthetic',repeat('B',64),'2026-09-10T18:17:30Z',2,'published' FROM qa_ids;
+INSERT INTO platform_tenant_source_binding SELECT tenant,binding,'GRH','synthetic_grh',101,true FROM qa_ids;
+INSERT INTO tenant_identity_policy(tenant_id,certified_source_binding_id,tenant_data_plane_ready,certified_release_sha) SELECT tenant,binding,true,repeat('9',40) FROM qa_ids;
+INSERT INTO person_identity(id,full_name) SELECT employee,'Synthetic employee' FROM qa_ids;
+INSERT INTO employment_contract(id,person_id,source_system,source_batch_id,legacy_company_id,legacy_legajo,status)
+ SELECT employee,employee,'GRH',b,101,'001','active' FROM qa_ids;
+INSERT INTO employment_status_snapshot(employment_contract_id,snapshot_date,administrative_status,payroll_status,source_batch_id,evidence)
+ SELECT employee,'2026-08-06','active','not_applicable',b,'{"evidenceStatus":"administrative","administrativeActive":true,"liquidatedCurrent":false}' FROM qa_ids;
+INSERT INTO grh_core_source_version(id,tenant_id,source_binding_id,baseline_batch_id,baseline_import_run_id,
+ source_sha256,baseline_source_sha256,payload_sha256,manifest_sha256,baseline_manifest_sha256,
+ source_cutoff,baseline_cutoff,source_payroll_date,baseline_payroll_date,source_profile,source_database,source_company_id,entity_evidence,baseline_fingerprints)
+ SELECT v,tenant,binding,b,1,repeat('b',64),repeat('a',64),repeat('c',64),repeat('d',64),repeat('e',64),
+ '2026-09-10 15:17:30','2026-08-06 15:15:21','2026-09-30','2026-08-31','synthetic','synthetic_grh',101,
+ (SELECT jsonb_object_agg(e,jsonb_build_object('counts',jsonb_build_object('candidate',CASE WHEN e='employmentReconciliation' THEN 1 ELSE 0 END))) FROM unnest(ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation']) e),
+ (SELECT jsonb_object_agg(e,grh_core_source_base_fingerprint_v1(b,e)) FROM unnest(ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation']) e) FROM qa_ids;
+INSERT INTO grh_core_source_version_seal SELECT v,
+ (SELECT jsonb_object_agg(e,grh_core_source_version_fingerprint_v1(v,e)) FROM unnest(ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation']) e),now() FROM qa_ids;
+CREATE FUNCTION pg_temp.publish() RETURNS void LANGUAGE sql AS $f$
+ INSERT INTO grh_effective_source_binding(tenant_id,source_binding_id,source_version_id,baseline_batch_id,source_batch_id,import_run_id,publication_sha256)
+ SELECT tenant,binding,v,b,c,2,repeat('f',64) FROM qa_ids $f$;
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_CURATED_PUBLICATION_MISMATCH','pointer without curated version rejected');
+CREATE TEMP TABLE expected(entity text,row_key text,record jsonb);
+CREATE TEMP TABLE original(entity text,digest text);
+__BASE_ROWS__
+__SCHOOL_BASELINE__
+INSERT INTO grh_curated_source_version(id,tenant_id,source_binding_id,core_version_id,source_batch_id,import_run_id,baseline_batch_id,baseline_import_run_id,
+ baseline_source_sha256,source_sha256,baseline_cutoff,source_cutoff,payload_sha256,baseline_manifest_sha256,manifest_sha256,source_database,source_company_id,
+ entity_evidence,baseline_fingerprints,candidate_expected)
+ SELECT curated,tenant,binding,v,c,2,b,1,repeat('a',64),repeat('b',64),'2026-08-06 15:15:21','2026-09-10 15:17:30',
+ repeat('c',64),repeat('d',64),repeat('e',64),'synthetic_grh',101,__EVIDENCE__,
+ (SELECT jsonb_object_agg(e,grh_curated_source_base_fingerprint_v1(1,e)) FROM unnest(ARRAY['grh_employees','grh_absences','grh_leaves','grh_family','grh_catalog_rows']) e),
+ '{"qualityFlags":{},"tableCounts":{}}' FROM qa_ids;
+INSERT INTO grh_curated_source_delta(version_id,entity,row_key,key_fields,operation,previous_sha256,candidate_sha256,record,patch)
+ SELECT (SELECT curated FROM qa_ids),entity,"rowKey","keyFields",operation,"previousSha256","candidateSha256",record,patch
+ FROM jsonb_to_recordset(__CHANGES__) AS r(entity text,"rowKey" text,"keyFields" jsonb,operation text,"previousSha256" text,"candidateSha256" text,record jsonb,patch jsonb);
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_CURATED_VERSION_NOT_SEALED','pointer without curated seal rejected');
+SELECT pg_temp.ok((SELECT count(*)=0 FROM grh_source_family_v1 WHERE import_run_id=2),'unsealed source not exposed');
+CREATE FUNCTION pg_temp.seal() RETURNS void LANGUAGE sql AS $f$
+ INSERT INTO grh_curated_source_version_seal SELECT curated,
+ (SELECT jsonb_object_agg(e,grh_curated_source_version_fingerprint_v1(curated,e)) FROM unnest(ARRAY['grh_employees','grh_absences','grh_leaves','grh_family','grh_catalog_rows']) e),
+ now() FROM qa_ids $f$;
+SELECT pg_temp.seal();
+-- Before pointer: exact baseline still selected; candidate can be audited by run.
+SELECT pg_temp.ok((SELECT count(*)=2684 FROM grh_effective_family_v1),'current baseline count before publication');
+SELECT pg_temp.ok((SELECT count(*)=2686 FROM grh_source_family_v1 WHERE import_run_id=2),'candidate by run contains same, changed and new identities');
+SELECT pg_temp.ok((SELECT pg_temp.school_import(c,false)->>'matched'='2686' FROM qa_ids),'candidate recovery validates exact sealed identity before pointer');
+SELECT pg_temp.ok((SELECT pg_temp.school_import(c,true)->>'matched'='2686' FROM qa_ids),'candidate recovery appends separate exact cohort');
+SELECT pg_temp.ok((SELECT count(*)=2 FROM school_certificate_source_recovery) AND (SELECT count(*)=5370 FROM school_certificate_source_date),'baseline and candidate recovery coexist without merging');
+SELECT pg_temp.ok((SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY family_id)::text)=(SELECT source_dates FROM qa_baseline) FROM school_certificate_source_date d WHERE recovery_id=(SELECT id FROM school_certificate_source_recovery WHERE source_import_run_id=1)),'baseline recovery byte content remains unchanged');
+UPDATE employment_contract SET source_batch_id=(SELECT c FROM qa_ids) WHERE source_system='GRH';
+INSERT INTO employment_status_snapshot(employment_contract_id,snapshot_date,administrative_status,payroll_status,source_batch_id,evidence)
+ SELECT employee,'2026-09-10','active','not_applicable',c,'{"evidenceStatus":"administrative","administrativeActive":true,"liquidatedCurrent":false}' FROM qa_ids;
+SELECT pg_temp.publish();
+CREATE TEMP TABLE qa_after AS SELECT pg_temp.school_read() value;
+SELECT pg_temp.ok((SELECT jsonb_array_length(value->'rows')=4 FROM qa_after),'v4 reader selects four current children after pointer');
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM qa_after,jsonb_array_elements(value->'rows') r WHERE r#>>'{familyRef,id}'='910000000000000001'
+ AND r#>>'{effectiveDates,origin}'='manual' AND r#>>'{effectiveDates,presentedOn}'='2026-03-02' AND r#>'{effectiveDates,expiresOn}'='null'::jsonb
+ AND r#>>'{sourceSchooling,presentedOn}'='2026-09-12' AND r#>>'{sourceSchooling,expiresOn}'='2026-12-31' AND r->>'historyCount'='1'),'same identity preserves manual null expiry over both new source dates');
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM qa_after,jsonb_array_elements(value->'rows') r WHERE r#>>'{familyRef,id}'='910000000000000002'
+ AND r->'certificate'='null'::jsonb AND r->>'historyCount'='0' AND r#>>'{effectiveDates,origin}'='grh_source'),'changed identity never inherits old PDF or administrative history');
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM qa_after,jsonb_array_elements(value->'rows') r WHERE r#>>'{familyRef,id}'='910000000000000004'
+ AND r->'certificate'='null'::jsonb AND r->>'historyCount'='0' AND r#>>'{sourceSchooling,sourceImportRunId}'='2'),'new child receives source dates only without invented certificate');
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM qa_after,jsonb_array_elements(value->'rows') r WHERE r#>>'{familyRef,id}'='910000000000000003' AND r#>>'{certificate,recordKind}'='legacy_pdf' AND r->>'historyCount'='1' AND r#>'{effectiveDates,expiresOn}'='null'::jsonb),'legacy PDF survives unchanged identity with manual expiry null');
+SELECT pg_temp.ok((SELECT pg_temp.school_download((receipt->>'certificateId')::uuid)->>'filename'='legacy.pdf' FROM qa_records WHERE kind='legacy'),'legacy PDF download remains bound to unchanged current identity');
+SELECT pg_temp.denied($q$SELECT pg_temp.school_download((receipt->>'certificateId')::uuid) FROM qa_records WHERE kind='pdf'$q$,'SCHOOL_CERTIFICATE_IDENTITY_CHANGED','old blob cannot be downloaded as recycled identity');
+SELECT pg_temp.ok((SELECT (pg_temp.school_write(payload,'cccccccc-cccc-4ccc-8ccc-cccccccccccc')-'duplicate')=(receipt-'duplicate') FROM qa_records WHERE kind='paper'),'same exact manual attempt replays after source rotation');
+SELECT pg_temp.denied($q$SELECT pg_temp.school_write(payload,'dddddddd-dddd-4ddd-8ddd-dddddddddddd') FROM qa_records WHERE kind='pdf'$q$,'SCHOOL_CERTIFICATE_IDENTITY_CHANGED','changed identity blocks lost acknowledgement replay');
+SELECT pg_temp.ok((SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY id)::text)=(SELECT manual_records FROM qa_baseline) FROM school_certificate_record d),'source rotation leaves original manual bytes unchanged');
+SELECT pg_temp.ok((SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY sha256)::text)=(SELECT blobs FROM qa_baseline) FROM school_certificate_blob d),'source rotation leaves original PDF bytes unchanged');
+SELECT pg_temp.ok((SELECT pg_temp.school_import(b,true)->>'replayed'='true' AND pg_temp.school_import(c,true)->>'replayed'='true' FROM qa_ids),'owner recovery can independently replay exact baseline and candidate');
+SELECT pg_temp.ok((SELECT count(*)=5370 FROM school_certificate_source_date),'independent recovery replay inserts nothing');
+SELECT pg_temp.ok((SELECT NOT prosecdef FROM pg_proc WHERE oid='school_certificate_source_import_v4(uuid,uuid,uuid,jsonb,text,boolean)'::regprocedure),'owner importer never becomes SECURITY DEFINER');
+SELECT pg_temp.ok(NOT has_function_privilege('municontrol_actions_runtime_app','school_certificate_source_import_v4(uuid,uuid,uuid,jsonb,text,boolean)','EXECUTE'),'runtime still cannot import source dates');
+SELECT pg_temp.ok(NOT has_function_privilege('municontrol_actions_runtime_app','grh_curated_source_read_lock_v1()','EXECUTE'),'publication lock helper private');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM qa_function_before b JOIN pg_proc p USING(oid) WHERE (p.proacl,p.proowner,p.prosecdef,p.proconfig) IS DISTINCT FROM (b.proacl,b.proowner,b.prosecdef,b.proconfig)),'all 18 facades retain owner grants security and configuration');
+SELECT pg_temp.denied($q$UPDATE grh_family SET dni='new'$q$,'GRH_CURATED_BASELINE_IMMUTABLE','sealed source rejects identity mutation');
+
+SELECT pg_temp.ok((SELECT EXISTS(SELECT 1 FROM jsonb_array_elements(native_employee_bootstrap_v1(actor)#>'{catalog,items}') r WHERE r->>'kind'='sectors' AND r->>'label'='Revised synthetic sector') FROM qa_native),'native catalog switches to exact sealed candidate after publication');
+SELECT pg_temp.ok((SELECT (native_employee_create_v1(actor,payload,catalog->>'version','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')-'replayed')=(receipt-'replayed') FROM qa_native),'prepublication native42 lost acknowledgement replay keeps original catalogue and UUID');
+SELECT pg_temp.denied($q$SELECT native_employee_create_v1(actor,payload,catalog->>'version','ffffffff-ffff-4fff-8fff-ffffffffffff') FROM qa_native$q$,'NATIVE_EMPLOYEE_CATALOG_CHANGED','new native attempt cannot reuse old catalog after publication');
+SELECT pg_temp.denied($q$SELECT native_employee_create_v1(actor,payload||'{"jurisdictionCode":"55"}',catalog->>'version','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') FROM qa_native$q$,'NATIVE_EMPLOYEE_ATTEMPT_CONFLICT','native retry cannot change jurisdiction silently');
+CREATE TEMP TABLE qa_native55 AS SELECT native_employee_create_v1(actor,payload||'{"dni":"99000022","cuil":"20990000221","legajo":"19055","fullName":"Synthetic native fifty five","jurisdictionCode":"55"}',native_employee_bootstrap_v1(actor)#>>'{catalog,version}','ffffffff-ffff-4fff-8fff-ffffffffffff') receipt FROM qa_native;
+SELECT pg_temp.ok((SELECT receipt->>'origin'='MUNICONTROL' AND receipt->>'jurisdictionCode'='55' AND receipt->>'payrollCalculated'='false' FROM qa_native55),'native55 creation remains available against the new selected catalog');
+SELECT pg_temp.ok((SELECT count(*)=2 AND bool_and(source_batch_id IS NULL) FROM employment_contract WHERE source_system='MUNICONTROL' AND jurisdiction_code IN('42','55')),'native42 and55 remain canonical contracts without invented GRH source');
+
+UPDATE tenant_identity_session SET status='revoked';
+SELECT pg_temp.denied('SELECT pg_temp.school_read()','SCHOOL_CERTIFICATE_SESSION_INVALID','current source read revalidates real session007');
+SELECT pg_temp.denied($q$SELECT pg_temp.school_write(payload,'cccccccc-cccc-4ccc-8ccc-cccccccccccc') FROM qa_records WHERE kind='paper'$q$,'SCHOOL_CERTIFICATE_SESSION_INVALID','replay cannot bypass session revocation');
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT jsonb_build_object('version','grh-curated-consumers-qa.v1','passed',count(*),'major',current_setting('server_version_num')::integer/10000,
+ 'migrationSha256','__MIGRATION_SHA__','actualSessionGuard007',true,'actualSchoolingWriters',true,'actual098Pointer',true,'fixtureCapabilityResolver',true,
+ 'sourceImportTimings',(SELECT jsonb_agg(to_jsonb(t)) FROM qa_import_timings t),'synthetic',true,'rollback',true) AS qa_result FROM qa_checks;
+ROLLBACK;
+SELECT to_regclass('public.grh_curated_source_version') IS NULL AS rollback_tables_absent;

@@ -50,6 +50,8 @@ async function askLeavePolicy(message, catalog, options = {}) {
   let externalCalls = 0;
   const handler = createInternalAssistantHandler({
     requireInternalSession: () => ({ id: 'user-1', email: 'usuario@example.test' }),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => ({ query: async () => [] }),
     leaveNormative: async () => ({
       status: 200,
@@ -95,6 +97,8 @@ test('politica de licencias responde local con fuentes oficiales y sin proveedor
   let externalCalls = 0;
   const handler = createInternalAssistantHandler({
     requireInternalSession: () => ({ id: 'user-1', email: 'usuario@example.test' }),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => ({ query: async () => [] }),
     leaveNormative: async () => ({
       status: 200,

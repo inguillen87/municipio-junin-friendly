@@ -1,0 +1,62 @@
+-- Original IAM session resolver007 executes against explicitly synthetic policy.
+INSERT INTO platform_tenant SELECT tenant,'active' FROM qa_ids;
+INSERT INTO internal_users VALUES('writer@example.invalid','Synthetic writer',true,'managed',1);
+INSERT INTO tenant_membership SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',tenant,'writer@example.invalid','QA_ROLE','active' FROM qa_ids;
+INSERT INTO tenant_identity_session SELECT 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','writer@example.invalid',tenant,1,1,'membership','mfa','active',now()+interval '1 hour',now() FROM qa_ids;
+INSERT INTO tenant_action_authority SELECT id,tenant_id FROM tenant_membership;
+INSERT INTO capabilities SELECT id,cap FROM tenant_membership CROSS JOIN unnest(ARRAY['actions.read','workforce.employee.read','employee.record.propose']) cap;
+UPDATE school_certificate_storage_policy SET cluster_limit_bytes=1099511627776,cluster_reserve_bytes=16777216 WHERE singleton;
+CREATE TEMP TABLE qa_school AS SELECT jsonb_build_object('email','writer@example.invalid','session','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','version',1,'release',repeat('9',40),'tenant',tenant,'membership','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') c FROM qa_ids;
+CREATE TEMP TABLE qa_records(kind text PRIMARY KEY,payload jsonb,receipt jsonb);
+CREATE FUNCTION pg_temp.school_read() RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT school_certificate_read_v4(c->>'email',(c->>'session')::uuid,1,c->>'release',(c->>'tenant')::uuid,(c->>'membership')::uuid,NULL) FROM qa_school $f$;
+CREATE FUNCTION pg_temp.school_write(payload jsonb,key text) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT school_certificate_register_v3(c->>'email',(c->>'session')::uuid,1,c->>'release',(c->>'tenant')::uuid,(c->>'membership')::uuid,payload,key) FROM qa_school $f$;
+CREATE FUNCTION pg_temp.school_download(document uuid) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT school_certificate_download_v3(c->>'email',(c->>'session')::uuid,1,c->>'release',(c->>'tenant')::uuid,(c->>'membership')::uuid,document) FROM qa_school $f$;
+CREATE TEMP TABLE qa_import_timings(source_rows integer,apply boolean,replayed boolean,elapsed_ms numeric);
+CREATE FUNCTION pg_temp.school_import(batch uuid,apply boolean) RETURNS jsonb LANGUAGE plpgsql AS $f$
+DECLARE payload jsonb; result jsonb; started timestamptz;
+BEGIN
+ SELECT jsonb_build_object('version','schooling-source-recovery.v1','sourceSystem','GRH','sourceDatabase','synthetic_grh','sourceSha256',lower(r.source_sha256),
+ 'sourceDeclaredCutoff',to_char(r.source_cutoff,'YYYY-MM-DD"T"HH24:MI:SS'),'rows',(SELECT jsonb_agg(jsonb_build_object('familyId',f.family_id::text,'companyId',f.company_id,'legajo',f.legajo,
+ 'identitySha256',school_certificate_source_identity_v4(to_jsonb(f)),'sourceFields',CASE WHEN r.id=1 THEN '{"PRES_14":"2024-03-10","VENC_14":"2050-12-31"}'::jsonb ELSE '{"PRES_14":"2026-09-12","VENC_14":"2026-12-31"}'::jsonb END) ORDER BY f.family_id)
+ FROM grh_source_family_v1 f WHERE f.import_run_id=r.id AND f.company_id=101 AND f.vinculo_code='2')) INTO payload
+ FROM source_import_batch b JOIN data_import_runs r ON r.id=b.legacy_import_run_id WHERE b.id=batch;
+ started:=clock_timestamp();
+ SELECT school_certificate_source_import_v4(tenant,binding,batch,payload,'Synthetic source provenance QA',apply) INTO result FROM qa_ids;
+ INSERT INTO qa_import_timings VALUES(jsonb_array_length(payload->'rows'),apply,coalesce((result->>'replayed')::boolean,false),round((extract(epoch FROM clock_timestamp()-started)*1000)::numeric,2));
+ RETURN result;
+END $f$;
+SELECT pg_temp.ok((pg_temp.school_read()->>'version')='family-schooling.v4' AND jsonb_array_length(pg_temp.school_read()->'rows')=3,'real v4 baseline reader');
+SELECT pg_temp.ok((SELECT pg_temp.school_import(b,false)->>'matched'='2684' FROM qa_ids),'baseline import dry-run exact cohort');
+SELECT pg_temp.ok((SELECT pg_temp.school_import(b,true)->>'applied'='true' FROM qa_ids),'baseline source recovery real writer');
+INSERT INTO qa_records(kind,payload)
+SELECT CASE WHEN r#>>'{familyRef,id}'='910000000000000001' THEN 'paper' ELSE 'pdf' END,
+ jsonb_build_object('contractId',r->>'contractId','familyRef',r->'familyRef','identityToken',r->>'identityToken','expectedCertificateId',NULL,
+ 'institution',NULL,'educationLevel',NULL,'course',NULL,'schoolYear',NULL,'issuedOn',NULL,'presentedOn','2026-03-02','expiresOn',NULL,
+ 'evidenceMode',CASE WHEN r#>>'{familyRef,id}'='910000000000000001' THEN 'paper_declared' ELSE 'pdf' END,
+ 'paperReference',CASE WHEN r#>>'{familyRef,id}'='910000000000000001' THEN 'Synthetic paper reference' END,
+ 'filename',CASE WHEN r#>>'{familyRef,id}'<>'910000000000000001' THEN 'synthetic.pdf' END,
+ 'contentBase64',CASE WHEN r#>>'{familyRef,id}'<>'910000000000000001' THEN encode(convert_to(E'%PDF-1.7\nSynthetic QA\n%%EOF\n','UTF8'),'base64') END,
+ 'sha256',CASE WHEN r#>>'{familyRef,id}'<>'910000000000000001' THEN encode(digest(convert_to(E'%PDF-1.7\nSynthetic QA\n%%EOF\n','UTF8'),'sha256'),'hex') END,
+ 'reason','Synthetic administrative evidence')
+FROM jsonb_array_elements(pg_temp.school_read()->'rows') r WHERE r#>>'{familyRef,id}' IN('910000000000000001','910000000000000002');
+UPDATE qa_records SET receipt=pg_temp.school_write(payload,CASE kind WHEN 'paper' THEN 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' ELSE 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' END);
+SELECT pg_temp.ok((SELECT count(*)=2 FROM school_certificate_record),'real manual writer saved two independent records');
+SELECT pg_temp.ok((SELECT count(*)=1 FROM school_certificate_blob),'one real PDF blob persisted inside rollback');
+SELECT pg_temp.ok((SELECT pg_temp.school_download((receipt->>'certificateId')::uuid)->>'filename'='synthetic.pdf' FROM qa_records WHERE kind='pdf'),'PDF readable before source identity changes');
+INSERT INTO qa_records(kind,payload) SELECT 'legacy',jsonb_build_object('contractId',r->>'contractId','familyId',r#>>'{familyRef,id}','identityToken',r->>'identityToken','presentedOn','2026-03-03','expiresOn',NULL,'filename','legacy.pdf','contentBase64',encode(convert_to(E'%PDF-1.7\nLegacy synthetic QA\n%%EOF\n','UTF8'),'base64'),'sha256',encode(digest(convert_to(E'%PDF-1.7\nLegacy synthetic QA\n%%EOF\n','UTF8'),'sha256'),'hex')) FROM jsonb_array_elements(pg_temp.school_read()->'rows') r WHERE r#>>'{familyRef,id}'='910000000000000003';
+UPDATE qa_records SET receipt=(SELECT school_certificate_register_v1(c->>'email',(c->>'session')::uuid,1,c->>'release',(c->>'tenant')::uuid,(c->>'membership')::uuid,payload,'synthetic-legacy-099') FROM qa_school) WHERE kind='legacy';
+SELECT pg_temp.ok((SELECT count(*)=1 FROM school_certificate),'legacy v1 writer locks physical source and queries the union safely');
+CREATE TEMP TABLE qa_baseline AS SELECT (SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY family_id)::text) FROM school_certificate_source_date d) source_dates,
+ (SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY id)::text) FROM school_certificate_record d) manual_records,
+ (SELECT md5(jsonb_agg(to_jsonb(d) ORDER BY sha256)::text) FROM school_certificate_blob d) blobs;
+CREATE TEMP TABLE qa_native AS SELECT jsonb_build_object('actorEmail',c->>'email','actorSessionId',c->>'session','actorSessionVersion',1,'releaseSha',c->>'release','tenantId',c->>'tenant','membershipId',c->>'membership') actor,
+ NULL::jsonb catalog,NULL::jsonb payload,NULL::jsonb receipt FROM qa_school;
+INSERT INTO capabilities SELECT id,'employee.record.create' FROM tenant_membership;
+UPDATE qa_native SET catalog=native_employee_bootstrap_v1(actor)->'catalog';
+SELECT pg_temp.ok((SELECT EXISTS(SELECT 1 FROM jsonb_array_elements(catalog->'items') r WHERE r->>'kind'='sectors' AND r->>'label'='Synthetic sectors') FROM qa_native),'native catalog follows selected baseline not merely newest staged batch');
+UPDATE qa_native SET payload='{"dni":"99000021","cuil":"20990000213","legajo":"19042","fullName":"Synthetic native forty two","birthDate":"1990-01-01","sexCode":"F","startDate":"2026-09-01","agreementCode":"1","categoryCode":"1","organizationId":"1","sectorCode":"1","jobTitle":"Synthetic operator","legalReference":"Synthetic QA instrument","jurisdictionCode":"42"}';
+UPDATE qa_native SET receipt=native_employee_create_v1(actor,payload,catalog->>'version','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+SELECT pg_temp.ok((SELECT receipt->>'origin'='MUNICONTROL' AND receipt->>'jurisdictionCode'='42' AND receipt->>'payrollCalculated'='false' FROM qa_native),'real native067/095 writer retains42 without calculating salary');

@@ -41,6 +41,17 @@ export const GRH_PUBLICATION_CONSUMERS = Object.freeze([
   ['scripts/migrations/057-family-schooling-certificates.sql','school_certificate_current_family_v1',{employment_status_snapshot:1},'current_cohort'],
   ['scripts/migrations/061-grh-core-source-version.sql','grh_core_source_base_rows_v1',{payroll_run:2,payroll_monthly_fact:1,employment_movement:1,payroll_snapshot_assignment:1,employment_status_snapshot:1},'preserve_immutable_baseline'],
   ['scripts/migrations/064-employee-family-members.sql','school_certificate_current_family_v2',{employment_status_snapshot:1},'current_cohort'],
+  ['scripts/migrations/096-grh-effective-source.sql','grh_effective_source_guard_v1',{payroll_run:3,payroll_monthly_fact:1,employment_movement:1},'publication_validation'],
+  ['scripts/migrations/096-grh-effective-source.sql','grh_effective_payroll_run_v1',{payroll_run:1},'preserve_real_run_identity'],
+  ['scripts/migrations/096-grh-effective-source.sql','grh_effective_payroll_monthly_fact_v1',{payroll_monthly_fact:1,payroll_run:2},'effective_history'],
+  ['scripts/migrations/096-grh-effective-source.sql','grh_effective_employment_movement_v1',{employment_movement:2},'effective_history'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','DO $patch_1$',{payroll_run:1},'patch_historical_definition'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','DO $patch_2$',{payroll_run:1},'patch_historical_definition'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','DO $patch_3$',{payroll_run:1},'patch_historical_definition'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','vw_empleado_actual',{employment_status_snapshot:1},'current_cohort'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','vw_payroll_snapshot_actual',{payroll_snapshot_assignment:2},'current_cohort'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','vw_estructura_actual',{employment_status_snapshot:1},'current_cohort'],
+  ['scripts/migrations/097-grh-effective-consumers.sql','vw_employment_status_control',{employment_status_snapshot:2},'current_cohort'],
 ].map(([file,symbol,relations,disposition]) => Object.freeze({file,symbol,relations:Object.freeze(relations),disposition})));
 
 const error = (code, details) => Object.assign(new Error(code), { code, details });

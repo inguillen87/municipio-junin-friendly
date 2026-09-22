@@ -1,0 +1,18 @@
+-- Minimal IAM/session fixtures; session guard007 and all schooling writers are real.
+CREATE TABLE platform_tenant(id uuid PRIMARY KEY,status text);
+CREATE TABLE internal_users(email text PRIMARY KEY,display_name text,active boolean,auth_mode text,identity_version integer);
+CREATE TABLE tenant_membership(id uuid PRIMARY KEY,tenant_id uuid,user_email text,role_key text,status text,UNIQUE(id,tenant_id));
+CREATE TABLE tenant_identity_session(id uuid PRIMARY KEY,user_email text,active_tenant_id uuid,session_version integer,identity_version integer,source text,auth_level text,status text,expires_at timestamptz,last_seen_at timestamptz);
+CREATE TABLE tenant_action_authority(membership_id uuid,tenant_id uuid);
+CREATE TABLE tenant_action_employment_link(membership_id uuid,tenant_id uuid,source_binding_id uuid,employment_contract_id uuid,active boolean);
+CREATE TABLE tenant_action_area_scope(id uuid,capability_key text,scope_level text,company_id bigint,organization_unit_source_id text,sector_source_id text,membership_id uuid,tenant_id uuid,source_binding_id uuid,active boolean);
+CREATE TABLE capabilities(membership_id uuid,capability_key text);
+ALTER TABLE person_identity ADD COLUMN full_name text;
+ALTER TABLE tenant_identity_policy ADD COLUMN certified_release_sha text;
+CREATE FUNCTION tenant_iam_assert_no_sod_conflict(uuid) RETURNS void LANGUAGE sql AS 'SELECT NULL::void';
+CREATE FUNCTION tenant_iam_effective_capabilities(mid uuid) RETURNS TABLE(capability_key text) LANGUAGE sql SET search_path=public,pg_temp AS $f$ SELECT c.capability_key FROM capabilities c WHERE c.membership_id=mid $f$;
+ALTER TABLE platform_tenant_source_binding ADD UNIQUE(id);
+ALTER TABLE person_identity ADD COLUMN cuil text,ADD COLUMN dni text,ADD COLUMN birth_date date,ADD COLUMN sex_code text,ADD COLUMN identity_state text;
+CREATE TABLE iam_capability(capability_key text PRIMARY KEY,label text,description text,scope_kind text,sensitivity text);
+CREATE TABLE iam_role(role_key text PRIMARY KEY,scope_kind text);
+CREATE TABLE iam_role_capability(role_key text,capability_key text);

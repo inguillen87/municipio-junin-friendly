@@ -25,6 +25,8 @@ function endpoint(overrides = {}) {
       email: 'budget-assistant@example.test',
       role: 'ADMIN_INTERNO',
     }),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: overrides.getInternalSql || (async () => {
       throw new Error('budget_approved no debe abrir Neon');
     }),
@@ -149,7 +151,9 @@ test('la consulta natural del presupuesto 2026 llega al recurso estático sin ab
         budgetCalls += 1;
         return budgetApproved();
       },
-      getInternalSql: async () => {
+      effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
+    getInternalSql: async () => {
         sqlCalls += 1;
         throw new Error('no debe abrir Neon');
       },
@@ -692,7 +696,9 @@ test('falla cerrado cuando la fuente oficial o el contrato decimal no superan va
           error: 'La fuente oficial del presupuesto aprobado no superó la validación de integridad.',
         },
       }),
-      getInternalSql: async () => { sqlCalls += 1; throw new Error('no debe abrir Neon'); },
+      effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
+    getInternalSql: async () => { sqlCalls += 1; throw new Error('no debe abrir Neon'); },
     },
   );
   assert.equal(sourceFailure.statusCode, 503);
@@ -725,6 +731,8 @@ test('GET publica budget_approved como recurso determinístico local', async () 
   let sqlCalls = 0;
   const res = responseRecorder();
   await endpoint({
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => { sqlCalls += 1; throw new Error('no debe abrir Neon'); },
   })({ method: 'GET', headers: {} }, res);
 

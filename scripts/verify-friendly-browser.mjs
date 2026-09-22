@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { friendlySourceProfile, renderedNumberPattern } from './lib/friendly-browser-source-profile.mjs';
+const expectedSource = friendlySourceProfile(process.env.QA_FRIENDLY_SOURCE_PROFILE || 'september-2026');
 import { chromium } from 'playwright';
 import { INTERNAL_SESSION_COOKIE, issueInternalSessionToken } from '../lib/internal-session.js';
 
@@ -153,12 +155,27 @@ async function assertPageHealthy(page, label) {
   );
 }
 
+async function waitForNumber(page, selector, expected) {
+  await page.waitForFunction(({selector,expected}) => Number((document.querySelector(selector)?.textContent || '').replace(/[^0-9]/g,'')) === expected,{selector,expected});
+}
+function assertSource(source) {
+  assert.equal(String(source.cutoff || source.sourceCutoff || '').slice(0,10),expectedSource.cutoff,'La API debe usar el corte aprobado');
+  assert.equal(source.sha256?.toLowerCase(),expectedSource.sha256,'La API debe usar el respaldo aprobado');
+}
+async function verifyPublicSource() {
+  const context=await browser.newContext();
+  try { const response=await context.request.get(baseUrl+'/friendly-data.json');assert.equal(response.status(),200);const source=await response.json();
+    assert.equal(source.source.sha256.toLowerCase(),expectedSource.sha256);
+    assert.equal(source.source.snapshotAt.slice(0,10),expectedSource.cutoff);
+    assert.equal(source.workforce.historicalRecords,expectedSource.historicalRecords);
+    assert.equal(source.workforce.active,expectedSource.activeProxy);
+    assert.equal(source.absence.totalEvents,expectedSource.absenceEvents);
+    assert.equal(source.privacy.containsPersonRows,false);
+  } finally {await context.close();}
+}
 async function waitForPublicDashboard(page) {
   await page.waitForSelector('#dashboard:not([hidden])');
-  await page.waitForFunction(() => {
-    const value = document.querySelector('#kpiHistorical')?.textContent || '';
-    return /2[.\s]?450/.test(value);
-  });
+  await waitForNumber(page, '#kpiHistorical', expectedSource.historicalRecords);
 }
 
 async function assertLoadingCollapsed(page) {
@@ -243,9 +260,11 @@ async function verifyPublicPages(viewport, suffix) {
 
     await page.goto(`${baseUrl}/reportes-rrhh`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#reportContent:not([hidden])');
-    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#metricHistorical')?.textContent || ''));
-    assert.match(await page.locator('#metricActive').innerText(), /882/);
-    assert.match(await page.locator('#metricAbsences').innerText(), /31[.\s]?572/);
+    await page.locator('.rc-overview summary').click();
+    await waitForNumber(page, '#metricHistorical', expectedSource.historicalRecords);
+    assert.match(await page.locator('#metricActive').innerText(), renderedNumberPattern(expectedSource.activeProxy));
+    assert.match(await page.locator('#metricAbsences').innerText(), renderedNumberPattern(expectedSource.absenceEvents));
+    await page.getByRole('tab', { name: 'Informe completo', exact: true }).click();
     assert.ok(await page.locator('#managementChart svg').count() > 0, 'El informe debe renderizar el grafico de movimientos');
     assert.ok(await page.locator('#absenceBars > *').count() > 0, 'El informe debe renderizar ausentismo');
     assert.ok(await page.locator('#sectorList > *').count() > 0, 'El informe debe renderizar sectores');
@@ -377,7 +396,7 @@ async function loginInternal(page) {
   if (!hasCredentials) {
     await page.goto(`${baseUrl}/internal`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#appShell:not([hidden])');
-    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#kpiHistorical [data-value]')?.textContent || ''));
+    await waitForNumber(page, '#kpiHistorical [data-value]', expectedSource.historicalRecords);
     return;
   }
   await page.goto(`${baseUrl}/login?next=internal-dashboard.html`, { waitUntil: 'domcontentloaded' });
@@ -386,7 +405,7 @@ async function loginInternal(page) {
   await page.locator('#loginForm').evaluate((form) => form.requestSubmit());
   await page.waitForURL((url) => /\/internal-dashboard(?:\.html)?$/.test(url.pathname));
   await page.waitForSelector('#appShell:not([hidden])');
-  await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#kpiHistorical [data-value]')?.textContent || ''));
+  await waitForNumber(page, '#kpiHistorical [data-value]', expectedSource.historicalRecords);
 }
 
 async function verifyAuthenticatedInternal() {
@@ -396,8 +415,26 @@ async function verifyAuthenticatedInternal() {
   );
   try {
     await loginInternal(page);
-    assert.match(await page.locator('#kpiActive [data-value]').innerText(), /882/);
-    assert.match(await page.locator('#kpiAbsence [data-value]').innerText(), /31[.\s]?572/);
+    const integrationResponse=await context.request.get(`${baseUrl}/api/internal-data?resource=integrationquality`);
+    assert.equal(integrationResponse.status(),200);
+    const integrationPayload=await integrationResponse.json();
+    assertSource(integrationPayload.source);
+    assert.equal(integrationPayload.workforceControl.administrative.value,expectedSource.activeProxy,'Proxy administrativo al corte');
+    assert.equal(integrationPayload.workforceControl.liquidable.value,expectedSource.payrollSnapshot,'Inclusión en la última corrida observada; no es el proxy administrativo');
+    assert.equal(integrationPayload.workforceControl.difference.value,expectedSource.activeProxy-expectedSource.payrollSnapshot);
+    for(const [check,passed]of Object.entries(integrationPayload.workforceControl.checks))assert.equal(passed,true,'Workforce reconciliation: '+check);
+    const payrollResponse=await context.request.get(`${baseUrl}/api/internal-data?resource=payrollcontrol`);
+    assert.equal(payrollResponse.status(),200);
+    const payrollPayload=await payrollResponse.json();
+    assertSource(payrollPayload.source);
+    assert.equal(payrollPayload.latestClosed.month.slice(0,7),expectedSource.lastClosedMonth.slice(0,7));
+    assert.equal(payrollPayload.latestClosed.closureStatus,'closed');
+    assert.equal(payrollPayload.currentOpen.month.slice(0,7),expectedSource.currentOpenMonth.slice(0,7));
+    assert.equal(payrollPayload.currentOpen.closureStatus,'open');
+    assert.equal(payrollPayload.currentOpen.executivePublishable,false);
+    assert.equal(payrollPayload.quality.openRunsPublished,0);
+    assert.match(await page.locator('#kpiActive [data-value]').innerText(), renderedNumberPattern(expectedSource.activeProxy));
+    assert.match(await page.locator('#kpiAbsence [data-value]').innerText(), renderedNumberPattern(expectedSource.absenceEvents));
     assert.notEqual((await page.locator('#userName').innerText()).trim(), 'Cargando…');
     await page.waitForSelector('[data-mc-open-guide]');
     assert.equal(await page.locator('a[href*="centro-ayuda"]').count() > 0, true, 'El portal debe enlazar el centro de ayuda');
@@ -605,7 +642,7 @@ async function verifyAuthenticatedInternal() {
 
     await page.goto(`${baseUrl}/estructura`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#app:not([hidden])');
-    await page.waitForFunction(() => /2[.\s]?450/.test(document.querySelector('#metricHistorical')?.textContent || ''));
+    await waitForNumber(page, '#metricHistorical', expectedSource.historicalRecords);
     assert.ok(await page.locator('#organizationRows tr').count() > 0, 'Estructura debe listar organizaciones observadas');
     assert.ok(await page.locator('#sectorRows').count() === 1, 'Estructura debe incluir la vista de sectores');
     await assertPageHealthy(page, 'Estructura desktop');
@@ -616,25 +653,21 @@ async function verifyAuthenticatedInternal() {
     const managementResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=managementanalytics`);
     assert.equal(managementResponse.status(), 200, 'La comparativa de gestiones debe aceptar la sesion interna');
     const managementPayload = await managementResponse.json();
-    assert.deepEqual(managementPayload.data.periods.previousComparable.range, { from: '2019-12-10', to: '2022-08-07' });
-    assert.deepEqual(managementPayload.data.periods.current.range, { from: '2023-12-09', to: '2026-08-06' });
-    assert.equal(managementPayload.data.periods.previousComparable.elapsedDays, 972);
-    assert.equal(managementPayload.data.periods.current.elapsedDays, 972);
-    assert.deepEqual(
-      {
-        previous: [managementPayload.data.periods.previousComparable.hires, managementPayload.data.periods.previousComparable.exits],
-        current: [managementPayload.data.periods.current.hires, managementPayload.data.periods.current.exits],
-      },
-      { previous: [217, 173], current: [281, 232] },
-    );
-    assert.equal(managementPayload.data.calendarYears.find((row) => row.year === 2019).hires, 4);
-    assert.equal(managementPayload.data.calendarYears.find((row) => row.year === 2019).exits, 4);
-    assert.equal(managementPayload.data.payrollComparison.previous.contractMonths, 24117);
-    assert.equal(managementPayload.data.payrollComparison.current.contractMonths, 24892);
-    assert.equal(managementPayload.data.payrollComparison.previous.alignedEvents, 3244);
-    assert.equal(managementPayload.data.payrollComparison.current.alignedEvents, 5728);
-    assert.equal(managementPayload.data.payrollComparison.previous.eventsPer100ContractMonths, 13.45);
-    assert.equal(managementPayload.data.payrollComparison.current.eventsPer100ContractMonths, 23.01);
+    assert.equal(managementPayload.meta.sourceCutoff,expectedSource.cutoff);
+    assert.deepEqual(managementPayload.data.periods.previousComparable.range,{from:'2019-12-10',to:expectedSource.previousComparableTo});
+    assert.deepEqual(managementPayload.data.periods.current.range,{from:'2023-12-09',to:expectedSource.cutoff});
+    assert.equal(managementPayload.data.periods.previousComparable.elapsedDays,expectedSource.elapsedDays);
+    assert.equal(managementPayload.data.periods.current.elapsedDays,expectedSource.elapsedDays);
+    assert.equal(managementPayload.data.periods.current.hires,expectedSource.currentHires);
+    assert.equal(managementPayload.data.periods.current.exits,expectedSource.currentExits);
+    assert.equal(managementPayload.data.periods.current.balance,expectedSource.currentHires-expectedSource.currentExits);
+    for(const period of Object.values(managementPayload.data.periods))assert.equal(period.balance,period.hires-period.exits);
+    for(const [key,passed]of Object.entries(managementPayload.quality.reconciliations))assert.equal(passed,true,'Management reconciliation: '+key);
+    for(const period of Object.values(managementPayload.data.payrollComparison).filter(value=>value&&typeof value==='object'&&'contractMonths'in value)){
+      assert.ok(period.contractMonths>0);assert.equal(period.eventsPer100ContractMonths,Math.round(period.alignedEvents/period.contractMonths*10000)/100);
+    }
+    assert.equal(managementPayload.quality.lastClosedPayrollPeriod.slice(0,7),expectedSource.lastClosedMonth.slice(0,7));
+    assert.equal(managementPayload.quality.latestOpenPayrollPeriod.slice(0,7),expectedSource.currentOpenMonth.slice(0,7));
     assert.equal(managementPayload.data.sectors.mapping.id, 'garden_sector_family_v1');
     assert.equal(managementPayload.data.sectors.mapping.reversible, true);
     assert.equal(managementPayload.data.budget.available, true);
@@ -646,11 +679,11 @@ async function verifyAuthenticatedInternal() {
 
     await page.goto(`${baseUrl}/gestion-comparativa`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mainView:not([hidden])');
-    await page.waitForFunction(() => /972/.test(document.querySelector('#periodRail')?.textContent || ''));
-    assert.match(await page.locator('#movementLedger').innerText(), /217/);
-    assert.match(await page.locator('#movementLedger').innerText(), /281/);
-    assert.match(await page.locator('#absencePairs').innerText(), /13[,.]45/);
-    assert.match(await page.locator('#absencePairs').innerText(), /23[,.]01/);
+    await page.waitForFunction(value => (document.querySelector('#periodRail')?.textContent || '').includes(String(value)),expectedSource.elapsedDays);
+    assert.match(await page.locator('#movementLedger').innerText(), renderedNumberPattern(managementPayload.data.periods.previousComparable.hires));
+    assert.match(await page.locator('#movementLedger').innerText(), renderedNumberPattern(expectedSource.currentHires));
+    assert.match(await page.locator('#absencePairs').innerText(), renderedNumberPattern(managementPayload.data.payrollComparison.previous.eventsPer100ContractMonths));
+    assert.match(await page.locator('#absencePairs').innerText(), renderedNumberPattern(managementPayload.data.payrollComparison.current.eventsPer100ContractMonths));
     assert.match(await page.locator('#mappingNote').innerText(), /jardines|agrupaci[oó]n|homolog/i);
     assert.match(await page.locator('#budgetCard').innerText(), /31[.\s]?854[.\s]?092[.\s]?000|Aprobado disponible/i);
     assert.match(await page.locator('#budgetCard').innerText(), /ejecución.*pendiente|fuente pendiente/is);
@@ -700,8 +733,8 @@ async function verifyAuthenticatedInternal() {
     assert.equal(leavePayload.data.legal.version, 'mendoza-ley-5811-title-vi.v1');
     assert.equal(leavePayload.data.legal.sources.length, 7);
     assert.deepEqual(leavePayload.data.legal.applicability.supportedEvaluationYears, [2026]);
-    assert.equal(leavePayload.data.readiness.employment.records, 2450);
-    assert.equal(leavePayload.data.readiness.absences.sourceRows, 31572);
+    assert.equal(leavePayload.data.readiness.employment.records, expectedSource.historicalRecords);
+    assert.equal(leavePayload.data.readiness.absences.sourceRows, expectedSource.absenceEvents);
     assert.equal(leavePayload.data.readiness.legacyLeaves.status, 'historical_not_current_ledger');
     assert.equal(leavePayload.data.readiness.workedHours.status, 'not_calculable');
     assert.equal(leavePayload.data.readiness.leaveBalance.status, 'not_calculable');
@@ -714,31 +747,29 @@ async function verifyAuthenticatedInternal() {
     assert.match(await page.locator('#limitationsList').innerText(), /horas|saldo|aprob/i);
     await assertPageHealthy(page, 'Licencias normativas mobile');
 
-    const absenceResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=absenceanalytics&from=2026-01-01&to=2026-08-06&bucket=month`);
+    const absenceResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=absenceanalytics&from=2026-01-01&to=${expectedSource.cutoff}&bucket=month`);
     assert.equal(absenceResponse.status(), 200, 'Ausentismo agregado debe aceptar la sesión interna');
     const absencePayload = await absenceResponse.json();
-    assert.deepEqual(absencePayload.data.summary, {
-      events: 1559,
-      affectedContracts: 590,
-      sourceDeclaredDays: 17400,
-    });
-    assert.equal(absencePayload.data.comparison.changePercent.events, 17.1);
+    assert.equal(absencePayload.data.summary.events,expectedSource.absence2026);
+    assert.equal(absencePayload.data.summary.affectedContracts,expectedSource.affected2026);
+    assert.ok(Number.isFinite(absencePayload.data.summary.sourceDeclaredDays));
+    assert.equal(absencePayload.quality.sourceCutoff,expectedSource.cutoff);
     assert.equal(absencePayload.meta.ratesAvailable, false);
 
     await page.goto(`${baseUrl}/ausentismo-control?from=1980-01-01&to=2027-12-31`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mainContent:not([hidden])');
-    await page.waitForFunction(() => new URL(location.href).searchParams.get('from') === '1990-01-01'
-      && new URL(location.href).searchParams.get('to') === '2026-08-06');
+    await page.waitForFunction(cutoff => new URL(location.href).searchParams.get('from') === '1990-01-01'
+      && new URL(location.href).searchParams.get('to') === cutoff,expectedSource.cutoff);
     assert.equal(await page.locator('#fromInput').inputValue(), '1990-01-01');
-    assert.equal(await page.locator('#toInput').inputValue(), '2026-08-06');
+    assert.equal(await page.locator('#toInput').inputValue(), expectedSource.cutoff);
     assert.match(await page.locator('#filterSummary').innerText(), /rango ajustado/i);
     await assertPageHealthy(page, 'Ausentismo con rango ajustado');
 
-    await page.goto(`${baseUrl}/ausentismo-control?from=2026-01-01&to=2026-08-06`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${baseUrl}/ausentismo-control?from=2026-01-01&to=${expectedSource.cutoff}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mainContent:not([hidden])');
-    await page.waitForFunction(() => /1[.\s]?559/.test(document.querySelector('#eventsValue')?.textContent || ''));
-    assert.match(await page.locator('#contractsValue').innerText(), /590/);
-    assert.match(await page.locator('#daysValue').innerText(), /17[.\s]?400/);
+    await waitForNumber(page,'#eventsValue',expectedSource.absence2026);
+    assert.match(await page.locator('#contractsValue').innerText(), renderedNumberPattern(expectedSource.affected2026));
+    assert.match(await page.locator('#daysValue').innerText(), renderedNumberPattern(absencePayload.data.summary.sourceDeclaredDays));
     assert.match(await page.locator('#comparisonBadge').innerText(), /Mismo rango calendario/i);
     assert.match(await page.locator('#sourceLabel').innerText(), /GRH/i);
     assert.ok(await page.locator('#eventRows a[href*="contractId="]').count() > 0, 'Cada evento vinculado debe abrir su ficha canónica');
@@ -758,51 +789,48 @@ async function verifyAuthenticatedInternal() {
     const qualityResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=qualityoverview`);
     assert.equal(qualityResponse.status(), 200, 'Calidad agregada debe aceptar la sesión interna');
     const qualityPayload = await qualityResponse.json();
-    assert.deepEqual(qualityPayload.data.issues.bySeverity, {
-      info: 0, warning: 581, error: 8, critical: 0,
-    });
-    assert.equal(qualityPayload.data.issues.total, 589);
-    assert.equal(qualityPayload.data.issues.open, 589);
-    assert.deepEqual(
-      Object.fromEntries(Object.entries(qualityPayload.data.domains).map(([key, value]) => [key, value.registeredIssues])),
-      { payrollCoherence: 556, identityCuil: 25, dates: 8 },
-    );
-    assert.deepEqual(qualityPayload.data.crosswalk, {
-      total: 2349, matched: 1699, ambiguous: 157, unmatched: 493, rejected: 0, reconciled: true,
-    });
+    for(const count of Object.values(qualityPayload.data.issues.bySeverity))assert.ok(Number.isSafeInteger(count)&&count>=0);
+    assert.equal(qualityPayload.data.reconciliation.totalMatchesSeverity,true);
+    assert.equal(qualityPayload.data.reconciliation.totalMatchesDomains,true);
+    assert.equal(qualityPayload.data.crosswalk.reconciled,true);
+    assert.equal(qualityPayload.data.crosswalk.total,Object.entries(qualityPayload.data.crosswalk).filter(([key])=>['matched','ambiguous','unmatched','rejected'].includes(key)).reduce((total,[,value])=>total+value,0));
+    assert.equal(qualityPayload.meta.zeroTrackedIssuesDoesNotMeanClean,true);
+    const expectedErrors=qualityPayload.data.issues.bySeverity.error;
 
     const qualityIssuesResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=qualityissues&severity=error&limit=50`);
     assert.equal(qualityIssuesResponse.status(), 200);
     const qualityIssuesPayload = await qualityIssuesResponse.json();
-    assert.equal(qualityIssuesPayload.pagination.total, 8);
-    assert.equal(qualityIssuesPayload.data.length, 8);
+    assert.equal(qualityIssuesPayload.pagination.total, expectedErrors);
+    assert.equal(qualityIssuesPayload.data.length, Math.min(50,expectedErrors));
     assert.equal(qualityIssuesPayload.data.every((row) => row.severity === 'error'), true);
     assert.doesNotMatch(JSON.stringify(qualityIssuesPayload.data), /"(?:observedValue|sourceId|canonicalId|details|resolutionNote|dni|cuil|name|nombre)"\s*:/i);
 
     const lineageResponse = await context.request.get(`${baseUrl}/api/internal-data?resource=importlineage`);
     assert.equal(lineageResponse.status(), 200);
     const lineagePayload = await lineageResponse.json();
-    assert.equal(lineagePayload.summary.publishedBatches, 2);
-    const grhLineage = lineagePayload.data.find((row) => row.source === 'GRH');
+    assert.equal(lineagePayload.summary.publishedBatches, lineagePayload.data.length);
+    const grhLineage = lineagePayload.data.find((row) => row.source === 'GRH' && row.sha256Prefix?.toLowerCase()===expectedSource.sha256.slice(0,12));
+    assert.ok(grhLineage,'El lote GRH aprobado debe conservar su huella en linaje');
+    assert.equal(grhLineage.cutoff.slice(0,10),expectedSource.cutoff);
     const personasLineage = lineagePayload.data.find((row) => row.source === 'PERSONAS');
-    assert.equal(grhLineage.sourceRowCount, null);
-    assert.equal(grhLineage.sourceRowCountStatus, 'not_reported');
+    if(grhLineage.sourceRowCount===null)assert.equal(grhLineage.sourceRowCountStatus,'not_reported');
+    else {assert.ok(Number.isSafeInteger(grhLineage.sourceRowCount)&&grhLineage.sourceRowCount>0);assert.equal(grhLineage.sourceRowCountStatus,'reported');}
     assert.equal(personasLineage.sourceRowCount, 96777);
     assert.equal(personasLineage.trackedIssuesStatus, 'controls_not_materialized');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${baseUrl}/calidad-operativa`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mainContent:not([hidden])');
-    await page.waitForFunction(() => /589/.test(document.querySelector('#registeredValue')?.textContent || ''));
-    assert.match(await page.locator('#warningValue').innerText(), /581/);
-    assert.match(await page.locator('#errorValue').innerText(), /8/);
+    await waitForNumber(page,'#registeredValue',qualityPayload.data.issues.total);
+    assert.match(await page.locator('#warningValue').innerText(), renderedNumberPattern(qualityPayload.data.issues.bySeverity.warning));
+    assert.match(await page.locator('#errorValue').innerText(), renderedNumberPattern(expectedErrors));
     assert.match(await page.locator('#sourceChip').innerText(), /GRH.*PERSONAS|PERSONAS.*GRH/i);
-    assert.match(await page.locator('#lineageRows').innerText(), /No informado/i, 'GRH nulo no debe mostrarse como cero');
+    if(grhLineage.sourceRowCount===null)assert.match(await page.locator('#lineageRows').innerText(), /No informado/i,'GRH nulo no debe mostrarse como cero');
     assert.match(await page.locator('#domainGrid').innerText(), /no evaluado|no están materializados|no equivale a calidad perfecta/i);
     await page.locator('#severitySelect').selectOption('error');
     await page.locator('#filterForm').evaluate((form) => form.requestSubmit());
-    await page.waitForFunction(() => /^8\s/.test(document.querySelector('#resultCount')?.textContent || ''));
-    assert.equal(await page.locator('#issueRows tr').count(), 8);
+    await page.waitForFunction(value => Number((document.querySelector('#resultCount')?.textContent || '').split(/\s/)[0].replace(/\./g,''))===value,expectedErrors);
+    assert.equal(await page.locator('#issueRows tr').count(), Math.min(25,expectedErrors));
     await assertPageHealthy(page, 'Calidad operativa desktop');
     await page.setViewportSize({ width: 390, height: 844 });
     await assertPageHealthy(page, 'Calidad operativa mobile');
@@ -820,8 +848,8 @@ async function verifyAuthenticatedInternal() {
     assert.equal(operationalAssistant.queryPlan.version, 'municipal_query_plan.v1');
     assert.equal(operationalAssistant.queryPlan.resource, 'summary');
     assert.equal(operationalAssistant.data.grain, 'employment_record_by_company_and_legajo');
-    assert.equal(operationalAssistant.data.workforce.historicalRecords, 2450);
-    assert.equal(operationalAssistant.data.workforce.activeRecords, 882);
+    assert.equal(operationalAssistant.data.workforce.historicalRecords, expectedSource.historicalRecords);
+    assert.equal(operationalAssistant.data.workforce.activeRecords, expectedSource.activeProxy);
 
     const structureAssistant = await askAssistant('Mostrame la estructura del sector OBRERO');
     assert.equal(structureAssistant.intent, 'structure_analysis');
@@ -833,11 +861,11 @@ async function verifyAuthenticatedInternal() {
     const managementAssistant = await askAssistant('Compará la gestión actual con la anterior usando el mismo tiempo transcurrido');
     assert.equal(managementAssistant.intent, 'management_comparison');
     assert.equal(managementAssistant.queryPlan.resource, 'managementanalytics');
-    assert.equal(managementAssistant.data.comparison.elapsedDays, 972);
-    assert.equal(managementAssistant.data.periods.previousComparable.hires, 217);
-    assert.equal(managementAssistant.data.periods.current.hires, 281);
-    assert.equal(managementAssistant.data.payrollComparison.previous.eventsPer100ContractMonths, 13.45);
-    assert.equal(managementAssistant.data.payrollComparison.current.eventsPer100ContractMonths, 23.01);
+    assert.equal(managementAssistant.data.comparison.elapsedDays, expectedSource.elapsedDays);
+    assert.equal(managementAssistant.data.periods.previousComparable.hires, managementPayload.data.periods.previousComparable.hires);
+    assert.equal(managementAssistant.data.periods.current.hires, expectedSource.currentHires);
+    assert.equal(managementAssistant.data.payrollComparison.previous.eventsPer100ContractMonths, managementPayload.data.payrollComparison.previous.eventsPer100ContractMonths);
+    assert.equal(managementAssistant.data.payrollComparison.current.eventsPer100ContractMonths, managementPayload.data.payrollComparison.current.eventsPer100ContractMonths);
     assert.match(managementAssistant.answer, /no es tasa de ausentismo/i);
     assert.equal(managementAssistant.targetPath, '/gestion-comparativa');
     assert.equal(managementAssistant.privacy.nominalDataExternalized, false);
@@ -889,16 +917,16 @@ async function verifyAuthenticatedInternal() {
     await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
     await page.waitForSelector('.message.assistant .answer-text');
     const assistantText = await page.locator('.message.assistant .answer-text').last().innerText();
-    assert.match(assistantText, /882/);
-    assert.match(assistantText, /854/);
-    assert.match(assistantText, /28/);
+    assert.match(assistantText, renderedNumberPattern(integrationPayload.workforceControl.administrative.value));
+    assert.match(assistantText, renderedNumberPattern(integrationPayload.workforceControl.liquidable.value));
+    assert.match(assistantText, renderedNumberPattern(integrationPayload.workforceControl.difference.value));
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH/i, 'El asistente debe mostrar una fuente GRH real');
 
     await page.locator('#messageInput').fill('Analiza los eventos de ausencia del ultimo periodo disponible');
     await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
     await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 2);
     const absenceAssistantText = await page.locator('.message.assistant .answer-text').last().innerText();
-    assert.match(absenceAssistantText, /1[.\s]?559/);
+    assert.match(absenceAssistantText, renderedNumberPattern(expectedSource.absence2026));
     assert.match(absenceAssistantText, /no constituyen una tasa|no jornadas perdidas/i);
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /grh_absences|GRH/i);
 
@@ -906,8 +934,8 @@ async function verifyAuthenticatedInternal() {
     await page.locator('#assistantForm').evaluate((form) => form.requestSubmit());
     await page.waitForFunction(() => document.querySelectorAll('.message.assistant .answer-text').length >= 3);
     const qualityAssistantText = await page.locator('.message.assistant .answer-text').last().innerText();
-    assert.match(qualityAssistantText, /589/);
-    assert.match(qualityAssistantText, /581/);
+    assert.match(qualityAssistantText, renderedNumberPattern(qualityPayload.data.issues.total));
+    assert.match(qualityAssistantText, renderedNumberPattern(qualityPayload.data.issues.bySeverity.warning));
     assert.match(qualityAssistantText, /no evaluado.*no puede interpretarse como calidad perfecta/i);
     assert.match(await page.locator('.message.assistant .sources').last().innerText(), /GRH|PERSONAS/i);
 
@@ -1027,6 +1055,7 @@ async function verifyAuthenticatedInternal() {
 }
 
 try {
+  await verifyPublicSource();
   await verifyPublicDesktop();
   await verifyPublicMobile();
   await verifyPublicPages({ width: 1440, height: 900 }, 'desktop');
@@ -1037,6 +1066,7 @@ try {
   await verifyAuthenticatedInternal();
 
   assertNoBrowserIssues('QA interna autenticada');
+  console.log(`Fuente aprobada: ${expectedSource.name}; proxy activo ${expectedSource.activeProxy}; foto nómina ${expectedSource.payrollSnapshot}; sin información nominal en evidencia.`);
   console.log('Friendly browser QA: OK (plataforma pública + portal nominal + acciones + gestiones + ausentismo + licencias + calidad + ficha + IA + onboarding; desktop y 390 px)');
 } finally {
   await browser.close();

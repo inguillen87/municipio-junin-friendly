@@ -27,7 +27,7 @@ test('an unknown API, a new function and a repeated direct read fail coverage',(
   for(const [file,suffix,code] of [
     ['api/new-source-reader.js','export function read(){ return `SELECT * FROM payroll_monthly_fact`; }','GRH_CONSUMER_UNCATALOGUED'],
     ['api/internal-data.js','\nexport function accidentalLatest(){ return `SELECT * FROM payroll_run`; }','GRH_CONSUMER_UNCATALOGUED'],
-    ['lib/workforce-operational-scope.js',null,'GRH_CONSUMER_NEW_DIRECT_REFERENCE'],
+    ['scripts/migrations/002-canonical-integration.sql',null,'GRH_CONSUMER_NEW_DIRECT_REFERENCE'],
   ]){
     const changed={...sources};
     changed[file]=suffix===null ? sources[file].replace('FROM payroll_run r','FROM payroll_run r JOIN payroll_run second_run ON true') : (sources[file]||'')+suffix;

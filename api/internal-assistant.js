@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 
 import { getInternalSql } from '../lib/internal-neon.js';
+import { directorySourceBinding, effectiveSourceSnapshot, assertEffectiveSourceSnapshot } from '../lib/workforce-operational-scope.js';
 import { requireInternalSession } from '../lib/internal-session.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import {
@@ -997,7 +998,7 @@ async function resolveAbsenceReason(sql, value) {
   const rows = await sql.query(`
     /* assistant:resolve-absence-reason */
     SELECT source_payload #>> '{sourceKey,reasonCode}' AS code, label
-      FROM grh_catalog_rows
+      FROM grh_effective_catalog_rows_v1
      WHERE catalog = 'absence_reasons'
        AND translate(lower(label), 'áéíóúüñ', 'aeiouun') LIKE $1 ESCAPE '\\'
      GROUP BY source_payload #>> '{sourceKey,reasonCode}', label
@@ -3824,6 +3825,8 @@ function capabilitiesPayload() {
 
 export function createInternalAssistantHandler(dependencies = {}) {
   const getSql = dependencies.getInternalSql ?? getInternalSql;
+  const captureSource = dependencies.effectiveSourceSnapshot ?? effectiveSourceSnapshot;
+  const validateSource = dependencies.assertEffectiveSourceSnapshot ?? assertEffectiveSourceSnapshot;
   const requireSession = dependencies.requireInternalSession ?? requireInternalSession;
   const requireAccess = dependencies.requireCompatibleInternalAccess
     ?? (dependencies.requireInternalSession
@@ -4082,10 +4085,13 @@ export function createInternalAssistantHandler(dependencies = {}) {
           };
       } else {
         const sql = await getSql();
+        const sourceBinding = { ...directorySourceBinding(env), tenantId: access.principal?.tenant?.id };
+        const sourceSnapshot = await captureSource(sql, sourceBinding);
         if (plan.filters.reason && !plan.filters.reasonCode
             && ['absence_analysis', 'absence_event_list'].includes(intent)) {
           const resolution = await tracked('absence_reason_catalog', () => resolveReason(sql, plan.filters.reason));
           if (resolution.status !== 'resolved') {
+            await validateSource(sql, sourceBinding, sourceSnapshot);
             return respond(409, {
               ok: false,
               intent,
@@ -4210,6 +4216,7 @@ export function createInternalAssistantHandler(dependencies = {}) {
         } else {
           result = productGuidanceResult('out_of_scope', body);
         }
+        await validateSource(sql, sourceBinding, sourceSnapshot);
       }
 
       if (result.status && result.status !== 200) {
@@ -4296,6 +4303,10 @@ export function createInternalAssistantHandler(dependencies = {}) {
       }
       if (error instanceof TypeError && error.message === 'request_body_invalid') {
         return respond(400, { ok: false, code: 'INVALID_BODY', error: 'El cuerpo debe ser un objeto JSON' });
+      }
+      if (error?.code === 'GRH_SOURCE_CHANGED') {
+        return respond(503, { ok: false, intent: observedIntent, code: 'GRH_SOURCE_CHANGED',
+          error: 'La fuente se actualizó durante la consulta. Volvé a consultar para recibir un resultado completo.' });
       }
       return respond(503, {
         ok: false,

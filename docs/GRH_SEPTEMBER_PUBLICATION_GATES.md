@@ -1,102 +1,62 @@
-# Publicación S11: contratos de lectura y controles técnicos
+# Publicación coordinada de la fuente GRH de septiembre
 
-Estado de partida: `1ee4ab2`, fuente operativa GRH del 06/08/2026. S11 es el respaldo del **10/09/2026 15:17:30**, con referencia de nómina septiembre abierta; no acredita información posterior al día 10. La autorización del usuario ya existe. Este documento no agrega aprobaciones ni un circuito administrativo: identifica incompatibilidades que debe resolver el publicador.
+Este documento describe el cambio y sus gates. No constituye un recibo de publicación: el commit, los resultados de CI, la instalación y la lectura posterior en producción se certifican por separado.
 
-**Esta entrega es preparación verificable, no activación.** No cambia lectores productivos, fuentes activas, bases, conexiones ni planes. Los resultados locales y el inventario no sustituyen la prueba de publicación completa.
+El respaldo S11 tiene corte **10/09/2026 15:17:30**, huella lógica **5a604acfe5ea32832b630d8aab29e494038d4c8940b231e283a53d14112665c7**. La nómina de septiembre está abierta; agosto es el último mes cerrado. El corte no acredita datos posteriores al día 10, pagos ni liquidaciones calculadas por MuniControl. Detalles, documentos, bancos y homologaciones conservan sus fuentes propias.
 
-## Preflight ejecutable, sin conexión
+## Evidencia y almacenamiento
 
-```text
-node scripts/lib/grh-publication-consumers.mjs --require-covered
-node --test tests/grh-publication-consumers.test.js
-```
+La copia privada de producción PG17 se restauró con 167 tablas, 893.963 filas y 380 funciones, conservando dueños y permisos. El ajuste de search_path fue de la sesión de restauración. El ensayo con copia completa de curadas y staging alcanzó 586.289.540 bytes y fue revertido por capacidad, manteniendo agosto operativo.
 
-El módulo inspecciona `api/`, `lib/` y `scripts/migrations/`, sin leer entornos, respaldos ni credenciales. El inventario inicial cubre **26 consumidores y 65 sitios FROM/JOIN** de las cinco tablas históricas y sus vistas. Informa archivo, función/vista, relación y línea; falla ante un consumidor nuevo, una referencia adicional o un archivo esperado ausente. Reducir referencias al adaptar un lector es válido. Las migraciones históricas no deben reescribirse para dejar verde el control.
+La alternativa compacta conserva las tablas originales, sus claves y su staging. Guarda diferencias selladas, referencias reales de corridas, la foto actual y la conciliación. El ensayo integral del 22/09 reconstruyó exactamente las cinco entidades de la fuente mediante conteos y huellas; alcanzó 509.003.304 bytes para todas las bases/templates del cluster local. Conservó el límite de 512 MiB y la reserva permanente de 16 MiB. El crecimiento y la capacidad deben volver a medirse en cada destino.
 
-`coverageComplete:true` significa únicamente que las referencias detectadas están inventariadas. El informe mantiene `publicationReady:false` y `databaseChecked:false`: no certifica que una definición histórica sea la instalada ni que esté adaptada. No usa comentarios, marcas, permisos nuevos o firmas manuales como prueba de adaptación. Es análisis léxico de SQL literal; SQL construido dinámicamente, llamadas indirectas y cuerpos instalados se verifican con PostgreSQL. Las referencias que permanecen se muestran incluso cuando la cobertura pasa.
-
-## Inventario y cambio requerido
-
-Los nombres exactos y multiplicidades están en `GRH_PUBLICATION_CONSUMERS`. Los siguientes grupos indican el comportamiento que debe demostrar cada adaptación.
-
-| Archivo / contrato | Lectura actual | Resultado requerido |
-|---|---|---|
-| `api/internal-data.js`: `payrollControl` | `vw_liquidacion_mensual`, `vw_nomina_totales`; fuente por fecha máxima | Totales y metadatos de la misma selección explícita; septiembre abierto nunca publicable como gasto cerrado. |
-| `api/internal-data.js`: `managementAnalytics` | Hechos/corridas/movimientos originales | Comparaciones temporales dentro de una única revisión; no sumar base y candidato. Preservar límites de calidad y denominadores. |
-| `api/internal-data.js`: `integrationQuality`, `directoryBaseSql`, `employee` | Estado/foto por fecha máxima; movimientos originales | Cohorte actual publicada y foto correspondiente; historial de movimientos de la revisión elegida. Mantener rama `MUNICONTROL` y UUID de cada persona/contrato. |
-| `lib/workforce-operational-scope.js`: `operationalDirectorySql` | Igualdad de lote contrato/corrida/hecho | Último cierre y sus contratos desde la selección efectiva. Rotar sólo el lote del contrato dejaría este conjunto vacío. |
-| `002`: `vw_nomina_totales`, `vw_liquidacion_mensual`, `vw_dotacion_cierre_mensual`, `vw_movimientos_legajo` | Tablas base completas | Fachadas equivalentes sobre una revisión. Conservar `numeric`, NULL, grano de negocio, cierre y procedencia. |
-| `002`: `vw_empleado_actual`, `vw_dotacion_mensual`, `vw_payroll_snapshot_actual`, `vw_estructura_actual`, `vw_employment_status_control` | Snapshot/estado más reciente sin selección común | Foto y conciliación actuales verificadas; el historial administrativo anterior permanece. No convertir ausencia de foto salarial en baja. |
-| `031`: `employee_payroll_history_v1` → recurso `employeepayroll` | `payroll_monthly_fact` + `payroll_run` | Página, total y corte de la misma revisión, restringidos al contrato autorizado; reglas de cierre y conciliación actuales. |
-| `048`: `employee_payroll_detail_v1`; `lib/internal-payroll-detail.js` | `historyTotals` de hechos originales | Comparar con resumen de revisión explícita y mostrar su procedencia. El detalle mantiene su propio `sourceHash` y corte; no reetiquetarlo S11. |
-| `051`: `employee_payroll_documents_v1` → recurso `employeepayrolldocuments` | `historySummaryAvailable` de hechos originales | Disponibilidad según revisión elegida; un documento independiente sigue visible aunque no tenga resumen comparable. |
-| `026`: `payroll_novelty_prepare_v1`; parche `032` | Movimientos para concepto, centro de costo, tipo, duplicado, conflicto y homologación faltante | Mismas comprobaciones sobre movimientos efectivos. No aceptar una novedad usando exclusivamente agosto cuando septiembre contiene un duplicado/conflicto. |
-| `002`: `validate_payroll_run_link`; `035`: `payroll_reprocessing_snapshot_v1`, `payroll_reprocessing_prepare_v1` | Identificador/FK real `payroll_run` | Conservar referencia histórica real. Una corrida virtual no recibe UUID de escritura ficticio; toda operación debe resolver una corrida persistida y su revisión verificable. |
-| `057`: `school_certificate_current_family_v1`; `064`: `school_certificate_current_family_v2` | Conciliación actual ligada al lote | Seguir el lote publicado y conservar tokens/evidencia de identidad. No adaptar certificados convirtiéndolos en filas importadas. |
-| `061`: `grh_core_source_base_rows_v1` | Base original para reconstrucción y sellos | **Conservar esta lectura de base**. Apuntarla a la revisión efectiva produciría recursión o invalidaría la reconstrucción. |
-
-También deben cambiar los metadatos seleccionados mediante `latest completed` o `max(source_cutoff)` en `api/internal-data.js`: `summary`, `structure`, `integrationQuality`, el contexto de ausencias, `managementAnalytics` y `payrollControl`. No son hechos históricos y quedan fuera del detector FROM/JOIN anterior. Usar la misma selección que los datos; un import de otro dominio o un lote candidato no cambia el corte operativo. `api/internal-assistant.js` debe conservar esa procedencia en sus hechos derivados.
-
-Los reportes de detalle `048/051/053/054/058`, bancos `060` y catálogos homologados `066` tienen fuentes propias. Cambiar el padrón no los actualiza ni certifica homologaciones. Familias, ausencias, licencias y catálogos curados se reemplazan por la etapa transaccional existente, ligados a la nueva corrida de importación.
-
-## Contrato mínimo de selección
-
-`assertGrhSourceSelection(selection, expected)` valida exactamente:
-
-```text
-version: grh-source-selection.v1
-tenantId, sourceBindingId, sourceDatabase, companyId
-baselineBatchId, sourceVersionId
-revision: baseline | candidate
-sourceSha256, sourceDeclaredCutoff, sourcePayrollDate
-```
-
-`expected` debe obtenerse separadamente del binding autenticado y de la versión sellada. No se obtiene del mismo pedido validado. No hay `latest`, revisión predeterminada, destino SQL del navegador o fallback silencioso. `sourceDeclaredCutoff` conserva el timestamp sin zona de 061; no agregar `Z` ni trasladar las tres horas históricas por inferencia. El contexto operativo publicado puede aportar, por separado, el timestamp del lote canónico.
-
-`assertGrhComparableSelections(baseline,candidate)` exige mismo tenant/binding/base/versión, huellas distintas y corte creciente. Distingue **revisión de fuente** de **mes de nómina**; no certifica cierre. Los endpoints conservan sus capacidades existentes. Las consultas de detalle requieren además la identidad exacta del contrato; los dos legajos nuevos de S11 no deben desaparecer de totales por un INNER JOIN prematuro ni convertirse en personas canónicas por aproximación.
-
-El lector debe resolver su selección una sola vez por respuesta. Las cuatro consultas paralelas actuales de `payrollControl` no garantizan por sí solas un snapshot común durante una publicación. Usar una fachada SQL de una sentencia o una transacción del mismo snapshot; comprobar cambio de selección concurrente. Las páginas/exportaciones deben mantener esa selección o rechazar el cambio.
-
-## Reconstrucción mínima; sin duplicar historia
-
-Reutilizar el algoritmo 061: filas base cuya `source_id` no aparece en los deltas, UNION ALL de `add/replace`; `remove` no aparece en candidato, pero permanece en baseline. Las claves de unión de corridas son `(empresa,fecha,periodo,mes,tipo)`, y las de hechos incorporan legajo. Nunca unir sólo por mes o legajo.
-
-La adaptación puede centralizarse en tres fachadas tipadas: corridas, hechos mensuales y movimientos. Deben conservar `source_id`, revisión y huella, importes `numeric`/strings exactos y los campos de la proyección 061. Si una pantalla expone `rawFields`, recuperar el payload literal correspondiente de la base o del delta, no fabricar un payload a partir de la proyección normalizada.
-
-No hace falta materializar los 216.411 hechos y 495.237 movimientos. Evaluar únicamente foto/conciliación actuales (847/2.452 filas en los artefactos) y las corridas persistidas necesarias para sus FK. No deducir estado laboral granular de los dos booleanos de `employmentReconciliation` de 061. La promoción/conciliación existente y el artefacto completo son la evidencia para esas filas. Esta alternativa requiere medición antes de elegirla; este incremento no crea vistas ni materializaciones.
-
-Rendimiento pendiente real: `grh_core_source_version_rows_v1` verifica huellas completas y devuelve todo ordenado antes del filtro exterior. `WHERE contrato` o `LIMIT` sobre esa función PL/pgSQL no acredita lectura acotada. Evitar llamarla por fila o por cada subtotal: probar una validación por selección/snapshot y el overlay SQL filtrado, conservando detección de deriva. Medir PostgreSQL real sobre los volúmenes completos antes de prometer latencia interactiva.
-
-## Bloqueos de publicación y prueba que los cierra
-
-| Bloqueo concreto | Prueba requerida, sin nuevas aprobaciones |
-|---|---|
-| `SOURCE_REPLACEMENT_COORDINATION_REQUIRED` en importador core; `RRHH_IMPORT_REFRESH_COORDINATION_REQUIRED` en importador curado | Una única transacción del publicador con etapas existentes, versión explícita y fallo inyectado después de cada etapa. No quitar guards para ejecutar importadores sueltos. |
-| PK mensual omite lote; 214.163 claves comunes | Demostrar por clave y digest la igualdad de las cinco reconstrucciones contra artefactos, incluidas 811 correcciones y una ausencia mensual. Sin UPDATE de hechos base ni duplicación financiera. |
-| Lectores anteriores y controles026/032 | Cobertura estática; después, QA de SQL instalado y APIs mostrando totales/páginas/duplicados coherentes con selección. Las definiciones viejas en Git no prueban las funciones activas. |
-| Dependencia baseline061 | Crear/reutilizar versión **antes** de promover contratos. Después usar assertions/lector sellado; el importador061 vuelve a exigir contratos baseline incluso para replay. Su replay no es el replay del publicador. |
-| Capacidad | Lectura operativa aportada por root al cierre de esta preparación: **todas las DB/templates PG17=518.807.552bytes; PG18=483.631.104bytes**. Bajo512MiB y después de reservar16MiB quedan **PG17=1.286.144bytes; PG18=36.462.592bytes**. `readSourceCapacity` usa ese alcance completo, no sólo neondb. El crecimiento combinado del publicador sigue sin medirse; los16,66MiB del delta histórico no lo acreditan. No reducir reserva ni cambiar plan/conexión para ocultarlo. Revalidar antes de ejecutar. |
-| Consulta histórica de acciones059 | Caso DNI crudo de nueve dígitos frente a DNI canónico NULL, además de casos actuales y fuente/identidad cambiadas. Conservar staging y acciones/eventos; no ampliar una coincidencia dudosa. |
-| Recuperación escolar094 ligada al lote | Preservar recovery agosto y generar recovery S11 propio. Extractor real nuevo:2686 hijos,2684 compartidos,8 hashes094 distintos,81 pares de fechas cambiados,+2 hijos y0 cambios empresa/legajo. Los4 cambios nombre/nacimiento del informe anterior eran un subconjunto. No son automáticamente8 certificados afectados: cotejar tokens SQL y documentos reales. |
-| Familias/certificados/manuales/nativos091–095 | Casos de identidad igual/distinta, certificado anterior, registro manual con fecha NULL, historial, replay, alta propia y colisión de legajo/DNI; igualdad de tablas/eventos que no deben cambiar. Manual091 conserva precedencia completa. |
-| Frontera de transacción escolar | Usar `importSchoolingSourceWithinTransaction` cuando esté disponible, o SQL094 directo. El wrapper autónomo `importSchoolingSource` abre/cierra su transacción y no debe anidarse en el publicador. |
-| Resguardo restaurable | Root obtuvo un respaldo PG17 de73.940.602bytes y comprobó que `pg_restore` puede interpretar su estructura. Eso todavía no prueba restauración: falta restaurar una copia descartable y comprobar contenido, funciones, restricciones y datos propios antes del ensayo integral. La evidencia y huella completas permanecen privadas. |
-| Fuentes independientes | Un detalle/banco previo conserva su corte; comparación de resumen declara ambas procedencias. No convertir la apertura de septiembre en cierre, pago o recibo oficial. |
-
-## Matriz de comparabilidad agosto/septiembre
-
-Las cantidades son expectativas de los artefactos ya verificados, no mediciones nuevas de producción:
-
-| Entidad | Baseline | Candidato | Casos que el QA debe observar |
+| Entidad | Agosto | Septiembre | Evidencia del cambio |
 |---|---:|---:|---|
-| Corridas |620|624|2 cambiadas,4 nuevas; agosto cerrado en candidato y septiembre abierto.|
-| Foto salarial |854|847|847 altas y854 ausencias de claves entre fotos; no son bajas laborales.|
-| Movimientos |489459|495237|2 cambios,5791 altas,13 ausencias; preflight de novedades usa la misma revisión.|
-| Hechos mensuales |214164|216411|811 cambios,2248 altas,1 ausencia; decimales exactos y NULL distintos de cero.|
-| Conciliación |2450|2452|855 cambios,2 altas;875 activos,847 incluidos y28 activos fuera de la foto según fuente.|
+| Corridas |620|624|2 corregidas y 4 nuevas; identificadores persistidos reales.|
+| Foto salarial |854|847|Son cortes distintos; ausencia de foto no acredita baja laboral.|
+| Movimientos |489459|495237|2 correcciones, 5791 altas y 13 ausencias de claves.|
+| Hechos mensuales |214164|216411|811 correcciones, 2248 altas y 1 ausencia; importes exactos.|
+| Conciliación |2450|2452|855 cambios y 2 altas; 875 activos proxy y 28 fuera de la foto.|
 
-QA PostgreSQL17/18: reconstrucción completa y sus digests; tenant/binding ajenos, versión desconocida/no sellada, deriva de baseline/delta, fuente cambiada entre páginas; orden/paginación/exportación estables; funciones restringidas sin lectura directa nueva del runtime. QA de API/navegador: cortes explícitos, ausencia/error sin ceros fabricados, revocación, septiembre abierto no financiero, selección consistente entre resumen y detalle. Conservar evidencias de rollback y también lectura independiente posterior al COMMIT real cuando root publique.
+Las reconstrucciones completas del ensayo coincidieron con los sellos de los artefactos, incluidos NULL y decimales. No se copian nuevamente los 216.411 hechos ni los 495.237 movimientos. Las tablas de operaciones propias, familias, certificados y eventos se bloquean y comparan antes/después; las fechas escolares de agosto permanecen en su recuperación histórica.
 
-## Alternativa menor válida
+El ensayo durable posterior confirmó COMMIT local y replay desde una conexión independiente, con 508.290.600 bytes de cluster. Las rutas reales del API devolvieron los conteos y cortes esperados: directorio 2452/875/847, último cierre con 854 contratos, septiembre abierto con 855 contratos en sus corridas y 624 corridas históricas. Cada consulta individual quedó por debajo de cinco segundos en ese equipo; el análisis de ausencias sumó 9,18 segundos al ejecutarse sus once consultas serialmente. La fachada de historial con sesión real quedó pendiente de producción porque la sesión restaurada había vencido; sí se comprobó su proyección histórica. Estas mediciones locales no prometen latencia de Neon.
 
-Se puede entregar primero consulta autenticada del candidato y comparación agosto/S11 con `revision` visible, sin cambiar padrón, acciones ni documentos. Es útil y reduce el alcance de la primera interfaz, pero **no actualiza la operación municipal**. No hay una alternativa completa consistente que se limite a cambiar el rótulo de fuente o el lote del contrato. El candidato requiere reconstrucción seleccionada y publicación coordinada para convertirse en fuente operativa.
+La copia PG17 permite recuperar espacio físico reindexando, sin eliminar filas. El orden preparado y ensayado usa pasos independientes, medición fresca antes de cada uno y comprobación de huellas, restricciones, OID y validez después. El índice anterior se libera al confirmar cada paso. Los índices de fuentes históricas usan fillfactor 100; los de identidad, contratos y asistencia conservan su configuración. El mantenimiento reserva 4 MiB transitorios, más margen del índice y overhead; la publicación exige nuevamente 16 MiB permanentes. No se cambian planes ni conexiones. La proyección de ahorro no sustituye el tamaño real de Neon.
+
+## Implementación
+
+- 096 agrega selección explícita por tenant/binding y vistas tipadas de corridas, hechos y movimientos. Congela las bases necesarias para reconstruir la fuente.
+- 097 adapta siete funciones instaladas y metadatos. Las definiciones previas y posteriores se verifican por huella, sin reescribir las migraciones históricas.
+- 098 agrega diferencias de las cinco entidades curadas, vistas por corrida real y vistas actuales. El staging candidato es una proyección verificable de esas fuentes. Sus sellos comprueban claves, tipos, hashes y relación con 061.
+- 099 adapta 18 consumidores curados y sus bloqueos, conservando permisos, identidad escolar, registros manuales y altas nativas. La recuperación escolar materializa una vez la cohorte y sus hashes para evitar consultas repetidas por hijo.
+- El publicador interno recibe artefactos verificados y una huella del paquete. Reutiliza 061 antes de rotar contratos; crea metadatos reales; sella 098; promueve identidades; importa corridas/foto/conciliación; recupera fechas escolares; comprueba preservación y capacidad; escribe el puntero al final.
+
+La transacción pertenece al llamador y exige READ COMMITTED. Cualquier error requiere ROLLBACK. El recibo interno declara committed:false; no equivale a confirmación durable. El replay verifica el par sellado, contexto vigente, las tres proyecciones físicas y recuperación escolar persistida, sin repetir escrituras. El COMMIT se comprueba mediante otra conexión.
+
+El API y el asistente verifican un token de selección antes y después de sus consultas. Si cambia la fuente durante una respuesta, rechazan la mezcla. Las vistas originales históricas y las funciones de reconstrucción de 061 conservan su base; no se reemplazan por lecturas recursivas del candidato. No se amplían permisos directos del runtime.
+
+## Informes agregados
+
+El generador offline verifica todos los artefactos curados y reproduce exactamente las cifras, rótulos y ventanas del agregado anterior. S11 publica 2452 legajos históricos, 875 activos proxy y 31702 eventos de ausencia; 2026 contiene 1688 eventos y 596 legajos afectados. Los datos agregados conservan la serie desde diciembre de 2019 y sus límites de comparabilidad. El umbral de grupos se aplica a sectores, género y afectados; los totales temporales no incorporan desglose nominal.
+
+La fuente publicada se verifica además por huella y corte. Los ensayos de exportación conservan el agregado aprobado de agosto como fixture y verifican también los archivos de septiembre. El navegador recorre la biblioteca actual, abre el resumen y descarga el informe completo en escritorio y móvil.
+
+## Gates ejecutables
+
+El inventario offline de scripts/lib/grh-publication-consumers.mjs falla ante referencias nuevas no cubiertas. Es un inventario de SQL literal, no una certificación del SQL instalado. Los generadores PostgreSQL 096–099 ejecutan escrituras y lecturas sintéticas dentro de transacciones que se revierten; cada uno exige una base local descartable específica.
+
+El workflow grh-source-publication.yml instala dependencias, ejecuta build y pruebas, y corre los cuatro generadores en PostgreSQL 17 y 18. La prueba de consumidores curados usa 2684/2686 familias e incluye recuperación por lote, identidad cambiada, precedencia manual con fecha NULL, PDF anterior, revocación y altas nativas 42/55. La autenticación auxiliar de la fixture se declara expresamente; no certifica una sesión de producción.
+
+Además se ejecuta el publicador completo sobre una restauración privada: fallos posteriores a escrituras, rollback, reconstrucción completa, capacidad, replay y API sobre volúmenes reales. El API local usa acceso HTTP inyectado para probar consultas; la sesión y los permisos reales se verifican después en producción. No se conservan datos nominales en los reportes de QA ni se crean registros municipales ficticios en producción.
+
+## Secuencia de publicación
+
+1. Un commit revisado en rama aislada; CI completo verde, incluidos PG17 y PG18.
+2. Revalidar respaldo y estado actual. Recuperar espacio de PG17 con los pasos medidos y confirmar preservación y reserva.
+3. Instalar 096–099 primero en PG18 y después en PG17. Sin puntero, las vistas mantienen agosto; comprobar paridad y permisos.
+4. Promover el código compatible a master, esperar Vercel success y comprobar SHA y assets servidos. No activar septiembre mientras el API anterior siga publicado.
+5. Publicar el paquete en una sola transacción por destino: PG18 y luego PG17. Confirmar desde otra conexión, sin reintento ciego ante respuesta de COMMIT incierta.
+6. Verificar producción autenticada: corte 10/09, cohorte actual, agosto cerrado/septiembre abierto, fuentes independientes, escuela y exportaciones; acceso anónimo rechazado. Conservar recibos privados con conteos, huellas y tiempos.
+
+La fuente S11 no completa por sí sola la sustitución de GRH ni los demás módulos del plan. La incorporación de respaldos posteriores y la liquidación nativa tienen sus propios controles.

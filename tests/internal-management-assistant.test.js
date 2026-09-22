@@ -100,6 +100,8 @@ function endpoint(overrides = {}) {
         },
       },
     }),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => ({ query: async () => [] }),
     getTenantIdentitySql: async () => ({ query: async () => [] }),
     takeIdentityRateLimit: async () => ({ allowed: true, remaining: 5 }),

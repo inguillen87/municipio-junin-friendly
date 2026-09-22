@@ -4,7 +4,7 @@ import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
 import { employeePayrollDetail } from '../lib/internal-payroll-detail.js';
-import { DEFAULT_WORKFORCE_STATUS, WORKFORCE_STATUSES, directorySourceBinding, operationalDirectorySql, operationalScopeSelectSql, operationalScopeFromRow } from '../lib/workforce-operational-scope.js';
+import { DEFAULT_WORKFORCE_STATUS, WORKFORCE_STATUSES, directorySourceBinding, operationalDirectorySql, operationalScopeSelectSql, operationalScopeFromRow, effectiveSourceSnapshot, assertEffectiveSourceSnapshot } from '../lib/workforce-operational-scope.js';
 import { getInternalSql } from '../lib/internal-neon.js';
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { capabilitiesForInternalDataResource } from '../lib/internal-resource-access.js';
@@ -287,27 +287,28 @@ export function budgetApproved(source = JUNIN_BUDGET_2026) {
 export async function summary(sql) {
   const [totals] = await sql.query(`
     SELECT
-      (SELECT count(*)::int FROM grh_employees) AS historical_records,
-      (SELECT count(*)::int FROM grh_employees WHERE activo) AS active,
-      (SELECT count(*)::int FROM grh_employees WHERE NOT activo) AS inactive,
-      (SELECT count(*)::int FROM grh_absences) AS absence_events,
-      (SELECT count(*)::int FROM grh_leaves) AS leave_records,
-      (SELECT count(*)::int FROM grh_family) AS family_records,
-      (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'sectors') AS sectors,
-      (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'categories') AS categories,
-      (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'unions') AS unions,
-      (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'agreements') AS agreements,
-      (SELECT count(*)::int FROM grh_employees WHERE activo AND (sector IS NULL OR btrim(sector) = '')) AS active_without_sector,
-      (SELECT count(*)::int FROM grh_absences a LEFT JOIN grh_employees e USING (company_id, legajo) WHERE e.legajo IS NULL) AS absence_orphans,
-      (SELECT count(*)::int FROM grh_leaves l LEFT JOIN grh_employees e USING (company_id, legajo) WHERE e.legajo IS NULL) AS leave_orphans,
-      (SELECT count(*)::int FROM grh_absences WHERE fecha < DATE '1990-01-01') AS suspicious_early_absences,
-      (SELECT count(*)::int FROM grh_leaves WHERE fecha_inicio < DATE '1990-01-01') AS suspicious_early_leaves,
+      (SELECT count(*)::int FROM grh_effective_employees_v1) AS historical_records,
+      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo) AS active,
+      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE NOT activo) AS inactive,
+      (SELECT count(*)::int FROM grh_effective_absences_v1) AS absence_events,
+      (SELECT count(*)::int FROM grh_effective_leaves_v1) AS leave_records,
+      (SELECT count(*)::int FROM grh_effective_family_v1) AS family_records,
+      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'sectors') AS sectors,
+      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'categories') AS categories,
+      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'unions') AS unions,
+      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'agreements') AS agreements,
+      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND (sector IS NULL OR btrim(sector) = '')) AS active_without_sector,
+      (SELECT count(*)::int FROM grh_effective_absences_v1 a LEFT JOIN grh_effective_employees_v1 e USING (company_id, legajo) WHERE e.legajo IS NULL) AS absence_orphans,
+      (SELECT count(*)::int FROM grh_effective_leaves_v1 l LEFT JOIN grh_effective_employees_v1 e USING (company_id, legajo) WHERE e.legajo IS NULL) AS leave_orphans,
+      (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS suspicious_early_absences,
+      (SELECT count(*)::int FROM grh_effective_leaves_v1 WHERE fecha_inicio < DATE '1990-01-01') AS suspicious_early_leaves,
       (SELECT count(*)::int
-         FROM grh_absences
+         FROM grh_effective_absences_v1
         WHERE fecha > COALESCE(
           (SELECT source_cutoff::date
              FROM data_import_runs
             WHERE status = 'completed'
+      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
             ORDER BY completed_at DESC NULLS LAST, id DESC
             LIMIT 1),
           DATE '9999-12-31'
@@ -317,13 +318,14 @@ export async function summary(sql) {
     SELECT id, source_name, source_sha256, source_cutoff, completed_at, status, table_counts, quality_flags
     FROM data_import_runs
     WHERE status = 'completed'
+      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
     ORDER BY completed_at DESC NULLS LAST, id DESC
     LIMIT 1
   `);
   const sectors = await sql.query(`
     SELECT COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado') AS label,
            count(*)::int AS value
-    FROM grh_employees
+    FROM grh_effective_employees_v1
     GROUP BY COALESCE(NULLIF(btrim(sector), ''), 'Sin sector homologado')
     ORDER BY value DESC, label
   `);
@@ -331,7 +333,7 @@ export async function summary(sql) {
     SELECT extract(year FROM fecha)::int AS year,
            count(*)::int AS events,
            count(DISTINCT (company_id, legajo))::int AS employees_affected
-    FROM grh_absences
+    FROM grh_effective_absences_v1
     WHERE fecha >= DATE '1990-01-01'
       AND fecha <= COALESCE($1::date, DATE '9999-12-31')
     GROUP BY extract(year FROM fecha)
@@ -394,6 +396,7 @@ export async function structure(sql) {
            status
     FROM data_import_runs
     WHERE status = 'completed'
+      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
     ORDER BY completed_at DESC NULLS LAST, id DESC
     LIMIT 1
   `);
@@ -425,7 +428,7 @@ export async function structure(sql) {
              count(DISTINCT NULLIF(btrim(sector), ''))::int AS "sectorsObserved",
              count(DISTINCT NULLIF(btrim(source_payload #>> '{employment,cargoName}'), ''))::int
                AS "rolesObserved"
-      FROM grh_employees
+      FROM grh_effective_employees_v1
     `),
     sql.query(`
       SELECT COALESCE(
@@ -442,7 +445,7 @@ export async function structure(sql) {
              (count(*) FILTER (WHERE activo))::int AS active,
              (count(*) FILTER (WHERE NOT activo))::int AS inactive,
              count(DISTINCT NULLIF(btrim(sector), ''))::int AS "sectorCount"
-      FROM grh_employees
+      FROM grh_effective_employees_v1
       GROUP BY 1, 2
       ORDER BY active DESC, historical DESC, label
     `),
@@ -459,7 +462,7 @@ export async function structure(sql) {
              (count(*) FILTER (WHERE NOT activo))::int AS inactive,
              count(DISTINCT NULLIF(btrim(source_payload #>> '{employment,organizationName}'), ''))::int
                AS "organizationCount"
-      FROM grh_employees
+      FROM grh_effective_employees_v1
       GROUP BY 1, 2
       ORDER BY active DESC, historical DESC, label
     `),
@@ -477,7 +480,7 @@ export async function structure(sql) {
              count(*)::int AS historical,
              (count(*) FILTER (WHERE activo))::int AS active,
              (count(*) FILTER (WHERE NOT activo))::int AS inactive
-      FROM grh_employees
+      FROM grh_effective_employees_v1
       GROUP BY 1, 2
       ORDER BY active DESC, historical DESC, label
     `),
@@ -486,7 +489,7 @@ export async function structure(sql) {
              count(*)::int AS rows,
              (count(*) FILTER (WHERE NULLIF(btrim(source_payload->>'parentId'), '') IS NOT NULL))::int
                AS "parentLinks"
-      FROM grh_catalog_rows
+      FROM grh_effective_catalog_rows_v1
       WHERE catalog IN (
         'organizations', 'sectors', 'job_roles', 'categories',
         'agreements', 'employment_statuses'
@@ -501,7 +504,7 @@ export async function structure(sql) {
              NULLIF(btrim(source_payload->>'abbreviation'), '') AS abbreviation,
              NULLIF(btrim(source_payload->>'parentId'), '') AS "parentId",
              NULLIF(btrim(source_payload->>'activeSourceValue'), '') AS "activeSourceValue"
-      FROM grh_catalog_rows
+      FROM grh_effective_catalog_rows_v1
       WHERE catalog = 'organizations'
       ORDER BY label NULLS LAST, id
     `),
@@ -512,7 +515,7 @@ export async function structure(sql) {
              NULLIF(btrim(source_payload->>'abbreviation'), '') AS abbreviation,
              NULLIF(btrim(source_payload->>'budgetActivityId'), '') AS "budgetActivityId",
              NULLIF(btrim(source_payload->>'contracted'), '') AS contracted
-      FROM grh_catalog_rows
+      FROM grh_effective_catalog_rows_v1
       WHERE catalog = 'sectors'
       ORDER BY label NULLS LAST, "companyCode", "sectorCode"
     `),
@@ -521,7 +524,7 @@ export async function structure(sql) {
              label,
              NULLIF(btrim(source_payload->>'parentId'), '') AS "parentId",
              NULLIF(btrim(source_payload->>'reportsTo'), '') AS "reportsTo"
-      FROM grh_catalog_rows
+      FROM grh_effective_catalog_rows_v1
       WHERE catalog = 'job_roles'
       ORDER BY label NULLS LAST, id
     `),
@@ -529,7 +532,7 @@ export async function structure(sql) {
       WITH organizations AS (
         SELECT source_payload #>> '{sourceKey,organizationId}' AS id,
                NULLIF(btrim(source_payload->>'parentId'), '') AS parent_id
-        FROM grh_catalog_rows
+        FROM grh_effective_catalog_rows_v1
         WHERE catalog = 'organizations'
       )
       SELECT count(*)::int AS "catalogRows",
@@ -672,7 +675,7 @@ export async function integrationQuality(sql) {
       SELECT (count(*) FILTER (WHERE activo))::int AS "administrativeActive",
              (count(DISTINCT person_id) FILTER (WHERE activo AND person_id IS NOT NULL))::int
                AS "administrativePeople"
-      FROM grh_employees
+      FROM grh_effective_employees_v1
     `),
     sql.query(`
       SELECT id,
@@ -683,6 +686,7 @@ export async function integrationQuality(sql) {
              status
       FROM data_import_runs
       WHERE status = 'completed'
+        AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
       ORDER BY completed_at DESC NULLS LAST, id DESC
       LIMIT 1
     `),
@@ -880,11 +884,11 @@ export async function integrationQuality(sql) {
 
 const PAYROLL_CONTROL_RELATIONS = Object.freeze({
   payrollRuns: {
-    name: 'payroll_run',
+    name: 'grh_effective_payroll_run_v1',
     requiredColumns: ['payroll_date', 'closure_status', 'source_closed_flag']
   },
   monthlyFacts: {
-    name: 'payroll_monthly_fact',
+    name: 'grh_effective_payroll_monthly_fact_v1',
     requiredColumns: ['payroll_run_id', 'net_payable', 'employer_contributions']
   },
   monthlyControl: {
@@ -1020,7 +1024,7 @@ export async function payrollControl(sql) {
              source_sha256 AS sha256,
              source_cutoff AS cutoff,
              recorded_at AS "recordedAt"
-      FROM source_import_batch
+      FROM grh_effective_source_batch_v1
       WHERE source_system = 'GRH'
       ORDER BY source_cutoff DESC, recorded_at DESC
       LIMIT 1
@@ -1067,7 +1071,7 @@ export async function payrollControl(sql) {
       'Los importes son nominales y no expresan variación real sin IPC, paritarias y composición de dotación.',
       'El costo empleador es un proxy analítico; Contaduría debe conciliarlo antes de tratarlo como gasto devengado.',
       'GRH no contiene el archivo bancario, extracto, asiento ni ejecución presupuestaria necesarios para conciliación financiera completa.',
-      'Agosto 2026 permanece abierto/preliquidado y sólo se muestra como control operativo.'
+      'El estado de cierre corresponde al corte publicado; los períodos abiertos sólo se muestran como control operativo.'
     ]
   };
 }
@@ -1138,15 +1142,15 @@ function absenceFilter({ from, to, sector = '', reasonCode = '' }) {
 
 function absenceFromSql(includeIdentity = false) {
   return `
-    FROM grh_absences absence
-    LEFT JOIN grh_employees employee
+    FROM grh_effective_absences_v1 absence
+    LEFT JOIN grh_effective_employees_v1 employee
       ON employee.company_id = absence.company_id AND employee.legajo = absence.legajo
     LEFT JOIN employment_contract contract
       ON contract.source_system = 'GRH'
      AND contract.legacy_company_id = absence.company_id
      AND contract.legacy_legajo = absence.legajo
     ${includeIdentity ? 'LEFT JOIN person_identity identity ON identity.id = contract.person_id' : ''}
-    LEFT JOIN grh_catalog_rows reason
+    LEFT JOIN grh_effective_catalog_rows_v1 reason
       ON reason.catalog = 'absence_reasons'
      AND reason.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
   `;
@@ -1159,6 +1163,7 @@ async function absenceSourceContext(sql) {
            source_cutoff AS "sourceCutoff", completed_at AS "importedAt", status
     FROM data_import_runs
     WHERE status = 'completed'
+      AND id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
     ORDER BY completed_at DESC NULLS LAST, id DESC
     LIMIT 1
   `);
@@ -1951,7 +1956,8 @@ async function leaveSourceContext(sql) {
            run.source_cutoff AS "sourceCutoff", run.completed_at AS "importedAt", run.status
     FROM data_import_runs run
     WHERE run.status = 'completed'
-      AND EXISTS (SELECT 1 FROM grh_absences absence WHERE absence.import_run_id = run.id)
+      AND run.id IN (SELECT legacy_import_run_id FROM grh_effective_source_batch_v1)
+      AND EXISTS (SELECT 1 FROM grh_effective_absences_v1 absence WHERE absence.import_run_id = run.id)
     ORDER BY run.completed_at DESC NULLS LAST, run.id DESC
     LIMIT 1
   `);
@@ -1998,11 +2004,11 @@ export async function leaveNormative(sql) {
     sql.query(`
       /* leave-normative:readiness */
       SELECT
-        (SELECT count(*)::int FROM grh_employees) AS "employmentRecords",
-        (SELECT count(*)::int FROM grh_employees WHERE activo) AS "activeRecords",
-        (SELECT count(*)::int FROM grh_employees WHERE activo AND fecha_ingreso IS NOT NULL) AS "activeWithHireDate",
-        (SELECT count(*)::int FROM grh_employees WHERE activo AND fecha_ingreso IS NULL) AS "activeWithoutHireDate",
-        (SELECT count(*)::int FROM grh_employees
+        (SELECT count(*)::int FROM grh_effective_employees_v1) AS "employmentRecords",
+        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo) AS "activeRecords",
+        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NOT NULL) AS "activeWithHireDate",
+        (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND fecha_ingreso IS NULL) AS "activeWithoutHireDate",
+        (SELECT count(*)::int FROM grh_effective_employees_v1
           WHERE activo AND fecha_ingreso IS NOT NULL
             AND fecha_ingreso <= $1::date - interval '5 years'
             AND COALESCE(
@@ -2014,26 +2020,26 @@ export async function leaveNormative(sql) {
               0
             ) = 0
         ) AS "activeOldHireDateZeroSourceSeniority",
-        (SELECT count(*)::int FROM grh_employees
+        (SELECT count(*)::int FROM grh_effective_employees_v1
           WHERE activo AND NULLIF(source_payload #>> '{employment,dailyHours}', '') IS NOT NULL
         ) AS "activeWithDeclaredDailyHours",
-        (SELECT count(*)::int FROM grh_employees
+        (SELECT count(*)::int FROM grh_effective_employees_v1
           WHERE activo AND NULLIF(source_payload #>> '{employment,monthlyHours}', '') IS NOT NULL
         ) AS "activeWithDeclaredMonthlyHours",
-        (SELECT count(*)::int FROM grh_absences) AS "absenceSourceRows",
-        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date) AS "absenceRowsWithinCoverage",
-        (SELECT count(*)::int FROM grh_absences WHERE fecha < DATE '1990-01-01') AS "absenceRowsBeforeMinimum",
-        (SELECT count(*)::int FROM grh_absences WHERE fecha > $1::date) AS "absenceRowsAfterCutoff",
-        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha) AS "absenceInvertedRanges",
-        (SELECT count(*)::int FROM grh_absences WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')) AS "absenceMissingReason",
-        (SELECT count(*)::int FROM grh_absences absence
-          LEFT JOIN grh_employees employee USING (company_id, legajo)
+        (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceSourceRows",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date) AS "absenceRowsWithinCoverage",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceRowsBeforeMinimum",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceRowsAfterCutoff",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND fecha_hasta < fecha) AS "absenceInvertedRanges",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha BETWEEN DATE '1990-01-01' AND $1::date AND (motivo_code IS NULL OR btrim(motivo_code) = '')) AS "absenceMissingReason",
+        (SELECT count(*)::int FROM grh_effective_absences_v1 absence
+          LEFT JOIN grh_effective_employees_v1 employee USING (company_id, legajo)
           WHERE absence.fecha BETWEEN DATE '1990-01-01' AND $1::date AND employee.legajo IS NULL
         ) AS "absenceUnlinkedRows",
-        (SELECT count(*)::int FROM grh_leaves) AS "legacyLeaveRows",
-        (SELECT min(fecha_inicio) FROM grh_leaves WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
-        (SELECT max(fecha_inicio) FROM grh_leaves WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate",
-        (SELECT count(*)::int FROM grh_catalog_rows WHERE catalog = 'absence_reasons') AS "reasonCatalogRows"
+        (SELECT count(*)::int FROM grh_effective_leaves_v1) AS "legacyLeaveRows",
+        (SELECT min(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMinDate",
+        (SELECT max(fecha_inicio) FROM grh_effective_leaves_v1 WHERE fecha_inicio >= DATE '1900-01-01') AS "legacyLeaveMaxDate",
+        (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'absence_reasons') AS "reasonCatalogRows"
     `, [source.cutoff]),
     sql.query(`
       /* leave-normative:reason-mapping */
@@ -2049,8 +2055,8 @@ export async function leaveNormative(sql) {
              count(absence.*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
-      FROM grh_catalog_rows catalog
-      LEFT JOIN grh_absences absence
+      FROM grh_effective_catalog_rows_v1 catalog
+      LEFT JOIN grh_effective_absences_v1 absence
         ON absence.motivo_code = catalog.source_payload #>> '{sourceKey,reasonCode}'
        AND absence.fecha BETWEEN DATE '1990-01-01' AND $1::date
       LEFT JOIN employment_contract contract
@@ -2181,7 +2187,7 @@ export async function leavePreview(sql, req) {
            source_payload #>> '{employment,seniorityMonths}' AS "sourceSeniorityMonths",
            source_payload #>> '{employment,dailyHours}' AS "declaredDailyHours",
            source_payload #>> '{employment,monthlyHours}' AS "declaredMonthlyHours"
-    FROM grh_employees
+    FROM grh_effective_employees_v1
     WHERE company_id = $1 AND legajo = $2
     LIMIT 1
   `, [companyId, legajo]);
@@ -2195,8 +2201,8 @@ export async function leavePreview(sql, req) {
            COALESCE(NULLIF(btrim(catalog.label), ''), 'Sin etiqueta GRH') AS label,
            count(*)::int AS events,
            COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
-    FROM grh_absences absence
-    LEFT JOIN grh_catalog_rows catalog
+    FROM grh_effective_absences_v1 absence
+    LEFT JOIN grh_effective_catalog_rows_v1 catalog
       ON catalog.catalog = 'absence_reasons'
      AND catalog.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
     WHERE absence.company_id = $1 AND absence.legajo = $2
@@ -2481,7 +2487,7 @@ export async function managementAnalytics(sql) {
     /* management:source */
     SELECT id AS "batchId", source_cutoff AS "sourceCutoff",
            recorded_at AS "loadedAt", validation_state AS status
-    FROM source_import_batch
+    FROM grh_effective_source_batch_v1
     WHERE source_system = 'GRH' AND validation_state = 'published'
     ORDER BY source_cutoff DESC, recorded_at DESC, id DESC
     LIMIT 1
@@ -2574,15 +2580,15 @@ export async function managementAnalytics(sql) {
                WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS exits,
              (SELECT count(DISTINCT contract.person_id)::int FROM employment_contract contract
                WHERE contract.end_date BETWEEN period.date_from AND period.date_to) AS "exitPersons",
-             (SELECT count(*)::int FROM grh_absences absence
+             (SELECT count(*)::int FROM grh_effective_absences_v1 absence
                WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "absenceEvents",
              (SELECT count(DISTINCT contract.id)::int
-                FROM grh_absences absence
+                FROM grh_effective_absences_v1 absence
                 JOIN employment_contract contract
                   ON contract.legacy_company_id = absence.company_id
                  AND contract.legacy_legajo = absence.legajo
                WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "affectedContracts",
-             (SELECT COALESCE(sum(absence.dias), 0)::numeric FROM grh_absences absence
+             (SELECT COALESCE(sum(absence.dias), 0)::numeric FROM grh_effective_absences_v1 absence
                WHERE absence.fecha BETWEEN period.date_from AND period.date_to) AS "sourceDeclaredDays"
       FROM windows period
     `, metricScope.values),
@@ -2594,8 +2600,8 @@ export async function managementAnalytics(sql) {
       ), contract_month AS (
         SELECT fact.employment_contract_id,
                date_trunc('month', fact.payroll_date)::date AS period_month
-        FROM payroll_monthly_fact fact
-        JOIN payroll_run run ON run.id = fact.payroll_run_id
+        FROM grh_effective_payroll_monthly_fact_v1 fact
+        JOIN grh_effective_payroll_run_v1 run ON run.id = fact.payroll_run_id
         WHERE run.closure_status = 'closed' AND fact.net_payable IS NOT NULL
           AND (fact.payroll_date BETWEEN $1::date AND $2::date
             OR fact.payroll_date BETWEEN $3::date AND $4::date)
@@ -2614,7 +2620,7 @@ export async function managementAnalytics(sql) {
                count(DISTINCT contract.id) FILTER (WHERE contract_month.employment_contract_id IS NOT NULL)::int
                  AS "affectedAlignedContracts"
         FROM windows period
-        JOIN grh_absences absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2642,8 +2648,8 @@ export async function managementAnalytics(sql) {
                count(DISTINCT fact.dominant_sector_source_id)::int AS sector_code_count,
                CASE WHEN count(DISTINCT fact.dominant_sector_source_id) = 1
                  THEN min(fact.dominant_sector_source_id) END AS sector_code
-        FROM payroll_monthly_fact fact
-        JOIN payroll_run run ON run.id = fact.payroll_run_id
+        FROM grh_effective_payroll_monthly_fact_v1 fact
+        JOIN grh_effective_payroll_run_v1 run ON run.id = fact.payroll_run_id
         WHERE run.closure_status = 'closed' AND fact.net_payable IS NOT NULL
           AND (fact.payroll_date BETWEEN $1::date AND $2::date
             OR fact.payroll_date BETWEEN $3::date AND $4::date)
@@ -2664,7 +2670,7 @@ export async function managementAnalytics(sql) {
                     WHEN catalog.source_key IS NULL THEN 'unmatched_catalog' ELSE 'matched' END AS sector_quality
         FROM contract_month_raw raw
         JOIN employment_contract contract ON contract.id = raw.employment_contract_id
-        LEFT JOIN grh_catalog_rows catalog ON catalog.catalog = 'sectors'
+        LEFT JOIN grh_effective_catalog_rows_v1 catalog ON catalog.catalog = 'sectors'
           AND catalog.source_payload #>> '{sourceKey,companyCode}' = contract.legacy_company_id::text
           AND catalog.source_payload #>> '{sourceKey,sectorCode}' = raw.sector_code
       ), denominator AS (
@@ -2689,7 +2695,7 @@ export async function managementAnalytics(sql) {
                     WHEN contract_month.employment_contract_id IS NULL THEN 'no_closed_payroll_contract_month'
                     ELSE contract_month.sector_quality END AS sector_quality
         FROM windows period
-        JOIN grh_absences absence ON absence.fecha BETWEEN period.from_date AND period.to_date
+        JOIN grh_effective_absences_v1 absence ON absence.fecha BETWEEN period.from_date AND period.to_date
         LEFT JOIN employment_contract contract
           ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
         LEFT JOIN contract_month ON contract_month.employment_contract_id = contract.id
@@ -2722,17 +2728,17 @@ export async function managementAnalytics(sql) {
       SELECT (SELECT count(*)::int FROM employment_contract) AS "contracts",
              (SELECT count(DISTINCT person_id)::int FROM employment_contract) AS "personsWithContract",
              (SELECT count(*)::int FROM employment_contract WHERE start_date IS NULL) AS "missingValidStartDate",
-             (SELECT count(*)::int FROM grh_absences) AS "absenceRows",
-             (SELECT count(*)::int FROM grh_absences WHERE fecha < DATE '1990-01-01') AS "absenceBeforeCoverage",
-             (SELECT count(*)::int FROM grh_absences WHERE fecha > $1::date) AS "absenceAfterCutoff",
-             (SELECT count(*)::int FROM grh_absences WHERE fecha_hasta < fecha) AS "invertedAbsenceRanges",
-             (SELECT count(*)::int FROM grh_absences absence LEFT JOIN employment_contract contract
+             (SELECT count(*)::int FROM grh_effective_absences_v1) AS "absenceRows",
+             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS "absenceBeforeCoverage",
+             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha > $1::date) AS "absenceAfterCutoff",
+             (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha_hasta < fecha) AS "invertedAbsenceRanges",
+             (SELECT count(*)::int FROM grh_effective_absences_v1 absence LEFT JOIN employment_contract contract
                 ON contract.legacy_company_id = absence.company_id AND contract.legacy_legajo = absence.legajo
                WHERE contract.id IS NULL) AS "unlinkedAbsences",
-             (SELECT count(*)::int FROM employment_movement) AS "movementRows",
-             (SELECT count(*)::int FROM employment_movement WHERE movement_type IS NULL) AS "movementsWithoutType",
-             (SELECT max(payroll_date) FROM payroll_run WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
-             (SELECT max(payroll_date) FROM payroll_run WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
+             (SELECT count(*)::int FROM grh_effective_employment_movement_v1) AS "movementRows",
+             (SELECT count(*)::int FROM grh_effective_employment_movement_v1 WHERE movement_type IS NULL) AS "movementsWithoutType",
+             (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'closed') AS "lastClosedPayrollPeriod",
+             (SELECT max(payroll_date) FROM grh_effective_payroll_run_v1 WHERE closure_status = 'open') AS "latestOpenPayrollPeriod"
     `, [cutoff]),
   ]);
 
@@ -3083,9 +3089,10 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
-      LEFT JOIN grh_employees employee
+      LEFT JOIN grh_effective_employees_v1 employee
         ON employee.company_id = contract.legacy_company_id
        AND employee.legajo = contract.legacy_legajo
+       AND contract.source_system = 'GRH'
       LEFT JOIN vw_empleado_actual control ON control.employment_contract_id = contract.id
       LEFT JOIN crosswalk_persona crosswalk
         ON crosswalk.person_id = identity.id
@@ -3096,6 +3103,8 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
                snapshot.payroll_status
         FROM employment_status_snapshot snapshot
         WHERE snapshot.employment_contract_id = contract.id
+          AND snapshot.source_batch_id = contract.source_batch_id
+          AND snapshot.source_system = contract.source_system
         ORDER BY snapshot.snapshot_date DESC
         LIMIT 1
       ) latest_status ON true
@@ -3107,6 +3116,8 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
                assignment.role_name
         FROM payroll_snapshot_assignment assignment
         WHERE assignment.employment_contract_id = contract.id
+          AND assignment.source_batch_id = contract.source_batch_id
+          AND assignment.source_system = contract.source_system
         ORDER BY assignment.snapshot_date DESC
         LIMIT 1
       ) latest_assignment ON true
@@ -3499,9 +3510,10 @@ export async function employee(sql, req, tenantId = null) {
            crosswalk.reviewed_at AS "crosswalkReviewedAt"
     FROM employment_contract contract
     JOIN person_identity identity ON identity.id = contract.person_id
-    LEFT JOIN grh_employees employee
+    LEFT JOIN grh_effective_employees_v1 employee
       ON employee.company_id = contract.legacy_company_id
      AND employee.legajo = contract.legacy_legajo
+     AND contract.source_system = 'GRH'
     LEFT JOIN crosswalk_persona crosswalk
       ON crosswalk.person_id = identity.id
      AND crosswalk.valid_to IS NULL
@@ -3510,14 +3522,18 @@ export async function employee(sql, req, tenantId = null) {
       SELECT snapshot.*
       FROM employment_status_snapshot snapshot
       WHERE snapshot.employment_contract_id = contract.id
+        AND snapshot.source_batch_id = contract.source_batch_id
+        AND snapshot.source_system = contract.source_system
       ORDER BY snapshot.snapshot_date DESC
       LIMIT 1
     ) latest_status ON true
-    LEFT JOIN payroll_run ON payroll_run.id = latest_status.payroll_run_id
+    LEFT JOIN grh_effective_payroll_run_v1 payroll_run ON payroll_run.id = latest_status.payroll_run_id
     LEFT JOIN LATERAL (
       SELECT assignment.*
       FROM payroll_snapshot_assignment assignment
       WHERE assignment.employment_contract_id = contract.id
+        AND assignment.source_batch_id = contract.source_batch_id
+        AND assignment.source_system = contract.source_system
       ORDER BY assignment.snapshot_date DESC
       LIMIT 1
     ) latest_assignment ON true
@@ -3561,19 +3577,19 @@ export async function employee(sql, req, tenantId = null) {
   ] = await Promise.all([
     sql.query(`
       SELECT
-        (SELECT count(*)::int FROM grh_absences WHERE company_id = $1 AND legajo = $2 ${countYearClause}) AS "absenceTotal",
-        (SELECT count(*)::int FROM grh_leaves WHERE company_id = $1 AND legajo = $2 ${countLeaveYearClause}) AS "leaveTotal",
-        (SELECT max(fecha_inicio) FROM grh_leaves
+        (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE company_id = $1 AND legajo = $2 ${countYearClause}) AS "absenceTotal",
+        (SELECT count(*)::int FROM grh_effective_leaves_v1 WHERE company_id = $1 AND legajo = $2 ${countLeaveYearClause}) AS "leaveTotal",
+        (SELECT max(fecha_inicio) FROM grh_effective_leaves_v1
           WHERE fecha_inicio BETWEEN DATE '1900-01-01' AND DATE '2100-12-31') AS "leaveSourceMaxDate",
-        (SELECT count(*)::int FROM grh_family WHERE company_id = $1 AND legajo = $2) AS "familyTotal",
-        (SELECT count(*)::int FROM employment_movement WHERE employment_contract_id = $3::uuid) AS "movementTotal"
+        (SELECT count(*)::int FROM grh_effective_family_v1 WHERE company_id = $1 AND legajo = $2) AS "familyTotal",
+        (SELECT count(*)::int FROM grh_effective_employment_movement_v1 WHERE employment_contract_id = $3::uuid) AS "movementTotal"
     `, countParams),
     sql.query(`
       SELECT absence.fecha, absence.motivo_code AS "motivoCode", catalog.label AS motivo,
              absence.cantidad, absence.dias, absence.fecha_hasta AS "fechaHasta",
              absence.comentario, absence.source_payload AS "rawFields"
-      FROM grh_absences absence
-      LEFT JOIN grh_catalog_rows catalog
+      FROM grh_effective_absences_v1 absence
+      LEFT JOIN grh_effective_catalog_rows_v1 catalog
         ON catalog.catalog = 'absence_reasons'
        AND catalog.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
       WHERE absence.company_id = $1 AND absence.legajo = $2
@@ -3584,7 +3600,7 @@ export async function employee(sql, req, tenantId = null) {
     sql.query(`
       SELECT periodo, tipo, fecha_inicio AS "fechaInicio", fecha_fin AS "fechaFin",
              dias, observaciones, source_payload AS "rawFields"
-      FROM grh_leaves
+      FROM grh_effective_leaves_v1
       WHERE company_id = $1 AND legajo = $2
       ${relationLeaveYearClause}
       ORDER BY fecha_inicio DESC
@@ -3595,8 +3611,8 @@ export async function employee(sql, req, tenantId = null) {
              family.fecha_nacimiento AS "fechaNacimiento", family.dni, family.cuil,
              family.vinculo_code AS "vinculoCode", catalog.label AS vinculo,
              family.fecha_baja AS "fechaBaja", family.source_payload AS "rawFields"
-      FROM grh_family family
-      LEFT JOIN grh_catalog_rows catalog
+      FROM grh_effective_family_v1 family
+      LEFT JOIN grh_effective_catalog_rows_v1 catalog
         ON catalog.catalog = 'family_relationships'
        AND catalog.source_payload #>> '{sourceKey,relationshipId}' = family.vinculo_code
       WHERE family.company_id = $1 AND family.legajo = $2
@@ -3610,9 +3626,9 @@ export async function employee(sql, req, tenantId = null) {
              installment, legal_instrument AS "legalInstrument",
              movement_status AS "movementStatus", source_id AS "sourceId",
              source_payload AS "rawFields"
-      FROM employment_movement
+      FROM grh_effective_employment_movement_v1
       WHERE employment_contract_id = $1::uuid
-      ORDER BY movement_period DESC, id DESC
+      ORDER BY movement_period DESC, source_id DESC
       LIMIT ${DETAIL_MOVEMENT_LIMIT}
     `, [row.contractId]),
     sql.query(`
@@ -3787,56 +3803,65 @@ export function createInternalDataHandler(dependencies = {}) {
         return send(res, result.status, result.payload);
       }
       const sql = await getSql();
-      if (resource === 'summary') return send(res, 200, await summary(sql));
-      if (resource === 'structure') return send(res, 200, await structure(sql));
-      if (resource === 'integrationquality') return send(res, 200, await integrationQuality(sql));
-      if (resource === 'payrollcontrol') return send(res, 200, await payrollControl(sql));
+      const sourceBinding = { ...directorySourceBinding(env), tenantId: access.principal?.tenant?.id };
+      const sourceSnapshot = await effectiveSourceSnapshot(sql, sourceBinding);
+      const respond = async (status, payload) => {
+        await assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot);
+        return send(res, status, payload);
+      };
+      if (resource === 'summary') return await respond( 200, await summary(sql));
+      if (resource === 'structure') return await respond( 200, await structure(sql));
+      if (resource === 'integrationquality') return await respond( 200, await integrationQuality(sql));
+      if (resource === 'payrollcontrol') return await respond( 200, await payrollControl(sql));
       if (resource === 'absenceanalytics') {
         const result = await absenceAnalytics(sql, req);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'absenceevents') {
         const result = await absenceEvents(sql, req);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'leavenormative') {
         const result = await leaveNormative(sql);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'leavepreview') {
         const result = await leavePreview(sql, req);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'managementanalytics') {
         const result = await managementAnalytics(sql);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'qualityoverview') {
         const result = await qualityOverview(sql);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'qualityissues') {
         const result = await qualityIssues(sql, req);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'importlineage') {
         const result = await importLineage(sql);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'employees') {
         const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id} : binding; })());
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
         const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null);
-        return send(res, result.status, result.payload);
+        return await respond( result.status, result.payload);
       }
-      return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
+      return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
       const errorName = error instanceof Error ? error.name : 'UnknownError';
       const errorCode = typeof error?.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(error.code)
         ? error.code
         : 'INTERNAL_DATA_ERROR';
+      if (errorCode === 'GRH_SOURCE_CHANGED') {
+        return send(res, 503, { ok: false, code: errorCode, error: 'La fuente se actualizó durante la consulta. Volvé a consultar.' });
+      }
       console.error('[internal-data]', { name: errorName, code: errorCode });
       return send(res, 503, { ok: false, code: 'INTERNAL_DATA_UNAVAILABLE', error: 'La base interna no está disponible.' });
     }

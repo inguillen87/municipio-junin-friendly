@@ -1,0 +1,173 @@
+-- Synthetic only. __SCHEMA__ is replaced by the bounded SQL generator.
+CREATE TEMP TABLE qa_checks(name text PRIMARY KEY);
+CREATE FUNCTION pg_temp.ok(value boolean,label text) RETURNS void LANGUAGE plpgsql AS $fn$
+BEGIN IF value IS DISTINCT FROM true THEN RAISE EXCEPTION 'QA failed: %',label; END IF;
+ INSERT INTO qa_checks VALUES(label); END $fn$;
+CREATE FUNCTION pg_temp.denied(statement text,expected text,label text) RETURNS void LANGUAGE plpgsql AS $fn$
+DECLARE caught text; BEGIN
+ BEGIN EXECUTE statement; EXCEPTION WHEN OTHERS THEN caught:=SQLERRM; END;
+ IF caught IS NULL OR position(expected IN caught)=0 THEN RAISE EXCEPTION 'QA failed: % / expected % / got %',label,expected,caught; END IF;
+ INSERT INTO qa_checks VALUES(label); END $fn$;
+CREATE TEMP TABLE qa_ids AS SELECT
+ '11111111-1111-4111-8111-111111111111'::uuid b,
+ '22222222-2222-4222-8222-222222222222'::uuid c,
+ '33333333-3333-4333-8333-333333333333'::uuid v,
+ '44444444-4444-4444-8444-444444444444'::uuid tenant,
+ '55555555-5555-4555-8555-555555555555'::uuid binding,
+ '66666666-6666-4666-8666-666666666666'::uuid employee,
+ '77777777-7777-4777-8777-777777777777'::uuid other;
+INSERT INTO data_import_runs VALUES
+ (1,'grh_junin_curated',repeat('A',64),'2026-08-06 15:15:21','completed'),
+ (2,'grh_junin_curated',repeat('B',64),'2026-09-10 15:17:30','completed');
+INSERT INTO platform_tenant_source_binding SELECT tenant,binding,'GRH','synthetic_grh',101,true FROM qa_ids;
+INSERT INTO tenant_identity_policy SELECT tenant,binding,true FROM qa_ids;
+INSERT INTO source_import_batch(id,source_system,source_database,source_file_name,source_sha256,source_cutoff,legacy_import_run_id,validation_state)
+ SELECT b,'GRH','synthetic_grh','synthetic-aug',repeat('A',64),'2026-08-06T18:15:21Z'::timestamptz,1,'published' FROM qa_ids UNION ALL
+ SELECT c,'GRH','synthetic_grh','synthetic-sep',repeat('B',64),'2026-09-10T18:17:30Z',2,'published' FROM qa_ids;
+INSERT INTO person_identity SELECT employee FROM qa_ids UNION ALL SELECT other FROM qa_ids;
+INSERT INTO employment_contract(id,person_id,source_system,source_batch_id,legacy_company_id,legacy_legajo,status)
+ SELECT employee,employee,'GRH',b,101,'001','active' FROM qa_ids UNION ALL
+ SELECT other,other,'GRH',b,101,'002','active' FROM qa_ids;
+INSERT INTO payroll_run(id,company_source_id,payroll_date,source_period,source_month,payroll_type,source_closed_flag,closure_status,source_batch_id,source_id)
+ SELECT '10000000-0000-4000-8000-000000000001'::uuid,'101','2026-08-31'::date,2026,8,'M',NULL,'open',b,repeat('1',64) FROM qa_ids UNION ALL
+ SELECT '10000000-0000-4000-8000-000000000002','101','2026-07-31',2026,7,'M',1,'closed',b,repeat('2',64) FROM qa_ids;
+INSERT INTO payroll_monthly_fact(employment_contract_id,payroll_run_id,payroll_date,source_period,source_month,payroll_type,
+ item_count,quantity_sum,net,distinct_concepts,source_batch_id,source_id,source_payload)
+ SELECT employee,'10000000-0000-4000-8000-000000000001'::uuid,'2026-08-31'::date,2026,8,'M',1,0,9007199254740993.12,1,b,repeat('a',64),'{"literal":"before"}'::jsonb FROM qa_ids UNION ALL
+ SELECT employee,'10000000-0000-4000-8000-000000000002','2026-07-31',2026,7,'M',2,0,NULL,2,b,repeat('b',64),'{"literal":"same"}'::jsonb FROM qa_ids UNION ALL
+ SELECT other,'10000000-0000-4000-8000-000000000001','2026-08-31',2026,8,'M',1,0,3,1,b,repeat('c',64),'{"literal":"removed"}'::jsonb FROM qa_ids;
+INSERT INTO employment_movement(id,employment_contract_id,movement_period,payroll_type,movement_type,concept_source_id,quantity,source_batch_id,source_id,source_payload)
+ SELECT '20000000-0000-4000-8000-000000000001'::uuid,employee,'2026-08-01'::date,'M','variable','1',5,b,repeat('1',64),'{"literal":"before"}'::jsonb FROM qa_ids UNION ALL
+ SELECT '20000000-0000-4000-8000-000000000002',employee,'2026-08-01','M','variable','2',NULL,b,repeat('2',64),'{"literal":"removed"}'::jsonb FROM qa_ids UNION ALL
+ SELECT '20000000-0000-4000-8000-000000000003',employee,'2026-07-01','M','variable','3',0,b,repeat('3',64),'{"literal":"same"}'::jsonb FROM qa_ids;
+SELECT pg_temp.ok((SELECT count(*)=2 FROM grh_effective_payroll_run_v1),'fallback runs unchanged');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM grh_effective_payroll_monthly_fact_v1),'fallback monthly unchanged');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM grh_effective_employment_movement_v1),'fallback movements unchanged');
+CREATE TEMP TABLE originals AS
+ SELECT 'payroll_run' table_name,md5(jsonb_agg(to_jsonb(r) ORDER BY source_id)::text) digest FROM payroll_run r UNION ALL
+ SELECT 'payroll_monthly_fact',md5(jsonb_agg(to_jsonb(r) ORDER BY source_id)::text) FROM payroll_monthly_fact r UNION ALL
+ SELECT 'employment_movement',md5(jsonb_agg(to_jsonb(r) ORDER BY source_id)::text) FROM employment_movement r;
+INSERT INTO grh_core_source_version(id,tenant_id,source_binding_id,baseline_batch_id,baseline_import_run_id,source_sha256,baseline_source_sha256,
+ payload_sha256,manifest_sha256,baseline_manifest_sha256,source_cutoff,baseline_cutoff,source_payroll_date,baseline_payroll_date,
+ source_profile,source_database,source_company_id,entity_evidence,baseline_fingerprints)
+ SELECT v,tenant,binding,b,1,repeat('b',64),repeat('a',64),repeat('c',64),repeat('d',64),repeat('e',64),
+ '2026-09-10 15:17:30','2026-08-06 15:15:21','2026-09-30','2026-08-31','synthetic','synthetic_grh',101,
+ '{"payrollRuns":{"counts":{"candidate":3}},"payrollMonthly":{"counts":{"candidate":3}},"movements":{"counts":{"candidate":3}},"payrollSnapshot":{"counts":{"candidate":0}},"employmentReconciliation":{"counts":{"candidate":0}}}'::jsonb,
+ (SELECT jsonb_object_agg(entity,grh_core_source_base_fingerprint_v1(b,entity)) FROM unnest(ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation']) entity) FROM qa_ids;
+-- A replacement, removal and addition cover each history overlay branch.
+INSERT INTO grh_core_source_delta(version_id,entity,source_id,operation,previous_source_sha256,candidate_source_sha256,previous_record,record,previous_source_payload,source_payload)
+ SELECT q.v,'payrollRuns',r.source_id,'replace',repeat('a',64),repeat('b',64),r.record,
+ r.record||'{"closure_status":"closed","source_closed_flag":1}'::jsonb,'{}'::jsonb,'{}'::jsonb
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'payrollRuns') r WHERE r.source_id=repeat('1',64) UNION ALL
+ SELECT q.v,'payrollRuns',repeat('3',64),'add',NULL,repeat('b',64),NULL,
+ r.record||'{"payroll_date":"2026-09-30","source_month":9}'::jsonb,NULL,'{}'
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'payrollRuns') r WHERE r.source_id=repeat('1',64);
+INSERT INTO grh_core_source_delta(version_id,entity,source_id,operation,previous_source_sha256,candidate_source_sha256,previous_record,record,previous_source_payload,source_payload)
+ SELECT q.v,'payrollMonthly',r.source_id,'replace',repeat('a',64),repeat('b',64),r.record,
+ r.record||'{"net":"9007199254740994.34"}'::jsonb,'{"literal":"before"}'::jsonb,'{"literal":"Á S11 exact"}'::jsonb
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'payrollMonthly') r WHERE r.source_id=repeat('a',64) UNION ALL
+ SELECT q.v,'payrollMonthly',r.source_id,'remove',repeat('a',64),NULL,r.record,NULL,'{"literal":"removed"}',NULL
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'payrollMonthly') r WHERE r.source_id=repeat('c',64) UNION ALL
+ SELECT q.v,'payrollMonthly',repeat('d',64),'add',NULL,repeat('b',64),NULL,
+ r.record||'{"payroll_date":"2026-09-30","source_month":9,"net":"0"}'::jsonb,NULL,'{"literal":"added"}'
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'payrollMonthly') r WHERE r.source_id=repeat('a',64);
+INSERT INTO grh_core_source_delta(version_id,entity,source_id,operation,previous_source_sha256,candidate_source_sha256,previous_record,record,previous_source_payload,source_payload)
+ SELECT q.v,'movements',r.source_id,'replace',repeat('a',64),repeat('b',64),r.record,
+ r.record||'{"quantity":"6"}'::jsonb,'{"literal":"before"}'::jsonb,'{"literal":"replacement"}'::jsonb
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'movements') r WHERE r.source_id=repeat('1',64) UNION ALL
+ SELECT q.v,'movements',r.source_id,'remove',repeat('a',64),NULL,r.record,NULL,'{"literal":"removed"}',NULL
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'movements') r WHERE r.source_id=repeat('2',64) UNION ALL
+ SELECT q.v,'movements',repeat('4',64),'add',NULL,repeat('b',64),NULL,
+ r.record||'{"movement_period":"2026-09-01","concept_source_id":"4","quantity":null}'::jsonb,NULL,'{"literal":"added"}'
+ FROM qa_ids q CROSS JOIN LATERAL grh_core_source_base_rows_v1(q.b,'movements') r WHERE r.source_id=repeat('1',64);
+INSERT INTO grh_core_source_version_seal SELECT v,
+ (SELECT jsonb_object_agg(entity,grh_core_source_version_fingerprint_v1(v,entity)) FROM unnest(ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation']) entity),
+ now() FROM qa_ids;
+CREATE FUNCTION pg_temp.publish() RETURNS void LANGUAGE sql AS $fn$
+ INSERT INTO grh_effective_source_binding(tenant_id,source_binding_id,source_version_id,baseline_batch_id,source_batch_id,import_run_id,publication_sha256)
+ SELECT tenant,binding,v,b,c,2,repeat('f',64) FROM qa_ids
+$fn$;
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_RUNS_MISMATCH','publication requires physical runs');
+INSERT INTO payroll_run
+ SELECT typed.* FROM qa_ids q CROSS JOIN LATERAL grh_core_source_unsealed_rows_v1(q.v,'payrollRuns') r
+ CROSS JOIN LATERAL jsonb_populate_record(NULL::payroll_run,r.record||jsonb_build_object(
+  'id',md5('payroll_run|GRH|'||q.c::text||'|'||r.source_id)::uuid,'source_system','GRH','source_batch_id',q.c,
+  'source_id',r.source_id,'source_payload','{}'::jsonb,'recorded_at',now())) typed;
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_CONTRACTS_MISMATCH','publication requires promoted contracts');
+UPDATE employment_contract SET source_batch_id=(SELECT c FROM qa_ids);
+SAVEPOINT bad_run;
+UPDATE payroll_run SET closure_status='unknown' WHERE source_batch_id=(SELECT c FROM qa_ids) AND source_id=repeat('3',64);
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_RUNS_MISMATCH','run metadata must exactly match sealed candidate');
+ROLLBACK TO bad_run;
+SAVEPOINT bad_binding;
+UPDATE platform_tenant_source_binding SET verified=false;
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_BINDING_MISMATCH','unverified binding rejected');
+ROLLBACK TO bad_binding;
+SAVEPOINT bad_policy;
+UPDATE tenant_identity_policy SET tenant_data_plane_ready=false;
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_BINDING_MISMATCH','unready certified plane rejected');
+ROLLBACK TO bad_policy;
+SAVEPOINT bad_certification;
+UPDATE tenant_identity_policy SET certified_source_binding_id=gen_random_uuid();
+SELECT pg_temp.denied('SELECT pg_temp.publish()','GRH_EFFECTIVE_BINDING_MISMATCH','verified but uncertified source rejected');
+ROLLBACK TO bad_certification;
+SELECT pg_temp.denied($sql$INSERT INTO grh_effective_source_binding SELECT gen_random_uuid(),binding,v,b,c,2,repeat('f',64),now() FROM qa_ids$sql$,
+ 'GRH_EFFECTIVE_VERSION_MISMATCH','tenant mismatch rejected');
+SELECT pg_temp.publish();
+SELECT pg_temp.ok((SELECT count(*)=3 AND bool_and(source_batch_id=(SELECT c FROM qa_ids)) FROM grh_effective_payroll_run_v1),'candidate run selection exact');
+SELECT pg_temp.ok((SELECT closure_status='closed' FROM grh_effective_payroll_run_v1 WHERE source_id=repeat('1',64)),'corrected closure selected');
+SELECT pg_temp.ok((SELECT closure_status='open' FROM payroll_run WHERE id='10000000-0000-4000-8000-000000000001'),'historical physical run preserved for old FKs');
+SELECT pg_temp.ok((SELECT count(*)=3 AND bool_and(source_batch_id=(SELECT c FROM qa_ids)) FROM grh_effective_payroll_monthly_fact_v1),'monthly candidate cardinality');
+SELECT pg_temp.ok((SELECT net=9007199254740994.34 AND source_payload='{"literal":"Á S11 exact"}'::jsonb FROM grh_effective_payroll_monthly_fact_v1 WHERE source_id=repeat('a',64)),'decimal precision and exact replacement raw payload');
+SELECT pg_temp.ok((SELECT net IS NULL AND quantity_sum=0 AND source_payload='{"literal":"same"}'::jsonb FROM grh_effective_payroll_monthly_fact_v1 WHERE source_id=repeat('b',64)),'unchanged null zero and raw payload preserved');
+SELECT pg_temp.ok((SELECT net=0 FROM grh_effective_payroll_monthly_fact_v1 WHERE source_id=repeat('d',64)),'added zero differs from null');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM grh_effective_payroll_monthly_fact_v1 WHERE source_id=repeat('c',64)),'monthly removal excludes only selected revision');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM grh_effective_payroll_monthly_fact_v1 f LEFT JOIN payroll_run r ON r.id=f.payroll_run_id AND r.source_batch_id=f.source_batch_id WHERE r.id IS NULL),'every effective fact targets real same-batch run');
+SELECT pg_temp.ok((SELECT count(*)=3 AND bool_and(source_batch_id=(SELECT c FROM qa_ids)) FROM grh_effective_employment_movement_v1),'movement candidate cardinality');
+SELECT pg_temp.ok((SELECT id IS NULL AND quantity IS NULL FROM grh_effective_employment_movement_v1 WHERE source_id=repeat('4',64)),'added movement does not fabricate identity');
+SELECT pg_temp.ok((SELECT id='20000000-0000-4000-8000-000000000001' AND quantity=6 FROM grh_effective_employment_movement_v1 WHERE source_id=repeat('1',64)),'replacement movement preserves physical identity');
+SELECT pg_temp.ok((SELECT quantity=0 AND source_payload='{"literal":"same"}'::jsonb FROM grh_effective_employment_movement_v1 WHERE source_id=repeat('3',64)),'unchanged movement payload and zero');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM grh_effective_employment_movement_v1 WHERE source_id=repeat('2',64)),'movement removal excludes selected revision');
+DO $tests$
+DECLARE item text; observed text; plan json; details text;
+BEGIN
+ FOREACH item IN ARRAY ARRAY['payroll_run','payroll_monthly_fact','employment_movement'] LOOP
+  EXECUTE format('SELECT md5(jsonb_agg(to_jsonb(r) ORDER BY source_id)::text) FROM %I r WHERE source_batch_id=(SELECT b FROM qa_ids)',item) INTO observed;
+  PERFORM pg_temp.ok(observed=(SELECT digest FROM originals WHERE table_name=item),'original bytes preserved '||item);
+  PERFORM pg_temp.ok(NOT EXISTS(
+    (SELECT attnum,attname,atttypid,atttypmod FROM pg_attribute WHERE attrelid=('__SCHEMA__.'||item)::regclass AND attnum>0 AND NOT attisdropped EXCEPT
+     SELECT attnum,attname,atttypid,atttypmod FROM pg_attribute WHERE attrelid=('__SCHEMA__.grh_effective_'||item||'_v1')::regclass AND attnum>0 AND NOT attisdropped)
+    UNION ALL
+    (SELECT attnum,attname,atttypid,atttypmod FROM pg_attribute WHERE attrelid=('__SCHEMA__.grh_effective_'||item||'_v1')::regclass AND attnum>0 AND NOT attisdropped EXCEPT
+     SELECT attnum,attname,atttypid,atttypmod FROM pg_attribute WHERE attrelid=('__SCHEMA__.'||item)::regclass AND attnum>0 AND NOT attisdropped)),'compatible typed columns '||item);
+  PERFORM pg_temp.denied(format('UPDATE %I SET source_payload=source_payload||''{"changed":true}''::jsonb WHERE source_batch_id=(SELECT b FROM qa_ids)',item),'GRH_EFFECTIVE_BASELINE_IMMUTABLE','baseline update denied '||item);
+  PERFORM pg_temp.denied(format('DELETE FROM %I WHERE source_batch_id=(SELECT b FROM qa_ids)',item),'GRH_EFFECTIVE_BASELINE_IMMUTABLE','baseline delete denied '||item);
+  PERFORM pg_temp.denied(format('INSERT INTO %I SELECT * FROM %I WHERE source_batch_id=(SELECT b FROM qa_ids) LIMIT 1',item,item),'GRH_EFFECTIVE_BASELINE_IMMUTABLE','baseline insert denied '||item);
+ END LOOP;
+ FOREACH item IN ARRAY ARRAY['payrollRuns','payrollMonthly','movements','payrollSnapshot','employmentReconciliation'] LOOP
+  PERFORM grh_core_source_version_assert_v1((SELECT v FROM qa_ids),item);
+  PERFORM pg_temp.ok(true,'baseline and candidate seals remain valid '||item);
+ END LOOP;
+ EXECUTE 'EXPLAIN (FORMAT JSON) SELECT * FROM grh_effective_employment_movement_v1 WHERE employment_contract_id=''66666666-6666-4666-8666-666666666666'' AND movement_period=''2026-09-01''' INTO plan;
+ PERFORM pg_temp.ok(plan::text NOT LIKE '%grh_core_source_version_rows_v1%' AND plan::text NOT LIKE '%grh_core_source_unsealed_rows_v1%','filtered read never invokes full PLpgSQL reconstruction');
+END $tests$;
+SELECT pg_temp.denied('UPDATE grh_effective_source_binding SET publication_sha256=repeat(''0'',64)','GRH_EFFECTIVE_IMMUTABLE','pointer update denied');
+SELECT pg_temp.denied('DELETE FROM grh_effective_source_binding','GRH_EFFECTIVE_IMMUTABLE','pointer delete denied');
+SELECT pg_temp.denied('TRUNCATE grh_effective_source_binding','GRH_EFFECTIVE_IMMUTABLE','pointer truncate denied');
+SELECT pg_temp.denied('TRUNCATE payroll_monthly_fact','GRH_EFFECTIVE_BASELINE_IMMUTABLE','baseline truncate denied');
+SELECT pg_temp.denied('UPDATE employment_contract SET legacy_legajo=''999'' WHERE legacy_legajo=''001''','GRH_EFFECTIVE_BASELINE_IMMUTABLE','contract legacy key immutable');
+SELECT pg_temp.denied('UPDATE employment_contract SET person_id=(SELECT other FROM qa_ids) WHERE legacy_legajo=''001''','GRH_EFFECTIVE_BASELINE_IMMUTABLE','contract person mapping immutable');
+SELECT pg_temp.denied('UPDATE employment_contract SET source_batch_id=(SELECT b FROM qa_ids)','GRH_EFFECTIVE_BASELINE_IMMUTABLE','contract batch immutable after selection');
+UPDATE employment_contract SET status_explanation='synthetic local administrative note' WHERE legacy_legajo='001';
+SELECT pg_temp.ok((SELECT status_explanation='synthetic local administrative note' FROM employment_contract WHERE legacy_legajo='001'),'nonidentity contract attributes remain editable');
+INSERT INTO employment_contract(id,person_id,source_system,source_batch_id,legacy_company_id,legacy_legajo,status)
+ SELECT gen_random_uuid(),employee,'MUNICONTROL',c,101,'native-1','active' FROM qa_ids;
+SELECT pg_temp.ok((SELECT count(*)=1 FROM employment_contract WHERE source_system='MUNICONTROL'),'native employment remains available');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ CROSS JOIN LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a
+ WHERE n.nspname='__SCHEMA__' AND c.relname LIKE 'grh_effective_%' AND a.grantee<>c.relowner),'effective relations grant no runtime/public access');
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+ WHERE n.nspname='__SCHEMA__' AND p.proname LIKE 'grh_effective_%' AND a.grantee<>p.proowner),'effective functions grant no runtime/public access');
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT jsonb_build_object('version','grh-effective-source-qa.v1','passed',count(*),'major',current_setting('server_version_num')::integer/10000,'synthetic',true,'rollback',true) AS qa_result FROM qa_checks;

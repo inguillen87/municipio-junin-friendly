@@ -1,5 +1,7 @@
 -- Promote only the explicitly verified curated run in the caller-owned transaction.
 -- Context is set with transaction-local set_config by promoteCanonicalGrhWithinTransaction.
+-- The five allowlisted GRH reads are compiled to the sealed 098 source views only for an explicit sourceRevision.
+-- The five marked staging writes are omitted only after exact virtual-staging verification.
 -- No latest-run fallback and no direct execution without the verified preflight.
 
 WITH selected_run AS (
@@ -55,6 +57,7 @@ WITH batch AS (
   FROM (SELECT * FROM public.grh_employees
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_employees
 )
+/* promotion-materialize-staging */
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
   source_row_number, source_row_sha256, source_payload
@@ -87,6 +90,7 @@ WITH batch AS (
   FROM (SELECT * FROM public.grh_absences
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_absences
 )
+/* promotion-materialize-staging */
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
   source_row_number, source_row_sha256, source_payload
@@ -124,6 +128,7 @@ WITH batch AS (
   FROM (SELECT * FROM public.grh_leaves
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_leaves
 )
+/* promotion-materialize-staging */
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
   source_row_number, source_row_sha256, source_payload
@@ -159,6 +164,7 @@ WITH batch AS (
   FROM (SELECT * FROM public.grh_family
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_family
 )
+/* promotion-materialize-staging */
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
   source_row_number, source_row_sha256, source_payload
@@ -190,6 +196,7 @@ WITH batch AS (
   FROM (SELECT * FROM public.grh_catalog_rows
     WHERE import_run_id = current_setting('municontrol.promotion_import_run_id')::bigint) grh_catalog_rows
 )
+/* promotion-materialize-staging */
 INSERT INTO source_staging_row (
   batch_id, source_schema, source_entity, source_id,
   source_row_number, source_row_sha256, source_payload

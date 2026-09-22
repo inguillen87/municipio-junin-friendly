@@ -102,10 +102,10 @@ function assertIsoDate(value, fieldName) {
   return text;
 }
 
-function assertPayrollDate(value, fieldName) {
+function assertPayrollDate(value, fieldName, latestPayrollDate = EXPECTED_CURRENT_PAYROLL_DATE) {
   const date = assertIsoDate(value, fieldName);
-  if (date < '2008-01-01' || date > EXPECTED_CURRENT_PAYROLL_DATE) {
-    throw new GrhCoreError('PAYROLL_DATE_OUTSIDE_AUGUST_PROFILE');
+  if (date < '2008-01-01' || date > latestPayrollDate) {
+    throw new GrhCoreError(latestPayrollDate === EXPECTED_CURRENT_PAYROLL_DATE ? 'PAYROLL_DATE_OUTSIDE_AUGUST_PROFILE' : 'PAYROLL_DATE_OUTSIDE_SELECTED_PROFILE');
   }
   return date;
 }
@@ -408,12 +408,12 @@ function sourceKey(record, label) {
   return { key, companyCode, employeeNumber };
 }
 
-async function importPayrollRuns(client, batchId, artifact) {
+async function importPayrollRuns(client, batchId, artifact, latestPayrollDate = EXPECTED_CURRENT_PAYROLL_DATE) {
   return forEachBatch(streamDeterministicJsonArray(artifact.path), 300, async (records) => {
     const rows = records.map((record) => {
       const key = record?.sourceKey;
       const companySourceId = requiredText(key?.companyCode, 'payrollRuns.sourceKey.companyCode');
-      const payrollDate = assertPayrollDate(key?.payrollDate, 'payrollRuns.sourceKey.payrollDate');
+      const payrollDate = assertPayrollDate(key?.payrollDate, 'payrollRuns.sourceKey.payrollDate', latestPayrollDate);
       const sourcePeriod = requiredInteger(key?.period, 'payrollRuns.sourceKey.period');
       const sourceMonth = requiredInteger(key?.month, 'payrollRuns.sourceKey.month');
       if (sourceMonth < 1 || sourceMonth > 12) throw new Error(`Mes de corrida fuera de rango: ${sourceMonth}`);
@@ -1083,6 +1083,80 @@ export async function importGrhCoreWithinTransaction({ client, source, batchId, 
   } catch (error) {
     throw safeCoreError(error, stage);
   }
+}
+
+/** Small, source-bound operational projection for the coordinated S11 publisher.
+ * Historical facts/movements remain in the immutable baseline plus 061 deltas.
+ * Caller owns the transaction; this function neither activates a source nor
+ * relaxes the standalone importer's source-replacement guard.
+ */
+export async function importGrhOperationalSnapshotWithinTransaction({
+  client, source, batchId, importRunId, sourceVersionId, expectedPayloadSha256,
+  tenantId, sourceBindingId, checkpoint = async () => {},
+} = {}) {
+  let stage = 'OPERATIONAL_SNAPSHOT_INPUT_INVALID';
+  try {
+    ({ batchId, importRunId } = explicitSourceIds(batchId, importRunId));
+    if (typeof client?.query !== 'function' || typeof checkpoint !== 'function'
+      || ![sourceVersionId, tenantId, sourceBindingId].every(v => typeof v === 'string' && UUID_PATTERN.test(v))
+      || typeof expectedPayloadSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(expectedPayloadSha256)) {
+      throw new GrhCoreError(stage);
+    }
+    await client.query('SAVEPOINT grh_operational_snapshot_transaction');
+    await acquireGrhPublicationLocks(client);
+    stage = 'OPERATIONAL_SNAPSHOT_SOURCE_INVALID';
+    source = await revalidateSource(source);
+    if (source.profileId !== 'grh-junin-2026-09-10') throw new GrhCoreError(stage);
+    await resolveGrhBatch(client, source.manifest, batchId, importRunId);
+    const version = (await client.query(`SELECT v.id, v.entity_evidence,
+       s.entity_fingerprints FROM public.grh_core_source_version v
+       JOIN public.grh_core_source_version_seal s ON s.version_id=v.id
+       JOIN public.platform_tenant_source_binding b ON b.id=v.source_binding_id AND b.tenant_id=v.tenant_id
+       JOIN public.tenant_identity_policy p ON p.tenant_id=b.tenant_id AND p.certified_source_binding_id=b.id
+       JOIN public.source_import_batch imported ON imported.id=$2::uuid
+       WHERE v.id=$1::uuid AND v.payload_sha256=$3 AND v.tenant_id=$4::uuid AND v.source_binding_id=$5::uuid
+         AND v.source_sha256=lower(imported.source_sha256) AND v.source_profile=$6
+         AND v.source_database=imported.source_database AND b.verified AND p.tenant_data_plane_ready
+         AND b.source_system='GRH' AND b.source_database=v.source_database AND b.source_company_id=v.source_company_id
+         AND imported.source_cutoff=v.source_cutoff AT TIME ZONE 'America/Argentina/Buenos_Aires'
+         AND imported.legacy_import_run_id=$7::bigint AND imported.validation_state='published'`,
+    [sourceVersionId,batchId,expectedPayloadSha256,tenantId,sourceBindingId,source.profileId,importRunId])).rows;
+    if (version.length !== 1) throw new GrhCoreError('OPERATIONAL_SNAPSHOT_VERSION_MISMATCH');
+    const contractCount = (await client.query(`SELECT count(*)::int AS records FROM public.employment_contract
+      WHERE source_system='GRH' AND source_batch_id=$1::uuid`,[batchId])).rows[0]?.records;
+    if (contractCount !== version[0].entity_evidence.employmentReconciliation.counts.candidate) {
+      throw new GrhCoreError('OPERATIONAL_SNAPSHOT_CONTRACTS_MISMATCH');
+    }
+    await rejectSnapshotCohortCollision(client,batchId,source.manifest.source.currentPayrollDate);
+    for (const entity of ['payrollRuns','payrollSnapshot','movements','payrollMonthly','employmentReconciliation']) {
+      await client.query('SELECT public.grh_core_source_version_assert_v1($1::uuid,$2::text)',[sourceVersionId,entity]);
+    }
+    await checkpoint('snapshot:validated');
+    stage = 'OPERATIONAL_SNAPSHOT_WRITE_FAILED';
+    await insertArtifactStaging(client,batchId,source.manifest);
+    await importPayrollRuns(client,batchId,source.artifacts.payrollRuns,source.manifest.source.currentPayrollDate);
+    await checkpoint('snapshot:runs');
+    await importPayrollSnapshot(client,batchId,source.artifacts.payrollSnapshot,source.manifest.source.currentPayrollDate);
+    await checkpoint('snapshot:assignments');
+    await importReconciliation(client,batchId,source.artifacts.employmentReconciliation,
+      source.manifest.source.currentPayrollDate,source.manifest.source.currentPayrollClosureStatus);
+    await checkpoint('snapshot:reconciliation');
+    stage = 'OPERATIONAL_SNAPSHOT_RESULT_MISMATCH';
+    const counts = {};
+    for (const entity of ['payrollRuns','payrollSnapshot','employmentReconciliation']) {
+      const actual = (await client.query('SELECT public.grh_core_source_base_fingerprint_v1($1::uuid,$2::text) AS evidence',[batchId,entity])).rows[0]?.evidence;
+      if (stableJson(actual) !== stableJson(version[0].entity_fingerprints[entity])) throw new GrhCoreError(stage);
+      counts[entity] = actual.rows;
+    }
+    const historyWrites = (await client.query(`SELECT
+      (SELECT count(*) FROM public.payroll_monthly_fact WHERE source_batch_id=$1::uuid)::int AS monthly,
+      (SELECT count(*) FROM public.employment_movement WHERE source_batch_id=$1::uuid)::int AS movements`,[batchId])).rows[0];
+    if (historyWrites?.monthly !== 0 || historyWrites?.movements !== 0) throw new GrhCoreError('OPERATIONAL_SNAPSHOT_HISTORY_DUPLICATED');
+    await revalidateSource(source);
+    await checkpoint('snapshot:verified');
+    await client.query('RELEASE SAVEPOINT grh_operational_snapshot_transaction');
+    return {batchId,importRunId,sourceVersionId,counts,historyRowsCopied:0,committed:false,callerOwnedTransaction:true};
+  } catch (error) { throw safeCoreError(error,stage); }
 }
 
 function singleCliValue(argv, name) {

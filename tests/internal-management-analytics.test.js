@@ -220,6 +220,6 @@ test('el resumen público recorta 2019 al inicio real de la ventana', async () =
   const data = JSON.parse(await readFile(new URL('../friendly-data.json', import.meta.url), 'utf8'));
   const row = data.management.yearly.find((item) => item.year === 2019);
   assert.deepEqual(row, { year: 2019, hires: 4, exits: 4, partial: true });
-  assert.equal(data.management.yearly.reduce((sum, item) => sum + item.hires, 0), 580);
-  assert.equal(data.management.yearly.reduce((sum, item) => sum + item.exits, 0), 500);
+  assert.equal(data.management.yearly.reduce((sum, item) => sum + item.hires, 0), 582);
+  assert.equal(data.management.yearly.reduce((sum, item) => sum + item.exits, 0), 509);
 });

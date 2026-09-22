@@ -4,8 +4,8 @@ import test from 'node:test';
 import { payrollControl } from '../api/internal-data.js';
 
 const REQUIRED_COLUMNS = {
-  payroll_run: ['payroll_date', 'closure_status', 'source_closed_flag'],
-  payroll_monthly_fact: ['payroll_run_id', 'net_payable', 'employer_contributions'],
+  grh_effective_payroll_run_v1: ['payroll_date', 'closure_status', 'source_closed_flag'],
+  grh_effective_payroll_monthly_fact_v1: ['payroll_run_id', 'net_payable', 'employer_contributions'],
   vw_liquidacion_mensual: [
     'month', 'closure_status', 'liquidated_contracts', 'gross_payable',
     'employee_withholdings', 'net_payable', 'employer_contributions',
@@ -63,7 +63,7 @@ function fixtureSql({ loaded = true, openPublished = false } = {}) {
           closedRunsBlocked: 0, openRunsPublished: openPublished ? 1 : 0
         }];
       }
-      if (query.includes('FROM source_import_batch')) {
+      if (query.includes('FROM grh_effective_source_batch_v1')) {
         return [{
           fileName: 'grh_junin_extracted.sql', sha256: 'A'.repeat(64),
           cutoff: '2026-08-06T15:15:21.000Z', recordedAt: '2026-08-13T20:00:00.000Z'

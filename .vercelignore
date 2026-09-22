@@ -241,3 +241,11 @@ local-agents/
 !scripts/extract_schooling_source.py
 !scripts/extract_rrhh_curated.py
 !tests/test_extract_schooling_source.py
+
+# Reviewed effective source SQL and synthetic offline build checks.
+!scripts/internal-schema.sql
+!scripts/migrations/096-grh-effective-source.sql
+!scripts/migrations/097-grh-effective-consumers.sql
+!scripts/migrations/098-grh-curated-source-version.sql
+!scripts/migrations/099-grh-curated-consumers.sql
+!scripts/fixtures/grh-*.sql.txt

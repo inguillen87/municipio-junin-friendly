@@ -31,7 +31,7 @@ test('el foco ejecutivo deriva señales del snapshot real y conserva límites de
 
   assert.deepEqual(signal, {
     sectorCoveragePct: 98.3,
-    active: 882,
+    active: 875,
     activeWithoutSector: 15,
     absenceYear: 2025,
     absencePreviousYear: 2024,
@@ -39,10 +39,10 @@ test('el foco ejecutivo deriva señales del snapshot real y conserva límites de
     absenceAffected: 614,
     absenceChangePct: -5.7,
     managementFrom: '2023-12-09',
-    managementTo: '2026-08-06',
-    hires: 281,
-    exits: 232,
-    balance: 49,
+    managementTo: '2026-09-10',
+    hires: 283,
+    exits: 241,
+    balance: 42,
   });
 });
 

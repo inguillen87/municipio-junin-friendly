@@ -104,9 +104,12 @@ async function inspect(viewport, label, downloadFiles) {
     await page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#reportContent:not([hidden])');
     await page.waitForFunction(() => document.querySelector('#reportPackStatus')?.dataset.state === 'ready');
-    assert.match(await page.locator('#metricHistorical').innerText(), /2[.\s]?450/);
-    assert.match(await page.locator('#metricActive').innerText(), /882/);
-    assert.match(await page.locator('#metricAbsences').innerText(), /31[.\s]?572/);
+    await page.locator('.rc-overview summary').click();
+    await page.waitForFunction(() => /2[.\s]?452/.test(document.querySelector('#metricHistorical')?.textContent || ''));
+    assert.match(await page.locator('#metricHistorical').innerText(), /2[.\s]?452/);
+    assert.match(await page.locator('#metricActive').innerText(), /875/);
+    assert.match(await page.locator('#metricAbsences').innerText(), /31[.\s]?702/);
+    await page.getByRole('tab', {name:'Informe completo',exact:true}).click();
     assert.match(await page.locator('#exportCutoff').innerText(), /2026/);
     assert.match(await page.locator('#exportDataset').innerText(), /GRH/i);
     assert.match(await page.locator('#exportSha').innerText(), /^sha256:[a-f0-9]{12}/i);
@@ -120,7 +123,7 @@ async function inspect(viewport, label, downloadFiles) {
         page.waitForEvent('download'),
         page.locator('#downloadRrhhXlsx').click(),
       ]);
-      assert.match(xlsxDownload.suggestedFilename(), /^municontrol_informe-rrhh_2026-08-06_[a-f0-9]{12}\.xlsx$/);
+      assert.match(xlsxDownload.suggestedFilename(), /^municontrol_informe-rrhh_2026-09-10_[a-f0-9]{12}\.xlsx$/);
       artifacts.xlsx = path.join(outputRoot, xlsxDownload.suggestedFilename());
       await xlsxDownload.saveAs(artifacts.xlsx);
       const xlsxBytes = fs.readFileSync(artifacts.xlsx);
@@ -134,7 +137,7 @@ async function inspect(viewport, label, downloadFiles) {
         page.waitForEvent('download'),
         page.locator('#downloadRrhhPdf').click(),
       ]);
-      assert.match(pdfDownload.suggestedFilename(), /^municontrol_informe-rrhh_2026-08-06_[a-f0-9]{12}\.pdf$/);
+      assert.match(pdfDownload.suggestedFilename(), /^municontrol_informe-rrhh_2026-09-10_[a-f0-9]{12}\.pdf$/);
       artifacts.pdf = path.join(outputRoot, pdfDownload.suggestedFilename());
       await pdfDownload.saveAs(artifacts.pdf);
       const pdfBytes = fs.readFileSync(artifacts.pdf);

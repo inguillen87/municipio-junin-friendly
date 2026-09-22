@@ -1,0 +1,117 @@
+-- Synthetic state only, including identities and IAM resolver rows. Real functions remain intact.
+SET CONSTRAINTS ALL DEFERRED;
+INSERT INTO platform_tenant SELECT tenant,'active' FROM qa_ids;
+INSERT INTO internal_users VALUES('consumer@example.invalid','Synthetic operator',true,1);
+INSERT INTO tenant_membership SELECT '88888888-8888-4888-8888-888888888888',tenant,'consumer@example.invalid','PLATFORM_OWNER_OPERATIVO_INTEGRAL','active' FROM qa_ids;
+INSERT INTO tenant_identity_session SELECT '99999999-9999-4999-8999-999999999999','consumer@example.invalid',tenant,1,1,'membership','mfa','active',now()+interval '1 hour',now() FROM qa_ids;
+UPDATE tenant_identity_policy SET certified_release_sha=repeat('9',40);
+INSERT INTO tenant_action_authority SELECT '88888888-8888-4888-8888-888888888888',tenant FROM qa_ids;
+INSERT INTO tenant_action_employment_link SELECT '88888888-8888-4888-8888-888888888888',tenant,binding,employee,true FROM qa_ids;
+INSERT INTO qa_capabilities SELECT '88888888-8888-4888-8888-888888888888',cap FROM unnest(ARRAY['actions.read','workforce.employee.read','payroll.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare','payroll.reprocessing.read','payroll.reprocessing.prepare']) cap;
+CREATE FUNCTION pg_temp.context() RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT jsonb_build_object('actorEmail','consumer@example.invalid','actorSessionId','99999999-9999-4999-8999-999999999999','actorSessionVersion',1,'releaseSha',repeat('9',40),'tenantId',tenant,'membershipId','88888888-8888-4888-8888-888888888888') FROM qa_ids
+$f$;
+CREATE FUNCTION pg_temp.history(target uuid) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT employee_payroll_history_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888',target,2026,1,24)
+$f$;
+CREATE FUNCTION pg_temp.documents(target uuid) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT employee_payroll_documents_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888',target)
+$f$;
+CREATE FUNCTION pg_temp.detail(target uuid) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT employee_payroll_detail_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888',target,'2026-08-31','M',2026,8)
+$f$;
+CREATE FUNCTION pg_temp.novelty(concept text,quantity text,month date,key uuid DEFAULT gen_random_uuid()) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT payroll_novelty_prepare_v1(pg_temp.context(),'individual',month,'monthly',jsonb_build_array(jsonb_build_object('rowOrdinal',1,'legajo','1','conceptSourceId',concept,'costCenterSourceId',NULL,'adjustmentMonth',NULL,'quantityDecimal',quantity,'amountCents',NULL,'movementType','variable','legalInstrument',NULL,'observation',NULL,'forced',false)),key,encode(digest(concept||coalesce(quantity,'NULL')||month::text,'sha256'),'hex'))
+$f$;
+SELECT pg_temp.ok((SELECT count(*)=1 AND bool_and(id=(SELECT c FROM qa_ids)) FROM grh_effective_source_batch_v1),'097 metadata follows selected source only');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM vw_nomina_totales),'097 payroll run totals use selected runs');
+SELECT pg_temp.ok((SELECT net=9007199254740994.34 FROM vw_nomina_totales WHERE source_month=8),'097 payroll total uses exact replacement decimal');
+SELECT pg_temp.ok((SELECT net=0 FROM vw_liquidacion_mensual WHERE month='2026-09-01'),'097 monthly total includes added month zero');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM vw_movimientos_legajo),'097 movement view selected cardinality');
+SELECT pg_temp.ok((SELECT id IS NULL FROM vw_movimientos_legajo WHERE source_id=repeat('4',64)),'097 movement view preserves absent physical id');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM vw_empleado_actual),'097 employee view preserves native alongside GRH');
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))->>'total'='3','031 actual facade returns complete effective history');
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))#>>'{items,1,net}'='9007199254740994.34','031 decimal is exact through JSON');
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))#>>'{items,0,net}'='0.00','031 added zero retained');
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))#>'{items,2,net}'='null'::jsonb,'031 unchanged null retained');
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))#>>'{items,1,closureStatus}'='closed','031 corrected closure uses candidate run');
+SELECT pg_temp.ok(pg_temp.history((SELECT other FROM qa_ids))->>'total'='0','031 removed fact no longer visible');
+SELECT pg_temp.ok(pg_temp.history(gen_random_uuid())->>'found'='false','031 unknown contract does not expose data');
+SELECT pg_temp.ok((SELECT bool_and(result_count<=3) FROM employee_payroll_read_event),'031 actual read audit records bounded results');
+SAVEPOINT revoked_session;
+UPDATE tenant_identity_session SET status='revoked';
+SELECT pg_temp.denied('SELECT pg_temp.history((SELECT employee FROM qa_ids))','ACTION_SESSION_INVALID','031 revoked session remains rejected');
+ROLLBACK TO revoked_session;
+SAVEPOINT password_session;
+UPDATE tenant_identity_session SET auth_level='password';
+SELECT pg_temp.denied('SELECT pg_temp.history((SELECT employee FROM qa_ids))','ACTION_SESSION_INVALID','031 password-only session remains rejected');
+ROLLBACK TO password_session;
+SAVEPOINT revoked_cap;
+DELETE FROM qa_capabilities WHERE capability_key='payroll.read';
+SELECT pg_temp.denied('SELECT pg_temp.history((SELECT employee FROM qa_ids))','EMPLOYEE_PAYROLL_CAPABILITY_REQUIRED','031 nominal permission remains required');
+ROLLBACK TO revoked_cap;
+
+INSERT INTO payroll_detail_dataset(id,tenant_id,source_binding_id,source_sha256,payload_sha256,source_database,source_label,company_id,payroll_date,source_period,source_month,payroll_type,source_closed_flag,concept_catalog,statement_count,line_count)
+ SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',tenant,binding,repeat('c',64),repeat('d',64),'synthetic_grh','Synthetic independent detail',101,'2026-08-31',2026,8,'M',NULL,'{"1":{"description":"Synthetic concept"}}',2,2 FROM qa_ids;
+INSERT INTO payroll_detail_statement(dataset_id,tenant_id,source_legajo,lines,statement_sha256)
+ SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',tenant,legajo,'[{"code":"1","amount":"123.45","quantity":"1.00"}]',repeat('e',64) FROM qa_ids CROSS JOIN unnest(ARRAY['1','2']) legajo;
+SELECT pg_temp.ok(pg_temp.detail((SELECT employee FROM qa_ids))#>>'{lines,0,amount}'='123.45','048 independent detail amount remains unchanged');
+SELECT pg_temp.ok(pg_temp.detail((SELECT employee FROM qa_ids))->>'closureStatus'='unknown','048 detail closure evidence stays independent of corrected core');
+SELECT pg_temp.ok((pg_temp.detail((SELECT employee FROM qa_ids))#>>'{historyTotals,sourceCutoff}')::timestamptz=(SELECT source_cutoff FROM source_import_batch WHERE id=(SELECT c FROM qa_ids)),'048 history comparison uses candidate cutoff');
+SELECT pg_temp.ok(pg_temp.detail((SELECT employee FROM qa_ids))#>>'{historyTotals,itemCount}'='1','048 history comparison preserves selected item count');
+SELECT pg_temp.ok(pg_temp.documents((SELECT employee FROM qa_ids))#>>'{items,0,historySummaryAvailable}'='true','051 effective monthly summary available');
+SELECT pg_temp.ok(pg_temp.documents((SELECT other FROM qa_ids))#>>'{items,0,historySummaryAvailable}'='false','051 removed summary does not hide independent detail');
+SELECT pg_temp.ok(pg_temp.documents((SELECT other FROM qa_ids))->>'total'='1','051 independent document remains visible after monthly removal');
+
+CREATE TEMP TABLE novelty_results AS SELECT pg_temp.novelty('1','6','2026-08-01') result;
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM payroll_novelty_issue WHERE batch_id=(SELECT (result#>>'{data,id}')::uuid FROM novelty_results) AND issue_code='already_observed'),'026/032 replacement quantity used by actual prepare');
+CREATE TEMP TABLE novelty_removed AS SELECT pg_temp.novelty('2','1','2026-08-01') result;
+SELECT pg_temp.ok(NOT EXISTS(SELECT 1 FROM payroll_novelty_issue WHERE batch_id=(SELECT (result#>>'{data,id}')::uuid FROM novelty_removed) AND issue_code IN('already_observed','existing_movement_conflict')),'026 removed movement no longer blocks new preparation');
+CREATE TEMP TABLE novelty_added AS SELECT pg_temp.novelty('4','1','2026-09-01') result;
+SELECT pg_temp.ok(EXISTS(SELECT 1 FROM payroll_novelty_issue WHERE batch_id=(SELECT (result#>>'{data,id}')::uuid FROM novelty_added) AND issue_code='existing_movement_conflict'),'026 added movement with null quantity conflicts with nonnull');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM payroll_novelty_event),'026 actual event writers remain append-only');
+SELECT pg_temp.denied($sql$SELECT payroll_reprocessing_prepare_v1(pg_temp.context(),'10000000-0000-4000-8000-000000000002','void','source_correction','ref:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',gen_random_uuid(),repeat('b',64))$sql$,'PAYROLL_REPROCESSING_RUN_NOT_ELIGIBLE','035 new preparation refuses superseded physical run');
+CREATE FUNCTION pg_temp.prepare_selected(context_value jsonb DEFAULT pg_temp.context(),command_hash text DEFAULT repeat('b',64)) RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT payroll_reprocessing_prepare_v1(context_value,(SELECT id FROM payroll_run WHERE source_batch_id=(SELECT c FROM qa_ids) AND source_id=repeat('1',64)),'void','source_correction','ref:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',command_hash)
+$f$;
+CREATE TEMP TABLE reprocessing_receipt AS SELECT pg_temp.prepare_selected() receipt;
+SELECT pg_temp.ok((SELECT receipt#>>'{data,target,payrollRunId}'=md5('payroll_run|GRH|'||c::text||'|'||repeat('1',64))::uuid::text FROM reprocessing_receipt CROSS JOIN qa_ids),'035 preparation targets exact real candidate FK');
+SELECT pg_temp.ok((SELECT actor_session_id='99999999-9999-4999-8999-999999999999' AND actor_session_version=1 FROM payroll_reprocessing_event),'035 event retains validated session coordinates');
+SELECT pg_temp.ok(pg_temp.prepare_selected()->>'replayed'='true' AND (SELECT count(*)=1 FROM payroll_reprocessing_event),'035 lost response replay adds no duplicate event');
+SELECT pg_temp.denied($sql$SELECT pg_temp.prepare_selected(pg_temp.context(),repeat('c',64))$sql$,'PAYROLL_REPROCESSING_IDEMPOTENCY_REUSE','035 replay refuses changed command hash');
+SELECT pg_temp.denied($sql$SELECT pg_temp.prepare_selected(pg_temp.context()||'{"actorSessionVersion":2}'::jsonb)$sql$,'ACTION_SESSION_INVALID','035 version mismatch rejected before replay');
+SELECT pg_temp.denied($sql$SELECT pg_temp.prepare_selected(pg_temp.context()||'{"actorEmail":"other@example.invalid"}'::jsonb)$sql$,'ACTION_SESSION_INVALID','035 actor mismatch rejected before replay');
+SAVEPOINT reprocessing_cap_revoked;
+DELETE FROM qa_capabilities WHERE capability_key='payroll.reprocessing.prepare';
+SELECT pg_temp.denied('SELECT pg_temp.prepare_selected()','PAYROLL_REPROCESSING_CAPABILITY_REQUIRED','035 revoked prepare authority also rejects replay');
+ROLLBACK TO reprocessing_cap_revoked;
+INSERT INTO payroll_reprocessing_case(tenant_id,certified_binding_id,payroll_run_id,request_kind,target_run_sha256,release_sha,business_reason_code,business_reason_reference,prepared_by_membership_id,prepared_by_person_id)
+ SELECT tenant,binding,'10000000-0000-4000-8000-000000000002','void',repeat('a',64),repeat('9',40),'source_correction','ref:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','88888888-8888-4888-8888-888888888888',employee FROM qa_ids;
+SELECT pg_temp.ok(payroll_reprocessing_snapshot_v1((SELECT id FROM payroll_reprocessing_case WHERE payroll_run_id='10000000-0000-4000-8000-000000000002'),(SELECT tenant FROM qa_ids),true)#>>'{target,payrollRunId}'='10000000-0000-4000-8000-000000000002','035 old case keeps exact historical real FK after publication');
+SELECT pg_temp.ok(payroll_reprocessing_snapshot_v1((SELECT id FROM payroll_reprocessing_case WHERE payroll_run_id='10000000-0000-4000-8000-000000000002'),(SELECT tenant FROM qa_ids),true)->>'payrollCalculated'='false','035 historical consultation never calculates payroll');
+
+-- Independent synthetic historical identity cohort; no fields borrowed from another profile.
+INSERT INTO data_import_runs VALUES(3,'history_old',repeat('C',64),'2026-08-06 15:15:21','completed'),(4,'history_current',repeat('D',64),'2026-09-10 15:17:30','completed');
+INSERT INTO source_import_batch(id,source_system,source_database,source_file_name,source_sha256,source_cutoff,legacy_import_run_id,validation_state)
+ VALUES('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','GRH','synthetic_history','history_old',repeat('C',64),'2026-08-06T18:15:21Z',3,'published'),('cccccccc-cccc-4ccc-8ccc-ccccccccccc2','GRH','synthetic_history','history_current',repeat('D',64),'2026-09-10T18:17:30Z',4,'published');
+INSERT INTO platform_tenant_source_binding VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','GRH','synthetic_history',202,true);
+CREATE TEMP TABLE history_payload AS SELECT jsonb_build_object('sourceKey',jsonb_build_object('companyCode','202','employeeNumber','901'),'personId','901','identity',jsonb_build_object('fullName','Synthetic history identity','documentNumber','123456789','cuil',NULL,'birthDate','1980-01-01','sexCode','F','sexLabel','Femenino'),'employment',jsonb_build_object('organizationId',NULL,'sectorCode',NULL)) payload;
+INSERT INTO person_identity(id,dni,full_name,birth_date,sex_code) VALUES(md5('person_identity|GRH|persona|901')::uuid,NULL,'Synthetic history identity','1980-01-01','F');
+INSERT INTO employment_contract(id,person_id,source_system,source_batch_id,legacy_company_id,legacy_legajo,status,source_payload)
+ SELECT md5('employment_contract|GRH|legajo|202|901')::uuid,md5('person_identity|GRH|persona|901')::uuid,'GRH','cccccccc-cccc-4ccc-8ccc-ccccccccccc2',202,'901','active',payload FROM history_payload;
+INSERT INTO action_case VALUES('ffffffff-ffff-4fff-8fff-ffffffffffff','cccccccc-cccc-4ccc-8ccc-ccccccccccc1',202,NULL,NULL,'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','dddddddd-dddd-4ddd-8ddd-dddddddddddd',md5('employment_contract|GRH|legajo|202|901')::uuid);
+INSERT INTO source_staging_row(batch_id,source_schema,source_entity,source_id,source_row_number,source_row_sha256,source_payload)
+ SELECT b,'synthetic_history','legajo',jsonb_build_object('companyCode',202,'employeeNumber','901')::text,1,encode(digest(payload::text,'sha256'),'hex'),payload FROM history_payload CROSS JOIN unnest(ARRAY['cccccccc-cccc-4ccc-8ccc-ccccccccccc1'::uuid,'cccccccc-cccc-4ccc-8ccc-ccccccccccc2']) b;
+CREATE FUNCTION pg_temp.historical() RETURNS jsonb LANGUAGE sql AS $f$ SELECT action_center_case_source_context_v1('ffffffff-ffff-4fff-8fff-ffffffffffff','dddddddd-dddd-4ddd-8ddd-dddddddddddd','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') $f$;
+SELECT pg_temp.ok(pg_temp.historical()#>>'{sourceContext,status}'='historical_read_only','059 canonical master invalid nine-digit DNI null accepted as complete profile');
+UPDATE person_identity SET dni='123456789',sex_code='Femenino' WHERE id=md5('person_identity|GRH|persona|901')::uuid;
+SELECT pg_temp.ok(pg_temp.historical()#>>'{sourceContext,status}'='historical_read_only','059 complete legacy profile remains accepted');
+UPDATE person_identity SET dni=NULL WHERE id=md5('person_identity|GRH|persona|901')::uuid;
+SELECT pg_temp.ok(pg_temp.historical() IS NULL,'059 mixed legacy sex and canonical document rejected');
+UPDATE person_identity SET sex_code='F' WHERE id=md5('person_identity|GRH|persona|901')::uuid;
+SELECT pg_temp.ok(action_center_case_source_context_v1('ffffffff-ffff-4fff-8fff-ffffffffffff',(SELECT tenant FROM qa_ids),'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') IS NULL,'059 foreign tenant cannot recover history');
+UPDATE person_identity SET full_name='Changed synthetic identity' WHERE id=md5('person_identity|GRH|persona|901')::uuid;
+SELECT pg_temp.ok(pg_temp.historical() IS NULL,'059 reused identity UUID with changed profile rejected');
+SELECT pg_temp.ok(NOT has_table_privilege('municontrol_actions_runtime_app','grh_effective_source_batch_v1','SELECT'),'097 metadata has no runtime table grant');
+SELECT pg_temp.ok(NOT has_function_privilege('municontrol_actions_runtime_app','action_center_case_source_context_v1(uuid,uuid,uuid)','EXECUTE'),'059 private history helper remains inaccessible');
+SET CONSTRAINTS ALL IMMEDIATE;

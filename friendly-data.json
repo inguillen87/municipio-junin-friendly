@@ -7,16 +7,19 @@
   },
   "source": {
     "dataset": "Sistema GRH municipal",
-    "snapshotAt": "2026-08-06T15:15:21",
+    "snapshotAt": "2026-09-10T15:17:30",
     "timezone": "not_recorded_in_dump",
-    "sha256": "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92",
-    "method": "Agregación directa del dump municipal, sin registros nominales",
-    "scope": "RRHH histórico y eventos de ausentismo",
+    "sha256": "5A604ACFE5EA32832B630D8AAB29E494038D4C8940B231E283A53D14112665C7",
+    "method": "Agregación reproducible de artefactos curados con huellas verificadas del respaldo municipal, sin registros nominales",
+    "scope": "Legajos históricos y eventos de ausencia; actividad aproximada por ausencia de fecha de egreso",
     "limitations": [
-      "La condición activo se deriva de la ausencia de fecha de egreso; debe homologarse con el municipio.",
-      "La fuente no contiene importes salariales utilizables para publicar masa salarial.",
-      "Licencias tiene última fecha en 2009 y no representa el estado actual.",
-      "Los datos 2026 están cortados al 6 de agosto y no equivalen a un año completo."
+      "Activo es un indicador aproximado (proxy): no tiene fecha de egreso en la fuente; no acredita vigencia laboral ni liquidación.",
+      "Se cuentan legajos, no personas únicas. Una persona puede tener más de un legajo; afectados se deduplica por empresa y legajo dentro de cada año.",
+      "Este agregado no publica ni calcula importes salariales.",
+      "Licencias tiene última fecha válida en 2009 y no representa el estado actual.",
+      "Los datos 2026 están cortados al 2026-09-10 y no equivalen a un año completo ni a información en tiempo real.",
+      "La comparación descriptiva conserva ventanas de distinta duración: gestión anterior desde el 10 de diciembre de 2019; gestión actual desde el 9 de diciembre de 2023. No mide rendimiento ni causalidad.",
+      "El mínimo de 10 se aplica a género, sectores y legajos afectados por año. Los totales temporales de altas y bajas y los conteos de incidencias de calidad no tienen desglose nominal."
     ]
   },
   "privacy": {
@@ -25,24 +28,57 @@
     "minimumPublishedGroupSize": 10
   },
   "workforce": {
-    "historicalRecords": 2450,
-    "active": 882,
-    "inactive": 1568,
+    "historicalRecords": 2452,
+    "active": 875,
+    "inactive": 1577,
     "activeSharePct": 36,
     "genderActive": [
-      { "label": "Masculino", "value": 501 },
-      { "label": "Femenino", "value": 381 }
+      {
+        "label": "Masculino",
+        "value": 496
+      },
+      {
+        "label": "Femenino",
+        "value": 379
+      }
     ],
     "activeSectors": [
-      { "label": "Obrero", "value": 218 },
-      { "label": "Temporarios", "value": 163 },
-      { "label": "Administrativo", "value": 158 },
-      { "label": "Docentes de jardines maternales", "value": 58 },
-      { "label": "Horas cátedra Cultura", "value": 57 },
-      { "label": "Horas cátedra Deportes", "value": 45 },
-      { "label": "Funcionarios", "value": 23 },
-      { "label": "Otros sectores", "value": 145 },
-      { "label": "Sin sector homologado", "value": 15 }
+      {
+        "label": "Obrero",
+        "value": 216
+      },
+      {
+        "label": "Temporarios",
+        "value": 160
+      },
+      {
+        "label": "Administrativo",
+        "value": 157
+      },
+      {
+        "label": "Docentes de jardines maternales",
+        "value": 58
+      },
+      {
+        "label": "Horas cátedra Cultura",
+        "value": 56
+      },
+      {
+        "label": "Horas cátedra Deportes",
+        "value": 45
+      },
+      {
+        "label": "Funcionarios",
+        "value": 23
+      },
+      {
+        "label": "Otros sectores",
+        "value": 145
+      },
+      {
+        "label": "Sin sector homologado",
+        "value": 15
+      }
     ]
   },
   "management": {
@@ -57,35 +93,102 @@
     "current": {
       "label": "Gestión actual",
       "from": "2023-12-09",
-      "to": "2026-08-06",
-      "hires": 281,
-      "exits": 232,
-      "balance": 49,
+      "to": "2026-09-10",
+      "hires": 283,
+      "exits": 241,
+      "balance": 42,
       "partial": true
     },
     "yearly": [
-      { "year": 2019, "hires": 4, "exits": 4, "partial": true },
-      { "year": 2020, "hires": 54, "exits": 41 },
-      { "year": 2021, "hires": 72, "exits": 70 },
-      { "year": 2022, "hires": 99, "exits": 82 },
-      { "year": 2023, "hires": 75, "exits": 75 },
-      { "year": 2024, "hires": 88, "exits": 92 },
-      { "year": 2025, "hires": 108, "exits": 85 },
-      { "year": 2026, "hires": 80, "exits": 51, "partial": true }
+      {
+        "year": 2019,
+        "hires": 4,
+        "exits": 4,
+        "partial": true
+      },
+      {
+        "year": 2020,
+        "hires": 54,
+        "exits": 41
+      },
+      {
+        "year": 2021,
+        "hires": 72,
+        "exits": 70
+      },
+      {
+        "year": 2022,
+        "hires": 99,
+        "exits": 82
+      },
+      {
+        "year": 2023,
+        "hires": 75,
+        "exits": 75
+      },
+      {
+        "year": 2024,
+        "hires": 88,
+        "exits": 92
+      },
+      {
+        "year": 2025,
+        "hires": 108,
+        "exits": 85
+      },
+      {
+        "year": 2026,
+        "hires": 82,
+        "exits": 60,
+        "partial": true
+      }
     ]
   },
   "absence": {
-    "totalEvents": 31572,
-    "latestValidDate": "2026-08-06",
+    "totalEvents": 31702,
+    "latestValidDate": "2026-09-10",
     "yearly": [
-      { "year": 2019, "events": 1180, "employeesAffected": 538 },
-      { "year": 2020, "events": 916, "employeesAffected": 508 },
-      { "year": 2021, "events": 1251, "employeesAffected": 535 },
-      { "year": 2022, "events": 1670, "employeesAffected": 584 },
-      { "year": 2023, "events": 1986, "employeesAffected": 581 },
-      { "year": 2024, "events": 2172, "employeesAffected": 610 },
-      { "year": 2025, "events": 2048, "employeesAffected": 614 },
-      { "year": 2026, "events": 1559, "employeesAffected": 590, "partial": true }
+      {
+        "year": 2019,
+        "events": 1180,
+        "employeesAffected": 538
+      },
+      {
+        "year": 2020,
+        "events": 916,
+        "employeesAffected": 508
+      },
+      {
+        "year": 2021,
+        "events": 1251,
+        "employeesAffected": 535
+      },
+      {
+        "year": 2022,
+        "events": 1670,
+        "employeesAffected": 584
+      },
+      {
+        "year": 2023,
+        "events": 1986,
+        "employeesAffected": 581
+      },
+      {
+        "year": 2024,
+        "events": 2172,
+        "employeesAffected": 610
+      },
+      {
+        "year": 2025,
+        "events": 2048,
+        "employeesAffected": 614
+      },
+      {
+        "year": 2026,
+        "events": 1688,
+        "employeesAffected": 596,
+        "partial": true
+      }
     ],
     "unit": "eventos registrados",
     "warning": "No se suman días ni se calcula tasa hasta homologar la semántica de los campos con RRHH."
@@ -98,7 +201,7 @@
     "hireDatePlaceholders": 1,
     "absenceOrphans": 6,
     "absenceDatesBefore1900": 6,
-    "absenceDatesAfterSnapshot": 7,
+    "absenceDatesAfterSnapshot": 8,
     "catalogCounts": {
       "sectors": 36,
       "categories": 156,
@@ -106,9 +209,9 @@
       "agreements": 14
     },
     "sourceCounts": {
-      "employeeRecords": 2450,
-      "personRecords": 2349,
-      "absenceEvents": 31572,
+      "employeeRecords": 2452,
+      "personRecords": 2351,
+      "absenceEvents": 31702,
       "leaveRecords": 3448
     }
   },

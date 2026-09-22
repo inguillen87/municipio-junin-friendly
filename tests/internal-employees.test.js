@@ -59,10 +59,10 @@ function mockDetailSql(matchStatus = 'matched') {
         }];
       }
       if (sql.includes('AS "absenceTotal"')) return [{ absenceTotal: 0, leaveTotal: 0, familyTotal: 0, movementTotal: 0, leaveSourceMaxDate: '2009-05-15' }];
-      if (sql.includes('FROM grh_absences')) return [];
-      if (sql.includes('FROM grh_leaves')) return [];
-      if (sql.includes('FROM grh_family')) return [];
-      if (sql.includes('FROM employment_movement')) return [];
+      if (sql.includes('FROM grh_effective_absences_v1')) return [];
+      if (sql.includes('FROM grh_effective_leaves_v1')) return [];
+      if (sql.includes('FROM grh_effective_family_v1')) return [];
+      if (sql.includes('FROM grh_effective_employment_movement_v1')) return [];
       if (sql.includes('FROM person_identity_assertion')) {
         return [
           {
@@ -217,7 +217,7 @@ test('employee filtra licencias y ausencias por año con parámetros y conserva 
   assert.match(counts.statement, /fecha >= \$4::date AND fecha < \$5::date/);
   assert.match(counts.statement, /fecha_inicio >= \$4::date AND fecha_inicio < \$5::date/);
   assert.deepEqual(counts.values.slice(-2), ['2009-01-01', '2010-01-01']);
-  const absenceRows = calls.find((call) => call.statement.includes('FROM grh_absences absence'));
+  const absenceRows = calls.find((call) => call.statement.includes('FROM grh_effective_absences_v1 absence'));
   assert.match(absenceRows.statement, /absence\.fecha >= \$3::date AND absence\.fecha < \$4::date/);
   assert.deepEqual(absenceRows.values.slice(-2), ['2009-01-01', '2010-01-01']);
 

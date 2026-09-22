@@ -223,6 +223,8 @@ function responseRecorder() {
 function handler(overrides = {}) {
   return createInternalAssistantHandler({
     requireCompatibleInternalAccess: overrides.requireCompatibleInternalAccess || (async () => managedAccess()),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: overrides.getInternalSql || (async () => ({ query: async () => [] })),
     getTenantIdentitySql: overrides.getTenantIdentitySql || (async () => ({ query: async () => [] })),
     takeIdentityRateLimit: overrides.takeIdentityRateLimit || (async () => ({ allowed: true, remaining: 10 })),
@@ -581,7 +583,9 @@ test('ayuda de navegación funciona sin consultar Neon y devuelve contrato traza
   const res = await post(
     { message: '¿Dónde encuentro Calidad?', enhance: true },
     {
-      getInternalSql: async () => { throw new Error('la guía no debe depender de Neon'); },
+      effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
+    getInternalSql: async () => { throw new Error('la guía no debe depender de Neon'); },
       env: { OPENAI_API_KEY: 'openai_test', HF_TOKEN: 'hf_test' },
       fetch: async () => { fetchCalls += 1; throw new Error('la guía no debe salir a proveedores externos'); },
     },
@@ -713,6 +717,8 @@ test('exige sesión interna antes de leer cuerpo o consultar datos', async () =>
       response.status(401).json({ ok: false, code: 'INTERNAL_SESSION_REQUIRED' });
       return null;
     },
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => { sqlCalled = true; return {}; },
   });
   await endpoint({ method: 'POST', headers: { 'content-type': 'application/json' }, body: { message: 'dotación' } }, res);
@@ -821,6 +827,8 @@ test('acepta el alias de dependencia qualityoverview sin consultar un recurso al
   let calls = 0;
   const endpoint = createInternalAssistantHandler({
     requireInternalSession: () => ({ id: 'user-quality' }),
+    effectiveSourceSnapshot: async () => "synthetic-publication",
+    assertEffectiveSourceSnapshot: async () => {},
     getInternalSql: async () => ({ query: async () => [] }),
     qualityoverview: async () => { calls += 1; return quality; },
     env: {},
