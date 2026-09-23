@@ -189,7 +189,15 @@ namespace MuniControl.Setup {
   static void Free(object obj){if(obj!=null&&Marshal.IsComObject(obj))Marshal.FinalReleaseComObject(obj);}
   static object TaskFolder(out object service){var type=Type.GetTypeFromProgID("Schedule.Service");Need(type!=null,"SCHEDULER_UNAVAILABLE");service=Activator.CreateInstance(type);Call(service,"Connect");return Call(service,"GetFolder","\\");}
   static string Single(XmlDocument xml,XmlNamespaceManager ns,string xpath){var nodes=xml.SelectNodes(xpath,ns);Need(nodes!=null&&nodes.Count==1,"TASK_REGISTRATION_INVALID");return nodes[0].InnerText;}
-  static void ValidateTask(object task){ValidateTaskXml((string)Get(task,"Xml"),Base);}
+  static void ValidateTask(object task){
+   object definition=null,principal=null;
+   try{definition=Get(task,"Definition");principal=Get(definition,"Principal");ValidatePrincipal(principal);ValidateTaskXml((string)Get(task,"Xml"),Base);}
+   finally{Free(principal);Free(definition);}
+  }
+  static void ValidatePrincipal(object principal){
+   Need((string)Get(principal,"UserId")=="S-1-5-19"&&Convert.ToInt32(Get(principal,"LogonType"),CultureInfo.InvariantCulture)==5
+    &&Convert.ToInt32(Get(principal,"RunLevel"),CultureInfo.InvariantCulture)==0,"TASK_REGISTRATION_INVALID");
+  }
   internal static void ValidateTaskXml(string taskXml,string root){
    Need(taskXml!=null&&taskXml.Length<=65536,"TASK_REGISTRATION_INVALID");
    var xml=new XmlDocument{XmlResolver=null};using(var sr=new StringReader(taskXml))using(var reader=XmlReader.Create(sr,new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null}))xml.Load(reader);
@@ -197,10 +205,15 @@ namespace MuniControl.Setup {
    Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Command").Equals(Path.Combine(root,"runtime","node.exe"),StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
    Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Arguments")==Quote(Path.Combine(root,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(root,"config","gateway.json")),"TASK_REGISTRATION_INVALID");
    Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:WorkingDirectory").Equals(root,StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
-   Need(xml.SelectNodes("/t:Task/t:Actions/*",ns).Count==1&&Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:UserId")=="S-1-5-19"&&Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:LogonType")=="ServiceAccount"&&Single(xml,ns,"/t:Task/t:Settings/t:MultipleInstancesPolicy")=="IgnoreNew","TASK_REGISTRATION_INVALID");
+   Need(xml.SelectNodes("/t:Task/t:Actions/*",ns).Count==1&&Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:UserId")=="S-1-5-19"&&Single(xml,ns,"/t:Task/t:Settings/t:MultipleInstancesPolicy")=="IgnoreNew","TASK_REGISTRATION_INVALID");
+   // Windows omits LogonType in XML for service accounts; validate the actual COM
+   // principal above. Reject conflicting XML rather than inferring another logon mode.
+   var logon=xml.SelectNodes("/t:Task/t:Principals/t:Principal/t:LogonType",ns);
+   Need(xml.SelectNodes("/t:Task/t:Principals/t:Principal",ns).Count==1&&logon.Count<=1
+    &&(logon.Count==0||logon[0].InnerText=="ServiceAccount"),"TASK_REGISTRATION_INVALID");
    Need(Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:RunLevel")=="LeastPrivilege"
     &&xml.SelectNodes("/t:Task/t:Triggers/t:BootTrigger",ns).Count==1
-    &&Single(xml,ns,"/t:Task/t:Settings/t:ExecutionTimeLimit")=="PT0S","TASK_REGISTRATION_INVALID");
+    &&Single(xml,ns,"/t:Task/t:Settings/t:ExecutionTimeLimit") =="PT0S","TASK_REGISTRATION_INVALID");
   }
   static Inspection Inspect(){
    var result=new Inspection();NoReparse(Base);result.Installed=Directory.Exists(Base);
@@ -370,7 +383,9 @@ namespace MuniControl.Setup {
     string root=@"C:\MuniControl-QA";
     Set(action,"Path",Path.Combine(root,"runtime","node.exe"));
     Set(action,"Arguments",Quote(Path.Combine(root,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(root,"config","gateway.json")));
-    Set(action,"WorkingDirectory",root);ValidateTaskXml((string)Get(definition,"XmlText"),root);
+    Set(action,"WorkingDirectory",root);ValidatePrincipal(principal);ValidateTaskXml((string)Get(definition,"XmlText"),root);
+    Set(principal,"LogonType",3);ExpectFault(()=>ValidatePrincipal(principal),"TASK_REGISTRATION_INVALID");
+    Set(principal,"LogonType",5);Set(principal,"RunLevel",1);ExpectFault(()=>ValidatePrincipal(principal),"TASK_REGISTRATION_INVALID");
    }finally{Free(action);Free(actions);Free(trigger);Free(triggers);Free(settings);Free(principal);Free(definition);Free(service);}
   }
   static int TestTaskPolicy(){
