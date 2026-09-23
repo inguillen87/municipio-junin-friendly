@@ -14,13 +14,15 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   <footer class="picker-footer"><div><strong data-picker-count>Sin legajos seleccionados</strong><p>Activo según el último estado incorporado, no una certificación de liquidación. Crear el lote vuelve a validar cada vínculo.</p></div><button type="button" class="button primary" data-picker-apply disabled>Usar selección</button></footer>`;
   if(instanceId!=='employeePicker')for(const item of dialog.querySelectorAll('[id],[for],[aria-labelledby]'))for(const attribute of ['id','for','aria-labelledby']){const value=item.getAttribute(attribute);if(value?.startsWith('employeePicker'))item.setAttribute(attribute,value.replace('employeePicker',instanceId));}
   document.body.append(dialog);
-  const $=s=>dialog.querySelector(s),input=$('#'+instanceId+'Search'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]');
-  let requestVersion=0,controller=null,selected=[],options=null,view=null,query='',busy=false,scopeKey=null,opener=null;
-  function stop(){requestVersion++;controller?.abort();controller=null;busy=false;}
-  function clearResults(){view=null;results.replaceChildren();$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}
+  const $=s=>dialog.querySelector(s),input=$('#'+instanceId+'Search'),status=$('[data-picker-state]'),results=$('[data-picker-results]'),apply=$('[data-picker-apply]'),searchButton=$('[data-picker-form] button[type=submit]');
+  let requestVersion=0,controller=null,selected=[],options=null,view=null,query='',busy=false,pendingPage=null,scopeKey=null,opener=null;
+  function stop(){requestVersion++;controller?.abort();controller=null;busy=false;pendingPage=null;}
+  function clearResults(){view=null;$('[data-picker-source]').hidden=true;$('[data-picker-source]').textContent='';results.replaceChildren();$('[data-picker-pages]').hidden=true;results.removeAttribute('aria-busy');}
   function reset(){stop();selected=[];options=null;view=null;scopeKey=null;query='';input.value='';status.textContent='';clearResults();$('[data-picker-source]').textContent='';$('[data-picker-source]').hidden=true;$('[data-picker-login]').hidden=true;renderSelection();}
   function close(){if(dialog.open)dialog.close();reset();if(opener?.isConnected&&!opener.disabled)opener.focus();opener=null;}
   function renderSelection(){
+    searchButton.disabled=busy||!options||!canUse();searchButton.textContent=busy?'Buscando…':'Buscar';
+    $('[data-picker-form]').setAttribute('aria-busy',String(busy));
     $('[data-picker-count]').textContent=selected.length?`${selected.length} legajo${selected.length===1?'':'s'} seleccionado${selected.length===1?'':'s'} · máximo ${options?.maximum||1}`:'Sin legajos seleccionados';
     apply.textContent=selected.length===1?'Usar este legajo':selected.length?`Usar ${selected.length} legajos`:'Usar selección';
     apply.disabled=busy||!options||!selected.length||!canUse();
@@ -39,17 +41,29 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
       return label;
     }));
   }
+  function requireCurrentAccess(){
+    if(canUse())return;
+    scopeKey=null;onDirectoryInvalidated();
+    throw Error('El acceso a esta carga cambió. Cerrá la búsqueda y revisá tu sesión.');
+  }
   async function search(page=1){
     if(!options||!dialog.open||!canUse())return;
     let text;try{text=pickerSearch(input.value);}catch(error){stop();clearResults();status.textContent=error.message;renderSelection();return;}
-    stop();const version=requestVersion;query=text;busy=true;clearResults();results.setAttribute('aria-busy','true');renderSelection();status.textContent='Consultando legajos activos…';$('[data-picker-login]').hidden=true;
+    // Enter/double submit must not restart the same slow, source-bound read.
+    // A different query or page still cancels the previous request. No response cache.
+    if(busy&&query===text&&pendingPage===page)return;
+    stop();const version=requestVersion;query=text;pendingPage=page;busy=true;clearResults();results.setAttribute('aria-busy','true');renderSelection();status.textContent='Consultando legajos activos…';$('[data-picker-login]').hidden=true;
     controller=new AbortController();const activeController=controller;const timer=setTimeout(()=>activeController.abort(),20000);
     try{
       const response=await fetch(pickerQuery(text,page),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:activeController.signal});
       if(version!==requestVersion||!dialog.open||!options)return;
+      if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');
+      requireCurrentAccess();
       if([401,403].includes(response.status)){onDirectoryInvalidated();selected=[];clearResults();scopeKey=null;$('[data-picker-source]').hidden=true;$('[data-picker-login]').hidden=response.status!==401;throw Error(response.status===401?'La sesión venció. Ingresá nuevamente antes de consultar.':'Tu perfil no tiene permiso para consultar nombres del personal. No se modificaron los permisos.');}
       if(!response.ok)throw Error('No se pudo consultar el directorio. Reintentá la búsqueda.');
       const payload=await response.json();if(version!==requestVersion||!dialog.open||!options)return;
+      if(activeController.signal.aborted)throw new DOMException('Consulta cancelada.','AbortError');
+      requireCurrentAccess();
       const next=pickerResult(payload,page),nextKey=JSON.stringify(next.scope);let changed=false;
       if(scopeKey!==null&&scopeKey!==nextKey){onDirectoryInvalidated();selected=[];changed=true;}
       scopeKey=nextKey;view=next;
@@ -61,7 +75,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     }catch(error){
       if(version!==requestVersion||!dialog.open)return;
       selected=[];clearResults();status.textContent=error.name==='AbortError'?'La consulta demoró demasiado. Volvé a buscar.':error instanceof TypeError?'No se pudo consultar el directorio. Revisá la conexión y reintentá.':error.message;
-    }finally{clearTimeout(timer);if(version===requestVersion){busy=false;controller=null;results.removeAttribute('aria-busy');renderSelection();renderRows();}}
+    }finally{clearTimeout(timer);if(version===requestVersion){busy=false;pendingPage=null;controller=null;results.removeAttribute('aria-busy');renderSelection();renderRows();}}
   }
   input.addEventListener('input',()=>{stop();clearResults();status.textContent='Presioná Buscar o Enter para consultar. Tu selección anterior no agrega nuevos resultados.';renderSelection();});
   $('[data-picker-form]').addEventListener('submit',e=>{e.preventDefault();search(1);});
