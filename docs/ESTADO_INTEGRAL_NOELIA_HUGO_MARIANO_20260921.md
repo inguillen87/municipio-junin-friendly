@@ -1,5 +1,19 @@
 # Estado integral de los pedidos de Noelia, Hugo y Mariano
 
+## Actualización acotada del 23/09/2026 · operación nativa de Personal
+
+Esta actualización sobre la base `e2b4a18` sustituye las menciones siguientes a 101/102 como incrementos todavía por publicar. Conserva los cortes históricos y no declara terminados todos los módulos de Noelia, Hugo o Mariano.
+
+| Incremento | Estado comprobado | Límite y pendiente |
+|---|---|---|
+| [101. Mensuales nativas](NOELIA_NATIVE_MONTHLY_101.md) | Publicado en `405841b`; CI de rama `35808157951` y master `35808473647`, migración en PG17/PG18 con durabilidad y preservación verificadas, Vercel READY y 44 recursos publicados cotejados. | Alta propia → novedad mensual individual por UUID → revisión independiente → exportación de control. Continúa `export_only`; no calcula ni paga haberes. |
+| [102. Familia y escolaridad nativas](NOELIA_NATIVE_FAMILY_102.md) | Cierre técnico publicado en `0b8d1a8`; CI `35811024903`, migración en PG17/PG18 y verificación independiente, Vercel READY y ocho recursos cotejados. | Alta propia → hijo/a declarado → certificado en papel/PDF → historial y Excel. No incluye todos los tipos de carga familiar, fotografía, IA ni autoservicio. |
+| [103. Catálogo propio de encuadres](NOELIA_NATIVE_EMPLOYMENT_CATALOG_103.md) | Implementado en la rama del incremento: propuesta completa de cuatro clases, revisión independiente y aprobación que publica para altas futuras. | CI, instalación y publicación se registrarán en los recibos de este release. No se acredita todavía una publicación municipal aprobada ni se modifica el encuadre de legajos existentes. |
+
+La evidencia previa está conservada en los recibos privados `release-closure-405841b.private.json` y `sprint-102-close-0b8d1a8.private.json`, cotejados en esta actualización. Las verificaciones de interfaz usaron APIs interceptadas y los controles públicos incluyeron acceso anónimo: **no acreditan una sesión municipal operando legajos reales ni aceptación humana**. Los dos commits publicados forman parte de la base `e2b4a18`; no se realizó una nueva consulta a las bases para esta actualización documental.
+
+Brechas actuales verificadas: `api/internal-native-employees.js` expone creación, consulta inicial y recuperación del intento; faltan rectificación, baja y reingreso nativos con historia y revisión. El circuito de licencias de `lib/internal-leave-workflow.js` y sus fachadas de acciones conserva el ámbito de contratos/fuente GRH y requiere ampliación nativa. El catálogo administrativo 103 **no completa Parámetros (módulo 6)**: siguen pendientes el maestro salarial completo, escalas y fórmulas aprobadas. El motor propio de liquidación, su conciliación, cierre, integración contable y homologaciones tampoco quedan resueltos por 093/101/102/103.
+
 ## Actualización comprobada del 22/09/2026
 
 Esta sección actualiza el corte histórico que sigue. Sobre `f192733b9b86507530a5d8e8d05fe64a5ecd4e0b`, septiembre está publicado en ambas bases con corte de fuente del **10/09/2026 a las 15:17:30, sin zona horaria declarada**. Agosto continúa como último mes cerrado; septiembre no se presenta como liquidación cerrada ni como datos del 22/09.

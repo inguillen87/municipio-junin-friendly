@@ -2,7 +2,7 @@
 
 Esta matriz no declara que el reemplazo de GRH esté completo. Distingue requerimientos de la documentación entregada, avances comprobables en código y funciones pendientes. Los PDF originales y sus capturas permanecen fuera del repositorio; no se publica información nominal ni la firma. Una fórmula visible en una captura no se sustituye por una tasa supuesta.
 
-Actualización al 21/09: consultar [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para los avances posteriores a esta matriz: paquete bancario de control, catálogo efectivo acotado 066 y escolaridad manual 091. Los pendientes originales siguientes conservan su alcance; un validador o paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
+Actualización al 23/09, sobre la base `e2b4a18`: [mensuales nativas 101](NOELIA_NATIVE_MONTHLY_101.md) y [familia/escolaridad nativas 102](NOELIA_NATIVE_FAMILY_102.md) ya tienen cierre técnico de producción registrado. El [catálogo propio 103](NOELIA_NATIVE_EMPLOYMENT_CATALOG_103.md) está implementado en la rama del incremento; su CI, instalación y publicación se acreditarán por recibo, y todavía no hay un catálogo municipal realmente aprobado. Consultar el [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para la evidencia y los límites. Un paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
 
 ## 1. Datos del municipio y 2. Reportes
 Fuente: `1º-2º MODULO DATOS MUNI- REPORTES`, páginas 1–3; `REUNION 09/09/2026`, páginas 1–2.
@@ -45,6 +45,8 @@ Fuente: `5º MODULO NOVEDADDES DE LIQUIDACION`, páginas 1–4.
 
 Incremento 092: [registro y revisión de novedades fijas](NOELIA_NOVEDADES_FIJAS_092.md). Agrega vigencias declaradas, propuestas, decisiones independientes, corrección/anulación individual e historial. Su exportación es de control; no activa consumo salarial automático ni cierra la corrección masiva 5.5. Instalación y publicación sujetas a los gates de su release.
 
+101 ya publicado agrega alta propia → novedad mensual individual por UUID → revisión independiente → exportación de control. Mantiene `export_only`, un registro por lote nativo y tipo mensual; no extiende automáticamente la modalidad masiva a legajos propios ni calcula haberes. La aceptación municipal con casos reales se mantiene separada del cierre técnico.
+
 La reunión pide importe opcional, no obligatorio. La ausencia de importe no se convierte en cero. La valoración depende de fórmulas vigentes, no de ocultar el campo.
 
 ## 6. Parámetros
@@ -54,6 +56,10 @@ Fuente: `6º MODULO PARAMETROS`, páginas 1–6.
 - Auxiliares 88 y 90: para convenios 1,4,6, el 88 informa clase 6-D vinculada al concepto 24; 90 informa clase 3-A, actualizado con escala. Para 2,7,11, el 88 usa clase 13-I por 1,50. Son reglas documentadas; importes y vigencias deben provenir de una escala validada.
 - Copiar fórmulas: 1,2,4,5,6,7,11,12,13,14. La fuente excluye 3 y 8 por falta de agentes y marca 9/10 obsoletos. No borrarlos del histórico.
 - Duplicación: facilitar actualización conjunta de 606,607,612 y 550 sin recorrer todos los convenios. Se requiere vista de impacto/versiones y prueba de comparación, no sustitución masiva ciega.
+
+103 permite preparar y revisar independientemente convenios, categorías, organizaciones y reparticiones para **altas futuras**; aprobar publica ese catálogo administrativo. No es el maestro de conceptos, auxiliares, escalas o fórmulas del módulo 6, ni modifica encuadres de contratos existentes. Su publicación técnica y la primera aprobación municipal se acreditan separadamente mediante evidencia del release y de la revisión municipal.
+
+Para que Personal opere enteramente con legajos propios siguen pendientes los circuitos de **rectificación, baja y reingreso nativos**, y la ampliación de **licencias a contratos nativos**, con identidad, permisos e historial. El alta actual ofrece creación y recuperación del intento; no deben presentarse esos otros movimientos como implementados. El motor de liquidación propio tampoco está homologado: requiere reglas aprobadas, cálculo reproducible y conciliación.
 
 ## 7. Liquidación
 Fuente: `7º MODULO LIQUIDACION`, páginas 1–3.
@@ -69,7 +75,7 @@ Detalle y criterios de aceptación: [Directivas de certificados IA y conexión d
 
 | Referencia | Resultado esperado | Estado |
 |---|---|---|
-| ESC-IA-01 | Completar registro manual de nivel, curso, ciclo, presentación y vencimiento; distinguir declaración en papel de archivo adjunto | Implementación 091: registro inmutable, papel/PDF, historial y Excel. Gates e instalación/publicación se verifican en cada release; ver [entrega 091](NOELIA_ESCOLARIDAD_MANUAL_091.md). |
+| ESC-IA-01 | Completar registro manual de nivel, curso, ciclo, presentación y vencimiento; distinguir declaración en papel de archivo adjunto | 091 aporta registro inmutable, papel/PDF, historial y Excel. 102 ya publicado extiende el circuito a alta propia → hijo/a declarado → escolaridad, con procedencia municipal y sin inventar corte GRH. No incluye cónyuge/prenatal, fotografía, IA o autoservicio. Ver [091](NOELIA_ESCOLARIDAD_MANUAL_091.md) y [102](NOELIA_NATIVE_FAMILY_102.md). |
 | ESC-IA-02 | Foto o PDF desde móvil, captura guiada y almacenamiento privado con recuperación sin duplicados | Requisito incorporado; la carga PDF acotada existente no certifica soporte de fotos ni capacidad general. |
 | ESC-IA-03 | Extraer campos explícitos con evidencia y precompletar; revisar y confirmar sin volver a transcribir | Requisito incorporado; proveedor y pruebas de precisión pendientes. No inventar fechas, curso o identidad. |
 | ESC-IA-04 | Empleado presenta para sus familiares y Noelia/RR.HH. revisa desde bandeja con permisos propios | Requisito incorporado; no ampliar permisos administrativos para simular autoservicio. |
