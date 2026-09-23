@@ -18,6 +18,10 @@ test('native monthly generator emits actual pinned SQL and rollback-only fixture
   assert.match(qa.sql,/pre-101 GRH replay preserves the historical receipt/);
   assert.match(qa.sql,/all native replays retain exact original receipts after later transitions/);
   assert.match(qa.sql,/101 rejects altered provenance pair constraint/);
+  assert.match(qa.sql,/ALTER ROLE municontrol_actions_runtime_app LOGIN/);
+  assert.match(qa.sql,/ALTER ROLE municontrol_actions_runtime_app NOLOGIN/);
+  assert.match(qa.sql,/101 rejects runtime SUPERUSER regardless of LOGIN/);
+  assert.match(qa.sql,/101 rejects runtime BYPASSRLS regardless of LOGIN/);
  }
 });
 

@@ -56,9 +56,15 @@ export function buildNativeMonthlyQa({serverMajor,requireConcurrency=false}){
  grh_before:=${prep('grh_rows','grh_key_monthly','maker',1)};
  SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;
  SELECT md5(string_agg(p.prosrc||coalesce(p.proacl::text,'')||p.proowner::text,E'\n' ORDER BY p.oid)) INTO untouched_before FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('payroll_novelty_prepare_v1','payroll_novelty_assert_context_v1','payroll_fixed_registry_subject_by_contract_v1','native_employee_create_v1','native_employee_receipt_v1');
+ ALTER ROLE municontrol_actions_runtime_app LOGIN;
  EXECUTE ${install};
  SELECT md5(string_agg(pg_get_functiondef(p.oid)||coalesce(p.proacl::text,'')||p.proowner::text,E'\n' ORDER BY p.oid)) INTO installed_before FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace;
+ ALTER ROLE municontrol_actions_runtime_app NOLOGIN;
  EXECUTE ${install};`);
+ for(const flag of ['SUPERUSER','BYPASSRLS']){
+  const start=statements.length;rejects(install,'PAYROLL_NOVELTY_NATIVE_PREREQUISITE','101 rejects runtime '+flag+' regardless of LOGIN');
+  fault(`ALTER ROLE municontrol_actions_runtime_app ${flag};`,statements.splice(start).join('\n'));
+ }
  for(const table of ['payroll_novelty_batch','payroll_novelty_row','payroll_novelty_issue','payroll_novelty_event']){
   const start=statements.length;rejects(install,'PAYROLL_NOVELTY_NATIVE_PREREQUISITE','101 rejects missing RLS on installed '+table);
   fault(`ALTER TABLE ${table} DISABLE ROW LEVEL SECURITY;`,statements.splice(start).join('\n'));

@@ -5,7 +5,9 @@
 DO $prerequisite$
 DECLARE item record; actual text; fn oid; roleid oid; tableid regclass; native_count integer;
 BEGIN
- SELECT oid INTO roleid FROM pg_roles WHERE rolname='municontrol_actions_runtime_app' AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls;
+ -- Existing PG17 runtime authenticates directly; PG18 uses a group role.
+ -- LOGIN alone does not grant data access. Both retain the same checked ACLs.
+ SELECT oid INTO roleid FROM pg_roles WHERE rolname='municontrol_actions_runtime_app' AND NOT rolsuper AND NOT rolbypassrls;
  IF roleid IS NULL OR to_regclass('public.native_employee_registration') IS NULL OR to_regclass('public.grh_effective_employment_movement_v1') IS NULL
  THEN RAISE EXCEPTION 'PAYROLL_NOVELTY_NATIVE_PREREQUISITE'; END IF;
  FOR item IN SELECT * FROM (VALUES
