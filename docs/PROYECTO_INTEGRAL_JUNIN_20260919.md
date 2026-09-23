@@ -2,6 +2,8 @@
 
 Version de trabajo: 19/09/2026. Propietario tecnico: Marcelo. Responsables funcionales de referencia: Hugo (Personal/asistencia), Noelia (Contaduria/liquidacion) y Mariano (Juridica). Este documento organiza desarrollo y aceptacion; no concede atribuciones administrativas a una cuenta ni declara completadas las funciones propuestas.
 
+Actualizacion 23/09/2026: la fase B se detalla en [Asistencia, calculo y aprobacion de Hugo](ASISTENCIA_CALCULO_Y_APROBACION_HUGO_20260923.md), con seis sprints y casos de aceptacion para evitar horas sumadas o descontadas sin fundamento. El parque comun de catorce puntos, con seis incorporados actualmente e incluyendo PM10, se precisa en [Un parque municipal de relojes](CLOCK_FLEET_UNIFIED_20260923.md). Los estados fechados del 19/09 conservados debajo son historicos y no describen la conectividad actual.
+
 ## 1. Objetivo y decisiones que se conservan
 
 MuniControl sera el sistema operativo propio, no un visor permanente de GRH. El traspaso se realiza por dominio, poblacion y fecha efectiva. Los UUID nativos no dependen del legajo externo. GRH/GRH Web/GAF/GAT son fuentes autorizadas de migracion, evidencia funcional o compatibilidad durante la transicion; no destinos de escritura automatica bidireccional.
