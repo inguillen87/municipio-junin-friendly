@@ -3,7 +3,7 @@ name: Clock Windows installer
 on:
   workflow_dispatch:
   push:
-    branches: ['work/clock-installer-110-20260923', 'master']
+    branches: ['work/clock-installer-110-20260923', 'work/chat-close-20260923', 'master']
     paths:
       - 'local-agents/clock-fleet/windows-installer/**'
       - 'docs/clock-windows-installer/**'
