@@ -3,17 +3,20 @@ name: Clock Windows installer
 on:
   workflow_dispatch:
   push:
-    branches: [master, internal-clock-windows-installer-20260923]
+    branches: ['work/clock-installer-110-20260923', 'master']
     paths:
-      - local-agents/clock-fleet/windows-installer/**
-      - docs/clock-windows-installer/**
-      - scripts/build-clock-windows-installer.mjs
-      - tests/clock-windows-installer-build.test.mjs
-      - .github/workflows/clock-windows-installer.yml
+      - 'local-agents/clock-fleet/windows-installer/**'
+      - 'docs/clock-windows-installer/**'
+      - 'scripts/build-clock-windows-installer.mjs'
+      - 'tests/clock-installer-task-policy.test.js'
+      - 'tests/clock-windows-installer-build.test.mjs'
+      - '.github/workflows/clock-windows-installer.yml'
 
 permissions:
   contents: read
-
+concurrency:
+  group: clock-installer-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   windows:
     runs-on: windows-latest
@@ -23,12 +26,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test tests/platform-baseline.test.js tests/clock-windows-installer-build.test.mjs
+      - run: node --test tests/platform-baseline.test.js tests/clock-windows-installer-build.test.mjs tests/clock-installer-task-policy.test.js
       - name: Prepare previously certified source and official runtime
         shell: pwsh
         run: |
@@ -68,12 +72,71 @@ jobs:
           if ($result.ExitCode -ne 0) { throw 'Recompiled installer self-test failed' }
           $evidence = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if ($evidence.ok -ne $true) { throw 'Recompiled installer evidence invalid' }
+      - name: Render the explicit registration and stopping screens with synthetic state
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $env:RUNNER_TEMP 'MuniControl-Dispositivos-Setup.exe'
+          foreach ($screen in @('welcome','registration','running')) {
+            $image = Join-Path $env:RUNNER_TEMP ('installer-' + $screen + '.png')
+            $run = Start-Process -FilePath $exe -ArgumentList @('--render-preview', ('"'+$image+'"'), '--page', $screen) -Wait -PassThru -WindowStyle Hidden
+            if ($run.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $image)) { throw 'Installer preview failed' }
+          }
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: municontrol-windows-installer-verification
+          name: municontrol-windows-installer-package
           path: |
+            ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe
+            ${{ runner.temp }}/MuniControl-Dispositivos-Setup-fuentes.zip
+            ${{ runner.temp }}/MuniControl-Dispositivos-Setup-fuentes.zip.sha256
+            ${{ runner.temp }}/installer-*.png
             ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe.verification.json
             ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe.sha256
             ${{ runner.temp }}/installer-self-test.json
             ${{ runner.temp }}/installer-rebuilt-self-test.json
           if-no-files-found: error
+          retention-days: 5
+  publish:
+    needs: windows
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: municontrol-windows-installer-package
+          path: installer
+      - name: Publish versioned binary with corresponding source and verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          with open('installer/MuniControl-Dispositivos-Setup.exe.verification.json') as f:
+              evidence = json.load(f)
+          assert evidence['ok'] and evidence['productVersion'] == '1.1.0'
+          assert evidence['installerCommit'] == os.environ['GITHUB_SHA']
+          assert evidence['sourceDirty'] is False and evidence['testBuild'] is False
+          for name in ('installer-self-test.json', 'installer-rebuilt-self-test.json'):
+              with open('installer/' + name) as f:
+                  test = json.load(f)
+              assert test['ok'] and test['backendOk'] and test['uiGuardsOk']
+          PY
+          (cd installer && sha256sum --check MuniControl-Dispositivos-Setup.exe.sha256 && sha256sum --check MuniControl-Dispositivos-Setup-fuentes.zip.sha256)
+          gh release create clock-installer-v1.1.0 \
+            installer/MuniControl-Dispositivos-Setup.exe \
+            installer/MuniControl-Dispositivos-Setup.exe.sha256 \
+            installer/MuniControl-Dispositivos-Setup.exe.verification.json \
+            installer/MuniControl-Dispositivos-Setup-fuentes.zip \
+            installer/MuniControl-Dispositivos-Setup-fuentes.zip.sha256 \
+            installer/installer-self-test.json \
+            installer/installer-rebuilt-self-test.json \
+            --target "$GITHUB_SHA" --title 'MuniControl Dispositivos 1.1.0 · Windows x64' \
+            --notes-file docs/clock-windows-installer/RELEASE-1.1.0.md --latest=false

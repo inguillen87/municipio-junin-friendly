@@ -70,7 +70,7 @@ namespace MuniControl.Setup
                     string destination = args[1];
                     string page = args.Length == 4 ? args[3] : "welcome";
                     if (!SafeNewOutput(destination, ".png")) return 2;
-                    if (page != "welcome" && page != "configuration" && page != "status" && page != "existing") return 2;
+                    if (page != "welcome" && page != "configuration" && page != "status" && page != "existing" && page != "registration" && page != "running") return 2;
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
                     using (SetupForm form = new SetupForm(true))
@@ -132,6 +132,9 @@ namespace MuniControl.Setup
                 ok = result != null && result.Success, code = code, appVersion = version,
                 installed = result != null && result.Installed, legacyDetected = result != null && result.LegacyDetected,
                 configured = result != null && result.Configured, canActivate = result != null && result.CanActivate,
+                taskRegistered = result != null && result.TaskRegistered, taskEnabled = result != null && result.TaskEnabled,
+                taskRunning = result != null && result.TaskRunning, canRegisterTask = result != null && result.CanRegisterTask,
+                canStop = result != null && result.CanStop,
                 existingStatusAvailable = result != null && !String.IsNullOrEmpty(result.ExistingStatusPath),
                 guideAvailable = result != null && !String.IsNullOrEmpty(result.GuidePath),
                 readOnly = true, installationActions = false, activationActions = false, draftWrites = false,
@@ -537,6 +540,19 @@ namespace MuniControl.Setup
                 Card("Configuración pendiente", "El programa está instalado. Aún falta preparar y validar la configuración privada antes de activar la lectura.", true);
                 SetPrimary("Preparar mis relojes", delegate { ShowPage(Page.Configuration); LoadDraftOnce(); });
             }
+            else if (machine.CanRegisterTask)
+            {
+                Card("Registrar el inicio automático", "La configuración privada ya pasó la comprobación local. Registrá la tarea desactivada; después podrás iniciar la lectura por separado.", true);
+                Paragraph("La cuenta de servicio no usa tu contraseña de Windows. La red o VPN debe estar disponible para esa cuenta; todavía no se comprobó la recepción de una marca nueva.", true);
+                SetPrimary("Registrar tarea automática", RegisterCollector);
+            }
+            else if (machine.TaskEnabled || machine.TaskRunning)
+            {
+                Card(machine.TaskRunning ? (machine.TaskEnabled ? "Coordinador en ejecución" : "Detención en curso") : "Inicio automático habilitado",
+                    "Este es el estado de la tarea de Windows. No certifica conexión con los relojes, captura completa ni recepción en el servidor.", true);
+                if (machine.CanStop && machine.TaskEnabled) SetPrimary("Detener sin borrar colas", StopCollector);
+                else SetPrimary("Actualizar estado", RefreshStatus);
+            }
             else if (!machine.CanActivate)
             {
                 Card("Activación no disponible", "Consultá el diagnóstico para conocer qué comprobación falta. Guardar un borrador no habilita la lectura.", true);
@@ -616,19 +632,11 @@ namespace MuniControl.Setup
         }
         private void RefreshStatus()
         {
-            Execute("Consultando el estado local…", SetupBackend.GetStatus, delegate(BackendResult result)
-            {
-                machine = result;
-                ShowPage(Page.Status);
-            });
+            Execute("Consultando el estado local…", SetupBackend.GetStatus, ShowServiceResult);
         }
         private void Diagnose()
         {
-            Execute("Revisando la instalación…", SetupBackend.Diagnose, delegate(BackendResult result)
-            {
-                machine = result;
-                ShowPage(Page.Status);
-            });
+            Execute("Revisando la instalación…", SetupBackend.Diagnose, ShowServiceResult);
         }
         private void Install()
         {
@@ -644,16 +652,35 @@ namespace MuniControl.Setup
                 else ShowPage(Page.Status);
             });
         }
+        private void RegisterCollector()
+        {
+            if (machine == null || !machine.CanRegisterTask) return;
+            if (MessageBox.Show(this, "Se registrará una tarea desactivada para esta instalación. No empezará a capturar ni a enviar datos. ¿Continuar?",
+                "Registrar inicio automático", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            Execute("Registrando la tarea desactivada…", SetupBackend.RegisterMachineTask, ShowServiceResult);
+        }
+        private void StopCollector()
+        {
+            if (machine == null || !machine.CanStop) return;
+            if (MessageBox.Show(this, "Se pedirá una detención ordenada y se desactivará el reinicio automático. Se conservarán colas y acuses. ¿Continuar?",
+                "Detener MuniControl", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            Execute("Solicitando una detención ordenada…", SetupBackend.Stop, ShowServiceResult);
+        }
+        private void ShowServiceResult(BackendResult result)
+        {
+            machine = result; ShowPage(Page.Status);
+            if (result.Code == "ADMIN_REQUIRED")
+            {
+                Card("Autorización de Windows necesaria", "Abrí el asistente como administrador. La acción se volverá a comprobar y deberás confirmarla en la nueva ventana.", true);
+                SetPrimary("Continuar como administrador", Elevate);
+            }
+        }
         private void ActivateCollector()
         {
             if (machine == null || !machine.CanActivate || stopped == null || !stopped.Checked) return;
             if (MessageBox.Show(this, "Se volverá a comprobar la configuración antes de iniciar este colector. ¿Querés continuar?",
                 "Activar MuniControl", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-            Execute("Comprobando la activación…", SetupBackend.Activate, delegate(BackendResult result)
-            {
-                machine = result;
-                ShowPage(Page.Status);
-            });
+            Execute("Comprobando la activación…", SetupBackend.Activate, ShowServiceResult);
         }
         private void SaveDraft()
         {
@@ -977,10 +1004,12 @@ namespace MuniControl.Setup
                 draft.Clocks.Add(new ClockDraft { Location = "Recepción · ejemplo", Host = "192.0.2.10", Port = 4370, Serial = "EJEMPLO-01", Protocol = "zk40-tcp" });
                 ShowPage(Page.Configuration);
             }
-            else if (target == "status" || target == "existing")
+            else if (target == "status" || target == "existing" || target == "registration" || target == "running")
             {
-                machine = new BackendResult { Success = true, Installed = target == "status", LegacyDetected = target == "existing",
+                machine = new BackendResult { Success = true, Installed = target != "existing", LegacyDetected = target == "existing",
                     Configured = false, CanActivate = false, Code = "OFFLINE_PREVIEW", Summary = "Vista de ejemplo para revisar el diseño. No se consultó ni modificó esta PC.", Details = new List<string>() };
+                if (target == "registration") { machine.Configured = true; machine.CanRegisterTask = true; }
+                if (target == "running") { machine.Configured = true; machine.TaskRegistered = true; machine.TaskEnabled = true; machine.TaskRunning = true; machine.CanStop = true; }
                 ShowPage(Page.Status);
             }
             else ShowPage(Page.Welcome);

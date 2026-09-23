@@ -10,7 +10,7 @@ El asistente guarda un borrador con el nombre del municipio, la ubicación de ca
 
 Las credenciales se entregan por un canal privado y se conservan en archivos con permisos restringidos. El paquete compartible no contiene tokens, claves de relojes, conexiones de base, fichadas ni datos de personas. La PC envía por HTTPS al receptor autorizado; no necesita una cuenta de PostgreSQL ni una conexión directa a Neon.
 
-**El EXE de esta entrega instala archivos y permite preparar la configuración desactivada; no registra ni activa automáticamente una tarea de Windows.** El registro de la tarea y su activación son pasos técnicos separados, todavía pendientes en el asistente. Deben realizarse después de comprobar que no existe otro capturador o remitente del mismo equipo. Cuando se instale la tarea municipal existente, funcionará bajo una cuenta de servicio: el acceso a la red o VPN debe estar disponible también sin una sesión de escritorio abierta. Cerrar el panel no equivale a detener una tarea que ya se hubiera activado por separado.
+**La versión 1.1.0 permite registrar la tarea automática desde el asistente, con confirmación y elevación de Windows.** Primero verifica la instalación, la configuración privada completa y la ausencia de capturadores anteriores; utiliza el script municipal incluido y verificado, sin comandos ni destinos ingresados por el operador. La tarea queda **desactivada**, bajo LocalService y con prevención de instancias simultáneas. **Activar lectura** sigue siendo otra acción, condicionada a confirmar que el capturador anterior ya dejó de operar. No se crean credenciales, no se modifica la política de ejecución de PowerShell ni se reemplaza una tarea existente. La red o VPN debe estar disponible bajo la cuenta de servicio sin una sesión de escritorio abierta. Cerrar el panel no detiene la tarea; **Detener sin borrar colas** solicita el cierre ordenado y desactiva sus próximos reinicios. Si todavía termina un ciclo, el panel lo muestra como pendiente de detener, no como detenido.
 
 El kit previo de scripts y ZIP sigue documentado en [la guía técnica de Windows 11](GUIA-TECNICA-WINDOWS11.md), incluida junto al instalador. Ese kit exige un Node externo; este instalador prepara una distribución con runtime incluido. No mezclar archivos de ambas entregas ni usar una para sobreescribir una instalación en marcha.
 
@@ -20,6 +20,9 @@ El kit previo de scripts y ZIP sigue documentado en [la guía técnica de Window
 |---|---|---|
 | Instalado | Archivos del paquete verificados y copiados | Registro o activación de la tarea, configuración correcta, conexión o envío |
 | Configurado | Identidades, rutas y credenciales revisadas; validaciones locales superadas | Respuesta del dispositivo |
+| Tarea registrada y desactivada | Registro de Windows validado, cuenta LocalService, ruta y argumentos exactos | Captura o envío activo |
+| Tarea habilitada / ejecutándose | Estado actual de Windows, sin inferir conectividad | Respuesta, cobertura o recepción de los relojes |
+| Detención solicitada | Solicitud ordenada y próximos reinicios desactivados | Fin del proceso: actualizar hasta comprobarlo |
 | Conectado | El protocolo responde y la serie coincide con la autorizada | Descarga completa o recepción en el servidor |
 | Capturado localmente | Lote guardado en la cola con su metadata y huellas | Acuse del servidor |
 | Recibido como fuente | Recibo persistente de la parte exacta, con `scope: source_only` | Conciliación de asistencia, aprobación de horas o salarios |
@@ -41,7 +44,7 @@ Un campo «API de destino» puede mostrar el perfil autorizado, pero esta versi�
 2. Elegir una PC administrada, encendida y con espacio suficiente, red del equipo e Internet. No dar por probada la VPN bajo la cuenta de servicio porque funciona en una sesión personal.
 3. Completar únicamente datos reales autorizados. Revisar serie, sede, municipio y destino; conservar claves y tokens fuera de capturas de pantalla o reportes.
 4. Preparar la instalación sin iniciar capturas. Si existe otra, detenerla de forma ordenada, respaldar su configuración privada, colas y recibos, y comprobar que finalizó antes del traspaso.
-5. Completar con el responsable técnico el registro separado de la tarea; el EXE no lo hace automáticamente. Activar primero un equipo. Confirmar lectura, lote local y recibo exacto; después ampliar a los demás dispositivos revisados.
+5. Completar la configuración privada; usar **Registrar tarea automática** y confirmar la elevación. Comprobar que quedó registrada y desactivada. Después confirmar el apagado del capturador anterior y **Activar lectura**. Empezar con la configuración de un equipo revisado; confirmar lectura, lote local y recibo exacto antes de ampliar.
 6. Registrar la aceptación con una marca nueva y una prueba de continuidad sin la PC anterior. El EXE compilado o instalado por sí solo no completa esa prueba.
 
 No activar una segunda instancia para resolver un atraso. No borrar bloqueos, colas ni recibos para que el panel muestre un estado favorable. **PM-10 · Edificio Viejo pertenece al mismo parque municipal y se administra con los mismos criterios que los demás equipos.** El coordinador admite su controlador de captura y envío junto con los controladores de los otros relojes. Cada uno conserva su identidad, su cola y el contrato de acuse que le corresponde; el traslado no convierte ni reenvía registros como si fueran una fuente nueva.

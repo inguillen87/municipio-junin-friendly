@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Installation engine: embedded, pinned files only. No discovery, credential creation,
 // device calls, database access, automatic enrollment or automatic task activation.
+// Explicit task registration is disabled by default and uses the pinned machine installer.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,6 +12,7 @@ using System.IO.Compression;
 using System.Management;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -35,12 +37,14 @@ namespace MuniControl.Setup {
   public List<string> Details {get;set;} public string InstallPath {get;set;} public string ExistingStatusPath {get;set;}
   public string GuidePath {get;set;} public string AppVersion {get;set;} public string DraftSavedPath {get;set;}
   public bool Installed {get;set;} public bool LegacyDetected {get;set;} public bool Configured {get;set;} public bool CanActivate {get;set;}
+  public bool TaskRegistered {get;set;} public bool TaskEnabled {get;set;} public bool TaskRunning {get;set;}
+  public bool CanRegisterTask {get;set;} public bool CanStop {get;set;}
   public InstallationDraft Draft {get;set;}
   public BackendResult(){ Details=new List<string>(); }
  }
  internal sealed class SetupFault : Exception { internal string Code; internal SetupFault(string code):base(code){Code=code;} }
  internal sealed class FilePin { internal string Path; internal long Bytes; internal string Sha; }
- internal sealed class Inspection { internal bool Installed; internal bool Legacy; internal bool Configured; internal bool MachineTask; internal string Existing; }
+ internal sealed class Inspection { internal bool Installed; internal bool Legacy; internal bool Configured; internal bool MachineTask; internal bool TaskEnabled; internal bool TaskRunning; internal string Existing; }
  internal sealed class ProcessAnswer {internal int ExitCode;internal string Output;}
 
  public static class SetupBackend {
@@ -185,13 +189,18 @@ namespace MuniControl.Setup {
   static void Free(object obj){if(obj!=null&&Marshal.IsComObject(obj))Marshal.FinalReleaseComObject(obj);}
   static object TaskFolder(out object service){var type=Type.GetTypeFromProgID("Schedule.Service");Need(type!=null,"SCHEDULER_UNAVAILABLE");service=Activator.CreateInstance(type);Call(service,"Connect");return Call(service,"GetFolder","\\");}
   static string Single(XmlDocument xml,XmlNamespaceManager ns,string xpath){var nodes=xml.SelectNodes(xpath,ns);Need(nodes!=null&&nodes.Count==1,"TASK_REGISTRATION_INVALID");return nodes[0].InnerText;}
-  static void ValidateTask(object task){
-   var xml=new XmlDocument{XmlResolver=null};using(var sr=new StringReader((string)Get(task,"Xml")))using(var reader=XmlReader.Create(sr,new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null}))xml.Load(reader);
+  static void ValidateTask(object task){ValidateTaskXml((string)Get(task,"Xml"),Base);}
+  internal static void ValidateTaskXml(string taskXml,string root){
+   Need(taskXml!=null&&taskXml.Length<=65536,"TASK_REGISTRATION_INVALID");
+   var xml=new XmlDocument{XmlResolver=null};using(var sr=new StringReader(taskXml))using(var reader=XmlReader.Create(sr,new XmlReaderSettings{DtdProcessing=DtdProcessing.Prohibit,XmlResolver=null}))xml.Load(reader);
    var ns=new XmlNamespaceManager(xml.NameTable);ns.AddNamespace("t","http://schemas.microsoft.com/windows/2004/02/mit/task");
-   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Command").Equals(Path.Combine(Base,"runtime","node.exe"),StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
-   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Arguments")==Quote(Path.Combine(Base,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(Base,"config","gateway.json")),"TASK_REGISTRATION_INVALID");
-   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:WorkingDirectory").Equals(Base,StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
+   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Command").Equals(Path.Combine(root,"runtime","node.exe"),StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
+   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:Arguments")==Quote(Path.Combine(root,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(root,"config","gateway.json")),"TASK_REGISTRATION_INVALID");
+   Need(Single(xml,ns,"/t:Task/t:Actions/t:Exec/t:WorkingDirectory").Equals(root,StringComparison.OrdinalIgnoreCase),"TASK_REGISTRATION_INVALID");
    Need(xml.SelectNodes("/t:Task/t:Actions/*",ns).Count==1&&Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:UserId")=="S-1-5-19"&&Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:LogonType")=="ServiceAccount"&&Single(xml,ns,"/t:Task/t:Settings/t:MultipleInstancesPolicy")=="IgnoreNew","TASK_REGISTRATION_INVALID");
+   Need(Single(xml,ns,"/t:Task/t:Principals/t:Principal/t:RunLevel")=="LeastPrivilege"
+    &&xml.SelectNodes("/t:Task/t:Triggers/t:BootTrigger",ns).Count==1
+    &&Single(xml,ns,"/t:Task/t:Settings/t:ExecutionTimeLimit")=="PT0S","TASK_REGISTRATION_INVALID");
   }
   static Inspection Inspect(){
    var result=new Inspection();NoReparse(Base);result.Installed=Directory.Exists(Base);
@@ -202,7 +211,7 @@ namespace MuniControl.Setup {
    }
    object service=null,folder=null,tasks=null;
    try{folder=TaskFolder(out service);tasks=Call(folder,"GetTasks",1);foreach(object task in (IEnumerable)tasks)try{
-    string name=(string)Get(task,"Name");if(name==TaskName){ValidateTask(task);result.MachineTask=true;}else if(name.StartsWith("MuniControl",StringComparison.OrdinalIgnoreCase))result.Legacy=true;
+    string name=(string)Get(task,"Name");if(name==TaskName){ValidateTask(task);result.MachineTask=true;result.TaskEnabled=(bool)Get(task,"Enabled");result.TaskRunning=(int)Get(task,"State")==4;}else if(name.StartsWith("MuniControl",StringComparison.OrdinalIgnoreCase))result.Legacy=true;
    }finally{Free(task);}}
    catch(SetupFault){throw;}catch{throw new SetupFault("SCHEDULER_INSPECTION_REQUIRED");}finally{Free(tasks);Free(folder);Free(service);}
    try{using(var query=new ManagementObjectSearcher("SELECT CommandLine FROM Win32_Process WHERE Name='node.exe' OR Name='wscript.exe' OR Name='cscript.exe'"))using(var processes=query.Get())foreach(ManagementObject p in processes)using(p){
@@ -224,6 +233,7 @@ namespace MuniControl.Setup {
   }
   static BackendResult Result(bool success,string code,string summary){return new BackendResult{Success=success,Code=code,Summary=summary,InstallPath=Base,AppVersion=PackagePins.ProductVersion};}
   static BackendResult Error(Exception e){var f=e as SetupFault;string code=f==null?"OPERATION_REVIEW_REQUIRED":f.Code;
+   if(!Admin()&&(e is UnauthorizedAccessException||code=="PROCESS_INSPECTION_REQUIRED"||code=="SCHEDULER_INSPECTION_REQUIRED"))code="ADMIN_REQUIRED";
    var r=Result(false,code,Messages(code));r.CanActivate=false;return r;
   }
   static string Messages(string code){switch(code){
@@ -231,7 +241,11 @@ namespace MuniControl.Setup {
    case "LEGACY_INSTALLATION_DETECTED":return "Esta PC ya tiene un lector MuniControl. Conserve la instalación actual y revise su estado.";
    case "INSTALLATION_EXISTS":return "La carpeta de instalación ya existe. Este instalador inicial no la sobrescribe.";
    case "CONFIGURATION_REQUIRED":case "CONFIGURATION_INCOMPLETE":return "Falta la configuración privada verificada de esta instalación. El borrador no conecta relojes.";
-   case "MACHINE_REGISTRATION_REQUIRED":return "La configuración debe ser revisada y registrada como servicio antes de activarla.";
+   case "MACHINE_REGISTRATION_REQUIRED":return "La configuración está preparada. Registrá la tarea automática desactivada antes de iniciar la lectura.";
+   case "SERVICE_REGISTRATION_FAILED":return "No se pudo registrar la tarea automática. Conservá la instalación y consultá su estado; no se inició la lectura.";
+   case "TASK_ALREADY_REGISTERED":return "La tarea ya existe. No se reemplazó ni se creó otra; consultá su estado.";
+   case "TASK_NOT_REGISTERED":return "Todavía no hay una tarea automática registrada para esta instalación.";
+   case "STOP_NOT_VERIFIED":return "No se pudo confirmar la solicitud de detención. No borres colas ni cierres los procesos a la fuerza.";
    case "ORIGIN_STOP_CONFIRMATION_REQUIRED":return "Confirme que el lector anterior y su VPN dejaron de operar antes de activar este equipo.";
    case "DRAFT_INVALID":return "Revise municipio, direcciones, series y protocolo. No se guardaron cambios operativos.";
    case "DRAFT_CURRENT_NETWORK_INVALID":return "El perfil actual sólo admite la red municipal verificada. Otro municipio requiere un borrador y validación del adaptador.";
@@ -243,11 +257,56 @@ namespace MuniControl.Setup {
   static BackendResult CheckInternal(){
    Need(Environment.OSVersion.Platform==PlatformID.Win32NT&&Environment.Is64BitOperatingSystem,"WINDOWS_X64_REQUIRED");var i=Inspect();
    var r=Result(true,i.Legacy?"LEGACY_INSTALLATION_DETECTED":i.Installed?"INSTALLED":"READY_TO_INSTALL",i.Legacy?Messages("LEGACY_INSTALLATION_DETECTED"):i.Installed?"Archivos instalados y verificados. La activación es un paso separado.":"Este equipo puede preparar una instalación nueva, sin activar relojes.");
-   r.Installed=i.Installed;r.LegacyDetected=i.Legacy;r.ExistingStatusPath=i.Existing;r.Configured=i.Configured;r.CanActivate=i.Installed&&i.Configured&&i.MachineTask&&!i.Legacy;
+   r.Installed=i.Installed;r.LegacyDetected=i.Legacy;r.ExistingStatusPath=i.Existing;r.Configured=i.Configured;r.TaskRegistered=i.MachineTask;r.TaskEnabled=i.TaskEnabled;r.TaskRunning=i.TaskRunning;
+   ApplyTaskCapabilities(r);
    if(i.Installed)r.GuidePath=Path.Combine(Base,"LEEME-PRIMERO.html");
    r.Details.Add("No se realizó una lectura de relojes ni una escritura en Vercel o Neon.");if(i.Installed&&!i.Configured)r.Details.Add(Messages("CONFIGURATION_REQUIRED"));if(i.Configured&&!i.MachineTask)r.Details.Add(Messages("MACHINE_REGISTRATION_REQUIRED"));
    return r;
   }
+  internal static void ApplyTaskCapabilities(BackendResult r){
+   bool ready=r.Success&&r.Installed&&r.Configured&&!r.LegacyDetected;
+   r.CanRegisterTask=ready&&!r.TaskRegistered;
+   r.CanActivate=ready&&r.TaskRegistered&&!r.TaskEnabled&&!r.TaskRunning;
+   r.CanStop=r.Success&&r.Installed&&r.Configured&&r.TaskRegistered&&(r.TaskEnabled||r.TaskRunning);
+  }
+  static ProcessAnswer RegisterPinnedScript(){
+   string shell=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe");
+   string script=Path.Combine(Base,"app","clock-fleet","install-machine-windows.ps1");
+   NoReparse(shell);NoReparse(script);Need(File.Exists(shell),"SERVICE_REGISTRATION_FAILED");
+   // No execution-policy override, script text, remote command or user-provided arguments.
+   var info=new ProcessStartInfo(shell,"-NoLogo -NoProfile -NonInteractive -File "+Quote(script)+" -BasePath "+Quote(Base)){
+    UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Base,RedirectStandardOutput=true,RedirectStandardError=true};
+   using(var process=new Process()){process.StartInfo=info;var output=new StringBuilder();bool large=false;
+    process.OutputDataReceived+=(sender,e)=>{if(e.Data!=null)lock(output){if(output.Length+e.Data.Length>65536)large=true;else output.AppendLine(e.Data);}};
+    process.ErrorDataReceived+=(sender,e)=>{};
+    process.Start();process.BeginOutputReadLine();process.BeginErrorReadLine();
+    if(!process.WaitForExit(90000)){try{process.Kill();}catch{}throw new SetupFault("SERVICE_REGISTRATION_FAILED");}
+    process.WaitForExit();Need(!large,"SERVICE_REGISTRATION_FAILED");return new ProcessAnswer{ExitCode=process.ExitCode,Output=output.ToString().Trim()};
+   }
+  }
+  public static BackendResult RegisterMachineTask(){lock(Gate){object service=null,folder=null,task=null;try{
+   Need(Admin(),"ADMIN_REQUIRED");var current=CheckInternal();
+   Need(!current.LegacyDetected,"LEGACY_INSTALLATION_DETECTED");Need(current.Installed&&current.Configured,"CONFIGURATION_REQUIRED");
+   Need(!current.TaskRegistered,"TASK_ALREADY_REGISTERED");Need(current.CanRegisterTask,"MACHINE_REGISTRATION_REQUIRED");
+   var answer=RegisterPinnedScript();Need(answer.ExitCode==0,"SERVICE_REGISTRATION_FAILED");
+   var receipt=Object(Encoding.UTF8.GetBytes(answer.Output));object activated,senders;
+   Need(Text(receipt,"schema")=="municipal-clock-machine-install.v1"&&Text(receipt,"task")==TaskName
+    &&receipt.TryGetValue("activated",out activated)&&activated is bool&&!(bool)activated
+    &&receipt.TryGetValue("allSendersConfigured",out senders)&&senders is bool&&(bool)senders,"SERVICE_REGISTRATION_FAILED");
+   folder=TaskFolder(out service);task=Call(folder,"GetTask",TaskName);ValidateTask(task);
+   Need(!(bool)Get(task,"Enabled")&&(int)Get(task,"State")!=4,"SERVICE_REGISTRATION_FAILED");
+   var r=CheckInternal();r.Code="TASK_REGISTERED_STOPPED";r.Summary="Tarea automática registrada y desactivada. La lectura se inicia sólo con tu confirmación.";
+   r.Details.Add("Cuenta de servicio local, inicio al arrancar Windows y sin instancias simultáneas. No se crearon credenciales ni se conectaron relojes.");return r;
+  }catch(Exception e){return Error(e);}finally{Free(task);Free(folder);Free(service);}}}
+  public static BackendResult Stop(){lock(Gate){object service=null,folder=null,task=null;try{
+   Need(Admin(),"ADMIN_REQUIRED");var current=CheckInternal();Need(current.TaskRegistered,"TASK_NOT_REGISTERED");
+   folder=TaskFolder(out service);task=Call(folder,"GetTask",TaskName);ValidateTask(task);
+   var answer=Node(Base,new[]{Path.Combine(Base,"app","clock-fleet","gateway.mjs"),"stop","--config",Path.Combine(Base,"config","gateway.json")});
+   Need(answer.ExitCode==0&&answer.Output=="GATEWAY_STOP_REQUESTED","STOP_NOT_VERIFIED");
+   Set(task,"Enabled",false);var r=CheckInternal();r.Code=r.TaskRunning?"STOP_REQUESTED":"STOPPED";
+   r.Summary=r.TaskRunning?"Detención ordenada solicitada. Actualizá el estado para confirmar que finalizó.":"Tarea desactivada y sin ejecución informada. Las colas y los acuses se conservaron.";
+   r.Details.Add("No se forzó el cierre de procesos ni se borraron datos. La tarea no reiniciará hasta una nueva activación.");return r;
+  }catch(Exception e){return Error(e);}finally{Free(task);Free(folder);Free(service);}}}
   public static BackendResult Check(){lock(Gate){try{return CheckInternal();}catch(Exception e){return Error(e);}}}
   public static BackendResult Diagnose(){return Check();}
   public static BackendResult GetStatus(){return Check();}
@@ -268,7 +327,7 @@ namespace MuniControl.Setup {
    var current=CheckInternal();Need(!current.LegacyDetected,"LEGACY_INSTALLATION_DETECTED");Need(current.Installed&&current.Configured,"CONFIGURATION_REQUIRED");Need(current.CanActivate,"MACHINE_REGISTRATION_REQUIRED");
    folder=TaskFolder(out service);task=Call(folder,"GetTask",TaskName);ValidateTask(task);Need(!(bool)Get(task,"Enabled")&&(int)Get(task,"State")!=4,"TASK_ALREADY_ENABLED");
    var answer=Node(Base,new[]{Path.Combine(Base,"app","clock-fleet","gateway.mjs"),"start","--config",Path.Combine(Base,"config","gateway.json")});Need(answer.ExitCode==0&&answer.Output=="GATEWAY_START_ENABLED","START_NOT_VERIFIED");desiredStarted=true;
-   Set(task,"Enabled",true);Call(task,"Run",new object[]{null});var r=Result(true,"ACTIVATION_REQUESTED","Se solicitó el inicio del coordinador. Falta comprobar una captura y su acuse real.");r.Installed=true;r.Configured=true;r.Details.Add("Iniciar no acredita que todos los relojes estén conectados ni que se hayan actualizado datos municipales.");return r;
+   Set(task,"Enabled",true);Call(task,"Run",new object[]{null});var r=Result(true,"ACTIVATION_REQUESTED","Se solicitó el inicio del coordinador. Falta comprobar una captura y su acuse real.");r.Installed=true;r.Configured=true;r.TaskRegistered=true;r.TaskEnabled=true;r.CanStop=true;r.Details.Add("Iniciar no acredita que todos los relojes estén conectados ni que se hayan actualizado datos municipales.");return r;
   }catch(Exception e){if(desiredStarted){try{Node(Base,new[]{Path.Combine(Base,"app","clock-fleet","gateway.mjs"),"stop","--config",Path.Combine(Base,"config","gateway.json")});}catch{}try{if(task!=null)Set(task,"Enabled",false);}catch{}}return Error(e);}finally{Free(task);Free(folder);Free(service);}}}
   static bool PlainText(string text,int max){return !String.IsNullOrWhiteSpace(text)&&text.Length<=max&&text.Trim()==text&&!Regex.IsMatch(text,"[\\x00-\\x1f\\x7f]");}
   static bool IPv4(string host,out byte[] parts){parts=new byte[4];if(host==null)return false;var bits=host.Split('.');if(bits.Length!=4)return false;for(int i=0;i<4;i++)if(!Regex.IsMatch(bits[i],"^(0|[1-9][0-9]{0,2})$")||!Byte.TryParse(bits[i],NumberStyles.None,CultureInfo.InvariantCulture,out parts[i]))return false;return parts[0]!=0&&parts[0]!=127&&parts[0]<224;}
@@ -298,8 +357,40 @@ namespace MuniControl.Setup {
     memory.Position=0;using(var archive=new ZipArchive(memory,ZipArchiveMode.Read,true)){if(expected==null)Need(ZipEntries(archive).Count==names.Length,"SELF_TEST_FAILED");else ExpectFault(()=>{ZipEntries(archive);},expected);}
    }
   }
+  static void TestSchedulerDefinition(){
+   // COM serializes the real Windows task schema; the definition is never registered or run.
+   object service=null,definition=null,principal=null,settings=null,triggers=null,trigger=null,actions=null,action=null;
+   try{
+    var type=Type.GetTypeFromProgID("Schedule.Service");Need(type!=null,"SELF_TEST_FAILED");
+    service=Activator.CreateInstance(type);Call(service,"Connect");definition=Call(service,"NewTask",0);
+    principal=Get(definition,"Principal");Set(principal,"UserId","S-1-5-19");Set(principal,"LogonType",5);Set(principal,"RunLevel",0);
+    settings=Get(definition,"Settings");Set(settings,"Enabled",false);Set(settings,"MultipleInstances",2);Set(settings,"ExecutionTimeLimit","PT0S");
+    triggers=Get(definition,"Triggers");trigger=Call(triggers,"Create",8);
+    actions=Get(definition,"Actions");action=Call(actions,"Create",0);
+    string root=@"C:\MuniControl-QA";
+    Set(action,"Path",Path.Combine(root,"runtime","node.exe"));
+    Set(action,"Arguments",Quote(Path.Combine(root,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(root,"config","gateway.json")));
+    Set(action,"WorkingDirectory",root);ValidateTaskXml((string)Get(definition,"XmlText"),root);
+   }finally{Free(action);Free(actions);Free(trigger);Free(triggers);Free(settings);Free(principal);Free(definition);Free(service);}
+  }
+  static int TestTaskPolicy(){
+   var r=new BackendResult{Success=true,Installed=true,Configured=true};ApplyTaskCapabilities(r);
+   Need(r.CanRegisterTask&&!r.CanActivate&&!r.CanStop,"SELF_TEST_FAILED");
+   r.TaskRegistered=true;ApplyTaskCapabilities(r);Need(!r.CanRegisterTask&&r.CanActivate&&!r.CanStop,"SELF_TEST_FAILED");
+   r.TaskEnabled=true;ApplyTaskCapabilities(r);Need(!r.CanActivate&&r.CanStop,"SELF_TEST_FAILED");
+   r.TaskEnabled=false;r.TaskRunning=true;ApplyTaskCapabilities(r);Need(!r.CanActivate&&r.CanStop,"SELF_TEST_FAILED");
+   r.TaskRunning=false;r.LegacyDetected=true;ApplyTaskCapabilities(r);Need(!r.CanRegisterTask&&!r.CanActivate,"SELF_TEST_FAILED");
+   r.LegacyDetected=false;r.Success=false;ApplyTaskCapabilities(r);Need(!r.CanRegisterTask&&!r.CanActivate&&!r.CanStop,"SELF_TEST_FAILED");
+   string root=@"C:\MuniControl-QA",ns="http://schemas.microsoft.com/windows/2004/02/mit/task";
+   string command=SecurityElement.Escape(Path.Combine(root,"runtime","node.exe"));
+   string args=SecurityElement.Escape(Quote(Path.Combine(root,"app","clock-fleet","gateway.mjs"))+" run --config "+Quote(Path.Combine(root,"config","gateway.json")));
+   string xml="<Task xmlns='"+ns+"'><Triggers><BootTrigger/></Triggers><Principals><Principal><UserId>S-1-5-19</UserId><LogonType>ServiceAccount</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings><Actions><Exec><Command>"+command+"</Command><Arguments>"+args+"</Arguments><WorkingDirectory>"+SecurityElement.Escape(root)+"</WorkingDirectory></Exec></Actions></Task>";
+   ValidateTaskXml(xml,root);
+   foreach(string bad in new[]{xml.Replace("IgnoreNew","Parallel"),xml.Replace("LeastPrivilege","HighestAvailable"),xml.Replace("ServiceAccount","InteractiveToken"),xml.Replace("S-1-5-19","S-1-5-18"),xml.Replace("<BootTrigger/>",""),xml.Replace("PT0S","PT72H"),xml.Replace("</Actions>","<Exec><Command>untrusted.exe</Command></Exec></Actions>"),xml.Replace(command,"untrusted.exe")})ExpectFault(()=>ValidateTaskXml(bad,root),"TASK_REGISTRATION_INVALID");
+   TestSchedulerDefinition();return 16;
+  }
   public static BackendResult SelfTest(){string fixture=null;BackendResult result;try{
-   int checks=0;foreach(string p in new[]{"../x","/x","C:/x","app/../x","app//x","app/x.","app/CON.txt","app/COM1.mjs","app/x:stream","app\\x","app/x\n","app/"}){Need(!SafeRelative(p),"SELF_TEST_FAILED");checks++;}
+   int checks=TestTaskPolicy();foreach(string p in new[]{"../x","/x","C:/x","app/../x","app//x","app/x.","app/CON.txt","app/COM1.mjs","app/x:stream","app\\x","app/x\n","app/"}){Need(!SafeRelative(p),"SELF_TEST_FAILED");checks++;}
    foreach(string p in AppFiles){Need(SafeRelative(p),"SELF_TEST_FAILED");checks++;}
    Need(Quote("C:\\a b\\")=="\"C:\\a b\\\\\""&&Quote("a\"b")=="\"a\\\"b\"","SELF_TEST_FAILED");checks+=2;
    var d=new InstallationDraft{MunicipalityName="Municipio de prueba",TargetEnvironment="current",Clocks=new List<ClockDraft>{new ClockDraft{Location="Equipo sintético",Host="172.100.96.2",Port=4370,Serial="SYNTHETIC-ONLY",Protocol="zk40-tcp"}}};Validate(d);checks++;
@@ -315,7 +406,7 @@ namespace MuniControl.Setup {
    string probe=Inside(fixture,"app/clock-fleet/runner.mjs");byte[] original=File.ReadAllBytes(probe);File.WriteAllBytes(probe,new byte[]{42});ExpectFault(()=>VerifyInstalled(fixture),"INSTALLED_FILES_CHANGED");File.WriteAllBytes(probe,original);checks++;
    string extra=Inside(fixture,"app/clock-fleet/unexpected.mjs");File.WriteAllBytes(extra,new byte[]{42});ExpectFault(()=>VerifyInstalled(fixture),"INSTALLED_FILES_CHANGED");File.Delete(extra);checks++;
    bool overwriteDenied=false;try{ExtractPinnedPayload(fixture);}catch(IOException){overwriteDenied=true;}Need(overwriteDenied,"SELF_TEST_FAILED");VerifyInstalled(fixture);checks++;
-   result=Result(true,"SELF_TEST_PASSED","Payload extraído y verificado en una carpeta temporal privada. Firma de Node y archivos correctos; ninguna instalación real fue modificada.");result.Details.Add(checks.ToString(CultureInfo.InvariantCulture)+" comprobaciones; sin relojes, tareas, configuración privada, ejecución de Node ni elevación.");
+   result=Result(true,"SELF_TEST_PASSED","Payload extraído y verificado en una carpeta temporal privada. Firma de Node y archivos correctos; ninguna instalación real fue modificada.");result.Details.Add(checks.ToString(CultureInfo.InvariantCulture)+" comprobaciones; sin relojes, registro de tareas, configuración privada, ejecución de Node ni elevación.");
   }catch(Exception e){result=Error(e);}try{if(fixture!=null){
    string full=Path.GetFullPath(fixture),parent=Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
    Need(String.Equals(Path.GetDirectoryName(full).TrimEnd(Path.DirectorySeparatorChar),parent,StringComparison.OrdinalIgnoreCase)&&Path.GetFileName(full).StartsWith("MuniControl-InstallerSelfTest-",StringComparison.Ordinal),"SELF_TEST_CLEANUP_UNSAFE");
