@@ -254,3 +254,4 @@ local-agents/
 !scripts/migrations/101-native-monthly-novelties.sql
 !scripts/migrations/102-native-family-schooling.sql
 !scripts/migrations/103-native-employment-catalog.sql
+!scripts/migrations/104-native-employment-changes.sql

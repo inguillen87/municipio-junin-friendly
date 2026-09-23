@@ -1150,6 +1150,7 @@
 <script type="module" src="assets/native-employee-create.js"></script>
 <link rel="stylesheet" href="assets/native-employment-catalog.css">
 <script type="module" src="assets/native-employment-catalog.js"></script>
+<link rel="stylesheet" href="assets/native-employment-change.css">
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
 <link rel="stylesheet" href="assets/report-centre.css">
@@ -2754,6 +2755,7 @@
 
       function closeDialog() {
         document.dispatchEvent(new Event('mc:family-schooling-close'));
+        document.dispatchEvent(new Event('mc:native-employment-change-close'));
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
         state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
@@ -2765,6 +2767,7 @@
       async function openEmployee(contractId, legajo, companyId, fallbackName, destination = {}) {
         if (!text(contractId) && !text(legajo)) return;
         document.dispatchEvent(new Event('mc:family-schooling-close'));
+        document.dispatchEvent(new Event('mc:native-employment-change-close'));
         if (state.detailController) state.detailController.abort();
         if (state.payrollController) state.payrollController.abort();
         state.payrollSummaryControllers.forEach(function (controller) { controller.abort(); });
@@ -3670,6 +3673,24 @@
         return section;
       }
 
+      function renderNativeEmploymentChangeSection(employee) {
+        const section = document.createElement('section');
+        const heading = document.createElement('h3');
+        heading.textContent = 'Rectificar encuadre';
+        const host = document.createElement('div');
+        host.textContent = 'Consultando encuadre administrativo…';
+        section.append(heading, host);
+        import('./assets/native-employment-change.js').then(function (module) {
+          if (!host.isConnected || !els.employeeDialog.open) return;
+          module.mountNativeEmploymentChange(host, { contractId: employee.contractId, onApplied: function () {
+            if (!host.isConnected || !els.employeeDialog.open) return;
+            openEmployee(employee.contractId, employee.legajo, employee.companyId, employee.nombre);
+            loadEmployees(state.pagination.page);
+          }});
+        }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
+        return section;
+      }
+
       function renderEmployeeDetail(detail, destination = {}, sourceSeniority = null) {
         const employee = detail.employee;
         const legajo = text(employee.legajo);
@@ -3691,6 +3712,7 @@
             detailField('Convenio',employee.convenio),detailField('Categoría',employee.categoria),detailField('Sector',employee.organizacion),
             detailField('Repartición',employee.sector),detailField('Cargo / función',employee.cargo)
           ]));
+          els.dialogBody.appendChild(renderNativeEmploymentChangeSection(employee));
           els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
             detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
           ]));

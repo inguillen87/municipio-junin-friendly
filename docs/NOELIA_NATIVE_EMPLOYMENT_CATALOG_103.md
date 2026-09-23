@@ -4,7 +4,7 @@
 
 Personal prepara un catálogo de encuadres en MuniControl, otra persona autorizada lo revisa y, al aprobarlo, lo publica para las altas futuras. El catálogo reúne cuatro clases: convenios, categorías, organizaciones y reparticiones. La publicación es una decisión administrativa expresa; guardar una propuesta no cambia las opciones vigentes del alta.
 
-Este documento define el alcance del sprint sobre la base `e2b4a189c130cbab07019b5fb62570afe1f5f53f`. La implementación se valida en una rama aislada. El estado de CI, instalación en PG17/PG18 y publicación se acredita mediante los recibos del release; las pruebas locales no sustituyen esos gates ni la aceptación municipal. No se incorporan datos de ejemplo a las bases municipales.
+El cierre técnico quedó publicado el 23/09 en `7285166dea8400e755982a720b2056d7f3fa87b6`: CI de rama `35877506021`, master `35878569712`, migración 103 instalada y verificada independientemente en PG18 y PG17, Vercel READY y recursos publicados cotejados. El recibo privado `catalog-release-closure.private.json` conserva ese cierre. No se incorporaron propuestas ni publicaciones ficticias; la primera aprobación de un catálogo municipal real sigue pendiente. Las pruebas locales o con APIs interceptadas no sustituyen la aceptación municipal.
 
 ## Circuito completo
 

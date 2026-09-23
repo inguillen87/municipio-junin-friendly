@@ -2,7 +2,9 @@
 
 Esta matriz no declara que el reemplazo de GRH esté completo. Distingue requerimientos de la documentación entregada, avances comprobables en código y funciones pendientes. Los PDF originales y sus capturas permanecen fuera del repositorio; no se publica información nominal ni la firma. Una fórmula visible en una captura no se sustituye por una tasa supuesta.
 
-Actualización al 23/09, sobre la base `e2b4a18`: [mensuales nativas 101](NOELIA_NATIVE_MONTHLY_101.md) y [familia/escolaridad nativas 102](NOELIA_NATIVE_FAMILY_102.md) ya tienen cierre técnico de producción registrado. El [catálogo propio 103](NOELIA_NATIVE_EMPLOYMENT_CATALOG_103.md) está implementado en la rama del incremento; su CI, instalación y publicación se acreditarán por recibo, y todavía no hay un catálogo municipal realmente aprobado. Consultar el [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para la evidencia y los límites. Un paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
+Actualización al 23/09, sobre la base `7285166`: [mensuales nativas 101](NOELIA_NATIVE_MONTHLY_101.md), [familia/escolaridad nativas 102](NOELIA_NATIVE_FAMILY_102.md) y [catálogo propio 103](NOELIA_NATIVE_EMPLOYMENT_CATALOG_103.md) tienen cierre técnico de producción registrado. Todavía no hay un catálogo municipal realmente aprobado. El incremento [104, rectificación de encuadres propios](NOELIA_NATIVE_EMPLOYMENT_CHANGES_104.md), continúa en la rama de implementación y requiere sus propios gates de instalación y publicación. Consultar el [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para la evidencia y los límites. Un paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
+
+Repaso del 23/09: se releyeron las 27 páginas de los seis PDF que cubren los módulos 1–7, incluyendo sus capturas. Las copias de ambos ZIP entregados son idénticas por archivo; no se reemplazó el código vigente con las versiones antiguas del ZIP. Se incorporan los módulos [8](NOELIA_MODULO_8_INFORMES_20260923.md) y [9–10](NOELIA_MODULOS_9_10_20260923.md) a esta misma matriz. Leer un manual no completa su implementación ni homologa un cálculo.
 
 ## 1. Datos del municipio y 2. Reportes
 Fuente: `1º-2º MODULO DATOS MUNI- REPORTES`, páginas 1–3; `REUNION 09/09/2026`, páginas 1–2.
@@ -23,22 +25,22 @@ Fuente: `1º-2º MODULO DATOS MUNI- REPORTES`, páginas 1–3; `REUNION 09/09/20
 Fuente: `3º MODULO IMPORTACION DE NOVEDADES`, páginas 1–8.
 
 - Mayor dedicación 44 y Full Time 95: secretarías aportan cantidades que hoy convierten de Excel a TXT. El objetivo MuniControl es registrar la novedad y autorización propias, no obligar a reconstruir un archivo que el sistema puede generar. No confundir códigos del reloj 4/5 con conceptos 44/95.
-- OSEP: 601 cuota, 602 voluntarios puros, 603 estudiantes, 605 cuenta corriente; 604 y 685 se describen como automáticos. Conservar descripción y fórmula exacta de cada fuente: la captura bajo el texto de 604 muestra otro código, por lo que esa fórmula exige cotejo con el respaldo antes de usarla.
+- OSEP: 601 cuota, 602 voluntarios puros, 603 estudiantes, 605 cuenta corriente; 604 y 685 se describen como automáticos. Conservar descripción y fórmula exacta de cada fuente: en p. 4 el texto dice 604 pero la captura muestra **682, OSEP catastrófico indirecto (246)**. Esa discrepancia exige cotejo antes de activar una fórmula; no se resuelve por semejanza del nombre.
 - Otros descuentos: 614, 638, 639, 641, 650, 651, 665 y 675 usan Formato Junín; 616, 618, 620 y 623 están listados aparte. 617 se describe automático; también figuran 676 APEL y 677 ATE. No agregar porcentajes de memoria.
 - 678 Club Junín usa Formato Retro y un TXT preparado desde Excel externo. El dato externo sigue necesitando recepción; automatizar no significa inventarlo.
 
 ## 4. Integración GRH–GAF contable
 Fuente: `4º MODULO INTEGRACION SUELDO- GAF CONTABLE`, páginas 1–3.
 
-INSUTACO: conceptos por repartición, partida y cuenta; preservar filtros del período/repartición/concepto. INSULEGA: vincular cada legajo a institucional (lugar de trabajo) y nomenclador (función). Pendiente integración contable operativa. No presentar un reporte de conceptos como imputación contable realizada.
+INSUTACO: conceptos por repartición, partida y cuenta; preservar filtros del período/repartición/concepto. La captura incluye tipo de concepto, proveedor, cuenta contable, concepto/movimiento bancario y acreedor neto. No equiparar cuenta contable a CBU. INSULEGA: vincular cada legajo a institucional (lugar de trabajo) y nomenclador (función), conservando **desde/hasta** y alcance de conceptos. Pendiente integración contable operativa. No presentar un reporte de conceptos como imputación contable realizada.
 
 ## 5. Novedades de liquidación
 Fuente: `5º MODULO NOVEDADDES DE LIQUIDACION`, páginas 1–4.
 
 | Apartado | Criterio que no debe perderse |
 |---|---|
-| 5.1 Ítem por legajo | Estado docente para la población indicada; mensual, fijo, valor 1. Conservar diferencia entre repartición y convenio. |
-| 5.2 Masivas | Haberes/descuentos por varios legajos, forzados o no; validar antes de guardar y mostrar el lote completo. |
+| 5.1 Ítem por legajo | Estado docente para la población indicada; mensual, fijo, valor 1. La captura muestra ítem **301 Pago docente (0 No / 1 Sí)**: es un ítem del legajo, no autorización para crear el concepto salarial 301. Conservar diferencia entre repartición y convenio. |
+| 5.2 Masivas | Haberes/descuentos por varios legajos, forzados o no; validar antes de guardar y mostrar el lote completo. Preservar mes/año, mes de ajuste, tipo de liquidación, instrumento legal, movimiento, estado, concepto, unidades e importe cuando correspondan. |
 | 5.3 Manuales | Presentismo, mayor dedicación, Full Time y demás códigos, sin requerir planilla externa. |
 | 5.4 Fijas | Código 80 Responsabilidad jerárquica con alta y vencimiento; documentado 31/12/2050, unidad 1 e importe 1. No extender esa convención a todos los conceptos. |
 | 5.5 Eliminación masiva | Resolver errores de concepto, tipo o mes. Diseño nuevo propuesto: baja/corrección auditada con vista previa; no borrar evidencia sin control. |
@@ -59,12 +61,22 @@ Fuente: `6º MODULO PARAMETROS`, páginas 1–6.
 
 103 permite preparar y revisar independientemente convenios, categorías, organizaciones y reparticiones para **altas futuras**; aprobar publica ese catálogo administrativo. No es el maestro de conceptos, auxiliares, escalas o fórmulas del módulo 6, ni modifica encuadres de contratos existentes. Su publicación técnica y la primera aprobación municipal se acreditan separadamente mediante evidencia del release y de la revisión municipal.
 
-Para que Personal opere enteramente con legajos propios siguen pendientes los circuitos de **rectificación, baja y reingreso nativos**, y la ampliación de **licencias a contratos nativos**, con identidad, permisos e historial. El alta actual ofrece creación y recuperación del intento; no deben presentarse esos otros movimientos como implementados. El motor de liquidación propio tampoco está homologado: requiere reglas aprobadas, cálculo reproducible y conciliación.
+Para que Personal opere enteramente con legajos propios siguen pendientes la **baja y reingreso nativos**, las rectificaciones de identidad y fechas, y la ampliación de **licencias a contratos nativos**, con identidad, permisos e historial. 104 incorpora la rectificación del encuadre administrativo actual, sujeta a los gates de su release; no completa esos otros movimientos. El motor de liquidación propio tampoco está homologado: requiere reglas aprobadas, cálculo reproducible y conciliación.
 
 ## 7. Liquidación
 Fuente: `7º MODULO LIQUIDACION`, páginas 1–3.
 
-Conservar anulación, cambiar el nombre Proceso por Confirmar liquidación y respetar sus alcances por legajo/convenio/repartición/todos y tipos indicados en capturas. Cierre mantiene histórico e imputación contable. Cierre de origen, coincidencia aritmética, autorización administrativa y pago son hechos distintos.
+Conservar anulación, cambiar el nombre Proceso por Confirmar liquidación y respetar sus alcances por legajo/convenio/repartición/todos y tipos indicados en capturas: F/M/O/P/S/V. Cierre mantiene histórico e imputación contable, identificada expresamente como **INSUARTE de GAF** en p. 3. Cierre de origen, coincidencia aritmética, autorización administrativa y pago son hechos distintos.
+
+## 8. Informes, 9. Recibos y 10. Cargos presupuestarios
+
+| Módulo | Aceptación requerida | Estado y siguiente entrega |
+|---|---|---|
+| [8. Informes](NOELIA_MODULO_8_INFORMES_20260923.md) | Variables/antigüedad, liquidaciones por legajo, expediente de cierre, planillas nominales y estadísticas; período/tipo explícitos y exportación del conjunto completo | Cinco entregas detalladas en su documento. Biblioteca y reportes existentes no equivalen a todo el módulo terminado. |
+| [9. Recibos](NOELIA_MODULOS_9_10_20260923.md#9-recibos-de-haberes) | Rangos de legajo/repartición, período, tipo, pago/acreditación respaldados, PDF, firma y descarga propia del agente | Reutilizar biblioteca y detalle para consulta y previsualización completas. PDF informativo actual sin firma; emisión y autoservicio siguen en DOC-01. La repartición histórica no se reinterpreta con el encuadre actual 104. |
+| [10. Estructura de cargos](NOELIA_MODULOS_9_10_20260923.md#10-estructura-presupuestaria-de-cargos) | Presupuesto anual y modificaciones, control contra liquidación concreta, Simple/Detallada, activos Sí/No/Todos, orden natural/alfabético y PDF | Fuente de 51 páginas recibida y analizada. Preparar revisión de estructura/unidades y asociaciones exactas antes de importar. `Cant=0` no implica vacante y el texto de cargo de 104 no identifica una plaza presupuestaria. |
+
+En todos los módulos: misma población en pantalla y archivo, filtros y procedencia visibles, una acción principal por paso, campos con nombres municipales, errores que conservan el trabajo y pruebas de escritorio/móvil. Estos son criterios para superar los recorridos observados en GRH; no una afirmación de superioridad ya certificada.
 
 ## Corte de entrega 053
 Pruebas a cerrar: botón blanco PDF con fecha ISO real; navegación por tarea sin perder formularios; filtros/exportación del resultado completo; consulta de conceptos desde Neon; prueba negativa de sesión; ninguna modificación de importes originales. Firma DOC-01, motor de próxima nómina, reportes bancarios/fiscales y colector autónomo no se dan por cerrados por este sprint.

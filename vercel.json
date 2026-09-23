@@ -21,6 +21,9 @@
     "api/internal-employment-catalog.js": {
       "maxDuration": 20
     },
+    "api/internal-employment-changes.js": {
+      "maxDuration": 20
+    },
     "api/internal-actions.js": {
       "maxDuration": 20
     },
