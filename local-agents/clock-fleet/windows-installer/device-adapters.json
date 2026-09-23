@@ -1,0 +1,45 @@
+{
+  "schema": "municontrol-device-adapters.v1",
+  "adapters": [
+    {
+      "id": "zk40-tcp",
+      "label": "Reloj de asistencia · ZK40 por TCP",
+      "family": "attendance",
+      "availability": "available",
+      "selectable": true,
+      "transport": "TCP",
+      "defaultPort": 4370,
+      "description": "Lector existente de registros de 40 bytes. Requiere serie y clave autorizadas, red admitida y equipo validado. La edición actual utiliza el destino habilitado para Junín."
+    },
+    {
+      "id": "mqtt",
+      "label": "Sensores · MQTT (pendiente)",
+      "family": "telemetry",
+      "availability": "planned",
+      "selectable": false,
+      "transport": "MQTT",
+      "defaultPort": null,
+      "description": "Propuesta para telemetría. No incluye cliente de captura ni contrato de recepción implementados; requiere definir broker, autenticación, mensajes y unidades."
+    },
+    {
+      "id": "onvif",
+      "label": "Cámaras · ONVIF (pendiente)",
+      "family": "camera_events",
+      "availability": "planned",
+      "selectable": false,
+      "transport": "ONVIF",
+      "defaultPort": null,
+      "description": "Propuesta para estado y eventos de cámaras. No incluye controlador, visualización, grabación ni análisis de video implementados."
+    },
+    {
+      "id": "modbus",
+      "label": "Medidores y equipos · Modbus (pendiente)",
+      "family": "industrial_measurements",
+      "availability": "planned",
+      "selectable": false,
+      "transport": "Modbus",
+      "defaultPort": null,
+      "description": "Propuesta para lecturas de equipos. No incluye controlador implementado; requiere elegir transporte, mapa de registros, escalas y unidades. No habilita comandos de control."
+    }
+  ]
+}

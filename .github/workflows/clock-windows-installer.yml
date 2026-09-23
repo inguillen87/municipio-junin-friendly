@@ -1,0 +1,79 @@
+name: Clock Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, internal-clock-windows-installer-20260923]
+    paths:
+      - local-agents/clock-fleet/windows-installer/**
+      - docs/clock-windows-installer/**
+      - scripts/build-clock-windows-installer.mjs
+      - tests/clock-windows-installer-build.test.mjs
+      - .github/workflows/clock-windows-installer.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/clock-windows-installer-build.test.mjs
+      - name: Prepare previously certified source and official runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceKit = Join-Path $env:RUNNER_TEMP 'municontrol-source-0b8d1a8'
+          git worktree add $sourceKit 0b8d1a8d261b4c55556921cba1708305006e0e5e
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Junction -Path (Join-Path $sourceKit 'node_modules') -Target (Join-Path $env:GITHUB_WORKSPACE 'node_modules') | Out-Null
+          node (Join-Path $sourceKit 'scripts/build-clock-windows11-kit.mjs') --output (Join-Path $env:RUNNER_TEMP 'clock-kit')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-WebRequest 'https://nodejs.org/dist/v24.21.0/win-x64/node.exe' -OutFile (Join-Path $env:RUNNER_TEMP 'node.exe')
+          Invoke-WebRequest 'https://raw.githubusercontent.com/nodejs/node/v24.21.0/LICENSE' -OutFile (Join-Path $env:RUNNER_TEMP 'NODE-LICENSE')
+      - name: Build verified installer
+        shell: pwsh
+        run: |
+          node scripts/build-clock-windows-installer.mjs --kit (Join-Path $env:RUNNER_TEMP 'clock-kit') --runtime (Join-Path $env:RUNNER_TEMP 'node.exe') --runtime-license (Join-Path $env:RUNNER_TEMP 'NODE-LICENSE') --output (Join-Path $env:RUNNER_TEMP 'MuniControl-Dispositivos-Setup.exe')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate executable without installing or connecting devices
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'MuniControl-Dispositivos-Setup.exe'
+          $report = Join-Path $env:RUNNER_TEMP 'installer-self-test.json'
+          $result = Start-Process -FilePath $exe -ArgumentList @('--self-test', '--output', ('"'+$report+'"')) -Wait -PassThru -WindowStyle Hidden
+          if ($result.ExitCode -ne 0) { throw 'Installer self-test failed' }
+          $evidence = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($evidence.ok -ne $true) { throw 'Installer evidence invalid' }
+      - name: Recompile the corresponding source archive without repository dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:RUNNER_TEMP 'MuniControl source rebuild'
+          Expand-Archive -LiteralPath (Join-Path $env:RUNNER_TEMP 'MuniControl-Dispositivos-Setup-fuentes.zip') -DestinationPath $source
+          & (Join-Path $source 'COMPILAR-FUENTES.cmd')
+          if ($LASTEXITCODE -ne 0) { throw 'Corresponding source compilation failed' }
+          $report = Join-Path $env:RUNNER_TEMP 'installer-rebuilt-self-test.json'
+          $result = Start-Process -FilePath (Join-Path $source 'MuniControl-Recompilado.exe') -ArgumentList @('--self-test', '--output', ('"'+$report+'"')) -Wait -PassThru -WindowStyle Hidden
+          if ($result.ExitCode -ne 0) { throw 'Recompiled installer self-test failed' }
+          $evidence = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($evidence.ok -ne $true) { throw 'Recompiled installer evidence invalid' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: municontrol-windows-installer-verification
+          path: |
+            ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe.verification.json
+            ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe.sha256
+            ${{ runner.temp }}/installer-self-test.json
+            ${{ runner.temp }}/installer-rebuilt-self-test.json
+          if-no-files-found: error
