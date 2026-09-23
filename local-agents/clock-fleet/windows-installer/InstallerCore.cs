@@ -194,8 +194,18 @@ namespace MuniControl.Setup {
    try{definition=Get(task,"Definition");principal=Get(definition,"Principal");ValidatePrincipal(principal);ValidateTaskXml((string)Get(task,"Xml"),Base);}
    finally{Free(principal);Free(definition);}
   }
+  static bool IsLocalService(object identity){
+   string value=identity as string;if(String.IsNullOrWhiteSpace(value)||value.Length>256)return false;
+   try{
+    var sid=value.StartsWith("S-",StringComparison.OrdinalIgnoreCase)?new SecurityIdentifier(value)
+     :(SecurityIdentifier)new NTAccount(value).Translate(typeof(SecurityIdentifier));
+    return sid.IsWellKnown(WellKnownSidType.LocalServiceSid);
+   }catch(IdentityNotMappedException){return false;}catch(ArgumentException){return false;}
+  }
   static void ValidatePrincipal(object principal){
-   Need((string)Get(principal,"UserId")=="S-1-5-19"&&Convert.ToInt32(Get(principal,"LogonType"),CultureInfo.InvariantCulture)==5
+   // COM returns the localized account name, while task XML stores its SID.
+   // Resolve to the actual well-known identity, never trust a display-name substring.
+   Need(IsLocalService(Get(principal,"UserId"))&&Convert.ToInt32(Get(principal,"LogonType"),CultureInfo.InvariantCulture)==5
     &&Convert.ToInt32(Get(principal,"RunLevel"),CultureInfo.InvariantCulture)==0,"TASK_REGISTRATION_INVALID");
   }
   internal static void ValidateTaskXml(string taskXml,string root){

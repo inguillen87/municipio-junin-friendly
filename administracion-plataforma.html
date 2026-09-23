@@ -1172,12 +1172,14 @@
       catch (_) { return date.toISOString(); }
     }
     function statusTone(value) {
-      var normalized = normalizeSearch(value);
-      if (/operativ|activ|ready|aprob|success|ok|complet/.test(normalized)) return 'is-ok';
-      if (/bloque|suspend|deneg|revoc|error|critical|fall/.test(normalized)) return 'is-danger';
-      if (/atencion|pend|riesgo|warning|invite|observ|venc|expir/.test(normalized)) return 'is-attention';
-      if (/pilot|progreso|config|info|implement/.test(normalized)) return 'is-info';
-      return '';
+      var key = normalizeSearch(value).trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+      var groups = {
+        'is-ok': ['active', 'activo', 'activa', 'ready', 'approved', 'aprobado', 'aprobada', 'success', 'ok', 'completed', 'completado', 'operativo', 'operativa', 'operational', 'published', 'accepted'],
+        'is-danger': ['inactive', 'inactivo', 'inactiva', 'disabled', 'suspended', 'suspendido', 'suspendida', 'blocked', 'bloqueado', 'bloqueada', 'denied', 'rejected', 'revoked', 'revocado', 'revocada', 'error', 'failed', 'failure', 'critical', 'denegado'],
+        'is-attention': ['pending', 'pendiente', 'warning', 'observed', 'observado', 'expired', 'expirado', 'vencido', 'cancelled', 'canceled', 'invalidated', 'invitado', 'invited', 'invitation', 'in review', 'attention', 'atencion', 'en revision', 'riesgo'],
+        'is-info': ['pilot', 'piloto', 'configuring', 'configuration', 'configuracion', 'in progress', 'en progreso', 'provisioning', 'draft', 'informativo']
+      };
+      return Object.keys(groups).find(function (tone) { return groups[tone].includes(key); }) || '';
     }
     function pill(label, tone) {
       var span = node('span', 'state-pill' + (tone ? ' ' + tone : ''), label || 'No informado');
