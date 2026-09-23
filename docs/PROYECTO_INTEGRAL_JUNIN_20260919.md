@@ -6,6 +6,8 @@ Actualizacion 23/09/2026: la fase B se detalla en [Asistencia, calculo y aprobac
 
 ## 1. Objetivo y decisiones que se conservan
 
+Ampliacion del 23/09/2026: se incorporo el [modulo 8 de informes de Noelia](NOELIA_MODULO_8_INFORMES_20260923.md), revisado pagina a pagina y organizado en cinco entregas verificables. Incluye variables/antiguedad, liquidaciones por legajo, expediente de cierre, planillas nominales y estadisticas por concepto. La matriz distingue implementacion parcial, publicacion y aceptacion funcional.
+
 MuniControl sera el sistema operativo propio, no un visor permanente de GRH. El traspaso se realiza por dominio, poblacion y fecha efectiva. Los UUID nativos no dependen del legajo externo. GRH/GRH Web/GAF/GAT son fuentes autorizadas de migracion, evidencia funcional o compatibilidad durante la transicion; no destinos de escritura automatica bidireccional.
 
 Se conserva lo desarrollado: tablas, funciones, identidades, legajos nativos, relojes, acuses, parametros, novedades, documentos juridicos y auditoria. Un backup nuevo entra como candidato conciliable y nunca se restaura encima de las operaciones propias. El candidato septiembre ya persistido en PG18 no esta activo para los usuarios; el corte de fuente del dia 10 no acredita el cierre mensual ni novedades posteriores.
@@ -66,6 +68,7 @@ Regla de experiencia: elegir periodo, tipo de liquidacion y alcance una sola vez
 | 5 Novedades, pp.1-4 | Individuales, masivas, manuales y fijas con vigencia; importe opcional y correccion auditada | Ausencia de importe no pasa a cero; anular conserva original, motivo y sustitucion |
 | 6 Parametros, pp.1-6 | Conceptos, auxiliares, escalas y formulas por convenio y vigencia; copia con vista de impacto | Comparacion por convenio/legajo y doble control antes de activar |
 | 7 Liquidacion, pp.1-3 | Preparar, simular, Confirmar liquidacion, anular/reliquidar, cerrar e imputar | Bruto, descuentos, neto y costo reproducibles por concepto; original cerrado inmutable |
+| 8 Informes, pp.1-9 | Variables de liquidacion, consulta por legajo/rango/tipo, expediente, planillas y estadisticas con dimensiones historicas | Fuentes/cortes explicitos; mismos filtros y totales en pantalla y archivos; sin totalizadores duplicados ni firmas supuestas. Detalle y brechas en la matriz del modulo 8 |
 
 No se pierden detalles documentados: mayor dedicacion 44 y Full Time 95; OSEP 601/602/603/605, tratamiento separado de 604/685; perfil Retro de 678; carga conjunta de formulas 606/607/612/550; auxiliares 88/90 con alcances distintos por convenio; responsabilidad jerarquica 80 con alta/vencimiento. La matriz original detalla los restantes codigos y sigue siendo fuente. Las capturas inconsistentes, factores 0,81, 16,5% y 45%, offsets y redondeos no se convierten en reglas generales sin cotejo y aprobacion fechada.
 

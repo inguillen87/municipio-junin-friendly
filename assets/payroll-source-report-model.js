@@ -1,6 +1,23 @@
 import {civilDate} from './civil-date.js';
 const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i,sha=/^[a-f0-9]{64}$/;
 const safeCount=n=>Number.isSafeInteger(n)&&n>=0;
+// Labels transcribed from Noelia's GRH report form (module 8, pp. 4 and 9).
+// Presentation only: these do not change the governed canonical payroll mapping.
+export function sourceReportTypeLabel(code) {
+ return ({F:'Final',M:'Mes',O:'Otros conceptos',P:'Primera quincena',S:'SAC',V:'Vacaciones'})[code] || 'Tipo de origen '+code;
+}
+export function sourceReportCatalog(raw, {month='all',type='all'}={}) {
+ const catalog=payrollSourceReport(raw);
+ if(catalog.mode!=='catalog')throw Error('Consultá las liquidaciones disponibles');
+ if(month!=='all'&&(!/^\d{4}-\d{2}$/.test(month)||civilDate(month+'-01').slice(0,7)!==month))throw Error('Mes inválido');
+ if(type!=='all'&&!/^[A-Z]$/.test(type))throw Error('Tipo inválido');
+ return {
+  months:[...new Set(catalog.items.map(item=>civilDate(item.date).slice(0,7)))].sort().reverse(),
+  types:[...new Set(catalog.items.map(item=>item.type))].sort(),
+  items:catalog.items.filter(item=>(month==='all'||civilDate(item.date).slice(0,7)===month)&&(type==='all'||item.type===type)),
+  total:catalog.total,truncated:catalog.truncated,
+ };
+}
 export function payrollSourceReport(data){
  if(data?.version!=='payroll-source-report.v1'||data.official!==false)throw Error('Respuesta de reportes inválida');
  if(data.mode==='catalog'){
@@ -16,7 +33,7 @@ export function sourceReportDocument(raw,filter={}){
  const fold=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const category=r=>Number(r.code)>=990&&Number(r.code)<=999?'Total de control':r.totalGroup==='996'?'Descuento':r.totalGroup==='990'?'Aporte patronal':r.totalGroup==='995'?'Asignación familiar':r.totalGroup==='994'?'Haber no remunerativo':r.totalGroup==='993'?'Haber remunerativo':'Concepto de origen';
  const rows=d.rows.filter(r=>(group==='all'||group==='discounts'&&r.totalGroup==='996'&&Number(r.code)<990||group==='contributions'&&['701','703'].includes(r.code)||group==='totals'&&Number(r.code)>=990&&Number(r.code)<=999)&&(!q||fold(r.code+' '+r.description).includes(fold(q))));
- return{salaryCost:sourceSalaryCost(d),layout:'compact-concepts.v1',title:'Conceptos de liquidación',columns:[{label:'Código',type:'text',width:11},{label:'Descripción',type:'text',width:48},{label:'Categoría',type:'text',width:25},{label:'Legajos con concepto',type:'integer',width:23},{label:'Importe informado',type:'money',width:24}],rows:rows.map(r=>[r.code,r.description,category(r),r.sourceRows,r.amount]),totals:[],notes:['Conceptos conservados en MuniControl. No es un cálculo nuevo, archivo de pago ni presentación fiscal.','Filtro: '+({all:'Todos',discounts:'Descuentos',contributions:'Aportes 701 y 703',totals:'Totalizadores'})[group]+(q?' · '+q:'')+'. No se suman totalizadores otra vez. La ausencia de un concepto no se presume importe cero.'],metadata:[['Período',d.date],['Tipo',d.type],['Estado',({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],['Fuente',d.sourceLabel],['Legajos de la corrida',d.statementCount],['SHA-256',d.reportHash],['Huella de conjunto',d.payloadHash],['Filas del filtro',rows.length]],filename:'municontrol_conceptos_'+d.date+'_'+d.type.toLowerCase()};
+ return{salaryCost:sourceSalaryCost(d),layout:'compact-concepts.v1',title:'Conceptos de liquidación',columns:[{label:'Código',type:'text',width:11},{label:'Descripción',type:'text',width:48},{label:'Categoría',type:'text',width:25},{label:'Legajos con concepto',type:'integer',width:23},{label:'Importe informado',type:'money',width:24}],rows:rows.map(r=>[r.code,r.description,category(r),r.sourceRows,r.amount]),totals:[],notes:['Conceptos conservados en MuniControl. No es un cálculo nuevo, archivo de pago ni presentación fiscal.','Filtro: '+({all:'Todos',discounts:'Descuentos',contributions:'Aportes 701 y 703',totals:'Totalizadores'})[group]+(q?' · '+q:'')+'. No se suman totalizadores otra vez. La ausencia de un concepto no se presume importe cero.'],metadata:[['Fecha de liquidación',civilDate(d.date)],['Tipo',sourceReportTypeLabel(d.type)+' ('+d.type+')'],['Estado',({closed:'Cierre informado por la fuente',open:'Abierta / preliquidación',unknown:'Cierre no informado'})[d.closureStatus]],['Fuente',d.sourceLabel],['Legajos de la corrida',d.statementCount],['SHA-256',d.reportHash],['Huella de conjunto',d.payloadHash],['Filas del filtro',rows.length]],filename:'municontrol_conceptos_'+d.date+'_'+d.type.toLowerCase()};
 }
 
 

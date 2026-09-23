@@ -1,0 +1,66 @@
+name: Noelia module 8 reports
+on:
+  push:
+    branches: [master, internal-noelia-module8-reports-20260923]
+    paths:
+      - 'assets/payroll-source-report*'
+      - 'assets/payroll-monthly-summary*'
+      - 'assets/employee-source-seniority-model.js'
+      - 'internal-dashboard.html'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-source-report-filters-browser.mjs'
+      - 'scripts/verify-employee-source-seniority-browser.mjs'
+      - 'scripts/verify-noelia-module8-production.mjs'
+      - 'scripts/verify-report-centre-browser.mjs'
+      - 'tests/source-report-catalog.test.js'
+      - 'tests/employee-source-seniority-model.test.js'
+      - '.github/workflows/noelia-module8-reports.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noelia-module8-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Baseline, full tests and build
+        run: |
+          node scripts/verify-platform-baseline.mjs
+          node scripts/verify-friendly-containment.mjs
+          node --test --test-concurrency=2 tests/*.test.js
+          node scripts/build-friendly.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Report selection, seniority and existing flows
+        run: |
+          node scripts/verify-source-report-filters-browser.mjs
+          node scripts/verify-employee-source-seniority-browser.mjs
+          node scripts/verify-salary-cost-browser.mjs
+          node scripts/verify-payroll-monthly-summary-browser.mjs
+          node scripts/verify-workforce-operations-browser.mjs
+          node scripts/verify-report-centre-browser.mjs
+      - name: Published assets and anonymous access
+        if: github.ref == 'refs/heads/master'
+        run: |
+          node scripts/verify-noelia-module8-production.mjs
+          node scripts/verify-source-report-filters-browser.mjs --published
+          node scripts/verify-employee-source-seniority-browser.mjs --published
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: noelia-module8-${{ github.run_id }}
+          path: |
+            verification/source-report-filters/**
+            verification/source-report-filters-published/**
+            verification/employee-source-seniority/**
+            verification/employee-source-seniority-published/**
+            verification/noelia-module8-production.json
+          retention-days: 7

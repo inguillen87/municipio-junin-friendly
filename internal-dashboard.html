@@ -2786,9 +2786,22 @@
         try {
           const payload = await requestJSON(DATA_URL + '?' + params.toString(), { signal: controller.signal });
           const detail = normalizeEmployeeDetail(payload);
+          let sourceSeniority = null;
+          if (detail.employee.recordOrigin === 'GRH') {
+            try {
+              const module = await import('./assets/employee-source-seniority-model.js');
+              const model = module.createEmployeeSourceSeniorityModel(detail.employee, detail.sourceReferences);
+              sourceSeniority = {
+                ...model,
+                yearsLabel: module.sourceSeniorityComponentLabel(model.years),
+                monthsLabel: module.sourceSeniorityComponentLabel(model.months),
+                cutoffLabel: module.sourceSeniorityCutoffLabel(model.sourceCutoff)
+              };
+            } catch (_) { sourceSeniority = { unavailable: true }; }
+          }
           if (controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
           if (text(contractId) && text(detail.employee.contractId).toLowerCase() !== text(contractId).toLowerCase()) throw new Error('La respuesta no corresponde al legajo solicitado. Volvé a abrir la ficha.');
-          renderEmployeeDetail(detail, destination);
+          renderEmployeeDetail(detail, destination, sourceSeniority);
           import('./assets/employee-detail-navigation.js').then(function (module) {
             if (controller.signal.aborted || state.detailController !== controller || !els.employeeDialog.open) return;
             module.mountEmployeeDetailNavigation(els.dialogBody);
@@ -3654,7 +3667,7 @@
         return section;
       }
 
-      function renderEmployeeDetail(detail, destination = {}) {
+      function renderEmployeeDetail(detail, destination = {}, sourceSeniority = null) {
         const employee = detail.employee;
         const legajo = text(employee.legajo);
         const name = text(employee.nombre);
@@ -3720,6 +3733,23 @@
           detailField('Motivo de diferencia', employee.discrepancyReasonCode, function (value) { return readableKey(value, 'control'); }),
           detailField('Explicación', employee.discrepancyExplanation)
         ]));
+
+        if (sourceSeniority) {
+          const section = sourceSeniority.unavailable
+            ? detailSection('Antigüedad informada por GRH al corte', 'No se pudo mostrar esta sección. Volvé a abrir la ficha para reintentar.', [], 'unavailable')
+            : detailSection('Antigüedad informada por GRH al corte', 'Valores del padrón, sin recalcular. No indican la antigüedad aplicada a cada liquidación mensual.', [
+              detailField('Años informados', sourceSeniority.yearsLabel, null, sourceSeniority.years.status === 'reported' ? 'source' : 'unavailable'),
+              detailField('Meses informados', sourceSeniority.monthsLabel, null, sourceSeniority.months.status === 'reported' ? 'source' : 'unavailable'),
+              detailField('Fecha de ingreso', sourceSeniority.hireDate, formatDate),
+              detailField('Origen', sourceSeniority.origin),
+              detailField('Corte de estos datos', sourceSeniority.cutoffLabel, null, sourceSeniority.sourceCutoff ? 'source' : 'unavailable')
+            ]);
+          section.id = 'employeeSourceSeniority';
+          if (!sourceSeniority.unavailable && (sourceSeniority.years.status === 'invalid' || sourceSeniority.months.status === 'invalid')) {
+            section.appendChild(create('p', 'notice warning', 'Hay un valor de origen que requiere revisión. Se esperan años enteros no negativos y meses de 0 a 11; no se corrigieron ni se convirtieron meses en años.'));
+          }
+          els.dialogBody.appendChild(section);
+        }
 
         els.dialogBody.appendChild(detailSection('Organización y encuadre', 'Asignación literal preservada en GRH y, cuando existe, fotografía de nómina más reciente.', [
           detailField('Organización', employee.organizacion),

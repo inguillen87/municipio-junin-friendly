@@ -1,4 +1,5 @@
 import { civilDate } from './civil-date.js';
+import { sourceReportTypeLabel } from './payroll-source-report-model.js';
 
 export const MONTHLY_SUMMARY_VERSION = 'payroll-monthly-source-summary.v1';
 export const MONTHLY_SUMMARY_LIMITS = Object.freeze({ catalog: 240, sources: 24, concepts: 1000 });
@@ -82,7 +83,7 @@ export function monthlyDecimal(value) {
   return (negative ? '−' : '') + (negative ? whole.slice(1) : whole).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + fraction;
 }
 export function monthlyClosure(value) { return { closed: 'Cerrada en origen', open: 'Abierta en origen', unknown: 'Cierre no informado' }[value]; }
-export function monthlyType(value) { return { M: 'Mensual / segunda quincena', O: 'Otras liquidaciones', V: 'Vacaciones', P: 'Primera quincena', S: 'Complementaria', F: 'Final' }[value] || 'Tipo ' + value; }
+export function monthlyType(value) { return sourceReportTypeLabel(value); }
 export function monthlyObservations(r) {
   const notes = [];
   if (r.missingQuantities) notes.push(r.missingQuantities + (r.missingQuantities === 1 ? ' cantidad sin informar' : ' cantidades sin informar'));

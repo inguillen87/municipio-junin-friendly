@@ -54,6 +54,7 @@ const shellFiles = [
   'assets/payroll-summary-model.js',
   'assets/payroll-history-055.css',
   'assets/civil-date.js',
+  'assets/employee-source-seniority-model.js',
   'assets/task-workspace.js',
   'assets/report-analysis.js',
   'assets/report-document.js',
