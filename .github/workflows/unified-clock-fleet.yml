@@ -2,12 +2,16 @@ name: Unified municipal clock fleet
 on:
   workflow_dispatch:
   push:
-    branches: [master, internal-unified-clock-fleet-20260923]
+    branches: [master, internal-unified-clock-fleet-20260923, internal-clock-linux-service-20260923]
     paths:
       - local-agents/clock-fleet/**
       - local-agents/pm10/**
       - docs/clock-windows-installer/**
+      - docs/clock-windows11-kit/**
       - docs/CLOCK_FLEET_UNIFIED_20260923.md
+      - scripts/build-clock-windows11-kit.mjs
+      - tests/clock-linux-installer.test.js
+      - tests/clock-windows11-kit.test.js
       - .github/workflows/unified-clock-fleet.yml
 permissions:
   contents: read
@@ -32,6 +36,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify complete PM10 source manifest before regression
         run: node scripts/verify-fleet-local-panel.mjs --manifest-only
+      - name: Verify complete fleet source manifest before regression
+        run: node --input-type=module -e "import {verifyPm10Manifest} from './scripts/verify-fleet-local-panel.mjs'; console.log(JSON.stringify(verifyPm10Manifest('local-agents/clock-fleet')))"
       - run: node scripts/verify-platform-baseline.mjs
       - run: node scripts/verify-friendly-containment.mjs
       # Keep isolated PDF workers within their production deadline on shared runners.

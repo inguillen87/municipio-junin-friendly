@@ -17,7 +17,7 @@ Una plaza es una ubicación, no un protocolo. Puede agrupar cámaras, medidores 
 
 ## Datos distintos para cada familia
 
-El contrato actual de relojes sigue siendo `zk40-delivery.v1`, con recibo `clock-source-receipt.v1`. No cambia para que encajen sensores o cámaras. Ese recibo certifica almacenamiento de fuente y conserva `payrollModified: false`; no certifica hechos laborales ni aprobación de liquidaciones.
+El parque de relojes conserva los contratos de cada controlador. Los equipos con archivo de fuentes envían `zk40-delivery.v1` y reciben `clock-source-receipt.v1`, con `payrollModified: false`. PM-10 mantiene su receptor de marcaciones y su acuse original. El panel común no transforma ni intercambia estos recibos; tampoco se cambian para que encajen sensores o cámaras. Ninguno certifica por sí solo asistencia aprobada ni liquidación de haberes.
 
 Para futuras familias se propone un contenedor versionado, todavía **sin endpoint ni esquema de recepción implementados**, con estas responsabilidades:
 

@@ -2,12 +2,21 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Read-only: no task/service/ACL change, device socket, token read or cloud request.
 [CmdletBinding()]
-param([string]$BasePath=$PSScriptRoot,[ValidateRange(1,5)][int]$ExpectedClocks=5)
+param([string]$BasePath=$PSScriptRoot,[ValidateRange(1,17)][int]$ExpectedClocks=6)
 $ErrorActionPreference='Stop'
 $Base=[IO.Path]::GetFullPath($BasePath)
 $checks=New-Object 'System.Collections.Generic.List[object]'
 function Add-Check($name,$state,$detail){$checks.Add([pscustomobject]@{comprobacion=$name;estado=$state;detalle=$detail})}
 function Safe-Code($value){if(@('RUNTIME_SIGNATURE_INVALID','RUNTIME_VERSION_INVALID','RELEASE_CHECK_FAILED','RELEASE_NOT_CLEAN','GATEWAY_PREFLIGHT_FAILED') -contains [string]$value){return [string]$value};return 'REVISION_REQUERIDA'}
+function Test-GatewayPreflight($Report,[ValidateRange(1,17)][int]$Expected) {
+ # The gateway already counts enabled fleet identities and PM10. Never add a clock here.
+ if($null -eq $Report -or $Report.schema -cne 'municipal-clock-gateway-preflight.v1'){throw 'GATEWAY_PREFLIGHT_FAILED'}
+ foreach($count in @($Report.captureIdentities,$Report.deliveryIdentities)) {
+  if(($count -isnot [int] -and $count -isnot [long]) -or $count -lt 0 -or $count -gt 17){throw 'GATEWAY_PREFLIGHT_FAILED'}
+ }
+ if($Report.allSendersConfigured -isnot [bool] -or $Report.networkTested -isnot [bool] -or $Report.networkTested -ne $false -or ($Report.realWrites -isnot [int] -and $Report.realWrites -isnot [long]) -or $Report.realWrites -ne 0){throw 'GATEWAY_PREFLIGHT_FAILED'}
+ return ($Report.captureIdentities -eq $Expected -and $Report.deliveryIdentities -eq $Expected -and $Report.allSendersConfigured -eq $true)
+}
 $ready=$false
 try {
  $os=Get-CimInstance Win32_OperatingSystem
@@ -43,7 +52,7 @@ if($ReleaseReady -and (Test-Path -LiteralPath $Config -PathType Leaf)){
   $preflight=& $Node (Join-Path $Base 'app\clock-fleet\gateway.mjs') check --config $Config 2>$null
   if($LASTEXITCODE -ne 0){throw 'GATEWAY_PREFLIGHT_FAILED'}
   $report=$preflight|ConvertFrom-Json
-  $ready=$report.captureIdentities -eq $ExpectedClocks -and $report.deliveryIdentities -eq $ExpectedClocks -and $report.allSendersConfigured -eq $true
+  $ready=Test-GatewayPreflight $report $ExpectedClocks
   Add-Check 'Correspondencia de capturas y entregas' $(if($ready){'Correcto'}else{'Revisar'}) ([ordered]@{esperados=$ExpectedClocks;capturas=$report.captureIdentities;entregas=$report.deliveryIdentities;correspondencia=$report.allSendersConfigured})
  }catch{Add-Check 'Configuracion' 'Revisar' (Safe-Code $_.Exception.Message)}
 }else{Add-Check 'Configuracion' 'Pendiente' 'Preparar y revisar los tres archivos privados; las plantillas no son una instalación activa.'}

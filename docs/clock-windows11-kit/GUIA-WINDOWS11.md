@@ -1,24 +1,24 @@
-# MuniControl · cinco relojes · Windows 11
+# MuniControl · parque de relojes · Windows 11
 
-Este kit contiene el código fuente ejecutable, instalador municipal, verificación de integridad, diagnóstico y modelos de configuración para cinco equipos. No contiene contraseñas, tokens, fichadas, nombres de personas, bases de datos ni una configuración activa. No incluye Node.js: se reutiliza una instalación oficial compatible del equipo de destino. No hace falta npm ni descargar bibliotecas para ejecutar el lector.
+Este kit contiene el código fuente ejecutable, instalador municipal, verificación de integridad, diagnóstico y modelos de configuración. El parque de Junín incluye los seis equipos incorporados, PM-10 · Edificio Viejo entre ellos, y ocho puntos todavía pendientes del inventario de 14. Los modelos de flota contienen cinco filas; el controlador vigente de PM-10 se incorpora al mismo coordinador conservando su configuración privada, identidad y cola. No contiene contraseñas, tokens, fichadas, nombres de personas, bases de datos ni una configuración activa. No incluye Node.js: se reutiliza una instalación oficial compatible del equipo de destino. No hace falta npm ni descargar bibliotecas para ejecutar el lector.
 
 **No ejecutar una segunda instalación sobre la PC que ya recoge esos relojes.** El traspaso necesita detener el origen, conservar sus colas y comprobar su salida antes de activar el destino. Un bloqueo de archivos no evita que otro servidor descargue el mismo reloj.
 
 ## 1. Qué queda funcionando y qué requiere preparación
 
-La cadena es: reloj → lector en Windows → cola durable local → HTTPS en Vercel → archivo original en Neon → consulta autorizada en MuniControl. La aplicación web no abre por sí sola una conexión a un reloj de la red municipal.
+La cadena es: reloj → lector en Windows → cola durable local → receptor HTTPS autorizado → consulta en MuniControl. Los cinco equipos con envío de fuentes conservan ese archivo; PM-10 conserva su recepción de marcaciones. El panel común muestra el alcance del acuse de cada uno sin convertir ni mezclar sus registros. La aplicación web no abre por sí sola una conexión a un reloj de la red municipal.
 
 El instalador registra una tarea de Windows bajo LocalService, sin depender de una sesión de escritorio, pero la deja **deshabilitada**. El host debe permanecer encendido, sin suspensión durante la operación, con disco suficiente y acceso autorizado a la red de relojes e Internet. La ruta/VPN debe funcionar para esa cuenta y después de reiniciar, no solamente durante la sesión de una persona.
 
-Esta entrega prepara la instalación. No certifica haber instalado el nuevo host, conectado los cinco equipos ni recibido una nueva fichada con la PC anterior apagada. Esa aceptación se realiza al final, por equipo.
+Esta entrega prepara la instalación. No certifica haber instalado el nuevo host, conectado los seis equipos ni recibido una nueva fichada con la PC anterior apagada. Esa aceptación se realiza al final, por equipo.
 
 ## 2. Antes de copiar
 
 - Elegir un único Windows 11 administrado por la institución y un responsable técnico.
 - Reservar espacio para las colas y respaldos. El programa se detiene si alcanza su cuota o el mínimo libre; no descarta pendientes. Los 300 MB libres de una PC casi llena no son una capacidad de operación aceptada.
-- Obtener la ficha autorizada de los cinco relojes: identificador estable, dirección, puerto, serie comprobada y ubicación. No usar una serie supuesta ni una identidad de otro equipo.
+- Obtener la ficha autorizada de cada reloj que se vaya a configurar: identificador estable, dirección, puerto, serie comprobada y ubicación. No usar una serie supuesta ni una identidad de otro equipo.
 - Obtener por canal privado la clave de comunicación de cada reloj. Este kit no descubre ni cambia esas claves.
-- Coordinar la inscripción de cada equipo y emisión de un token distinto para el archivo de fuentes. Se necesitan tenant, conector, punto/dispositivo y vínculo ya autorizados por el servidor. No se envía una conexión de Neon al lector.
+- Coordinar la inscripción de cada equipo nuevo y su credencial de recepción. Para los equipos ya incorporados, incluido PM-10, conservar la inscripción, el destino y la credencial vigentes; no reinscribirlos como otra fuente. Se necesitan tenant, conector, punto/dispositivo y vínculo ya autorizados por el servidor. No se envía una conexión de Neon al lector.
 - Si se traslada una instalación: acordar una ventana, parada ordenada y respaldo. No ejecutar el kit como un actualizador de la instalación existente.
 
 ## 3. Verificar el ZIP y preparar el runtime
@@ -26,7 +26,7 @@ Esta entrega prepara la instalación. No certifica haber instalado el nuevo host
 Comparar la huella SHA-256 del ZIP con el archivo `.sha256` entregado y, antes de una distribución externa, con un canal independiente del proveedor. Una huella junto al archivo comprueba igualdad, no autoría.
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\ruta\MuniControl-Cinco-Relojes-Windows11.zip'
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\ruta\NOMBRE-EXACTO-DEL-PAQUETE.zip'
 ```
 
 Descargar Node.js LTS desde **https://nodejs.org/en/download**, según la arquitectura de Windows. El instalador exige Node 22 o superior y una firma válida de `node.exe`; esta entrega se prueba con Node 24. El runtime tiene su propia licencia y no se redistribuye aquí. No instalar gestores, Python ni dependencias npm para este kit.
@@ -36,16 +36,19 @@ Extraer la carpeta del ZIP a una carpeta nueva. El destino definitivo debe queda
 ```text
 C:\ProgramData\MuniControl\ClockGateway\
   app\clock-fleet\...
-  app\pm10\...                 dependencias compartidas; no activa PM10
+  app\pm10\...                 controlador PM-10 y transporte compartido
   verify-release.mjs
   release-manifest.json
   runtime\node.exe              runtime oficial firmado
   config\gateway.json
   config\fleet-capture.json
   config\source-delivery.json
+  config\pm10-capture.json     configuración privada conservada al trasladar PM-10
+  config\pm10-delivery.json    configuración privada conservada al trasladar PM-10
   secrets\                     archivos privados; nunca dentro de state
   state\coordinator\
   state\fleet\
+  state\pm10\                  cola propia de PM-10, sin mezclar con fleet
 ```
 
 Si ya existe esa carpeta o una tarea MuniControl habilitada, no sobreescribir ni forzar el instalador. Seguir el apartado de transferencia/actualización. Copiar el `node.exe` oficial a `runtime` en el host de destino sólo cuando corresponda; no copiar node_modules.
@@ -56,13 +59,13 @@ Los tres archivos en `modelos` son plantillas incompletas y desactivadas, no con
 
 **Para trasladar la instalación que ya funciona en esta PC no hace falta inventar ni volver a crear sus claves.** El responsable conserva la configuración y secretos privados existentes, verifica su identidad y los transfiere por un canal protegido junto a las colas completas. Adapta únicamente las rutas absolutas y el nombre del nuevo host con revisión; no cambia `clockId`, serie, tenant, conector ni contenido de tokens para eludir un bloqueo. Esos archivos no forman parte de este ZIP compartible. Las plantillas sirven para documentar el formato o preparar una instalación nueva autorizada, no para reemplazar identidades ya inscritas.
 
-- `gateway.json`: nombre exacto del host, estado del coordinador y dos workers: `fleet-capture` y `fleet-source-delivery`.
+- `gateway.json`: nombre exacto del host y estado del coordinador. La plantilla contiene `fleet-capture` y `fleet-source-delivery`. Para incluir PM-10 en el mismo parque, el responsable añade `legacy-capture` y `legacy-delivery` apuntando a sus configuraciones privadas conservadas, con `enabled:false` durante la preparación. No agregar PM-10 también como otra fila de flota ni duplicar su cola o inscripción.
 - `fleet-capture.json`: cinco equipos con identidades diferentes y sus archivos de clave. Captura cada 900 segundos como configuración inicial; la capacidad debe dimensionarse según los históricos reales.
 - `source-delivery.json`: el mismo `clockId`, serie y raíz de cola que captura; un `connectorKey` y archivo de token distintos por equipo; tenant exacto. `windowSeconds: 900` agrupa los envíos en una ventana compartida.
 - Los archivos de clave contienen únicamente la clave de comunicación en texto, sin comillas. Los archivos de token contienen únicamente el token emitido para ese equipo, sin JSON ni `Bearer`. No generar valores de prueba para sortear el preflight.
 - Crear los directorios de estado vacíos antes de instalar. Mantener las credenciales fuera del ZIP y de carpetas sincronizadas/compartidas. El instalador restringe la carpeta dedicada a administradores, SYSTEM y LocalService, con escritura de LocalService sólo en estado.
 
-Mientras se prepara, conservar `approved:false` y `enabled:false`. Cuando los valores e inscripciones estén revisados, establecer `approved:true` en los tres archivos y `enabled:true` en los dos workers, el remitente y los cinco equipos correspondientes. Esto sólo declara la configuración: **no activa una tarea**. PM10 sigue con su instalación y credenciales anteriores; no agregar workers `legacy-*` a este traspaso sin un plan separado.
+Mientras se prepara, conservar los campos `approved:false` y `enabled:false` que correspondan a cada esquema. Cuando los valores y accesos estén revisados, habilitar sólo las parejas de captura y entrega previstas para el piloto. Para PM-10 se conservan los esquemas privados existentes; no añadirles campos de otro controlador. Esto sólo declara la configuración: **no activa una tarea**. El traspaso de los seis equipos debe incluir la parada comprobada de todos sus lectores y remitentes de origen antes de habilitar los de destino.
 
 No cambiar el destino HTTPS ni el prefijo de red compilado para intentar aceptar otro cliente. Esta edición está vinculada al entorno MuniControl actual; ver `LICENCIA-Y-DISTRIBUCION.md`.
 
@@ -71,7 +74,7 @@ No cambiar el destino HTTPS ni el prefijo de red compilado para intentar aceptar
 Desde PowerShell en la carpeta extraída:
 
 ```powershell
-.\diagnostico-windows11.ps1 -BasePath 'C:\ProgramData\MuniControl\ClockGateway'
+.\diagnostico-windows11.ps1 -BasePath 'C:\ProgramData\MuniControl\ClockGateway' -ExpectedClocks 6
 ```
 
 El diagnóstico no instala, inicia, para ni cambia tareas; no abre relojes, no lee tokens ni consulta Neon. Comprueba Windows, espacio libre, archivos, firma/runtime, manifiesto, configuración si está preparada y estado de la tarea. `configurada=false` significa que falta preparar una instalación, no que el ZIP esté dañado. La falta de runtime/configuración aparece como pendiente.
@@ -87,7 +90,7 @@ $Config = Join-Path $Base 'config\gateway.json'
 & $Node $Gateway check --config $Config
 ```
 
-Esperar `ok:true`, `sourceDirty:false`, `captureIdentities:5`, `deliveryIdentities:5` y `allSendersConfigured:true` cuando estén configurados los cinco. `check` comprueba correspondencias, no autentica relojes ni valida el token en el servidor. Cualquier error debe corregirse antes de instalar; no reducir controles ni borrar bloqueos.
+Esperar `ok:true`, `sourceDirty:false` y `allSendersConfigured:true`. Los conteos corresponden a las parejas habilitadas: 5/5 para los cinco equipos de flota y 6/6 al incluir también la pareja PM-10. No se espera 14/14 por el inventario: faltan incorporar y comprobar esos otros puntos. `check` comprueba correspondencias, no autentica relojes ni valida el token en el servidor. Cualquier error debe corregirse antes de instalar; no reducir controles ni borrar bloqueos.
 
 ## 6. Instalar y activar con el origen detenido
 
@@ -101,7 +104,7 @@ Get-ScheduledTask -TaskName 'MuniControl-MunicipalClockGateway' |
 
 La tarea recién registrada queda deshabilitada. Si la política de ejecución institucional bloquea el script, pedir a su administrador la revisión/firma correspondiente; no cambiar la política de toda la máquina para omitirla.
 
-**Piloto de un equipo:** completar primero los valores reales de los cinco equipos; dejar `enabled:true` sólo para el mismo equipo en `fleet-capture.json` y `source-delivery.json`, y `enabled:false` en los otros cuatro de ambos archivos. Mantener ambos workers habilitados y el remitente general `enabled:true`. Repetir `check`: ahora lo correcto es `captureIdentities:1`, `deliveryIdentities:1`, `allSendersConfigured:true`. Para ese paso ejecutar el diagnóstico con `-ExpectedClocks 1`. Tras aceptar la recepción del piloto, hacer una parada ordenada y ampliar las mismas parejas de captura/entrega a los cinco, repetir `check` con resultado 5/5 y volver a iniciar. No mantener un reloj capturando si su entrega falta por un error de configuración.
+**Piloto de un equipo:** preparar los valores reales de todos los equipos, pero habilitar sólo una pareja de captura/entrega. Si pertenece a la flota, habilitar el mismo `clockId` en `fleet-capture.json` y `source-delivery.json` y sus dos workers; los otros relojes y la pareja PM-10 quedan deshabilitados. Si el piloto es PM-10, habilitar únicamente sus dos workers y conservar deshabilitados los de flota. Repetir `check`: corresponde `captureIdentities:1`, `deliveryIdentities:1`, `allSendersConfigured:true`; usar `-ExpectedClocks 1` en el diagnóstico. Tras aceptar el piloto, parar ordenadamente y ampliar las parejas verificadas, repetir `check` hasta 6/6 y usar `-ExpectedClocks 6` al incluir todo el parque incorporado. El diagnóstico admite de 1 a 17 parejas (hasta 16 equipos de flota y PM-10) y valida los conteos que devuelve el coordinador; no suma un equipo por su nombre ni por figurar en el inventario. No mantener un reloj capturando si su entrega falta por un error de configuración.
 
 Activar sólo después de comprobar que el lector anterior terminó y no tiene una descarga en curso:
 
@@ -112,17 +115,20 @@ Start-ScheduledTask -TaskName 'MuniControl-MunicipalClockGateway'
 & $Node $Gateway status --config $Config
 ```
 
-`start` guarda la intención de funcionar; no crea un proceso. La tarea ejecuta el coordinador y sus dos workers. El remitente espera su ventana, de modo que iniciarlo no garantiza un envío inmediato. No iniciar además `runner run`, `sender run` ni `source-sender run` manualmente.
+`start` guarda la intención de funcionar; no crea un proceso. La tarea ejecuta el coordinador y los workers habilitados. El remitente espera su ventana, de modo que iniciarlo no garantiza un envío inmediato. No iniciar además `runner run`, `sender run` ni `source-sender run` manualmente.
 
-## 7. Cómo comprobar Vercel/Neon sin confundir estados
+## 7. Panel y comprobación de recepción
 
 | Evidencia | Qué demuestra |
 |---|---|
 | Proceso/tarea en ejecución | El coordinador está ejecutándose; no demuestra lectura |
 | Captura guardada en la cola | Los bytes quedaron en el host; todavía puede faltar envío |
 | Recibo `clock-source-receipt.v1`, `persisted:true`, `scope:source_only` | El servidor confirmó esa parte guardada en el archivo fuente |
+| Acuse PM-10 validado por su remitente | El receptor confirmó la parte exacta de marcaciones de PM-10; no aprueba asistencia ni salarios |
 | Lote completo y acuse visible en `/relojes`, con la serie/punto correctos | Recepción consultable; todavía no aprueba asistencia ni salarios |
 | Nueva fichada física recibida con la PC anterior apagada, después de reiniciar/cerrar sesión del host | Prueba de autonomía del nuevo host para ese equipo |
+
+Mientras el coordinador esté ejecutándose, prepara `estado.html` en su `stateDir` cada 30 segundos. Abrir ese archivo muestra los equipos de esa configuración, incluido PM-10 cuando se incorporó su pareja, con iguales tarjetas y contadores; no realiza nuevas capturas ni consulta servidores. Las fechas identifican cada evidencia, y una captura posterior al acuse puede no contener registros nuevos. Con el coordinador detenido, recargar la página no renueva sus datos.
 
 Consultar el portal habitual con la cuenta autorizada. No introducir tokens del lector en el navegador. El API está alojado en Vercel y recibe por HTTPS; el host no abre conexiones PostgreSQL ni contiene claves de Neon. El recibo fuente no es el acuse canónico de PM10, ni convierte registros en ausencias, horas pagables o liquidaciones.
 

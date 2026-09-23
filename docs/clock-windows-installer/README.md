@@ -4,6 +4,17 @@ El objetivo de esta entrega es instalar y administrar el lector municipal desde 
 
 **El lector disponible en esta versión es ZK40 por TCP, puerto 4370.** Se reutiliza el lector existente 4.1.3, con sus colas, controles de identidad y recibos. Haber leído los equipos comprobados de Junín no demuestra compatibilidad con todos los modelos o firmwares ZKTeco. MQTT, ONVIF y Modbus aparecen como próximos adaptadores, todavía no disponibles.
 
+## Para empezar
+
+1. Abrí el EXE y elegí «Comprobar este equipo». Si encuentra una instalación existente, consultá su estado; no instales otro lector sobre ella.
+2. En un equipo nuevo, completá el nombre de la institución y los relojes que preparás. El asistente permite guardar ese borrador sin activar conexiones.
+3. «Instalar» prepara y verifica el programa con Node incluido. No significa que los relojes estén conectados ni que el servicio haya comenzado.
+4. El responsable técnico asocia ubicación, IP, protocolo y serie con la configuración privada autorizada, prepara la conexión y comprueba la recepción. La VPN, sus certificados, los tokens y las colas existentes se conservan por un canal protegido, fuera del paquete compartible.
+
+PM-10 · Edificio Viejo integra el mismo parque y panel que los otros cinco equipos incorporados. Los ocho puntos restantes del inventario siguen pendientes de incorporación. Instalar este EXE no activa Oracle ni resuelve por sí solo la configuración privada o los certificados de la VPN. La autonomía se comprueba con una marca nueva recibida mientras el equipo anterior está apagado.
+
+El EXE de MuniControl no cuenta actualmente con firma de editor. Si Windows muestra «editor desconocido», comprobá la procedencia y la huella con el responsable técnico; no desactives las protecciones. La firma de Node no firma el EXE completo.
+
 ## Qué prepara el asistente
 
 El asistente guarda un borrador con el nombre del municipio, la ubicación de cada reloj, su adaptador, dirección IP, puerto y número de serie. Permite revisar esos datos antes de instalar y consultar después el estado del programa. Elegir un protocolo no abre una conexión ni declara que el equipo respondió. La inscripción autorizada del municipio y de sus dispositivos, las credenciales privadas y la configuración operativa se completan por separado con el responsable técnico; no se crean desde este formulario.
@@ -51,6 +62,8 @@ No activar una segunda instancia para resolver un atraso. No borrar bloqueos, co
 El panel local del coordinador muestra todos los relojes de su configuración en la misma lista, con iguales tarjetas y contadores. PM-10 participa del total, de las capturas guardadas, de los equipos con acuse conservado y de los que requieren revisión. No suma registros de contratos distintos como si fueran asistencia o un total laboral conciliado.
 
 Cada tarjeta distingue la captura local del envío, muestra la fecha del archivo de estado y la del último acuse comprobado. La recepción de marcaciones y el archivo original de fuentes conservan su alcance. Si falta una evidencia, aparece «Recepción no consultada» o «Sin comprobación»; no se declara que el envío esté sin configurar, ni se reemplaza la falta de información por cero. Una captura más reciente que el último acuse tampoco prueba por sí sola que existan pendientes: puede no contener registros nuevos.
+
+Mientras el coordinador esté en ejecución, prepara el archivo privado `estado.html` en su directorio de estado cada 30 segundos. El botón del asistente para abrir un estado existente sólo abre ese archivo; no inicia un coordinador ni genera nuevas capturas. Con el coordinador detenido, la página conserva su último corte aunque se recargue. Un error de consulta publica un aviso sin cifras anteriores; si no se puede escribir el archivo, permanece visible la fecha del corte previo.
 
 La comprobación del panel valida la metadata local, la identidad de la cola y la forma y el vínculo del acuse guardado. No vuelve a leer las marcaciones, no recalcula las huellas de su contenido ni consulta al servidor. Acredita qué evidencia local pudo verificarse; no es una certificación independiente de su autenticidad ni una prueba de captura en vivo.
 

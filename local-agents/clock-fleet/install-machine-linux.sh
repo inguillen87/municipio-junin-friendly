@@ -18,9 +18,11 @@ service_uid="$(id -u "$account")"
 case "$(getent passwd "$account" | cut -d: -f7)" in */nologin|*/false) ;; *) fail GATEWAY_SERVICE_ACCOUNT_INTERACTIVE;; esac
 [ ! -e "$unit" ] && [ ! -L "$unit" ] || fail GATEWAY_SERVICE_EXISTS_REVIEW_REQUIRED
 # Reject any configured predecessor that could start itself, or is still active.
-units="$(systemctl list-unit-files 'municontrol*' --no-legend --no-pager)" || fail GATEWAY_SCHEDULER_UNAVAILABLE
+# Some systemd versions return 1 for an unmatched name filter. Query the full
+# inventory so an empty matching set remains distinct from a scheduler failure.
+units="$(systemctl list-unit-files --no-legend --no-pager)" || fail GATEWAY_SCHEDULER_UNAVAILABLE
 while read -r name state _; do
- [ -n "${name:-}" ] || continue
+ case "${name:-}" in municontrol*) ;; *) continue;; esac
  case "$state" in enabled|enabled-runtime|linked|linked-runtime|alias|generated|transient) fail GATEWAY_STOP_PREVIOUS_COLLECTORS_FIRST;; esac
  case "$(systemctl is-active "$name" 2>/dev/null || true)" in active|activating|deactivating|reloading) fail GATEWAY_STOP_PREVIOUS_COLLECTORS_FIRST;; esac
 done <<< "$units"

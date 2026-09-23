@@ -2,7 +2,7 @@
 
 Reutiliza el transporte de lectura 4.1 de PM-10; no es otro lector independiente. Un proceso puede atender hasta 16 identidades aprobadas con estado, bloqueo, cola y tiempos propios. Una autenticación fallida, pérdida de ruta o serie distinta no permite descargar ni atribuir datos a otro equipo.
 
-**La captura local incorpora ahora un remitente ZK40 separado y opcional.** `sender.mjs` lee los lotes `clock-local-batch.v1` y los entrega al receptor existente con identidad y acuses por equipo. Esos lotes siguen sin ser compatibles con el remitente específico de PM-10: la separación evita atribuir marcaciones a Edificio Viejo por accidente. Tener el software preparado no equivale a tenerlo instalado, inscrito o recibiendo en el municipio.
+**PM-10 · Edificio Viejo forma parte del mismo parque municipal.** El coordinador reúne sus controladores y los de los otros equipos en un panel común. `sender.mjs` entrega los lotes `clock-local-batch.v1` con identidad y acuses por equipo; PM-10 conserva su propio contrato de captura y recepción. Sus colas y recibos no son intercambiables: administrarlos juntos no reasigna las marcaciones de un reloj a otro. Tener el software preparado no equivale a tenerlo instalado, inscrito o recibiendo en el municipio.
 
 ## Operación
 `runner.mjs once --config <ruta-absoluta>` hace un ciclo de cada reloj que esté habilitado y haya llegado a su próxima fecha. `run` mantiene los ciclos. Ambos tienen bloqueo global y por equipo. Nunca se borran marcaciones del dispositivo ni se leen plantillas biométricas o el directorio de personas.
@@ -11,7 +11,7 @@ Reutiliza el transporte de lectura 4.1 de PM-10; no es otro lector independiente
 
 El instalador de Windows crea una tarea limitada al usuario actual, al iniciar sesión y cada cinco minutos. El intervalo efectivo de captura se configura por reloj; el despliegue inicial utiliza 15 minutos desde el último ciclo completo. `IgnoreNew` y los bloqueos evitan la superposición. Es una instalación dependiente de la sesión, alimentación y ruta municipal, no un servicio 24/7 certificado con sesión cerrada.
 
-El panel `estado.html` reúne los cinco nuevos equipos y la evidencia local del PM-10 ya instalado. No consulta Internet ni muestra nombres, DNI, PIN, direcciones de red o claves. Las fechas indican la antigüedad de cada evidencia; captura no equivale a recepción, asistencia aprobada ni liquidación.
+El panel `estado.html` reúne los equipos configurados, incluido PM-10, con iguales tarjetas y contadores. Los seis equipos incorporados pertenecen al inventario de 14; los ocho pendientes no se cuentan como conectados ni configurados por aparecer en ese inventario. No consulta Internet ni muestra nombres, DNI, PIN, direcciones de red o claves. Las fechas indican la antigüedad de cada evidencia; captura no equivale a recepción, asistencia aprobada ni liquidación.
 
 ## Integridad y recuperación
 Se comprueba la serie antes de descargar. Se verifica el tamaño anunciado, los bloques, las cabeceras y la finalización del protocolo. El presupuesto de transferencia configurada es de hasta 15 minutos; PM-10 conserva su límite de tres minutos. Los errores persistentes y las colas corruptas quedan bloqueados para revisión, sin reinicio que borre evidencia.
@@ -20,7 +20,7 @@ Cada cola deduplica registros binarios exactos dentro de su propia identidad. Un
 
 La configuración y claves son privadas y externas al repositorio. El estado tiene cuota por equipo y mínimo de espacio libre; falta de espacio detiene la captura sin descartar pendientes. No exponer los relojes directamente a Internet.
 
-## Activación pendiente
+## Requisitos de activación por equipo
 Registrar o reconciliar punto, equipo y serie en el servidor; emitir credencial de ingesta por equipo; verificar capacidad antes de enviar históricos; obtener acuse íntegro e idempotente y comprobar recuperación y métricas visibles en `/relojes`. El remitente limita cada equipo a cuatro partes de hasta 500 registros por ciclo y conserva los originales. Mantener los identificadores sin correspondencia en revisión. Ningún registro se convierte en ausencia u hora liquidable por el solo hecho de haber sido recibido. Una cola vacía sin acuses tampoco acredita conectividad o inscripción.
 
 Licencia: GPL-2.0-only, como el lector compartido. Se conserva su documentación de protocolo en `../pm10/reader/REFERENCIAS.md`.
@@ -33,7 +33,7 @@ Clave rechazada, serie diferente, transferencia incompleta y estados corruptos c
 
 `capture-policy.mjs` y `operator-help.mjs` son dependencias de esta versión del supervisor y panel. El instalador `scripts/install-fleet-capture-release.mjs` actualiza sólo esos dos archivos y runner/overview, verificando manifiesto, archivos anteriores y copia privada de recuperación. No cambia servicios, tareas, colas, claves ni el lector de PM-10. Las tareas ya registradas cargan la versión nueva en el siguiente ciclo.
 
-El panel local incluye conteos de equipos, capturas guardadas y revisiones pendientes; explica la diferencia entre espera de red, reintento antes de sesión y bloqueo de protocolo. Las cifras no se anuncian como conectividad en vivo. El envío de los equipos adicionales a Neon sigue sin estar configurado por esta entrega.
+El panel local incluye conteos de equipos, capturas guardadas y revisiones pendientes; explica la diferencia entre espera de red, reintento antes de sesión y bloqueo de protocolo. Las cifras no se anuncian como conectividad en vivo. La recepción se informa únicamente según la evidencia local validada. Si no se consultó un acuse, el panel indica «Recepción no consultada»; no afirma que el envío esté sin configurar ni convierte la falta de información en cero.
 
 ## Host municipal permanente - 19/09/2026
 
@@ -47,4 +47,4 @@ Este modo requiere enrolamiento y credenciales propias en la base de relojes. Qu
 
 Un único coordinador reclama una ventana durable antes de enviar y atiende los equipos de forma serial, rotando el primero. Los reintentos esperan la siguiente ventana; un reinicio no adelanta ese plazo. La actividad tiene presupuesto temporal y cada equipo envía hasta cuatro partes por ventana. Un bloqueo requiere revisar la causa y `resume --config <ruta-absoluta> --clock <id>`, que tampoco envía inmediatamente. Una ventana no garantiza un costo: debe observarse el consumo real del proyecto y conservar su plan gratuito.
 
-El gateway reconoce `fleet-source-delivery`. No permite configurarlo junto a otro remitente sobre la misma cola. PM10 conserva su circuito actual. El paquete contiene el código, nunca la configuración privada, los tokens ni las colas municipales.
+El gateway reconoce `fleet-source-delivery` junto con `legacy-capture` y `legacy-delivery` para PM-10. Los nombres técnicos no crean una categoría distinta de equipo en el panel. No permite configurar dos capturadores ni dos remitentes sobre la misma identidad y cola. El paquete contiene el código, nunca la configuración privada, los tokens ni las colas municipales. Mientras el coordinador esté en ejecución, prepara un nuevo `estado.html` cada 30 segundos a partir de archivos locales. Abrir o recargar ese HTML no inicia capturas ni envíos; con el coordinador detenido conserva su último corte y las fechas siguen visibles.

@@ -1,6 +1,6 @@
 # Hoja de preparación · sin secretos
 
-Completar en la institución. No distribuir la hoja completada dentro del ZIP público.
+Completar en la institución. No distribuir la hoja completada dentro del ZIP público. Registrar los seis equipos incorporados, incluido PM-10 · Edificio Viejo, con los mismos criterios. Los otros ocho puntos del inventario requieren su propia incorporación; no marcarlos como conectados por figurar en la planilla.
 
 Host Windows autorizado: ____________________
 
@@ -15,6 +15,7 @@ Versión y huella del ZIP verificadas: ____________________
 | 3 | | | | Pendiente | Pendiente | Pendiente |
 | 4 | | | | Pendiente | Pendiente | Pendiente |
 | 5 | | | | Pendiente | Pendiente | Pendiente |
+| 6 | PM-10 · Edificio Viejo | | | Pendiente | Pendiente | Pendiente |
 
 Ruta municipal validada bajo LocalService: pendiente.
 
