@@ -7,29 +7,6 @@ on:
 permissions:
   contents: read
 jobs:
-  snapshot:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-      - name: Export tracked source and exact Linux runtime for offline QA
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/offline"
-          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/offline/source.tar.gz"
-          git rev-parse HEAD > "$RUNNER_TEMP/offline/commit.txt"
-          gzip -c "$(command -v node)" > "$RUNNER_TEMP/offline/node-linux.gz"
-          (cd "$RUNNER_TEMP/offline" && sha256sum source.tar.gz node-linux.gz > SHA256SUMS)
-      - uses: actions/upload-artifact@v4
-        with:
-          name: recovery-workspace
-          path: ${{ runner.temp }}/offline/
-          retention-days: 2
   windows-definition:
     runs-on: windows-latest
     timeout-minutes: 5
@@ -41,20 +18,21 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $report = [ordered]@{ schema='windows-definition-diagnostic.v1'; registeredTasks=0; deviceConnections=0; probes=@() }
+          $service=New-Object -ComObject 'Schedule.Service'; $service.Connect(); $definition=$service.NewTask(0)
+          $principal=$definition.Principal; $principal.UserId='S-1-5-19'; $principal.LogonType=5; $principal.RunLevel=0
+          $report.principal=@{userId=$principal.UserId;logonType=$principal.LogonType;runLevel=$principal.RunLevel}
+          $report | ConvertTo-Json -Depth 6 | Write-Output
           $core = Join-Path $env:GITHUB_WORKSPACE 'local-agents/clock-fleet/windows-installer/InstallerCore.cs'
           $pins = Join-Path $env:RUNNER_TEMP 'PackagePins.cs'
           'namespace MuniControl.Setup { internal static class PackagePins { internal const string ManifestSha256="",PayloadSha256="",ReleaseCommit="",NodeSha256="",NodeVersion="",ProductVersion=""; internal const long ExpandedBytes=0,PayloadBytes=0; } }' | Set-Content $pins
-          Add-Type -Path @($core,$pins) -ReferencedAssemblies @('System.dll','System.Core.dll','System.Security.dll','System.Web.Extensions.dll','System.IO.Compression.dll','System.IO.Compression.FileSystem.dll','System.Management.dll')
+          Add-Type -Path @($core,$pins) -ReferencedAssemblies @('System.dll','System.Core.dll','System.Xml.dll','System.Security.dll','System.Web.Extensions.dll','System.IO.Compression.dll','System.IO.Compression.FileSystem.dll','System.Management.dll') -IgnoreWarnings
           $backend = [MuniControl.Setup.SetupBackend]
           $flags = [System.Reflection.BindingFlags]'Static,NonPublic'
-          $report = [ordered]@{ schema='windows-definition-diagnostic.v1'; registeredTasks=0; deviceConnections=0; probes=@() }
           foreach ($method in @('TestSchedulerDefinition','TestTaskPolicy')) {
             try { $null=$backend.GetMethod($method,$flags).Invoke($null,@()); $report.probes+=@{method=$method;ok=$true} }
             catch { $e=$_.Exception; while($e.InnerException){$e=$e.InnerException}; $report.probes+=@{method=$method;ok=$false;type=$e.GetType().FullName;message=$e.Message;stack=$e.StackTrace} }
           }
-          $service=New-Object -ComObject 'Schedule.Service'; $service.Connect(); $definition=$service.NewTask(0)
-          $principal=$definition.Principal; $principal.UserId='S-1-5-19'; $principal.LogonType=5; $principal.RunLevel=0
-          $report.principal=@{userId=$principal.UserId;logonType=$principal.LogonType;runLevel=$principal.RunLevel}
           $report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $env:RUNNER_TEMP 'windows-definition.json') -Encoding utf8
           $report | ConvertTo-Json -Depth 6 | Write-Output
       - uses: actions/upload-artifact@v4
