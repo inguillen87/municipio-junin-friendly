@@ -30,9 +30,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Verify complete PM10 source manifest before regression
+        run: node scripts/verify-fleet-local-panel.mjs --manifest-only
       - run: node scripts/verify-platform-baseline.mjs
       - run: node scripts/verify-friendly-containment.mjs
       # Keep isolated PDF workers within their production deadline on shared runners.
       - run: node --test --test-concurrency=2 tests/*.test.js
       - run: node scripts/build-friendly.mjs
       - run: node --test --test-concurrency=2 local-agents/pm10/tests/*.test.mjs
+      - name: Local shared panel with synthetic status only
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/verify-fleet-local-panel.mjs
