@@ -8,6 +8,7 @@ on:
       - 'local-agents/clock-fleet/windows-installer/**'
       - 'docs/clock-windows-installer/**'
       - 'scripts/build-clock-windows-installer.mjs'
+      - 'scripts/test-clock-installer-diagnostics.ps1'
       - 'tests/clock-installer-task-policy.test.js'
       - 'tests/clock-windows-installer-build.test.mjs'
       - '.github/workflows/clock-windows-installer.yml'
@@ -59,6 +60,14 @@ jobs:
           if ($result.ExitCode -ne 0) { throw 'Installer self-test failed' }
           $evidence = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if ($evidence.ok -ne $true) { throw 'Installer evidence invalid' }
+      - name: Explain a failed synthetic self-test without installing
+        if: failure()
+        shell: powershell
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'MuniControl-Dispositivos-Setup.exe'
+          if (Test-Path -LiteralPath $exe) {
+            & scripts/test-clock-installer-diagnostics.ps1 -Executable $exe -Output (Join-Path $env:RUNNER_TEMP 'installer-diagnostics.json')
+          }
       - name: Recompile the corresponding source archive without repository dependencies
         shell: pwsh
         run: |
@@ -95,6 +104,7 @@ jobs:
             ${{ runner.temp }}/MuniControl-Dispositivos-Setup.exe.sha256
             ${{ runner.temp }}/installer-self-test.json
             ${{ runner.temp }}/installer-rebuilt-self-test.json
+            ${{ runner.temp }}/installer-diagnostics.json
           if-no-files-found: error
           retention-days: 5
   publish:
