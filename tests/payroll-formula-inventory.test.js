@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -123,7 +123,7 @@ test('rejects repository inputs and nonignored outputs; permits only untracked i
   const input = path.join(directory, 'source.sql.gz'); await writeFile(input, gzipSync(Buffer.from(synthetic)));
   await assert.rejects(validatePrivatePaths(input, path.join(repository, 'unsafe.json')), /PRIVATE_OR_IGNORED/);
   await writeFile(path.join(repository, '.gitignore'), 'private/\n'); await mkdir(path.join(repository, 'private'));
-  assert.equal((await validatePrivatePaths(input, path.join(repository, 'private', 'output.json'))).input, input);
+  assert.equal((await validatePrivatePaths(input, path.join(repository, 'private', 'output.json'))).input, await realpath(input));
   const tracked = path.join(repository, 'tracked.json'); await writeFile(tracked, '{}'); execFileSync('git', ['-C', repository, 'add', 'tracked.json'], { stdio: 'ignore' });
   await assert.rejects(validatePrivatePaths(input, tracked), /OUTPUT_TRACKED/);
   const inside = path.join(repository, 'private', 'source.sql.gz'); await writeFile(inside, gzipSync(Buffer.from(synthetic)));

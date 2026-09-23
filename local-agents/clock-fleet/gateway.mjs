@@ -1,9 +1,61 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import path from 'node:path';import {fileURLToPath,pathToFileURL} from 'node:url';import {spawn} from 'node:child_process';
 import {setTimeout as sleep} from 'node:timers/promises';
+import {lstat,realpath,open,unlink} from 'node:fs/promises';import {randomUUID} from 'node:crypto';
 import {loadGateway,inspectGateway,readGatewayOverview,WORKERS,safeJson,absoluteLocal} from './gateway-config.mjs';
 import {acquireLock,atomicJson,safeDirectory} from '../pm10/store.mjs';import {fault,safeCode} from '../pm10/config.mjs';
+import {replaceFile} from '../pm10/file-replacement.mjs';import {renderGatewayOverview} from './overview.mjs';
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
+export const OVERVIEW_INTERVAL_MS=30000;
+const pathKey=p=>process.platform==='win32'?p.toLowerCase():p;
+async function overviewDirectory(dir){
+ const s=await lstat(dir);
+ if(!s.isDirectory()||s.isSymbolicLink()||pathKey(await realpath(dir))!==pathKey(dir)||(process.platform!=='win32'&&(s.mode&0o077)))throw fault('GATEWAY_OVERVIEW_PATH_UNSAFE');
+ return s;
+}
+async function overviewDestination(file){
+ try{const s=await lstat(file);if(!s.isFile()||s.isSymbolicLink()||(process.platform!=='win32'&&(s.mode&0o077)))throw fault('GATEWAY_OVERVIEW_PATH_UNSAFE');}
+ catch(error){if(error.code!=='ENOENT')throw error;}
+}
+// Only the coordinator's fixed presentation file is writable here. No queue,
+// credential, capture/delivery status or control file is opened for writing.
+export async function writeGatewayOverviewHtml(stateDir,html){
+ const dir=absoluteLocal(stateDir),file=path.join(dir,'estado.html');
+ if(typeof html!=='string'||Buffer.byteLength(html)>1024*1024)throw fault('GATEWAY_OVERVIEW_HTML_INVALID');
+ const before=await overviewDirectory(dir);await overviewDestination(file);
+ const temp=path.join(dir,'.overview-'+randomUUID()+'.tmp');let created=false;
+ try{
+  const h=await open(temp,'wx',0o600);created=true;
+  try{await h.writeFile(html);await h.sync();}finally{await h.close();}
+  const after=await overviewDirectory(dir);if(before.dev!==after.dev||before.ino!==after.ino)throw fault('GATEWAY_OVERVIEW_PATH_UNSAFE');
+  await overviewDestination(file);await replaceFile(temp,file);created=false;
+  if(process.platform!=='win32'){const h=await open(dir,'r');try{await h.sync();}finally{await h.close();}}
+ }finally{
+  // Remove only this operation's temporary file, and only in the same directory.
+  if(created)try{const current=await overviewDirectory(dir);if(current.dev===before.dev&&current.ino===before.ino)await unlink(temp);}catch{}
+ }
+}
+function unavailableOverview(now){
+ const at=now().toISOString();
+ return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="30"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>MuniControl · Central de relojes</title><style>body{margin:0;background:#f3f7f6;color:#173d45;font:16px/1.6 system-ui,sans-serif}main{max-width:760px;margin:auto;padding:24px}section{padding:24px;background:white;border:1px solid #ccdedb;border-radius:12px}h1{font-size:28px;line-height:1.2}time{overflow-wrap:anywhere}</style></head><body><main><h1>Central de relojes</h1><section role="status"><h2>Consulta local no disponible</h2><p>No se pudo preparar este corte. No se muestran cifras anteriores como actuales.</p><p>Intento de consulta: <time datetime="${at}">${at}</time></p><p>Mientras el coordinador esté en ejecución, volverá a consultar los archivos de estado. Revisá el diagnóstico si el aviso continúa.</p><p>Este aviso no modifica ni descarta las colas, capturas o acuses. No acredita una conexión en vivo.</p></section></main></body></html>`;
+}
+export async function publishGatewayOverview(config,{signal,now=()=>new Date(),readOverview=readGatewayOverview,readDesired=desiredState,writeHtml=writeGatewayOverviewHtml}={}){
+ if(signal?.aborted)return {state:'cancelled'};
+ let html,available=true;
+ try{const desired=await readDesired(config.stateDir);const snapshot=await readOverview(config,{now,desiredState:desired});html=renderGatewayOverview(snapshot);}
+ catch{available=false;html=unavailableOverview(now);}
+ if(signal?.aborted)return {state:'cancelled'};
+ await writeHtml(config.stateDir,html);
+ return {state:available?'published':'unavailable'};
+}
+export async function runGatewayOverviewPublisher(config,{signal,wait=sleep,onResult=()=>{},...options}={}){
+ while(!signal?.aborted){
+  let result;try{result=await publishGatewayOverview(config,{...options,signal});}
+  catch{result={state:'write_failed',code:'GATEWAY_OVERVIEW_WRITE_FAILED'};}
+  onResult(result);if(signal?.aborted)break;
+  try{await wait(OVERVIEW_INTERVAL_MS,undefined,{signal});}catch(error){if(signal?.aborted)break;throw error;}
+ }
+}
 export function nextWorkerState(previous,{exitCode,uptimeMs,nowMs,stopping=false}){
  if(!Number.isFinite(nowMs)||!Number.isFinite(uptimeMs)||uptimeMs<0)throw fault('GATEWAY_STATE_INVALID');
  const failures=uptimeMs>=300000?0:Math.min(8,(previous?.failures||0)+1);
@@ -95,7 +147,7 @@ export async function main(argv=process.argv.slice(2)){
  if(['snapshot','overview'].includes(argv[0])){
   let desired='unknown';try{desired=await desiredState(config.stateDir);}catch{}
   const snapshot=await readGatewayOverview(config,{desiredState:desired});
-  if(argv[0]==='overview'){const {renderGatewayOverview}=await import('./overview.mjs');console.log(renderGatewayOverview(snapshot));}else console.log(JSON.stringify(snapshot));
+  if(argv[0]==='overview')console.log(renderGatewayOverview(snapshot));else console.log(JSON.stringify(snapshot));
   return snapshot;
  }
  // Stopping remains available even if a worker config later becomes invalid.
@@ -110,13 +162,15 @@ export async function main(argv=process.argv.slice(2)){
  await safeDirectory(config.stateDir);const release=await acquireLock(config.stateDir),controller=new AbortController();
  const stop=()=>controller.abort();process.once('SIGTERM',stop);process.once('SIGINT',stop);let write=Promise.resolve();
  const snapshot=value=>{write=write.then(()=>atomicJson(statusFile,value));return write;};
- let monitoring,monitorError;
+ let monitoring,monitorError,publishing;
  try{
   // A stop between the initial read and ownership acquisition must still win.
   if(await desiredState(config.stateDir)!=='running')return;
   monitoring=monitorDesiredState(config.stateDir,controller).catch(error=>{monitorError=error;stop();});
+  publishing=runGatewayOverviewPublisher(config,{signal:controller.signal,onResult:result=>{if(result.state==='write_failed')console.error(JSON.stringify({error:'GATEWAY_OVERVIEW_WRITE_FAILED'}));}})
+   .catch(()=>console.error(JSON.stringify({error:'GATEWAY_OVERVIEW_PUBLISHER_STOPPED'})));
   await supervise(config,{signal:controller.signal,onSnapshot:snapshot});await write;
   if(monitorError)throw monitorError;
- }finally{stop();await monitoring;process.off('SIGTERM',stop);process.off('SIGINT',stop);await release();}
+ }finally{stop();await Promise.allSettled([monitoring,publishing]);process.off('SIGTERM',stop);process.off('SIGINT',stop);await release();}
 }
 if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url)main().catch(e=>{console.error(JSON.stringify({error:safeCode(e),allClocksVerified:false}));process.exitCode=2;});

@@ -12,6 +12,8 @@ El primer lector conserva el protocolo `clock-v1`, sus lotes `pm10-local-batch.v
 
 La cifra recibida y la fecha del último acuse deben mostrarse separadas de la última captura. Un acuse anterior no confirma registros nuevos aún no enviados; una captura posterior puede no tener novedades. Un proceso en ejecución no demuestra que el reloj responda: una captura bloqueada permanece visible como tal.
 
+El coordinador en ejecución prepara `estado.html` en su directorio privado al iniciar y cada 30 segundos. Consulta metadatos locales y no agrega lecturas físicas ni envíos. Cada corte muestra su fecha. Si no puede verificar los archivos, presenta una consulta no disponible; si no puede reemplazar el panel, conserva su fecha anterior y registra el fallo de publicación. Al detenerse espera que termine la publicación en curso. El comando `overview` también permite generar una consulta puntual.
+
 ## Incorporación de los distritos
 
 Wi-Fi es una forma de conexión a la red, no un protocolo de fichadas. Cada nuevo equipo necesita una ruta disponible desde el colector, dirección y puerto, protocolo compatible, serie comprobada e inscripción autorizada. La red municipal hoy autorizada sigue vigente. Agregar redes de distritos requiere una configuración explícita y pruebas; no se eliminan las restricciones de destino ni se abre el servicio a cualquier dirección.

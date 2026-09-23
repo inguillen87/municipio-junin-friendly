@@ -14,7 +14,7 @@ const at='2026-09-21T12:00:00.000Z',ackAt='2026-09-21T12:10:00.123Z',now=()=>new
 const write=async(file,v)=>{await fs.mkdir(path.dirname(file),{recursive:true,mode:0o700});await fs.writeFile(file,JSON.stringify(v),{mode:0o600});};
 const read=async file=>JSON.parse(await fs.readFile(file,'utf8'));
 async function fixture(fn){
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'gateway-overview-'));try{
+ const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'gateway-overview-')));try{
   const fleetRoot=path.join(root,'fleet'),legacyRoot=path.join(root,'old-clock'),coordinator=path.join(root,'coordinator');
   const clocks=Array.from({length:5},(_,i)=>({clockId:'clock-'+i,label:'Equipo de prueba '+i,host:'172.100.126.'+(200+i),port:4370,serial:'SYNTHETIC-'+i,credentialFile:path.join(root,'NEVER_READ_KEY_'+i),pollSeconds:900,enabled:true}));
   const senders=clocks.map((c,i)=>({clockId:c.clockId,serial:c.serial,connectorKey:'synthetic-connector-'+i,tokenFile:path.join(root,'NEVER_READ_TOKEN_'+i),enabled:true}));
