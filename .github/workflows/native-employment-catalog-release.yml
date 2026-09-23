@@ -12,6 +12,7 @@ on:
       - 'scripts/migrations/103-*'
       - 'scripts/verify-native-employment-catalog*'
       - 'tests/native-employment-catalog*'
+      - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
       - 'vercel.json'

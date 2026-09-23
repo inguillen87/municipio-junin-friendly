@@ -3,12 +3,49 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import vm from 'node:vm';
 import {chromium} from 'playwright';
 import '../assets/app-routes.js';
 import {catalogItems,catalogProposalInput,catalogReviewInput,CATALOG_VERSION} from '../assets/native-employment-catalog-model.js';
 assert.ok(process.argv.slice(2).length===0||(process.argv.length===3&&process.argv[2]==='--published'),'Only --published is supported');
 const published=process.argv.includes('--published'),base=path.resolve('public'),out=path.resolve('verification/native-employment-catalog'+(published?'-published':''));fs.mkdirSync(out,{recursive:true});
 const origin=published?'https://municipio-junin-friendly.vercel.app':'https://employment-catalog.invalid',API='/api/internal-employment-catalog',hash=s=>createHash('sha256').update(s).digest('hex'),publishedAssets=new Map();
+const git=(...args)=>execFileSync('git',args,{maxBuffer:8*1024*1024});
+const canonicalBytes=(file,bytes)=>/\.(?:html|[cm]?js|css|svg|json|webmanifest|txt)$/.test(file)?Buffer.from(bytes.toString('utf8').replace(/\r\n?/g,'\n')):bytes;
+const sourceCommit=published?git('rev-parse','HEAD').toString().trim():null;
+function assertReviewedHead(){
+ assert.match(sourceCommit,/^[a-f0-9]{40}$/);
+ assert.equal(git('rev-parse','HEAD').toString().trim(),sourceCommit,'HEAD_CHANGED');
+ assert.equal(git('status','--porcelain=v1','--untracked-files=all').toString().trim(),'','PUBLISHED_CHECK_REQUIRES_CLEAN_HEAD');
+}
+// The public directory is ignored by Git. Reconstruct its limited page recipe
+// from committed blobs instead of trusting a possibly stale local build.
+function preparePublishedPins(){
+ const recipeHashes={},expected=new Map(),sources=new Map();
+ const read=file=>{assert.match(file,/^[a-zA-Z0-9_./-]+$/);assert.ok(!file.startsWith('/')&&!file.split('/').some(p=>!p||p==='.'||p==='..'));if(!sources.has(file))sources.set(file,git('show',sourceCommit+':'+file));return sources.get(file);};
+ const recipe=file=>{const bytes=canonicalBytes(file,read(file));recipeHashes[file]=hash(bytes);return bytes.toString('utf8');};
+ const build=recipe('scripts/build-friendly.mjs'),metadata=recipe('scripts/apply-friendly-social-metadata.mjs'),routes=recipe('assets/app-routes.js');
+ const context=vm.createContext({URL});new vm.Script(routes).runInContext(context,{timeout:1000});
+ assert.ok(!/^import\b/m.test(metadata),'BUILD_METADATA_IMPORT_CHANGED');new vm.Script(metadata.replace(/^export /gm,'')).runInContext(context,{timeout:1000});
+ const routeFunction=build.slice(build.indexOf('function applyCleanRouteLinks(')),start=build.indexOf('  const branded ='),end=build.indexOf('\n}\n\nawait buildLegalRegistry',start);
+ assert.ok(start>0&&end>start&&routeFunction.startsWith('function applyCleanRouteLinks('),'BUILD_RECIPE_CHANGED');
+ const body=build.slice(start,end).replace(/fs\.writeFileSync\(destination, (.+)\);$/,'return $1;');assert.ok(!body.includes('fs.')&&body.includes('return routed.replaceAll'),'BUILD_RECIPE_IO_UNSUPPORTED');
+ new vm.Script(routeFunction+'\nfunction renderReviewed(original,file,identityVersion){\n'+body+'\n}').runInContext(context,{timeout:1000});
+ const pwaBlock=/const pwaFiles = \[([\s\S]*?)\n\];/.exec(build);assert.ok(pwaBlock,'PWA_RECIPE_CHANGED');
+ const icons=[...pwaBlock[1].matchAll(/'(assets\/pwa\/[^']+)'/g)].map(m=>m[1]);assert.equal(icons.length,5,'PWA_ICONS_CHANGED');
+ const identityHash=createHash('sha256');for(const file of icons)identityHash.update(file).update(read(file));const identity='identity-'+identityHash.digest('hex').slice(0,12);
+ for(const file of ['internal-dashboard.html','assets/municontrol-enterprise.css']){
+  context.original=canonicalBytes(file,read(file)).toString('utf8');context.file=file;context.identity=identity;
+  expected.set(file,Buffer.from(new vm.Script('renderReviewed(original,file,identity)').runInContext(context,{timeout:1000})));
+ }
+ for(const file of icons)expected.set(file.replace('assets/pwa/','assets/pwa/'+identity+'/'),read(file));
+ const sourceHashes={};
+ const forFile=file=>{const bytes=canonicalBytes(file,expected.get(file)||read(file));sourceHashes[file]=hash(bytes);return bytes;};
+ return {forFile,recipeHashes,sourceHashes,comparison:'text UTF-8 with CRLF/LF normalized; binary exact'};
+}
+if(published)assertReviewedHead();
+const publishedPins=published?preparePublishedPins():null;
 for(const file of ['assets/native-employment-catalog.js','assets/native-employment-catalog.css','assets/native-employment-catalog-model.js'])assert.ok(fs.readFileSync(file).equals(fs.readFileSync(path.join(base,file))),'BUILD_STALE:'+file);
 const make=(kind,code,label,agreementCode=null)=>({kind,key:`${kind}:${agreementCode||''}:${code}`,code,label,agreementCode});
 const initial=catalogItems([make('agreements','1','Convenio de prueba'),make('categories','3','Clase inicial','1'),make('organizations','2','Sector de prueba'),make('sectors','4','Repartición inicial'),make('sectors','5','Repartición retirable')]);
@@ -32,8 +69,10 @@ try{
     let bytes=fs.readFileSync(file);
     if(published){
      // Every API remains intercepted. Only public document/assets use credential-free GETs.
-     if(!publishedAssets.has(url.pathname)){const response=await fetch(origin+url.pathname,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});assert.equal(response.status,200,'Published status: '+url.pathname);publishedAssets.set(url.pathname,Buffer.from(await response.arrayBuffer()));}
-     const served=publishedAssets.get(url.pathname);assert.deepEqual(served,bytes,'Published bytes differ: '+url.pathname);bytes=served;
+     assert.ok(url.pathname==='/personal'||url.pathname.startsWith('/assets/'),'PUBLIC_PATH_OUT_OF_SCOPE');
+     const relative=path.relative(base,file).split(path.sep).join('/'),expected=publishedPins.forFile(relative);assert.deepEqual(canonicalBytes(relative,bytes),expected,'Local build differs from Git recipe: '+relative);
+     if(!publishedAssets.has(url.pathname)){const response=await fetch(origin+url.pathname,{method:'GET',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});assert.equal(response.status,200,'Published status: '+url.pathname);publishedAssets.set(url.pathname,Buffer.from(await response.arrayBuffer()));}
+     const served=publishedAssets.get(url.pathname);assert.deepEqual(canonicalBytes(relative,served),expected,'Published bytes differ from Git recipe: '+url.pathname);bytes=served;
     }
     assets[url.pathname]=hash(bytes);return route.fulfill({status:200,contentType:({'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream',body:bytes});
    }
@@ -121,5 +160,6 @@ try{
  await $('[data-ec-close]').click();const oldLoad=suspend('bootstrap');await $('[data-employment-catalog]').click();await oldLoad.entered;await $('[data-ec-close]').click();const newLoad=suspend('bootstrap');await $('[data-employment-catalog]').click();await newLoad.entered;oldLoad.release();await oldLoad.finished;await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(await $('[data-ec-refresh]').isDisabled(),true);assert.equal(await $('[data-ec-send]').isDisabled(),true);newLoad.release();await newLoad.finished;await ready();checks.push('an old request finishing after close and reopen cannot unlock controls during the new request');
  catalog={...catalog,items:catalogItems([...initial,make('agreements','2','Segundo convenio QA'),make('agreements','12','Duodécimo convenio QA'),make('categories','2','Clase dos','1'),make('categories','10','Clase diez','1'),make('categories','1','Clase otro convenio','2'),...['1','10','108'].map(code=>make('organizations',code,'Sector QA '+code))])};await reload();await kind('organizations');assert.deepEqual(await $('[data-ec-rows] td:first-child').allTextContents(),['1','2','10','108']);await kind('agreements');assert.deepEqual(await $('[data-ec-rows] td:first-child').allTextContents(),['1','2','12']);await kind('categories');assert.deepEqual(await $('[data-ec-rows] td:first-child').allTextContents(),['2','3','10','1']);assert.deepEqual(await $('[data-ec-rows] td:nth-child(3)').allTextContents(),['1','1','1','2']);await draft();assert.deepEqual(await $('[data-ec-rows] [data-ec-field=code]').evaluateAll(nodes=>nodes.map(n=>n.value)),['2','3','10','1']);await $('[data-ec-rows] [data-ec-field=code]').first().fill('99');assert.deepEqual(await $('[data-ec-rows] [data-ec-field=code]').evaluateAll(nodes=>nodes.map(n=>n.value)),['99','3','10','1']);const expectedOrderedPayload=catalogItems(catalog.items.map(i=>i.kind==='categories'&&i.agreementCode==='1'&&i.code==='2'?{...i,code:'99',key:'categories:1:99'}:i));await send();await page.waitForFunction(()=>document.querySelector('[data-ec-status]').textContent.includes('enviada a revisión'));await ready();assert.deepEqual(posts.at(-1).body.payload.items,expectedOrderedPayload);checks.push('display uses natural code and agreement order; editing preserves focus and the submitted payload retains canonical model normalization');
  assert.deepEqual(errors,[]);assert.deepEqual(routeErrors,[]);assert.ok(posts.every(p=>p.body.operation==='propose'||p.body.operation==='review'));assert.equal(lost.actor,'maker');
- const result={ok:true,published,checksPassed:checks.length,checks,syntheticApi:true,privateApisIntercepted:true,realApiCalls:0,municipalWrites:0,syntheticPosts:posts.length,publishedBytesVerified:published,assets,browser:browser.version()};fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({...result,assets:Object.keys(assets)}));
+ if(published)assertReviewedHead();
+ const result={ok:true,published,sourceCommit,cleanHeadVerified:published,comparison:publishedPins?.comparison??'local build bytes',recipeHashes:publishedPins?.recipeHashes??null,gitExpectedHashes:publishedPins?.sourceHashes??null,checksPassed:checks.length,checks,syntheticApi:true,privateApisIntercepted:true,realApiCalls:0,municipalWrites:0,syntheticPosts:posts.length,publishedBytesVerified:published,assets,browser:browser.version()};fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({...result,assets:Object.keys(assets)}));
 }catch(error){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({checks,errors,routeErrors,error:error.message,posts:posts.length},null,2));throw error;}finally{for(const h of held)h.release();await browser.close();}

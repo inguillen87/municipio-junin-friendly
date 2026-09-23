@@ -2,7 +2,7 @@
 -- No person, contract, payroll, source batch or historical receipt is rewritten.
 -- Run the complete file in one transaction. Historical migrations remain unchanged.
 DO $prerequisite$
-DECLARE x record; p pg_proc; installed boolean;
+DECLARE x record; p pg_proc; installed boolean; actual_shape jsonb;
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='municontrol_actions_runtime_app' AND NOT rolsuper AND NOT rolbypassrls)
  THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CATALOG_PREREQUISITE'; END IF;
@@ -88,11 +88,16 @@ BEGIN
     AND NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=c.oid AND t.tgenabled<>'O')
     AND NOT EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND (NOT i.indisvalid OR NOT i.indisready)))
    THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CATALOG_PREREQUISITE'; END IF;
-   IF (SELECT jsonb_build_object(
+   -- Metadata arrays use the same byte ordering as the pinned ASCII names,
+   -- independently of the host/database locale (including Linux libc locales).
+   SELECT jsonb_build_object(
     'columns',(SELECT jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'notnull',a.attnotnull,'default',pg_get_expr(d.adbin,d.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped),
-    'constraints',(SELECT jsonb_agg(jsonb_build_object('name',conname,'def',replace(pg_get_constraintdef(oid),'public.','')) ORDER BY conname) FROM pg_constraint WHERE conrelid=c.oid AND contype<>'n'),
-    'indexes',(SELECT jsonb_agg(replace(pg_get_indexdef(indexrelid),'public.','') ORDER BY replace(pg_get_indexdef(indexrelid),'public.','')) FROM pg_index WHERE indrelid=c.oid)) FROM pg_class c WHERE c.oid=to_regclass('public.'||x.table_name)) IS DISTINCT FROM x.expected_shape
-   THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CATALOG_PREREQUISITE'; END IF;
+    'constraints',(SELECT jsonb_agg(jsonb_build_object('name',conname,'def',replace(pg_get_constraintdef(oid),'public.','')) ORDER BY conname::text COLLATE "C") FROM pg_constraint WHERE conrelid=c.oid AND contype<>'n'),
+    'indexes',(SELECT jsonb_agg(replace(pg_get_indexdef(indexrelid),'public.','') ORDER BY replace(pg_get_indexdef(indexrelid),'public.','') COLLATE "C") FROM pg_index WHERE indrelid=c.oid)) INTO actual_shape FROM pg_class c WHERE c.oid=to_regclass('public.'||x.table_name);
+   IF actual_shape IS DISTINCT FROM x.expected_shape THEN
+    RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CATALOG_PREREQUISITE' USING DETAIL='table='||x.table_name||'; metadata='||
+     (SELECT string_agg(k,',' ORDER BY k COLLATE "C") FROM unnest(ARRAY['columns','constraints','indexes']) k WHERE actual_shape->k IS DISTINCT FROM x.expected_shape->k);
+   END IF;
    IF (SELECT count(*) FROM pg_trigger WHERE tgrelid=to_regclass('public.'||x.table_name) AND NOT tgisinternal)<>1
     OR NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid=to_regclass('public.'||x.table_name) AND tgname=x.table_name||'_immutable' AND tgfoid='public.native_employment_catalog_immutable_v1()'::regprocedure AND tgenabled='O' AND tgtype=58 AND NOT tgdeferrable AND NOT tginitdeferred AND tgnargs=0 AND tgqual IS NULL)
    THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CATALOG_PREREQUISITE'; END IF;

@@ -142,6 +142,7 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
   ['DROP TRIGGER native_employment_catalog_proposal_immutable ON native_employment_catalog_proposal;','missing immutability trigger'],
   ['ALTER TABLE native_employment_catalog_review DISABLE TRIGGER native_employment_catalog_review_immutable;','disabled review trigger'],
   ['ALTER TABLE native_employment_catalog_proposal DROP CONSTRAINT native_employment_catalog_proposal_reason_check; ALTER TABLE native_employment_catalog_proposal ADD CONSTRAINT native_employment_catalog_proposal_reason_check CHECK(true);','same-name changed constraint'],
+  ["DROP INDEX native_employment_catalog_publication_revision; CREATE UNIQUE INDEX native_employment_catalog_publication_revision ON native_employment_catalog_review(tenant_id,source_binding_id,revision) WHERE decision='reject';",'same-name changed publication index predicate'],
   ['ALTER TABLE native_employment_catalog_review ALTER COLUMN release_sha DROP NOT NULL;','nullable audit provenance'],
   ["ALTER TABLE native_employment_catalog_proposal ALTER COLUMN reason SET DEFAULT 'Invented default';",'invented field default'],
   ['ALTER TABLE native_employment_catalog_proposal DISABLE ROW LEVEL SECURITY;','disabled RLS'],

@@ -29,3 +29,20 @@ test('runtime allowlist is exactly five authenticated facades and generator reje
  assert.doesNotMatch(migration,/CATALOG_INSTALLED_SHA|CREATE_INSTALLED_SHA|-- GRH_FALLBACK_DEFINITION/);
  assert.throws(()=>buildNativeEmploymentCatalogQa({serverMajor:16}),/17|18|version|major/i);
 });
+
+test('table pins use byte ordering independently of database locale and retain exact definitions',()=>{
+ const migration=read('scripts/migrations/103-native-employment-catalog.sql');
+ assert.match(migration,/ORDER BY conname::text COLLATE "C"/);
+ assert.match(migration,/ORDER BY replace\(pg_get_indexdef\(indexrelid\),'public\.',''\) COLLATE "C"/);
+ const pins=[...migration.matchAll(/\('native_employment_catalog_(proposal|review)','((?:[^']|'')*)'::jsonb\)/g)];
+ assert.equal(pins.length,2);
+ for(const [,name,literal]of pins){
+  const shape=JSON.parse(literal.replaceAll("''","'"));
+  assert.deepEqual(shape.indexes,[...shape.indexes].sort(),name+' index pin order');
+  assert.deepEqual(shape.constraints.map(c=>c.name),shape.constraints.map(c=>c.name).sort(),name+' constraint pin order');
+ }
+ const qa=buildNativeEmploymentCatalogQa({serverMajor:17});
+ assert.match(qa.sql,/same-name changed publication index predicate/);
+ assert.match(migration,/actual_shape IS DISTINCT FROM x.expected_shape/);
+ assert.match(migration,/metadata=.*[\s\S]*ARRAY\['columns','constraints','indexes'\]/);
+});
