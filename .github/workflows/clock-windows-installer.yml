@@ -3,7 +3,7 @@ name: Clock Windows installer
 on:
   workflow_dispatch:
   push:
-    branches: [master, internal-clock-windows-installer-20260923]
+    branches: [master, internal-clock-windows-installer-20260923, internal-clock-linux-service-20260923]
     paths:
       - local-agents/clock-fleet/windows-installer/**
       - docs/clock-windows-installer/**
@@ -33,8 +33,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $sourceKit = Join-Path $env:RUNNER_TEMP 'municontrol-source-0b8d1a8'
-          git worktree add $sourceKit 0b8d1a8d261b4c55556921cba1708305006e0e5e
+          $sourceKit = Join-Path $env:RUNNER_TEMP 'municontrol-source-8c875b4'
+          git worktree add $sourceKit 8c875b4999e807968b2070672b1ad8eea203fd9a
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Junction -Path (Join-Path $sourceKit 'node_modules') -Target (Join-Path $env:GITHUB_WORKSPACE 'node_modules') | Out-Null
           node (Join-Path $sourceKit 'scripts/build-clock-windows11-kit.mjs') --output (Join-Path $env:RUNNER_TEMP 'clock-kit')

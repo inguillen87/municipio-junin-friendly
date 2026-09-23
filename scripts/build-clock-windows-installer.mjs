@@ -12,11 +12,11 @@ import {guideHtml,templates} from './build-clock-windows11-kit.mjs';
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const CODE='local-agents/clock-fleet/windows-installer';
-export const RELEASE_COMMIT='0b8d1a8d261b4c55556921cba1708305006e0e5e';
+export const RELEASE_COMMIT='8c875b4999e807968b2070672b1ad8eea203fd9a';
 export const NODE_VERSION='24.21.0';
 export const NODE_SHA256='ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32';
 export const NODE_LICENSE_SHA256='5888dbb9a1d2b18f2c3e6c5f6af1b39de658372b402a0577b002777f14c62ace';
-export const RELEASE_CONTENT_SHA256='337076ebe6ede21a285a1f5158c8dd962187ca9d100014bbda572710f8e33279';
+export const RELEASE_CONTENT_SHA256='1c1a8a27d3e1970004aaf8253bf9f78b3d7cf50278de0a6ab7402eb055a48294';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const encode=v=>Buffer.from(JSON.stringify(v,null,2)+'\n');
 export function safeEntry(name){
@@ -58,7 +58,7 @@ export async function buildInstaller({kit,runtime,runtimeLicense,output,allowDir
  for(const [name,value] of Object.entries(templates()))add(name,encode(value));
  const guide=await fs.readFile(path.join(ROOT,'docs/clock-windows-installer/README.md'),'utf8');
  add('README-INSTALADOR.md',Buffer.from(guide));
- add('LEEME-PRIMERO.html',Buffer.from(guideHtml(guide).replace('MuniControl · Instalar cinco relojes en Windows 11','MuniControl · Asistente de dispositivos').replace('<strong>Empezá por esta guía.</strong> Kit de instalación, desactivado por defecto. No incluye claves, datos de fichadas ni Node.js. No instalar un segundo lector mientras el origen siga activo.','<strong>MuniControl · Asistente de dispositivos.</strong> Incluye Node.js oficial. La configuración y los accesos de tu institución se preparan por separado.')));
+ add('LEEME-PRIMERO.html',Buffer.from(guideHtml(guide,{installer:true})));
  add('ADAPTADORES-Y-CRECIMIENTO.md',await read(path.join(ROOT,'docs/clock-windows-installer/ADAPTADORES-Y-CRECIMIENTO.md')));
  add('GUIA-TECNICA-WINDOWS11.md',pinnedSource('docs/clock-windows11-kit/GUIA-WINDOWS11.md'));
  add('LICENCIA-Y-DISTRIBUCION.md',pinnedSource('docs/clock-windows11-kit/LICENCIA-Y-DISTRIBUCION.md'));

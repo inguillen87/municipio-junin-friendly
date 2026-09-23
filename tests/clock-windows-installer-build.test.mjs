@@ -7,6 +7,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {safeEntry,verifyEntries,assertReleasePin,RELEASE_COMMIT,RELEASE_CONTENT_SHA256} from '../scripts/build-clock-windows-installer.mjs';
 import {RELEASE_FILES} from '../scripts/build-municipal-clock-release.mjs';
+import {guideHtml} from '../scripts/build-clock-windows11-kit.mjs';
 const bytes=Buffer.from('verified source');
 const good={path:'app/clock-fleet/gateway.mjs',bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
 const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -50,9 +51,38 @@ test('installer brand resource is a real 192px PNG and the release includes the 
 
 test('release pin accepts the exact committed source bytes without trusting checkout line endings',()=>{
  const manifest=pinnedReleaseFixture();
- assert.equal(manifest.sourceCommit,'0b8d1a8d261b4c55556921cba1708305006e0e5e');
+ assert.equal(manifest.sourceCommit,'8c875b4999e807968b2070672b1ad8eea203fd9a');
  assert.equal(manifest.contentSha256,RELEASE_CONTENT_SHA256);
  assert.doesNotThrow(()=>assertReleasePin(manifest));
+});
+
+test('installer workflow builds the exact unified runtime pin on its release branch',()=>{
+ const workflow=readFileSync(new URL('../.github/workflows/clock-windows-installer.yml',import.meta.url),'utf8');
+ assert.equal(workflow.match(/git worktree add \$sourceKit ([a-f0-9]{40})/)?.[1],RELEASE_COMMIT);
+ assert.match(workflow,/branches: \[[^\n]*internal-clock-linux-service-20260923/);
+ assert.match(workflow,/fetch-depth: 0/);
+ assert.match(workflow,/installer-rebuilt-self-test\.json/);
+ assert.match(workflow,/COMPILAR-FUENTES\.cmd/);
+ const manifest=pinnedReleaseFixture();
+ assert.equal(manifest.files.length,29);
+ for(const family of ['pm10','clock-fleet']) {
+  assert.ok(manifest.files.some(file=>file.path.startsWith(`app/${family}/`)));
+ }
+ for(const name of ['gateway.mjs','gateway-config.mjs','overview.mjs','control.mjs']) {
+  assert.ok(manifest.files.some(file=>file.path===`app/clock-fleet/${name}`));
+ }
+});
+
+test('installer generates its guide through the explicit runtime-included variant',()=>{
+ const builder=readFileSync(new URL('../scripts/build-clock-windows-installer.mjs',import.meta.url),'utf8');
+ assert.match(builder,/guideHtml\(guide,\{installer:true\}\)/);
+ assert.doesNotMatch(builder,/guideHtml\(guide\)\.replace/);
+ const readme=readFileSync(new URL('../docs/clock-windows-installer/README.md',import.meta.url),'utf8');
+ const html=guideHtml(readme,{installer:true});
+ assert.match(html,/<title>MuniControl · Asistente de dispositivos<\/title>/);
+ assert.match(html,/Incluye Node\.js oficial/);
+ assert.match(html,/PM-10 · Edificio Viejo integra el mismo parque y panel/);
+ assert.doesNotMatch(html,/No incluye claves, datos de fichadas ni Node\.js|Instalar cinco relojes/);
 });
 
 test('release pin rejects a modified source even after its manifest hashes are recomputed',()=>{
