@@ -9,11 +9,12 @@ const PAGE_SIZE = 50;
 // Volatile only: a closed dialog must not turn an unconfirmed POST into a new
 // attempt. Navigation clears this memory; nothing is written to browser storage.
 const pendingSchoolingAttempts = new Map();
+const pendingFamilyAttempts = new Map();
 window.addEventListener('beforeunload', event => {
-  if (!pendingSchoolingAttempts.size) return;
+  if (!pendingSchoolingAttempts.size && !pendingFamilyAttempts.size) return;
   event.preventDefault(); event.returnValue = '';
 });
-window.addEventListener('pagehide', () => pendingSchoolingAttempts.clear());
+window.addEventListener('pagehide', () => { pendingSchoolingAttempts.clear(); pendingFamilyAttempts.clear(); });
 const node = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
 const button = (label, cls = '') => { const b = node('button', label, 'fs-button ' + cls); b.type = 'button'; return b; };
 const digest = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2, '0')).join('');
@@ -21,6 +22,7 @@ function message(error) {
   if (error?.name === 'AbortError' || error?.name === 'TimeoutError') return 'La consulta demoró demasiado. Reintentá cuando tengas conexión.';
   if (error?.status === 401) return 'La sesión venció. Ingresá nuevamente para continuar.';
   if (error?.status === 403) return 'Tu perfil no tiene permiso vigente para esta operación.';
+  if (error?.code === 'FAMILY_ACTOR_CHANGED') return 'Cambió la sesión. Cerrá y abrí la ficha; el intento anterior no se reenviará desde otra identidad.';
   if (error?.code === 'EMPLOYEE_FAMILY_DUPLICATE') return 'Hay un familiar con estos datos o una coincidencia por revisar. Revisá los hijos de la ficha; tus datos se conservan.';
   if (error?.code === 'EMPLOYEE_FAMILY_IDENTITY_CHANGED') return 'Cambió la identidad del legajo. Revisala antes de guardar; el hijo no se asociará a otra persona automáticamente.';
   if (error?.code === 'EMPLOYEE_FAMILY_IDEMPOTENCY_REUSE') return 'Este intento corresponde a otros datos. Revisá el formulario antes de iniciar un nuevo registro.';
@@ -53,13 +55,13 @@ async function request(url, controller, options = {}) {
   return response;
 }
 async function readSchooling(resource, controller, contractId) {
-  const q = new URLSearchParams({ resource, version: '4' }); if (contractId) q.set('contractId', contractId);
+  const q = new URLSearchParams({ resource, version: '5' }); if (contractId) q.set('contractId', contractId);
   const response = await request(ENDPOINT + '?' + q, controller);
-  return schoolingData(await response.json(), { resource, contractId, version: 4 });
+  return schoolingData(await response.json(), { resource, contractId, version: 5 });
 }
 async function readFamilyContext(controller, contractId) {
-  const response = await request(FAMILY_ENDPOINT + '?' + new URLSearchParams({ resource: 'context', contractId }), controller);
-  return familyContextData(await response.json(), contractId);
+  const response = await request(FAMILY_ENDPOINT + '?' + new URLSearchParams({ resource: 'context', version: '2', contractId }), controller);
+  return familyContextData(await response.json(), contractId, { version: 2 });
 }
 function save(bytes, filename, type) {
   const url = URL.createObjectURL(new Blob([bytes], { type }));
@@ -124,19 +126,21 @@ export function mountSchoolingReport(host) {
   for (const [selector, role] of [['.fs-table', 'table'], ['.fs-table thead,.fs-table tbody', 'rowgroup'], ['.fs-table thead tr', 'row'], ['.fs-table th', 'columnheader']]) {
     host.querySelectorAll(selector).forEach(element => element.setAttribute('role', role));
   }
-  let data = null, queriedAt = null, page = 1, busy = false, generation = 0, controller = null, destroyed = false;
+  let data = null, queriedAt = null, page = 1, busy = false, generation = 0, controller = null, destroyed = false, readAllowed = true;
   const available = () => !destroyed && host.isConnected && !host.closest('[hidden]') && !document.hidden;
   const view = () => schoolingFilter(data, { search: $('[data-fs-search]').value, status: $('[data-fs-filter]').value });
   function controls() {
     host.setAttribute('aria-busy', String(busy));
-    host.querySelectorAll('button,input,select').forEach(n => n.disabled = busy);
+    host.querySelectorAll('button,input,select').forEach(n => n.disabled = busy || !readAllowed);
+    $('[data-fs-export]').disabled = busy || !readAllowed || !data;
     if (!data) return;
     const count = view().rows.length;
     $('[data-fs-export]').disabled = busy || count === 0;
     $('[data-fs-previous]').disabled = busy || page <= 1;
     $('[data-fs-next]').disabled = busy || page * PAGE_SIZE >= count;
   }
-  function clear() { data = null; queriedAt = null; result.hidden = true; $('[data-fs-rows]').replaceChildren(); }
+  function clear() { data = null; queriedAt = null; result.hidden = true; $('[data-fs-rows]').replaceChildren();
+    for (const name of ['source','storage','contracts','children','registered','review-count','page']) $('[data-fs-' + name + ']').textContent = ''; }
   function start() { controller?.abort(); controller = new AbortController(); busy = true; controls(); return ++generation; }
   function render() {
     const selected = view(), all = selected.rows, pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
@@ -152,6 +156,7 @@ export function mountSchoolingReport(host) {
     const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => {
       const tr = node('tr'), employee = node('td'), child = node('td'), presented = node('td'), expiry = node('td'), cert = node('td'), action = node('td');
       employee.append(node('strong', r.employeeName || 'Nombre no informado'), node('small', 'Legajo ' + r.legajo));
+      if (r.employeeOrigin === 'MUNICONTROL') employee.append(node('small', 'Alta propia · ' + schoolingDate(r.nativeRegisteredAt)));
       child.append(node('strong', r.familyName || 'Nombre no informado'), node('small', 'Nacimiento: ' + schoolingDate(r.birthDate)));
       child.append(node('small', r.familyRef.kind === 'own' ? 'Declarado en MuniControl · ' + schoolingDate(r.familyRecordedAt) : 'Incorporado desde GRH'));
       if (r.certificate) child.append(node('small', [r.certificate.institution, r.certificate.educationLevel, r.certificate.course, r.certificate.schoolYear && 'Ciclo ' + r.certificate.schoolYear].filter(Boolean).join(' · ') || 'Datos escolares sin informar'));
@@ -181,7 +186,7 @@ export function mountSchoolingReport(host) {
     $('[data-fs-rows]').replaceChildren(...rows); result.hidden = false; controls();
   }
   async function consult() {
-    if (busy || !available()) return;
+    if (busy || !readAllowed || !available()) return;
     const seq = start(); clear(); status.textContent = 'Consultando legajos activos con hijos…'; $('[data-fs-login]').hidden = true;
     try { const next = await readSchooling('report', controller); if (seq !== generation || !available()) return;
       data = next; queriedAt = new Date().toISOString(); page = 1; render(); status.textContent = 'Reporte consultado. Filtrá y descargá el mismo resultado. Los certificados se cargan desde la ficha.';
@@ -214,7 +219,14 @@ export function mountSchoolingReport(host) {
     } catch (e) { if (seq === generation && available()) { clear(); status.textContent = message(e); $('[data-fs-login]').hidden = e.status !== 401; } }
     finally { if (seq === generation && available()) { busy = false; controls(); } }
   });
-  function stop() { destroyed = true; generation++; controller?.abort(); clear(); }
+  function accessChanged(event) {
+    const supplied = event.detail?.tenantCapabilities;
+    const caps = supplied instanceof Set ? supplied : new Set(Array.isArray(supplied) ? supplied : []);
+    readAllowed = caps.has('workforce.employee.read');
+    if (!readAllowed) { generation++; controller?.abort(); busy = false; clear(); status.textContent = 'Tu permiso de consulta cambió. Se retiraron los datos del reporte.'; }
+    controls();
+  }
+  function stop() { destroyed = true; generation++; controller?.abort(); clear(); document.removeEventListener('municontrol:capabilities-ready', accessChanged); }
   window.addEventListener('pagehide', stop, { once: true });
   function cancelHiddenRequest() {
     if (!busy || available() || destroyed) return;
@@ -223,6 +235,7 @@ export function mountSchoolingReport(host) {
   }
   document.addEventListener('taskchange', cancelHiddenRequest);
   document.addEventListener('visibilitychange', cancelHiddenRequest);
+  document.addEventListener('municontrol:capabilities-ready', accessChanged);
   return { consult, stop };
 }
 
@@ -233,8 +246,9 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando hijos y certificados…</p><p class="fs-note" role="status" data-fs-target-status hidden></p><p class="fs-note" data-fs-create-status></p><div data-fs-declaration-host></div><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Declarar un hijo o registrar su escolaridad no aprueba haberes. Una fecha ausente no significa que el certificado no se presentó.</p><div class="fs-family-list" data-fs-family-list></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-family-status]'), list = $('[data-fs-family-list]');
   let data = null, editor = null, controller = null, generation = 0, destroyed = false, busy = false;
-  let familyContext = null, declarationEditor = null;
+  let familyContext = null, declarationEditor = null, authorityKey = null;
   const pendingKey = contractId.toLowerCase();
+  const hasPending = () => pendingSchoolingAttempts.has(pendingKey) || pendingFamilyAttempts.has(pendingKey);
   const clearPending = key => { if (pendingSchoolingAttempts.get(pendingKey)?.key === key) pendingSchoolingAttempts.delete(pendingKey); };
   if (!focusFamilyRef && focusFamilyId !== null) focusFamilyRef = { kind: 'grh', id: focusFamilyId };
   let focusPending = focusFamilyRef !== null;
@@ -242,6 +256,21 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   const available = () => !destroyed && host.isConnected && Boolean(host.closest('dialog')?.open);
   const mayRegister = () => available() && data?.canRegister === true && canPropose;
   const mayDeclare = () => available() && Boolean(data) && canPropose && familyContext?.canDeclare === true && !pendingSchoolingAttempts.has(pendingKey);
+  async function checkAuthority(signalController) {
+    const response = await request('/api/internal-auth', signalController), payload = await response.json();
+    const actor = payload?.user?.id || payload?.user?.email, access = payload?.access;
+    if (payload?.ok !== true || payload.authenticated !== true || typeof actor !== 'string' || !actor || !Array.isArray(access?.tenantCapabilities)) throw Object.assign(Error('Sesión no verificable.'), { status: 401 });
+    const key = JSON.stringify([actor, access.tenant?.id ?? null, access.tenant?.roleKey ?? payload.user.role ?? null]);
+    const pending = pendingFamilyAttempts.get(pendingKey) ?? pendingSchoolingAttempts.get(pendingKey);
+    if (authorityKey && key !== authorityKey || pending?.authorityKey && pending.authorityKey !== key) {
+      pendingFamilyAttempts.delete(pendingKey); pendingSchoolingAttempts.delete(pendingKey);
+      editor?.form.reset(); editor?.form.remove(); declarationEditor?.form.reset(); declarationEditor?.form.remove(); editor = null; declarationEditor = null;
+      authorityKey = key; invalidateConsultedData();
+      throw Object.assign(Error('Cambió la sesión. Cerrá y abrí la ficha; el intento anterior no se reenviará desde otra identidad.'), { code: 'FAMILY_ACTOR_CHANGED', status: 409 });
+    }
+    authorityKey = key; canPropose = access.tenantCapabilities.includes('employee.record.propose');
+    if (!access.tenantCapabilities.includes('workforce.employee.read')) throw Object.assign(Error('Permiso de consulta retirado.'), { status: 403 });
+  }
   function invalidateConsultedData() {
     data = null; familyContext = null; focusObserver?.disconnect(); focusObserver = null;
     if (editor) {
@@ -265,14 +294,14 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     $('[data-fs-family-refresh]').disabled = busy || Boolean(editor) || Boolean(declarationEditor);
     $('[data-fs-add-child]').hidden = !canPropose;
     $('[data-fs-add-child]').disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayDeclare();
-    host.querySelectorAll('[data-fs-register]').forEach(b => b.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRegister() || pendingSchoolingAttempts.has(pendingKey));
+    host.querySelectorAll('[data-fs-register]').forEach(b => b.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRegister() || hasPending());
     host.querySelectorAll('[data-fs-document],[data-fs-history]').forEach(b => b.disabled = busy);
     if (editor) { editor.fieldset.disabled = busy || Boolean(editor.pendingBody); editor.submit.disabled = busy || !mayRegister() || editor.needsIdentityReview;
       editor.form.querySelector('[data-fs-recheck]').disabled = busy; editor.form.querySelector('[data-fs-cancel]').disabled = busy || Boolean(editor.pendingBody); }
     if (declarationEditor) {
-      declarationEditor.fieldset.disabled = busy;
+      declarationEditor.fieldset.disabled = busy || Boolean(declarationEditor.pending);
       declarationEditor.submit.disabled = busy || !mayDeclare() || declarationEditor.needsIdentityReview;
-      declarationEditor.cancel.disabled = busy; declarationEditor.recheck.disabled = busy;
+      declarationEditor.cancel.disabled = busy || Boolean(declarationEditor.pending); declarationEditor.recheck.disabled = busy;
     }
   }
   function render() {
@@ -281,7 +310,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     for (const r of data.rows) {
       const card = node('article', undefined, 'fs-child'), top = node('div', undefined, 'fs-child-heading');
       card.dataset.fsFamilyId = r.familyRef.id; card.dataset.fsFamilyKind = r.familyRef.kind; card.tabIndex = -1;
-      top.append(node('h4', r.familyName || 'Hijo/a sin nombre informado'), node('span', r.administrativeActive ? 'Legajo activo al corte' : 'Legajo fuera del padrón activo', 'fs-pill muted'));
+      top.append(node('h4', r.familyName || 'Hijo/a sin nombre informado'), node('span', r.employeeOrigin === 'MUNICONTROL' ? 'Alta propia · ' + schoolingDate(r.nativeRegisteredAt) : r.administrativeActive ? 'Legajo activo al corte' : 'Legajo fuera del padrón activo', 'fs-pill muted'));
       card.append(top, node('p', 'Nacimiento: ' + schoolingDate(r.birthDate) + (r.familyEndDate ? ' · Baja del vínculo: ' + schoolingDate(r.familyEndDate) : ''), 'fs-note'));
       card.append(node('p', r.familyRef.kind === 'own' ? 'Declarado en MuniControl el ' + schoolingDate(r.familyRecordedAt) + (r.validFrom ? ' · Vigencia informada desde ' + schoolingDate(r.validFrom) : '') : 'Vínculo incorporado desde GRH · corte ' + schoolingDate(r.sourceCutoff), 'fs-origin'));
       if (r.identityReviewRequired) card.append(node('p', 'Coincidencia por revisar: este vínculo puede corresponder a un hijo que también figura en otra fuente. Sus documentos no se unieron ni reasignaron.', 'fs-review-note'));
@@ -349,6 +378,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (busy || editor || declarationEditor || !available()) return;
     controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
     try {
+      await checkAuthority(controller);
       const [schooling, context] = await Promise.allSettled([readSchooling('family', controller, contractId), canPropose ? readFamilyContext(controller, contractId) : Promise.resolve(null)]);
       if (seq !== generation || !available()) return;
       if (schooling.status === 'rejected') throw schooling.reason;
@@ -365,6 +395,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         openEditor(original, $('[data-fs-declaration-host]'), { pending, identityCurrent: Boolean(current) });
         status.textContent = 'Hay un envío sin confirmación. Se conservó el mismo intento al cerrar la ficha. Verificá su estado o reintentá sin cambiar los datos.';
       }
+      else if (pendingFamilyAttempts.has(pendingKey)) openDeclaration(pendingFamilyAttempts.get(pendingKey));
       focusRequestedChild();
     } catch (e) { if (seq === generation && available()) { data = null; familyContext = null; list.replaceChildren(); $('[data-fs-storage]').hidden = true; status.textContent = announcement
       ? announcement + ' No pudimos actualizar la vista. Usá Actualizar registro; no repitas el alta.' : message(e); } }
@@ -469,6 +500,8 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       const activeEditor = editor; controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls();
       feedback.textContent = 'Consultando el vínculo y los permisos. El archivo y las fechas se conservan…';
       try {
+        await checkAuthority(controller);
+        if (seq !== generation || !available() || editor !== activeEditor) return;
         if (activeEditor.pendingBody) {
           try {
             const receipt = await request(ENDPOINT + '?' + new URLSearchParams({ resource: 'attempt', version: '3', key: activeEditor.idempotencyKey }), controller);
@@ -549,6 +582,9 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); feedback.textContent = 'Verificando y guardando el registro…';
       let saved = false, sent = false; const wasPending = Boolean(activeEditor.pendingBody);
       try {
+        await checkAuthority(controller);
+        if (seq !== generation || !available() || editor !== activeEditor) return;
+        if (!canPropose) throw Object.assign(Error('Permiso de carga retirado.'), { status: 403 });
         let body = activeEditor.pendingBody;
         if (!body) {
           let documentFields = { filename: null, contentBase64: null, sha256: null };
@@ -563,7 +599,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         }
         if (seq !== generation || !available()) return;
         activeEditor.pendingBody = body; if (!wasPending) activeEditor.pendingFile = selected ?? null; sent = true;
-        pendingSchoolingAttempts.set(pendingKey, { body, key: activeEditor.idempotencyKey, file: activeEditor.pendingFile });
+        pendingSchoolingAttempts.set(pendingKey, { body, key: activeEditor.idempotencyKey, file: activeEditor.pendingFile, authorityKey });
         const response = await request(ENDPOINT + '?version=3', controller, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': activeEditor.idempotencyKey }, body: JSON.stringify(body) });
         schoolingRegistrationResult(await response.json());
         clearPending(activeEditor.idempotencyKey);
@@ -586,8 +622,8 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       if (saved && available()) { await load('Certificado guardado. El registro anterior se conserva; esta carga no aprueba escolaridad ni haberes.'); $('[data-fs-family-refresh]').focus(); }
     });
   }
-  function openDeclaration() {
-    if (busy || editor || declarationEditor || !mayDeclare()) return;
+  function openDeclaration(pending = null) {
+    if (editor || declarationEditor || !available() || !data || (!pending && (busy || !mayDeclare() || hasPending()))) return;
     const form = node('form', undefined, 'fs-editor fs-create-editor'), heading = node('h4', 'Agregar hijo/a');
     heading.id = 'fs-declare-' + crypto.randomUUID(); form.setAttribute('aria-labelledby', heading.id);
     const fieldset = node('fieldset'), legend = node('legend', 'Datos del vínculo declarado', 'fs-sr'); fieldset.append(legend);
@@ -611,23 +647,47 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const feedback = node('p', '', 'fs-status'); feedback.dataset.fsChildStatus = ''; feedback.setAttribute('role', 'status'); feedback.setAttribute('aria-live', 'polite');
     form.append(heading, node('p', 'Guardá primero el hijo. Después podrás adjuntar su certificado. Sólo el nombre es obligatorio; el vínculo quedará declarado, sin aprobar haberes.', 'fs-note'), fieldset, actions, feedback);
     $('[data-fs-declaration-host]').append(form);
-    const active = { form, fieldset, submit, cancel, recheck, context: familyContext, needsIdentityReview: false, idempotencyKey: null, revision: null };
-    declarationEditor = active; controls(); fields.familyName.focus();
-    cancel.addEventListener('click', () => { if (busy) return; form.reset(); form.remove(); declarationEditor = null; controls(); $('[data-fs-add-child]').focus(); });
+    const active = { form, fieldset, submit, cancel, recheck, context: pending ? { subject: { identityToken: pending.body.contractIdentityToken } } : familyContext, needsIdentityReview: false, pending };
+    if (pending) {
+      for (const [key, input] of Object.entries(fields)) input.value = pending.body[key] ?? '';
+      recheck.hidden = false; recheck.textContent = 'Verificar si quedó guardado';
+      feedback.textContent = 'Hay un envío sin confirmación. Conservamos sus datos y la clave: verificá su estado o reintentá exactamente el mismo alta.';
+    }
+    declarationEditor = active; controls(); if (!pending) fields.familyName.focus();
+    function confirmation(payload) {
+      return familyDeclarationResult(payload, { version: 2, contractId, contractIdentityToken: active.pending.body.contractIdentityToken });
+    }
+    async function accepted(receipt, seq) {
+      if (pendingFamilyAttempts.get(pendingKey)?.key === active.pending.key) pendingFamilyAttempts.delete(pendingKey);
+      if (seq !== generation || !available() || declarationEditor !== active) return;
+      form.reset(); form.remove(); declarationEditor = null; busy = false;
+      focusFamilyRef = receipt.familyRef; focusPending = true;
+      await load('Hijo/a guardado como vínculo declarado. Ya podés registrar su certificado; cada paso conserva su confirmación.');
+      Array.from(list.children).find(child => child.dataset.fsFamilyId === receipt.familyRef.id && child.dataset.fsFamilyKind === receipt.familyRef.kind)?.querySelector('[data-fs-register]')?.focus();
+    }
+    cancel.addEventListener('click', () => { if (busy || active.pending) return; form.reset(); form.remove(); declarationEditor = null; controls(); $('[data-fs-add-child]').focus(); });
     recheck.addEventListener('click', async () => {
       if (busy || declarationEditor !== active || !available()) return;
       controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); feedback.textContent = 'Verificando el legajo y los permisos. Los datos se conservan…';
       try {
+        await checkAuthority(controller);
+        if (seq !== generation || !available() || declarationEditor !== active) return;
+        if (active.pending) {
+          try {
+            const response = await request(FAMILY_ENDPOINT + '?' + new URLSearchParams({ resource: 'attempt', version: '2', key: active.pending.key }), controller);
+            await accepted(confirmation(await response.json()), seq); return;
+          } catch (e) { if (e.status !== 404) throw e; }
+        }
         const [fresh, schooling] = await Promise.all([readFamilyContext(controller, contractId), readSchooling('family', controller, contractId)]);
         if (seq !== generation || !available() || declarationEditor !== active) return;
         familyContext = fresh; data = schooling; render();
         $('[data-fs-create-status]').textContent = fresh.canDeclare ? '' : 'Tu permiso actual no permite agregar hijos.';
         if (fresh.subject.identityToken !== active.context.subject.identityToken) {
           active.needsIdentityReview = true;
-          feedback.textContent = 'La identidad del legajo cambió. El alta sigue sin guardarse y tus datos se conservan. Revisá la ficha de la persona antes de iniciar otro registro; no se trasladó este hijo a la nueva identidad.';
+          feedback.textContent = active.pending ? 'La identidad actual cambió. El envío original sigue sin confirmación; consultá su estado. No se reasignó el hijo ni se habilitó otra alta.' : 'La identidad del legajo cambió. Tus datos se conservan. Revisá la ficha antes de iniciar otro registro; no se trasladó este hijo a la nueva identidad.';
         } else {
           active.needsIdentityReview = false;
-          feedback.textContent = fresh.canDeclare && canPropose ? 'Identidad y permiso revisados. Podés reintentar con los mismos datos.' : 'No hay permiso vigente para guardar. Tus datos se conservan.';
+          feedback.textContent = fresh.canDeclare && canPropose ? active.pending ? 'Todavía no hay confirmación. El envío puede seguir procesándose: sólo reintentá el mismo alta o volvé a verificar su estado.' : 'Identidad y permiso revisados. Podés reintentar con los mismos datos.' : 'No hay permiso vigente para guardar. Tus datos se conservan.';
         }
       } catch (e) { if (seq === generation && available()) { if ([401,403].includes(e.status)) invalidateConsultedData(); feedback.textContent = message(e); } }
       finally { if (seq === generation && available()) { busy = false; controls(); } }
@@ -636,37 +696,48 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       event.preventDefault();
       if (busy || declarationEditor !== active || !mayDeclare() || active.needsIdentityReview || !form.reportValidity()) return;
       let details;
-      try { details = familyDeclarationFields(Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]))); }
+      try { if (!active.pending) details = familyDeclarationFields(Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]))); }
       catch (e) { feedback.textContent = message(e); return; }
-      const body = { contractId, contractIdentityToken: active.context.subject.identityToken, ...details }, revision = JSON.stringify(body);
-      if (active.revision !== revision) { active.idempotencyKey = crypto.randomUUID(); active.revision = revision; }
       controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); feedback.textContent = 'Guardando el vínculo declarado…';
-      let saved = null;
+      const wasPending = Boolean(active.pending); let sent = false;
       try {
-        const response = await request(FAMILY_ENDPOINT, controller, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': active.idempotencyKey }, body: revision });
-        const confirmation = familyDeclarationResult(await response.json());
+        await checkAuthority(controller);
         if (seq !== generation || !available() || declarationEditor !== active) return;
-        saved = confirmation; form.reset(); form.remove(); declarationEditor = null;
-        focusFamilyRef = confirmation.familyRef; focusPending = true;
+        if (!canPropose) throw Object.assign(Error('Permiso de carga retirado.'), { status: 403 });
+        if (!active.pending) {
+          const body = Object.freeze({ contractId, contractIdentityToken: active.context.subject.identityToken, ...details });
+          const json = JSON.stringify(body);
+          active.pending = Object.freeze({ body, json, key: active.retryAttempt?.json === json ? active.retryAttempt.key : crypto.randomUUID(), authorityKey });
+          pendingFamilyAttempts.set(pendingKey, active.pending);
+        }
+        sent = true; controls();
+        const response = await request(FAMILY_ENDPOINT + '?version=2', controller, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': active.pending.key }, body: active.pending.json });
+        await accepted(confirmation(await response.json()), seq);
       } catch (e) {
         if (seq === generation && available()) {
+          if (!wasPending && sent && e.status && e.status < 500 && /^EMPLOYEE_FAMILY_[A-Z_]+$/.test(e.code || '')) { pendingFamilyAttempts.delete(pendingKey); active.retryAttempt = active.pending; active.pending = null; }
           if (e.code === 'EMPLOYEE_FAMILY_IDENTITY_CHANGED') active.needsIdentityReview = true;
           if ([401, 403].includes(e.status)) invalidateConsultedData();
-          recheck.hidden = false; feedback.textContent = message(e) + ' El formulario permanece abierto. Podés reintentar con los mismos datos para confirmar el alta.';
+          recheck.hidden = false; recheck.textContent = active.pending ? 'Verificar si quedó guardado' : 'Revisar legajo y permisos';
+          feedback.textContent = message(e) + (active.pending ? ' Todavía no se pudo confirmar el alta. Conservamos el mismo envío sin cambios; no crees otro registro.' : ' El formulario conserva tus datos para revisarlos.');
         }
       } finally { if (seq === generation && available()) { busy = false; controls(); } }
-      if (saved && available()) {
-        await load('Hijo/a guardado como vínculo declarado. Ya podés registrar su certificado; el alta se conserva aunque falle la carga del PDF.');
-        const card = Array.from(list.children).find(child => child.dataset.fsFamilyId === saved.familyRef.id && child.dataset.fsFamilyKind === saved.familyRef.kind);
-        card?.querySelector('[data-fs-register]')?.focus();
-      }
     });
   }
+  function accessChanged(event) {
+    const supplied = event.detail?.tenantCapabilities;
+    const caps = supplied instanceof Set ? supplied : new Set(Array.isArray(supplied) ? supplied : []);
+    const nextPropose = caps.has('employee.record.propose');
+    if (caps.has('workforce.employee.read') && nextPropose === canPropose) return;
+    canPropose = nextPropose; generation++; controller?.abort(); busy = false;
+    invalidateConsultedData(); controls();
+  }
   function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();
-    document.removeEventListener('mc:family-schooling-close', stop); window.removeEventListener('pagehide', stop); }
+    document.removeEventListener('mc:family-schooling-close', stop); document.removeEventListener('municontrol:capabilities-ready', accessChanged); window.removeEventListener('pagehide', stop); }
   $('[data-fs-family-refresh]').addEventListener('click', () => load());
-  $('[data-fs-add-child]').addEventListener('click', openDeclaration);
+  $('[data-fs-add-child]').addEventListener('click', () => openDeclaration());
   document.addEventListener('mc:family-schooling-close', stop); window.addEventListener('pagehide', stop);
+  document.addEventListener('municontrol:capabilities-ready', accessChanged);
   load(); return { stop };
 }
 

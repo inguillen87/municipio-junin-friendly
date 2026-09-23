@@ -6,7 +6,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { unzipSync, strFromU8 } from 'fflate';
-import { schoolingFixtureV4 as schoolingFixture, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+import { schoolingFixtureV4, syntheticUuid, syntheticSchoolPdf, syntheticSchoolHash } from '../tests/fixtures/family-schooling-synthetic.js';
+function schoolingFixture(...args) {
+  const payload = schoolingFixtureV4(...args); payload.data.version = 'family-schooling.v5';
+  for (const row of payload.data.rows) Object.assign(row, {employeeOrigin:'GRH',nativeRegistrationId:null,nativeRegisteredAt:null});
+  return payload;
+}
 import '../assets/app-routes.js';
 
 const publishedOrigin = process.env.SCHOOLING_PUBLISHED_ORIGIN;
@@ -78,7 +83,7 @@ try {
       return route.fulfill({ status: 503, json: { ok: false, error: 'Demora sintética de la ficha anterior' } });
     }
     if (u.pathname === '/api/internal-family-certificates') {
-      assert.equal(u.searchParams.get('version'), ['report','family'].includes(resource) ? '4' : '3', 'UNIFIED_API_VERSION_REQUIRED');
+      assert.equal(u.searchParams.get('version'), ['report','family'].includes(resource) ? '5' : '3', 'UNIFIED_API_VERSION_REQUIRED');
       if (resource === 'download') downloadRequests++;
       if (request.method() === 'POST') {
         const body = request.postDataJSON(), key = request.headers()['idempotency-key']; posts.push({ body, key });
@@ -115,10 +120,12 @@ try {
       return route.fulfill({ status: 200, json: payload });
     }
     if (u.pathname === '/api/internal-family-members') {
+      assert.equal(u.searchParams.get('version'), '2');
       if (request.method() === 'GET') {
+        if (resource === 'attempt') { const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}}); }
         assert.equal(resource, 'context');
         const subjectEmployee = u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee;
-        return route.fulfill({ status: 200, json: { ok: true, data: { version: 'employee-family-context.v1', canDeclare,
+        return route.fulfill({ status: 200, json: { ok: true, data: { version: 'employee-family-context.v2', canDeclare,
           subject: { contractId: subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
             sourceCutoff: '2026-08-06T18:15:21Z', identityToken: contractToken } } } });
       }
@@ -136,7 +143,7 @@ try {
         birthDate: body.birthDate, validFrom: body.validFrom, familyEndDate: body.validTo, familyRecordedAt: recordedAt, declarationState: 'declared',
         identityReviewRequired: false, identityToken, certificate: null, historyCount: 0, sourceSchooling: null, effectiveDates:{origin:"none",presentedOn:null,expiresOn:null} };
       dataset.data.rows.push(row);
-      const result = { version: 'employee-family-declare.v1', familyRef: ref, identityToken, recordedAt, state: 'declared', duplicate: false };
+      const result = { version: 'employee-family-declare.v2', contractId:body.contractId, contractIdentityToken:body.contractIdentityToken, familyRef: ref, identityToken, recordedAt, state: 'declared', duplicate: false };
       declaredByKey.set(key, { body, result });
       if (dropChildAck) { dropChildAck = false; return route.abort('timedout'); }
       return route.fulfill({ status: 201, json: { ok: true, data: result } });
@@ -147,7 +154,8 @@ try {
       if (authDenied) return route.fulfill({ status: 401, json: { ok: false, authenticated: false } });
       payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' },
         access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read', ...(proposeCapability ? ['employee.record.propose'] : []), ...(payrollAccess ? ['payroll.read'] : [])], platformCapabilities: [], platformRoles: [] } };
-    } else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
+    } else if (resource === 'payrollControl') payload = {ok:true,status:'ready',sourcePolicy:{label:'QA sintética'},latestClosed:{},currentOpen:{},runs:[],quality:{},limitations:['Datos sintéticos para verificar la navegación']};
+    else if (resource === 'employees') payload = { ok: true, data: alternateEmployee ? [employee, secondEmployee] : [employee], pagination: { page: 1, limit: 25, total: alternateEmployee ? 2 : 1, pages: 1 },
       scope: { totalContracts: 1, totalPeople: 1, matched: 1, ambiguous: 0, unmatched: 0 }, facets: { sectors: [], organizations: [], agreements: [] } };
     else if (resource === 'employee') payload = { ok: true, data: { ...(alternateEmployee && u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee), ...(wrongEmployee ? { contractId: syntheticUuid(2) } : {}), employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [], personas: { available: false } }, meta: {} };
     return route.fulfill({ status: 200, json: payload });
@@ -273,7 +281,10 @@ try {
   await page.emulateMedia({ media: 'screen', reducedMotion: 'reduce' });
   checks.push('printing at mobile width retains the tabular report with its visible header');
   await page.setViewportSize({ width: 1440, height: 1050 }); await report.locator('[data-fs-reset]').click();
-  const beforeChanged = downloads.length; dataset.data.rows[0].sourceCutoff = '2026-08-06T19:15:21Z'; dataset.data.rows[0].sourceSchooling.sourceCutoff=dataset.data.rows[0].sourceCutoff;
+  const beforeChanged = downloads.length;
+  for (const row of dataset.data.rows.filter(r => r.contractId === dataset.data.rows[0].contractId)) {
+    row.sourceCutoff = '2026-08-06T19:15:21Z'; if (row.sourceSchooling) row.sourceSchooling.sourceCutoff = row.sourceCutoff;
+  }
   await report.locator('[data-fs-export]').click(); await page.waitForFunction(() => document.querySelector('[data-fs-status]')?.textContent.includes('Los datos cambiaron'));
   assert.equal(downloads.length, beforeChanged); assert.equal(await report.locator('tbody tr').count(), 0); checks.push('same-day source timestamp change cancels export and clears obsolete rows');
   await consulted(); let release; delayReport = new Promise(resolve => release = resolve); const priorRequests = reportRequests, priorDownloads = downloads.length;
@@ -488,7 +499,9 @@ try {
   assert.equal(await childField('birthDate').inputValue(), '');
   const attempt = declarations.at(-1);
   assert.deepEqual([attempt.body.birthDate,attempt.body.dni,attempt.body.validFrom,attempt.body.validTo], [null,null,null,null]);
-  assert.match(await childStatus.innerText(), /formulario permanece abierto/);
+  assert.match(await childStatus.innerText(), /mismo envío sin cambios/);
+  assert.equal(await childField('familyName').isDisabled(), true);
+  assert.equal(await family.locator('[data-fs-child-cancel]').isDisabled(), true);
   await childSubmit.click(); await savedOrFailed();
   assert.equal(declarations.at(-1).key, attempt.key); assert.deepEqual(declarations.at(-1).body, attempt.body);
   assert.equal(dataset.data.rows.filter(r => r.familyRef.kind === 'own').length, 1);
@@ -656,8 +669,8 @@ try {
   const completePath=path.join(out,'schooling-record-complete-synthetic.xlsx'); await (await completeEvent).saveAs(completePath);
   const completeZip=unzipSync(fs.readFileSync(completePath)), completeSheet=strFromU8(completeZip['xl/worksheets/sheet1.xml']);
   assert.match(completeSheet,/Propuesta conservada/); assert.match(completeSheet,/Presentación en papel declarada/); assert.match(completeSheet,/Ciclo lectivo informado/);
-  assert.match(completeSheet,/<autoFilter ref="A1:AH2"/); assert.doesNotMatch(completeSheet,/<f>/);
-  checks.push('the complete filtered Excel carries the latest schooling record, declared-paper provenance and 34 valid column references without formulas');
+  assert.match(completeSheet,/<autoFilter ref="A1:AL2"/); assert.doesNotMatch(completeSheet,/<f>/);
+  checks.push('the complete filtered Excel carries the latest schooling record, declared-paper provenance and 38 valid column references without formulas');
   await page.goto(origin+'/personal?contractId='+syntheticUuid(1)+'&section=family#legajos'); await familyReady();
   await paperEditor(); postError={status:503,code:'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE'};
   await family.locator('[data-fs-save]').click(); await savedOrFailed();

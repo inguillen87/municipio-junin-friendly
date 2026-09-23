@@ -131,6 +131,28 @@ export function schoolingRegistrationResult(payload) {
   return Object.freeze({ ...d });
 }
 export function schoolingData(payload, { resource = 'report', contractId, version = 1 } = {}) {
+  if (version === 5) {
+    const d = payload?.data;
+    if (payload?.ok !== true || d?.version !== 'family-schooling.v5' || !Array.isArray(d.rows) || d.rows.length > MAX_SCHOOLING_ROWS) fail();
+    const origins = new Map(), contracts = new Map();
+    const rows = d.rows.map(r => {
+      if (!plain(r) || !['GRH', 'MUNICONTROL'].includes(r.employeeOrigin)) fail();
+      const { employeeOrigin, nativeRegistrationId, nativeRegisteredAt, ...base } = r;
+      const ref = familyReference(r.familyRef);
+      if (employeeOrigin === 'MUNICONTROL') {
+        if (!generatedUuid(nativeRegistrationId) || nativeRegisteredAt === null || ref.kind !== 'own'
+          || r.sourceCutoff !== null || r.sourceSchooling !== null) fail();
+        instant(nativeRegisteredAt);
+      } else if (nativeRegistrationId !== null || nativeRegisteredAt !== null) fail();
+      const identity = JSON.stringify([r.employeeOrigin, r.nativeRegistrationId, r.nativeRegisteredAt, r.legajo, r.employeeName, r.sourceCutoff, r.administrativeActive]);
+      if (contracts.has(r.contractId) && contracts.get(r.contractId) !== identity) fail();
+      contracts.set(r.contractId, identity);
+      origins.set(r.contractId + ':' + ref.kind + ':' + ref.id, Object.freeze({ employeeOrigin, nativeRegistrationId, nativeRegisteredAt }));
+      return base;
+    });
+    const verified = schoolingData({ ok: true, data: { ...d, version: 'family-schooling.v4', rows } }, { resource, contractId, version: 4 });
+    return Object.freeze({ ...verified, version: d.version, rows: Object.freeze(verified.rows.map(row => Object.freeze({ ...row, ...origins.get(row.key) }))) });
+  }
   const d = payload?.data;
   if (version === 4) {
     if (payload?.ok !== true || d?.version !== 'family-schooling.v4' || !Array.isArray(d.rows) || d.rows.length > MAX_SCHOOLING_ROWS) fail();
@@ -263,7 +285,7 @@ export function schoolingFilter(data, { search = '', status = 'all', asOf = curr
   return { rows, filters: { search: search.trim(), status, asOf }, counts: {
     contracts: new Set(rows.map(r => r.contractId)).size, children: rows.filter(r => !r.identityReviewRequired).length,
     registered: rows.filter(r => r.certificate).length, unregistered: rows.filter(r => !r.certificate).length,
-    ...(['family-schooling.v2', 'family-schooling.v3', 'family-schooling.v4'].includes(data.version) ? { review: rows.filter(r => r.identityReviewRequired).length, records: rows.length } : {}),
+    ...(['family-schooling.v2', 'family-schooling.v3', 'family-schooling.v4', 'family-schooling.v5'].includes(data.version) ? { review: rows.filter(r => r.identityReviewRequired).length, records: rows.length } : {}),
   } };
 }
 // Capacity and registration permission do not change the report rows. The fresh
@@ -282,13 +304,19 @@ export function certificateDates(presentedOn, expiresOn) {
   } catch { throw Error('Ingresá una fecha de presentación válida. El vencimiento es opcional.'); }
 }
 
-export function familyContextData(payload, contractId) {
+export function familyContextData(payload, contractId, { version = 1 } = {}) {
   const d = payload?.data, s = d?.subject;
-  if (payload?.ok !== true || d?.version !== 'employee-family-context.v1' || typeof d.canDeclare !== 'boolean'
+  if (payload?.ok !== true || ![1, 2].includes(version) || d?.version !== 'employee-family-context.v' + version || typeof d.canDeclare !== 'boolean'
     || !s || s.contractId !== contractId || !uuid.test(s.contractId) || !hash.test(s.identityToken)
-    || !text(s.legajo, 64) || !s.legajo || s.employeeName !== null && !text(s.employeeName)
-    || Object.keys(s).sort().join(',') !== 'contractId,employeeName,identityToken,legajo,sourceCutoff') fail();
-  return Object.freeze({ canDeclare: d.canDeclare, subject: Object.freeze({ ...s, sourceCutoff: instant(s.sourceCutoff) }) });
+    || !text(s.legajo, 64) || !s.legajo || s.employeeName !== null && !text(s.employeeName)) fail();
+  const keys = ['contractId', 'employeeName', 'identityToken', 'legajo', 'sourceCutoff'];
+  if (version === 2 && !exact(d, ['version', 'subject', 'canDeclare'])) fail();
+  if (version === 2 && s.origin === 'MUNICONTROL') {
+    if (!exact(s, [...keys, 'origin', 'registrationId', 'registeredAt']) || s.sourceCutoff !== null
+      || !generatedUuid(s.registrationId) || !/^(?:0|[1-9]\d{0,19})$/.test(s.legajo)) fail();
+    instant(s.registeredAt);
+  } else { if (!exact(s, keys)) fail(); instant(s.sourceCutoff); }
+  return Object.freeze({ canDeclare: d.canDeclare, subject: Object.freeze({ ...s }) });
 }
 export function familyDeclarationFields(fields) {
   const familyName = String(fields.familyName ?? '').normalize('NFC').trim().replace(/\s+/gu, ' ');
@@ -308,9 +336,12 @@ export function familyDeclarationFields(fields) {
   }
   return { familyName, birthDate: dates.birthDate, dni, validFrom: dates.validFrom, validTo: dates.validTo };
 }
-export function familyDeclarationResult(payload) {
+export function familyDeclarationResult(payload, { version = 1, contractId, contractIdentityToken } = {}) {
   const d = payload?.data;
-  if (payload?.ok !== true || !d || d.version !== 'employee-family-declare.v1' || d.state !== 'declared'
+  if (payload?.ok !== true || !d || ![1, 2].includes(version) || d.version !== 'employee-family-declare.v' + version || d.state !== 'declared'
     || !hash.test(d.identityToken) || typeof d.duplicate !== 'boolean' || d.familyRef?.kind !== 'own') throw Error('No se pudo confirmar el alta. Reintentá con los mismos datos para verificarla.');
+  if (version === 2 && (!exact(d, ['version', 'contractId', 'contractIdentityToken', 'familyRef', 'identityToken', 'state', 'recordedAt', 'duplicate'])
+    || !uuid.test(d.contractId) || !hash.test(d.contractIdentityToken)
+    || contractId !== undefined && d.contractId !== contractId || contractIdentityToken !== undefined && d.contractIdentityToken !== contractIdentityToken)) fail();
   return Object.freeze({ ...d, familyRef: familyReference(d.familyRef), recordedAt: instant(d.recordedAt) });
 }

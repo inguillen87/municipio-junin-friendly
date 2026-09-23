@@ -1,8 +1,15 @@
 name: Novelty batch controls
 on:
   push:
-    branches: ['codex/novelty-batch-controls-20260919', 'master']
+    branches: ['codex/novelty-batch-controls-20260919', 'internal-native-family-schooling-20260922', 'master']
     paths:
+      - 'novedades-nomina.html'
+      - 'assets/payroll-novelty-workbench.js'
+      - 'assets/payroll-native-monthly-model.js'
+      - 'assets/internal-capability-gate.js'
+      - 'assets/app-routes.js'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/lib/published-build-verification.mjs'
       - 'assets/payroll-novelty-review*'
       - 'tests/novelty-batch-control.test.js'
       - 'scripts/verify-novelty-batch-controls.mjs'

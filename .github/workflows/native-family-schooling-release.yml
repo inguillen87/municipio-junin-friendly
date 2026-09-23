@@ -1,0 +1,100 @@
+name: Native family schooling release
+on:
+  push:
+    branches: ['internal-native-family-schooling-20260922', 'master']
+    paths:
+      - 'api/internal-family-*.js'
+      - 'lib/internal-family-*.js'
+      - 'assets/family-schooling*'
+      - 'assets/native-employee-create.js'
+      - 'internal-dashboard.html'
+      - 'scripts/migrations/102-*'
+      - 'scripts/verify-native-family-schooling*.mjs'
+      - 'scripts/verify-family-schooling*.mjs'
+      - 'tests/*family*'
+      - 'tests/*schooling*'
+      - 'tests/fixtures/*family*'
+      - 'scripts/build-friendly.mjs'
+      - '.vercelignore'
+      - '.github/workflows/native-family-schooling-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-family-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-native-family-schooling-browser.mjs
+      - run: node scripts/verify-family-schooling-browser.mjs
+      - run: node scripts/verify-native-employee-browser.mjs
+      - run: node scripts/verify-native-monthly-novelties-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-family-browser-${{ github.run_id }}
+          path: verification/native-family-schooling-local/**
+          retention-days: 3
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: native_family_schooling_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: native_family_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_family_schooling_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:native_family_qa_only@127.0.0.1:5432/native_family_schooling_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-native-family-schooling-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/native-family.sql --write-lock-sql=verification/native-family-lock.sql
+      - name: Real PostgreSQL rules and independent command lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-family-lock.sql > verification/native-family-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'FIXED_NOVELTIES_QA_LOCK_READY' verification/native-family-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/native-family-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-family.sql
+          wait "$blocker"
+          trap - EXIT

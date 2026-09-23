@@ -30,8 +30,8 @@ while (Date.now()<deadline) {
   await new Promise(resolve=>setTimeout(resolve,5000));
 }
 if (!ready) throw Error('SCHOOLING_PUBLISHED_ASSET_MISMATCH');
-async function privateCheck(query, options, requiredStatus) {
-  const response = await fetch(origin+'/api/internal-family-certificates'+query, {...options,credentials:'omit',cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(15000)});
+async function privateCheck(query, options, requiredStatus, endpoint = '/api/internal-family-certificates') {
+  const response = await fetch(origin+endpoint+query, {...options,credentials:'omit',cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(15000)});
   if (requiredStatus ? response.status !== requiredStatus : ![401,403].includes(response.status)) throw Error('SCHOOLING_ANONYMOUS_ACCESS_NOT_DENIED');
   if (!/no-store/.test(response.headers.get('cache-control') || '')) throw Error('SCHOOLING_PRIVATE_CACHE_HEADERS_MISSING');
   return response.status;
@@ -46,6 +46,11 @@ const statuses = {
   anonymousV3Upload:await privateCheck('?version=3',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}),
   anonymousV4Report:await privateCheck('?resource=report&version=4',undefined,401),
   anonymousV4Family:await privateCheck('?resource=family&version=4&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,401),
+  anonymousV5Report:await privateCheck('?resource=report&version=5',undefined,401),
+  anonymousV5Family:await privateCheck('?resource=family&version=5&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,401),
+  anonymousNativeFamilyContext:await privateCheck('?resource=context&version=2&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,401,'/api/internal-family-members'),
+  anonymousNativeFamilyAttempt:await privateCheck('?resource=attempt&version=2&key=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,401,'/api/internal-family-members'),
+  invalidNativeFamilyVersion:await privateCheck('?resource=context&version=3&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',undefined,400,'/api/internal-family-members'),
 };
 fs.mkdirSync('verification',{recursive:true});
 const result = {commit,checkedAt:new Date().toISOString(),origin,publishedAssetsMatch:true,expected,statuses,

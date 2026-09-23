@@ -6,21 +6,49 @@ import {createHash} from 'node:crypto';
 import {setTimeout as sleep} from 'node:timers/promises';
 import {chromium} from 'playwright';
 import {NOVELTY_CSV_HEADER, noveltyBatchControl} from '../assets/payroll-novelty-review.js';
+import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 const live=process.argv.includes('--published');
 const origin=live?'https://municipio-junin-friendly.vercel.app':'https://municontrol.test';
 const root=path.resolve('public'),out='verification/novelty-batch-controls-'+(live?'published':'local');
 fs.mkdirSync(out,{recursive:true});
-const checks=[],errors=[],posts=[];
-const files=['assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css'];
+const checks=[],errors=[],posts=[],assetFailures=[];
+const build=publishedBuildVerification({origin,root,release:process.env.GITHUB_SHA||'batch-controls'});
+const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+// Pin the actual page and its literal dependency closure, not only the review
+// widget that can remain unchanged while the bootstrap contract advances.
+const expected=new Map(),queue=['novedades-nomina.html'];
+while(queue.length){
+ const file=queue.shift();if(expected.has(file))continue;
+ assert.ok(expected.size<96,'Unexpected page dependency count');
+ const bytes=fs.readFileSync(path.join(root,file));expected.set(file,hash(bytes));
+ const source=bytes.toString('utf8'),refs=[];
+ if(file.endsWith('.html'))for(const tag of source.matchAll(/<(?:script|link|img)\b[^>]*>/gi)){
+  const ref=/\b(?:src|href)=["']([^"']+)["']/i.exec(tag[0])?.[1];if(ref)refs.push(ref);
+ }
+ if(file.endsWith('.js'))for(const match of source.matchAll(/\b(?:import|export)\s+(?:[^;]*?\s+from\s*)?["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']/g))refs.push(match[1]||match[2]);
+ if(file.endsWith('.css'))for(const match of source.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)|@import\s+["']([^"']+)["']/g))refs.push(match[1]||match[2]);
+ for(const ref of refs){
+  if(ref.startsWith('data:')||ref.startsWith('#'))continue;
+  const target=new URL(ref,origin+'/'+file);assert.equal(target.origin,origin,'External page dependency');
+  const next=decodeURIComponent(target.pathname).slice(1);assert.ok(/^[a-zA-Z0-9_./-]+$/.test(next)&&!next.split('/').includes('..'),'Unsafe dependency');queue.push(next);
+ }
+}
+for(const file of ['assets/payroll-novelty-workbench.js','assets/payroll-native-monthly-model.js','assets/internal-capability-gate.js'])assert.ok(expected.has(file),'Required page dependency missing: '+file);
+const publication={comparison:'exact-bytes',assets:Object.fromEntries(expected),attempts:0,matched:!live};
 if(live){
-  const hash=bytes=>createHash('sha256').update(bytes).digest('hex');let matched=false;
-  for(let i=0;i<90;i++){
-    try{for(const file of files){const r=await fetch(origin+'/'+file,{cache:'no-store',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200);assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(fs.readFileSync(path.join(root,file))));}matched=true;break;}
-    catch{if(i<89)await sleep(5000);}
-  }
-  assert.ok(matched,'Published assets must match the tested revision');
-  const response=await fetch(origin+'/api/internal-payroll-novelties?resource=bootstrap',{signal:AbortSignal.timeout(15000)});
-  assert.equal(response.status,401);checks.push('published bytes match and anonymous novelty API is rejected');
+ for(let i=0;i<90;i++){
+  const failures=[];
+  await Promise.all([...expected].map(async([file,sha256])=>{
+   try{const response=await build.fetchFile(file,15000);const actual=hash(Buffer.from(await response.arrayBuffer()));if(response.status!==200||actual!==sha256)failures.push({file,status:response.status,expectedSha256:sha256,actualSha256:actual});}
+   catch{failures.push({file,error:'PUBLICATION_GET_FAILED'});}
+  }));
+  publication.attempts=i+1;publication.matched=failures.length===0;publication.failures=failures;
+  fs.writeFileSync(out+'/publication.json',JSON.stringify(publication,null,2));
+  if(publication.matched)break;if(i<89)await sleep(5000);
+ }
+ assert.ok(publication.matched,'Published page and dependencies must match the tested revision; see publication.json');
+ const response=await fetch(origin+'/api/internal-payroll-novelties?resource=bootstrap&version=2',{redirect:'error',signal:AbortSignal.timeout(15000)});
+ assert.equal(response.status,401);checks.push('published page and complete dependency bytes match; anonymous v2 novelty API is rejected');
 }
 let canPrepare=true,rejectNext=false;
 const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',certifiedBindingId:'00000000-0000-4000-8000-000000000004',capabilities:canPrepare?['payroll.novelty.prepare']:[]},
@@ -44,14 +72,22 @@ try{
    if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare'],platformCapabilities:[],platformRoles:[]}}});
    return route.fulfill({json:{ok:true,data:[]}});
   }
-  if(live)return route.continue();
+  if(live){
+   if(request.method()!=='GET')return route.abort();
+   const file=u.pathname===build.url('novedades-nomina.html').pathname?'novedades-nomina.html':u.pathname.slice(1);
+   if(!expected.has(file))return route.continue();
+   try{const response=await route.fetch({maxRedirects:0}),body=await response.body(),actualSha256=hash(body);
+    if(response.status()!==200||actualSha256!==expected.get(file)){assetFailures.push({file,status:response.status(),expectedSha256:expected.get(file),actualSha256});return route.abort();}
+    return route.fulfill({response,body});
+   }catch{assetFailures.push({file,error:'BROWSER_ASSET_GET_FAILED'});return route.abort();}
+  }
   const file=path.resolve(root,'.'+decodeURIComponent(u.pathname));
   if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
   return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream'});
  });
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const preview=page.locator('#previewPanel'),table=page.locator('#previewRows');
- await page.goto(origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
  await page.locator('#periodMonth').fill('2026-09');await page.locator('[name=sourceMode][value=bulk]').check();
  const validate=async()=>{await page.locator('#bulkSource').fill(csv);await page.locator('#preflightButton').click();await preview.waitFor({state:'visible'});};
  await validate();assert.equal(posts.length,0);assert.equal(await table.locator('[data-review-row]').count(),25);
@@ -82,8 +118,8 @@ try{
  await validate();await page.locator('#bulkSource').fill('invalid');assert.equal(await page.locator('#reviewConceptRows tr').count(),0);assert.equal(await page.locator('#reviewValuation').innerText(),'');assert.equal(await page.locator('#reviewConcept option').count(),0);
  checks.push('editing the source purges summary, concept choices and the previous validated snapshot');
  await validate();canPrepare=false;await page.locator('#refreshButton').click();await page.locator('#readOnlySection:visible').waitFor();assert.equal(await page.locator('#reviewConceptRows tr').count(),0);assert.equal(await page.locator('#reviewValuation').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
- checks.push('revoking preparation rights clears the controls together with the existing draft');assert.deepEqual(errors,[]);
- const report={ok:true,checksPassed:checks.length,checks,liveAssets:live,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,realMunicipalWrites:0,realMunicipalSessionTested:false};
+ checks.push('revoking preparation rights clears the controls together with the existing draft');assert.deepEqual(errors,[]);assert.deepEqual(assetFailures,[]);
+ const report={ok:true,checksPassed:checks.length,checks,liveAssets:live,publication,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,realMunicipalWrites:0,realMunicipalSessionTested:false};
  fs.writeFileSync(out+'/result.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
-}catch(e){fs.writeFileSync(out+'/error.txt',String(e.stack));if(page)await page.screenshot({path:out+'/failure.png'}).catch(()=>{});throw e;}
+}catch(e){const diagnostic={checks,errors,assetFailures,publication,page:page?await page.evaluate(()=>({path:location.pathname,entryHidden:document.getElementById('entrySection')?.hidden,message:document.getElementById('messageHost')?.textContent})).catch(()=>null):null};fs.writeFileSync(out+'/failure.json',JSON.stringify(diagnostic,null,2));fs.writeFileSync(out+'/error.txt',String(e.stack));if(page)await page.screenshot({path:out+'/failure.png'}).catch(()=>{});throw e;}
 finally{await browser.close();}

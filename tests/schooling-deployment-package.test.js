@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {buildSchoolingSourceQa} from '../scripts/verify-schooling-source-recovery-sql.mjs';
 
 const ignore=fs.readFileSync('.vercelignore','utf8').split(/\r?\n/);
-const migrations=['002-canonical-integration.sql','007-action-center-read-facades.sql','057-family-schooling-certificates.sql','064-employee-family-members.sql','091-schooling-administrative-records.sql','094-schooling-source-recovery.sql'];
+const migrations=['002-canonical-integration.sql','007-action-center-read-facades.sql','057-family-schooling-certificates.sql','064-employee-family-members.sql','091-schooling-administrative-records.sql','094-schooling-source-recovery.sql','102-native-family-schooling.sql'];
 for(const name of migrations)test('schooling deployment preserves actual QA SQL dependency '+name,()=>{
  const file='scripts/migrations/'+name;assert.ok(fs.statSync(file).isFile());assert.ok(ignore.lastIndexOf('!'+file)>ignore.lastIndexOf('*.sql'),'Schema dependency excluded from Vercel build: '+file);
 });

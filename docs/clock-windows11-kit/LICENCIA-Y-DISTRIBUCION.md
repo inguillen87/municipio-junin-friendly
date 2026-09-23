@@ -1,0 +1,15 @@
+# Licencia y alcance de distribución
+
+El código de los agentes existentes declara **GPL-2.0-only**. La licencia completa se conserva en `app/pm10/LICENSE`; los avisos de los archivos y referencias de implementación permanecen intactos. El ZIP incluye los módulos fuente ejecutables y sus instaladores, no un binario cerrado del lector.
+
+La GPL permite cobrar por distribuir copias y por servicios, cumpliendo sus condiciones; no autoriza a retirar la licencia o impedir a los destinatarios los derechos que concede. Ver el texto oficial: https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html y las aclaraciones de GNU: https://www.gnu.org/licenses/gpl-faq.html . Este kit no sustituye una revisión de titularidad, avisos y obligaciones de un producto comercial completo.
+
+La documentación del lector identifica un piloto de partida aportado al proyecto y referencias comunitarias de pyzk y zk-protocol. Se conserva en `app/pm10/reader/REFERENCIAS.md`. No se ha comprobado aquí una cadena de cesiones de todos los autores del piloto ni derechos de marca del fabricante. No se declara homologación del fabricante, propiedad exclusiva de todo el código ni autorización para relicenciarlo como propietario.
+
+**Esta edición no es un producto genérico listo para otros municipios.** El código heredado conserva la identidad/dirección predeterminada de PM10, un prefijo de red municipal, zona horaria y destinos HTTPS específicos. Se dejan intactos para preservar su comportamiento y los límites del lector; no se copian archivos privados de la instalación. El ZIP no incluye personas, fichadas, nómina, copias de base, credenciales de relojes, tokens ni conexiones PostgreSQL, pero sí contiene esas constantes de despliegue presentes en las fuentes. No presentar el paquete como anónimo o neutral entre clientes.
+
+Antes de distribuirlo comercialmente a terceros hay trabajo pendiente: revisar titularidad y licencias; separar configuración de cada cliente de las constantes compiladas mediante una versión probada; crear infraestructura y enrolamiento propios bajo contratos/permisos válidos; emitir secretos nuevos por instalación; validar dispositivos/firmwares compatibles; documentar soporte, actualizaciones, retención y aceptación. **No reutilizar el endpoint, tenant, conectores, series o credenciales municipales de esta instalación para otro cliente.** No modificar aquí los filtros de seguridad para simular esa adaptación.
+
+Node.js no está incluido y mantiene su licencia y avisos propios. Se obtiene del sitio oficial https://nodejs.org/en/download . Vercel y Neon son servicios independientes, con condiciones, cuotas y facturación propias; este ZIP no entrega cuentas, licencias de esos servicios ni garantiza planes gratuitos perpetuos.
+
+Los documentos adicionales de este kit se entregan junto al lector con el mismo aviso GPL-2.0-only, sin ampliar derechos de terceros ni incorporar datos de la institución. El manifiesto separa el commit del software existente y la documentación preparada localmente para esta entrega.

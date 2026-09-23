@@ -252,3 +252,4 @@ local-agents/
 
 # Native monthly novelty contract and rollback-only SQL release fixtures.
 !scripts/migrations/101-native-monthly-novelties.sql
+!scripts/migrations/102-native-family-schooling.sql

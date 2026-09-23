@@ -5,7 +5,7 @@ import { schoolCertificateHttp } from './internal-family-certificates.js';
 import { schoolCertificateFail, schoolCertificateUuid, schoolCertificateContractId } from '../lib/internal-family-certificates.js';
 import {
   EMPLOYEE_FAMILY_MAX_BODY_BYTES, employeeFamilySafeError, prepareEmployeeFamily,
-  readEmployeeFamilyContext, declareEmployeeFamily,
+  readEmployeeFamilyContext, declareEmployeeFamily, readEmployeeFamilyAttempt,
 } from '../lib/internal-family-members.js';
 
 export const config = { api: { bodyParser: false } };
@@ -21,8 +21,15 @@ function query(req, method) {
     if (seen.size !== Object.keys(values).length) schoolCertificateFail('QUERY_INVALID');
   }
   if (method === 'POST') {
-    if (Object.keys(values).length) schoolCertificateFail('QUERY_INVALID');
-  } else if (Object.keys(values).length !== 2 || values.resource !== 'context' || !schoolCertificateContractId(values.contractId)) schoolCertificateFail('QUERY_INVALID');
+    if (Object.keys(values).some(key => key !== 'version') || Object.hasOwn(values, 'version') && values.version !== '2') schoolCertificateFail('QUERY_INVALID');
+  } else {
+    const versioned = Object.hasOwn(values, 'version');
+    if (versioned && values.version !== '2') schoolCertificateFail('QUERY_INVALID');
+    const attempt = values.resource === 'attempt' && versioned;
+    const fields = ['resource', attempt ? 'key' : 'contractId', ...(versioned ? ['version'] : [])];
+    if ((!attempt && values.resource !== 'context') || Object.keys(values).length !== fields.length || Object.keys(values).some(key => !fields.includes(key))
+      || !(attempt ? schoolCertificateUuid(values.key) : schoolCertificateContractId(values.contractId))) schoolCertificateFail('QUERY_INVALID');
+  }
   return values;
 }
 export function createInternalFamilyMembersHandler(dependencies = {}) {
@@ -41,7 +48,7 @@ export function createInternalFamilyMembersHandler(dependencies = {}) {
         if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(schoolCertificateHttp.header(req, 'content-type'))) schoolCertificateFail('CONTENT_TYPE_REQUIRED');
         schoolCertificateHttp.checkLength(req, EMPLOYEE_FAMILY_MAX_BODY_BYTES);
       }
-      const requiredCapabilities = ['workforce.employee.read', ...(method === 'POST' ? ['employee.record.propose'] : [])];
+      const requiredCapabilities = ['workforce.employee.read', ...(method === 'POST' || q.resource === 'attempt' ? ['employee.record.propose'] : [])];
       const access = await accessFn(req, res, { env, requiredCapabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
       if (!access) return undefined;
       if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership'
@@ -54,12 +61,17 @@ export function createInternalFamilyMembersHandler(dependencies = {}) {
         if (!schoolCertificateUuid(key)) schoolCertificateFail('IDEMPOTENCY_KEY_INVALID');
         const payload = prepareEmployeeFamily(await schoolCertificateHttp.readBody(req, EMPLOYEE_FAMILY_MAX_BODY_BYTES));
         const sql = await sqlFn(env);
-        const data = await declareEmployeeFamily(sql, access.principal, session, payload, key);
+        const data = await declareEmployeeFamily(sql, access.principal, session, payload, key, { version: q.version === '2' ? 2 : 1 });
         if (data.duplicate) res.setHeader('Idempotency-Replayed', 'true');
         return res.status(data.duplicate ? 200 : 201).json({ ok: true, data });
       }
       const sql = await sqlFn(env);
-      const data = await readEmployeeFamilyContext(sql, access.principal, session, q.contractId);
+      if (q.resource === 'attempt') {
+        const data = await readEmployeeFamilyAttempt(sql, access.principal, session, q.key);
+        res.setHeader('Idempotency-Replayed', 'true');
+        return res.status(200).json({ ok: true, data });
+      }
+      const data = await readEmployeeFamilyContext(sql, access.principal, session, q.contractId, { version: q.version === '2' ? 2 : 1 });
       data.canDeclare = data.canDeclare && principalHasCapabilities(access.principal, ['employee.record.propose']);
       return res.status(200).json({ ok: true, data });
     } catch (error) {

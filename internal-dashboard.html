@@ -2671,7 +2671,7 @@
             const actions = create('div', 'cell-stack');
             if (legajo) {
               actions.append(detailButton('Ver ficha', employee, 'button'));
-              if(employee.recordOrigin !== 'MUNICONTROL') actions.append(detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
+              actions.append(detailButton('Hijos y certificados', employee, 'button', { section: 'family' }));
             } else actions.append(create('span', 'cell-muted', 'No disponible'));
             appendCell(row, 'Acciones', actions);
             els.employeeRows.appendChild(row);
@@ -3370,6 +3370,7 @@
           });
         }).catch(function () { if (certificateHost.isConnected) certificateHost.textContent = 'No se pudo abrir la carga de certificados. Cerrá y abrí nuevamente la ficha.'; });
         else certificateHost.textContent = 'Esta ficha no incluye la referencia del legajo necesaria para consultar o cargar certificados.';
+        if (detail.employee.recordOrigin === 'MUNICONTROL') return section;
         const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
         const received = detail.family.length;
         const sourceDetails = create('details', 'fs-source-history');
@@ -3677,6 +3678,9 @@
           els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
             detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
           ]));
+          const nativeFamilySection = renderFamilySection(detail, destination);
+          els.dialogBody.appendChild(nativeFamilySection);
+          if (destination.section === 'family') focusFamilySection(nativeFamilySection.querySelector('#employeeFamilyTitle'));
           return;
         }
 
