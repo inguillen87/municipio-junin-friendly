@@ -1,8 +1,14 @@
 name: Noelia data and UX validation
 on:
   push:
-    branches: ['work/noelia-data-ux-20260923']
+    branches: ['work/noelia-data-ux-20260923', 'master']
     paths:
+      - 'assets/payroll-document-library*'
+      - 'assets/payroll-detail-panel.js'
+      - 'scripts/verify-document-library-pagination.mjs'
+      - 'tests/payroll-document-library-pagination.test.js'
+      - 'scripts/lib/grh-source-profiles.json'
+      - 'tests/grh-source-profile-20260922.test.js'
       - '.github/workflows/noelia-data-ux-validation.yml'
   workflow_dispatch:
 permissions:
@@ -11,31 +17,37 @@ concurrency:
   group: noelia-data-ux-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  baseline:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Capture reproducible offline engineering workspace
+      - name: Full tests and build
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p verification/offline-workspace
-          git archive --format=tar.gz HEAD > verification/offline-workspace/source.tar.gz
-          tar -czf verification/offline-workspace/dependencies.tar.gz node_modules
-          git rev-parse HEAD > verification/offline-workspace/commit.txt
-          sha256sum verification/offline-workspace/*.tar.gz > verification/offline-workspace/SHA256SUMS
+          mkdir -p verification/noelia-data-ux
+          npm run build 2>&1 | tee verification/noelia-data-ux/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Paged library, refresh and stale response regressions
+        run: node scripts/verify-document-library-pagination.mjs
+      - name: Existing document and download workflows
+        run: node scripts/verify-payroll-document-library-browser.mjs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: noelia-offline-workspace-${{ github.run_id }}
-          path: verification/offline-workspace/
-          retention-days: 1
-      - name: Verify baseline without production credentials
-        run: npm run build
+          name: noelia-data-ux-${{ github.run_id }}
+          path: |
+            verification/noelia-data-ux/
+            verification/document-library-pagination/
+            verification/document-library-browser.json
+            verification/document-library-*-qa.png
+            verification/library-vacation-synthetic.*
+          retention-days: 5

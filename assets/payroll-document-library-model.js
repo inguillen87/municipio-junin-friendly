@@ -22,3 +22,19 @@ export function filterDocumentLibrary(library,{year='',month='',type=''}={}){
  if(type!==''&&!/^[A-Z]$/.test(type))throw Error('DOCUMENT_TYPE_INVALID');
  return library.items.filter(r=>(year===''||r.sourcePeriod===Number(year))&&(month===''||r.sourceMonth===Number(month))&&(type===''||r.payrollType===type));
 }
+
+/** Bound DOM work, not data coverage: all received metadata stays filterable. */
+export const DOCUMENT_PAGE_SIZE = 24;
+export function documentLibraryPage(library, filters = {}, requestedPage = 1) {
+ if (!Number.isSafeInteger(requestedPage) || requestedPage < 1) throw Error('DOCUMENT_PAGE_INVALID');
+ const matches = filterDocumentLibrary(library, filters);
+ const pages = Math.max(1, Math.ceil(matches.length / DOCUMENT_PAGE_SIZE));
+ const page = Math.min(requestedPage, pages);
+ const offset = (page - 1) * DOCUMENT_PAGE_SIZE;
+ return Object.freeze({
+  items: Object.freeze(matches.slice(offset, offset + DOCUMENT_PAGE_SIZE)),
+  total: matches.length, page, pages,
+  from: matches.length ? offset + 1 : 0,
+  to: Math.min(offset + DOCUMENT_PAGE_SIZE, matches.length),
+ });
+}
