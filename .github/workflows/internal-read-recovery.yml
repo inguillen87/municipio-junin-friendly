@@ -1,0 +1,73 @@
+name: Internal read recovery
+on:
+  push:
+    branches: ['internal-read-timeout-recovery-20260923', 'master']
+    paths:
+      - 'api/internal-data.js'
+      - 'lib/workforce-operational-scope.js'
+      - 'lib/internal-access-gateway.js'
+      - 'lib/internal-identity-access.js'
+      - 'lib/internal-neon.js'
+      - 'lib/internal-resource-access.js'
+      - 'assets/workforce-*'
+      - 'internal-dashboard.html'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-workforce-operations-browser.mjs'
+      - 'tests/internal-data-*'
+      - 'tests/internal-employees.test.js'
+      - 'tests/employee-picker-api-058.test.js'
+      - 'tests/native-employee.test.js'
+      - 'tests/native-jurisdiction.test.js'
+      - 'tests/fixtures/internal-directory-query.js'
+      - 'tests/internal-access-gateway.test.js'
+      - 'tests/workforce-operations.test.js'
+      - 'tests/grh-curated-consumers.test.js'
+      - 'tests/fixtures/grh-curated-consumers-installed.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.nvmrc'
+      - 'vercel.json'
+      - '.github/workflows/internal-read-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: internal-read-recovery-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Full tests and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          npm run build 2>&1 | tee verification/internal-read-recovery-build.log
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Workforce browser acceptance with intercepted synthetic APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/internal-read-recovery-browser.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: internal-read-recovery-${{ github.run_id }}
+          path: |
+            verification/internal-read-recovery-build.log
+            verification/internal-read-recovery-browser.log
+            verification/workforce-browser.json
+            verification/workforce-desktop-qa.png
+            verification/workforce-mobile-qa.png
+          retention-days: 7

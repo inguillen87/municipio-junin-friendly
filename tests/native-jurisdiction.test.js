@@ -1,3 +1,4 @@
+import {directoryQueryRows} from './fixtures/internal-directory-query.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -56,7 +57,7 @@ test('native detail projects declared value and legacy null without inferring it
  assert.equal(nativeEmployeeDetail({...row,jurisdictionCode:'55'}).payload.data.jurisdictionCode,'55');
 });
 test('directory and detail select jurisdiction only from canonical native column',async()=>{
- const mock=()=>({calls:[],async query(sql,values){this.calls.push({sql,values});if(sql.includes('AS "totalContracts"'))return[{}];if(sql.includes('SELECT count(*)'))return[{total:0}];return[];}});
+ const mock=()=>({calls:[],async query(sql,values){this.calls.push({sql,values});return directoryQueryRows();}});
  const directory=mock();await employees(directory,{query:{status:'all',includeFacets:'0'}},{database:'qa',companyId:7,tenantId:TENANT});
  assert.ok(directory.calls.some(x=>/CASE WHEN contract.source_system='MUNICONTROL' THEN contract.jurisdiction_code ELSE NULL END AS "jurisdictionCode"/.test(x.sql)));
  const detail=mock();await employee(detail,{query:{contractId:CONTRACT}},TENANT);assert.match(detail.calls[0].sql,/contract.jurisdiction_code ELSE NULL END AS "jurisdictionCode"/);

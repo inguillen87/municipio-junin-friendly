@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { employee, employees } from '../api/internal-data.js';
+import { directoryQueryRows } from './fixtures/internal-directory-query.js';
 
 function mockListSql() {
   const calls = [];
@@ -11,9 +12,12 @@ function mockListSql() {
     async query(statement) {
       const sql = String(statement);
       calls.push(sql);
-      if (sql.includes('SELECT count(*)::int AS total FROM directory')) return [{ total: 2450 }];
-      if (sql.includes('SELECT * FROM directory')) {
-        return [{
+      if (sql.includes('directory_page.*')) {
+        return directoryQueryRows({ total: 2450,
+          scope: { totalContracts: 2450, totalPeople: 2349, matched: 1699, ambiguous: 157, unmatched: 493 },
+          sectors: [{ value: 'Sector A', count: 1 }],
+          organizations: [{ value: 'Organización A', count: 1 }],
+          agreements: [{ value: 'Convenio A', count: 1 }], rows: [{
           contractId: '00000000-0000-0000-0000-000000000001',
           companyId: 1,
           legajo: '42',
@@ -22,14 +26,8 @@ function mockListSql() {
           payrollStatus: 'preliquidated',
           controlState: 'incluido_en_corrida_abierta',
           crosswalkStatus: 'matched'
-        }];
+        }] });
       }
-      if (sql.includes('totalContracts')) {
-        return [{ totalContracts: 2450, totalPeople: 2349, matched: 1699, ambiguous: 157, unmatched: 493 }];
-      }
-      if (sql.includes("'{employment,sectorName}'")) return [{ value: 'Sector A', count: 1 }];
-      if (sql.includes("'{employment,organizationName}'")) return [{ value: 'Organización A', count: 1 }];
-      if (sql.includes("'{employment,agreementName}'")) return [{ value: 'Convenio A', count: 1 }];
       throw new Error(`Consulta no simulada: ${sql.slice(0, 120)}`);
     }
   };
@@ -146,19 +144,19 @@ test('employees busca nombres por tokens parametrizados sin depender del orden a
   });
 
   assert.equal(result.status, 200);
-  const countCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM directory'));
+  const countCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM filtered_directory'));
   assert.ok(countCall);
   assert.match(countCall.statement, /translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$2\).*AND translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$3\)/s);
-  assert.deepEqual(countCall.values, ['%Nombre Apellido%', '%Nombre%', '%Apellido%']);
+  assert.deepEqual(countCall.values, ['%Nombre Apellido%', '%Nombre%', '%Apellido%', 10, 0]);
   assert.ok(callsWithValues.every((call) => !call.statement.includes("Nombre Apellido'")));
 
   callsWithValues.length = 0;
   await employees(sql, {
     query: { search: 'Perez', page: '1', limit: '10', status: 'all', crosswalk: 'all', includeFacets: '0' },
   });
-  const accentCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM directory'));
+  const accentCall = callsWithValues.find((call) => call.statement.includes('SELECT count(*)::int AS total FROM filtered_directory'));
   assert.match(accentCall.statement, /translate\(lower\(directory\.nombre\).*LIKE translate\(lower\(\$2\)/s);
-  assert.deepEqual(accentCall.values, ['%Perez%', '%Perez%']);
+  assert.deepEqual(accentCall.values, ['%Perez%', '%Perez%', 10, 0]);
 });
 
 test('employees mantiene unknown dentro del mismo filtro de sector, organización y búsqueda', async () => {
@@ -168,7 +166,7 @@ test('employees mantiene unknown dentro del mismo filtro de sector, organizació
   } });
   assert.equal(result.status, 200);
   const directoryReads = sql.calls.filter(statement => /SELECT (?:count\(\*\)::int AS total|\*) FROM directory/.test(statement));
-  assert.equal(directoryReads.length, 2);
+  assert.equal(directoryReads.length, 1);
   for (const statement of directoryReads) {
     assert.match(statement, /AND \(directory\."administrativeStatus" IS NULL OR directory\."administrativeStatus" = 'unknown'\)(?:\s|$)/);
     assert.doesNotMatch(statement, /WHERE directory\."administrativeStatus" IS NULL OR/);

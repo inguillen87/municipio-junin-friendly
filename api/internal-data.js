@@ -286,24 +286,36 @@ export function budgetApproved(source = JUNIN_BUDGET_2026) {
 
 export async function summary(sql) {
   const [totals] = await sql.query(`
+    /* The effective views reconstruct a sealed source from its immutable delta.
+       Reuse these narrow projections within this statement instead of expanding
+       that reconstruction for every count and orphan join. */
+    WITH summary_employees AS MATERIALIZED (
+      SELECT company_id, legajo, activo, sector FROM grh_effective_employees_v1
+    ), summary_absences AS MATERIALIZED (
+      SELECT company_id, legajo, fecha FROM grh_effective_absences_v1
+    ), summary_leaves AS MATERIALIZED (
+      SELECT company_id, legajo, fecha_inicio FROM grh_effective_leaves_v1
+    ), summary_catalog AS MATERIALIZED (
+      SELECT catalog FROM grh_effective_catalog_rows_v1
+    )
     SELECT
-      (SELECT count(*)::int FROM grh_effective_employees_v1) AS historical_records,
-      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo) AS active,
-      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE NOT activo) AS inactive,
-      (SELECT count(*)::int FROM grh_effective_absences_v1) AS absence_events,
-      (SELECT count(*)::int FROM grh_effective_leaves_v1) AS leave_records,
+      (SELECT count(*)::int FROM summary_employees) AS historical_records,
+      (SELECT count(*)::int FROM summary_employees WHERE activo) AS active,
+      (SELECT count(*)::int FROM summary_employees WHERE NOT activo) AS inactive,
+      (SELECT count(*)::int FROM summary_absences) AS absence_events,
+      (SELECT count(*)::int FROM summary_leaves) AS leave_records,
       (SELECT count(*)::int FROM grh_effective_family_v1) AS family_records,
-      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'sectors') AS sectors,
-      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'categories') AS categories,
-      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'unions') AS unions,
-      (SELECT count(*)::int FROM grh_effective_catalog_rows_v1 WHERE catalog = 'agreements') AS agreements,
-      (SELECT count(*)::int FROM grh_effective_employees_v1 WHERE activo AND (sector IS NULL OR btrim(sector) = '')) AS active_without_sector,
-      (SELECT count(*)::int FROM grh_effective_absences_v1 a LEFT JOIN grh_effective_employees_v1 e USING (company_id, legajo) WHERE e.legajo IS NULL) AS absence_orphans,
-      (SELECT count(*)::int FROM grh_effective_leaves_v1 l LEFT JOIN grh_effective_employees_v1 e USING (company_id, legajo) WHERE e.legajo IS NULL) AS leave_orphans,
-      (SELECT count(*)::int FROM grh_effective_absences_v1 WHERE fecha < DATE '1990-01-01') AS suspicious_early_absences,
-      (SELECT count(*)::int FROM grh_effective_leaves_v1 WHERE fecha_inicio < DATE '1990-01-01') AS suspicious_early_leaves,
+      (SELECT count(*)::int FROM summary_catalog WHERE catalog = 'sectors') AS sectors,
+      (SELECT count(*)::int FROM summary_catalog WHERE catalog = 'categories') AS categories,
+      (SELECT count(*)::int FROM summary_catalog WHERE catalog = 'unions') AS unions,
+      (SELECT count(*)::int FROM summary_catalog WHERE catalog = 'agreements') AS agreements,
+      (SELECT count(*)::int FROM summary_employees WHERE activo AND (sector IS NULL OR btrim(sector) = '')) AS active_without_sector,
+      (SELECT count(*)::int FROM summary_absences a LEFT JOIN summary_employees e USING (company_id, legajo) WHERE e.legajo IS NULL) AS absence_orphans,
+      (SELECT count(*)::int FROM summary_leaves l LEFT JOIN summary_employees e USING (company_id, legajo) WHERE e.legajo IS NULL) AS leave_orphans,
+      (SELECT count(*)::int FROM summary_absences WHERE fecha < DATE '1990-01-01') AS suspicious_early_absences,
+      (SELECT count(*)::int FROM summary_leaves WHERE fecha_inicio < DATE '1990-01-01') AS suspicious_early_leaves,
       (SELECT count(*)::int
-         FROM grh_effective_absences_v1
+         FROM summary_absences
         WHERE fecha > COALESCE(
           (SELECT source_cutoff::date
              FROM data_import_runs
@@ -3027,7 +3039,10 @@ function payrollMoneyFromCents(cents) {
 
 function directoryBaseSql(sourceBound = false, nativeBound = false) {
   return `
-    WITH directory AS (
+    WITH directory_employees AS MATERIALIZED (
+      SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
+      FROM grh_effective_employees_v1
+    ), directory AS MATERIALIZED (
       SELECT contract.id AS "contractId",
              contract.person_id AS "canonicalPersonId",
              contract.legacy_company_id AS "companyId",
@@ -3089,7 +3104,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
-      LEFT JOIN grh_effective_employees_v1 employee
+      LEFT JOIN directory_employees employee
         ON employee.company_id = contract.legacy_company_id
        AND employee.legajo = contract.legacy_legajo
        AND contract.source_system = 'GRH'
@@ -3195,29 +3210,58 @@ export async function employees(sql, req, binding = null) {
   const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound));
   const dataValues = [...values, limit, (page - 1) * limit];
 
-  const [[countRow], data, [scope], sectors, organizations, agreements] = await Promise.all([
-    sql.query(`${baseSql} SELECT count(*)::int AS total FROM directory ${where}`, values),
-    sql.query(`
-      ${baseSql}
-      SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate"' : '*'} FROM directory
-      ${where}
-      ORDER BY CASE
-                 WHEN activo AND liquidable THEN 0
-                 WHEN activo THEN 1
-                 WHEN "administrativeStatus" = 'inactive' THEN 2
-                 ELSE 3
-               END,
-               nombre NULLS LAST,
-               "companyId",
-               legajo
+  const pageOrder = `CASE
+    WHEN activo AND liquidable THEN 0 WHEN activo THEN 1
+    WHEN "administrativeStatus" = 'inactive' THEN 2 ELSE 3 END,
+    nombre NULLS LAST, "companyId", legajo`;
+  const facet = (field, emptyLabel) => includeFacets
+    ? `(SELECT COALESCE(jsonb_agg(facet ORDER BY value), '[]'::jsonb)
+         FROM (SELECT COALESCE(${field}, '${emptyLabel}') AS value, count(*)::int AS count
+               FROM directory GROUP BY 1) facet)`
+    : `'[]'::jsonb`;
+  // One source reconstruction serves the page, total, source-wide cohorts and
+  // facets. Keep page columns typed: JSON conversion would change PostgreSQL
+  // dates/numerics as parsed by the existing Neon adapter.
+  const rows = await sql.query(`
+    ${baseSql}, filtered_directory AS MATERIALIZED (
+      SELECT * FROM directory ${where}
+    ), directory_count AS (
+      SELECT count(*)::int AS total FROM filtered_directory
+    ), directory_scope AS (
+      ${operationalScopeSelectSql('')}
+    ), directory_page AS (
+      SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate"' : '*'},
+             row_number() OVER (ORDER BY ${pageOrder}) AS "__pageOrder"
+      FROM filtered_directory
+      ORDER BY ${pageOrder}
       LIMIT $${dataValues.length - 1} OFFSET $${dataValues.length}
-    `, dataValues),
-    sql.query(operationalScopeSelectSql(baseSql), sourceValues),
-    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(sector, 'Sin sector informado') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([]),
-    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(organizacion, 'Sin organización informada') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([]),
-    includeFacets ? sql.query(`${baseSql} SELECT COALESCE(convenio, 'Sin convenio informado') AS value,count(*)::int AS count FROM directory GROUP BY 1 ORDER BY value`, sourceValues) : Promise.resolve([])
-  ]);
-  const total = Number(countRow?.total || 0);
+    ), directory_facets AS (
+      SELECT ${facet('sector', 'Sin sector informado')} AS sectors,
+             ${facet('organizacion', 'Sin organización informada')} AS organizations,
+             ${facet('convenio', 'Sin convenio informado')} AS agreements
+    )
+    SELECT directory_count.total AS "__total", to_jsonb(directory_scope) AS "__scope",
+           directory_scope."sourceCutoffFrom" AS "__sourceCutoffFrom",
+           directory_scope."sourceCutoffTo" AS "__sourceCutoffTo",
+           directory_facets.sectors AS "__sectors", directory_facets.organizations AS "__organizations",
+           directory_facets.agreements AS "__agreements", directory_page.*
+    FROM directory_count CROSS JOIN directory_scope CROSS JOIN directory_facets
+    LEFT JOIN directory_page ON true
+    ORDER BY directory_page."__pageOrder" NULLS LAST
+  `, dataValues);
+  const metadata = rows[0];
+  if (!metadata || !metadata.__scope || !Array.isArray(metadata.__sectors)
+      || !Array.isArray(metadata.__organizations) || !Array.isArray(metadata.__agreements)) {
+    throw Object.assign(new Error('DIRECTORY_RESULT_INVALID'), { code: 'DIRECTORY_RESULT_INVALID' });
+  }
+  const scope = { ...metadata.__scope, sourceCutoffFrom: metadata.__sourceCutoffFrom,
+    sourceCutoffTo: metadata.__sourceCutoffTo };
+  const { __sectors: sectors, __organizations: organizations, __agreements: agreements } = metadata;
+  const data = rows.filter((row) => row.contractId !== null).map(({
+    __total, __scope, __sourceCutoffFrom, __sourceCutoffTo,
+    __sectors, __organizations, __agreements, __pageOrder, ...row
+  }) => row);
+  const total = Number(metadata.__total || 0);
   if (picker) return {status:200,payload:employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope)};
   return {
     status: 200,

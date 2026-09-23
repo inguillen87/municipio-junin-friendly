@@ -23,7 +23,7 @@ test('099 preserves authority, exact source identity and immutable baselines',()
 });
 test('raw API and assistant SQL query selected source views without replacing canonical native identities',()=>{
  for(const file of ['api/internal-data.js','api/internal-assistant.js'])assert.doesNotMatch(read(file),/\b(?:FROM|JOIN) grh_(?:employees|absences|leaves|family|catalog_rows)\b/);
- const data=read('api/internal-data.js');assert.match(data,/LEFT JOIN grh_effective_employees_v1 employee[\s\S]{0,200}AND contract\.source_system = 'GRH'/);assert.match(data,/contract\.jurisdiction_code/);assert.match(data,/contract\.source_system\s*=\s*'MUNICONTROL'/);
+ const data=read('api/internal-data.js');assert.match(data,/directory_employees AS MATERIALIZED\s*\([\s\S]{0,200}FROM grh_effective_employees_v1/);assert.match(data,/LEFT JOIN directory_employees employee[\s\S]{0,200}AND contract\.source_system = 'GRH'/);assert.match(data,/contract\.jurisdiction_code/);assert.match(data,/contract\.source_system\s*=\s*'MUNICONTROL'/);
 });
 function response(){return{statusCode:null,body:null,setHeader(){},status(n){this.statusCode=n;return this;},json(b){this.body=b;return this;}};}
 function assistant({rotate=false,revoke=false,denied=false}={}){
