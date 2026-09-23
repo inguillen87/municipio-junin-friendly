@@ -1,0 +1,69 @@
+name: Legal agenda and private read safety
+on:
+  push:
+    branches: ['work/legal-read-safety-20260923', 'master']
+    paths:
+      - 'assets/legal-read-controller.js'
+      - 'assets/legal-alert-center-ui.js'
+      - 'assets/legal-contract-agenda*'
+      - 'tests/legal-read-controller.test.js'
+      - 'tests/legal-contract-agenda.test.js'
+      - 'scripts/verify-legal-read*'
+      - 'scripts/verify-legal-alert-center-browser.mjs'
+      - 'scripts/build-legal-registry.mjs'
+      - '.github/workflows/legal-read-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: legal-read-safety-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Complete tests and build
+        run: |
+          set -euo pipefail
+          mkdir -p verification/legal-read-release
+          npm run build 2>&1 | tee verification/legal-read-release/build.log
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-legal-read-safety-browser.mjs
+      - run: node scripts/verify-legal-alert-center-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-read-safety
+          path: |
+            verification/legal-read-release/
+            verification/legal-read-safety/
+            verification/legal-alert-center-local/
+          retention-days: 5
+  production:
+    needs: verify
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/verify-legal-read-production.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legal-read-production
+          path: verification/legal-read-production.json
+          retention-days: 5

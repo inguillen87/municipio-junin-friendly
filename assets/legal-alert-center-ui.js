@@ -1,11 +1,23 @@
+import {createLegalReadController} from './legal-read-controller.js';
 import {LEGAL_ALERT_CATEGORIES,LEGAL_ALERT_SOURCES,filterLegalAlerts,legalAlertCategory,legalAlertCounts,legalAlertStatusLabel,legalAlertCoordinationNeedsReview,verifyLegalAlertCenterResponseV2} from './legal-alert-center-model.js';
 const root=document.getElementById('legalAlertRoot'),API='/api/internal-legal-alert-center';if(root)void start(root);
 async function start(host){
  let data=null,busy=false,blocked=false,message='Verificando alertas jurídicas…',error=false,category='all',source='all',query='',page=1;const PAGE=25;
  const add=(p,t,x,c)=>{const n=document.createElement(t);if(x!==undefined)n.textContent=String(x);if(c)n.className=c;p.append(n);return n;},button=(p,x,fn,disabled=false)=>{const n=add(p,'button',x,'button');n.type='button';n.disabled=busy||disabled;n.onclick=fn;return n;};
  function clear(){data=null;query='';category='all';source='all';page=1;}
- async function request(){const r=await fetch(API+'?resource=alerts&version=2',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});let v;try{v=await r.json();}catch{throw Object.assign(Error('No llegó una respuesta verificable.'),{status:r.status});}if(!r.ok||v?.ok!==true)throw Object.assign(Error(v?.error||'No se pudieron cargar las alertas.'),{status:r.status});return verifyLegalAlertCenterResponseV2(v.data);}
- async function load(){if(busy||blocked)return;busy=true;data=null;message='Actualizando alertas jurídicas…';error=false;render();try{const next=await request();if(!blocked){data=next;message='Alertas actualizadas con los datos registrados por el municipio.';error=false;}}catch(e){clear();if([401,403].includes(e.status)){blocked=true;message='El acceso cambió. Las alertas jurídicas se ocultaron.';}else{message='No se pudieron verificar las alertas. Reintentá para consultar información actualizada.';}error=true;}finally{busy=false;render();}}
+ async function request(signal){const r=await fetch(API+'?resource=alerts&version=2',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal});let v;try{v=await r.json();}catch{throw Object.assign(Error('LEGAL_RESPONSE_INVALID'),{status:r.status});}if(!r.ok||v?.ok!==true)throw Object.assign(Error('LEGAL_READ_FAILED'),{status:r.status});return verifyLegalAlertCenterResponseV2(v.data);}
+ let authorized=false;
+ const reader=createLegalReadController({read:request,canRead:()=>authorized&&!blocked&&host.isConnected,onChange:state=>{
+  busy=state.phase==='loading';data=state.data;error=['error','blocked'].includes(state.phase);
+  if(state.phase==='loading')message='Actualizando alertas jurídicas…';
+  if(state.phase==='ready')message='Lectura actualizada con los registros autorizados del municipio.';
+  if(state.phase==='error')message=state.reason==='timeout'?'La consulta demoró demasiado. Reintentá; no se muestran resultados anteriores como actuales.':'No se pudo verificar la información. Reintentá; tus filtros se conservaron.';
+  if(state.phase==='blocked'){blocked=true;query='';category='all';source='all';page=1;message='El acceso cambió o el contexto fue actualizado. Los datos se ocultaron; volvé a abrir esta pantalla.';}
+  if(state.phase==='disposed')return;
+  render();
+ }});
+ function load(){return reader.load();}
+
  function resourceLabel(r){return r.sourceType==='matter'?'Asunto jurídico':r.sourceType==='followup'?'Seguimiento normativo':'Obligación contractual';}
  function resourceHref(r){if(r.sourceType==='matter')return'/internal-legal-matters.html?'+new URLSearchParams({asunto:r.itemId});if(r.sourceType==='followup')return'/internal-legal-followups.html?'+new URLSearchParams({norma:r.sourceId,version:String(r.sourceVersion),seguimiento:r.itemId});return'/internal-legal-contract-obligations.html?'+new URLSearchParams({contrato:r.sourceId});}
  function render(){
@@ -32,9 +44,16 @@ async function start(host){
   const pager=add(host,'div','','lac-tools');button(pager,'Anterior',()=>{page--;render();},page<=1);button(pager,'Siguiente',()=>{page++;render();},page>=pages);
  }
  if(new URLSearchParams(location.search).size){blocked=true;message='El Centro de Alertas no acepta tenant, usuario ni filtros por URL.';error=true;render();return;}
- const access=await globalThis.MuniControlCapabilityGate?.ready;if(!access?.tenantCapabilities?.has('legal.norm.read')){blocked=true;message='No tenés acceso a alertas jurídicas.';error=true;render();return;}
- globalThis.addEventListener('focus',()=>{if(document.visibilityState==='visible')void load();});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void load();});
- document.addEventListener('municontrol:capabilities-ready',event=>{if(!event.detail?.tenantCapabilities?.has('legal.norm.read')){blocked=true;clear();message='El acceso cambió. Las alertas jurídicas se ocultaron.';error=true;render();}});
+ const access=await globalThis.MuniControlCapabilityGate?.ready;
+ if(!access?.tenantCapabilities?.has('legal.norm.read')){reader.revoke();return;}
+ authorized=true;
+ const onFocus=()=>{if(document.visibilityState==='visible'&&host.isConnected)void load()};
+ const onAccess=()=>{authorized=false;reader.revoke()};
+ const dispose=()=>{reader.dispose();globalThis.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onFocus);document.removeEventListener('municontrol:capabilities-ready',onAccess);globalThis.removeEventListener('pagehide',onHide);observer.disconnect();host.replaceChildren()};
+ const onHide=()=>{authorized=false;dispose()};
+ const observer=new MutationObserver(()=>{if(!host.isConnected)dispose()});observer.observe(document.body,{childList:true,subtree:true});
+ globalThis.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onFocus);
+ document.addEventListener('municontrol:capabilities-ready',onAccess);globalThis.addEventListener('pagehide',onHide,{once:true});
+ globalThis.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
  await load();
 }

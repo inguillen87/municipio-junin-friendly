@@ -1,18 +1,30 @@
+import {createLegalReadController} from './legal-read-controller.js';
 import {CONTRACT_AGENDA_CATEGORIES,contractAgendaCategory,contractAgendaCounts,filterContractAgenda,verifyContractAgendaResponse} from './legal-contract-agenda-model.js';
 const root=document.getElementById('contractAgendaRoot'),API='/api/internal-legal-contract-agenda';if(root)void start(root);
 async function start(host){
  let data=null,busy=false,blocked=false,message='Verificando agenda contractual…',error=false,category='all',query='',page=1;const PAGE=25;
  const add=(p,t,x,c)=>{const n=document.createElement(t);if(x!==undefined)n.textContent=String(x);if(c)n.className=c;p.append(n);return n;},button=(p,x,fn,disabled=false)=>{const n=add(p,'button',x,'button');n.type='button';n.disabled=busy||disabled;n.onclick=fn;return n;};
- async function request(){const r=await fetch(API+'?resource=agenda',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});let v;try{v=await r.json();}catch{throw Object.assign(Error('No llegó una agenda verificable.'),{status:r.status});}if(!r.ok||v?.ok!==true)throw Object.assign(Error(v?.error||'No se pudo cargar la agenda contractual.'),{status:r.status});return verifyContractAgendaResponse(v.data);}
- async function load(){busy=true;render();try{data=await request();message='Agenda actualizada con fechas registradas y revisadas.';error=false;}catch(e){if([401,403].includes(e.status)){data=null;blocked=true;message='El acceso cambió. La agenda contractual se ocultó.';error=true;}else{message=e.message;error=true;}}finally{busy=false;render();}}
+ async function request(signal){const r=await fetch(API+'?resource=agenda',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal});let v;try{v=await r.json();}catch{throw Object.assign(Error('LEGAL_RESPONSE_INVALID'),{status:r.status});}if(!r.ok||v?.ok!==true)throw Object.assign(Error('LEGAL_READ_FAILED'),{status:r.status});return verifyContractAgendaResponse(v.data);}
+ let authorized=false;
+ const reader=createLegalReadController({read:request,canRead:()=>authorized&&!blocked&&host.isConnected,onChange:state=>{
+  busy=state.phase==='loading';data=state.data;error=['error','blocked'].includes(state.phase);
+  if(state.phase==='loading')message='Actualizando agenda contractual…';
+  if(state.phase==='ready')message='Lectura actualizada con los registros autorizados del municipio.';
+  if(state.phase==='error')message=state.reason==='timeout'?'La consulta demoró demasiado. Reintentá; no se muestran resultados anteriores como actuales.':'No se pudo verificar la información. Reintentá; tus filtros se conservaron.';
+  if(state.phase==='blocked'){blocked=true;query='';category='all';page=1;message='El acceso cambió o el contexto fue actualizado. Los datos se ocultaron; volvé a abrir esta pantalla.';}
+  if(state.phase==='disposed')return;
+  render();
+ }});
+ function load(){return reader.load();}
+
  function render(){
   host.replaceChildren();host.className='lga-shell';host.setAttribute('aria-busy',String(busy));add(host,'p','JURÍDICA · AGENDA CONTRACTUAL','lr-eyebrow');add(host,'h1','Agenda contractual');
   const a=add(host,'p',message,'lga-alert'+(error?' lga-error':''));a.setAttribute('role','status');a.setAttribute('aria-live','polite');
   add(host,'p','Las categorías se basan sólo en fechas registradas. “Fecha pasada” no significa incumplimiento jurídico; los estados observados requieren decisión humana.','lga-note');
   const nav=add(host,'div','','lga-tools');const back=add(nav,'a','Contratos','button');back.href='/internal-legal-contracts.html';const matters=add(nav,'a','Asuntos','button');matters.href='/internal-legal-matters.html';
-  if(blocked)return;
+  if(blocked)return;button(host,'Actualizar agenda',load);
   if(!data){if(!busy)button(host,'Reintentar',load);return;}
-  const counts=contractAgendaCounts(data.rows,data.today),cats=add(host,'div','','lga-categories');
+  const counts=contractAgendaCounts(filterContractAgenda(data.rows,data.today,'all',query),data.today),cats=add(host,'div','','lga-categories');
   for(const [key,label] of Object.entries(CONTRACT_AGENDA_CATEGORIES)){const b=button(cats,label+' · '+counts[key],()=>{category=key;page=1;render();});b.classList.add('lga-category');b.setAttribute('aria-pressed',String(category===key));}
   const form=add(host,'form','','lga-search'),l=add(form,'label','Buscar contrato, obligación, cláusula o responsable'),input=add(l,'input');input.type='search';input.maxLength=120;input.value=query;input.oninput=()=>query=input.value;const apply=button(form,'Aplicar búsqueda',()=>{});apply.type='submit';form.onsubmit=e=>{e.preventDefault();query=input.value;page=1;render();};button(form,'Limpiar',()=>{query='';page=1;render();});
   const rows=filterContractAgenda(data.rows,data.today,category,query),pages=Math.max(1,Math.ceil(rows.length/PAGE));if(page>pages)page=pages;const visible=rows.slice((page-1)*PAGE,page*PAGE);
@@ -23,5 +35,16 @@ async function start(host){
   const pager=add(host,'div','','lga-tools');button(pager,'Anterior',()=>{page--;render();},page<=1);button(pager,'Siguiente',()=>{page++;render();},page>=pages);
  }
  if(new URLSearchParams(location.search).size){blocked=true;message='La Agenda Contractual no acepta contexto de tenant, usuario ni filtros por URL.';error=true;render();return;}
- const gateResult=await globalThis.MuniControlCapabilityGate?.ready;if(!gateResult?.tenantCapabilities?.has('legal.norm.read')){blocked=true;message='No tenés acceso a la agenda contractual.';error=true;render();return;}await load();
+ const access=await globalThis.MuniControlCapabilityGate?.ready;
+ if(!access?.tenantCapabilities?.has('legal.norm.read')){reader.revoke();return;}
+ authorized=true;
+ const onFocus=()=>{if(document.visibilityState==='visible'&&host.isConnected)void load()};
+ const onAccess=()=>{authorized=false;reader.revoke()};
+ const dispose=()=>{reader.dispose();globalThis.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onFocus);document.removeEventListener('municontrol:capabilities-ready',onAccess);globalThis.removeEventListener('pagehide',onHide);observer.disconnect();host.replaceChildren()};
+ const onHide=()=>{authorized=false;dispose()};
+ const observer=new MutationObserver(()=>{if(!host.isConnected)dispose()});observer.observe(document.body,{childList:true,subtree:true});
+ globalThis.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onFocus);
+ document.addEventListener('municontrol:capabilities-ready',onAccess);globalThis.addEventListener('pagehide',onHide,{once:true});
+ globalThis.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
+ await load();
 }

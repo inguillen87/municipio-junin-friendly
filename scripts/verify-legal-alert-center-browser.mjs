@@ -180,7 +180,8 @@ try{
   await refresh();
   await ready();
   assert.equal(await cards.count(),25);
-  assert.equal(await app.getByRole('searchbox').inputValue(),'');
+  assert.equal(await app.getByRole('searchbox').inputValue(),'Persona coordinadora sintética');
+  await app.getByRole('button',{name:'Limpiar',exact:true}).click();
   checks.push('failed refresh removes stale rows and counts; a new read recovers the current data');
 
   malformed=true;
@@ -209,6 +210,7 @@ try{
   data=fixture();
   await refresh();
   await ready();
+  await app.getByRole('button',{name:'Limpiar',exact:true}).click();
   const previousCalls=apiRequests.length;
   data.rows[0].title='Seguimiento sintético actualizado al volver';
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
@@ -262,7 +264,7 @@ try{
   hasCapability=false;
   const beforeDenied=apiRequests.length;
   await page.goto(origin+'/internal-legal-alert-center.html');
-  await app.getByRole('status').filter({hasText:'No tenés acceso'}).waitFor();
+  await app.getByRole('status').filter({hasText:'acceso cambió'}).waitFor();
   assert.equal(apiRequests.length,beforeDenied);
   checks.push('untrusted URL context and absent read capability stop before requesting alert data');
 
