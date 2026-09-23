@@ -34,7 +34,7 @@ from extract_rrhh_curated import (
 )
 
 
-SCRIPT_VERSION = "1.2.0"
+SCRIPT_VERSION = "1.3.0"
 PROFILE_NAME = "grh-core-junin-2026-08"
 SOURCE_NAME = "grh_junin"
 EXPECTED_SOURCE_SHA256 = (
@@ -310,6 +310,7 @@ def extract(
     validate_profile_mode(profile, allow_source_drift, fixture_mode)
     expected_counts = profile["core"]["expectedCounts"]
     current_payroll_date = profile["source"]["currentPayrollDate"]
+    multi_run = profile["core"].get("schemaVersion", 1) == 2
     if not source.is_file():
         raise ExtractionError(f"GRH source not found: {source}")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -327,11 +328,15 @@ def extract(
     source_metadata: dict[str, Any] = {}
     employees: dict[tuple[str, str], dict[str, str | None]] = {}
     snapshot_keys: set[tuple[str, str]] = set()
+    snapshot_assignments: set[tuple[Any, ...]] = set()
+    snapshot_run_refs: dict[tuple[str, str], list[tuple[Any, ...]]] = {}
     snapshot_dates: Counter[str] = Counter()
     snapshot_cohorts: Counter[tuple[int | None, int | None, str | None, str | None]] = Counter()
     snapshot_ids: set[str | None] = set()
     payroll_run_keys: set[tuple[str, str, str, str, str]] = set()
     payroll_run_statuses: Counter[str] = Counter()
+    run_status_by_key: dict[tuple[Any, ...], str] = {}
+    latest_closed_by_type: dict[str, str] = {}
     current_run_types: set[str] = set()
     current_run_statuses: set[str] = set()
     invalid_payroll_run_dates: Counter[str] = Counter()
@@ -415,6 +420,9 @@ def extract(
                     if run_key in payroll_run_keys:
                         raise ExtractionError(f"Duplicate histocal key: {run_key}")
                     payroll_run_keys.add(run_key)
+                    run_status_by_key[run_key] = closure_status
+                    if closure_status == "closed":
+                        latest_closed_by_type[payroll_type] = max(payroll_date, latest_closed_by_type.get(payroll_type, payroll_date))
                     payroll_run_statuses[closure_status] += 1
                     if payroll_date == current_payroll_date:
                         current_run_types.add(payroll_type)
@@ -451,8 +459,17 @@ def extract(
                     if payroll_date is None:
                         raise ExtractionError("histolegajo.FECA_31 cannot be null")
                     snapshot_id = _code(row.get("ID"))
-                    if snapshot_id is None or snapshot_id in snapshot_ids or key in snapshot_keys:
+                    period = _integer(row.get("PERI_31"), "histolegajo.PERI_31")
+                    month = _integer(row.get("MES_31"), "histolegajo.MES_31")
+                    payroll_type = _code(row.get("TIPO_31"))
+                    if period is None or month is None or not payroll_type:
+                        raise ExtractionError("histolegajo run key cannot contain null values")
+                    assignment_key = (*key, payroll_date, period, month, payroll_type)
+                    if (snapshot_id is None or snapshot_id in snapshot_ids or assignment_key in snapshot_assignments
+                            or (not multi_run and key in snapshot_keys)):
                         raise ExtractionError("Null or duplicate histolegajo source key")
+                    snapshot_assignments.add(assignment_key)
+                    snapshot_run_refs.setdefault(key, []).append((key[0], payroll_date, str(period), str(month), payroll_type))
                     snapshot_ids.add(snapshot_id)
                     snapshot_keys.add(key)
                     snapshot_dates[payroll_date] += 1
@@ -574,17 +591,32 @@ def extract(
             }
             if mismatches:
                 raise ExtractionError(f"Source count mismatch: {json.dumps(mismatches)}")
-            cohort = profile["core"]["snapshotCohort"]
-            expected_cohort = (cohort["period"], cohort["month"], cohort["payrollType"], cohort["payrollDate"])
-            if snapshot_cohorts != Counter({expected_cohort: cohort["rows"]}):
+            cohorts = profile["core"]["snapshotCohorts"] if multi_run else [profile["core"]["snapshotCohort"]]
+            expected_cohorts = Counter({(c["period"], c["month"], c["payrollType"], c["payrollDate"]): c["rows"] for c in cohorts})
+            if snapshot_cohorts != expected_cohorts:
                 raise ExtractionError("histolegajo cohort does not match selected profile")
             if payroll_run_statuses != Counter(profile["core"]["expectedClosureStatusCounts"]):
                 raise ExtractionError("Payroll closure counts do not match selected profile")
             if current_run_types != set(profile["core"]["currentRunTypes"]):
                 raise ExtractionError("Current payroll run types do not match selected profile")
-        if current_run_statuses != {profile["source"]["currentPayrollClosureStatus"]}:
-            raise ExtractionError("Current payroll closure does not match selected profile")
-        current_closure_status = next(iter(current_run_statuses))
+        current_run_evidence = [{"companyCode": k[0], "payrollDate": k[1], "period": int(k[2]),
+            "month": int(k[3]), "payrollType": k[4], "closureStatus": status}
+            for k, status in sorted(run_status_by_key.items()) if k[1] == current_payroll_date]
+        if multi_run:
+            if current_run_evidence != profile["core"]["currentRuns"]:
+                raise ExtractionError("Current payroll run identities/closures do not match selected profile")
+            current_closure_status = next(iter(current_run_statuses)) if len(current_run_statuses) == 1 else "mixed"
+        else:
+            if current_run_statuses != {profile["source"]["currentPayrollClosureStatus"]}:
+                raise ExtractionError("Current payroll closure does not match selected profile")
+            current_closure_status = next(iter(current_run_statuses))
+        if current_closure_status != profile["source"]["currentPayrollClosureStatus"]:
+            raise ExtractionError("Current payroll summary does not match selected profile")
+        for refs in snapshot_run_refs.values():
+            if any(ref not in run_status_by_key for ref in refs):
+                raise ExtractionError("Snapshot assignment references an unknown payroll run")
+        if multi_run and latest_closed_by_type.get("M") != profile["source"]["latestClosedMonthlyPayrollDate"]:
+            raise ExtractionError("Monthly payroll closure does not match selected profile")
         if duplicate_movement_keys:
             raise ExtractionError(f"Duplicate legamov keys found: {duplicate_movement_keys}")
         unknown_calculation_concepts = sorted(calculation_concept_codes - set(concepts))
@@ -679,6 +711,10 @@ def extract(
                 "sourceKey": {"companyCode": key[0], "employeeNumber": key[1]},
                 "administrativeActive": administrative_active,
                 "liquidatedCurrent": liquidated_current,
+                **({"payrollRunReferences": [{"companyCode": ref[0], "payrollDate": ref[1],
+                    "period": int(ref[2]), "month": int(ref[3]), "payrollType": ref[4],
+                    "closureStatus": run_status_by_key[ref]} for ref in sorted(snapshot_run_refs.get(key, []))]}
+                    if multi_run else {}),
                 "lastPayrollDate": last_payroll.get(key),
                 "evidenceStatus": status,
                 "hireDate": employee["hireDate"],
@@ -702,7 +738,8 @@ def extract(
         }
         if not allow_source_drift and reconciliation != profile["core"]["expectedReconciliation"]:
             raise ExtractionError("Employment reconciliation does not match selected profile")
-        latest_closed_headcount = len({(key[0], key[1]) for key in monthly if key[2] == latest_closed_payroll_date})
+        latest_closed_headcount = len({(key[0], key[1]) for key in monthly if key[2] == latest_closed_payroll_date
+            and (not multi_run or run_status_by_key[(key[0], key[2], key[3], key[4], key[5])] == "closed")})
         if (not allow_source_drift and "latestClosedHeadcount" in profile["core"]
                 and latest_closed_headcount != profile["core"]["latestClosedHeadcount"]):
             raise ExtractionError("Latest closed headcount does not match selected profile")
@@ -713,7 +750,7 @@ def extract(
         outputs: dict[str, Any] = {}
         output_counts = {
             "payrollRuns": len(payroll_run_keys),
-            "payrollSnapshot": len(snapshot_keys),
+            "payrollSnapshot": len(snapshot_assignments),
             "movements": counts["legamov"] - sum(invalid_movement_years.values()),
             "payrollMonthly": len(monthly),
             "employmentReconciliation": len(employees),
@@ -728,7 +765,7 @@ def extract(
             }
 
         manifest = {
-            "schemaVersion": 1,
+            "schemaVersion": 2 if multi_run else 1,
             "scriptVersion": SCRIPT_VERSION,
             "profile": profile["core"]["profileId"],
             "sourceProfileId": profile["id"],
@@ -747,6 +784,10 @@ def extract(
                 "currentPayrollDate": current_payroll_date,
                 "currentPayrollClosureStatus": current_closure_status,
                 "latestClosedPayrollDate": latest_closed_payroll_date,
+                **({"currentPayrollRuns": current_run_evidence,
+                    "latestClosedByType": dict(sorted(latest_closed_by_type.items())),
+                    "latestClosedMonthlyPayrollDate": latest_closed_by_type.get("M")}
+                    if multi_run else {}),
             },
             "sourceCounts": dict(sorted(counts.items())),
             "outputs": outputs,
@@ -757,6 +798,12 @@ def extract(
             },
             "quality": {
                 "strictSnapshot": not allow_source_drift,
+                **({"snapshotMembership": {"records": len(snapshot_assignments), "distinctContracts": len(snapshot_keys),
+                    "repeatedContractRows": len(snapshot_assignments) - len(snapshot_keys),
+                    "cohorts": [{"period": k[0], "month": k[1], "payrollType": k[2], "payrollDate": k[3], "records": n}
+                        for k, n in sorted(snapshot_cohorts.items())]},
+                    "publication": {"candidateOnly": True, "databaseWrites": 0, "v1ImporterCompatible": False,
+                        "reason": "MULTIRUN_REQUIRES_VERSIONED_DATABASE_PUBLICATION"}} if multi_run else {}),
                 "invalidCalculationDatesExcluded": {
                     "records": sum(invalid_calculation_dates.values()),
                     "byDate": dict(sorted(invalid_calculation_dates.items())),
@@ -795,7 +842,7 @@ def extract(
                 ),
             },
             "methodology": [
-                "GRH is the employment and payroll source of truth.",
+                "GRH is the migration source for this extraction; native MuniControl operations are not overwritten.",
                 f"The {len(active_keys)}/{len(current_keys)} administrative/snapshot comparison uses {current_payroll_date}; snapshot membership does not certify calculation or payment.",
                 f"histocal.CIER_31=1 is the only source-level close evidence; latest closed date is {latest_closed_payroll_date} and current status is {current_closure_status}.",
                 "calculo is reduced to employee/payroll-date/source-period/source-month/type grain; raw items remain in the immutable source dump.",

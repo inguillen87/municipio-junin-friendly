@@ -6,180 +6,88 @@
       "id": "grh-junin-2026-08-06",
       "profileVersion": "1.0.0",
       "source": {
-        "name": "grh_junin",
-        "database": "grh_junin",
+        "name": "grh_junin", "database": "grh_junin",
         "sha256": "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92",
-        "logicalBytes": 774113471,
-        "cutoff": "2026-08-06T15:15:21",
-        "currentPayrollDate": "2026-08-31",
-        "currentPayrollClosureStatus": "open",
+        "logicalBytes": 774113471, "cutoff": "2026-08-06T15:15:21",
+        "currentPayrollDate": "2026-08-31", "currentPayrollClosureStatus": "open",
         "latestClosedPayrollDate": "2026-07-31",
         "gzipSha256": "E7403DA1D036C8D60EAB26BCB3F97E6E7C3A70629090DEAC8CC4E5438250B3D9",
         "gzipBytes": 44537741
       },
       "curated": {
         "profileId": "grh-junin-2026-08-06",
-        "expectedCounts": {
-          "ausencia": 31572,
-          "cargo": 5,
-          "catego": 156,
-          "convenio": 14,
-          "familia": 3647,
-          "gremio": 6,
-          "legagremio": 844,
-          "legajo": 2450,
-          "licencia": 3448,
-          "motause": 27,
-          "motibaja": 19,
-          "organiza": 83,
-          "persona": 2349,
-          "revista": 3,
-          "sectores": 36,
-          "vinculo": 9
-        },
-        "expectedOutputCounts": {
-          "employees": 2450,
-          "absences": 31572,
-          "leaves": 3448,
-          "familyMembers": 3647,
-          "sectors": 36,
-          "categories": 156,
-          "unions": 6,
-          "unionMemberships": 844,
-          "agreements": 14,
-          "absenceReasons": 27,
-          "familyRelationships": 9,
-          "jobRoles": 5,
-          "organizations": 83,
-          "exitReasons": 19,
-          "employmentStatuses": 3
-        }
+        "expectedCounts": {"ausencia":31572,"cargo":5,"catego":156,"convenio":14,"familia":3647,"gremio":6,"legagremio":844,"legajo":2450,"licencia":3448,"motause":27,"motibaja":19,"organiza":83,"persona":2349,"revista":3,"sectores":36,"vinculo":9},
+        "expectedOutputCounts": {"employees":2450,"absences":31572,"leaves":3448,"familyMembers":3647,"sectors":36,"categories":156,"unions":6,"unionMemberships":844,"agreements":14,"absenceReasons":27,"familyRelationships":9,"jobRoles":5,"organizations":83,"exitReasons":19,"employmentStatuses":3}
       },
       "core": {
         "profileId": "grh-core-junin-2026-08",
-        "expectedCounts": {
-          "calculo": 4363790,
-          "concepto": 294,
-          "histocal": 625,
-          "histolegajo": 854,
-          "legajo": 2450,
-          "legamov": 489681
-        },
-        "snapshotCohort": {
-          "period": 2026,
-          "month": 8,
-          "payrollType": "M",
-          "payrollDate": "2026-08-31",
-          "rows": 854
-        },
-        "expectedClosureStatusCounts": {
-          "closed": 517,
-          "open": 2,
-          "unknown": 101
-        },
-        "currentRunTypes": [
-          "M",
-          "O"
-        ],
-        "expectedReconciliation": {
-          "administrativeActive": 882,
-          "liquidatedCurrent": 854,
-          "activeNotLiquidated": 28,
-          "liquidatedNotActive": 0,
-          "activeAndLiquidated": 854
-        },
+        "expectedCounts": {"calculo":4363790,"concepto":294,"histocal":625,"histolegajo":854,"legajo":2450,"legamov":489681},
+        "snapshotCohort": {"period":2026,"month":8,"payrollType":"M","payrollDate":"2026-08-31","rows":854},
+        "expectedClosureStatusCounts": {"closed":517,"open":2,"unknown":101},
+        "currentRunTypes": ["M","O"],
+        "expectedReconciliation": {"administrativeActive":882,"liquidatedCurrent":854,"activeNotLiquidated":28,"liquidatedNotActive":0,"activeAndLiquidated":854},
         "latestClosedHeadcount": 856
       }
     },
     {
-      "id": "grh-junin-2026-09-10",
-      "profileVersion": "1.0.0",
+      "id": "grh-junin-2026-09-10", "profileVersion": "1.0.0",
       "source": {
-        "name": "grh_junin",
-        "database": "grh_junin",
-        "sha256": "5A604ACFE5EA32832B630D8AAB29E494038D4C8940B231E283A53D14112665C7",
-        "logicalBytes": 779482898,
-        "cutoff": "2026-09-10T15:17:30",
-        "currentPayrollDate": "2026-09-30",
-        "currentPayrollClosureStatus": "open",
-        "latestClosedPayrollDate": "2026-08-31",
-        "gzipSha256": "C5485F3DAAFCDB8F6C64975713C8F66247513B581D801E75E35DCB2EEC11AFEA",
-        "gzipBytes": 44890240
+        "name":"grh_junin","database":"grh_junin",
+        "sha256":"5A604ACFE5EA32832B630D8AAB29E494038D4C8940B231E283A53D14112665C7",
+        "logicalBytes":779482898,"cutoff":"2026-09-10T15:17:30",
+        "currentPayrollDate":"2026-09-30","currentPayrollClosureStatus":"open","latestClosedPayrollDate":"2026-08-31",
+        "gzipSha256":"C5485F3DAAFCDB8F6C64975713C8F66247513B581D801E75E35DCB2EEC11AFEA",
+        "gzipBytes":44890240
       },
       "curated": {
-        "profileId": "grh-junin-2026-09-10",
-        "expectedCounts": {
-          "ausencia": 31702,
-          "cargo": 5,
-          "catego": 156,
-          "convenio": 14,
-          "familia": 3649,
-          "gremio": 6,
-          "legagremio": 844,
-          "legajo": 2452,
-          "licencia": 3448,
-          "motause": 27,
-          "motibaja": 19,
-          "organiza": 83,
-          "persona": 2351,
-          "revista": 3,
-          "sectores": 36,
-          "vinculo": 9
-        },
-        "expectedOutputCounts": {
-          "employees": 2452,
-          "absences": 31702,
-          "leaves": 3448,
-          "familyMembers": 3649,
-          "sectors": 36,
-          "categories": 156,
-          "unions": 6,
-          "unionMemberships": 844,
-          "agreements": 14,
-          "absenceReasons": 27,
-          "familyRelationships": 9,
-          "jobRoles": 5,
-          "organizations": 83,
-          "exitReasons": 19,
-          "employmentStatuses": 3
-        }
+        "profileId":"grh-junin-2026-09-10",
+        "expectedCounts":{"ausencia":31702,"cargo":5,"catego":156,"convenio":14,"familia":3649,"gremio":6,"legagremio":844,"legajo":2452,"licencia":3448,"motause":27,"motibaja":19,"organiza":83,"persona":2351,"revista":3,"sectores":36,"vinculo":9},
+        "expectedOutputCounts":{"employees":2452,"absences":31702,"leaves":3448,"familyMembers":3649,"sectors":36,"categories":156,"unions":6,"unionMemberships":844,"agreements":14,"absenceReasons":27,"familyRelationships":9,"jobRoles":5,"organizations":83,"exitReasons":19,"employmentStatuses":3}
       },
       "core": {
-        "profileId": "grh-core-junin-2026-09",
-        "expectedCounts": {
-          "calculo": 4403982,
-          "concepto": 294,
-          "histocal": 629,
-          "histolegajo": 847,
-          "legajo": 2452,
-          "legamov": 495468
-        },
-        "snapshotCohort": {
-          "period": 2026,
-          "month": 9,
-          "payrollType": "M",
-          "payrollDate": "2026-09-30",
-          "rows": 847
-        },
-        "expectedClosureStatusCounts": {
-          "closed": 520,
-          "open": 3,
-          "unknown": 101
-        },
-        "currentRunTypes": [
-          "M",
-          "O",
-          "V"
-        ],
-        "expectedReconciliation": {
-          "administrativeActive": 875,
-          "liquidatedCurrent": 847,
-          "activeNotLiquidated": 28,
-          "liquidatedNotActive": 0,
-          "activeAndLiquidated": 847
-        },
-        "latestClosedHeadcount": 854
+        "profileId":"grh-core-junin-2026-09",
+        "expectedCounts":{"calculo":4403982,"concepto":294,"histocal":629,"histolegajo":847,"legajo":2452,"legamov":495468},
+        "snapshotCohort":{"period":2026,"month":9,"payrollType":"M","payrollDate":"2026-09-30","rows":847},
+        "expectedClosureStatusCounts":{"closed":520,"open":3,"unknown":101},
+        "currentRunTypes":["M","O","V"],
+        "expectedReconciliation":{"administrativeActive":875,"liquidatedCurrent":847,"activeNotLiquidated":28,"liquidatedNotActive":0,"activeAndLiquidated":847},
+        "latestClosedHeadcount":854
       }
+    },
+    {
+      "id":"grh-junin-2026-09-22","profileVersion":"2.0.0",
+      "source":{
+        "name":"grh_junin","database":"grh_junin",
+        "sha256":"8FD91C34E3757A19F3F772631F5734D4934050D4823BC6127B61220236155A8E",
+        "logicalBytes":779676197,"cutoff":"2026-09-22T15:16:58",
+        "currentPayrollDate":"2026-09-30","currentPayrollClosureStatus":"mixed","latestClosedPayrollDate":"2026-09-30",
+        "gzipSha256":"6141E10765887CA60775731D9566620EB317861D1D10CF5BECBECDFA07DC187B",
+        "gzipBytes":44912593,"latestClosedMonthlyPayrollDate":"2026-08-31"
+      },
+      "curated":{
+        "profileId":"grh-junin-2026-09-22",
+        "expectedCounts":{"ausencia":31750,"cargo":5,"catego":156,"convenio":14,"familia":3650,"gremio":6,"legagremio":845,"legajo":2452,"licencia":3448,"motause":27,"motibaja":19,"organiza":83,"persona":2351,"revista":3,"sectores":36,"vinculo":9},
+        "expectedOutputCounts":{"employees":2452,"absences":31750,"leaves":3448,"familyMembers":3650,"sectors":36,"categories":156,"unions":6,"unionMemberships":845,"agreements":14,"absenceReasons":27,"familyRelationships":9,"jobRoles":5,"organizations":83,"exitReasons":19,"employmentStatuses":3}
+      },
+      "core":{
+        "profileId":"grh-core-junin-2026-09-22-multirun",
+        "expectedCounts":{"calculo":4404727,"concepto":294,"histocal":630,"histolegajo":850,"legajo":2452,"legamov":496312},
+        "expectedClosureStatusCounts":{"closed":521,"open":3,"unknown":101},
+        "currentRunTypes":["M","O","P","V"],
+        "expectedReconciliation":{"administrativeActive":876,"liquidatedCurrent":849,"activeAndLiquidated":849,"activeNotLiquidated":27,"liquidatedNotActive":0},
+        "schemaVersion":2,
+        "snapshotCohorts":[
+          {"period":2026,"month":9,"payrollType":"M","payrollDate":"2026-09-30","rows":849},
+          {"period":2026,"month":9,"payrollType":"O","payrollDate":"2026-09-30","rows":1}
+        ],
+        "currentRuns":[
+          {"companyCode":"101","payrollDate":"2026-09-30","period":2026,"month":9,"payrollType":"M","closureStatus":"open"},
+          {"companyCode":"101","payrollDate":"2026-09-30","period":2026,"month":9,"payrollType":"O","closureStatus":"open"},
+          {"companyCode":"101","payrollDate":"2026-09-30","period":2026,"month":9,"payrollType":"P","closureStatus":"open"},
+          {"companyCode":"101","payrollDate":"2026-09-30","period":2026,"month":9,"payrollType":"V","closureStatus":"closed"}
+        ]
+      },
+      "publicationMode":"candidate_only"
     }
   ]
 }
