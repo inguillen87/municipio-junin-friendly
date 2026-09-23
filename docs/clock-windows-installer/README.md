@@ -27,7 +27,7 @@ El kit previo de scripts y ZIP sigue documentado en [la guía técnica de Window
 
 Un puerto abierto, una tarea en ejecución o una respuesta HTTP satisfactoria no reemplazan la evidencia de la fila siguiente. El panel debe indicar cuándo se comprobó cada estado y distinguir un estado antiguo de una captura nueva pendiente.
 
-Los envíos actuales se agrupan en ventanas compartidas de 15 minutos. Una captura nueva puede estar guardada localmente y esperar la próxima ventana. El último recibo no confirma registros que se capturaron después. Ante un corte de Internet, las colas conservan los pendientes dentro de los límites de espacio configurados; no se borran para resolver un error.
+Los envíos al archivo de fuentes se agrupan en ventanas compartidas de 15 minutos; cada controlador conserva su programación. Los registros nuevos pueden estar guardados localmente y esperar el próximo envío. El último recibo no confirma registros nuevos que aún no se enviaron. Ante un corte de Internet, las colas conservan los pendientes dentro de los límites de espacio configurados; no se borran para resolver un error.
 
 ## Edición actual y otros municipios
 
@@ -44,7 +44,17 @@ Un campo «API de destino» puede mostrar el perfil autorizado, pero esta versi�
 5. Completar con el responsable técnico el registro separado de la tarea; el EXE no lo hace automáticamente. Activar primero un equipo. Confirmar lectura, lote local y recibo exacto; después ampliar a los demás dispositivos revisados.
 6. Registrar la aceptación con una marca nueva y una prueba de continuidad sin la PC anterior. El EXE compilado o instalado por sí solo no completa esa prueba.
 
-No activar una segunda instancia para resolver un atraso. No borrar bloqueos, colas ni recibos para que el panel muestre un estado favorable. PM10 conserva su instalación y su contrato separados: esta entrega no lo migra ni lo reconfigura.
+No activar una segunda instancia para resolver un atraso. No borrar bloqueos, colas ni recibos para que el panel muestre un estado favorable. **PM-10 · Edificio Viejo pertenece al mismo parque municipal y se administra con los mismos criterios que los demás equipos.** El coordinador admite su controlador de captura y envío junto con los controladores de los otros relojes. Cada uno conserva su identidad, su cola y el contrato de acuse que le corresponde; el traslado no convierte ni reenvía registros como si fueran una fuente nueva.
+
+## Un panel para el parque de relojes
+
+El panel local del coordinador muestra todos los relojes de su configuración en la misma lista, con iguales tarjetas y contadores. PM-10 participa del total, de las capturas guardadas, de los equipos con acuse conservado y de los que requieren revisión. No suma registros de contratos distintos como si fueran asistencia o un total laboral conciliado.
+
+Cada tarjeta distingue la captura local del envío, muestra la fecha del archivo de estado y la del último acuse comprobado. La recepción de marcaciones y el archivo original de fuentes conservan su alcance. Si falta una evidencia, aparece «Recepción no consultada» o «Sin comprobación»; no se declara que el envío esté sin configurar, ni se reemplaza la falta de información por cero. Una captura más reciente que el último acuse tampoco prueba por sí sola que existan pendientes: puede no contener registros nuevos.
+
+La comprobación del panel valida la metadata local, la identidad de la cola y la forma y el vínculo del acuse guardado. No vuelve a leer las marcaciones, no recalcula las huellas de su contenido ni consulta al servidor. Acredita qué evidencia local pudo verificarse; no es una certificación independiente de su autenticidad ni una prueba de captura en vivo.
+
+Los contadores describen la configuración y los archivos consultados, no una conexión en vivo. Los 14 puntos del inventario municipal —13 de la planilla original y PM-14 incorporado por confirmación— no equivalen a 14 equipos conectados. Los seis incorporados y los ocho pendientes deben conservar su estado real; un distrito nuevo requiere dirección, ruta autorizada, identidad y protocolo verificados. Este cambio del panel no instala, traslada ni activa equipos por sí mismo.
 
 ## Alcance de la entrega
 

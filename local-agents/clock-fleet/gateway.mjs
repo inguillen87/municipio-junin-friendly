@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import path from 'node:path';import {fileURLToPath,pathToFileURL} from 'node:url';import {spawn} from 'node:child_process';
 import {setTimeout as sleep} from 'node:timers/promises';
-import {loadGateway,inspectGateway,WORKERS,safeJson,absoluteLocal} from './gateway-config.mjs';
+import {loadGateway,inspectGateway,readGatewayOverview,WORKERS,safeJson,absoluteLocal} from './gateway-config.mjs';
 import {acquireLock,atomicJson,safeDirectory} from '../pm10/store.mjs';import {fault,safeCode} from '../pm10/config.mjs';
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 export function nextWorkerState(previous,{exitCode,uptimeMs,nowMs,stopping=false}){
@@ -90,8 +90,14 @@ export async function supervise(config,{signal,spawnImpl=spawn,now=()=>Date.now(
 }
 export async function main(argv=process.argv.slice(2)){
  if(argv.length===4&&argv[0]==='worker'&&argv[2]==='--config')return runWorker(argv[1],absoluteLocal(argv[3]));
- if(argv.length!==3||!['check','run','status','start','stop'].includes(argv[0])||argv[1]!=='--config')throw fault('GATEWAY_USAGE');
+ if(argv.length!==3||!['check','run','status','snapshot','overview','start','stop'].includes(argv[0])||argv[1]!=='--config')throw fault('GATEWAY_USAGE');
  const config=await loadGateway(argv[2]);
+ if(['snapshot','overview'].includes(argv[0])){
+  let desired='unknown';try{desired=await desiredState(config.stateDir);}catch{}
+  const snapshot=await readGatewayOverview(config,{desiredState:desired});
+  if(argv[0]==='overview'){const {renderGatewayOverview}=await import('./overview.mjs');console.log(renderGatewayOverview(snapshot));}else console.log(JSON.stringify(snapshot));
+  return snapshot;
+ }
  // Stopping remains available even if a worker config later becomes invalid.
  if(argv[0]==='stop'){await setDesiredState(config.stateDir,'stopped');console.log('GATEWAY_STOP_REQUESTED');return;}
  const preflight=await inspectGateway(config);
