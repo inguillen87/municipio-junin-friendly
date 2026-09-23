@@ -10,7 +10,11 @@ on:
       - 'internal-dashboard.html'
       - 'scripts/migrations/102-*'
       - 'scripts/verify-native-family-schooling*.mjs'
+      - 'scripts/verify-native-employee-browser.mjs'
+      - 'scripts/verify-native-monthly-novelties-browser.mjs'
       - 'scripts/verify-family-schooling*.mjs'
+      - 'local-agents/pm10/**'
+      - 'local-agents/clock-fleet/**'
       - 'tests/*family*'
       - 'tests/*schooling*'
       - 'tests/fixtures/*family*'
@@ -34,6 +38,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - run: node --test local-agents/pm10/tests/*.test.mjs
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-family-schooling-browser.mjs
       - run: node scripts/verify-family-schooling-browser.mjs

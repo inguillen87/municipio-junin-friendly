@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {checksum16, makeAuthPayload, validateCommKey, decodeClock, decodeCounts} from './zk-core-v3.mjs';
 
-export const VERSION = '4.1.2';
+export const VERSION = '4.1.3';
 export const TARGET = '172.100.97.131';
 export const PORT = 4370;
 export const SERIAL = 'CQTU225360168';
@@ -114,7 +114,15 @@ export function decodeAttendance(raw,beforeCount,afterCount){
  if(bodyBytes!==raw.length-4){result.reason='La longitud interna no coincide con los bytes recibidos';return result;}
  if(bodyBytes===0){result.status='DECODED_EMPTY';result.recordCount=0;return result;}
  const counts=[...new Set([beforeCount,afterCount].filter(n=>Number.isSafeInteger(n)&&n>0))];
- const candidates=[8,16,40].filter(size=>counts.some(n=>bodyBytes===size*n));
+ let candidates=[8,16,40].filter(size=>counts.some(n=>bodyBytes===size*n));
+ let increasingSnapshot=false;
+ // A snapshot can freeze between two live counts while new punches arrive.
+ // Preserve exact-counter decoding. Only a unique 40-byte layout strictly
+ // inside two supported, increasing counters gets this additional evidence.
+ if(candidates.length===0&&[beforeCount,afterCount].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=100000)&&beforeCount<afterCount){
+  const bounded=[8,16,40].filter(size=>bodyBytes%size===0&&bodyBytes/size>beforeCount&&bodyBytes/size<afterCount);
+  if(bounded.length===1&&bounded[0]===40){candidates=bounded;increasingSnapshot=true;}
+ }
  if(candidates.length!==1){result.reason='Sin longitud de registro unica compatible con los contadores de referencia';return result;}
  const size=candidates[0];result.layout=`legacy-${size}-byte-candidate`;result.recordCount=bodyBytes/size;
  for(let offset=4,index=0;offset<raw.length;offset+=size,index++){
@@ -127,6 +135,12 @@ export function decodeAttendance(raw,beforeCount,afterCount){
   const dniCandidate=typeof userId==='string'&&/^[0-9]{6,8}$/.test(userId);
   if(!dniCandidate)result.nonDniOrUidCount++;
   result.records.push({recordIndexInDownload:index+1,rawRecordSha256:sha(row),userIdFromRecord:userId,internalUid:uid,dniFormatCandidate:dniCandidate,occurredAtDeviceLocal:local,rawTimestampHex:tm.toString('hex'),timestampError:timeError,verificationCodeRaw:status,punchCodeRaw:punch,workCodeRaw:workcode,identityState:size===8?'UID_REQUIRES_MAPPING':'DNI_REQUIRES_CANONICAL_MATCH',direction:'unknown',method:'unknown'});
+ }
+ if(increasingSnapshot){
+  // ensureCapture deliberately relies on layout, so an invalid date must not
+  // leave a forty-byte layout set even though the wire transfer was complete.
+  if(result.invalidTimestampCount){result.layout=null;result.recordCount=null;result.records=[];result.reason='La lectura entre contadores crecientes contiene una fecha civil invalida';return result;}
+  result.countEvidence={mode:'strict_monotonic_interval',before:beforeCount,after:afterCount,recordCount:result.recordCount,completeCoverageAsserted:false};
  }
  result.status='DECODED_CANDIDATE';return result;
 }
