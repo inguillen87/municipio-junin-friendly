@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
+const html=fs.readFileSync('administracion-plataforma.html','utf8');
+const begin=html.indexOf('    function statusTone(value)'),end=html.indexOf('    function pill(',begin);
+assert.ok(begin>0&&end>begin);
+const context=vm.createContext({normalizeSearch:v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()});
+vm.runInContext(html.slice(begin,end)+';this.tone=statusTone',context);
+for(const value of ['inactive','inactivo','inactiva','disabled','revoked','suspended','failed'])test(value+' is never presented as active',()=>assert.equal(context.tone(value),'is-danger'));
+for(const value of ['active','ACTIVO','ready','aprobada','operativa'])test(value+' has a known positive state',()=>assert.equal(context.tone(value),'is-ok'));
+test('unknown phrases and negations are not inferred through substrings',()=>{for(const value of ['not active','incomplete','not approved','token','no operativo','inactive custom',null,''])assert.equal(context.tone(value),'')});
+test('separators and accents normalize only exact states',()=>{assert.equal(context.tone(' EN_REVISIÓN '),'is-attention');assert.equal(context.tone('in-progress'),'is-info')});
