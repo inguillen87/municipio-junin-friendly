@@ -1,0 +1,76 @@
+name: GRH snapshot shape and refresh safety
+on:
+  push:
+    branches: ['work/grh-shape-refresh-20260923', 'master']
+    paths:
+      - 'scripts/audit-grh-snapshot-shape.py'
+      - 'scripts/verify-document-library-refresh-safety.mjs'
+      - 'scripts/extract_grh_core.py'
+      - 'scripts/extract_rrhh_curated.py'
+      - 'tests/test_grh_snapshot_shape.py'
+      - '.github/workflows/grh-shape-and-refresh-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: grh-shape-refresh-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Synthetic multi-run snapshot audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification/grh-shape-refresh
+          python3 -m unittest discover -s tests -p test_grh_snapshot_shape.py -v 2>&1 | tee verification/grh-shape-refresh/audit-tests.log
+      - name: Full tests and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee verification/grh-shape-refresh/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Measure the previous library with the same synthetic catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verification/document-library-baseline/scripts verification/document-library-pagination
+          git archive 521c61f2f54ace901b7da6e92dc5d95f66693212 assets scripts/payroll-detail-synthetic.mjs | tar -x -C verification/document-library-baseline
+          cp scripts/verify-document-library-refresh-safety.mjs verification/document-library-baseline/scripts/
+          (cd verification/document-library-baseline && PDL_BASELINE_ONLY=1 node scripts/verify-document-library-refresh-safety.mjs)
+          cp verification/document-library-baseline/verification/document-library-pagination/baseline.json verification/document-library-pagination/
+      - name: Delayed index reads, focus and stale export regression
+        run: node scripts/verify-document-library-refresh-safety.mjs
+      - name: Existing pagination and source pin regressions
+        run: node scripts/verify-document-library-pagination.mjs
+      - name: Existing document and download workflows
+        run: node scripts/verify-payroll-document-library-browser.mjs
+      - name: Preserve exact tested source, no private inputs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p verification/grh-shape-refresh
+          git archive --format=tar.gz HEAD > verification/grh-shape-refresh/tested-source.tar.gz
+          git rev-parse HEAD > verification/grh-shape-refresh/commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grh-shape-refresh-${{ github.run_id }}
+          path: |
+            verification/grh-shape-refresh/
+            verification/document-library-pagination/
+            verification/document-library-browser.json
+            verification/document-library-*-qa.png
+            verification/library-vacation-synthetic.*
+          retention-days: 3
