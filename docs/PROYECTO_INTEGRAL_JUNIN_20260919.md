@@ -1,5 +1,8 @@
 # Proyecto integral MuniControl - Municipalidad de Junin
 
+**Decisión de producto del 24/09/2026 — EXP-PROV-01:** se aprueba incorporar el [Expediente digital de pago a proveedores](EXP_PROV_01_EXPEDIENTE_DIGITAL_PAGOS_DIFERIDO_20260924.md) como línea estratégica **diferida hasta el cierre de autonomía de GRH (G-AUT-01)**. Incluye continuidad hacia portal de proveedores, expedientes internos/externos y portal ciudadano con tributos. Reutiliza el portafirmas #42 y los frentes S009–S012; no altera la prioridad del núcleo actual, no activa funciones ni concede aprobación administrativa.
+
+
 Version de trabajo: 19/09/2026. Propietario tecnico: Marcelo. Responsables funcionales de referencia: Hugo (Personal/asistencia), Noelia (Contaduria/liquidacion) y Mariano (Juridica). Este documento organiza desarrollo y aceptacion; no concede atribuciones administrativas a una cuenta ni declara completadas las funciones propuestas.
 
 Actualizacion 23/09/2026: la fase B se detalla en [Asistencia, calculo y aprobacion de Hugo](ASISTENCIA_CALCULO_Y_APROBACION_HUGO_20260923.md), con seis sprints y casos de aceptacion para evitar horas sumadas o descontadas sin fundamento. El parque comun de catorce puntos, con seis incorporados actualmente e incluyendo PM10, se precisa en [Un parque municipal de relojes](CLOCK_FLEET_UNIFIED_20260923.md). Los estados fechados del 19/09 conservados debajo son historicos y no describen la conectividad actual.

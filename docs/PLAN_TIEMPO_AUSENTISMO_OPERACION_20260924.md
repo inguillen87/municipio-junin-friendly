@@ -1,5 +1,8 @@
 # Tiempo, ausentismo y operación municipal · ampliación del plan
 
+**Decisión de producto del 24/09/2026 — EXP-PROV-01:** se aprueba incorporar el [Expediente digital de pago a proveedores](EXP_PROV_01_EXPEDIENTE_DIGITAL_PAGOS_DIFERIDO_20260924.md) como línea estratégica **diferida hasta el cierre de autonomía de GRH (G-AUT-01)**. Incluye continuidad hacia portal de proveedores, expedientes internos/externos y portal ciudadano con tributos. Reutiliza el portafirmas #42 y los frentes S009–S012; no altera la prioridad del núcleo actual, no activa funciones ni concede aprobación administrativa.
+
+
 ## Alcance y base del pedido
 
 Pedido de Marcelo del 24/09/2026, sustentado en capturas de Ausentismo y Relojes: demora inicial, ceros poco explicados, comparación porcentual inválida, una fecha final de 2033 marcada como rango válido, salto al legajo sin contexto, paneles de recepción separados y cálculo de tiempos difícil de encontrar. Esta ampliación complementa `ASISTENCIA_CALCULO_Y_APROBACION_HUGO_20260923.md`, `MATRIZ_ACEPTACION_NOELIA.md` y `PROYECTO_INTEGRAL_JUNIN_20260919.md`; no elimina sus pendientes ni sus criterios de aceptación.

@@ -1,5 +1,8 @@
 # MuniControl — hoja de ruta competitiva GovTech
 
+**Decisión de producto del 24/09/2026 — EXP-PROV-01:** se aprueba incorporar el [Expediente digital de pago a proveedores](EXP_PROV_01_EXPEDIENTE_DIGITAL_PAGOS_DIFERIDO_20260924.md) como línea estratégica **diferida hasta el cierre de autonomía de GRH (G-AUT-01)**. Incluye continuidad hacia portal de proveedores, expedientes internos/externos y portal ciudadano con tributos. Reutiliza el portafirmas #42 y los frentes S009–S012; no altera la prioridad del núcleo actual, no activa funciones ni concede aprobación administrativa.
+
+
 > Seguimiento 19/09/2026: el estado de agosto conservado abajo es una linea base historica, no el estado actual de produccion. El plan transversal actualizado y los criterios de aceptacion de relojes/Hugo/Noelia/Mariano estan en [Proyecto integral Junin](PROYECTO_INTEGRAL_JUNIN_20260919.md); el cierre operativo de esta entrega, en [Continuidad y host municipal](CLOCK_HOST_RECOVERY_RELEASE_20260919.md).
 
 **Versión de análisis:** 2026-08-21
