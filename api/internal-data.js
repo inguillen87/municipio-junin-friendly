@@ -5,6 +5,7 @@ import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-e
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
+import { internalPayrollDocumentBatch } from '../lib/internal-payroll-document-batch.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
@@ -3871,6 +3872,10 @@ export function createInternalDataHandler(dependencies = {}) {
         await assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot);
         return send(res, status, payload);
       };
+      if(resource==='payrolldocumentbatch'){
+        const result=await internalPayrollDocumentBatch(sql,req,sourceBinding,sourceSnapshot,{readRoster:async datasetId=>internalPayrollRoster(await getPayrollSql(env),{query:{resource:'payrollexportroster',datasetId}},access.principal,getTenantSession(access,env))});
+        return await respond(result.status,result.payload);
+      }
       if (resource === 'summary') return await respond( 200, await summary(sql));
       if (resource === 'structure') return await respond( 200, await structure(sql));
       if (resource === 'integrationquality') return await respond( 200, await integrationQuality(sql));

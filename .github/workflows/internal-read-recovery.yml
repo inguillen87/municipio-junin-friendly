@@ -4,6 +4,12 @@ on:
     branches: ['internal-read-timeout-recovery-20260923', 'master']
     paths:
       - 'api/internal-data.js'
+      - 'lib/internal-payroll-document-batch.js'
+      - 'assets/payroll-document-batch*'
+      - 'tests/payroll-document-batch.test.js'
+      - 'tests/fixtures/payroll-document-selection-synthetic.js'
+      - 'scripts/verify-payroll-document-selection-browser.mjs'
+      - 'scripts/verify-payroll-selection-postgres.mjs'
       - 'centro-acciones.html'
       - 'assets/action-command-recovery.js'
       - 'assets/action-calendar-date.js'
@@ -67,6 +73,15 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: selection-qa-only
+          POSTGRES_DB: payroll_selection_qa
+        options: >-
+          --health-cmd "pg_isready -U postgres -d payroll_selection_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,6 +97,11 @@ jobs:
           set -euo pipefail
           mkdir -p verification
           npm run build 2>&1 | tee verification/internal-read-recovery-build.log
+      - name: Isolated PostgreSQL selection scope
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-selection-postgres.mjs --write-sql=verification/payroll-selection-qa.sql
+          docker exec -e PGPASSWORD=selection-qa-only -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres -d payroll_selection_qa -v ON_ERROR_STOP=1 < verification/payroll-selection-qa.sql | tee verification/payroll-selection-qa.log
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Workforce browser acceptance with intercepted synthetic APIs
@@ -95,6 +115,8 @@ jobs:
         run: node scripts/verify-budget-cotejo-browser.mjs
       - name: Native command receipt and retry acceptance
         run: node scripts/verify-action-command-recovery-browser.mjs
+      - name: Payroll document range selection
+        run: node scripts/verify-payroll-document-selection-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -108,4 +130,6 @@ jobs:
             verification/time-absence-workspace/
             verification/action-command-recovery/
             verification/budget-cotejo/
+            verification/payroll-document-selection/
+            verification/payroll-selection-qa.log
           retention-days: 7

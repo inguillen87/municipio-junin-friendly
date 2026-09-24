@@ -101,3 +101,10 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 ## Jurídica · estabilidad de captura detectada en la aceptación cruzada
 
 `JURIDICA_ENTRADA_ESTABLE_20260924.md` registra la corrección del foco diferido que podía interferir con el primer campo del Registro normativo. Conserva las validaciones y el circuito de confirmación; añade escritura rápida de cuatro borradores sin guardar y mantiene la aceptación completa de versiones y fuentes. No reemplaza los pendientes de corpus, expedientes, relaciones o alertas de Mariano.
+
+
+## Noelia · módulo 9.A: selección documental por rangos
+
+`NOELIA_SELECCION_DOCUMENTAL_M9_20260924.md` incorpora el circuito Centro de reportes → Documentos por rango. La liquidación concreta y los límites de legajo/repartición se resuelven sobre toda su población antes de paginar. El resultado distingue vínculos únicos de referencias a revisar y abre el detalle individual existente sin abandonar la selección.
+
+La repartición corresponde al padrón certificado al corte visible, no a la asignación histórica liquidada. La selección no se rotula como emisión de recibos: pago, firma, lote completo y descarga propia del agente siguen pendientes. Este incremento no incorpora originales de relojes, no aplica reglas salariales y no selecciona el respaldo sucesor.

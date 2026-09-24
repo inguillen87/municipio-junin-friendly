@@ -49,3 +49,10 @@ El último respaldo recibido se perfila y compara **fuera del repositorio**. Reg
 - `npm run build`: runtime fijado en `.nvmrc`, pruebas completas y compilación.
 
 CI, promoción a `master`, despliegue y comprobación de los archivos servidos se informan por separado. Ninguna prueba de navegador sintética representa una sesión municipal real.
+
+
+## Actualización 24/09 · selección del módulo 9
+
+La fase 9.A incorpora una consulta por rangos de legajo y repartición del padrón al corte, con paginación sobre el resultado completo y apertura del detalle individual en contexto. Se documenta en `NOELIA_SELECCION_DOCUMENTAL_M9_20260924.md`.
+
+Esto actualiza el estado de la selección, no de la emisión por lote: fecha de pago, firma digital, publicación propia del agente y reparto histórico de la corrida todavía requieren su circuito autorizado. La columna Cant de la estructura presupuestaria continúa sin interpretarse como cupo anual aprobado.
