@@ -271,10 +271,12 @@ export function createInternalAttendanceHandler(dependencies = {}) {
           return send(res,200,{ok:true,...result});
         }
         if (resource === 'clock-workdays-v2') {
-          assertQueryKeys(req,new Set(['resource','source','site','from','to','page','pageSize','search','status','snapshot','cause']));
+          assertQueryKeys(req,new Set(['resource','source','site','from','to','page','pageSize','search','status','snapshot','cause','context','personRef']));
           const result=await clockWorkdaysV2(sql,access.principal,{
             source:queryValue(req,'source'),site:queryValue(req,'site','pm-10'),
             cause:req?.query?.cause===undefined?undefined:queryValue(req,'cause'),
+            context:req?.query?.context===undefined?undefined:queryValue(req,'context'),
+            personRef:req?.query?.personRef===undefined?undefined:queryValue(req,'personRef'),
             from:queryValue(req,'from'),to:queryValue(req,'to'),
             page:queryValue(req,'page','1'),pageSize:queryValue(req,'pageSize','25'),
             search:queryValue(req,'search'),status:queryValue(req,'status','all'),snapshot:queryValue(req,'snapshot'),

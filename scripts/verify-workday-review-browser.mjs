@@ -79,7 +79,7 @@ try{
  assert.equal(await el('State').locator('[value="extra_open"]').textContent(),'Marcas extra sin tramo completo');
  checks.push('v2 exposes the new filter in an isolated Spanish-locale context');
  assert.equal(await el('ReviewCounts').locator('button').count(),7);assert.equal(await el('ReviewCounts').locator('[data-wd-cause=all] strong').innerText(),'114');assert.equal(await el('ReviewCounts').locator('[data-wd-cause=boundaries] strong').innerText(),'110');assert.equal(await el('ReviewCounts').locator('[data-wd-cause=pauses] strong').innerText(),'1');checks.push('cause counts cover the whole applied scope before selecting a cause, not the first page');
- await el('ReviewCounts').locator('[data-wd-cause=pauses]').click();await ready(1);assert.match(await el('Rows').innerText(),/Caso pausa incompleta/);await el('Rows').locator('button').click();assert.match(await page.locator('.wd-review-guidance').innerText(),/No completes el regreso/);assert.match(await el('ReviewNotice').innerText(),/111 de 114/);checks.push('a cause opens matching evidence and an explicit next step, without changing times or approvals');
+ await el('ReviewCounts').locator('[data-wd-cause=pauses]').click();await ready(1);assert.match(await el('Rows').innerText(),/Caso pausa incompleta/);await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();assert.match(await page.locator('.wd-review-guidance').innerText(),/No completes el regreso/);assert.match(await el('ReviewNotice').innerText(),/111 de 114/);checks.push('a cause opens matching evidence and an explicit next step, without changing times or approvals');
  await el('ReviewCounts').locator('[data-wd-cause=boundaries]').click();await ready(110);const causeDownload=page.waitForEvent('download');await el('Csv').click();const causeFile=await causeDownload;await causeFile.saveAs(path.join(out,'cause-boundaries-synthetic.csv'));const causeCsv=fs.readFileSync(path.join(out,'cause-boundaries-synthetic.csv'),'utf8');assert.equal(causeCsv.trim().split(/\r?\n/).length,111);assert.match(causeCsv,/Causa seleccionada/);assert.match(causeCsv,/no permite completar horas ni presumir una ausencia/);checks.push('cause export includes all 110 matching person-days and guidance on one verified cut');
  mode='facet-drift';const beforeFacet=downloads.length;await el('Csv').click();await el('Status').filter({hasText:'Cambió el corte'}).waitFor();assert.equal(downloads.length,beforeFacet);mode='ok';await refresh(110);checks.push('changed cause counts on page two prevent any partial export');
  mode='bad-facet';await el('Refresh').click();await el('Error').waitFor();assert.equal(await el('ReviewCounts').locator('button').count(),0);assert.equal(await el('Rows').innerText(),'');mode='ok';await refresh(110);checks.push('malformed cause metadata removes previous counters and rows rather than showing misleading results');
@@ -97,7 +97,7 @@ try{
 
  await filter('extra_open','Agente abierto',107);
  assert.match(await el('Metrics').innerText(),/No reconstruido/);assert.doesNotMatch(await el('Rows').innerText(),/00:00:00/);
- const firstButton=el('Rows').locator('button').first();await firstButton.focus();await page.keyboard.press('Enter');
+ const firstButton=el('Rows').locator('button[aria-controls^="wd-detail-"]').first();await firstButton.focus();await page.keyboard.press('Enter');
  assert.equal(await firstButton.getAttribute('aria-expanded'),'true');
  assert.ok(await page.locator('.wd-sequence').first().isVisible());assert.match(await page.locator('.wd-sequence').first().innerText(),/Entrada de tiempo extra.*Marca por revisar/s);
  checks.push('isolated code4 is visible without claiming zero hours; keyboard reveals its event immediately');
@@ -114,18 +114,18 @@ try{
  checks.push('CSV and Excel export all 107 filtered rows on one cut with unknown durations as text');
 
  await filter('extra_open','Caso mixto',1);assert.match(await el('Rows').innerText(),/02:00:00/);assert.match(await el('Rows').innerText(),/1 marca sin tramo completo/);
- await el('Rows').locator('button').click();assert.equal(await page.locator('.wd-sequence .wd-calculated').count(),2);assert.equal(await page.locator('.wd-sequence .wd-pending').count(),1);
+ await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();assert.equal(await page.locator('.wd-sequence .wd-calculated').count(),2);assert.equal(await page.locator('.wd-sequence .wd-pending').count(),1);
  checks.push('a calculated extra interval and an unmatched later entry remain visibly separate');
- await filter('extra_open','Caso salida aislada',1);await el('Rows').locator('button').click();
+ await filter('extra_open','Caso salida aislada',1);await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();
  assert.match(await page.locator('.wd-sequence').innerText(),/Salida de tiempo extra/);assert.match(await page.locator('.wd-detail').innerText(),/Salida sin entrada asociada/);
  checks.push('orphan code5 is described as a missing entry rather than a missing exit');
- await filter('extra_open','Caso pausa incompleta',1);assert.match(await el('Rows').innerText(),/No reconstruido/);await el('Rows').locator('button').click();
+ await filter('extra_open','Caso pausa incompleta',1);assert.match(await el('Rows').innerText(),/No reconstruido/);await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();
  assert.match(await page.locator('.wd-detail').innerText(),/Pausa sin regreso registrado/);assert.equal(await page.locator('.wd-sequence li').count(),3);
  checks.push('incomplete pause retains all three events and produces no reconstructed duration');
- await filter('all','Caso sin pausa',1);await el('Rows').locator('button').click();assert.match(await page.locator('.wd-detail').innerText(),/pausa 00:00:00/);
+ await filter('all','Caso sin pausa',1);await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();assert.match(await page.locator('.wd-detail').innerText(),/pausa 00:00:00/);
  checks.push('a genuine zero pause in a calculated interval remains zero');
 
- await filter('all','Caso secuencia completa',1);await el('Rows').locator('button').click();
+ await filter('all','Caso secuencia completa',1);await el('Rows').getByRole('button',{name:'Ver jornada',exact:true}).click();
  const sequence=page.locator('.wd-sequence');assert.equal(await sequence.locator('li').count(),6);
  assert.match(await sequence.innerText(),/10:00:00.*Salida a pausa.*10:15:00.*Regreso de pausa/s);
  assert.equal(await page.locator('.wd-detail details').getAttribute('open'),null);

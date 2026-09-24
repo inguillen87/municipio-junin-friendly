@@ -134,7 +134,7 @@ if(root){
  function autoRefresh(){
   if(document.hidden||!state.started||state.denied||state.page!==1||busy())return;
   // Preserve focus, unsent filters and an open evidence detail while reading.
-  if(root.contains(document.activeElement)||root.querySelector('details[open]'))return;
+  if(root.contains(document.activeElement)||root.querySelector('details[open]')||root.querySelector('#wdPersonScope:not([hidden])'))return;
   load(true);
  }
  function start(){if(state.started||state.denied)return;state.started=true;root.hidden=false;tab(state.tab);load(true);state.timer=setInterval(autoRefresh,60000)}

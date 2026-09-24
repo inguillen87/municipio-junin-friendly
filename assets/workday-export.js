@@ -21,10 +21,12 @@ const reviewLabel=(row,data)=>{
 export function workdayCsv(rows,data){
  const v2=continuous(data),head=['Fecha de inicio','Persona','Legajo','Ordinario registrado','Extra registrado','Pausas','Tramos cerrados','Estado de secuencia','Observaciones','Efecto en nómina'];
  if(v2)head.push('Fuente','Corte de lectura','Reglas','Referencias de eventos','Observaciones de fuente sin ubicación en el contexto');
+ if(data?.filters?.personRef)head.push('Contexto del vínculo','Alcance del contexto');
  if(data?.reviewFacets)head.push('Causa seleccionada','Causas de la jornada','Próximo paso sugerido');
  return '\ufeff'+[head,...rows.map(r=>{
   const values=[r.day,r.personLabel,r.legajo,timeCell(r,'ordinary',data),timeCell(r,'extra',data),timeCell(r,'pause',data),r.closedIntervalCount,r.status==='closed'?'Secuencia completa':'Revisar',reviewLabel(r,data),v2?'Referencia no homologada · sin aprobación salarial':'No aprobado para liquidar'];
   if(v2)values.push(sourceLabel(data),data.snapshotId,data.rules.version,r.events.map(e=>e.eventRef).join(' | '),data.observationSummary.unplaced);
+  if(data?.filters?.personRef)values.push(data.filters.personRef,'Vínculo exacto del equipo/punto en el corte; no agrupa otros contratos');
   if(data?.reviewFacets)values.push(WORKDAY_REVIEW_CAUSES[data.filters.cause].label,reviewCauseLabels(r),reviewCauseGuidance(r));
   return values;
  })].map(r=>r.map(cell).join(';')).join('\r\n')+'\r\n';
@@ -56,6 +58,7 @@ export function workdayXlsx(data,rows){
    ...data.observations.map(e=>[e.eventRef,e.deviceKey,e.localTimestamp,e.source.kind==='receipt'?'Recepción confirmada':'Captura histórica',e.source.id,e.source.ordinal,e.issues.join(' | ')])
   ]);
  }
+ if(data.filters.personRef)content[2].push(['Contexto del vínculo',data.filters.personRef],['Alcance del vínculo','Identidad y vínculo del equipo/punto en este corte; no agrupa otros contratos']);
  if(data.reviewFacets){
   content[0][0].push('Causas de revisión','Próximo paso sugerido');
   rows.forEach((row,i)=>content[0][i+1].push(reviewCauseLabels(row),reviewCauseGuidance(row)));

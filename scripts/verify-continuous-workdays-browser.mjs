@@ -68,7 +68,7 @@ try {
  assert.equal(workRequests().at(-1).query.get('snapshot'),WORKDAY_CUT);await value('Prev').click();await ready();
  checks.push('subsequent pages use the workday revision');
 
- await value('Rows').locator('button').first().click();const detail=page.locator('.wd-detail').first();
+ await value('Rows').getByRole('button',{name:'Ver jornada',exact:true}).first().click();const detail=page.locator('.wd-detail').first();
  assert.match(await detail.innerText(),/pausa 00:15:00/);assert.match(await detail.innerText(),/Tiempo extra.*15:00:00/);
  assert.match(await detail.innerText(),/Referencias/);await detail.locator('summary').click();
  assert.match(await detail.innerText(),/Captura histórica/);assert.match(await detail.innerText(),/Recepción/);
@@ -114,7 +114,7 @@ try {
 
  await page.locator('#clockSource').selectOption('historical');await ready();
  const legacy=requests.filter(r=>r.resource==='clock-workdays').at(-1);assert.ok(legacy);assert.equal(legacy.query.get('snapshot'),WORKDAY_CAPTURE);
- await value('Rows').locator('button').first().click();assert.match(await page.locator('.wd-detail').first().innerText(),/Filas /);
+ await value('Rows').getByRole('button',{name:'Ver jornada',exact:true}).first().click();assert.match(await page.locator('.wd-detail').first().innerText(),/Filas /);
  await page.locator('#clockSource').selectOption('continuous');await openWorkdays();
  assert.equal(workRequests().at(-1).query.has('snapshot'),false);checks.push('historical v1 keeps capture UUID and ordinals; returning to continuous creates a fresh workday read');
 
@@ -132,7 +132,7 @@ try {
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await page.screenshot({path:path.join(out,filename)});
  }
- await value('Rows').locator('button').first().click();
+ await value('Rows').getByRole('button',{name:'Ver jornada',exact:true}).first().click();
  await frame('#clockWorkdays','desktop-synthetic.png');
  await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});
  await page.locator('.wd-detail').first().locator('summary').click();

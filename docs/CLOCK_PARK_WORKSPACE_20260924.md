@@ -50,3 +50,8 @@ El módulo 10, `ESTRUCTURA PRESUPUESTARIA DE CARGOS`, pide controlar cargos liqu
 La estructura aportada del 23/09/2026 presenta identificadores, jerarquía de cargo, denominación, cantidad, clase, estado/vacante y listas por legajo, continuadas entre páginas. No autoriza emparejar dos legajos porque el nombre coincida, inferir que un listado prueba un pago ni completar valores presupuestarios anuales faltantes. Estos documentos permanecen privados: sólo se versionan los criterios, no el padrón nominal del PDF.
 
 La matriz de Noelia, el plan de cálculo/revisión de Hugo y la ampliación `PLAN_TIEMPO_AUSENTISMO_OPERACION_20260924.md` conservan el resto de pendientes de Mariano y superadministración. Esta entrega cierra la vista compuesta; no declara terminado el reemplazo integral de GRH.
+
+
+## Continuidad · período individual de jornadas
+
+`CLOCK_PERSON_CONTEXT_20260924.md` documenta el siguiente incremento sobre la central unificada `09ee30f`: consulta exacta por vínculo, período completo, revisión/exportación y regreso al listado preservando el trabajo. No incorpora los originales pendientes ni extiende esta entrega al historial de ausencias o al motor salarial.

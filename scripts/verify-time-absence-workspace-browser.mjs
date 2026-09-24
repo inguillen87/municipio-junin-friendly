@@ -3,11 +3,12 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {absenceWorkspaceAnalytics,absenceWorkspaceEvents} from '../tests/fixtures/absence-workspace-synthetic.js';
 import {clockDashboardFixture} from '../tests/fixtures/clock-dashboard-v3-synthetic.js';
 import {continuousWorkdayFixture} from '../tests/fixtures/continuous-workdays-synthetic.js';
+import {personWorkdayFixture} from '../tests/fixtures/workday-person-synthetic.js';
 const live=process.env.TIME_WORKSPACE_ORIGIN;if(live!==undefined)assert.equal(live,'https://municipio-junin-friendly.vercel.app');
 const origin=live||'https://time-workspace.test',base=path.resolve('public'),out=path.resolve('verification/time-absence-workspace');fs.mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
 const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',serviceWorkers:'block'});
-const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok';
+const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null;
 await context.route('**/*',async route=>{
  const req=route.request(),url=new URL(req.url()),q=url.searchParams,resource=(q.get('resource')||'').toLowerCase();
  if(url.origin!==origin)return route.abort();
@@ -28,7 +29,10 @@ await context.route('**/*',async route=>{
  if(resource==='absenceevents')return send(eventsMode==='ok'?absenceWorkspaceEvents(q):{ok:false,code:'SYNTHETIC_ERROR'},eventsMode==='denied'?403:eventsMode==='fail'?503:200);
  if(url.pathname==='/api/internal-auth')return send({ok:true,authenticated:true,sessionVersion:2,user:{id:'synthetic-user',name:'Usuario de prueba',email:'qa@example.invalid'},access:{tenant:{id:'synthetic-tenant'},tenantCapabilities:['attendance.read','workforce.employee.read','absence.analytics.read','absence.nominal.read','lineage.read'],platformRoles:[],platformCapabilities:[]}});
  if(resource==='clock-dashboard')return send(clockDashboardFixture(q,{nominal:true}));
- if(resource==='clock-workdays-v2')return send(await continuousWorkdayFixture(q));
+ if(resource==='clock-workdays-v2'){
+  if(personFailure)return send({ok:false,code:personFailure===403?'ATTENDANCE_CAPABILITY_REQUIRED':'ATTENDANCE_CAPTURE_CHANGED'},personFailure);
+  return send(personMode?await personWorkdayFixture(q):await continuousWorkdayFixture(q));
+ }
  if(resource==='bootstrap')return send({ok:true,capabilities:['attendance.read'],summary:{siteCount:1,deviceCount:1,punchCount:153,rawEventCount:153,pendingReviewCount:153,unmatchedPunchCount:3},features:{}});
  return send({ok:true,resource,data:[],pagination:{page:1,pageSize:25,total:0,pages:0}});
 });
@@ -90,6 +94,29 @@ try{
  checks.push('A workday missing a punch is reviewed instead of being converted into a deficit or payable overtime.');
  await clock.setViewportSize({width:390,height:844});await clock.locator('#clockOperations').screenshot({path:path.join(out,'clock-time-mobile.png')});assert.ok(await clock.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  checks.push('Clock time details remain inside a responsive workspace on mobile.');
+ personMode=true;await clock.setViewportSize({width:1440,height:1050});
+ await clock.locator('#clockFrom').fill('2026-09-01');await clock.locator('#clockTo').fill('2026-09-30');await clock.locator('#clockApply').click();
+ const contextReady=()=>clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false'&&document.querySelector('#wdRows [data-person-row]'));
+ await contextReady();await clock.locator('#wdNext').click();await contextReady();assert.match(await clock.locator('#wdPage').innerText(),/Página 2/);
+ await clock.locator('#wdSearch').fill('borrador sin aplicar');const initialCalls=calls.length;await clock.getByRole('button',{name:'Ver período del agente',exact:true}).first().click();
+ await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false'&&document.getElementById('wdPage').textContent.includes('30 personas'));
+ assert.equal(calls.length,initialCalls+1);assert.equal(await clock.locator('#wdSearch').isDisabled(),true);assert.equal(await clock.locator('#wdPersonScope').isVisible(),true);
+ const selected=calls.filter(c=>c.resource==='clock-workdays-v2').at(-1).query;assert.match(selected.get('personRef'),/^[a-f0-9]{64}$/);assert.ok(selected.has('snapshot'));assert.equal(selected.get('search'),'');
+ assert.equal(await clock.getByRole('button',{name:'Ver período del agente',exact:true}).count(),0);
+ checks.push('Exact agent context queries all thirty dates, without grouping another contract or device that has the same name.');
+ await clock.locator('#wdNext').click();await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false'&&document.getElementById('wdPage').textContent.includes('Página 2'));
+ assert.equal(await clock.getByRole('button',{name:'Ver jornada',exact:true}).count(),5);assert.match(await clock.locator('#wdRows').innerText(),/2026-09-01/);
+ checks.push('Agent context stays pinned across pagination and the final five dates are reachable.');
+ await clock.locator('#wdPersonBack').click();await contextReady();assert.match(await clock.locator('#wdPage').innerText(),/Página 2/);assert.match(await clock.locator('#wdPage').innerText(),/32 personas/);assert.equal(await clock.locator('#wdSearch').inputValue(),'borrador sin aplicar');assert.equal(await clock.locator('#wdPersonScope').isHidden(),true);
+ checks.push('Returning restores the previous page and unsent search without another legajo navigation.');
+ await clock.getByRole('button',{name:'Ver período del agente',exact:true}).first().click();await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false'&&document.getElementById('wdPage').textContent.includes('30 personas'));
+ const pendingDownload=clock.waitForEvent('download');await clock.locator('#wdCsv').click();const file=await pendingDownload;const csv=fs.readFileSync(await file.path(),'utf8');assert.equal(csv.trim().split(/\r?\n/).length,31);assert.ok(csv.includes(selected.get('personRef')));assert.match(csv,/Contexto del vínculo/);
+ await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false');
+ checks.push('CSV exports all thirty dates of the exact selected stream and retains its context and revision.');
+ await clock.locator('#wdPersonScope').screenshot({path:path.join(out,'agent-context-desktop.png')});
+ await clock.setViewportSize({width:390,height:844});assert.ok(await clock.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ personFailure=403;await clock.locator('#wdNext').click();await clock.waitForFunction(()=>document.getElementById('wdRows').childElementCount===0);assert.equal(await clock.locator('#wdPersonScope').isHidden(),true);assert.equal(await clock.locator('#wdPersonScope h3').textContent(),'');
+ checks.push('Revoked nominal permission clears the selected identity and its previous rows.');
  assert.deepEqual(errors,[]);const report={version:'time-absence-workspace-qa.v1',checkedAt:new Date().toISOString(),mode:live?'published_bytes_synthetic_api':'local_build_synthetic_api',checksPassed:checks.length,checks,apiRequests:calls.length,publishedAssets:[...assets].sort(),errors,municipalSessionTested:false,businessWrites:0};
  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await context.close();await browser.close();}

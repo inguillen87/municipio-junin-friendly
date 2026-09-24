@@ -81,3 +81,8 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 ## Incremento del 24/09 · cotejo de estructura y nómina
 
 `NOELIA_COTEJO_ESTRUCTURA_NOMINA_20260924.md` añade presencia agregada de legajos contra una corrida concreta, PDF/CSV completos y revalidación de lectura. No valida el cargo de esa corrida ni el cupo aprobado del ejercicio y no cierra los pendientes de relojes, recibos o respaldo sucesor. CI y publicación se verifican por separado.
+
+
+## Continuidad · período individual de jornadas
+
+`CLOCK_PERSON_CONTEXT_20260924.md` documenta el siguiente incremento sobre la central unificada `09ee30f`: consulta exacta por vínculo, período completo, revisión/exportación y regreso al listado preservando el trabajo. No incorpora los originales pendientes ni extiende esta entrega al historial de ausencias o al motor salarial.

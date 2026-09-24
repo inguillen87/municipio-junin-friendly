@@ -36,6 +36,12 @@ export function verifyWorkdayResponse(data,query,{nominalReadAllowed=true}={}) {
   check(Array.isArray(data.observations) && data.observations.length===o.returned);
   for(const e of data.observations)check(hex.test(e.eventRef) && hex.test(e.deviceKey) && Array.isArray(e.issues) && e.issues.every(i=>safeText(i,100)));
  }
+ if(data.personContext!==undefined||query.has('personRef')){
+  const c=data.personContext;check(v2&&c?.version==='clock-person-context.v1'&&c.scope==='selected_site_device_contract');
+  check(Object.keys(c).length===3&&c.reference===(query.get('personRef')||null)&&data.filters.personRef===c.reference);
+  for(const row of data.rows){check(data.nominalReadAllowed&&row.identityState==='mapped'?hex.test(row.personContextRef||''):row.personContextRef===null);if(c.reference)check(row.personContextRef===c.reference);}
+  if(c.reference)check(data.summary.people<=1&&data.pagination.total<=93);
+ }
  const keys=new Set();
  for(const row of data.rows){
   check(row && safeText(row.key,180) && !keys.has(row.key)); keys.add(row.key);
