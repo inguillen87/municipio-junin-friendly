@@ -8,7 +8,7 @@ const root = path.resolve('public');
 const output = path.resolve('verification');
 const origin = 'https://noelia-report-workspace.test';
 fs.mkdirSync(output, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.CATALOG_BROWSER_CHANNEL ? {channel:process.env.CATALOG_BROWSER_CHANNEL} : {}) });
 const checks = [], errors = [];
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
@@ -36,23 +36,23 @@ try {
   const count = () => catalog.locator('.rc-card').count();
   const reset = () => catalog.getByRole('button', { name: 'Restablecer filtros', exact: true }).click();
   const clear = () => catalog.getByRole('button', { name: 'Limpiar búsqueda', exact: true }).click();
-  assert.equal(await count(), 12);
+  assert.equal(await count(), 13);
   assert.equal(await group.getByRole('button').count(), 6);
-  assert.equal(await page.locator('#reportContent > .task-panel').count(), 9);
-  checks.push('twelve cards, six area controls and nine unchanged task panels');
+  assert.equal(await page.locator('#reportContent > .task-panel').count(), 10);
+  checks.push('thirteen cards, six area controls and ten distinct task panels');
 
   await group.getByRole('button', { name: 'Personal', exact: true }).click();
-  assert.equal(await count(), 4);
+  assert.equal(await count(), 5);
   await format.selectOption('PDF');
-  assert.equal(await count(), 3);
+  assert.equal(await count(), 4);
   await search.fill('ausencias');
   assert.equal(await count(), 1);
   await clear();
-  assert.equal(await count(), 3);
+  assert.equal(await count(), 4);
   assert.equal(await format.inputValue(), 'PDF');
   assert.equal(await group.getByRole('button', { name: 'Personal', exact: true }).getAttribute('aria-pressed'), 'true');
   await reset();
-  assert.equal(await count(), 12);
+  assert.equal(await count(), 13);
   assert.equal(await search.evaluate(node => node === document.activeElement), true);
   checks.push('area, format and query intersect; clearing search preserves filters, full reset restores focus');
 
@@ -77,7 +77,7 @@ try {
   checks.push('keyboard area selection and browser back preserve query, area, format and existing report panel');
 
   for (const [query, href] of [
-    ['sector DOTACIÓN', '#analizar-sectores'], ['mutuales', '#haberes'],
+    ['estructura presupuestaria', '#estructura-presupuestaria'], ['sector DOTACIÓN', '#analizar-sectores'], ['mutuales', '#haberes'],
     ['planilla NACIÓN', '#planilla-bancaria'], ['escolaridad', '#certificados-escolares'],
     ['recibos', '/personal#legajos'], ['fichadas', '/relojes'], ['F.931', '#formatos'],
   ]) {
@@ -91,7 +91,7 @@ try {
   await format.selectOption('Excel');
   assert.equal(await count(), 0);
   assert.match(await catalog.locator('.rc-empty').innerText(), /área o formato/);
-  assert.match(await catalog.getByRole('status').innerText(), /0 de 12/);
+  assert.match(await catalog.getByRole('status').innerText(), /0 de 13/);
   assert.equal(await format.locator('option[value="TXT"]').count(), 0);
   await reset();
   checks.push('administrative vocabulary, unordered words and accents find real destinations; external controls do not advertise TXT or Excel generation');

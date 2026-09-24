@@ -9,7 +9,7 @@ on:
       - 'docs/clock-windows-installer/**'
       - 'scripts/build-clock-windows-installer.mjs'
       - 'scripts/test-clock-installer-diagnostics.ps1'
-      - 'tests/clock-installer-task-policy.test.js'
+      - 'tests/clock-installer-task-policy.test.mjs'
       - 'tests/clock-windows-installer-build.test.mjs'
       - '.github/workflows/clock-windows-installer.yml'
 
@@ -33,7 +33,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test tests/platform-baseline.test.js tests/clock-windows-installer-build.test.mjs tests/clock-installer-task-policy.test.js
+      - run: node --test tests/platform-baseline.test.js tests/clock-windows-installer-build.test.mjs tests/clock-installer-task-policy.test.mjs
       - name: Prepare previously certified source and official runtime
         shell: pwsh
         run: |
@@ -127,6 +127,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A test-only delivery must never overwrite an existing versioned installer.
+          if gh release view clock-installer-v1.1.0 >/dev/null 2>&1; then
+            echo 'Installer 1.1.0 already published; preserving its original binary and source.'
+            exit 0
+          fi
           python3 - <<'PY'
           import json, os
           with open('installer/MuniControl-Dispositivos-Setup.exe.verification.json') as f:

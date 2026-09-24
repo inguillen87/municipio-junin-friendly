@@ -4,6 +4,9 @@ on:
     branches: ['master']
     paths:
       - 'src/islands/**'
+      - 'assets/report-centre.js'
+      - 'assets/budget-structure*'
+      - 'reportes-rrhh.html'
       - 'api/internal-payroll-parameters.js'
       - 'lib/internal-payroll-parameters.js'
       - 'lib/payroll-parameter-contract.js'
@@ -32,6 +35,9 @@ on:
     branches: ['master']
     paths:
       - 'src/islands/**'
+      - 'assets/report-centre.js'
+      - 'assets/budget-structure*'
+      - 'reportes-rrhh.html'
       - 'api/internal-payroll-parameters.js'
       - 'lib/internal-payroll-parameters.js'
       - 'lib/payroll-parameter-contract.js'
