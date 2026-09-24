@@ -5,6 +5,14 @@ on:
     branches: ['internal-september-publication-20260922', 'master']
     paths:
       - 'api/internal-data.js'
+      - 'lib/payroll-read-errors.js'
+      - 'tests/payroll-read*.test.js'
+      - 'scripts/verify-payroll-read-session-postgres.mjs'
+      - 'scripts/apply-payroll-read-session.mjs'
+      - 'scripts/migrations/105-payroll-independent-read-session.sql'
+      - 'scripts/fixtures/payroll-read-*'
+      - 'contracts/payroll-read-session.v1.json'
+      - 'scripts/verify-payroll-summary-055.mjs'
       - 'api/internal-assistant.js'
       - 'lib/workforce-operational-scope.js'
       - 'scripts/*grh*'
@@ -34,6 +42,14 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-payroll-summary-055.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: operational-payroll-read-browser
+          path: verification/summary-055/
+          retention-days: 5
       - run: python3 -B -m unittest discover -s tests -p test_extract_schooling_source.py
   sql:
     runs-on: ubuntu-latest
@@ -70,6 +86,14 @@ jobs:
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres effective_consumers_qa
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres curated_consumers_qa
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres reference_rotation_qa
+      - name: Independent payroll read guard, both certified source formats
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres payroll_read_qa
+          for variant in repository production; do
+            node scripts/verify-payroll-read-session-postgres.mjs --expected-major=${{ matrix.postgres }} --variant="$variant" --write-sql="verification/payroll-read-$variant.sql"
+            docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=payroll_read_qa -v ON_ERROR_STOP=1 < "verification/payroll-read-$variant.sql" | tee "verification/payroll-read-$variant.log"
+          done
       - run: node scripts/verify-grh-reference-rotation-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/reference-rotation.sql
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=reference_rotation_qa -v ON_ERROR_STOP=1 < verification/reference-rotation.sql
       - run: node scripts/verify-grh-effective-source-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/effective-source.sql

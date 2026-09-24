@@ -1,0 +1,26 @@
+{
+  "version": "payroll-read-session-contract.v1",
+  "guardSignature": "public.action_center_assert_tenant_read_session_v2(text,uuid,integer,text,uuid,uuid)",
+  "guardHash": "3efaa78aa8a792b7701ac3f6981d1478101040dc0f1e26e10911117fba4bc1df",
+  "helperSignature": "public.employee_payroll_assert_read_session_v1(text,uuid,integer,text,uuid,uuid)",
+  "helperHash": "cc4301f2d04ab89949e57cda565e78c6097a27ea5d44db93bae6f0d2630eebff",
+  "callers": [
+    {
+      "signature": "public.employee_payroll_detail_v1(text,uuid,integer,text,uuid,uuid,uuid,date,text,integer,integer)",
+      "oldHash": "80c11c8410657b17a0739d41d11fe45c398ec309f26d5db3ea819c83eda1b827",
+      "newHash": "ad5c9ce9df693d51e326b1708c79977e11fb1c49901be1c8d17d013d3fb4109c",
+      "alternativeOldHash": "c772dbca2437db351364cd34a572bc2c09185a21715b1504a09390d44f73db2e",
+      "alternativeNewHash": "4d39bc0df9e3a0d68808bdf8229a997cf9b708a45ea134815e4e8fb2fa1a1c1f"
+    },
+    {
+      "signature": "public.employee_payroll_documents_v1(text,uuid,integer,text,uuid,uuid,uuid)",
+      "oldHash": "726d9068326a7dbc9659f2509f958d2ae062a546e0a7cd91b7b5e6abcb4cbb25",
+      "newHash": "fbb185e0809d25c0244c841d07b8fe44f26c6780115f8a36be3d692d7c3f50b9"
+    },
+    {
+      "signature": "public.employee_payroll_history_v1(text,uuid,integer,text,uuid,uuid,uuid,integer,integer,integer)",
+      "oldHash": "75c0e1718160f906f0184e1aadec85ca795f7199b475327a479a5363bed00983",
+      "newHash": "0b468fcd2484e13369e814d123bdfa81cd00ef45a7bfdb8e80faf6734b026fac"
+    }
+  ]
+}

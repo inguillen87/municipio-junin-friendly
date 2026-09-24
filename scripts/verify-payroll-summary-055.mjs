@@ -10,7 +10,7 @@ const origin=live?'https://municipio-junin-friendly.vercel.app':(process.env.SUM
 const root=path.resolve(process.env.SUMMARY_ROOT||'public'),out=path.resolve('verification/summary-055'+(live?'-published':''));
 fs.mkdirSync(out,{recursive:true});
 const items=syntheticSummaries(),requests=[],checks=[],errors=[];
-let drift=false,denied=false,slow=false,downloads=0,slowResponse=null,releaseSlowResponse=null;
+let transient=true,drift=false,denied=false,slow=false,downloads=0,slowResponse=null,releaseSlowResponse=null;
 const operational={version:'workforce-operational.v1',selectedStatus:'administrative_active',totalContracts:1,totalPeople:1,activeContracts:1,activePeople:1,payrollIncluded:1,activeOutsidePayroll:0,inactiveContracts:0,stateErrorContracts:0,unknownContracts:0,multipleActiveContracts:0,multipleActivePeople:0,lastClosedContracts:1,lastClosedMonth:'2026-07-01',sourceCutoffFrom:'2026-08-06T18:15:21Z',sourceCutoffTo:'2026-08-06T18:15:21Z',snapshotFrom:'2026-08-31',snapshotTo:'2026-08-31'};
 const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
 try {
@@ -32,6 +32,7 @@ try {
     else if(resource==='employeepayroll') {
       const query=Object.fromEntries(url.searchParams);requests.push(query);
       assert.equal(query.contractId,employee.contractId);
+      if(transient)return route.fulfill({status:503,json:{ok:false,code:'INTERNAL_DATA_UNAVAILABLE',error:'No se pudo completar la consulta.',requestId:'12345678-1234-4234-8234-123456789abc',retryable:true}});
       if(slow)await slowResponse;
       else if(query.year==='2024')await new Promise(resolve=>setTimeout(resolve,350));
       if(denied)return route.fulfill({status:403,json:{ok:false,error:'La sesión ya no tiene permiso de consulta de nómina.'}});
@@ -47,7 +48,12 @@ try {
   await page.locator('#employeeRows button').first().click();
   await page.getByRole('button',{name:'Ver liquidaciones',exact:true}).click();
   const history=page.locator('#employeePayrollHistory'),cards=history.locator('.payroll-card');
+  await history.getByRole('button',{name:'Reintentar consulta',exact:true}).waitFor();
+  assert.equal(await cards.count(),0);
+  assert.match(await history.innerText(),/12345678-1234-4234-8234-123456789abc/);
+  transient=false;await history.getByRole('button',{name:'Reintentar consulta',exact:true}).click();
   await cards.first().waitFor();assert.equal(await cards.count(),12);
+  checks.push('first failed read shows its safe support reference and retries the same page, not an empty payroll');
   assert.match(await history.locator('.payroll-history-meta').innerText(),/12 de 25/);
   checks.push('real API nombre shape renders the legajo without fictitious name alias');
   assert.match(await cards.first().innerText(),/No informado/);
@@ -106,6 +112,14 @@ try {
   download=page.waitForEvent('download');await cards.first().locator('[data-payroll-summary-download]').click();await(await download).saveAs(path.join(out,'summary-mobile-qa.pdf'));
   await page.locator('#employeeDialog').screenshot({path:path.join(out,'history-mobile-qa.png')});
   checks.push('mobile download works with bounded dialog, stacked buttons and reduced motion');
+  denied=true;await history.getByRole('button',{name:'Ver períodos anteriores',exact:true}).click();
+  await history.locator('.notice.error').waitFor();
+  assert.equal(await cards.count(),0);
+  assert.equal(await history.getByRole('button',{name:/Reintentar/}).count(),0);
+  await page.locator('#employeeDialog').screenshot({path:path.join(out,'history-access-denied-qa.png')});
+  denied=false;await history.getByRole('button',{name:'Ver todo el historial',exact:true}).click();
+  await cards.first().waitFor();assert.equal(await cards.count(),12);
+  checks.push('permission loss clears prior salary cards and hides retries; a new authorized read can recover');
   const previousDownloads=downloads;slow=true;
   slowResponse=new Promise(resolve=>{releaseSlowResponse=resolve;});
   const request=page.waitForRequest(r=>r.url().includes('resource=employeepayroll'));

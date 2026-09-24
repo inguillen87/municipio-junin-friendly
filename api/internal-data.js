@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
@@ -3800,14 +3802,16 @@ export function createInternalDataHandler(dependencies = {}) {
   const getPayrollSql = dependencies.getActionCenterSql ?? getActionCenterSql;
   const getTenantSession = dependencies.actionMutationSession ?? actionMutationSession;
   const env = dependencies.env ?? process.env;
+  const reportReadFailure = dependencies.reportReadFailure ?? ((diagnostic) => console.error('[internal-data]', diagnostic));
 
   return async function handler(req, res) {
     if (String(req.method || 'GET').toUpperCase() !== 'GET') {
       res.setHeader('Allow', 'GET');
       return send(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', error: 'Método no permitido' });
     }
+    let resource = 'unknown';
     try {
-      const resource = queryValue(req, 'resource', 'summary').toLowerCase();
+      resource = queryValue(req, 'resource', 'summary').toLowerCase();
       const requiredCapabilities = capabilitiesForInternalDataResource(resource);
       const access = await requireAccess(req, res, {
         env,
@@ -3899,15 +3903,11 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
-      const errorName = error instanceof Error ? error.name : 'UnknownError';
-      const errorCode = typeof error?.code === 'string' && /^[A-Z0-9_]{2,64}$/.test(error.code)
-        ? error.code
-        : 'INTERNAL_DATA_ERROR';
-      if (errorCode === 'GRH_SOURCE_CHANGED') {
-        return send(res, 503, { ok: false, code: errorCode, error: 'La fuente se actualizó durante la consulta. Volvé a consultar.' });
-      }
-      console.error('[internal-data]', { name: errorName, code: errorCode });
-      return send(res, 503, { ok: false, code: 'INTERNAL_DATA_UNAVAILABLE', error: 'La base interna no está disponible.' });
+      const failure = payrollReadFailure(error);
+      const requestId = randomUUID();
+      const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
+      reportReadFailure(payrollReadDiagnostic(error, safeResource, requestId));
+      return send(res, failure.status, { ok: false, code: failure.code, error: failure.error, retryable: failure.retryable, requestId });
     }
   };
 }

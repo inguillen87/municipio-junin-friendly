@@ -1,0 +1,19 @@
+-- Synthetic operator can read payroll but also prepares and approves unrelated work.
+INSERT INTO qa_capabilities VALUES('88888888-8888-4888-8888-888888888888','payroll.novelty.approve');
+INSERT INTO iam_capability_conflict VALUES('payroll.novelty.prepare','payroll.novelty.approve','Synthetic reproduction of broad operational role') ON CONFLICT DO NOTHING;
+SELECT pg_temp.denied('SELECT pg_temp.history((SELECT employee FROM qa_ids))','TENANT_IAM_SOD_CONFLICT','105 reproduces original history failure with real SoD guard');
+SELECT pg_temp.denied('SELECT pg_temp.detail((SELECT employee FROM qa_ids))','TENANT_IAM_SOD_CONFLICT','105 reproduces original detail failure with real SoD guard');
+SELECT pg_temp.denied('SELECT pg_temp.documents((SELECT employee FROM qa_ids))','TENANT_IAM_SOD_CONFLICT','105 reproduces original document failure with real SoD guard');
+CREATE TEMP TABLE qa105_before AS
+ SELECT 'employment' AS kind,count(*) AS rows,md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) AS digest FROM employment_contract t
+ UNION ALL SELECT 'monthly',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_monthly_fact t
+ UNION ALL SELECT 'runs',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_run t
+ UNION ALL SELECT 'datasets',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_detail_dataset t
+ UNION ALL SELECT 'statements',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_detail_statement t
+ UNION ALL SELECT 'capabilities',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM qa_capabilities t
+ UNION ALL SELECT 'conflicts',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM iam_capability_conflict t;
+CREATE TEMP TABLE qa105_guard_before AS
+ SELECT proname,prosrc FROM pg_proc WHERE proname IN ('action_center_assert_tenant_read_session_v2','tenant_iam_assert_no_sod_conflict');
+-- Diagnostic fingerprints identify missing fixture migrations without loosening production pins.
+SELECT proname,encode(sha256(convert_to(prosrc,'UTF8')),'hex') AS baseline_body_sha256
+FROM pg_proc WHERE proname IN ('employee_payroll_detail_v1','employee_payroll_documents_v1','employee_payroll_history_v1') ORDER BY proname;

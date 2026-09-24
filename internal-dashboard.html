@@ -1919,7 +1919,11 @@
         }
 
         if (!response.ok || (payload && payload.ok === false)) {
-          throw new Error(errorMessage(payload, 'La API respondió con un error (' + response.status + ').'));
+          const failure = new Error(errorMessage(payload, 'La API respondió con un error (' + response.status + ').'));
+          failure.status = response.status;
+          failure.retryable = typeof payload?.retryable === 'boolean' ? payload.retryable : response.status !== 403;
+          if (typeof payload?.requestId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(payload.requestId)) failure.message += ' Referencia: ' + payload.requestId;
+          throw failure;
         }
 
         return payload || {};
@@ -3224,12 +3228,14 @@
           } catch (error) {
             if (requestGeneration!==generation||error instanceof UnauthorizedError || error.name === 'AbortError') return;
             meta.textContent = 'No se pudo consultar el historial salarial.';
+            if (error.status === 403) { list.replaceChildren(); loaded = false; }
             if (!loaded) {
               list.replaceChildren(create('div', 'notice error', text(error && error.message) || 'La consulta no está disponible.'));
             } else {
-              more.textContent = 'Reintentar períodos anteriores';
+              meta.textContent += ' ' + (text(error && error.message) || 'Los períodos ya consultados se conservan.');
             }
-            more.hidden = false;
+            more.textContent = nextPage === 1 ? 'Reintentar consulta' : 'Reintentar períodos anteriores';
+            more.hidden = error.status === 403 || error.retryable === false;
           } finally {
             if (state.payrollController === controller) state.payrollController = null;
             if(requestGeneration!==generation)return;

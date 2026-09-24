@@ -1,0 +1,29 @@
+-- Read-only assertions against the synthetic fixture; no account/session updates.
+SELECT pg_temp.ok(pg_temp.history((SELECT employee FROM qa_ids))->>'total'='3','105 authorized history remains complete with unrelated write conflicts');
+SELECT pg_temp.ok(pg_temp.detail((SELECT employee FROM qa_ids))#>>'{lines,0,amount}'='123.45','105 detail preserves source amount');
+SELECT pg_temp.ok(pg_temp.documents((SELECT employee FROM qa_ids))->>'total'='1','105 independent document library is available');
+SELECT pg_temp.ok(pg_temp.history(gen_random_uuid())->>'found'='false','105 unknown contract exposes no data');
+SELECT pg_temp.ok(pg_temp.history(md5('employment_contract|GRH|legajo|202|901')::uuid)->>'found'='false','105 foreign source company exposes no data');
+SELECT pg_temp.ok(NOT has_function_privilege('municontrol_actions_runtime_app','employee_payroll_assert_read_session_v1(text,uuid,integer,text,uuid,uuid)','EXECUTE'),'105 private helper remains inaccessible');
+SELECT pg_temp.ok(has_function_privilege('municontrol_actions_runtime_app','employee_payroll_history_v1(text,uuid,integer,text,uuid,uuid,uuid,integer,integer,integer)','EXECUTE'),'105 existing authorized facade remains callable');
+SELECT pg_temp.ok(NOT has_table_privilege('municontrol_actions_runtime_app','payroll_monthly_fact','SELECT'),'105 salary-table access remains denied');
+SELECT pg_temp.ok((SELECT bool_and(p.prosrc=b.prosrc) FROM qa105_guard_before b JOIN pg_proc p ON p.proname=b.proname),'105 shared write/session and SoD functions stay byte-identical');
+SELECT pg_temp.denied('SELECT tenant_iam_assert_no_sod_conflict(''88888888-8888-4888-8888-888888888888'')','TENANT_IAM_SOD_CONFLICT','105 original conflict enforcement is unchanged');
+SELECT pg_temp.ok((employee_payroll_assert_read_session_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')->'capabilities')='["actions.read","payroll.read","workforce.employee.read"]'::jsonb,'105 helper returns only read capabilities');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('consumer@example.invalid',NULL,1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_SESSION_INVALID','105 null session rejected');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('consumer@example.invalid',gen_random_uuid(),1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_SESSION_INVALID','105 unknown session rejected');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('other@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_SESSION_INVALID','105 mismatched actor rejected');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',2,repeat('9',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_SESSION_INVALID','105 stale version rejected');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('9',40),gen_random_uuid(),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_SESSION_INVALID','105 foreign tenant rejected');
+SELECT pg_temp.denied($q$SELECT employee_payroll_assert_read_session_v1('consumer@example.invalid','99999999-9999-4999-8999-999999999999',1,repeat('8',40),(SELECT tenant FROM qa_ids),'88888888-8888-4888-8888-888888888888')$q$,'ACTION_RELEASE_NOT_CERTIFIED','105 uncertified contract rejected');
+SELECT pg_temp.ok(NOT EXISTS(
+ (SELECT 'employment' AS kind,count(*) AS rows,md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) AS digest FROM employment_contract t
+ UNION ALL SELECT 'monthly',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_monthly_fact t
+ UNION ALL SELECT 'runs',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_run t
+ UNION ALL SELECT 'datasets',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_detail_dataset t
+ UNION ALL SELECT 'statements',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM payroll_detail_statement t
+ UNION ALL SELECT 'capabilities',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM qa_capabilities t
+ UNION ALL SELECT 'conflicts',count(*),md5(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text))) FROM iam_capability_conflict t)
+ EXCEPT SELECT * FROM qa105_before),'105 all payroll values, identities and capability configuration preserved');
+SELECT pg_temp.ok((SELECT count(*)>0 FROM employee_payroll_read_event),'105 history reads retain append-only audit events');
+SELECT pg_temp.ok((SELECT count(*)>0 FROM employee_payroll_detail_read_event),'105 document reads retain append-only audit events');
