@@ -76,3 +76,8 @@ Sin series o denominador válido se muestra ausencia de evidencia, no 0 %. Las c
 Conservando también la inclusión original por contrato en las listas de filtros, la última medición fue 2142 ms con motivo 20 y 1457 ms sin motivo, frente a 13594 y 13959 ms. Resumen, serie mensual, comparación y corte resultaron iguales en ambas versiones. La prueba no cambia la base ni equivale al tiempo total HTTP de una sesión municipal.
 
 El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos y recepción» permite llegar a ellos sin alterar sus fuentes. La comparación de jornada no comparte el componente de incidencias y no convierte la ausencia de tramos completos en cero horas. Los cambios sin aplicar en los filtros sobreviven a una respuesta tardía; salir de la página retira las filas nominales.
+
+
+## Incremento del 24/09 · cotejo de estructura y nómina
+
+`NOELIA_COTEJO_ESTRUCTURA_NOMINA_20260924.md` añade presencia agregada de legajos contra una corrida concreta, PDF/CSV completos y revalidación de lectura. No valida el cargo de esa corrida ni el cupo aprobado del ejercicio y no cierra los pendientes de relojes, recibos o respaldo sucesor. CI y publicación se verifican por separado.

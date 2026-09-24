@@ -62,6 +62,8 @@ const shellFiles = [
   'assets/report-document.js',
   'assets/report-centre.js',
   'assets/budget-structure-model.js',
+  'assets/budget-payroll-model.js',
+  'assets/budget-payroll-workbench.js',
   'assets/budget-structure-pdf.js',
   'assets/budget-structure-workbench.js',
   'assets/budget-structure-worker.js',

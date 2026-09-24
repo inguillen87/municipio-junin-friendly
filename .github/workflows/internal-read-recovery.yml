@@ -4,6 +4,10 @@ on:
     branches: ['internal-read-timeout-recovery-20260923', 'master']
     paths:
       - 'api/internal-data.js'
+      - 'lib/internal-budget-payroll.js'
+      - 'assets/budget-*.js'
+      - 'assets/budget-structure.css'
+      - 'scripts/verify-budget-cotejo-browser.mjs'
       - 'ausentismo-control.html'
       - 'lib/absence-event-context.js'
       - 'assets/clock-dashboard.js'
@@ -70,6 +74,8 @@ jobs:
           node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/internal-read-recovery-browser.log
       - name: Time and absence operational workspace
         run: node scripts/verify-time-absence-workspace-browser.mjs
+      - name: Budget structure population comparison
+        run: node scripts/verify-budget-cotejo-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -81,4 +87,5 @@ jobs:
             verification/workforce-desktop-qa.png
             verification/workforce-mobile-qa.png
             verification/time-absence-workspace/
+            verification/budget-cotejo/
           retention-days: 7

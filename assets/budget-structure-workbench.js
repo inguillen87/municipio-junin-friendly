@@ -1,4 +1,5 @@
 import {STRUCTURE_COLUMNS,STRUCTURE_LIMITS,verifyBudgetStructure,structureView} from './budget-structure-model.js';
+import {mountBudgetPayroll} from './budget-payroll-workbench.js';
 import {budgetStructurePdf} from './budget-structure-pdf.js';
 const REQUIRED=['workforce.structure.read','workforce.employee.read'];
 const permitted=s=>s?.ok===true&&s.authenticated===true&&s.sessionVersion===2&&typeof s.user?.id==='string'&&typeof s.access?.tenant?.id==='string'&&REQUIRED.every(c=>s.access.tenantCapabilities?.includes(c))&&Number.isFinite(Date.parse(s.expiresAt))&&Date.parse(s.expiresAt)>Date.now();
@@ -28,7 +29,7 @@ export function mountBudgetStructure(host,{readSession=auth,readFile=readBudgetS
  host.classList.add('bs-workbench');host.id='estructura-presupuestaria';
  add(host,'p','NOELIA · MÓDULO 10 · FUENTE DOCUMENTAL','bs-eyebrow');add(host,'h2','Estructura presupuestaria de cargos');
  add(host,'p','Abrí el reporte detallado de GRH para buscar cargos, revisar sus legajos y obtener un PDF simple o detallado. El archivo se procesa sólo en este navegador; no se sube ni se incorpora al padrón.');
- const note=add(host,'p','La comparación contra cupos aprobados del ejercicio y cargos de una liquidación concreta sigue pendiente de vinculación. “Cant”, “Estado” y “Vacante” se conservan como figuran en el documento.','bs-note');
+ const note=add(host,'p','Abajo podés cotejar la presencia de legajos con una corrida concreta. El cupo anual aprobado y la validación del cargo liquidado siguen pendientes de evidencia y vinculación. “Cant”, “Estado” y “Vacante” se conservan como figuran en el documento.','bs-note');
  const controls=add(host,'div',undefined,'bs-controls'),label=add(controls,'label','Reporte PDF de estructura · Junín'),file=add(label,'input');file.type='file';file.accept='.pdf,application/pdf';file.setAttribute('aria-label','Reporte PDF de estructura');
  const clear=add(controls,'button','Limpiar / cancelar');clear.type='button';
  const status=add(host,'p','Esperando el reporte detallado. Hasta 8 MiB y 120 páginas.','bs-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
@@ -38,11 +39,12 @@ export function mountBudgetStructure(host,{readSession=auth,readFile=readBudgetS
  const orderLabel=add(tools,'label','Orden de legajos'),sort=add(orderLabel,'select');sort.setAttribute('aria-label','Orden de legajos');for(const [v,t]of [['source','Original'],['number','Número de legajo'],['name','Alfabético']]){const o=add(sort,'option',t);o.value=v}
  const exportButton=add(tools,'button','Exportar PDF');exportButton.type='button';
  const result=add(host,'div',undefined,'bs-result');
+ const cotejoHost=add(host,'section');const cotejo=mountBudgetPayroll(cotejoHost,{authorize:check});
  const setStatus=t=>{status.textContent=t;};
  function busy(value){host.setAttribute('aria-busy',String(value));file.disabled=blocked||value;exportButton.disabled=value;search.disabled=value;view.disabled=value;sort.disabled=value;}
  function cancel(){revision++;pending?.abort();pending=null;clearTimeout(expiry);expiry=null;}
  function erase(message='Reporte retirado. No se conservaron registros en este navegador.'){
-  cancel();data=null;context=null;query='';order='source';mode='detailed';page=1;memberPages.clear();file.value='';search.value='';view.value='detailed';sort.value='source';tools.hidden=true;result.replaceChildren();result.hidden=false;busy(false);setStatus(message);
+  cotejo.clear();cancel();data=null;context=null;query='';order='source';mode='detailed';page=1;memberPages.clear();file.value='';search.value='';view.value='detailed';sort.value='source';tools.hidden=true;result.replaceChildren();result.hidden=false;busy(false);setStatus(message);
  }
  function revoke(){blocked=true;erase('El acceso o la institución de la sesión cambió. Se retiraron los datos. Volvé a abrir la página.');file.disabled=true;clear.disabled=true;}
  const signature=s=>JSON.stringify([s.user.id,s.access.tenant.id,s.access.tenant.roleKey]);
@@ -78,7 +80,7 @@ export function mountBudgetStructure(host,{readSession=auth,readFile=readBudgetS
  file.onchange=async()=>{
   const source=file.files?.[0];erase('Verificando la sesión y el archivo…');if(!source)return;const token=++revision,controller=new AbortController();pending=controller;busy(true);
   try{await check(controller.signal);const parsed=await readFile(source,{signal:controller.signal,onProgress:(p,n)=>{if(token===revision)setStatus('Leyendo texto nativo · página '+p+' de '+n)}});
-   await check(controller.signal);if(token!==revision||disposed||blocked)return;data=verifyBudgetStructure(parsed);draw();setStatus('Reporte leído completo. La exportación incluye todas las estructuras del filtro, no sólo esta página.');
+   await check(controller.signal);if(token!==revision||disposed||blocked)return;data=verifyBudgetStructure(parsed);draw();cotejo.setSource(data);setStatus('Reporte leído completo. La exportación incluye todas las estructuras del filtro, no sólo esta página.');
   }catch(error){if(token===revision&&!blocked){erase(error?.message==='STRUCTURE_TIMEOUT'?'La lectura agotó su plazo. No se conservó un resultado parcial.':'No se pudo verificar el reporte o la sesión. Se retiraron los datos; podés volver a seleccionar el archivo.')}}
   finally{if(token===revision){pending=null;busy(false)}}
  };
@@ -91,7 +93,7 @@ export function mountBudgetStructure(host,{readSession=auth,readFile=readBudgetS
  };
  const onFocus=async()=>{if(!data||pending||blocked||disposed||document.visibilityState!=='visible')return;const token=revision,c=new AbortController();pending=c;busy(true);result.hidden=true;try{await check(c.signal)}catch{if(token===revision&&!blocked)revoke()}finally{if(token===revision){pending=null;busy(false);result.hidden=false}}};
  const onShow=e=>{if(e.persisted&&disposed)location.reload()};
- const onHide=()=>{if(disposed)return;erase();disposed=true;globalThis.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onFocus);document.removeEventListener('municontrol:capabilities-ready',revoke);observer.disconnect();host.replaceChildren()};
+ const onHide=()=>{if(disposed)return;cotejo.destroy();erase();disposed=true;globalThis.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onFocus);document.removeEventListener('municontrol:capabilities-ready',revoke);observer.disconnect();host.replaceChildren()};
  const observer=new MutationObserver(()=>{if(!host.isConnected)onHide()});observer.observe(document.body,{childList:true,subtree:true});
  document.addEventListener('municontrol:capabilities-ready',revoke);globalThis.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onFocus);globalThis.addEventListener('pagehide',onHide,{once:true});globalThis.addEventListener('pageshow',onShow);
  return{destroy:onHide,clear:erase};

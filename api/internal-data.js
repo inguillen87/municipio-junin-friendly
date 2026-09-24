@@ -3,6 +3,7 @@ import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPatter
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
+import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
 import { internalPayrollRoster } from '../lib/internal-payroll-roster.js';
 import { internalPayrollSourceReport } from '../lib/internal-payroll-source-report.js';
 import { employeePayrollDocuments } from '../lib/internal-payroll-documents.js';
@@ -3834,6 +3835,10 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
+        return send(res, result.status, result.payload);
+      }
+      if (resource === 'budgetpayrollcatalog' || resource === 'budgetpayrollroster') {
+        const result = await internalBudgetPayroll(await getPayrollSql(env), req, access.principal, getTenantSession(access, env));
         return send(res, result.status, result.payload);
       }
       if (resource === 'payrollexportroster') {

@@ -25,3 +25,8 @@ La lectura local del original recibido del 23/09, SHA-256 b6cff5ce5986b7436b80c2
 Pruebas: `node --test tests/budget-structure.test.js` y `node scripts/verify-budget-structure-browser.mjs`, con PDF y sesión sintéticos, worker real, exportaciones leídas nuevamente, revocación, cancelación y móvil. CI y producción se acreditan por separado.
 
 Pendiente del módulo 10: fuente aprobada del ejercicio y su versionado, cruce con corrida salarial concreta, condición activa vigente verificable, diferencias conciliadas, aceptación de Noelia. El original no permite inferir por sí solo el filtro Activos Sí/No/Todos. Los módulos 1–9 y la importación productiva del respaldo conservan sus pendientes previos.
+
+
+## Incremento del 24/09 · cotejo de estructura y nómina
+
+`NOELIA_COTEJO_ESTRUCTURA_NOMINA_20260924.md` añade presencia agregada de legajos contra una corrida concreta, PDF/CSV completos y revalidación de lectura. No valida el cargo de esa corrida ni el cupo aprobado del ejercicio y no cierra los pendientes de relojes, recibos o respaldo sucesor. CI y publicación se verifican por separado.
