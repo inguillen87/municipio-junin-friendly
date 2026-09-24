@@ -96,3 +96,8 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 ## B4 · confirmación y recuperación de operaciones (24/09)
 
 `ACCIONES_CONFIRMACION_RECUPERABLE_20260924.md` documenta la validación de comprobantes y recuperación manual de una solicitud cuyo resultado no fue confirmado. Mantiene claves y versión esperada, separa las negativas explícitas de los resultados inciertos y no altera la aprobación independiente. Se verificó con comandos sintéticos, sin cambios a reglas, permisos, fuentes ni haberes municipales. La entrega a novedades y homologación de tiempos siguen siendo cierres distintos.
+
+
+## Jurídica · estabilidad de captura detectada en la aceptación cruzada
+
+`JURIDICA_ENTRADA_ESTABLE_20260924.md` registra la corrección del foco diferido que podía interferir con el primer campo del Registro normativo. Conserva las validaciones y el circuito de confirmación; añade escritura rápida de cuatro borradores sin guardar y mantiene la aceptación completa de versiones y fuentes. No reemplaza los pendientes de corpus, expedientes, relaciones o alertas de Mariano.
