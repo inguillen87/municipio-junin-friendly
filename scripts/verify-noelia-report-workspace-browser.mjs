@@ -36,10 +36,10 @@ try {
   const count = () => catalog.locator('.rc-card').count();
   const reset = () => catalog.getByRole('button', { name: 'Restablecer filtros', exact: true }).click();
   const clear = () => catalog.getByRole('button', { name: 'Limpiar búsqueda', exact: true }).click();
-  assert.equal(await count(), 13);
+  assert.equal(await count(), 14);
   assert.equal(await group.getByRole('button').count(), 6);
-  assert.equal(await page.locator('#reportContent > .task-panel').count(), 10);
-  checks.push('thirteen cards, six area controls and ten distinct task panels');
+  assert.equal(await page.locator('#reportContent > .task-panel').count(), 11);
+  checks.push('fourteen cards, six area controls and eleven distinct task panels');
 
   await group.getByRole('button', { name: 'Personal', exact: true }).click();
   assert.equal(await count(), 5);
@@ -52,7 +52,7 @@ try {
   assert.equal(await format.inputValue(), 'PDF');
   assert.equal(await group.getByRole('button', { name: 'Personal', exact: true }).getAttribute('aria-pressed'), 'true');
   await reset();
-  assert.equal(await count(), 13);
+  assert.equal(await count(), 14);
   assert.equal(await search.evaluate(node => node === document.activeElement), true);
   checks.push('area, format and query intersect; clearing search preserves filters, full reset restores focus');
 
@@ -60,7 +60,7 @@ try {
   await payroll.focus();
   await page.keyboard.press('Space');
   assert.equal(await payroll.getAttribute('aria-pressed'), 'true');
-  assert.equal(await count(), 5);
+  assert.equal(await count(), 6);
   assert.equal(await payroll.evaluate(node => node.matches(':focus-visible')), true);
   await format.selectOption('CSV');
   assert.equal(await count(), 2);
@@ -91,7 +91,7 @@ try {
   await format.selectOption('Excel');
   assert.equal(await count(), 0);
   assert.match(await catalog.locator('.rc-empty').innerText(), /área o formato/);
-  assert.match(await catalog.getByRole('status').innerText(), /0 de 13/);
+  assert.match(await catalog.getByRole('status').innerText(), /0 de 14/);
   assert.equal(await format.locator('option[value="TXT"]').count(), 0);
   await reset();
   checks.push('administrative vocabulary, unordered words and accents find real destinations; external controls do not advertise TXT or Excel generation');

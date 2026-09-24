@@ -69,3 +69,8 @@ El build completo pasó 4.941 pruebas, cero fallos y dos omitidas. La selección
 PostgreSQL 17 aprobó los nueve controles SQL con rollback de las tablas temporales. Se verificó en el esquema real que source_cutoff es timestamptz; el transporte usa UTC y el navegador muestra 15:17:30 de Mendoza para el corte del 10/09. No se utilizó ese examen de metadatos como sustituto de una sesión municipal de aceptación.
 
 La aceptación y los datos de las capturas son sintéticos. No se presenta la cantidad de pruebas como demostración de emisión oficial, firma o puesta al día del respaldo.
+
+
+## Integración del catálogo
+
+La nueva entrada eleva el catálogo a 14 tarjetas y 11 paneles de tareas. Se actualizaron los contratos exactos de los cuatro verificadores del catálogo, preservando todos los destinos anteriores, filtros, navegación por teclado y retorno por historial. La ejecución inicial de CI detectó el conteo anterior de 13; se corrigió la expectativa, no se retiró la prueba ni la funcionalidad nueva. El conjunto completo de verificación de reportes, licencias y parámetros volvió a aprobar localmente.

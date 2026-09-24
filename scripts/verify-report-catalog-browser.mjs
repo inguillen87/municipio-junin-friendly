@@ -37,25 +37,25 @@ try {
   const { page, context } = await open();
   const catalog = page.locator('#mc-report-catalog-root');
   await page.locator('[data-react-catalog="ready"]').waitFor();
-  assert.equal(await catalog.locator('.rc-card').count(), 13);
-  assert.equal(await page.locator('#reportContent > .task-panel').count(), 10);
+  assert.equal(await catalog.locator('.rc-card').count(), 14);
+  assert.equal(await page.locator('#reportContent > .task-panel').count(), 11);
   assert.equal(await catalog.locator('input[type=file], [data-result], [role=tabpanel]').count(), 0);
-  checks.push('compiled React owns only the 13 public catalog cards; ten task panels stay separate');
+  checks.push('compiled React owns only the 14 public catalog cards; eleven task panels stay separate');
 
   const destinations = await catalog.locator('.rc-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('href')));
-  assert.deepEqual(destinations, ['#analizar-sectores', '#analizar-movimientos', '#analizar-ausencias', '#certificados-escolares', '#haberes', '#resumen-mensual', '#planilla-bancaria', '#comparar', '/relojes', '#estructura-presupuestaria', '/personal#legajos', '#descargas', '#formatos']);
+  assert.deepEqual(destinations, ['#analizar-sectores', '#analizar-movimientos', '#analizar-ausencias', '#certificados-escolares', '#haberes', '#resumen-mensual', '#planilla-bancaria', '#comparar', '/relojes', '#estructura-presupuestaria', '#seleccion-documental', '/personal#legajos', '#descargas', '#formatos']);
   await catalog.locator('[data-catalog-search]').fill('  DOTACION  ');
   assert.equal(await catalog.locator('.rc-card').count(), 1);
-  assert.match(await catalog.locator('[role=status]').innerText(), /1 de 13/);
+  assert.match(await catalog.locator('[role=status]').innerText(), /1 de 14/);
   await catalog.locator('[data-catalog-search]').fill('sin-coincidencia-qa');
   assert.equal(await catalog.locator('.rc-card').count(), 0);
   assert.match(await catalog.locator('.rc-empty').innerText(), /limpiá la búsqueda/);
   await catalog.getByRole('button', { name: 'Limpiar búsqueda' }).click();
-  assert.equal(await catalog.locator('.rc-card').count(), 13);
+  assert.equal(await catalog.locator('.rc-card').count(), 14);
   assert.equal(await catalog.locator('[data-catalog-search]').evaluate(node => node === document.activeElement), true);
   checks.push('accent-insensitive trimmed search, live result count, honest empty state and keyboard focus on reset');
 
-  for (const target of ['certificados-escolares', 'planilla-bancaria', 'resumen-mensual', 'estructura-presupuestaria']) {
+  for (const target of ['certificados-escolares', 'planilla-bancaria', 'resumen-mensual', 'estructura-presupuestaria', 'seleccion-documental']) {
     await catalog.locator(`a[href="#${target}"]`).click();
     assert.equal(await page.locator('#task-' + target).isVisible(), true);
     assert.equal(await page.locator('#reportContent > .task-panel:visible').count(), 1);

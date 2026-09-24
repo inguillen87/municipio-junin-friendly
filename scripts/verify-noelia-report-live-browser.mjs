@@ -53,11 +53,11 @@ try {
   const format = catalog.locator('[data-catalog-format]');
   const areas = catalog.getByRole('group', { name: 'Área de trabajo' });
   const count = () => catalog.locator('.rc-card').count();
-  assert.equal(await count(), 13);
+  assert.equal(await count(), 14);
   assert.equal(await catalog.locator('.rc-task-toolbar').evaluate(node => getComputedStyle(node).borderTopStyle), 'solid');
   assert.match(await catalog.locator('.rc-task-note').innerText(), /no envía pagos ni presenta declaraciones/);
   await page.screenshot({ path: path.join(output, `${prefix}-desktop.png`), fullPage: true });
-  checks.push('report shell loads the public aggregate; thirteen cards and actual styles are visible');
+  checks.push('report shell loads the public aggregate; fourteen cards and actual styles are visible');
 
   await search.fill('mutuales');
   await areas.getByRole('button', { name: 'Nómina', exact: true }).click();
@@ -79,7 +79,7 @@ try {
   assert.equal(await catalog.locator('.rc-card').getAttribute('data-external-control'), 'true');
   await format.selectOption('Excel');
   assert.equal(await count(), 0);
-  assert.match(await catalog.getByRole('status').innerText(), /0 de 13/);
+  assert.match(await catalog.getByRole('status').innerText(), /0 de 14/);
   await catalog.getByRole('button', { name: 'Restablecer filtros', exact: true }).click();
   checks.push('external controls stay distinct and do not claim an unavailable output');
 

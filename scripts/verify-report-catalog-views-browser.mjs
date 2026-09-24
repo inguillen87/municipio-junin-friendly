@@ -15,7 +15,7 @@ export async function verifyReportCatalogViews(page, catalog, prefix) {
   const count = () => catalog.locator('.rc-card').count();
   const reset = () => catalog.getByRole('button', { name: 'Restablecer filtros', exact: true }).click();
   const initial = await catalog.locator('.rc-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('href')));
-  assert.equal(initial.length, 13);
+  assert.equal(initial.length, 14);
   assert.equal(initial.filter(href => href === '#estructura-presupuestaria').length, 1);
   assert.equal(await display.getByRole('button', { name: 'Tarjetas', exact: true }).getAttribute('aria-pressed'), 'true');
   const list = display.getByRole('button', { name: 'Lista compacta', exact: true });
@@ -24,7 +24,7 @@ export async function verifyReportCatalogViews(page, catalog, prefix) {
   assert.equal(await list.getAttribute('aria-pressed'), 'true');
   assert.equal(await catalog.locator('.rc-card').first().evaluate(node => getComputedStyle(node).display), 'grid');
   assert.deepEqual(await catalog.locator('.rc-card').evaluateAll(nodes => nodes.map(node => node.getAttribute('href'))), initial);
-  checks.push('keyboard switches presentation without changing the thirteen report destinations');
+  checks.push('keyboard switches presentation without changing the fourteen report destinations');
 
   await areas.getByRole('button', { name: 'Asistencia', exact: true }).click();
   await format.selectOption('PDF');
@@ -51,7 +51,7 @@ export async function verifyReportCatalogViews(page, catalog, prefix) {
   assert.equal(await list.getAttribute('aria-pressed'), 'true');
   assert.equal(await count(), 1);
   await reset();
-  assert.equal(await count(), 13);
+  assert.equal(await count(), 14);
   assert.equal(await list.getAttribute('aria-pressed'), 'true');
   checks.push('changing layout and navigating to a task/back preserve filters and view; reset clears only filters');
 
