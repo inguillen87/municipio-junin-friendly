@@ -1,8 +1,9 @@
 import {assertClockFleet,clockFleetStatus,clockFleetRows,clockFleetSummary,clockFleetCsv,clockFleetSites} from './clock-fleet-model.js';
+import {mountClockWorkspace} from './clock-fleet-workspace-panel.js';
 import {attendancePointLabel} from './attendance-point-label.js';
 // Common fleet overview supplements (does not replace) the existing PM10 nominal view.
 const fleetRoot=document.getElementById('clockFleetReception');
-if(fleetRoot)mountClockFleet(fleetRoot);
+if(fleetRoot){if(fleetRoot.dataset.clockWorkspace==='v1')mountClockWorkspace(fleetRoot);else mountClockFleet(fleetRoot);}
 export function mountClockFleet(panel){
  if(panel.dataset.mounted==='true')return;panel.dataset.mounted='true';
  const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;};

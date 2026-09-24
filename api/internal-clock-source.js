@@ -2,6 +2,7 @@ import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import { getActionCenterSql, actionMutationSession } from './internal-actions.js';
 import { getClockFleet } from '../lib/internal-clock-fleet.js';
+import { createClockWorkspace } from '../assets/clock-fleet-workspace-model.js';
 import { assertClockSourceDashboard } from '../assets/clock-source-model.js';
 import { getClockSourceSql, readClockSourceFleet } from '../lib/clock-source-store.js';
 import { sourceCoreInventory } from '../lib/clock-source-core.js';
@@ -20,17 +21,25 @@ export function createInternalClockSourceHandler(deps = {}) {
     sourceHeaders(res);
     try {
       if (req.method !== 'GET') { res.setHeader('Allow','GET'); sourceFail('METHOD_NOT_ALLOWED'); }
-      sourceRequestShape(req,'/api/internal-clock-source');
+      const workspace=sourceRequestShape(req,'/api/internal-clock-source',false,true);
       const first = await authorize(req,res,options); if (!first) return;
       const session = (deps.sessionFor ?? actionMutationSession)(first,env), initial = authority(first,session);
       const coreSql = await (deps.getCoreSql ?? getActionCenterSql)(env);
       const core = await (deps.getFleet ?? getClockFleet)(coreSql,first.principal,session);
       const before = await sourceCoreInventory(coreSql,first.principal,session,core,deps.readDevices);
-      const sourceSql = await (deps.getSourceSql ?? getClockSourceSql)(env,'reader');
       const deviceIds = before.devices.map(device => device.deviceId);
-      const source = assertSourceFleet(await (deps.readFleet ?? readClockSourceFleet)(sourceSql,initial.coordinates,deviceIds),initial.coordinates,deviceIds);
+      let source=null,archiveErrorCode=null;
+      try {
+        const sourceSql=await (deps.getSourceSql ?? getClockSourceSql)(env,'reader');
+        source=assertSourceFleet(await (deps.readFleet ?? readClockSourceFleet)(sourceSql,initial.coordinates,deviceIds),initial.coordinates,deviceIds);
+      } catch(error) {
+        if(error?.status===401||error?.status===403)throw error;
+        const safe=safeSourceError(error);
+        if(!workspace||!['CLOCK_SOURCE_UNAVAILABLE','CLOCK_SOURCE_NOT_CONFIGURED'].includes(safe.code))throw error;
+        archiveErrorCode=safe.code;
+      }
       const sites = new Map(before.devices.map(device => [device.deviceId,device.coreSiteId]));
-      if (source.devices.some(device => device.enrolled && device.siteId !== sites.get(device.deviceId))) sourceFail('CLOCK_SOURCE_BINDING_CHANGED');
+      if (source && source.devices.some(device => device.enrolled && device.siteId !== sites.get(device.deviceId))) sourceFail('CLOCK_SOURCE_BINDING_CHANGED');
       // This is a composed observation across two databases, not a distributed
       // transaction. Revalidate both authority and inventory before disclosing it.
       const current = await authorize(req,res,options); if (!current) return;
@@ -40,10 +49,11 @@ export function createInternalClockSourceHandler(deps = {}) {
       const after = await sourceCoreInventory(coreSql,current.principal,currentSession,refreshedCore,deps.readDevices);
       if (after.fingerprint !== before.fingerprint) sourceFail('CLOCK_SOURCE_SNAPSHOT_CHANGED');
       const byId = new Map(after.devices.map(({coreSiteId,coreVersion,...device}) => [device.deviceId,device]));
-      const result = {version:'clock-source-dashboard.v1',checkedAt:new Date().toISOString(),coreCheckedAt:refreshedCore.checkedAt,sourceCheckedAt:source.checkedAt,
+      const result = source ? {version:'clock-source-dashboard.v1',checkedAt:new Date().toISOString(),coreCheckedAt:refreshedCore.checkedAt,sourceCheckedAt:source.checkedAt,
         snapshotConsistency:'composed_revalidated',sourceBindingSha256:source.sourceBindingSha256,revision:source.revision,
-        devices:source.devices.map(device => ({...device,...byId.get(device.deviceId)})),scope:'source_only',reconciliationState:'pending',payrollModified:false,liveConnectionVerified:false};
-      try { assertClockSourceDashboard(result); } catch { sourceFail('CLOCK_SOURCE_RESPONSE_INVALID'); }
+        devices:source.devices.map(device => ({...device,...byId.get(device.deviceId)})),scope:'source_only',reconciliationState:'pending',payrollModified:false,liveConnectionVerified:false} : null;
+      try { if(result)assertClockSourceDashboard(result); } catch { sourceFail('CLOCK_SOURCE_RESPONSE_INVALID'); }
+      if(workspace){let value;try{value=createClockWorkspace(refreshedCore,result,archiveErrorCode);}catch{sourceFail('CLOCK_SOURCE_RESPONSE_INVALID');}return res.status(200).json({ok:true,...value});}
       return res.status(200).json({ok:true,...result});
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) { const denied = safeSourceError({message:error.status === 401 ? 'CLOCK_SOURCE_AUTH_DENIED' : 'CLOCK_SOURCE_FORBIDDEN'}); return res.status(denied.status).json({ok:false,code:denied.code,error:denied.message}); }

@@ -13,6 +13,11 @@ on:
       - 'lib/clock-source*.js'
       - 'assets/clock-source*.js'
       - 'assets/clock-fleet-panel.css'
+      - 'assets/clock-fleet-panel.js'
+      - 'assets/clock-fleet-workspace*'
+      - 'tests/clock-workspace.test.js'
+      - 'tests/fixtures/clock-workspace-synthetic.js'
+      - 'scripts/verify-clock-workspace-browser.mjs'
       - 'local-agents/clock-fleet/**'
       - 'local-agents/pm10/tests/*source*.test.mjs'
       - 'tests/clock-source-*.test.js'
@@ -96,10 +101,11 @@ jobs:
       - run: node --test scripts/clock-database/tests/*.test.mjs
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Private source panel and existing fleet remain separate
+      - name: Source-only compatibility and unified park workspace
         run: |
           node scripts/verify-clock-source-browser.mjs
           node scripts/verify-clock-fleet-browser.mjs
+          node scripts/verify-clock-workspace-browser.mjs
       - name: Existing collectors and senders remain compatible
         run: node --test local-agents/pm10/tests/*.test.mjs
       - uses: actions/upload-artifact@v4
@@ -109,4 +115,5 @@ jobs:
           path: |
             verification/clock-source-browser/
             verification/clock-fleet/
+            verification/clock-workspace/
           retention-days: 5
