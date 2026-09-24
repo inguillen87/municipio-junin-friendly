@@ -2,6 +2,7 @@
 <html lang="es-AR">
 <head>
   <meta charset="utf-8">
+  <!-- MC_RELEASE_ID -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="referrer" content="same-origin">
@@ -437,6 +438,8 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/release-status.css">
+  <script type="module" src="assets/release-status-panel.js"></script>
 </head>
 <body data-mc-page="platformAdmin">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -520,6 +523,7 @@
 
       <main class="main" id="mainContent" tabindex="-1">
         <div class="content">
+          <details id="releaseStatus" aria-label="Versión del sistema"></details>
           <section class="view" id="portfolioView" data-view-panel="portfolio" aria-labelledby="portfolioTitle">
             <header class="page-head">
               <div>

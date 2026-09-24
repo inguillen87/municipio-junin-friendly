@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { buildReleaseIdentity } from './build-release-identity.mjs';
 import '../assets/app-routes.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +13,9 @@ import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/release-status-model.js',
+  'assets/release-status-panel.js',
+  'assets/release-status.css',
   'assets/app-routes.js',
   'login.html',
   'assets/access-portal.css',
@@ -353,6 +357,7 @@ versionHash.update(normalizeTextForHash(swTemplate.replaceAll(versionToken, ''))
 const cacheVersion = `build-${versionHash.digest('hex').slice(0, 16)}`;
 fs.writeFileSync(swOutput, swTemplate.replaceAll(versionToken, cacheVersion));
 
+buildReleaseIdentity(root, output);
 console.log(`Friendly static shell built (PWA ${cacheVersion}).`);
 
 // Optional owner-approved operation runs only after the full build succeeds.
