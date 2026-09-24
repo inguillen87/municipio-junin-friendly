@@ -258,3 +258,6 @@ local-agents/
 # Source-only contracts for isolated payroll read regression QA.
 !scripts/migrations/105-payroll-independent-read-session.sql
 !scripts/fixtures/payroll-read-*.sql.txt
+
+# Additive staging schema used by isolated source regression tests only.
+!scripts/migrations/106-grh-successor-staging.sql

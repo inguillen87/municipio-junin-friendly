@@ -10,6 +10,7 @@ on:
       - 'scripts/verify-payroll-read-session-postgres.mjs'
       - 'scripts/apply-payroll-read-session.mjs'
       - 'scripts/migrations/105-payroll-independent-read-session.sql'
+      - 'scripts/migrations/106-grh-successor-staging.sql'
       - 'scripts/fixtures/payroll-read-*'
       - 'contracts/payroll-read-session.v1.json'
       - 'scripts/verify-payroll-summary-055.mjs'
@@ -104,6 +105,12 @@ jobs:
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=effective_source_qa -v ON_ERROR_STOP=1 < verification/curated-source.sql
       - run: node scripts/verify-grh-curated-consumers-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/curated-consumers.sql
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=curated_consumers_qa -v ON_ERROR_STOP=1 < verification/curated-consumers.sql
+      - name: Private successor staging preserves the operational source
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres successor_stage_qa
+          node scripts/verify-grh-successor-staging-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/successor-staging.sql
+          docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=successor_stage_qa -v ON_ERROR_STOP=1 < verification/successor-staging.sql | tee verification/successor-staging.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

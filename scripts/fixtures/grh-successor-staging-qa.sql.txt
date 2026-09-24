@@ -1,0 +1,43 @@
+-- All records below are synthetic; the surrounding transaction always rolls back.
+CREATE TEMP TABLE stage_before(entity text,row_key text,record jsonb,PRIMARY KEY(entity,row_key));
+INSERT INTO stage_before SELECT 'core/'||e,r.source_id,r.record FROM qa_ids q CROSS JOIN unnest(ARRAY['payrollRuns','payrollSnapshot','payrollMonthly','movements','employmentReconciliation']) e CROSS JOIN LATERAL grh_core_source_unsealed_rows_v1(q.v,e) r;
+INSERT INTO stage_before SELECT 'curated/'||e,r.row_key,r.record FROM qa_ids q CROSS JOIN unnest(ARRAY['grh_employees','grh_absences','grh_leaves','grh_family','grh_catalog_rows']) e CROSS JOIN LATERAL grh_curated_source_unsealed_rows_v1(q.curated,e) r;
+CREATE TEMP TABLE stage_after AS SELECT * FROM stage_before;
+UPDATE stage_after SET record=record||'{"nombre":"Synthetic changed without touching canonical"}' WHERE entity='curated/grh_employees' AND record->>'legajo'='001';
+DELETE FROM stage_after WHERE entity='curated/grh_absences' AND record->>'legajo'='004';
+INSERT INTO stage_after SELECT 'core/payrollSnapshot',repeat('1',64),'{"company_source_id":"101","employee_number":"001","snapshot_date":"2026-09-30","source_period":2026,"source_month":9,"payroll_type":"M"}'::jsonb
+ UNION ALL SELECT 'core/payrollSnapshot',repeat('2',64),'{"company_source_id":"101","employee_number":"001","snapshot_date":"2026-09-30","source_period":2026,"source_month":9,"payroll_type":"O"}';
+CREATE TEMP TABLE protected_before AS SELECT 'selection' entity,md5(jsonb_agg(to_jsonb(r) ORDER BY tenant_id)::text) fingerprint FROM grh_effective_source_binding r
+ UNION ALL SELECT 'contract',md5(jsonb_agg(to_jsonb(r) ORDER BY id)::text) FROM employment_contract r
+ UNION ALL SELECT 'source_runs',md5(jsonb_agg(to_jsonb(r) ORDER BY id)::text) FROM data_import_runs r;
+CREATE TEMP TABLE stage_changes AS
+ SELECT coalesce(b.entity,a.entity) entity,coalesce(b.row_key,a.row_key) row_key,
+ CASE WHEN b.row_key IS NULL THEN 'add' WHEN a.row_key IS NULL THEN 'remove' ELSE 'replace' END operation,b.record previous_record,a.record
+ FROM stage_before b FULL JOIN stage_after a USING(entity,row_key) WHERE b.record IS DISTINCT FROM a.record;
+CREATE FUNCTION pg_temp.stage_proof() RETURNS jsonb LANGUAGE sql AS $f$
+ SELECT jsonb_object_agg(e,jsonb_build_object(
+ 'baseline',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM stage_before WHERE entity=e),
+ 'candidate',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM stage_after WHERE entity=e),
+ 'changes',(SELECT jsonb_build_object('add',count(*) FILTER(WHERE operation='add'),'remove',count(*) FILTER(WHERE operation='remove'),'replace',count(*) FILTER(WHERE operation='replace')) FROM stage_changes WHERE entity=e)))
+ FROM unnest(grh_successor_entities_v1()) e;
+$f$;
+CREATE FUNCTION pg_temp.stage_header(p_id uuid,p_evidence jsonb DEFAULT NULL) RETURNS void LANGUAGE sql AS $f$
+ INSERT INTO grh_successor_stage(id,tenant_id,source_binding_id,parent_core_version_id,parent_curated_version_id,parent_publication_sha256,source_profile,source_sha256,source_cutoff,core_manifest_sha256,curated_manifest_sha256,package_sha256,evidence)
+ SELECT p_id,tenant,binding,v,curated,repeat('f',64),'grh-junin-2026-09-22','8fd91c34e3757a19f3f772631f5734d4934050d4823bc6127b61220236155a8e','2026-09-22 15:16:58',repeat('c',64),repeat('d',64),repeat('e',64),coalesce(p_evidence,pg_temp.stage_proof()) FROM qa_ids;
+$f$;
+CREATE FUNCTION pg_temp.stage_rows(p_id uuid) RETURNS void LANGUAGE sql AS $f$
+ INSERT INTO grh_successor_stage_delta(stage_id,entity,row_key,operation,previous_record,record) SELECT p_id,entity,row_key,operation,previous_record,record FROM stage_changes;
+$f$;
+-- Positive staging acceptance against synthetic source rows in the isolated QA database.
+SELECT pg_temp.stage_header('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+SELECT pg_temp.stage_rows('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+INSERT INTO grh_successor_stage_seal
+ SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(SELECT jsonb_object_agg(e,grh_successor_stage_fingerprint_v1('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',e,false)) FROM unnest(grh_successor_entities_v1()) e),now();
+SELECT pg_temp.ok((SELECT count(*)=1 AND bool_and(NOT operational AND NOT publication_authorized) FROM grh_successor_stage_summary_v1),'106 staged source remains nonoperational');
+SELECT pg_temp.ok((SELECT count(*)=2 FROM grh_successor_stage_rows_v1('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','core/payrollSnapshot')),'106 both synthetic payroll assignments are preserved');
+SELECT pg_temp.ok((SELECT count(*)=1 FROM grh_successor_stage_rows_v1('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','curated/grh_employees') WHERE record->>'nombre'='Synthetic changed without touching canonical'),'106 staged record exposes candidate without rewriting current');
+SELECT pg_temp.ok((SELECT count(*)=0 FROM grh_effective_employees_v1 WHERE nombre='Synthetic changed without touching canonical'),'106 operational personnel source unchanged');
+SELECT pg_temp.ok(NOT EXISTS((SELECT 'selection' entity,md5(jsonb_agg(to_jsonb(r) ORDER BY tenant_id)::text) fingerprint FROM grh_effective_source_binding r UNION ALL SELECT 'contract',md5(jsonb_agg(to_jsonb(r) ORDER BY id)::text) FROM employment_contract r UNION ALL SELECT 'source_runs',md5(jsonb_agg(to_jsonb(r) ORDER BY id)::text) FROM data_import_runs r) EXCEPT SELECT * FROM protected_before),'106 source selection and canonical records preserved');
+SELECT pg_temp.ok(NOT has_table_privilege('municontrol_actions_runtime_app','grh_successor_stage','SELECT'),'106 application role cannot read staged personnel');
+SELECT pg_temp.ok(NOT has_function_privilege('municontrol_actions_runtime_app','grh_successor_stage_rows_v1(uuid,text)','EXECUTE'),'106 candidate reconstruction stays private');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM pg_class WHERE relname IN('grh_successor_stage','grh_successor_stage_delta','grh_successor_stage_seal') AND relrowsecurity),'106 row security enabled on staging tables');
