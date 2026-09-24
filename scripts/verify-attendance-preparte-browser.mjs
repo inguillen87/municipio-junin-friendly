@@ -12,7 +12,7 @@ const root = path.resolve('public'), out = 'verification/preparte-' + (published
 fs.mkdirSync(out, { recursive: true });
 if (published) await verifyPrepartePublication(out);
 const checks = [], errors = [], requests = [], posts = [];
-let changed = false, newReceipt = false, denied = false, canPrepare = true, delay = 0;
+let changed = false, newReceipt = false, denied = false, canPrepare = true, delay = 0, splitStream = false, reboundStream = false;
 const bootstrap = () => ({ ok: true, principal: {
   email: 'qa@example.invalid', membershipId: '00000000-0000-4000-8000-000000000001',
   tenantId: '00000000-0000-4000-8000-000000000002',
@@ -54,7 +54,7 @@ try {
         requests.push(Object.fromEntries(url.searchParams));
         if (delay) await new Promise(resolve => setTimeout(resolve, delay));
         if (denied) return route.fulfill({ status: 403, json: { ok: false, error: 'Permiso QA revocado' } });
-        try { return route.fulfill({ json: await preparteSynthetic({ changed, newReceipt, evidence: url.searchParams.get('evidence') || undefined }) }); }
+        try { return route.fulfill({ json: await preparteSynthetic({ changed, newReceipt, splitStream, reboundStream, evidence: url.searchParams.get('evidence') || undefined }) }); }
         catch (error) { return route.fulfill({ status: error.status || 503, json: { ok: false, error: error.message, code: error.code } }); }
       }
       return route.fulfill({ json: { ok: true, data: [] } });
@@ -79,6 +79,12 @@ try {
   assert.match(await panel.locator('[data-ap-metrics]').innerText(), /107/);
   assert.equal(await panel.locator('tbody tr[data-ap-key]').count(), 25);
   assert.equal(await panel.locator('input[data-blocked]:enabled').count(), 0);
+  const reviewTable=panel.getByRole('region',{name:'Revisión por legajo del preparte',exact:true});
+  assert.ok(await reviewTable.evaluate(n=>n.scrollHeight>n.clientHeight));
+  await reviewTable.evaluate(n=>{n.scrollTop=300;});
+  assert.ok(await reviewTable.evaluate(n=>Math.abs(n.querySelector('th').getBoundingClientRect().top-n.getBoundingClientRect().top)<5));
+  await reviewTable.evaluate(n=>{n.scrollTop=0;});
+  checks.push('long review stays in a keyboard-accessible table with fixed column headers and the complete data outside pagination');
   await panel.locator('[data-ap-filter]').selectOption('ready'); assert.equal(await panel.locator('tbody tr[data-ap-key]').count(), 2);
   const row = number => panel.locator('tr[data-ap-key]').filter({ has: page.locator(`input[aria-label="Incluir legajo ${number}"]`) });
   const first = row('9001'), second = row('9002');
@@ -140,6 +146,34 @@ try {
   await page.locator('#periodMonth').fill('2026-09');
   assert.equal(await first.locator('[type=checkbox]').isChecked(), true);
   checks.push('period changes block cross-month transfer/export without erasing previous decisions');
+  // Igual persona y legajo, pero dos contratos/equipos: nunca una suma apta para novedades.
+  let identityDownloads=0;page.on('download',()=>identityDownloads++);
+  const batchCount=posts.length;splitStream=true;await panel.locator('[data-ap-export]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-ap-status]')?.textContent.includes('cambiaron'));
+  assert.equal(identityDownloads,0);assert.equal(posts.length,batchCount);
+  await panel.locator('[data-ap-filter]').selectOption('all');await load();
+  assert.equal(await first.locator('[type=checkbox]').isEnabled(),false);
+  assert.equal(await first.locator('[type=checkbox]').isChecked(),false);
+  assert.equal(await first.locator('[data-ap-field=hours]').isEnabled(),false);
+  assert.match(await first.innerText(),/Más de un vínculo o equipo/);
+  assert.match(await first.innerText(),/No reconstruido/);
+  assert.equal(await panel.locator('[data-ap-use]').isDisabled(),true);
+  assert.equal(posts.length,batchCount);
+  checks.push('same legajo across non-overlapping source streams is blocked, unselected and not represented as recognized overtime');
+  const conflictDownload=page.waitForEvent('download');await panel.locator('[data-ap-export]').click();
+  const conflictFile=await conflictDownload;await conflictFile.saveAs(out+'/preparte-conflict-synthetic.xlsx');
+  const conflictZip=unzipSync(fs.readFileSync(out+'/preparte-conflict-synthetic.xlsx'));
+  const conflictSheet=strFromU8(conflictZip['xl/worksheets/sheet1.xml']);
+  const conflictRow=[...conflictSheet.matchAll(/<row[^>]*>[\s\S]*?<\/row>/g)].map(m=>m[0]).find(r=>/>9001<\/t>/.test(r));
+  assert.ok(conflictRow);assert.match(conflictRow,/Más de un vínculo o equipo/);assert.match(conflictRow,/No reconstruido/);assert.doesNotMatch(conflictRow,/<f>D\d+\/86400<\/f>/);
+  assert.equal(posts.length,batchCount);await panel.screenshot({path:out+'/identity-review.png'});
+  checks.push('complete Excel retains the blocked row and its reason without a numeric extra-time formula or a new payroll batch');
+  splitStream=false;await load();await first.locator('[type=checkbox]').check();reboundStream=true;await load();
+  assert.equal(await first.locator('[type=checkbox]').isEnabled(),true);assert.equal(await first.locator('[type=checkbox]').isChecked(),false);
+  assert.equal(await first.locator('[data-ap-field=cap]').inputValue(),'3');assert.match(await status.innerText(),/desmarcadas/);
+  assert.equal(posts.length,batchCount);
+  checks.push('changing only the binding with identical times clears the prior selection while preserving declared fields for a fresh review');
+
   denied=true; await panel.locator('[data-ap-load]').click();
   await panel.locator('[data-ap-result]').waitFor({state:'hidden'});
   assert.equal(await panel.locator('tbody tr').count(), 0); assert.equal(await panel.locator('[data-ap-reference]').inputValue(), '');

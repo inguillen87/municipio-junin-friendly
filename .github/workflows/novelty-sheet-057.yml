@@ -55,6 +55,8 @@ on:
       - 'lib/internal-attendance-workdays.js'
       - 'api/internal-attendance.js'
       - 'tests/attendance-preparte.test.js'
+      - 'tests/preparte-stream-integrity.test.js'
+      - 'tests/fixtures/attendance-preparte-synthetic.js'
       - 'scripts/verify-attendance-preparte-browser.mjs'
       - 'scripts/verify-preparte-publication.mjs'
       - 'assets/payroll-novelty-workbench.js'

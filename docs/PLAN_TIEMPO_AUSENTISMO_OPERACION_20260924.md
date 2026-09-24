@@ -111,3 +111,12 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 `NOELIA_SELECCION_DOCUMENTAL_M9_20260924.md` incorpora el circuito Centro de reportes → Documentos por rango. La liquidación concreta y los límites de legajo/repartición se resuelven sobre toda su población antes de paginar. El resultado distingue vínculos únicos de referencias a revisar y abre el detalle individual existente sin abandonar la selección.
 
 La repartición corresponde al padrón certificado al corte visible, no a la asignación histórica liquidada. La selección no se rotula como emisión de recibos: pago, firma, lote completo y descarga propia del agente siguen pendientes. Este incremento no incorpora originales de relojes, no aplica reglas salariales y no selecciona el respaldo sucesor.
+
+
+## B5.1 · identidad única al preparar novedades (24/09)
+
+`PREPARTE_IDENTIDAD_UNICA_20260924.md` registra un cierre del paso Relojes → Preparte → Novedades: evitar sumas de distintos vínculos o equipos bajo un mismo legajo; retirar selecciones revisadas cuando cambia el vínculo aunque no cambien las horas; conservar los registros y la explicación en Excel; y mantener la tabla de revisión dentro de una región con encabezados fijos.
+
+No se validan identidades por nombre ni se habilitan excepciones que eludan la revisión. El reconstructor y la validación de planilla siguen vigentes. Se ensayó el recorrido completo con datos sintéticos; la aceptación con los usuarios municipales y el despliegue final se acreditan por separado.
+
+Este cierre no sustituye la incorporación de otras fuentes, la promoción del respaldo del 22/09, las reglas de jornada aprobadas ni el circuito final de aprobación y novedades. El expediente de pago a proveedores permanece diferido hasta G-AUT-01.
