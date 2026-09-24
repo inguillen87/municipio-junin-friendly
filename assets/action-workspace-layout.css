@@ -119,3 +119,6 @@
  #appShell .table-wrap{padding:0 14px 14px}
  #actionDialog .dialog-shell,#actionWizard .dialog-shell,#overtimeWizard .dialog-shell{height:calc(100dvh - 16px);max-height:calc(100dvh - 16px)}
 }
+
+/* Explicit recovery of a command whose receipt was not confirmed. */
+.action-recovery-notice{margin:16px 24px;padding:18px;border:1px solid #d4af64;border-left:5px solid #b78025;background:#fff8e8;color:#4c391b;border-radius:10px}.action-recovery-notice p{margin:8px 0 14px;line-height:1.55;font-size:.92rem;max-width:80ch}.action-recovery-buttons{display:flex;gap:10px;flex-wrap:wrap}.action-recovery-notice .button{min-height:44px}@media(max-width:600px){.action-recovery-notice{margin:12px;padding:14px}.action-recovery-buttons .button{width:100%;white-space:normal}}

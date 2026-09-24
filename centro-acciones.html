@@ -708,6 +708,8 @@
 
   <script src="assets/internal-guide.js" defer></script>
   <script src="assets/action-language.js"></script>
+  <script src="assets/action-command-recovery.js"></script>
+  <script src="assets/action-calendar-date.js"></script>
   <script>
     (function () {
       'use strict';
@@ -850,6 +852,8 @@
       }
 
       var pendingMutationKeys = loadPendingMutationKeys();
+      var actionRecovery = null, actionCommandRunning = false, actionPageGeneration = 0;
+      var commandRecovery = window.MuniControlCommandRecovery;
 
       var el = {};
       function byId(id) { return document.getElementById(id); }
@@ -882,7 +886,7 @@
       var dateFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
       var dateTimeFormatter = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       var numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-      function formatDate(value) { var date = normalizeDate(value); return date ? dateFormatter.format(date).replace(/\./g, '') : 'No informada'; }
+      function formatDate(value) { if(window.MuniControlCalendarDate.isCivil(value))return window.MuniControlCalendarDate.label(value)||'No informada'; var date = normalizeDate(value); return date ? dateFormatter.format(date).replace(/\./g, '') : 'No informada'; }
       function formatDateTime(value) { var date = normalizeDate(value); return date ? dateTimeFormatter.format(date).replace(/\./g, '') : 'No informada'; }
       function formatNumber(value) { var parsed = integer(value); return parsed === null ? '—' : numberFormatter.format(parsed); }
       var actionLanguage = window.MuniControlActionLanguage;
@@ -916,6 +920,7 @@
       function redirectToLogin() {
         if (state.redirecting) return;
         state.redirecting = true;
+        actionPageGeneration++;actionRecovery=null;byId('actionRecoveryNotice')?.remove();
         state.subjectSearchSequence += 1;
         if (state.subjectSearchController) state.subjectSearchController.abort();
         state.subjectSearchController = null;
@@ -938,6 +943,7 @@
         var headers = Object.assign({ Accept: 'application/json', 'Cache-Control': 'no-store' }, settings.headers || {});
         var fetchSettings = Object.assign({}, settings, { credentials: 'same-origin', cache: 'no-store', headers: headers });
         delete fetchSettings.actionBusyAttempt;
+        delete fetchSettings.commandReceipt;
         var response;
         try {
           response = await fetch(url, fetchSettings);
@@ -954,7 +960,8 @@
           throw unauthorized;
         }
         var payload = null;
-        if (response.status !== 204) { try { payload = await response.json(); } catch (_) { payload = null; } }
+        if (settings.commandReceipt && response.ok) payload = await commandRecovery.readReceiptPayload(response);
+        else if (response.status !== 204) { try { payload = await response.json(); } catch (_) { payload = null; } }
         if (response.status === 409 && payload && payload.code === 'ACTION_SESSION_BUSY'
             && actionBusyAttempt < MAX_ACTION_BUSY_RETRIES) {
           var retryAfterSeconds = Number(responseHeader(response, 'Retry-After')) || 1;
@@ -962,7 +969,7 @@
           await new Promise(function (resolve) { window.setTimeout(resolve, retryDelay); });
           return requestJson(url, Object.assign({}, settings, { actionBusyAttempt: actionBusyAttempt + 1 }));
         }
-        if (!response.ok || (payload && payload.ok === false)) {
+        if (!response.ok || (!settings.commandReceipt && payload && payload.ok === false)) {
           var detail = first(payload && payload.error, payload && payload.message, payload && payload.detail);
           if (detail && typeof detail === 'object') detail = first(detail.message, detail.detail, detail.code);
           var error = new Error(text(detail, 'La API no pudo completar la operación.'));
@@ -1032,33 +1039,63 @@
       }
 
       async function actionCommand(method, body) {
-        var fingerprint = await mutationFingerprint(method, body);
-        var pending = pendingMutationKeys.get(fingerprint);
-        var key = pending && pending.key;
-        if (!key) {
-          key = idempotencyKey();
-          if (pendingMutationKeys.size >= 32) pendingMutationKeys.delete(pendingMutationKeys.keys().next().value);
-          pendingMutationKeys.set(fingerprint, { key: key, savedAt: Date.now() });
-          persistPendingMutationKeys();
-        }
+        if(state.redirecting){var ended=new Error('La sesión venció.');ended.status=401;ended.unauthorized=true;throw ended;}
+        var pageGeneration=actionPageGeneration;
+        function currentPage(){if(pageGeneration!==actionPageGeneration||state.redirecting){var changed=new Error('La página o sesión cambió. Revisá el estado antes de continuar.');changed.status=401;changed.unauthorized=true;throw changed;}}
+        if (actionCommandRunning) { var busy=new Error('Ya hay una operación en curso. Esperá su comprobante.');busy.code='ACTION_COMMAND_IN_FLIGHT';busy.status=423;throw busy; }
+        actionCommandRunning=true;
+        var fingerprint, key, original;
         try {
-          var result = await requestJson(ACTIONS_URL, {
-            method: method,
-            headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
-            body: JSON.stringify(body)
-          });
-          pendingMutationKeys.delete(fingerprint);
-          persistPendingMutationKeys();
+          original=commandRecovery.copyCommand(method,body);
+          fingerprint=await mutationFingerprint(method,original);currentPage();
+          if(actionRecovery && actionRecovery.fingerprint!==fingerprint){var unresolved=new Error('Primero recuperá el resultado de la operación pendiente. No se envió una solicitud diferente.');unresolved.code='ACTION_COMMAND_UNRESOLVED';unresolved.status=425;throw unresolved;}
+          var pending=pendingMutationKeys.get(fingerprint);key=pending&&pending.key;
+          if(!key){key=idempotencyKey();if(pendingMutationKeys.size>=32)pendingMutationKeys.delete(pendingMutationKeys.keys().next().value);pendingMutationKeys.set(fingerprint,{key:key,savedAt:Date.now()});persistPendingMutationKeys();}
+          renderActionRecovery();
+          var result=await requestJson(ACTIONS_URL,{method:method,headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify(original),commandReceipt:true,signal:AbortSignal.timeout(20000)});
+          commandRecovery.verifyReceipt(result,method,original);currentPage();
+          pendingMutationKeys.delete(fingerprint);persistPendingMutationKeys();
+          if(actionRecovery&&actionRecovery.fingerprint===fingerprint)actionRecovery=null;
           return result;
-        } catch (error) {
-          var status = error && Number(error.status);
-          var transient = isActionBusy(error) || status === 408 || status === 425 || status === 429 || status >= 500;
-          if (Number.isFinite(status) && !transient) {
-            pendingMutationKeys.delete(fingerprint);
-            persistPendingMutationKeys();
+        } catch(error) {
+          if(pageGeneration!==actionPageGeneration||state.redirecting){error.unauthorized=true;throw error;}
+          var status=error&&Number(error.status);
+          var transient = isActionBusy(error) || status===408 || status===425 || status===429 || status>=500;
+          if(key&&Number.isFinite(status)&&!transient){
+            // No refusal of a replay proves the earlier uncertain attempt did not commit.
+            if(!(actionRecovery&&actionRecovery.fingerprint===fingerprint)){pendingMutationKeys.delete(fingerprint);persistPendingMutationKeys();}
+            if(actionRecovery&&actionRecovery.fingerprint===fingerprint&&[401,403].includes(status))actionRecovery=null;
           }
+          if(key&&!state.redirecting&&commandRecovery.needsRecovery(error))actionRecovery={fingerprint:fingerprint,key:key,method:method,body:original};
           throw error;
-        }
+        } finally {actionCommandRunning=false;renderActionRecovery();}
+      }
+
+      function renderActionRecovery() {
+        var existing=byId('actionRecoveryNotice');if(existing)existing.remove();
+        if(!actionRecovery||state.redirecting||!el.actionDialog)return;
+        var modal=el.overtimeWizard.open?el.overtimeWizard:el.actionWizard.open?el.actionWizard:el.actionDialog.open?el.actionDialog:null;
+        var target=modal?modal.querySelector('.dialog-shell'):el.actionFilters;
+        if(!target)return;
+        var notice=create('section','action-recovery-notice');notice.id='actionRecoveryNotice';notice.setAttribute('aria-label','Operación pendiente de confirmación');
+        var description=create('div','');description.append(create('strong','','Pendiente de confirmación · '+commandRecovery.commandLabel(actionRecovery.body.command)));
+        var copy=create('p','','La respuesta no permite confirmar el resultado. Puede haberse guardado. Recuperá el mismo envío antes de cambiar los datos o registrar otra operación. Reintentar conserva la clave original: si el servidor ya lo registró, devuelve su comprobante; si no lo recibió, procesa el mismo envío que confirmaste.');copy.setAttribute('role','status');description.append(copy);notice.append(description);
+        var actions=create('div','action-recovery-buttons'),retry=create('button','button primary',actionCommandRunning?'Verificando comprobante…':'Recuperar el mismo envío');retry.type='button';retry.disabled=actionCommandRunning;retry.addEventListener('click',recoverActionCommand);actions.append(retry);
+        if(modal){var back=create('button','button','Ver bandeja sin cancelar el envío');back.type='button';back.disabled=actionCommandRunning;back.addEventListener('click',function(){if(el.actionWizard.open)closeWizard();if(el.overtimeWizard.open)closeOvertimeWizard();if(el.actionDialog.open)closeActionDialog();renderActionRecovery();byId('actionRecoveryNotice')?.querySelector('button')?.focus();});actions.append(back);}
+        notice.append(actions);
+        if(modal){var header=target.querySelector('.dialog-head');if(header)header.after(notice);else target.prepend(notice);}else target.before(notice);
+      }
+
+      async function recoverActionCommand() {
+        var attempt=actionRecovery;if(!attempt||actionCommandRunning||state.redirecting)return;
+        try {
+          var response=await actionCommand(attempt.method,attempt.body),receipt=response.data;
+          if(el.actionWizard.open)closeWizard();if(el.overtimeWizard.open)closeOvertimeWizard();if(el.actionDialog.open)closeActionDialog();
+          el.actionTypeFilter.value=receipt.caseType;el.actionStatusFilter.value='';renderStatusCatalog('');renderOperationMode();resetPagination();
+          toast('Comprobante confirmado · solicitud '+receipt.caseNumber+' · '+statusLabel(receipt.status)+'. Se recuperó el resultado sin repetir la operación.');
+          await loadActions({page:1});await openAction(receipt.id,receipt.caseType);
+        } catch(error) {if(!error.unauthorized){toast(error.code==='ACTION_IDEMPOTENCY_KEY_REUSED'?'La referencia no pudo recuperarse en este contexto. Revisá la bandeja; se conserva la clave anterior y no se genera un envío nuevo.':error.message,'error');}}
+        finally{renderActionRecovery();}
       }
 
       function normalizeCapabilities(root) {
@@ -2361,7 +2398,7 @@
         state.lastFocus = document.activeElement;
         el.actionDialogTitle.textContent = 'Consultando acción'; el.actionDialogSubtitle.textContent = 'Cargando estado y trazabilidad.';
         clear(el.actionDialogBody); delete el.actionDialogBody.dataset.projection; var loading = create('div','loading-state'); loading.append(create('strong','','Consultando detalle autorizado'),create('p','','No se incluyen nombres ni legajos en la URL.'),create('div','spinner')); el.actionDialogBody.appendChild(loading); el.actionDialogBody.setAttribute('aria-busy','true');
-        if (!el.actionDialog.open) el.actionDialog.showModal();
+        if (!el.actionDialog.open) el.actionDialog.showModal();renderActionRecovery();
         var caseType = caseTypeHint === 'overtime_entry' || (summary && summary.type === 'overtime_entry') ? 'overtime_entry' : 'leave_request';
         try {
           var loadedDetail = normalizeDetail(await actionGet('detail',{ caseType: caseType, id: id }), projectionCeiling);
@@ -2491,7 +2528,7 @@
         var submit=form.querySelector('button[type="submit"]'); submit.disabled=true; submit.setAttribute('aria-busy','true');
         var transitionRecorded=false;
         try { await actionCommand('POST',body); transitionRecorded=true; var next=normalizeDetail(await actionGet('detail',{caseType:body.caseType,id:detail.id})); renderActionDetail(next); toast(overtime?'Declaración actualizada con trazabilidad.':leaveTransitionSuccessMessage(next)); await loadActions(); }
-        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else{toast(overtime?overtimeCommandError(error):(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message),'error');if(error.status===409)openAction(detail.id);}}}
+        catch(error){if(!error.unauthorized){if(transitionRecorded){toast('La acción fue registrada, pero falta refrescar el detalle vigente.','error');renderDetailRefreshFailure(detail.id,error);}else if(isActionBusy(error)){toast(ACTION_BUSY_COPY,'error');}else if(error.code==='ACTION_SEPARATION_OF_DUTIES'){toast('Quien preparó o envió la solicitud no puede aprobarla. Debe intervenir otra persona autorizada.','error');openAction(detail.id);}else{toast(overtime?overtimeCommandError(error):(error.status===409?'La acción cambió en otra sesión. Actualizamos antes de continuar.':error.message),'error');if(error.status===409)openAction(detail.id);}}}
         finally{submit.disabled=false;submit.removeAttribute('aria-busy');}
       }
 
@@ -2653,7 +2690,7 @@
           updateDurationFields();
           updateConfidentiality();
         }
-        el.actionWizard.showModal();
+        el.actionWizard.showModal();renderActionRecovery();
         window.setTimeout(function(){
           if(!el.actionWizard.open)return;
           if(!detail&&canSearchSubjects()&&!state.initialSubjects.length)el.actionEmployeeSearch.focus();
@@ -2747,7 +2784,7 @@
           el.overtimeReason.value=detail.overtime.reasonCode;
         }
         renderOvertimeAuthority();
-        el.overtimeWizard.showModal();
+        el.overtimeWizard.showModal();renderActionRecovery();
         window.setTimeout(function(){
           if(!el.overtimeWizard.open)return;
           if(detail)el.overtimeWorkDate.focus();
@@ -2916,6 +2953,10 @@
       }
 
       function bindEvents() {
+        [el.actionDialog,el.actionWizard,el.overtimeWizard].forEach(function(dialog){dialog.addEventListener('close',function(){queueMicrotask(renderActionRecovery);});});
+        window.addEventListener('beforeunload',function(event){if((actionRecovery||actionCommandRunning)&&!state.redirecting){event.preventDefault();event.returnValue='';}});
+        window.addEventListener('pagehide',function(){actionPageGeneration++;actionRecovery=null;byId('actionRecoveryNotice')?.remove();});
+        window.addEventListener('pageshow',function(event){if(event.persisted)window.location.reload();});
         el.retryAuth.addEventListener('click', authenticate);
         el.retryActions.addEventListener('click', function () { loadActions(); });
         el.refreshButton.addEventListener('click', function () { loadActions(); });

@@ -4,6 +4,13 @@ on:
     branches: ['internal-read-timeout-recovery-20260923', 'master']
     paths:
       - 'api/internal-data.js'
+      - 'centro-acciones.html'
+      - 'assets/action-command-recovery.js'
+      - 'assets/action-calendar-date.js'
+      - 'assets/action-workspace-layout.css'
+      - 'tests/action-command-recovery.test.js'
+      - 'tests/fixtures/action-command-recovery-synthetic.js'
+      - 'scripts/verify-action-command-recovery-browser.mjs'
       - 'lib/internal-budget-payroll.js'
       - 'assets/budget-*.js'
       - 'assets/budget-structure.css'
@@ -86,6 +93,8 @@ jobs:
         run: node scripts/verify-time-absence-workspace-browser.mjs
       - name: Budget structure population comparison
         run: node scripts/verify-budget-cotejo-browser.mjs
+      - name: Native command receipt and retry acceptance
+        run: node scripts/verify-action-command-recovery-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -97,5 +106,6 @@ jobs:
             verification/workforce-desktop-qa.png
             verification/workforce-mobile-qa.png
             verification/time-absence-workspace/
+            verification/action-command-recovery/
             verification/budget-cotejo/
           retention-days: 7

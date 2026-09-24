@@ -91,3 +91,8 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 ## B1 · incremento del 24/09: historial de ausencias por vínculo
 
 `AUSENCIAS_HISTORIAL_AGENTE_20260924.md` cierra la consulta individual paginada dentro de Ausentismo, con resumen de todo el período, revisión de fuente y regreso al contexto. Relojes enlaza al ausentismo general de sus fechas en otra pestaña; no inventa una correlación individual. Persisten resolución de casos, reglas de jornada, aprobación y entrega a novedades. No se promocionó un respaldo ni se modificaron liquidaciones.
+
+
+## B4 · confirmación y recuperación de operaciones (24/09)
+
+`ACCIONES_CONFIRMACION_RECUPERABLE_20260924.md` documenta la validación de comprobantes y recuperación manual de una solicitud cuyo resultado no fue confirmado. Mantiene claves y versión esperada, separa las negativas explícitas de los resultados inciertos y no altera la aprobación independiente. Se verificó con comandos sintéticos, sin cambios a reglas, permisos, fuentes ni haberes municipales. La entrega a novedades y homologación de tiempos siguen siendo cierres distintos.

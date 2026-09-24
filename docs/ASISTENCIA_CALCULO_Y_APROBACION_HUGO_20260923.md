@@ -84,3 +84,8 @@ La fecha deseada de octubre no sustituye estos criterios. Cada dominio puede hab
 ## Ampliación del 24/09 · tiempo y ausentismo
 
 Ver `PLAN_TIEMPO_AUSENTISMO_OPERACION_20260924.md`: corrección de cargas y ceros, caso contextual, consulta nominal, métricas de relojes, comparación de tiempos y aceptación por Noelia/Hugo/Mariano/superadministración. Distingue el incremento implementado de la conciliación de los otros equipos, reglas, aprobaciones y fuente del 22/09 pendientes.
+
+
+## B4 · confirmación y recuperación de operaciones (24/09)
+
+`ACCIONES_CONFIRMACION_RECUPERABLE_20260924.md` documenta la validación de comprobantes y recuperación manual de una solicitud cuyo resultado no fue confirmado. Mantiene claves y versión esperada, separa las negativas explícitas de los resultados inciertos y no altera la aprobación independiente. Se verificó con comandos sintéticos, sin cambios a reglas, permisos, fuentes ni haberes municipales. La entrega a novedades y homologación de tiempos siguen siendo cierres distintos.
