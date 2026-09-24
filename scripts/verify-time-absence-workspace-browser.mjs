@@ -17,7 +17,7 @@ await context.route('**/*',async route=>{
   const expected=fs.readFileSync(file);let body=expected;
   if(live){let r=await fetch(url.href,{credentials:'omit',cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(20000)});
    const redirects={'/ausentismo-control.html':'/ausentismo','/relojes-marcaciones.html':'/relojes'};
-   if(r.status===307&&redirects[url.pathname]){assert.equal(r.headers.get('location'),redirects[url.pathname]);await r.body?.cancel();r=await fetch(origin+redirects[url.pathname],{credentials:'omit',redirect:'error',signal:AbortSignal.timeout(20000)});}
+   if(r.status===307&&redirects[url.pathname]){const canonical=redirects[url.pathname]+url.search;assert.equal(r.headers.get('location'),canonical);await r.body?.cancel();r=await fetch(origin+canonical,{credentials:'omit',redirect:'error',signal:AbortSignal.timeout(20000)});}
    assert.equal(r.status,200,url.pathname);body=Buffer.from(await r.arrayBuffer());assert.ok(body.equals(expected),'Published bytes mismatch: '+url.pathname);assets.add(url.pathname);
   }
   return route.fulfill({status:200,body,contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream'});
