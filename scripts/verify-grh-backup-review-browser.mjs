@@ -14,11 +14,17 @@ if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://munici
 const origin = publishedOrigin ?? 'https://municontrol.test', base = path.resolve('public'), out = path.resolve('verification');
 const mode = publishedOrigin ? 'published_assets_with_synthetic_api' : 'local_build_with_synthetic_api';
 fs.mkdirSync(out, { recursive: true });
-const checks = [], errors = [], requests = [], publishedAssets = new Set(), publishedFailures = new Set();
+const checks = [], errors = [], requests = [], publishedAssets = new Set(), publishedFailures = new Set(), publishedRedirects = new Set();
 let authStatus = 200, lineage = true, delayAuth = null, authCount = 0, malformedSession = false;
 async function publicAsset(url, expected) {
   assert.equal(url.origin, 'https://municipio-junin-friendly.vercel.app'); assert.ok(!url.pathname.startsWith('/api/'));
-  const r = await fetch(url.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) }); assert.equal(r.status, 200, 'PUBLISHED_ASSET_UNAVAILABLE');
+  let r = await fetch(url.href, { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
+  if (url.pathname === '/integracion-datos.html' && r.status === 307) {
+    assert.equal(r.headers.get('location'), '/integracion', 'UNEXPECTED_PUBLIC_ROUTE_REDIRECT'); await r.body?.cancel();
+    r = await fetch(url.origin + '/integracion', { method: 'GET', credentials: 'omit', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
+    publishedRedirects.add('/integracion-datos.html → /integracion');
+  }
+  assert.equal(r.status, 200, 'PUBLISHED_ASSET_UNAVAILABLE');
   const reader = r.body.getReader(), chunks = []; let length = 0;
   try { for (;;) { const { value, done } = await reader.read(); if (done) break; length += value.byteLength; assert.ok(length <= expected.length, 'PUBLISHED_ASSET_SIZE_MISMATCH'); chunks.push(value); } }
   finally { await reader.cancel().catch(() => {}); }
@@ -192,7 +198,7 @@ try {
   assert.ok(requests.filter(r => new URL(r.url).pathname.startsWith('/api/')).every(r => ['/api/internal-auth', '/api/internal-data'].includes(new URL(r.url).pathname)));
   checks.push('all network requests are content-free GETs; no filename, report, backup hash, nominal marker or upload leaves the browser');
   assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);
-  const resultJson = { mode, origin, checksPassed: checks.length, checks, errors, publishedAssetsMatch: publishedOrigin ? true : null, publishedAssetsChecked: [...publishedAssets].sort(),
+  const resultJson = { mode, origin, checksPassed: checks.length, checks, errors, publishedAssetsMatch: publishedOrigin ? true : null, publishedAssetsChecked: [...publishedAssets].sort(), publishedRedirectsVerified: [...publishedRedirects].sort(),
     syntheticDataOnly: true, municipalSessionTested: false, backendWrites: false, sourceUploads: false, serviceWorkersBlocked: true, browser: browser.version() };
   fs.writeFileSync(path.join(out, 'grh-backup-review-browser.json'), JSON.stringify(resultJson, null, 2)); console.log(JSON.stringify(resultJson));
 } catch (error) {
