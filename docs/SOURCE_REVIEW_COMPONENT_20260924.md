@@ -1,29 +1,31 @@
-# Revisión sucesora: componentes verificados, integración pendiente
+# Revisión sucesora: integración en la página operativa
 
-## Estado de esta rama
+## Entrega
 
-Base: `673f219fb26ea0d6072750df885a5742fe11b27e`. Esta rama agrega componentes y pruebas; no modifica la pantalla instalada, el constructor web, permisos, funciones SQL ni datos. No debe anunciarse como una actualización operativa ni como promoción del respaldo del 22/09.
+Los componentes desarrollados en `132aaa3` se conectan ahora al panel existente **Integración de datos → Revisar un respaldo antes de incorporarlo**. Se conserva el permiso `lineage.read` y el procesamiento local de informes agregados. No se modifica ninguna función SQL, credencial, rol, permiso de escritura ni selección de fuente.
 
-La edición del archivo de integración no pudo aplicarse con las herramientas disponibles en esta ejecución. Se conservaron los componentes, sus pruebas y los resultados por separado; no se sustituyeron los controles de acceso ni se intentó una carga alternativa de datos.
+La página acepta los tres formatos: revisión de siete tablas, comparación del núcleo y comparación sucesora multiliquidación. Al cambiar de formato o limpiar, retira las tablas, cifras y huellas del informe anterior. El constructor incluye los dos nuevos módulos de presentación para que no dependan de archivos omitidos en producción.
 
-## Componentes
+## Funciones integradas
 
-`grh-successor-review-model.js` valida el informe agregado multiliquidación ya existente. Exige cinco conjuntos completos, conteos consistentes, huellas, claves fuente, evidencia de varias asignaciones por contrato y cierres por tipo. No interpreta la regeneración del ID fuente como alta o baja y no convierte una liquidación de vacaciones cerrada en cierre mensual.
+`grh-successor-review-model.js` exige los cinco conjuntos completos, conteos coherentes, huellas y evidencia de varias asignaciones por contrato. Diferencia cambios de contenido de cambios exclusivos de evidencia original.
 
-`grh-successor-review-ui.js` presenta esa revisión con las cifras separadas, fuentes, pendientes y una tabla de cierres. Usa texto literal y tablas desplazables. El componente sólo recibe un informe ya validado; no consulta APIs, no incorpora registros y no autoriza operaciones.
+`grh-successor-review-ui.js` presenta diferencias, contratos y asignaciones por separado, así como cierres por tipo de liquidación. Una corrida de vacaciones cerrada no se transforma en cierre mensual. La última mensual cerrada permanece no informada cuando el informe no la especifica.
 
-`grh-curated-review-model.js` define y valida los contratos agregados de quince artefactos de personal y su combinación con el núcleo salarial. Exige que ambos informes describan exactamente los mismos respaldos de base y candidato. Esta rama **no genera ni demuestra la comparación real de esos quince artefactos**; sus pruebas usan datos sintéticos.
+La vista usa texto literal, tablas con encabezados y regiones desplazables en móvil. No sube el archivo, no consulta filas nominales y no emite autorizaciones de incorporación, pago, alta o baja.
 
-`local-review-session.js` valida metadatos de sesión y la capacidad de trazabilidad. Distingue sesión vencida de falta de permiso y detecta cambios de usuario, institución, membresía o rol. Está probado como función independiente y **todavía no se conecta al formulario existente**.
+## Validación de la página real
 
-## Verificación
+`node --test tests/grh-source-review-integration.test.js tests/grh-backup-review.test.js tests/grh-core-review.test.js tests/grh-successor-panel.test.js`
 
-`node --test tests/grh-successor-panel.test.js tests/local-review-session.test.js`
+`node scripts/verify-grh-backup-review-browser.mjs`
 
-`node scripts/verify-successor-review-component.mjs`
+El recorrido abre `integracion-datos.html` del build e incluye 27 comprobaciones de los tres formatos, rechazo de campos nominales y cifras inconsistentes, reintento, cancelación, limpieza, compatibilidad con permisos de trazabilidad y navegación móvil. Las respuestas de la API son sintéticas: no acredita una sesión real de Noelia.
 
-El segundo comando utiliza una página aislada con agregados sintéticos: no es el recorrido instalado ni una sesión municipal. Verifica representación repetida sin duplicados, diferencia entre contratos y asignaciones, cierres por tipo, ausencia de consultas externas y navegación móvil sin desbordamiento global. Produce evidencia bajo `verification/successor-review-component/`, excluida de Git.
+La misma prueba puede cotejar los bytes publicados mediante `BACKUP_REVIEW_PUBLISHED_ORIGIN=https://municipio-junin-friendly.vercel.app`. Los GET públicos no envían credenciales; las solicitudes de API del navegador de prueba continúan simuladas. CI conserva evidencia y capturas. La publicación sólo se confirma después de verificar el despliegue.
 
-## Criterios para el cierre pendiente
+## Pendientes explícitos
 
-Conectar el nuevo contrato al panel existente manteniendo compatibilidad de los dos formatos anteriores; conservar el permiso de trazabilidad, cancelación, limpieza al cambiar de contexto y ausencia de envíos del archivo. Incluir los componentes en el constructor y ejecutar el recorrido completo en la página real antes de publicar. La comparación curada real, la publicación coordinada y la aceptación de Noelia siguen siendo hitos distintos.
+El contrato agregado de quince artefactos curados y `local-review-session.js` continúan como componentes independientes, no activados por esta entrega. No se declara ejecutada la comparación real de esos quince artefactos ni el control adicional posterior a la lectura. La página mantiene sus controles de sesión existentes.
+
+La actualización del respaldo del 22/09 requiere una publicación coordinada de núcleo y datos de personal, preservación de operaciones nativas y aceptación de capacidad y restauración. Esta integración de interfaz no modifica la fuente activa ni reemplaza esos pasos. El original de Noelia, los PDF nominales y los respaldos privados no se incluyen en Git ni en el despliegue.

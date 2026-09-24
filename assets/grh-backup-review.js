@@ -1,3 +1,5 @@
+import { successorReviewData, SUCCESSOR_REVIEW_VERSION } from './grh-successor-review-model.js';
+import { renderSuccessorReview } from './grh-successor-review-ui.js';
 import { backupReviewData, backupReviewTotals, backupReviewCutoff, BackupReviewError, BACKUP_REVIEW_LABELS, BACKUP_REVIEW_ISSUES, MAX_BACKUP_REVIEW_BYTES } from './grh-backup-review-model.js';
 import { coreReviewData, coreReviewTotals, coreReviewCutoff, CoreReviewError, CORE_REVIEW_VERSION, CORE_REVIEW_DOMAINS, CORE_REVIEW_LABELS } from './grh-core-review-model.js';
 
@@ -15,6 +17,7 @@ export function localGrhReviewBytes(bytes) {
   let value;
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
   catch { throw new BackupReviewError('El informe no cumple el contrato de revisión local. Generá nuevamente el informe agregado con la herramienta correspondiente.'); }
+  if (value?.version === SUCCESSOR_REVIEW_VERSION) return successorReviewData(value);
   return value?.version === CORE_REVIEW_VERSION ? coreReviewData(value) : backupReviewData(value);
 }
 function readLocalFile(file, signal) {
@@ -35,7 +38,7 @@ export function mountBackupReview(host) {
   host.innerHTML = `<header class="section-head"><div><span class="section-index">REVISIÓN LOCAL · SIN INCORPORACIÓN</span><h2>Revisar un respaldo antes de incorporarlo</h2><p>Abrí el informe agregado generado al comparar dos respaldos en el equipo local. El respaldo SQL permanece fuera de esta pantalla.</p></div></header>
     <p class="br-notice">El archivo se lee sólo en este navegador. No se envía al servidor ni cambia los datos incorporados.</p>
     <form data-br-form><label for="backupReviewFile">Informe de revisión local · JSON de hasta 256 KiB</label><input id="backupReviewFile" type="file" accept=".json,application/json" data-br-file aria-describedby="backupReviewHelp">
-    <small id="backupReviewHelp">Podés abrir la revisión de siete tablas del respaldo o la comparación de cinco conjuntos del núcleo GRH. No selecciones el respaldo SQL ni archivos con datos personales.</small>
+    <small id="backupReviewHelp">Podés abrir la revisión de siete tablas, la comparación del núcleo o el informe multiliquidación con cierres por tipo. No selecciones el respaldo SQL ni archivos con datos personales.</small>
     <div class="br-actions"><button class="button" type="submit" data-br-open disabled>Abrir revisión local</button><button class="button" type="button" data-br-clear>Limpiar revisión</button></div></form>
     <p class="br-status" role="status" aria-live="polite" data-br-status>Verificando acceso a la revisión…</p>
     <section data-br-result hidden aria-label="Resultado de la comparación local"><p class="br-verdict" data-br-verdict></p>
@@ -52,7 +55,7 @@ export function mountBackupReview(host) {
   let allowed = false, busy = false, generation = 0, controller = null, suspended = false;
   const available = () => allowed && !suspended && host.isConnected && !host.hidden && document.visibilityState !== 'hidden';
   function controls() { host.setAttribute('aria-busy', String(busy)); $('[data-br-open]').disabled = busy || !allowed || !fileInput.files?.length; }
-  function clearResult() { result.hidden = true; $('[data-br-domains]').replaceChildren(); $('[data-br-issues]').replaceChildren(); $('[data-br-trace]').replaceChildren(); $('[data-br-core-corrections]').textContent = ''; $('[data-br-core-corrections]').hidden = true; }
+  function clearResult() { result.hidden = true; const extra = $('[data-br-successor]'); if (extra) { extra.hidden = true; extra.replaceChildren(); } $('[data-br-domains]').replaceChildren(); $('[data-br-issues]').replaceChildren(); $('[data-br-trace]').replaceChildren(); $('[data-br-core-corrections]').textContent = ''; $('[data-br-core-corrections]').hidden = true; }
   function cancel() { generation++; controller?.abort(); controller = null; busy = false; }
   function denied(unauthenticated = false) {
     cancel(); allowed = false; clearResult(); fileInput.value = ''; host.hidden = true; controls();
@@ -68,6 +71,7 @@ export function mountBackupReview(host) {
     if (!Array.isArray(payload.access?.tenantCapabilities) || !payload.access.tenantCapabilities.includes('lineage.read')) throw Object.assign(Error(), { status: 403 });
   }
   function render(data, fingerprint) {
+    if (data.version === SUCCESSOR_REVIEW_VERSION) { renderSuccessorReview(host, data, fingerprint); return; }
     const core = data.version === CORE_REVIEW_VERSION, totals = core ? coreReviewTotals(data) : backupReviewTotals(data);
     const changed = totals.added + totals.removed + totals.changed > 0n;
     $('[data-br-verdict]').textContent = core

@@ -1,0 +1,58 @@
+name: Source review integration
+on:
+  workflow_dispatch:
+  push:
+    branches: ['master']
+    paths:
+      - 'assets/grh-backup-review*'
+      - 'assets/grh-core-review-model.js'
+      - 'assets/grh-successor-review*'
+      - 'assets/grh-curated-review-model.js'
+      - 'assets/local-review-session.js'
+      - 'integracion-datos.html'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-grh-backup-review-browser.mjs'
+      - 'scripts/verify-successor-review-component.mjs'
+      - 'tests/grh-*review*.test.js'
+      - 'tests/grh-successor-panel.test.js'
+      - 'tests/fixtures/grh-*review*'
+      - 'tests/fixtures/grh-successor-panel-synthetic.js'
+      - '.github/workflows/source-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: source-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Complete application tests and production build
+        run: |
+          set -euo pipefail
+          mkdir -p verification/source-review
+          npm run build 2>&1 | tee verification/source-review/build.log
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise the installed integration page using synthetic API responses
+        run: node scripts/verify-grh-backup-review-browser.mjs
+      - name: Retain isolated component regressions
+        run: node scripts/verify-successor-review-component.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-review-integration
+          path: |
+            verification/source-review/
+            verification/grh-backup-review-browser.json
+            verification/grh-successor-*.png
+            verification/successor-review-component/
+          retention-days: 5

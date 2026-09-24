@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { backupReviewFixture } from '../tests/fixtures/grh-backup-review-synthetic.js';
 import { coreReviewFixture } from '../tests/fixtures/grh-core-review-synthetic.js';
+import { successorFixture } from '../tests/fixtures/grh-successor-panel-synthetic.js';
 
 const publishedOrigin = process.env.BACKUP_REVIEW_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'PUBLISHED_ORIGIN_NOT_ALLOWED');
@@ -76,6 +77,22 @@ try {
   checks.push('desktop and 390px mobile preserve labels, readable controls and contained table scrolling');
   await select(backupReviewFixture({ unchanged: true })); await open(); assert.match(await panel.locator('[data-br-verdict]').innerText(), /Sin diferencias.*no certifica todo GRH/); assert.equal(await panel.locator('[data-br-changed]').innerText(), '0');
   checks.push('zero detected changes never becomes a promotion approval or a whole-GRH reconciliation');
+  const beforeSuccessorChoice=requests.length;await select(successorFixture());assert.equal(requests.length,beforeSuccessorChoice);
+  await open();assert.equal(await panel.locator('[data-br-result]').isVisible(),true);
+  assert.equal(await panel.locator('[data-br-domains] tr').count(),5);assert.equal(await panel.locator('[data-br-successor] tbody tr').count(),7);
+  assert.equal(await panel.locator('[data-br-changed]').innerText(),'5');
+  assert.match(await panel.locator('[data-br-core-corrections]').innerText(),/4 para 3 contratos/);
+  assert.match(await panel.locator('[data-br-issues]').innerText(),/3 asignaciones conservan/);
+  assert.match(await panel.locator('[data-br-successor] .br-notice').innerText(),/candidato 2026-08-31/);
+  assert.equal(await panel.locator('[data-br-successor] td').filter({hasText:/^Cerrada$/}).count(),1);
+  checks.push('actual integration page opens successor reports without uploads and distinguishes source ID rotation, contracts and per-type closures');
+  await evidence('grh-successor-integrated-desktop-qa',1440,'#revisar-respaldo');
+  await evidence('grh-successor-integrated-mobile-qa',390,'[data-br-result]');
+  await evidence('grh-successor-closures-mobile-qa',390,'[data-br-successor]');
+  assert.ok(await panel.locator('[data-br-successor] .br-table-wrap').evaluate(n=>n.scrollWidth>n.clientWidth));
+  await page.setViewportSize({width:1440,height:1050});await open();assert.equal(await panel.locator('[data-br-successor]').count(),1);
+  assert.equal(await panel.locator('[data-br-successor] tbody tr').count(),7);
+  checks.push('successor evidence stays scrollable on mobile and repeated reads do not duplicate the added sections');
   const beforeCoreChoice = requests.length; await select(coreReviewFixture()); assert.equal(requests.length, beforeCoreChoice);
   const beforeCoreOpen = authCount; await open(); assert.ok(authCount > beforeCoreOpen);
   assert.equal(await panel.locator('[data-br-result]').isVisible(), true); assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
@@ -115,7 +132,9 @@ try {
   assert.equal(await panel.locator('[data-br-core-corrections]').isVisible(), false);
   assert.equal(await panel.locator('[data-br-changed-label]').innerText(), 'Registros modificados · 7 tablas');
   assert.match(await panel.locator('[data-br-limit]').innerText(), /detalle de las liquidaciones/);
-  checks.push('retry preserves a core selection and switching back restores the complete seven-table review');
+  assert.equal(await panel.locator('[data-br-successor]').isVisible(),false);
+  assert.equal(await panel.locator('[data-br-successor]').innerText(),'');
+  checks.push('retry and switching to either older format clear all successor-only evidence');
   for (const mutate of [p => p.people = [{ name: 'PRIVATE_NOMINAL_MARKER' }], p => p.issues[0].code = 'PRIVATE_NOMINAL_MARKER', p => p.candidate.path = 'PRIVATE_NOMINAL_MARKER']) {
     const p = backupReviewFixture(); mutate(p); await select(p); await open(); assert.equal(await panel.locator('[data-br-result]').isVisible(), false); assert.match(await state.innerText(), /no cumple el contrato/); assert.doesNotMatch(await page.locator('body').innerText(), /PRIVATE_NOMINAL_MARKER/);
     assert.equal(await input.evaluate(n => n.files.length), 1);
@@ -136,7 +155,7 @@ try {
   await open(); assert.match(await state.innerText(), /Conservamos la selección/); assert.doesNotMatch(await page.locator('body').innerText(), /PRIVATE_NOMINAL_MARKER/); assert.equal(await input.evaluate(n => n.files.length), 1);
   await page.evaluate(() => { FileReader.prototype.readAsArrayBuffer = window.qaOriginalFileRead; delete window.qaOriginalFileRead; }); await open(); assert.equal(await panel.locator('[data-br-result]').isVisible(), true);
   checks.push('malformed session JSON and unexpected local-file exceptions never reveal server text or personal filenames');
-  await select(coreReviewFixture()); await open(); assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
+  await select(successorFixture()); await open(); assert.equal(await panel.locator('[data-br-domains] tr').count(), 5);
   lineage = false; await open(); assert.equal(await panel.isVisible(), false); assert.equal(await input.evaluate(n => n.files.length), 0); assert.equal(await panel.locator('[data-br-domains] tr').count(), 0);
   checks.push('revoked lineage permission removes the report and file selection before reading again');
   await load(); assert.equal(await panel.isVisible(), false); assert.match(await page.locator('#backupReviewAccessNotice').innerText(), /permiso vigente/);
@@ -156,6 +175,18 @@ try {
   await page.evaluate(() => { window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })); window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); }); await navigation; await ready();
   assert.ok(authCount > beforeBack); assert.equal(await panel.locator('[data-br-result]').isVisible(), false); assert.equal(await input.evaluate(n => n.files.length), 0);
   checks.push('bfcache restoration restarts the existing access gate without replaying a local file');
+  for(const mutate of [v=>v.publication.ready=true,v=>v.entities.payrollSnapshot.contracts.after=99,v=>v.entities.payrollMonthly.changedFields.privateField=1,v=>v.runEvidence.candidate.currentRuns[0].payrollType='PRIVATE_NOMINAL_MARKER']){
+    const value=successorFixture();mutate(value);await select(value);await open();
+    assert.equal(await panel.locator('[data-br-result]').isVisible(),false);assert.match(await state.innerText(),/no cumple el contrato/);
+    assert.doesNotMatch(await page.locator('body').innerText(),/PRIVATE_NOMINAL_MARKER/);
+  }
+  checks.push('successor review rejects invalid totals, nominal fields and claimed publication authority without partial rendering');
+  const missingClosure=successorFixture();delete missingClosure.runEvidence.candidate.latestClosedByType.M;
+  await select(missingClosure);await open();assert.match(await panel.locator('[data-br-successor] .br-notice').innerText(),/candidato no informada/);
+  checks.push('unreported monthly closure is not invented from the vacation run');
+  await panel.locator('[data-br-clear]').click();assert.equal(await panel.locator('[data-br-successor]').innerText(),'');
+  assert.equal(await input.evaluate(n=>n.files.length),0);assert.equal(await panel.locator('[data-br-result]').isVisible(),false);
+  checks.push('clearing a successor report removes new tables, source evidence and selected file');
   assert.ok(requests.every(r => r.method === 'GET' && r.body === null));
   assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
   assert.ok(requests.filter(r => new URL(r.url).pathname.startsWith('/api/')).every(r => ['/api/internal-auth', '/api/internal-data'].includes(new URL(r.url).pathname)));
