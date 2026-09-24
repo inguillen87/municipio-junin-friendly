@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import { backupReviewFixture } from '../tests/fixtures/grh-backup-review-synthetic.js';
 import { coreReviewFixture } from '../tests/fixtures/grh-core-review-synthetic.js';
+import { curatedFixture,coordinatedFixture } from '../tests/fixtures/grh-successor-panel-synthetic.js';
 import { successorFixture } from '../tests/fixtures/grh-successor-panel-synthetic.js';
 
 const publishedOrigin = process.env.BACKUP_REVIEW_PUBLISHED_ORIGIN;
@@ -193,8 +194,54 @@ try {
   await panel.locator('[data-br-clear]').click();assert.equal(await panel.locator('[data-br-successor]').innerText(),'');
   assert.equal(await input.evaluate(n=>n.files.length),0);assert.equal(await panel.locator('[data-br-result]').isVisible(),false);
   checks.push('clearing a successor report removes new tables, source evidence and selected file');
+
+  const curated = curatedFixture();
+  Object.assign(curated.artifacts.employees,{changed:1,unchanged:0,changedFields:{relatedRecordCounts:1},candidateProjectionSha256:'b'.repeat(64)});
+  Object.assign(curated.artifacts.absences,{after:2,added:1,candidateProjectionSha256:'b'.repeat(64)});
+  await select(curated); await open();
+  assert.equal(await panel.locator('[data-br-domains] tr').count(),15);
+  assert.equal(await panel.locator('[data-br-changed]').innerText(),'1');
+  assert.match(await panel.locator('[data-br-changed-label]').innerText(),/15 archivos de personal/);
+  assert.match(await panel.locator('[data-br-curated]').innerText(),/2 archivos con diferencias y 13 sin diferencias/);
+  await panel.getByLabel('Archivos de personal a mostrar',{exact:true}).selectOption('changed');
+  assert.equal(await panel.locator('[data-br-domains] tr').count(),2);
+  await panel.getByLabel('Archivos de personal a mostrar',{exact:true}).selectOption('all');
+  assert.equal(await panel.locator('[data-br-domains] tr').count(),15);
+  checks.push('fifteen-artifact personnel review includes all domains and filters differences without requesting more data');
+  const joint=coordinatedFixture();joint.curated=curated;
+  const requestsBefore=requests.length;await select(joint);assert.equal(requests.length,requestsBefore);await open();
+  assert.equal(await panel.locator('[data-br-domains] tr').count(),5);
+  assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),15);
+  assert.match(await panel.locator('[data-br-verdict]').innerText(),/mismos dos respaldos/);
+  assert.match(await panel.locator('[data-br-limit]').innerText(),/núcleo proviene del informe previo validado/);
+  await evidence('grh-curated-coordinated-desktop-qa',1440,'[data-br-curated]');
+  await evidence('grh-curated-coordinated-mobile-qa',390,'[data-br-curated]');
+  assert.ok(await panel.locator('[data-br-curated] [role=region]').evaluate(n=>n.scrollWidth>n.clientWidth));
+  await page.setViewportSize({width:1440,height:1050});
+  await panel.getByLabel('Archivos de personal a mostrar',{exact:true}).selectOption('changed');
+  assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),2);assert.equal(await panel.locator('[data-br-domains] tr').count(),5);
+  checks.push('coordinated review keeps five salary domains and fifteen personnel files separate, with contained mobile tables');
+  await open();assert.equal(await panel.locator('[data-br-curated]').count(),1);assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),15);
+  for(const modify of [v=>v.curated.candidate.sourceSha256='c'.repeat(64),v=>delete v.curated.artifacts.familyMembers,v=>v.scope.sourcePromoted=true,v=>v.curated.artifacts.employees.personalName='PRIVATE_NOMINAL_MARKER']){
+    const bad=structuredClone(joint);modify(bad);await select(bad);await open();
+    assert.equal(await panel.locator('[data-br-result]').isVisible(),false);assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),0);
+    assert.doesNotMatch(await page.locator('body').innerText(),/PRIVATE_NOMINAL_MARKER/);
+  }
+  checks.push('mixed source dumps, missing personnel artifacts, nominal values and publication claims reject the entire coordinated result');
+  await select(joint);await open();lineage=false;await open();
+  assert.equal(await panel.isVisible(),false);assert.equal(await input.evaluate(n=>n.files.length),0);
+  assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),0);
+  lineage=true;await load();await select(joint);await open();await select(coreReviewFixture());await open();
+  assert.equal(await panel.locator('[data-br-curated]').isVisible(),false);assert.equal(await panel.locator('[data-br-domains] tr').count(),5);
+  await select();await open();assert.equal(await panel.locator('[data-br-domains] tr').count(),7);
+  checks.push('permission loss or switching to old report formats clears all coordinated personnel evidence');
+  await select(joint);await open();await panel.locator('[data-br-clear]').click();
+  assert.equal(await panel.locator('[data-br-curated]').isVisible(),false);assert.equal(await panel.locator('[data-br-curated-rows] tr').count(),0);
+  assert.equal(await panel.locator('[data-br-successor] tbody tr').count(),0);assert.equal(await input.evaluate(n=>n.files.length),0);
+  checks.push('clear removes both halves of the coordinated review and its local file selection');
+
   assert.ok(requests.every(r => r.method === 'GET' && r.body === null));
-  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
+  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|grh-curated-successor-comparison\.v1|grh-coordinated-successor-review\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
   assert.ok(requests.filter(r => new URL(r.url).pathname.startsWith('/api/')).every(r => ['/api/internal-auth', '/api/internal-data'].includes(new URL(r.url).pathname)));
   checks.push('all network requests are content-free GETs; no filename, report, backup hash, nominal marker or upload leaves the browser');
   assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);

@@ -7,7 +7,13 @@ on:
       - 'assets/grh-backup-review*'
       - 'assets/grh-core-review-model.js'
       - 'assets/grh-successor-review*'
-      - 'assets/grh-curated-review-model.js'
+      - 'assets/grh-curated-review*'
+      - 'scripts/compare-grh-curated-successor.mjs'
+      - 'scripts/lib/grh-curated-comparison.mjs'
+      - 'scripts/lib/grh-curated-source-reader.mjs'
+      - 'scripts/lib/grh-curated-numbers.mjs'
+      - 'tests/grh-curated-comparison.test.js'
+      - 'tests/grh-curated-reader.test.js'
       - 'assets/local-review-session.js'
       - 'integracion-datos.html'
       - 'scripts/build-friendly.mjs'
@@ -54,5 +60,6 @@ jobs:
             verification/source-review/
             verification/grh-backup-review-browser.json
             verification/grh-successor-*.png
+            verification/grh-curated-*.png
             verification/successor-review-component/
           retention-days: 5

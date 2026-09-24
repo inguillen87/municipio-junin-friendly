@@ -2,9 +2,9 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {localGrhReviewBytes,backupReviewMessage} from '../assets/grh-backup-review.js';
 import {backupReviewFixture} from './fixtures/grh-backup-review-synthetic.js';
 import {coreReviewFixture} from './fixtures/grh-core-review-synthetic.js';
-import {successorFixture,curatedFixture} from './fixtures/grh-successor-panel-synthetic.js';
+import {successorFixture,curatedFixture,coordinatedFixture} from './fixtures/grh-successor-panel-synthetic.js';
 const encode=value=>new TextEncoder().encode(JSON.stringify(value));
-for(const [label,fixture]of [['seven-table',backupReviewFixture],['core comparison',coreReviewFixture],['successor',successorFixture]])test('existing local form dispatches '+label+' without schema substitution',()=>{
+for(const [label,fixture]of [['seven-table',backupReviewFixture],['core comparison',coreReviewFixture],['successor',successorFixture],['curated personnel',curatedFixture],['coordinated',coordinatedFixture]])test('existing local form dispatches '+label+' without schema substitution',()=>{
  const value=fixture(),parsed=localGrhReviewBytes(encode(value));assert.equal(parsed.version,value.version);
 });
 test('the integrated reader enforces the same byte ceiling and does not accept raw or nominal documents',()=>{
@@ -13,13 +13,13 @@ test('the integrated reader enforces the same byte ceiling and does not accept r
   assert.throws(()=>localGrhReviewBytes(value),e=>!backupReviewMessage(e).includes('PRIVATE_SOURCE'));
  }
 });
-test('unimplemented curated report presentation is rejected rather than mislabeled as a complete successor import',()=>{
- assert.throws(()=>localGrhReviewBytes(encode(curatedFixture())));
+test('curated and coordinated reports stay non-authoritative and unknown versions remain rejected',()=>{
+ for(const fixture of [curatedFixture,coordinatedFixture]){const value=fixture();assert.equal(localGrhReviewBytes(encode(value)).scope.sourcePromoted,false);value.scope.sourcePromoted=true;assert.throws(()=>localGrhReviewBytes(encode(value)));}
  const unknown=successorFixture();unknown.version='grh-successor-comparison.v9';assert.throws(()=>localGrhReviewBytes(encode(unknown)));
 });
 test('public build copies both required runtime modules and the UI has no independent network or write path',()=>{
  const build=fs.readFileSync(new URL('../scripts/build-friendly.mjs',import.meta.url),'utf8');
- for(const file of ['grh-successor-review-model.js','grh-successor-review-ui.js'])assert.ok(build.includes("'assets/"+file+"'"));
+ for(const file of ['grh-successor-review-model.js','grh-successor-review-ui.js','grh-curated-review-model.js','grh-curated-review-ui.js'])assert.ok(build.includes("'assets/"+file+"'"));
  const ui=fs.readFileSync(new URL('../assets/grh-successor-review-ui.js',import.meta.url),'utf8');
  assert.doesNotMatch(ui,/\bfetch\s*\(|\bXMLHttpRequest\b|sendBeacon|localStorage|sessionStorage|indexedDB|innerHTML\s*=/);
  assert.match(ui,/textContent/);assert.match(ui,/replaceChildren/);
