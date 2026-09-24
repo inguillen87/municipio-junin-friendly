@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { internalAbsencePerson } from '../lib/internal-absence-person.js';
 import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPattern } from '../lib/absence-event-context.js';
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
@@ -3878,8 +3879,13 @@ export function createInternalDataHandler(dependencies = {}) {
         const result = await absenceAnalytics(sql, req);
         return await respond( result.status, result.payload);
       }
+      if (resource === 'absenceperson') {
+        const result = await internalAbsencePerson(sql,req,sourceBinding,sourceSnapshot,{readEvents:absenceEvents});
+        return await respond(result.status,result.payload);
+      }
       if (resource === 'absenceevents') {
         const result = await absenceEvents(sql, req);
+        if(result.status===200)result.payload.meta={...result.payload.meta,snapshot:sourceSnapshot,tenantId:sourceBinding.tenantId};
         return await respond( result.status, result.payload);
       }
       if (resource === 'leavenormative') {

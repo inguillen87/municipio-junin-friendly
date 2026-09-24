@@ -47,7 +47,11 @@ if(root){
  const fleet=document.getElementById('clockFleetReception');if(fleet){fleet.before(root);const b=el('button','Equipos y recepción');b.type='button';b.addEventListener('click',()=>fleet.scrollIntoView({block:'start',behavior:'auto'}));shortcuts.append(b);}
  $('Filter').before(shortcuts);
  const codeHost=el('section',null,'ck-card');codeHost.id='clockCodeDistribution';$('Overview').prepend(codeHost);
+ const absenceLink=el('a','Ausentismo general del período ↗','ck-text');absenceLink.target='_blank';absenceLink.rel='noopener noreferrer';absenceLink.hidden=true;shortcuts.append(absenceLink);
  function renderCodes(data){
+  const period=data.filters;absenceLink.hidden=!period?.from||!period?.to;
+  if(!absenceLink.hidden){absenceLink.href='/ausentismo?'+new URLSearchParams({from:period.from,to:period.to});absenceLink.setAttribute('aria-label','Abrir Ausentismo general del mismo período en otra pestaña, sin filtrar por agente');}
+
   codeHost.replaceChildren();const s=clockCodeSummary(data);if(!s){codeHost.append(el('p','La distribución por código no está disponible.'));return;}
   codeHost.append(el('h3','Entradas, salidas y otras marcas del filtro'),el('p',s.profileSupported?'Estados declarados por el perfil del reloj; cada valor abre el circuito de trabajo correspondiente.':'Este modelo no tiene un perfil interpretado. Sus códigos se conservan sin clasificarlos como entradas o salidas.'));
   const cards=el('div',null,'ck-metrics');
@@ -90,7 +94,7 @@ if(root){
   $('Issues').replaceChildren();const labels={year_context_review:'Año inconsistente con el contexto',future_timestamp:'Fecha posterior a la descarga',identity_format_review:'Identificador a revisar',identity_bytes_review:'Identificador original a revisar',timestamp_invalid:'Fecha inválida'};for(const issue of data.observations){const tr=el('tr');cells(tr,[issue.ordinal,issue.localTimestamp,issue.issues.map(x=>labels[x]||x).join(' · ')]);$('Issues').append(tr)}if(!data.observations.length){const tr=el('tr'),td=el('td','Sin observaciones en esta fuente.');td.colSpan=3;tr.append(td);$('Issues').append(tr)}charts(data);tab(state.tab);root.dataset.state='ready';document.dispatchEvent(new CustomEvent('mc:clock-data',{detail:data}));
  }
  function clearData(){
-  document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;state.cut=null;codeHost.replaceChildren();
+  document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;state.cut=null;codeHost.replaceChildren();absenceLink.hidden=true;absenceLink.removeAttribute('href');
   for(const k of ['Rows','Days','Issues','Hourly','DailyChart','Insights'])$(k).replaceChildren();
   for(const k of ['Marks','People','Linked','Unlinked','Observed','SourceRows','Page','LinkRate','Captured','Received','Latest','Device','Checked','Attempt','Backlog','Latency','CaptureScope'])text(k,'—');
   text('Mode','Sin confirmación actual');text('Privacy','');text('Scope','Consulta pendiente');

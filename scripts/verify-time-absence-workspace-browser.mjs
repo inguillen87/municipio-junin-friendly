@@ -1,6 +1,8 @@
 // Real built pages, synthetic API responses. Optional public asset-byte verification is credential-free.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {absenceWorkspaceAnalytics,absenceWorkspaceEvents} from '../tests/fixtures/absence-workspace-synthetic.js';
+import {personFixture,PERSON_SNAPSHOT,PERSON_TENANT} from '../tests/fixtures/absence-person-synthetic.js';
+import {parseAbsencePersonQuery} from '../assets/absence-person-model.js';
 import {clockDashboardFixture} from '../tests/fixtures/clock-dashboard-v3-synthetic.js';
 import {continuousWorkdayFixture} from '../tests/fixtures/continuous-workdays-synthetic.js';
 import {personWorkdayFixture} from '../tests/fixtures/workday-person-synthetic.js';
@@ -8,7 +10,7 @@ const live=process.env.TIME_WORKSPACE_ORIGIN;if(live!==undefined)assert.equal(li
 const origin=live||'https://time-workspace.test',base=path.resolve('public'),out=path.resolve('verification/time-absence-workspace');fs.mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
 const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',serviceWorkers:'block'});
-const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null;
+const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null;
 await context.route('**/*',async route=>{
  const req=route.request(),url=new URL(req.url()),q=url.searchParams,resource=(q.get('resource')||'').toLowerCase();
  if(url.origin!==origin)return route.abort();
@@ -26,7 +28,20 @@ await context.route('**/*',async route=>{
  calls.push({path:url.pathname,resource,query:new URLSearchParams(q)});
  const send=(data,status=200)=>route.fulfill({status,json:data,headers:{'Cache-Control':'private, no-store'}}).catch(()=>{});
  if(resource==='absenceanalytics'){if(delayAnalytics)await new Promise(resolve=>releaseAnalytics=resolve);return send(absenceWorkspaceAnalytics(q));}
- if(resource==='absenceevents')return send(eventsMode==='ok'?absenceWorkspaceEvents(q):{ok:false,code:'SYNTHETIC_ERROR'},eventsMode==='denied'?403:eventsMode==='fail'?503:200);
+ if(resource==='absenceevents'){
+  const response=absenceWorkspaceEvents(q);
+  response.range={requested:{from:q.get('from'),to:q.get('to')},effective:{from:q.get('from'),to:q.get('to')},clamped:{from:false,to:false}};
+  response.meta={snapshot:PERSON_SNAPSHOT,tenantId:PERSON_TENANT};
+  return send(eventsMode==='ok'?response:{ok:false,code:'SYNTHETIC_ERROR'},eventsMode==='denied'?403:eventsMode==='fail'?503:200);
+ }
+ if(resource==='absenceperson'){
+  if(historyMode==='delay')await new Promise(resolve=>historyRelease=resolve);
+  if(historyMode==='denied')return send({ok:false},403);
+  if(historyMode==='changed')return send({ok:false},409);
+  const query=parseAbsencePersonQuery(Object.fromEntries(q)),value=personFixture(query);
+  if(historyMode==='wrong-contract')value.person.contractId='33333333-3333-4333-8333-333333333333';
+  return send({ok:true,data:value});
+ }
  if(url.pathname==='/api/internal-auth')return send({ok:true,authenticated:true,sessionVersion:2,user:{id:'synthetic-user',name:'Usuario de prueba',email:'qa@example.invalid'},access:{tenant:{id:'synthetic-tenant'},tenantCapabilities:['attendance.read','workforce.employee.read','absence.analytics.read','absence.nominal.read','lineage.read'],platformRoles:[],platformCapabilities:[]}});
  if(resource==='clock-dashboard')return send(clockDashboardFixture(q,{nominal:true}));
  if(resource==='clock-workdays-v2'){
@@ -76,9 +91,66 @@ try{
  await page.setViewportSize({width:1440,height:1050});await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).click();
  eventsMode='denied';await page.locator('#refreshButton').click();await page.locator('#errorHost').waitFor();assert.equal(await page.locator('.absence-case-row').count(),0);assert.equal(await page.locator('#mainContent').isVisible(),false);
  checks.push('Denied access clears the previous nominal case and does not leave stale personnel visible.');
+ eventsMode='ok';await page.reload();await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Ver ausencia de Agente de prueba 1',exact:true}).click();
+ const openHistory=page.getByRole('button',{name:'Ver historial de ausencias',exact:true});
+ const beforeHistory={url:page.url(),analytics:calls.filter(c=>c.resource==='absenceanalytics').length};
+ await page.locator('#eventSearch').fill('borrador sin aplicar');
+ await page.locator('#fromInput').fill('2026-08-05');
+ await openHistory.click();const modal=page.locator('#absencePersonDialog');
+ await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ assert.equal(await modal.getByLabel('Historial desde').inputValue(),'2026-08-01');
+ assert.equal(page.url(),beforeHistory.url);assert.match(await modal.innerText(),/Todos los motivos del vínculo/);
+ await modal.getByLabel('Historial desde').fill('2026-07-01');
+ await modal.getByRole('button',{name:'Consultar período',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='61');
+ assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),25);
+ assert.deepEqual(await modal.locator('.ap-metrics strong').allTextContents(),['61','52','2','1']);
+ assert.match(await modal.locator('[data-absence-history-rows]').innerText(),/2033/);
+ checks.push('The same canonical contract has 61 events and 52 reported days across all three pages; the extended source date remains visible.');
+ await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();
+ await modal.getByText('Página 2 de 3 · 61 eventos',{exact:true}).waitFor();
+ await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();
+ await modal.getByText('Página 3 de 3 · 61 eventos',{exact:true}).waitFor();
+ assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),11);
+ assert.equal(calls.filter(c=>c.resource==='absenceanalytics').length,beforeHistory.analytics);
+ assert.ok(calls.filter(c=>c.resource==='absenceperson'&&c.query.get('page')!=='1').every(c=>c.query.get('snapshot')===PERSON_SNAPSHOT));
+ checks.push('Individual pagination retains the exact revision and does not reload population analytics.');
+ await modal.getByLabel('Historial hasta').fill('2026-09-30');await modal.getByRole('button',{name:'Consultar período',exact:true}).click();
+ await modal.locator('.ap-warning').waitFor();assert.match(await modal.locator('.ap-warning').innerText(),/sólo hasta su corte/);
+ await modal.screenshot({path:path.join(out,'absence-history-desktop.png')});
+ await page.setViewportSize({width:390,height:844});await modal.screenshot({path:path.join(out,'absence-history-mobile.png')});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await modal.getByRole('region',{name:'Historial individual desplazable'}).focus();
+ assert.equal(await modal.getByRole('region',{name:'Historial individual desplazable'}).evaluate(n=>n===document.activeElement),true);
+ await page.keyboard.press('Escape');assert.equal(await modal.count(),0);
+ assert.equal(await page.locator('#eventSearch').inputValue(),'borrador sin aplicar');assert.equal(await page.locator('#fromInput').inputValue(),'2026-08-05');
+ assert.equal(await openHistory.evaluate(n=>n===document.activeElement),true);
+ checks.push('Closing the responsive history restores keyboard focus, the parent draft and filters without navigating to a legajo.');
+ await page.setViewportSize({width:1440,height:1050});
+ historyMode='wrong-contract';await openHistory.click();await modal.getByRole('status').filter({hasText:'No se pudo verificar'}).waitFor();assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);
+ await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ historyMode='changed';await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();
+ await modal.getByRole('status').filter({hasText:'Cambió la fuente'}).waitFor();assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);
+ checks.push('A different contract or changed source withdraws the individual history instead of mixing or displaying zero events.');
+ await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ historyMode='delay';await modal.getByRole('button',{name:'Consultar período',exact:true}).click();
+ await page.waitForTimeout(100);await modal.getByRole('button',{name:'Cancelar consulta',exact:true}).click();
+ if(historyRelease)historyRelease();await page.waitForTimeout(150);assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);
+ checks.push('Cancellation invalidates delayed individual responses; no background result repopulates the withdrawn view.');
+ await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ historyMode='denied';await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByRole('status').filter({hasText:'permiso nominal'}).waitFor();
+ assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);assert.doesNotMatch(await modal.innerText(),/Agente de prueba repetido/);
+ await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';
+ checks.push('Revoked nominal access removes the previous individual identity and rows.');
+
  const clock=await context.newPage();clock.on('pageerror',e=>errors.push(e.message));await clock.goto(origin+'/relojes-marcaciones.html');
  await clock.waitForFunction(()=>document.getElementById('clockOperations')?.dataset.state==='ready'&&document.getElementById('clockOperations').getAttribute('aria-busy')==='false');
- assert.equal(await clock.locator('#clockOverview').isVisible(),true);assert.equal(await clock.locator('#clockHourly button').count(),24);
+ assert.equal(await clock.locator('#clockOverview').isVisible(),true);
+ const periodLink=clock.getByRole('link',{name:'Abrir Ausentismo general del mismo período en otra pestaña, sin filtrar por agente',exact:true});
+ const periodUrl=new URL(await periodLink.getAttribute('href'),origin);assert.deepEqual([...periodUrl.searchParams.keys()],['from','to']);assert.equal(await periodLink.getAttribute('target'),'_blank');assert.match(await periodLink.getAttribute('rel'),/noopener/);
+ checks.push('Clock-to-absence navigation preserves only the requested dates, explicitly remains general, and leaves the selected workday open.');
+assert.equal(await clock.locator('#clockHourly button').count(),24);
  assert.match(await clock.locator('#clockCodeDistribution').innerText(),/102/);assert.match(await clock.locator('#clockCodeDistribution').innerText(),/51/);
  checks.push('The clock workspace opens on real-filter charts and reconciled declared entry/exit code counts, not a hidden analytics tab.');
  await clock.getByRole('button',{name:'Jornadas y cálculos',exact:true}).click();try{await clock.locator('#wdRows button').first().waitFor({timeout:10000});}catch(e){console.log(JSON.stringify({errors,status:await clock.locator('#wdStatus').textContent(),error:await clock.locator('#wdError').textContent(),workdayCalls:calls.filter(c=>c.resource.includes('workday')).map(c=>Object.fromEntries(c.query))}));throw e;}

@@ -367,6 +367,8 @@
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/absence-person-panel.css">
+  <script type="module" src="assets/absence-person-panel.js"></script>
 </head>
 <body data-mc-page="absence">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -1190,6 +1192,11 @@
               var rules=document.createElement('ul');[['isLeave','Clasificado como licencia'],['affectsAttendanceBonus','Afecta presentismo en el catálogo'],['generatesDiscountedDays','Genera días descontados en el catálogo']].forEach(function(pair){var li=document.createElement('li');li.textContent=pair[1]+': '+(event.flags[pair[0]]===true?'Sí':event.flags[pair[0]]===false?'No':'No informado');rules.append(li);});box.append(rules);
               add('p','El catálogo describe el origen; no acredita justificación, aprobación ni descuento liquidado. Conservás el período, la búsqueda y la página.');
               if(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(event.contractId)){var full=document.createElement('a');full.className='button';full.href='internal-dashboard.html?contractId='+encodeURIComponent(event.contractId)+'#legajos';full.textContent='Abrir legajo completo';box.append(full);}
+              var period=lastEvents && lastEvents.range && lastEvents.range.effective, revision=lastEvents && lastEvents.meta && lastEvents.meta.snapshot;
+              if(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(event.contractId||'') && period && /^[a-f0-9]{64}$/.test(revision||'')){
+                var history=document.createElement('button');history.type='button';history.className='button primary';history.textContent='Ver historial de ausencias';
+                history.addEventListener('click',function(){document.dispatchEvent(new CustomEvent('mc:absence-person-open',{detail:{contractId:event.contractId,from:period.from,to:period.to,snapshot:revision}}));});box.append(history);
+              }
               caseCell.append(box);
             });
             appendCell(row, 'Caso', link);
@@ -1339,7 +1346,7 @@
       byId('eventSearchForm').addEventListener('submit',function(e){e.preventDefault();detailSearch=byId('eventSearch').value.trim();state.page=1;syncUrl();loadData({eventsOnly:true});});
       byId('eventSearchClear').addEventListener('click',function(){byId('eventSearch').value='';detailSearch='';state.page=1;syncUrl();loadData({eventsOnly:true});});
       ['removeReason','removeSector'].forEach(function(id){byId(id).addEventListener('click',function(){state.applied[id==='removeReason'?'reason':'sector']='';state.page=1;syncUrl();loadData();});});
-      function clearPrivateView(){loadingRequest++;if(readController)readController.abort();lastAnalytics=lastEvents=null;analyticsReady=false;analyticsLoading=false;detailSearch='';byId('eventSearch').value='';byId('eventRows').replaceChildren();byId('mainContent').hidden=true;}
+      function clearPrivateView(){document.dispatchEvent(new Event('mc:absence-cleared'));loadingRequest++;if(readController)readController.abort();lastAnalytics=lastEvents=null;analyticsReady=false;analyticsLoading=false;detailSearch='';byId('eventSearch').value='';byId('eventRows').replaceChildren();byId('mainContent').hidden=true;}
       window.addEventListener('pagehide',clearPrivateView);
       byId('logoutButton').addEventListener('click',clearPrivateView,{capture:true});
       window.addEventListener('pageshow',function(event){if(event.persisted&&!redirectIssued)authenticate();});

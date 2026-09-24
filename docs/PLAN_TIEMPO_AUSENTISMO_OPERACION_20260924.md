@@ -86,3 +86,8 @@ El tablero de trabajo se presenta antes que los inventarios técnicos; «Equipos
 ## Continuidad · período individual de jornadas
 
 `CLOCK_PERSON_CONTEXT_20260924.md` documenta el siguiente incremento sobre la central unificada `09ee30f`: consulta exacta por vínculo, período completo, revisión/exportación y regreso al listado preservando el trabajo. No incorpora los originales pendientes ni extiende esta entrega al historial de ausencias o al motor salarial.
+
+
+## B1 · incremento del 24/09: historial de ausencias por vínculo
+
+`AUSENCIAS_HISTORIAL_AGENTE_20260924.md` cierra la consulta individual paginada dentro de Ausentismo, con resumen de todo el período, revisión de fuente y regreso al contexto. Relojes enlaza al ausentismo general de sus fechas en otra pestaña; no inventa una correlación individual. Persisten resolución de casos, reglas de jornada, aprobación y entrega a novedades. No se promocionó un respaldo ni se modificaron liquidaciones.
