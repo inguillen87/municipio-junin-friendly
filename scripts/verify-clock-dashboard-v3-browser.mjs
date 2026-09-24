@@ -72,6 +72,7 @@ try{
  assert.match(await value('Attempt').textContent(),/No informado/);assert.match(await value('Backlog').textContent(),/No informado/);
  assert.match(await value('Latency').textContent(),/60 segundos/);checks.push('missing collector telemetry is not zero; measured receipt delay is separate');
 
+ assert.ok(await value('Overview').isVisible());await value('TabRecords').click();
  await value('Next').click();await ready();
  let last=requests.filter(r=>r.resource==='clock-dashboard').at(-1);
  assert.equal(last.query.get('snapshot'),cut);assert.equal(last.query.get('from'),'2026-09-10');assert.equal(last.query.get('page'),'2');

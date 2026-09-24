@@ -85,3 +85,8 @@ Detalle y criterios de aceptación: [Directivas de certificados IA y conexión d
 La emisión del documento, su presentación administrativa, la carga digital y su vencimiento son fechas diferentes. El dato extraído no es una aprobación ni modifica una liquidación. La IA propone y el operador confirma; la carga manual queda disponible cuando sea necesaria.
 
 Las IP no reemplazan la identidad estable del equipo: se usan para conectarlo, verificando la serie esperada antes de aceptar eventos para una asociación existente. Cambiar el orden o los IDs de la planilla de conexiones no debe cambiar ningún PM ni su histórico.
+
+
+## Ampliación del 24/09 · tiempo y ausentismo
+
+Ver `PLAN_TIEMPO_AUSENTISMO_OPERACION_20260924.md`: corrección de cargas y ceros, caso contextual, consulta nominal, métricas de relojes, comparación de tiempos y aceptación por Noelia/Hugo/Mariano/superadministración. Distingue el incremento implementado de la conciliación de los otros equipos, reglas, aprobaciones y fuente del 22/09 pendientes.

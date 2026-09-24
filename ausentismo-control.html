@@ -360,6 +360,9 @@
       main { max-width: none; padding: 0; }
       .panel, .kpi, .table-wrap { break-inside: avoid; }
     }
+    #eventsPanel .table-wrap { max-height: 65vh; }
+    #eventsPanel thead th { position: sticky; top: 0; z-index: 1; }
+    @media print { #eventsPanel .table-wrap { max-height: none; } #eventsPanel thead th { position: static; } }
   </style>
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
@@ -470,6 +473,8 @@
 
         <section class="section" id="summaryMetrics" aria-labelledby="summaryTitle">
           <div class="section-head"><div><span class="section-index">02 · Resumen</span><h2 id="summaryTitle">Indicadores del período</h2><p>Todos los valores corresponden al alcance seleccionado.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
+          <div class="table-tools"><p id="analyticsReadStatus" role="status">Esperando consulta.</p><button id="analyticsRetry" class="button" type="button" hidden>Reintentar indicadores</button></div>
+          <div class="notice absence-empty" id="absenceEmpty" hidden><div><strong>Sin coincidencias para estos filtros</strong><p>No equivale a ausencia de información en todo el sistema. Conservá el período y quitá un filtro para ampliar la consulta.</p></div><button id="removeReason" type="button" class="button">Quitar motivo</button><button id="removeSector" type="button" class="button">Quitar sector</button></div>
           <div class="kpi-grid">
             <article class="kpi"><span class="kpi-label">Eventos registrados</span><strong class="kpi-value" id="eventsValue">—</strong><span class="kpi-note">Registros administrativos que cumplen los filtros.</span></article>
             <article class="kpi"><span class="kpi-label">Legajos afectados</span><strong class="kpi-value" id="contractsValue">—</strong><span class="kpi-note">Legajos distintos con al menos un evento.</span></article>
@@ -520,7 +525,9 @@
         </section>
 
         <section class="section" id="eventsPanel" aria-labelledby="eventsTitle">
-          <div class="section-head"><div><span class="section-index">05 · Detalle interno</span><h2 id="eventsTitle">Eventos del período</h2><p>Listado nominal reservado al portal autenticado. El enlace abre la ficha por identificador canónico sin incluir nombre ni legajo en la URL.</p></div><span class="state-badge" id="eventsBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">05 · Detalle interno</span><h2 id="eventsTitle">Eventos del período</h2><p>Listado nominal autorizado. Abrí el caso para revisar fechas, motivo e historial de la persona sin perder el período ni los filtros.</p></div><span class="state-badge" id="eventsBadge">Consultando</span></div>
+          <form id="eventSearchForm" class="filter-panel table-tools"><div class="field" style="flex:1;min-width:200px"><label for="eventSearch">Buscar persona o legajo en todo el período</label><input id="eventSearch" type="search" maxlength="120" autocomplete="off" placeholder="Nombre o legajo"></div><button class="button primary" type="submit">Buscar eventos</button><button id="eventSearchClear" class="button" type="button">Quitar búsqueda</button></form>
+          <div class="table-tools"><p id="eventsReadStatus" role="status">Esperando consulta.</p><button id="eventsRetry" class="button" type="button" hidden>Reintentar eventos</button></div>
           <div class="table-tools">
             <div class="result-count" id="resultCount" role="status" aria-live="polite">Consultando eventos…</div>
             <a class="button" href="internal-dashboard.html#legajos">Buscar una ficha individual</a>
@@ -529,7 +536,7 @@
           <div class="table-wrap" tabindex="0" role="region" aria-labelledby="eventsTitle">
             <table>
               <caption class="visually-hidden">Eventos administrativos de ausencia que cumplen el filtro aplicado.</caption>
-              <thead><tr><th>Desde / hasta</th><th>Persona / legajo</th><th>Motivo</th><th>Sector</th><th class="numeric">Días declarados</th><th>Control de fuente</th><th>Ficha</th></tr></thead>
+              <thead><tr><th>Desde / hasta</th><th>Persona / legajo</th><th>Motivo</th><th>Sector</th><th class="numeric">Días declarados</th><th>Control de fuente</th><th>Caso</th></tr></thead>
               <tbody id="eventRows"><tr><td class="empty" colspan="7">Consultando eventos…</td></tr></tbody>
             </table>
           </div>
@@ -560,6 +567,9 @@
       var redirectIssued = false;
       var authenticated = false;
       var loadingRequest = 0;
+      var readController = null, analyticsReady = false, analyticsLoading = false;
+      var detailSearch = '', dirtyFilters = new Set();
+      var lastAnalytics = null, lastEvents = null;
       var state = { page: 1, pageSize: 25, total: 0, totalPages: 1, facets: { sectors: [], reasons: [] }, applied: { from: '', to: '', sector: '', reason: '' } };
       var integerFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
       var decimalFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
@@ -590,7 +600,7 @@
       function object(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
       function array(value) { return Array.isArray(value) ? value : []; }
       function text(value) { return value === null || value === undefined ? '' : String(value).trim(); }
-      function finite(value) { var number = typeof value === 'number' ? value : Number(String(value === undefined || value === null ? '' : value).replace(',', '.')); return Number.isFinite(number) ? number : null; }
+      function finite(value) { if (value === null || value === undefined || typeof value === 'boolean' || String(value).trim() === '') return null; var number = typeof value === 'number' ? value : Number(String(value === undefined || value === null ? '' : value).replace(',', '.')); return Number.isFinite(number) ? number : null; }
       function nonNegative(value) { var number = finite(value); return number !== null && number >= 0 ? number : null; }
       function first(root, paths) {
         for (var index = 0; index < paths.length; index += 1) {
@@ -827,6 +837,7 @@
         if (state.applied.reason) params.set('reasonCode', state.applied.reason);
         if (resource === 'absenceanalytics') params.set('bucket', 'month');
         if (resource === 'absenceevents') {
+          if (detailSearch) params.set('search', detailSearch);
           params.set('page', String(state.page));
           params.set('limit', String(Math.min(50, state.pageSize)));
         }
@@ -848,16 +859,22 @@
         history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
       }
 
-      async function fetchJson(url) {
-        var response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      async function fetchJson(url, signal) {
+        var response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000) });
         if (response.status === 401) {
           redirectToLogin();
           var unauthorized = new Error('Sesión no autorizada');
           unauthorized.unauthorized = true;
           throw unauthorized;
         }
-        if (!response.ok) throw new Error('La API interna respondió con estado ' + response.status + '.');
-        return response.json();
+        var payload = {}; try { payload = await response.json(); } catch (_) {}
+        if (!response.ok || payload.ok !== true) {
+          var failure = new Error(response.status === 403 ? 'Tu perfil no habilita esta consulta.' : response.status === 422 ? 'El período está fuera del corte disponible. Ajustá las fechas.' : 'No se pudo completar esta consulta. Reintentá sin recargar la página.');
+          failure.status = response.status;
+          if (typeof payload.requestId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(payload.requestId)) failure.message += ' Referencia: ' + payload.requestId;
+          throw failure;
+        }
+        return payload;
       }
 
       function redirectToLogin() {
@@ -905,7 +922,7 @@
         if (state.applied.from) filterLabels.push('desde ' + safeDate(state.applied.from));
         if (state.applied.to) filterLabels.push('hasta ' + safeDate(state.applied.to));
         if (state.applied.sector) filterLabels.push('sector ' + state.applied.sector);
-        if (state.applied.reason) filterLabels.push('motivo ' + state.applied.reason);
+        if (state.applied.reason) { var chosen = analytics.facets.reasons.find(function(r){return r.value === state.applied.reason;}); filterLabels.push('motivo ' + (chosen ? chosen.label : state.applied.reason)); }
         if (rangeWasClamped) filterLabels.push('rango ajustado a la disponibilidad de GRH');
         setText('filterSummary', filterLabels.length ? filterLabels.join(' · ') : 'Sin filtros adicionales; se usa el período informado por la API.');
       }
@@ -918,7 +935,7 @@
         if (!items.length) {
           var empty = document.createElement('div');
           empty.className = 'series-empty';
-          empty.textContent = 'La API no informó una serie mensual para este período.';
+          empty.textContent = 'Sin eventos para los filtros aplicados. Quitá el motivo o el sector para revisar el período completo.';
           host.appendChild(empty);
           return;
         }
@@ -1060,11 +1077,19 @@
       }
 
       function renderAnalytics(analytics) {
+        var drafts=[];
+        dirtyFilters.forEach(function(id){var input=byId(id);drafts.push({id:id,value:input.value,label:input.tagName==='SELECT'?input.selectedOptions[0]?.textContent:null});});
         renderFilters(analytics);
+        drafts.forEach(function(draft){var input=byId(draft.id);if(input.tagName==='SELECT'&&draft.value&&!Array.from(input.options).some(function(o){return o.value===draft.value;})){var option=document.createElement('option');option.value=draft.value;option.textContent=draft.label||draft.value;input.append(option);}input.value=draft.value;});
+        if(drafts.length)setText('filterSummary','Hay cambios en los filtros sin aplicar. Los resultados conservan la consulta anterior.');
         setText('eventsValue', formatInteger(analytics.summary.events));
         setText('contractsValue', formatInteger(analytics.summary.contracts));
         setText('daysValue', formatDecimal(analytics.summary.declaredDays));
-        setBadge('summaryBadge', analytics.status === 'ready' ? 'ready' : 'warning', analytics.status === 'ready' ? 'Datos disponibles' : 'Con pendientes');
+        setBadge('summaryBadge', analytics.summary.events === 0 ? 'warning' : analytics.status === 'ready' ? 'ready' : 'warning', analytics.summary.events === 0 ? 'Sin coincidencias' : analytics.status === 'ready' ? 'Datos disponibles' : 'Con pendientes');
+        byId('absenceEmpty').hidden = analytics.summary.events !== 0;
+        byId('removeReason').hidden = !state.applied.reason;
+        byId('removeSector').hidden = !state.applied.sector;
+        byId('monthlySeries').classList.toggle('no-events', analytics.summary.events === 0);byId('monthlySeries').style.minHeight=analytics.summary.events===0?'100px':'';
         renderMonthly(analytics.monthly);
         renderComparison(analytics.comparison);
         renderRanking('reasonRanking', analytics.reasons);
@@ -1074,7 +1099,7 @@
         var to = analytics.range.to;
         setText('rangeFrom', safeDate(from));
         setText('rangeTo', safeDate(to));
-        setText('coverageText', analytics.coverage || 'Cobertura según registros devueltos');
+        setText('coverageText', analytics.coverage === 'absence_event' ? 'Registros administrativos de ausencia' : analytics.coverage || 'Cobertura según registros devueltos');
         setText('updatedAt', safeDate(analytics.cutoff));
         setText('sourceLabel', analytics.source);
         setText('cutoffLabel', safeDate(analytics.cutoff));
@@ -1137,20 +1162,38 @@
             appendCell(row, 'Sector', event.sector || 'Sin sector informado');
             appendCell(row, 'Días declarados', event.declaredDays === null ? 'No informado' : formatDecimal(event.declaredDays), 'numeric');
             var control = event.rangeIntegrity === 'valid_source_range'
-              ? 'Rango válido'
+              ? 'Fechas en orden'
+              : event.rangeIntegrity === 'extended_source_range' ? 'Duración extensa: revisar'
               : event.rangeIntegrity === 'inverted_source_range'
                 ? 'Rango invertido'
                 : event.rangeIntegrity === 'until_date_not_reported'
                   ? 'Fecha hasta no informada'
                   : 'No informado';
             appendCell(row, 'Control de fuente', control);
-            var link = document.createElement('a');
-            link.className = 'table-link';
-            link.href = event.contractId ? 'internal-dashboard.html?contractId=' + encodeURIComponent(event.contractId) + '#legajos' : 'internal-dashboard.html#legajos';
-            link.textContent = event.contractId ? 'Abrir ficha' : 'Buscar ficha';
-            link.setAttribute('aria-label', event.contractId ? 'Abrir la ficha interna de ' + (event.name || 'este legajo') : 'Buscar la ficha en Personas');
-            appendCell(row, 'Ficha', link);
-            host.appendChild(row);
+            var link = document.createElement('button');
+            link.type = 'button'; link.className = 'button';
+            link.textContent = 'Ver caso';
+            link.setAttribute('aria-label', 'Ver ausencia de ' + (event.name || 'este legajo'));
+            var caseRow = document.createElement('tr'), caseCell = document.createElement('td');
+            caseRow.hidden=true;caseRow.className='absence-case-row';caseCell.colSpan=7;caseRow.append(caseCell);caseCell.id='absence-context-'+loadingRequest+'-'+host.children.length;link.setAttribute('aria-controls',caseCell.id);
+            link.setAttribute('aria-expanded','false');
+            link.addEventListener('click', function () {
+              var open=caseRow.hidden;caseRow.hidden=!open;link.setAttribute('aria-expanded',String(open));link.textContent=open?'Cerrar caso':'Ver caso';
+              if(!open||caseCell.childNodes.length)return;
+              var box=document.createElement('section');box.className='panel';
+              function add(tag,value){var n=document.createElement(tag);n.textContent=value;box.append(n);return n;}
+              add('h3','Ausencia de '+(event.name||'persona sin nombre informado'));
+              add('p',(event.reason||'Motivo no informado')+' · '+safeDate(event.date)+' → '+safeDate(event.untilDate));
+              var facts=document.createElement('dl');facts.className='definition-list';
+              [['Días declarados',formatDecimal(event.declaredDays)],['Cantidad de origen',formatDecimal(event.sourceQuantity)],['Sector al corte',event.sector||'No informado'],['Control de fechas',control]].forEach(function(pair){var part=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=pair[0];dd.textContent=pair[1];part.append(dt,dd);facts.append(part);});box.append(facts);
+              if(event.rangeIntegrity==='extended_source_range'){var warning=add('div','');warning.className='notice';var mark=document.createElement('span');mark.className='notice-mark';mark.textContent='!';var copy=document.createElement('div');copy.textContent='La fecha final produce un rango superior a 366 días. Revisá el original; la fecha no fue corregida ni convertida en días a descontar.';warning.append(mark,copy);}
+              var rules=document.createElement('ul');[['isLeave','Clasificado como licencia'],['affectsAttendanceBonus','Afecta presentismo en el catálogo'],['generatesDiscountedDays','Genera días descontados en el catálogo']].forEach(function(pair){var li=document.createElement('li');li.textContent=pair[1]+': '+(event.flags[pair[0]]===true?'Sí':event.flags[pair[0]]===false?'No':'No informado');rules.append(li);});box.append(rules);
+              add('p','El catálogo describe el origen; no acredita justificación, aprobación ni descuento liquidado. Conservás el período, la búsqueda y la página.');
+              if(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(event.contractId)){var full=document.createElement('a');full.className='button';full.href='internal-dashboard.html?contractId='+encodeURIComponent(event.contractId)+'#legajos';full.textContent='Abrir legajo completo';box.append(full);}
+              caseCell.append(box);
+            });
+            appendCell(row, 'Caso', link);
+            host.append(row,caseRow);
           });
         }
         var from = events.total ? ((events.page - 1) * events.pageSize) + 1 : 0;
@@ -1187,29 +1230,44 @@
         host.appendChild(card);
       }
 
-      async function loadData() {
+      async function loadData(options) {
         if (redirectIssued) return;
+        var eventsOnly = options && options.eventsOnly === true && analyticsReady && !analyticsLoading;
         var requestId = ++loadingRequest;
-        byId('errorHost').hidden = true;
-        byId('loading').hidden = false;
-        byId('mainContent').hidden = true;
-        setText('loadingMessage', 'Consultamos indicadores y eventos con el mismo alcance.');
-        try {
-          var responses = await Promise.all([
-            fetchJson(DATA_URL + '?' + buildParams('absenceanalytics').toString()),
-            fetchJson(DATA_URL + '?' + buildParams('absenceevents').toString())
-          ]);
-          if (requestId !== loadingRequest || redirectIssued) return;
-          var analytics = normalizeAnalytics(responses[0]);
-          var events = normalizeEvents(responses[1]);
-          renderAnalytics(analytics);
-          renderEvents(events);
-          byId('loading').hidden = true;
-          byId('mainContent').hidden = false;
-          document.title = 'Control de ausentismo | MuniControl';
-        } catch (error) {
-          if (!redirectIssued && !error.unauthorized && requestId === loadingRequest) showError(error instanceof Error ? error.message : 'La fuente interna no está disponible.');
+        if (readController) readController.abort(); readController = new AbortController();
+        var signal = readController.signal;
+        document.dispatchEvent(new Event('mc:absence-cleared'));
+        byId('errorHost').hidden = true; byId('loading').hidden = true; byId('mainContent').hidden = false;
+        byId('eventsPanel').setAttribute('aria-busy', 'true');
+        lastEvents = null; byId('eventRows').replaceChildren(); setText('eventsReadStatus', 'Consultando eventos…');
+        byId('eventsRetry').hidden = true; byId('previousPage').disabled = true; byId('nextPage').disabled = true;
+        var analyticsQuery = DATA_URL + '?' + buildParams('absenceanalytics').toString();
+        var eventsQuery = DATA_URL + '?' + buildParams('absenceevents').toString();
+        function active() { return requestId === loadingRequest && !signal.aborted && !redirectIssued; }
+        function failed(error, part) {
+          if (!active() || error.unauthorized) return;
+          if (error.status === 403) {
+            readController.abort(); loadingRequest++; analyticsReady = false; lastAnalytics = lastEvents = null;
+            ['eventRows','monthlySeries','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+            ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
+            document.dispatchEvent(new Event('mc:absence-cleared')); showError('Tu perfil no habilita esta consulta. No se conservan datos nominales en pantalla.'); return;
+          }
+          setText(part + 'ReadStatus', error.name === 'TimeoutError' ? 'La consulta demoró demasiado. Reintentá esta sección.' : error.message);
+          byId(part + 'Retry').hidden = false;
         }
+        var tasks = [];
+        if (!eventsOnly) {
+          analyticsReady = false; analyticsLoading = true; lastAnalytics = null;
+          byId('summaryMetrics').setAttribute('aria-busy','true'); setText('analyticsReadStatus','Consultando indicadores…'); byId('analyticsRetry').hidden=true;
+          ['eventsValue','contractsValue','daysValue'].forEach(function(id){setText(id,'—');});
+          ['monthlySeries','monthlyAccessibleRows','reasonRanking','sectorRanking','qualityList'].forEach(function(id){byId(id).replaceChildren();});
+          byId('comparisonContent').hidden=true; byId('absenceEmpty').hidden=true; setBadge('summaryBadge','warning','Consultando');
+          tasks.push(fetchJson(analyticsQuery,signal).then(function(payload){if(!active())return;lastAnalytics=payload;renderAnalytics(normalizeAnalytics(payload));analyticsReady=true;setText('analyticsReadStatus','Indicadores actualizados para los filtros aplicados.');}).catch(function(e){failed(e,'analytics');}).finally(function(){if(active()){analyticsLoading=false;byId('summaryMetrics').setAttribute('aria-busy','false');}}));
+        }
+        tasks.push(fetchJson(eventsQuery,signal).then(function(payload){if(!active())return;lastEvents=payload;renderEvents(normalizeEvents(payload));setText('eventsReadStatus',detailSearch?'Búsqueda aplicada al listado completo del período. Los indicadores conservan el alcance general.':'Eventos actualizados. Abrí un caso para revisar su detalle sin salir de Ausentismo.');}).catch(function(e){failed(e,'events');}).finally(function(){if(active())byId('eventsPanel').setAttribute('aria-busy','false');}));
+        await Promise.allSettled(tasks);
+        if(active() && lastAnalytics && lastEvents && lastAnalytics.quality && lastEvents.quality && lastAnalytics.quality.sourceCutoff !== lastEvents.quality.sourceCutoff){lastEvents=null;byId('eventRows').replaceChildren();setText('eventsReadStatus','La fuente cambió durante la consulta. Actualizá para no mezclar cortes.');byId('eventsRetry').hidden=false;}
+        document.title='Control de ausentismo | MuniControl';
       }
 
       async function authenticate() {
@@ -1257,7 +1315,8 @@
 
       byId('filterPanel').addEventListener('submit', function (event) {
         event.preventDefault();
-        state.applied = readFilters();
+        var requested=readFilters();if(requested.from&&requested.to&&requested.from>requested.to){setText('filterSummary','Desde no puede ser posterior a Hasta. Corregí las fechas para aplicar.');return;}
+        dirtyFilters.clear();state.applied = requested;
         state.page = 1;
         syncUrl();
         loadData();
@@ -1265,15 +1324,26 @@
       byId('resetFilters').addEventListener('click', function () {
         ['fromInput', 'toInput'].forEach(function (id) { byId(id).value = ''; });
         ['sectorSelect', 'reasonSelect'].forEach(function (id) { byId(id).value = ''; });
+        dirtyFilters.clear();detailSearch='';byId('eventSearch').value='';
         state.applied = { from: '', to: '', sector: '', reason: '' };
         state.page = 1;
         syncUrl();
         loadData();
       });
-      byId('pageSizeSelect').addEventListener('change', function () { state.pageSize = Math.min(50, Math.max(1, Number(this.value) || 25)); state.page = 1; syncUrl(); loadData(); });
-      byId('previousPage').addEventListener('click', function () { if (state.page > 1) { state.page -= 1; syncUrl(); loadData(); } });
-      byId('nextPage').addEventListener('click', function () { if (state.page < state.totalPages) { state.page += 1; syncUrl(); loadData(); } });
-      byId('refreshButton').addEventListener('click', loadData);
+      byId('pageSizeSelect').addEventListener('change', function () { state.pageSize = Math.min(50, Math.max(1, Number(this.value) || 25)); state.page = 1; syncUrl(); loadData({eventsOnly:true}); });
+      byId('previousPage').addEventListener('click', function () { if (state.page > 1) { state.page -= 1; syncUrl(); loadData({eventsOnly:true}); } });
+      byId('nextPage').addEventListener('click', function () { if (state.page < state.totalPages) { state.page += 1; syncUrl(); loadData({eventsOnly:true}); } });
+      byId('refreshButton').addEventListener('click', function(){loadData();});
+      byId('analyticsRetry').addEventListener('click',function(){loadData();});
+      byId('eventsRetry').addEventListener('click',function(){loadData({eventsOnly:true});});
+      byId('eventSearchForm').addEventListener('submit',function(e){e.preventDefault();detailSearch=byId('eventSearch').value.trim();state.page=1;syncUrl();loadData({eventsOnly:true});});
+      byId('eventSearchClear').addEventListener('click',function(){byId('eventSearch').value='';detailSearch='';state.page=1;syncUrl();loadData({eventsOnly:true});});
+      ['removeReason','removeSector'].forEach(function(id){byId(id).addEventListener('click',function(){state.applied[id==='removeReason'?'reason':'sector']='';state.page=1;syncUrl();loadData();});});
+      function clearPrivateView(){loadingRequest++;if(readController)readController.abort();lastAnalytics=lastEvents=null;analyticsReady=false;analyticsLoading=false;detailSearch='';byId('eventSearch').value='';byId('eventRows').replaceChildren();byId('mainContent').hidden=true;}
+      window.addEventListener('pagehide',clearPrivateView);
+      byId('logoutButton').addEventListener('click',clearPrivateView,{capture:true});
+      window.addEventListener('pageshow',function(event){if(event.persisted&&!redirectIssued)authenticate();});
+      ['input','change'].forEach(function(type){byId('filterPanel').addEventListener(type,function(e){if(['fromInput','toInput','reasonSelect','sectorSelect'].includes(e.target.id))dirtyFilters.add(e.target.id);});});
       byId('logoutButton').addEventListener('click', async function () {
         try { await fetch(AUTH_URL, { method: 'DELETE', credentials: 'same-origin' }); }
         finally { sessionStorage.removeItem('mjunin_user'); location.replace('login.html'); }

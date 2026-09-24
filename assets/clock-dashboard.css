@@ -5,3 +5,6 @@
 @media(max-width:1200px){.ck-filter{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:650px){.ck-filter{grid-template-columns:1fr 1fr}.ck-filter label:nth-child(2){grid-column:1/-1}.ck #clockRecords .ck-table-scroll{max-height:65vh}.ck-tabs{gap:10px}}
 @media print{.ck #clockRecords .ck-table-scroll{max-height:none;overflow:visible;border:0}.ck #clockRecords th{position:static}}
+
+/* Operational readability: the technical evidence remains expandable. */
+.ck table{font-size:12px}.ck th{font-size:10px}.ck .ck-note,.ck .ck-chart-note{font-size:11px}.ck .ck-quick button{min-height:40px;font-size:11px}.ck #clockCodeDistribution{margin-bottom:16px}.ck #clockCodeDistribution .ck-metrics{margin-top:14px}

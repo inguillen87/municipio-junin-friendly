@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPattern } from '../lib/absence-event-context.js';
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
@@ -1140,7 +1141,7 @@ function absenceReasonFlags(row = {}) {
   };
 }
 
-function absenceFilter({ from, to, sector = '', reasonCode = '' }) {
+function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '' }) {
   const values = [from, to];
   const conditions = ['absence.fecha >= $1::date', 'absence.fecha <= $2::date'];
   const parameter = (value) => {
@@ -1151,22 +1152,24 @@ function absenceFilter({ from, to, sector = '', reasonCode = '' }) {
     conditions.push(`COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') = ${parameter(sector)}`);
   }
   if (reasonCode) conditions.push(`absence.motivo_code = ${parameter(reasonCode)}`);
+  if (contractId) conditions.push(`contract.id = ${parameter(contractId)}::uuid`);
+  if (search) { const p=parameter(absenceSearchPattern(search)); conditions.push(`(COALESCE(identity.full_name, employee.nombre, '') ILIKE ${p} OR absence.legajo ILIKE ${p})`); }
   return { where: conditions.join(' AND '), values };
 }
 
-function absenceFromSql(includeIdentity = false) {
+function absenceFromSql(includeIdentity = false, { employee = true, reason = true } = {}) {
   return `
     FROM grh_effective_absences_v1 absence
-    LEFT JOIN grh_effective_employees_v1 employee
-      ON employee.company_id = absence.company_id AND employee.legajo = absence.legajo
+    ${employee ? `LEFT JOIN grh_effective_employees_v1 employee
+      ON employee.company_id = absence.company_id AND employee.legajo = absence.legajo` : ''}
     LEFT JOIN employment_contract contract
       ON contract.source_system = 'GRH'
      AND contract.legacy_company_id = absence.company_id
      AND contract.legacy_legajo = absence.legajo
     ${includeIdentity ? 'LEFT JOIN person_identity identity ON identity.id = contract.person_id' : ''}
-    LEFT JOIN grh_effective_catalog_rows_v1 reason
+    ${reason ? `LEFT JOIN grh_effective_catalog_rows_v1 reason
       ON reason.catalog = 'absence_reasons'
-     AND reason.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code
+     AND reason.source_payload #>> '{sourceKey,reasonCode}' = absence.motivo_code` : ''}
   `;
 }
 
@@ -1244,7 +1247,7 @@ async function queryAbsenceSummary(sql, filters, marker = 'summary') {
     SELECT count(*)::int AS events,
            count(DISTINCT contract.id)::int AS "affectedContracts",
            COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
-    ${absenceFromSql()}
+    ${absenceFromSql(Boolean(filters.search), { employee: Boolean(filters.sector || filters.search), reason: false })}
     WHERE ${scope.where}
   `, scope.values);
   return absenceSummaryRow(row);
@@ -1302,7 +1305,7 @@ export async function absenceAnalytics(sql, req) {
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays",
              (date_trunc('${request.bucket}', absence.fecha)::date < $1::date
                OR (date_trunc('${request.bucket}', absence.fecha) + interval '${interval}')::date > $2::date) AS partial
-      ${absenceFromSql()}
+      ${absenceFromSql(false, { employee: Boolean(filters.sector), reason: false })}
       WHERE ${scope.where}
       GROUP BY 1, 5 ORDER BY 1
     `, scope.values),
@@ -1317,7 +1320,7 @@ export async function absenceAnalytics(sql, req) {
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
-      ${absenceFromSql()}
+      ${absenceFromSql(false, { employee: Boolean(filters.sector) })}
       WHERE ${scope.where}
       GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY events DESC, label
     `, scope.values),
@@ -1327,23 +1330,28 @@ export async function absenceAnalytics(sql, req) {
              count(*)::int AS events,
              count(DISTINCT contract.id)::int AS "affectedContracts",
              COALESCE(sum(absence.dias), 0)::numeric AS "sourceDeclaredDays"
-      ${absenceFromSql()}
+      ${absenceFromSql(false, { reason: false })}
       WHERE ${scope.where}
       GROUP BY 1 ORDER BY events DESC, label
     `, scope.values),
     sql.query(`
       /* absence:facet-reasons */
-      SELECT DISTINCT absence.motivo_code AS code,
-             COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
-      ${absenceFromSql()}
-      WHERE ${validScope.where}
+      WITH codes AS MATERIALIZED (
+        SELECT DISTINCT absence.motivo_code ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
+      )
+      SELECT codes.motivo_code AS code, COALESCE(NULLIF(btrim(reason.label), ''), 'Sin motivo homologado') AS label
+      FROM codes LEFT JOIN grh_effective_catalog_rows_v1 reason ON reason.catalog='absence_reasons'
+       AND reason.source_payload #>> '{sourceKey,reasonCode}'=codes.motivo_code
       ORDER BY label
     `, validScope.values),
     sql.query(`
       /* absence:facet-sectors */
+      WITH people AS MATERIALIZED (
+        SELECT DISTINCT absence.company_id, absence.legajo ${absenceFromSql(false, { employee: false, reason: false })} WHERE ${validScope.where}
+      )
       SELECT DISTINCT COALESCE(NULLIF(btrim(employee.sector), ''), 'Sin sector informado') AS value
-      ${absenceFromSql()}
-      WHERE ${validScope.where}
+      FROM people LEFT JOIN grh_effective_employees_v1 employee
+       ON employee.company_id=people.company_id AND employee.legajo=people.legajo
       ORDER BY value
     `, validScope.values),
     sql.query(`
@@ -1359,7 +1367,7 @@ export async function absenceAnalytics(sql, req) {
                                AND absence.dias IS NULL)::int AS "missingSourceDeclaredDays",
              count(*) FILTER (WHERE absence.fecha BETWEEN $1::date AND $2::date
                                AND contract.id IS NULL)::int AS "unlinkedEvents"
-      ${absenceFromSql()}
+      ${absenceFromSql(false, { employee: false, reason: false })}
     `, [ABSENCE_MIN_DATE, source.cutoff]),
     comparisonPromise
   ]);
@@ -1438,6 +1446,9 @@ export async function absenceAnalytics(sql, req) {
 }
 
 export async function absenceEvents(sql, req) {
+  let detailScope;
+  try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search','')}); }
+  catch { return {status:400,payload:{ok:false,code:'ABSENCE_DETAIL_FILTER_INVALID',error:'Filtro de detalle inválido'}}; }
   const source = await absenceSourceContext(sql);
   if (!source) {
     return { status: 503, payload: { ok: false, code: 'ABSENCE_SOURCE_NOT_LOADED', error: 'La fuente de ausentismo no está disponible' } };
@@ -1450,7 +1461,8 @@ export async function absenceEvents(sql, req) {
     from: request.range.effective.from,
     to: request.range.effective.to,
     sector: request.sector,
-    reasonCode: request.reasonCode
+    reasonCode: request.reasonCode,
+    ...detailScope
   };
   const scope = absenceFilter(filters);
   const dataValues = [...scope.values, limit, (page - 1) * limit];
@@ -1493,11 +1505,7 @@ export async function absenceEvents(sql, req) {
         sourceDeclaredDays: row.sourceDeclaredDays === null ? null : absenceNumber(row.sourceDeclaredDays),
         sourceQuantity: row.sourceQuantity === null ? null : absenceNumber(row.sourceQuantity),
         flags: absenceReasonFlags(row),
-        rangeIntegrity: !row.untilDate
-          ? 'until_date_not_reported'
-          : row.eventDate && isoDate(row.untilDate) < isoDate(row.eventDate)
-            ? 'inverted_source_range'
-            : 'valid_source_range'
+        rangeIntegrity: absenceRangeIntegrity(isoDate(row.eventDate), row.untilDate ? isoDate(row.untilDate) : null)
       })),
       pagination: {
         page,

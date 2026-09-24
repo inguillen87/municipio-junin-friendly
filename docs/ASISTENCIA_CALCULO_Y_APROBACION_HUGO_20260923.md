@@ -79,3 +79,8 @@ Referencias: `scripts/migrations/011-versioned-time-catalog.sql`, `scripts/migra
 Pruebas automáticas y casos sintéticos en entornos aislados; CI del commit exacto; migraciones sólo después de controles verdes, en PG18 y PG17; despliegue y verificación de producción por separado. No se crean datos municipales ficticios persistentes. La homologación requiere resultados esperados y aceptación reales de responsables autorizados: las pruebas técnicas no se presentan como firma de Hugo o Noelia.
 
 La fecha deseada de octubre no sustituye estos criterios. Cada dominio puede habilitarse con un alcance y período identificados, manteniendo visibles las funciones todavía pendientes.
+
+
+## Ampliación del 24/09 · tiempo y ausentismo
+
+Ver `PLAN_TIEMPO_AUSENTISMO_OPERACION_20260924.md`: corrección de cargas y ceros, caso contextual, consulta nominal, métricas de relojes, comparación de tiempos y aceptación por Noelia/Hugo/Mariano/superadministración. Distingue el incremento implementado de la conciliación de los otros equipos, reglas, aprobaciones y fuente del 22/09 pendientes.

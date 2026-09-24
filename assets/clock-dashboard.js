@@ -1,11 +1,12 @@
 import {referenceCode,referenceMethod,percentage,periodWindow,insights,recordCsv,verifyExport} from './clock-dashboard-model.js';
 import {createClockXlsx} from './clock-dashboard-export.js';
+import {clockCodeSummary} from './workday-quick-analysis.js';
 const root=document.getElementById('clockOperations');
 if(root){
  const $=key=>document.getElementById('clock'+key),text=(key,value)=>{$(key).textContent=String(value??'—')},num=v=>new Intl.NumberFormat('es-AR').format(Number(v)||0);
  const state={site:'pm-10',source:'continuous',from:'',to:'',page:1,size:50,search:'',identity:'all',hour:null,
   data:null,cut:null,loading:false,exporting:false,started:false,denied:false,generation:0,
-  controller:null,exportController:null,timer:null,tab:'records'};
+  controller:null,exportController:null,timer:null,tab:'overview'};
  const busy=()=>state.loading||state.exporting;
  function el(tag,value,cls){const e=document.createElement(tag);if(value!=null)e.textContent=String(value);if(cls)e.className=cls;return e}
  function date(value){if(!value||!Number.isFinite(Date.parse(value)))return 'Sin registro';return new Intl.DateTimeFormat('es-AR',{timeZone:state.data?.timezone||'America/Argentina/Mendoza',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(value))}
@@ -41,7 +42,20 @@ if(root){
   tab(name,focus);
  }
  function filterHour(hour){if(busy())return;state.hour=state.hour===hour?null:hour;tab('records');load(true)}
+ const shortcuts=el('nav',null,'ck-quick');shortcuts.setAttribute('aria-label','Tareas de asistencia');
+ for(const [view,label]of [['overview','Ver gráficos'],['workdays','Jornadas y cálculos'],['records','Buscar marcaciones'],['issues','Revisar observaciones']]){const b=el('button',label);b.type='button';b.addEventListener('click',()=>{selectTab(view,true);$('Tab'+({overview:'Overview',workdays:'Workdays',records:'Records',issues:'Issues'}[view])).scrollIntoView({block:'nearest'});});shortcuts.append(b)}
+ const fleet=document.getElementById('clockFleetReception');if(fleet){fleet.before(root);const b=el('button','Equipos y recepción');b.type='button';b.addEventListener('click',()=>fleet.scrollIntoView({block:'start',behavior:'auto'}));shortcuts.append(b);}
+ $('Filter').before(shortcuts);
+ const codeHost=el('section',null,'ck-card');codeHost.id='clockCodeDistribution';$('Overview').prepend(codeHost);
+ function renderCodes(data){
+  codeHost.replaceChildren();const s=clockCodeSummary(data);if(!s){codeHost.append(el('p','La distribución por código no está disponible.'));return;}
+  codeHost.append(el('h3','Entradas, salidas y otras marcas del filtro'),el('p',s.profileSupported?'Estados declarados por el perfil del reloj; cada valor abre el circuito de trabajo correspondiente.':'Este modelo no tiene un perfil interpretado. Sus códigos se conservan sin clasificarlos como entradas o salidas.'));
+  const cards=el('div',null,'ck-metrics');
+  for(const [key,label,view]of [['entries','Entradas declaradas','workdays'],['exits','Salidas declaradas','workdays'],['extra','Marcas de tiempo extra','workdays'],['pauses','Marcas de pausa','records']]){const c=el('article');c.append(el('span',label),el('strong',s.profileSupported?num(s[key]):'No homologado'));const b=el('button',view==='workdays'?'Ver jornadas':'Ver marcas','ck-text');b.type='button';b.addEventListener('click',()=>selectTab(view,true));c.append(b);cards.append(c)}
+  codeHost.append(cards,el('p',num(s.unknown)+' códigos sin interpretación. Se cuentan marcaciones, no jornadas u horas aprobadas.','ck-note'));
+ }
  function charts(data){
+  renderCodes(data);
   const hourly=Array.from({length:24},(_,hour)=>({hour,marks:data.hourly.find(x=>x.hour===hour)?.marks||0})),max=Math.max(1,...hourly.map(x=>x.marks));$('Hourly').replaceChildren();
   for(const v of hourly){const b=el('button',null,'ck-hour');b.type='button';b.title=`${String(v.hour).padStart(2,'0')}:00–${String(v.hour).padStart(2,'0')}:59 · ${num(v.marks)} marcaciones`;b.setAttribute('aria-label',b.title+'; abrir detalle');b.setAttribute('aria-pressed',String(state.hour===v.hour));const bar=el('span',null,'ck-bar');bar.style.setProperty('--bar-h',v.marks/max*100+'%');b.append(bar,el('small',v.hour%3===0?String(v.hour).padStart(2,'0'):''));b.addEventListener('click',()=>filterHour(v.hour));for(const event of ['focus','mouseenter'])b.addEventListener(event,()=>text('HourDetail',b.title));$('Hourly').append(b)}
   $('ClearHour').hidden=state.hour===null;$('DailyChart').replaceChildren();$('Days').replaceChildren();const dm=Math.max(1,...data.daily.map(x=>x.marks));
@@ -76,7 +90,7 @@ if(root){
   $('Issues').replaceChildren();const labels={year_context_review:'Año inconsistente con el contexto',future_timestamp:'Fecha posterior a la descarga',identity_format_review:'Identificador a revisar',identity_bytes_review:'Identificador original a revisar',timestamp_invalid:'Fecha inválida'};for(const issue of data.observations){const tr=el('tr');cells(tr,[issue.ordinal,issue.localTimestamp,issue.issues.map(x=>labels[x]||x).join(' · ')]);$('Issues').append(tr)}if(!data.observations.length){const tr=el('tr'),td=el('td','Sin observaciones en esta fuente.');td.colSpan=3;tr.append(td);$('Issues').append(tr)}charts(data);tab(state.tab);root.dataset.state='ready';document.dispatchEvent(new CustomEvent('mc:clock-data',{detail:data}));
  }
  function clearData(){
-  document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;state.cut=null;
+  document.dispatchEvent(new Event('mc:clock-cleared'));state.data=null;state.cut=null;codeHost.replaceChildren();
   for(const k of ['Rows','Days','Issues','Hourly','DailyChart','Insights'])$(k).replaceChildren();
   for(const k of ['Marks','People','Linked','Unlinked','Observed','SourceRows','Page','LinkRate','Captured','Received','Latest','Device','Checked','Attempt','Backlog','Latency','CaptureScope'])text(k,'—');
   text('Mode','Sin confirmación actual');text('Privacy','');text('Scope','Consulta pendiente');
