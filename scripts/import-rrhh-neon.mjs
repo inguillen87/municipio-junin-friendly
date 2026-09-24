@@ -377,6 +377,19 @@ async function main() {
 
 // Dependencies are injected for offline tests; only the CLI loads private files
 // and resolves credentials. `source` must come from readAndVerifySources().
+// Proyección pura reutilizada por el comparador offline. No habilita el importador legado.
+export function projectCuratedReviewTables(datasets,cutoff){
+  if(typeof cutoff!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(cutoff)
+    ||!Number.isFinite(Date.parse(cutoff+'Z'))||new Date(cutoff+'Z').toISOString().slice(0,19)!==cutoff
+    ||Object.keys(OUTPUTS).some(name=>!Array.isArray(datasets?.[name])))throw new Error('CURATED_REVIEW_PROJECTION_INVALID');
+  return {
+    grh_employees:mapEmployees(datasets.employees,'1',cutoff.slice(0,10)),
+    grh_absences:mapAbsences(datasets.absences,'1'),
+    grh_leaves:mapLeaves(datasets.leaves,'1'),
+    grh_family:mapFamily(datasets.familyMembers,'1'),
+    grh_catalog_rows:mapCatalogs(datasets,'1')
+  };
+}
 export function prepareCuratedImport(source) {
   const { manifest, manifestSha256, datasets, embeddedMemberships } = source;
   const profile = getGrhSourceProfile(manifest.profile);
