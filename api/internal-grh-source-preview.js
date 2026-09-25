@@ -65,6 +65,13 @@ export const GRH_MONTHLY_SOURCE_DEFINITIONS = Object.freeze({
     header: true,
     fields: CALCULO_FIELDS,
   }),
+  'junin-638-amaru-fixed55.v1': Object.freeze({
+    format: 'fixed_width', widthUnit: 'ascii_bytes', recordLength: 55,
+    fields: Object.freeze([
+      Object.freeze({ name: 'dni', type: 'integer', required: true, start: 5, length: 8 }),
+      Object.freeze({ name: 'importe', type: 'decimal', required: true, start: 44, length: 11 }),
+    ]),
+  }),
 });
 
 export class InternalGrhSourcePreviewApiError extends Error {

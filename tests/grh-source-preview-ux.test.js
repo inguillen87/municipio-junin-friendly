@@ -16,6 +16,8 @@ test('Nómina expone una previsualización privada claramente separada de import
   assert.match(html, /<label for="sourcePreviewDefinition">/);
   assert.match(html, /grh-calculo-pipe-utf8\.v1/);
   assert.match(html, /grh-calculo-semicolon-windows1252\.v1/);
+  assert.match(html, /junin-638-amaru-fixed55\.v1/);
+  assert.match(html, /TXT 638 · AMARU · Formato Junín · 55 bytes/);
   assert.match(html, /<label for="sourcePreviewFile">/);
   assert.match(html, /Analizar sin importar/);
   assert.match(html, /No crea una corrida, no liquida y no modifica PostgreSQL ni GRH/);
@@ -89,4 +91,20 @@ test('el build publica el cliente privado sin precache y Vercel registra el endp
   assert.match(build, /'assets\/grh-source-preview\.js'/);
   assert.doesNotMatch(worker, /grh-source-preview/);
   assert.match(vercel, /"api\/internal-grh-source-preview\.js"/);
+});
+
+test('el cliente acepta el agregado 638 de ancho fijo sin recibir filas personales', () => {
+  const payload = validPayload({
+    definitionKey: 'junin-638-amaru-fixed55.v1',
+    status: 'valid',
+    format: 'fixed_width',
+    encoding: 'ascii',
+    recordCount: 1,
+    acceptedCount: 1,
+    rejectedRecordCount: 0,
+    issueCount: 0,
+    rejectionSummary: {},
+  });
+  assert.ok(canonicalAggregate(payload));
+  assert.equal(canonicalAggregate({ ...payload, includesRecordValues: true }), null);
 });

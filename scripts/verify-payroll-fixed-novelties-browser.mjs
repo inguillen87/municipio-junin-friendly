@@ -6,6 +6,7 @@ import {chromium} from 'playwright';
 import {unzipSync,strFromU8} from 'fflate';
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 import {fixedFixture,fixedUuid,fixedSubject,fixedNativeSubject,fixedValues,fixedApprovedRecord,fixedPayrollTypes} from '../tests/fixtures/payroll-fixed-novelties-synthetic.js';
+import {draft as nativeEmployeeDraft} from '../tests/fixtures/native-employee-synthetic.js';
 import '../assets/app-routes.js';
 
 const live=process.env.FIXED_NOVELTIES_PUBLISHED_ORIGIN;
@@ -56,6 +57,12 @@ try{
       else if(resource==='list')data=fixture.list(month);
       else if(resource==='detail')data=fixture.detail(u.searchParams.get('recordId'));
       else if(resource==='attempt')data=hideAttempt?null:state.attempts.get(state.role+':'+u.searchParams.get('command')+':'+u.searchParams.get('key'))?.receipt;
+      else if(resource==='junin638'){
+        if(changeOnExport){state.epoch++;changeOnExport=false;}
+        if(u.searchParams.get('snapshotToken')!==fixture.token(month))return route.fulfill({status:409,json:{ok:false,code:'PAYROLL_FIXED_SNAPSHOT_CHANGED',error:'La consulta cambió'}});
+        const exported=fixture.exporter(month),rows=exported.rows.filter(r=>r.values.conceptSourceId==='638').map(r=>({recordId:r.recordId,version:r.version,proposalId:r.proposalId,contractId:r.subject.contractId,dni:nativeEmployeeDraft().dni,amountCents:r.values.amountCents}));
+        data={version:'payroll-fixed-junin638.v1',periodMonth:month,snapshotToken:exported.snapshotToken,concept:'638',receiver:'AMARU',sourceFormat:{id:1,name:'Formato Junin',filename:'amaru.txt',dniStart:5,dniLength:8,amountStart:44,amountLength:11},format:{recordBytes:55,lineEnding:'CRLF',trailingLineEnding:false},rows,total:rows.length,effects:exported.effects};
+      }
       else if(resource==='export'){
         if(changeOnExport){state.epoch++;changeOnExport=false;}
         if(u.searchParams.get('snapshotToken')!==fixture.token(month))return route.fulfill({status:409,json:{ok:false,code:'PAYROLL_FIXED_SNAPSHOT_CHANGED',error:'La consulta cambió'}});
@@ -116,15 +123,16 @@ try{
   await role('reader');assert.equal(await host.locator('[data-fn-new]:visible:enabled').count(),0);assert.equal(await host.locator('[data-fn-csv]:visible:enabled').count(),0);checks.push('read-only operator sees records without prepare, review or export controls');
   await role('preparer');await openRecord(id);denyResource='detail';await host.locator('[data-fn-refresh]').click();await page.waitForTimeout(150);denyResource=null;
   state.denied=true;await host.locator('[data-fn-refresh]').click();await page.waitForTimeout(150);assert.doesNotMatch(await host.innerText(),/AGENTE SINTÉTICO|Acto administrativo sintético|preparer@example\.invalid/);checks.push('revoked read authority removes consulted names, values and historical actors from the DOM');
-  state.denied=false;await refresh();state.records=Array.from({length:61},(_,i)=>fixedApprovedRecord(i,{amountCents:i===0?'0':null,legalInstrument:i===60?'=QA fórmula prohibida':'Acto administrativo sintético QA'}));for(const row of state.records)state.histories.set(row.id,[row.latest]);
+  state.denied=false;await refresh();state.records=Array.from({length:61},(_,i)=>fixedApprovedRecord(i,{conceptSourceId:i===0?'638':'80',quantityDecimal:i===0?null:'1',amountCents:i===0?'250000':i===1?'0':null,legalInstrument:i===60?'=QA fórmula prohibida':'Acto administrativo sintético QA'}));for(const row of state.records)state.histories.set(row.id,[row.latest]);
   await refresh();await host.locator('[data-fn-period]').fill('2026-09');await host.locator('[data-fn-period]').dispatchEvent('change');await refresh();
   await host.locator('[data-fn-search]').fill('1061');await host.locator('[data-fn-record]').first().waitFor();assert.equal(await host.locator('[data-fn-record]:visible').count(),1);checks.push('search includes records outside the first page without changing the source list');
   await host.locator('[data-fn-search]').fill('');
   const excelEvent=page.waitForEvent('download');await host.locator('[data-fn-xlsx]').click();const excel=await excelEvent,excelPath=path.join(out,'fixed-novelties-synthetic.xlsx');await excel.saveAs(excelPath);
   const workbook=unzipSync(fs.readFileSync(excelPath)),sheets=Object.entries(workbook).filter(([name])=>/^xl\/worksheets\/sheet\d+\.xml$/.test(name)).map(([,bytes])=>strFromU8(bytes));
   assert.ok(sheets.some(s=>s.includes('1061')));assert.ok(sheets.every(s=>!/<f[ >]/.test(s)));checks.push('complete Excel contains all approved control rows including the last page and no executable formulas');
-  assert.ok(sheets.some(s=>s.includes('Vigencia parcial')));assert.match(sheets[0],/<c r="I2"[^>]*><is><t[^>]*>0<\/t>/);assert.match(sheets[0],/<c r="I3"[^>]*><is><t[^>]*>Sin informar<\/t>/);checks.push('control workbook distinguishes partial civil-date coverage, explicit zero and unknown amounts without prorating');
+  assert.ok(sheets.some(s=>s.includes('Vigencia parcial')));assert.match(sheets[0],/<c r="I2"[^>]*><is><t[^>]*>250000<\/t>/);assert.match(sheets[0],/<c r="I3"[^>]*><is><t[^>]*>0<\/t>/);assert.match(sheets[0],/<c r="I4"[^>]*><is><t[^>]*>Sin informar<\/t>/);checks.push('control workbook distinguishes positive, explicit zero and unknown amounts without prorating');
   const csvEvent=page.waitForEvent('download');await host.locator('[data-fn-csv]').click();const csv=await csvEvent,csvPath=path.join(out,'fixed-novelties-synthetic.csv');await csv.saveAs(csvPath);const csvText=fs.readFileSync(csvPath,'utf8');assert.ok(csvText.includes('1061'));assert.ok(csvText.includes("'=QA fórmula prohibida"));checks.push('CSV protects formula-like references and exports the complete approved control scope');
+  const txtEvent=page.waitForEvent('download');await host.locator('[data-fn-junin638]').click();const txt=await txtEvent,txtPath=path.join(out,'amaru-synthetic.txt');await txt.saveAs(txtPath);const txtBytes=fs.readFileSync(txtPath);assert.equal(txt.suggestedFilename(),'amaru.txt');assert.equal(txtBytes.length,55);assert.equal(txtBytes.subarray(0,5).toString('ascii'),'     ');assert.equal(txtBytes.subarray(5,13).toString('ascii'),nativeEmployeeDraft().dni.padStart(8,'0'));assert.equal(txtBytes.subarray(13,44).toString('ascii'),' '.repeat(31));assert.equal(txtBytes.subarray(44,55).toString('ascii'),'00002500.00');checks.push('amaru.txt uses current Formato Junin positions, one approved 638 record and no trailing line ending');
   changeOnExport=true;let staleDownloads=0;const track=()=>staleDownloads++;page.on('download',track);await host.locator('[data-fn-xlsx]').click();await page.waitForTimeout(200);page.off('download',track);assert.equal(staleDownloads,0);checks.push('server snapshot change blocks stale export and requires a fresh consultation');
   await refresh();
   // The link carries only the canonical contract UUID. No native legajo is

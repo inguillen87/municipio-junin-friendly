@@ -273,3 +273,26 @@ test('la codificación es allowlist y UTF-8 inválido falla cerrado', () => {
       && error.code === 'GRH_SOURCE_ENCODING_INVALID',
   );
 });
+
+test('previsualiza Formato Junin AMARU de 55 bytes sin devolver DNI', () => {
+  const definition={format:'fixed_width',widthUnit:'ascii_bytes',recordLength:55,fields:[
+    {name:'dni',type:'integer',required:true,start:5,length:8},
+    {name:'importe',type:'decimal',required:true,start:44,length:11},
+  ]};
+  const line=Buffer.alloc(55,0x20);line.write('12345678',5,'ascii');line.write('00002500.00',44,'ascii');
+  const preview=previewGrhSource(line,definition,fingerprintContext);
+  assert.equal(preview.status,'valid');assert.equal(preview.encoding,'ascii');
+  assert.equal(preview.recordCount,1);assert.equal(preview.acceptedCount,1);
+  assert.doesNotMatch(JSON.stringify(preview),/12345678|2500/);
+});
+test('Formato Junin rechaza DNI no numérico y longitud distinta sin filtrar la fila', () => {
+  const definition={format:'fixed_width',widthUnit:'ascii_bytes',recordLength:55,fields:[
+    {name:'dni',type:'integer',required:true,start:5,length:8},
+    {name:'importe',type:'decimal',required:true,start:44,length:11},
+  ]};
+  const wrong=Buffer.alloc(55,0x20);wrong.write('12A45678',5,'ascii');wrong.write('00000010.00',44,'ascii');
+  const invalid=previewGrhSource(wrong,definition,fingerprintContext);
+  assert.deepEqual(invalid.rejections,[{line:1,code:'DNI_INTEGER_INVALID'}]);
+  const short=previewGrhSource(wrong.subarray(0,54),definition,fingerprintContext);
+  assert.deepEqual(short.rejections,[{line:1,code:'RECORD_LENGTH_MISMATCH'}]);
+});

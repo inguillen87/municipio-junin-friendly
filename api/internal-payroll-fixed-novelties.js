@@ -16,11 +16,11 @@ function query(req, method) {
   if (method === 'POST') { if (Object.keys(values).length) fixedFail('QUERY_INVALID'); return {}; }
   const resource = values.resource ?? 'bootstrap';
   const keys = { bootstrap: values.resource ? ['resource'] : [], employee: ['resource', values.contractId === undefined ? 'legajo' : 'contractId'], list: values.periodMonth === undefined ? ['resource'] : ['resource', 'periodMonth'],
-    detail: ['resource', 'recordId'], attempt: ['resource', 'command', 'key'], export: ['resource', 'periodMonth', 'snapshotToken'] }[resource];
+    detail: ['resource', 'recordId'], attempt: ['resource', 'command', 'key'], export: ['resource', 'periodMonth', 'snapshotToken'], junin638: ['resource', 'periodMonth', 'snapshotToken'] }[resource];
   if (!keys || Object.keys(values).length !== keys.length || Object.keys(values).some(key => !keys.includes(key))
     || resource === 'employee' && (values.contractId === undefined ? !fixedLegajo(values.legajo) : !fixedContractId(values.contractId)) || resource === 'detail' && !fixedUuid(values.recordId)
     || resource === 'attempt' && (!['propose', 'review'].includes(values.command) || !fixedUuid(values.key))
-    || values.periodMonth !== undefined && !fixedPeriod(values.periodMonth) || resource === 'export' && !fixedHash(values.snapshotToken)) fixedFail('QUERY_INVALID');
+    || values.periodMonth !== undefined && !fixedPeriod(values.periodMonth) || ['export','junin638'].includes(resource) && !fixedHash(values.snapshotToken)) fixedFail('QUERY_INVALID');
   return { ...values, resource, ...(values.contractId ? { contractId: values.contractId.toLowerCase() } : {}), ...(values.recordId ? { recordId: values.recordId.toLowerCase() } : {}), ...(values.key ? { key: values.key.toLowerCase() } : {}) };
 }
 export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
@@ -32,7 +32,7 @@ export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
       if (!['GET', 'POST'].includes(method)) { res.setHeader('Allow', 'GET, POST'); fixedFail('METHOD_NOT_ALLOWED'); }
       const q = query(req, method); let command, payload, key;
       const readOperation = q.resource === 'attempt' ? q.command : q.resource;
-      const extraForRead = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export' }[readOperation];
+      const extraForRead = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export', junin638: 'payroll.novelty.export' }[readOperation];
       const capabilities = [...FIXED_READ_CAPS, ...(extraForRead ? [extraForRead] : [])];
       const access = await (deps.requireCompatibleInternalAccess ?? requireCompatibleInternalAccess)(req, res, { env, requiredCapabilities: capabilities, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
       if (!access) return;
@@ -48,7 +48,7 @@ export function createInternalPayrollFixedNoveltiesHandler(deps = {}) {
         key = http.header(req, 'idempotency-key'); if (!key) fixedFail('IDEMPOTENCY_KEY_REQUIRED'); if (!fixedUuid(key)) fixedFail('IDEMPOTENCY_KEY_INVALID'); key = key.toLowerCase();
       }
       const operation = method === 'POST' ? command : q.resource === 'attempt' ? q.command : q.resource;
-      const extra = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export' }[operation];
+      const extra = { propose: 'payroll.fixed.prepare', review: 'payroll.fixed.approve', export: 'payroll.novelty.export', junin638: 'payroll.novelty.export' }[operation];
       if (extra && !principalHasCapabilities(access.principal, [extra])) fixedFail('CAPABILITY_REQUIRED');
       const sql = await (deps.getInternalSql ?? getActionCenterSql)(env);
       const data = await fixedCall(sql, access.principal, session, method === 'POST' ? command : q.resource, method === 'POST' ? { payload, key } : q);

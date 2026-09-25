@@ -205,3 +205,17 @@ export function fixedExportData(payload,list) {
   });return freeze({...d,rows,effects:effects(d.effects)});
 }
 export const fixedPrincipalKey = data => [data.principal.tenantId,data.principal.membershipId,data.principal.certifiedBindingId].join(':');
+
+export function fixedJunin638Data(payload,list){
+  const d=envelope(payload,'payroll-fixed-junin638.v1',['periodMonth','snapshotToken','concept','receiver','sourceFormat','format','rows','total','effects']);
+  if(!list.periodMonth||d.periodMonth!==list.periodMonth||d.snapshotToken!==list.snapshotToken||d.concept!=='638'||d.receiver!=='AMARU')fail();
+  if(!exact(d.sourceFormat,['id','name','filename','dniStart','dniLength','amountStart','amountLength'])||d.sourceFormat.id!==1||d.sourceFormat.name!=='Formato Junin'||d.sourceFormat.filename!=='amaru.txt'||d.sourceFormat.dniStart!==5||d.sourceFormat.dniLength!==8||d.sourceFormat.amountStart!==44||d.sourceFormat.amountLength!==11||!exact(d.format,['recordBytes','lineEnding','trailingLineEnding'])||d.format.recordBytes!==55||d.format.lineEnding!=='CRLF'||d.format.trailingLineEnding!==false||!Array.isArray(d.rows)||d.rows.length>500||d.total!==d.rows.length)fail();
+  const seen=new Set();
+  const rows=d.rows.map(row=>{
+    if(!exact(row,['recordId','version','proposalId','contractId','dni','amountCents'])||!uuid(row.recordId)||!integer(row.version,2)||!uuid(row.proposalId)||!uuid(row.contractId)||typeof row.dni!=='string'||!/^\d{5,8}$/.test(row.dni)||/^0+$/.test(row.dni)||typeof row.amountCents!=='string'||!/^\d+$/.test(row.amountCents)||BigInt(row.amountCents)>9999999999n||seen.has(row.recordId))fail();
+    const source=list.rows.find(item=>item.id===row.recordId);
+    if(!source||!source.identityCurrent||source.subject.contractId!==row.contractId||source.approved?.operation!=='set'||source.approved.values.conceptSourceId!=='638'||source.version!==row.version||source.approved.id!==row.proposalId||source.approved.values.amountCents!==row.amountCents||!fixedCoverage(source.approved.values,list.periodMonth).intersects)fail();
+    seen.add(row.recordId);return {...row};
+  });
+  return freeze({...d,rows,format:{...d.format},effects:effects(d.effects)});
+}

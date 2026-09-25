@@ -4,10 +4,12 @@ const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_DEFINITIONS = new Set([
   'grh-calculo-pipe-utf8.v1',
   'grh-calculo-semicolon-windows1252.v1',
+  'junin-638-amaru-fixed55.v1',
 ]);
 const DEFINITION_CONTRACTS = Object.freeze({
   'grh-calculo-pipe-utf8.v1': Object.freeze({ format: 'pipe', encoding: 'utf-8' }),
   'grh-calculo-semicolon-windows1252.v1': Object.freeze({ format: 'pipe', encoding: 'windows-1252' }),
+  'junin-638-amaru-fixed55.v1': Object.freeze({ format: 'fixed_width', encoding: 'ascii' }),
 });
 const ALLOWED_STATUSES = new Set(['valid', 'has_rejections', 'invalid_structure']);
 const INTEGER_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });

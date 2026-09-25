@@ -454,3 +454,22 @@ test('sólo POST JSON same-origin puede alcanzar autenticación', async () => {
   assert.equal(noOrigin.statusCode, 403);
   assert.equal(authCalls, 0);
 });
+
+test('API acepta Formato Junin AMARU de 55 bytes y devuelve sólo agregado', async () => {
+  const line = Buffer.alloc(55, 0x20);
+  line.write('12345678', 5, 'ascii');
+  line.write('00002500.00', 44, 'ascii');
+  const handler = createInternalGrhSourcePreviewHandler(dependencies());
+  const res = response();
+  await handler(request({
+    definitionKey: 'junin-638-amaru-fixed55.v1',
+    contentBase64: line.toString('base64'),
+  }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.data.definitionKey, 'junin-638-amaru-fixed55.v1');
+  assert.equal(res.payload.data.format, 'fixed_width');
+  assert.equal(res.payload.data.encoding, 'ascii');
+  assert.equal(res.payload.data.recordCount, 1);
+  assert.equal(res.payload.data.acceptedCount, 1);
+  assert.equal(res.payload.includesRecordValues, false);
+});

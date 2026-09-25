@@ -1,6 +1,7 @@
 import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,
-  fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
+  fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
+import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {createEmployeePicker} from './employee-picker.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
@@ -19,7 +20,7 @@ function errorMessage(error){
     SNAPSHOT_CHANGED:'Cambió el resultado consultado. Actualizá la consulta antes de exportar.',SESSION_BUSY:'Hay otra operación en curso. Reintentá con los mismos datos.',
     NOT_FOUND:'No se encontró el registro o legajo solicitado.',ROW_LIMIT:'El resultado supera el límite permitido. No se muestra una lista parcial.',CAPACITY_LIMIT:'No hay capacidad disponible para guardar. Los datos del formulario se conservan.',
     LEGACY_RECONCILIATION_REQUIRED:'Hay novedades fijas de un registro anterior pendientes de conciliar. No se guardaron cambios. Hace falta conciliar ese registro antes de continuar.',
-    INVALID_PAYLOAD:'Revisá los datos informados. La propuesta se conserva.',DATES_INVALID:'Revisá las fechas de alta y vencimiento.'};
+    INVALID_PAYLOAD:'Revisá los datos informados. La propuesta se conserva.',DATES_INVALID:'Revisá las fechas de alta y vencimiento.',JUNIN638_DNI_REQUIRED:'El TXT 638 requiere DNI válido de 5 a 8 dígitos. Revisá los legajos observados.',JUNIN638_AMOUNT_REQUIRED:'El TXT 638 requiere un importe válido, no negativo y dentro del ancho del archivo receptor.'};
   const suffix=String(error.code||'').replace(/^PAYROLL_FIXED_/,'');
   return messages[suffix]||(error.name==='AbortError'||error.name==='TimeoutError'?'La consulta demoró demasiado. Reintentá.':error.status?'No se pudo completar la operación. Tus datos se conservan.':error instanceof TypeError?'No se pudo conectar. Tus datos se conservan.':error.message||'No se pudo completar la operación.');
 }
@@ -44,6 +45,7 @@ export function mountFixedNovelties(shell){
   if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestedContract||''))requestedContract=null;
   else requestedContract=requestedContract.toLowerCase();
   const selected=()=>fixedView(data,{search:$('[data-fn-search]').value,status:$('[data-fn-filter]').value});
+  const has638=()=>Boolean(data?.periodMonth&&data.rows.some(r=>r.identityCurrent&&r.approved?.operation==='set'&&r.approved.values.conceptSourceId==='638'&&fixedCoverage(r.approved.values,data.periodMonth).intersects));
   function status(text){if(mounted)$('[data-fn-status]').textContent=text;}
   function clearConsulted(){
     bootstrap=null;data=null;detail=null;
@@ -61,6 +63,7 @@ export function mountFixedNovelties(shell){
     host.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=busy||externalBusy);
     $('[data-fn-new]').hidden=!allowedPrepare();$('[data-fn-new]').disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt);
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!data?.periodMonth||!data.rows.length;
+    $('[data-fn-junin638]').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!has638();
     $('[data-fn-refresh]').disabled=busy||externalBusy;
     $('[data-fn-previous]').disabled=busy||externalBusy||page<=1;
     $('[data-fn-next]').disabled=busy||externalBusy||!data||page*20>=selected().rows.length;
@@ -293,14 +296,25 @@ export function mountFixedNovelties(shell){
       }catch(error){data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';throw error;}
     });
   }
+  async function exportJunin638(){
+    if(editor||!data?.periodMonth||!can('payroll.novelty.export')||!has638())return;const original=data;
+    await operation(async live=>{status('Verificando identidad, versión e importes del TXT 638 AMARU…');
+      try{const snapshot=fixedJunin638Data(await request({resource:'junin638',periodMonth:original.periodMonth,snapshotToken:original.snapshotToken}),original);
+        if(!live()||data!==original)return;
+        if(!snapshot.rows.length){status('No hay versiones aprobadas del concepto 638 vigentes en este período.');return;}
+        const bytes=junin638Txt(snapshot);save(bytes,junin638Filename(),'text/plain');
+        status('amaru.txt generado: '+snapshot.rows.length+' registros · Formato Junín · DNI pos. 5/8 · importe pos. 44/11 · 55 bytes. No liquida ni importa a GRH.');
+      }catch(error){throw error;}
+    });
+  }
   function mount(){
     if(mounted)return;mounted=true;
-    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Para exportar elegí un período: se incluyen sólo versiones aprobadas vigentes del filtro completo.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button></div><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
+    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Para exportar elegí un período: se incluyen sólo versiones aprobadas vigentes del filtro completo.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638>Descargar TXT 638 · AMARU</button></div><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
     $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
     for(const key of ['search','filter'])$('[data-fn-'+key+']').addEventListener('input',()=>{if(data&&!busy&&!editor){page=1;renderList();}});
     $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
-    for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));controls();
+    for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }
   shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
   function acceptDirectoryGate(detail){directoryAllowed=new Set(detail?.tenantCapabilities||[]).has('workforce.employee.read');if(!directoryAllowed)picker?.close();controls();}
