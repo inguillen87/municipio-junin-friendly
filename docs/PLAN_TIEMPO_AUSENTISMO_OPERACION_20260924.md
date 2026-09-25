@@ -165,3 +165,10 @@ No se modificó Neon, no se aplicó 075 en producción, no se instaló 106 ni se
 Se completó el ensayo real con rollback y la carga confirmada de 3.260 diferencias en las estructuras privadas 106, con los diez dominios sellados. La repetición devolvió el mismo staging sin insertar nuevamente. La lectura posterior confirmó privacidad y preservación de la selección activa. No permanece pendiente «instalar/cargar 106» para este candidato; sí permanecen revisión nativa, mapeo canónico y selección explícita.
 
 El candidato del 22/09 está preparado, no operativo: sigue seleccionado el corte del 10/09. Los comprobantes mantienen `nativeReviewRequired=true` y `sourcePromoted=false`. El margen medido después de cargar no se toma como autorización para nuevas importaciones ni crecimiento ilimitado. La autonomía G-AUT-01 y el expediente de proveedores diferido no cambian de estado por esta entrega.
+
+
+## D1.6.A · dependencias estructurales nativas
+
+`CONTINUIDAD_NATIVA_CATALOGO_20260925.md` documenta 13 tablas principales más 14 dependientes: 27 tablas y 23 relaciones internas declaradas, incluidas 16 claves compuestas. El analizador reconoce dos tablas que heredan tenant/binding del lote y detecta ampliaciones o pérdidas del inventario revisado.
+
+Se cierra exclusivamente la cobertura de esquema. La lectura nueva de registros fue bloqueada por la herramienta y no se ejecutó; D1.6.B mantiene pendientes contenido, referencias canónicas e impacto del candidato. El staging instalado en D1.5 no se recargó ni se promovió por este control. La autonomía y el expediente de proveedores diferido mantienen sus condiciones.

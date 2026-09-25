@@ -24,6 +24,8 @@ on:
       - 'tests/successor-stage-transaction-lifecycle.test.js'
       - 'tests/fixtures/successor-loader-postgres.js'
       - 'tests/fixtures/grh-*'
+      - 'tests/fixtures/native-continuity-catalog.js'
+      - 'scripts/verify-native-catalog-postgres.mjs'
       - 'scripts/generate-friendly-source-aggregate.mjs'
       - 'tests/friendly-source-aggregate.test.js'
       - 'friendly-data.json'
@@ -125,6 +127,12 @@ jobs:
           docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres index_capacity_qa
           node scripts/verify-grh-index-capacity-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/index-capacity.sql
           docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres --dbname=index_capacity_qa -v ON_ERROR_STOP=1 < verification/index-capacity.sql 2>&1 | tee verification/index-capacity.log
+      - name: Native dependency catalog, metadata-only isolated checks
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres native_catalog_qa
+          node scripts/verify-native-catalog-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/native-catalog.sql
+          docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres --dbname=native_catalog_qa -v ON_ERROR_STOP=1 < verification/native-catalog.sql 2>&1 | tee verification/native-catalog.log
       - name: Transactional successor loader, synthetic database only
         run: |
           set -euo pipefail
