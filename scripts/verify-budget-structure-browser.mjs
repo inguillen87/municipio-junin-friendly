@@ -19,7 +19,7 @@ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CH
 try{
  const page=await browser.newPage({acceptDownloads:true,viewport:{width:1180,height:850}});page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
  const origin='http://127.0.0.1:'+server.address().port;await page.goto(origin);const input=page.getByLabel('Reporte PDF de estructura',{exact:true});
- await input.waitFor();await page.getByRole('link',{name:'Abrir detalle nominal de cargos'}).click();assert.equal(new URL(page.url()).hash,'#estructura-presupuestaria');assert.equal(await page.locator('#estructura-presupuestaria').count(),1);checks.push('La entrada nominal de la página real conduce al módulo documental existente, no a las agregaciones.');
+ await input.waitFor();const linkTarget=new URL(await page.getByRole('link',{name:'Abrir detalle nominal de cargos'}).getAttribute('href'),origin);assert.equal(linkTarget.pathname,'/reportes');assert.equal(linkTarget.hash,'#estructura-presupuestaria');checks.push('La entrada nominal usa la página de reportes y su sección documental, no un ancla local de la vista agregada.');
  await page.locator('.structure-task').screenshot({path:out+'/nominal-entry-desktop.png'});
  const upload=()=>input.setInputFiles({name:'synthetic-structure.pdf',mimeType:'application/pdf',buffer:syntheticStructurePdf()});
  const ready=()=>page.getByRole('status').filter({hasText:'Reporte leído completo'}).waitFor();

@@ -44,3 +44,11 @@ Las capturas refuerzan estas prioridades por encima de mejoras accesorias. El ca
 Pasaron **19 pruebas unitarias nuevas** y las seis regresiones del modelo de fuente. El build local terminó con **5.341 aprobadas, cero fallos y dos omitidas**. La aceptación visual pasó **10 recorridos de ficha** y **12 de estructura documental**, con APIs y PDF sintéticos. Se revisaron las capturas de escritorio y 390 píxeles; la prueba documental conserva nombres y legajos sintéticos en el PDF detallado y los omite en el simple.
 
 Estas pruebas no son una sesión real de Noelia. Los resultados del CI, la paridad de archivos publicados y el commit final se registran al cerrar el despliegue. No hubo escrituras de negocio, modificaciones salariales, cambios de permisos ni promoción de fuentes en esta entrega.
+
+## Cierre de navegación entre módulos
+
+La entrada de Estructura apunta a **Centro de reportes → Estructura de cargos**, mediante la ruta canónica `/reportes#estructura-presupuestaria`; no a un ancla inexistente en la página agregada. La revisión final corrigió esa ruta y amplió la prueba: extrae el enlace del HTML construido, resuelve la página real y abre el módulo documental dentro del Centro de reportes.
+
+La aceptación integrada del Centro de reportes pasó **22 recorridos**, incluida la entrada nominal, denegación sin las dos capacidades de lectura, apertura de un PDF sintético con su worker real y conservación del detalle al cambiar de pestaña. La prueba aislada del documento conserva sus **12 controles**; ya no se utiliza su montaje aislado para acreditar una navegación entre páginas.
+
+Este ajuste de ruta se publica en un commit posterior, sin reescribir el commit anterior. La versión final y su CI se acreditan con el despliegue exacto. No cambia el alcance pendiente de ocupación nominal persistente, presupuesto anual, permisos ni liquidación.
