@@ -181,3 +181,12 @@ Se cierra exclusivamente la cobertura de esquema. La lectura nueva de registros 
 El incremento pendiente `0cf5b2c` se retomó y corrigió antes de liberarlo: el script de navegador ya ejecutó los recorridos de CSV, PDF y móvil. La revisión visual y los resultados del commit final acompañan la publicación. No se usa una prueba unitaria como sustituto de esa aceptación.
 
 Este cierre es informativo: no cambia haberes, justificaciones, relojes ni la promoción del respaldo. D1.6.B y G-AUT-01 siguen abiertos; EXP-PROV-01 permanece diferido.
+
+
+## Feedback operativo de Noelia · ficha y cargos · 26/09
+
+`NOELIA_FEEDBACK_FUNCIONAL_20260926.md` conserva los seis reclamos de las capturas y sus criterios de cierre. Se implementa el tiempo desde el ingreso en años/meses, separado de los valores del padrón, y una entrada visible al detalle documental de cargos. Se conserva el menú rápido validado por Noelia.
+
+El bloqueo de hijos/certificados y parámetros no se marca resuelto: se verificó configuración de funciones incompatibles y una traducción de error que puede confundirla con sesión inválida. El cambio de autorización fue bloqueado por la herramienta y no se aplicó. Continúan como prioritarios ese acceso, el TXT real de concepto 638, la estructura nominal gobernada del módulo 10 y el circuito completo del módulo 7. No reemplazar estos cierres con nuevas pantallas de diagnóstico ni con botones sin operación real.
+
+Esta entrega no cambia la fuente activa, el staging del 22/09 ni la condición de autonomía. El circuito de proveedores sigue diferido.

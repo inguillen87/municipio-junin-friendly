@@ -35,9 +35,9 @@ const contractId = '10000000-0000-4000-8000-000000000001';
 const batchId = '20000000-0000-4000-8000-000000000002';
 const otherId = '30000000-0000-4000-8000-000000000003';
 const row = { recordOrigin: 'GRH', contractId, canonicalPersonId: otherId, companyId: 7, legajo: '900001', nombre: 'AGENTE SINTÉTICO QA', activo: true, liquidable: false, administrativeStatus: 'active', payrollStatus: 'not_liquidated', controlState: 'activo_no_incluido', crosswalkStatus: 'not_loaded' };
-let years = 8, months = 7, native = false, foreignCutoff = false, deny = false;
+let years = 8, months = 7, native = false, foreignCutoff = false, deny = false, hireDate = '1999-01-02', terminationDate = null;
 const requests = [], errors = [], checks = [];
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.CLOCK_BROWSER_CHANNEL ? { channel: process.env.CLOCK_BROWSER_CHANNEL } : {}) });
 fs.mkdirSync(out, { recursive: true });
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, serviceWorkers: 'block' });
@@ -59,7 +59,7 @@ try {
     let payload = { ok: true, data: [] };
     if (url.pathname === '/api/internal-auth') payload = { ok: true, authenticated: true, user: { name: 'Operador QA', email: 'qa@example.invalid', role: 'ADMIN_INTERNO' }, access: { tenantCapabilities: ['workforce.employee.read', 'workforce.summary.read'], platformCapabilities: [], platformRoles: [] } };
     else if (url.searchParams.get('resource') === 'employees') payload = { ok: true, data: [row], pagination: { page: 1, limit: 25, total: 1, pages: 1 }, facets: { sectors: [], organizations: [], agreements: [] } };
-    else if (url.searchParams.get('resource') === 'employee') payload = { ok: true, data: { ...row, recordOrigin: native ? 'MUNICONTROL' : 'GRH', contractSourceBatchId: batchId, fechaIngreso: '1999-01-02', rawFields: { employment: { seniorityYears: years, seniorityMonths: months } }, sourceReferences: [{ sourceSystem: 'GRH', sourceEntity: 'legajo', canonicalEntity: 'employment_contract', canonicalId: foreignCutoff ? otherId : contractId, sourceBatchId: batchId, validFrom: '2026-09-10T18:17:30.000Z' }], personas: { available: false }, employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [] }, meta: {} };
+    else if (url.searchParams.get('resource') === 'employee') payload = { ok: true, data: { ...row, recordOrigin: native ? 'MUNICONTROL' : 'GRH', contractSourceBatchId: batchId, fechaIngreso: hireDate, fechaEgreso: terminationDate, rawFields: { employment: { seniorityYears: years, seniorityMonths: months } }, sourceReferences: [{ sourceSystem: 'GRH', sourceEntity: 'legajo', canonicalEntity: 'employment_contract', canonicalId: foreignCutoff ? otherId : contractId, sourceBatchId: batchId, validFrom: '2026-09-10T18:17:30.000Z' }], personas: { available: false }, employmentHistory: [], ausencias: [], licencias: [], familiares: [], movements: [] }, meta: {} };
     return route.fulfill({ status: 200, json: payload });
     } catch (error) { routeFailures.push(error.message); await route.abort().catch(() => {}); }
   });
@@ -80,6 +80,17 @@ try {
   await page.locator('#employeeSourceSeniority').screenshot({ path: path.join(out, 'desktop.png') });
   await close(); years = 0; months = 0; await open();
   assert.equal(await field('Años informados').innerText(), '0'); assert.equal(await field('Meses informados').innerText(), '0'); checks.push('reported zero remains visible');
+  await close(); hireDate = '2013-07-01'; await open();
+  assert.equal(await page.locator('[data-elapsed-service]').innerText(), '13 años y 2 meses');
+  assert.equal(await field('Años informados').innerText(), '0');
+  assert.match(await page.locator('.employee-elapsed-service').innerText(), /Difiere.*no antigüedad reconocida/s);
+  await page.locator('#employeeSourceSeniority').screenshot({path:path.join(out,'elapsed-desktop.png')});
+  checks.push('Caso informado: 13 años y 2 meses calculados al corte, con cero fuente conservado y sin impacto salarial.');
+  await close(); terminationDate = '2016-09-30'; await open();
+  assert.equal(await page.locator('[data-elapsed-service]').innerText(), '3 años y 2 meses');
+  assert.match(await page.locator('.employee-elapsed-service').innerText(), /hasta el egreso/);
+  checks.push('Egreso informado detiene el tiempo del vínculo sin seguir acumulando años.');
+  terminationDate = null;
   await close(); years = null; months = undefined; await open();
   assert.equal(await field('Años informados').innerText(), 'No informado'); assert.equal(await field('Meses informados').innerText(), 'No informado'); checks.push('missing components are not zero');
   await close(); years = 2; months = 14; await open();
@@ -91,7 +102,7 @@ try {
   assert.ok(await page.locator('#employeeSourceSeniority').evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   await page.screenshot({ path: path.join(out, 'mobile.png') }); checks.push('mobile section navigation, fields and review copy fit without horizontal overflow');
-  await close(); foreignCutoff = true; await open(); assert.equal(await field('Corte de estos datos').innerText(), 'No disponible'); checks.push('unrelated contract cutoff is not shown');
+  await close(); foreignCutoff = true; await open(); assert.equal(await field('Corte de estos datos').innerText(), 'No disponible'); assert.match(await page.locator('[data-elapsed-service]').innerText(), /No calculable/); checks.push('unrelated contract cutoff is not shown');
   await close(); native = true;
   await page.locator('#employeeRows button').first().click(); await page.getByRole('heading', { name: 'Registro del alta', exact: true }).waitFor();
   assert.equal(await page.locator('#employeeSourceSeniority').count(), 0); checks.push('native record does not acquire GRH seniority');

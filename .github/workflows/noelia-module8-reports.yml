@@ -6,6 +6,13 @@ on:
       - 'assets/payroll-source-report*'
       - 'assets/payroll-monthly-summary*'
       - 'assets/employee-source-seniority-model.js'
+      - 'assets/employee-elapsed-service.js'
+      - 'assets/employee-elapsed-service.css'
+      - 'tests/employee-elapsed-service.test.js'
+      - 'assets/structure-task-entry.css'
+      - 'estructura.html'
+      - 'scripts/verify-budget-structure-browser.mjs'
+      - 'scripts/verify-noelia-feedback-publication.mjs'
       - 'internal-dashboard.html'
       - 'scripts/build-friendly.mjs'
       - 'scripts/verify-source-report-filters-browser.mjs'
@@ -43,6 +50,7 @@ jobs:
         run: |
           node scripts/verify-source-report-filters-browser.mjs
           node scripts/verify-employee-source-seniority-browser.mjs
+          node scripts/verify-budget-structure-browser.mjs
           node scripts/verify-salary-cost-browser.mjs
           node scripts/verify-payroll-monthly-summary-browser.mjs
           node scripts/verify-workforce-operations-browser.mjs
@@ -53,6 +61,7 @@ jobs:
           node scripts/verify-noelia-module8-production.mjs
           node scripts/verify-source-report-filters-browser.mjs --published
           node scripts/verify-employee-source-seniority-browser.mjs --published
+          node scripts/verify-noelia-feedback-publication.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -63,4 +72,6 @@ jobs:
             verification/employee-source-seniority/**
             verification/employee-source-seniority-published/**
             verification/noelia-module8-production.json
+            verification/noelia-feedback/**
+            verification/budget-structure/**
           retention-days: 7

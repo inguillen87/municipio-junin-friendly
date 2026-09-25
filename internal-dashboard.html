@@ -1156,6 +1156,7 @@
 <link rel="stylesheet" href="assets/payroll-history-055.css">
 <link rel="stylesheet" href="assets/legal-registry-entry-card.css">
 <link rel="stylesheet" href="assets/internal-work-today-sections.css">
+  <link rel="stylesheet" href="assets/employee-elapsed-service.css">
 </head>
 <body data-mc-page="portal">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -2796,10 +2797,15 @@
           let sourceSeniority = null;
           if (detail.employee.recordOrigin === 'GRH') {
             try {
-              const module = await import('./assets/employee-source-seniority-model.js');
+              const [module, elapsedModule] = await Promise.all([import('./assets/employee-source-seniority-model.js'), import('./assets/employee-elapsed-service.js')]);
               const model = module.createEmployeeSourceSeniorityModel(detail.employee, detail.sourceReferences);
+              const elapsed = elapsedModule.elapsedServiceAtCutoff(model, { terminationDate: detail.employee.fechaEgreso });
               sourceSeniority = {
                 ...model,
+                elapsed,
+                elapsedLabel: elapsedModule.elapsedServiceLabel(elapsed),
+                elapsedNote: elapsedModule.elapsedServiceNote(model, elapsed),
+                elapsedComparison: elapsedModule.compareServiceSource(model, elapsed),
                 yearsLabel: module.sourceSeniorityComponentLabel(model.years),
                 monthsLabel: module.sourceSeniorityComponentLabel(model.months),
                 cutoffLabel: module.sourceSeniorityCutoffLabel(model.sourceCutoff)
@@ -3746,7 +3752,7 @@
         if (sourceSeniority) {
           const section = sourceSeniority.unavailable
             ? detailSection('Antigüedad informada por GRH al corte', 'No se pudo mostrar esta sección. Volvé a abrir la ficha para reintentar.', [], 'unavailable')
-            : detailSection('Antigüedad informada por GRH al corte', 'Valores del padrón, sin recalcular. No indican la antigüedad aplicada a cada liquidación mensual.', [
+            : detailSection('Antigüedad informada por GRH al corte', 'Tiempo desde el ingreso y valores del padrón, por separado. No indican la antigüedad aplicada a cada liquidación mensual.', [
               detailField('Años informados', sourceSeniority.yearsLabel, null, sourceSeniority.years.status === 'reported' ? 'source' : 'unavailable'),
               detailField('Meses informados', sourceSeniority.monthsLabel, null, sourceSeniority.months.status === 'reported' ? 'source' : 'unavailable'),
               detailField('Fecha de ingreso', sourceSeniority.hireDate, formatDate),
@@ -3754,6 +3760,19 @@
               detailField('Corte de estos datos', sourceSeniority.cutoffLabel, null, sourceSeniority.sourceCutoff ? 'source' : 'unavailable')
             ]);
           section.id = 'employeeSourceSeniority';
+          if (!sourceSeniority.unavailable) {
+            const elapsed = create('section', 'employee-elapsed-service');
+            elapsed.setAttribute('aria-label', 'Tiempo calendario desde el ingreso');
+            elapsed.appendChild(create('h4', '', 'Tiempo desde el ingreso'));
+            const value = create('p', 'employee-elapsed-value', sourceSeniority.elapsedLabel);
+            value.dataset.elapsedService = ''; elapsed.appendChild(value);
+            elapsed.appendChild(create('p', 'muted', sourceSeniority.elapsedNote));
+            if (sourceSeniority.elapsed.status === 'available') {
+              elapsed.appendChild(create('p', 'employee-elapsed-dates', 'Desde ' + formatDate(sourceSeniority.elapsed.from) + ' hasta ' + formatDate(sourceSeniority.elapsed.to)));
+            }
+            elapsed.dataset.comparison = sourceSeniority.elapsedComparison;
+            section.insertBefore(elapsed, section.querySelector('.detail-fields'));
+          }
           if (!sourceSeniority.unavailable && (sourceSeniority.years.status === 'invalid' || sourceSeniority.months.status === 'invalid')) {
             section.appendChild(create('p', 'notice warning', 'Hay un valor de origen que requiere revisión. Se esperan años enteros no negativos y meses de 0 a 11; no se corrigieron ni se convirtieron meses en años.'));
           }
