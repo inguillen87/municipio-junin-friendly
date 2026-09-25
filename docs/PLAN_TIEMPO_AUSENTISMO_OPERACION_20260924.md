@@ -149,3 +149,10 @@ Persisten incorporación de fuentes, respaldo sucesor, resolución administrativ
 `SUCCESSOR_TRANSACTIONAL_LOADER_20260925.md` conecta el paquete verificado con la migración 106: transacción única, comparación renovada, carga por lotes, sello de diez dominios, repetición verificable, rollback explícito y resultado incierto si no llega la confirmación de COMMIT. No selecciona la fuente ni modifica trabajo municipal.
 
 La lectura agregada del destino observó 19.015625 MiB disponibles después de la reserva configurada, frente a los 24 MiB requeridos por el cargador. La instalación/carga real queda bloqueada; no se cambia la reserva ni el plan comercial para forzarla. El cierre operativo mantiene capacidad/restauración, preparación en el destino adecuado y selección sucesora explícita como pasos separados. El ensayo PostgreSQL usa datos sintéticos y no sustituye una restauración municipal. EXP-PROV-01 continúa diferido hasta G-AUT-01.
+
+
+## D1.4 · restauración real de la base actual
+
+`RESTORACION_ACTUAL_VERIFICADA_20260925.md` acredita un archivo consistente y la recuperación aislada de 176 tablas, 447 funciones/procedimientos, 28 vistas, 431 índices y 14 secuencias. Se conservan todas las filas y se discriminan dos ajustes locales de restauración y 92 diferencias de representación SQL bajo reglas acotadas y probadas, sin ocultar huellas originales.
+
+No se modificó Neon, no se aplicó 075 en producción, no se instaló 106 ni se seleccionó el 22/09. La comprobación del presupuesto de capacidad sigue siendo independiente y no debe sortearse por haber restaurado el archivo. Se mantiene la prioridad de autonomía, dependencias nativas y consumo de una fuente única; proveedores permanece diferido hasta G-AUT-01.

@@ -113,6 +113,12 @@ jobs:
           docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres successor_stage_qa
           node scripts/verify-grh-successor-staging-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/successor-staging.sql
           docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=successor_stage_qa -v ON_ERROR_STOP=1 < verification/successor-staging.sql | tee verification/successor-staging.log
+      - name: Restoration expression equivalence and full-row fingerprints
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres restoration_expression_qa
+          node scripts/verify-grh-restoration-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/restoration-expression.sql
+          docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres --dbname=restoration_expression_qa -v ON_ERROR_STOP=1 < verification/restoration-expression.sql | tee verification/restoration-expression.log
       - name: Transactional successor loader, synthetic database only
         run: |
           set -euo pipefail
