@@ -21,11 +21,11 @@ export function openAbsencePerson(detail){
  const button=(parent,text,action)=>{
   const b=make('button',text);b.type='button';b.addEventListener('click',action);parent.append(b);return b;
  };
- let generation=0,controller=null,model=null,page=1,busy=false,closed=false;
+ let generation=0,controller=null,model=null,page=1,busy=false,closed=false,reportView=null,preparedReport=null;
  let scope={resource:'absenceperson',contractId:detail.contractId,from:detail.from,to:detail.to,snapshot:detail.snapshot??null,limit:25};
  function stop(){generation++;controller?.abort();controller=null;busy=false;}
  function close(){
-  if(closed)return;closed=true;stop();model=null;
+  if(closed)return;closed=true;stop();hideReport();model=null;
   document.removeEventListener('visibilitychange',onVisibility);
   window.removeEventListener('pagehide',close);
   document.removeEventListener('mc:absence-cleared',close);
@@ -34,7 +34,7 @@ export function openAbsencePerson(detail){
  }
  function onVisibility(){if(document.hidden)close();}
  button(header,'Cerrar historial',close);
- dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+ dialog.addEventListener('cancel',event=>{event.preventDefault();if(reportView){stop();hideReport();controls();}else close();});
  dialog.addEventListener('close',close);
  const selectionNote=make('p','Todos los motivos del vínculo. Incluye eventos cuya fecha inicial está dentro del período; no hereda la búsqueda ni el motivo del listado.','ap-note');selectionNote.dataset.absenceSelectionNote='';dialog.append(selectionNote);
  const form=make('form',undefined,'ap-controls');dialog.append(form);
@@ -57,12 +57,20 @@ export function openAbsencePerson(detail){
   stop();model=null;results.replaceChildren();status.textContent='Consulta cancelada. No se conservó un resultado parcial.';controls();
  });
  const results=make('section',undefined,'ap-results');dialog.append(results);
+ const exports=make('section',undefined,'ap-export-bar');exports.setAttribute('aria-label','Informe completo del agente');dialog.append(exports);
+ const exportCsv=button(exports,'Descargar CSV completo',()=>prepareReport('csv'));
+ const exportPrint=button(exports,'Vista imprimible',()=>prepareReport('print'));
+ const exportHelp=make('p','Incluye todos los eventos del filtro; se verifican fuente y permisos antes de emitir.');exports.append(exportHelp);
  function controls(){
   dialog.setAttribute('aria-busy',String(busy));apply.disabled=original.disabled=from.disabled=to.disabled=mode.disabled=busy;
   cancel.hidden=!busy;retry.hidden=busy||model!==null;
+  const draft=scope&&(from.value!==scope.from||to.value!==scope.to||(mode.value!==(scope.rangeMode??'starts')));
+  exports.hidden=!model||!scope;exportCsv.disabled=exportPrint.disabled=busy||!model||!!draft;
+  exportHelp.textContent=draft?'Aplicá las fechas editadas para emitir el informe de ese período.':'Incluye todos los eventos del filtro; se verifican fuente y permisos antes de emitir.';
+  for(const b of results.querySelectorAll('button'))b.disabled=busy||(b.textContent==='Eventos anteriores'?page<=1:page>=model?.pagination.pages);
  }
  function fail(error){
-  model=null;results.replaceChildren();page=1;
+  hideReport();model=null;results.replaceChildren();page=1;
   if([401,403].includes(error.status)){
    scope=null;form.hidden=true;actions.hidden=true;
    title.textContent='Acceso al historial no disponible';
@@ -73,7 +81,7 @@ export function openAbsencePerson(detail){
   }
  }
  async function load(){
-  if(busy||closed||!scope)return;stop();const token=generation,c=new AbortController();controller=c;busy=true;
+  if(busy||closed||!scope)return;hideReport();stop();const token=generation,c=new AbortController();controller=c;busy=true;
   model=null;results.replaceChildren();status.textContent='Consultando el período completo del vínculo…';controls();
   try{
    const data=await readAbsencePerson({...scope,page},c.signal);
@@ -83,6 +91,37 @@ export function openAbsencePerson(detail){
   }catch(error){if(token===generation&&!closed)fail(error);}
   finally{if(token===generation&&!closed){busy=false;controller=null;controls();}}
  }
+ function hideReport(){const wasOpen=!!reportView;reportView?.dispose();reportView=null;preparedReport=null;if(wasOpen&&!closed&&exportPrint?.isConnected)exportPrint.focus();}
+ async function prepareReport(kind){
+  if(busy||closed||!model||!scope||from.value!==scope.from||to.value!==scope.to||mode.value!==(scope.rangeMode??'starts'))return;
+  hideReport();stop();const token=generation,c=new AbortController(),shown=model;controller=c;busy=true;controls();
+  status.textContent='Preparando informe completo: verificando todas las páginas…';
+  try{
+   const reports=await import('./absence-person-report.js');
+   if(token!==generation||closed)return;
+   const report=await reports.collectAbsenceReport(shown,{signal:AbortSignal.any([c.signal,AbortSignal.timeout(90000)]),onProgress:p=>{if(token===generation&&!closed)status.textContent='Preparando '+p.received+' de '+p.total+' eventos. Todavía no se descargó ningún archivo.';}});
+   if(token!==generation||closed)return;
+   if(kind==='csv'){
+    const objectUrl=URL.createObjectURL(new Blob([reports.absenceReportCsv(report)],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=objectUrl;link.download=reports.absenceReportFilename(report);link.hidden=true;dialog.append(link);
+    try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);}
+    status.textContent='CSV completo preparado: '+report.events.length+' eventos. Se conservó la página del historial.';
+   }else{
+    const view=await import('./absence-person-report-view.js');if(token!==generation||closed)return;
+    preparedReport=report;reportView=view.showAbsenceReport(dialog,report,{onBack:()=>{hideReport();controls();},onPrint:printReport,onCancel:()=>{stop();hideReport();status.textContent='Verificación cancelada. No se abrió la impresión.';controls();}});
+   }
+  }catch(error){if(token===generation&&!closed){if(error.code==='ABSENCE_REPORT_TOO_LARGE')status.textContent='El informe admite hasta 5.000 eventos. Acotá el período; no se descargó un archivo parcial.';else fail(error);}}
+  finally{if(token===generation&&!closed){busy=false;controller=null;controls();}}
+ }
+ async function printReport(){
+  if(busy||closed||!preparedReport||!reportView)return;stop();const token=generation,c=new AbortController();controller=c;busy=true;reportView.setBusy(true);controls();
+  reportView.status.textContent='Verificando de nuevo el acceso y la fuente antes de imprimir…';
+  try{const reports=await import('./absence-person-report.js');await reports.recheckAbsenceReport(preparedReport,{signal:c.signal});
+   if(token!==generation||closed)return;reportView.status.textContent='Verificación completada. Elegí la impresora o Guardar como PDF en el diálogo del navegador.';reportView.print();
+  }catch(error){if(token===generation&&!closed)fail(error);}
+  finally{if(token===generation&&!closed){busy=false;controller=null;reportView?.setBusy(false);controls();}}
+ }
+
  function render(data){
   results.replaceChildren();
   const overlaps=data.rangeMode==='overlaps';
@@ -121,6 +160,7 @@ export function openAbsencePerson(detail){
   }
   scope={...scope,from:from.value,to:to.value,rangeMode:mode.value==='overlaps'?'overlaps':undefined};page=1;load();
  });
+ from.addEventListener('input',controls);to.addEventListener('input',controls);
  mode.addEventListener('change',()=>{if(!busy&&scope){model=null;results.replaceChildren();status.textContent='Criterio cambiado: verificá las fechas para consultar.';controls();form.requestSubmit();}});
  document.addEventListener('visibilitychange',onVisibility);
  window.addEventListener('pagehide',close);

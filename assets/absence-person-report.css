@@ -1,0 +1,46 @@
+/* Informe completo: sólo se monta por pedido explícito. */
+.ap-export-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 0;border-top:1px solid #d4e3e6;margin-top:12px}.ap-export-bar p{flex-basis:100%;margin:0;color:#4c6876;font-size:13px}
+.ap-dialog[data-report-view]>:not(.ap-report-view){display:none}
+.ap-report-view{color:#153849;outline:none}.ap-report-toolbar{display:flex;gap:10px;flex-wrap:wrap;position:sticky;top:-1px;background:white;padding:12px 0;z-index:1;border-bottom:1px solid #d9e5e7}
+.ap-report-status,.ap-report-note{color:#526d7a;font-size:13px;line-height:1.6}
+.ap-report-heading{display:block!important;border-bottom:3px solid #167b75;padding:18px 0 14px!important;margin-bottom:18px}
+.ap-report-brand{color:#15776c;text-transform:uppercase;font-size:12px;letter-spacing:.06em;font-weight:700;margin:0 0 10px}.ap-report-heading h2{font-size:27px!important;margin:0 0 10px!important}.ap-report-person{font-size:17px;margin:0}
+.ap-report-metadata{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 28px;margin:18px 0}.ap-report-metadata dt{font-size:12px;color:#587280}.ap-report-metadata dd{margin:4px 0 0;font-weight:600;overflow-wrap:anywhere}
+.ap-report-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.ap-report-metrics>div{padding:15px;border:1px solid #cfdee1;border-radius:8px;background:#f3f8f8}.ap-report-metrics strong{display:block;font-size:26px}.ap-report-metrics span{display:block;font-size:12px;margin-top:5px}
+.ap-report-table-wrap{overflow:auto;margin:18px 0;border:1px solid #d2e0e4;border-radius:6px}.ap-report-table-wrap table{border-collapse:collapse;width:100%;min-width:700px}.ap-report-table-wrap th{background:#edf5f5;text-align:left;color:#1a4a59;font-size:12px;white-space:normal}.ap-report-table-wrap th,.ap-report-table-wrap td{padding:11px;border-bottom:1px solid #dde7e9;vertical-align:top}.ap-report-table-wrap td{font-size:13px}.ap-report-table-wrap td:nth-child(4){text-align:right;font-variant-numeric:tabular-nums}
+.ap-report-warning{padding:12px 14px;background:#fff6df;border-left:3px solid #a87728;font-size:13px}.ap-report-footer{border-top:1px solid #cadcde;margin-top:18px;padding-top:10px;line-height:1.6;font-size:12px;color:#4d6470}.ap-report-reference{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:10px}
+@media(max-width:650px){.ap-report-metadata{grid-template-columns:1fr}.ap-report-metrics{gap:8px}.ap-report-metrics>div{padding:10px}.ap-report-metrics strong{font-size:22px}.ap-report-toolbar button,.ap-export-bar button{flex:1 1 100%}}
+.ap-report-repeat{display:none}
+@media print{
+ @page absence-complete{size:A4 landscape;margin:12mm 13mm 16mm;
+  @bottom-left{content:'MuniControl · Consulta administrativa · Sin firma digital';font-family:Arial,sans-serif;font-size:8pt;color:#425d69}
+  @bottom-right{content:'Página ' counter(page) ' de ' counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#425d69}
+ }
+ body.ap-printing{page:absence-complete;margin:0!important;background:white!important}
+ body.ap-printing>*:not(#absencePersonDialog){display:none!important}
+ body.ap-printing #absencePersonDialog{page:absence-complete;position:static!important;inset:auto!important;display:block!important;min-height:0!important;max-height:none!important;height:auto!important;overflow:visible!important;max-width:none!important;width:100%!important;margin:0!important;padding:0!important;border:none!important;box-shadow:none!important;background:white!important;font-family:Arial,sans-serif!important}
+ body.ap-printing #absencePersonDialog::backdrop{display:none!important}
+ body.ap-printing #absencePersonDialog>:not(.ap-report-view){display:none!important}
+ body.ap-printing .ap-report-view{background:white!important;line-height:1.35}
+ body.ap-printing .ap-report-toolbar,body.ap-printing .ap-report-status{display:none!important}
+ body.ap-printing .ap-report-heading{padding:0 0 10px!important;margin:0 0 12px!important;break-inside:avoid;background:white!important}
+ body.ap-printing .ap-report-brand{font-size:8pt;margin:0 0 6px}.ap-report-heading h2{line-height:1.2}
+ body.ap-printing .ap-report-heading h2{font-size:18pt!important;margin:0 0 6px!important}
+ body.ap-printing .ap-report-person{font-size:11pt}
+ body.ap-printing .ap-report-metadata{font-size:9pt;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 16px;margin:12px 0}
+ body.ap-printing .ap-report-metadata dt{font-size:8pt}
+ body.ap-printing .ap-report-metrics{break-inside:avoid;margin:10px 0;gap:8px}
+ body.ap-printing .ap-report-metrics>div{padding:9px 11px;background:white;border-radius:3px}
+ body.ap-printing .ap-report-metrics strong{font-size:18pt}.ap-report-metrics span{line-height:1.3}
+ body.ap-printing .ap-report-note,body.ap-printing .ap-report-warning{font-size:8pt;line-height:1.4;margin:10px 0}
+ body.ap-printing .ap-report-warning{padding:8px 10px}
+ body.ap-printing .ap-report-table-wrap{overflow:visible!important;border:0!important;margin:12px 0 8px}
+ body.ap-printing .ap-report-table-wrap table{min-width:0!important;table-layout:fixed;break-after:avoid}
+ body.ap-printing .ap-report-table-wrap th,body.ap-printing .ap-report-table-wrap td{font-size:9pt;line-height:1.3;padding:6px;overflow-wrap:anywhere;background:white}
+ body.ap-printing .ap-report-table-wrap th{background:#edf5f5;letter-spacing:0;font-weight:700}
+ body.ap-printing .ap-report-repeat{display:table-row}body.ap-printing .ap-report-repeat th{font-size:8pt;background:white;font-weight:400;border-top:1px solid #91adb3}
+ body.ap-printing .ap-report-table-wrap tr{break-inside:avoid}body.ap-printing thead{display:table-header-group}
+ body.ap-printing .ap-report-footer{break-inside:avoid;break-before:avoid;font-size:8pt;line-height:1.4;margin-top:10px;padding-top:8px;background:white}body.ap-printing .ap-report-footer p{margin:4px 0}
+}
+
+@media print{html:has(body.ap-printing){background:white!important;min-height:0!important}}

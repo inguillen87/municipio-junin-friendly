@@ -11,7 +11,7 @@ const live=process.env.TIME_WORKSPACE_ORIGIN;if(live!==undefined)assert.equal(li
 const origin=live||'https://time-workspace.test',base=path.resolve('public'),out=path.resolve('verification/time-absence-workspace');fs.mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
 const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',serviceWorkers:'block'});
-const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null,overlapFixture=false;
+const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null,overlapFixture=false,reportReads=0,reportDeniedAt=0;
 await context.route('**/*',async route=>{
  const req=route.request(),url=new URL(req.url()),q=url.searchParams,resource=(q.get('resource')||'').toLowerCase();
  if(url.origin!==origin)return route.abort();
@@ -36,6 +36,7 @@ await context.route('**/*',async route=>{
   return send(eventsMode==='ok'?response:{ok:false,code:'SYNTHETIC_ERROR'},eventsMode==='denied'?403:eventsMode==='fail'?503:200);
  }
  if(resource==='absenceperson'){
+  reportReads++;if(reportDeniedAt&&reportReads===reportDeniedAt)return send({ok:false},403);
   if(historyMode==='delay')await new Promise(resolve=>historyRelease=resolve);
   if(historyMode==='denied')return send({ok:false},403);
   if(historyMode==='changed')return send({ok:false},409);
@@ -179,6 +180,49 @@ try{
  await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';overlapFixture=false;
  checks.push('Overlap access revocation clears the exact person and closing preserves the parent case and unfinished filter edits.');
 
+ await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ await modal.getByLabel('Historial desde').fill('2026-07-01');await modal.getByRole('button',{name:'Consultar período',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='61');
+ await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByText('Página 2 de 3 · 61 eventos',{exact:true}).waitFor();
+ await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByText('Página 3 de 3 · 61 eventos',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>performance.getEntriesByType('resource').filter(e=>/absence-person-report(?:-view)?\.js/.test(e.name)).length),0);
+ checks.push('Los módulos de informe no se descargan al consultar ni paginar el historial; se cargan al pedir la salida.');
+ const exportCalls=calls.filter(c=>c.resource==='absenceperson').length,analyticsAtExport=calls.filter(c=>c.resource==='absenceanalytics').length;let downloads=0;page.on('download',()=>downloads++);
+ const downloaded=page.waitForEvent('download');await modal.getByRole('button',{name:'Descargar CSV completo',exact:true}).click();const download=await downloaded;
+ await download.saveAs(path.join(out,'absence-complete-synthetic.csv'));const csv=fs.readFileSync(path.join(out,'absence-complete-synthetic.csv'),'utf8');
+ assert.equal(csv.charCodeAt(0),0xfeff);assert.equal(csv.trimEnd().split('\r\n').length,62);assert.match(csv,/2033-08-08/);assert.match(csv,/No informado/);
+ await modal.getByRole('status').filter({hasText:'CSV completo preparado: 61 eventos'}).waitFor();assert.equal(await modal.getByText('Página 3 de 3 · 61 eventos',{exact:true}).count(),1);
+ assert.equal(calls.filter(c=>c.resource==='absenceperson').length,exportCalls+3);assert.equal(calls.filter(c=>c.resource==='absenceanalytics').length,analyticsAtExport);
+ checks.push('CSV completo de 61 eventos desde la tercera página: dos lecturas de 50 y comprobación final, sin recargar analíticas ni cambiar la página.');
+ await modal.getByLabel('Historial hasta').fill('2026-09-30');assert.equal(await modal.getByRole('button',{name:'Descargar CSV completo'}).isDisabled(),true);assert.equal(await modal.getByRole('button',{name:'Vista imprimible'}).isDisabled(),true);
+ await modal.getByRole('button',{name:'Consultar período',exact:true}).click();await modal.locator('.ap-warning').waitFor();
+ await modal.getByRole('button',{name:'Vista imprimible',exact:true}).click();const preview=modal.getByRole('region',{name:'Informe completo de ausencias',exact:true});await preview.waitFor();
+ assert.equal(await preview.locator('[data-absence-report-rows] tr').count(),61);assert.match(await preview.innerText(),/sólo el rango disponible/);assert.match(await preview.innerText(),/Sin firma digital/);
+ await modal.evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(out,'absence-report-desktop.png')});
+ await page.evaluate(()=>{window.__printCount=0;window.print=()=>window.__printCount++;});
+ const beforePrint=calls.filter(c=>c.resource==='absenceperson').length;await preview.getByRole('button',{name:'Imprimir / guardar PDF',exact:true}).click();
+ await page.waitForFunction(()=>window.__printCount===1);assert.equal(calls.filter(c=>c.resource==='absenceperson').length,beforePrint+1);assert.equal(await page.evaluate(()=>document.body.classList.contains('ap-printing')),false);
+ checks.push('Vista imprimible con todos los eventos, fechas solicitadas/aplicadas y corte; imprimir exige otra verificación antes de abrir el diálogo.');
+ await page.evaluate(()=>document.body.classList.add('ap-printing'));
+ const pdfPath=path.join(out,'absence-complete-synthetic.pdf');await page.pdf({path:pdfPath,preferCSSPageSize:true,printBackground:true});await page.evaluate(()=>document.body.classList.remove('ap-printing'));
+ const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');const pdfTask=getDocument({data:new Uint8Array(fs.readFileSync(pdfPath)),useSystemFonts:true});const pdf=await pdfTask.promise;
+ let pdfText='';for(let p=1;p<=pdf.numPages;p++){const content=await (await pdf.getPage(p)).getTextContent();pdfText+=content.items.map(x=>x.str).join(' ')+'\n';}
+ assert.ok(pdf.numPages>=2&&pdf.numPages<=4);const paper=(await pdf.getPage(1)).getViewport({scale:1});assert.ok(paper.width>paper.height&&Math.abs(paper.width-841.89)<2&&Math.abs(paper.height-595.28)<2,'Report must use A4 landscape');assert.match(pdfText,/Página 1 de/);assert.match(pdfText,/Historial de ausencias/);assert.match(pdfText,/2033/);assert.match(pdfText,/Total: 61 eventos/);assert.doesNotMatch(pdfText,/Página 3 de 3|BUSCAR MÓDULO|borrador sin aplicar/);const verifiedPrintPageCount=pdf.numPages;await pdfTask.destroy();
+ checks.push('PDF de impresión renderizado y extraído: incluye el final de los 61 registros y excluye navegación, paginación y borradores.');
+ await page.setViewportSize({width:390,height:844});await modal.evaluate(node=>node.scrollTop=0);await page.screenshot({path:path.join(out,'absence-report-mobile.png')});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.keyboard.press('Escape');assert.equal(await preview.count(),0);assert.equal(await modal.count(),1);await page.setViewportSize({width:1440,height:1050});
+ assert.equal(await modal.getByLabel('Historial hasta').inputValue(),'2026-09-30');assert.equal(await page.locator('#eventSearch').inputValue(),'borrador sin aplicar');
+ checks.push('Escape vuelve del informe al historial sin perder fechas ni el borrador del listado; controles adaptados a 390 píxeles.');
+ historyMode='delay';const filesBeforeCancel=downloads;await modal.getByRole('button',{name:'Descargar CSV completo'}).click();await page.waitForTimeout(100);await modal.getByRole('button',{name:'Cancelar consulta',exact:true}).click();if(historyRelease)historyRelease();await page.waitForTimeout(100);assert.equal(downloads,filesBeforeCancel);assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);
+ historyMode='ok';await modal.getByRole('button',{name:'Reintentar historial'}).click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ reportReads=0;reportDeniedAt=3;await modal.getByRole('button',{name:'Descargar CSV completo'}).click();await modal.getByRole('status').filter({hasText:'permiso nominal'}).waitFor();assert.equal(downloads,filesBeforeCancel);assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);reportDeniedAt=0;
+ checks.push('Cancelar la recolección o perder permiso en la comprobación final impide descargar archivos parciales o ya no autorizados.');
+ await modal.getByRole('button',{name:'Cerrar historial'}).click();await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ await modal.getByRole('button',{name:'Vista imprimible'}).click();await preview.waitFor();const printsBefore=await page.evaluate(()=>window.__printCount);historyMode='denied';await preview.getByRole('button',{name:'Imprimir / guardar PDF'}).click();await modal.getByRole('status').filter({hasText:'permiso nominal'}).waitFor();
+ assert.equal(await preview.count(),0);assert.equal(await page.evaluate(()=>window.__printCount),printsBefore);assert.doesNotMatch(await modal.innerText(),/Agente de prueba repetido/);historyMode='ok';
+ await modal.getByRole('button',{name:'Cerrar historial'}).click();
+ checks.push('Una revocación entre vista previa e impresión retira el documento y no abre el diálogo de impresión.');
+
  const clock=await context.newPage();clock.on('pageerror',e=>errors.push(e.message));await clock.goto(origin+'/relojes-marcaciones.html');
  await clock.waitForFunction(()=>document.getElementById('clockOperations')?.dataset.state==='ready'&&document.getElementById('clockOperations').getAttribute('aria-busy')==='false');
  assert.equal(await clock.locator('#clockOverview').isVisible(),true);
@@ -217,13 +261,13 @@ assert.equal(await clock.locator('#clockHourly button').count(),24);
  await clock.locator('#wdPersonBack').click();await contextReady();assert.match(await clock.locator('#wdPage').innerText(),/Página 2/);assert.match(await clock.locator('#wdPage').innerText(),/32 personas/);assert.equal(await clock.locator('#wdSearch').inputValue(),'borrador sin aplicar');assert.equal(await clock.locator('#wdPersonScope').isHidden(),true);
  checks.push('Returning restores the previous page and unsent search without another legajo navigation.');
  await clock.getByRole('button',{name:'Ver período del agente',exact:true}).first().click();await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false'&&document.getElementById('wdPage').textContent.includes('30 personas'));
- const pendingDownload=clock.waitForEvent('download');await clock.locator('#wdCsv').click();const file=await pendingDownload;const csv=fs.readFileSync(await file.path(),'utf8');assert.equal(csv.trim().split(/\r?\n/).length,31);assert.ok(csv.includes(selected.get('personRef')));assert.match(csv,/Contexto del vínculo/);
+ const pendingDownload=clock.waitForEvent('download');await clock.locator('#wdCsv').click();const file=await pendingDownload;const workdayCsv=fs.readFileSync(await file.path(),'utf8');assert.equal(workdayCsv.trim().split(/\r?\n/).length,31);assert.ok(workdayCsv.includes(selected.get('personRef')));assert.match(workdayCsv,/Contexto del vínculo/);
  await clock.waitForFunction(()=>document.getElementById('clockWorkdays').getAttribute('aria-busy')==='false');
  checks.push('CSV exports all thirty dates of the exact selected stream and retains its context and revision.');
  await clock.locator('#wdPersonScope').screenshot({path:path.join(out,'agent-context-desktop.png')});
  await clock.setViewportSize({width:390,height:844});assert.ok(await clock.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  personFailure=403;await clock.locator('#wdNext').click();await clock.waitForFunction(()=>document.getElementById('wdRows').childElementCount===0);assert.equal(await clock.locator('#wdPersonScope').isHidden(),true);assert.equal(await clock.locator('#wdPersonScope h3').textContent(),'');
  checks.push('Revoked nominal permission clears the selected identity and its previous rows.');
- assert.deepEqual(errors,[]);const report={version:'time-absence-workspace-qa.v1',checkedAt:new Date().toISOString(),mode:live?'published_bytes_synthetic_api':'local_build_synthetic_api',checksPassed:checks.length,checks,apiRequests:calls.length,publishedAssets:[...assets].sort(),errors,municipalSessionTested:false,businessWrites:0};
+ assert.deepEqual(errors,[]);const report={version:'time-absence-workspace-qa.v1',checkedAt:new Date().toISOString(),mode:live?'published_bytes_synthetic_api':'local_build_synthetic_api',checksPassed:checks.length,checks,reportArtifacts:{csvEventRows:csv.trimEnd().split('\r\n').length-1,pdfPages:verifiedPrintPageCount,pdfWidthPoints:paper.width,pdfHeightPoints:paper.height,pdfA4Landscape:true,pdfNumberingVerified:true},apiRequests:calls.length,publishedAssets:[...assets].sort(),errors,municipalSessionTested:false,businessWrites:0};
  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await context.close();await browser.close();}

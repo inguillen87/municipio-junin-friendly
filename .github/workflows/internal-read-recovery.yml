@@ -31,6 +31,7 @@ on:
       - 'scripts/verify-absence-window-postgres.mjs'
       - 'assets/absence-person-*'
       - 'tests/absence-person.test.js'
+      - 'tests/absence-complete-report.test.js'
       - 'tests/fixtures/absence-person-synthetic.js'
       - 'assets/clock-dashboard.js'
       - 'assets/workday-panel.js'

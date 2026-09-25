@@ -172,3 +172,12 @@ El candidato del 22/09 está preparado, no operativo: sigue seleccionado el cort
 `CONTINUIDAD_NATIVA_CATALOGO_20260925.md` documenta 13 tablas principales más 14 dependientes: 27 tablas y 23 relaciones internas declaradas, incluidas 16 claves compuestas. El analizador reconoce dos tablas que heredan tenant/binding del lote y detecta ampliaciones o pérdidas del inventario revisado.
 
 Se cierra exclusivamente la cobertura de esquema. La lectura nueva de registros fue bloqueada por la herramienta y no se ejecutó; D1.6.B mantiene pendientes contenido, referencias canónicas e impacto del candidato. El staging instalado en D1.5 no se recargó ni se promovió por este control. La autonomía y el expediente de proveedores diferido mantienen sus condiciones.
+
+
+## B2.2 · informe completo del historial individual
+
+`AUSENCIAS_INFORME_COMPLETO_20260925.md` cierra la salida CSV completa y vista imprimible desde el historial del agente. Reúne todas las páginas bajo el contrato, las fechas y la fuente seleccionados; el recorrido prueba cancelación y permiso revocado antes de exportar e imprimir. La impresión usa A4 horizontal, contexto repetido y numeración sin arrastrar la navegación o borradores del listado.
+
+El incremento pendiente `0cf5b2c` se retomó y corrigió antes de liberarlo: el script de navegador ya ejecutó los recorridos de CSV, PDF y móvil. La revisión visual y los resultados del commit final acompañan la publicación. No se usa una prueba unitaria como sustituto de esa aceptación.
+
+Este cierre es informativo: no cambia haberes, justificaciones, relojes ni la promoción del respaldo. D1.6.B y G-AUT-01 siguen abiertos; EXP-PROV-01 permanece diferido.
