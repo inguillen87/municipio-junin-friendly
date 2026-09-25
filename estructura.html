@@ -379,6 +379,7 @@
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/structure-task-entry.css">
+  <link rel="stylesheet" href="assets/structure-people.css">
 </head>
 <body data-mc-page="structure">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -493,13 +494,13 @@
 
           <section class="panel" id="panel-organizations" role="tabpanel" aria-labelledby="tab-organizations">
             <div class="table-status"><span><strong id="organizationResultCount">0</strong> asignaciones organizacionales</span><span>Orden: legajos activos</span></div>
-            <div class="table-wrap"><table><thead><tr><th scope="col">Asignación GRH</th><th scope="col">ID de fuente</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Sectores</th></tr></thead><tbody id="organizationRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th scope="col">Asignación GRH</th><th scope="col">ID de fuente</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Sectores</th><th scope="col">Personas</th></tr></thead><tbody id="organizationRows"></tbody></table></div>
             <div class="empty" id="organizationEmpty" hidden><strong>Sin resultados</strong>Ajustá la búsqueda o el filtro de situación.</div>
           </section>
 
           <section class="panel" id="panel-sectors" role="tabpanel" aria-labelledby="tab-sectors" hidden>
             <div class="table-status"><span><strong id="sectorResultCount">0</strong> sectores agrupados</span><span>Orden: legajos activos</span></div>
-            <div class="table-wrap"><table><thead><tr><th scope="col">Sector GRH</th><th scope="col">Código</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Organizaciones</th></tr></thead><tbody id="sectorRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th scope="col">Sector GRH</th><th scope="col">Código</th><th class="numeric" scope="col">Activos</th><th class="numeric" scope="col">Inactivos</th><th class="numeric" scope="col">Total histórico</th><th class="numeric" scope="col">Organizaciones</th><th scope="col">Personas</th></tr></thead><tbody id="sectorRows"></tbody></table></div>
             <div class="empty" id="sectorEmpty" hidden><strong>Sin resultados</strong>Ajustá la búsqueda o el filtro de situación.</div>
           </section>
 
@@ -553,7 +554,7 @@
 
       var DATA_URL = '/api/internal-data?resource=structure';
       var redirectingToLogin = false;
-      var state = { payload: null, view: 'organizations', search: '', status: 'all' };
+      var state = { payload: null, view: 'organizations', search: '', status: 'all', canReadPeople: false };
       var numberFormat = new Intl.NumberFormat('es-AR');
 
       function byId(id) { return document.getElementById(id); }
@@ -617,6 +618,10 @@
         byId('metricSectorNote').textContent = percentage(coverage.withSector, coverage.historicalRecords) + ' de cobertura';
       }
 
+      function nominalCell(row, field) {
+        if (!state.canReadPeople || row.assigned !== true) return '<td>—</td>';
+        return '<td><button type="button" class="button sp-entry" data-sp-open data-sp-field="' + field + '" data-sp-label="' + escapeHTML(row.label) + '">Ver legajos</button></td>';
+      }
       function renderOrganizations() {
         var rows = state.payload.organizations.filter(function (row) {
           return matchesStatus(row) && includesSearch([row.label].concat(row.organizationIds || []));
@@ -629,7 +634,7 @@
             '<td class="numeric">' + formatNumber(row.active) + '</td>' +
             '<td class="numeric">' + formatNumber(row.inactive) + '</td>' +
             '<td class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
-            '<td class="numeric">' + formatNumber(row.sectorCount) + '</td>' +
+            '<td class="numeric">' + formatNumber(row.sectorCount) + '</td>' + nominalCell(row, 'organization') +
           '</tr>';
         }).join('');
         byId('organizationEmpty').hidden = rows.length > 0;
@@ -648,7 +653,7 @@
             '<td class="numeric">' + formatNumber(row.active) + '</td>' +
             '<td class="numeric">' + formatNumber(row.inactive) + '</td>' +
             '<td class="numeric"><strong>' + formatNumber(row.historical) + '</strong></td>' +
-            '<td class="numeric">' + formatNumber(row.organizationCount) + '</td>' +
+            '<td class="numeric">' + formatNumber(row.organizationCount) + '</td>' + nominalCell(row, 'sector') +
           '</tr>';
         }).join('');
         byId('sectorEmpty').hidden = rows.length > 0;
@@ -722,6 +727,7 @@
 
       function render(payload, session) {
         state.payload = payload;
+        state.canReadPeople = Array.isArray(session.access?.tenantCapabilities) && session.access.tenantCapabilities.includes('workforce.employee.read');
         byId('userLabel').textContent = session.user && (session.user.name || session.user.email) ? (session.user.name || session.user.email) : 'Portal interno';
         byId('hierarchyReason').textContent = payload.hierarchy.reason + ' Registros de catálogo: ' + formatNumber(payload.hierarchy.catalogRows) + '; relaciones padre/hijo: ' + formatNumber(payload.hierarchy.parentLinks) + '.';
         renderMetrics();
@@ -739,6 +745,16 @@
 
       document.querySelectorAll('.tab').forEach(function (tab) {
         tab.addEventListener('click', function () { setView(tab.dataset.view); });
+      });
+      document.addEventListener('click', async function (event) {
+        var trigger = event.target.closest?.('[data-sp-open]');
+        if (!trigger || !state.canReadPeople) return;
+        trigger.disabled = true;
+        try {
+          var view = await import('./assets/structure-people.js');
+          if (trigger.isConnected) view.openStructurePeople({ label: trigger.dataset.spLabel, field: trigger.dataset.spField, trigger: trigger });
+        } catch { trigger.textContent = 'Reintentar listado'; }
+        finally { trigger.disabled = false; }
       });
       byId('searchInput').addEventListener('input', function (event) { state.search = event.target.value.trim(); renderCurrentView(); });
       byId('statusFilter').addEventListener('change', function (event) { state.status = event.target.value; renderCurrentView(); });

@@ -190,3 +190,10 @@ Este cierre es informativo: no cambia haberes, justificaciones, relojes ni la pr
 El bloqueo de hijos/certificados y parámetros no se marca resuelto: se verificó configuración de funciones incompatibles y una traducción de error que puede confundirla con sesión inválida. El cambio de autorización fue bloqueado por la herramienta y no se aplicó. Continúan como prioritarios ese acceso, el TXT real de concepto 638, la estructura nominal gobernada del módulo 10 y el circuito completo del módulo 7. No reemplazar estos cierres con nuevas pantallas de diagnóstico ni con botones sin operación real.
 
 Esta entrega no cambia la fuente activa, el staging del 22/09 ni la condición de autonomía. El circuito de proveedores sigue diferido.
+
+
+## Noelia · consulta nominal y bloqueo operativo del perfil
+
+`NOELIA_DETALLE_NOMINAL_Y_PERFIL_20260926.md` añade el detalle de legajos por organización/sector en la misma pantalla, con búsqueda, estado y paginación. No sustituye el cruce presupuestario del módulo 10. Se preservan la antigüedad calendario y el menú rápido ya entregados.
+
+El correctivo 107 del perfil integral quedó construido y ensayado en PostgreSQL 17 con rollback, pero **no aplicado en Neon por bloqueo de la herramienta**. Por tanto no se cierra la incidencia de hijos/certificados ni parámetros. El TXT receptor 638 AMARU y el circuito autónomo del módulo 7 mantienen sus criterios de aceptación pendientes. La publicación de interfaz se acredita aparte en la issue #37.

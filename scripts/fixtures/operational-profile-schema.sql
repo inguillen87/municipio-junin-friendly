@@ -1,0 +1,35 @@
+-- Base sintética vacía; sólo para staff_task_qa. No importar a un destino municipal.
+CREATE TABLE internal_users(email text PRIMARY KEY,active boolean,identity_version integer,display_name text);
+CREATE TABLE tenant_membership(id uuid PRIMARY KEY,tenant_id uuid,user_email text,status text,role_key text);
+CREATE TABLE tenant_identity_session(id uuid PRIMARY KEY,session_version integer,user_email text,identity_version integer,active_tenant_id uuid,source text,auth_level text,status text,expires_at timestamptz,last_seen_at timestamptz);
+CREATE TABLE platform_tenant(id uuid PRIMARY KEY,status text);
+CREATE TABLE tenant_identity_policy(tenant_id uuid,tenant_data_plane_ready boolean,certified_release_sha text,certified_source_binding_id uuid);
+CREATE TABLE platform_tenant_source_binding(id uuid PRIMARY KEY,tenant_id uuid,source_system text,verified boolean,source_company_id bigint,source_database text);
+CREATE TABLE tenant_action_authority(membership_id uuid,tenant_id uuid);
+CREATE TABLE source_import_batch(id uuid PRIMARY KEY,source_system text,source_database text,validation_state text,legacy_import_run_id bigint);
+CREATE TABLE employment_contract(id uuid PRIMARY KEY,person_id uuid,status text,source_system text,legacy_company_id bigint,source_batch_id uuid);
+CREATE TABLE tenant_action_employment_link(membership_id uuid,tenant_id uuid,source_binding_id uuid,employment_contract_id uuid,active boolean);
+CREATE TABLE tenant_action_area_scope(id uuid,membership_id uuid,tenant_id uuid,source_binding_id uuid,company_id bigint,capability_key text,scope_level text,organization_unit_source_id text,sector_source_id text,active boolean);
+CREATE TABLE qa_capabilities(membership_id uuid,capability_key text);
+CREATE TABLE iam_capability_conflict(capability_key text,conflicts_with_key text);
+CREATE FUNCTION tenant_iam_effective_capabilities(member uuid) RETURNS TABLE(capability_key text) LANGUAGE sql AS $$ SELECT capability_key FROM qa_capabilities WHERE membership_id=member $$;
+CREATE FUNCTION action_center_context_has_capability(ctx jsonb,capability text) RETURNS boolean LANGUAGE sql AS $$ SELECT coalesce(ctx->'capabilities','[]'::jsonb)?capability $$;
+INSERT INTO internal_users VALUES('operator@qa.invalid',true,1,'Operadora sintética');
+INSERT INTO platform_tenant VALUES('11111111-1111-4111-8111-111111111111','active');
+INSERT INTO tenant_membership VALUES('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','operator@qa.invalid','active','MUNICIPIO_ADMIN_OPERATIVO');
+INSERT INTO tenant_identity_session VALUES('44444444-4444-4444-8444-444444444444',1,'operator@qa.invalid',1,'11111111-1111-4111-8111-111111111111','membership','mfa','active',now()+interval '1 hour',now());
+INSERT INTO platform_tenant_source_binding VALUES('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111','GRH',true,101,'GRH_QA');
+INSERT INTO tenant_identity_policy VALUES('11111111-1111-4111-8111-111111111111',true,repeat('a',40),'55555555-5555-4555-8555-555555555555');
+INSERT INTO tenant_action_authority VALUES('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111');
+INSERT INTO source_import_batch VALUES('77777777-7777-4777-8777-777777777777','GRH','GRH_QA','published',1);
+INSERT INTO employment_contract VALUES('66666666-6666-4666-8666-666666666666','33333333-3333-4333-8333-333333333333','active','GRH',101,'77777777-7777-4777-8777-777777777777');
+INSERT INTO tenant_action_employment_link VALUES('22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','55555555-5555-4555-8555-555555555555','66666666-6666-4666-8666-666666666666',true);
+INSERT INTO qa_capabilities SELECT '22222222-2222-4222-8222-222222222222',cap FROM unnest(ARRAY['actions.read','workforce.employee.read','employee.record.propose','employee.record.approve','payroll.parameter.read','payroll.parameter.prepare','payroll.parameter.approve','payroll.parameter.audit.read','time.source.propose','time.source.approve'])cap;
+INSERT INTO iam_capability_conflict VALUES('employee.record.approve','employee.record.propose'),('payroll.parameter.approve','payroll.parameter.prepare'),('time.source.approve','time.source.propose');
+
+CREATE TABLE native_employment_catalog_proposal(id uuid,actor_membership_id uuid,actor_person_id uuid,actor_email text);
+CREATE TABLE native_employment_catalog_review(proposal_id uuid);
+CREATE TABLE payroll_parameter_proposal(id uuid);
+CREATE TABLE payroll_parameter_event(id bigint);
+INSERT INTO qa_capabilities VALUES('22222222-2222-4222-8222-222222222222','employee.catalog.propose'),('22222222-2222-4222-8222-222222222222','employee.catalog.approve');
+INSERT INTO iam_capability_conflict VALUES('employee.catalog.approve','employee.catalog.propose');

@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {verifyStructurePeople} from '../assets/structure-people.js';
+const row=n=>({contractId:String(n).padStart(8,'0')+'-1111-4111-8111-111111111111',legajo:String(9000+n),nombre:'Persona sintética '+n,cargo:'Administrativo',administrativeStatus:'active'});
+const fixture=(page=1,total=31)=>({ok:true,data:Array.from({length:Math.min(25,Math.max(0,total-(page-1)*25))},(_,i)=>row(i+(page-1)*25+1)),pagination:{page,limit:25,total,pages:Math.max(1,Math.ceil(total/25))}});
+test('verifica la primera página y el total sin reducirlo a las filas visibles',()=>{const d=fixture();assert.equal(verifyStructurePeople(d,1),d);assert.equal(d.data.length,25);assert.equal(d.pagination.total,31);});
+test('conserva los seis registros de la última página',()=>{const d=verifyStructurePeople(fixture(2),2);assert.equal(d.data.length,6);assert.equal(d.data[0].legajo,'9026');});
+test('acepta un resultado vacío explícito',()=>{assert.equal(verifyStructurePeople(fixture(1,0),1).data.length,0);});
+for(const [name,change]of [
+ ['página diferente',d=>d.pagination.page=2],['límite diferente',d=>d.pagination.limit=50],['total negativo',d=>d.pagination.total=-1],['total no numérico',d=>d.pagination.total='31'],['cantidad de páginas incorrecta',d=>d.pagination.pages=8],['filas incompletas',d=>d.data.pop()],['identidad duplicada',d=>d.data[1].contractId=d.data[0].contractId],['contrato sin identificador',d=>d.data[0].contractId=''],['legajo no textual',d=>d.data[0].legajo=1],['nombre de tipo inválido',d=>d.data[0].nombre={}]
+])test('rechaza '+name,()=>{const d=fixture();change(d);assert.throws(()=>verifyStructurePeople(d,1));});
+test('no inventa el nombre cuando la fuente lo omite',()=>{const d=fixture();d.data[0].nombre=null;assert.equal(verifyStructurePeople(d,1).data[0].nombre,null);});
+test('el listado se solicita al abrirlo y usa texto DOM, no HTML de la fuente',()=>{const source=fs.readFileSync(new URL('../assets/structure-people.js',import.meta.url),'utf8');assert.match(source,/includeFacets:'0'/);assert.match(source,/limit:'25'/);assert.match(source,/textContent/);assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|setInterval/);assert.match(source,/controller\?\.abort/);});
+test('la página conserva sus filtros y ofrece el detalle nominal en ambos agrupamientos',()=>{const html=fs.readFileSync(new URL('../estructura.html',import.meta.url),'utf8');assert.match(html,/nominalCell\(row, 'organization'\)/);assert.match(html,/nominalCell\(row, 'sector'\)/);assert.match(html,/import\('\.\/assets\/structure-people.js'\)/);});

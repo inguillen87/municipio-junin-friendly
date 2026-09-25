@@ -83,6 +83,8 @@ const shellFiles = [
   'assets/budget-structure-worker.js',
   'assets/budget-structure.css',
   'assets/structure-task-entry.css',
+  'assets/structure-people.js',
+  'assets/structure-people.css',
   'assets/payroll-bank-generator.js',
   'assets/payroll-bank-generator-model.js',
   'assets/payroll-bank-generator-export.js',
