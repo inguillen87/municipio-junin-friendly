@@ -24,6 +24,11 @@ on:
       - 'ausentismo-control.html'
       - 'lib/absence-event-context.js'
       - 'lib/internal-absence-person.js'
+      - 'lib/absence-window-sql.js'
+      - 'assets/absence-window-model.js'
+      - 'tests/absence-window.test.js'
+      - 'tests/fixtures/absence-window-synthetic.js'
+      - 'scripts/verify-absence-window-postgres.mjs'
       - 'assets/absence-person-*'
       - 'tests/absence-person.test.js'
       - 'tests/fixtures/absence-person-synthetic.js'
@@ -102,6 +107,11 @@ jobs:
           set -euo pipefail
           node scripts/verify-payroll-selection-postgres.mjs --write-sql=verification/payroll-selection-qa.sql
           docker exec -e PGPASSWORD=selection-qa-only -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres -d payroll_selection_qa -v ON_ERROR_STOP=1 < verification/payroll-selection-qa.sql | tee verification/payroll-selection-qa.log
+      - name: Isolated PostgreSQL absence interval scope
+        run: |
+          set -euo pipefail
+          node scripts/verify-absence-window-postgres.mjs --write-sql=verification/absence-window-qa.sql
+          docker exec -e PGPASSWORD=selection-qa-only -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres -d payroll_selection_qa -v ON_ERROR_STOP=1 < verification/absence-window-qa.sql 2>&1 | tee verification/absence-window-qa.log
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Workforce browser acceptance with intercepted synthetic APIs
@@ -132,4 +142,5 @@ jobs:
             verification/budget-cotejo/
             verification/payroll-document-selection/
             verification/payroll-selection-qa.log
+            verification/absence-window-qa.log
           retention-days: 7

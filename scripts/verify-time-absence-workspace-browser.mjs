@@ -2,6 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {absenceWorkspaceAnalytics,absenceWorkspaceEvents} from '../tests/fixtures/absence-workspace-synthetic.js';
 import {personFixture,PERSON_SNAPSHOT,PERSON_TENANT} from '../tests/fixtures/absence-person-synthetic.js';
+import {windowFixture} from '../tests/fixtures/absence-window-synthetic.js';
 import {parseAbsencePersonQuery} from '../assets/absence-person-model.js';
 import {clockDashboardFixture} from '../tests/fixtures/clock-dashboard-v3-synthetic.js';
 import {continuousWorkdayFixture} from '../tests/fixtures/continuous-workdays-synthetic.js';
@@ -10,7 +11,7 @@ const live=process.env.TIME_WORKSPACE_ORIGIN;if(live!==undefined)assert.equal(li
 const origin=live||'https://time-workspace.test',base=path.resolve('public'),out=path.resolve('verification/time-absence-workspace');fs.mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
 const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'es-AR',serviceWorkers:'block'});
-const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null;
+const calls=[],checks=[],errors=[],assets=new Set();let delayAnalytics=true,releaseAnalytics=null,eventsMode='ok',personMode=false,personFailure=null,historyMode='ok',historyRelease=null,overlapFixture=false;
 await context.route('**/*',async route=>{
  const req=route.request(),url=new URL(req.url()),q=url.searchParams,resource=(q.get('resource')||'').toLowerCase();
  if(url.origin!==origin)return route.abort();
@@ -38,7 +39,7 @@ await context.route('**/*',async route=>{
   if(historyMode==='delay')await new Promise(resolve=>historyRelease=resolve);
   if(historyMode==='denied')return send({ok:false},403);
   if(historyMode==='changed')return send({ok:false},409);
-  const query=parseAbsencePersonQuery(Object.fromEntries(q)),value=personFixture(query);
+  const query=parseAbsencePersonQuery(Object.fromEntries(q)),value=overlapFixture?windowFixture(query):personFixture(query);
   if(historyMode==='wrong-contract')value.person.contractId='33333333-3333-4333-8333-333333333333';
   return send({ok:true,data:value});
  }
@@ -143,6 +144,40 @@ try{
  assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);assert.doesNotMatch(await modal.innerText(),/Agente de prueba repetido/);
  await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';
  checks.push('Revoked nominal access removes the previous individual identity and rows.');
+
+ overlapFixture=true;await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();
+ await modal.getByLabel('Historial desde').fill('2026-09-01');await modal.getByRole('button',{name:'Consultar período',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='10');
+ const selection=modal.getByLabel('Criterio de fechas del historial'),beforeOverlap=calls.filter(c=>c.resource==='absenceanalytics').length;
+ assert.equal(await selection.inputValue(),'starts');await selection.selectOption('overlaps');
+ await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='40');
+ assert.deepEqual(await modal.locator('.ap-metrics strong').allTextContents(),['40','1.059','1','1']);assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),25);
+ assert.match(await modal.locator('[data-absence-carried]').innerText(),/30 de 40/);assert.match(await modal.locator('[data-absence-carried]').innerText(),/Sin fecha final informada: 1/);
+ assert.equal(await modal.locator('[data-absence-relation=began_before]').count(),15);
+ checks.push('Explicit overlap includes 30 events begun before the requested dates; default start-based history still contains ten.');
+ const extended=modal.locator('[data-absence-history-rows] tr').filter({hasText:'2033'});assert.equal(await extended.count(),1);assert.match(await extended.innerText(),/Rango extenso: revisar/);assert.match(await extended.innerText(),/35/);
+ assert.match(await modal.innerText(),/sin prorratearla/);assert.match(await modal.locator('[data-absence-history-rows]').innerText(),/No informado/);
+ checks.push('Original extended end dates, full declared quantities and missing values remain visible without prorating or assuming an approved leave.');
+ await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByText('Página 2 de 2 · 40 eventos',{exact:true}).waitFor();
+ assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),15);assert.equal(await modal.locator('[data-absence-relation=began_before]').count(),15);
+ assert.deepEqual(await modal.locator('.ap-metrics strong').allTextContents(),['40','1.059','1','1']);assert.equal(calls.filter(c=>c.resource==='absenceanalytics').length,beforeOverlap);
+ const request=calls.filter(c=>c.resource==='absenceperson').at(-1);assert.equal(request.query.get('rangeMode'),'overlaps');assert.equal(request.query.get('snapshot'),PERSON_SNAPSHOT);
+ checks.push('Overlap pagination keeps the contract, source revision, date semantics and complete totals without rerunning population analytics.');
+ await modal.getByLabel('Historial hasta').fill('2026-09-30');await modal.getByRole('button',{name:'Consultar período',exact:true}).click();await modal.locator('.ap-warning').filter({hasText:'sólo hasta su corte'}).waitFor();
+ assert.equal(await selection.inputValue(),'overlaps');assert.equal(await modal.locator('.ap-metrics strong').first().textContent(),'40');
+ await modal.screenshot({path:path.join(out,'absence-overlap-desktop.png')});await page.setViewportSize({width:390,height:844});await modal.screenshot({path:path.join(out,'absence-overlap-mobile.png')});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await selection.selectOption('starts');await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='10');assert.equal(await modal.locator('[data-absence-carried]').count(),0);
+ assert.equal(calls.filter(c=>c.resource==='absenceperson').at(-1).query.has('rangeMode'),false);
+ checks.push('The effective cutoff and responsive controls remain explicit; returning to start-based history uses the unchanged v1 contract.');
+ historyMode='delay';await selection.selectOption('overlaps');await page.waitForTimeout(100);await modal.getByRole('button',{name:'Cancelar consulta',exact:true}).click();if(historyRelease)historyRelease();await page.waitForTimeout(100);
+ assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);historyMode='ok';await modal.getByRole('button',{name:'Reintentar historial',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='40');
+ historyMode='changed';await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByRole('status').filter({hasText:'Cambió la fuente'}).waitFor();assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);
+ checks.push('Delayed or changed-source overlap reads withdraw their results and cannot repopulate an invalidated history.');
+ await page.keyboard.press('Escape');historyMode='ok';assert.equal(await page.locator('#eventSearch').inputValue(),'borrador sin aplicar');assert.equal(await page.locator('#fromInput').inputValue(),'2026-08-05');assert.equal(await openHistory.evaluate(n=>n===document.activeElement),true);
+ await page.setViewportSize({width:1440,height:1050});await openHistory.click();await modal.locator('[data-absence-history-rows] tr').first().waitFor();await modal.getByLabel('Historial desde').fill('2026-09-01');await selection.selectOption('overlaps');await page.waitForFunction(()=>document.querySelector('#absencePersonDialog .ap-metrics strong')?.textContent==='40');
+ historyMode='denied';await modal.getByRole('button',{name:'Eventos siguientes',exact:true}).click();await modal.getByRole('status').filter({hasText:'permiso nominal'}).waitFor();assert.equal(await modal.locator('[data-absence-history-rows] tr').count(),0);assert.doesNotMatch(await modal.innerText(),/Agente de prueba de períodos/);
+ await modal.getByRole('button',{name:'Cerrar historial',exact:true}).click();historyMode='ok';overlapFixture=false;
+ checks.push('Overlap access revocation clears the exact person and closing preserves the parent case and unfinished filter edits.');
 
  const clock=await context.newPage();clock.on('pageerror',e=>errors.push(e.message));await clock.goto(origin+'/relojes-marcaciones.html');
  await clock.waitForFunction(()=>document.getElementById('clockOperations')?.dataset.state==='ready'&&document.getElementById('clockOperations').getAttribute('aria-busy')==='false');

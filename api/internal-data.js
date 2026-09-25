@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { absenceWindowSql } from '../lib/absence-window-sql.js';
+import { absenceWindowMode } from '../assets/absence-window-model.js';
 import { internalAbsencePerson } from '../lib/internal-absence-person.js';
 import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPattern } from '../lib/absence-event-context.js';
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
@@ -1144,9 +1146,9 @@ function absenceReasonFlags(row = {}) {
   };
 }
 
-function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '' }) {
+function absenceFilter({ from, to, sector = '', reasonCode = '', contractId = '', search = '', rangeMode = 'starts' }) {
   const values = [from, to];
-  const conditions = ['absence.fecha >= $1::date', 'absence.fecha <= $2::date'];
+  const conditions = [absenceWindowSql('absence', rangeMode)];
   const parameter = (value) => {
     values.push(value);
     return `$${values.length}`;
@@ -1448,7 +1450,8 @@ export async function absenceAnalytics(sql, req) {
   };
 }
 
-export async function absenceEvents(sql, req) {
+export async function absenceEvents(sql, req, { rangeMode = 'starts' } = {}) {
+  absenceWindowMode(rangeMode);
   let detailScope;
   try { detailScope=normalizeAbsenceDetailScope({contractId:queryValue(req,'contractId',''),search:queryValue(req,'search','')}); }
   catch { return {status:400,payload:{ok:false,code:'ABSENCE_DETAIL_FILTER_INVALID',error:'Filtro de detalle inválido'}}; }
@@ -1465,7 +1468,7 @@ export async function absenceEvents(sql, req) {
     to: request.range.effective.to,
     sector: request.sector,
     reasonCode: request.reasonCode,
-    ...detailScope
+    ...detailScope, rangeMode
   };
   const scope = absenceFilter(filters);
   const dataValues = [...scope.values, limit, (page - 1) * limit];

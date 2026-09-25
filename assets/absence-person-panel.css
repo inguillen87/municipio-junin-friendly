@@ -7,7 +7,7 @@
 .ap-dialog::backdrop { background:#102e42a8; }
 .ap-dialog header { display:flex; justify-content:space-between; gap:20px; align-items:start; }
 .ap-dialog h2 { font-size:1.35rem; margin:0; }
-.ap-dialog button,.ap-dialog input {
+.ap-dialog button,.ap-dialog input,.ap-dialog select {
  font:inherit; min-height:42px; border-radius:7px; border:1px solid #adc7cb;
  padding:9px 13px; background:#fff; color:#143c4c;
 }
@@ -17,7 +17,7 @@
 .ap-dialog :focus-visible { outline:3px solid #1786b7; outline-offset:3px; }
 .ap-controls,.ap-actions { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:16px 0; }
 .ap-controls label { display:grid; gap:7px; flex:1 1 190px; font-weight:600; font-size:.9rem; }
-.ap-controls input { width:100%; box-sizing:border-box; }
+.ap-controls input,.ap-controls select { width:100%; box-sizing:border-box; }
 .ap-dialog .ap-note { color:#4c6c7b; line-height:1.55; font-size:.9rem; }
 .ap-status { padding:12px; background:#e8f1f0; border-left:3px solid #157c76; color:#214a58; min-height:22px; line-height:1.45; }
 .ap-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:20px; }
@@ -43,3 +43,7 @@
  .ap-actions button,.ap-controls button { flex:1 1 auto; }
  .ap-table { max-height:43vh; }
 }
+
+.ap-window-summary{padding:14px 16px;background:#e9f3f4;border:1px solid #b4d5d7;border-radius:8px;line-height:1.6;color:#1d515b}.ap-controls select{min-width:0;max-width:100%}
+
+.ap-controls label,.ap-controls input{min-width:0}@media(max-width:650px){.ap-controls label:nth-child(3){flex:1 1 100%}}

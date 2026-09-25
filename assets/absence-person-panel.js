@@ -1,3 +1,4 @@
+import {absenceWindowRelation} from './absence-window-model.js';
 import {personUuid,personDate} from './absence-person-model.js';
 import {readAbsencePerson} from './absence-person-reader.js';
 const make=(tag,text,cls)=>{
@@ -35,15 +36,19 @@ export function openAbsencePerson(detail){
  button(header,'Cerrar historial',close);
  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
  dialog.addEventListener('close',close);
- dialog.append(make('p','Todos los motivos del vínculo. Incluye eventos cuya fecha inicial está dentro del período; no hereda la búsqueda ni el motivo del listado.','ap-note'));
+ const selectionNote=make('p','Todos los motivos del vínculo. Incluye eventos cuya fecha inicial está dentro del período; no hereda la búsqueda ni el motivo del listado.','ap-note');selectionNote.dataset.absenceSelectionNote='';dialog.append(selectionNote);
  const form=make('form',undefined,'ap-controls');dialog.append(form);
  const fromLabel=make('label','Desde'),toLabel=make('label','Hasta');
  const from=make('input'),to=make('input');from.type=to.type='date';from.required=to.required=true;
  from.value=scope.from;to.value=scope.to;from.min=to.min='1990-01-01';
  from.setAttribute('aria-label','Historial desde');to.setAttribute('aria-label','Historial hasta');
  fromLabel.append(from);toLabel.append(to);form.append(fromLabel,toLabel);
+ const modeLabel=make('label','Criterio de fechas'),mode=make('select');
+ mode.setAttribute('aria-label','Criterio de fechas del historial');
+ mode.append(new Option('Comienzan en el período','starts'),new Option('Cruzan el período','overlaps'));
+ modeLabel.append(mode);form.append(modeLabel);
  const apply=button(form,'Consultar período',()=>{});apply.type='submit';
- const original=button(form,'Volver al período inicial',()=>{from.value=detail.from;to.value=detail.to;form.requestSubmit();});
+ const original=button(form,'Volver al período inicial',()=>{from.value=detail.from;to.value=detail.to;mode.value='starts';form.requestSubmit();});
  const status=make('p','Consultando el vínculo…','ap-status');status.setAttribute('role','status');
  status.dataset.absencePersonStatus='';dialog.append(status);
  const actions=make('div',undefined,'ap-actions');dialog.append(actions);
@@ -53,7 +58,7 @@ export function openAbsencePerson(detail){
  });
  const results=make('section',undefined,'ap-results');dialog.append(results);
  function controls(){
-  dialog.setAttribute('aria-busy',String(busy));apply.disabled=original.disabled=from.disabled=to.disabled=busy;
+  dialog.setAttribute('aria-busy',String(busy));apply.disabled=original.disabled=from.disabled=to.disabled=mode.disabled=busy;
   cancel.hidden=!busy;retry.hidden=busy||model!==null;
  }
  function fail(error){
@@ -79,25 +84,29 @@ export function openAbsencePerson(detail){
   finally{if(token===generation&&!closed){busy=false;controller=null;controls();}}
  }
  function render(data){
-  results.replaceChildren();title.textContent=data.person.name+' · Legajo '+data.person.number;
+  results.replaceChildren();
+  const overlaps=data.rangeMode==='overlaps';
+  selectionNote.textContent=overlaps?'Incluye inicios del período y eventos anteriores cuyo fin de origen alcanza el rango. Sin fin o con fechas invertidas sólo se incluye el inicio dentro del período. No confirma vigencia ni justificación.':'Todos los motivos del vínculo. Incluye eventos cuya fecha inicial está dentro del período; no hereda la búsqueda ni el motivo del listado.';
+  title.textContent=data.person.name+' · Legajo '+data.person.number;
   const info=make('p',date(data.range.effective.from)+' → '+date(data.range.effective.to)+' · Corte '+date(data.sourceCutoff)+' · '+data.person.sector,'ap-note');results.append(info);
   if(data.range.clamped.to)results.append(make('p','El fin solicitado supera la fuente: se consulta sólo hasta su corte.','ap-warning'));
   const metrics=make('div',undefined,'ap-metrics');results.append(metrics);
   const sum=data.summary;
+  if(overlaps){const carried=make('p',sum.beganBeforePeriod+' de '+sum.events+' eventos comenzaron antes del período. Sin fecha final informada: '+sum.endNotReportedEvents+'.','ap-window-summary');carried.dataset.absenceCarried='';carried.setAttribute('role','status');results.append(carried);}
   const values=[['Eventos del período',sum.events],['Días declarados',sum.reportedDaysEvents?number(sum.reportedDaysSum):'No informados'],['Motivos distintos',sum.reasonCount],['Fechas para revisar',sum.dateReviewEvents]];
   for(const[label,value]of values){const box=make('article');box.append(make('span',label),make('strong',value));metrics.append(box);}
-  results.append(make('p','Totales de todo el período, no sólo de esta página. Días informados en '+sum.reportedDaysEvents+' de '+sum.events+' eventos. No son jornadas perdidas; los registros sin cantidad no se convierten en cero.','ap-note'));
+  results.append(make('p','Totales de todo el período, no sólo de esta página. Días informados en '+sum.reportedDaysEvents+' de '+sum.events+' eventos. Se conserva la cantidad completa del evento, sin prorratearla por el período. No son jornadas perdidas; los registros sin cantidad no se convierten en cero.','ap-note'));
   const scroll=make('div',undefined,'ap-table');scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Historial individual desplazable');
   const table=make('table'),thead=make('thead'),tr=make('tr');
-  for(const label of ['Inicio','Fin de origen','Motivo','Días declarados','Control de fecha']){const th=make('th',label);th.scope='col';tr.append(th);}thead.append(tr);table.append(thead);
+  for(const label of ['Inicio','Fin de origen','Motivo','Días declarados','Control de fecha',...(overlaps?['Relación con el período']:[])]){const th=make('th',label);th.scope='col';tr.append(th);}thead.append(tr);table.append(thead);
   const body=make('tbody');body.dataset.absenceHistoryRows='';table.append(body);scroll.append(table);results.append(scroll);
   for(const event of data.events){const row=make('tr');
    const review=event.rangeIntegrity==='extended_source_range'?'Rango extenso: revisar':event.rangeIntegrity==='inverted_source_range'?'Fechas invertidas':event.rangeIntegrity==='until_date_not_reported'?'Fin no informado':'Fechas en orden';
-   for(const value of [date(event.date),date(event.untilDate),event.reason,number(event.declaredDays),review])row.append(make('td',value));body.append(row);
+   for(const value of [date(event.date),date(event.untilDate),event.reason,number(event.declaredDays),review])row.append(make('td',value));if(overlaps){const relation=absenceWindowRelation(event,data.range.effective.from,data.range.effective.to),cell=make('td',relation==='began_before'?'Comenzó antes':'Comienza dentro');cell.dataset.absenceRelation=relation;row.append(cell);}body.append(row);
   }
   if(!data.events.length){
    const cell=make('td','Sin eventos administrativos para este vínculo y período. No demuestra asistencia completa.');
-   cell.colSpan=5;const row=make('tr');row.append(cell);body.append(row);
+   cell.colSpan=overlaps?6:5;const row=make('tr');row.append(cell);body.append(row);
   }
   const pagination=make('div',undefined,'ap-actions');results.append(pagination);
   const previous=button(pagination,'Eventos anteriores',()=>{page--;load();});
@@ -110,8 +119,9 @@ export function openAbsencePerson(detail){
   if(!personDate(from.value)||!personDate(to.value)||from.value>to.value){
    status.textContent='Revisá las fechas: Desde debe ser anterior o igual a Hasta.';return;
   }
-  scope={...scope,from:from.value,to:to.value};page=1;load();
+  scope={...scope,from:from.value,to:to.value,rangeMode:mode.value==='overlaps'?'overlaps':undefined};page=1;load();
  });
+ mode.addEventListener('change',()=>{if(!busy&&scope){model=null;results.replaceChildren();status.textContent='Criterio cambiado: verificá las fechas para consultar.';controls();form.requestSubmit();}});
  document.addEventListener('visibilitychange',onVisibility);
  window.addEventListener('pagehide',close);
  document.addEventListener('mc:absence-cleared',close);

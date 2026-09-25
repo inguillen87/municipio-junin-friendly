@@ -122,8 +122,16 @@ No se validan identidades por nombre ni se habilitan excepciones que eludan la r
 Este cierre no sustituye la incorporación de otras fuentes, la promoción del respaldo del 22/09, las reglas de jornada aprobadas ni el circuito final de aprobación y novedades. El expediente de pago a proveedores permanece diferido hasta G-AUT-01.
 
 
+
 ## D1.1 · paquete sucesor completo en memoria (24/09)
 
 `SUCCESSOR_PACKAGE_20260924.md` cierra la construcción y verificación coordinada de los diez dominios del respaldo 22/09 frente al 10/09. La ejecución sobre archivos reales terminó con 3.260 diferencias y una representación canónica de 4.587.098 bytes; conserva evidencia anterior y candidata y emite sólo un resumen agregado por consola. Se ejecutaron 60 pruebas nuevas y el build completo local, con 5.042 aprobadas, cero fallos y dos omitidas.
 
 No se publicaron registros municipales, no se instaló ni cargó staging y no cambió la fuente operativa. El próximo cierre es contrastar con la selección real y las operaciones nativas, comprobar capacidad/restauración, instalar y sellar preparación y seleccionar la fuente sucesora. El contraste SHA-256 del constructor no sustituye los sellos SQL ni la aceptación municipal. EXP-PROV-01 continúa diferido; los módulos 7 y 9 no se declaran terminados por este avance técnico.
+
+## B2.1 · lectura de eventos que cruzan el período
+
+`AUSENCIAS_CRUCE_PERIODO_20260924.md` incorpora un criterio explícito en el historial individual: conservar el listado de inicios o incluir eventos anteriores cuyo fin informado alcanza la ventana. La consulta comparte predicado entre filas, cantidad y resumen, conserva fechas/cantidades originales y evita asumir continuidad indefinida cuando falta un fin. No modifica el ausentismo general ni convierte esta lectura en justificación, regla aprobada o descuento salarial.
+
+Persisten incorporación de fuentes, respaldo sucesor, resolución administrativa y entrega definitiva de novedades. El expediente de proveedores continúa diferido hasta G-AUT-01.
+

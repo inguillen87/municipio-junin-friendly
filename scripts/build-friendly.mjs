@@ -50,6 +50,7 @@ const shellFiles = [
   'assets/workday-panel.css',
   'assets/workday-panel.js',
   'assets/absence-person-model.js',
+  'assets/absence-window-model.js',
   'assets/absence-person-reader.js',
   'assets/absence-person-panel.js',
   'assets/absence-person-panel.css',
