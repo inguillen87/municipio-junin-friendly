@@ -156,3 +156,12 @@ La lectura agregada del destino observó 19.015625 MiB disponibles después de l
 `RESTORACION_ACTUAL_VERIFICADA_20260925.md` acredita un archivo consistente y la recuperación aislada de 176 tablas, 447 funciones/procedimientos, 28 vistas, 431 índices y 14 secuencias. Se conservan todas las filas y se discriminan dos ajustes locales de restauración y 92 diferencias de representación SQL bajo reglas acotadas y probadas, sin ocultar huellas originales.
 
 No se modificó Neon, no se aplicó 075 en producción, no se instaló 106 ni se seleccionó el 22/09. La comprobación del presupuesto de capacidad sigue siendo independiente y no debe sortearse por haber restaurado el archivo. Se mantiene la prioridad de autonomía, dependencias nativas y consumo de una fuente única; proveedores permanece diferido hasta G-AUT-01.
+
+
+## D1.5 · capacidad resuelta para la primera preparación real del 22/09
+
+`CAPACIDAD_Y_STAGING_REAL_20260925.md` acredita la cuota actual del proyecto (Free, 512 MiB), el mantenimiento concurrente de 13 índices con conservación de filas/definiciones y la recuperación de 6.397.952 bytes sin cambiar el plan o el techo de seguridad.
+
+Se completó el ensayo real con rollback y la carga confirmada de 3.260 diferencias en las estructuras privadas 106, con los diez dominios sellados. La repetición devolvió el mismo staging sin insertar nuevamente. La lectura posterior confirmó privacidad y preservación de la selección activa. No permanece pendiente «instalar/cargar 106» para este candidato; sí permanecen revisión nativa, mapeo canónico y selección explícita.
+
+El candidato del 22/09 está preparado, no operativo: sigue seleccionado el corte del 10/09. Los comprobantes mantienen `nativeReviewRequired=true` y `sourcePromoted=false`. El margen medido después de cargar no se toma como autorización para nuevas importaciones ni crecimiento ilimitado. La autonomía G-AUT-01 y el expediente de proveedores diferido no cambian de estado por esta entrega.

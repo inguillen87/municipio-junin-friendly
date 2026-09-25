@@ -119,6 +119,12 @@ jobs:
           docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres restoration_expression_qa
           node scripts/verify-grh-restoration-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/restoration-expression.sql
           docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres --dbname=restoration_expression_qa -v ON_ERROR_STOP=1 < verification/restoration-expression.sql | tee verification/restoration-expression.log
+      - name: Bounded concurrent index rebuild, isolated database
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres index_capacity_qa
+          node scripts/verify-grh-index-capacity-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/index-capacity.sql
+          docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -X -h 127.0.0.1 -U postgres --dbname=index_capacity_qa -v ON_ERROR_STOP=1 < verification/index-capacity.sql 2>&1 | tee verification/index-capacity.log
       - name: Transactional successor loader, synthetic database only
         run: |
           set -euo pipefail
