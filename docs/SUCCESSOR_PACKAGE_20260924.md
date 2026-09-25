@@ -46,3 +46,8 @@ La verificación del paquete es estructural y de origen, no una firma digital ni
 No se instaló la migración 106, no se grabó el paquete en Neon y no se promovió el respaldo del 22/09. Tampoco se contrastaron operaciones nativas posteriores ni se certificó la capacidad/restauración de la base. La siguiente subfase sigue siendo comparación con la selección operativa y nativos → capacidad y recuperación → instalación/carga sellada → selección sucesora explícita.
 
 Por lo tanto, queda cerrado D1.1 (constructor y verificación completa de fuentes), no D1 completo ni la autonomía de GRH. Continúan los cierres funcionales de Noelia, Hugo, Mariano y superadministración. EXP-PROV-01 mantiene su diferimiento hasta G-AUT-01.
+
+
+## D1.2 · inspección de la fuente operativa y dependencias nativas
+
+`SUCCESSOR_OPERATIONAL_PREFLIGHT_20260925.md` añade la comparación de los diez dominios con la selección real, sus sellos y las imágenes anteriores de cada diferencia. Una sola transacción read-only obtiene además la cohorte de contratos y trece grupos de registros nativos, sin publicar filas personales. El resultado no autoriza cargar ni seleccionar el sucesor: el cargador debe preservar las dependencias, revalidar dentro de su propia transacción y cerrar capacidad/restauración.

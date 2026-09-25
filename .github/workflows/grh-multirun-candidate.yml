@@ -5,6 +5,10 @@ on:
     branches: ['master', 'work/grh-multirun-candidate-20260923']
     paths:
       - 'scripts/extract_grh_core.py'
+      - 'scripts/lib/grh-successor-operational-read.mjs'
+      - 'scripts/verify-grh-successor-operational.mjs'
+      - 'tests/grh-successor-operational-read.test.js'
+      - 'tests/fixtures/successor-operational-synthetic.js'
       - 'scripts/lib/grh-source-profile*'
       - 'scripts/verify-grh-multirun-candidate.mjs'
       - 'scripts/import-rrhh-neon.mjs'

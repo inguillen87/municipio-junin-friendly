@@ -129,9 +129,16 @@ Este cierre no sustituye la incorporación de otras fuentes, la promoción del r
 
 No se publicaron registros municipales, no se instaló ni cargó staging y no cambió la fuente operativa. El próximo cierre es contrastar con la selección real y las operaciones nativas, comprobar capacidad/restauración, instalar y sellar preparación y seleccionar la fuente sucesora. El contraste SHA-256 del constructor no sustituye los sellos SQL ni la aceptación municipal. EXP-PROV-01 continúa diferido; los módulos 7 y 9 no se declaran terminados por este avance técnico.
 
+
 ## B2.1 · lectura de eventos que cruzan el período
 
 `AUSENCIAS_CRUCE_PERIODO_20260924.md` incorpora un criterio explícito en el historial individual: conservar el listado de inicios o incluir eventos anteriores cuyo fin informado alcanza la ventana. La consulta comparte predicado entre filas, cantidad y resumen, conserva fechas/cantidades originales y evita asumir continuidad indefinida cuando falta un fin. No modifica el ausentismo general ni convierte esta lectura en justificación, regla aprobada o descuento salarial.
 
 Persisten incorporación de fuentes, respaldo sucesor, resolución administrativa y entrega definitiva de novedades. El expediente de proveedores continúa diferido hasta G-AUT-01.
+
+
+
+## D1.2 · inspección de la fuente operativa y dependencias nativas
+
+`SUCCESSOR_OPERATIONAL_PREFLIGHT_20260925.md` añade la comparación de los diez dominios con la selección real, sus sellos y las imágenes anteriores de cada diferencia. Una sola transacción read-only obtiene además la cohorte de contratos y trece grupos de registros nativos, sin publicar filas personales. El resultado no autoriza cargar ni seleccionar el sucesor: el cargador debe preservar las dependencias, revalidar dentro de su propia transacción y cerrar capacidad/restauración.
 
