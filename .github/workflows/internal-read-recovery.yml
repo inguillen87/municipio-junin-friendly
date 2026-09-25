@@ -4,6 +4,10 @@ on:
     branches: ['internal-read-timeout-recovery-20260923', 'master']
     paths:
       - 'api/internal-data.js'
+      - 'estructura.html'
+      - 'assets/structure-people.*'
+      - 'tests/structure-people.test.js'
+      - 'scripts/verify-structure-people-browser.mjs'
       - 'lib/internal-payroll-document-batch.js'
       - 'assets/payroll-document-batch*'
       - 'tests/payroll-document-batch.test.js'
@@ -122,6 +126,8 @@ jobs:
           node scripts/verify-workforce-operations-browser.mjs 2>&1 | tee verification/internal-read-recovery-browser.log
       - name: Time and absence operational workspace
         run: node scripts/verify-time-absence-workspace-browser.mjs
+      - name: Structure nominal directory with synthetic APIs
+        run: node scripts/verify-structure-people-browser.mjs
       - name: Budget structure population comparison
         run: node scripts/verify-budget-cotejo-browser.mjs
       - name: Native command receipt and retry acceptance
@@ -141,6 +147,7 @@ jobs:
             verification/time-absence-workspace/
             verification/action-command-recovery/
             verification/budget-cotejo/
+            verification/structure-people-local/
             verification/payroll-document-selection/
             verification/payroll-selection-qa.log
             verification/absence-window-qa.log
