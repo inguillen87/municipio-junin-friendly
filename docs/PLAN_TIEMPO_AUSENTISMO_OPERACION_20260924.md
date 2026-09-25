@@ -142,3 +142,10 @@ Persisten incorporación de fuentes, respaldo sucesor, resolución administrativ
 
 `SUCCESSOR_OPERATIONAL_PREFLIGHT_20260925.md` añade la comparación de los diez dominios con la selección real, sus sellos y las imágenes anteriores de cada diferencia. Una sola transacción read-only obtiene además la cohorte de contratos y trece grupos de registros nativos, sin publicar filas personales. El resultado no autoriza cargar ni seleccionar el sucesor: el cargador debe preservar las dependencias, revalidar dentro de su propia transacción y cerrar capacidad/restauración.
 
+
+
+## D1.3 · cargador transaccional de preparación privada
+
+`SUCCESSOR_TRANSACTIONAL_LOADER_20260925.md` conecta el paquete verificado con la migración 106: transacción única, comparación renovada, carga por lotes, sello de diez dominios, repetición verificable, rollback explícito y resultado incierto si no llega la confirmación de COMMIT. No selecciona la fuente ni modifica trabajo municipal.
+
+La lectura agregada del destino observó 19.015625 MiB disponibles después de la reserva configurada, frente a los 24 MiB requeridos por el cargador. La instalación/carga real queda bloqueada; no se cambia la reserva ni el plan comercial para forzarla. El cierre operativo mantiene capacidad/restauración, preparación en el destino adecuado y selección sucesora explícita como pasos separados. El ensayo PostgreSQL usa datos sintéticos y no sustituye una restauración municipal. EXP-PROV-01 continúa diferido hasta G-AUT-01.

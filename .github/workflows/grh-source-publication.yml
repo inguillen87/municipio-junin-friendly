@@ -21,6 +21,8 @@ on:
       - 'scripts/migrations/09[6-9]-*'
       - 'scripts/fixtures/grh-*'
       - 'tests/*grh*'
+      - 'tests/successor-stage-transaction-lifecycle.test.js'
+      - 'tests/fixtures/successor-loader-postgres.js'
       - 'tests/fixtures/grh-*'
       - 'scripts/generate-friendly-source-aggregate.mjs'
       - 'tests/friendly-source-aggregate.test.js'
@@ -111,6 +113,11 @@ jobs:
           docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres successor_stage_qa
           node scripts/verify-grh-successor-staging-postgres.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/successor-staging.sql
           docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=successor_stage_qa -v ON_ERROR_STOP=1 < verification/successor-staging.sql | tee verification/successor-staging.log
+      - name: Transactional successor loader, synthetic database only
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/successor-pg" pg@8.16.3 --ignore-scripts --no-audit --no-fund
+          SUCCESSOR_QA_PG_DRIVER="$RUNNER_TEMP/successor-pg/node_modules/pg/lib/index.js" SUCCESSOR_QA_PORT=5432 SUCCESSOR_QA_USER=postgres node scripts/verify-grh-successor-loader-postgres.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -81,7 +81,9 @@ const cohortSql=`/* successor-preflight:cohort */ WITH selected AS (${selection}
  FROM public.employment_contract c JOIN selected s ON c.source_system='GRH' AND c.legacy_company_id=s.source_company_id`;
 const plans=new WeakMap();
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
-export function planSuccessorOperationalRead(packageInput,targetInput){
+export function planSuccessorOperationalRead(packageInput,targetInput){return planRead(packageInput,targetInput,'readonly');}
+export function planSuccessorStagingRead(packageInput,targetInput){return planRead(packageInput,targetInput,'staging');}
+function planRead(packageInput,targetInput,purpose){
  const pack=verifySuccessorPackage(structuredClone(packageInput)),target=validateSuccessorTarget(targetInput);
  const values=[target.tenantId,target.bindingId,target.coreVersionId,target.curatedVersionId,target.publicationSha256];
  const affected=[...new Set(pack.changes.flatMap(c=>[c.previousRecord,c.record].filter(Boolean).map(r=>r.employee_number??r.legajo).filter(v=>typeof v==='string')))].sort();
@@ -94,19 +96,21 @@ export function planSuccessorOperationalRead(packageInput,targetInput){
  queries.push({tag:'cohort',text:cohortSql,values:[...values,affected]});
  for(const domain of NATIVE_READ_DOMAINS)queries.push({tag:domain[0],text:nativeSql(domain),values:[...values,affected]});
  queries.push({tag:'metadata-end',text:selectedMeta,values});
- const plan=freeze({version:'grh-successor-operational-read-plan.v1',queries,options:{readOnly:true,isolationLevel:'RepeatableRead'}});
- plans.set(plan,{pack,target,affectedCount:affected.length});return plan;
+ const plan=freeze({version:'grh-successor-operational-read-plan.v1',queries,options:{readOnly:purpose==='readonly',isolationLevel:purpose==='readonly'?'RepeatableRead':'Serializable'}});
+ plans.set(plan,{pack,target,affectedCount:affected.length,purpose});return plan;
 }
 const asCount=v=>Number.isSafeInteger(v)&&v>=0;
 const sqlFingerprint=v=>v&&asCount(v.rows)&&typeof v.md5==='string'&&/^[a-f0-9]{32}$/.test(v.md5);
 const civilTime=v=>typeof v==='string'?v.slice(0,19).replace(' ','T'):null;
-export function evaluateSuccessorOperationalRead(plan,results){
- const context=plans.get(plan);if(!context||!Array.isArray(results)||results.length!==plan.queries.length)fail('SUCCESSOR_READ_RESULT_INVALID');
+export function evaluateSuccessorOperationalRead(plan,results){return evaluateRead(plan,results,'readonly');}
+export function evaluateSuccessorStagingRead(plan,results){return evaluateRead(plan,results,'staging');}
+function evaluateRead(plan,results,purpose){
+ const context=plans.get(plan);if(!context||context.purpose!==purpose||!Array.isArray(results)||results.length!==plan.queries.length)fail('SUCCESSOR_READ_RESULT_INVALID');
  const {pack,target}=context;
  const observations=results.map(rows=>{if(!Array.isArray(rows)||rows.length!==1||!rows[0]?.observation)fail('SUCCESSOR_READ_INCOMPLETE');return rows[0].observation;});
  const first=observations[0],last=observations.at(-1);
  for(const m of [first,last]){
-  if(m.project!==target.projectId||m.branch!==target.branchId||m.database!==target.databaseName||m.readOnly!=='on'||m.isolation!=='repeatable read')fail('SUCCESSOR_READ_TARGET_MISMATCH');
+  if(m.project!==target.projectId||m.branch!==target.branchId||m.database!==target.databaseName||m.readOnly!==(purpose==='readonly'?'on':'off')||m.isolation!==(purpose==='readonly'?'repeatable read':'serializable'))fail('SUCCESSOR_READ_TARGET_MISMATCH');
   if(m.tenant_id!==target.tenantId||m.source_binding_id!==target.bindingId||m.source_version_id!==target.coreVersionId
    ||m.curated_version_id!==target.curatedVersionId||m.publication_sha256!==target.publicationSha256
    ||m.curated_batch!==m.source_batch_id||String(m.curated_import)!==String(m.import_run_id))fail('SUCCESSOR_READ_SELECTION_MISMATCH');
@@ -145,7 +149,7 @@ export function evaluateSuccessorOperationalRead(plan,results){
   const review=contract?r.affectedContractRows>0:r.rows>0;if(review)nativeReviewRequired=true;
   native[domain]={rows:r.rows,fingerprint:r.fingerprint,affectedContractRows:r.affectedContractRows,afterPublication:r.afterPublication,reviewRequired:review};
  }
- const report={version:'grh-successor-operational-preflight.v1',target,packageSha256:pack.payloadSha256,
+ const report={version:purpose==='readonly'?'grh-successor-operational-preflight.v1':'grh-successor-staging-revalidation.v1',target,packageSha256:pack.payloadSha256,
   baselineSourceSha256:pack.baseline.sourceSha256,candidateSourceSha256:pack.candidate.sourceSha256,sourceCutoff:pack.baseline.cutoff,
   snapshot:first.snapshot,sourceBatchId:first.source_batch_id,importRunId:String(first.import_run_id),
   baselineCompatible:findings.length===0,findings,entities,affectedSourceReferences:context.affectedCount,
@@ -153,7 +157,7 @@ export function evaluateSuccessorOperationalRead(plan,results){
    coreStored:first.core_manifest,coreCompared:pack.baseline.coreManifestSha256},
   cohort:{rows:cohort.rows,otherBatches:cohort.otherBatches,afterPublication:cohort.afterPublication,affectedContracts:cohort.affectedContracts,fingerprint:cohort.fingerprint},native,
   nativeReviewRequired,nativeConflictsResolved:false,stagingInstalled:first.stagingInstalled===true,
-  databaseBytes:String(first.databaseBytes),readOnly:true,writeStatements:0,operationalSourceChanged:false,
+  databaseBytes:String(first.databaseBytes),readOnly:purpose==='readonly',writeStatements:0,operationalSourceChanged:false,
   stagingLoadAuthorized:false,publicationAuthorized:false,capacityCertified:false,restorationTested:false,containsPersonalRecords:false};
  if(!/^\d{1,16}$/.test(report.databaseBytes)||!/^\d+:\d+:(?:\d+(?:,\d+)*)?$/.test(report.snapshot))fail('SUCCESSOR_READ_RESULT_INVALID');
  return freeze({...report,reportSha256:successorHash(stableJson(report))});
