@@ -204,13 +204,14 @@ function approvalEvidence(run) {
   if (!Array.isArray(run.timeline) || run.timeline.length < 3) {
     fail('APPROVED_PROOF_APPROVAL_INVALID', 'No hay trazabilidad suficiente de la aprobación.');
   }
-  const event = run.timeline.at(-1);
+  const expectedApprovalVersion = run.status === 'closed' ? run.version - 1 : run.version;
+  const event = [...run.timeline].reverse().find((item) => item?.command === 'approve');
   const eventTime = normalizedIso(event?.occurredAt);
   const decidedAt = normalizedIso(run.decidedAt);
   if (!isObject(event) || event.command !== 'approve'
       || event.fromStatus !== 'submitted' || event.toStatus !== 'approved'
-      || event.expectedVersion !== run.version - 1
-      || event.resultingVersion !== run.version
+      || event.expectedVersion !== expectedApprovalVersion - 1
+      || event.resultingVersion !== expectedApprovalVersion
       || event.reasonCode !== 'approved_by_checker'
       || !ROLE_KEY.test(String(event.actorRoleKey || ''))
       || !SHA256.test(String(event.eventSha256 || ''))
@@ -232,13 +233,13 @@ function approvedContext(run) {
       || run.contractVersion !== SOURCE_CONTRACT_VERSION
       || !PERIOD.test(String(run.period || ''))
       || !['42', '55'].includes(String(run.jurisdiction))
-      || run.status !== 'approved' || run.closeApproved !== true
+      || !['approved', 'closed'].includes(run.status) || run.closeApproved !== true
       || !Number.isSafeInteger(run.version) || run.version < 3
       || run.sourceCount !== 3
       || run.mismatchCount !== 0 || run.blockingIssueCount !== 0
       || !Array.isArray(run.blockingIssues) || run.blockingIssues.length !== 0
       || !SHA256.test(String(run.sourceSetSha256 || ''))) {
-    fail('APPROVED_PROOF_NOT_AUTHORIZED', 'Sólo un cierre informado como aprobado, conciliado y sin bloqueos puede generar la copia local.');
+    fail('APPROVED_PROOF_NOT_AUTHORIZED', 'Sólo una liquidación confirmada o cerrada, conciliada y sin bloqueos puede generar la copia local.');
   }
   const totals = exactTotals(run.totals);
   if (!totals) fail('APPROVED_PROOF_TOTALS_INVALID', 'Los totales aprobados no coinciden al centavo.');

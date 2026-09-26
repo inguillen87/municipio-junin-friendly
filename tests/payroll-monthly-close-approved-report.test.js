@@ -302,7 +302,7 @@ test('el módulo no consulta red, storage ni reloj actual para construir evidenc
   assert.doesNotMatch(source, /\bfetch\s*\(|localStorage|sessionStorage|indexedDB|console\./);
   assert.doesNotMatch(source, /Date\.now\s*\(|new Date\s*\(\s*\)\s*\.toISOString/);
   assert.doesNotMatch(source, /innerHTML|document\.write/);
-  assert.match(source, /run\.status !== 'approved'/);
+  assert.match(source, /!\['approved', 'closed'\]\.includes\(run\.status\)/);
   assert.match(source, /run\.blockingIssueCount !== 0/);
   assert.match(source, /reconciliation\.toleranceCents !== '0'/);
   assert.match(source, /event\.command !== 'approve'/);

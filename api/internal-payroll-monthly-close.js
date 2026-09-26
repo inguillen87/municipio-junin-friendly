@@ -22,7 +22,7 @@ export const PAYROLL_MONTHLY_CLOSE_REQUIRED_CAPABILITY =
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-const POST_COMMANDS = new Set(['prepare', 'submit', 'approve', 'reject', 'cancel']);
+const POST_COMMANDS = new Set(['prepare', 'submit', 'approve', 'reject', 'cancel', 'close', 'annul']);
 const GET_RESOURCES = new Set(['bootstrap', 'list', 'detail', 'attempt']);
 const TOP_LEVEL_KEYS = new Set(['command', 'payload']);
 const PREPARE_KEYS = new Set(['period', 'jurisdiction', 'sources']);
@@ -36,6 +36,8 @@ const COMMAND_CAPABILITY = Object.freeze({
   approve: 'payroll.monthly_close.approve',
   reject: 'payroll.monthly_close.approve',
   cancel: 'payroll.monthly_close.prepare',
+  close: 'payroll.monthly_close.approve',
+  annul: 'payroll.monthly_close.approve',
 });
 const SAFE_PAYROLL_ERRORS = Object.freeze({
   PAYROLL_MONTHLY_CLOSE_ATTEMPT_COMMAND_INVALID: [422, 'El comando del intento no es válido'],

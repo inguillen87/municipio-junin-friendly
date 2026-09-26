@@ -429,6 +429,8 @@
     .monthly-close-boundaries { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0 14px; }
     .monthly-close-boundary { padding: 9px 10px; color: #6b4c16; background: var(--amber-soft); border: 1px solid #e2cf9e; border-radius: 4px; font-size: 10px; font-weight: 800; }
     .monthly-close-workspace { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr); gap: 12px; }
+    .monthly-close-workspace > [data-monthly-workflow-prepare-panel][hidden] + .post-close-results { grid-column: 1 / -1; }
+    .monthly-close-workspace > .post-close-results { min-width: 0; }
     .monthly-close-files { display: grid; gap: 10px; }
     .monthly-close-list td:nth-child(3) { font-variant-numeric: tabular-nums; }
     .monthly-close-detail { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -1530,21 +1532,21 @@
             </article>
             <article class="panel monthly-close-governed" data-payroll-monthly-close-workflow aria-labelledby="monthlyCloseGovernedTitle" aria-busy="true">
               <div>
-                <span class="section-index">S008-C2.1 · CIERRE GOBERNADO</span>
-                <h3 id="monthlyCloseGovernedTitle">Guardar, conciliar y decidir una corrida mensual</h3>
-                <p class="panel-note">Une las tres fuentes agregadas del período en una corrida reproducible. La conciliación exige diferencia exacta de $ 0,00 y las decisiones se habilitan únicamente desde el servidor para la identidad y el estado actuales.</p>
+                <span class="section-index">MÓDULO 7 · LIQUIDACIÓN</span>
+                <h3 id="monthlyCloseGovernedTitle">Confirmar, cerrar y anular una liquidación</h3>
+                <p class="panel-note">Reemplaza el circuito manual del GRH con estados trazables. La confirmación exige conciliación exacta y otra identidad; el cierre conserva el histórico. Anular nunca borra la evidencia.</p>
               </div>
               <div class="monthly-close-steps" aria-label="Circuito del cierre mensual">
-                <div class="monthly-close-step"><strong>1 · Preparar</strong><span>Marcelo u otro preparador autorizado carga tres contratos agregados.</span></div>
-                <div class="monthly-close-step"><strong>2 · Conciliar</strong><span>MuniControl compara conceptos y banco al centavo, sin tolerancia.</span></div>
-                <div class="monthly-close-step"><strong>3 · Enviar</strong><span>Quien preparó puede enviar a revisión, pero no autoaprobar.</span></div>
-                <div class="monthly-close-step"><strong>4 · Decidir</strong><span>Hugo u otra identidad aprobadora puede aprobar o rechazar.</span></div>
+                <div class="monthly-close-step"><strong>7.1 · Anular</strong><span>Antes de confirmar se anula la preparación; una liquidación confirmada/cerrada se anula con evento histórico.</span></div>
+                <div class="monthly-close-step"><strong>7.2 · Confirmar</strong><span>Otra identidad autorizada confirma sólo si conceptos, banco y Gobierno concilian al centavo.</span></div>
+                <div class="monthly-close-step"><strong>7.3 · Cerrar</strong><span>Una liquidación confirmada pasa a Cerrada y queda preservada para consulta histórica.</span></div>
+                <div class="monthly-close-step"><strong>Siguiente · Imputación</strong><span>El cierre no contabiliza por sí solo; la integración GAF/contable queda como etapa explícita posterior.</span></div>
               </div>
               <div class="monthly-close-boundaries" aria-label="Límites del cierre mensual">
-                <div class="monthly-close-boundary">No liquidó sueldos</div>
+                <div class="monthly-close-boundary">Confirma/cierra estados; no recalcula haberes</div>
                 <div class="monthly-close-boundary">No realizó pagos</div>
                 <div class="monthly-close-boundary">No generó presentación fiscal</div>
-                <div class="monthly-close-boundary">No transmitió a GRH, banco ni organismo</div>
+                <div class="monthly-close-boundary">No transmite a GRH, banco ni contabilidad</div>
               </div>
               <p class="formula-lab-status" data-monthly-workflow-status data-state="warning" role="status" aria-live="polite">Consultando corridas mensuales persistidas…</p>
               <div class="control-import-scope">
@@ -1603,7 +1605,7 @@
                 </section>
                 <section class="panel post-close-results" aria-labelledby="monthlyWorkflowRunsTitle">
                   <div class="section-head">
-                    <div><h4 id="monthlyWorkflowRunsTitle">Bandeja de cierres mensuales</h4><p class="panel-note">Admin puede revisar; cada botón aparece solamente si `allowedCommands` lo autoriza.</p></div>
+                    <div><h4 id="monthlyWorkflowRunsTitle">Bandeja de liquidaciones mensuales</h4><p class="panel-note">Admin puede revisar; cada botón aparece solamente si `allowedCommands` lo autoriza.</p></div>
                     <button class="button" type="button" data-monthly-workflow-refresh>Actualizar</button>
                   </div>
                   <div class="table-wrap monthly-close-list">
@@ -1615,7 +1617,7 @@
                     <p class="empty" data-monthly-workflow-empty>No hay cierres mensuales informados para este contexto certificado.</p>
                   </div>
                   <div class="monthly-close-detail" data-monthly-workflow-detail hidden>
-                    <h4 data-monthly-workflow-detail-title>Detalle del cierre</h4>
+                    <h4 data-monthly-workflow-detail-title>Detalle de la liquidación</h4>
                     <div class="post-close-meta" data-monthly-workflow-detail-meta></div>
                     <div class="table-wrap">
                       <table class="monthly-close-reconciliation">
@@ -1645,7 +1647,7 @@
                     <div class="post-close-actions" data-monthly-workflow-actions></div>
                     <p class="post-close-note" data-monthly-workflow-action-status data-state="warning" role="status" aria-live="polite">Abrí una corrida para consultar las decisiones habilitadas.</p>
                     <div class="post-close-export" data-monthly-workflow-approved-proof hidden>
-                      <h4>Copia local del cierre</h4>
+                      <h4>Copia local de la liquidación confirmada</h4>
                       <p>Resume el estado aprobado informado por el servidor. Se genera en este navegador, no posee firma digital y no es un comprobante verificable.</p>
                       <div class="post-close-export-actions">
                         <button class="button" type="button" data-monthly-workflow-approved-proof-download disabled>Descargar copia local</button>

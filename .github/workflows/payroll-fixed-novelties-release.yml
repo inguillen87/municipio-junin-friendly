@@ -14,6 +14,19 @@ on:
       - 'scripts/migrations/092-*'
       - 'scripts/migrations/093-*'
       - 'scripts/migrations/095-*'
+      - 'scripts/migrations/108-*'
+      - 'scripts/verify-payroll-junin638-sql.mjs'
+      - 'tests/payroll-junin-638.test.js'
+      - 'api/internal-payroll-monthly-close.js'
+      - 'lib/internal-payroll-monthly-close.js'
+      - 'assets/payroll-monthly-close*'
+      - 'nomina-control.html'
+      - 'scripts/migrations/109-*'
+      - 'scripts/verify-payroll-module7-sql.mjs'
+      - 'tests/fixtures/payroll-module7-qa-checks.txt'
+      - 'scripts/verify-payroll-formula-lab-browser.mjs'
+      - 'tests/payroll-module7-lifecycle.test.js'
+      - 'tests/payroll-monthly-close-*'
       - 'scripts/verify-native-jurisdiction-sql.mjs'
       - 'tests/native-jurisdiction*'
       - 'api/internal-native-employees.js'
@@ -50,6 +63,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
+      - run: node scripts/verify-payroll-formula-lab-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - name: Existing monthly novelty regression
         run: node scripts/verify-novelty-sheet-057.mjs
@@ -113,6 +127,19 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/fixed-novelties.sql
           wait "$blocker"
           trap - EXIT
+      - name: Junín 638 AMARU fixed-width contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-junin638-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/junin638.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/junin638.sql 2>&1 | tee verification/junin638.log
+      - name: Module 7 lifecycle on isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=fixed_novelties_qa_only createdb -h 127.0.0.1 -p 5432 -U postgres module7_qa
+          node scripts/verify-payroll-module7-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/module7.sql
+          psql "postgresql://postgres:fixed_novelties_qa_only@127.0.0.1:5432/module7_qa" -v ON_ERROR_STOP=1 -f verification/module7.sql 2>&1 | tee verification/module7.log
   production:
     if: github.ref == 'refs/heads/master'
     needs: [verify, sql]

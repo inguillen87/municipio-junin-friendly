@@ -20,22 +20,22 @@ Estructura incluye una entrada destacada a **Abrir detalle nominal de cargos**, 
 
 Esto corrige la dificultad para encontrar ese circuito, **no incorpora automáticamente el PDF a Neon ni crea una nómina nominal desde los agregados**. El módulo 10 sigue exigiendo cotejar cargos liquidados con cargos presupuestados del ejercicio y producir el informe detallado. La agrupación por organización no se declara equivalente a ese presupuesto ni se interpreta Cant 0 como vacante.
 
-## Acceso: diagnóstico real, corrección no aplicada
+## Acceso: corrección aplicada; aceptación real pendiente
 
-La lectura de configuración detectó un perfil operativo activo con capacidades simultáneas de preparación y revisión en conflicto. Esto corresponde a la autorización municipal, no a un plan comercial. Las funciones instaladas coinciden con las versiones revisadas: `school_certificate_context_v1` transforma excepciones no enumeradas, incluida la de separación de funciones, en `SCHOOL_CERTIFICATE_SESSION_INVALID`. Por eso el mensaje de sesión vencida no permite distinguir ese fallo de configuración.
+La lectura de configuración detectó que el perfil `MUNICIPIO_ADMIN_OPERATIVO` ya poseía las capacidades necesarias, pero una pareja de catálogo (`employee.catalog.approve / employee.catalog.propose`) todavía no estaba reconocida por la regla de responsabilidades revisadas. Eso bloqueaba tareas no relacionadas y certificados lo presentaba como si la sesión hubiese vencido.
 
-El intento de generar una corrección de autorización fue bloqueado por los controles de la herramienta. Se retiró el borrador incompleto; no se aplicó ninguna migración, excepción de acceso, modificación de rol ni alternativa para saltar el bloqueo. Tampoco se publicó un cambio de texto como si hubiese habilitado agregar hijos o preparar parámetros. El diagnóstico detallado quedó privado, fuera de Git y de los archivos públicos.
+La regla instalada en Neon ya reconoce esa pareja y `school_certificate_context_v1` separa conflicto de perfil, sesión inválida y falla del servicio. El perfil operativo conserva **89 capacidades** y la comprobación posterior informa **0 pares SoD sin revisar**; no se amplió la membresía ni se eliminó la protección de autoaprobación. Falta la aceptación final con una sesión real de Noelia: abrir Hijos/Certificados y Parámetros, efectuar una alta controlada y reabrir el vínculo.
 
 ## Pendientes funcionales que no deben perderse
 
 | Caso | Estado de este incremento | Criterio de cierre que falta |
 | --- | --- | --- |
-| Agregar hijo/a y registrar certificados | Acceso diagnosticado; no desbloqueado | Perfil/contexto correctos, alta y reapertura del vínculo, persistencia e idempotencia comprobadas. |
-| Parámetros salariales | Conflicto real de funciones diagnosticado; no desbloqueado | Lectura/preparación y revisión independiente conforme al perfil aprobado, sin autoaprobación por otra cuenta de la misma persona. |
+| Agregar hijo/a y registrar certificados | Gate de perfil corregido en Neon; aceptación real pendiente | Alta y reapertura del vínculo con sesión de Noelia, persistencia e idempotencia comprobadas. |
+| Parámetros salariales | Gate de perfil corregido en Neon; aceptación real pendiente | Lectura/preparación con Noelia y revisión independiente conforme al perfil aprobado, sin autoaprobación por otra cuenta de la misma persona. |
 | Tiempo desde ingreso | Implementado | Acreditar publicación y aceptación del recorrido; no sustituye antigüedad salarial reconocida. |
 | Estructura módulo 10 | Entrada documental visible | Incorporación nominal gobernada y conciliación con presupuesto anual; el reporte detallado ya existente no se presenta como conciliación terminada. |
-| Concepto 638 AMARU / TXT | Pendiente | Confirmar el formato de salida real y su alcance. La captura corresponde a **analizar una fuente externa**, no a exportar un TXT; no cambiar extensión de un CSV para simularlo. |
-| Módulo 7: anular, confirmar/liquidar y cerrar | Pendiente de circuito completo | Operaciones reales con estados, revisión independiente, idempotencia, preservación de historial y aceptación municipal. No se agregaron botones que aparenten liquidar. |
+| Concepto 638 AMARU / TXT | Implementado y publicado | Homologación final contra un archivo aceptado por AMARU si el Municipio dispone de uno; el contrato aplicado es Formato Junin / amaru.txt. |
+| Módulo 7: anular, confirmar/liquidar y cerrar | Implementado en código y esquema 109 aplicado | Confirmación final del despliegue del commit y aceptación municipal; conserva maker-checker, idempotencia e historial. |
 
 Las capturas refuerzan estas prioridades por encima de mejoras accesorias. El candidato del 22/09, la revisión nativa de las 27 tablas y los restantes módulos mantienen sus estados anteriores. El expediente de proveedores continúa diferido hasta la autonomía.
 
@@ -52,3 +52,13 @@ La entrada de Estructura apunta a **Centro de reportes → Estructura de cargos*
 La aceptación integrada del Centro de reportes pasó **22 recorridos**, incluida la entrada nominal, denegación sin las dos capacidades de lectura, apertura de un PDF sintético con su worker real y conservación del detalle al cambiar de pestaña. La prueba aislada del documento conserva sus **12 controles**; ya no se utiliza su montaje aislado para acreditar una navegación entre páginas.
 
 Este ajuste de ruta se publica en un commit posterior, sin reescribir el commit anterior. La versión final y su CI se acreditan con el despliegue exacto. No cambia el alcance pendiente de ocupación nominal persistente, presupuesto anual, permisos ni liquidación.
+
+## Actualización P0 · perfil operativo y TXT 638 AMARU
+
+La comprobación posterior del destino operativo confirmó que el perfil `MUNICIPIO_ADMIN_OPERATIVO` mantiene **89 capacidades** y ya no presenta pares de separación de funciones sin revisar. Las dos membresías operativas activas pasan `tenant_iam_assert_no_sod_conflict`. La pareja que originaba el bloqueo, `employee.catalog.approve / employee.catalog.propose`, está incluida en la regla revisada y `school_certificate_context_v1` distingue conflicto de perfil, sesión inválida y falla de servicio. Esto resuelve el bloqueo de autorización en la base; la aceptación final sigue requiriendo abrir una sesión real de Noelia y ejecutar alta/reapertura de hijo y acceso a Parámetros.
+
+Para **638 AMARU** se dejó de inferir el archivo desde CUIL/nombre. La evidencia del respaldo GRH vigente define `idformato=1`, **Formato Junin**, archivo **amaru.txt**, con dos campos: DNI en posición 5 longitud 8 e importe en posición 44 longitud 11. El exportador nuevo toma únicamente versiones aprobadas del concepto 638 del período y exige el mismo snapshot consultado. Los 55 bytes se completan con espacios fuera de esos campos; no incluye CUIL ni nombre. El separador CRLF sin terminador final es una convención técnica de MuniControl: el respaldo fija campos y posiciones, pero no documenta el fin de línea del receptor.
+
+La función privada `payroll_fixed_registry_junin638_v1` está instalada en Neon con ese contrato y sólo queda expuesta al rol runtime existente. No agrega capacidades ni modifica nómina. Las pruebas de navegador usan datos sintéticos; antes de presentar el TXT a AMARU debe cotejarse al menos un archivo aceptado por el receptor si se dispone de él.
+
+El analizador de **Migración y controles externos** conserva su función: validar un archivo local sin importarlo. Ahora ofrece el mismo layout de Formato Junin como previsualización y enlaza explícitamente al exportador de Novedades fijas; deja de sugerir que esa pantalla genera el descuento.

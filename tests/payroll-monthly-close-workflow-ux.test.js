@@ -478,13 +478,14 @@ test('presenta circuito maker-checker, conciliación exacta y límites operativo
   const build = read('scripts/build-friendly.mjs');
 
   assert.match(html, /data-payroll-monthly-close-workflow/);
-  assert.match(html, /Marcelo u otro preparador autorizado carga tres contratos agregados/);
-  assert.match(html, /Hugo u otra identidad aprobadora puede aprobar o rechazar/);
+  assert.match(html, /7\.1 · Anular/);
+  assert.match(html, /7\.2 · Confirmar/);
+  assert.match(html, /7\.3 · Cerrar/);
   assert.match(html, /Admin puede revisar/);
-  assert.match(html, /No liquidó sueldos/);
+  assert.match(html, /no recalcula haberes/);
   assert.match(html, /No realizó pagos/);
   assert.match(html, /No generó presentación fiscal/);
-  assert.match(html, /No transmitió a GRH, banco ni organismo/);
+  assert.match(html, /No transmite a GRH, banco ni contabilidad/);
   assert.match(html, /data-monthly-workflow-reconciliation/);
   assert.match(html, /data-monthly-workflow-government-reconciliation/);
   assert.match(html, /Un centavo de diferencia bloquea la aprobación/);
@@ -513,4 +514,38 @@ test('presenta circuito maker-checker, conciliación exacta y límites operativo
   assert.match(source, /reader\.readAsArrayBuffer\(file\)/);
   assert.doesNotMatch(source, /file\.name|localStorage|sessionStorage|console\./);
   assert.equal(formatPayrollMonthlyCloseAmount('10000'), '$ 100,00');
+});
+
+test('módulo 7 acepta confirmar, cerrar y anular como estados auditables separados', () => {
+  for (const item of [
+    detailedRun({ status: 'approved', version: 3, closeApproved: true, allowedCommands: ['close','annul'] }),
+    detailedRun({ status: 'closed', version: 4, closeApproved: true, allowedCommands: ['annul'] }),
+    detailedRun({ status: 'annulled', version: 5, closeApproved: false, allowedCommands: [] }),
+  ]) {
+    assert.equal(validatePayrollMonthlyCloseDetail({ ok: true, data: { run: item, flags: flags(item.closeApproved) } }), true);
+  }
+  assert.deepEqual(buildPayrollMonthlyCloseMutation('close', {
+    runId: RUN_ID, expectedVersion: 3, reasonCode: 'closed_for_history',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000005',
+  }), { command: 'close', payload: {
+    runId: RUN_ID, expectedVersion: 3, reasonCode: 'closed_for_history',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000005',
+  }});
+  assert.deepEqual(buildPayrollMonthlyCloseMutation('annul', {
+    runId: RUN_ID, expectedVersion: 4, reasonCode: 'annulled_by_authority',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000006',
+  }), { command: 'annul', payload: {
+    runId: RUN_ID, expectedVersion: 4, reasonCode: 'annulled_by_authority',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000006',
+  }});
+});
+test('módulo 7 no confunde anular preparación con anular una liquidación confirmada', () => {
+  assert.equal(buildPayrollMonthlyCloseMutation('cancel', {
+    runId: RUN_ID, expectedVersion: 2, reasonCode: 'annulled_by_authority',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000005',
+  }), null);
+  assert.equal(buildPayrollMonthlyCloseMutation('annul', {
+    runId: RUN_ID, expectedVersion: 2, reasonCode: 'cancelled_by_preparer',
+    reasonReference: 'ref:50000000-0000-4000-8000-000000000005',
+  }), null);
 });

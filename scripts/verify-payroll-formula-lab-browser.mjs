@@ -128,6 +128,100 @@ const monthlyCloseBootstrapFixture = Object.freeze({
   },
 });
 
+const module7RunId = '10000000-0000-4000-8000-000000000001';
+let module7Status = 'submitted';
+let module7Version = 2;
+let module7EventId = 40;
+const module7Timeline = [];
+const module7Transitions = [];
+function module7Flags(status = module7Status) {
+  return {
+    includesPersonalRecords: false, rawContentStored: false, grhMutation: false,
+    payrollCalculated: false, payrollPosted: false,
+    bankArtifactGenerated: false, governmentArtifactGenerated: false,
+    fiscalArtifactGenerated: false, closeApproved: ['approved', 'closed'].includes(status),
+  };
+}
+function module7Allowed(status = module7Status) {
+  if (status === 'submitted') return ['approve', 'reject'];
+  if (status === 'approved') return ['close', 'annul'];
+  if (status === 'closed') return ['annul'];
+  return [];
+}
+function module7Sources() {
+  return [
+    ['grh-concept-statistics.v1', 'grh_observed'],
+    ['bank-accreditation-summary.v1', 'bank_control'],
+    ['government-payroll-summary.v1', 'government_control'],
+  ].map(([definitionKey, sourceKind], index) => ({
+    definitionKey, sourceKind, recordCount: index + 1, byteLength: 100 + index,
+    contentHmacSha256: String(index + 1).repeat(64),
+  }));
+}
+function module7Run(detail = false) {
+  const base = {
+    id: module7RunId, status: module7Status, version: module7Version,
+    period: '2026-08', jurisdiction: '42', sourceSetSha256: 'a'.repeat(64),
+    totals: { reportedEarningsLessRetentionsCents: '10000', reportedBankNetCents: '10000', differenceCents: '0' },
+    sourceCount: 3, mismatchCount: 0, blockingIssueCount: 0,
+    closeApproved: ['approved', 'closed'].includes(module7Status),
+  };
+  if (!detail) return base;
+  return {
+    ...base, sources: module7Sources(), allowedCommands: module7Allowed(),
+    timeline: module7Timeline.map((event) => ({ ...event })),
+    reconciliation: {
+      comparisons: [{
+        repartitionCode: '1', reportedEarningsLessRetentionsCents: '10000',
+        reportedBankNetCents: '10000', differenceCents: '0', matches: true, issueCodes: [],
+      }],
+      governmentComparisons: [
+        { comparisonKey: 'earnings', reportedGrhCents: '12500', reportedGovernmentCents: '12500', differenceCents: '0', matches: true, issueCode: null },
+        { comparisonKey: 'employer_contributions', reportedGrhCents: '3500', reportedGovernmentCents: '3500', differenceCents: '0', matches: true, issueCode: null },
+      ],
+    },
+  };
+}
+function module7Bootstrap() {
+  return {
+    ok: true,
+    data: {
+      principal: {
+        tenantId: '20000000-0000-4000-8000-000000000002',
+        membershipId: '30000000-0000-4000-8000-000000000003',
+        certifiedBindingId: '40000000-0000-4000-8000-000000000004',
+        roleKey: 'HUGO_APROBADOR_INTEGRAL', employmentLinked: true,
+        capabilities: ['payroll.monthly_close.read', 'payroll.monthly_close.approve', 'payroll.monthly_close.audit.read'],
+      },
+      limits: {
+        contractVersion: 'payroll-monthly-close-run.v1', maxSourceBytes: 256 * 1024,
+        jurisdictions: ['42', '55'],
+        sourceContracts: [
+          { definitionKey: 'grh-concept-statistics.v1' },
+          { definitionKey: 'bank-accreditation-summary.v1' },
+          { definitionKey: 'government-payroll-summary.v1' },
+        ],
+      },
+      runs: [module7Run()], recentEvents: module7Timeline.map((event) => ({ ...event })),
+      flags: module7Flags(),
+    },
+  };
+}
+function module7Envelope(command) {
+  const fromStatus = module7Status;
+  const next = { approve: 'approved', close: 'closed', annul: 'annulled' }[command];
+  assert.ok(next, command);
+  module7Status = next; module7Version += 1; module7EventId += 1;
+  const eventSha256 = String((module7EventId % 9) + 1).repeat(64);
+  const event = {
+    id: module7EventId, eventSha256, command, fromStatus, toStatus: next,
+    resultingVersion: module7Version, reasonCode: command === 'approve' ? 'approved_by_checker' : command === 'close' ? 'closed_for_history' : 'annulled_by_authority',
+    actorRoleKey: 'HUGO_APROBADOR_INTEGRAL', occurredAt: '2026-09-25T20:00:00.000Z',
+  };
+  module7Timeline.push(event); module7Transitions.push(command);
+  return { ok: true, replayed: false, data: { eventId: event.id, eventSha256, run: module7Run(true), flags: module7Flags(), replayed: false } };
+}
+
 const reprocessingBootstrapFixture = Object.freeze({
   ok: true,
   contractVersion: 'payroll-reprocessing-case.v1',
@@ -285,10 +379,37 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify(controlImportBootstrapFixture));
     return;
   }
-  if (request.method === 'GET' && url.pathname === '/api/internal-payroll-monthly-close'
-      && url.searchParams.get('resource') === 'bootstrap') {
-    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-    response.end(JSON.stringify(monthlyCloseBootstrapFixture));
+  if (request.method === 'GET' && url.pathname === '/api/internal-payroll-monthly-close') {
+    const module7 = request.headers['x-module7-fixture'] === 'lifecycle';
+    const resource = url.searchParams.get('resource');
+    if (resource === 'bootstrap') {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify(module7 ? module7Bootstrap() : monthlyCloseBootstrapFixture));
+      return;
+    }
+    if (module7 && resource === 'detail' && url.searchParams.get('id') === module7RunId) {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ ok: true, data: { run: module7Run(true), flags: module7Flags() } }));
+      return;
+    }
+  }
+  if (request.method === 'POST' && url.pathname === '/api/internal-payroll-monthly-close'
+      && request.headers['x-module7-fixture'] === 'lifecycle') {
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on('end', () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!['approve', 'close', 'annul'].includes(body.command)) throw new Error('command');
+        const expected = { submitted: 'approve', approved: 'close', closed: 'annul' }[module7Status];
+        if (body.command !== expected || body.payload?.runId !== module7RunId || body.payload?.expectedVersion !== module7Version) throw new Error('state');
+        response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        response.end(JSON.stringify(module7Envelope(body.command)));
+      } catch {
+        response.writeHead(409, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        response.end(JSON.stringify({ ok: false, code: 'MODULE7_FIXTURE_STATE', error: 'Estado sintético inválido' }));
+      }
+    });
     return;
   }
   if (request.method === 'GET' && url.pathname === '/api/internal-payroll-reprocessing') {
@@ -360,11 +481,21 @@ async function inspect(viewport, label) {
   page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
   page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   page.on('response', (response) => { if (response.status() >= 400) issues.push(`HTTP ${response.status()} ${response.url()}`); });
+  async function openTool(selector) {
+    const panel = page.locator(selector);
+    const tool = page.locator('details.task-tool').filter({ has: panel });
+    if (await tool.count()) {
+      await tool.waitFor({ state: 'visible' });
+      if ((await tool.getAttribute('open')) === null) await tool.locator(':scope > summary').click();
+    }
+    await panel.waitFor({ state: 'visible' });
+    return panel;
+  }
 
   try {
-    await page.goto(`${baseUrl}/nomina-control.html`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-payroll-formula-lab]');
+    await page.goto(`${baseUrl}/nomina-control.html#correcciones`, { waitUntil: 'domcontentloaded' });
     assert.equal(await page.locator('#mainContent').isVisible(), true);
+    await page.waitForSelector('[data-payroll-reprocessing-workflow]:visible');
     await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
     assert.equal(await page.locator('[data-reprocessing-run] option').count(), 3);
     const runSelectorText = await page.locator('[data-reprocessing-run]').innerText();
@@ -399,6 +530,13 @@ async function inspect(viewport, label) {
     await reprocessingWorkflow.locator('[data-reprocessing-cases] tr').first().getByRole('button', { name: 'Abrir' }).click();
     await page.waitForFunction(() => document.querySelector('[data-reprocessing-status]')?.dataset.state === 'ok');
     assert.equal(await reprocessingWorkflow.locator('[data-reprocessing-detail]').isVisible(), true);
+    assert.equal(await page.locator('[data-payroll-reprocessing-workflow]').isVisible(), true);
+    assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), false);
+    await page.evaluate(() => { location.hash = '#parametros'; });
+    const formulaTool = page.locator('details.task-tool').filter({ has: page.locator('[data-payroll-formula-lab]') });
+    await formulaTool.waitFor({ state: 'visible' });
+    if ((await formulaTool.getAttribute('open')) === null) await formulaTool.locator(':scope > summary').click();
+    await page.waitForSelector('[data-payroll-formula-lab]:visible');
     assert.match(await page.locator('#formulaLabTitle').innerText(), /Revisar una fórmula/);
     assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
 
@@ -447,6 +585,14 @@ async function inspect(viewport, label) {
     assert.equal(await page.locator('img[src="x"]').count(), 0);
     assert.match(await page.locator('[data-catalog-status]').innerText(), /Catálogo con pendientes/);
 
+    assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
+    assert.equal(await page.locator('[data-grh-source-preview]').isVisible(), false);
+    await page.evaluate(() => { location.hash = '#migracion'; });
+    const sourceTool = page.locator('details.task-tool').filter({ has: page.locator('[data-grh-source-preview]') });
+    await sourceTool.waitFor({ state: 'visible' });
+    if ((await sourceTool.getAttribute('open')) === null) await sourceTool.locator(':scope > summary').click();
+    await page.waitForSelector('[data-grh-source-preview]:visible');
+
     const sourceText = [
       'codi_01|peri_31|mes_31|feca_31|tipo_31|lega_12|codi_27|cant_31|impo_31|codi_02|codi_06|codi_07',
       '101|2026|8|2026-08-31|M|1001|45|1,5|1200,25|2|6|7',
@@ -477,7 +623,7 @@ async function inspect(viewport, label) {
     assert.doesNotMatch(JSON.stringify(previewRequest), /empleados-confidencial|tenantId|sourceBindingId/);
     assert.equal(await sourcePreview.locator('[data-source-preview-file]').inputValue(), '');
 
-    const postClose = page.locator('[data-payroll-post-close-reconciler]');
+    const postClose = await openTool('[data-payroll-post-close-reconciler]');
     assert.equal(await postClose.getByLabel('Extracto agregado del reporte GRH').count(), 1);
     assert.equal(await postClose.getByLabel('Extracto agregado de la planilla de control').count(), 1);
     assert.equal(await postClose.locator('[data-post-close-observed-file-state]').innerText(), 'No hay un archivo seleccionado.');
@@ -540,13 +686,13 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /borrador local con coincidencia aritmética/);
     assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'ok');
 
-    const persistedControl = page.locator('[data-payroll-control-import-workflow]');
+    const persistedControl = await openTool('[data-payroll-control-import-workflow]');
     await page.waitForFunction(() => document.querySelector('[data-control-import-status]')?.textContent.includes('Se cargaron'));
     assert.equal(await persistedControl.locator('[data-control-import-prepare-panel]').isVisible(), true);
     assert.match(await persistedControl.locator('[data-control-import-maker-checker]').innerText(), /otra identidad autorizada debe aprobarlas/i);
     assert.match(await persistedControl.locator('[data-control-import-empty]').innerText(), /No hay corridas informadas/);
 
-    const art = page.locator('[data-payroll-art-report-workbench]');
+    const art = await openTool('[data-payroll-art-report-workbench]');
     await page.waitForFunction(() => document.querySelector('[data-art-status]')?.textContent.includes('Contexto validado'));
     assert.equal(await art.locator('[data-art-form]').isVisible(), true);
     await art.locator('[data-art-period]').fill('2026-08');
@@ -602,7 +748,7 @@ async function inspect(viewport, label) {
     await page.screenshot({ path: artScreenshot, fullPage: false });
     screenshots.push(artScreenshot);
 
-    const bankDiagnostic = page.locator('[data-payroll-bank-report-workbench]');
+    const bankDiagnostic = await openTool('[data-payroll-bank-report-workbench]');
     assert.equal(await bankDiagnostic.isVisible(), true);
     await bankDiagnostic.locator('[data-bank-diagnostic-file]').setInputFiles({
       name: 'cuentas-bancarias-privadas.txt',
@@ -620,7 +766,7 @@ async function inspect(viewport, label) {
     assert.doesNotMatch(await bankDiagnostic.innerText(), /cuentas-bancarias-privadas/);
     assert.match(await bankDiagnostic.locator('[data-bank-diagnostic-blocked]').innerText(), /acreditación bloqueadas/);
 
-    const healthDiagnostic = page.locator('[data-payroll-health-fixed-width-workbench]');
+    const healthDiagnostic = await openTool('[data-payroll-health-fixed-width-workbench]');
     assert.equal(await healthDiagnostic.isVisible(), true);
     await healthDiagnostic.locator('[data-health-files]').setInputFiles({
       name: 'osep-personas-privadas.txt',
@@ -690,7 +836,7 @@ async function inspect(viewport, label) {
     assert.match(await postClose.locator('[data-post-close-export-status]').innerText(), /diferencia abierta/);
     assert.equal(await postClose.locator('[data-post-close-export-status]').getAttribute('data-state'), 'warning');
 
-    const monthlyClose = page.locator('[data-monthly-close-precheck]');
+    const monthlyClose = await openTool('[data-monthly-close-precheck]');
     assert.equal(await monthlyClose.isVisible(), true);
     await monthlyClose.getByRole('button', { name: 'Validar y conciliar' }).click();
     const monthlyError = monthlyClose.locator('[data-monthly-close-errors]');
@@ -771,12 +917,12 @@ async function inspect(viewport, label) {
       storedFormula: localStorage.length + sessionStorage.length,
     }));
     assert.equal(layout.overflow, false, `${label}: overflow horizontal ${JSON.stringify(layout.overflowElements)}`);
-    assert.equal(layout.formulaVisible, true, `${label}: laboratorio oculto`);
+    assert.equal(layout.formulaVisible, false, `${label}: Parámetros debe permanecer aislado de Migración`);
     assert.equal(layout.previewVisible, true, `${label}: previsualización oculta`);
     assert.equal(layout.postCloseVisible, true, `${label}: control poscierre oculto`);
     assert.equal(layout.monthlyCloseVisible, true, `${label}: precontrol mensual oculto`);
     assert.equal(layout.persistedControlVisible, true, `${label}: corridas persistidas ocultas`);
-    assert.equal(layout.reprocessingVisible, true, `${label}: anulación y reliquidación ocultas`);
+    assert.equal(layout.reprocessingVisible, false, `${label}: Correcciones debe permanecer aislado de Migración`);
     assert.equal(layout.artVisible, true, `${label}: reporte ART oculto`);
     assert.equal(layout.bankDiagnosticVisible, true, `${label}: diagnóstico bancario oculto`);
     assert.equal(layout.healthDiagnosticVisible, true, `${label}: diagnóstico OSEP/Mutual oculto`);
@@ -786,11 +932,15 @@ async function inspect(viewport, label) {
     assert.equal(layout.storedFormula, 0, `${label}: la fórmula no debe persistirse en storage`);
 
     const reprocessing = page.locator('[data-payroll-reprocessing-workflow]');
+    await page.evaluate(() => { location.hash = '#correcciones'; });
+    await reprocessing.waitFor({ state: 'visible' });
     await reprocessing.scrollIntoViewIfNeeded();
     const reprocessingScreenshot = path.join(os.tmpdir(), `municontrol-payroll-reprocessing-${label}.png`);
     await page.screenshot({ path: reprocessingScreenshot, fullPage: false });
     screenshots.push(reprocessingScreenshot);
 
+    await page.evaluate(() => { location.hash = '#migracion'; });
+    await postClose.waitFor({ state: 'visible' });
     await postClose.scrollIntoViewIfNeeded();
     const screenshot = path.join(os.tmpdir(), `municontrol-payroll-post-close-${label}.png`);
     await page.screenshot({ path: screenshot, fullPage: false });
@@ -824,6 +974,92 @@ async function inspect(viewport, label) {
   assert.deepEqual(issues, [], `${label}: ${issues.join('\n')}`);
 }
 
+
+function resetModule7() {
+  module7Status = 'submitted';
+  module7Version = 2;
+  module7EventId = 40;
+  module7Timeline.splice(0);
+  module7Transitions.splice(0);
+}
+
+async function inspectModule7(viewport, label) {
+  resetModule7();
+  const context = await browser.newContext({
+    viewport,
+    extraHTTPHeaders: { 'x-module7-fixture': 'lifecycle' },
+  });
+  const page = await context.newPage();
+  const issues = [];
+  page.on('console', (message) => { if (message.type() === 'error') issues.push(`console: ${message.text()}`); });
+  page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
+  page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
+  try {
+    await page.goto(`${baseUrl}/nomina-control.html#migracion`, { waitUntil: 'domcontentloaded' });
+    const workflow = page.locator('[data-payroll-monthly-close-workflow]');
+    const workflowTool = page.locator('details.task-tool').filter({ has: workflow });
+    await workflowTool.waitFor({ state: 'visible' });
+    if ((await workflowTool.getAttribute('open')) === null) await workflowTool.locator(':scope > summary').click();
+    await workflow.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('[data-monthly-workflow-status]')?.textContent.includes('Se cargaron 1 cierres'));
+    assert.match(await workflow.innerText(), /MÓDULO 7 · LIQUIDACIÓN/);
+    assert.match(await workflow.innerText(), /7\.1 · Anular/);
+    assert.match(await workflow.innerText(), /7\.2 · Confirmar/);
+    assert.match(await workflow.innerText(), /7\.3 · Cerrar/);
+    assert.match(await workflow.innerText(), /No transmite a GRH, banco ni contabilidad/);
+    await workflow.getByRole('button', { name: 'Abrir cierre' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-monthly-workflow-detail]')?.hidden === false);
+    let actions = workflow.locator('[data-monthly-workflow-actions]');
+    assert.equal(await actions.getByRole('button', { name: 'Confirmar liquidación' }).count(), 1);
+    assert.equal(await actions.getByRole('button', { name: 'Cerrar liquidación' }).count(), 0);
+    assert.equal(await actions.getByRole('button', { name: 'Anular liquidación' }).count(), 0);
+
+    await actions.getByRole('button', { name: 'Confirmar liquidación' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-monthly-workflow-actions]')?.textContent.includes('Cerrar liquidación'));
+    assert.match(await workflow.innerText(), /Confirmada/);
+    actions = workflow.locator('[data-monthly-workflow-actions]');
+    assert.equal(await actions.getByRole('button', { name: 'Cerrar liquidación' }).count(), 1);
+    assert.equal(await actions.getByRole('button', { name: 'Anular liquidación' }).count(), 1);
+
+    await actions.getByRole('button', { name: 'Cerrar liquidación' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-monthly-workflow-actions]')?.textContent.trim() === 'Anular liquidación');
+    assert.match(await workflow.innerText(), /Cerrada/);
+    actions = workflow.locator('[data-monthly-workflow-actions]');
+    assert.equal(await actions.getByRole('button', { name: 'Anular liquidación' }).count(), 1);
+    assert.equal(await actions.getByRole('button', { name: 'Cerrar liquidación' }).count(), 0);
+
+    await actions.getByRole('button', { name: 'Anular liquidación' }).click();
+    await page.waitForFunction(() => document.querySelector('[data-monthly-workflow-actions]')?.children.length === 0);
+    assert.match(await workflow.innerText(), /Anulada/);
+    assert.deepEqual(module7Transitions, ['approve', 'close', 'annul']);
+    const traceDetails = workflow.locator('details.post-close-evidence');
+    if ((await traceDetails.getAttribute('open')) === null) await traceDetails.locator(':scope > summary').click();
+    const timeline = await workflow.locator('[data-monthly-workflow-events]').innerText();
+    assert.match(timeline, /Confirmar liquidación/);
+    assert.match(timeline, /Cerrar liquidación/);
+    assert.match(timeline, /Anular liquidación/);
+    assert.doesNotMatch(timeline, /CUIL|CBU|legajo|nombre/i);
+
+    const geometry = await page.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      width: document.querySelector('[data-payroll-monthly-close-workflow]')?.getBoundingClientRect().width || 0,
+      workspaceWidth: document.querySelector('.monthly-close-workspace')?.getBoundingClientRect().width || 0,
+      resultsWidth: document.querySelector('.monthly-close-workspace > .post-close-results')?.getBoundingClientRect().width || 0,
+    }));
+    assert.equal(geometry.overflow, false, `${label}: módulo 7 desborda horizontalmente`);
+    assert.ok(geometry.width > 0, `${label}: módulo 7 no visible`);
+    assert.ok(geometry.workspaceWidth > 0 && geometry.resultsWidth / geometry.workspaceWidth > .92,
+      `${label}: la bandeja deja espacio muerto cuando Preparar no está habilitado ${JSON.stringify(geometry)}`);
+    const screenshot = path.join(os.tmpdir(), `municontrol-module7-${label}.png`);
+    await workflow.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot, fullPage: false });
+    screenshots.push(screenshot);
+  } finally {
+    await context.close();
+  }
+  assert.deepEqual(issues, [], `${label}: ${issues.join('\n')}`);
+}
+
 async function inspectUnavailablePayroll() {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
@@ -839,16 +1075,21 @@ async function inspectUnavailablePayroll() {
   page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
   page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   try {
-    await page.goto(`${baseUrl}/nomina-control.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${baseUrl}/nomina-control.html#migracion`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#mainContent:not([hidden])');
+    for (const selector of ['[data-grh-source-preview]','[data-payroll-post-close-reconciler]','[data-monthly-close-precheck]']) {
+      const panel = page.locator(selector);
+      const tool = page.locator('details.task-tool').filter({ has: panel });
+      if ((await tool.getAttribute('open')) === null) await tool.locator(':scope > summary').click();
+      await panel.waitFor({ state: 'visible' });
+    }
     assert.equal(await page.locator('#errorHost').isVisible(), true);
     assert.match(await page.locator('#errorHost').innerText(), /No se pudieron consultar las corridas/);
     assert.match(await page.locator('#errorHost').innerText(), /control poscierre y el precontrol mensual técnico/);
-    assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), true);
+    assert.equal(await page.locator('[data-payroll-formula-lab]').isVisible(), false);
     assert.equal(await page.locator('[data-grh-source-preview]').isVisible(), true);
     assert.equal(await page.locator('[data-payroll-post-close-reconciler]').isVisible(), true);
     assert.equal(await page.locator('[data-monthly-close-precheck]').isVisible(), true);
-    assert.match(await page.locator('[data-formula-status]').innerText(), /Sintaxis válida/);
     assert.match(await page.locator('[data-source-preview-status]').innerText(), /Esperando un archivo local/);
     assert.match(await page.locator('[data-post-close-status]').innerText(), /Esperando período, jurisdicción y dos archivos agregados/);
 
@@ -883,6 +1124,8 @@ async function inspectUnavailablePayroll() {
 try {
   await inspect({ width: 1440, height: 900 }, 'desktop');
   await inspect({ width: 390, height: 844 }, 'mobile');
+  await inspectModule7({ width: 1440, height: 900 }, 'module7-desktop');
+  await inspectModule7({ width: 390, height: 844 }, 'module7-mobile');
   await inspectUnavailablePayroll();
   console.log(`Payroll formula browser QA: OK; screenshots: ${screenshots.join(', ')}; downloads: ${downloads.join(', ')}`);
 } finally {

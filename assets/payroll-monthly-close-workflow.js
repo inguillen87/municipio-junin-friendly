@@ -38,16 +38,20 @@ const GOVERNMENT_COMPARISON_LABELS = Object.freeze({
 const STATUS_LABELS = Object.freeze({
   prepared: 'Preparada',
   submitted: 'En revisión',
-  approved: 'Aprobada',
+  approved: 'Confirmada',
+  closed: 'Cerrada',
+  annulled: 'Anulada',
   rejected: 'Rechazada',
-  cancelled: 'Cancelada',
+  cancelled: 'Preparación anulada',
 });
 
 const COMMAND_LABELS = Object.freeze({
   submit: 'Enviar a revisión',
-  approve: 'Aprobar cierre',
-  reject: 'Rechazar cierre',
-  cancel: 'Cancelar corrida',
+  approve: 'Confirmar liquidación',
+  reject: 'Rechazar confirmación',
+  cancel: 'Anular preparación',
+  close: 'Cerrar liquidación',
+  annul: 'Anular liquidación',
 });
 
 const COMMAND_REASONS = Object.freeze({
@@ -55,6 +59,8 @@ const COMMAND_REASONS = Object.freeze({
   approve: Object.freeze(['approved_by_checker']),
   reject: Object.freeze(['source_mismatch', 'evidence_insufficient', 'period_not_ready']),
   cancel: Object.freeze(['cancelled_by_preparer']),
+  close: Object.freeze(['closed_for_history']),
+  annul: Object.freeze(['annulled_by_authority']),
 });
 
 const MONTHLY_CAPABILITIES = new Set([
@@ -103,7 +109,7 @@ function hasExactSourceDefinitions(value) {
 export function validateMonthlyCloseFlags(flags, status = null) {
   if (!isObject(flags) || SAFE_FALSE_FLAGS.some((key) => flags[key] !== false)
       || typeof flags.closeApproved !== 'boolean') return false;
-  return status === null || flags.closeApproved === (status === 'approved');
+  return status === null || flags.closeApproved === ['approved', 'closed'].includes(status);
 }
 
 function validateTotals(totals) {
@@ -146,7 +152,7 @@ export function validatePayrollMonthlyCloseRun(run, detail = false) {
       || run.sourceCount !== 3
       || !isNonNegativeInteger(run.mismatchCount)
       || !isNonNegativeInteger(run.blockingIssueCount)
-      || run.closeApproved !== (run.status === 'approved')) return false;
+      || run.closeApproved !== ['approved', 'closed'].includes(run.status)) return false;
   if (!detail) return true;
   return validatePayrollMonthlyCloseEvidenceRun(run)
     && validateCommands(run.allowedCommands);
@@ -520,15 +526,17 @@ function safeDate(value) {
 }
 
 function stateClass(status) {
-  if (status === 'approved') return 'closed';
-  if (status === 'rejected' || status === 'cancelled') return 'blocked';
+  if (status === 'approved' || status === 'closed') return 'closed';
+  if (status === 'rejected' || status === 'cancelled' || status === 'annulled') return 'blocked';
   return 'warning';
 }
 
 function eventReasonLabel(value) {
   return ({
     ready_for_review: 'Lista para revisión',
-    approved_by_checker: 'Aprobada por control independiente',
+    approved_by_checker: 'Liquidación confirmada por control independiente',
+    closed_for_history: 'Cierre histórico registrado',
+    annulled_by_authority: 'Liquidación anulada con trazabilidad',
     source_mismatch: 'Las fuentes no coinciden',
     evidence_insufficient: 'Evidencia insuficiente',
     period_not_ready: 'Período no disponible para cierre',
@@ -884,7 +892,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     run.allowedCommands.forEach((command) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `button${command === 'submit' || command === 'approve' ? ' primary' : ''}${command === 'reject' ? ' danger' : ''}`;
+      button.className = `button${['submit', 'approve', 'close'].includes(command) ? ' primary' : ''}${['reject', 'annul'].includes(command) ? ' danger' : ''}`;
       button.dataset.monthlyWorkflowCommand = command;
       button.textContent = COMMAND_LABELS[command];
       button.addEventListener('click', () => runCommand(command));
@@ -902,8 +910,8 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
     nodes.approvedProof.hidden = !ready;
     nodes.approvedProofDownload.disabled = !ready;
     nodes.approvedProofStatus.textContent = ready
-      ? 'Disponible: copia local del cierre informado como aprobado y conciliado. No posee firma digital.'
-      : 'La copia local se habilita después de una aprobación conciliada. No es un comprobante verificable.';
+      ? 'Disponible: copia local de la liquidación confirmada/conciliada. No posee firma digital.'
+      : 'La copia local se habilita después de confirmar la liquidación. No es un comprobante verificable.';
     nodes.approvedProofStatus.dataset.state = ready ? 'ok' : 'warning';
   }
 
@@ -929,7 +937,7 @@ export function createPayrollMonthlyCloseWorkflow(root, options = {}) {
   function renderDetail(run) {
     state.detail = run;
     nodes.detail.hidden = false;
-    nodes.detailTitle.textContent = `Cierre ${run.period} · Jurisdicción ${run.jurisdiction}`;
+    nodes.detailTitle.textContent = `Liquidación ${run.period} · Jurisdicción ${run.jurisdiction}`;
     renderMeta(run);
     renderReconciliation(run);
     renderSources(run);
