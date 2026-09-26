@@ -173,6 +173,7 @@ local-agents/
 !scripts/migrations/092-payroll-fixed-novelties.sql
 !scripts/migrations/093-native-fixed-novelties.sql
 !scripts/migrations/108-payroll-fixed-junin638.sql
+!scripts/migrations/109-payroll-module7-lifecycle.sql
 
 !juridica-registro.html
 !scripts/migrations/069-native-legal-registry.sql
