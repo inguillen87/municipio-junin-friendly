@@ -476,7 +476,9 @@ try {
   const childField = name => family.locator('[data-fs-child-field="' + name + '"]');
   const childSubmit = family.locator('[data-fs-child-save]'), childStatus = family.locator('[data-fs-child-status]');
   proposeCapability = false; await page.goto(ownUrl); await familyReady();
-  assert.equal(await family.locator('[data-fs-add-child]').isVisible(), false);
+  assert.equal(await family.locator('[data-fs-add-child]').isVisible(), true);
+  assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);
+  assert.match(await family.locator('[data-fs-create-status]').innerText(), /requiere permiso para proponer datos del legajo/);
   assert.equal(await family.locator('[data-fs-register]').count(), 0);
   proposeCapability = true; canDeclare = false; await page.reload(); await familyReady();
   assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);

@@ -242,8 +242,8 @@ export function mountSchoolingReport(host) {
 export function mountFamilyCertificates(host, { contractId, canPropose = false, focusFamilyId = null, focusFamilyRef = null } = {}) {
   if (!host?.isConnected || host.dataset.schoolingMounted) return;
   host.dataset.schoolingMounted = 'true'; host.classList.add('family-schooling', 'fs-family');
-  host.innerHTML = `<div class="fs-heading"><div><p class="fs-eyebrow">REGISTRO MUNICIPAL · CONTROL INTERNO</p><h3>Hijos y certificados escolares</h3><p>Registrá la escolaridad y la presentación del certificado, en papel o con PDF adjunto. Agregá al hijo si aún no figura. Los vínculos de GRH y las altas declaradas aquí conservan su procedencia.</p></div><div class="fs-actions"><button type="button" class="fs-button primary" data-fs-add-child hidden>Agregar hijo/a</button><button type="button" class="fs-button" data-fs-family-refresh>Actualizar registro</button></div></div>
-    <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando hijos y certificados…</p><p class="fs-note" role="status" data-fs-target-status hidden></p><p class="fs-note" data-fs-create-status></p><div data-fs-declaration-host></div><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Declarar un hijo o registrar su escolaridad no aprueba haberes. Una fecha ausente no significa que el certificado no se presentó.</p><div class="fs-family-list" data-fs-family-list></div>`;
+  host.innerHTML = `<div class="fs-heading"><div><p class="fs-eyebrow">REGISTRO MUNICIPAL · CONTROL INTERNO</p><h3>Hijos y certificados escolares</h3><p>Registrá la escolaridad y la presentación del certificado, en papel o con PDF adjunto. Agregá al hijo si aún no figura. Los vínculos de GRH y las altas declaradas aquí conservan su procedencia.</p></div><div class="fs-actions"><button type="button" class="fs-button primary" data-fs-add-child disabled>Agregar hijo/a</button><button type="button" class="fs-button" data-fs-family-refresh>Actualizar registro</button></div></div>
+    <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando hijos y certificados…</p><p class="fs-note" role="status" data-fs-target-status hidden></p><p class="fs-note" data-fs-create-status>Verificando permiso para agregar hijos…</p><div data-fs-declaration-host></div><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Declarar un hijo o registrar su escolaridad no aprueba haberes. Una fecha ausente no significa que el certificado no se presentó.</p><div class="fs-family-list" data-fs-family-list></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-family-status]'), list = $('[data-fs-family-list]');
   let data = null, editor = null, controller = null, generation = 0, destroyed = false, busy = false;
   let familyContext = null, declarationEditor = null, authorityKey = null;
@@ -292,8 +292,10 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   function controls() {
     host.setAttribute('aria-busy', String(busy));
     $('[data-fs-family-refresh]').disabled = busy || Boolean(editor) || Boolean(declarationEditor);
-    $('[data-fs-add-child]').hidden = !canPropose;
-    $('[data-fs-add-child]').disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayDeclare();
+    const addChild = $('[data-fs-add-child]');
+    addChild.hidden = false;
+    addChild.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayDeclare();
+    addChild.setAttribute('aria-disabled', String(addChild.disabled));
     host.querySelectorAll('[data-fs-register]').forEach(b => b.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRegister() || hasPending());
     host.querySelectorAll('[data-fs-document],[data-fs-history]').forEach(b => b.disabled = busy);
     if (editor) { editor.fieldset.disabled = busy || Boolean(editor.pendingBody); editor.submit.disabled = busy || !mayRegister() || editor.needsIdentityReview;
