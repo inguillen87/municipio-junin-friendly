@@ -18,7 +18,7 @@ Los módulos se descargan en paralelo al abrir la ficha y el cálculo es local s
 
 Estructura incluye una entrada destacada a **Abrir detalle nominal de cargos**, que lleva al módulo documental existente. Allí se procesa el reporte PDF detallado para buscar cargos, legajos y nombres, ordenar y exportar. El archivo se procesa en el navegador bajo los controles existentes.
 
-Esto corrige la dificultad para encontrar ese circuito, **no incorpora automáticamente el PDF a Neon ni crea una nómina nominal desde los agregados**. El módulo 10 sigue exigiendo cotejar cargos liquidados con cargos presupuestados del ejercicio y producir el informe detallado. La agrupación por organización no se declara equivalente a ese presupuesto ni se interpreta Cant 0 como vacante.
+El circuito ya incorpora el **cotejo nominal del Módulo 10**: cada cargo/estructura y su valor `Cant` se conservan desde el PDF, junto con legajo y nombre de los ocupantes. Contra una corrida concreta se informa si cada legajo está presente, ausente, sólo aparece en nómina o resulta ambiguo. Se agregan búsqueda, vista sólo diferencias y PDF/CSV detallados. El PDF sigue procesándose localmente y no se incorpora automáticamente a Neon.
 
 ## Acceso: corrección aplicada; aceptación real pendiente
 
@@ -33,7 +33,7 @@ La regla instalada en Neon ya reconoce esa pareja y `school_certificate_context_
 | Agregar hijo/a y registrar certificados | Gate de perfil corregido en Neon; aceptación real pendiente | Alta y reapertura del vínculo con sesión de Noelia, persistencia e idempotencia comprobadas. |
 | Parámetros salariales | Gate de perfil corregido en Neon; aceptación real pendiente | Lectura/preparación con Noelia y revisión independiente conforme al perfil aprobado, sin autoaprobación por otra cuenta de la misma persona. |
 | Tiempo desde ingreso | Implementado | Acreditar publicación y aceptación del recorrido; no sustituye antigüedad salarial reconocida. |
-| Estructura módulo 10 | Entrada documental visible | Incorporación nominal gobernada y conciliación con presupuesto anual; el reporte detallado ya existente no se presenta como conciliación terminada. |
+| Estructura módulo 10 | Cotejo nominal implementado; aceptación real pendiente | Probar con el PDF real del 23/09 y una corrida elegida por Noelia. La fuente actual no informa cargo por legajo en nómina, por lo que se controla ocupante presupuestario ↔ presencia en corrida sin inventar cargo liquidado. |
 | Concepto 638 AMARU / TXT | Implementado y publicado | Homologación final contra un archivo aceptado por AMARU si el Municipio dispone de uno; el contrato aplicado es Formato Junin / amaru.txt. |
 | Módulo 7: anular, confirmar/liquidar y cerrar | Implementado en código y esquema 109 aplicado | Confirmación final del despliegue del commit y aceptación municipal; conserva maker-checker, idempotencia e historial. |
 

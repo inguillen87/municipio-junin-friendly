@@ -24,6 +24,7 @@ on:
       - 'lib/internal-budget-payroll.js'
       - 'assets/budget-*.js'
       - 'assets/budget-structure.css'
+      - 'tests/budget-payroll-model.test.js'
       - 'scripts/verify-budget-cotejo-browser.mjs'
       - 'ausentismo-control.html'
       - 'lib/absence-event-context.js'

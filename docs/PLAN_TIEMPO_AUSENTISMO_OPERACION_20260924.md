@@ -187,14 +187,14 @@ Este cierre es informativo: no cambia haberes, justificaciones, relojes ni la pr
 
 `NOELIA_FEEDBACK_FUNCIONAL_20260926.md` conserva los seis reclamos de las capturas y sus criterios de cierre. Se implementa el tiempo desde el ingreso en años/meses, separado de los valores del padrón, y una entrada visible al detalle documental de cargos. Se conserva el menú rápido validado por Noelia.
 
-El gate de autorización que bloqueaba hijos/certificados y parámetros fue corregido en Neon sin ampliar capacidades ni habilitar autoaprobación. Falta aceptación con una sesión real de Noelia. El TXT 638 ya usa el contrato real Formato Junin/amaru.txt y el módulo 7 ya tiene ciclo confirmar → cerrar → anular con esquema 109 aplicado; permanecen prioritarios la aceptación municipal, el cruce presupuestario completo del módulo 10 y los restantes cierres de autonomía.
+El gate de autorización que bloqueaba hijos/certificados y parámetros fue corregido en Neon sin ampliar capacidades ni habilitar autoaprobación. Falta aceptación con una sesión real de Noelia. El TXT 638 ya usa el contrato real Formato Junin/amaru.txt y el módulo 7 ya tiene ciclo confirmar → cerrar → anular con esquema 109 aplicado. El Módulo 10 incorpora el cotejo nominal presupuesto→ocupante→presencia en corrida, búsqueda, diferencias y PDF/CSV; queda pendiente su aceptación con el PDF real y una corrida elegida por Noelia, además de los restantes cierres de autonomía.
 
 Esta entrega no cambia la fuente activa, el staging del 22/09 ni la condición de autonomía. El circuito de proveedores sigue diferido.
 
 
 ## Noelia · consulta nominal y bloqueo operativo del perfil
 
-`NOELIA_DETALLE_NOMINAL_Y_PERFIL_20260926.md` añade el detalle de legajos por organización/sector en la misma pantalla, con búsqueda, estado y paginación. No sustituye el cruce presupuestario del módulo 10. Se preservan la antigüedad calendario y el menú rápido ya entregados.
+`NOELIA_DETALLE_NOMINAL_Y_PERFIL_20260926.md` añade el detalle de legajos por organización/sector en la misma pantalla, con búsqueda, estado y paginación. El cierre posterior del Módulo 10 usa el reporte presupuestario como fuente nominal y una corrida concreta como evidencia de presencia por legajo. Se preservan la antigüedad calendario y el menú rápido ya entregados.
 
 La corrección del perfil integral quedó aplicada en Neon y la comprobación posterior informa cero pares SoD sin revisar para `MUNICIPIO_ADMIN_OPERATIVO`; hijos/certificados y parámetros siguen requiriendo aceptación con la sesión real de Noelia. El TXT 638 AMARU está implementado y publicado. El esquema 109 del módulo 7 está aplicado y registrado con su checksum; su UI y aceptación se acreditan por el commit de esta entrega.
 
@@ -214,3 +214,12 @@ Cerrar conserva el aprobador original y registra al actor posterior en la línea
 La migración 109 fue ensayada en PostgreSQL 17 con datos sintéticos y rollback. Después se ejecutó completa sobre Neon dentro de una transacción real terminada en rollback: no había corridas mensuales persistidas y las nuevas restricciones resultaron compatibles. Recién entonces se aplicó y confirmó 109 en la rama operativa. El ledger `schema_migrations` conserva el SHA-256 exacto del archivo; la aplicación no modificó filas de nómina. El recorrido de navegador prueba confirmar, cerrar y anular en escritorio/móvil, preserva trazabilidad sin PII y fuerza a la bandeja a ocupar todo el ancho cuando el panel de preparación no corresponde al perfil.
 
 Este cierre implementa el ciclo operativo pedido por Noelia; la aceptación municipal sigue siendo un paso separado. La imputación/contabilización posterior no se declara resuelta por cerrar una liquidación.
+
+
+## P0 Noelia · Módulo 10 · cargos presupuestarios y ocupantes
+
+`MODULO10_ESTRUCTURA_PRESUPUESTARIA_20260926.md` cierra la parte operativa pedida en el 10º módulo: el reporte presupuestario conserva cargo/estructura, Cant, legajo, nombre y página; una corrida concreta aporta exclusivamente la presencia del legajo. La pantalla muestra resumen por cargo y detalle nominal, permite buscar por cargo/legajo/nombre y alternar todos / sólo diferencias. Se exportan PDF/CSV de resumen y PDF/CSV nominales, reautorizando y releyendo la corrida antes de cada descarga.
+
+El backend del cotejo continúa omitiendo nombres, DNI, CUIL e importes de nómina; los nombres visibles proceden del PDF local, que no sale del navegador. Los legajos sólo presentes en nómina se muestran sin nombre inventado.
+
+La fuente actual no permite afirmar cargo liquidado: `employment_contract.position_source_id` y `grh_employees.cargo_code/cargo` no aportan un cargo para esta población. Por eso no se hace matching por semejanza; el control defendible queda presupuesto → ocupante nominal → presencia en corrida. La aceptación real con el PDF del 23/09 y una corrida elegida por Noelia sigue separada de las pruebas sintéticas.
