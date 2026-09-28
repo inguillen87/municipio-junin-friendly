@@ -5,7 +5,7 @@ const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const cp={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2212:45};
 const hex=s=>'<'+Array.from(String(s),c=>{const n=c.codePointAt(0);return(n<256?n:(cp[n]??63)).toString(16).padStart(2,'0')}).join('')+'>';
 function wrap(value,max){const words=String(value??'').split(/\s+/),lines=[];let s='';for(let word of words){while(word.length>max){if(s){lines.push(s);s=''}lines.push(word.slice(0,max));word=word.slice(max)}if((s+' '+word).trim().length>max){lines.push(s);s=word}else s=(s+' '+word).trim()}if(s)lines.push(s);return lines.length?lines:['']}
-export function createPayrollDetailPdf(m){
+export function payrollDetailPages(m){
  const pages=[];let ops=[],y=0;
  const rect=(x,y,w,h,c)=>ops.push(`${c} rg ${x} ${y} ${w} ${h} re f`);
  const text=(x,y,t,size=10,bold=false,color='0.08 0.20 0.26')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm ${hex(t)} Tj ET`);
@@ -29,11 +29,15 @@ export function createPayrollDetailPdf(m){
  if(m.historyChanged){heading('Comparación con el resumen mensual anterior');for(const c of m.historyComparison.filter(c=>c.difference!==null&&c.difference!=='0.00'))paragraph(c.label+': resumen anterior '+money(c.history)+' · total en este detalle '+money(c.reported)+' · diferencia '+money(c.difference));}
  pages.push(ops);
  for(let i=0;i<pages.length;i++){ops=pages[i];text(38,53,'USO INTERNO · DETALLE INFORMATIVO · SIN FIRMA',8,true);text(38,38,'MuniControl · Conceptos, descuentos y control de fuentes',8);text(480,38,`${i+1} / ${pages.length}`,8)}
+ return pages;
+}
+export function encodePayrollPages(pages){
  const objects=[null,'<< /Type /Catalog /Pages 2 0 R >>','', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'];const kids=[];
  for(const p of pages){const pageId=objects.length,stream=p.join('\n');kids.push(pageId+' 0 R');objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageId+1} 0 R >>`,`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`)}
  objects[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;
  let out='%PDF-1.4\n',offset=[0];for(let i=1;i<objects.length;i++){offset.push(out.length);out+=`${i} 0 obj\n${objects[i]}\nendobj\n`}const start=out.length;out+=`xref\n0 ${objects.length}\n0000000000 65535 f \n`;for(const n of offset.slice(1))out+=String(n).padStart(10,'0')+' 00000 n \n';out+=`trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;return new TextEncoder().encode(out);
 }
+export function createPayrollDetailPdf(m){return encodePayrollPages(payrollDetailPages(m));}
 const col=i=>String.fromCharCode(65+i);
 const S=v=>({v,type:'s'}),N=v=>v===null?S('No informado'):({v,type:'n'}),F=(f,v)=>v===null?S('No informado'):({f,v,type:'n'});
 function sheet(rows,widths){return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.map((row,r)=>`<row r="${r+1}" ht="${r===0?30:26}" customHeight="1">${row.map((cell,c)=>{const a=`r="${col(c)}${r+1}" s="${r===0?1:cell.type==='n'?2:3}"`;return cell.type==='n'?`<c ${a}>${cell.f?`<f>${xml(cell.f)}</f>`:''}<v>${xml(cell.v)}</v></c>`:`<c ${a} t="inlineStr"><is><t xml:space="preserve">${xml(cell.v)}</t></is></c>`}).join('')}</row>`).join('')}</sheetData><autoFilter ref="A1:${col(rows[0].length-1)}${rows.length}"/><printOptions horizontalCentered="1"/><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/><headerFooter><oddHeader>&amp;CMuniControl · Detalle informativo</oddHeader><oddFooter>&amp;LSin firma · uso interno&amp;RPágina &amp;P / &amp;N</oddFooter></headerFooter></worksheet>`}
