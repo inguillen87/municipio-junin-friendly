@@ -3,7 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import http from 'node:htt
 import {chromium} from 'playwright';import {syntheticDetail} from './payroll-detail-synthetic.mjs';
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 const root=path.resolve('public'),out=path.resolve('verification/payroll-detail-selection');fs.mkdirSync(out,{recursive:true});
-const files=['assets/payroll-detail-panel.js','assets/payroll-detail-model.js','assets/payroll-detail-selection.js','assets/civil-date.js','assets/payroll-detail-export.js','assets/payroll-detail-panel.css'];
+const files=['assets/payroll-detail-panel.js','assets/payroll-detail-model.js','assets/payroll-detail-selection.js','assets/civil-date.js','assets/payroll-detail-export.js','assets/payroll-document-payment-date.js','assets/payroll-detail-panel.css'];
 const published=process.argv.includes('--published'),overrides=new Map(),checked=[];
 let commit=null;
 if(published){

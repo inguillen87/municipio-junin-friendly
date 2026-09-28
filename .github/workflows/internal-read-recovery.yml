@@ -12,6 +12,10 @@ on:
       - 'assets/payroll-document-batch*'
       - 'assets/payroll-document-collection.js'
       - 'assets/payroll-document-export-panel.js'
+      - 'assets/payroll-document-payment-date.js'
+      - 'assets/payroll-document-payment-field.js'
+      - 'tests/payroll-document-payment-date.test.js'
+      - 'scripts/verify-document-payment-date-browser.mjs'
       - 'assets/payroll-document-set-pdf.js'
       - 'assets/payroll-detail-export.js'
       - 'tests/payroll-document-collection.test.js'
@@ -91,6 +95,10 @@ on:
       - 'assets/payroll-document-batch*'
       - 'assets/payroll-document-collection.js'
       - 'assets/payroll-document-export-panel.js'
+      - 'assets/payroll-document-payment-date.js'
+      - 'assets/payroll-document-payment-field.js'
+      - 'tests/payroll-document-payment-date.test.js'
+      - 'scripts/verify-document-payment-date-browser.mjs'
       - 'assets/payroll-document-set-pdf.js'
       - 'assets/payroll-detail-export.js'
       - 'tests/payroll-document-collection.test.js'
@@ -166,12 +174,15 @@ jobs:
         run: node scripts/verify-payroll-document-filters-browser.mjs
       - name: Complete PDF download with local synthetic readers
         run: node scripts/verify-payroll-document-download-local.mjs
+      - name: Declared document dates with synthetic readers
+        run: node scripts/verify-document-payment-date-browser.mjs
       - name: Verify published document filters
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           node scripts/verify-budget-cotejo-publication.mjs
           node scripts/verify-payroll-document-filters-browser.mjs --published
           node scripts/verify-payroll-document-download-local.mjs --published
+          node scripts/verify-document-payment-date-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -189,6 +200,7 @@ jobs:
             verification/payroll-document-selection/
             verification/document-filters/
             verification/document-download/
+            verification/document-payment-date/
             verification/payroll-selection-qa.log
             verification/absence-window-qa.log
           retention-days: 7

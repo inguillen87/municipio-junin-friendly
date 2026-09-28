@@ -113,6 +113,8 @@ const shellFiles = [
   'assets/payroll-document-collection.js',
   'assets/payroll-document-set-pdf.js',
   'assets/payroll-document-export-panel.js',
+  'assets/payroll-document-payment-date.js',
+  'assets/payroll-document-payment-field.js',
   'assets/payroll-document-batch.css',
   'assets/payroll-document-library-model.js',
   'assets/payroll-document-library.css',
