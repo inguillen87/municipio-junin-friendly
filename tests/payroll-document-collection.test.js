@@ -77,3 +77,26 @@ test('operator messages never expose raw server content',()=>{
  assert.doesNotMatch(collectionErrorMessage(Error('postgres://user:secret PRIVATE_QA')),/postgres|secret|PRIVATE_QA/);assert.match(collectionErrorMessage({status:403}),/sesión/);assert.match(collectionErrorMessage({name:'AbortError'}),/parciales/);
  assert.equal(COLLECTION_LIMITS.concurrency,3);assert.equal(COLLECTION_LIMITS.people,2000);
 });
+
+import {createPayrollDocumentSetPdfAsync} from '../assets/payroll-document-set-pdf.js';
+test('async construction matches sync output, with progress between documents',async()=>{
+ const c=await execute(collectionFixture(3)),stages=[],controller=new AbortController();
+ const result=await createPayrollDocumentSetPdfAsync(c,{signal:controller.signal,progress:p=>stages.push(p)});
+ assert.deepEqual(result.bytes,createPayrollDocumentSetPdf(c).bytes);assert.equal(stages.length,3);assert.equal(stages.at(-1).done,3);
+});
+test('already cancelled PDF construction returns no artifact',async()=>{
+ const c=await execute(collectionFixture(2)),controller=new AbortController();controller.abort();
+ await assert.rejects(createPayrollDocumentSetPdfAsync(c,{signal:controller.signal}),{name:'AbortError'});
+});
+test('cancellation between rendered documents rejects the entire PDF',async()=>{
+ const c=await execute(collectionFixture(8)),controller=new AbortController(),stages=[];
+ await assert.rejects(createPayrollDocumentSetPdfAsync(c,{signal:controller.signal,progress:p=>{stages.push(p);controller.abort();}}),{name:'AbortError'});assert.equal(stages.length,1);
+});
+test('collection deadline also interrupts an unresponsive reader',async()=>{
+ const f=collectionFixture(2),preview=await f.preview();f.state.wait=()=>new Promise(()=>{});
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('Elapsed','TimeoutError')),10);
+ try{await assert.rejects(execute(f,{preview,signal:controller.signal}),{name:'TimeoutError'});}finally{clearTimeout(timer);}
+});
+test('forged collection remains forbidden in the async renderer',async()=>{
+ const c=await execute(collectionFixture(1));await assert.rejects(createPayrollDocumentSetPdfAsync({...c},{signal:new AbortController().signal}),{code:'COLLECTION_NOT_VERIFIED'});
+});

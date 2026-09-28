@@ -5,24 +5,24 @@ const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const cp={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2212:45};
 const hex=s=>'<'+Array.from(String(s),c=>{const n=c.codePointAt(0);return(n<256?n:(cp[n]??63)).toString(16).padStart(2,'0')}).join('')+'>';
 function wrap(value,max){const words=String(value??'').split(/\s+/),lines=[];let s='';for(let word of words){while(word.length>max){if(s){lines.push(s);s=''}lines.push(word.slice(0,max));word=word.slice(max)}if((s+' '+word).trim().length>max){lines.push(s);s=word}else s=(s+' '+word).trim()}if(s)lines.push(s);return lines.length?lines:['']}
-export function payrollDetailPages(m){
+export function payrollDetailPages(m,{boundedText=false}={}){
  const pages=[];let ops=[],y=0;
  const rect=(x,y,w,h,c)=>ops.push(`${c} rg ${x} ${y} ${w} ${h} re f`);
  const text=(x,y,t,size=10,bold=false,color='0.08 0.20 0.26')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm ${hex(t)} Tj ET`);
  const right=(y,t,size=10,bold=false)=>text(552-String(t).length*size*.56,y,t,size,bold);
  const rule=()=>{ops.push(`0.82 0.88 0.89 RG .5 w 38 ${y} m 557 ${y} l S`)};
- function newPage(){if(ops.length)pages.push(ops);ops=[];rect(0,775,595,67,'0.04 0.20 0.26');text(38,806,'MuniControl · DETALLE DE HABERES',17,true,'1 1 1');text(38,787,`${m.period} · Tipo ${m.payrollType} · ${payrollClosureLabel(m.closureStatus)}`,9,false,'.8 .91 .92');y=750;for(const s of wrap(m.name,68)){text(38,y,s,12,true);y-=16}text(38,y,'Legajo '+m.legajo+' · Fecha de liquidación '+m.date,9);y-=24}
+ function newPage(){if(ops.length)pages.push(ops);ops=[];rect(0,775,595,67,'0.04 0.20 0.26');text(38,806,'MuniControl · DETALLE DE HABERES',17,true,'1 1 1');text(38,787,`${m.period} · Tipo ${m.payrollType} · ${payrollClosureLabel(m.closureStatus)}`,9,false,'.8 .91 .92');y=750;for(const s of wrap(m.name,boundedText?43:68)){text(38,y,s,12,true);y-=16}text(38,y,'Legajo '+m.legajo+' · Fecha de liquidación '+m.date,9);y-=24}
  const ensure=h=>{if(y-h<82)newPage()};
- function paragraph(s,bold=false,color){for(const line of wrap(s,104)){ensure(15);text(38,y,line,9,bold,color);y-=13}y-=5}
+ function paragraph(s,bold=false,color){for(const line of wrap(s,boundedText?57:104)){ensure(15);text(38,y,line,9,bold,color);y-=13}y-=5}
  function heading(title){ensure(50);rect(38,y-7,519,24,'.90 .95 .95');text(47,y+1,title,10,true);y-=31}
- function rowsTable(rows){ensure(40);text(43,y,'CÓD.',8,true);text(88,y,'CONCEPTO · DESCRIPCIÓN DE ORIGEN',8,true);text(411,y,'CANTIDAD',8,true);text(500,y,'ARS',8,true);y-=13;rule();y-=17;
-  for(const r of rows){const lines=wrap(r.description,53),height=Math.max(25,lines.length*12+10);if(y-height<82){newPage();text(43,y,'CONTINUACIÓN DEL DETALLE',9,true);y-=22}text(43,y,r.code,9,true);lines.forEach((l,i)=>text(88,y-i*12,l,9));text(405,y,r.quantity===null?'—':r.quantity.replace('.',','),8);right(y,r.amount===null?'No informado':money(r.amount),9,true);y-=height;rule();y-=12}}
+ function rowsTable(rows){ensure(40);text(43,y,'CÓD.',8,true);text(88,y,'CONCEPTO · DESCRIPCIÓN DE ORIGEN',8,true);text(boundedText?350:411,y,'CANTIDAD',8,true);text(500,y,'ARS',8,true);y-=13;rule();y-=17;
+  for(const r of rows){const lines=wrap(r.description,boundedText?29:53),height=Math.max(25,lines.length*12+10);if(y-height<82){newPage();text(43,y,'CONTINUACIÓN DEL DETALLE',9,true);y-=22}text(43,y,r.code,9,true);lines.forEach((l,i)=>text(88,y-i*12,l,9));text(boundedText?350:405,y,r.quantity===null?'—':r.quantity.replace('.',','),8);right(y,r.amount===null?'No informado':money(r.amount),9,true);y-=height;rule();y-=12}}
  newPage();paragraph('Documento informativo de la fuente. No acredita pago, emisión oficial ni firma digital.',true,'.47 .28 .05');
  if(m.historyChanged)paragraph('ATENCIÓN: el detalle corresponde a otro corte de GRH y difiere del resumen mensual mostrado en la ficha. Los valores de ambos cortes se conservan.',true,'.58 .22 .04');
  for(const group of ['993','994','995','996','990','unclassified']){const rows=m.rows.filter(r=>r.group===group);if(!rows.length)continue;heading(LABEL[group]);if(group==='990')paragraph('A cargo del empleador; estos importes NO se restan otra vez del neto del empleado.');rowsTable(rows);const g=m.groups.find(g=>g.code===group);if(g){ensure(26);text(88,y,'Suma de líneas de este grupo',9,true);right(y,money(g.sum),10,true);y-=28}}
  heading('Totales informados y conciliación del detalle');
  for(const c of m.checks){ensure(36);text(43,y,c.label,9,true);right(y,money(c.reported),10,true);y-=14;text(43,y,'Suma de líneas: '+money(c.detail)+' · Diferencia: '+money(c.difference),8);y-=23}
- ensure(60);rect(38,y-31,519,47,'.88 .95 .93');text(49,y-10,'NETO A PAGAR INFORMADO · CONCEPTO 999',10,true);right(y-10,money(m.totals['999']??null),13,true);y-=55;
+ if(boundedText){ensure(80);rect(38,y-48,519,66,'.88 .95 .93');text(49,y-5,'NETO A PAGAR INFORMADO · CONCEPTO 999',10,true);right(y-29,money(m.totals['999']??null),13,true);y-=72;}else{ensure(60);rect(38,y-31,519,47,'.88 .95 .93');text(49,y-10,'NETO A PAGAR INFORMADO · CONCEPTO 999',10,true);right(y-10,money(m.totals['999']??null),13,true);y-=55;}
  paragraph('Control de haberes + asignaciones − descuentos − neto informado: '+money(m.netDifference)+'. Las diferencias no se ajustaron ni se distribuyeron entre conceptos.');
  heading('Totales y bases originales · no sumar como haberes');rowsTable(m.rows.filter(r=>r.group==='technical'));
  heading('Trazabilidad y alcance');paragraph(m.sourceLabel);paragraph('Referencia documental: '+m.statementId);paragraph('SHA-256 de las líneas: '+m.statementHash);paragraph('Las cantidades y denominaciones se conservan según GRH. No se deducen porcentajes ni bases que no estén informados.');paragraph('Firma y emisión oficial pendientes de su circuito autorizado. Este documento no contiene una firma gráfica.');

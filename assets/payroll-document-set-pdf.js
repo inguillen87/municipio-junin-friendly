@@ -6,12 +6,19 @@ function compatible(v){for(const c of String(v??'')){const n=c.codePointAt(0);if
 const hex=v=>'<'+Array.from(String(v),c=>(mapping[c.codePointAt(0)]??c.codePointAt(0)).toString(16).padStart(2,'0')).join('')+'>';
 function lines(text,max){const result=[];let current='';for(let word of String(text).split(/\s+/)){while(word.length>max){if(current)result.push(current);current='';result.push(word.slice(0,max));word=word.slice(max);}if((current+' '+word).trim().length>max){if(current)result.push(current);current=word;}else current=(current+' '+word).trim();}if(current)result.push(current);return result.length?result:[''];}
 function text(x,y,value,size=9,bold=false,color='0.08 0.20 0.26'){return `BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm ${hex(value)} Tj ET`;}
-export function createPayrollDocumentSetPdf(value){
+function checkedCollection(value){const c=verifiedDocumentCollection(value);for(const m of c.models)for(const v of [m.name,m.sourceLabel,m.legajo,...m.rows.map(r=>r.description)])compatible(v);return c;}
+export function createPayrollDocumentSetPdf(value){const c=checkedCollection(value);return finishPdf(c,c.models.map(m=>payrollDetailPages(m,{boundedText:true})));}
+export async function createPayrollDocumentSetPdfAsync(value,{signal,progress=()=>{}}={}){
+ const c=checkedCollection(value),documents=[];let pages=0;signal.throwIfAborted();
+ for(let i=0;i<c.models.length;i++){signal.throwIfAborted();const part=payrollDetailPages(c.models[i],{boundedText:true});pages+=part.length;if(pages>8000)fail('COLLECTION_LIMIT');documents.push(part);progress({phase:'pdf',done:i+1,total:c.models.length});await new Promise(r=>setTimeout(r,0));}
+ signal.throwIfAborted();const result=finishPdf(c,documents);await new Promise(r=>setTimeout(r,0));if(signal.aborted){result.bytes.fill(0);signal.throwIfAborted();}return result;
+}
+function finishPdf(value,documents){
  const c=verifiedDocumentCollection(value),d=c.preview.dataset;
  for(const m of c.models){for(const v of [m.name,m.sourceLabel,m.legajo,...m.rows.map(r=>r.description)])compatible(v);}
- const documents=c.models.map(payrollDetailPages),index=[],entries=[];let y=478,page=0;
+ const index=[],entries=[];let y=478,page=0;
  for(let n=0;n<c.models.length;n++){
-  const name=lines(c.models[n].name,66),height=Math.max(25,name.length*12+10);
+  const name=lines(c.models[n].name,39),height=Math.max(25,name.length*12+10);
   if(y-height<80){page++;y=716;}entries.push({n,page,y,name,height});y-=height;
  }
  const indexPages=page+1,totalPages=indexPages+documents.reduce((n,p)=>n+p.length,0);

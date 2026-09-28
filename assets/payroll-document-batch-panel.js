@@ -1,6 +1,7 @@
 import {normalizeBatchQuery,verifyBatchPreview} from './payroll-document-batch-model.js';
 import {payrollSourceReport,sourceReportTypeLabel} from './payroll-source-report-model.js';
 import {mountDocumentCatalogFilters} from './payroll-document-catalog-filters.js';
+import {mountPayrollDocumentExport} from './payroll-document-export-panel.js';
 import {openPayrollDetail} from './payroll-detail-panel.js';
 export async function readPayrollBatch(url,{signal}={}){
  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(25000)]):AbortSignal.timeout(25000)});
@@ -22,22 +23,24 @@ export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
  const tools=make('div',undefined,'pdb-tools'),apply=make('button','Aplicar selección','pdb-primary'),reset=make('button','Limpiar rangos'),cancel=make('button','Cancelar consulta');apply.type='submit';reset.type=cancel.type='button';tools.append(apply,reset,cancel);form.append(tools);host.append(form);
  const status=make('p','Esperando autorización para consultar.','pdb-status');status.setAttribute('role','status');status.dataset.batchStatus='';host.append(status);
  const results=make('section',undefined,'pdb-results'),detailHost=make('section',undefined,'pdb-detail');results.hidden=true;host.append(results,detailHost);
- let granted=false,active=true,busy=false,catalog=null,model=null,applied=null,revision=0,controller=null;
+ let granted=false,active=true,busy=false,catalog=null,model=null,applied=null,revision=0,controller=null,packagePanel=null;
+ const dropPackage=()=>{packagePanel?.destroy();packagePanel=null;};
  const catalogFilters=mountDocumentCatalogFilters({host:catalogBox,select:dataset});
  const canRead=()=>active&&granted&&host.isConnected&&!host.closest('[hidden]');
  const clearDetail=()=>detailHost.replaceChildren();
  async function scopedRequest(url,options){const epoch=revision;try{return await request(url,options);}catch(e){if(epoch===revision&&[401,403].includes(e.status)){granted=false;catalog=null;clear('Tu sesión no habilita esta consulta. Volvé a verificar el acceso.');}throw e;}}
  function controls(){if(!catalog)catalogFilters.clear();catalogFilters.setEnabled(!busy&&Boolean(catalog)&&granted);load.disabled=busy||!granted;dataset.disabled=busy||!catalog;apply.disabled=busy||!dataset.value||!granted;reset.disabled=busy;cancel.hidden=!busy;host.setAttribute('aria-busy',String(busy));}
- function clear(message='La selección se retiró. Aplicá los filtros nuevamente.'){revision++;controller?.abort();controller=null;busy=false;model=null;results.replaceChildren();results.hidden=true;clearDetail();status.textContent=message;controls();}
- async function run(task){if(busy||!canRead())return;const seq=++revision;controller=new AbortController();const signal=controller.signal;busy=true;controls();
+ function clear(message='La selección se retiró. Aplicá los filtros nuevamente.'){dropPackage();revision++;controller?.abort();controller=null;busy=false;model=null;results.replaceChildren();results.hidden=true;clearDetail();status.textContent=message;controls();}
+ async function run(task){if(busy||!canRead())return;dropPackage();const seq=++revision;controller=new AbortController();const signal=controller.signal;busy=true;controls();
   const current=()=>seq===revision&&canRead()&&!signal.aborted;
   try{await task(signal,current);}catch(e){if(seq===revision){if([401,403].includes(e.status)){granted=false;catalog=null;dataset.replaceChildren(new Option('Verificá tu sesión para continuar',''));}clear(e.name==='AbortError'||e.name==='TimeoutError'?'Consulta interrumpida. Podés reintentar sin cambiar los rangos.':e.message||'No se pudo consultar.');}}
   finally{if(seq===revision){busy=false;controller=null;controls();}}
  }
- function render(){if(!model||!canRead())return;results.replaceChildren();results.hidden=false;clearDetail();const d=model,epoch=revision;
+ function render(){if(!model||!canRead())return;dropPackage();results.replaceChildren();results.hidden=false;clearDetail();const d=model,epoch=revision;
   const head=make('header',undefined,'pdb-result-heading');head.append(make('h3','3 · Revisá la población seleccionada'),make('span',d.dataset.closureStatus==='closed'?'Cierre informado':d.dataset.closureStatus==='open'?'Liquidación abierta':'Cierre no informado','pdb-badge'));results.append(head);
   const cards=make('div',undefined,'pdb-counts');for(const [value,label]of [[d.counts.selected,'Legajos del filtro'],[d.counts.eligible,'Con vínculo único'],[d.counts.review,'Vínculos por revisar']]){const card=make('article');card.append(make('strong',String(value)),make('span',label));cards.append(card);}results.append(cards);
   results.append(make('p',`Período de origen: ${d.dataset.period}-${String(d.dataset.month).padStart(2,'0')} · Tipo: ${sourceReportTypeLabel(d.dataset.type)} · Fecha de liquidación: ${d.dataset.date}`,'pdb-context'),make('p',`Reparticiones del padrón al ${new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',dateStyle:'short',timeStyle:'medium',hourCycle:'h23'}).format(new Date(d.directory.cutoff))} (hora de Mendoza). ${d.counts.unclassifiedSector} referencias del conjunto sin código numérico de repartición; no se incluyen al aplicar un rango de reparticiones.`,'pdb-hint'));
+  packagePanel=mountPayrollDocumentExport(results,{preview:d,request:scopedRequest,canRead:()=>epoch===revision&&canRead()&&model===d});
   const chart=make('details',undefined,'pdb-grouping');chart.append(make('summary','Distribución de toda la selección por repartición'));const list=make('div',undefined,'pdb-bars');
   const max=Math.max(1,...d.groups.map(g=>g.selected));for(const g of d.groups){const row=make('div',undefined,'pdb-bar'),label=make('span',`${g.code??'Sin código'} · ${g.label}`),track=make('span',undefined,'pdb-track'),bar=make('i');bar.style.width=(g.selected/max*100)+'%';track.append(bar);row.append(label,track,make('strong',String(g.selected)));list.append(row);}chart.append(make('p','Totales completos, no sólo los 25 registros de esta página.'),list);results.append(chart);
   const navigation=make('div',undefined,'pdb-pager'),previous=make('button','Página anterior'),next=make('button','Página siguiente');previous.type=next.type='button';previous.disabled=d.pagination.page===1;next.disabled=d.pagination.page===d.pagination.pages;previous.onclick=()=>query(d.pagination.page-1,true);next.onclick=()=>query(d.pagination.page+1,true);

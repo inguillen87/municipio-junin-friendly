@@ -1,3 +1,5 @@
+> Registro de la preparación inicial. La integración posterior está documentada en DOCUMENTOS_PDF_CONJUNTO_20260928.md; los límites históricos de esta nota no describen la versión final.
+
 # Preparación local del PDF conjunto · pendiente de integración
 
 ## Alcance comprobado
