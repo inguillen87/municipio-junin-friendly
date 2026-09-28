@@ -1,5 +1,5 @@
 // Módulo 10: el nombre y cargo provienen del PDF local; la consulta de nómina aporta sólo presencia por legajo, nunca importes.
-import {BUDGET_MATCH_STATES,compareBudgetPopulation,verifyBudgetPayrollRoster,budgetComparisonDocument,budgetComparisonDetailDocument} from './budget-payroll-model.js';
+import {BUDGET_MATCH_STATES,compareBudgetPopulation,verifyBudgetPayrollRoster,budgetComparisonDocument,budgetComparisonDetailDocument,budgetComparisonPeriodNote} from './budget-payroll-model.js';
 import {payrollSourceReport,sourceReportTypeLabel} from './payroll-source-report-model.js';
 import {saveReport} from './report-document.js';
 const REQUIRED=['workforce.structure.read','workforce.employee.read','payroll.read'];
@@ -16,6 +16,7 @@ export function mountBudgetPayroll(host,{authorize,request=read,save=saveReport}
  host.classList.add('bp-workbench');host.hidden=true;add(host,'h3','Cotejar estructura con una liquidación');
  const note=add(host,'p','Control nominal del Módulo 10: conserva cargo, Cant, legajo y nombre del PDF presupuestario y los confronta con una corrida concreta. La nómina sólo confirma presencia por legajo; no inventa un cargo liquidado que la fuente no informa.');note.className='bs-note';
  const controls=add(host,'div');controls.className='bs-controls';const load=add(controls,'button','Consultar liquidaciones');load.type='button';
+ const yearLabel=add(controls,'label','Año de liquidación'),year=add(yearLabel,'select');year.setAttribute('aria-label','Año de liquidación');year.append(new Option('Todos los disponibles',''));
  const label=add(controls,'label','Corrida concreta'),select=add(label,'select');select.setAttribute('aria-label','Corrida a cotejar');select.append(new Option('Sin consulta de liquidaciones',''));
  const compare=add(controls,'button','Cotejar documento completo');compare.type='button';const cancel=add(controls,'button','Cancelar cotejo');cancel.type='button';
  const status=add(host,'p','Seleccioná primero el reporte PDF.');status.setAttribute('role','status');status.dataset.budgetPayrollStatus='';
@@ -26,11 +27,17 @@ export function mountBudgetPayroll(host,{authorize,request=read,save=saveReport}
  const exports=add(host,'div');exports.className='bs-controls';
  const pdf=add(exports,'button','PDF resumen'),csv=add(exports,'button','CSV resumen'),detailPdf=add(exports,'button','PDF detalle nominal'),detailCsv=add(exports,'button','CSV detalle nominal');for(const b of [pdf,csv,detailPdf,detailCsv])b.type='button';
  const results=add(host,'div');results.dataset.budgetComparison='';
- function state(){load.disabled=loading||!source;select.disabled=loading||!catalog;compare.disabled=loading||!source||!select.value;cancel.hidden=!loading;policy.disabled=loading||!roster;policyLabel.hidden=!roster;detailSearch.disabled=detailSelect.disabled=loading||!model;detailTools.hidden=!model;for(const b of [pdf,csv,detailPdf,detailCsv])b.disabled=loading||!model;exports.hidden=!model;host.setAttribute('aria-busy',String(loading));}
+ function state(){load.disabled=loading||!source;year.disabled=select.disabled=loading||!catalog;yearLabel.hidden=!catalog;compare.disabled=loading||!source||!select.value;cancel.hidden=!loading;policy.disabled=loading||!roster;policyLabel.hidden=!roster;detailSearch.disabled=detailSelect.disabled=loading||!model;detailTools.hidden=!model;for(const b of [pdf,csv,detailPdf,detailCsv])b.disabled=loading||!model;exports.hidden=!model;host.setAttribute('aria-busy',String(loading));}
  function reset(message='Cotejo retirado. Podés consultar nuevamente.'){generation++;controller?.abort();controller=null;loading=false;roster=model=null;detailQuery='';detailMode='all';detailSearch.value='';detailSelect.value='all';results.replaceChildren();status.textContent=message;state();}
- function clear(){reset();source=catalog=null;select.replaceChildren(new Option('Sin consulta de liquidaciones',''));policy.value='literal';host.hidden=true;state();}
+ function clear(){reset();source=catalog=null;year.replaceChildren(new Option('Todos los disponibles',''));select.replaceChildren(new Option('Sin consulta de liquidaciones',''));policy.value='literal';host.hidden=true;state();}
+ function fillRuns(){
+  const items=catalog?.items.filter(item=>!year.value||item.date.slice(0,4)===year.value)??[];
+  select.replaceChildren(new Option('Elegí una liquidación',''));
+  items.forEach(item=>select.append(new Option(item.date+' · '+sourceReportTypeLabel(item.type)+' · '+item.statementCount+' legajos · '+item.datasetId.slice(0,8),item.datasetId)));
+  return items.length;
+ }
  async function access(signal){const s=await authorize(signal);if(!REQUIRED.every(c=>s.access?.tenantCapabilities?.includes(c)))throw Error('BUDGET_ACCESS');return s;}
- function pinned(d){const chosen=catalog?.items.find(x=>x.datasetId===select.value);return chosen&&d.datasetId===chosen.datasetId&&d.date===chosen.date&&d.type===chosen.type&&d.payloadHash===chosen.payloadHash&&d.total===chosen.statementCount&&d.closureStatus===chosen.closureStatus;}
+ function pinned(d){const chosen=catalog?.items.find(x=>x.datasetId===select.value);return chosen&&(!year.value||chosen.date.slice(0,4)===year.value)&&d.datasetId===chosen.datasetId&&d.date===chosen.date&&d.type===chosen.type&&d.payloadHash===chosen.payloadHash&&d.total===chosen.statementCount&&d.closureStatus===chosen.closureStatus;}
  async function execute(action){
   if(loading||!source||disposed)return;const token=++generation,c=new AbortController();controller=c;loading=true;state();const current=()=>generation===token&&!c.signal.aborted&&!disposed;
   try{await action(c.signal,current);}catch(e){if(current())reset(e.message==='BUDGET_ACCESS'?'No hay permiso vigente para cotejar nómina. Se retiró el cotejo.':e.message==='BUDGET_CHANGED'?'La corrida cambió. Consultá nuevamente; no se generó un archivo parcial.':'No se pudo verificar el cotejo. Podés reintentar sin volver a abrir el PDF.');}
@@ -40,6 +47,7 @@ export function mountBudgetPayroll(host,{authorize,request=read,save=saveReport}
   results.replaceChildren();if(!model)return;const totals=add(results,'div');totals.className='bs-metrics';
   for(const [key,title]of [['present','En documento y corrida'],['document_only','Sólo en documento'],['payroll_only','Sólo en corrida'],['ambiguous','Referencias repetidas']]){const card=add(totals,'div');add(card,'strong',model.counts[key]);add(card,'span',title);}
   const details=add(results,'p','Documento: '+model.document.issuedAt+' · Corrida: '+model.payroll.date+' · '+sourceReportTypeLabel(model.payroll.type)+' · '+({closed:'Cierre informado',open:'Abierta',unknown:'Cierre no informado'})[model.payroll.closureStatus]+'. La nómina confirma presencia por legajo; no informa qué cargo presupuestario se liquidó.');details.className='bs-note';
+  const period=add(results,'p',budgetComparisonPeriodNote(model));period.className=model.period.yearsDiffer?'bs-attention':'bs-note';period.dataset.budgetPeriodNotice='';
   if(model.counts.document_only||model.counts.payroll_only||model.counts.ambiguous){const alert=add(results,'p',model.counts.document_only+' ocupantes del PDF no aparecen en la corrida · '+model.counts.payroll_only+' legajos de la corrida no aparecen en ningún cargo del PDF · '+model.counts.ambiguous+' referencias repetidas.','bs-attention');alert.dataset.budgetDifferences='';}
   const view=budgetComparisonDocument(model),wrap=add(results,'div');wrap.className='bp-table-scroll';const table=add(wrap,'table'),head=add(add(table,'thead'),'tr');view.columns.forEach(c=>add(head,'th',c.label).scope='col');const body=add(table,'tbody');
   const pageSize=20,totalPages=Math.max(1,Math.ceil(view.rows.length/pageSize));let page=1;
@@ -62,10 +70,11 @@ export function mountBudgetPayroll(host,{authorize,request=read,save=saveReport}
  load.onclick=()=>execute(async(signal,current)=>{
   const before=await access(signal);const value=payrollSourceReport(await request('budgetpayrollcatalog',null,signal));const after=await access(signal);
   if(!current())return;if(value.mode!=='catalog'||before.user.id!==after.user.id||before.access.tenant.id!==after.access.tenant.id)throw Error('BUDGET_CHANGED');
-  roster=model=null;results.replaceChildren();catalog=value;select.replaceChildren(new Option('Elegí una liquidación',''));
-  value.items.forEach(item=>{select.append(new Option(item.date+' · '+sourceReportTypeLabel(item.type)+' · '+item.statementCount+' legajos · '+item.datasetId.slice(0,8),item.datasetId));});
+  roster=model=null;results.replaceChildren();catalog=value;year.replaceChildren(new Option('Todos los disponibles',''));
+  [...new Set(value.items.map(item=>item.date.slice(0,4)))].sort().reverse().forEach(value=>year.append(new Option(value,value)));fillRuns();
   status.textContent=value.items.length+' liquidaciones disponibles en esta consulta.'+(value.truncated?' Catálogo limitado: no representa todo el histórico.':'')+' Elegí una corrida; no se suma el mes completo.';
  });
+ year.onchange=()=>{const count=fillRuns();reset(count+' liquidaciones disponibles para '+(year.value||'todos los años de esta consulta')+'. Elegí una corrida. El año de liquidación no acredita el ejercicio presupuestario.'+(catalog?.truncated?' Catálogo limitado: no representa todo el histórico.':''));};
  select.onchange=()=>reset('Corrida seleccionada. Presioná Cotejar documento completo.');
  compare.onclick=()=>execute(async(signal,current)=>{
   const s=await access(signal),d=verifyBudgetPayrollRoster(await request('budgetpayrollroster',select.value,signal));await access(signal);if(!current())return;

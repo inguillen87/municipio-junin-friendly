@@ -1,5 +1,27 @@
 name: Native family schooling release
 on:
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'api/internal-family-*.js'
+      - 'lib/internal-family-*.js'
+      - 'assets/family-schooling*'
+      - 'assets/native-employee-create.js'
+      - 'internal-dashboard.html'
+      - 'scripts/migrations/102-*'
+      - 'scripts/migrations/107-*'
+      - 'scripts/fixtures/operational-profile-*.sql'
+      - 'scripts/verify-operational-profile-sql.mjs'
+      - 'scripts/verify-native-family-schooling*.mjs'
+      - 'scripts/verify-native-employee-browser.mjs'
+      - 'scripts/verify-native-monthly-novelties-browser.mjs'
+      - 'scripts/verify-family-schooling*.mjs'
+      - 'tests/*family*'
+      - 'tests/*schooling*'
+      - 'tests/fixtures/*family*'
+      - 'scripts/build-friendly.mjs'
+      - '.vercelignore'
+      - '.github/workflows/native-family-schooling-release.yml'
   push:
     branches: ['internal-native-family-schooling-20260922', 'master']
     paths:
@@ -9,6 +31,9 @@ on:
       - 'assets/native-employee-create.js'
       - 'internal-dashboard.html'
       - 'scripts/migrations/102-*'
+      - 'scripts/migrations/107-*'
+      - 'scripts/fixtures/operational-profile-*.sql'
+      - 'scripts/verify-operational-profile-sql.mjs'
       - 'scripts/verify-native-family-schooling*.mjs'
       - 'scripts/verify-native-employee-browser.mjs'
       - 'scripts/verify-native-monthly-novelties-browser.mjs'
@@ -103,3 +128,10 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-family.sql
           wait "$blocker"
           trap - EXIT
+      - name: Operational profile regression with rollback and synthetic identities
+        env:
+          STAFF_DATABASE_URL: postgresql://postgres:native_family_qa_only@127.0.0.1:5432/staff_task_qa
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE staff_task_qa;'
+          node scripts/verify-operational-profile-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/operational-profile.sql
+          psql "$STAFF_DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/operational-profile.sql

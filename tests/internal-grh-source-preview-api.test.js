@@ -8,6 +8,7 @@ import {
   createInternalGrhSourcePreviewHandler,
 } from '../api/internal-grh-source-preview.js';
 import { previewGrhSource } from '../lib/internal-grh-source-preview.js';
+import { junin638Line } from '../assets/payroll-junin-638.js';
 
 const TENANT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const MEMBERSHIP_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -472,4 +473,29 @@ test('API acepta Formato Junin AMARU de 55 bytes y devuelve sólo agregado', asy
   assert.equal(res.payload.data.recordCount, 1);
   assert.equal(res.payload.data.acceptedCount, 1);
   assert.equal(res.payload.includesRecordValues, false);
+});
+
+test('638 rechaza DNI cero o negativo e importes incompatibles con el exportador',async()=>{
+  const handler=createInternalGrhSourcePreviewHandler(dependencies());
+  for(const [dni,amount,code]of [
+    ['00000000','00002500.00','DNI_JUNIN638_DNI_INVALID'],
+    ['-1234567','00002500.00','DNI_JUNIN638_DNI_INVALID'],
+    ['12345678','-0002500.00','IMPORTE_JUNIN638_AMOUNT_INVALID'],
+    ['12345678','00002500,00','IMPORTE_JUNIN638_AMOUNT_INVALID'],
+    ['12345678','99999999999','IMPORTE_JUNIN638_AMOUNT_INVALID'],
+  ]){
+    const line=Buffer.alloc(55,0x20);line.write(dni,5,'ascii');line.write(amount,44,'ascii');const res=response();
+    await handler(request({definitionKey:'junin-638-amaru-fixed55.v1',contentBase64:line.toString('base64')}),res);
+    assert.equal(res.statusCode,200);assert.equal(res.payload.data.acceptedCount,0);assert.equal(res.payload.data.rejectedRecordCount,1);
+    assert.deepEqual(res.payload.data.rejectionSummary,{[code]:1});assert.doesNotMatch(JSON.stringify(res.payload),/12345678|2500/);
+  }
+});
+
+test('638 analizador acepta los bytes reales del exportador, incluido importe cero y máximo',async()=>{
+  const handler=createInternalGrhSourcePreviewHandler(dependencies());
+  for(const amountCents of ['0','1','9999999999']){
+    const bytes=junin638Line({recordId:SESSION_ID,version:2,proposalId:MEMBERSHIP_ID,contractId:TENANT_ID,dni:'12345',amountCents});
+    const res=response();await handler(request({definitionKey:'junin-638-amaru-fixed55.v1',contentBase64:Buffer.from(bytes).toString('base64')}),res);
+    assert.equal(res.statusCode,200);assert.equal(res.payload.data.acceptedCount,1);assert.equal(res.payload.data.issueCount,0);
+  }
 });

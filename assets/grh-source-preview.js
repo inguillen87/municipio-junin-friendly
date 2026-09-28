@@ -14,6 +14,10 @@ const DEFINITION_CONTRACTS = Object.freeze({
 const ALLOWED_STATUSES = new Set(['valid', 'has_rejections', 'invalid_structure']);
 const INTEGER_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const BYTE_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const REJECTION_LABELS = Object.freeze({
+  DNI_JUNIN638_DNI_INVALID:'DNI inválido: usá 8 dígitos, completando con ceros a la izquierda; no puede ser todo ceros',
+  IMPORTE_JUNIN638_AMOUNT_INVALID:'Importe inválido: usá 8 dígitos, punto y 2 decimales, sin signo',
+});
 
 function exactObject(value, keys) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value)
@@ -136,7 +140,7 @@ export function mountGrhSourcePreview(root = document) {
     const rejectionEntries = Object.entries(data.rejectionSummary);
     if (!rejectionEntries.length) appendFinding(findings, 'Sin rechazos estructurales informados.', 'ok');
     for (const [code, count] of rejectionEntries) {
-      appendFinding(findings, `${code} · ${INTEGER_FORMAT.format(count)} ${count === 1 ? 'caso' : 'casos'}`);
+      appendFinding(findings, `${REJECTION_LABELS[code] || code} · ${INTEGER_FORMAT.format(count)} ${count === 1 ? 'caso' : 'casos'}`);
     }
     if (data.rejectionsTruncated) appendFinding(findings, 'El detalle interno de rechazos fue truncado por el límite de seguridad.');
     resultHost.hidden = false;

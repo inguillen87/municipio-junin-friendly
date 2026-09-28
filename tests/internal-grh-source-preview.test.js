@@ -296,3 +296,9 @@ test('Formato Junin rechaza DNI no numérico y longitud distinta sin filtrar la 
   const short=previewGrhSource(wrong.subarray(0,54),definition,fingerprintContext);
   assert.deepEqual(short.rejections,[{line:1,code:'RECORD_LENGTH_MISMATCH'}]);
 });
+
+test('validadores específicos 638 no cambian enteros y decimales genéricos ni aceptan reglas arbitrarias',()=>{
+  const definition={format:'fixed_width',widthUnit:'ascii_bytes',recordLength:12,fields:[{name:'numero',type:'integer',required:true,start:0,length:5},{name:'importe',type:'decimal',required:true,start:5,length:7}]};
+  assert.equal(previewGrhSource(Buffer.from('-1234-001,25'),definition,fingerprintContext).status,'valid');
+  for(const validation of ['custom',null])assert.throws(()=>previewGrhSource(Buffer.from('-1234-001,25'),{...definition,fields:definition.fields.map(field=>({...field,validation}))},fingerprintContext),error=>error.code==='GRH_SOURCE_SCHEMA_INVALID');
+});

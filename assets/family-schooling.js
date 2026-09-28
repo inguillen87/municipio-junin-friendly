@@ -245,8 +245,13 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   host.innerHTML = `<div class="fs-heading"><div><p class="fs-eyebrow">REGISTRO MUNICIPAL · CONTROL INTERNO</p><h3>Hijos y certificados escolares</h3><p>Registrá la escolaridad y la presentación del certificado, en papel o con PDF adjunto. Agregá al hijo si aún no figura. Los vínculos de GRH y las altas declaradas aquí conservan su procedencia.</p></div><div class="fs-actions"><button type="button" class="fs-button primary" data-fs-add-child disabled>Agregar hijo/a</button><button type="button" class="fs-button" data-fs-family-refresh>Actualizar registro</button></div></div>
     <p class="fs-status" role="status" aria-live="polite" data-fs-family-status>Consultando hijos y certificados…</p><p class="fs-note" role="status" data-fs-target-status hidden></p><p class="fs-note" data-fs-create-status>Verificando permiso para agregar hijos…</p><div data-fs-declaration-host></div><p class="fs-source" data-fs-storage hidden></p><p class="fs-note">Declarar un hijo o registrar su escolaridad no aprueba haberes. Una fecha ausente no significa que el certificado no se presentó.</p><div class="fs-family-list" data-fs-family-list></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-family-status]'), list = $('[data-fs-family-list]');
+  const declarationStatus = $('[data-fs-create-status]');
+  declarationStatus.id = 'fs-declaration-access-' + crypto.randomUUID();
+  declarationStatus.setAttribute('role', 'status'); declarationStatus.setAttribute('aria-live', 'polite');
+  $('[data-fs-add-child]').setAttribute('aria-describedby', declarationStatus.id);
   let data = null, editor = null, controller = null, generation = 0, destroyed = false, busy = false;
   let familyContext = null, declarationEditor = null, authorityKey = null;
+  let declarationAccessReason = 'Verificando permiso para agregar hijos…';
   const pendingKey = contractId.toLowerCase();
   const hasPending = () => pendingSchoolingAttempts.has(pendingKey) || pendingFamilyAttempts.has(pendingKey);
   const clearPending = key => { if (pendingSchoolingAttempts.get(pendingKey)?.key === key) pendingSchoolingAttempts.delete(pendingKey); };
@@ -286,7 +291,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (declarationEditor) declarationEditor.context = { subject:{ identityToken:declarationEditor.context.subject.identityToken } };
     list.replaceChildren(); $('[data-fs-storage]').textContent = ''; $('[data-fs-storage]').hidden = true;
     $('[data-fs-target-status]').textContent = ''; $('[data-fs-target-status]').hidden = true;
-    $('[data-fs-create-status]').textContent = 'Volvé a verificar los permisos antes de consultar o guardar.';
+    declarationAccessReason = 'Volvé a verificar los permisos antes de consultar o guardar.';
     status.textContent = 'El permiso cambió o la sesión venció. Se retiraron los datos consultados; cualquier formulario pendiente se conserva.';
   }
   function controls() {
@@ -296,6 +301,11 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     addChild.hidden = false;
     addChild.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayDeclare();
     addChild.setAttribute('aria-disabled', String(addChild.disabled));
+    declarationStatus.textContent = !data || !canPropose || familyContext?.canDeclare !== true ? declarationAccessReason || 'Volvé a verificar los permisos antes de consultar o guardar.'
+      : busy ? 'Esperá a que termine la operación en curso para agregar hijos.'
+      : declarationEditor?.pending ? 'Verificá si el alta pendiente quedó guardada antes de agregar otro hijo.'
+      : declarationEditor ? 'Terminá o cancelá el alta abierta antes de agregar otro hijo.'
+      : editor || pendingSchoolingAttempts.has(pendingKey) ? 'Terminá o resolvé la carga de certificado pendiente antes de agregar hijos.' : '';
     host.querySelectorAll('[data-fs-register]').forEach(b => b.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRegister() || hasPending());
     host.querySelectorAll('[data-fs-document],[data-fs-history]').forEach(b => b.disabled = busy);
     if (editor) { editor.fieldset.disabled = busy || Boolean(editor.pendingBody); editor.submit.disabled = busy || !mayRegister() || editor.needsIdentityReview;
@@ -378,6 +388,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
   }
   async function load(announcement) {
     if (busy || editor || declarationEditor || !available()) return;
+    declarationAccessReason = 'Verificando permiso para agregar hijos…';
     controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls(); status.textContent = 'Consultando certificados del legajo…';
     try {
       await checkAuthority(controller);
@@ -386,7 +397,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       if (schooling.status === 'rejected') throw schooling.reason;
       if (context.status === 'rejected' && [401,403].includes(context.reason?.status)) throw context.reason;
       familyContext = context.status === 'fulfilled' ? context.value : null;
-      $('[data-fs-create-status]').textContent = canPropose ? context.status === 'rejected' ? 'Los certificados están disponibles, pero no se pudo verificar el permiso de alta. Actualizá el registro para reintentar.' : familyContext?.canDeclare ? '' : 'Tu permiso actual permite consultar. No permite agregar hijos.' : 'Tu perfil permite consultar; agregar hijos requiere permiso para proponer datos del legajo.';
+      declarationAccessReason = canPropose ? context.status === 'rejected' ? 'Los certificados están disponibles, pero no se pudo verificar el permiso de alta. Actualizá el registro para reintentar.' : familyContext?.canDeclare ? '' : 'Tu permiso actual permite consultar. No permite agregar hijos.' : 'Tu perfil permite consultar; agregar hijos requiere permiso para proponer datos del legajo.';
       data = schooling.value; render(); status.textContent = announcement || 'Registro consultado. Elegí un hijo para registrar escolaridad o agregá el que falte.';
       const pending = pendingSchoolingAttempts.get(pendingKey);
       if (pending) {
@@ -399,7 +410,9 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       }
       else if (pendingFamilyAttempts.has(pendingKey)) openDeclaration(pendingFamilyAttempts.get(pendingKey));
       focusRequestedChild();
-    } catch (e) { if (seq === generation && available()) { data = null; familyContext = null; list.replaceChildren(); $('[data-fs-storage]').hidden = true; status.textContent = announcement
+    } catch (e) { if (seq === generation && available()) { data = null; familyContext = null; list.replaceChildren(); $('[data-fs-storage]').hidden = true;
+      declarationAccessReason = [401,403].includes(e.status) || e.code === 'FAMILY_ACTOR_CHANGED' ? message(e) : 'No se pudo habilitar el alta de hijos. Usá Actualizar registro para reintentar.';
+      status.textContent = announcement
       ? announcement + ' No pudimos actualizar la vista. Usá Actualizar registro; no repitas el alta.' : message(e); } }
     finally { if (seq === generation && available()) { busy = false; controls(); } }
   }
@@ -519,7 +532,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         if (schooling.status === 'rejected') throw schooling.reason;
         if (context.status === 'rejected' && [401,403].includes(context.reason?.status)) throw context.reason;
         const fresh = schooling.value; data = fresh; familyContext = context.status === 'fulfilled' ? context.value : null;
-        $('[data-fs-create-status]').textContent = familyContext?.canDeclare ? '' : 'No se pudo habilitar el alta de hijos. Actualizá el registro para revisar el permiso.';
+        declarationAccessReason = familyContext?.canDeclare ? '' : 'No se pudo habilitar el alta de hijos. Actualizá el registro para revisar el permiso.';
         status.textContent = 'Vínculos consultados nuevamente. La carga pendiente se conserva.';
         // Moving the form before re-rendering preserves the actual File object.
         $('[data-fs-declaration-host]').append(form); render(); fileSpaceHint();
@@ -683,7 +696,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         const [fresh, schooling] = await Promise.all([readFamilyContext(controller, contractId), readSchooling('family', controller, contractId)]);
         if (seq !== generation || !available() || declarationEditor !== active) return;
         familyContext = fresh; data = schooling; render();
-        $('[data-fs-create-status]').textContent = fresh.canDeclare ? '' : 'Tu permiso actual no permite agregar hijos.';
+        declarationAccessReason = fresh.canDeclare ? '' : 'Tu permiso actual no permite agregar hijos.';
         if (fresh.subject.identityToken !== active.context.subject.identityToken) {
           active.needsIdentityReview = true;
           feedback.textContent = active.pending ? 'La identidad actual cambió. El envío original sigue sin confirmación; consultá su estado. No se reasignó el hijo ni se habilitó otra alta.' : 'La identidad del legajo cambió. Tus datos se conservan. Revisá la ficha antes de iniciar otro registro; no se trasladó este hijo a la nueva identidad.';
