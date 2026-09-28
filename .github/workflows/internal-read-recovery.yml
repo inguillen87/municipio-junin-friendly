@@ -10,6 +10,13 @@ on:
       - 'scripts/verify-structure-people-browser.mjs'
       - 'lib/internal-payroll-document-batch.js'
       - 'assets/payroll-document-batch*'
+      - 'assets/payroll-document-collection.js'
+      - 'assets/payroll-document-export-panel.js'
+      - 'assets/payroll-document-set-pdf.js'
+      - 'assets/payroll-detail-export.js'
+      - 'tests/payroll-document-collection.test.js'
+      - 'tests/fixtures/payroll-collection-synthetic.js'
+      - 'scripts/verify-payroll-document-download-local.mjs'
       - 'assets/payroll-document-periods.js'
       - 'assets/payroll-document-catalog-filters.js'
       - 'tests/payroll-document-periods.test.js'
@@ -82,6 +89,13 @@ on:
     branches: ['master']
     paths:
       - 'assets/payroll-document-batch*'
+      - 'assets/payroll-document-collection.js'
+      - 'assets/payroll-document-export-panel.js'
+      - 'assets/payroll-document-set-pdf.js'
+      - 'assets/payroll-detail-export.js'
+      - 'tests/payroll-document-collection.test.js'
+      - 'tests/fixtures/payroll-collection-synthetic.js'
+      - 'scripts/verify-payroll-document-download-local.mjs'
       - 'assets/payroll-document-periods.js'
       - 'assets/payroll-document-catalog-filters.js'
       - 'tests/payroll-document-periods.test.js'
@@ -150,11 +164,14 @@ jobs:
         run: node scripts/verify-payroll-document-selection-browser.mjs
       - name: Document catalogue month and type filters
         run: node scripts/verify-payroll-document-filters-browser.mjs
+      - name: Complete PDF download with local synthetic readers
+        run: node scripts/verify-payroll-document-download-local.mjs
       - name: Verify published document filters
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           node scripts/verify-budget-cotejo-publication.mjs
           node scripts/verify-payroll-document-filters-browser.mjs --published
+          node scripts/verify-payroll-document-download-local.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -171,6 +188,7 @@ jobs:
             verification/structure-people-local/
             verification/payroll-document-selection/
             verification/document-filters/
+            verification/document-download/
             verification/payroll-selection-qa.log
             verification/absence-window-qa.log
           retention-days: 7
