@@ -11,6 +11,7 @@ on:
       - 'api/internal-grh-source-preview.js'
       - 'lib/internal-grh-source-preview.js'
       - 'assets/grh-source-preview.js'
+      - 'scripts/verify-grh-source-preview-browser.mjs'
       - 'nomina-control.html'
       - 'novedades-nomina.html'
       - 'scripts/migrations/108-*'
@@ -30,6 +31,7 @@ on:
       - 'api/internal-grh-source-preview.js'
       - 'lib/internal-grh-source-preview.js'
       - 'assets/grh-source-preview.js'
+      - 'scripts/verify-grh-source-preview-browser.mjs'
       - 'tests/*grh-source-preview*'
       - 'assets/payroll-novelty-workbench.js'
       - 'assets/employee-picker.js'
@@ -88,6 +90,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
       - run: node scripts/verify-payroll-formula-lab-browser.mjs
+      - run: node scripts/verify-grh-source-preview-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - name: Existing monthly novelty regression
         run: node scripts/verify-novelty-sheet-057.mjs
@@ -183,6 +186,7 @@ jobs:
         env:
           FIXED_NOVELTIES_PUBLISHED_ORIGIN: https://municipio-junin-friendly.vercel.app
       - run: node scripts/verify-native-employee-browser.mjs --published
+      - run: node scripts/verify-grh-source-preview-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:

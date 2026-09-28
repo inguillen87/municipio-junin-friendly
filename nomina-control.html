@@ -333,6 +333,12 @@
     .source-preview-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .source-preview-actions .button { color: #fff; background: var(--green); border-color: var(--green); }
     .source-preview-actions .button:disabled { cursor: wait; opacity: .62; }
+    [data-grh-source-preview] [hidden] { display: none !important; }
+    .source-preview-actions .button, .source-preview-field select { min-height: 44px; }
+    .source-preview-actions .button.secondary { color: var(--navy); background: #fff; border-color: var(--line); }
+    .source-preview-field small { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+    .source-preview-meta span, .source-preview-results li { overflow-wrap: anywhere; }
+    .source-preview-actions .button:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
     .source-preview-results { display: grid; gap: 10px; }
     .source-preview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
     .source-preview-metric { padding: 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; }
@@ -708,16 +714,16 @@
           <div class="source-preview-grid">
             <article class="panel">
               <h3>Fuente a revisar</h3>
-              <p class="panel-note">Sólo se aceptan adaptadores versionados por el servidor. El navegador no envía el nombre del archivo, el tenant, el vínculo de fuente ni un esquema definido por el usuario.</p>
+              <p class="panel-note">Sólo se aceptan adaptadores versionados por el servidor. El contenido se envía al analizador privado autorizado. El navegador no envía el nombre del archivo, el tenant, el vínculo de fuente ni un esquema definido por el usuario.</p>
               <form class="source-preview-form" data-source-preview-form>
                 <div class="source-preview-field">
                   <label for="sourcePreviewDefinition">Formato declarado</label>
-                  <select id="sourcePreviewDefinition" data-source-preview-definition>
+                  <select id="sourcePreviewDefinition" aria-describedby="sourcePreviewFormatHelp" data-source-preview-definition>
                     <option value="grh-calculo-pipe-utf8.v1">Cálculo GRH · columnas separadas por | · UTF-8</option>
                     <option value="grh-calculo-semicolon-windows1252.v1">Cálculo GRH · columnas separadas por ; · Windows-1252</option>
                     <option value="junin-638-amaru-fixed55.v1">TXT 638 · AMARU · Formato Junín · 55 bytes</option>
                   </select>
-                  <small>La definición fija columnas y tipos esperados; no se infiere desde el contenido.</small>
+                  <small id="sourcePreviewFormatHelp" data-source-preview-format-help>La definición fija columnas y tipos esperados; no se infiere desde el contenido.</small>
                 </div>
                 <div class="source-preview-field">
                   <label for="sourcePreviewFile">Archivo mensual TXT o CSV</label>
@@ -726,6 +732,8 @@
                 </div>
                 <div class="source-preview-actions">
                   <button class="button" type="submit" data-source-preview-submit>Analizar sin importar</button>
+                  <button class="button secondary" type="button" data-source-preview-cancel hidden>Cancelar análisis</button>
+                  <button class="button secondary" type="button" data-source-preview-clear>Limpiar archivo y resultado</button>
                   <span class="formula-lab-limit">No crea una corrida, no liquida y no modifica PostgreSQL ni GRH.</span>
                 </div>
               </form>
@@ -736,7 +744,7 @@
               <div data-source-preview-result hidden>
                 <div class="source-preview-metrics" aria-label="Conteos de la previsualización">
                   <div class="source-preview-metric"><span>Registros</span><strong data-source-preview-records>—</strong></div>
-                  <div class="source-preview-metric"><span>Aceptados</span><strong data-source-preview-accepted>—</strong></div>
+                  <div class="source-preview-metric"><span>Aceptados por estructura</span><strong data-source-preview-accepted>—</strong></div>
                   <div class="source-preview-metric"><span>Rechazados</span><strong data-source-preview-rejected>—</strong></div>
                   <div class="source-preview-metric"><span>Hallazgos</span><strong data-source-preview-issues>—</strong></div>
                 </div>
