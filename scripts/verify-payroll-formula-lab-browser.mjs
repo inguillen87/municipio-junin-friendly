@@ -610,7 +610,7 @@ async function inspect(viewport, label) {
     );
     await sourcePreview.getByRole('button', { name: 'Analizar sin importar' }).click();
     await assert.doesNotReject(() => sourcePreview.locator('[data-source-preview-status]').waitFor({ state: 'visible' }));
-    await page.waitForFunction(() => document.querySelector('[data-source-preview-status]')?.textContent.includes('Preview con observaciones'));
+    await page.waitForFunction(() => document.querySelector('[data-source-preview-status]')?.textContent.includes('Análisis con observaciones'));
     assert.equal(await sourcePreview.locator('[data-source-preview-result]').isVisible(), true);
     assert.equal(await sourcePreview.locator('[data-source-preview-records]').innerText(), '2');
     assert.equal(await sourcePreview.locator('[data-source-preview-accepted]').innerText(), '1');
