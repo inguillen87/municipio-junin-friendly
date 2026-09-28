@@ -1,1 +1,41 @@
 .payroll-detail{margin:18px 0 6px;border:1px solid #bed4d9;border-radius:14px;background:#fff;padding:20px;box-shadow:0 10px 30px #12344308;color:#173d4d}.pd-header{display:flex;align-items:center;justify-content:space-between;gap:12px}.pd-header h4{font-size:18px;margin:0}.pd-button{font:inherit;font-size:13px;font-weight:700;min-height:44px;border:1px solid #9bbdc4;background:#fff;color:#163c4c;border-radius:7px;padding:10px 14px;cursor:pointer}.pd-button:hover{background:#eff8f6}.pd-button:focus-visible{outline:3px solid #008b82;outline-offset:2px}.pd-button:disabled{opacity:.55;cursor:wait}.pd-status,.pd-scope{font-size:12px;line-height:1.55;color:#526f7d}.pd-warning{padding:12px 14px;border-left:3px solid #ae6a10;background:#fff5e6;color:#704300;font-size:13px;line-height:1.6}.pd-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:16px 0}.pd-card{border:1px solid #dce8e8;background:#f4f9f8;border-radius:9px;padding:12px}.pd-card span{font-size:11px;display:block;color:#496773}.pd-card strong{display:block;margin-top:6px;font-size:16px;overflow-wrap:anywhere}.pd-actions,.pd-filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.pd-actions .pd-button{background:#086f6b;color:white;border-color:#086f6b}.pd-filters .pd-button[aria-pressed=true]{background:#e3f2ee;border-color:#07847b;color:#065e58}.pd-table-wrap{max-width:100%;overflow:auto}.pd-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.55;min-width:540px}.pd-table th{padding:10px;background:#eaf1f3;text-align:left;font-size:11px}.pd-table td{padding:10px;border-bottom:1px solid #e0e9ec;vertical-align:top}.pd-table tr:nth-child(even){background:#f8fbfb}.pd-number{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}.pd-code{font-weight:700}.pd-controls{margin-top:16px;border-top:1px solid #d9e5e6;padding-top:14px}.pd-controls summary{min-height:36px;font-weight:700;cursor:pointer}.pd-comparison{padding:12px;background:#fff8eb;font-size:12px}.pd-hash{font:11px monospace;overflow-wrap:anywhere;color:#617986}.pd-observed{background:#fff5e6!important}@media(max-width:600px){.payroll-detail{padding:13px}.pd-header{align-items:flex-start}.pd-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.pd-actions .pd-button{flex:1 1 160px}}@media(prefers-reduced-motion:no-preference){.payroll-detail{animation:pd-enter .16s ease-out}@keyframes pd-enter{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}}
+
+/* Keep full source text readable without widening the page or hiding it. */
+.payroll-detail{box-sizing:border-box;min-width:0;max-width:100%;isolation:isolate}
+.payroll-detail *{box-sizing:border-box}
+.payroll-detail .pd-header{flex-wrap:wrap;min-width:0}
+.payroll-detail .pd-header h4{flex:1 1 220px;min-width:0;line-height:1.4;overflow-wrap:anywhere}
+.payroll-detail .pd-header>.pd-button{flex:0 0 auto}
+.payroll-detail .pd-status,.payroll-detail .pd-context,.payroll-detail .pd-scope,
+.payroll-detail .pd-warning,.payroll-detail .pd-comparison,.payroll-detail .pd-controls summary{overflow-wrap:anywhere;word-break:normal}
+.payroll-detail .pd-context{font-size:13px;line-height:1.55;margin:8px 0}
+.payroll-detail .pd-table-wrap{width:100%;min-width:0;overscroll-behavior-inline:contain}
+.payroll-detail>.pd-table-wrap>.pd-table{table-layout:fixed}
+.payroll-detail>.pd-table-wrap>.pd-table th:nth-child(1){width:68px}
+.payroll-detail>.pd-table-wrap>.pd-table th:nth-child(3){width:116px}
+.payroll-detail>.pd-table-wrap>.pd-table th:nth-child(4){width:144px}
+.payroll-detail .pd-table th,.payroll-detail .pd-table td{overflow-wrap:anywhere;word-break:normal}
+.payroll-detail .pd-controls{min-width:0}
+.payroll-detail .pd-controls>.pd-table-wrap{margin-top:12px}
+.payroll-detail .pd-controls .pd-table{min-width:640px;table-layout:fixed}
+.payroll-detail .pd-controls .pd-table th:first-child{width:31%}
+.payroll-detail .pd-controls summary{min-height:44px;line-height:1.5;padding:8px 0}
+@media(max-width:600px){
+ .payroll-detail .pd-header h4{font-size:17px}
+ .payroll-detail .pd-header>.pd-button{margin-left:auto}
+ .payroll-detail .pd-actions,.payroll-detail .pd-filters{gap:8px}
+ .payroll-detail .pd-filters>.pd-button{flex:1 1 130px;white-space:normal;line-height:1.4}
+ .payroll-detail .pd-card{min-width:0;padding:11px}
+}
+
+.payroll-detail .pd-table-wrap:focus-visible,
+.payroll-detail .pd-controls summary:focus-visible{outline:3px solid #008b82;outline-offset:3px}
+.payroll-detail .pd-table-wrap:focus-visible{border-radius:4px}
+@media(forced-colors:active){
+ .payroll-detail .pd-table-wrap:focus-visible,
+ .payroll-detail .pd-controls summary:focus-visible{outline-color:Highlight}
+}
+
+.payroll-detail .pd-header h4:focus-visible{outline:2px solid #008b82;outline-offset:3px;border-radius:3px}
+.payroll-detail .pd-table-help{display:none;font-size:12px;line-height:1.5;background:#eff7f6;border-left:3px solid #008b82;padding:10px 12px;overflow-wrap:anywhere}
+@media(max-width:600px){.payroll-detail .pd-table-help{display:block}}
