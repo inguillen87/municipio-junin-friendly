@@ -5,10 +5,19 @@ on:
     paths:
       - 'assets/payroll-document-library*'
       - 'assets/payroll-detail-panel.js'
+      - 'assets/payroll-detail-panel.css'
+      - 'scripts/verify-payroll-detail-layout.mjs'
       - 'scripts/verify-document-library-pagination.mjs'
       - 'tests/payroll-document-library-pagination.test.js'
       - 'scripts/lib/grh-source-profiles.json'
       - 'tests/grh-source-profile-20260922.test.js'
+      - '.github/workflows/noelia-data-ux-validation.yml'
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'assets/payroll-detail-panel.js'
+      - 'assets/payroll-detail-panel.css'
+      - 'scripts/verify-payroll-detail-layout.mjs'
       - '.github/workflows/noelia-data-ux-validation.yml'
   workflow_dispatch:
 permissions:
@@ -40,12 +49,23 @@ jobs:
         run: node scripts/verify-document-library-pagination.mjs
       - name: Existing document and download workflows
         run: node scripts/verify-payroll-document-library-browser.mjs
+      - name: Individual detail and accessible layout
+        run: |
+          node scripts/verify-payroll-detail-browser.mjs
+          node scripts/verify-payroll-detail-layout.mjs
+      - name: Verify deployed document layout
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          node scripts/verify-payroll-detail-production.mjs
+          node scripts/verify-payroll-detail-layout.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: noelia-data-ux-${{ github.run_id }}
           path: |
             verification/noelia-data-ux/
+            verification/payroll-detail-layout/
+            verification/payroll-detail-production.json
             verification/document-library-pagination/
             verification/document-library-browser.json
             verification/document-library-*-qa.png
