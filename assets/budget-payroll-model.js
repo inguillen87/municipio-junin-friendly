@@ -28,18 +28,24 @@ export function compareBudgetPopulation(document,raw,{keyMode='literal'}={}){
  const groups=d.groups.map(g=>{const members=g.members.map(m=>{const e=entriesByKey.get(key(m.number));return{number:m.number,name:m.name,sourcePage:m.sourcePage,state:e.state,payrollNumber:e.payrollNumbers[0]??null,formatChanged:e.formatChanged===true};});const unique=[...new Set(members.map(m=>key(m.number)))].map(k=>entriesByKey.get(k));return{id:g.values[0],label:g.values[7],classification:g.values[9],codes:g.values.slice(1,7),sourcePage:g.sourcePage,declaredQuantity:Number(g.values[8]),documentAssignments:g.members.length,present:unique.filter(e=>e.state==='present').length,documentOnly:unique.filter(e=>e.state==='document_only').length,ambiguous:unique.filter(e=>e.state==='ambiguous').length,members};});
  const counts=Object.fromEntries(Object.keys(BUDGET_MATCH_STATES).map(s=>[s,entries.filter(e=>e.state===s).length]));
  const payrollOnly=entries.filter(e=>e.state==='payroll_only').map(e=>({number:e.payrollNumbers[0],key:e.key}));
- const result=frozen({version:'budget-population-comparison.v1',keyMode,document:{sha256:d.sha256,issuedAt:d.issuedAt,pages:d.sourcePages,issuer:d.issuer,assignments:d.groups.reduce((s,g)=>s+g.members.length,0)},payroll:{tenantId:p.tenantId,datasetId:p.datasetId,date:p.date,type:p.type,total:p.total,payloadHash:p.payloadHash,reportHash:p.reportHash,closureStatus:p.closureStatus,sourceLabel:p.sourceLabel},counts,groups,entries,payrollOnly,approvedQuota:null,positionAssignmentVerified:false,official:false});verified.add(result);return result;
+ const payrollYear=Number(civilDate(p.date).slice(0,4)),documentIssuedYear=Number(d.issuedAt.slice(6,10));
+ const period={payrollYear,documentIssuedYear,approvedFiscalYear:null,yearsDiffer:payrollYear!==documentIssuedYear};
+ const result=frozen({version:'budget-population-comparison.v1',keyMode,document:{sha256:d.sha256,issuedAt:d.issuedAt,pages:d.sourcePages,issuer:d.issuer,assignments:d.groups.reduce((s,g)=>s+g.members.length,0)},payroll:{tenantId:p.tenantId,datasetId:p.datasetId,date:p.date,type:p.type,total:p.total,payloadHash:p.payloadHash,reportHash:p.reportHash,closureStatus:p.closureStatus,sourceLabel:p.sourceLabel},period,counts,groups,entries,payrollOnly,approvedQuota:null,positionAssignmentVerified:false,official:false});verified.add(result);return result;
+}
+export function budgetComparisonPeriodNote(model){
+ if(!verified.has(model))fail();const p=model.period;
+ return 'Año de liquidación: '+p.payrollYear+'. El PDF fue emitido en '+p.documentIssuedYear+(p.yearsDiffer?', otro año.':'.')+' La fecha de emisión no informa el ejercicio presupuestario ni acredita la vigencia anual de los cargos.';
 }
 export function budgetComparisonDocument(model){
  if(!verified.has(model))fail();const c=(label,type,width)=>({label,type,width});
  return{title:'Cotejo documental con nómina',columns:[c('ID','text',7),c('Estructura del PDF','text',38),c('Cant del PDF','integer',12),c('Detalle del PDF','integer',14),c('En ambas fuentes','integer',15),c('Sólo en PDF','integer',13),c('Referencias a revisar','integer',17)],rows:model.groups.map(g=>[g.id,g.label,g.declaredQuantity,g.documentAssignments,g.present,g.documentOnly,g.ambiguous]),totals:[],
- notes:['Control del Módulo 10: cruza ocupantes nominales del reporte presupuestario con su presencia en una liquidación concreta. La fuente de nómina no informa un código de cargo por legajo, por eso no se reasignan cargos por nombre ni semejanza.',
+ notes:[budgetComparisonPeriodNote(model),'Control del Módulo 10: cruza ocupantes nominales del reporte presupuestario con su presencia en una liquidación concreta. La fuente de nómina no informa un código de cargo por legajo, por eso no se reasignan cargos por nombre ni semejanza.',
  'Cant se conserva literalmente del reporte ESTRUCTURA PRESUPUESTARIA DE CARGOS; este cotejo no reemplaza la norma anual aprobatoria.',
  'PDF emitido '+model.document.issuedAt+'; corrida '+model.payroll.date+' ('+model.payroll.type+'). No se infiere vigencia histórica, vacante, pago ni ausencia.',
  'Claves: '+(model.keyMode==='literal'?'texto exacto, conservando ceros.':'comparación numérica elegida; se conservan textos originales. Las colisiones no se resuelven automáticamente.'),
  'Referencias sólo en corrida: '+model.counts.payroll_only+'. Ambiguas: '+model.counts.ambiguous+'. Resumen de todas las estructuras, independiente del filtro de detalle.',
  'PDF SHA-256: '+model.document.sha256,'Conjunto SHA-256: '+model.payroll.payloadHash],
- metadata:[['Municipio',model.document.issuer],['Período',model.payroll.date],['Tipo',model.payroll.type],['Estado',model.payroll.closureStatus==='closed'?'Cierre informado por origen':model.payroll.closureStatus==='open'?'Corrida abierta':'Cierre no informado'],['Legajos de la corrida',model.payroll.total],['Filas del filtro',model.groups.length],['Conjunto',model.payroll.datasetId],['SHA-256',model.payroll.reportHash]],filename:'municontrol_cotejo_cargos_'+model.payroll.date+'_'+model.payroll.type.toLowerCase()};
+ metadata:[['Municipio',model.document.issuer],['Período',model.payroll.date],['Año de liquidación',model.period.payrollYear],['Ejercicio presupuestario','No informado por el PDF'],['Tipo',model.payroll.type],['Estado',model.payroll.closureStatus==='closed'?'Cierre informado por origen':model.payroll.closureStatus==='open'?'Corrida abierta':'Cierre no informado'],['Legajos de la corrida',model.payroll.total],['Filas del filtro',model.groups.length],['Conjunto',model.payroll.datasetId],['SHA-256',model.payroll.reportHash]],filename:'municontrol_cotejo_cargos_'+model.payroll.date+'_'+model.payroll.type.toLowerCase()};
 }
 
 export function budgetComparisonDetailDocument(model,{differencesOnly=false,query=''}={}){
@@ -53,7 +59,7 @@ export function budgetComparisonDetailDocument(model,{differencesOnly=false,quer
  return{title:'Módulo 10 · Ocupantes presupuestarios y liquidación',
   columns:[c('ID','text',7),c('Cargo / estructura PDF','text',34),c('Cant','text',8),c('Legajo','text',11),c('Nombre según PDF','text',32),c('Situación frente a corrida','text',24),c('Legajo corrida','text',12),c('Pág.','text',7)],
   rows,totals:[],
-  notes:[
+  notes:[budgetComparisonPeriodNote(model),
    'Detalle nominal del reporte presupuestario confrontado con la presencia del legajo en una corrida concreta. El nombre proviene del PDF local; la consulta de nómina usada para este cotejo no devuelve nombres ni importes.',
    'La presencia del legajo en la corrida no prueba que la liquidación haya utilizado ese cargo. El origen actual no informa cargo por legajo; MuniControl no reasigna por coincidencia textual.',
    'Cant es el valor literal del reporte presupuestario. Filas del detalle: '+model.document.assignments+'. Legajos sólo en corrida: '+model.counts.payroll_only+'.',
@@ -61,6 +67,6 @@ export function budgetComparisonDetailDocument(model,{differencesOnly=false,quer
    'PDF estructura SHA-256: '+model.document.sha256,
    'Conjunto nómina SHA-256: '+model.payroll.payloadHash,
   ],
-  metadata:[['Municipio',model.document.issuer],['Emisión estructura',model.document.issuedAt],['Corrida',model.payroll.date],['Tipo',model.payroll.type],['Estado fuente',model.payroll.closureStatus],['Legajos corrida',model.payroll.total],['Modo',differencesOnly?'Sólo diferencias':'Completo'],['Búsqueda',query.trim()||'Sin filtro'],['Filas exportadas',rows.length],['Firma','No aplicada']],
+  metadata:[['Municipio',model.document.issuer],['Emisión estructura',model.document.issuedAt],['Corrida',model.payroll.date],['Año de liquidación',model.period.payrollYear],['Ejercicio presupuestario','No informado por el PDF'],['Tipo',model.payroll.type],['Estado fuente',model.payroll.closureStatus],['Legajos corrida',model.payroll.total],['Modo',differencesOnly?'Sólo diferencias':'Completo'],['Búsqueda',query.trim()||'Sin filtro'],['Filas exportadas',rows.length],['Firma','No aplicada']],
   filename:'municontrol_modulo10_ocupantes_'+model.payroll.date+'_'+model.payroll.type.toLowerCase()+(differencesOnly?'_diferencias':'')};
 }

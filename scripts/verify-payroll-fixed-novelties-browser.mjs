@@ -15,7 +15,7 @@ const origin=live || 'https://municontrol.test',base=path.resolve('public'),out=
 const build=publishedBuildVerification({origin,root:base,release:process.env.GITHUB_SHA || 'manual'});
 fs.mkdirSync(out,{recursive:true});
 const fixture=fixedFixture(),{state}=fixture,checks=[],errors=[],posts=[],employeeReads=[],publishedAssets=new Set(),failedAssets=[];
-let dropAck=false,failNext=null,hideAttempt=false,denyResource=null,changeOnExport=false,holdAck=null,directoryAllowed=true,holdEmployee=null;
+let dropAck=false,failNext=null,hideAttempt=false,denyResource=null,changeOnExport=false,holdAck=null,directoryAllowed=true,holdEmployee=null,fail638=null,truncate638=false;
 const envelope=data=>({ok:true,data});
 const browser=await chromium.launch({headless:true,...(process.env.FIXED_NOVELTIES_BROWSER_CHANNEL?{channel:process.env.FIXED_NOVELTIES_BROWSER_CHANNEL}:{})});
 let page;
@@ -60,8 +60,10 @@ try{
       else if(resource==='junin638'){
         if(changeOnExport){state.epoch++;changeOnExport=false;}
         if(u.searchParams.get('snapshotToken')!==fixture.token(month))return route.fulfill({status:409,json:{ok:false,code:'PAYROLL_FIXED_SNAPSHOT_CHANGED',error:'La consulta cambió'}});
+        if(fail638){const code=fail638;fail638=null;return route.fulfill({status:422,json:{ok:false,code,error:'Dato requerido para el archivo sintético'}});}
         const exported=fixture.exporter(month),rows=exported.rows.filter(r=>r.values.conceptSourceId==='638').map(r=>({recordId:r.recordId,version:r.version,proposalId:r.proposalId,contractId:r.subject.contractId,dni:nativeEmployeeDraft().dni,amountCents:r.values.amountCents}));
         data={version:'payroll-fixed-junin638.v1',periodMonth:month,snapshotToken:exported.snapshotToken,concept:'638',receiver:'AMARU',sourceFormat:{id:1,name:'Formato Junin',filename:'amaru.txt',dniStart:5,dniLength:8,amountStart:44,amountLength:11},format:{recordBytes:55,lineEnding:'CRLF',trailingLineEnding:false},rows,total:rows.length,effects:exported.effects};
+        if(truncate638){truncate638=false;data.rows=data.rows.slice(0,-1);data.total=data.rows.length;}
       }
       else if(resource==='export'){
         if(changeOnExport){state.epoch++;changeOnExport=false;}
@@ -133,6 +135,14 @@ try{
   assert.ok(sheets.some(s=>s.includes('Vigencia parcial')));assert.match(sheets[0],/<c r="I2"[^>]*><is><t[^>]*>250000<\/t>/);assert.match(sheets[0],/<c r="I3"[^>]*><is><t[^>]*>0<\/t>/);assert.match(sheets[0],/<c r="I4"[^>]*><is><t[^>]*>Sin informar<\/t>/);checks.push('control workbook distinguishes positive, explicit zero and unknown amounts without prorating');
   const csvEvent=page.waitForEvent('download');await host.locator('[data-fn-csv]').click();const csv=await csvEvent,csvPath=path.join(out,'fixed-novelties-synthetic.csv');await csv.saveAs(csvPath);const csvText=fs.readFileSync(csvPath,'utf8');assert.ok(csvText.includes('1061'));assert.ok(csvText.includes("'=QA fórmula prohibida"));checks.push('CSV protects formula-like references and exports the complete approved control scope');
   const txtEvent=page.waitForEvent('download');await host.locator('[data-fn-junin638]').click();const txt=await txtEvent,txtPath=path.join(out,'amaru-synthetic.txt');await txt.saveAs(txtPath);const txtBytes=fs.readFileSync(txtPath);assert.equal(txt.suggestedFilename(),'amaru.txt');assert.equal(txtBytes.length,55);assert.equal(txtBytes.subarray(0,5).toString('ascii'),'     ');assert.equal(txtBytes.subarray(5,13).toString('ascii'),nativeEmployeeDraft().dni.padStart(8,'0'));assert.equal(txtBytes.subarray(13,44).toString('ascii'),' '.repeat(31));assert.equal(txtBytes.subarray(44,55).toString('ascii'),'00002500.00');checks.push('amaru.txt uses current Formato Junin positions, one approved 638 record and no trailing line ending');
+  const blocked638=async message=>{let downloads=0;const onDownload=()=>downloads++;page.on('download',onDownload);await host.locator('[data-fn-junin638]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();page.off('download',onDownload);assert.equal(downloads,0);assert.match(await host.locator('[data-fn-status]').innerText(),message);assert.equal(await host.locator('[data-fn-junin638]').isDisabled(),true);assert.equal(await host.locator('[data-fn-record]').count(),0);};
+  changeOnExport=true;await blocked638(/Cambió el resultado consultado.*Actualizá/);await refresh();checks.push('638 snapshot change downloads nothing and disables export until the registry is consulted again');
+  const second638=fixedApprovedRecord(62,{conceptSourceId:'638',quantityDecimal:null,amountCents:'12500'});state.records.push(second638);state.histories.set(second638.id,[second638.latest]);state.epoch++;await refresh();truncate638=true;await blocked638(/No se pudo verificar.*Volvé a consultar/);await refresh();checks.push('638 rejects a partial response even when its row count and total agree with each other');
+  for(const [code,message]of [['PAYROLL_FIXED_JUNIN638_DNI_REQUIRED',/DNI válido de 5 a 8 dígitos/],['PAYROLL_FIXED_JUNIN638_AMOUNT_REQUIRED',/importe válido, no negativo/]]){fail638=code;await blocked638(message);await refresh();}checks.push('638 missing DNI or invalid amount explains the correction and never emits a partial file');
+  await host.locator('[data-fn-search]').fill(second638.subject.legajo);assert.equal(await host.locator('[data-fn-record]:visible').count(),1);assert.match(await host.innerText(),/El TXT 638 incluye todas.*no aplica la búsqueda ni el filtro/);
+  const recoveredTxtEvent=page.waitForEvent('download');await host.locator('[data-fn-junin638]').click();const recoveredTxt=await recoveredTxtEvent,recoveredTxtPath=path.join(out,'amaru-recovered-synthetic.txt');await recoveredTxt.saveAs(recoveredTxtPath);const recoveredBytes=fs.readFileSync(recoveredTxtPath);assert.equal(recoveredBytes.length,112);assert.deepEqual([...recoveredBytes.subarray(55,57)],[13,10]);assert.equal(recoveredBytes.subarray(101,112).toString('ascii'),'00000125.00');checks.push('a fresh complete 638 consultation downloads both approved period records despite an active screen search, with exact CRLF bytes');
+  await host.locator('[data-fn-search]').fill('');
+  state.records=state.records.filter(row=>row.id!==second638.id);state.histories.delete(second638.id);state.epoch++;await refresh();
   changeOnExport=true;let staleDownloads=0;const track=()=>staleDownloads++;page.on('download',track);await host.locator('[data-fn-xlsx]').click();await page.waitForTimeout(200);page.off('download',track);assert.equal(staleDownloads,0);checks.push('server snapshot change blocks stale export and requires a fresh consultation');
   await refresh();
   // The link carries only the canonical contract UUID. No native legajo is

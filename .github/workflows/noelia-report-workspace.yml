@@ -6,6 +6,9 @@ on:
       - 'src/islands/**'
       - 'assets/report-centre.js'
       - 'assets/budget-structure*'
+      - 'assets/budget-payroll*'
+      - 'tests/budget-payroll-model.test.js'
+      - 'scripts/verify-budget-cotejo-*.mjs'
       - 'reportes-rrhh.html'
       - 'api/internal-payroll-parameters.js'
       - 'lib/internal-payroll-parameters.js'
@@ -37,6 +40,9 @@ on:
       - 'src/islands/**'
       - 'assets/report-centre.js'
       - 'assets/budget-structure*'
+      - 'assets/budget-payroll*'
+      - 'tests/budget-payroll-model.test.js'
+      - 'scripts/verify-budget-cotejo-*.mjs'
       - 'reportes-rrhh.html'
       - 'api/internal-payroll-parameters.js'
       - 'lib/internal-payroll-parameters.js'
@@ -89,6 +95,7 @@ jobs:
         run: |
           node scripts/verify-report-catalog-browser.mjs
           node scripts/verify-noelia-report-workspace-browser.mjs
+          node scripts/verify-budget-cotejo-browser.mjs
           node scripts/verify-report-centre-browser.mjs
           node scripts/verify-noelia-report-live-browser.mjs --local
           node scripts/verify-leave-workspace-browser.mjs
@@ -109,6 +116,7 @@ jobs:
             verification/report-centre-browser-error.txt
             verification/leave-workspace-local*
             verification/parameters-local/**
+            verification/budget-cotejo/**
           retention-days: 5
       # Reuse this checkout, node_modules, build and Chromium. No second runner.
       - name: Verify published executable and license bytes
@@ -122,6 +130,7 @@ jobs:
           node scripts/verify-leave-workspace-browser.mjs --published
           node scripts/verify-payroll-parameters-production.mjs
           node scripts/verify-payroll-parameters-browser.mjs --published
+          node scripts/verify-budget-cotejo-publication.mjs
       - name: Publication evidence
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4

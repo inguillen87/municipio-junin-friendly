@@ -54,6 +54,7 @@ let reportRequests = 0, authRequests = 0, downloadRequests = 0;
 let familyRequests = 0, authDenied = false, payrollAccess = false, wrongEmployee = false, wrongFamily = false;
 let delayedEmployee = null, alternateEmployee = false;
 let canDeclare = true, proposeCapability = true, childError = null, dropChildAck = false, contractToken = 'd'.repeat(64);
+let failFamilyContext = 0, delayFamilyContext = null;
 const declarations = [], declaredByKey = new Map();
 const employee = { contractId: syntheticUuid(1), legajo: '000001', nombre: 'AGENTE SINTÉTICO 0001', companyId: 7,
   activo: true, liquidable: false, administrativeStatus: 'active', payrollStatus: 'not_liquidated', controlState: 'activo_no_incluido',
@@ -124,6 +125,8 @@ try {
       if (request.method() === 'GET') {
         if (resource === 'attempt') { const found = declaredByKey.get(u.searchParams.get('key')); return route.fulfill({status:found?200:404,json:found?{ok:true,data:{...found.result,duplicate:true}}:{ok:false,code:'EMPLOYEE_FAMILY_NOT_FOUND'}}); }
         assert.equal(resource, 'context');
+        if (delayFamilyContext) { const pending = delayFamilyContext; delayFamilyContext = null; await pending; }
+        if (failFamilyContext) return route.fulfill({ status: failFamilyContext, json: { ok: false, code: failFamilyContext === 403 ? 'EMPLOYEE_FAMILY_CAPABILITY_REQUIRED' : 'EMPLOYEE_FAMILY_SERVICE_UNAVAILABLE' } });
         const subjectEmployee = u.searchParams.get('contractId') === secondEmployee.contractId ? secondEmployee : employee;
         return route.fulfill({ status: 200, json: { ok: true, data: { version: 'employee-family-context.v2', canDeclare,
           subject: { contractId: subjectEmployee.contractId, legajo: subjectEmployee.legajo, employeeName: subjectEmployee.nombre,
@@ -475,16 +478,43 @@ try {
   const ownUrl = origin + '/personal?contractId=' + syntheticUuid(1) + '&section=family#legajos';
   const childField = name => family.locator('[data-fs-child-field="' + name + '"]');
   const childSubmit = family.locator('[data-fs-child-save]'), childStatus = family.locator('[data-fs-child-status]');
+  async function childAccess(disabled, reason) {
+    const add = family.locator('[data-fs-add-child]'), notice = family.locator('[data-fs-create-status]');
+    assert.equal(await add.isVisible(), true); assert.equal(await add.isDisabled(), disabled);
+    assert.equal(await add.getAttribute('aria-disabled'), String(disabled));
+    assert.equal(await add.getAttribute('aria-describedby'), await notice.getAttribute('id'));
+    assert.equal(await notice.getAttribute('role'), 'status'); assert.equal(await notice.getAttribute('aria-live'), 'polite');
+    const text = await notice.innerText(); if (reason) assert.match(text, reason); else assert.equal(text, '');
+  }
   proposeCapability = false; await page.goto(ownUrl); await familyReady();
-  assert.equal(await family.locator('[data-fs-add-child]').isVisible(), false);
+  await childAccess(true, /requiere permiso para proponer datos del legajo/);
   assert.equal(await family.locator('[data-fs-register]').count(), 0);
   proposeCapability = true; canDeclare = false; await page.reload(); await familyReady();
-  assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);
-  assert.match(await family.locator('[data-fs-create-status]').innerText(), /No permite agregar hijos/);
+  await childAccess(true, /No permite agregar hijos/);
   canDeclare = true;
+  let releaseFamilyContext;
+  delayFamilyContext = new Promise(resolve => { releaseFamilyContext = resolve; });
+  try {
+    await page.reload(); await family.locator('[data-fs-create-status]').waitFor();
+    await childAccess(true, /Verificando permiso/);
+  } finally { releaseFamilyContext(); }
+  await familyReady(); await childAccess(false);
+  checks.push('visible declaration button has an accessible live reason during permission loading and explicit capability/context denial');
+  const writesBeforeAccessFailures = declarations.length;
+  for (const failure of ['schooling', 'context-service', 'context-permission']) {
+    failRead = failure === 'schooling' ? 503 : 0; failFamilyContext = failure === 'context-service' ? 503 : failure === 'context-permission' ? 403 : 0;
+    await page.reload(); await familyReady();
+    await childAccess(true, failure === 'context-permission' ? /no tiene permiso vigente/ : /reintentar/);
+    assert.doesNotMatch(await family.locator('[data-fs-create-status]').innerText(), /Verificando permiso/);
+    failRead = 0; failFamilyContext = 0;
+    await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed(); await childAccess(false);
+  }
+  assert.equal(declarations.length, writesBeforeAccessFailures);
+  checks.push('initial record/context failures replace the loading reason and recover through refresh without an accidental declaration');
   dataset.data.storage.capacityBytes = 0; dataset.data.storage.remainingBytes = 0; dataset.data.canRegister = false;
   await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
   await family.locator('[data-fs-add-child]').click();
+  await childAccess(true, /Terminá o cancelá el alta abierta/);
   assert.equal(await childField('familyName').evaluate(n => n === document.activeElement), true);
   await childField('familyName').fill('Hija Declarada QA');
   await page.setViewportSize({ width: 390, height: 844 }); await syntheticLabel(); await showEditor();
@@ -513,7 +543,15 @@ try {
   assert.equal(await page.locator('.fs-source-history').getAttribute('open'), null);
   assert.doesNotMatch(await family.innerText(), /La respuesta no incluyó familiares asociados/);
   checks.push('minimum name-only declaration works with exhausted PDF quota; a timed-out ACK replays identical data/key and creates exactly one own child');
-  checks.push('declaration permission is verified independently on server context; absent propose authority hides both mutation paths');
+  checks.push('declaration permission is verified independently on server context; absent propose authority keeps a visible disabled declaration action and prevents both writes');
+  const confirmedDeclarationCount = declarations.length;
+  await page.reload(); await familyReady();
+  assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
+  await page.keyboard.press('Escape'); assert.equal(await page.locator('dialog[open]').count(), 0);
+  await page.locator('#employeeRows').getByRole('button', { name: 'Hijos y certificados', exact: true }).first().click(); await familyReady();
+  assert.match(await ownCard.innerText(), /Hija Declarada QA/); await childAccess(false);
+  assert.equal(declarations.length, confirmedDeclarationCount);
+  checks.push('confirmed child survives reload and dialog reopen from the synthetic persisted response without replaying its declaration');
   dataset.data.storage = structuredClone(schoolingFixture().data.storage); dataset.data.canRegister = true;
   await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed();
   await ownCard.locator('[data-fs-register]').click(); await fillCertificate();
@@ -535,6 +573,7 @@ try {
   assert.equal(downloads.length, beforeRevokedDownload); assert.equal(await family.locator('.fs-child').count(), 0);
   assert.equal(await family.locator('[data-fs-document]').count(), 0); assert.equal(await family.locator('[data-fs-add-child]').isDisabled(), true);
   assert.equal(await family.locator('[data-fs-storage]').isVisible(), false);
+  await childAccess(true, /Volvé a verificar los permisos/);
   const deniedDownloadRequests = downloadRequests;
   await staleDownload.evaluate(n => n.click()); assert.equal(downloadRequests, deniedDownloadRequests);
   await family.locator('[data-fs-family-refresh]').click(); await savedOrFailed(); assert.equal(await family.locator('.fs-child').count(), 0);

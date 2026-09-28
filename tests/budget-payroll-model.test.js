@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {parseBudgetStructure} from '../assets/budget-structure-model.js';
-import {compareBudgetPopulation,budgetComparisonDocument,budgetComparisonDetailDocument} from '../assets/budget-payroll-model.js';
+import {compareBudgetPopulation,budgetComparisonDocument,budgetComparisonDetailDocument,budgetComparisonPeriodNote} from '../assets/budget-payroll-model.js';
 import {syntheticStructurePages} from '../scripts/budget-structure-synthetic.mjs';
 const tenant='22222222-2222-4222-8222-222222222222',dataset='11111111-1111-4111-8111-111111111111';
 const structure=()=>parseBudgetStructure(syntheticStructurePages(),{sha256:'a'.repeat(64)});
@@ -36,3 +36,22 @@ test('resumen sigue separado del detalle nominal y declara la limitación del ca
  assert.match(summary.notes.join(' '),/no informa un código de cargo/i);assert.match(detail.notes.join(' '),/no prueba que la liquidación haya utilizado ese cargo/i);
 });
 for(const bad of [{query:'x'.repeat(121)},{differencesOnly:'yes'}])test('detalle rechaza filtro inválido '+JSON.stringify(bad),()=>assert.throws(()=>budgetComparisonDetailDocument(compareBudgetPopulation(structure(),roster()),bad)));
+test('el año de emisión del PDF no se convierte en ejercicio presupuestario aunque coincida con la corrida',()=>{
+ const model=compareBudgetPopulation(structure(),roster());
+ assert.deepEqual(model.period,{payrollYear:2026,documentIssuedYear:2026,approvedFiscalYear:null,yearsDiffer:false});
+ assert.match(budgetComparisonPeriodNote(model),/no informa el ejercicio presupuestario ni acredita la vigencia anual/);
+ for(const document of [budgetComparisonDocument(model),budgetComparisonDetailDocument(model)]){
+  assert.deepEqual(document.metadata.find(([key])=>key==='Año de liquidación'),['Año de liquidación',2026]);
+  assert.deepEqual(document.metadata.find(([key])=>key==='Ejercicio presupuestario'),['Ejercicio presupuestario','No informado por el PDF']);
+ }
+});
+test('cotejar años distintos conserva el resultado documental y advierte en ambos PDF sin inventar vigencia',()=>{
+ const model=compareBudgetPopulation(structure(),{...roster(),date:'2025-12-31T23:30:00-03:00'});
+ assert.deepEqual(model.period,{payrollYear:2025,documentIssuedYear:2026,approvedFiscalYear:null,yearsDiffer:true});
+ assert.equal(model.counts.present,3);assert.equal(model.approvedQuota,null);assert.equal(model.positionAssignmentVerified,false);
+ for(const document of [budgetComparisonDocument(model),budgetComparisonDetailDocument(model)]){
+  assert.match(document.notes.join(' '),/Año de liquidación: 2025\. El PDF fue emitido en 2026, otro año/);
+  assert.match(document.notes.join(' '),/no informa el ejercicio presupuestario/);
+ }
+ assert.throws(()=>budgetComparisonPeriodNote({...model}));
+});

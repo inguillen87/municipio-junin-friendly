@@ -7,7 +7,7 @@ const origin='https://municipio-junin-friendly.vercel.app';
 const commit=process.env.GITHUB_SHA || 'manual';
 const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js',
   'assets/payroll-fixed-novelties.js','assets/payroll-fixed-novelties-model.js',
-  'assets/payroll-fixed-novelties-export.js','assets/payroll-fixed-novelties.css',
+  'assets/payroll-fixed-novelties-export.js','assets/payroll-junin-638.js','assets/payroll-fixed-novelties.css',
   'assets/employee-picker.js','assets/native-employee-create.js',
   'assets/app-routes.js','sw.js'];
 const build=publishedBuildVerification({origin,release:commit});
@@ -32,7 +32,8 @@ const queries={bootstrap:'?resource=bootstrap',list:'?resource=list&periodMonth=
   nativeEmployee:'?resource=employee&contractId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   detail:'?resource=detail&recordId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   attempt:'?resource=attempt&command=propose&key=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  export:'?resource=export&periodMonth=2026-09-01&snapshotToken='+'a'.repeat(64)};
+  export:'?resource=export&periodMonth=2026-09-01&snapshotToken='+'a'.repeat(64),
+  junin638:'?resource=junin638&periodMonth=2026-09-01&snapshotToken='+'a'.repeat(64)};
 async function check(name,query,options={}){
   const response=await fetch(origin+'/api/internal-payroll-fixed-novelties'+query,
     {...options,credentials:'omit',redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(15000)});
