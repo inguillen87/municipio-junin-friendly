@@ -18,7 +18,7 @@ No hay sesión personal de Noelia disponible para esta verificación. Se comprob
 ## Límites de cierre
 
 - La antigüedad en años y meses ya está implementada al corte de la fuente; no sustituye antigüedad salarial reconocida.
-- Módulo 10 controla ocupante documental contra presencia del legajo en corrida. Falta una fuente anual aprobada con cupos por cargo/vigencia y el cargo liquidado por legajo para acreditar el control presupuestario completo solicitado. El artículo 7 agregado de 2026 no resuelve ese dato.
+- Módulo 10 controla ocupante documental contra presencia del legajo en corrida. El histórico recibido sí contiene cargo y estructura, también presentes en snapshots de Neon. Falta vincularlos a la misma fuente y corrida del catálogo para extender el cotejo, además de acreditar la fuente anual aprobada por cargo/vigencia. El artículo 7 agregado de 2026 no resuelve esa evidencia anual.
 - AMARU conserva Formato Junin: DNI posición 5 longitud 8, importe posición 44 longitud 11, 55 bytes; falta homologación del receptor con un archivo aceptado si está disponible.
 - Pruebas sintéticas, publicación técnica, sesión real y aceptación municipal se informan por separado.
 
@@ -30,3 +30,9 @@ Construcción completa: 5.391 pruebas aprobadas, cero fallos y dos omitidas. Fam
 
 
 TXT 638 y analizador: 45 pruebas focales aprobadas; 37 recorridos de navegador, incluidos respuesta incompleta, snapshot cambiado, errores de DNI/importe y recuperación de dos registros completos (112 bytes con CRLF) aunque la búsqueda muestre uno. Cero errores de navegador.
+
+## Publicación comprobada
+
+PR #47 integrado en master 2731baf59baf11620223112d5ef09c8b9d19e4ba. Vercel dpl_HDYDiibBiuNHgNYrJWA4tkVjAygN, target production, READY y alias público resuelto al mismo SHA. Los 13 workflows de master terminaron aprobados. Familias: ocho assets idénticos y 13 rechazos anónimos 401 más una versión inválida 400. Novedades fijas: once assets idénticos y diez rechazos anónimos 401, incluido junin638. Cotejo: nueve assets idénticos y ambos lectores anónimos 401.
+
+Navegador sobre assets publicados: antigüedad 10 controles y novedades fijas/TXT638 37, todos aprobados con APIs sintéticas. La sesión personal de Noelia y homologación por AMARU no se dan por realizadas. La lectura del backend comparó permisos efectivos: frente a Marcelo, Noelia sólo carece de las dos capacidades técnicas de conectores e ingesta de relojes, ajenas a estos flujos.
