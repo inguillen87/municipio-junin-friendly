@@ -321,6 +321,10 @@ try {
   checks.push('oversize file is blocked locally and a server page-limit error preserves PDF and manually entered dates');
   postError = { status: 503, code: 'SCHOOL_CERTIFICATE_SERVICE_UNAVAILABLE' }; await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
   const retryKey = posts.at(-1).key; assert.match(retryKey, /^[a-f0-9-]{36}$/);
+  postError = { status: 409, code: 'SCHOOL_CERTIFICATE_PROFILE_CONFLICT' }; await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
+  assert.equal(posts.at(-1).key, retryKey); assert.match(await family.locator('[data-fs-form-status]').innerText(), /sesión sigue activa/);
+  assert.doesNotMatch(await family.locator('[data-fs-form-status]').innerText(), /datos cambiaron|sesión venció/);
+  checks.push('profile_conflict_keeps_session_draft_and_retry_key');
   postError = { status: 409, code: 'SCHOOL_CERTIFICATE_SESSION_BUSY' }; await family.locator('[data-fs-save]').click(); await savedOrFailed(); await retained();
   assert.equal(posts.at(-1).key, retryKey); assert.match(await family.locator('[data-fs-form-status]').innerText(), /otra operación en curso/);
   assert.equal(await family.locator('[data-fs-recheck]').isVisible(), true); checks.push('transient failure and session contention preserve PDF/dates and retry the same idempotency key');
