@@ -20,3 +20,14 @@
 .pdb-package progress{width:100%;height:12px;margin-top:14px;accent-color:#087e76}.pdb-package [hidden]{display:none!important}
 .pdb-package button{min-height:44px;white-space:normal;text-align:left;line-height:1.4}
 @media(max-width:600px){.pdb-package{padding:14px}.pdb-package .pdb-tools>button{width:100%}.pdb-package h3{font-size:1rem}}
+
+.pdb-payment-date{margin:16px 0;border:1px solid #bfd4d8;border-radius:8px;padding:14px;min-width:0;background:#fff}
+.pdb-payment-date legend{font-weight:700;font-size:.94rem;padding:0 5px;line-height:1.4;max-width:100%;overflow-wrap:anywhere}
+.pdb-payment-inputs{display:grid;grid-template-columns:minmax(160px,1.3fr) minmax(150px,1fr) auto;gap:12px;align-items:end}
+.pdb-payment-date .pdb-hint{margin:0 0 12px}.pdb-payment-date [hidden]{display:none!important}
+.pdb-payment-preview{margin:12px 0 0;padding:10px 12px;background:#eff6f7;border-left:3px solid #507d89;font-size:.84rem;line-height:1.5;overflow-wrap:anywhere}
+.pdb-payment-date input[aria-invalid=true]{border:2px solid #9b3529}.pdb-payment-date :is(input,select,button){min-height:44px}
+@media(max-width:760px){.pdb-payment-inputs{grid-template-columns:1fr}.pdb-payment-date{padding:12px}.pdb-payment-date .pdb-payment-clear{width:100%}}
+
+.pdb button.pdb-primary:hover:enabled{background:#06655f;border-color:#06655f;color:#fff}
+.pdb button.pdb-primary:active:enabled{background:#054f4b;color:#fff}

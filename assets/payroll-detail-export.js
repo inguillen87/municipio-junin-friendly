@@ -1,3 +1,4 @@
+import {documentPaymentDateLines} from './payroll-document-payment-date.js';
 import { storedZip } from './clock-dashboard-zip.js';
 import { money, payrollClosureLabel } from './payroll-detail-model.js';
 const LABEL={993:'Haberes remunerativos',994:'Haberes no remunerativos',995:'Asignaciones familiares',996:'Descuentos del empleado',990:'Contribuciones patronales',technical:'Totales y bases informadas',unclassified:'Conceptos pendientes de clasificación'};
@@ -5,13 +6,14 @@ const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const cp={0x20ac:128,0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2212:45};
 const hex=s=>'<'+Array.from(String(s),c=>{const n=c.codePointAt(0);return(n<256?n:(cp[n]??63)).toString(16).padStart(2,'0')}).join('')+'>';
 function wrap(value,max){const words=String(value??'').split(/\s+/),lines=[];let s='';for(let word of words){while(word.length>max){if(s){lines.push(s);s=''}lines.push(word.slice(0,max));word=word.slice(max)}if((s+' '+word).trim().length>max){lines.push(s);s=word}else s=(s+' '+word).trim()}if(s)lines.push(s);return lines.length?lines:['']}
-export function payrollDetailPages(m,{boundedText=false}={}){
+export function payrollDetailPages(m,{boundedText=false,paymentDeclaration=null}={}){
+ const paymentLines=paymentDeclaration===null?[]:documentPaymentDateLines(paymentDeclaration);
  const pages=[];let ops=[],y=0;
  const rect=(x,y,w,h,c)=>ops.push(`${c} rg ${x} ${y} ${w} ${h} re f`);
  const text=(x,y,t,size=10,bold=false,color='0.08 0.20 0.26')=>ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm ${hex(t)} Tj ET`);
  const right=(y,t,size=10,bold=false)=>text(552-String(t).length*size*.56,y,t,size,bold);
  const rule=()=>{ops.push(`0.82 0.88 0.89 RG .5 w 38 ${y} m 557 ${y} l S`)};
- function newPage(){if(ops.length)pages.push(ops);ops=[];rect(0,775,595,67,'0.04 0.20 0.26');text(38,806,'MuniControl · DETALLE DE HABERES',17,true,'1 1 1');text(38,787,`${m.period} · Tipo ${m.payrollType} · ${payrollClosureLabel(m.closureStatus)}`,9,false,'.8 .91 .92');y=750;for(const s of wrap(m.name,boundedText?43:68)){text(38,y,s,12,true);y-=16}text(38,y,'Legajo '+m.legajo+' · Fecha de liquidación '+m.date,9);y-=24}
+ function newPage(){if(ops.length)pages.push(ops);ops=[];rect(0,775,595,67,'0.04 0.20 0.26');text(38,806,'MuniControl · DETALLE DE HABERES',17,true,'1 1 1');text(38,787,`${m.period} · Tipo ${m.payrollType} · ${payrollClosureLabel(m.closureStatus)}`,9,false,'.8 .91 .92');y=750;for(const s of wrap(m.name,boundedText?43:68)){text(38,y,s,12,true);y-=16}text(38,y,'Legajo '+m.legajo+' · Fecha de liquidación '+m.date,9);y-=24;if(paymentLines.length){for(const line of paymentLines){text(38,y,line,8,true);y-=13;}y-=5;}}
  const ensure=h=>{if(y-h<82)newPage()};
  function paragraph(s,bold=false,color){for(const line of wrap(s,boundedText?57:104)){ensure(15);text(38,y,line,9,bold,color);y-=13}y-=5}
  function heading(title){ensure(50);rect(38,y-7,519,24,'.90 .95 .95');text(47,y+1,title,10,true);y-=31}
