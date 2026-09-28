@@ -27,7 +27,7 @@ export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
  const canRead=()=>active&&granted&&host.isConnected&&!host.closest('[hidden]');
  const clearDetail=()=>detailHost.replaceChildren();
  async function scopedRequest(url,options){const epoch=revision;try{return await request(url,options);}catch(e){if(epoch===revision&&[401,403].includes(e.status)){granted=false;catalog=null;clear('Tu sesión no habilita esta consulta. Volvé a verificar el acceso.');}throw e;}}
- function controls(){catalogFilters.setEnabled(!busy&&Boolean(catalog)&&granted);load.disabled=busy||!granted;dataset.disabled=busy||!catalog;apply.disabled=busy||!dataset.value||!granted;reset.disabled=busy;cancel.hidden=!busy;host.setAttribute('aria-busy',String(busy));}
+ function controls(){if(!catalog)catalogFilters.clear();catalogFilters.setEnabled(!busy&&Boolean(catalog)&&granted);load.disabled=busy||!granted;dataset.disabled=busy||!catalog;apply.disabled=busy||!dataset.value||!granted;reset.disabled=busy;cancel.hidden=!busy;host.setAttribute('aria-busy',String(busy));}
  function clear(message='La selección se retiró. Aplicá los filtros nuevamente.'){revision++;controller?.abort();controller=null;busy=false;model=null;results.replaceChildren();results.hidden=true;clearDetail();status.textContent=message;controls();}
  async function run(task){if(busy||!canRead())return;const seq=++revision;controller=new AbortController();const signal=controller.signal;busy=true;controls();
   const current=()=>seq===revision&&canRead()&&!signal.aborted;
