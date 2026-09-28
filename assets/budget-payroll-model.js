@@ -39,7 +39,7 @@ export function budgetComparisonPeriodNote(model){
 export function budgetComparisonDocument(model){
  if(!verified.has(model))fail();const c=(label,type,width)=>({label,type,width});
  return{title:'Cotejo documental con nómina',columns:[c('ID','text',7),c('Estructura del PDF','text',38),c('Cant del PDF','integer',12),c('Detalle del PDF','integer',14),c('En ambas fuentes','integer',15),c('Sólo en PDF','integer',13),c('Referencias a revisar','integer',17)],rows:model.groups.map(g=>[g.id,g.label,g.declaredQuantity,g.documentAssignments,g.present,g.documentOnly,g.ambiguous]),totals:[],
- notes:[budgetComparisonPeriodNote(model),'Control del Módulo 10: cruza ocupantes nominales del reporte presupuestario con su presencia en una liquidación concreta. La fuente de nómina no informa un código de cargo por legajo, por eso no se reasignan cargos por nombre ni semejanza.',
+ notes:[budgetComparisonPeriodNote(model),'Control del Módulo 10: cruza ocupantes nominales del reporte presupuestario con su presencia en una liquidación concreta. Esta consulta compara presencia; todavía no incorpora la asignación histórica de cargo y estructura para la corrida elegida. La presencia no confirma el cargo liquidado; no se reasignan cargos por nombre ni semejanza.',
  'Cant se conserva literalmente del reporte ESTRUCTURA PRESUPUESTARIA DE CARGOS; este cotejo no reemplaza la norma anual aprobatoria.',
  'PDF emitido '+model.document.issuedAt+'; corrida '+model.payroll.date+' ('+model.payroll.type+'). No se infiere vigencia histórica, vacante, pago ni ausencia.',
  'Claves: '+(model.keyMode==='literal'?'texto exacto, conservando ceros.':'comparación numérica elegida; se conservan textos originales. Las colisiones no se resuelven automáticamente.'),
@@ -61,7 +61,7 @@ export function budgetComparisonDetailDocument(model,{differencesOnly=false,quer
   rows,totals:[],
   notes:[budgetComparisonPeriodNote(model),
    'Detalle nominal del reporte presupuestario confrontado con la presencia del legajo en una corrida concreta. El nombre proviene del PDF local; la consulta de nómina usada para este cotejo no devuelve nombres ni importes.',
-   'La presencia del legajo en la corrida no prueba que la liquidación haya utilizado ese cargo. El origen actual no informa cargo por legajo; MuniControl no reasigna por coincidencia textual.',
+   'La presencia del legajo en la corrida no prueba que la liquidación haya utilizado ese cargo. Esta consulta compara presencia; todavía no incorpora la asignación histórica de cargo y estructura para la corrida elegida. MuniControl no reasigna por coincidencia textual.',
    'Cant es el valor literal del reporte presupuestario. Filas del detalle: '+model.document.assignments+'. Legajos sólo en corrida: '+model.counts.payroll_only+'.',
    differencesOnly?'Salida limitada a referencias que requieren revisión.':'Salida completa de ocupantes del documento y referencias sólo en corrida.',
    'PDF estructura SHA-256: '+model.document.sha256,

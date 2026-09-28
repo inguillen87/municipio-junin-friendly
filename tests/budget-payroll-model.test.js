@@ -33,7 +33,11 @@ test('comparación numérica conserva textos originales y marca diferencias de f
 test('resumen sigue separado del detalle nominal y declara la limitación del cargo',()=>{
  const model=compareBudgetPopulation(structure(),roster()),summary=budgetComparisonDocument(model),detail=budgetComparisonDetailDocument(model);
  assert.equal(summary.rows.length,7);assert.equal(detail.rows.length,36);
- assert.match(summary.notes.join(' '),/no informa un código de cargo/i);assert.match(detail.notes.join(' '),/no prueba que la liquidación haya utilizado ese cargo/i);
+ for(const document of [summary,detail]){
+  assert.match(document.notes.join(' '),/Esta consulta compara presencia; todavía no incorpora la asignación histórica de cargo y estructura para la corrida elegida/);
+  assert.doesNotMatch(document.notes.join(' '),/(?:fuente de nómina|origen actual) no informa|cargo liquidado que la fuente no informa|no informa qué cargo/i);
+ }
+ assert.match(summary.notes.join(' '),/La presencia no confirma el cargo liquidado/);assert.match(detail.notes.join(' '),/no prueba que la liquidación haya utilizado ese cargo/i);
 });
 for(const bad of [{query:'x'.repeat(121)},{differencesOnly:'yes'}])test('detalle rechaza filtro inválido '+JSON.stringify(bad),()=>assert.throws(()=>budgetComparisonDetailDocument(compareBudgetPopulation(structure(),roster()),bad)));
 test('el año de emisión del PDF no se convierte en ejercicio presupuestario aunque coincida con la corrida',()=>{

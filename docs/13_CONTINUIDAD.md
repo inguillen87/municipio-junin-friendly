@@ -1,5 +1,13 @@
 # Continuidad MuniControl — 14/09/2026
 
+## Actualización vigente de Noelia — 27/09/2026
+
+Este bloque actualiza los reportes de Noelia; los apartados posteriores son historia y no identifican la producción vigente. PR #47 publicado: commit 2731baf59baf11620223112d5ef09c8b9d19e4ba, Vercel dpl_HDYDiibBiuNHgNYrJWA4tkVjAygN. Trece workflows aprobados; construcción con 5.391 pruebas aprobadas, dos omitidas; 134 controles de navegador locales y verificaciones de igualdad de assets publicadas. Alcance, evidencias y límites: [entrega del 27/09](NOELIA_RELEASE_20260927.md).
+
+Alta de hijos con razón accesible y recuperación, antigüedad en años/meses al corte, exportación 638 completa y cotejo nominal por año están publicados. Noelia tiene 89 capacidades operativas activas sin denegaciones; no se cambiaron credenciales ni MFA. No se realizaron altas municipales de prueba.
+
+Siguiente cierre de Módulo 10: conectar cargo/estructura del histórico recibido a la misma fuente de la corrida elegida, sin unir sólo por fecha ni afirmar ausencia de datos que sí existen. La evidencia nueva y los límites anuales se detallan en [Módulo 10](MODULO10_ESTRUCTURA_PRESUPUESTARIA_20260926.md). No se promovió otro respaldo ni se modificaron pagos/cierres. Los cambios paralelos de otros worktrees permanecen preservados.
+
 ## Incremento de certificados en celular — 15/09/2026
 
 El reporte escolar muestra tarjetas con los seis campos, fechas y acciones dentro del ancho de pantalla en celulares. Los vencimientos superados usan la advertencia ámbar del sistema. Se conservan tabla de escritorio, impresión, lectores accesibles, filtros y exportación completa. Este incremento parte de producción PR34 y no incorpora la actualización S11, cambios de API, base ni permisos.

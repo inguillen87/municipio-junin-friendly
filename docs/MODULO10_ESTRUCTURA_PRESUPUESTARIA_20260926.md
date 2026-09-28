@@ -23,15 +23,17 @@ Se mantienen PDF/CSV de resumen y se agregan **PDF detalle nominal** y **CSV det
 
 El detalle exportado usa los nombres del PDF local. Para legajos sólo presentes en nómina muestra “No provisto por este cotejo”; no completa un nombre desde otra fuente.
 
-## Límite técnico que no se oculta
+## Límite técnico y corrección de evidencia del 27/09
 
-En la población actual de Junín, `employment_contract.position_source_id` está vacío para los 2.452 vínculos y `grh_employees.cargo_code/cargo` tampoco aporta un cargo utilizable. Por lo tanto **la presencia de un legajo en una corrida no demuestra qué cargo presupuestario se liquidó**.
+El endpoint publicado de este cotejo devuelve sólo la presencia del legajo en una corrida. Que employment_contract.position_source_id esté vacío no demuestra ausencia de cargo histórico en GRH.
 
-MuniControl no hace matching por semejanza de nombres ni asigna un cargo supuesto. El control defendible con las fuentes actuales es:
+La revisión posterior encontró cargo, estructura y detalle en histolegajo. El extractor existente los conserva y el importador ya dispone de payroll_snapshot_assignment.role_name/budget_structure/budget_detail. La consulta agregada de Neon confirmó 854 snapshots de agosto (801 con esos tres campos) y 847 de septiembre (794 con ellos), sin consultar ni publicar identidades individuales.
 
-**cargo presupuestario del PDF → ocupante nominal del PDF → presencia del legajo en la corrida seleccionada**.
+Todavía no está acreditada la unión exacta entre esos snapshots y la corrida del catálogo documental: la comprobación por huella del respaldo, base, empresa, fecha, período, mes y tipo no encontró coincidencia de fuente. No se unen registros sólo porque compartan legajo o mes, ni se presenta el cargo del padrón actual como cargo liquidado histórico.
 
-Cuando una futura fuente de nómina aporte cargo/posición por legajo, el contrato podrá extenderse a una conciliación cargo-a-cargo sin reinterpretar los resultados históricos.
+El control publicado continúa siendo **cargo presupuestario del PDF → ocupante nominal → presencia en la corrida seleccionada**. El siguiente incremento debe reconciliar la identidad de los respaldos o incorporar la nómina derivada del mismo respaldo ya verificado, y luego extender el contrato de lectura con esa evidencia. No corresponde solicitar nuevamente un campo que ya existe en los archivos recibidos.
+
+La fuente anual aprobada por cargo y vigencia sigue siendo una evidencia separada: la fecha de emisión del PDF y su campo Cant no se convierten automáticamente en el ejercicio ni el cupo legal. No se promovió un respaldo nuevo, ni se cambió una nómina, un cierre o un pago.
 
 ## Verificación
 
