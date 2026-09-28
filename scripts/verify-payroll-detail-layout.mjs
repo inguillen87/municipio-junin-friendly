@@ -3,7 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import http from 'node:htt
 import {chromium} from 'playwright';import {syntheticDetail} from './payroll-detail-synthetic.mjs';
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 const root=path.resolve('public'),out=path.resolve('verification/payroll-detail-layout');fs.mkdirSync(out,{recursive:true});
-const published=process.argv.includes('--published'),files=['assets/payroll-detail-panel.js','assets/payroll-detail-model.js','assets/payroll-detail-export.js','assets/payroll-detail-panel.css'],verified=[];
+const published=process.argv.includes('--published'),files=['assets/payroll-detail-panel.js','assets/payroll-detail-model.js','assets/payroll-detail-selection.js','assets/civil-date.js','assets/payroll-detail-export.js','assets/payroll-detail-panel.css'],verified=[];
 const overrides=new Map();
 if(published){
  const release=JSON.parse(fs.readFileSync(path.join(root,'release-info.json'),'utf8'));assert.equal(release.sourceState,'committed');

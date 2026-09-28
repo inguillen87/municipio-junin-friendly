@@ -103,6 +103,7 @@ const shellFiles = [
   'assets/payroll-roster-panel.js',
   'assets/payroll-navigation.js',
   'assets/payroll-detail-model.js',
+  'assets/payroll-detail-selection.js',
   'assets/payroll-detail-panel.js',
   'assets/payroll-document-library.js',
   'assets/payroll-document-batch-model.js',

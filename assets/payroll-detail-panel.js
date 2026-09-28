@@ -1,4 +1,5 @@
 import { createPayrollDetailModel, money, payrollClosureLabel } from './payroll-detail-model.js';
+import { capturePayrollDetailSelection, verifyPayrollDetailSelection } from './payroll-detail-selection.js';
 import { createPayrollDetailPdf, createPayrollDetailXlsx, downloadDetail } from './payroll-detail-export.js';
 const el=(tag,cls='',value='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=value;return n};
 const button=(label,run)=>{const b=el('button','pd-button',label);b.type='button';b.addEventListener('click',run);return b};
@@ -12,12 +13,14 @@ export async function openPayrollDetail({host,employee,item,request,canRead,onCl
  const observer=new MutationObserver(()=>{if(!section.isConnected)close()});observer.observe(document.body,{childList:true,subtree:true});
  try{
   if(!canRead())throw new Error('Tu sesión no permite consultar este detalle.');
-  const query=new URLSearchParams({resource:'employeepayrolldetail',contractId:String(employee.contractId),date:String(item.payrollDate).slice(0,10),type:String(item.payrollType),period:String(item.sourcePeriod),month:String(item.sourceMonth)});
+  const selected=capturePayrollDetailSelection(item);
+  const query=new URLSearchParams({resource:'employeepayrolldetail',contractId:String(employee.contractId),date:selected.date,type:selected.type,period:String(selected.period),month:String(selected.month)});
   const payload=await request('/api/internal-data?'+query.toString(),{signal:controller.signal});if(!active||!section.isConnected||!canRead())return;
   if(!payload?.ok)throw new Error('No se pudo consultar el detalle.');
   if(payload.data?.available===false){status.textContent='Todavía no hay líneas de conceptos incorporadas para este período. El resumen mensual sigue disponible; no se inventaron descuentos.';return}
   // DOCUMENT_DATASET_PINNED: do not open a different source version than the selected library item.
-  if(item.datasetId&&payload.data?.datasetId!==item.datasetId)throw new Error('Hay una versión distinta de esta liquidación. Actualizá la biblioteca antes de abrirla.');
+  verifyPayrollDetailSelection(payload.data,selected);
+  const reviewedDataset=payload.data.datasetId;
   const model=createPayrollDetailModel(payload.data,employee);status.textContent=model.sourceLabel+' · '+model.rows.length+' conceptos conservados · '+payrollClosureLabel(model.closureStatus);
   section.append(el('p','pd-context',model.name+' · Legajo '+model.legajo),el('p','pd-context','Período de origen '+model.period+' · Tipo '+model.payrollType+' · Fecha de liquidación '+model.date));
   section.append(el('p','pd-scope','Detalle informativo del respaldo. No acredita pago ni emisión oficial; los aportes patronales no se descuentan otra vez al empleado.'));
@@ -27,7 +30,8 @@ export async function openPayrollDetail({host,employee,item,request,canRead,onCl
   async function exportTo(ext){if(!active||!canRead())return;const all=[...actions.querySelectorAll('button')];all.forEach(x=>x.disabled=true);try{
    const fresh=await request('/api/internal-data?'+query.toString(),{signal:controller.signal});
    if(!active||!section.isConnected||!canRead())return;
-   if(!fresh?.ok||fresh.data?.statementId!==model.statementId||fresh.data?.statementHash!==model.statementHash||fresh.data?.sourceHash!==model.sourceHash)throw new Error('El detalle cambió. Volvé a abrirlo antes de exportar.');
+   if(!fresh?.ok||fresh.data?.datasetId!==reviewedDataset||fresh.data?.statementId!==model.statementId||fresh.data?.statementHash!==model.statementHash||fresh.data?.sourceHash!==model.sourceHash)throw new Error('El detalle cambió. Volvé a abrirlo antes de exportar.');
+   verifyPayrollDetailSelection(fresh.data,selected);
    const verified=createPayrollDetailModel(fresh.data,employee);
    // EXPORT_PREVIEW_PINNED: reauthorization cannot silently change the reviewed comparison.
    if(JSON.stringify(verified)!==JSON.stringify(model))throw new Error('La conciliación cambió. Volvé a abrir el detalle antes de exportar.');
