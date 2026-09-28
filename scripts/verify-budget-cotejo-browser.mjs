@@ -4,9 +4,9 @@ import {chromium} from 'playwright';import {syntheticStructurePdf} from './budge
 const root=process.cwd(),out=path.resolve('verification/budget-cotejo');fs.mkdirSync(out,{recursive:true});
 const tenant='22222222-2222-4222-8222-222222222222',dataset='11111111-1111-4111-8111-111111111111',previousDataset='33333333-3333-4333-8333-333333333333';
 const session=()=>({ok:true,authenticated:true,sessionVersion:2,user:{id:'browser-fixture-user'},access:{tenant:{id:tenant,roleKey:'QA'},tenantCapabilities:['workforce.structure.read','workforce.employee.read','payroll.read']},expiresAt:new Date(Date.now()+240000).toISOString()});
-let denied=false,changed=false,delay=0;const calls=[],checks=[],errors=[];
+let denied=false,changed=false,delay=0,collision=false;const calls=[],checks=[],errors=[];
 const catalog=()=>({ok:true,data:{version:'payroll-source-report.v1',mode:'catalog',official:false,total:2,truncated:false,items:[{datasetId:dataset,date:'2026-08-31',type:'M',statementCount:4,lineCount:4,payloadHash:'b'.repeat(64),sourceLabel:'Conjunto sintético',closureStatus:'closed'},{datasetId:previousDataset,date:'2025-12-31',type:'M',statementCount:4,lineCount:4,payloadHash:'b'.repeat(64),sourceLabel:'Conjunto sintético anterior',closureStatus:'closed'}]}});
-const roster=(id)=>({ok:true,data:{version:'budget-payroll-roster.v1',tenantId:tenant,datasetId:id,date:id===previousDataset?'2025-12-31':'2026-08-31',type:'M',total:4,sourceLabel:'Conjunto sintético',closureStatus:'closed',payloadHash:'b'.repeat(64),reportHash:(changed?'d':'c').repeat(64),official:false,rows:['0001','0029','0031','0999'].map(number=>({number}))}});
+const roster=(id)=>({ok:true,data:{version:'budget-payroll-roster.v1',tenantId:tenant,datasetId:id,date:id===previousDataset?'2025-12-31':'2026-08-31',type:'M',total:4,sourceLabel:'Conjunto sintético',closureStatus:'closed',payloadHash:'b'.repeat(64),reportHash:(changed?'d':'c').repeat(64),official:false,rows:(collision?['0001','0029','01000','1000']:['0001','0029','0031','0999']).map(number=>({number}))}});
 const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost'),filePath=url.pathname;calls.push({method:req.method,path:filePath,resource:url.searchParams.get('resource')});
  if(req.method!=='GET'){res.writeHead(405);return res.end();}
@@ -44,6 +44,24 @@ try{
   else{const text=await page.evaluate(async bytes=>{const pdf=await import('/assets/vendor/pdf.min.mjs');pdf.GlobalWorkerOptions.workerSrc='/assets/vendor/pdf.worker.min.mjs';const task=pdf.getDocument({data:new Uint8Array(bytes),isEvalSupported:false});const document=await task.promise;const parts=[];for(let p=1;p<=document.numPages;p++)parts.push((await(await document.getPage(p)).getTextContent()).items.map(i=>i.str).join(' '));await task.destroy();return parts.join(' ');},Array.from(fs.readFileSync(file)));assert.match(text,/Ocupantes presupuestarios/);assert.match(text,/PERSONA QA 001/);assert.match(text,/0999/);assert.match(text,/no prueba que la liquidación haya utilizado ese cargo/i);assert.match(text,/todavía no incorpora la asignación histórica de cargo y estructura para la corrida elegida/i);assert.doesNotMatch(text,/(?:fuente de nómina|origen actual) no informa|cargo liquidado que la fuente no informa|no informa qué cargo/i);assert.doesNotMatch(text,/DNI|CUIL/);}
  }
  checks.push('Resumen y detalle nominal reautorizan y releen la corrida exacta; el detalle exporta ocupantes del PDF sin incorporar PII ni importes de nómina.');
+ collision=true;await page.getByRole('button',{name:'Cotejar documento completo',exact:true}).click();await status.filter({hasText:'Cotejo completo'}).waitFor();
+ await page.getByLabel('Coincidencia de legajos').selectOption('numeric');
+ assert.deepEqual(await host.locator('.bs-metrics strong').allTextContents(),['2','33','0','1']);
+ assert.equal(await detail.locator('tbody tr').count(),37);assert.equal(await detail.locator('tr[data-match-state=ambiguous]').count(),2);
+ assert.match(await detail.innerText(),/01000/);assert.match(await detail.innerText(),/1000/);
+ await page.getByLabel('Detalle a mostrar').selectOption('differences');assert.equal(await detail.locator('tbody tr').count(),35);
+ const collisionDownload=page.waitForEvent('download');await page.getByRole('button',{name:'CSV detalle nominal',exact:true}).click();
+ const collisionFile=path.join(out,'referencias-repetidas.csv');await(await collisionDownload).saveAs(collisionFile);
+ const collisionText=fs.readFileSync(collisionFile,'utf8');assert.match(collisionText,/'?01000/);assert.match(collisionText,/Referencia repetida: revisar/);assert.equal(collisionText.trim().split(/\r?\n/).length,36);
+ checks.push('Las referencias numéricas repetidas sin cargo documental permanecen en pantalla y CSV; una referencia ambigua puede ocupar dos filas originales.');
+ await page.getByLabel('Detalle a mostrar').selectOption('all');await page.getByLabel('Buscar en ocupantes').fill('01000');assert.equal(await detail.locator('tbody tr').count(),1);
+ const filteredDownload=page.waitForEvent('download');await page.getByRole('button',{name:'PDF detalle nominal',exact:true}).click();
+ const filtered=await filteredDownload,filteredFile=path.join(out,'detalle-filtro-exacto.pdf');await filtered.saveAs(filteredFile);assert.match(filtered.suggestedFilename(),/_busqueda\.pdf$/);
+ const filteredText=await page.evaluate(async bytes=>{const pdf=await import('/assets/vendor/pdf.min.mjs');pdf.GlobalWorkerOptions.workerSrc='/assets/vendor/pdf.worker.min.mjs';const task=pdf.getDocument({data:new Uint8Array(bytes),isEvalSupported:false}),document=await task.promise,parts=[];for(let p=1;p<=document.numPages;p++)parts.push((await(await document.getPage(p)).getTextContent()).items.map(i=>i.str).join(' '));await task.destroy();return parts.join(' ');},Array.from(fs.readFileSync(filteredFile)));
+ assert.match(filteredText,/2026-08-31/);assert.match(filteredText,/PDF emitido 23\/09\/2026 12:20 PM/);assert.match(filteredText,/Cierre informado por origen/); assert.match(filteredText,/1 de 37 filas nominales/);assert.match(filteredText,/Búsqueda: 01000/);assert.doesNotMatch(filteredText,/Salida completa de ocupantes/);
+ checks.push('El PDF filtrado declara búsqueda, filas seleccionadas y total sin atribuirse una salida completa; conserva la huella de la corrida.');
+ collision=false;await page.getByLabel('Buscar en ocupantes').fill('');await page.getByLabel('Coincidencia de legajos').selectOption('literal');
+ await page.getByRole('button',{name:'Cotejar documento completo',exact:true}).click();await status.filter({hasText:'Cotejo completo'}).waitFor();
  const year=page.getByLabel('Año de liquidación',{exact:true}),run=page.getByLabel('Corrida a cotejar'),period=host.locator('[data-budget-period-notice]');
  assert.deepEqual(await year.locator('option').allTextContents(),['Todos los disponibles','2026','2025']);assert.match(await period.innerText(),/no informa el ejercicio presupuestario/);
  await page.getByLabel('Buscar en ocupantes').fill('QA 001');await year.selectOption('2025');assert.equal(await host.locator('tbody tr').count(),0);assert.equal(await run.inputValue(),'');assert.equal(await page.getByRole('button',{name:'Cotejar documento completo',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('Buscar en ocupantes').inputValue(),'');
