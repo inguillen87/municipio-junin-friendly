@@ -59,3 +59,61 @@ test('cotejar años distintos conserva el resultado documental y advierte en amb
  }
  assert.throws(()=>budgetComparisonPeriodNote({...model}));
 });
+
+import {budgetComparisonDetailSelection} from '../assets/budget-payroll-model.js';
+import {reportCsv} from '../assets/report-document.js';
+test('numeric references absent from the PDF remain visible even when their numbers collide',()=>{
+ const model=compareBudgetPopulation(structure(),roster(['01000','1000']),{keyMode:'numeric'});
+ assert.equal(model.counts.ambiguous,1);assert.equal(model.counts.payroll_only,0);
+ assert.deepEqual(model.unassignedPayrollRows,[{number:'01000',key:'1000',state:'ambiguous'},{number:'1000',key:'1000',state:'ambiguous'}]);
+ for(const differencesOnly of [false,true]){
+  const detail=budgetComparisonDetailDocument(model,{differencesOnly});assert.equal(detail.rows.length,37);
+  const candidates=detail.rows.filter(r=>['01000','1000'].includes(r[3]));assert.equal(candidates.length,2);
+  assert.ok(candidates.every(r=>r[4]==='No provisto por este cotejo'&&r[5]==='Referencia repetida: revisar'&&r[6]===''));
+  const csv=reportCsv(detail);assert.match(csv,/"01000"/);assert.match(csv,/"1000"/);assert.match(csv,/Referencia repetida: revisar/);
+ }
+});
+test('ambiguous payroll candidates never assign the first arbitrary number to a document member',()=>{
+ const model=compareBudgetPopulation(structure(),roster(['0001','1']),{keyMode:'numeric'}),member=model.groups[0].members[0];
+ assert.equal(member.state,'ambiguous');assert.equal(member.payrollNumber,null);assert.equal(member.formatChanged,false);
+ const row=budgetComparisonDetailDocument(model,{query:'PERSONA QA 001'}).rows[0];assert.equal(row[6],'');
+ assert.equal(model.entries.find(e=>e.key==='1').payrollNumbers.length,2);
+});
+test('literal comparison keeps both differently formatted references separate',()=>{
+ const model=compareBudgetPopulation(structure(),roster(['01000','1000']));
+ assert.equal(model.counts.ambiguous,0);assert.equal(model.counts.payroll_only,2);
+ const detail=budgetComparisonDetailSelection(model);assert.equal(detail.rows.length,37);assert.equal(detail.totalRows,37);
+ assert.ok(detail.rows.filter(r=>['01000','1000'].includes(r[3])).every(r=>r[5]==='Sólo en corrida'));
+});
+test('exported scope identifies a nominal search rather than claiming the full document was exported',()=>{
+ const model=compareBudgetPopulation(structure(),roster()),detail=budgetComparisonDetailDocument(model,{query:'PERSONA QA 001'});
+ assert.equal(detail.rows.length,1);assert.match(detail.notes.join(' '),/1 de 36 filas nominales/);
+ assert.match(detail.notes.join(' '),/Búsqueda: PERSONA QA 001/);assert.match(detail.notes.join(' '),/todas las páginas del filtro/);
+ assert.doesNotMatch(detail.notes.join(' '),/Salida completa de ocupantes/);assert.match(detail.filename,/_busqueda$/);
+ assert.deepEqual(detail.metadata.find(([key])=>key==='Filas totales'),['Filas totales',36]);
+ assert.deepEqual(detail.metadata.find(([key])=>key==='Conjunto'),['Conjunto',dataset]);
+ assert.deepEqual(detail.metadata.find(([key])=>key==='SHA-256'),['SHA-256','c'.repeat(64)]);
+});
+test('empty search and differences export keep distinct counts without modifying the full summary',()=>{
+ const model=compareBudgetPopulation(structure(),roster()),before=JSON.stringify(model),summary=budgetComparisonDocument(model);
+ const none=budgetComparisonDetailSelection(model,{query:'no existe'});assert.equal(none.rows.length,0);assert.equal(none.totalRows,36);
+ const differences=budgetComparisonDetailDocument(model,{differencesOnly:true});assert.equal(differences.rows.length,33);
+ assert.match(differences.notes.join(' '),/Sólo diferencias · 33 de 36/);
+ assert.equal(JSON.stringify(model),before);assert.equal(budgetComparisonDocument(model).rows.length,summary.rows.length);
+ assert.ok(Object.isFrozen(none));assert.ok(Object.isFrozen(none.rows));
+});
+for(const query of ['bad\nline','hidden\u202ename','x'.repeat(121),null,5])test('selection rejects unsafe or invalid query '+JSON.stringify(query),()=>{
+ assert.throws(()=>budgetComparisonDetailSelection(compareBudgetPopulation(structure(),roster()),{query}),/BUDGET_PAYROLL_CONTRACT_INVALID/);
+});
+test('selection accepts only a verified comparison instance',()=>{
+ const model=compareBudgetPopulation(structure(),roster());assert.throws(()=>budgetComparisonDetailSelection({...model}));
+ assert.throws(()=>budgetComparisonDetailSelection(model,{differencesOnly:'true'}));
+});
+for(const [closureStatus,label] of [['closed','Cierre informado por origen'],['open','Corrida abierta'],['unknown','Cierre no informado']])test('nominal PDF context retains exact run and truthful closure: '+closureStatus,()=>{
+ const model=compareBudgetPopulation(structure(),{...roster(),closureStatus});
+ const document=budgetComparisonDetailDocument(model,{query:'PERSONA QA 001'});
+ assert.deepEqual(document.metadata.find(([key])=>key==='Período'),['Período','2026-08-31']);
+ assert.deepEqual(document.metadata.find(([key])=>key==='Estado'),['Estado',label]);
+ assert.match(document.notes.join(' '),/PDF emitido 23\/09\/2026 12:20 PM; corrida 2026-08-31 \(M\)/);
+ assert.equal(model.official,false);assert.equal(model.approvedQuota,null);assert.equal(model.positionAssignmentVerified,false);
+});
