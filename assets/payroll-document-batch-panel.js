@@ -1,5 +1,6 @@
 import {normalizeBatchQuery,verifyBatchPreview} from './payroll-document-batch-model.js';
 import {payrollSourceReport,sourceReportTypeLabel} from './payroll-source-report-model.js';
+import {mountDocumentCatalogFilters} from './payroll-document-catalog-filters.js';
 import {openPayrollDetail} from './payroll-detail-panel.js';
 export async function readPayrollBatch(url,{signal}={}){
  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:signal?AbortSignal.any([signal,AbortSignal.timeout(25000)]):AbortSignal.timeout(25000)});
@@ -22,10 +23,11 @@ export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
  const status=make('p','Esperando autorización para consultar.','pdb-status');status.setAttribute('role','status');status.dataset.batchStatus='';host.append(status);
  const results=make('section',undefined,'pdb-results'),detailHost=make('section',undefined,'pdb-detail');results.hidden=true;host.append(results,detailHost);
  let granted=false,active=true,busy=false,catalog=null,model=null,applied=null,revision=0,controller=null;
+ const catalogFilters=mountDocumentCatalogFilters({host:catalogBox,select:dataset});
  const canRead=()=>active&&granted&&host.isConnected&&!host.closest('[hidden]');
  const clearDetail=()=>detailHost.replaceChildren();
  async function scopedRequest(url,options){const epoch=revision;try{return await request(url,options);}catch(e){if(epoch===revision&&[401,403].includes(e.status)){granted=false;catalog=null;clear('Tu sesión no habilita esta consulta. Volvé a verificar el acceso.');}throw e;}}
- function controls(){load.disabled=busy||!granted;dataset.disabled=busy||!catalog;apply.disabled=busy||!dataset.value||!granted;reset.disabled=busy;cancel.hidden=!busy;host.setAttribute('aria-busy',String(busy));}
+ function controls(){if(!catalog)catalogFilters.clear();catalogFilters.setEnabled(!busy&&Boolean(catalog)&&granted);load.disabled=busy||!granted;dataset.disabled=busy||!catalog;apply.disabled=busy||!dataset.value||!granted;reset.disabled=busy;cancel.hidden=!busy;host.setAttribute('aria-busy',String(busy));}
  function clear(message='La selección se retiró. Aplicá los filtros nuevamente.'){revision++;controller?.abort();controller=null;busy=false;model=null;results.replaceChildren();results.hidden=true;clearDetail();status.textContent=message;controls();}
  async function run(task){if(busy||!canRead())return;const seq=++revision;controller=new AbortController();const signal=controller.signal;busy=true;controls();
   const current=()=>seq===revision&&canRead()&&!signal.aborted;
@@ -70,12 +72,8 @@ export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
   if(!current())return;
   const c=payrollSourceReport(payload.data);
   if(c.mode!=='catalog')throw Error('No se pudo verificar el catálogo.');
-  catalog=c;dataset.replaceChildren(new Option('Elegí fecha y tipo de liquidación',''));
-  for(const item of c.items){
-   const text=`${item.date} · ${sourceReportTypeLabel(item.type)} · ${item.statementCount} legajos · ${item.datasetId.slice(0,8)}`;
-   dataset.append(new Option(text,item.datasetId));
-  }
-  status.textContent=`${c.items.length} liquidaciones disponibles.${c.truncated?' El catálogo tiene un límite; no representa todo el archivo.':''} Elegí una corrida concreta, no una suma del mes.`;
+  catalog=c;catalogFilters.setCatalogue(c);
+  status.textContent=`${c.items.length} liquidaciones disponibles. Filtrá mes y tipo, elegí la corrida exacta y aplicá los rangos.`;
  });
  form.onsubmit=e=>{
   e.preventDefault();
@@ -91,7 +89,7 @@ export function mountPayrollDocumentBatch(host,{request=readPayrollBatch}={}){
   const caps=detail?.tenantCapabilities instanceof Set?detail.tenantCapabilities:new Set(detail?.tenantCapabilities??[]);
   granted=['payroll.read','workforce.employee.read'].every(c=>caps.has(c));
   clear(granted?'Consulta autorizada. Elegí una liquidación.':'Se requieren permisos de nómina y legajos.');
-  if(!granted){catalog=null;dataset.replaceChildren(new Option('Verificá tus permisos',''));}
+  if(!granted){catalog=null;catalogFilters.clear();dataset.replaceChildren(new Option('Verificá tus permisos',''));}
  }
  const changed=e=>permissions(e.detail);
  document.addEventListener('municontrol:capabilities-ready',changed);

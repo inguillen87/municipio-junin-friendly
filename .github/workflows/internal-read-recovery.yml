@@ -10,6 +10,10 @@ on:
       - 'scripts/verify-structure-people-browser.mjs'
       - 'lib/internal-payroll-document-batch.js'
       - 'assets/payroll-document-batch*'
+      - 'assets/payroll-document-periods.js'
+      - 'assets/payroll-document-catalog-filters.js'
+      - 'tests/payroll-document-periods.test.js'
+      - 'scripts/verify-payroll-document-filters-browser.mjs'
       - 'tests/payroll-document-batch.test.js'
       - 'tests/fixtures/payroll-document-selection-synthetic.js'
       - 'scripts/verify-payroll-document-selection-browser.mjs'
@@ -74,6 +78,15 @@ on:
       - '.nvmrc'
       - 'vercel.json'
       - '.github/workflows/internal-read-recovery.yml'
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'assets/payroll-document-batch*'
+      - 'assets/payroll-document-periods.js'
+      - 'assets/payroll-document-catalog-filters.js'
+      - 'tests/payroll-document-periods.test.js'
+      - 'scripts/verify-payroll-document-filters-browser.mjs'
+      - '.github/workflows/internal-read-recovery.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -135,6 +148,13 @@ jobs:
         run: node scripts/verify-action-command-recovery-browser.mjs
       - name: Payroll document range selection
         run: node scripts/verify-payroll-document-selection-browser.mjs
+      - name: Document catalogue month and type filters
+        run: node scripts/verify-payroll-document-filters-browser.mjs
+      - name: Verify published document filters
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          node scripts/verify-budget-cotejo-publication.mjs
+          node scripts/verify-payroll-document-filters-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -150,6 +170,7 @@ jobs:
             verification/budget-cotejo/
             verification/structure-people-local/
             verification/payroll-document-selection/
+            verification/document-filters/
             verification/payroll-selection-qa.log
             verification/absence-window-qa.log
           retention-days: 7

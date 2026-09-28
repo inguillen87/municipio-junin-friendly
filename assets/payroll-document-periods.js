@@ -13,13 +13,13 @@ export function documentPeriodOptions(raw,{month='all',type='all'}={}){
  const rows=[...view.items].sort((a,b)=>civilDate(b.date).localeCompare(civilDate(a.date))||a.type.localeCompare(b.type)||a.datasetId.localeCompare(b.datasetId));
  return {
   months:view.months.map(value=>({value,label:documentPeriodLabel(value)})),types:view.types.map(value=>({value,label:sourceReportTypeLabel(value)+' ('+value+')'})),
-  items:rows.map(row=>({...row,label:civilDate(row.date)+' · '+sourceReportTypeLabel(row.type)+' ('+row.type+') · '+row.statementCount+' legajos · '+({closed:'Cierre informado',open:'Abierta',unknown:'Cierre no informado'})[row.closureStatus]+' · '+row.datasetId.slice(0,8),sameDateAndType:repeated.get(civilDate(row.date)+'|'+row.type)>1})),
+  items:rows.map(row=>({...row,label:civilDate(row.date)+' · '+sourceReportTypeLabel(row.type)+' ('+row.type+') · '+row.statementCount+' legajos · '+({closed:'Cierre informado',open:'Abierta',unknown:'Cierre no informado'})[row.closureStatus]+' · '+row.datasetId.slice(0,8)+'…'+row.datasetId.slice(-8),sameDateAndType:repeated.get(civilDate(row.date)+'|'+row.type)>1})),
   returned:raw.items.length,total:view.total,truncated:view.truncated,matching:rows.length,
   missingMonth:month!=='all'&&!view.months.includes(month),missingType:type!=='all'&&!view.types.includes(type),
  };
 }
 export function documentPeriodStatus(view){
- return view.matching+' de '+view.returned+' liquidaciones de esta consulta coinciden con el período y tipo.'+
+ return view.matching+' de '+view.returned+' liquidaciones de esta consulta coinciden con el mes y tipo elegidos.'+
   (view.matching?' Elegí la corrida exacta; no se suman liquidaciones del mes.':' No hay coincidencias; no se cambió el filtro para mostrar otra corrida.')+
   (view.items.some(row=>row.sameDateAndType)?' Hay más de una versión para la misma fecha y tipo: se mantienen separadas por identificador.':'')+
   (view.truncated?' Catálogo limitado: no representa todo el histórico.':'');
