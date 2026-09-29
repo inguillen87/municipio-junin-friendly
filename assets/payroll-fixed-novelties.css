@@ -50,3 +50,10 @@
  .fixed-novelties>summary strong { font-size:20px }
 }
 @media(prefers-reduced-motion:reduce) { .fixed-novelties * { scroll-behavior:auto!important } }
+
+/* Explanation stays next to the TXT button; aggregate review never renders identities. */
+.fn-txt638-availability{padding:12px 14px;border-left:3px solid #087f79;background:#eff8f6;line-height:1.55;overflow-wrap:anywhere}
+.fn-txt638-review{margin:16px 0;padding:18px;border:1px solid #b7d7d1;border-top:3px solid #087f79;border-radius:10px;background:#f8fbfa;min-width:0}
+.fn-txt638-review[hidden]{display:none!important}.fn-txt638-review h3{margin:0 0 14px;line-height:1.4}
+.fn-txt638-review dd{overflow-wrap:anywhere;word-break:normal}.fn-txt638-review .fn-facts>div{min-width:0}
+@media(max-width:600px){.fn-txt638-review{padding:14px}.fn-txt638-review h3{font-size:1rem}.fn-txt638-review .fn-facts{grid-template-columns:1fr}}

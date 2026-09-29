@@ -2,6 +2,7 @@ import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedEx
   fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
+import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
@@ -47,7 +48,15 @@ export function mountFixedNovelties(shell){
   const selected=()=>fixedView(data,{search:$('[data-fn-search]').value,status:$('[data-fn-filter]').value});
   const has638=()=>Boolean(data?.periodMonth&&data.rows.some(r=>r.identityCurrent&&r.approved?.operation==='set'&&r.approved.values.conceptSourceId==='638'&&fixedCoverage(r.approved.values,data.periodMonth).intersects));
   function status(text){if(mounted)$('[data-fn-status]').textContent=text;}
-  function clearConsulted(){
+  function clearTxtReview(){const box=mounted?$('[data-fn-txt638-review]'):null;if(box){box.replaceChildren();box.hidden=true;}}
+  function txtAvailability(){return junin638Readiness({list:data,canExport:can('payroll.novelty.export'),readAllowed:hasRead(access)&&Boolean(bootstrap),editing:Boolean(editor),busy:busy||externalBusy});}
+  function showTxtReview(review){
+    const box=$('[data-fn-txt638-review]');box.replaceChildren(node('h3','TXT 638 generado · control del archivo'));
+    const fields=node('dl',undefined,'fn-facts');
+    for(const [label,value]of [['Archivo',review.filename],['Período',review.periodMonth.slice(0,7)],['Registros incluidos',String(review.records)],['Total de importes del TXT',fixedMoney(review.totalCents)],['Tamaño exacto',review.byteLength+' bytes'],['SHA-256 del archivo',review.sha256]]){const item=node('div');item.append(node('dt',label),node('dd',value));fields.append(item);}
+    box.append(fields,node('p','Se generó el archivo; no se envió a AMARU. La aceptación por el receptor sigue pendiente.','fn-note'),node('p','55 bytes por registro. Separación CRLF, sin salto final: convención de MuniControl que debe contrastarse con un archivo aceptado por AMARU. El resumen no muestra DNI ni nombres.','fn-note'));box.hidden=false;
+  }
+  function clearConsulted(){clearTxtReview();
     bootstrap=null;data=null;detail=null;
     if(mounted){$('[data-fn-list]').replaceChildren();$('[data-fn-detail]').replaceChildren();$('[data-fn-detail]').hidden=true;$('[data-fn-count]').textContent='';$('[data-fn-pagination]').hidden=true;}
     if(editor){editor.subject=editor.subject?{contractId:editor.subject.contractId,legajo:editor.subject.legajo,identityToken:editor.subject.identityToken}:null;
@@ -63,7 +72,7 @@ export function mountFixedNovelties(shell){
     host.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=busy||externalBusy);
     $('[data-fn-new]').hidden=!allowedPrepare();$('[data-fn-new]').disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt);
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!data?.periodMonth||!data.rows.length;
-    $('[data-fn-junin638]').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!has638();
+    const txtReady=txtAvailability();$('[data-fn-junin638]').disabled=!txtReady.ready;$('[data-fn-txt638-availability]').textContent=txtReady.message;
     $('[data-fn-refresh]').disabled=busy||externalBusy;
     $('[data-fn-previous]').disabled=busy||externalBusy||page<=1;
     $('[data-fn-next]').disabled=busy||externalBusy||!data||page*20>=selected().rows.length;
@@ -101,7 +110,7 @@ export function mountFixedNovelties(shell){
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
   async function loadList(){
-    const period=currentPeriod();data=null;$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';
+    clearTxtReview();const period=currentPeriod();data=null;$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';
     data=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);page=1;renderList();
   }
   function renderList(){
@@ -298,21 +307,23 @@ export function mountFixedNovelties(shell){
   }
   async function exportJunin638(){
     if(editor||!data?.periodMonth||!can('payroll.novelty.export')||!has638())return;const original=data;
-    await operation(async live=>{status('Verificando identidad, versión e importes del TXT 638 AMARU…');
+    await operation(async live=>{clearTxtReview();status('Verificando identidad, versión e importes del TXT 638 AMARU…');
       try{const snapshot=fixedJunin638Data(await request({resource:'junin638',periodMonth:original.periodMonth,snapshotToken:original.snapshotToken}),original);
         if(!live()||data!==original)return;
         if(!snapshot.rows.length){status('No hay versiones aprobadas del concepto 638 vigentes en este período.');return;}
-        const bytes=junin638Txt(snapshot);save(bytes,junin638Filename(),'text/plain');
+        const bytes=junin638Txt(snapshot),review=await junin638FileReview(snapshot,bytes);
+        if(!live()||data!==original||!can('payroll.novelty.export'))return;
+        save(bytes,junin638Filename(),'text/plain');showTxtReview(review);
         status('amaru.txt generado: '+snapshot.rows.length+' registros · Formato Junín · DNI pos. 5/8 · importe pos. 44/11 · 55 bytes. No liquida ni importa a GRH.');
       }catch(error){data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';$('[data-fn-pagination]').hidden=true;throw error;}
     });
   }
   function mount(){
     if(mounted)return;mounted=true;
-    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Elegí un período para exportar. CSV y Excel incluyen las versiones aprobadas vigentes del filtro completo. El TXT 638 incluye todas las novedades 638 aprobadas vigentes del período; no aplica la búsqueda ni el filtro de pantalla.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638>Descargar TXT 638 · AMARU</button></div><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
+    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Elegí un período para exportar. CSV y Excel incluyen las versiones aprobadas vigentes del filtro completo. El TXT 638 incluye todas las novedades 638 aprobadas vigentes del período; no aplica la búsqueda ni el filtro de pantalla.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638 aria-describedby="fixedTxt638Availability">Descargar TXT 638 · AMARU</button></div><p id="fixedTxt638Availability" class="fn-note fn-txt638-availability" role="status" data-fn-txt638-availability></p><section class="fn-txt638-review" data-fn-txt638-review hidden></section><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
     $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
     for(const key of ['search','filter'])$('[data-fn-'+key+']').addEventListener('input',()=>{if(data&&!busy&&!editor){page=1;renderList();}});
-    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
+    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;clearTxtReview();data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }

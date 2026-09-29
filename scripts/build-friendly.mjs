@@ -226,6 +226,7 @@ const shellFiles = [
   'assets/payroll-fixed-novelties-model.js',
   'assets/payroll-fixed-novelties-export.js',
   'assets/payroll-junin-638.js',
+  'assets/payroll-junin-638-review.js',
   'assets/payroll-fixed-novelties.css',
   'assets/payroll-novelty-legajo-list.js',
   'assets/payroll-novelty-legajo-list.css',
