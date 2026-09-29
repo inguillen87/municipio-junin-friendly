@@ -40,6 +40,7 @@ export async function loadState(root){
   const v=JSON.parse(await readFile(file,'utf8'));
   if(v.schema!=='pm10-local-status.v1'||v.mode!=='capture_only'||typeof v.blocked!=='boolean'||!Number.isSafeInteger(v.failureCount)||v.failureCount<0||v.failureCount>1000||v.cloudReception!=='not_connected'||v.cloudConfirmedRecords!==0|| (v.nextPollAt!==null&&!Number.isFinite(Date.parse(v.nextPollAt))))throw fault('STATE_CORRUPT');
   if(Object.hasOwn(v,'connectionFailureCount')&&(!Number.isSafeInteger(v.connectionFailureCount)||v.connectionFailureCount<0||v.connectionFailureCount>1000))throw fault('STATE_CORRUPT');
+  if(v.status==='storage_wait'&&(v.blocked||v.lastError!=='DISK_SPACE_LOW'||v.nextPollAt===null))throw fault('STATE_CORRUPT');
   return {...initialState(),...v,version:VERSION};
  }catch(e){if(e.code==='ENOENT')return initialState();throw fault('STATE_CORRUPT');}
 }
@@ -60,10 +61,10 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
  if(signal?.aborted)return {...state,status:'stopped'};
  const started=now();
  if(state.nextPollAt&&Date.parse(state.nextPollAt)>started.getTime())return state;
- state.lastAttemptAt=started.toISOString();let key,preconnectFailure=false,outcome;
+ state.lastAttemptAt=started.toISOString();let key,preconnectFailure=false,outcome,checkingCapacity=true;
  try{
   // At least one maximum capture plus metadata must fit before any network operation.
-  await store.capacity(MAX_BYTES+1048576);
+  await store.capacity(MAX_BYTES+1048576);checkingCapacity=false;
   // Re-check the selected local route before reading the secret or opening a socket.
   const route=await routeCheck();
   if(!route||route.localLookup!==true)throw fault('ROUTE_OUTPUT_INVALID');
@@ -84,6 +85,12 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
    // earlier evidence and retry budget; incomplete capture bytes are not queued.
    return {...state,...store.summary(),status:'stopped',
     nextPollAt:new Date(now().getTime()+config.pollSeconds*1000).toISOString()};
+  }
+  // Retry only the pre-connection capacity check. Storage/IO errors after it still block.
+  if(checkingCapacity&&code==='DISK_SPACE_LOW'){
+   return {...state,...store.summary(),status:'storage_wait',lastError:code,blocked:false,
+    nextPollAt:new Date(now().getTime()+Math.max(60,Math.min(900,config.pollSeconds))*1000).toISOString(),
+    cloudReception:'not_connected',cloudConfirmedRecords:0};
   }
   if(ROUTE_ERRORS.has(code)){
    // Route lookup retries are local only, so do not consume clock/auth retry budget.
@@ -110,7 +117,7 @@ export async function runCycle(config,store,previous,{collectImpl=collect,creden
 const esc=v=>String(v??'Sin registro').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readableDate(v){return v&&Number.isFinite(Date.parse(v))?new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',dateStyle:'short',timeStyle:'medium'}).format(new Date(v)):'Sin registro';}
 export function statusHtml(s,delivery={availability:'missing'}){
- const labels={waiting:'Esperando la primera lectura',network_wait:'Sin ruta municipal: no se consulta el reloj',connection_wait:'Conexión al reloj no disponible: reintento programado',captured_locally:'Captura local disponible',blocked:'Lectura detenida: requiere revisión',retry_wait:'Esperando para reintentar',stopped:'Servicio detenido'};
+ const labels={waiting:'Esperando la primera lectura',storage_wait:'Sin espacio suficiente: captura en espera',network_wait:'Sin ruta municipal: no se consulta el reloj',connection_wait:'Conexión al reloj no disponible: reintento programado',captured_locally:'Captura local disponible',blocked:'Lectura detenida: requiere revisión',retry_wait:'Esperando para reintentar',stopped:'Servicio detenido'};
  const hasDelivery=delivery.availability==='available';
  const deliveryLabels={ready:'Remitente preparado; todavía sin resumen de envío',pending:'Hay partes pendientes en la última revisión',queue_confirmed:'La última revisión encontró acuses para toda la cola',retry_wait:'El último envío falló; se programó un reintento',blocked:'El envío está detenido y requiere revisión'};
  const deliveryErrors={DELIVERY_NETWORK_RETRY:'No se completó el envío. Se conserva la cola para reintentar.',DELIVERY_AUTH_BLOCKED:'El receptor rechazó la autorización. Revisar la configuración del remitente.',DELIVERY_REJECTED:'El receptor rechazó el envío. Revisar la integración.',DELIVERY_TRANSPORT_BLOCKED:'No se pudo validar el transporte. Revisar la conexión segura.',DELIVERY_RECEIPT_CORRUPT:'Un acuse conservado no pasó la validación.',DELIVERY_RECEIPT_CONFLICT:'Se detectaron acuses incompatibles para la misma parte.',DELIVERY_STATE_CORRUPT:'El estado guardado requiere revisión.',DELIVERY_REVIEW_REQUIRED:'El remitente requiere revisión antes de continuar.'};
@@ -122,6 +129,7 @@ export function statusHtml(s,delivery={availability:'missing'}){
  <div class="alert"><strong>${esc(deliveryHeading)}</strong><p>${hasDelivery?'Los acuses conservados documentan recepciones anteriores. Este archivo no confirma una conexión actual ni que el remitente siga ejecutándose.':delivery.availability==='invalid'?'El archivo del remitente requiere revisión. La captura local continúa y no se muestran cifras de recepción sin validar.':'Todavía no hay un estado local del remitente disponible.'} Captura local y recepción no significan asistencia aprobada ni horas liquidadas.</p></div>
  <div class="cards"><section class="card"><small>REGISTROS ÚNICOS LOCALES</small><strong class="metric">${esc(s.uniqueLocalRecords??0)}</strong><small>No son personas ni jornadas.</small></section><section class="card"><small>LOTES CONSERVADOS LOCALMENTE</small><strong class="metric">${esc(s.pendingLocalBatches??0)}</strong><small>Incluye lotes con acuse; no se eliminan automáticamente.</small></section><section class="card"><small>REGISTROS CON ACUSE CONSERVADO</small><strong class="metric">${esc(confirmed)}</strong><small>Según el último resumen guardado del remitente.</small></section></div>
  ${hasDelivery?`<section class="card"><h2>Continuidad del envío</h2><p>${esc(deliveryLabels[delivery.state]??'Estado por revisar')}</p><dl><dt>Revisión local del envío</dt><dd>${esc(readableDate(delivery.updatedAt))}</dd><dt>Último acuse conservado</dt><dd>${esc(readableDate(delivery.lastReceiptAt))}</dd><dt>Partes pendientes al revisar</dt><dd>${esc(delivery.remainingParts??'Sin dato en este estado')}</dd><dt>Próximo reintento informado</dt><dd>${esc(readableDate(delivery.nextAttemptAt))}</dd><dt>Último error del envío</dt><dd>${esc(delivery.code?(deliveryErrors[delivery.code]??'El remitente informó un error que requiere revisión.'):'Sin error informado')}</dd></dl><p>La fecha indica cuándo se guardó este resumen; puede corresponder a una revisión de acuses sin un envío nuevo. Los datos pueden estar desactualizados.</p></section>`:''}
+ ${s.status==='storage_wait'?'<div class="alert"><strong>Captura pausada por capacidad del disco.</strong><p>El colector volverá a comprobar el espacio antes de conectarse. Liberá capacidad fuera de las colas de fichadas. Cuando alcance el mínimo configurado y la reserva de captura, reintentará automáticamente; no se borran registros ni se reducen los límites. Los bloqueos de identidad, integridad y escritura siguen requiriendo revisión.</p></div>':''}
  ${s.status==='network_wait'?'<div class="alert"><strong>Lectura pausada antes de conectar.</strong><p>No se confirmó una ruta específica hacia la red municipal. Se revisará nuevamente la tabla de rutas local; no se prueban claves ni se escanea la red. Si vuelve la ruta, se retoma la captura. Esto no sustituye la restricción de salida por interfaz que debe validar Cómputos.</p></div>':''}
  ${s.status==='connection_wait'?'<div class="alert"><strong>Esperando que vuelva la conexión al reloj.</strong><p>El último intento no llegó a establecer la conexión ni a enviar la clave. El servicio reintentará con una espera creciente, de hasta 15 minutos. La cola y la última captura completa se conservan.</p></div>':''}
  <section class="card"><h2>Continuidad de la captura</h2><dl><dt>Último intento</dt><dd>${esc(readableDate(s.lastAttemptAt))}</dd><dt>Última captura completa</dt><dd>${esc(readableDate(s.lastCaptureAt))}</dd><dt>Siguiente intento</dt><dd>${esc(readableDate(s.nextPollAt))}</dd><dt>Hora local del reloj</dt><dd>${esc(s.deviceTimeLocal)}</dd><dt>Último código de error</dt><dd>${esc(s.lastError??'Sin error informado')}</dd><dt>Espacio de cola</dt><dd>${esc(((s.queueBytes??0)/1048576).toFixed(2))} MiB</dd><dt>Escrituras interrumpidas retenidas</dt><dd>${esc(s.interruptedWrites??0)}</dd></dl></section>

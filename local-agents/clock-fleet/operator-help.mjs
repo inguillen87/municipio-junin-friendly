@@ -7,6 +7,7 @@ export function captureHelp(state,enabled=true){
   if(state.lastError==='SERIAL_MISMATCH')return 'El equipo respondió con otra identidad. Verificá la serie y el punto; no se reasignan registros.';
   return 'El ciclo requiere revisión antes de reanudar. La cola local y la evidencia se conservan.';
  }
+ if(state?.status==='storage_wait')return 'Falta espacio para una captura completa. Liberá capacidad fuera de las colas; se comprobará antes de conectar y se reintentará automáticamente sin reducir límites ni borrar fichadas.';
  if(state?.status==='network_wait')return 'Esperando la ruta municipal. No se contacta al reloj por la salida normal a Internet.';
  if(state?.status==='retry_wait'&&(state.connectionFailureCount??0)>0)return 'No se llegó a abrir una sesión con el reloj. Reintento automático, espaciado y sin cambiar la clave.';
  if(state?.status==='retry_wait')return 'El último intento no terminó correctamente. El presupuesto de reintentos de protocolo sigue limitado.';
@@ -16,5 +17,5 @@ export function captureHelp(state,enabled=true){
 export function fleetCounts(config,summary){
  const source=Array.isArray(summary?.clocks)?summary.clocks:[],map=new Map(source.map(s=>[s.clockId,s]));
  const states=config.clocks.map(c=>map.get(c.clockId));
- return {configured:config.clocks.length,withCapture:states.filter(s=>typeof s?.lastCaptureAt==='string'&&Number.isFinite(Date.parse(s.lastCaptureAt))).length,needsReview:states.filter(s=>s?.blocked||s?.status==='review_required').length};
+ return {configured:config.clocks.length,withCapture:states.filter(s=>typeof s?.lastCaptureAt==='string'&&Number.isFinite(Date.parse(s.lastCaptureAt))).length,needsReview:states.filter(s=>s?.blocked||['review_required','storage_wait'].includes(s?.status)).length};
 }

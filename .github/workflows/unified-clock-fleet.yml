@@ -1,6 +1,12 @@
 name: Unified municipal clock fleet
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - local-agents/clock-fleet/**
+      - local-agents/pm10/**
+      - scripts/verify-fleet-local-panel.mjs
+      - .github/workflows/unified-clock-fleet.yml
   push:
     branches: [master, internal-unified-clock-fleet-20260923]
     paths:

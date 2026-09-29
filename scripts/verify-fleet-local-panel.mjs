@@ -70,8 +70,22 @@ export async function main(args=process.argv.slice(2)){
   await metrics({configured:4,captured:1,withReceipt:1,needsReview:1});
   assert.match(await card('PM-10 · Edificio Viejo').innerText(),/Esperando primera captura/);
   assert.match(await card('PM-10 · Edificio Viejo').innerText(),/Acuse guardado/);
+  const storageSummary=structuredClone(summary);
+  storageSummary.clocks[0]={...storageSummary.clocks[0],status:'storage_wait',blocked:false,lastError:'DISK_SPACE_LOW',nextPollAt:'2026-09-18T14:15:00Z'};
+  const pmStorage={state:'storage_wait',blocked:false,lastError:'DISK_SPACE_LOW',lastAttemptAt:time,lastCaptureAt:time,nextPollAt:'2026-09-18T14:01:00Z',records:456,evidenceState:'verified'};
+  await page.setContent(fleetOverview(config,storageSummary,{desired:'running',pm10:{capture:pmStorage,delivery}}));
+  await metrics({configured:4,captured:2,withReceipt:1,needsReview:3});
+  for(const label of ['PM-14 · Edificio Nuevo','PM-10 · Edificio Viejo']){
+   assert.match(await card(label).innerText(),/Captura en espera por falta de espacio/);
+   assert.match(await card(label).innerText(),/Liberá espacio fuera de las colas/);
+  }
+  assert.match(await card('PM-10 · Edificio Viejo').innerText(),/Acuse guardado/);
+  for(const width of [1440,390,320]){
+   await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await page.screenshot({path:out+'/storage-'+width+'.png',fullPage:true});
+  }
   assert.equal(requests,0);assert.deepEqual(errors,[]);
-  const result={ok:true,checks:10,manifestFiles:manifest.files,syntheticStatus:true,networkRequests:0,hardwareConnections:0,mobileWidths:[390,320]};
+  const result={ok:true,checks:14,manifestFiles:manifest.files,syntheticStatus:true,networkRequests:0,hardwareConnections:0,mobileWidths:[390,320]};
   fs.writeFileSync(out+'/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));return result;
  }finally{await browser.close();}
 }
