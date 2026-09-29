@@ -229,7 +229,7 @@
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Uno o varios legajos, una misma novedad. Sin archivos.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="sheet"><span><strong>Planilla en pantalla</strong><small>Varios legajos, conceptos y unidades. Sin subir archivos.</small></span></label>
-              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · archivo CSV</strong><small>CSV UTF-8, hasta 500 filas, con previsualización.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · TXT / CSV</strong><small>Archivos por columnas o posiciones, hasta 500 filas, con revisión completa.</small></span></label>
             </div>
 
             <div class="form-grid">
@@ -300,12 +300,13 @@
             <div id="sheetFields" hidden></div>
 
             <div id="bulkFields" hidden>
+              <div id="bulkImportOptions"></div>
               <div class="form-grid">
-                <div class="field full"><label for="bulkFile">Archivo CSV UTF-8</label><input id="bulkFile" type="file" accept=".csv,text/csv,text/plain"><small>CSV UTF-8 con 10 columnas, hasta 500 filas y 480 KiB. Se revisa completo antes de guardar; no se guarda automáticamente en el navegador.</small></div>
-                <div class="field full"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá aquí el CSV con el encabezado exacto."></textarea></div>
+                <div class="field full"><label for="bulkFile">Archivo de novedades TXT o CSV</label><input id="bulkFile" type="file" accept=".txt,.csv,text/csv,text/plain"><small>TXT o CSV, hasta 500 filas y 480 KiB. Elegí el formato de origen. Se revisa el archivo completo antes de crear el lote; no se importa automáticamente.</small></div>
+                <div class="field full"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá el contenido exacto del archivo, conservando sus espacios y separadores."></textarea></div>
               </div>
-              <p class="panel-note">Encabezado obligatorio:</p>
-              <div class="bulk-format">legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;movimiento;instrumento_legal;observacion;forzado</div>
+              <div id="bulkCsvHeader"><p class="panel-note">Encabezado obligatorio para CSV / TXT de 10 columnas:</p>
+              <div class="bulk-format">legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;movimiento;instrumento_legal;observacion;forzado</div></div>
             </div>
 
             <div class="form-actions"><button class="button" id="preflightButton" type="button">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" disabled>Crear lote trazable</button></div>
