@@ -1,0 +1,24 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {documentPeriodRangePage} from '../assets/payroll-document-range.js';
+const id=i=>'11111111-1111-4111-8111-'+String(i).padStart(12,'0');
+const row=(i,year,month,type='M',date=null)=>({datasetId:id(i),payrollDate:date??year+'-'+String(month).padStart(2,'0')+'-15',sourcePeriod:year,sourceMonth:month,payrollType:type,closureStatus:'unknown',sourceLabel:'Fuente sintética',importedAt:'2026-09-28T12:00:00Z',conceptCount:11,versionsAvailable:1,historySummaryAvailable:false});
+const catalog=items=>({version:'payroll-document-library.v1',found:true,items,total:items.length,truncated:false,officialReceipt:false,signatureApplied:false});
+const sample=()=>catalog([row(1,2025,12),row(2,2026,1),row(3,2026,2),row(4,2026,1,'V'),row(5,2026,2,'X'),row(6,2026,3),row(7,2024,12,'M','2026-01-31')]);
+test('inclusive range crosses calendar year and keeps every source type separate',()=>{const r=documentPeriodRangePage(sample(),{from:'2025-12',to:'2026-02'});assert.equal(r.total,5);assert.equal(r.items.length,5);assert.ok(r.items.some(x=>x.sourcePeriod===2025));assert.ok(r.items.some(x=>x.payrollType==='X'));});
+test('source month rather than payroll date determines membership',()=>{const r=documentPeriodRangePage(sample(),{from:'2024-12',to:'2024-12'});assert.equal(r.total,1);assert.equal(r.items[0].payrollDate,'2026-01-31');});
+test('a chosen type is applied within the range, not across all years',()=>{const r=documentPeriodRangePage(sample(),{from:'2025-12',to:'2026-02',type:'V'});assert.equal(r.total,1);assert.equal(r.items[0].payrollType,'V');});
+test('unknown uppercase types stay queryable without invented labels or mapping',()=>{const r=documentPeriodRangePage(sample(),{from:'2026-01',to:'2026-02',type:'X'});assert.equal(r.total,1);});
+test('zero matches never reset the selected range',()=>{const r=documentPeriodRangePage(sample(),{from:'2020-01',to:'2020-02'});assert.equal(r.total,0);assert.equal(r.periodFrom,'2020-01');assert.equal(r.from,0);assert.equal(r.to,0);assert.equal(r.pages,1);});
+test('every selected item occurs once over all pages, not merely the visible page',()=>{
+ const items=Array.from({length:1000},(_,i)=>row(i+1,1940+Math.floor(i/12),i%12+1,i%2?'M':'V')),c=catalog(items),seen=[];
+ for(let page=1;page<=42;page++)seen.push(...documentPeriodRangePage(c,{from:'1940-01',to:'2023-04'},page).items.map(r=>r.datasetId));
+ assert.equal(seen.length,1000);assert.equal(new Set(seen).size,1000);assert.equal(documentPeriodRangePage(c,{from:'1940-01',to:'2023-04'},42).items.length,16);
+});
+test('out of range pagination clamps without widening the query',()=>{const r=documentPeriodRangePage(sample(),{from:'2025-12',to:'2025-12'},20);assert.equal(r.page,1);assert.equal(r.total,1);});
+test('catalogue truncation remains visible',()=>{const items=Array.from({length:1000},(_,i)=>row(i+1,1940+Math.floor(i/12),i%12+1)),c={...catalog(items),total:1001,truncated:true};const r=documentPeriodRangePage(c,{from:'1940-01',to:'2100-12'});assert.equal(r.truncated,true);assert.equal(r.received,1000);});
+for(const value of ['',null,undefined,202608,'2026-1','2026-00','2026-13','1899-12','2101-01','2026-01-01','2026-01x'])test('invalid lower limit '+String(value),()=>assert.throws(()=>documentPeriodRangePage(sample(),{from:value,to:'2026-12'}),{code:'DOCUMENT_PERIOD_RANGE_INVALID'}));
+for(const value of ['',null,undefined,'2026-00','2026-13','2025-12','2026-01x'])test('invalid upper limit '+String(value),()=>assert.throws(()=>documentPeriodRangePage(sample(),{from:'2026-01',to:value}),{code:'DOCUMENT_PERIOD_RANGE_INVALID'}));
+for(const type of ['monthly','m',null,1,'MM'])test('invalid type '+String(type),()=>assert.throws(()=>documentPeriodRangePage(sample(),{from:'2026-01',to:'2026-12',type}),{code:'DOCUMENT_PERIOD_RANGE_INVALID'}));
+for(const page of [0,-1,1.5,'1',NaN,Infinity,Number.MAX_SAFE_INTEGER+1])test('invalid page '+String(page),()=>assert.throws(()=>documentPeriodRangePage(sample(),{from:'2026-01',to:'2026-12'},page),/DOCUMENT_PAGE_INVALID/));
+test('duplicate dataset and malformed source are not silently ignored',()=>{const c=sample();c.items.push(c.items[0]);c.total++;assert.throws(()=>documentPeriodRangePage(c,{from:'2026-01',to:'2026-12'}));});
+test('data and order are not mutated by filtering; output and item list are frozen',()=>{const c=sample(),before=JSON.stringify(c),r=documentPeriodRangePage(c,{from:'2026-01',to:'2026-12'});assert.equal(JSON.stringify(c),before);assert.ok(Object.isFrozen(r));assert.ok(Object.isFrozen(r.items));assert.ok(Object.isFrozen(r.items[0]));});
