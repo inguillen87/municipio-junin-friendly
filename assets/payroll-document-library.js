@@ -1,4 +1,5 @@
 import {normalizeDocumentLibrary,documentLibraryPage,documentTypeLabel} from './payroll-document-library-model.js';
+import {documentPeriodRangePage} from './payroll-document-range.js';
 import {openPayrollDetail} from './payroll-detail-panel.js';
 
 const node=(tag,cls='',text='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=text;return n};
@@ -21,7 +22,7 @@ export async function openPayrollDocumentLibrary({host,employee,request,canRead}
  const body=node('div','pdl-body'),detailHost=node('div','pdl-detail-host');
  // Selection and filters belong only to this mounted, authorized employee panel.
  let active=true,revision=0,selection=0,controller=null,library=null,page=1;
- const filters={year:'',month:'',type:''};
+ const filters={year:'',month:'',type:''},range={enabled:false,from:'',to:''};
  const live=()=>active&&root.isConnected&&canRead();
  const clearDetail=()=>{selection++;detailHost.replaceChildren()};
  const close=(restoreFocus=false)=>{
@@ -47,6 +48,17 @@ export async function openPayrollDocumentLibrary({host,employee,request,canRead}
   summary.append(node('strong','',library.total+' liquidaciones con detalle'),node('span','',noHistory+' sin tarjeta en el resumen anterior · en el listado recibido'));
   if(library.truncated)summary.append(node('p','pdl-warning','Se muestran los 1.000 períodos más recientes. Los filtros se aplican a este listado; no representan el archivo completo.'));
   const fields=node('div','pdl-filters'),selectors={};
+  const modeLabel=node('label','pdl-field'),mode=node('select');mode.setAttribute('aria-label','Modo de consulta de períodos');
+  mode.append(new Option('Año y mes','calendar'),new Option('Desde / hasta período','range'));mode.value=range.enabled?'range':'calendar';
+  modeLabel.append(node('span','','Modo de consulta de períodos'),mode);fields.append(modeLabel);
+  const rangeFields=node('div','pdl-range-fields'),rangeInputs={};
+  for(const [key,label]of [['from','Desde período de origen'],['to','Hasta período de origen']]){
+   const wrap=node('label','pdl-field'),input=node('input');input.type='month';input.min='1900-01';input.max='2100-12';input.value=range[key];input.setAttribute('aria-label',label);input.dataset.documentRange=key;
+   input.addEventListener('input',()=>{range[key]=input.value;page=1;renderRows()});rangeInputs[key]=input;wrap.append(node('span','',label),input);rangeFields.append(wrap);
+  }
+  const rangeHelp=node('p','pdl-range-help','Desde y hasta están incluidos. Se consulta el período de origen, aunque la fecha de liquidación sea de otro mes. No se suman ni combinan corridas.');
+  function setMode(){rangeFields.hidden=rangeHelp.hidden=!range.enabled;for(const key of ['year','month']){selectors[key].closest('label').hidden=range.enabled;selectors[key].disabled=range.enabled;}for(const input of Object.values(rangeInputs))input.disabled=!range.enabled;}
+  mode.addEventListener('change',()=>{range.enabled=mode.value==='range';page=1;setMode();renderRows()});
   function selectField(key,label,options) {
    const wrap=node('label','pdl-field'),span=node('span','',label),select=node('select');
    select.dataset.documentFilter=key;
@@ -61,17 +73,22 @@ export async function openPayrollDocumentLibrary({host,employee,request,canRead}
   selectField('year','Año',[['','Todos los años'],...[...new Set(library.items.map(x=>x.sourcePeriod))].sort((a,b)=>b-a).map(y=>[y,y])]);
   selectField('month','Mes',[['','Todos los meses'],...MONTHS.map((m,i)=>[i+1,m])]);
   selectField('type','Tipo de liquidación',[['','Todos los tipos'],...[...new Set(library.items.map(x=>x.payrollType))].sort().map(t=>[t,documentTypeLabel(t)])]);
-  fields.append(button('Limpiar filtros',()=>{for(const key of Object.keys(filters)){filters[key]='';selectors[key].value=''}page=1;renderRows()}),button('Actualizar biblioteca',load));
+  fields.append(rangeFields);setMode();
+  fields.append(button('Limpiar filtros',()=>{for(const key of Object.keys(filters)){filters[key]='';selectors[key].value=''}range.enabled=false;range.from=range.to='';mode.value='calendar';for(const input of Object.values(rangeInputs))input.value='';page=1;setMode();renderRows()}),button('Actualizar biblioteca',load));
   const resultCount=node('p','pdl-status');resultCount.setAttribute('role','status');resultCount.tabIndex=-1;
   const list=node('div','pdl-list'),navigation=node('nav','pdl-pagination');
   navigation.setAttribute('aria-label','Páginas de liquidaciones del legajo');
-  body.append(summary,fields,resultCount,list,navigation);
+  body.append(summary,fields,rangeHelp,resultCount,list,navigation);
 
   function renderRows(focus=false) {
    if(!live()){close();return}
    clearDetail();list.replaceChildren();navigation.replaceChildren();
-   const result=documentLibraryPage(library,filters,page);page=result.page;
-   resultCount.textContent=result.total+' de '+library.items.length+' liquidaciones del listado · selección por período de origen. '+(result.total?'Mostrando '+result.from+'–'+result.to+'.':'Sin resultados.');
+   let result,rangeError='';
+   try{result=range.enabled?documentPeriodRangePage(library,{from:range.from,to:range.to,type:filters.type},page):documentLibraryPage(library,filters,page);}
+   catch(error){if(error.code!=='DOCUMENT_PERIOD_RANGE_INVALID')throw error;rangeError=error.message;result={items:[],total:0,page:1,pages:1,from:0,to:0};}
+   page=result.page;
+   if(range.enabled)rangeHelp.textContent=rangeError?'Ambos extremos son obligatorios y deben estar en orden. No se consulta otro período automáticamente.':'Desde '+MONTHS[Number(range.from.slice(5))-1].toLowerCase()+' de '+range.from.slice(0,4)+' hasta '+MONTHS[Number(range.to.slice(5))-1].toLowerCase()+' de '+range.to.slice(0,4)+', inclusive. Períodos de origen, no fechas de pago. Cada corrida mantiene su fuente.';
+   resultCount.textContent=rangeError||result.total+' de '+library.items.length+' liquidaciones del listado · '+(range.enabled?'rango de origen '+range.from+' a '+range.to:'selección por período de origen')+'. '+(result.total?'Mostrando '+result.from+'–'+result.to+'.':'Sin resultados.');
    const selectVersion=selection;
    for(const item of result.items) {
     const card=node('article','pdl-card');card.dataset.documentKey=item.datasetId;
@@ -93,7 +110,7 @@ export async function openPayrollDocumentLibrary({host,employee,request,canRead}
     });
     open.setAttribute('aria-label','Ver conceptos y exportar · '+label+' · '+documentTypeLabel(item.payrollType));card.append(open);list.append(card);
    }
-   if(!result.total)list.append(node('p','pdl-empty','No hay liquidaciones detalladas para esta combinación. Probá otro año, mes o tipo.'));
+   if(!result.total)list.append(node('p','pdl-empty',rangeError?'Elegí ambos límites en orden para consultar el rango, sin ampliar automáticamente la búsqueda.':range.enabled?'No hay detalle incorporado para este rango y tipo. No significa que no se haya liquidado o pagado.':'No hay liquidaciones detalladas para esta combinación. Probá otro año, mes o tipo.'));
    navigation.hidden=result.pages===1;
    if(result.pages>1) {
     for(const [label,target] of [['Primera página',1],['Página anterior',page-1],['Página siguiente',page+1],['Última página',result.pages]]) {

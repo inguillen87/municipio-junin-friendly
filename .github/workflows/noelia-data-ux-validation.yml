@@ -5,6 +5,9 @@ on:
     paths:
       - 'assets/payroll-document-library*'
       - 'assets/payroll-detail-panel.js'
+      - 'assets/payroll-document-range.js'
+      - 'tests/payroll-document-range.test.js'
+      - 'scripts/verify-payroll-document-range.mjs'
       - 'assets/payroll-detail-selection.js'
       - 'assets/civil-date.js'
       - 'tests/payroll-detail-selection.test.js'
@@ -20,6 +23,9 @@ on:
     branches: ['master']
     paths:
       - 'assets/payroll-detail-panel.js'
+      - 'assets/payroll-document-range.js'
+      - 'tests/payroll-document-range.test.js'
+      - 'scripts/verify-payroll-document-range.mjs'
       - 'assets/payroll-detail-selection.js'
       - 'assets/civil-date.js'
       - 'tests/payroll-detail-selection.test.js'
@@ -57,6 +63,8 @@ jobs:
         run: node scripts/verify-document-library-pagination.mjs
       - name: Existing document and download workflows
         run: node scripts/verify-payroll-document-library-browser.mjs
+      - name: Source-period inclusive range acceptance
+        run: node scripts/verify-payroll-document-range.mjs
       - name: Individual detail and accessible layout
         run: |
           node scripts/verify-payroll-detail-browser.mjs
@@ -65,15 +73,19 @@ jobs:
       - name: Verify deployed document layout
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
+          node scripts/verify-budget-cotejo-publication.mjs
+          node scripts/verify-document-library-production.mjs
           node scripts/verify-payroll-detail-production.mjs
           node scripts/verify-payroll-detail-layout.mjs --published
           node scripts/verify-payroll-detail-selection.mjs --published
+          node scripts/verify-payroll-document-range.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: noelia-data-ux-${{ github.run_id }}
           path: |
             verification/noelia-data-ux/
+            verification/document-period-range/
             verification/payroll-detail-layout/
             verification/payroll-detail-selection/
             verification/payroll-detail-production.json

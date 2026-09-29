@@ -117,6 +117,7 @@ const shellFiles = [
   'assets/payroll-document-payment-field.js',
   'assets/payroll-document-batch.css',
   'assets/payroll-document-library-model.js',
+  'assets/payroll-document-range.js',
   'assets/payroll-document-library.css',
   'assets/payroll-detail-panel.css',
   'assets/payroll-detail-export.js',
