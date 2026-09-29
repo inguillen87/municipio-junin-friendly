@@ -6,7 +6,7 @@ const integer=v=>Number.isSafeInteger(v)&&v>=0;
 const date=v=>time(v)?new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Mendoza',dateStyle:'short',timeStyle:'medium'}).format(new Date(v)):'Sin comprobación';
 const count=v=>integer(v)?String(v):'Sin dato';
 const evidence=v=>['verified','missing','invalid'].includes(v)?v:'missing';
-const needsReview=c=>c.evidenceState==='invalid'||c.capture?.evidenceState==='invalid'||c.delivery?.evidenceState==='invalid'||c.capture?.blocked===true||['blocked','review_required'].includes(c.capture?.state)||['blocked','review_required'].includes(c.delivery?.state);
+const needsReview=c=>c.evidenceState==='invalid'||c.capture?.evidenceState==='invalid'||c.delivery?.evidenceState==='invalid'||c.capture?.blocked===true||['blocked','review_required','storage_wait'].includes(c.capture?.state)||['blocked','review_required'].includes(c.delivery?.state);
 
 export function overviewCounts(clocks){
  return {configured:clocks.length,captured:clocks.filter(c=>c.capture?.evidenceState!=='invalid'&&time(c.capture?.lastCaptureAt)).length,
@@ -18,7 +18,7 @@ function captureLabel(clock){
  if(c.evidenceState==='invalid')return 'Estado de captura por revisar';
  if(!clock.enabled)return 'Captura deshabilitada';
  if(c.blocked||c.state==='blocked')return 'Captura detenida para revisión';
- return {waiting:'Esperando primera captura',ready:'Esperando próxima captura',captured_locally:'Captura guardada',network_wait:'Esperando la red autorizada',connection_wait:'Esperando conexión al reloj',retry_wait:'Reintento de captura programado',review_required:'Captura por revisar',disabled:'Captura deshabilitada',stopped:'Captura detenida'}[c.state]||'Captura sin comprobación';
+ return {waiting:'Esperando primera captura',ready:'Esperando próxima captura',captured_locally:'Captura guardada',storage_wait:'Captura en espera por falta de espacio',network_wait:'Esperando la red autorizada',connection_wait:'Esperando conexión al reloj',retry_wait:'Reintento de captura programado',review_required:'Captura por revisar',disabled:'Captura deshabilitada',stopped:'Captura detenida'}[c.state]||'Captura sin comprobación';
 }
 function captureGuidance(clock){
  const c=clock.capture;
@@ -27,6 +27,7 @@ function captureGuidance(clock){
  if(c.blocked&&['AUTH_NOT_ACCEPTED','AUTHENTICATION_UNVERIFIED'].includes(c.lastError))return 'Revisá el acceso autorizado del reloj. No se prueban otras claves.';
  if(c.lastError==='SERIAL_MISMATCH')return 'La identidad respondió de forma distinta a la configuración. No se reasignan registros.';
  if(c.blocked||c.state==='review_required')return 'El ciclo requiere revisión antes de reanudar. Se conservan la cola y sus comprobantes.';
+ if(c.state==='storage_wait')return 'Liberá espacio fuera de las colas de fichadas. El colector comprobará capacidad antes de conectarse y retomará al recuperar el mínimo configurado y la reserva. No borra registros ni reduce límites.';
  if(c.state==='network_wait')return 'El próximo intento espera la ruta municipal autorizada.';
  if(c.state==='connection_wait')return 'El último intento no llegó a establecer una sesión con el reloj. Se conserva la última captura y se espera el próximo intento.';
  if(c.state==='retry_wait')return 'Hay un reintento programado. Su resultado aparecerá con una nueva fecha de comprobación.';

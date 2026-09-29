@@ -101,8 +101,9 @@ async function captureSnapshot(c){
  const budget={bytes:0};try{
   await captureIdentity(c,budget);const {value:v,checkedAt}=await metadata(path.join(c.stateDir,'status.json'),32768,budget);
   need(c.clockId===null?v.schema==='pm10-local-status.v1'&&v.mode==='capture_only'&&v.cloudReception==='not_connected':v.schema==='clock-fleet-status.v1'&&v.clockId===c.clockId&&v.serial===c.serial&&v.cloudReception==='not_configured');
-  need(['waiting','captured_locally','network_wait','connection_wait','retry_wait','blocked','review_required','disabled','stopped'].includes(v.status)&&typeof v.blocked==='boolean'&&count(v.failureCount)&&nullableStamp(v.lastAttemptAt)&&nullableStamp(v.lastCaptureAt)&&nullableStamp(v.nextPollAt));
+  need(['waiting','captured_locally','storage_wait','network_wait','connection_wait','retry_wait','blocked','review_required','disabled','stopped'].includes(v.status)&&typeof v.blocked==='boolean'&&count(v.failureCount)&&nullableStamp(v.lastAttemptAt)&&nullableStamp(v.lastCaptureAt)&&nullableStamp(v.nextPollAt));
   need(v.uniqueLocalRecords===undefined||count(v.uniqueLocalRecords));need(v.lastCaptureAt===null||HEX.test(v.lastCaptureSha256)&&count(v.snapshotRecordCount));
+  need(v.status!=='storage_wait'||!v.blocked&&v.lastError==='DISK_SPACE_LOW'&&v.nextPollAt!==null);
   need(v.status!=='captured_locally'||v.lastCaptureAt!==null);need(v.status!=='blocked'||v.blocked);
   return{state:v.status,lastAttemptAt:v.lastAttemptAt,lastCaptureAt:v.lastCaptureAt,nextPollAt:v.nextPollAt,blocked:v.blocked,lastError:safeObservation(v.lastError),records:v.uniqueLocalRecords??null,checkedAt,evidenceState:'verified'};
  }catch(e){return emptyCapture(e.code==='ENOENT'?'missing':'invalid');}
@@ -167,5 +168,5 @@ export async function readGatewayOverview(raw,{now=()=>new Date(),desiredState='
   clocks.push({clockId:c.clockId,label:c.label,enabled:c.enabled,capture,delivery,evidenceState});
  }
  need(before.configuration===(await overviewDescriptors(config)).configuration);
- return{schema:'municipal-clock-overview.v1',updatedAt:now().toISOString(),desiredState,clocks,counts:{configured:clocks.length,captured:clocks.filter(c=>c.capture.lastCaptureAt!==null).length,needsReview:clocks.filter(c=>c.evidenceState==='invalid'||c.capture.blocked||c.capture.state==='review_required'||['blocked','review_required'].includes(c.delivery.state)).length,withReceipt:clocks.filter(c=>c.delivery.lastReceiptAt!==null).length},networkTested:false,realWrites:0};
+ return{schema:'municipal-clock-overview.v1',updatedAt:now().toISOString(),desiredState,clocks,counts:{configured:clocks.length,captured:clocks.filter(c=>c.capture.lastCaptureAt!==null).length,needsReview:clocks.filter(c=>c.evidenceState==='invalid'||c.capture.blocked||['review_required','storage_wait'].includes(c.capture.state)||['blocked','review_required'].includes(c.delivery.state)).length,withReceipt:clocks.filter(c=>c.delivery.lastReceiptAt!==null).length},networkTested:false,realWrites:0};
 }

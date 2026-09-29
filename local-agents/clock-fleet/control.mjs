@@ -12,11 +12,11 @@ export function desiredState(value){if(value?.schema!=='clock-fleet-desired.v1'|
 export function pm10CaptureOverview(v){
  const count=n=>Number.isSafeInteger(n)&&n>=0,nullableDate=d=>d===null||stamp(d);
  if(!v||v.schema!=='pm10-local-status.v1'||v.mode!=='capture_only'||v.cloudReception!=='not_connected'||v.cloudConfirmedRecords!==0
-  ||!['waiting','captured_locally','network_wait','connection_wait','retry_wait','blocked','review_required','disabled','stopped'].includes(v.status)
+  ||!['waiting','captured_locally','storage_wait','network_wait','connection_wait','retry_wait','blocked','review_required','disabled','stopped'].includes(v.status)
   ||typeof v.blocked!=='boolean'||!count(v.failureCount)||v.failureCount>1000||!nullableDate(v.lastAttemptAt)||!nullableDate(v.lastCaptureAt)||!nullableDate(v.nextPollAt)
   ||(v.uniqueLocalRecords!==undefined&&!count(v.uniqueLocalRecords))||(v.lastCaptureAt!==null&&(!/^[a-f0-9]{64}$/.test(v.lastCaptureSha256)||!count(v.snapshotRecordCount)))
-  ||(v.status==='captured_locally'&&v.lastCaptureAt===null)||(v.status==='blocked'&&!v.blocked))throw fault('FLEET_CONTROL_INVALID');
- const known=['AUTH_NOT_ACCEPTED','AUTHENTICATION_UNVERIFIED','SERIAL_MISMATCH','LAYOUT_NOT_CONFIRMED','TRANSFER_NOT_CONFIRMED'];
+  ||(v.status==='captured_locally'&&v.lastCaptureAt===null)||(v.status==='blocked'&&!v.blocked)||(v.status==='storage_wait'&&(v.blocked||v.lastError!=='DISK_SPACE_LOW'||v.nextPollAt===null)))throw fault('FLEET_CONTROL_INVALID');
+ const known=['DISK_SPACE_LOW','AUTH_NOT_ACCEPTED','AUTHENTICATION_UNVERIFIED','SERIAL_MISMATCH','LAYOUT_NOT_CONFIRMED','TRANSFER_NOT_CONFIRMED'];
  return {state:v.status,blocked:v.blocked,lastError:v.lastError==null?null:known.includes(v.lastError)?v.lastError:'REVIEW_REQUIRED',
   checkedAt:null,lastAttemptAt:v.lastAttemptAt,lastCaptureAt:v.lastCaptureAt,nextPollAt:v.nextPollAt,records:v.uniqueLocalRecords??null,evidenceState:'verified'};
 }

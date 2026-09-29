@@ -36,18 +36,18 @@ async function boundState(root,c){
  const identity={schema:'clock-fleet-identity.v1',clockId:c.clockId,serial:c.serial};
  try{const handle=await open(file,'wx',0o600);try{await handle.writeFile(JSON.stringify(identity));await handle.sync();}finally{await handle.close();}}
  catch(e){if(e.code!=='EEXIST')throw e;const st=await lstat(file);if(!st.isFile()||st.isSymbolicLink()||st.size>1024)throw fault('FLEET_IDENTITY_MISMATCH');let previous;try{previous=JSON.parse(await readFile(file,'utf8'));}catch{throw fault('FLEET_IDENTITY_MISMATCH');}if(JSON.stringify(previous)!==JSON.stringify(identity))throw fault('FLEET_IDENTITY_MISMATCH');}
- try{const statusFile=path.join(root,'status.json'),st=await lstat(statusFile);if(!st.isFile()||st.isSymbolicLink()||st.size>32768)throw fault('FLEET_STATE_INVALID');let s;try{s=JSON.parse(await readFile(statusFile,'utf8'));}catch{throw fault('FLEET_STATE_INVALID');}if(s.schema!=='clock-fleet-status.v1'||s.clockId!==c.clockId||s.serial!==c.serial||s.cloudReception!=='not_configured'||typeof s.blocked!=='boolean'||!Number.isSafeInteger(s.failureCount)||s.failureCount<0||s.failureCount>1000||(s.connectionFailureCount!==undefined&&(!Number.isSafeInteger(s.connectionFailureCount)||s.connectionFailureCount<0||s.connectionFailureCount>1000))||(s.nextPollAt!==null&&!Number.isFinite(Date.parse(s.nextPollAt))))throw fault('FLEET_STATE_INVALID');return {...fresh(c),...s};}
+ try{const statusFile=path.join(root,'status.json'),st=await lstat(statusFile);if(!st.isFile()||st.isSymbolicLink()||st.size>32768)throw fault('FLEET_STATE_INVALID');let s;try{s=JSON.parse(await readFile(statusFile,'utf8'));}catch{throw fault('FLEET_STATE_INVALID');}if(s.schema!=='clock-fleet-status.v1'||s.clockId!==c.clockId||s.serial!==c.serial||s.cloudReception!=='not_configured'||typeof s.blocked!=='boolean'||!Number.isSafeInteger(s.failureCount)||s.failureCount<0||s.failureCount>1000||(s.connectionFailureCount!==undefined&&(!Number.isSafeInteger(s.connectionFailureCount)||s.connectionFailureCount<0||s.connectionFailureCount>1000))||(s.nextPollAt!==null&&!Number.isFinite(Date.parse(s.nextPollAt))))throw fault('FLEET_STATE_INVALID');if(s.status==='storage_wait'&&(s.blocked||s.lastError!=='DISK_SPACE_LOW'||s.nextPollAt===null))throw fault('FLEET_STATE_INVALID');return {...fresh(c),...s};}
  catch(e){if(e.code==='ENOENT')return fresh(c);throw e;}
 }
-export async function captureClock(fleet,c,{collect=collectConfigured,credential=readCredential,route=readMunicipalRoute,now=()=>new Date(),signal}={}){
- const root=path.join(fleet.stateDir,c.clockId);let release,key,state=fresh(c),store,persist=false,preconnect=false;
+export async function captureClock(fleet,c,{collect=collectConfigured,credential=readCredential,route=readMunicipalRoute,now=()=>new Date(),signal,freeBytes}={}){
+ const root=path.join(fleet.stateDir,c.clockId);let release,key,state=fresh(c),store,persist=false,preconnect=false,checkingCapacity=false;
  try{
   release=await acquireLock(root);state=await boundState(root,c);
   if(!c.enabled){state={...state,status:'disabled'};persist=true;return state;}
   if(state.blocked||signal?.aborted)return state;
   if(state.nextPollAt&&Date.parse(state.nextPollAt)>now().getTime())return state;
-  store=await new CaptureStore(root,{identity:{clockId:c.clockId,serial:c.serial},maxQueueBytes:fleet.maxQueueMiB*1048576,minFreeBytes:fleet.minFreeMiB*1048576}).init();
-  persist=true;state={...state,lastAttemptAt:now().toISOString()};await store.capacity(MAX_BYTES+1048576);
+  store=await new CaptureStore(root,{identity:{clockId:c.clockId,serial:c.serial},maxQueueBytes:fleet.maxQueueMiB*1048576,minFreeBytes:fleet.minFreeMiB*1048576,freeBytes}).init();
+  persist=true;state={...state,lastAttemptAt:now().toISOString()};checkingCapacity=true;await store.capacity(MAX_BYTES+1048576);checkingCapacity=false;
   const network=await route({target:c.host});if(network?.localLookup!==true)throw fault('ROUTE_OUTPUT_INVALID');
   key=await credential(c.credentialFile);
   const result=await collect({approved:true,host:c.host,port:c.port,serial:c.serial},{commKey:key,approved:true,signal,totalMs:900000});
@@ -61,7 +61,7 @@ export async function captureClock(fleet,c,{collect=collectConfigured,credential
   if(['FLEET_IDENTITY_MISMATCH','FLEET_STATE_INVALID','QUEUE_CORRUPT'].includes(code)){persist=false;throw e;}
   persist=true;
   const transient=TRANSIENT.has(code),network=ROUTE_ERRORS.has(code),cancelled=signal?.aborted;
-  state={...state,...store?.summary(),...nextCaptureFailure(state,{code,network,cancelled:!!cancelled,preconnect,transient,pollSeconds:c.pollSeconds,now:now()})};
+  state={...state,...store?.summary(),...nextCaptureFailure(state,{code,network,cancelled:!!cancelled,preconnect,transient,pollSeconds:c.pollSeconds,now:now(),storageWait:checkingCapacity&&code==='DISK_SPACE_LOW'})};
  }finally{key?.fill(0);if(release){try{if(persist&&state.schema==='clock-fleet-status.v1')await atomicJson(path.join(root,'status.json'),state);}finally{await release();}}}
  return state;
 }

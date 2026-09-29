@@ -10,7 +10,11 @@ export function beforeClockSession(result){
   &&r.error?.phase==='TCP_CONNECT'&&r.diagnostics?.lastPhase==='TCP_CONNECT'
   &&CONNECT_ERRORS.has(r.error?.code);
 }
-export function nextCaptureFailure(state,{code,network,cancelled,preconnect,transient,pollSeconds,now}){
+export function nextCaptureFailure(state,{code,network,cancelled,preconnect,transient,pollSeconds,now,storageWait=false}){
+ if(storageWait===true&&code==='DISK_SPACE_LOW'&&!cancelled&&!state.blocked){
+  return {failureCount:state.failureCount,connectionFailureCount:state.connectionFailureCount??0,blocked:false,status:'storage_wait',lastError:code,
+   nextPollAt:new Date(now.getTime()+Math.max(60,Math.min(900,pollSeconds))*1000).toISOString()};
+ }
  const priorConnection=state.connectionFailureCount??0;
  const failureCount=network||cancelled||preconnect?state.failureCount:Math.min(1000,state.failureCount+1);
  const connectionFailureCount=preconnect?Math.min(1000,priorConnection+1):priorConnection;
