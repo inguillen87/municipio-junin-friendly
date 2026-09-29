@@ -5,6 +5,9 @@ on:
     paths:
       - 'novedades-nomina.html'
       - 'assets/payroll-novelty-workbench.js'
+      - 'assets/payroll-novelty-txt*'
+      - 'scripts/verify-novelty-txt-browser.mjs'
+      - 'tests/payroll-novelty-txt.test.js'
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/internal-capability-gate.js'
       - 'assets/app-routes.js'
@@ -13,6 +16,14 @@ on:
       - 'assets/payroll-novelty-review*'
       - 'tests/novelty-batch-control.test.js'
       - 'scripts/verify-novelty-batch-controls.mjs'
+      - '.github/workflows/novelty-batch-controls.yml'
+  pull_request:
+    paths:
+      - 'assets/payroll-novelty*'
+      - 'novedades-nomina.html'
+      - 'sw.js'
+      - 'scripts/verify-novelty*'
+      - 'tests/payroll-novelty*'
       - '.github/workflows/novelty-batch-controls.yml'
 permissions:
   contents: read
@@ -46,6 +57,12 @@ jobs:
       - name: Verify publication and exercise published workbench
         if: github.ref == 'refs/heads/master'
         run: node scripts/verify-novelty-batch-controls.mjs --published
+      - name: TXT import, exact rows and existing creation contract
+        env:
+          NOVELTY_LIVE_ASSETS: ${{ github.ref == 'refs/heads/master' && '1' || '0' }}
+        run: |
+          if [ "$NOVELTY_LIVE_ASSETS" = "1" ]; then node scripts/verify-novelty-production-056.mjs; fi
+          node scripts/verify-novelty-txt-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -53,4 +70,6 @@ jobs:
           path: |
             verification/novelty-batch-controls-*/**
             verification/novelty-056/browser.json
+            verification/novelty-txt*/browser.json
+            verification/novelty-txt*/txt-390.png
           retention-days: 3

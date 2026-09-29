@@ -111,6 +111,8 @@ const NEVER_INTERCEPT_PATHS = new Set([
   '/assets/payroll-novelty-exporter.js',
   '/assets/payroll-novelty-xlsx-exporter.js',
   '/assets/payroll-novelty-workbench.js',
+  '/assets/payroll-novelty-txt.js',
+  '/assets/payroll-novelty-txt-panel.js',
   '/assets/payroll-fixed-novelties.js',
   '/assets/payroll-fixed-novelties-model.js',
   '/assets/payroll-fixed-novelties-export.js',

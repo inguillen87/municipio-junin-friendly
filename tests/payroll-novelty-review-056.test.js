@@ -79,16 +79,16 @@ test('review modules contain no networking, browser persistence or HTML string i
     const code=fs.readFileSync(file,'utf8');assert.doesNotMatch(code,/\bfetch\s*\(|localStorage|sessionStorage|indexedDB|innerHTML|insertAdjacentHTML|console\./);
   }
 });
-test('file loading invalidates old review first, requires exact UTF-8 and cancels stale reads',()=>{
+test('file loading invalidates old review first, requires strict selected encoding and cancels stale reads',()=>{
   const file=source.slice(source.indexOf('function handleFile('),source.indexOf('async function logout('));
   assert.ok(file.indexOf('invalidatePreparedDraft(event)')<file.indexOf('if (file.size'));
-  assert.match(file,/fatal: true/);assert.match(file,/version !== fileReadVersion/);assert.match(source,/reader\.abort\(\)/);
+  assert.match(file,/decodeNoveltyInput/);assert.match(fs.readFileSync('assets/payroll-novelty-txt.js','utf8'),/fatal:true/);assert.match(file,/version !== fileReadVersion/);assert.match(source,/reader\.abort\(\)/);
   assert.match(source,/event\?\.target\?\.closest\?\.\('\[data-review-only\]'\)/);
   assert.doesNotMatch(source,/draft\.rows\.slice\(0, 25\)/);
 });
 test('new private assets are in build, excluded from service-worker caching',()=>{
   const build=fs.readFileSync('scripts/build-friendly.mjs','utf8'),sw=fs.readFileSync('sw.js','utf8');
-  for(const name of ['payroll-novelty-review.js','payroll-novelty-review-panel.js','payroll-novelty-review.css']){
+  for(const name of ['payroll-novelty-review.js','payroll-novelty-review-panel.js','payroll-novelty-review.css','payroll-novelty-txt.js','payroll-novelty-txt-panel.js']){
     assert.ok(build.includes("'assets/"+name+"'"));assert.ok(sw.includes("'/assets/"+name+"'"));
   }
 });

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { publishedBuildVerification } from './lib/published-build-verification.mjs';
 const origin='https://municipio-junin-friendly.vercel.app';
-const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css'];
+const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-novelty-txt.js','assets/payroll-novelty-txt-panel.js','assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js','assets/payroll-novelty-review.css'];
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
 const commit=process.env.GITHUB_SHA||'manual',deadline=Date.now()+240000;
 const build=publishedBuildVerification({origin,release:commit}),expected=build.expectedHashes(files);

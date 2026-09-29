@@ -4,7 +4,9 @@ import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
 import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
 import { analyzeLegajoList, appendLegajoList, filterAgileRows } from './payroll-novelty-legajo-list.js';
-import { reviewNoveltyCsv, NoveltyReviewError } from './payroll-novelty-review.js';
+import { reviewNoveltyInput, decodeNoveltyInput } from './payroll-novelty-txt.js';
+import { mountNoveltyTxtOptions } from './payroll-novelty-txt-panel.js';
+import { NoveltyReviewError } from './payroll-novelty-review.js';
 import { mountNoveltyReviewPanel, mountNoveltyIssues } from './payroll-novelty-review-panel.js';
 import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
@@ -62,6 +64,7 @@ function issueLabel(issue) {
 
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
+let txtOptions = null;
 let sheetEditor = null;
 let attendancePreparte = null;
 let fixedNovelties = null;
@@ -143,6 +146,7 @@ function applyMonthlyLocks() {
   fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite));
 }
 function clearConsulted() {
+  cancelFileRead();
   requestEpoch++; lookupEpoch++; readBlocked = true;
   if (!suspendedFields) suspendedFields = [...byId('entrySection').querySelectorAll('input,select,textarea')].filter(field => field.type !== 'file').map(field => [field,field.value,field.checked]);
   for (const [field] of suspendedFields) { if (!['radio','checkbox'].includes(field.type)) field.value = ''; }
@@ -167,6 +171,7 @@ function discardLocalDraft() {
     else if (field.type === 'checkbox') field.checked = false;
     else field.value = '';
   }
+  txtOptions?.reset();
   attendancePreparte?.clear(); sheetEditor?.clear(); agileDraftRows = []; agileTemplate = null; clearAgileInput();
   invalidatePreparedDraft(); updateMode(); applyMonthlyLocks();
 }
@@ -443,7 +448,7 @@ function bulkRows(periodMonth) {
   // 'legajo', 'concepto', 'centro_costo', 'mes_ajuste', 'unidades', 'importe_ars'
   // 'movimiento', 'instrumento_legal', 'observacion', 'forzado'
   if (pendingFileReader) throw new Error('Esperá a que termine la lectura del archivo.');
-  return reviewNoveltyCsv(byId('bulkSource').value, rowFromValues, periodMonth);
+  return reviewNoveltyInput(byId('bulkSource').value, rowFromValues, periodMonth, txtOptions.options());
 }
 
 function duplicateCheck(rows) {
@@ -1101,31 +1106,32 @@ function handleFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   byId('bulkSource').value = '';
-  if (file.size > 480 * 1024 || !/\.csv$/i.test(file.name)) {
-    showMessage('error', 'Archivo no admitido', 'Usá un CSV UTF-8 de hasta 480 KiB y 500 filas. No se conservó una previsualización anterior.');
+  if (file.size === 0 || file.size > 480 * 1024 || !/\.(csv|txt)$/i.test(file.name)) {
+    showMessage('error', 'Archivo no admitido', 'Usá un TXT o CSV de hasta 480 KiB y 500 filas. Elegí su formato; no se conserva una previsualización anterior.');
     event.target.value = '';
     return;
   }
-  const reader = new FileReader(), version = fileReadVersion;
+  const reader = new FileReader(), version = fileReadVersion, encoding = txtOptions.options().encoding;
   pendingFileReader = reader;
   showMessage('info', 'Leyendo el archivo…', 'Todavía no se validó ni guardó ninguna fila.');
   reader.addEventListener('load', () => {
     if (version !== fileReadVersion || pendingFileReader !== reader) return;
     pendingFileReader = null;
     try {
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(reader.result);
+      if (readBlocked || !hasCapability('payroll.novelty.prepare')) return;
+      const text = decodeNoveltyInput(new Uint8Array(reader.result), {name:file.name,encoding});
       byId('bulkSource').value = text;
       invalidatePreparedDraft();
       showMessage('success', 'Archivo leído, sin guardar', 'Presioná Validar y previsualizar para revisar todas las filas.');
     } catch {
       byId('bulkSource').value = '';
-      showMessage('error', 'Codificación no válida', 'Guardá el archivo como CSV UTF-8. No se reemplazaron caracteres ni importes.');
+      showMessage('error', 'Codificación no válida', 'La codificación o el contenido no es válido. Elegí UTF-8 o Windows-1252 según el original y volvé a cargarlo. No se reemplazaron caracteres ni importes.');
     }
   });
   reader.addEventListener('error', () => {
     if (version !== fileReadVersion) return;
     pendingFileReader = null;
-    showMessage('error', 'No se pudo leer el archivo', 'Seleccioná nuevamente un CSV UTF-8 válido.');
+    showMessage('error', 'No se pudo leer el archivo', 'Seleccioná nuevamente el TXT o CSV con su codificación correcta.');
   });
   reader.readAsArrayBuffer(file);
 }
@@ -1204,6 +1210,10 @@ function syncAmountEntry() {
 }
 
 function initialize() {
+  txtOptions = mountNoveltyTxtOptions(byId('bulkImportOptions'), ({encodingChanged}) => {
+    invalidatePreparedDraft();
+    if (encodingChanged) { byId('bulkSource').value='';byId('bulkFile').value='';showMessage('info','Codificación cambiada','Cargá nuevamente el archivo para decodificar sus bytes con la opción elegida.'); }
+  });
   fixedNovelties = mountFixedNovelties(byId('fixedNovelties'));
   employeePicker = createEmployeePicker({
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
