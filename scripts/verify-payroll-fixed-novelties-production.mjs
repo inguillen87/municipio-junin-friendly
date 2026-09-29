@@ -7,7 +7,7 @@ const origin='https://municipio-junin-friendly.vercel.app';
 const commit=process.env.GITHUB_SHA || 'manual';
 const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js',
   'assets/payroll-fixed-novelties.js','assets/payroll-fixed-novelties-model.js',
-  'assets/payroll-fixed-novelties-export.js','assets/payroll-junin-638.js','assets/payroll-fixed-novelties.css',
+  'assets/payroll-fixed-novelties-export.js','assets/payroll-junin-638.js','assets/payroll-junin-638-review.js','assets/payroll-fixed-novelties.css',
   'assets/employee-picker.js','assets/native-employee-create.js',
   'assets/app-routes.js','sw.js'];
 const build=publishedBuildVerification({origin,release:commit});
