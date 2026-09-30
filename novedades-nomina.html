@@ -189,7 +189,7 @@
     <div class="workspace">
       <header class="topbar">
         <div><nav class="crumb" aria-label="Ruta"><a href="internal-dashboard.html">MuniControl</a><span>/</span><a href="nomina-control.html">Nómina</a><span>/</span><span aria-current="page">Novedades</span></nav><div class="top-title">Carga y aprobación de novedades</div></div>
-        <div class="top-actions"><span class="scope-chip" id="sessionScope">Validando capacidades</span><button class="button" id="refreshButton" type="button">Actualizar</button><button class="button danger" id="logoutButton" type="button">Cerrar sesión</button></div>
+        <div class="top-actions"><a class="button primary" href="importar-novedades-grh.html">Importar TXT de GRH</a><span class="scope-chip" id="sessionScope">Validando capacidades</span><button class="button" id="refreshButton" type="button">Actualizar</button><button class="button danger" id="logoutButton" type="button">Cerrar sesión</button></div>
       </header>
 
       <div class="loading" id="loadingState" role="status"><div><strong>Preparando novedades de nómina</strong><span>Validando sesión, fuente GRH certificada y capacidades efectivas.</span></div></div>
@@ -300,6 +300,7 @@
             <div id="sheetFields" hidden></div>
 
             <div id="bulkFields" hidden>
+              <aside class="boundary" style="margin-bottom:20px"><strong>TXT original con DNI · Formato Junín</strong><p>Para la entrada del concepto 614 y otros con este mismo diseño: revisá todas las filas y su vínculo laboral antes de guardar. No es el TXT de devolución a la mutual.</p><a class="button primary" href="importar-novedades-grh.html">Importar TXT Formato Junín por DNI</a></aside>
               <div id="bulkImportOptions"></div>
               <div class="form-grid">
                 <div class="field full"><label for="bulkFile">Archivo de novedades TXT o CSV</label><input id="bulkFile" type="file" accept=".txt,.csv,text/csv,text/plain"><small>TXT o CSV, hasta 500 filas y 480 KiB. Elegí el formato de origen. Se revisa el archivo completo antes de crear el lote; no se importa automáticamente.</small></div>

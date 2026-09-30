@@ -26,6 +26,7 @@
     'integracion-datos.html': { any: ['lineage.read'] },
     'nomina-control.html': { any: ['payroll.read'] },
     'novedades-nomina.html': { any: ['payroll.novelty.read'] },
+    'importar-novedades-grh.html': { all: ['payroll.novelty.read','payroll.novelty.prepare','payroll.novelty.nominal.read','workforce.employee.read'] },
     'gestion-comparativa.html': { any: ['management.analytics.read'] },
     'presupuesto-control.html': { any: ['budget.approved.read'] },
     'ausentismo-control.html': { any: ['absence.analytics.read', 'absence.nominal.read'] },
