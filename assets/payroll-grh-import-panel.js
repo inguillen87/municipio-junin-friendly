@@ -19,7 +19,7 @@ async function request(url,init={},controller){
  finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 async function authorize(){const b=await request(endpoint+'?resource=bootstrap',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(20000)});if(b.ok!==true)throw Error('BOOTSTRAP_INVALID');return grhAuthority(b);}
-function deny(error){blocked=true;retire(safeFailure(error));notice('accessStatus',safeFailure(error),'error');q('intake').hidden=true;if(error.status===401)location.replace('acceso-interno.html?next='+encodeURIComponent('/importar-novedades-grh.html'));}
+function deny(error){blocked=true;retire(safeFailure(error));notice('accessStatus',safeFailure(error),'error');q('intake').hidden=true;}
 function render(){
  if(!view)return;q('previewPanel').hidden=false;q('metrics').replaceChildren();
  for(const [label,value]of [['Registros leídos',view.inputRows],['Vínculos resueltos',view.resolvedRows],['Pendientes',view.outputRows-view.resolvedRows],['Importe del archivo',grhAmount(view.totalAmountCents)]]){const card=node('div');card.className='metric';card.append(node('span',label),node('strong',String(value)));q('metrics').append(card);}
