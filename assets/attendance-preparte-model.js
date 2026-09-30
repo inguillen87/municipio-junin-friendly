@@ -33,28 +33,50 @@ export function verifyPreparte(data, period, site) {
   if(data.summary.readyForReview!==data.rows.filter(row=>row.canPropose).length || data.summary.withIncidents!==data.rows.filter(row=>!row.canPropose).length) invalid();
   return data;
 }
-export function preparteNoveltyRows(data, decisions, { documentReference, confirmed } = {}) {
-  verifyPreparte(data,data.period,data.site.key);
+export function reviewPreparteSelections(data, decisions, { documentReference, confirmed } = {}) {
+  const issues=[],rows=[];
+  const issue=(key,field,message)=>issues.push(Object.freeze({key,field,message}));
+  try { verifyPreparte(data,data?.period,data?.site?.key); }
+  catch { return Object.freeze({valid:false,selected:0,issues:Object.freeze([Object.freeze({key:null,field:'source',message:'Consultá nuevamente un preparte completo y vigente antes de revisar.'})]),rows:Object.freeze([])}); }
   const reference=typeof documentReference==='string'?documentReference.trim():'';
-  if (!confirmed || reference.length<5 || reference.length>160 || /[<>\x00-\x1f\x7f]/.test(reference)) throw Error('Confirmá la revisión e indicá el documento que respalda horas, topes y porcentajes.');
-  if (!(decisions instanceof Map)) throw Error('Decisiones de preparte inválidas.');
+  if (reference.length<5 || reference.length>160 || /[<>\x00-\x1f\x7f]/.test(reference)) issue(null,'reference','Indicá el documento que respalda horas, topes y porcentajes.');
+  if (confirmed!==true) issue(null,'reviewed','Confirmá la revisión de las filas seleccionadas contra la documentación de Personal.');
+  if (!(decisions instanceof Map)) {
+    issue(null,'source','Decisiones de preparte inválidas.');
+    return Object.freeze({valid:false,selected:0,issues:Object.freeze(issues),rows:Object.freeze([])});
+  }
   const known=new Set(data.rows.map(row=>row.key));
-  if ([...decisions.keys()].some(key=>!known.has(key))) throw Error('Una decisión pertenece a otro corte. Volvé a consultar.');
-  const rows=[];
+  if ([...decisions.keys()].some(key=>!known.has(key))) issue(null,'source','Una decisión pertenece a otro corte. Volvé a consultar.');
+  let selected=0;
   for (const source of data.rows) {
     const value=decisions.get(source.key); if (!value?.selected) continue;
+    selected++;
     const prefix='Legajo '+(source.legajo||'sin vínculo')+': ';
-    if (!source.canPropose) throw Error(prefix+'resolvé primero las incidencias de origen.');
-    const seconds=reviewedSeconds(value.hours);
-    if (!seconds || seconds>source.extraSeconds) throw Error(prefix+'las horas reconocidas deben ser positivas y no superar el tiempo extra reconstruido.');
-    if (!/^(?:0|[1-9]\d?|100)$/.test(value.cap||'') || !/^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(value.percent||'')) throw Error(prefix+'indicá un tope de 0 a 100 y un porcentaje de 3 a 95, o 100 para Full Time.');
-    const percent=Number(value.percent),cap=Number(value.cap),table=referencePercentage(seconds);
-    if (percent>cap) throw Error(prefix+'el porcentaje supera el tope declarado.');
-    if (percent===100 && table!==100) throw Error(prefix+'Full Time requiere la referencia exacta de 120 horas mensuales reconocidas. Una excepción debe tramitarse por separado.');
-    if (table!==null && percent>table) throw Error(prefix+'el porcentaje supera la referencia de horas informada.');
+    if (value.selected!==true) { issue(source.key,'selected',prefix+'la selección no es válida.');continue; }
+    if (!source.canPropose) { issue(source.key,'selected',prefix+'resolvé primero las incidencias de origen.');continue; }
+    const initial=issues.length;
+    let seconds=null;
+    try { seconds=reviewedSeconds(value.hours); }
+    catch(error) { issue(source.key,'hours',prefix+error.message); }
+    if (seconds!==null && (!seconds || seconds>source.extraSeconds)) issue(source.key,'hours',prefix+'las horas reconocidas deben ser positivas y no superar el tiempo extra reconstruido.');
+    const validCap=typeof value.cap==='string' && /^(?:0|[1-9]\d?|100)$/.test(value.cap);
+    const validPercent=typeof value.percent==='string' && /^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(value.percent);
+    if (!validCap) issue(source.key,'cap',prefix+'indicá un tope declarado de 0 a 100.');
+    if (!validPercent) issue(source.key,'percent',prefix+'indicá un porcentaje de 3 a 95, o 100 para Full Time.');
+    const percent=Number(value.percent),cap=Number(value.cap),table=seconds===null?null:referencePercentage(seconds);
+    if (validPercent && validCap && percent>cap) issue(source.key,'percent',prefix+'el porcentaje supera el tope declarado.');
+    if (validPercent && seconds!==null && percent===100 && table!==100) issue(source.key,'percent',prefix+'Full Time requiere la referencia exacta de 120 horas mensuales reconocidas. Una excepción debe tramitarse por separado.');
+    else if (validPercent && table!==null && percent>table) issue(source.key,'percent',prefix+'el porcentaje supera la referencia de horas informada.');
+    if (issues.length!==initial) continue;
     const observation=`Preparte ${data.period}; punto ${data.site.key}; evidencia personal ${source.evidenceHash}; extra observado ${preparteDuration(source.extraSeconds)}; reconocido ${value.hours}; tope declarado ${cap}%; propuesto ${percent}%; ${table===null?'valoración documental, sin interpolación':'referencia exacta de tabla '+table+'%'}; pendiente de revisión independiente.`;
-    rows.push([source.legajo,percent===100?'95':'44','','',String(percent),'','',reference,observation,'NO']);
+    rows.push(Object.freeze([source.legajo,percent===100?'95':'44','','',String(percent),'','',reference,observation,'NO']));
   }
-  if (!rows.length || rows.length>500) throw Error('Seleccioná entre 1 y 500 legajos revisados.');
-  return rows;
+  if (!selected || selected>500) issue(null,'selected','Seleccioná entre 1 y 500 legajos revisados.');
+  return Object.freeze({valid:issues.length===0,selected,issues:Object.freeze(issues),rows:Object.freeze(issues.length?[]:rows)});
+}
+export function preparteNoveltyRows(data, decisions, options = {}) {
+  const review=reviewPreparteSelections(data,decisions,options);
+  if (!review.valid) throw Error(review.issues[0].message);
+  // Preserve the existing mutable sheet-input API, detached from the review.
+  return review.rows.map(row=>[...row]);
 }

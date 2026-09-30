@@ -328,7 +328,10 @@
           <section class="section" id="detailPanel" aria-labelledby="detailTitle" hidden>
             <header class="section-head"><div><span class="section-index">03 · DETALLE Y AUDITORÍA</span><h2 id="detailTitle">Detalle del lote</h2><p id="detailState">—</p></div><button class="button close" id="closeDetail" type="button">Cerrar detalle</button></header>
             <div class="detail-summary"><div><span>Período</span><strong id="detailPeriod">—</strong></div><div><span>Liquidación</span><strong id="detailType">—</strong></div><div><span>Filas</span><strong id="detailCount">—</strong></div><div><span>Validaciones</span><strong id="detailIssues">—</strong></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Validación</th></tr></thead><tbody id="detailRows"></tbody></table></div>
+            <section id="savedReviewPanel" aria-label="Revisión completa del lote guardado" hidden>
+              <p id="savedReviewCaption" class="panel-note"></p>
+              <div class="table-wrap" role="region" aria-label="Filas del lote guardado" tabindex="0"><table><thead><tr><th>Fila</th><th>Legajo</th><th>Concepto</th><th>Unidades</th><th>Importe</th><th>Validación</th></tr></thead><tbody id="detailRows"></tbody></table></div>
+            </section>
             <div class="detail-toolbar"><div class="field" id="rejectReasonField" hidden><label for="rejectReason">Motivo de rechazo</label><select id="rejectReason"><option value="invalid_rows">Filas inválidas</option><option value="unsupported_concept">Concepto sin homologar</option><option value="duplicate_or_conflict">Duplicado o conflicto</option></select></div><div class="detail-actions" id="detailActions"></div></div>
             <p class="panel-note" id="detailExportNote"><strong>Excel de revisión:</strong> conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.</p>
           </section>

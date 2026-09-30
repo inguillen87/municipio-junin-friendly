@@ -10,3 +10,11 @@
 @media(min-width:721px){.ap-panel .ap-table{max-height:min(65vh,720px)}.ap-panel th{position:sticky;top:0;z-index:1}}
 .ap-panel .ap-table:focus-visible{outline:3px solid #ac721b;outline-offset:3px}
 @media print{.ap-panel .ap-table{max-height:none;overflow:visible}.ap-panel th{position:static}}
+.ap-panel .ap-corrections{margin:18px 0;padding:16px;border:1px solid #d7b686;border-radius:9px;background:#fff8eb;overflow-wrap:anywhere}
+.ap-panel .ap-corrections h4{margin:0 0 10px;font-size:15px;color:#704c16}
+.ap-panel .ap-corrections p{font-size:12px;line-height:1.7}
+.ap-panel .ap-corrections ol{padding-left:20px;margin:12px 0 0}
+.ap-panel .ap-corrections li{padding:10px 0;line-height:1.7;border-top:1px solid #ead9bd}
+.ap-panel .ap-corrections li>span{display:block;font-size:12px}
+.ap-panel .ap-corrections button{margin-top:8px;max-width:100%;white-space:normal}
+@media(max-width:720px){.ap-panel .ap-corrections{padding:12px}.ap-panel .ap-corrections button{width:100%}}

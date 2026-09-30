@@ -7,6 +7,7 @@ const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v);
 const hash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
+const verifiedPreviews=new WeakSet();
 const canonical=v=>Array.isArray(v)?'['+v.map(canonical).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}':JSON.stringify(v);
 const sha=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const validDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
@@ -31,7 +32,32 @@ export function grhPreview(payload,expected){
  }
  for(const row of d.rows)if(row.contractId){const c=row.candidates.find(c=>c.contractId===row.contractId),duplicate=selectedLegajos.get(c.legajo)>1;if(duplicate!==(row.status==='duplicate_target'))fail();}
  if(d.resolvedRows!==resolved||d.totalAmountCents!==total.toString()||d.readyToPrepare!==(resolved===d.outputRows&&d.outputRows<=500))fail();
- return freeze(structuredClone(d));
+ const checked=freeze(structuredClone(d));verifiedPreviews.add(checked);return checked;
+}
+// Only verified, immutable previews are accepted. No file/server text enters the CSV.
+const incidentLabels=freeze({
+ choose_contract:['Elegir contrato','Elegí el contrato correspondiente y volvé a revisar el archivo completo.'],
+ identity_review:['Identidad duplicada','Solicitá la corrección de la identidad duplicada en el padrón y volvé a revisar.'],
+ not_found:['Vínculo no encontrado','Revisá el vínculo laboral para el período elegido y volvé a revisar el archivo completo.'],
+ duplicate_target:['Destino repetido','Revisá las filas que apuntan al mismo destino; corregí el archivo o los vínculos y volvé a revisar.']
+});
+export function grhIncidentReport(preview){
+ if(!verifiedPreviews.has(preview))throw Error('Revisá el archivo completo antes de descargar las incidencias.');
+ const rows=[],globalIssues=preview.outputRows>preview.writerLimit?1:0;
+ for(const row of preview.rows){
+  if(row.status==='resolved')continue;
+  const labels=incidentLabels[row.status];
+  for(const sourceLine of row.sourceLines){
+   if(!Number.isSafeInteger(sourceLine)||sourceLine<1||sourceLine>preview.inputRows)fail();
+   rows.push([String(sourceLine),...labels]);
+  }
+ }
+ const affectedRows=rows.length;
+ if(globalIssues)rows.push(['','Límite de cantidad','El archivo completo supera el límite de guardado. No se dividió ni se omitieron filas; solicitá revisión del límite.']);
+ if(!rows.length)rows.push(['','Sin observaciones','La revisión completa no presenta incidencias. No acredita importación, aprobación ni liquidación.']);
+ const cell=value=>'"'+value.replace(/"/g,'""')+'"';
+ const csv='\uFEFF'+[['Fila de origen','Estado','Acción sugerida'],...rows].map(row=>row.map(cell).join(',')).join('\r\n')+'\r\n';
+ return freeze({csv,affectedRows,globalIssues});
 }
 export function grhWriteAttempt(expected,preview,key,scopeKey){
  if(!uuid(key)||!scopeKey||!preview.readyToPrepare||expected.sourceSha256!==preview.sourceSha256)fail();
