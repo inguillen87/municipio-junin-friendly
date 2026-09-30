@@ -49,27 +49,29 @@ jobs:
       fail-fast: false
       matrix:
         major: ['17', '18']
-    services:
-      database:
-        image: postgres:${{ matrix.major }}
-        env:
-          POSTGRES_DB: native_monthly_qa
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: grh_qa_only
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres -d native_monthly_qa"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:grh_qa_only@127.0.0.1:5432/native_monthly_qa
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/native_monthly_qa
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Start isolated database with a generated per-run password
+        shell: bash
+        run: |
+          set -euo pipefail
+          password=$(openssl rand -hex 24)
+          echo "::add-mask::$password"
+          echo "PGPASSWORD=$password" >> "$GITHUB_ENV"
+          export POSTGRES_PASSWORD="$password"
+          docker run --detach --rm --name grh-intake-qa-db --publish 127.0.0.1:5432:5432 --env POSTGRES_PASSWORD --env POSTGRES_DB=native_monthly_qa --env POSTGRES_USER=postgres postgres:${{ matrix.major }}
+          ready=false
+          for attempt in {1..60}; do
+            if docker exec grh-intake-qa-db pg_isready -U postgres -d native_monthly_qa; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
       - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
       - run: mkdir -p verification
       - run: node scripts/verify-grh-import-atomic-sql.mjs --expected-major=${{ matrix.major }} --write-sql=verification/grh-atomic-ci.sql
@@ -81,6 +83,9 @@ jobs:
           grep -q 'GRH_ATOMIC_MULTI_CHECKS_PASSED=3' verification/grh-atomic-ci.log
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-source-ci.sql > verification/grh-source-ci.log 2>&1
           grep -q 'GRH_SOURCE_MATCH_CHECKS_PASSED=15' verification/grh-source-ci.log
+      - name: Remove isolated test database
+        if: always()
+        run: docker rm --force grh-intake-qa-db
       - uses: actions/upload-artifact@v4
         if: always()
         with:
