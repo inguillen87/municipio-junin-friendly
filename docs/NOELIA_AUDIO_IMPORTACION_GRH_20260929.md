@@ -1,3 +1,5 @@
+> Estado histórico del primer incremento. El avance posterior del API, sus pruebas y el bloqueo de la interfaz están documentados en NOELIA_614_INTAKE_API_20260929.md. No se declara OSEP ni la liquidación completa como terminados.
+
 # Noelia · importación por formato GRH, no exportación de TXT
 
 ## Audios revisados

@@ -1,0 +1,28 @@
+// Execute only in disposable native_monthly_qa. No municipal data or global grants.
+import fs from 'node:fs';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
+import {GRH_IMPORT_CANDIDATES_SQL} from '../lib/internal-grh-import.js';
+const a=Object.fromEntries(process.argv.slice(2).map(v=>{const m=/^--(expected-major|write-sql)=(.+)$/.exec(v);assert.ok(m);return[m[1],m[2]];}));assert.ok(['17','18'].includes(a['expected-major'])&&a['write-sql']&&!fs.existsSync(a['write-sql']));
+const schema='grh_read_qa_'+randomUUID().replaceAll('-',''),q=s=>"'"+s.replaceAll("'","''")+"'",ids=Array.from({length:7},()=>randomUUID());
+const [tenant,otherTenant,batch,otherBatch,person,contract,second]=ids,statement=q('SELECT coalesce(jsonb_agg(to_jsonb(result)),\'[]\'::jsonb) FROM ('+GRH_IMPORT_CANDIDATES_SQL+') result');let checks=0;
+const call=(over={})=>`EXECUTE ${statement} INTO result USING ${over.company||101},'${over.tenant||tenant}'::uuid,${q(over.database||'qa_grh')},ARRAY[${q(over.dni||'99000001')}]::text[],DATE '2026-08-01';`;
+const expect=(condition,label)=>{checks++;return `IF (${condition}) IS DISTINCT FROM true THEN RAISE EXCEPTION ${q(label)}; END IF;`;};
+let tests=call()+expect(`jsonb_array_length(result)=1 AND result#>>'{0,contractId}'='${contract}' AND result#>>'{0,legajo}'='1001'`,'exact DNI matches only the declared source contract');
+for(const values of [{company:202},{tenant:otherTenant},{database:'qa_foreign'},{dni:'99000002'}])tests+=call(values)+expect('jsonb_array_length(result)=0','foreign company, tenant, database or DNI never broadens the search');
+for(const [change,restore,label]of [["status='inactive'","status='active'",'inactive contract'],["source_system='MUNICONTROL'","source_system='GRH'",'native contract'],["start_date=NULL","start_date=DATE '2020-01-01'",'unknown start date'],["start_date=DATE '2026-09-01'","start_date=DATE '2020-01-01'",'future contract'],["end_date=DATE '2026-07-31'","end_date=NULL",'ended contract']])tests+=`UPDATE employment_contract SET ${change} WHERE id='${contract}';`+call()+expect('jsonb_array_length(result)=0',label+' is not a candidate')+`UPDATE employment_contract SET ${restore} WHERE id='${contract}';`;
+for(const [change,restore,label]of [["validation_state='draft'","validation_state='published'",'unpublished source'],['legacy_import_run_id=NULL','legacy_import_run_id=1','source without imported run']])tests+=`UPDATE source_import_batch SET ${change} WHERE id='${batch}';`+call()+expect('jsonb_array_length(result)=0',label+' cannot provide candidates')+`UPDATE source_import_batch SET ${restore} WHERE id='${batch}';`;
+tests+=`UPDATE person_identity SET dni='not a number';`+call()+expect('jsonb_array_length(result)=0','malformed canonical DNI cannot raise a numeric cast or match')+`UPDATE person_identity SET dni='99000001';`;
+tests+=`UPDATE employment_contract SET start_date=DATE '2026-08-15';`+call()+expect('jsonb_array_length(result)=1','overlap with selected month is preserved without proration claims')+`UPDATE employment_contract SET start_date=DATE '2020-01-01';`;
+tests+=`INSERT INTO employment_contract SELECT '${second}'::uuid,person_id,source_system,source_batch_id,legacy_company_id,'1002',status,start_date,end_date,tenant_id FROM employment_contract WHERE id='${contract}';`+call()+expect('jsonb_array_length(result)=2','two contracts remain two explicit candidates instead of selecting the first');
+const sql=`BEGIN;DO $$ BEGIN IF current_database()<>'native_monthly_qa' OR current_setting('server_version_num')::int/10000<>${a['expected-major']} THEN RAISE EXCEPTION 'WRONG_QA_DATABASE';END IF;END $$;
+CREATE SCHEMA ${schema};SET LOCAL search_path=${schema},public,pg_temp;
+CREATE TABLE source_import_batch(id uuid PRIMARY KEY,source_system text,source_database text,validation_state text,legacy_import_run_id bigint,source_cutoff timestamptz);
+CREATE VIEW grh_effective_source_batch_v1 AS SELECT * FROM source_import_batch;
+CREATE TABLE person_identity(id uuid PRIMARY KEY,full_name text,dni text);
+CREATE TABLE employment_contract(id uuid PRIMARY KEY,person_id uuid,source_system text,source_batch_id uuid,legacy_company_id bigint,legacy_legajo text,status text,start_date date,end_date date,tenant_id uuid);
+INSERT INTO source_import_batch VALUES('${batch}','GRH','qa_grh','published',1,'2026-09-22T15:16:58Z'),('${otherBatch}','GRH','qa_foreign','published',2,'2026-09-22T15:16:58Z');
+INSERT INTO person_identity VALUES('${person}','Persona de prueba','99000001');
+INSERT INTO employment_contract VALUES('${contract}','${person}','GRH','${batch}',101,'1001','active','2020-01-01',NULL,'${tenant}');
+DO $$ DECLARE result jsonb;BEGIN ${tests} RAISE NOTICE 'GRH_SOURCE_MATCH_CHECKS_PASSED=${checks}';END $$;
+ROLLBACK;
+SELECT NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='${schema}') AS source_qa_rolled_back;`;
+fs.writeFileSync(a['write-sql'],sql,{flag:'wx'});console.log(JSON.stringify({generated:true,checksPlanned:checks,municipalWrites:0,databaseExecuted:false}));

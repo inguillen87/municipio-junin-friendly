@@ -1,0 +1,89 @@
+name: GRH original TXT intake
+on:
+  pull_request:
+    paths:
+      - 'api/internal-payroll-novelties.js'
+      - 'lib/internal-grh-import.js'
+      - 'lib/grh-import-prepare-sql.js'
+      - 'assets/payroll-grh-*.js'
+      - 'tests/grh-import*.test.js'
+      - 'tests/fixtures/grh-import-synthetic.js'
+      - 'tests/payroll-grh-input.test.js'
+      - 'scripts/verify-grh-import-*.mjs'
+      - '.github/workflows/grh-import-intake.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'api/internal-payroll-novelties.js'
+      - 'lib/internal-grh-import.js'
+      - 'lib/grh-import-prepare-sql.js'
+      - 'assets/payroll-grh-*.js'
+      - 'tests/grh-import*.test.js'
+      - 'tests/fixtures/grh-import-synthetic.js'
+      - 'tests/payroll-grh-input.test.js'
+      - 'scripts/verify-grh-import-*.mjs'
+      - '.github/workflows/grh-import-intake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: grh-intake-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/grh-import*.test.js tests/payroll-grh-input.test.js tests/internal-payroll-novelty*.test.js
+      - run: npm run build
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        major: ['17', '18']
+    services:
+      database:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: native_monthly_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: grh_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_monthly_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:grh_qa_only@127.0.0.1:5432/native_monthly_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: mkdir -p verification
+      - run: node scripts/verify-grh-import-atomic-sql.mjs --expected-major=${{ matrix.major }} --write-sql=verification/grh-atomic-ci.sql
+      - run: node scripts/verify-grh-import-source-sql.mjs --expected-major=${{ matrix.major }} --write-sql=verification/grh-source-ci.sql
+      - name: Real transaction and source matching checks
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-atomic-ci.sql > verification/grh-atomic-ci.log 2>&1
+          grep -q 'GRH_ATOMIC_INTAKE_CHECKS_PASSED=7' verification/grh-atomic-ci.log
+          grep -q 'GRH_ATOMIC_MULTI_CHECKS_PASSED=3' verification/grh-atomic-ci.log
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-source-ci.sql > verification/grh-source-ci.log 2>&1
+          grep -q 'GRH_SOURCE_MATCH_CHECKS_PASSED=15' verification/grh-source-ci.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: grh-intake-postgres-${{ matrix.major }}-${{ github.run_id }}
+          path: verification/grh-*-ci.log
+          retention-days: 3
