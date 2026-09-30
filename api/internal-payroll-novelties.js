@@ -16,8 +16,11 @@ import {
   exportPayrollNoveltyV2,
 } from '../lib/internal-payroll-novelty.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
+import { getInternalSql as getGrhReadSql } from '../lib/internal-neon.js';
+import { grhImportContext, previewGrhImport, prepareGrhImport } from '../lib/internal-grh-import.js';
+import { GrhTxtInputError } from '../assets/payroll-grh-input.js';
 
-const POST_COMMANDS = new Set(['prepare', 'submit', 'approve', 'reject', 'cancel']);
+const POST_COMMANDS = new Set(['prepare', 'submit', 'approve', 'reject', 'cancel', 'grhPreview', 'grhPrepare']);
 const MUTATION_METHODS = new Set(['POST']);
 const TOP_LEVEL_KEYS = new Set(['command', 'payload']);
 const GET_RESOURCES = new Set(['bootstrap', 'detail', 'export']);
@@ -304,6 +307,9 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
   const detailV2 = dependencies.readPayrollNoveltyV2 ?? readPayrollNoveltyV2;
   const transitionV2 = dependencies.transitionPayrollNoveltyV2 ?? transitionPayrollNoveltyV2;
   const exportV2 = dependencies.exportPayrollNoveltyV2 ?? exportPayrollNoveltyV2;
+  const grhReadSql = dependencies.getGrhReadSql ?? getGrhReadSql;
+  const grhPreview = dependencies.previewGrhImport ?? previewGrhImport;
+  const grhPrepare = dependencies.prepareGrhImport ?? prepareGrhImport;
 
   return async function internalPayrollNoveltiesHandler(req, res) {
     const method = String(req?.method || 'GET').toUpperCase();
@@ -380,6 +386,16 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
       }
 
       const key = idempotencyKey(req);
+      if (['grhPreview','grhPrepare'].includes(body.command)) {
+        if (version !== 1) fail('PAYROLL_NOVELTY_VERSION_UNSUPPORTED',400,'El formato GRH utiliza el circuito de importación por archivo.');
+        grhImportContext(access.principal,session);
+        const reader = await grhReadSql(env);
+        const result = body.command === 'grhPreview'
+          ? await grhPreview(reader,sql,access.principal,session,body.payload)
+          : await grhPrepare(reader,sql,access.principal,session,body.payload,key);
+        if (result?.replayed === true) res.setHeader('Idempotency-Replayed','true');
+        return send(res,body.command === 'grhPrepare'?201:200,{ok:true,replayed:result?.replayed===true,data:result.data});
+      }
       const result = body.command === 'prepare'
         ? await (version === 2 ? prepareV2 : prepare)(sql, access.principal, session, body.payload, key)
         : await (version === 2 ? transitionV2 : transition)(
@@ -392,6 +408,8 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
         data: result?.data ?? result,
       });
     } catch (error) {
+      if (error instanceof GrhTxtInputError) return send(res,422,{ok:false,code:'PAYROLL_NOVELTY_GRH_INPUT_INVALID',error:'El archivo no coincide con el formato de origen seleccionado. No se guardó una parte.',details:{issues:(error.issues||[]).map(i=>({line:i.line,code:i.code,message:i.message})),formatCode:error.code}});
+      if (['GRH_SOURCE_CHANGED','GRH_SOURCE_SCOPE_INVALID'].includes(error?.code)) return send(res,error.code==='GRH_SOURCE_CHANGED'?409:503,{ok:false,code:error.code,error:'La fuente certificada cambió o no pudo verificarse. Volvé a consultar el archivo completo.'});
       const safe = safeError(error);
       if (safe) {
         if (safe.code === 'PAYROLL_NOVELTY_SESSION_BUSY') res.setHeader('Retry-After', '1');

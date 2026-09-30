@@ -5,6 +5,14 @@ on:
     paths:
       - '.vercelignore'
       - 'api/internal-payroll-novelties.js'
+      - 'lib/internal-grh-import.js'
+      - 'lib/grh-import-prepare-sql.js'
+      - 'assets/payroll-grh-*.js'
+      - 'assets/payroll-grh-import.css'
+      - 'importar-novedades-grh.html'
+      - 'scripts/verify-grh-import-*.mjs'
+      - 'tests/grh-import*.test.js'
+      - 'tests/fixtures/grh-import-synthetic.js'
       - 'lib/internal-payroll-novelty.js'
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/payroll-novelty-*.js'
@@ -20,6 +28,18 @@ on:
       - 'tests/*native-monthly*'
       - 'tests/internal-payroll-novelty*'
       - 'tests/payroll-deployment-package.test.js'
+      - '.github/workflows/native-monthly-novelties-release.yml'
+  pull_request:
+    paths:
+      - 'api/internal-payroll-novelties.js'
+      - 'lib/internal-grh-import.js'
+      - 'lib/grh-import-prepare-sql.js'
+      - 'assets/payroll-grh-*.js'
+      - 'assets/payroll-grh-import.css'
+      - 'importar-novedades-grh.html'
+      - 'scripts/verify-grh-import-*.mjs'
+      - 'tests/grh-import*.test.js'
+      - 'tests/fixtures/grh-import-synthetic.js'
       - '.github/workflows/native-monthly-novelties-release.yml'
 permissions:
   contents: read
@@ -40,6 +60,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
+      - run: node scripts/verify-grh-import-browser.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - run: node scripts/verify-novelty-batch-controls.mjs
@@ -53,7 +74,9 @@ jobs:
         if: always()
         with:
           name: native-monthly-browser-${{ github.run_id }}
-          path: verification/native-monthly-local/**
+          path: |
+            verification/native-monthly-local/**
+            verification/grh-import-browser/**
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
@@ -108,3 +131,10 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-monthly.sql
           wait "$blocker"
           trap - EXIT
+
+      - name: Original candidate SQL and atomic import through existing facades
+        run: |
+          node scripts/verify-grh-import-source-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/grh-source.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-source.sql
+          node scripts/verify-grh-import-atomic-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/grh-atomic.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-atomic.sql

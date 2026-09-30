@@ -1,4 +1,4 @@
-// DRAFT: structural reader only. Not wired to a screen, identity service, or persistence API.
+// Formato Junín is connected through the guarded intake. Remaining profiles are structural readers only.
 // Named GRH import definitions. Positions below are zero-based, as in formatoitem.
 // This module never turns a DNI into a legajo and never calculates a salary.
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};

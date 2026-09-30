@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#123247"><title>Importar TXT de novedades | MuniControl</title>
+<script src="assets/internal-capability-gate.js"></script>
+<link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/payroll-grh-import.css">
+</head><body>
+<a class="skip" href="#main">Ir a la importación</a>
+<header><a class="brand" href="nomina-control.html"><span class="mark">M</span><span>MuniControl<small>Gestión municipal</small></span></a><nav aria-label="Navegación de nómina"><a href="novedades-nomina.html">Novedades y lotes</a><a href="nomina-control.html">Centro de nómina</a></nav></header>
+<main id="main"><p class="eyebrow">NÓMINA / NOVEDADES / IMPORTACIÓN</p>
+<div class="page-head"><div><h1>Importar el TXT original</h1><p class="lead">Elegí el formato de origen, revisá todos los registros y guardá el lote sin volver a cargar cada descuento.</p></div><span class="badge">Entrada de novedades · No exportación</span></div>
+<div id="accessStatus" class="notice" role="status">Verificando el acceso municipal…</div>
+<section id="intake" class="panel" hidden aria-labelledby="intakeTitle">
+<div class="section-head"><span class="step">1</span><div><h2 id="intakeTitle">Archivo y destino de la carga</h2><p>El concepto y el período se eligen expresamente. No se deducen del nombre del archivo.</p></div></div>
+<form id="importForm"><fieldset id="entryFields"><div class="fields">
+<label>Formato de GRH<select id="profile" aria-describedby="formatHelp"><option value="junin55">Formato Junín · DNI e importe · 55 posiciones</option></select></label>
+<label>Código del concepto<input id="concept" inputmode="numeric" maxlength="20" required placeholder="Por ejemplo, 614"></label>
+<label>Período de la novedad<input id="period" type="month" min="2008-01" max="2099-12" required></label>
+<label>Tipo de liquidación<select id="payrollType"><option value="monthly">Mensual</option></select></label>
+<label class="wide">TXT recibido de la entidad<input id="file" type="file" accept=".txt,text/plain" required><small id="fileHint">Se conserva el archivo original. No lo conviertas a CSV ni elimines sus espacios.</small></label>
+</div><p id="formatHelp" class="help">Formato Junín identifica por DNI y contiene el importe con punto decimal. El sistema buscará el legajo de la fuente municipal para el período elegido. Otros formatos, como OSEP, no deben cargarse bajo este diseño.</p>
+<div class="actions"><button id="previewButton" class="primary" type="submit">Revisar TXT completo</button><button id="clearButton" type="button">Retirar archivo</button></div></fieldset></form>
+<p id="progress" role="status" aria-live="polite"></p><button id="cancelReview" type="button" hidden>Cancelar revisión</button>
+</section>
+<section id="previewPanel" class="panel" hidden aria-labelledby="previewTitle"><div class="section-head"><span class="step">2</span><div><h2 id="previewTitle">Control de todos los registros</h2><p>La búsqueda y las páginas sólo cambian la vista, no las filas que se guardarán.</p></div></div>
+<div id="metrics" class="metrics"></div><p id="fileReference" class="reference"></p><div id="reviewStatus" class="notice" role="status"></div>
+<div class="table-tools"><label>Buscar DNI, legajo o nombre<input id="search" type="search" maxlength="120"></label><span id="visibleCount"></span></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Registros del TXT y vínculos laborales"><table><thead><tr><th scope="col">Fila</th><th scope="col">DNI de origen</th><th scope="col">Legajo / agente</th><th scope="col">Concepto</th><th scope="col">Importe</th><th scope="col">Resultado</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="pager"><button id="previous" type="button">Anterior</button><span id="pageLabel"></span><button id="next" type="button">Siguiente</button></div>
+<div class="save-box"><div><strong>Guardar exactamente el archivo revisado</strong><p id="saveHelp">Si hay vínculos pendientes o cambios en la fuente, no se guarda una parte del archivo.</p></div><button id="saveButton" type="button" class="primary" disabled>Guardar lote completo</button></div>
+</section>
+<section id="writeState" class="panel" hidden aria-labelledby="writeTitle"><h2 id="writeTitle">Resultado del guardado</h2><p id="writeMessage" role="status"></p><div class="actions"><button id="retryButton" type="button" hidden>Consultar o reintentar el mismo guardado</button><a class="button" href="novedades-nomina.html">Ver lotes y continuar revisión</a><button id="newButton" type="button" hidden>Nueva importación</button></div></section>
+<aside class="scope-note"><strong>Importar no es liquidar</strong><p>Este paso crea novedades trazables en borrador para su revisión. No anula una liquidación, no calcula haberes y no emite una orden de pago. Cancelar un lote de importación es una operación distinta de anular una liquidación.</p><p>Otros diseños por legajo siguen disponibles en <a href="novedades-nomina.html">Carga masiva · TXT / CSV</a>. No se admite OSEP mediante este perfil ni se recortan archivos para hacerlos coincidir.</p></aside>
+</main><footer>MuniControl · Importación con fuente, período y recibo de guardado identificados</footer>
+<script type="module" src="assets/payroll-grh-import-panel.js"></script>
+</body></html>
