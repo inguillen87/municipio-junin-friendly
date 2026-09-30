@@ -41,6 +41,7 @@ const shellFiles = [
   'importar-novedades-grh.html',
   'assets/payroll-grh-input.js',
   'assets/payroll-grh-import-model.js',
+  'assets/payroll-record-identity.js',
   'assets/payroll-grh-import-panel.js',
   'assets/payroll-grh-import.css',
   'gestion-comparativa.html',
