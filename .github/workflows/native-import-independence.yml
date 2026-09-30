@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'lib/native-entity-import-preview.js'
+      - 'assets/payroll-grh-input.js'
+      - 'assets/payroll-record-identity.js'
+      - '.nvmrc'
       - 'lib/native-payroll-import-review.js'
       - 'tests/native-*import*.test.js'
       - 'tests/fixtures/native-import-registry.js'
@@ -12,6 +15,9 @@ on:
     branches: [master]
     paths:
       - 'lib/native-entity-import-preview.js'
+      - 'assets/payroll-grh-input.js'
+      - 'assets/payroll-record-identity.js'
+      - '.nvmrc'
       - 'lib/native-payroll-import-review.js'
       - 'tests/native-*import*.test.js'
       - 'tests/fixtures/native-import-registry.js'
