@@ -12,7 +12,8 @@ import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 import { mountFixedNovelties } from './payroll-fixed-novelties.js';
-import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision } from './payroll-native-monthly-model.js';
+import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision, nativeMonthlyPreparation, sameNativeMonthlySubject, assertNativeMonthlyPrepareReceipt } from './payroll-native-monthly-model.js';
+import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -94,6 +95,8 @@ let requestEpoch = 0;
 let lookupEpoch = 0;
 let readBlocked = false;
 let pendingWrite = null;
+let preparedNativeReview = null;
+const nativeMonthlyReview = mountNativeMonthlyReview(byId('nativeMonthlyReview'),()=>applyMonthlyLocks());
 let suspendedFields = null;
 const pendingDisabled = new Map();
 const requestedMonthlyContract = new URL(location.href).searchParams.get('monthlyContractId');
@@ -136,6 +139,7 @@ function applyMonthlyLocks() {
     byId('preflightButton').disabled = true;
     byId('prepareButton').disabled = true;
   }
+  if (nativeSelected() && !pendingWrite) byId('prepareButton').disabled = busy || readBlocked || !canUseMonthlySubject() || !preparedNativeReview || !nativeMonthlyReview.confirmed(preparedNativeReview);
   if (pendingWrite && !busy) {
     for (const field of document.querySelectorAll('#entrySection input, #entrySection select, #entrySection textarea, #entrySection button, #detailActions button')) {
       if (!pendingDisabled.has(field)) pendingDisabled.set(field, field.disabled);
@@ -156,6 +160,7 @@ function clearConsulted() {
   if (!suspendedFields) suspendedFields = [...byId('entrySection').querySelectorAll('input,select,textarea')].filter(field => field.type !== 'file').map(field => [field,field.value,field.checked]);
   for (const [field] of suspendedFields) { if (!['radio','checkbox'].includes(field.type)) field.value = ''; }
   reviewPanel?.clear(); issuesPanel?.clear();
+  nativeMonthlyReview.clear(); preparedNativeReview=null;
   byId('previewPanel').hidden = true;
   byId('batchRows').replaceChildren(); byId('batchTable').hidden = true; byId('batchEmpty').hidden = true;
   byId('detailRows').replaceChildren(); byId('detailActions').replaceChildren(); byId('detailPanel').hidden = true;
@@ -168,8 +173,9 @@ function clearConsulted() {
   byId('entrySection').hidden = true; byId('readOnlySection').hidden = true;
   fixedNovelties?.deny(); applyMonthlyLocks();
 }
-function discardLocalDraft() {
-  pendingWrite = null; monthlySubject = null; monthlyContractId = null; suspendedFields = null;
+function discardLocalDraft({preservePending=true}={}) {
+  if(!preservePending)pendingWrite = null;
+  monthlySubject = null; monthlyContractId = null; suspendedFields = null;
   pendingTransitionAttempts.clear();
   for (const field of byId('entrySection').querySelectorAll('input,textarea')) {
     if (field.type === 'radio') field.checked = field.value === 'individual';
@@ -266,6 +272,7 @@ function invalidatePreparedDraft(event) {
   reviewPanel?.clear();
   issuesPanel?.clear();
   preparedDraft = null;
+  preparedNativeReview = null; nativeMonthlyReview.clear();
   preparedDraftKey = null;
   preparedEntryMode = null;
   byId('previewPanel').hidden = true;
@@ -513,7 +520,12 @@ function moneyFromCents(value) {
 
 function renderPreflight(draft) {
   reviewPanel.setRows(draft.rows);
+  if(nativeSelected()){
+    preparedNativeReview=nativeMonthlyPreparation(draft,monthlySubject,principalKey(bootstrapState.principal));
+    nativeMonthlyReview.show(preparedNativeReview);
+  }
   byId('prepareButton').disabled = false;
+  applyMonthlyLocks();
 }
 
 function capabilitySet(principal = bootstrapState?.principal) {
@@ -859,6 +871,7 @@ async function sendPendingWrite() {
       const draft=JSON.parse(attempt.body).payload;
       if (receipt.status!=='draft' || receipt.version!==1 || receipt.periodMonth!==draft.periodMonth || receipt.sourceMode!==draft.sourceMode || receipt.payrollType!==draft.payrollType || receipt.rowCount!==draft.rows.length) throw Error('La confirmación no corresponde al borrador enviado.');
       if (pending.contractVersion==='payroll-novelty-batch.v2' && (receipt.rows[0].subject.contractId!==draft.rows[0].contractId || receipt.rows[0].subject.identityToken!==draft.rows[0].identityToken)) throw Error('La confirmación corresponde a otro vínculo.');
+      if(pending.contractVersion==='payroll-novelty-batch.v2')assertNativeMonthlyPrepareReceipt(receipt,draft,pending.reviewedSubject);
     } else if (receipt.status!==({submit:'submitted',approve:'approved',reject:'rejected',cancel:'cancelled'})[attempt.command]) throw Error('La confirmación corresponde a otro estado.');
     pendingWrite=null;pendingTransitionAttempts.clear();applyMonthlyLocks();
     selectedBatchId=hasCapability('payroll.novelty.nominal.read')?receipt.id:null;
@@ -1136,7 +1149,25 @@ async function prepare() {
   if (!preparedDraftKey) preparedDraftKey=crypto.randomUUID();
   const native=Object.hasOwn(preparedDraft.rows[0]||{},'contractId');
   if (native&&!canUseMonthlySubject()) return;
-  pendingWrite={attempt:monthlyWriteAttempt({url:API_URL+(native?'?version=2':''),command:'prepare',payload:preparedDraft,key:preparedDraftKey,scopeKey:principalKey(bootstrapState.principal)}),uncertain:false,entryMode:preparedEntryMode,contractVersion:native?'payroll-novelty-batch.v2':'payroll-novelty-batch.v1'};
+  const review=preparedNativeReview,epoch=requestEpoch;
+  if(native){
+    if(!review||!nativeMonthlyReview.confirmed(review)||review.scopeKey!==principalKey(bootstrapState.principal))return;
+    let ready=false;setBusy(true,'Comprobando el acceso y la persona antes de guardar…');
+    try{
+      const fresh=verifyMonthlyBootstrap(await api(API_URL+'?resource=bootstrap&version=2'));
+      if(fresh.principal && (principalKey(fresh.principal)!==review.scopeKey||!['payroll.novelty.prepare','payroll.novelty.nominal.read'].every(cap=>hasCapability(cap,fresh.principal)))){
+        clearConsulted();showMessage('error','El acceso cambió','Actualizá la consulta. No se creó el lote.');return;
+      }
+      if(JSON.stringify(fresh.limits)!==JSON.stringify(bootstrapState.limits)){invalidatePreparedDraft();showMessage('error','Cambió la preparación habilitada','Actualizá la consulta y revisá nuevamente la novedad.');return;}
+      const subject=verifyMonthlyEmployee(await api(API_URL+'?resource=employee&version=2&contractId='+encodeURIComponent(review.subject.contractId)),review.subject.contractId);
+      if(epoch!==requestEpoch||readBlocked||document.hidden||preparedNativeReview!==review)return;
+      if(!sameNativeMonthlySubject(review.subject,subject)){monthlySubject=subject;byId('legajo').value=subject.legajo;invalidatePreparedDraft();renderMonthlySubject();showMessage('error','La persona o el vínculo cambió','Conservamos los datos de la novedad. Validá y revisá nuevamente antes de guardar.');return;}
+      ready=true;
+    }catch(error){if(!error.stale){monthlySubject=null;invalidatePreparedDraft();renderMonthlySubject();showMessage('error','No se pudo comprobar la preparación',errorMessage(error));}}
+    finally{setBusy(false);}
+    if(!ready||epoch!==requestEpoch||readBlocked||document.hidden||preparedNativeReview!==review)return;
+  }
+  pendingWrite={attempt:monthlyWriteAttempt({url:API_URL+(native?'?version=2':''),command:'prepare',payload:preparedDraft,key:preparedDraftKey,scopeKey:native?review.scopeKey:principalKey(bootstrapState.principal)}),uncertain:false,entryMode:preparedEntryMode,contractVersion:native?'payroll-novelty-batch.v2':'payroll-novelty-batch.v1',...(native?{reviewedSubject:review.subject}:{})};
   await sendPendingWrite();
 }
 
@@ -1184,7 +1215,7 @@ function handleFile(event) {
 }
 
 async function logout() {
-  clearConsulted(); discardLocalDraft();
+  clearConsulted(); discardLocalDraft({preservePending:false});
   attendancePreparte?.clear();
   employeePicker?.close();
   sheetEditor?.clear();

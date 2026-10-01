@@ -8,6 +8,16 @@ La identidad se verifica por UUID del contrato y registro de alta. El número de
 
 El envío guarda una clave y un contenido inmutables hasta recibir confirmación. Si se pierde la respuesta, el reintento consulta la misma operación. Los recibos nativos conservan el estado y las fechas de su evento original aunque el lote avance después. La pérdida de permisos retira los datos consultados de la pantalla; una respuesta tardía no los repone.
 
+## Revisión completa y confirmación · incremento del 01/10/2026
+
+Antes del primer guardado se presenta la persona y su legajo, período, tipo mensual, concepto, centro de costo, mes de ajuste, unidades, importe manual, movimiento, instrumento legal, observación y modo forzado. La confirmación del operador comienza desmarcada y corresponde a una copia inmutable de esa revisión. Editar la novedad, cambiar el vínculo, ocultar la página o retirar acceso invalida la revisión visible. Se distinguen cantidades ausentes de cero y se muestran decimales exactos, incluidos importes mayores al rango seguro de los números de JavaScript.
+
+Al confirmar, el cliente vuelve a consultar el ámbito y permisos actuales y la identidad del mismo UUID; si cambian, no inicia el guardado. La comprobación de identidad no busca otra persona con el mismo legajo. Cuando cambia la identidad consultada conserva los campos de la novedad y exige una nueva revisión. El servidor sigue verificando identidad y autoridad en la escritura existente.
+
+La fachada del servidor y el navegador comprueban todos los campos del recibo, además del vínculo, identidad, período, estado y efectos. Sólo admiten las normalizaciones originales: decimales equivalentes por `trim_scale` y saltos de línea normalizados. Una confirmación distinta no se presenta como éxito; conserva el intento incierto, con el mismo cuerpo y clave. Cambiar de membresía no descarta ni recupera automáticamente ese intento; sólo el ámbito original y sus permisos pueden reintentarlo. Cerrar sesión elimina los datos volátiles.
+
+Este incremento reutiliza la migración 101 y sus fachadas; no instala SQL nuevo, amplía tipos de liquidación o cambia el límite nativo de una fila mensual. Su evidencia separa pruebas locales, CI, publicación y aceptación municipal. No convierte la aprobación de control en cálculo, pago o cierre de haberes.
+
 ## Alcance y límites
 
 - Altas propias: una fila, carga individual, tipo mensual. Cantidades exactas e importe opcional; ausencia de importe y cero siguen siendo distintos.
