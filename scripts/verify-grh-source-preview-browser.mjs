@@ -49,7 +49,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end(); }
   if (url.pathname !== '/') { res.writeHead(404); return res.end(); }
   res.setHeader('content-type', 'text/html');
-  res.end('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width">' + styles + '<body><main style="max-width:1440px;margin:auto;padding:16px"><template id="qa-template">' + panel + '</template></main><script type="module">import {mountGrhSourcePreview} from "/assets/grh-source-preview.js";window.qa={readDelay:0,navigated:null,requestSignals:[]};document.querySelector("main").append(document.querySelector("template").content.cloneNode(true));mountGrhSourcePreview(document,{timeoutMs:1500,request:(url,options)=>{qa.requestSignals.push(options.signal);return fetch(url,options);},readFile:async file=>{const ms=qa.readDelay;if(ms)await new Promise(r=>setTimeout(r,ms));return file.arrayBuffer();},navigate:target=>{qa.navigated=target;}});window.qa.ready=true;</script></body></html>');
+  res.end('<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width">' + styles + '<body><main style="max-width:1440px;margin:auto;padding:16px"><template id="qa-template">' + panel + '</template></main><script type="module">import {mountGrhSourcePreview} from "/assets/grh-source-preview.js";window.qa={readDelay:0,navigated:null,requestSignals:[],readerCancels:0};document.querySelector("main").append(document.querySelector("template").content.cloneNode(true));mountGrhSourcePreview(document,{timeoutMs:1500,request:async(url,options)=>{qa.requestSignals.push(options.signal);const response=await fetch(url,options),getReader=response.body.getReader.bind(response.body);response.body.getReader=()=>{const reader=getReader(),cancel=reader.cancel.bind(reader);reader.cancel=(...args)=>{qa.readerCancels++;return cancel(...args);};return reader;};return response;},readFile:async file=>{const ms=qa.readDelay;if(ms)await new Promise(r=>setTimeout(r,ms));return file.arrayBuffer();},navigate:target=>{qa.navigated=target;}});window.qa.ready=true;</script></body></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); const origin = 'http://127.0.0.1:' + server.address().port;
 const browser = await chromium.launch({ headless: true, ...(process.env.CLOCK_BROWSER_CHANNEL ? { channel: process.env.CLOCK_BROWSER_CHANNEL } : {}) });
@@ -67,6 +67,7 @@ try {
   await upload(); await analyze(); assert.equal(await result.isVisible(), true); assert.equal(await input.inputValue(), '');
   assert.equal(await host.getAttribute('aria-busy'), 'false');
   assert.equal(await page.evaluate(() => qa.requestSignals.at(-1).aborted), false, 'A fully consumed valid reply must complete without aborting its finished request.');
+  assert.equal(await page.evaluate(() => qa.readerCancels), 0, 'The finished response reader must release its lock without cancelling its transport.');
   checks.push('A verified complete reply releases the busy state without cancelling the finished request.');
   assert.deepEqual(Object.keys(calls.at(-1)).sort(), ['contentBase64', 'definitionKey']);
   assert.doesNotMatch(await host.innerText(), /never-publish-this-name|PRIVATE_TEST_VALUE/);
@@ -74,6 +75,7 @@ try {
   await definition.selectOption(amaru); assert.equal(await result.isVisible(), false); await upload(' '.repeat(55)); mode = 'observations';
   await submit.click(); await wait('Análisis con observaciones'); assert.match(await host.innerText(), /DNI inválido/); assert.match(await host.innerText(), /no confirma aceptación por AMARU/);
   assert.equal(await page.evaluate(() => qa.requestSignals.at(-1).aborted), false);
+  assert.equal(await page.evaluate(() => qa.readerCancels), 0, 'A completely received reply with observations must not cancel the finished reader.');
   assert.match(await host.locator('[data-source-preview-format-help]').innerText(), /55 bytes.*posición 5.*posición 44/);
   checks.push('AMARU gets field-specific guidance and never turns structural acceptance into recipient acceptance.');
   await reload(); await upload('OLD'); delay = 400; const first = page.waitForRequest('**/api/internal-grh-source-preview'); await submit.click(); await first;
