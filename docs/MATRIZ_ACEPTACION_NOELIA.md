@@ -4,6 +4,8 @@ Esta matriz no declara que el reemplazo de GRH esté completo. Distingue requeri
 
 Actualización al 23/09, sobre la base `e2b4a18`: [mensuales nativas 101](NOELIA_NATIVE_MONTHLY_101.md) y [familia/escolaridad nativas 102](NOELIA_NATIVE_FAMILY_102.md) ya tienen cierre técnico de producción registrado. El [catálogo propio 103](NOELIA_NATIVE_EMPLOYMENT_CATALOG_103.md) está implementado en la rama del incremento; su CI, instalación y publicación se acreditarán por recibo, y todavía no hay un catálogo municipal realmente aprobado. Consultar el [estado integral por responsable](ESTADO_INTEGRAL_NOELIA_HUGO_MARIANO_20260921.md) para la evidencia y los límites. Un paquete de control no equivale a un exportador homologado ni a una liquidación propia terminada.
 
+Corte de continuidad del 01/10: el [plan de cierres](PLAN_CIERRES_MUNICONTROL_20260930.md) reúne las entregas #68–#74, los próximos sprints por responsable y los límites de cámaras/huellas/relojes. Master y producción contrastados en #74; la [rectificación 104](NOELIA_NATIVE_EMPLOYMENT_CHANGES_104.md) está en validación, sin instalación/publicación acreditadas. Este corte actualiza el orden de trabajo; las secciones históricas siguientes conservan sus fechas y no prueban disponibilidad actual de un módulo completo.
+
 ## 1. Datos del municipio y 2. Reportes
 Fuente: `1º-2º MODULO DATOS MUNI- REPORTES`, páginas 1–3; `REUNION 09/09/2026`, páginas 1–2.
 

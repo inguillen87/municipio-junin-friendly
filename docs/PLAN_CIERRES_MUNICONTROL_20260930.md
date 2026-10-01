@@ -1,6 +1,6 @@
 # MuniControl · plan de cierres funcionales
 
-Base contrastada el 01/10 en esta conversación: master y producción en `714aa84022a3731024716577945e9fdf7b609ae2`, PR #72. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. El objetivo solicitado sigue siendo sustituir GRH durante octubre por circuitos propios aceptados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral terminado.
+Base contrastada el 01/10 en esta conversación: master y producción en `528f902437321ea647627dbf0b1660ce8d689824`, PR #74. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. El objetivo solicitado sigue siendo sustituir GRH durante octubre por circuitos propios aceptados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral terminado.
 
 ## Entregas que se conservan
 
@@ -21,6 +21,29 @@ PR #71 integrada y producción contrastada en `c809790769de9dab97fd25c3ad883d4a5
 [Consulta y exportación del padrón propio](PADRON_PROPIO_CONSULTA_EXPORTACION_20261001.md): filtros por identidad informada, situación, jurisdicción y encuadre; cantidades separadas de contratos/personas; ficha por UUID; Excel/CSV de todas las páginas del filtro. Una consulta lee los registros propios y sus cantidades sin reconstruir vistas GRH. Se conserva el validador de acceso nativo y el binding certificado existente. Las descargas releen el conjunto y requieren revisión si cambió. No crea movimientos de Personal ni declara completa la fase 1. Pruebas/publicación se acreditan en su resultado.
 
 ## Fases siguientes y aceptación
+
+### Corte por responsable y sprints concretos del 01/10
+
+Los originales de los diez módulos, audios y ejemplos fueron identificados y contrastados en los incrementos anteriores. La matriz enlaza las páginas y los criterios de cada módulo. No se inició una sesión GRH/GAT/GAF nueva en este incremento ni se certifican como actuales estados históricos de dispositivos. Los procedimientos anteriores son referencias; el resultado debe funcionar con un empleado inexistente en GRH.
+
+| Responsable / circuito | Entrega conservada | Siguiente cierre y prueba de aceptación |
+|---|---|---|
+| Noelia / Personal · módulos 1/5 | Alta y recuperación #71; padrón completo y descargas #72; familia/escolaridad propias; mensual individual con revisión completa #73 | Sprint P1: rectificación de los cinco campos del encuadre con propuesta, decisión independiente e historial (104, en validación; no instalado/publicado). Después P2: baja/reingreso y P3: licencias nativas con vigencias, saldos e historia. Un solo contrato propio recorre cada operación, sin alta GRH previa. |
+| Noelia / novedades · módulos 3/5 | Junín/614 aceptado según su mensaje; incidencias y lotes #68; recuperación #69; fijas #70 | Sprint N1: masivas propias y corrección/anulación completa del conjunto. N2: OSEP y demás diseños homologados contra ejemplos, sin recorte del TXT. El escritor sigue en 500; la revisión en memoria no resuelve su capacidad. Los frentes rechazados permanecen detenidos. |
+| Noelia / parámetros y nómina · módulos 6/7 | Catálogo administrativo 103 para altas; revisión/activación de auxiliares reforzada #74; estados administrativos y controles de corridas | Sprint C1: conceptos, escalas, unidades, vigencias y reglas municipales aprobadas. C2: cálculo propio reproducible y comparación por concepto. C3: mismo alcance por legajo/convenio/repartición/todos y tipo para anular, recalcular, confirmar y cerrar conservando versiones. No ejecutar el evaluador rechazado. |
+| Noelia / contabilidad y entregas · módulos 2/4/8/9/10 | Biblioteca, filtros y controles existentes; recibos PDF de consulta; cotejo documental de cargos | Sprint S1: imputación desde la misma corrida; S2: formatos bancarios/fiscales/organismos homologados; S3: recibo del agente; S4: cargos efectivamente liquidados frente al presupuesto versionado de cada año. PR #50 requiere conciliación; la integración/exportación de PR #61 sigue rechazada. |
+| Hugo / asistencia | Originales, colas/acuses, reconstructor, incidencias y preparte existentes | Sprints B1/B2 del plan de Hugo: cobertura y vínculo temporal por equipo; turnos, calendario, pausas, tolerancias y topes aprobados. Después B3/B4/B5: tiempo explicado, decisiones persistentes y entrega única a Noelia. Una marca no genera horas extras pagables por sí sola. |
+| Marcelo / operación y superadministración | Inventario de puntos, instalador, receptor y controles de acceso existentes | Sprint O1: recepción física y ACK durable por equipo; O2: host municipal continuo, reinicio/desconexión/espacio insuficiente y prueba con la PC personal apagada; O3: supervisión y recuperación. Verificar las atribuciones reales de cada rol sin ampliarlas para cubrir defectos. |
+| Mariano / gestión documental | Registro normativo/contractual, expedientes, relaciones y centro de alertas documentados | Sprint J1: acervo autorizado con origen, versión y citas; J2: ciclo documental y reserva por expediente/área; J3: avisos con entrega, reintento y cancelación; J4: aceptación con usuarios reales. Firma/certificados continúa en el frente de Hugo/Noelia. |
+| Empleados y administrativos | Consulta y controles administrativos existentes | Sprint E1: permisos propios, solicitudes/familia y bandeja de revisión; E2: recibos y documentos exactos del agente. Probar escritorio y móvil, identidad, revocación y recuperación sin exponer otro empleado. No confundir legajo con cuenta creada. |
+
+Cada sprint cierra implementación, pruebas sintéticas, CI y publicación del mismo commit; la aceptación municipal se registra aparte. La instalación de SQL104 necesita autorización específica antes de modificar la base productiva. Publicar una interfaz que depende de una migración ausente no es un cierre. Los próximos cambios de código siguen el orden P1 → P2/P3 → N1/N2 → C1/C2/C3; operación física y firma conservan sus responsables y límites separados.
+
+### Cámaras, huellas y relojes: alcance comprobado
+
+ZK40 ofrece lectura de marcaciones con identidad del dispositivo, procedencia y acuses; la compatibilidad se homologa por equipo/firmware. La última cobertura de seis de catorce puntos es documental, no una medición viva realizada hoy. El funcionamiento continuo cloud todavía necesita una prueba física nueva con la PC personal apagada.
+
+ONVIF está marcado como pendiente: no hay visualizador, grabador ni análisis de cámaras implementados en ese catálogo. Las plantillas biométricas quedan fuera del receptor de asistencia; leer una marcación originada en un reloj de huella no equivale a enrolar o administrar huellas. El futuro sprint de cámaras requiere inventario, eventos/video, almacenamiento, acceso y retención propios antes de implementar su circuito. Ver [adaptadores y crecimiento](clock-windows-installer/ADAPTADORES-Y-CRECIMIENTO.md) y [separación de bases](CLOCK_DATABASE_SEPARATION_20260921.md).
 
 ### Incremento del 01/10: revisión de la novedad mensual propia
 
