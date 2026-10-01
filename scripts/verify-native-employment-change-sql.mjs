@@ -61,6 +61,7 @@ export function buildNativeEmploymentChangeQa({serverMajor,requireConcurrency=fa
  CREATE TRIGGER grh_effective_baseline_truncate BEFORE TRUNCATE ON employment_contract FOR EACH STATEMENT EXECUTE FUNCTION grh_effective_baseline_guard_v1();
  baseline_proof:=${baselineProof}; EXECUTE ${install};`);
  ok(baselineProof+'=baseline_proof','104 reapply retains exact096 function OID, body, ACL and both trigger records');
+ exec('SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;');
  ok('qa_rejects('+q('UPDATE employment_contract SET source_batch_id=gen_random_uuid() WHERE id='+q(ids.targetContract)+'::uuid')+",'NATIVE_EMPLOYEE_ORIGIN_INVALID')",'native origin validation still rejects an unknown source before096');
  for(const command of ['DELETE FROM employment_contract WHERE id='+q(ids.targetContract)+'::uuid','UPDATE employment_contract SET source_batch_id='+q(ids.foreignBatch)+'::uuid WHERE id='+q(ids.targetContract)+'::uuid','TRUNCATE employment_contract CASCADE'])
   ok('qa_rejects('+q(command)+",'GRH_EFFECTIVE_BASELINE_IMMUTABLE')",'active096 protects historical source during104: '+command.split(' ')[0]);
