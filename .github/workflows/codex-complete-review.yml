@@ -1,0 +1,59 @@
+name: Complete import, batch and preparte review
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'assets/payroll-grh-import*'
+      - 'assets/payroll-native-monthly-model.js'
+      - 'assets/payroll-novelty*'
+      - 'assets/attendance-preparte*'
+      - 'importar-novedades-grh.html'
+      - 'novedades-nomina.html'
+      - 'tests/**'
+      - 'scripts/verify-codex-review-browser.mjs'
+      - 'scripts/verify-attendance-preparte-browser.mjs'
+      - '.github/workflows/codex-complete-review.yml'
+  pull_request:
+    paths:
+      - 'assets/payroll-grh-import*'
+      - 'assets/payroll-native-monthly-model.js'
+      - 'assets/payroll-novelty*'
+      - 'assets/attendance-preparte*'
+      - 'importar-novedades-grh.html'
+      - 'novedades-nomina.html'
+      - 'tests/**'
+      - 'scripts/verify-codex-review-browser.mjs'
+      - 'scripts/verify-attendance-preparte-browser.mjs'
+      - '.github/workflows/codex-complete-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: complete-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-grh-import-browser.mjs
+      - run: node scripts/verify-novelty-review-056.mjs
+      - run: node scripts/verify-attendance-preparte-browser.mjs
+      - run: node scripts/verify-codex-review-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complete-review-synthetic-evidence
+          path: |
+            verification/grh-import-browser/
+            verification/novelty-056/
+            verification/preparte-local/
+            verification/codex-review-browser/
+          retention-days: 5

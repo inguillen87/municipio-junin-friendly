@@ -91,7 +91,9 @@ try {
   const review = async () => { await panel.locator('[data-ap-reference]').fill('Listado sintético QA de Personal, versión 1'); await panel.locator('[data-ap-reviewed]').check(); };
   const use = async () => { page.once('dialog', dialog => dialog.accept()); await panel.locator('[data-ap-use]').click(); };
   await first.locator('[type=checkbox]').check(); await first.locator('[data-ap-field=cap]').fill('2');
-  await review(); await panel.locator('[data-ap-use]').click(); assert.match(await status.innerText(), /supera el tope/);
+  await review(); await panel.locator('[data-ap-use]').click();
+  assert.match(await panel.locator('[data-ap-correction-list]').innerText(), /supera el tope/);
+  assert.match(await status.innerText(), /Corregí todas las incidencias/);
   assert.equal(posts.length, 0); assert.equal(await page.locator('[data-sheet-row]').count(), 0);
   await first.locator('[data-ap-field=cap]').fill('3');
   checks.push('one monthly source read, whole 107-person scope, blocked incidents and individual ceiling enforced before transfer');

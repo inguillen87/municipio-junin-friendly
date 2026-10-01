@@ -57,3 +57,22 @@
 #reviewConceptRows th[scope="row"] { min-width:112px; }
 #reviewConceptRows th[scope="row"] .button { margin-top:8px; font-size:12px; }
 #previewPanel .novelty-control .table-wrap:focus-visible { outline:3px solid #b27a24; outline-offset:3px; }
+
+/* Saved batches reuse the complete review; approval/export stay in the workbench. */
+#savedReviewPanel { min-width:0; }
+#savedReviewPanel[hidden] { display:none!important; }
+#savedReviewPanel .table-wrap { max-height:620px;overflow:auto;max-width:100%; }
+#savedReviewPanel th { position:sticky;top:0;z-index:1; }
+#savedReviewPanel td { vertical-align:top; }
+#savedReviewPanel details { max-width:320px; }
+#savedReviewPanel summary { cursor:pointer;min-height:44px;padding:8px 0;color:#08766f;font-weight:700; }
+#savedReviewPanel .novelty-control { max-width:none;min-width:0;border:1px solid #c7dedd;border-radius:12px;padding:14px 16px;margin:14px 0 20px;background:#f5faf9; }
+#savedReviewPanel .novelty-control .table-wrap { max-height:360px;background:white;margin:12px 0; }
+#savedReviewPanel .novelty-control table { min-width:760px; }
+#savedReviewPanel .novelty-control :is(th,td) { white-space:normal; }
+#savedReviewPanel caption { text-align:left;padding:12px;font-size:12px;color:#3e6268; }
+#savedReviewPanel .button { min-height:44px;white-space:normal; }
+#savedReviewConceptRows th[scope="row"] { min-width:112px; }
+#savedReviewConceptRows th[scope="row"] .button { margin-top:8px;font-size:12px; }
+#savedReviewPanel :is(summary,.table-wrap):focus-visible,#savedReviewRange:focus { outline:3px solid #b27a24;outline-offset:3px; }
+@media(max-width:400px) { #savedReviewPanel .novelty-control { padding:10px; } }

@@ -74,9 +74,10 @@ export function reviewNoveltyCsv(raw, parseRow, periodMonth) {
 }
 
 const fold = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-export function noveltyReviewPage(rows, { search = '', kind = 'all', concept = 'all', page = 1, pageSize = 25 } = {}) {
+export function noveltyReviewPage(rows, { search = '', kind = 'all', concept = 'all', issueKind = 'all', page = 1, pageSize = 25 } = {}) {
   if (!Array.isArray(rows) || rows.length < 1 || rows.length > NOVELTY_REVIEW_MAX_ROWS) throw Error('Lote de revisión inválido.');
   if (!Object.hasOwn(NOVELTY_REVIEW_KINDS, kind) || typeof concept !== 'string' || (concept !== 'all' && !SOURCE_ID.test(concept)) || ![25, 50, 100].includes(pageSize)
+      || !['all','issues','blocking','clear'].includes(issueKind)
       || !Number.isSafeInteger(page) || page < 1 || typeof search !== 'string' || search.length > 100) throw Error('Filtro de revisión inválido.');
   const q = fold(search.trim());
   const filtered = rows.filter(r => (kind === 'all' || kind === 'missing' && r.amountCents === null
@@ -84,6 +85,9 @@ export function noveltyReviewPage(rows, { search = '', kind = 'all', concept = '
       || kind === 'zero' && r.amountCents === '0' || kind === 'negative' && typeof r.amountCents === 'string' && r.amountCents.startsWith('-')
       || kind === 'adjustment' && r.adjustmentMonth !== null)
     && (concept === 'all' || r.conceptSourceId === concept)
+    && (issueKind === 'all' || issueKind === 'issues' && r.issues?.length > 0
+      || issueKind === 'blocking' && r.issues?.some(issue => issue.blocking === true)
+      || issueKind === 'clear' && Array.isArray(r.issues) && r.issues.length === 0)
     && (!q || fold([r.legajo, r.conceptSourceId, r.costCenterSourceId, r.legalInstrument, r.observation].join(' ')).includes(q)));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize)), current = Math.min(page, pages);
   return {
@@ -112,22 +116,24 @@ export const NOVELTY_REVIEW_KINDS = Object.freeze({
 });
 const SOURCE_ID = /^(?:0|[1-9]\d{0,19})$/;
 const CENTS = /^-?(?:0|[1-9]\d{0,17})$/;
-function checkedReviewRows(rows) {
+function checkedReviewRows(rows, saved) {
   if (!Array.isArray(rows) || rows.length < 1 || rows.length > NOVELTY_REVIEW_MAX_ROWS) throw Error('Lote de control inválido.');
   const ordinals = new Set();
   for (const row of rows) {
     if (!row || !Number.isSafeInteger(row.rowOrdinal) || row.rowOrdinal < 1 || row.rowOrdinal > NOVELTY_REVIEW_MAX_ROWS
       || ordinals.has(row.rowOrdinal) || typeof row.legajo !== 'string' || !SOURCE_ID.test(row.legajo)
       || typeof row.conceptSourceId !== 'string' || !SOURCE_ID.test(row.conceptSourceId)
-      || (row.amountCents !== null && (typeof row.amountCents !== 'string' || !CENTS.test(row.amountCents) || row.amountCents === '-0'))
+      || (row.amountCents !== null && (typeof row.amountCents !== 'string'
+        || !(saved ? /^-?(?:0|[1-9]\d{0,18})$/ : CENTS).test(row.amountCents) || row.amountCents === '-0'
+        || saved && (BigInt(row.amountCents) < -9223372036854775808n || BigInt(row.amountCents) > 9223372036854775807n)))
       || typeof row.forced !== 'boolean' || (row.forced && row.amountCents === null)
       || (row.adjustmentMonth !== null && (typeof row.adjustmentMonth !== 'string'
         || !/^20[0-9]{2}-(?:0[1-9]|1[0-2])-01$/.test(row.adjustmentMonth) || row.adjustmentMonth < '2008-01-01'))) throw Error('Fila de control no verificable.');
     ordinals.add(row.rowOrdinal);
   }
 }
-export function noveltyBatchControl(rows) {
-  checkedReviewRows(rows);
+export function noveltyBatchControl(rows, {saved = false} = {}) {
+  checkedReviewRows(rows, saved);
   function summary(selected) {
     let sum = 0n;
     for (const row of selected) if (row.amountCents !== null) sum += BigInt(row.amountCents);
@@ -143,8 +149,8 @@ export function noveltyBatchControl(rows) {
   for (const row of rows) { if (!grouped.has(row.conceptSourceId)) grouped.set(row.conceptSourceId, []); grouped.get(row.conceptSourceId).push(row); }
   const concepts = [...grouped].sort(([a], [b]) => BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0)
     .map(([conceptSourceId, selected]) => Object.freeze({ conceptSourceId, ...summary(selected) }));
-  return Object.freeze({ version: 'novelty-draft-control.v1', ...summary(rows), concepts: Object.freeze(concepts),
-    scope: 'complete_validated_draft', saved: false, payrollCalculated: false, payrollPosted: false,
+  return Object.freeze({ version: saved ? 'novelty-saved-control.v1' : 'novelty-draft-control.v1', ...summary(rows), concepts: Object.freeze(concepts),
+    scope: saved ? 'complete_saved_batch' : 'complete_validated_draft', saved, payrollCalculated: false, payrollPosted: false,
     quantitiesSummed: false });
 }
 function controlAmount(cents) {

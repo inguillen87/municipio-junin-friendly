@@ -19,6 +19,16 @@ const commands = new Set(['submit','approve','reject','cancel']);
 const types = ['monthly','first_fortnight','sac','vacation','supplementary','final','other'];
 const subjectKeys = ['contractId','legajo','employeeName','identityToken','sourceCutoff'];
 const nativeKeys = [...subjectKeys,'origin','registrationId','registeredAt'];
+// A link selects a read only. Authority and current commands still come from the API.
+export function requestedNoveltyBatch(search) {
+  if (typeof search !== 'string') throw Error('El enlace no identifica un único lote válido.');
+  const params = new URLSearchParams(search), values = params.getAll('batchId');
+  if (!values.length) return null;
+  if (values.length !== 1 || !uuid(values[0]) || params.has('monthlyContractId')) {
+    throw Error('El enlace no identifica un único lote válido. Abrí el lote desde la lista de novedades.');
+  }
+  return values[0].toLowerCase();
+}
 const inputKeys = ['rowOrdinal','legajo','conceptSourceId','costCenterSourceId','adjustmentMonth','quantityDecimal','amountCents','movementType','legalInstrument','observation','forced'];
 const sameSet = (actual, expected) => Array.isArray(actual) && actual.length === expected.length && new Set(actual).size === actual.length && actual.every(value => expected.includes(value));
 const effects = value => value.grhMutation === false && value.payrollCalculated === false && value.payrollPosted === false;
@@ -42,11 +52,11 @@ export function verifyMonthlyEmployee(payload, contractId) {
   return subject;
 }
 
-function inputRow(row, periodMonth) {
+function inputRow(row, periodMonth, validAmount = cents) {
   if (row.rowOrdinal !== 1 || !code(row.legajo) || !code(row.conceptSourceId)
       || row.costCenterSourceId !== null && !code(row.costCenterSourceId)
       || row.adjustmentMonth !== null && (!month(row.adjustmentMonth) || row.adjustmentMonth > periodMonth)
-      || !quantity(row.quantityDecimal) || !cents(row.amountCents) || row.quantityDecimal === null && row.amountCents === null
+      || !quantity(row.quantityDecimal) || !validAmount(row.amountCents) || row.quantityDecimal === null && row.amountCents === null
       || row.movementType !== null && (typeof row.movementType !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(row.movementType))
       || row.legalInstrument !== null && !inputText(row.legalInstrument,160)
       || row.observation !== null && !inputText(row.observation,500)
@@ -107,6 +117,37 @@ export function verifyMonthlyBootstrap(payload) {
       || new Set(principal.capabilities).size !== principal.capabilities.length || !Array.isArray(payload.batches)) fail();
   payload.batches.forEach(batch => verifyMonthlyBatch(batch,{mode:'bootstrap'}));
   return payload;
+}
+
+// A saved review must contain the complete, ordered batch, including its issues.
+// Keep a detached immutable copy so filtering cannot alter a pending decision.
+export function savedNoveltyBatch(batch) {
+  verifyMonthlyBatch(batch, {mode:'detail'});
+  const legacyAmount = value => value === null || typeof value === 'string'
+    && /^-?(?:0|[1-9]\d{0,18})$/.test(value) && value !== '-0'
+    && BigInt(value) >= -9223372036854775808n && BigInt(value) <= 9223372036854775807n;
+  for (const [index, row] of batch.rows.entries()) {
+    if (!object(row) || row.rowOrdinal !== index + 1 || !uuid(row.employmentContractId)
+        || !Array.isArray(row.issues)) fail();
+    inputRow({...row, rowOrdinal:1}, batch.periodMonth, batch.contractVersion === 'payroll-novelty-batch.v1' ? legacyAmount : cents);
+    for (const issue of row.issues) {
+      if (!object(issue) || !text(issue.code,100) || typeof issue.blocking !== 'boolean'
+          || !['info','warning','error'].includes(issue.severity)) fail();
+    }
+  }
+  return freeze(structuredClone(batch));
+}
+
+export function sameNoveltyDecision(reviewed, current, command) {
+  savedNoveltyBatch(reviewed); savedNoveltyBatch(current);
+  if (!commands.has(command) || !current.allowedCommands.includes(command)) return false;
+  const stable = value => Array.isArray(value) ? value.map(stable)
+    : object(value) ? Object.fromEntries(Object.keys(value).sort().map(key => [key,stable(value[key])])) : value;
+  const evidence = batch => [batch.id, batch.version, batch.status, batch.contractVersion,
+    batch.periodMonth, batch.payrollType, batch.sourceMode, batch.rowCount, batch.rows,
+    batch.blockingIssueCount ?? null, batch.warningIssueCount ?? null,
+    [...batch.allowedCommands].sort(), batch.canExport, batch.exportable];
+  return JSON.stringify(stable(evidence(reviewed))) === JSON.stringify(stable(evidence(current)));
 }
 
 // The stored body, rather than mutable form state, is the only retry input.

@@ -12,7 +12,7 @@ import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 import { mountFixedNovelties } from './payroll-fixed-novelties.js';
-import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt } from './payroll-native-monthly-model.js';
+import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision } from './payroll-native-monthly-model.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -64,6 +64,9 @@ function issueLabel(issue) {
 
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
+let savedReviewPanel = null;
+let reviewedBatch = null;
+let detailReadVersion = 0;
 let txtOptions = null;
 let sheetEditor = null;
 let attendancePreparte = null;
@@ -94,6 +97,7 @@ let pendingWrite = null;
 let suspendedFields = null;
 const pendingDisabled = new Map();
 const requestedMonthlyContract = new URL(location.href).searchParams.get('monthlyContractId');
+const hasRequestedBatch = new URL(location.href).searchParams.has('batchId');
 
 function nativeSelected() { return monthlySubject?.origin === 'MUNICONTROL'; }
 function canUseMonthlySubject() { return hasCapability('payroll.novelty.prepare') && hasCapability('payroll.novelty.nominal.read'); }
@@ -142,12 +146,13 @@ function applyMonthlyLocks() {
   byId('nativeMonthlyRetry').disabled = busy || readBlocked || !pendingWrite
     || pendingWrite.attempt.scopeKey !== principalKey(bootstrapState?.principal)
     || !hasCapability(pendingWrite.attempt.command === 'prepare' ? 'payroll.novelty.prepare' : ['approve','reject'].includes(pendingWrite.attempt.command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare')
-    || pendingWrite.contractVersion === 'payroll-novelty-batch.v2' && !hasCapability('payroll.novelty.nominal.read');
+    || (pendingWrite.requiresNominal || pendingWrite.contractVersion === 'payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read');
   fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite));
 }
 function clearConsulted() {
   cancelFileRead();
   requestEpoch++; lookupEpoch++; readBlocked = true;
+  clearBatchDetail();
   if (!suspendedFields) suspendedFields = [...byId('entrySection').querySelectorAll('input,select,textarea')].filter(field => field.type !== 'file').map(field => [field,field.value,field.checked]);
   for (const [field] of suspendedFields) { if (!['radio','checkbox'].includes(field.type)) field.value = ''; }
   reviewPanel?.clear(); issuesPanel?.clear();
@@ -216,6 +221,7 @@ function setBusy(value, label = '') {
     busyEntryFields.clear();
   }
   for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell]')) button.disabled = Boolean(value);
+  if (!value) savedReviewPanel?.render();
   fixedNovelties?.setExternalBusy(value);
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
@@ -612,8 +618,19 @@ function createActionButton(batch, command) {
   return button;
 }
 
+function clearBatchDetail() {
+  detailReadVersion++;
+  reviewedBatch = null;
+  savedReviewPanel?.clear();
+  byId('detailRows').replaceChildren(); byId('detailActions').replaceChildren();
+  for (const id of ['detailTitle','detailState','detailPeriod','detailType','detailCount','detailIssues']) byId(id).textContent = '';
+  byId('detailPanel').hidden = true;
+}
+
 function renderBatchDetail(payload) {
-  const batch = assertBatchContract(payload?.data, { detail: true });
+  const batch = savedNoveltyBatch(payload?.data);
+  savedReviewPanel.setBatch(batch);
+  reviewedBatch = batch;
   selectedBatchId = batch.id;
   const native = batch.contractVersion==='payroll-novelty-batch.v2';
   byId('detailExportNote').textContent = native
@@ -628,28 +645,6 @@ function renderBatchDetail(payload) {
   if (batch.contractVersion==='payroll-novelty-batch.v2') byId('detailIssues').textContent += batch.rows[0].identityCurrent
     ? ' · Alta propia de MuniControl · Identidad del vínculo verificada'
     : ' · Alta propia de MuniControl · El vínculo cambió: requiere una nueva preparación';
-  const body = byId('detailRows');
-  body.replaceChildren();
-  for (const row of Array.isArray(batch.rows) ? batch.rows : []) {
-    const tr = document.createElement('tr');
-    const issues = Array.isArray(row.issues) ? row.issues : [];
-    const issueText = issues.length
-      ? issues.map(issueLabel).join(' · ')
-      : 'Validada';
-    for (const value of [
-      row.rowOrdinal,
-      row.legajo || 'Restringido',
-      row.conceptSourceId,
-      row.quantityDecimal ?? '—',
-      moneyFromCents(row.amountCents),
-      issueText,
-    ]) {
-      const td = document.createElement('td');
-      td.textContent = String(value);
-      tr.appendChild(td);
-    }
-    body.appendChild(tr);
-  }
   const actions = byId('detailActions');
   actions.replaceChildren();
   const commands = Array.isArray(batch.allowedCommands) ? batch.allowedCommands : [];
@@ -743,17 +738,35 @@ async function loadBootstrap({ quiet = false } = {}) {
 }
 
 async function openBatch(id, { quiet = false } = {}) {
-  if (readBlocked || !hasCapability('payroll.novelty.nominal.read')) return;
+  if (readBlocked || document.hidden || !hasCapability('payroll.novelty.read') || !hasCapability('payroll.novelty.nominal.read')) return;
+  clearBatchDetail();
+  const generation = detailReadVersion;
   if (!quiet) setBusy(true, 'Abriendo lote y auditoría…');
   try {
     const payload = await api(`${API_URL}?resource=detail&version=2&id=${encodeURIComponent(id)}`);
+    if (generation !== detailReadVersion || readBlocked || document.hidden) return;
     if (payload?.data?.id !== id) throw Error('La respuesta corresponde a otro lote.');
     renderBatchDetail(payload);
   } catch (error) {
-    showMessage('error', 'No pudimos abrir el lote', errorMessage(error));
+    if (generation === detailReadVersion && !error.stale) {
+      clearBatchDetail();
+      showMessage('error', 'No pudimos abrir el lote', errorMessage(error));
+    }
   } finally {
     if (!quiet) setBusy(false);
   }
+}
+
+async function openRequestedBatch() {
+  let id;
+  try { id = requestedNoveltyBatch(new URL(location.href).search); }
+  catch (error) { showMessage('error', 'No se pudo identificar el lote', error.message); return; }
+  if (!id || readBlocked) return;
+  if (!hasCapability('payroll.novelty.read') || !hasCapability('payroll.novelty.nominal.read')) {
+    showMessage('info', 'Detalle del lote restringido', 'La sesión actual no permite consultar sus filas. No se ejecutó ninguna operación.');
+    return;
+  }
+  await openBatch(id);
 }
 
 function transitionInput(batch, command, reasonReference = null) {
@@ -787,18 +800,52 @@ function transitionAttempt(batch, command) {
 }
 
 async function applyTransition(batch, command) {
-  if (pendingWrite || readBlocked || document.body.dataset.busy==='true') return;
-  const prompts={submit:'El lote quedará pendiente de una segunda persona. ¿Continuar?',approve:'La aprobación habilita únicamente la exportación. No calcula ni escribe GRH. ¿Continuar?',reject:'El lote quedará rechazado con el motivo seleccionado. ¿Continuar?',cancel:'El lote quedará cancelado y no podrá exportarse. ¿Continuar?'};
-  if (!window.confirm(prompts[command])) return;
-  const attempt=transitionAttempt(batch,command);
-  pendingWrite={attempt:monthlyWriteAttempt({url:API_URL+'?version=2',command,payload:attempt.payload,key:attempt.idempotencyKey,scopeKey:principalKey(bootstrapState.principal)}),uncertain:false,batchId:batch.id,version:batch.version,contractVersion:batch.contractVersion};
-  await sendPendingWrite();
+  if (pendingWrite || readBlocked || document.hidden || document.body.dataset.busy==='true'
+      || batch !== reviewedBatch || selectedBatchId !== batch.id || !batch.allowedCommands.includes(command)) return;
+  const generation = detailReadVersion, epoch = requestEpoch, scope = principalKey(bootstrapState.principal);
+  const reason = byId('rejectReason').value;
+  const stillCurrent = () => generation === detailReadVersion && epoch === requestEpoch
+    && !readBlocked && !document.hidden && reviewedBatch === batch && !pendingWrite;
+  let ready = false;
+  setBusy(true,'Comprobando el lote completo y los permisos antes de decidir…');
+  try {
+    const fresh = verifyMonthlyBootstrap(await api(`${API_URL}?resource=bootstrap&version=2`));
+    if (!stillCurrent()) return;
+    const required = ['approve','reject'].includes(command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare';
+    if (scope !== principalKey(fresh.principal)
+        || !['payroll.novelty.read','payroll.novelty.nominal.read',required].every(cap=>hasCapability(cap,fresh.principal))
+        || JSON.stringify([...fresh.principal.capabilities].sort()) !== JSON.stringify([...bootstrapState.principal.capabilities].sort())) {
+      clearConsulted();
+      showMessage('info','El acceso cambió','Actualizá la consulta y revisá el lote con los permisos vigentes. No se envió la decisión.');
+      return;
+    }
+    const current = savedNoveltyBatch((await api(`${API_URL}?resource=detail&version=2&id=${encodeURIComponent(batch.id)}`)).data);
+    if (!stillCurrent()) return;
+    if (current.id !== batch.id) throw Error('La respuesta corresponde a otro lote.');
+    if (!sameNoveltyDecision(batch,current,command) || reason !== byId('rejectReason').value) {
+      renderBatchDetail({data:current});
+      showMessage('info','El lote cambió','Se muestra la revisión vigente. Revisala antes de volver a decidir; no se envió ninguna operación.');
+      return;
+    }
+    const prompts={submit:'Quedará pendiente de una segunda persona.',approve:'Habilita la exportación de control. No calcula ni paga haberes.',reject:'Quedará rechazado con el motivo seleccionado.',cancel:'Quedará cancelado conservando su historial. No anula una liquidación.'};
+    const message = `${actionLabel(command)} · Lote ${batch.id.slice(0,8).toUpperCase()}\nPeríodo ${batch.periodMonth.slice(0,7)} · ${TYPE_LABELS[batch.payrollType]}\nLa decisión abarca las ${batch.rowCount} filas, incluidos los registros fuera del filtro.\n${prompts[command]}\n¿Continuar?`;
+    if (!window.confirm(message) || !stillCurrent()) return;
+    const attempt=transitionAttempt(batch,command);
+    pendingWrite={attempt:monthlyWriteAttempt({url:API_URL+'?version=2',command,payload:attempt.payload,key:attempt.idempotencyKey,scopeKey:scope}),uncertain:false,batchId:batch.id,version:batch.version,contractVersion:batch.contractVersion,requiresNominal:true};
+    ready = true;
+  } catch (error) {
+    if (!error.stale && epoch === requestEpoch) {
+      clearBatchDetail();
+      showMessage('error','No se pudo comprobar la decisión',errorMessage(error));
+    }
+  } finally { setBusy(false); }
+  if (ready) await sendPendingWrite();
 }
 
 async function sendPendingWrite() {
   const pending=pendingWrite;
   if (!pending || readBlocked || pending.attempt.scopeKey!==principalKey(bootstrapState?.principal) || document.body.dataset.busy==='true') return;
-  if (pending.contractVersion==='payroll-novelty-batch.v2' && !hasCapability('payroll.novelty.nominal.read')) return;
+  if ((pending.requiresNominal || pending.contractVersion==='payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read')) return;
   const required=['approve','reject'].includes(pending.attempt.command)?'payroll.novelty.approve':'payroll.novelty.prepare';
   if (!hasCapability(required)) return;
   const attempt=pending.attempt, wasUncertain=pending.uncertain;
@@ -1291,9 +1338,17 @@ function initialize() {
     }catch(error){showMessage('error','Revisá la selección de legajos',errorMessage(error));}
   });
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
+  savedReviewPanel = mountNoveltyReviewPanel(byId('savedReviewPanel'), {saved:true, issueLabel});
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearConsulted();
+    else if (readBlocked) showMessage('info','Volvé a consultar para continuar','La vista se retiró al salir de la página. Actualizá para verificar el acceso; un envío pendiente conserva su contenido y clave.');
+  });
   window.addEventListener('pagehide', () => {
-    requestEpoch++;lookupEpoch++;pendingWrite=null;monthlySubject=null;monthlyContractId=null;suspendedFields=null;
+    clearConsulted();
+    // A cached page can return with an uncertain request. Keep that exact attempt
+    // in memory until access is checked again; unloading still loses this memory.
+    requestEpoch++;lookupEpoch++;monthlySubject=null;monthlyContractId=null;suspendedFields=null;
     attendancePreparte?.clear();
     sheetEditor.clear();
     agileDraftRows = []; agileTemplate = null; clearAgileInput();
@@ -1348,14 +1403,15 @@ function initialize() {
   byId('logoutButton').addEventListener('click', logout);
   byId('closeDetail').addEventListener('click', () => {
     selectedBatchId = null;
-    byId('detailPanel').hidden = true;
+    clearBatchDetail();
   });
   byId('manualAmountEnabled').addEventListener('change',syncAmountEntry);
   byId('forced').addEventListener('change',syncAmountEntry);
   syncAmountEntry();
   updateMode();
-  if (!requestedMonthlyContract) consumePayrollNoveltyHandoff();
+  if (!requestedMonthlyContract && !hasRequestedBatch) consumePayrollNoveltyHandoff();
   loadBootstrap().then(()=> {
+    if (hasRequestedBatch) return openRequestedBatch();
     if (requestedMonthlyContract && CONTRACT_UUID.test(requestedMonthlyContract)) return chooseMonthlySubject(requestedMonthlyContract);
     if (requestedMonthlyContract) showMessage('error','El enlace no identifica un vínculo válido','Volvé a abrir la ficha de la persona y usá Preparar novedad mensual.');
   });
