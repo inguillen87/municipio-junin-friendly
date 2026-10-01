@@ -512,6 +512,10 @@ CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_range_v1(ctx jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE subject jsonb; state_value jsonb;
 BEGIN
+ -- Existing authorized consumers use sourceBindingId (native/family) or
+ -- certifiedBindingId (fixed/monthly). Never overwrite a verified binding.
+ IF ctx->>'sourceBindingId' IS NOT NULL AND ctx->>'certifiedBindingId' IS NOT NULL AND ctx->>'sourceBindingId'<>ctx->>'certifiedBindingId' THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_SCOPE_CHANGED'; END IF;
+ ctx:=ctx||jsonb_build_object('sourceBindingId',coalesce(ctx->>'sourceBindingId',ctx->>'certifiedBindingId'));
  subject:=public.native_employment_lifecycle_subject_v1(ctx,target); state_value:=public.native_employment_lifecycle_state_v1(ctx,target,subject);
  IF first_date IS NULL OR (last_date IS NOT NULL AND last_date<first_date) THEN RETURN false; END IF;
  IF continuous THEN RETURN EXISTS(SELECT 1 FROM jsonb_array_elements(state_value->'intervals') r WHERE (r->>'startDate')::date<=first_date AND (r->>'endDate' IS NULL OR (last_date IS NOT NULL AND (r->>'endDate')::date>=last_date))); END IF;
