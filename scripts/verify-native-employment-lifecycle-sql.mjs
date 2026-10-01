@@ -25,6 +25,7 @@ export function buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency
  lifecycle_body:=jsonb_build_object('contractId',target_id,'identityToken',lifecycle_subject->>'identityToken','scopeVersion',lifecycle_boot->>'scopeVersion','baseVersion',lifecycle_boot#>>'{employment,version}','movement','terminate','date','2026-10-01','reason','Baja sintética con respaldo y revisión','legalReference','Instrumento sintético QA 110');
  INSERT INTO employee_family_member VALUES(gen_random_uuid(),target_id,(lifecycle_canonical->>'person_id')::uuid,(maker->>'tenantId')::uuid,${q(ids.binding)}::uuid,(lifecycle_subject->>'registrationId')::uuid,'HIJO SINTÉTICO QA','2015-01-01',NULL,repeat('f',64),'{}',NULL,clock_timestamp(),lifecycle_subject->>'identityToken');
  lifecycle_family_before:=(SELECT jsonb_agg(to_jsonb(m)) FROM employee_family_member m);`);
+ exec('-- LIFECYCLE_ROSTER_QA_ANCHOR');
  ok("lifecycle_boot->>'version'='native-employment-lifecycle.v1' AND lifecycle_boot#>>'{employment,revision}'='0' AND jsonb_array_length(lifecycle_boot#>'{employment,intervals}')=1",'initial interval derives from original canonical hire without invented history');
  const functionScope='p.pronamespace='+q(schema)+"::regnamespace AND p.proname LIKE 'native_employment_lifecycle_%'";
  const runtimeNames=['bootstrap','proposal','propose','review','attempt','read','projection'].map(v=>q('native_employment_lifecycle_'+v+'_v1')).join(',');
