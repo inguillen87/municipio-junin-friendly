@@ -61,7 +61,8 @@ export function buildNativeEmploymentChangeQa({serverMajor,requireConcurrency=fa
  CREATE TRIGGER grh_effective_baseline_truncate BEFORE TRUNCATE ON employment_contract FOR EACH STATEMENT EXECUTE FUNCTION grh_effective_baseline_guard_v1();
  baseline_proof:=${baselineProof}; EXECUTE ${install};`);
  ok(baselineProof+'=baseline_proof','104 reapply retains exact096 function OID, body, ACL and both trigger records');
- for(const command of ['DELETE FROM employment_contract WHERE id='+q(ids.targetContract)+'::uuid','UPDATE employment_contract SET source_batch_id=gen_random_uuid() WHERE id='+q(ids.targetContract)+'::uuid','TRUNCATE employment_contract CASCADE'])
+ ok('qa_rejects('+q('UPDATE employment_contract SET source_batch_id=gen_random_uuid() WHERE id='+q(ids.targetContract)+'::uuid')+",'NATIVE_EMPLOYEE_ORIGIN_INVALID')",'native origin validation still rejects an unknown source before096');
+ for(const command of ['DELETE FROM employment_contract WHERE id='+q(ids.targetContract)+'::uuid','UPDATE employment_contract SET source_batch_id='+q(ids.foreignBatch)+'::uuid WHERE id='+q(ids.targetContract)+'::uuid','TRUNCATE employment_contract CASCADE'])
   ok('qa_rejects('+q(command)+",'GRH_EFFECTIVE_BASELINE_IMMUTABLE')",'active096 protects historical source during104: '+command.split(' ')[0]);
  ok("change_boot->>'version'='native-employment-change.v1' AND original_subject->>'origin'='MUNICONTROL' AND original_subject->'sourceCutoff'='null'::jsonb AND (SELECT count(*)=8 FROM jsonb_object_keys(original_subject))",'native subject is exact093 closed shape with no invented GRH cutoff');
  ok("before_employment->>'revision'='0' AND before_employment->'appliedAt'='null'::jsonb AND change_boot#>>'{permissions,canPropose}'='true'",'initial current framing has revision zero and no invented application timestamp');
