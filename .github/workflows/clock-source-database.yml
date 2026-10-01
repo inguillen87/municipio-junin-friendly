@@ -82,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           docker exec -e PGPASSWORD=clock_source_disposable_qa_only -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres -d clock_source_qa -v ON_ERROR_STOP=1 < verification/clock-source-integration.sql | tee verification/clock-source-integration-result.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: clock-source-postgres-${{ matrix.postgres }}
@@ -108,7 +108,7 @@ jobs:
           node scripts/verify-clock-workspace-browser.mjs
       - name: Existing collectors and senders remain compatible
         run: node --test local-agents/pm10/tests/*.test.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: clock-source-browser

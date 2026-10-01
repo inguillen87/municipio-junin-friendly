@@ -63,7 +63,7 @@ jobs:
           mkdir -p verification/grh-shape-refresh
           git archive --format=tar.gz HEAD > verification/grh-shape-refresh/tested-source.tar.gz
           git rev-parse HEAD > verification/grh-shape-refresh/commit.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: grh-shape-refresh-${{ github.run_id }}

@@ -68,7 +68,7 @@ jobs:
           }
       - name: Build and verify the municipal host package
         run: node scripts/build-municipal-clock-release.mjs --output verification/municipal-clock-release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: municipal-clock-release-${{ matrix.os }}
           path: verification/municipal-clock-release/
@@ -122,7 +122,7 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/zk40.sql | tee verification/zk40-result.log
           wait "$blocker"
           trap - EXIT
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: clock-reception-postgres-${{ matrix.postgres }}
@@ -149,7 +149,7 @@ jobs:
           node scripts/verify-continuous-workdays-browser.mjs
       - name: Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: clock-fleet-validation
           path: |
@@ -179,7 +179,7 @@ jobs:
           node scripts/verify-fleet-local-panel.mjs
       - name: Publication evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: clock-fleet-production-check
           path: |

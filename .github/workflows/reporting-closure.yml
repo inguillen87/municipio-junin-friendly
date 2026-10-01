@@ -32,7 +32,7 @@ jobs:
       - run: node scripts/verify-report-centre-browser.mjs
       - run: node scripts/verify-legal-read-safety-browser.mjs
       - run: node scripts/verify-legal-alert-center-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reporting-closure-qa
@@ -57,7 +57,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node scripts/verify-chat-release-production.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reporting-closure-production

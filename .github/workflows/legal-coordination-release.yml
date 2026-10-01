@@ -31,7 +31,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-coordination-ui.mjs
       - run: node scripts/verify-legal-followups-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: legal-coordination-${{ github.run_id }}

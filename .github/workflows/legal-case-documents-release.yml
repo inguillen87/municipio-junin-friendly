@@ -34,7 +34,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-legal-case-documents-browser.mjs
       - run: node scripts/verify-legal-expedients-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: legal-case-documents-${{ github.run_id }}
