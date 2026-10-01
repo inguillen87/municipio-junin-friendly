@@ -3696,7 +3696,7 @@
         const host = document.createElement('div');
         host.textContent = 'Consultando encuadre administrativo…';
         section.append(heading, host);
-        const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);host.parentElement.append(lifecycleSection);
+        const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);
         import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);loadEmployees(state.pagination.page);}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
         import('./assets/native-employment-change.js').then(function (module) {
           if (!host.isConnected || !els.employeeDialog.open) return;
@@ -3706,7 +3706,7 @@
             loadEmployees(state.pagination.page);
           }});
         }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
-        return section;
+        const fragment=document.createDocumentFragment();fragment.append(section,lifecycleSection);return fragment;
       }
 
       function renderEmployeeDetail(detail, destination = {}, sourceSeniority = null) {
