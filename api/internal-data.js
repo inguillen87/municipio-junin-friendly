@@ -3089,9 +3089,9 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
                CASE WHEN latest_status.administrative_status = 'inactive'
                     THEN 'inactivo_administrativo' ELSE 'sin_clasificar' END
              ) AS "controlState",
-             (contract.source_system='MUNICONTROL' AND ${lifecycleBound ? "lifecycle.data->>'status'='active'" : "contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date"}) OR COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
+             (contract.source_system='MUNICONTROL' AND ${lifecycleBound ? "lifecycle.data->>'status'='active'" : "contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date"}) OR (contract.source_system<>'MUNICONTROL' AND COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
                'active', 'suspended', 'leave_without_pay', 'pending_termination'
-             ), false) AS activo,
+             ), false)) AS activo,
              COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false)
                AS liquidable,
              COALESCE(
