@@ -127,20 +127,20 @@ export async function readSourcePreviewReply(response, signal) {
   const length = response.headers.get('content-length');
   if (length !== null && (!/^\d+$/.test(length) || Number(length) > SOURCE_PREVIEW_REPLY_BYTES)) throw Error('SOURCE_RESPONSE_INVALID');
   if (!response.body?.getReader) throw Error('SOURCE_RESPONSE_INVALID');
-  const reader = response.body.getReader(), parts = []; let size = 0;
+  const reader = response.body.getReader(), parts = []; let size = 0, bodyComplete = false;
   const onAbort = () => { void reader.cancel().catch(() => {}); };
   signal.addEventListener('abort', onAbort, { once: true });
   try {
     while (true) {
       signal.throwIfAborted(); const { done, value } = await reader.read();
-      if (done) break;
+      if (done) { bodyComplete = true; break; }
       if (!(value instanceof Uint8Array) || (size += value.byteLength) > SOURCE_PREVIEW_REPLY_BYTES) throw Error('SOURCE_RESPONSE_INVALID');
       parts.push(value);
     }
     signal.throwIfAborted(); const bytes = new Uint8Array(size); let offset = 0;
     for (const part of parts) { bytes.set(part, offset); offset += part.byteLength; }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } finally { signal.removeEventListener('abort', onAbort); await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  } finally { signal.removeEventListener('abort', onAbort); if (!bodyComplete) await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
 export function mountGrhSourcePreview(root = document, {
