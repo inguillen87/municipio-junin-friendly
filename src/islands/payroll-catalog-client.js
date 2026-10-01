@@ -4,8 +4,8 @@ export async function catalogRequest(query = {}, attempt = null, fetcher = globa
   try {
     const response = await fetcher('/api/internal-payroll-catalog' + (Object.keys(query).length ? '?' + new URLSearchParams(query) : ''), {
       method: attempt ? 'POST' : 'GET', credentials:'same-origin', cache:'no-store', redirect:'error', signal:controller.signal,
-      headers: attempt ? {'Content-Type':'application/json','Idempotency-Key':attempt.key} : {},
-      ...(attempt ? {body:JSON.stringify({command:attempt.command,payload:attempt.payload})} : {}),
+      headers: attempt ? {'Content-Type':'application/json','Idempotency-Key':attempt.key,...(attempt.scopeKey?{'X-MuniControl-Catalog-Scope':attempt.scopeKey}:{})} : {},
+      ...(attempt ? {body:attempt.body??JSON.stringify({command:attempt.command,payload:attempt.payload})} : {}),
     });
     let result; try { result = await response.json(); } catch { throw new ParameterRequestError('Respuesta no verificable. Consultá el intento antes de repetirlo.',503,'CATALOG_RESPONSE_INVALID'); }
     if (!response.ok || result?.ok !== true) throw new ParameterRequestError(typeof result?.error === 'string' ? result.error : 'No se completó la consulta.',response.status,result?.code || 'CATALOG_REQUEST_FAILED');

@@ -22,8 +22,8 @@ for (let attempt = 1; attempt <= 20; attempt++) {
     break;
   } catch (e) { if (attempt === 20) throw Error('The parameter workspace could not be certified in production', { cause: e }); console.log('Waiting for parameter publication: '+attempt); await sleep(15000); }
 }
-for (const path of ['/api/internal-payroll-parameters?resource=bootstrap','/api/internal-payroll-parameters?resource=list']) {
+for (const path of ['/api/internal-payroll-parameters?resource=bootstrap','/api/internal-payroll-parameters?resource=list','/api/internal-payroll-catalog?resource=catalog&period=2026-10&revision=']) {
   const res = await fetch(origin+path,{redirect:'error',signal:AbortSignal.timeout(15000)}); assert.equal(res.status,401); assert.match(res.headers.get('cache-control')||'',/no-store/);
 }
-const result = {ok:true,commit:process.env.GITHUB_SHA||null,origin,href,normalizedBundleSha256:createHash('sha256').update(normalized(readLocal(expectedHref.slice(1)))).digest('hex'),realAnonymousDenials:2,municipalSessionTested:false,writesSent:0};
+const result = {ok:true,commit:process.env.GITHUB_SHA||null,origin,href,normalizedBundleSha256:createHash('sha256').update(normalized(readLocal(expectedHref.slice(1)))).digest('hex'),realAnonymousDenials:3,municipalSessionTested:false,writesSent:0};
 fs.mkdirSync('verification',{recursive:true});fs.writeFileSync('verification/payroll-parameters-production.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));

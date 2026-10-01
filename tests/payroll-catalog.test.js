@@ -44,7 +44,7 @@ test('activation body cannot send arbitrary values or another tenant',async()=>{
 });
 test('session/principal mismatch is refused before SQL',async()=>{await assert.rejects(readPayrollCatalog({query:()=>assert.fail()},principal,{...session,email:'someone-else@example.invalid'},'catalog',{period:'2026-10',revision:''}),e=>e.status===401);});
 test('activation hash binds context, version, catalogue revision and immutable attempt',async()=>{
- const sent=[];const sql={query:async(q,args)=>{sent.push(args);const r=result();r.replayed=false;r.activation={id:uid(1),revision:1,proposalId:uid(2),proposalVersion:3,validFrom:'2026-10',activatedAt:'2026-09-16T12:00:00Z'};return[{result:r}];}};
+ const sent=[];const sql={query:async(q,args)=>{sent.push(args);const r=result(),revision=args[3]+1;r.currentRevision=revision;r.catalog.revision=revision;r.catalog.rows[0].activationRevision=revision;r.replayed=false;r.activation={id:uid(1),revision,proposalId:uid(2),proposalVersion:3,validFrom:'2026-10',activatedAt:'2026-09-16T12:00:00Z'};return[{result:r}];}};
  await writePayrollCatalog(sql,principal,session,'activate',mutation,uid(8));
  await writePayrollCatalog(sql,principal,session,'activate',mutation,uid(8));
  await writePayrollCatalog(sql,principal,session,'activate',{...mutation,catalogRevision:1},uid(8));

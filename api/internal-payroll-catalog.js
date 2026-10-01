@@ -1,6 +1,8 @@
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 import { PARAMETER_MAX_BODY_BYTES, PayrollParameterError, readPayrollCatalog, writePayrollCatalog } from '../lib/internal-payroll-catalog.js';
+import {parameterContext,readPayrollParameters} from '../lib/internal-payroll-parameters.js';
+import {catalogScope} from '../lib/payroll-catalog-review.js';
 const error = (code, status, message) => { throw new PayrollParameterError(code, status, message); };
 function header(req, name) { const v = req.headers?.get ? req.headers.get(name) : req.headers?.[name]; if (Array.isArray(v)) { if (v.length !== 1) error('PAYROLL_PARAMETER_HEADER_INVALID', 400, 'Encabezado ambiguo.'); return String(v[0]); } return String(v ?? ''); }
 function headers(res) { for (const [k, v] of Object.entries({ 'Cache-Control': 'private, no-store, max-age=0', Pragma: 'no-cache', Vary: 'Cookie, Origin', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'" })) res.setHeader(k, v); }
@@ -36,6 +38,7 @@ function query(req) {
 export function createInternalPayrollCatalogHandler(dependencies = {}) {
   const env = dependencies.env ?? process.env, authorize = dependencies.requireAccess ?? requireCompatibleInternalAccess, getSql = dependencies.getSql ?? getActionCenterSql;
   const read = dependencies.read ?? readPayrollCatalog, write = dependencies.write ?? writePayrollCatalog;
+  const readParameters=dependencies.readParameters??readPayrollParameters;
   return async (req, res) => {
     headers(res);
     try {
@@ -46,12 +49,22 @@ export function createInternalPayrollCatalogHandler(dependencies = {}) {
       if (!access) return;
       if (access.mode !== 'managed' || access.principal?.tenant?.source !== 'membership') error('PAYROLL_PARAMETER_MEMBERSHIP_REQUIRED', 403, 'Se requiere una membresía municipal activa.');
       const session = actionMutationSession(access, env);
+      const pinnedScope=header(req,'x-municontrol-catalog-scope');
+      if(pinnedScope){
+        const current=parameterContext(access.principal,session);
+        const prefix=[current.tenantId,current.membershipId].map(value=>value.toLowerCase()).join('|')+'|';
+        if(!pinnedScope.startsWith(prefix)||!/^[a-f0-9-]{36}\|[a-f0-9-]{36}\|[a-f0-9-]{36}$/.test(pinnedScope))error('PAYROLL_CATALOG_SCOPE_CHANGED',409,'Este intento corresponde a otro municipio o membresía. No se enviaron datos.');
+      }
       // Authenticate first; neither the connection nor the request body is read earlier.
       const input = method === 'POST' ? await body(req) : query(req);
       if (method === 'POST' && (!['activate'].includes(input.command) || Object.keys(req.query || {}).length)) error('PAYROLL_PARAMETER_COMMAND_INVALID', 400, 'Comando no admitido.');
       const attempt = method === 'POST' ? header(req, 'idempotency-key') : null;
       if (method === 'POST' && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attempt)) error('PAYROLL_PARAMETER_IDEMPOTENCY_INVALID', 428, 'Falta una clave de intento válida.');
       const sql = await getSql(env);
+      if(pinnedScope){
+        const bootstrap=await readParameters(sql,access.principal,session,'bootstrap');
+        if(catalogScope(bootstrap.principal)!==pinnedScope)error('PAYROLL_CATALOG_SCOPE_CHANGED',409,'Cambió la fuente certificada del intento. No se ejecutó la activación.');
+      }
       const result = method === 'GET' ? await read(sql, access.principal, session, input.resource, input.input) : await write(sql, access.principal, session, input.command, input.payload, attempt);
       if (result?.replayed === true) res.setHeader('Idempotency-Replayed', 'true');
       return res.status(method === 'POST' && result.replayed !== true ? 201 : 200).json({ ok: true, ...result });

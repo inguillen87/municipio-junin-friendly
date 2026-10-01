@@ -20,6 +20,12 @@ on:
       - 'scripts/build-payroll-parameters.mjs'
       - 'scripts/verify-payroll-parameters-*.mjs'
       - 'tests/payroll-parameters.test.js'
+      - 'api/internal-payroll-catalog.js'
+      - 'lib/internal-payroll-catalog.js'
+      - 'lib/payroll-catalog-*.js'
+      - 'tests/payroll-catalog.test.js'
+      - 'tests/catalog-activation-confirmation.test.js'
+      - 'scripts/verify-payroll-catalog-activation-browser.mjs'
       - 'licencias-control.html'
       - 'assets/app-routes.js'
       - 'scripts/build-friendly.mjs'
@@ -55,6 +61,12 @@ on:
       - 'scripts/build-payroll-parameters.mjs'
       - 'scripts/verify-payroll-parameters-*.mjs'
       - 'tests/payroll-parameters.test.js'
+      - 'api/internal-payroll-catalog.js'
+      - 'lib/internal-payroll-catalog.js'
+      - 'lib/payroll-catalog-*.js'
+      - 'tests/payroll-catalog.test.js'
+      - 'tests/catalog-activation-confirmation.test.js'
+      - 'scripts/verify-payroll-catalog-activation-browser.mjs'
       - 'licencias-control.html'
       - 'assets/app-routes.js'
       - 'scripts/build-friendly.mjs'
@@ -102,6 +114,7 @@ jobs:
           node scripts/verify-noelia-report-live-browser.mjs --local
           node scripts/verify-leave-workspace-browser.mjs
           node scripts/verify-payroll-parameters-browser.mjs
+          node scripts/verify-payroll-catalog-activation-browser.mjs
       - name: Synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -118,6 +131,7 @@ jobs:
             verification/report-centre-browser-error.txt
             verification/leave-workspace-local*
             verification/parameters-local/**
+            verification/catalog-activation-local/**
             verification/budget-cotejo/**
           retention-days: 5
       # Reuse this checkout, node_modules, build and Chromium. No second runner.
@@ -132,6 +146,7 @@ jobs:
           node scripts/verify-leave-workspace-browser.mjs --published
           node scripts/verify-payroll-parameters-production.mjs
           node scripts/verify-payroll-parameters-browser.mjs --published
+          node scripts/verify-payroll-catalog-activation-browser.mjs --published
           node scripts/verify-budget-cotejo-publication.mjs
       - name: Publication evidence
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -146,4 +161,5 @@ jobs:
             verification/leave-workspace-live*
             verification/payroll-parameters-production.json
             verification/parameters-published/**
+            verification/catalog-activation-published/**
           retention-days: 14
