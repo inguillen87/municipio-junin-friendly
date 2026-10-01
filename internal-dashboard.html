@@ -1153,6 +1153,7 @@
 <link rel="stylesheet" href="assets/native-employment-catalog.css">
 <script type="module" src="assets/native-employment-catalog.js"></script>
 <link rel="stylesheet" href="assets/native-employment-change.css">
+<link rel="stylesheet" href="assets/native-employment-lifecycle.css">
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
 <link rel="stylesheet" href="assets/report-centre.css">
@@ -3695,6 +3696,8 @@
         const host = document.createElement('div');
         host.textContent = 'Consultando encuadre administrativo…';
         section.append(heading, host);
+        const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);host.parentElement.append(lifecycleSection);
+        import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);loadEmployees(state.pagination.page);}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
         import('./assets/native-employment-change.js').then(function (module) {
           if (!host.isConnected || !els.employeeDialog.open) return;
           module.mountNativeEmploymentChange(host, { contractId: employee.contractId, onApplied: function () {

@@ -4,6 +4,8 @@ Base contrastada el 01/10 en esta conversación: master y producción en `d8efa0
 
 ## Feedback vivo del01/10 y secuencia inmediata
 
+P1 consolidada: #78 quedó en master/producción `f433277c4fb3f43b8a0e0f596dad23f5909ba1ba`; se contrastaron los recursos publicados y los ocho controles de master terminaron aprobados. El siguiente incremento es [baja/reingreso con historial propio](BAJA_REINGRESO_PROPIO_20261001.md), conservando el mismo contrato según el criterio confirmado por Marcelo. Está en preparación y verificación; SQL110 no está instalada ni la función publicada. Licencias propias siguen como cierre posterior. No se reabren los borradores rechazados.
+
 El [registro de las39 páginas](NOELIA_39_PAGINAS_20261001.md) transforma cada página de los originales en función, estado y aceptación. Cinco recorridos GRH se contrastaron con Chrome/conexión/sesión existentes en consulta; auxiliar88 actual y referencia del PDF presentan una discrepancia que necesita homologación. No se certifican sesiones GRH Web/GAT/GAF o dispositivos no inspeccionados.
 
 El [feedback de Noelia sobre95 y anular/liquidar](NOELIA_FEEDBACK_20261001.md) prioriza un circuito completo: cargar → revisar/aprobar → calcular por legajo/convenio/repartición/todos y tipo → confirmar/cerrar/anular con versiones → recibo/planilla/informe. Se corrige primero la guía de validación/creación y el error anterior persistente; un caso sintético95 aprobado no certifica el contrato real ni su fórmula. Después se homologa la regla municipal y se cierra cálculo propio; no se ejecuta el evaluador rechazado. Los controles administrativos con `payrollCalculated:false` mantienen ese límite visible.

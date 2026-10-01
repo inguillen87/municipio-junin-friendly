@@ -6,6 +6,8 @@ import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPatter
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import {internalNativeRoster} from '../lib/internal-native-roster.js';
+import {employeeContext} from '../lib/internal-native-employees.js';
+import {employmentLifecycleOperation} from '../lib/internal-employment-lifecycle.js';
 import {NativeRosterError} from '../assets/native-roster-model.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
@@ -3055,7 +3057,7 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
@@ -3078,7 +3080,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
              contract.status AS "contractStatus",
              contract.source_system AS "sourceSystem", contract.source_batch_id AS "sourceBatchId",
              source_batch.source_cutoff AS "sourceCutoff",
-             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END
+             CASE WHEN contract.status IN ('inactive','state_error') THEN contract.status WHEN contract.source_system='MUNICONTROL' THEN ${lifecycleBound ? "lifecycle.data->>'status'" : "CASE WHEN contract.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date THEN 'pending_start' ELSE contract.status END"}
                   ELSE latest_status.administrative_status END AS "administrativeStatus",
              latest_status.payroll_status AS "payrollStatus",
              latest_status.snapshot_date AS "statusSnapshotDate",
@@ -3087,7 +3089,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
                CASE WHEN latest_status.administrative_status = 'inactive'
                     THEN 'inactivo_administrativo' ELSE 'sin_clasificar' END
              ) AS "controlState",
-             (contract.source_system='MUNICONTROL' AND contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date) OR COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
+             (contract.source_system='MUNICONTROL' AND ${lifecycleBound ? "lifecycle.data->>'status'='active'" : "contract.status='active' AND contract.start_date<=(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Mendoza')::date"}) OR COALESCE(contract.status = 'active' AND latest_status.administrative_status IN (
                'active', 'suspended', 'leave_without_pay', 'pending_termination'
              ), false) AS activo,
              COALESCE(latest_status.payroll_status IN ('liquidated', 'preliquidated'), false)
@@ -3121,6 +3123,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false) {
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
+      ${lifecycleBound ? "LEFT JOIN LATERAL (SELECT public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id) AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN directory_employees employee
         ON employee.company_id = contract.legacy_company_id
@@ -3192,7 +3195,7 @@ export async function employees(sql, req, binding = null) {
 
   const conditions = [];
   const nativeBound = Boolean(binding?.tenantId);
-  const sourceValues = binding ? [binding.database, binding.companyId, ...(nativeBound ? [binding.tenantId] : [])] : [];
+  const sourceValues = binding ? [binding.database, binding.companyId, ...(nativeBound ? [binding.tenantId] : []), ...(binding.lifecycleContext ? [JSON.stringify(binding.lifecycleContext)] : [])] : [];
   const values = [...sourceValues];
   const parameter = (value) => {
     values.push(value);
@@ -3225,7 +3228,7 @@ export async function employees(sql, req, binding = null) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound));
+  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext)));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3927,11 +3930,16 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond( result.status, result.payload);
       }
       if (resource === 'employees') {
-        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id} : binding; })());
+        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })());
         return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
         const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null);
+        if(result.status===200&&result.payload.data?.recordOrigin==='MUNICONTROL'){
+          const lifecycle=await employmentLifecycleOperation(sql,access.principal,getTenantSession(access,env),'bootstrap',{contractId:result.payload.data.contractId});
+          result.payload.data.administrativeStatus=lifecycle.employment.status;
+          result.payload.data.activo=lifecycle.employment.status==='active';
+        }
         return await respond( result.status, result.payload);
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });

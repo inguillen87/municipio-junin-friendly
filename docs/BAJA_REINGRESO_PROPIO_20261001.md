@@ -1,0 +1,19 @@
+# Baja y reingreso del legajo propio
+
+Criterio confirmado por Marcelo en esta conversación: conservar el contrato, el legajo y el historial de períodos. Una baja cierra el último período abierto, con una fecha de vigencia inclusiva. Un reingreso agrega un período posterior; nunca borra la baja ni crea otra identidad.
+
+La propuesta requiere fecha, motivo y documento de respaldo. Otra persona habilitada debe revisar todos los períodos antes de aprobar o rechazar. La misma persona no puede revisar a través de otra membresía. El contenido y la clave de un envío incierto se conservan en memoria; recuperarlo no genera otro movimiento.
+
+SQL110 registra propuestas y decisiones inmutables en dos tablas privadas. Mantiene exactamente el alta original, las columnas canónicas y la identidad093. El historial completo contiene hasta51 períodos y100 propuestas por contrato; alcanzar el límite rechaza otro movimiento, sin recortar antecedentes. La lista de propuestas muestra20 recientes y declara si existen anteriores; los períodos laborales se muestran completos.
+
+La vigencia usa fechas civiles municipales. Un reingreso futuro puede consultarse como ingreso futuro, y pasa a activo en su fecha sin un proceso programado. La proyección usa el período actualmente vigente; en una brecha muestra el próximo ingreso y, sin períodos futuros, el último cerrado. La fecha original de alta permanece en la ficha.
+
+El padrón, el directorio y la ficha consultan la vigencia aprobada. Una aprobación verificada retira cualquier padrón preparado para descarga. Las novedades mensuales y los meses de ajuste deben intersectar un período laboral real. Una nueva novedad fija debe quedar dentro de un solo período, sin cruzar una baja/reingreso. La exportación de control de fijas rechaza expresamente una novedad propia sin vigencia laboral en el mes solicitado; no omite filas silenciosamente. No anula ni cambia novedades ya aprobadas. Hijos y certificados conservan su vínculo e historial; el lector escolar consulta la vigencia administrativa actual.
+
+La huella del movimiento conserva identidad y períodos. La aprobación comprueba también la copia canónica completa: una rectificación de encuadre posterior a la preparación impide aprobar esa propuesta sobre otro estado. Los recibos de decisiones ya tomadas siguen recuperables aunque luego cambie el encuadre.
+
+No calcula antigüedad, prorrateo, haberes, licencias ni beneficios. No modifica liquidaciones, pagos, cuentas o permisos. No completa por sí sola la autonomía integral, los TXT masivos, OSEP, relojes, recibos institucionales ni el presupuesto anual.
+
+Estado: candidato local. SQL110 no instalada y función no publicada. La instalación debe ejecutarse completa en una sola transacción, con conservación de datos y metadatos comprobada, y requiere autorización específica posterior a las pruebas. Una repetición de instalación se rechaza antes de modificar objetos; no existe un reapply autorizado. La autorización previa de SQL104 no se extiende a SQL110.
+
+Verificaciones: pruebas de modelo/API/revisión, navegador de la ficha existente en1440/390/320 con handler real y SQL sintético, y generador de pruebas PG17/18 aislado. El generador preserva controles104 y prueba consumidores reales093/101/102 sobre fixtures mínimos; no declara ejecución completa del circuito escolar o de liquidación. Los resultados efectivos y los pendientes están en verification/CODEX_FIRST_RESULT.md, evidencia local excluida de Git y de Vercel.
