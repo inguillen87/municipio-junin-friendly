@@ -5,6 +5,8 @@ import { internalAbsencePerson } from '../lib/internal-absence-person.js';
 import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPattern } from '../lib/absence-event-context.js';
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
+import {internalNativeRoster} from '../lib/internal-native-roster.js';
+import {NativeRosterError} from '../assets/native-roster-model.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
 import { internalPayrollDocumentBatch } from '../lib/internal-payroll-document-batch.js';
@@ -3838,6 +3840,10 @@ export function createInternalDataHandler(dependencies = {}) {
       if (!requiredCapabilities) {
         return send(res, 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
       }
+      if(resource==='nativeroster'){
+        const result=await internalNativeRoster(await getSql(),req,access.principal,getTenantSession(access,env));
+        return send(res,result.status,result.payload);
+      }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
         return send(res, result.status, result.payload);
@@ -3930,6 +3936,7 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
+      if(error instanceof NativeRosterError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
       const failure = payrollReadFailure(error);
       const requestId = randomUUID();
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
