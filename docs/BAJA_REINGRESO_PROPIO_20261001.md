@@ -4,7 +4,7 @@ Criterio confirmado por Marcelo en esta conversación: conservar el contrato, el
 
 La propuesta requiere fecha, motivo y documento de respaldo. Otra persona habilitada debe revisar todos los períodos antes de aprobar o rechazar. La misma persona no puede revisar a través de otra membresía. El contenido y la clave de un envío incierto se conservan en memoria; recuperarlo no genera otro movimiento.
 
-SQL110 registra propuestas y decisiones inmutables en dos tablas privadas. Mantiene exactamente el alta original, las columnas canónicas y la identidad 093. El historial completo contiene hasta 51 períodos y 100 propuestas por contrato; alcanzar el límite rechaza otro movimiento, sin recortar antecedentes. La lista de propuestas muestra 20 recientes y declara si existen anteriores; los períodos laborales se muestran completos.
+SQL110 registra propuestas y decisiones inmutables en dos tablas privadas. Mantiene exactamente el alta original, las columnas canónicas y la identidad 093. El historial completo contiene hasta 51 períodos y 100 propuestas por contrato, con un máximo de 1000 propuestas por municipio/vínculo verificado; alcanzar un límite rechaza otro movimiento, sin recortar antecedentes. La lista de propuestas muestra 20 recientes y declara si existen anteriores; los períodos laborales se muestran completos. La capacidad disponible se comprueba antes de guardar.
 
 La vigencia usa fechas civiles municipales. Un reingreso futuro puede consultarse como ingreso futuro, y pasa a activo en su fecha sin un proceso programado. La proyección usa el período actualmente vigente; en una brecha muestra el próximo ingreso y, sin períodos futuros, el último cerrado. La fecha original de alta permanece en la ficha.
 
