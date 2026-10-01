@@ -543,7 +543,7 @@ BEGIN
  SELECT * INTO STRICT c FROM public.employment_contract WHERE id=(s->>'contractId')::uuid;
  adjustment:=(r->>'adjustmentMonth')::date;
  -- Month membership only; this does not assert eligibility, accrual or proration.
- IF NOT public.native_employment_lifecycle_range_v1(ctx,c.id,p_period,(p_period+interval '1 month-1 day')::date) OR (adjustment IS NOT NULL AND NOT public.native_employment_lifecycle_range_v1(ctx,c.id,adjustment,(adjustment+interval '1 month-1 day')::date)) THEN RAISE EXCEPTION 'PAYROLL_NOVELTY_PERIOD_OUTSIDE_EMPLOYMENT'; END IF;
+ IF NOT public.native_employment_lifecycle_range_v1(ctx,c.id,p_period,(p_period+interval '1 month - 1 day')::date) OR (adjustment IS NOT NULL AND NOT public.native_employment_lifecycle_range_v1(ctx,c.id,adjustment,(adjustment+interval '1 month - 1 day')::date)) THEN RAISE EXCEPTION 'PAYROLL_NOVELTY_PERIOD_OUTSIDE_EMPLOYMENT'; END IF;
  RETURN s;
 END $$;
 -- Only native declarations. GRH remains on the exact 064/099 reader and token.
