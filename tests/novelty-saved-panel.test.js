@@ -7,7 +7,7 @@ import * as review from '../assets/payroll-novelty-review.js';
 import {savedNoveltyBatch} from '../assets/payroll-native-monthly-model.js';
 import {batch} from './fixtures/novelty-saved-review-synthetic.js';
 
-function panels(){
+function panels(issueLabel=issue=>issue.code){
   const created=[];
   class Element {
     constructor(tag){this.tagName=tag;this.children=[];this.parent=null;this.dataset={};this.attributes={};this.listeners={};this.hidden=false;this.disabled=false;this._value=undefined;this._text='';this.id='';this.className='';created.push(this);}
@@ -41,7 +41,7 @@ function panels(){
     URL:{createObjectURL(){throw Error('No saved review download is authorized here');}},setTimeout};
   vm.createContext(context);vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/export function /g,'function '),context);
   const savedHost=makeHost(true),draftHost=makeHost(false);
-  const saved=context.mountNoveltyReviewPanel(savedHost,{saved:true,issueLabel:issue=>issue.code});
+  const saved=context.mountNoveltyReviewPanel(savedHost,{saved:true,issueLabel});
   const draft=context.mountNoveltyReviewPanel(draftHost);
   return{saved,draft,savedHost,draftHost,root,created,q:id=>root.querySelector('#'+id)};
 }
@@ -79,6 +79,18 @@ test('row issues are visible and searchable by severity without treating empty r
   h.q('savedReviewSearch').value='notfound';h.q('savedReviewSearch').emit('input');
   assert.match(h.q('savedReviewRange').textContent,/Sin coincidencias. El lote sigue completo/);
   assert.match(h.q('savedReviewValuation').textContent,/60 filas/);
+});
+
+test('saved review renders the actual homologation guidance without exposing issue details',()=>{
+  const source=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');
+  const context={};vm.createContext(context);
+  vm.runInContext(source.slice(source.indexOf('const ISSUE_LABELS'),source.indexOf('let savedReviewPanel')),context);
+  const h=panels(context.issueLabel),b=batch();
+  b.rows[0].issues=[{code:'legacy_payroll_type_unclassified',blocking:true,severity:'error',details:{basis:'published_grh_same_period',reason:'versioned_payroll_type_mapping_required',privateEvidence:'NEVER_RENDER'}}];
+  h.saved.setBatch(b);
+  assert.match(h.q('detailRows').textContent,/Bloqueante: Existe un movimiento GRH coincidente/);
+  assert.match(h.q('detailRows').textContent,/Pedí clasificar ese código antes de enviar la novedad/);
+  assert.doesNotMatch(h.q('detailRows').textContent,/NEVER_RENDER|versioned_payroll_type_mapping_required/);
 });
 
 test('clear retires saved rows, summaries, search and concepts; no later filter restores them',()=>{

@@ -29,6 +29,9 @@ const applier = await readFile(new URL(
 const workbench = await readFile(new URL(
   '../assets/payroll-novelty-workbench.js', import.meta.url,
 ), 'utf8');
+const reviewPanel = await readFile(new URL(
+  '../assets/payroll-novelty-review-panel.js', import.meta.url,
+), 'utf8');
 
 function evidence(overrides = {}) {
   const ownerName = 'schema_owner';
@@ -298,8 +301,10 @@ test('los tipos canónicos del contrato coinciden con el circuito de novedades',
     /legacy_payroll_type_unclassified: 'Tipo GRH pendiente de homologación'/);
   assert.match(workbench,
     /Pedí clasificar ese código antes de enviar la novedad/);
-  assert.match(workbench, /issues\.map\(issueLabel\)/);
+  assert.match(workbench, /mountNoveltyReviewPanel\(byId\('savedReviewPanel'\), \{saved:true, issueLabel\}\)/);
+  assert.match(reviewPanel, /row\.issues\.map\(issue => .*issueLabel\(issue\)/);
   assert.doesNotMatch(workbench, /JSON\.stringify\(issue\.details\)/);
+  assert.doesNotMatch(reviewPanel, /JSON\.stringify\(issue\.details\)/);
 });
 
 test('package y despliegue incluyen el aplicador y SQL 032', async () => {
