@@ -92,6 +92,8 @@
     .field label, .field-label { color: var(--navy); font-size: 12px; font-weight: 780; }
     .field input, .field select, .field textarea { width: 100%; min-height: 44px; padding: 9px 11px; color: var(--ink); background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; }
     .field textarea { min-height: 94px; resize: vertical; }
+    #forced { width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; flex: 0 0 20px; }
+    .field input[aria-invalid="true"] { border-color: #b42318; }
     .field small { color: var(--muted); }
     .checkbox { min-height: 44px; display: flex; gap: 9px; align-items: center; padding: 9px 11px; background: var(--amber-soft); border: 1px solid #e7ca87; border-radius: 4px; }
     .checkbox input { width: 18px; min-height: 18px; margin: 0; accent-color: var(--amber); }
@@ -311,7 +313,9 @@
               <div class="bulk-format">legajo;concepto;centro_costo;mes_ajuste;unidades;importe_ars;movimiento;instrumento_legal;observacion;forzado</div></div>
             </div>
 
-            <div class="form-actions"><button class="button" id="preflightButton" type="button">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" disabled>Crear lote trazable</button></div>
+            <div class="form-actions"><button class="button" id="preflightButton" type="button" aria-describedby="prepareHelp">Validar y previsualizar</button><button class="button primary" id="prepareButton" type="button" aria-describedby="prepareHelp" disabled>Crear lote trazable</button></div>
+            <p id="prepareHelp" class="hint" role="status" aria-live="polite">Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Crear lote trazable.</p>
+            <p class="hint">Este lote guarda novedades para revisión. Anular o liquidar por legajo y generar su recibo o planilla nuevos todavía no está disponible en este circuito.</p>
 
             <section id="noveltyIssuesPanel" hidden></section>
             <div class="preview" id="previewPanel" hidden>
