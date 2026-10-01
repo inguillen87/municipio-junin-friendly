@@ -24,7 +24,7 @@ PR #71 integrada y producción contrastada en `c809790769de9dab97fd25c3ad883d4a5
 
 ### Corte por responsable y sprints concretos del 01/10
 
-Los originales de los diez módulos, audios y ejemplos fueron identificados y contrastados en los incrementos anteriores. El 01/10 se volvió a leer el texto de las 39 páginas de los nueve PDF (1/2 comparten documento) y se inspeccionaron capturas relevantes de cada documento. La matriz enlaza sus páginas y criterios. No se inició una sesión GRH/GAT/GAF nueva en este incremento ni se certifican como actuales estados históricos de dispositivos. Los procedimientos anteriores son referencias; el resultado debe funcionar con un empleado inexistente en GRH. Las capturas y los originales permanecen privados, fuera de Git/CI.
+Los originales de los diez módulos, audios y ejemplos fueron identificados y contrastados en los incrementos anteriores. El 01/10 se volvió a leer el texto de las 39 páginas de los nueve PDF (1/2 comparten documento) y se inspeccionaron sus capturas relevantes, incluidas las páginas sin texto. El [registro de las 39 páginas](NOELIA_39_PAGINAS_20261001.md) detalla función, estado y aceptación de cada página. Después se compararon cinco recorridos de GRH con Chrome, conexión y sesión existentes, únicamente en consulta; se detectó una discrepancia entre el auxiliar 88 actual y la referencia del PDF. No se certifican como actuales estados históricos de dispositivos ni sesiones GRH Web/GAT/GAF no inspeccionadas. Los procedimientos anteriores son referencias; el resultado debe funcionar con un empleado inexistente en GRH. Las capturas y los originales permanecen privados, fuera de Git/CI.
 
 | Responsable / circuito | Entrega conservada | Siguiente cierre y prueba de aceptación |
 |---|---|---|

@@ -214,6 +214,7 @@ export function mountGrhSourcePreview(root = document, {
     const signal = job.controller.signal, current = () => active === job && revision === job.revision && !disposed && !signal.aborted;
     const interrupted = new Promise((_, reject) => signal.addEventListener('abort', () => reject(Error(job.timedOut ? 'SOURCE_TIMEOUT' : 'SOURCE_CANCELLED')), { once: true }));
     job.timer = setTimeout(() => { job.timedOut = true; job.controller.abort(); }, timeoutMs);
+    let analysisComplete = false;
     try {
       const data = await Promise.race([(async () => {
         const bytes = await readFile(file); if (!current()) throw Error('SOURCE_CANCELLED');
@@ -228,6 +229,7 @@ export function mountGrhSourcePreview(root = document, {
         const value = canonicalAggregate(payload, { definitionKey, byteLength: file.size });
         if (!value) throw Error('SOURCE_RESPONSE_INVALID'); return value;
       })(), interrupted]);
+      analysisComplete = true;
       if (!current() || fileInput.files?.[0] !== file || definition.value !== definitionKey) return;
       render(data); fileInput.value = ''; fileState.textContent = 'El archivo fue liberado del formulario. El resultado agregado corresponde únicamente al análisis terminado.';
       submit.textContent = 'Analizar sin importar';
@@ -246,7 +248,7 @@ export function mountGrhSourcePreview(root = document, {
       }
     } finally {
       clearTimeout(job.timer);
-      if (active === job) { active = null; job.controller.abort(); renderState(); }
+      if (active === job) { active = null; if (!analysisComplete) job.controller.abort(); renderState(); }
     }
   });
   on(owner, 'municontrol:capabilities-ready', () => { if (active || fileInput.files?.length || !resultHost.hidden) clearSelection('Cambió el contexto de acceso. Se retiraron el archivo y el resultado; una nueva revisión volverá a comprobar los permisos.'); });
