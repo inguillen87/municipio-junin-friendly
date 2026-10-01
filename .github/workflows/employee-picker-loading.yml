@@ -39,7 +39,7 @@ jobs:
         run: node scripts/verify-employee-picker-loading.mjs
       - name: Existing individual, agile and sheet workflows
         run: node scripts/verify-employee-picker-058.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: employee-picker-loading-${{ github.run_id }}

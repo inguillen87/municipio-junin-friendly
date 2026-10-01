@@ -111,7 +111,7 @@ jobs:
       - run: node scripts/verify-native-roster-browser.mjs
       - name: Existing monthly novelty regression
         run: node scripts/verify-novelty-sheet-057.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: fixed-novelties-browser
@@ -205,7 +205,7 @@ jobs:
       - run: node scripts/verify-native-employee-browser.mjs --published
       - run: node scripts/verify-native-roster-browser.mjs --published
       - run: node scripts/verify-grh-source-preview-browser.mjs --published
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: fixed-novelties-production

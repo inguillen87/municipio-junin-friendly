@@ -47,7 +47,7 @@ jobs:
       - run: node scripts/verify-novelty-review-056.mjs
       - run: node scripts/verify-attendance-preparte-browser.mjs
       - run: node scripts/verify-codex-review-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: complete-review-synthetic-evidence

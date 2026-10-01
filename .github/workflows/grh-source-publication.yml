@@ -49,7 +49,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-summary-055.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: operational-payroll-read-browser
@@ -138,7 +138,7 @@ jobs:
           set -euo pipefail
           npm install --prefix "$RUNNER_TEMP/successor-pg" pg@8.16.3 --ignore-scripts --no-audit --no-fund
           SUCCESSOR_QA_PG_DRIVER="$RUNNER_TEMP/successor-pg/node_modules/pg/lib/index.js" SUCCESSOR_QA_PORT=5432 SUCCESSOR_QA_USER=postgres node scripts/verify-grh-successor-loader-postgres.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: grh-publication-sql-pg${{ matrix.postgres }}

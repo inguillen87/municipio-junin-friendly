@@ -50,7 +50,7 @@ jobs:
         run: |
           bash -n local-agents/pm10/install/install-linux.sh
           echo 'Installer parsed, not executed' > verification/installer-syntax.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pm10-route-${{ matrix.os }}
@@ -95,7 +95,7 @@ jobs:
           fi
           git rev-parse HEAD > verification/validated-commit.txt
           git archive --format=tar.gz -o verification/collector-source.tar.gz HEAD local-agents/pm10 docs/SPRINT_059_1_1_RUTA_MUNICIPAL.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pm10-route-application

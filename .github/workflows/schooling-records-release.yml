@@ -49,7 +49,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-family-schooling-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: schooling-records-browser
@@ -116,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/schooling-source.sql | tee verification/schooling-source-sql.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: schooling-records-sql-pg${{ matrix.postgres }}
@@ -140,7 +140,7 @@ jobs:
       - run: node scripts/verify-family-schooling-browser.mjs
         env:
           SCHOOLING_PUBLISHED_ORIGIN: https://municipio-junin-friendly.vercel.app
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: schooling-records-production

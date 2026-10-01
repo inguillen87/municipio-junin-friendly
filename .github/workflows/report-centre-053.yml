@@ -64,7 +64,7 @@ jobs:
         run: |
           git archive --format=tar.gz -o verification/report-centre-source.tar.gz HEAD
           git diff --cached > verification/pending-source.patch
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: report-centre-053-acceptance

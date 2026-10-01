@@ -62,7 +62,7 @@ jobs:
           node scripts/verify-source-report-filters-browser.mjs --published
           node scripts/verify-employee-source-seniority-browser.mjs --published
           node scripts/verify-noelia-feedback-publication.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: noelia-module8-${{ github.run_id }}

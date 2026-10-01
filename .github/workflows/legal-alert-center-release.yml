@@ -44,7 +44,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-legal-alert-center-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: legal-alert-center-${{ github.run_id }}
@@ -80,7 +80,7 @@ jobs:
       - run: mkdir -p verification
       - run: node scripts/verify-legal-alert-center-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/legal-alert-center.sql
       - run: docker exec -e PGPASSWORD="$PGPASSWORD" -i ${{ job.services.postgres.id }} psql -h 127.0.0.1 -U postgres --dbname=legal_alert_center_qa -v ON_ERROR_STOP=1 < verification/legal-alert-center.sql
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: legal-alert-center-sql-pg${{ matrix.postgres }}

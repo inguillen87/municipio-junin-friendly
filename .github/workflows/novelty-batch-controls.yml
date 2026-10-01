@@ -63,7 +63,7 @@ jobs:
         run: |
           if [ "$NOVELTY_LIVE_ASSETS" = "1" ]; then node scripts/verify-novelty-production-056.mjs; fi
           node scripts/verify-novelty-txt-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: novelty-batch-controls-${{ github.run_id }}
