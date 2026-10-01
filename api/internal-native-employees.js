@@ -3,7 +3,8 @@ import { actionMutationSession, getActionCenterSql } from './internal-actions.js
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import { schoolCertificateHttp } from './internal-family-certificates.js';
 import { schoolCertificateSafeError } from '../lib/internal-family-certificates.js';
-import { employeeOperation, NativeEmployeeError, nativeEmployeeError } from '../lib/internal-native-employees.js';
+import { employeeOperation, employeeContext, NativeEmployeeError, nativeEmployeeError } from '../lib/internal-native-employees.js';
+import {employeeScopeKey} from '../assets/native-employee-confirmation-model.js';
 export const config={api:{bodyParser:false}};
 const fail=(code,status,message)=>{throw new NativeEmployeeError(code,status,message);};
 export function createNativeEmployeeHandler(deps={}){
@@ -27,6 +28,8 @@ export function createNativeEmployeeHandler(deps={}){
    if(!access)return;
    if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,caps))fail('FORBIDDEN',403,'La membresía no permite esta operación.');
    const session=sessionFor(access,env);
+   const pinnedScope=schoolCertificateHttp.header(req,'x-municontrol-employee-scope');
+   if(operation!=='bootstrap'&&pinnedScope){const context=employeeContext(access.principal,session);if(pinnedScope!==employeeScopeKey({tenantId:context.tenantId,membershipId:context.membershipId}))fail('SCOPE_CHANGED',409,'Este intento corresponde a otro municipio o membresía. Volvé al acceso que lo inició; no se enviaron datos.');}
    const input=operation==='create'?{key:schoolCertificateHttp.header(req,'idempotency-key'),body:await schoolCertificateHttp.readBody(req,8192)}:operation==='attempt'?{key:q.key}:{};
    const data=await employeeOperation(await getSql(env),access.principal,session,operation,input);
    if(data.replayed)res.setHeader('Idempotency-Replayed','true');

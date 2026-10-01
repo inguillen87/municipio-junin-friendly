@@ -6,7 +6,7 @@ export const catalog={version:'c'.repeat(64),items:[
  {kind:'categories',code:'6',agreementCode:'1',label:'6-D'},{kind:'categories',code:'13',agreementCode:'2',label:'13-I'},
  {kind:'organizations',code:'108',label:'Sector QA 108'},{kind:'organizations',code:'10',label:'Sector QA 10'},{kind:'organizations',code:'2',label:'Sector QA 2'},{kind:'organizations',code:'7',label:'Sector QA'},
  {kind:'sectors',code:'14',label:'Repartición QA 14'},{kind:'sectors',code:'1',label:'Repartición QA 1'},{kind:'sectors',code:'13',label:'Repartición QA 13'},{kind:'sectors',code:'2',label:'Repartición QA'}]};
-export const bootstrap={version:'native-employee.v1',canCreate:true,today:'2026-09-16',suggestedLegajo:'5001',catalog};
+export const bootstrap={version:'native-employee.v1',canCreate:true,today:'2026-09-16',suggestedLegajo:'5001',catalog,scope:{tenantId:TENANT,membershipId:MEMBER}};
 export const receipt={version:'native-employee.v1',registrationId:ID,contractId:CONTRACT,legajo:'5001',name:'PERSONA SINTÉTICA QA',startDate:'2026-10-01',createdAt:'2026-09-16T12:00:00Z',origin:'MUNICONTROL',accountCreated:false,payrollCalculated:false,replayed:false};
 export const principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:TENANT,membershipId:MEMBER,effectiveCapabilities:['workforce.employee.read','employee.record.create']}};
 export const session={id:SESSION,email:'qa@example.invalid',version:1,releaseSha:'a'.repeat(40)};

@@ -57,3 +57,4 @@
  .native-employee-dialog .ne-feedback{padding:12px 13px;font-size:13px}.native-employee-dialog [data-ne-pending],.native-employee-dialog [data-ne-success]{padding:18px}
 }
 @media(prefers-reduced-motion:reduce){.native-employee-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+.native-employee-dialog [data-ne-access-panel]{padding:18px;margin-bottom:18px;border:1px solid #b9d2ce;border-radius:10px;background:#edf5f4;line-height:1.65}.native-employee-dialog [data-ne-access-panel][hidden]{display:none}.native-employee-dialog [data-ne-access]{min-height:44px}.native-employee-dialog .ne-close{min-width:44px;min-height:44px}

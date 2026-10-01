@@ -3,6 +3,11 @@ on:
   pull_request:
     branches: ['master']
     paths:
+      - 'api/internal-native-employees.js'
+      - 'lib/internal-native-employees.js'
+      - 'assets/native-employee-*'
+      - 'tests/native-employee*'
+      - 'scripts/verify-native-employee-browser.mjs'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
       - 'api/internal-payroll-fixed-novelties.js'
       - 'lib/internal-payroll-fixed-novelties.js'

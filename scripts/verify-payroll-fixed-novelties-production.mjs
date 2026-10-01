@@ -9,6 +9,7 @@ const files=['novedades-nomina.html','assets/payroll-novelty-workbench.js',
   'assets/payroll-fixed-novelties.js','assets/payroll-fixed-novelties-model.js',
   'assets/payroll-fixed-novelties-export.js','assets/payroll-junin-638.js','assets/payroll-junin-638-review.js','assets/payroll-fixed-novelties.css',
   'assets/employee-picker.js','assets/native-employee-create.js',
+  'assets/native-employee-confirmation-model.js',
   'assets/app-routes.js','sw.js'];
 const build=publishedBuildVerification({origin,release:commit});
 const expected=build.expectedHashes(files);

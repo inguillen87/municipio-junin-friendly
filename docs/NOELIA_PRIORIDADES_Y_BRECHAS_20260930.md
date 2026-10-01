@@ -14,7 +14,9 @@ El último corte publicado anterior a este incremento es PR #69: GitHub master y
 
 La revisión nativa en memoria de PR #67 sigue sin integración productiva ni guardado completo. El parche externo de rutas permanece aplazado y no se adopta: el gate canónico del importador conserva `PUBLISHED_ROUTE_MISSING`, aunque la ruta HTML explícita esté publicada. La aceptación del 614 aportada por Marcelo no acredita las mejoras posteriores ni cálculo salarial.
 
-El incremento actual refuerza el circuito individual ya existente de novedades fijas: comparación de diez campos, confirmación explícita y relectura completa antes del primer envío. No sustituye los pendientes de cálculo. Su alcance está en [revisión de novedades fijas](NOELIA_REVISION_NOVEDADES_FIJAS_20260930.md); el resultado de entrega conserva la evidencia de pruebas y publicación.
+PR #70 publicó la revisión completa de novedades fijas en `47117de7060f9c2f50b841f69c215ad2af4eef4a`, SHA de master/producción contrastado al comenzar el incremento siguiente. Conserva comparación de diez campos, confirmación explícita y relectura completa antes del primer envío. No sustituye los pendientes de cálculo. Su alcance está en [revisión de novedades fijas](NOELIA_REVISION_NOVEDADES_FIJAS_20260930.md).
+
+El siguiente incremento refuerza la confirmación del alta propia y su recuperación sin duplicación, conservando APIs y permisos. El [plan de cierres funcionales](PLAN_CIERRES_MUNICONTROL_20260930.md) organiza las fases y separa entregas, aceptación humana y continuaciones rechazadas.
 
 ## Módulos 1–10: qué conservar y qué cerrar
 
@@ -66,7 +68,7 @@ Se reutilizan reconstructor, colas, acuses, preparte y controles existentes. Est
 
 ## Orden de los próximos cierres
 
-1. Resolver el gate de publicación del conjunto probado, sin publicar el parche bloqueado ni usar otro ejecutor para evitar el build denegado.
+1. Conservar las entregas #68/#69/#70 y cerrar incrementos permitidos de los circuitos propios existentes. El gate canónico de rutas sigue aplazado; no se publica el parche bloqueado ni se cambia de ejecutor para reintentarlo.
 2. Importación completa propia y diseños pendientes; OSEP y archivo de más de 500 deben tener cierre transaccional sin recorte.
 3. Parámetros/reglas propias y módulo 7 por alcance/tipo, con cálculo reproducible y versiones auditables.
 4. Asistencia gobernada y operación autónoma de relojes, hasta entregar cantidades aprobadas a Noelia.
