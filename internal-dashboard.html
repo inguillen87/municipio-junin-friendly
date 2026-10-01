@@ -2885,6 +2885,12 @@
         const companyId = text(employee.companyId);
         const legajo = text(employee.legajo);
         const contractId = text(employee.contractId);
+        const legacyLeaveAvailable = employee.recordOrigin === 'GRH';
+        const leaveUnavailable = employee.recordOrigin === 'MUNICONTROL'
+          ? 'Las licencias para este legajo propio todavía no están habilitadas.'
+          : 'No se pudo verificar el origen del legajo. Volvé a consultar su ficha.';
+        const canOpenLegacyLeave = () => legacyLeaveAvailable && employee.recordOrigin === 'GRH'
+          && section.isConnected && state.tenantCapabilities.has('workforce.employee.read');
 
         const family = create('button', 'button', 'Hijos y certificados');
         family.type = 'button';
@@ -2928,20 +2934,22 @@
 
         const calculate = create('button', 'button', 'Estimar referencia anual');
         calculate.type = 'button';
-        calculate.disabled = !companyId || !legajo;
-        calculate.title = calculate.disabled ? 'La fuente no informó empresa y legajo.' : 'Abrir el cálculo anual con este legajo';
+        calculate.disabled = !legacyLeaveAvailable || !companyId || !legajo;
+        calculate.title = !legacyLeaveAvailable ? leaveUnavailable : calculate.disabled ? 'La fuente no informó empresa y legajo.' : 'Abrir el cálculo anual con este legajo';
         if (calculate.disabled) unavailable.push('Estimar referencia anual: ' + calculate.title);
         calculate.addEventListener('click', function () {
+          if (!canOpenLegacyLeave() || !companyId || !legajo) return;
           if (!writeOperationalHandoff(LEAVE_PREVIEW_HANDOFF_KEY, { companyId: companyId, legajo: legajo })) return;
           location.assign('licencias-control.html#preview');
         });
 
         const request = create('button', 'button', 'Nueva solicitud de licencia');
         request.type = 'button';
-        request.disabled = !legajo;
-        request.title = request.disabled ? 'La fuente no informó el legajo.' : 'Abrir una solicitud para esta persona';
+        request.disabled = !legacyLeaveAvailable || !legajo;
+        request.title = !legacyLeaveAvailable ? leaveUnavailable : request.disabled ? 'La fuente no informó el legajo.' : 'Abrir una solicitud para esta persona';
         if (request.disabled) unavailable.push('Nueva solicitud de licencia: ' + request.title);
         request.addEventListener('click', function () {
+          if (!canOpenLegacyLeave() || !legajo) return;
           if (!writeOperationalHandoff(ACTION_SUBJECT_HANDOFF_KEY, { query: legajo })) return;
           location.assign('centro-acciones.html');
         });
