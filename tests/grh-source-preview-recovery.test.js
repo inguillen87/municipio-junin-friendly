@@ -18,6 +18,30 @@ test('result must belong to the exact requested format and file size', () => {
 for (const patch of [{ includesRecordValues: true }, { persistencePerformed: true }, { raw: 'personal data' }]) test('result never accepts extra record data: ' + JSON.stringify(patch), () => assert.equal(canonicalAggregate(make(patch)), null));
 for (const patch of [{ byteLength: 0 }, { byteLength: 2097153 }, { acceptedCount: 2 }, { issueCount: 1 }, { status: 'accepted_by_amaru' }]) test('count and scope contract rejects ' + JSON.stringify(patch), () => assert.equal(canonicalAggregate(make(patch)), null));
 test('valid aggregate reply is read without adding fields', async () => assert.deepEqual(await readSourcePreviewReply(reply(), signal()), make()));
+function transportProbe(chunks) {
+  const calls = { cancel: 0, release: 0 }, remaining = [...chunks];
+  const reader = {
+    async read() { return remaining.length ? { done: false, value: remaining.shift() } : { done: true }; },
+    async cancel() { calls.cancel++; },
+    releaseLock() { calls.release++; },
+  };
+  return { calls, response: { headers: new Headers(headers), body: { getReader: () => reader } } };
+}
+test('fully consumed transport releases its reader without requesting network cancellation', async () => {
+  const probe = transportProbe([new TextEncoder().encode(JSON.stringify(make()))]);
+  assert.deepEqual(await readSourcePreviewReply(probe.response, signal()), make());
+  assert.deepEqual(probe.calls, { cancel: 0, release: 1 });
+});
+test('fully consumed invalid UTF-8 remains rejected without cancelling the finished transport', async () => {
+  const probe = transportProbe([new Uint8Array([0xff])]);
+  await assert.rejects(readSourcePreviewReply(probe.response, signal()));
+  assert.deepEqual(probe.calls, { cancel: 0, release: 1 });
+});
+test('an over-limit unfinished transport is cancelled and its reader is released', async () => {
+  const probe = transportProbe([new Uint8Array(SOURCE_PREVIEW_REPLY_BYTES + 1)]);
+  await assert.rejects(readSourcePreviewReply(probe.response, signal()), /SOURCE_RESPONSE_INVALID/);
+  assert.deepEqual(probe.calls, { cancel: 1, release: 1 });
+});
 for (const [name, altered] of [
   ['HTML', { 'content-type': 'text/html' }], ['wrong media type', { 'content-type': 'application/jsonx' }],
   ['missing no-store', { 'cache-control': 'private' }], ['misleading cache', { 'cache-control': 'public, x-no-store' }],
