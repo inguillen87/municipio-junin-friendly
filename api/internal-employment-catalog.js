@@ -27,7 +27,7 @@ export function parseCatalogJson(source) {
     return parsed;
   } catch { catalogFail('INPUT_INVALID', 400, 'El formulario contiene datos ambiguos o inválidos.'); }
 }
-function streamBytes(req, timeoutMs) {
+function streamBytes(req, timeoutMs, maxBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [], listeners = []; let size = 0, settled = false, iterator;
     const finish = error => {
@@ -43,7 +43,7 @@ function streamBytes(req, timeoutMs) {
       if (settled) return;
       if (!Buffer.isBuffer(chunk) && !(chunk instanceof Uint8Array)) return failure('INPUT_INVALID', 400, 'El envío perdió sus bytes originales.');
       size += chunk.byteLength;
-      if (size > EMPLOYMENT_CATALOG_MAX_BYTES) return failure('LIMIT', 413, 'El formulario supera el tamaño permitido.');
+      if (size > maxBytes) return failure('LIMIT', 413, 'El formulario supera el tamaño permitido.');
       chunks.push(Buffer.from(chunk));
     };
     try {
@@ -61,21 +61,21 @@ function streamBytes(req, timeoutMs) {
     } catch { unavailable(); }
   });
 }
-export async function readCatalogBody(req, {timeoutMs = 10000} = {}) {
-  schoolCertificateHttp.checkLength(req, EMPLOYMENT_CATALOG_MAX_BYTES);
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10000) catalogFail('INPUT_INVALID', 400, 'Tiempo de lectura inválido.');
+export async function readCatalogBody(req, {timeoutMs = 10000, maxBytes = EMPLOYMENT_CATALOG_MAX_BYTES} = {}) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10000 || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > EMPLOYMENT_CATALOG_MAX_BYTES) catalogFail('INPUT_INVALID', 400, 'Límite de lectura inválido.');
+  schoolCertificateHttp.checkLength(req, maxBytes);
   let bytes = typeof req.on === 'function' && typeof req.read === 'function' || typeof req[Symbol.asyncIterator] === 'function'
-    ? await streamBytes(req, timeoutMs) : Object.getOwnPropertyDescriptor(req, 'body')?.value;
+    ? await streamBytes(req, timeoutMs, maxBytes) : Object.getOwnPropertyDescriptor(req, 'body')?.value;
   if (typeof bytes === 'string') bytes = Buffer.from(bytes);
   if (!Buffer.isBuffer(bytes)) catalogFail('INPUT_INVALID', 400, 'Se requieren los bytes originales del formulario.');
-  if (bytes.length > EMPLOYMENT_CATALOG_MAX_BYTES) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
+  if (bytes.length > maxBytes) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
   const length = schoolCertificateHttp.header(req, 'content-length');
   if (length && Number(length) !== bytes.length) catalogFail('INPUT_INVALID', 400, 'El envío está incompleto.');
   let source; try { source = new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch { catalogFail('INPUT_INVALID', 400, 'El formulario no contiene texto válido.'); }
   const value = parseCatalogJson(source);
   if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).sort().join('|') !== 'operation|payload'
     || !Object.hasOwn(EMPLOYMENT_CATALOG_CAPS, value.operation)) catalogFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
-  if (Buffer.byteLength(JSON.stringify(value)) > EMPLOYMENT_CATALOG_MAX_BYTES) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
+  if (Buffer.byteLength(JSON.stringify(value)) > maxBytes) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
   return value;
 }
 export function createEmploymentCatalogHandler(deps = {}) {

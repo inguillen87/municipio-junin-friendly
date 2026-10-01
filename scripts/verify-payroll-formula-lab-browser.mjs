@@ -608,9 +608,16 @@ async function inspect(viewport, label) {
       await sourcePreview.locator('[data-source-preview-file-state]').innerText(),
       /empleados-confidencial/,
     );
+    const completedSourceResponse = page.waitForResponse(response =>
+      response.url() === `${baseUrl}/api/internal-grh-source-preview` && response.request().method() === 'POST');
+    const priorPreviewRequests = previewRequests.length;
     await sourcePreview.getByRole('button', { name: 'Analizar sin importar' }).click();
     await assert.doesNotReject(() => sourcePreview.locator('[data-source-preview-status]').waitFor({ state: 'visible' }));
     await page.waitForFunction(() => document.querySelector('[data-source-preview-status]')?.textContent.includes('Análisis con observaciones'));
+    const sourceResponse = await completedSourceResponse;
+    assert.equal(sourceResponse.status(), 200);
+    assert.equal(await sourceResponse.finished(), null, `${label}: source response transport must finish before proceeding or closing the context`);
+    assert.equal(previewRequests.length, priorPreviewRequests + 1, `${label}: one voluntary analysis sends exactly one request`);
     assert.equal(await sourcePreview.locator('[data-source-preview-result]').isVisible(), true);
     assert.equal(await sourcePreview.locator('[data-source-preview-records]').innerText(), '2');
     assert.equal(await sourcePreview.locator('[data-source-preview-accepted]').innerText(), '1');
