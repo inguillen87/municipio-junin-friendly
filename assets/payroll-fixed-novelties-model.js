@@ -205,6 +205,16 @@ export function fixedExportData(payload,list) {
   });return freeze({...d,rows,effects:effects(d.effects)});
 }
 export const fixedPrincipalKey = data => [data.principal.tenantId,data.principal.membershipId,data.principal.certifiedBindingId].join(':');
+export const fixedSubjectEqual = (left,right) => same(subject(left),subject(right));
+export const fixedDetailEqual = (left,right) => same(fixedDetail({ok:true,data:left},left?.record?.id),fixedDetail({ok:true,data:right},right?.record?.id));
+
+export function fixedComparison(row,operation,nextValues){
+  if(!['set','annul'].includes(operation)||operation==='annul'&&nextValues!==null)fail();
+  const previous=row?record(row):null,before=previous?.approved?.operation==='set'?previous.approved.values:null,after=operation==='set'?values(nextValues):null;
+  const labels=['Concepto declarado','Centro de costo','Tipo de liquidación','Unidades declaradas','Importe declarado','Modo forzado','Fundamento forzado','Instrumento','Alta','Vencimiento'];
+  const text=(value,key)=>!value?'Sin versión aprobada':key==='amountCents'?fixedMoney(value[key]):key==='payrollType'?FIXED_TYPES[value[key]]:key==='forced'?(value[key]?'Sí':'No'):value[key]??({costCenterSourceId:'Sin centro informado',quantityDecimal:'Sin unidades informadas',forcedReason:'No corresponde',validTo:'Sin vencimiento informado'}[key]??'Sin informar');
+  return freeze({operation,beforePresent:Boolean(before),afterPresent:Boolean(after),fields:valueKeys.map((key,i)=>({key,label:labels[i],before:text(before,key),after:text(after,key),changed:Boolean(before)!==Boolean(after)||before?.[key]!==after?.[key]}))});
+}
 
 export function fixedJunin638Data(payload,list){
   const d=envelope(payload,'payroll-fixed-junin638.v1',['periodMonth','snapshotToken','concept','receiver','sourceFormat','format','rows','total','effects']);

@@ -1,5 +1,5 @@
 import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,
-  fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
+  fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,fixedComparison,fixedDetailEqual,fixedSubjectEqual,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
@@ -33,12 +33,22 @@ function facts(value){
     ['Alta',dayLabel(value.validFrom)],['Vencimiento',dayLabel(value.validTo)],['Instrumento',value.legalInstrument]]:[];
   for(const[label,text]of entries){const part=node('div');part.append(node('dt',label),node('dd',text));dl.append(part);}return dl;
 }
+function comparison(row,operation,values){
+  const model=fixedComparison(row,operation,values),section=node('section',undefined,'fn-change-review');section.dataset.fnChangeReview='';
+  section.append(node('h4',operation==='annul'?'Valores que se propone retirar':'Valores aprobados y propuesta'));
+  section.append(node('p',operation==='annul'?'Sólo una aprobación independiente retira esta novedad del control y de futuras exportaciones. El historial, las liquidaciones y los archivos anteriores se conservan.':'La propuesta no sustituye la versión aprobada hasta una decisión independiente. No se calculan importes ni prorrateos.','fn-note'));
+  const region=node('div',undefined,'fn-change-table');region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','Comparación completa de los diez campos de la novedad fija');
+  const table=node('table'),caption=node('caption','Diez campos · última versión aprobada frente a la propuesta');table.append(caption);
+  const head=node('thead'),tr=node('tr');for(const title of ['Campo','Última versión aprobada','Propuesta','Cambio']){const th=node('th',title);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
+  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);for(const [title,value]of [['Última versión aprobada',field.before],['Propuesta',field.after],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
+}
+function reviewSource(row,decision){const source=node('section');source.dataset.fnReviewSource='';source.append(node('p',(row.pending.operation==='annul'?'Anulación propuesta':'Valores propuestos')+' · Revisión '+row.version,'fn-note'),comparison(row,row.pending.operation,row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason),node('p',decision==='reject'?'Rechazar conserva la última versión aprobada y registra el rechazo.':'Aprobar habilita únicamente control y exportación; no calcula haberes.','fn-note'));return source;}
 
 export function mountFixedNovelties(shell){
   if(!shell)return {setAccess(){},setExternalBusy(){},deny(){}};
   const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null;
   let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
-  const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open;
+  const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
   const can=cap=>fixedCapability(bootstrap,access,cap);
   const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
   const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
@@ -63,6 +73,7 @@ export function mountFixedNovelties(shell){
       editor.row=editor.row?{id:editor.row.id,version:editor.row.version}:null;editor.form.querySelector('[data-fn-subject]')?.replaceChildren();
       editor.form.querySelector('[data-fn-comparison]')?.replaceChildren();editor.preview=null;editor.form.querySelector('[data-fn-preview-result]')?.replaceChildren();
       editor.form.querySelector('[data-fn-review-source]')?.replaceChildren();
+      editor.detailSnapshot=null;if(editor.reviewed)editor.reviewed.checked=false;
       editor.form.querySelector('h3').textContent='Propuesta local pendiente';}
   }
   function deny(){seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
@@ -81,7 +92,7 @@ export function mountFixedNovelties(shell){
     if(editor){
       const locked=busy||externalBusy||Boolean(attempt);editor.form.querySelectorAll('fieldset').forEach(f=>f.disabled=locked);
       const target=editor.form.querySelector('[data-fn-save]')||editor.form.querySelector('[data-fn-decision-save]');
-      if(target)target.disabled=locked||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare())||!editor.preview;
+      if(target)target.disabled=locked||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare())||!editor.preview||editor.kind==='review'&&!editor.reviewed.checked;
       editor.form.querySelector('[data-fn-preview]')?.toggleAttribute('disabled',locked||editor.needsReview||!allowedPrepare());
       const lookup=editor.form.querySelector('[data-fn-lookup]');if(lookup)lookup.disabled=locked||!allowedPrepare()||Boolean(editor.row);
       const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);}
@@ -105,7 +116,7 @@ export function mountFixedNovelties(shell){
   }
   async function loadBootstrap(){
     const next=fixedBootstrap(await request({resource:'bootstrap'})),oldKey=bootstrap?fixedPrincipalKey(bootstrap):editor?.principalKey||attempt?.principalKey;
-    if(oldKey&&oldKey!==fixedPrincipalKey(next)){clearAll();const message='Cambió el municipio, la membresía o la fuente. Se descartó el borrador anterior; no se reenvió. Volvé a consultar.';status(message);throw Error(message);}
+    if(oldKey&&oldKey!==fixedPrincipalKey(next)){const pending=Boolean(attempt);if(pending)clearConsulted();else clearAll();const message=pending?'El guardado pendiente corresponde a otro ámbito. Se conservan su contenido y clave originales; volvé a la sesión que lo inició. No se reenviaron datos.':'Cambió el municipio, la membresía o la fuente. Se descartó el borrador anterior; no se reenvió. Volvé a consultar.';status(message);throw Error(message);}
     bootstrap=next;if(!hasRead(access)||!hasRead(new Set(next.principal.capabilities))){clearConsulted();throw Error('No hay permiso para consultar novedades nominales.');}return next;
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
@@ -181,7 +192,7 @@ export function mountFixedNovelties(shell){
     box.form.append(node('p','Copiá únicamente valores respaldados. Los campos vacíos no se convierten en cero. Las fechas no generan prorrateos, lotes ni liquidaciones automáticas.','fn-note'));
     const previewButton=button('Revisar propuesta','preview',true),saveButton=button('Guardar propuesta para revisión','save',true);saveButton.hidden=true;box.actions.prepend(previewButton,saveButton);
     box.form.append(box.previewHost,box.comparison,box.actions,box.feedback);
-    editor={...box,kind:'propose',operation:operationKind,row,subject:row?.subject??selectedSubject,lookupContractId:selectedSubject?.contractId??null,expectedVersion:row?.version??0,fields,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+    editor={...box,kind:'propose',operation:operationKind,row,detailSnapshot:row?detail:null,subject:row?.subject??selectedSubject,lookupContractId:selectedSubject?.contractId??null,expectedVersion:row?.version??0,fields,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
     if(selectedSubject){fields.legajo.value=selectedSubject.legajo;fields.legajo.readOnly=true;showSubject();}
     if(row){fields.legajo.value=row.subject.legajo;fields.legajo.readOnly=true;const v=row.approved?.operation==='set'?row.approved.values:row.latest.values;
       if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=v[key]??'';}
@@ -217,7 +228,7 @@ export function mountFixedNovelties(shell){
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
       const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
-      active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),facts(draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
+      active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
       active.previewHost.hidden=false;active.form.querySelector('[data-fn-save]').hidden=false;active.form.querySelector('[data-fn-preview]').hidden=true;active.feedback.textContent='Propuesta preparada; todavía no está guardada.';controls();
     }catch(error){active.feedback.textContent=errorMessage(error);}
   }
@@ -225,19 +236,40 @@ export function mountFixedNovelties(shell){
     if(editor||attempt||busy||!row.pending?.canReview||!allowedReview())return;
     const box=editorShell(decision==='approve'?'Aprobar para control':'Rechazar propuesta'),fieldset=node('fieldset'),label=node('label','Fundamento de la decisión'),input=node('input');
     input.dataset.fnDecisionReason='';input.maxLength=500;input.autocomplete='off';label.append(input);fieldset.append(label);
-    const source=node('section');source.dataset.fnReviewSource='';source.append(facts(row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason));
+    const source=reviewSource(row,decision),reviewLabel=node('label',undefined,'fn-check fn-review-check'),reviewed=node('input');reviewed.type='checkbox';reviewed.dataset.fnReviewed='';reviewLabel.append(reviewed,node('span','Revisé los diez campos, el instrumento y el alcance de esta decisión.'));fieldset.append(reviewLabel);
     box.form.append(node('p','Revisá la propuesta y su instrumento en el detalle. Esta decisión queda registrada y debe ser independiente del proponente.','fn-note'),source,fieldset);
     const submit=button(decision==='approve'?'Confirmar aprobación de control':'Confirmar rechazo','decision-save',true);box.actions.prepend(submit);box.form.append(box.comparison,box.actions,box.feedback);
-    editor={...box,kind:'review',row,subject:row.subject,expectedVersion:row.version,proposalId:row.pending.id,decision,fields:{},decisionInput:input,preview:{},needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+    editor={...box,kind:'review',row,detailSnapshot:detail,subject:row.subject,expectedVersion:row.version,proposalId:row.pending.id,decision,fields:{},decisionInput:input,reviewed,preview:{},needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+    reviewed.addEventListener('change',controls);input.addEventListener('input',()=>{reviewed.checked=false;controls();});
     showSubject();submit.addEventListener('click',prepareSend);controls();box.form.scrollIntoView({block:'start'});input.focus({preventScroll:true});
   }
-  function prepareSend(){
+  async function prepareSend(){
     if(!editor||attempt||busy||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare()))return;let payload;
     try{payload=editor.kind==='review'?{recordId:editor.row.id,proposalId:editor.proposalId,expectedVersion:editor.expectedVersion,decision:editor.decision,reason:fixedText(editor.decisionInput.value,'el fundamento de la decisión')}:editor.preview;
       if(!payload)throw Error('Revisá la propuesta antes de guardar.');
-      attempt={command:editor.kind,payload:structuredClone(payload),key:crypto.randomUUID(),principalKey:editor.principalKey};
+      if(editor.kind==='review'&&!editor.reviewed.checked)throw Error('Revisá los diez campos y el alcance antes de confirmar la decisión.');
+      const active=editor,preview=active.preview;let ready=false;
+      await operation(async live=>{
+        active.feedback.textContent='Comprobando permisos y el contenido completo antes de enviar…';await loadBootstrap();if(!live()||editor!==active)return;
+        if(active.principalKey!==fixedPrincipalKey(bootstrap)||!(active.kind==='review'?allowedReview():allowedPrepare()))throw Error('La sesión vigente no habilita este envío. Verificá el acceso; no se enviaron datos.');
+        if(active.row){
+          const fresh=fixedDetail(await request({resource:'detail',recordId:active.row.id}),active.row.id);if(!live()||editor!==active)return;
+          if(!fixedDetailEqual(fresh,active.detailSnapshot)){
+            active.needsReview=true;active.preview=null;if(active.reviewed)active.reviewed.checked=false;
+            active.previewHost.replaceChildren();active.previewHost.hidden=true;active.form.querySelector('[data-fn-review-source]')?.replaceChildren();
+            if(active.kind==='propose'){active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;}
+            throw Error('El registro cambió, incluidos sus valores o permisos. No se envió la operación. Actualizá el registro y revisá nuevamente; tu propuesta se conserva.');
+          }
+        }else{
+          const fresh=fixedEmployee(await request({resource:'employee',contractId:active.subject.contractId}),{contractId:active.subject.contractId});if(!live()||editor!==active)return;
+          if(!fixedSubjectEqual(fresh,active.subject)){active.needsReview=true;active.preview=null;active.previewHost.replaceChildren();active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;throw Error('La identidad cambió. No se enviaron datos ni se reasignó la propuesta.');}
+        }
+        if(!live()||editor!==active||active.preview!==preview||active.kind==='review'&&(!active.reviewed.checked||fixedText(active.decisionInput.value,'el fundamento de la decisión')!==payload.reason))return;ready=true;
+      });
+      if(!ready||editor!==active||attempt||!available())return;
+      attempt={command:active.kind,payload:structuredClone(payload),key:crypto.randomUUID(),principalKey:active.principalKey};
       sendAttempt();
-    }catch(error){editor.feedback.textContent=errorMessage(error);}
+    }catch(error){if(editor)editor.feedback.textContent=errorMessage(error);}
   }
   function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
   async function sendAttempt(){
@@ -251,7 +283,7 @@ export function mountFixedNovelties(shell){
       }catch(error){if(!live()){if(attempt===pending)pending.uncertain=true;return;}
         // A controlled first refusal confirms no mutation. An uncertain replay
         // stays locked until its receipt is recovered; a 404 is not an outcome.
-        if(!pending.uncertain&&trustedFailure(error)){attempt=null;active.preview=null;if(active.kind==='review')active.preview={};
+        if(!pending.uncertain&&trustedFailure(error)){attempt=null;active.preview=null;if(active.kind==='review'){active.preview={};active.reviewed.checked=false;}
           active.needsReview=['PAYROLL_FIXED_VERSION_CONFLICT','PAYROLL_FIXED_PENDING_EXISTS','PAYROLL_FIXED_IDENTITY_CHANGED','PAYROLL_FIXED_OVERLAP'].includes(error.code);
           if(active.kind==='propose'){active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;}}
         else {pending.uncertain=true;active.feedback.textContent='No se pudo confirmar el guardado. Conservamos exactamente los datos y la clave; reintentá el mismo envío o verificá su estado. No inicies otra propuesta.';}
@@ -283,10 +315,11 @@ export function mountFixedNovelties(shell){
       const fresh=fixedDetail(await request({resource:'detail',recordId:active.row.id}),active.row.id);if(!live())return;detail=fresh;renderDetail();
       if(!fresh.record.identityCurrent||fresh.record.subject.identityToken!==active.subject?.identityToken){active.needsReview=true;active.feedback.textContent='La identidad cambió. No se reasignará este borrador. Consultá el legajo antes de iniciar otra propuesta.';return;}
       if(fresh.record.version!==active.expectedVersion){active.needsReview=true;active.comparison.replaceChildren(node('h4','El registro cambió'),node('p','Tu propuesta sigue en el formulario. Revisá el estado actual y confirmá si corresponde continuar.'),node('p',fixedState(fresh.record)),facts(fresh.record.approved?.values));active.comparison.hidden=false;
-        if(active.kind==='propose'&&fresh.record.canPropose&&(active.operation!=='annul'||fresh.record.approved?.operation==='set')){const accept=button('Revisé el cambio; conservar mi propuesta','confirm-version');active.comparison.append(accept);accept.addEventListener('click',()=>{if(busy||attempt||editor!==active)return;active.row=fresh.record;active.subject=fresh.record.subject;active.expectedVersion=fresh.record.version;active.needsReview=false;active.preview=null;active.comparison.hidden=true;active.feedback.textContent='Versión revisada. Volvé a revisar tu propuesta antes de guardarla.';controls();});}
+        if(active.kind==='propose'&&fresh.record.canPropose&&(active.operation!=='annul'||fresh.record.approved?.operation==='set')){const accept=button('Revisé el cambio; conservar mi propuesta','confirm-version');active.comparison.append(accept);accept.addEventListener('click',()=>{if(busy||attempt||editor!==active)return;active.row=fresh.record;active.detailSnapshot=fresh;active.subject=fresh.record.subject;active.expectedVersion=fresh.record.version;active.needsReview=false;active.preview=null;active.comparison.hidden=true;active.feedback.textContent='Versión revisada. Volvé a revisar tu propuesta antes de guardarla.';controls();});}
         else active.comparison.append(node('p','Esta decisión ya no corresponde a la versión consultada. Cancelá la propuesta local y revisá el detalle actual.'));}
-      else {active.row=fresh.record;active.subject=fresh.record.subject;active.needsReview=active.kind==='review'?!fresh.record.pending?.canReview:!fresh.record.canPropose;
-        if(active.kind==='review'&&!active.needsReview){active.preview={};active.form.querySelector('[data-fn-review-source]').replaceChildren(facts(fresh.record.pending.values),node('p','Motivo de la propuesta: '+fresh.record.pending.reason));}
+      else {active.row=fresh.record;active.detailSnapshot=fresh;active.subject=fresh.record.subject;active.needsReview=active.kind==='review'?!fresh.record.pending?.canReview:!fresh.record.canPropose;
+        if(active.kind==='propose'){active.preview=null;active.previewHost.replaceChildren();active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;}
+        if(active.kind==='review'&&!active.needsReview){active.preview={};active.reviewed.checked=false;active.form.querySelector('[data-fn-review-source]').replaceWith(reviewSource(fresh.record,active.decision));}
         showSubject();active.feedback.textContent='Versión y permisos revisados. Tus datos se conservan.';}
     }else if(requestedContract&&allowedPrepare()){
       const contractId=requestedContract;requestedContract=null;const chosen=fixedEmployee(await request({resource:'employee',contractId}),{contractId});
@@ -336,7 +369,7 @@ export function mountFixedNovelties(shell){
   window.addEventListener('beforeunload',warnPending);
   window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
   return {setExternalBusy(value){externalBusy=Boolean(value);controls();},deny,setAccess({capabilities,principalKey}){
-    if(outerKey&&principalKey!==outerKey)clearAll();outerKey=principalKey;access=new Set(capabilities);
+    if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
   }};

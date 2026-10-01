@@ -15,9 +15,11 @@ if(live!==undefined)assert.equal(live,'https://municipio-junin-friendly.vercel.a
 const origin=live || 'https://municontrol.test',base=path.resolve('public'),out=path.resolve('verification/fixed-novelties-browser'+(live?'-published':''));
 const build=publishedBuildVerification({origin,root:base,release:process.env.GITHUB_SHA || 'manual'});
 fs.mkdirSync(out,{recursive:true});
-const fixture=fixedFixture(),{state}=fixture,checks=[],errors=[],posts=[],employeeReads=[],publishedAssets=new Set(),failedAssets=[];
+const fixture=fixedFixture(),{state}=fixture,checks=[],errors=[],posts=[],employeeReads=[],fixedReads=[],publishedAssets=new Set(),failedAssets=[];
 let dropAck=false,failNext=null,hideAttempt=false,denyResource=null,changeOnExport=false,holdAck=null,directoryAllowed=true,holdEmployee=null,fail638=null,truncate638=false;
+let detailTransform=null,holdDetail=null,bootstrapCaps=null,notifyCommit=null,notifyDetail=null;
 const envelope=data=>({ok:true,data});
+async function waitSignal(signal,label){let timer;try{await Promise.race([signal,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Synthetic request did not start: '+label)),12000);})]);}finally{clearTimeout(timer);}}
 const browser=await chromium.launch({headless:true,...(process.env.FIXED_NOVELTIES_BROWSER_CHANNEL?{channel:process.env.FIXED_NOVELTIES_BROWSER_CHANNEL}:{})});
 let page;
 try{
@@ -38,17 +40,19 @@ try{
     }
     if(u.pathname==='/api/internal-payroll-fixed-novelties'){
       const resource=u.searchParams.get('resource') || 'bootstrap';
+      if(request.method()==='GET')fixedReads.push(resource);
       if(state.denied||resource===denyResource)return route.fulfill({status:403,json:{ok:false,code:'PAYROLL_FIXED_CAPABILITY_REQUIRED',error:'Acceso revocado sintético'}});
       if(request.method()==='POST'){
         const body=request.postDataJSON(),key=request.headers()['idempotency-key'];posts.push({body:structuredClone(body),key});
         if(failNext){const failure=failNext;failNext=null;return route.fulfill({status:failure.status,json:{ok:false,code:failure.code,error:'Conflicto sintético controlado'}});}
         const result=fixture.mutate(body.command,body.payload,key);
+        notifyCommit?.();
         if(holdAck){const wait=holdAck;holdAck=null;await wait;}
         if(dropAck&&result.data){dropAck=false;return route.abort('timedout');}
         return route.fulfill({status:result.status,json:result.data?envelope(result.data):{ok:false,code:result.code,error:'Error sintético controlado'}});
       }
       const month=u.searchParams.get('periodMonth');let data;
-      if(resource==='bootstrap')data=fixture.bootstrap();
+      if(resource==='bootstrap'){data=fixture.bootstrap();if(bootstrapCaps)data.principal.capabilities=bootstrapCaps;}
       else if(resource==='employee'){
         const contractId=u.searchParams.get('contractId'),legajo=u.searchParams.get('legajo');employeeReads.push({contractId,legajo});
         const subject=contractId?(state.subjects.get(contractId)||state.records.find(r=>r.subject.contractId===contractId)?.subject||fixedSubject(String(Number(contractId.slice(-12))))):[...state.subjects.values()].some(s=>s.legajo===legajo)?null:fixedSubject(legajo);
@@ -56,7 +60,7 @@ try{
         if(holdEmployee){const wait=holdEmployee;holdEmployee=null;await wait;}
       }
       else if(resource==='list')data=fixture.list(month);
-      else if(resource==='detail')data=fixture.detail(u.searchParams.get('recordId'));
+      else if(resource==='detail'){data=fixture.detail(u.searchParams.get('recordId'));if(detailTransform)data=detailTransform(data);notifyDetail?.();if(holdDetail){const waiting=holdDetail;holdDetail=null;await waiting;}}
       else if(resource==='attempt')data=hideAttempt?null:state.attempts.get(state.role+':'+u.searchParams.get('command')+':'+u.searchParams.get('key'))?.receipt;
       else if(resource==='junin638'){
         if(changeOnExport){state.epoch++;changeOnExport=false;}
@@ -93,7 +97,7 @@ try{
   };
   const save=async()=>{await host.locator('[data-fn-preview]').click();await host.locator('[data-fn-save]:enabled').waitFor();await host.locator('[data-fn-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();};
   const role=async name=>{state.role=name;await refresh();await refresh();};
-  const review=async(id,decision='approve')=>{await openRecord(id);await host.locator(`[data-fn-${decision}]`).click();await host.locator('[data-fn-decision-reason]').fill('Revisión independiente de evidencia sintética');await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();};
+  const review=async(id,decision='approve')=>{await openRecord(id);await host.locator(`[data-fn-${decision}]`).click();await host.locator('[data-fn-decision-reason]').fill('Revisión independiente de evidencia sintética');assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);assert.equal(await host.locator('[data-fn-change-field]').count(),10);await host.locator('[data-fn-reviewed]').check();await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();};
   await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-new]:enabled').waitFor();
   assert.equal(posts.length,0);assert.equal(state.records.length,0);checks.push('actual monthly workbench exposes a lazy fixed-novelty workspace without writing or inventing employees');
   assert.equal(await host.locator('[data-fn-junin638]').getAttribute('aria-describedby'),'fixedTxt638Availability');assert.match(await host.locator('[data-fn-txt638-availability]').innerText(),/Elegí el período/);checks.push('638 disabled state explains the missing period next to the associated button');
@@ -119,7 +123,7 @@ try{
   for(const attempt of posts.filter(p=>p.key===uncertain.key))assert.deepEqual(attempt.body,uncertain.body);
   checks.push('an unconfirmed attempt never permits editing or a new key; receipt recovery cannot duplicate the proposal');
   await fill('1003');dropAck=true;await save();await host.locator('[data-fn-retry]').waitFor();const retried=posts.at(-1),beforeRetry=state.records.length;await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(state.records.length,beforeRetry);assert.equal(posts.at(-1).key,retried.key);assert.deepEqual(posts.at(-1).body,retried.body);checks.push('explicit retry after a lost acknowledgement sends exactly the same body and key');
-  await fill('1004');let releaseAck;holdAck=new Promise(resolve=>{releaseAck=resolve;});await host.locator('[data-fn-preview]').click();await host.locator('[data-fn-save]').click();await page.locator('#fixedNovelties > summary').click();releaseAck();await page.waitForTimeout(120);await page.locator('#fixedNovelties > summary').click();
+  await fill('1004');let releaseAck;holdAck=new Promise(resolve=>{releaseAck=resolve;});const commitStarted=new Promise(resolve=>{notifyCommit=resolve;});await host.locator('[data-fn-preview]').click();const postsBeforeClose=posts.length;await host.locator('[data-fn-save]').click();await waitSignal(commitStarted,'held commit');notifyCommit=null;assert.equal(posts.length,postsBeforeClose+1);await page.locator('#fixedNovelties > summary').click();releaseAck();await page.waitForTimeout(120);await page.locator('#fixedNovelties > summary').click();
   if(await host.locator('[data-fn-retry]:visible').count()){
     failNext={status:403,code:'PAYROLL_FIXED_CAPABILITY_REQUIRED'};await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(await host.locator('[data-fn-cancel]').isDisabled(),true);assert.equal(await field('quantityDecimal').isDisabled(),true);await refresh();
   }
@@ -186,6 +190,57 @@ try{
   await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));releaseEmployee();await page.waitForTimeout(100);assert.equal(await host.locator('[data-fn-subject]').innerText(),'');assert.equal(await host.locator('[data-fn-preview]').isDisabled(),true);
   await page.evaluate(caps=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(caps)}})),[...fixture.cap(),'workforce.employee.read']);await refresh();assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});await host.locator('[data-fn-subject]').filter({hasText:'Alta propia de MuniControl'}).waitFor();assert.equal(await field('legajo').getAttribute('readonly'),'');await host.locator('[data-fn-cancel]').click();
   checks.push('revocation during native lookup discards the late response; restored authority rechecks the explicitly selected UUID without falling back to legajo');
+  async function seedDecision(operation='set',history=false){
+    state.records=[];state.histories.clear();state.attempts.clear();state.sequence=0;state.epoch++;state.role='preparer';
+    const row=fixedApprovedRecord(80),subject=fixedNativeSubject('9801');row.subject=subject;state.records.push(row);state.subjects.set(subject.contractId,subject);state.histories.set(row.id,[row.latest]);
+    const base={recordId:row.id,expectedVersion:row.version,contractId:subject.contractId,legajo:subject.legajo,identityToken:subject.identityToken,operation:'set',values:fixedValues({quantityDecimal:'2',amountCents:'0',validTo:null}),reason:'Corrección sintética con instrumento respaldado'};
+    if(history)for(const decision of ['approve','reject']){
+      const r=fixture.mutate('propose',{...base,expectedVersion:row.version},fixedUuid(91000+row.version));state.role='reviewer';fixture.mutate('review',{recordId:row.id,proposalId:r.data.proposalId,expectedVersion:row.version,decision,reason:'Decisión histórica sintética independiente'},fixedUuid(92000+row.version));state.role='preparer';
+    }
+    fixture.mutate('propose',{...base,expectedVersion:row.version,operation,values:operation==='annul'?null:base.values},fixedUuid(93000+row.version));state.role='reviewer';
+    await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-record]').waitFor();return row;
+  }
+  async function decide(row,decision='approve'){
+    await openRecord(row.id);await host.locator(`[data-fn-${decision}]`).click();await host.locator('[data-fn-decision-reason]').fill('Revisión completa sintética antes de decidir');
+    assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);await host.getByRole('checkbox',{name:'Revisé los diez campos, el instrumento y el alcance de esta decisión.'}).check();
+  }
+  let reviewRow=await seedDecision();await decide(reviewRow);
+  assert.equal(await host.locator('[data-fn-change-field]').count(),10);const amount=host.locator('[data-fn-change-field=amountCents]');assert.match(await amount.innerText(),/Sin importe informado/);assert.match(await amount.innerText(),/\$ 0,00/);
+  await host.locator('[data-fn-decision-reason]').fill('Fundamento sintético actualizado');assert.equal(await host.locator('[data-fn-reviewed]').isChecked(),false);assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);
+  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.equal(await host.locator('[data-fn-change-field]').count(),10);assert.equal(await host.locator('[data-fn-change-field] td[data-label]').count(),30);const table=host.getByRole('region',{name:'Comparación completa de los diez campos de la novedad fija'});await table.focus();assert.equal(await table.evaluate(e=>e===document.activeElement),true);if(width<700)assert.ok(await table.evaluate(e=>e.scrollWidth<=e.clientWidth+1));assert.ok((await host.locator('.fn-review-check').boundingBox()).height>=44);await host.locator('[data-fn-editor]').screenshot({path:path.join(out,'fixed-complete-review-'+width+'-qa.png')});}
+  await host.locator('[data-fn-reviewed]').check();let beforePosts=posts.length,beforeReads=fixedReads.length;await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.deepEqual(fixedReads.slice(beforeReads, beforeReads+2),['bootstrap','detail']);assert.equal(posts.length,beforePosts+1);assert.equal(reviewRow.version,4);
+  checks.push('ten-field comparison distinguishes unknown amount from zero; explicit acknowledgement renews after reason edits; whole-source preflight and accessible mobile/keyboard review precede one decision');
+  reviewRow=await seedDecision('annul');await decide(reviewRow);assert.equal(await host.locator('[data-fn-change-field]').count(),10);assert.equal(await host.locator('[data-fn-change-field] td:nth-child(3)').filter({hasText:'Sin versión aprobada'}).count(),10);
+  assert.match(await host.locator('[data-fn-change-review]').innerText(),/liquidaciones y los archivos anteriores se conservan/);await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(reviewRow.approved.operation,'annul');assert.equal(state.histories.get(reviewRow.id).length,2);
+  checks.push('annulment review shows every value to retire and its boundary; independent approval preserves the earlier source and complete history without payroll reversal');
+  reviewRow=await seedDecision('annul');await decide(reviewRow,'reject');await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(reviewRow.approved.operation,'set');assert.equal(reviewRow.latest.review.decision,'reject');
+  checks.push('rejecting a proposed annulment explicitly retains the existing approved values');
+  for(const drift of ['expiry','old-history']){
+    reviewRow=await seedDecision('set',drift==='old-history');await decide(reviewRow);const version=reviewRow.version;beforePosts=posts.length;
+    detailTransform=d=>{if(drift==='expiry')for(const p of [d.record.pending,d.record.latest,d.history[0]])p.values.validTo='2027-01-01';else d.history.at(-1).reason='Referencia histórica sintética modificada';return d;};
+    await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(posts.length,beforePosts);assert.equal(reviewRow.version,version);assert.equal(await host.locator('[data-fn-reviewed]').isChecked(),false);assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);assert.match(await host.locator('[data-fn-form-status]').innerText(),/El registro cambió/);
+    detailTransform=null;await refresh();assert.equal(await host.locator('[data-fn-reviewed]').isChecked(),false);assert.equal(await host.locator('[data-fn-change-field]').count(),10);await host.locator('[data-fn-reviewed]').check();await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(posts.length,beforePosts+1);
+    checks.push('same-version '+drift+' drift blocks a stale decision; refreshing restores complete evidence but requires a new explicit review');
+  }
+  reviewRow=await seedDecision();await decide(reviewRow);beforePosts=posts.length;bootstrapCaps=fixture.cap().filter(c=>c!=='payroll.fixed.approve');await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(posts.length,beforePosts);assert.equal(await host.locator('[data-fn-decision-save]').isDisabled(),true);bootstrapCaps=null;
+  checks.push('fresh server revocation of fixed approval prevents a decision despite the cached gate and checked acknowledgement');
+  for(const cause of ['revocation','hidden']){
+    reviewRow=await seedDecision();await decide(reviewRow);beforePosts=posts.length;let releaseDetail;holdDetail=new Promise(resolve=>{releaseDetail=resolve;});const detailStarted=new Promise(resolve=>{notifyDetail=resolve;});await host.locator('[data-fn-decision-save]').click();await waitSignal(detailStarted,'held detail for '+cause);notifyDetail=null;
+    if(cause==='revocation')await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));
+    else await page.evaluate(()=>{Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new Event('visibilitychange'));});
+    releaseDetail();await page.waitForTimeout(80);assert.equal(posts.length,beforePosts);assert.equal(await host.locator('[data-fn-change-field]').count(),0);assert.equal(await host.locator('[data-fn-reviewed]').isChecked(),false);
+    checks.push('a late whole-detail read after '+cause+' cannot restore the comparison or send a decision');
+  }
+  state.role='preparer';await page.goto(origin+'/novedades-nomina.html?fixedContractId='+native.contractId+'#fixedNovelties');await host.locator('[data-fn-subject]').filter({hasText:'Alta propia de MuniControl'}).waitFor();
+  await field('conceptSourceId').fill('80');await field('payrollType').selectOption('monthly');await field('quantityDecimal').fill('1');await field('validFrom').fill('2026-09-21');await field('legalInstrument').fill('Acto sintético de control de identidad');await field('reason').fill('Propuesta sintética sin reasignación');beforePosts=posts.length;
+  state.subjects.set(native.contractId,{...native,employeeName:'NOMBRE SINTÉTICO RECTIFICADO'});await save();assert.equal(posts.length,beforePosts);assert.match(await host.locator('[data-fn-form-status]').innerText(),/La identidad cambió/);assert.equal(await host.locator('[data-fn-save]').isVisible(),false);assert.equal(await host.locator('[data-fn-preview]').isDisabled(),true);assert.deepEqual(employeeReads.at(-1),{contractId:native.contractId,legajo:null});state.subjects.set(native.contractId,native);
+  checks.push('initial proposal preflight rechecks full native identity by the original contract and blocks changed metadata without sending or reassignment');
+  reviewRow=await seedDecision();await decide(reviewRow);dropAck=true;await host.locator('[data-fn-decision-save]').click();await host.locator('[data-fn-retry]:visible').waitFor();const originalDecision=structuredClone(posts.at(-1));assert.equal(reviewRow.version,4);beforePosts=posts.length;
+  state.role='preparer';await page.locator('#refreshButton').click();await page.locator('#refreshButton:enabled').waitFor();await refresh();assert.match(await host.locator('[data-fn-status]').innerText(),/otro ámbito/);assert.equal(await host.locator('[data-fn-retry]').isDisabled(),true);assert.equal(posts.length,beforePosts);
+  state.role='reviewer';await page.locator('#refreshButton').click();await page.locator('#refreshButton:enabled').waitFor();hideAttempt=true;await refresh();await host.locator('[data-fn-retry]:enabled').waitFor();await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();hideAttempt=false;
+  assert.deepEqual(posts.at(-1),originalDecision);assert.equal(reviewRow.version,4);assert.equal(posts.length,beforePosts+1);
+  checks.push('an uncertain decision survives a changed membership; only the original scope can recover its exact body/key without a second decision');
+  state.role='preparer';await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await host.locator('[data-fn-new]:enabled').waitFor();
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:width===1440?1050:844});await page.emulateMedia({reducedMotion:'reduce'});await page.addStyleTag({content:'body:after{content:"QA · DATOS SINTÉTICOS";position:fixed;bottom:5px;right:5px;z-index:99999;background:#123649;color:white;padding:6px;font:11px sans-serif}'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await host.screenshot({path:path.join(out,'fixed-list-'+width+'-qa.png')});}
   checks.push('desktop and 390/320px mobile keep the real list and primary controls inside the viewport');
   await page.setViewportSize({width:390,height:844});await fill('2001');await host.locator('[data-fn-editor]').screenshot({path:path.join(out,'fixed-editor-390-qa.png')});

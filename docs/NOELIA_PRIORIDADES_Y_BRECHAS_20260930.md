@@ -10,9 +10,11 @@ Prioridades expresas nuevas: los demás formatos; anular y liquidar por legajos,
 
 ## Estado contrastado
 
-El alias público `municipio-junin-friendly.vercel.app/release-info.json` respondió con `commitSha=b630731acedc5126ab655b08ba59734b33f2626d` y `sourceState=committed`. GitHub master coincide, con 11 checks concluidos en success y estado Vercel success. Esa publicación contiene la revisión nativa en memoria de PR #67; el propio texto de la PR declara pendientes la integración productiva y el guardado.
+El último corte publicado anterior a este incremento es PR #69: GitHub master y el alias público coincidieron en `78e04442f7038bb7b2225a8de3e986a67c8772b0`, `sourceState=committed`, Vercel READY production. PR #68 publicó incidencias CSV completas, enlace al lote, revisión de lotes y correcciones del preparte. PR #69 recuperó el acceso voluntario al importador después de ocultarlo y conservó el envío incierto sin restaurar la previa. Sus resultados distinguen pruebas locales, CI, bytes de producción y aceptación humana.
 
-Los cambios locales de esta conversación mejoran incidencias CSV, enlace al lote importado, revisión completa de lotes y correcciones del preparte. Tienen 468 pruebas focales aprobadas con fuentes sintéticas. No tienen todavía un build completo válido ni aceptación visual de esta revisión final. El parche externo de rutas permanece separado y no se adopta para publicar a ciegas.
+La revisión nativa en memoria de PR #67 sigue sin integración productiva ni guardado completo. El parche externo de rutas permanece aplazado y no se adopta: el gate canónico del importador conserva `PUBLISHED_ROUTE_MISSING`, aunque la ruta HTML explícita esté publicada. La aceptación del 614 aportada por Marcelo no acredita las mejoras posteriores ni cálculo salarial.
+
+El incremento actual refuerza el circuito individual ya existente de novedades fijas: comparación de diez campos, confirmación explícita y relectura completa antes del primer envío. No sustituye los pendientes de cálculo. Su alcance está en [revisión de novedades fijas](NOELIA_REVISION_NOVEDADES_FIJAS_20260930.md); el resultado de entrega conserva la evidencia de pruebas y publicación.
 
 ## Módulos 1–10: qué conservar y qué cerrar
 
@@ -25,7 +27,7 @@ Los cambios locales de esta conversación mejoran incidencias CSV, enlace al lot
 | 5. Novedades | Individuales nativas, masivas de la vía existente, fijas e historial; revisiones independientes | Masivas nativas completas, rectificación/anulación masiva auditada y aplicación idempotente al cálculo propio. Borrador y exportación de control no son haberes calculados. |
 | 6. Parámetros | Propuestas gobernadas y catálogo administrativo para altas | Maestro operativo de conceptos, bases, auxiliares, escalas, fórmulas, redondeos y vigencias homologadas; impacto y versiones para cambios conjuntos. |
 | 7. Liquidación | Estados de confirmar, cerrar y anular auditados en el cierre agregado 109 | Motor propio, población por legajo/convenio/repartición/todos, cada tipo admitido, recálculo y comparación de versiones, anulación con historial y confirmación/cierre de esa misma corrida. |
-| 8. Informes | Consultas por período/rango y revisión multiperíodo preparada en PR #61 | Integración/exportación completas del conjunto de períodos y conciliación con corridas propias. Revisar la PR antes de adoptar. |
+| 8. Informes | Consultas por período/rango y revisión multiperíodo preparada en PR #61 | Integración/exportación completas del conjunto de períodos y conciliación con corridas propias. PR #61 sigue en borrador: documenta escrituras rechazadas de integración y exportación conjunta; no se reintentan ni recrean. |
 | 9. Recibos | Biblioteca, filtros por rangos, PDF conjunto y fecha declarada | Emisión institucional desde corrida propia y descarga del agente. Firma continúa en el frente de Hugo/Noelia; no se modifica desde aquí. |
 | 10. Cargos presupuestarios | Consulta/cotejo documental y ocupantes frente a presencia en una corrida | Cargo realmente liquidado ligado a esa corrida, presupuesto versionado de cada año, comparación anual y detalle PDF. PR #50 se revisa; el PDF de estructura no prueba por sí solo un cargo liquidado. |
 
@@ -41,8 +43,8 @@ Para cerrar el pedido se necesita la misma selección y versión en preparar/cal
 
 ## UX/UI
 
-1. Validar en navegador, escritorio y móvil, los cambios locales: CSV completo bajo filtros, enlace al lote correcto, revisión/decisión íntegra, foco en cada corrección y retiro por revocación o navegación.
-2. Mejorar el regreso desde otra pestaña a partir del aviso de la captura: revalidar sesión y ofrecer una acción visible para volver a consultar. Conservar un intento incierto y su clave; no restaurar automáticamente datos o permisos retirados.
+1. Conservar lo probado y publicado en PR #68: CSV completo bajo filtros, enlace al lote correcto, revisión/decisión íntegra, foco en cada corrección y retiro por revocación o navegación. La aceptación humana posterior sigue pendiente.
+2. Conservar la recuperación publicada en PR #69: acción visible para revalidar sesión, intento incierto con cuerpo/clave originales y revisión nueva del archivo, sin restauración automática de datos ni permisos. Completar la aceptación con el operador.
 3. Ofrecer flujos claros por tarea: importar → revisar → guardar borrador → revisión independiente, y selección de período/tipo/alcance → previsualización de impacto → decisión de liquidación cuando su motor esté disponible.
 4. Hacer visible qué está disponible, qué requiere corrección y qué está pendiente de conexión/homologación. Distinguir cero, ausencia y falta de cobertura; una suma de control no se rotula neto salarial.
 5. Cerrar recorridos con Noelia/Hugo sobre casos autorizados, además de las pruebas sintéticas. No sustituir sus sesiones ni ampliar permisos para simular aceptación.
