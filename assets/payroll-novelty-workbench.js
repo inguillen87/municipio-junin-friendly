@@ -96,6 +96,7 @@ let lookupEpoch = 0;
 let readBlocked = false;
 let pendingWrite = null;
 let preparedNativeReview = null;
+let invalidEntryField = null;
 const nativeMonthlyReview = mountNativeMonthlyReview(byId('nativeMonthlyReview'),()=>applyMonthlyLocks());
 let suspendedFields = null;
 const pendingDisabled = new Map();
@@ -152,6 +153,28 @@ function applyMonthlyLocks() {
     || !hasCapability(pendingWrite.attempt.command === 'prepare' ? 'payroll.novelty.prepare' : ['approve','reject'].includes(pendingWrite.attempt.command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare')
     || (pendingWrite.requiresNominal || pendingWrite.contractVersion === 'payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read');
   fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite));
+  renderPreparationGuide();
+}
+function renderPreparationGuide() {
+  const help = byId('prepareHelp');
+  if (!help) return;
+  const text = pendingWrite ? 'Hay un envío pendiente de confirmación. Consultá el mismo intento antes de crear otro lote.'
+    : readBlocked ? 'Actualizá la consulta para comprobar el acceso antes de continuar.'
+    : document.body.dataset.busy === 'true' ? 'Esperá a que termine la operación en curso.'
+    : !hasCapability('payroll.novelty.prepare') ? 'Este acceso no permite crear lotes.'
+    : monthlyContractId && !monthlySubject ? 'Actualizá el vínculo elegido antes de validar la novedad.'
+    : invalidEntryField ? 'Corregí el campo señalado y volvé a presionar Validar y previsualizar. Todavía no se guardó el lote.'
+    : !preparedDraft ? 'Paso 1: completá la carga y presioná Validar y previsualizar. Paso 2: revisá la previa para habilitar Crear lote trazable.'
+    : nativeSelected() && !nativeMonthlyReview.confirmed(preparedNativeReview) ? 'Revisá todos los datos de la previa y marcá la confirmación para habilitar Crear lote trazable.'
+    : 'Previa lista. Crear lote trazable guarda estas novedades en borrador; no calcula una liquidación ni genera un recibo nuevo.';
+  if (help.textContent !== text) help.textContent = text;
+}
+function clearEntryValidation() {
+  if (invalidEntryField) {
+    byId(invalidEntryField)?.removeAttribute('aria-invalid');
+    byId(invalidEntryField)?.removeAttribute('aria-errormessage');
+  }
+  invalidEntryField = null;
 }
 function clearConsulted() {
   cancelFileRead();
@@ -268,6 +291,7 @@ function clearMessage() {
 function invalidatePreparedDraft(event) {
   if (pendingWrite) return;
   if (event?.target?.closest?.('[data-review-only]')) return;
+  if (invalidEntryField && (event?.target?.id === invalidEntryField || event?.target?.name === 'sourceMode')) { clearEntryValidation(); clearMessage(); }
   if (event?.target?.id !== 'bulkFile') cancelFileRead();
   reviewPanel?.clear();
   issuesPanel?.clear();
@@ -277,6 +301,7 @@ function invalidatePreparedDraft(event) {
   preparedEntryMode = null;
   byId('previewPanel').hidden = true;
   byId('prepareButton').disabled = true;
+  applyMonthlyLocks();
 }
 
 function errorMessage(error) {
@@ -377,7 +402,7 @@ function rowFromValues(values, ordinal, periodMonth) {
   const legajo = String(legajoValue || '').trim();
   const conceptSourceId = String(conceptValue || '').trim();
   const costCenterSourceId = nullable(costCenterValue);
-  if (!/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw new Error(`Fila ${ordinal}: legajo inválido.`);
+  if (!/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw Object.assign(new Error(`Fila ${ordinal}: legajo inválido. Ingresá sólo el número, sin separadores, letras o ceros iniciales.`), { entryField: 'legajo' });
   if (!/^(?:0|[1-9]\d{0,19})$/.test(conceptSourceId)) throw new Error(`Fila ${ordinal}: concepto inválido.`);
   if (costCenterSourceId && !/^(?:0|[1-9]\d{0,19})$/.test(costCenterSourceId)) {
     throw new Error(`Fila ${ordinal}: centro de costo inválido.`);
@@ -1130,6 +1155,7 @@ function removeAgileRow(index) {
 
 function preflight() {
   if (pendingWrite || readBlocked || document.body.dataset.busy === 'true' || !hasCapability('payroll.novelty.prepare')) return;
+  clearEntryValidation();
   clearMessage();
   try {
     preparedEntryMode = document.querySelector('[name="sourceMode"]:checked')?.value || null;
@@ -1141,6 +1167,14 @@ function preflight() {
     invalidatePreparedDraft();
     if (error instanceof NoveltyReviewError) issuesPanel.show(error);
     showMessage('error', 'Revisá la carga', errorMessage(error));
+    if (error.entryField && ['individual', 'agile'].includes(document.querySelector('[name="sourceMode"]:checked')?.value)) {
+      const field = byId(error.entryField);
+      if (field && !field.disabled) {
+        invalidEntryField = error.entryField;
+        field.setAttribute('aria-invalid', 'true'); field.setAttribute('aria-errormessage', 'messageHost'); field.focus();
+      }
+    }
+    applyMonthlyLocks();
   }
 }
 

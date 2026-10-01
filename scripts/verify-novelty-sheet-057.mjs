@@ -2,7 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import { chromium } from 'playwright';
 const live=process.env.SHEET_LIVE_ASSETS==='1',origin=live?'https://municipio-junin-friendly.vercel.app':(process.env.SHEET_QA_ORIGIN||'https://municontrol.test');
 const root=path.resolve(process.env.SHEET_SOURCE_ROOT||'public'),out='verification/novelty-sheet-057'+(live?'-published':'');fs.mkdirSync(out,{recursive:true});
-const checks=[],errors=[],posts=[];let canPrepare=true,rejectNext=false,principal='qa@example.invalid',slowPost=false,maxRows=500;
+const checks=[],errors=[],posts=[],individualPosts=[];let canPrepare=true,rejectNext=false,principal='qa@example.invalid',slowPost=false,maxRows=500;
 const bootstrap=()=>({ok:true,principal:{email:principal,membershipId:'00000000-0000-4000-8000-000000000001',tenantId:'00000000-0000-4000-8000-000000000002',certifiedBindingId:'00000000-0000-4000-8000-000000000004',capabilities:canPrepare?['payroll.novelty.prepare']:[]},feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',sourceModes:['individual','bulk'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
 const browser=await chromium.launch({headless:true,...(process.env.QA_CHROMIUM?{executablePath:process.env.QA_CHROMIUM}:{})});
 try {
@@ -12,10 +12,11 @@ try {
   if(u.pathname.startsWith('/api/')){
    if(u.pathname==='/api/internal-payroll-novelties'){
     if(route.request().method()==='POST'){
-     posts.push({key:route.request().headers()['idempotency-key'],body:route.request().postDataJSON()});
+     const attempt={key:route.request().headers()['idempotency-key'],body:route.request().postDataJSON()};
+     (attempt.body.payload.sourceMode==='individual'?individualPosts:posts).push(attempt);
      if(slowPost)await new Promise(r=>setTimeout(r,700));
      if(rejectNext){rejectNext=false;return route.fulfill({status:503,json:{ok:false,error:'Interrupción sintética QA'}});}
-     return route.fulfill({status:200,json:{ok:true,data:{...posts.at(-1).body.payload,id:'00000000-0000-4000-8000-000000000003',contractVersion:'payroll-novelty-batch.v1',status:'draft',version:1,rowCount:posts.at(-1).body.payload.rows.length,exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false}}});
+     return route.fulfill({status:200,json:{ok:true,data:{...attempt.body.payload,id:'00000000-0000-4000-8000-000000000003',contractVersion:'payroll-novelty-batch.v1',status:'draft',version:1,rowCount:attempt.body.payload.rows.length,exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false}}});
     }
     return route.fulfill({status:200,json:bootstrap()});
    }
@@ -31,7 +32,17 @@ try {
  const openGroup=async(text,code='44',units='1')=>{await page.locator('#sheetGroup').click();await page.locator('#sheetGroupLegajos').fill(text);await page.locator('#sheetGroupConcept').fill(code);await page.locator('#sheetGroupQuantity').fill(units);};
  const addGroup=async(text,code='44',units='1')=>{await openGroup(text,code,units);await page.locator('#sheetGroupApply').click();await page.locator('#sheetGroupDialog').waitFor({state:'hidden'});};
  const validate=async()=>{await page.locator('#preflightButton').click();};
- await page.goto(origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();await page.locator('[name=sourceMode][value=sheet]').check();await page.locator('#periodMonth').fill('2026-09');
+ await page.goto(origin+'/novedades-nomina.html');await page.locator('#preflightButton:enabled').waitFor();
+ await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('95');await page.locator('#adjustmentMonth').fill('2026-09');await page.locator('#quantityDecimal').fill('100');
+ await validate();assert.match(await page.locator('#messageHost').innerText(),/legajo inválido/);assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+ assert.equal(await page.locator('#legajo').getAttribute('aria-invalid'),'true');assert.equal(await page.locator('#legajo').evaluate(el=>document.activeElement===el),true);assert.equal(individualPosts.length,0);assert.match(await page.locator('#prepareHelp').innerText(),/Corregí el campo/);
+ await page.locator('#legajo').fill('1001');assert.doesNotMatch(await page.locator('#messageHost').innerText(),/legajo inválido/,'Correcting a field must withdraw its stale validation error.');
+ assert.equal(await page.locator('#legajo').getAttribute('aria-invalid'),null);assert.equal(await page.locator('#prepareButton').isDisabled(),true);assert.match(await page.locator('#prepareHelp').innerText(),/Paso 1/);checks.push('invalid legajo focuses the actual field, blocks all POSTs and withdraws its stale error when edited; correction still requires a fresh preview');
+ await validate();assert.equal(await page.locator('#prepareButton').isEnabled(),true);assert.doesNotMatch(await page.locator('#messageHost').innerText(),/legajo inválido/);assert.match(await page.locator('[data-review-row="1"]').innerText(),/95/);assert.equal(posts.length,0);checks.push('individual full-time95 with numeric synthetic legajo and explicit100 units validates without an amount or any POST; this is not salary-rule homologation');
+ assert.match(await page.locator('#prepareHelp').innerText(),/Previa lista/);assert.equal(await page.locator('#prepareButton').getAttribute('aria-describedby'),'prepareHelp');
+ for(const width of [1440,390,320]){await page.setViewportSize({width,height:900});await page.locator('#prepareHelp').scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.equal(await page.locator('#prepareHelp').isVisible(),true);const forcedBox=await page.locator('#forced').boundingBox();assert.ok(forcedBox.width>=20&&forcedBox.height>=20);assert.ok((await page.locator('label[for="forced"]').boundingBox()).height>=44);await page.screenshot({path:out+'/fulltime95-guide-'+width+'-synthetic.png',fullPage:false});}await page.setViewportSize({width:1440,height:1050});checks.push('the creation guide and reviewed95 entry remain readable at1440/390/320px with a20px forced checkbox and44px label, without horizontal overflow');
+ await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'Lote creado y auditado'}).waitFor();assert.equal(individualPosts.length,1);const fullTime=individualPosts[0].body.payload.rows[0];assert.equal(fullTime.legajo,'1001');assert.equal(fullTime.conceptSourceId,'95');assert.equal(fullTime.quantityDecimal,'100');assert.equal(fullTime.amountCents,null);assert.equal(fullTime.forced,false);assert.equal(individualPosts[0].body.payload.payrollType,'monthly');checks.push('one voluntary full-time95 save reaches only the intercepted API with exact legajo/period/type/units and an absent amount, without salary calculation');
+ await page.locator('[name=sourceMode][value=sheet]').check();await page.locator('#periodMonth').fill('2026-09');
  assert.equal(await page.locator('input[type=file]:visible').count(),0);assert.equal(await page.locator('#sheetEmpty').isVisible(),true);checks.push('native task has no file input and no fabricated employees');
  await addGroup('1001\n1002\n1003','44','1,25');assert.equal(await page.locator('[data-sheet-row]').count(),3);assert.equal(posts.length,0);checks.push('three legajos added directly without server write, amount or force defaults');
  await openGroup('1004\n1001');await page.locator('#sheetGroupApply').click();assert.match(await page.locator('#sheetGroupError').innerText(),/ya tiene/);assert.equal(await page.locator('[data-sheet-row]').count(),3);await page.locator('#sheetGroupCancel').click();checks.push('duplicate group blocks whole append instead of partially adding valid legajos');
@@ -59,5 +70,5 @@ try {
  maxRows=500;await page.locator('#refreshButton').click();await page.locator('#sheetEmpty:visible').waitFor();checks.push('change of server limits clears native staged rows and review');
  await addGroup('5001');await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));assert.equal(await page.locator('[data-sheet-row]').count(),0);checks.push('pagehide discards private in-memory native rows, no browser storage');
  assert.deepEqual(errors,[]);checks.push('zero unhandled browser JavaScript errors');
- fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,productionApiWrites:0,realMunicipalSessionTested:false,liveAssets:live},null,2));console.log(JSON.stringify({checksPassed:checks.length,errors,liveAssets:live}));
+ fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length+individualPosts.length,individualSyntheticPosts:individualPosts.length,productionApiWrites:0,realMunicipalSessionTested:false,liveAssets:live},null,2));console.log(JSON.stringify({checksPassed:checks.length,errors,liveAssets:live}));
 } catch(e){fs.writeFileSync(out+'/error.txt',String(e.stack));throw e;}finally{await browser.close();}
