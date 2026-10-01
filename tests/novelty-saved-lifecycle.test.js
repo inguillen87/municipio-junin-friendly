@@ -46,7 +46,7 @@ test('hiding and returning a cached page withdraws nominal data but retains the 
   const panel={clear(){},clearLookupLabels(){},deny(){},close(){}};
   const context={pendingWrite:pending,reviewedBatch:savedNoveltyBatch(batch()),detailReadVersion:0,requestEpoch:0,lookupEpoch:0,
     readBlocked:false,suspendedFields:null,byId:element,cancelFileRead(){},savedReviewPanel:panel,reviewPanel:panel,issuesPanel:panel,
-    employeePicker:panel,monthlyPicker:panel,attendancePreparte:panel,sheetEditor:panel,fixedNovelties:panel,
+    employeePicker:panel,monthlyPicker:panel,attendancePreparte:panel,sheetEditor:panel,fixedNovelties:panel,nativeMonthlyReview:panel,preparedNativeReview:{},
     applyMonthlyLocks(){},showMessage(){},monthlySubject:null,monthlyContractId:null,agileDraftRows:[],agileTemplate:null,
     clearAgileInput(){},invalidatePreparedDraft(){},renderAgileRows(){},
     document:{hidden:true,addEventListener:(type,fn)=>listeners.set(type,fn)},window:{addEventListener:(type,fn)=>listeners.set(type,fn)}};
@@ -55,6 +55,7 @@ test('hiding and returning a cached page withdraws nominal data but retains the 
   vm.runInContext(source.slice(source.indexOf("  document.addEventListener('visibilitychange'"),source.indexOf("  window.addEventListener('beforeunload'")),context);
   listeners.get('visibilitychange')();assert.equal(context.pendingWrite,pending);assert.equal(context.readBlocked,true);
   assert.equal(context.reviewedBatch,null);assert.equal(element('detailRows').textContent,'');assert.equal(element('detailPanel').hidden,true);
+  assert.equal(context.preparedNativeReview,null);
   listeners.get('pagehide')();assert.equal(context.pendingWrite,pending);
   context.document.hidden=false;listeners.get('visibilitychange')();assert.equal(context.pendingWrite,pending);assert.equal(context.readBlocked,true);
 });

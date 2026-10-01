@@ -235,6 +235,8 @@ const shellFiles = [
   'assets/payroll-novelty-txt.js',
   'assets/payroll-novelty-txt-panel.js',
   'assets/payroll-native-monthly-model.js',
+  'assets/payroll-native-monthly-review.js',
+  'assets/payroll-native-monthly-review.css',
   'assets/payroll-fixed-novelties.js',
   'assets/payroll-fixed-novelties-model.js',
   'assets/payroll-fixed-novelties-export.js',

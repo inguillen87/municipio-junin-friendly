@@ -1,6 +1,6 @@
 # MuniControl · plan de cierres funcionales
 
-Base contrastada el 30/09 en esta conversación: master y producción en `47117de7060f9c2f50b841f69c215ad2af4eef4a`, PR #70. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral de GRH terminado.
+Base contrastada el 01/10 en esta conversación: master y producción en `714aa84022a3731024716577945e9fdf7b609ae2`, PR #72. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. El objetivo solicitado sigue siendo sustituir GRH durante octubre por circuitos propios aceptados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral terminado.
 
 ## Entregas que se conservan
 
@@ -21,6 +21,18 @@ PR #71 integrada y producción contrastada en `c809790769de9dab97fd25c3ad883d4a5
 [Consulta y exportación del padrón propio](PADRON_PROPIO_CONSULTA_EXPORTACION_20261001.md): filtros por identidad informada, situación, jurisdicción y encuadre; cantidades separadas de contratos/personas; ficha por UUID; Excel/CSV de todas las páginas del filtro. Una consulta lee los registros propios y sus cantidades sin reconstruir vistas GRH. Se conserva el validador de acceso nativo y el binding certificado existente. Las descargas releen el conjunto y requieren revisión si cambió. No crea movimientos de Personal ni declara completa la fase 1. Pruebas/publicación se acreditan en su resultado.
 
 ## Fases siguientes y aceptación
+
+### Incremento del 01/10: revisión de la novedad mensual propia
+
+[Novedad mensual propia](NOELIA_NATIVE_MONTHLY_101.md): revisión visible de todos los campos y confirmación expresa; lectura fresca de permisos, ámbito e identidad del mismo contrato antes del primer envío; comprobación completa del recibo en servidor y navegador. Una respuesta incierta mantiene cuerpo y clave, incluso al cambiar de membresía; sólo el ámbito original puede recuperarla. Conserva el escritor de una fila mensual y la aprobación independiente para exportación de control. No declara cálculo salarial ni la fase 1 integral terminados.
+
+### Fuentes privadas contrastadas el 01/10
+
+Se conservaron los tres pilares aportados: archivo de módulos, ejemplos de agosto y respaldo del 22/09. El archivo de módulos incluye 1–7; los documentos 8–10 ya identificados siguen en la matriz. Agosto contiene 341 archivos (81 TXT, 187 PDF, 49 XLSX y dos ZIP), que no se publican ni importan por este incremento. Los apartados 5.1–5.5 ratifican novedades individuales/masivas, fijas y eliminación por error; 6.1–6.4 ratifican conceptos, auxiliares, fórmulas por los convenios indicados y propagación de cambios entre convenios. Se conserva la distinción entre una función pedida y una regla salarial actualmente homologada.
+
+La inspección del respaldo fue sólo de esquema: contiene DDL MySQL y estructuras de horarios, turnos, feriados y conceptos de reloj. Los nombres y tipos de columnas no prueban unidades, tolerancias, redondeos, vigencias ni aprobación actual. No se restauró la base ni se extrajeron filas nominales. La reconstrucción existente de entradas/salidas/pausas conserva segundos y observaciones; aún exige homologación, cobertura, vínculo temporal y reglas aprobadas para entregar extras a Noelia. Se sigue el [circuito de Hugo](ASISTENCIA_CALCULO_Y_APROBACION_HUGO_20260923.md), sin activar el evaluador rechazado o alterar colectores.
+
+La firma digital y los expedientes internos/externos siguen como siguiente circuito solicitado: documento, responsables, permisos y trazabilidad. El trabajo de certificados de Hugo/Noelia permanece separado. Esta revisión de nómina no acredita firma o expediente terminado.
 
 | Fase | Resultado a cerrar | Evidencia necesaria y límite |
 |---|---|---|

@@ -13,7 +13,7 @@ const root=path.resolve('public'),out=path.resolve('verification/native-monthly-
 fs.mkdirSync(out,{recursive:true});
 const build=publishedBuildVerification({origin,root});
 const assets=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-native-monthly-model.js',
-  'assets/payroll-novelty-exporter.js','assets/payroll-novelty-xlsx-exporter.js'];
+  'assets/payroll-novelty-exporter.js','assets/payroll-novelty-xlsx-exporter.js','assets/payroll-native-monthly-review.js','assets/payroll-native-monthly-review.css'];
 const hashes=build.expectedHashes(assets),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 if(published) for(const file of assets){const response=await build.fetchFile(file);assert.equal(response.status,200);assert.equal(sha(Buffer.from(await response.arrayBuffer())),hashes[file],file);}
 const ids={contract:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',other:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
@@ -23,7 +23,7 @@ const ids={contract:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',other:'dddddddd-dddd-
 const original={contractId:ids.contract,legajo:'571',employeeName:'Alta propia sintética QA',identityToken:'a'.repeat(64),
   sourceCutoff:null,origin:'MUNICONTROL',registrationId:ids.registration,registeredAt:'2026-09-22T12:30:00.123456Z'};
 let actor='maker',nominal=true,prepare=true,deny=false,current=true,failPrepare=false,failTransition=false,rejectIdentity=false,
-  currentSubject=structuredClone(original),consultedSubject=null,holdEmployee=false,releaseEmployee=null,number=0;
+  currentSubject=structuredClone(original),consultedSubject=null,holdEmployee=false,releaseEmployee=null,number=0,receiptPatch=null;
 const batches=new Map(),receipts=new Map(),requests=[],posts=[],errors=[],checks=[];
 const clone=value=>structuredClone(value);
 function capabilities(){return ['payroll.novelty.read',...(nominal?['payroll.novelty.nominal.read']:[]),
@@ -82,6 +82,7 @@ try{
           if(rejectIdentity){rejectIdentity=false;return route.fulfill({status:409,json:{ok:false,code:'PAYROLL_NOVELTY_NATIVE_IDENTITY_CHANGED',error:'El vínculo cambió. Volvé a consultar la misma persona.'}});}
           const response=write(body,key);
           if(body.command==='prepare'?failPrepare:failTransition){failPrepare=false;failTransition=false;return route.fulfill({status:503,json:{ok:false,error:'Respuesta perdida sintética'}});}
+          if(receiptPatch){const patch=receiptPatch;receiptPatch=null;patch(response.data);}
           return route.fulfill({json:response});
         }
         assert.equal(url.searchParams.get('version'),'2');const resource=url.searchParams.get('resource');
@@ -119,6 +120,11 @@ try{
   const preview=async()=>{
     await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('44');
     await page.locator('#quantityDecimal').fill('1,000001');await page.locator('#preflightButton').click();
+    if(!/Fuente GRH/.test(await page.locator('#nativeMonthlySubject').innerText())){
+      await page.locator('#nativeMonthlyReview:visible').waitFor();
+      assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+      await page.locator('#nativeMonthlyReviewConfirm').check();
+    }
     await page.locator('#prepareButton:enabled').waitFor();
   };
   const refresh=async()=>{await page.locator('#refreshButton').click();await page.locator('#refreshButton:enabled').waitFor();};
@@ -163,7 +169,8 @@ try{
   await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'El vínculo cambió'}).waitFor();
   assert.equal(batches.size,0);assert.equal(posts.length,beforeDrift+1);
   assert.equal(posts.at(-1).body.payload.rows[0].contractId,ids.contract);assert.equal(posts.at(-1).body.payload.rows[0].identityToken,original.identityToken);
-  assert.equal(requests.filter(r=>r.query.includes('resource=employee')).length,readsBeforeDrift);
+  assert.equal(requests.filter(r=>r.query.includes('resource=employee')).length,readsBeforeDrift+1);
+  assert.ok(requests.filter(r=>r.query.includes('resource=employee')).at(-1).query.includes('contractId='+ids.contract));
   assert.equal(await page.locator('#nativeMonthlyPending').isVisible(),false);
   checks.push('stale-identity refusal preserves the exact original UUID/token and never silently looks up another same-legajo identity');
   await open(ids.grh);assert.equal(await page.locator('#payrollType').isDisabled(),false);
@@ -183,6 +190,50 @@ try{
   actor='maker';batches.clear();await open();await preview();nominal=false;await refresh();
   assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   checks.push('nominal permission revocation clears prepared identity and prevents writing');
+
+  nominal=true;batches.clear();await open();
+  await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('44');
+  await page.locator('#costCenterSourceId').fill('9');await page.locator('#adjustmentMonth').fill('2026-08');
+  await page.locator('#quantityDecimal').fill('1,000001');await page.locator('#manualAmountEnabled').check();await page.locator('#amountArs').fill('90071992547409,93');
+  await page.locator('#movementType').fill('standard');await page.locator('#legalInstrument').fill('Resolución QA 2026');await page.locator('#observation').fill('Fundamento sintético completo');
+  await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();
+  const reviewText=await page.locator('#nativeMonthlyReview').innerText();
+  for(const value of ['2026-09','Mensual','44','9','2026-08','1,000001','90.071.992.547.409,93','standard','Resolución QA 2026','Fundamento sintético completo','Modo forzado'])assert.ok(reviewText.includes(value),value);
+  const beforeReview=posts.length;await page.locator('#prepareButton').evaluate(node=>node.dispatchEvent(new Event('click')));assert.equal(posts.length,beforeReview);
+  assert.equal(await page.locator('#nativeMonthlyReviewConfirm').isChecked(),false);
+  await page.locator('#nativeMonthlyReviewConfirm').check();await page.locator('#conceptSourceId').fill('45');assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+  checks.push('complete native review exposes every value with exact decimals; no write without acknowledgement, and edits invalidate it');
+
+  await open();await preview();prepare=false;const beforeRevoke=posts.length;await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'El acceso cambió'}).waitFor();assert.equal(posts.length,beforeRevoke);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);
+  checks.push('fresh pre-write revocation removes the review and sends no POST');
+  prepare=true;await open();await preview();currentSubject={...original,employeeName:'PERSONA QA ACTUALIZADA',identityToken:'c'.repeat(64)};const beforeSubject=posts.length;await page.locator('#prepareButton').click();await page.locator('#messageHost').filter({hasText:'La persona o el vínculo cambió'}).waitFor();assert.equal(posts.length,beforeSubject);assert.equal(await page.locator('#conceptSourceId').inputValue(),'44');assert.equal(await page.locator('#prepareButton').isDisabled(),true);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);
+  checks.push('changed identity on the exact UUID preserves the entered novelty and requires another complete review without writing');
+  currentSubject=clone(original);
+
+  for(const [field,value] of Object.entries({conceptSourceId:'45',costCenterSourceId:'9',adjustmentMonth:'2026-08-01',quantityDecimal:'1.000002',amountCents:'0',movementType:'standard',legalInstrument:'Resolución QA',observation:'Fundamento distinto QA'})){
+    batches.clear();await open();await preview();receiptPatch=b=>{b.rows[0][field]=value;};const first=posts.length;await page.locator('#prepareButton').click();await page.locator('#nativeMonthlyPending:visible').waitFor();assert.equal(await page.locator('#conceptSourceId').isDisabled(),true);assert.equal(batches.size,1);
+    await page.locator('#nativeMonthlyRetry:enabled').click();await page.locator('#nativeMonthlyPending').waitFor({state:'hidden'});assert.equal(posts.length,first+2);assert.deepEqual(posts[first],posts[first+1]);assert.equal(batches.size,1);
+    checks.push('mismatched '+field+' confirmation retains the original body/key and recovers exactly one saved batch');
+  }
+  batches.clear();await open();await preview();failPrepare=true;const beforeScope=posts.length;await page.locator('#prepareButton').click();await page.locator('#nativeMonthlyPending:visible').waitFor();actor='checker';await refresh();assert.equal(await page.locator('#nativeMonthlyRetry').isDisabled(),true);assert.equal(posts.length,beforeScope+1);actor='maker';await refresh();assert.equal(posts.length,beforeScope+1);await page.locator('#nativeMonthlyRetry:enabled').click();await page.locator('#nativeMonthlyPending').waitFor({state:'hidden'});assert.equal(posts.length,beforeScope+2);assert.deepEqual(posts[beforeScope],posts[beforeScope+1]);assert.equal(batches.size,1);
+  checks.push('membership switch preserves an uncertain native attempt and only its original authority can retry the same body/key');
+  batches.clear();await open();await preview();
+  await page.emulateMedia({reducedMotion:'reduce'});
+  for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    const confirmBox=await page.locator('.native-monthly-review-confirm').boundingBox();assert.ok(confirmBox.height>=44);
+    const confirm=page.locator('#nativeMonthlyReviewConfirm');await confirm.uncheck();await confirm.focus();await confirm.press('Space');assert.equal(await confirm.isChecked(),true);
+    await confirm.press('Space');assert.equal(await confirm.isChecked(),false);assert.equal(await page.locator('#prepareButton').isDisabled(),true);await confirm.check();
+    await page.locator('#nativeMonthlyReview').screenshot({path:path.join(out,'complete-review-'+width+'-synthetic.png')});
+    await page.locator('#nativeMonthlyReviewTitle').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'review-top-'+width+'-synthetic.png')});
+    await confirm.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'review-confirm-'+width+'-synthetic.png')});
+  }
+  checks.push('complete native review fits desktop and 390/320px, with a 44px labelled acknowledgement');
+  // A late fresh subject read cannot authorize the first write after hiding.
+  holdEmployee=true;const beforeHidden=posts.length;await page.locator('#prepareButton').click();await page.waitForFunction(()=>document.body.dataset.busy==='true');
+  for(let i=0;i<120&&!releaseEmployee;i++)await page.waitForTimeout(10);assert.ok(releaseEmployee);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});releaseEmployee();releaseEmployee=null;
+  await page.waitForTimeout(80);assert.equal(posts.length,beforeHidden);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
+  checks.push('hiding during the fresh identity read clears the review and prevents a late first POST');
   nominal=true;await open();holdEmployee=true;await page.locator('#nativeMonthlyRefresh').click();
   await page.waitForFunction(()=>document.body.dataset.busy==='true');deny=true;
   // Trigger a newer authority read while the employee lookup remains in flight.

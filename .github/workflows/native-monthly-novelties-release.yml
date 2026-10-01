@@ -17,6 +17,7 @@ on:
       - 'tests/fixtures/grh-import-synthetic.js'
       - 'lib/internal-payroll-novelty.js'
       - 'assets/payroll-native-monthly-model.js'
+      - 'assets/payroll-native-monthly-review.*'
       - 'assets/payroll-novelty-*.js'
       - 'assets/native-employee-create.js'
       - 'novedades-nomina.html'
@@ -33,6 +34,13 @@ on:
       - '.github/workflows/native-monthly-novelties-release.yml'
   pull_request:
     paths:
+      - 'lib/internal-payroll-novelty.js'
+      - 'assets/payroll-native-monthly-model.js'
+      - 'assets/payroll-native-monthly-review.*'
+      - 'assets/payroll-novelty-workbench.js'
+      - 'novedades-nomina.html'
+      - 'scripts/verify-native-monthly-novelties-browser.mjs'
+      - 'tests/native-monthly-preparation.test.js'
       - 'api/internal-payroll-novelties.js'
       - 'lib/internal-grh-import.js'
       - 'lib/grh-import-prepare-sql.js'

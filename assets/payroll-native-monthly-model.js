@@ -156,3 +156,42 @@ export function monthlyWriteAttempt({url,command,payload,key,scopeKey}) {
       || !['/api/internal-payroll-novelties','/api/internal-payroll-novelties?version=2'].includes(url) || !object(payload)) fail();
   return Object.freeze({url,command,key,scopeKey,body:JSON.stringify({command,payload})});
 }
+
+const preparationReviews = new WeakSet();
+export function nativeMonthlyPreparation(draft, subject, scopeKey) {
+  assertNativeMonthlySubject(subject);
+  if (!text(scopeKey,500) || !Array.isArray(draft?.rows) || draft.rows.length !== 1) fail();
+  const {contractId,identityToken,...input} = draft.rows[0];
+  if (!uuid(contractId) || contractId.toLowerCase() !== subject.contractId.toLowerCase() || identityToken !== subject.identityToken) fail();
+  buildNativeMonthlyDraft({...draft,rows:[input]},subject);
+  const review=freeze(structuredClone({draft,subject,scopeKey}));
+  preparationReviews.add(review);
+  return review;
+}
+export function requireNativeMonthlyPreparation(review) {
+  if (!preparationReviews.has(review)) fail();
+  return review;
+}
+export function sameNativeMonthlySubject(reviewed,current) {
+  assertNativeMonthlySubject(reviewed); assertNativeMonthlySubject(current);
+  return nativeKeys.every(key => ['contractId','registrationId'].includes(key)
+    ? reviewed[key].toLowerCase() === current[key].toLowerCase() : reviewed[key] === current[key]);
+}
+// PostgreSQL 101 uses trim_scale, and the existing input normalizer uses LF.
+// Compare exact decimal text without floats; null is never equal to zero.
+const preparedValue=(key,value)=>value===null?null:key==='quantityDecimal'
+  ? value.replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1')
+  : ['legalInstrument','observation'].includes(key)?value.replace(/\r\n?/g,'\n'):value;
+export function assertNativeMonthlyPrepareReceipt(batch,draft,reviewedSubject=null) {
+  verifyMonthlyBatch(batch,{mode:'receipt'});
+  if (batch.contractVersion !== 'payroll-novelty-batch.v2' || batch.status !== 'draft' || batch.version !== 1
+      || batch.exportable !== false || draft?.sourceMode !== 'individual' || draft.payrollType !== 'monthly'
+      || batch.periodMonth !== draft.periodMonth || !Array.isArray(draft.rows) || draft.rows.length !== 1) fail();
+  const expected=draft.rows[0],actual=batch.rows[0];
+  inputRow(expected,draft.periodMonth);
+  if (!uuid(expected.contractId) || actual.employmentContractId.toLowerCase() !== expected.contractId.toLowerCase()
+      || actual.subject.identityToken !== expected.identityToken
+      || inputKeys.some(key=>preparedValue(key,expected[key])!==preparedValue(key,actual[key]))
+      || reviewedSubject && !sameNativeMonthlySubject(reviewedSubject,actual.subject)) fail();
+  return batch;
+}
