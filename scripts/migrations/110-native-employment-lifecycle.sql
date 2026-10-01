@@ -279,17 +279,17 @@ DROP TRIGGER IF EXISTS native_employment_lifecycle_review_immutable ON public.na
 CREATE TRIGGER native_employment_lifecycle_review_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON public.native_employment_lifecycle_review FOR EACH STATEMENT EXECUTE FUNCTION public.native_employment_lifecycle_immutable_v1();
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_context_v1(p jsonb,required_capability text DEFAULT NULL) RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 BEGIN RETURN public.native_employment_change_context_v1(p,required_capability); EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION '%',replace(SQLERRM,'NATIVE_EMPLOYMENT_CHANGE_','NATIVE_EMPLOYMENT_LIFECYCLE_');
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_lock_v1(ctx jsonb,target uuid) RETURNS void
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 BEGIN
  PERFORM public.native_employment_change_lock_v1(ctx,target);
  IF NOT pg_try_advisory_xact_lock(hashtextextended('native-employment-lifecycle:v1:'||(ctx->>'tenantId')||':'||(ctx->>'sourceBindingId')||':'||target::text,0)) THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_BUSY'; END IF;
  EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION '%',replace(SQLERRM,'NATIVE_EMPLOYMENT_CHANGE_','NATIVE_EMPLOYMENT_LIFECYCLE_');
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_capacity_v1(extra_bytes integer) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
@@ -301,18 +301,18 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_subject_v1(ctx jsonb,target uuid) RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 BEGIN RETURN public.native_employment_change_subject_v1(ctx,target); EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION '%',replace(SQLERRM,'NATIVE_EMPLOYMENT_CHANGE_','NATIVE_EMPLOYMENT_LIFECYCLE_');
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_scope_v1(ctx jsonb,subject jsonb) RETURNS text
 LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
  SELECT encode(public.digest(jsonb_build_object('version','native-employment-lifecycle-scope.v1','tenantId',ctx->>'tenantId','sourceBindingId',ctx->>'sourceBindingId','membershipId',ctx->>'membershipId','personId',ctx->>'actorPersonId','email',ctx->>'actorEmail','contractId',subject->>'contractId','registrationId',subject->>'registrationId','identityToken',subject->>'identityToken')::text,'sha256'),'hex')
 $$;
-CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_version_v1(snapshot jsonb,subject jsonb,revision integer) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
- SELECT encode(public.digest(jsonb_build_object('version','native-employment-lifecycle-state.v1','contract',(snapshot->'contract')-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'],'intervals',snapshot->'intervals','registrationId',subject->>'registrationId','identityToken',subject->>'identityToken','revision',revision)::text,'sha256'),'hex') $;
+CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_version_v1(snapshot jsonb,subject jsonb,revision integer) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+ SELECT encode(public.digest(jsonb_build_object('version','native-employment-lifecycle-state.v1','contract',(snapshot->'contract')-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'],'intervals',snapshot->'intervals','registrationId',subject->>'registrationId','identityToken',subject->>'identityToken','revision',revision)::text,'sha256'),'hex') $$;
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_intervals_v1(rows_value jsonb) RETURNS jsonb
-LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE item jsonb; first_date date; last_date date; previous_end date; ordinal integer:=0;
 BEGIN
  IF jsonb_typeof(rows_value) IS DISTINCT FROM 'array' OR jsonb_array_length(rows_value) NOT BETWEEN 1 AND 51 THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_DATES_INVALID'; END IF;
@@ -324,10 +324,12 @@ BEGIN
  END LOOP;
  RETURN rows_value;
  EXCEPTION WHEN OTHERS THEN IF SQLERRM LIKE 'NATIVE_EMPLOYMENT_LIFECYCLE_%' THEN RAISE; END IF; RAISE EXCEPTION 'NATIVE_EMPLOYMENT_LIFECYCLE_DATES_INVALID';
-END $;
-CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_display_v1(snapshot jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $ SELECT jsonb_build_object('intervals',snapshot->'intervals') $;
+END $$;
+CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_activity_v1(rows_value jsonb,today date) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM jsonb_array_elements(public.native_employment_lifecycle_intervals_v1(rows_value)) r WHERE (r->>'startDate')::date<=today AND (r->>'endDate' IS NULL OR (r->>'endDate')::date>=today)) THEN 'active' WHEN EXISTS(SELECT 1 FROM jsonb_array_elements(rows_value) r WHERE (r->>'startDate')::date>today) THEN 'pending_start' ELSE 'inactive' END $$;
+CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_display_v1(snapshot jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$ SELECT jsonb_build_object('intervals',snapshot->'intervals') $$;
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_after_v1(before_row jsonb,movement text,event_date date) RETURNS jsonb
-LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE rows_value jsonb; last_row jsonb; n integer;
 BEGIN
  rows_value:=public.native_employment_lifecycle_intervals_v1(before_row->'intervals'); n:=jsonb_array_length(rows_value); last_row:=rows_value->(n-1);
@@ -341,10 +343,10 @@ BEGIN
   rows_value:=rows_value||jsonb_build_array(jsonb_build_object('startDate',to_char(event_date,'YYYY-MM-DD'),'endDate',NULL));
  END IF;
  RETURN before_row||jsonb_build_object('intervals',public.native_employment_lifecycle_intervals_v1(rows_value));
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_state_v1(ctx jsonb,target uuid,subject jsonb) RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
 DECLARE canonical_row jsonb; snapshot jsonb; revision_value integer; applied_at timestamptz; rows_value jsonb; today date:=(statement_timestamp() AT TIME ZONE 'America/Argentina/Mendoza')::date;
 BEGIN
  SELECT to_jsonb(ec) INTO canonical_row FROM public.employment_contract ec WHERE ec.id=target AND ec.tenant_id=(ctx->>'tenantId')::uuid AND ec.source_system='MUNICONTROL';
@@ -353,9 +355,7 @@ BEGIN
  revision_value:=coalesce(revision_value,0); rows_value:=coalesce(rows_value,jsonb_build_array(jsonb_build_object('startDate',canonical_row->>'start_date','endDate',canonical_row->>'end_date')));
  rows_value:=public.native_employment_lifecycle_intervals_v1(rows_value); snapshot:=jsonb_build_object('contract',canonical_row,'intervals',rows_value);
  RETURN jsonb_build_object('version',public.native_employment_lifecycle_version_v1(snapshot,subject,revision_value),'revision',revision_value,'appliedAt',applied_at,'intervals',rows_value,'today',to_char(today,'YYYY-MM-DD'),'status',public.native_employment_lifecycle_activity_v1(rows_value,today));
-END $;
-CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_activity_v1(rows_value jsonb,today date) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
- SELECT CASE WHEN EXISTS(SELECT 1 FROM jsonb_array_elements(public.native_employment_lifecycle_intervals_v1(rows_value)) r WHERE (r->>'startDate')::date<=today AND (r->>'endDate' IS NULL OR (r->>'endDate')::date>=today)) THEN 'active' WHEN EXISTS(SELECT 1 FROM jsonb_array_elements(rows_value) r WHERE (r->>'startDate')::date>today) THEN 'pending_start' ELSE 'inactive' END $$;
+END $$;
 CREATE OR REPLACE FUNCTION public.native_employment_lifecycle_can_review_v1(ctx jsonb,p public.native_employment_lifecycle_proposal) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
  SELECT coalesce(public.action_center_context_has_capability(ctx,'employee.record.approve') AND ctx->>'actorPersonId' IS NOT NULL AND ctx->>'employmentContractId' IS NOT NULL
@@ -586,10 +586,10 @@ public.native_employment_lifecycle_subject_v1(jsonb,uuid),
 public.native_employment_lifecycle_scope_v1(jsonb,jsonb),
 public.native_employment_lifecycle_version_v1(jsonb,jsonb,integer),
 public.native_employment_lifecycle_intervals_v1(jsonb),
+public.native_employment_lifecycle_activity_v1(jsonb,date),
 public.native_employment_lifecycle_display_v1(jsonb),
 public.native_employment_lifecycle_after_v1(jsonb,text,date),
 public.native_employment_lifecycle_state_v1(jsonb,uuid,jsonb),
-public.native_employment_lifecycle_activity_v1(jsonb,date),
 public.native_employment_lifecycle_can_review_v1(jsonb,public.native_employment_lifecycle_proposal),
 public.native_employment_lifecycle_summary_v1(jsonb,public.native_employment_lifecycle_proposal),
 public.native_employment_lifecycle_replay_v1(jsonb,uuid,uuid,text,text),
