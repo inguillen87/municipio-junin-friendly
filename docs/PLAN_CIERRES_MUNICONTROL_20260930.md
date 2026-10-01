@@ -2,6 +2,14 @@
 
 Base contrastada el 01/10 en esta conversación: master y producción en `528f902437321ea647627dbf0b1660ce8d689824`, PR #74. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. El objetivo solicitado sigue siendo sustituir GRH durante octubre por circuitos propios aceptados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral terminado.
 
+## Feedback vivo del01/10 y secuencia inmediata
+
+El [registro de las39 páginas](NOELIA_39_PAGINAS_20261001.md) transforma cada página de los originales en función, estado y aceptación. Cinco recorridos GRH se contrastaron con Chrome/conexión/sesión existentes en consulta; auxiliar88 actual y referencia del PDF presentan una discrepancia que necesita homologación. No se certifican sesiones GRH Web/GAT/GAF o dispositivos no inspeccionados.
+
+El [feedback de Noelia sobre95 y anular/liquidar](NOELIA_FEEDBACK_20261001.md) prioriza un circuito completo: cargar → revisar/aprobar → calcular por legajo/convenio/repartición/todos y tipo → confirmar/cerrar/anular con versiones → recibo/planilla/informe. Se corrige primero la guía de validación/creación y el error anterior persistente; un caso sintético95 aprobado no certifica el contrato real ni su fórmula. Después se homologa la regla municipal y se cierra cálculo propio; no se ejecuta el evaluador rechazado. Los controles administrativos con `payrollCalculated:false` mantienen ese límite visible.
+
+El padrón conserva alta/recuperación#71, consulta/exportación completa#72 y familia/escolaridad. Mensual individual#73 y activación de auxiliares#74 quedan conservadas. Rectificación actual de cinco campos, con revisión independiente e historial, está preparada y probada en el borrador#75; SQL104 todavía no está instalada. No se publica esa interfaz antes de instalar/verificar sus requisitos. Baja/reingreso/licencias, masivas propias/OSEP, escritor mayor de500, imputación, recibos y presupuesto anual mantienen sus cierres pendientes. Relojes físicos/cloud, cámaras y enrolamiento biométrico conservan su operación separada; firma/certificados sigue con Hugo/Noelia. Cada resultado se distingue de la aceptación municipal.
+
 ## Entregas que se conservan
 
 PR #68: incidencias CSV de la previa completa, enlace al lote, revisión de lotes y correcciones del preparte. PR #69: recuperación voluntaria del acceso al importador, con el intento incierto intacto. PR #70: comparación y revisión completa de novedades fijas. Todas tienen resultados locales/CI/publicación separados de la aceptación humana.
