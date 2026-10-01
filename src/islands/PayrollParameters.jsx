@@ -141,7 +141,7 @@ export default function PayrollParameters({ request = parameterRequest }) {
         </section>}
       </div>
     </div>}
-    {!blocked && <PayrollCatalog proposal={selected} onDenied={failure} />}
+    <PayrollCatalog proposal={selected} revoked={blocked} onDenied={failure} />
     <dialog ref={dialog} aria-labelledby="pp-confirm-title" onCancel={() => { if (!busy) setConfirmation(null); }}>
       <h3 id="pp-confirm-title">{confirmation?.command === 'prepare' ? 'Revisar antes de guardar' : PARAMETER_COMMANDS[confirmation?.command]}</h3>
       {confirmation?.command === 'prepare' ? <><p>Desde {confirmation.draft.validFrom} · {confirmation.draft.sourceReference}</p><Values draft={confirmation.draft}/></> : selected && <><p>Desde {selected.draft.validFrom} · Versión {selected.version}</p><p>{selected.draft.sourceReference}</p>{confirmation?.command === 'reject' && <label>Motivo del rechazo<select value={reason} onChange={e => setReason(e.target.value)}>{PARAMETER_REASONS.reject.map(r => <option key={r} value={r}>{PARAMETER_REASON_LABELS[r]}</option>)}</select></label>}</>}
