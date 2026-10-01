@@ -2,7 +2,7 @@
 -- Install atomically. No retrospective/future effect, identity or payroll mutation.
 -- BEGIN PREREQUISITE_GUARD
 DO $prerequisite$
-DECLARE installed boolean; p pg_proc; x record; actual_shape jsonb;
+DECLARE installed boolean; baseline_installed boolean; p pg_proc; x record; actual_shape jsonb;
 BEGIN
  -- Exact unchanged103 schema/functions/IAM are prerequisites, on first install and rerun.
 
@@ -117,9 +117,30 @@ END;
   OR p.proconfig IS DISTINCT FROM ARRAY['search_path=public, pg_temp']
   OR NOT(encode(public.digest(replace(p.prosrc,E'\r\n',E'\n'),'sha256'),'hex')=ANY(CASE WHEN installed THEN ARRAY['e4533a7e5bec8de12e9ad7628a3ccabec714ea92d69080de4584c57af945af28'] ELSE ARRAY['05717239f4f770498a0f4b3d118165b61fb3343bdbfc3c0083bd4537d92321f3','0fe76b5db164a2c5f89cc20b38c8150e37c1dd99974aeee9f1a4d89dad83110a'] END))
   OR EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee<>p.proowner) THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CHANGE_PREREQUISITE'; END IF;
- IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.employment_contract'::regclass AND NOT tgisinternal)<>1
+ -- 096 already protects the historical source on the same canonical table.
+ -- Admit only its exact published pair; never remove or disable those guards.
+ baseline_installed:=to_regprocedure('public.grh_effective_baseline_guard_v1()') IS NOT NULL;
+ IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.employment_contract'::regclass AND NOT tgisinternal)<>(CASE WHEN baseline_installed THEN 3 ELSE 1 END)
   OR NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.employment_contract'::regclass AND tgname='employment_contract_batch_system' AND tgfoid=p.oid AND tgtype=31 AND tgenabled='O' AND NOT tgdeferrable AND NOT tginitdeferred AND tgnargs=0 AND tgqual IS NULL)
  THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CHANGE_PREREQUISITE'; END IF;
+ IF baseline_installed THEN
+  SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure('public.grh_effective_baseline_guard_v1()');
+  IF p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prorettype<>'trigger'::regtype
+   OR p.prokind<>'f' OR p.provolatile<>'v' OR p.proretset OR p.proisstrict OR p.proleakproof OR p.proparallel<>'u'
+   OR p.pronargs<>0 OR p.pronargdefaults<>0 OR p.proargnames IS NOT NULL OR p.proargmodes IS NOT NULL OR p.proallargtypes IS NOT NULL
+   OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
+   OR p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, public, pg_temp']
+   OR encode(public.digest(replace(p.prosrc,E'\r\n',E'\n'),'sha256'),'hex')<>'ac2378ffb46bee399050ba658970db3eb8bde955e859116b7482b6359c9e5a70'
+   OR (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='grh_effective_baseline_guard_v1')<>1
+   OR EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee<>p.proowner)
+  THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CHANGE_PREREQUISITE'; END IF;
+  FOR x IN SELECT * FROM (VALUES ('grh_effective_baseline_rows',31),('grh_effective_baseline_truncate',34)) v(trigger_name,trigger_type) LOOP
+   IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.employment_contract'::regclass AND tgname=x.trigger_name
+    AND tgfoid=p.oid AND tgtype=x.trigger_type AND tgenabled='O' AND NOT tgisinternal
+    AND NOT tgdeferrable AND NOT tginitdeferred AND tgnargs=0 AND tgqual IS NULL AND tgconstraint=0)
+   THEN RAISE EXCEPTION 'NATIVE_EMPLOYMENT_CHANGE_PREREQUISITE'; END IF;
+  END LOOP;
+ END IF;
  SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure('public.payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)');
  IF p.oid IS NULL OR p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prorettype<>'jsonb'::regtype OR p.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog, public, pg_temp']
   OR p.prokind<>'f' OR p.provolatile<>'v' OR p.proretset OR p.proisstrict OR p.proleakproof OR p.proparallel<>'u' OR p.proargmodes IS NOT NULL OR p.proallargtypes IS NOT NULL OR p.proargnames IS DISTINCT FROM ARRAY['ctx','p_contract','hold_lock'] OR p.pronargdefaults<>1 OR pg_get_expr(p.proargdefaults,0) IS DISTINCT FROM 'false' OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
