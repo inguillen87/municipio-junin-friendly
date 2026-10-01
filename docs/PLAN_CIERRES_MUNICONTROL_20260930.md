@@ -8,13 +8,17 @@ PR #68: incidencias CSV de la previa completa, enlace al lote, revisión de lote
 
 También se conservan alta municipal propia, ficha, hijos/escolaridad, catálogo administrativo de encuadres, novedad mensual individual propia, biblioteca de recibos y reportes, reconstrucción/preparte de asistencia y ciclo administrativo de nómina. Sus límites siguen vigentes: crear un legajo no crea una cuenta, y un control aprobado o exportado no acredita cálculo salarial.
 
-## Incremento actual: alta propia verificable
+## Alta propia verificable · entrega conservada
 
 La confirmación compara los datos disponibles en el recibo con el formulario revisado. El municipio y la membresía se obtienen del acceso autenticado existente; el intento se vincula a ese ámbito. Antes del primer envío se releen permisos y catálogo. Si cambia el catálogo, se conservan los datos personales y se exige revisar el encuadre nuevamente. La previa incluye nacimiento, sexo informado y función, además de los campos anteriores.
 
 Una respuesta incierta conserva en memoria el cuerpo y la clave. Una negativa posterior o un 404 no habilitan otra alta. Ocultar, cerrar el diálogo o retirar permisos elimina los datos visibles; comprobar acceso y recuperar el intento son acciones distintas. El servidor comprueba el ámbito fijado antes de leer el cuerpo o abrir la conexión de escritura. No se amplían permisos ni se agregan migraciones.
 
-La publicación y sus resultados exactos se acreditan en el cierre del incremento. Esto refuerza el alta existente; todavía no agrega rectificación, baja, reingreso o licencias propias.
+PR #71 integrada y producción contrastada en `c809790769de9dab97fd25c3ad883d4a5f686978`. Esto refuerza el alta existente; todavía no agrega rectificación, baja, reingreso o licencias propias.
+
+## Incremento del 01/10: padrón propio consultable y descargable
+
+[Consulta y exportación del padrón propio](PADRON_PROPIO_CONSULTA_EXPORTACION_20261001.md): filtros por identidad informada, situación, jurisdicción y encuadre; cantidades separadas de contratos/personas; ficha por UUID; Excel/CSV de todas las páginas del filtro. Una consulta lee los registros propios y sus cantidades sin reconstruir vistas GRH. Se conserva el validador de acceso nativo y el binding certificado existente. Las descargas releen el conjunto y requieren revisión si cambió. No crea movimientos de Personal ni declara completa la fase 1. Pruebas/publicación se acreditan en su resultado.
 
 ## Fases siguientes y aceptación
 

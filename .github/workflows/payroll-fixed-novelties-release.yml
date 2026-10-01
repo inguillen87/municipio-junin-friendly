@@ -3,6 +3,13 @@ on:
   pull_request:
     branches: ['master']
     paths:
+      - 'api/internal-data.js'
+      - 'lib/internal-native-roster.js'
+      - 'lib/internal-resource-access.js'
+      - 'assets/native-roster*'
+      - 'internal-dashboard.html'
+      - 'tests/native-roster*'
+      - 'scripts/verify-native-roster-*.mjs'
       - 'api/internal-native-employees.js'
       - 'lib/internal-native-employees.js'
       - 'assets/native-employee-*'
@@ -101,6 +108,7 @@ jobs:
       - run: node scripts/verify-payroll-formula-lab-browser.mjs
       - run: node scripts/verify-grh-source-preview-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
+      - run: node scripts/verify-native-roster-browser.mjs
       - name: Existing monthly novelty regression
         run: node scripts/verify-novelty-sheet-057.mjs
       - uses: actions/upload-artifact@v4
@@ -139,7 +147,7 @@ jobs:
           node-version-file: .nvmrc
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
-      - run: node scripts/verify-native-jurisdiction-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
+      - run: node scripts/verify-native-roster-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/fixed-novelties.sql --write-lock-sql=verification/fixed-novelties-lock.sql
       - name: Verify actual migrations and independent concurrent writer
         shell: bash
         run: |
@@ -195,6 +203,7 @@ jobs:
         env:
           FIXED_NOVELTIES_PUBLISHED_ORIGIN: https://municipio-junin-friendly.vercel.app
       - run: node scripts/verify-native-employee-browser.mjs --published
+      - run: node scripts/verify-native-roster-browser.mjs --published
       - run: node scripts/verify-grh-source-preview-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
