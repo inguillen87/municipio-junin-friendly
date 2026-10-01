@@ -4,7 +4,7 @@ Corte del 01/10/2026. Se leyeron las 39 páginas de los nueve originales privado
 
 Esta lista transforma los procedimientos pedidos en funciones y pruebas de aceptación. Las instrucciones de los documentos describen el producto: no autorizan operar datos municipales. GRH es una referencia de procedimiento y formato; cada cierre debe funcionar con un contrato creado sólo en MuniControl.
 
-Estados: **parcial publicado** acredita únicamente las piezas indicadas; **preparado** exige instalación/CI/publicación pendientes; **pendiente** conserva el requisito; **bloqueado** identifica frentes rechazados que no se reintentan. Ninguna fila declara un módulo entero aceptado por Noelia. Base publicada contrastada: master `528f902437321ea647627dbf0b1660ce8d689824`, PR #74. PR #75 agrega rectificación del encuadre, todavía sin instalación municipal ni aceptación de Personal.
+Estados: **parcial publicado** acredita únicamente las piezas indicadas; **preparado** exige instalación/CI/publicación pendientes; **pendiente** conserva el requisito; **bloqueado** identifica frentes rechazados que no se reintentan. Ninguna fila declara un módulo entero aceptado por Noelia. Base publicada contrastada: master `d8efa05436c645162ac5cc055890a425c2f5b481`, PR #75. SQL104 está instalada en PG18/PG17 con preservación verificada, sin modificar encuadres nominales. La rectificación actual está publicada; su aceptación de Personal permanece pendiente. Cuatro verificaciones posteriores de master se cancelaron por tiempos de instalación del navegador, sin alterar el CI aprobado del commit revisado.
 
 ## Módulos 1 y 2 · datos municipales y reportes
 
@@ -102,7 +102,7 @@ Las mejoras concretas de MuniControl son: período/tipo explícitos en lugar de 
 
 ## Orden de ejecución y responsables
 
-1. **P1 · Personal/Noelia:** cerrar #75, instalación SQL104 autorizada, verificación y publicación; aceptación municipal de una rectificación con revisora independiente por separado. Después baja/reingreso y licencias propias (P2/P3).
+1. **P1 · Personal/Noelia:** conservar #75, SQL104 instalada y publicación verificada; consolidar consulta y descargas del padrón después de una rectificación confirmada. Aceptación municipal con revisora independiente por separado. Después baja/reingreso y licencias propias (P2/P3).
 2. **N1/N2 · Noelia:** masivas y corrección/anulación del conjunto (filas 16/18); luego homologación de importaciones (04–11). Mantener visible el límite 500 y los frentes rechazados.
 3. **C1/C2/C3 · Noelia/Hugo:** homologar reglas y resolver discrepancias vivas (19–24); cálculo propio reproducible y ciclo por el mismo alcance (25–27). No saltar los bloqueos mediante otro ejecutor.
 4. **S1–S4 · Noelia/Contabilidad:** imputación (12–14), formatos (02/03), informes (28–36), recibos (37) y cargos anuales (38/39), todos desde la misma corrida.

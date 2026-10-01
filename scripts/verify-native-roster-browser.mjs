@@ -12,13 +12,13 @@ try{
   assert.equal(req.method(),'GET','No mutation is permitted in this suite');
   if(u.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'Operador QA',email:'qa@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['workforce.employee.read'],platformCapabilities:[],platformRoles:[]}}});
   if(u.searchParams.get('resource')==='nativeroster'){
-   requests.push(Object.fromEntries(u.searchParams));if(hold){await new Promise(resolve=>{release=resolve;});hold=null;}if(denied)return route.fulfill({status:403,json:{ok:false,error:'Permiso retirado QA'}});
+   requests.push(Object.fromEntries(u.searchParams));if(denied)return route.fulfill({status:403,json:{ok:false,error:'Permiso retirado QA'}});
    const query=Object.fromEntries(u.searchParams),all=roster(),{version,origin:source,complete,filters,snapshot,...base}=all;let rows=empty?[]:all.rows;
    if(contentChanged)rows=rows.map((r,i)=>i? r:{...r,name:'PERSONA SINTÉTICA REVISADA'});
    rows=rows.filter(r=>(!query.search||[r.name,r.legajo,r.dni,r.cuil].some(v=>v.toLowerCase().includes(query.search.toLowerCase())))&&(query.status==='all'||r.status===query.status)&&(!query.jurisdiction||(query.jurisdiction==='not_reported'?r.jurisdictionCode===null:r.jurisdictionCode===query.jurisdiction))&&['organization','sector','agreement'].every(k=>!query[k]||r[k]===query[k]));
    const data={...base,rows,total:rows.length,people:rows.length,counts:{active:rows.length,pending_start:0,inactive:0,state_error:0}};
    const handler=createInternalDataHandler({requireCompatibleInternalAccess:async()=>({mode:'managed',principal}),actionMutationSession:()=>session,getInternalSql:async()=>({query:async()=>{reads++;return[{result:data}];}}),env:{}}),res={headers:{},setHeader(k,v){this.headers[k]=v;},status(s){this.code=s;return this;},json(value){this.value=value;return this;}};
-   await handler({method:'GET',query},res);if(wirePatch)res.value.data={...res.value.data,...wirePatch};return route.fulfill({status:res.code,json:res.value,headers:res.headers});
+   await handler({method:'GET',query},res);if(wirePatch)res.value.data={...res.value.data,...wirePatch};if(hold){hold=null;await new Promise(resolve=>{release=resolve;});}return route.fulfill({status:res.code,json:res.value,headers:res.headers});
   }
   return route.fulfill({json:{ok:true,data:[],pagination:{page:1,limit:25,total:0,pages:1},facets:{}}});
  }
@@ -38,6 +38,23 @@ try{
  empty=true;await query();assert.match(await panel.locator('[data-nr-rows]').innerText(),/No hay altas propias/);assert.equal((await download('Descargar CSV completo')).toString('utf8').split('\r\n').length,2);empty=false;checks.push('a zero-row review is explicit and can export headers without invented errors or people');
  for(const width of [1440,390,320]){await page.setViewportSize({width,height:1000});await query();assert.ok(await panel.evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.ok(await panel.locator('[data-nr-xlsx]').evaluate(n=>n.getBoundingClientRect().height>=44));await panel.locator('summary').scrollIntoViewIfNeeded();await page.screenshot({path:'verification/native-roster-'+width+'-top.png'});await panel.locator('[data-nr-next]').last().scrollIntoViewIfNeeded();await page.screenshot({path:'verification/native-roster-'+width+'-bottom.png'});}checks.push('desktop and mobile workspace, records and actions fit 1440/390/320px with 44px controls and pagination at both ends');
  const caps=()=>page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(['workforce.employee.read'])}})));
+ const encuadreChanged=()=>page.evaluate(contractId=>document.dispatchEvent(new CustomEvent('mc:native-employment-changed',{detail:{contractId}})),id(999));
+ await form.locator('[name=search]').fill('5001');await query();let requestCount=requests.length;await encuadreChanged();
+ assert.equal(await panel.locator('[data-nr-result]').isVisible(),false);assert.equal(await panel.locator('[data-nr-rows]').textContent(),'');assert.equal(await panel.locator('[data-nr-csv]').isDisabled(),true);assert.equal(await form.locator('[name=search]').inputValue(),'5001');assert.equal(requests.length,requestCount);assert.match(await panel.locator('[data-nr-status]').innerText(),/Se rectificó un encuadre/);
+ checks.push('a rectification outside the visible filter withdraws the whole review without changing filters or automatically querying the server');
+ for(const action of ['consult','export']){
+  contentChanged=false;await query();count=downloads.length;hold=true;
+  await (action==='consult'?consult:panel.getByRole('button',{name:'Descargar CSV completo'})).click();while(!release)await page.waitForTimeout(10);
+  const oldDone=release;release=null;requestCount=requests.length;await encuadreChanged();
+  assert.equal(await panel.locator('[data-nr-result]').isVisible(),false);assert.equal(await panel.locator('[data-nr-rows]').textContent(),'');assert.equal(await panel.locator('[data-nr-xlsx]').isDisabled(),true);assert.equal(await panel.locator('[data-nr-csv]').isDisabled(),true);assert.equal(requests.length,requestCount);
+  contentChanged=true;hold=true;await consult.click();while(!release)await page.waitForTimeout(10);const newDone=release;release=null;
+  oldDone();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  assert.equal(await consult.isDisabled(),true,'OLD_RESPONSE_MUST_NOT_UNLOCK_NEW_QUERY');assert.equal(await panel.locator('[data-nr-result]').isVisible(),false);assert.equal(downloads.length,count);
+  newDone();await panel.locator('[data-nr-result]:not([hidden])').waitFor();await waitReady();assert.match(await panel.locator('[data-nr-rows]').innerText(),/PERSONA SINTÉTICA REVISADA/);assert.equal(await form.locator('[name=search]').inputValue(),'5001');assert.equal(downloads.length,count);
+  assert.match((await download('Descargar CSV completo')).toString('utf8'),/PERSONA SINTÉTICA REVISADA/);
+  checks.push('rectification discards the frozen previous '+action+' response and its completion cannot unlock a newer query or create a download; explicit consultation/export use the fresh source');
+ }
+ contentChanged=false;
  for(const cause of ['close','hidden','revoked']){
   await query();hold=true;await consult.click();await page.waitForFunction(()=>document.querySelector('[data-native-roster]').getAttribute('aria-busy')==='true');while(!release)await page.waitForTimeout(10);
   if(cause==='close')await panel.locator('summary').click();else if(cause==='hidden')await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});else await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set()}})));

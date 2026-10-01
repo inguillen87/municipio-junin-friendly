@@ -9,10 +9,14 @@ on:
       - 'lib/internal-native-employees.js'
       - 'assets/native-employment-change*'
       - 'assets/native-employee-*'
+      - 'assets/native-roster-*'
       - 'internal-dashboard.html'
       - 'scripts/migrations/104-*'
       - 'scripts/verify-native-employment-change*'
+      - 'scripts/verify-native-roster-browser.mjs'
       - 'tests/native-employment-change*'
+      - 'tests/native-roster.test.js'
+      - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
@@ -27,10 +31,14 @@ on:
       - 'lib/internal-native-employees.js'
       - 'assets/native-employment-change*'
       - 'assets/native-employee-*'
+      - 'assets/native-roster-*'
       - 'internal-dashboard.html'
       - 'scripts/migrations/104-*'
       - 'scripts/verify-native-employment-change*'
+      - 'scripts/verify-native-roster-browser.mjs'
       - 'tests/native-employment-change*'
+      - 'tests/native-roster.test.js'
+      - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
       - '.github/workflows/native-employment-changes-release.yml'
@@ -53,6 +61,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-employment-changes-browser.mjs
+      - run: node scripts/verify-native-roster-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - run: node scripts/verify-native-family-schooling-browser.mjs
@@ -60,7 +69,10 @@ jobs:
         if: always()
         with:
           name: native-employment-changes-browser-${{ github.run_id }}
-          path: verification/native-employment-changes/**
+          path: |
+            verification/native-employment-changes/**
+            verification/native-roster-browser.json
+            verification/native-roster-*.png
           retention-days: 3
   sql:
     runs-on: ubuntu-latest

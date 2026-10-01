@@ -10,6 +10,8 @@ La tabla pagina localmente y las descargas contienen todas las filas del filtro.
 
 Antes de descargar se relee el listado completo. Si cambia, se presenta la versión nueva para revisar y hace falta otra descarga voluntaria. Un cambio de municipio/membresía/vínculo retira la consulta anterior. Cerrar, ocultar o retirar permisos elimina las filas visibles y descarta respuestas tardías. El permiso de lectura sigue siendo obligatorio también para Superadministración.
 
+Después de aprobar y verificar una rectificación propia, también se retira la revisión anterior del padrón. Conserva los filtros y pide consultar nuevamente antes de descargar; ninguna respuesta tardía de la consulta o descarga anterior repone sus filas ni desbloquea una consulta más nueva. El aviso sólo contiene el UUID del contrato y sirve para invalidar, no para autorizar una lectura. Se invalida el conjunto aunque ese contrato no estuviera en el filtro, porque pueden cambiar pertenencia y cantidades. Proponer o rechazar conserva el encuadre vigente; una confirmación incierta conserva el intento original hasta verificarlo.
+
 La respuesta completa admite hasta 10.000 contratos y 3,5 MB. Superar cualquiera de esos límites produce una incidencia global; no descarga un padrón parcial. No cambia el límite de 500 del escritor de importación ni completa OSEP, cálculo salarial, asistencia o autonomía de relojes.
 
 Validación: modelo/exportadores, handler real con SQL sintético, navegador local/publicado y consulta ejecutada en PG17/18 de CI dentro de las fixtures aisladas existentes. No se crean migraciones ni se ejecutan borradores rechazados. Pruebas y SHA de publicación se registran en el resultado del incremento; aceptación humana separada.

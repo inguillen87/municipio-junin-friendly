@@ -26,6 +26,10 @@ Se usan las capacidades existentes `employee.record.propose` y `employee.record.
 
 ## Validación y publicación
 
+El 01/10 SQL104 se instaló con autorización expresa en las bases existentes PG18 y PG17; se verificó su conservación de datos y permisos, sin aplicar rectificaciones nominales. #75 quedó integrada y sus recursos de producción se contrastaron con master `d8efa05436c645162ac5cc055890a425c2f5b481`. El commit revisado pasó CI; cuatro verificaciones posteriores de master se cancelaron durante la instalación de dependencias del navegador y no cuentan como aprobadas. La primera rectificación municipal continúa pendiente.
+
+La consolidación de este circuito retira el padrón propio abierto después de verificar una aprobación, incluso cuando se recupera el comprobante original. No consulta automáticamente ni inicia otro guardado. Conserva los filtros y descarta consultas/descargas en curso; la próxima descarga exige una consulta voluntaria del estado vigente. Proponer o rechazar no emite una aplicación confirmada. Las APIs privadas de las pruebas de navegador se interceptan siempre con fixtures sintéticos.
+
 Fuente reconciliada: `dd8d8cb7cdf51784ffb1ccfe01667971daea71f5`, preparación previa sobre catálogo 103. Se adoptaron sus archivos funcionales concretos y se integraron sobre master `528f902437321ea647627dbf0b1660ce8d689824` (#74), conservando las mejoras posteriores. No se fusionó la rama entera ni los frentes rechazados. Este documento describe el circuito y sus gates; no sustituye el recibo del release ni acredita instalación, publicación o una rectificación municipal real.
 
 - Modelo/API: datos cerrados, códigos, identidad y ámbito, permisos, respuestas asociadas al mismo contrato, reintentos y lectura íntegra de solicitudes JSON.
