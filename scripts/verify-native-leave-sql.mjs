@@ -9,6 +9,8 @@ import {buildNativeEmploymentLifecycleQa} from './verify-native-employment-lifec
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 import {annual,profile,command} from '../tests/fixtures/native-leave-synthetic.js';
 import {nativeLeaveFingerprint} from '../lib/internal-native-leave.js';
+import {buildNativeLeaveInstallation} from './lib/native-leave-installation.mjs';
+import {readLeavePrerequisites} from './prepare-native-leave-installation.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
 const read=f=>fs.readFileSync(path.join(root,f),'utf8').replaceAll('\r\n','\n');
 function original(file,name){const def=splitPostgresStatements(read(file)).find(s=>new RegExp('CREATE OR REPLACE FUNCTION (?:public\\.)?'+name+'\\s*\\(').test(s));assert.ok(def,name);return def;}
@@ -16,6 +18,10 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  const base=buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=read('scripts/migrations/111-native-leave-workflow.sql');
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
  const normalize=s=>s.replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
+ const installation=buildNativeLeaveInstallation({source:migration,prerequisiteDefinitions:readLeavePrerequisites(read),sourceCommit:'9'.repeat(40)});
+ // QA relocates definitions into its rollback-only schema; metadata values must
+ // follow the same reviewed relocation without changing the productive batch.
+ const reviewSql=s=>normalize(relocate(s)).replaceAll("s.nspname='public'","s.nspname="+q(schema)).replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp');
  const statements=[];let count=0;const exec=s=>statements.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;};
  const reject=(sql,error,label)=>ok('qa_rejects('+sql+','+q('NATIVE_LEAVE_'+error)+')',label);
  const write=(actor,body='leave_body',key='gen_random_uuid()')=>'native_leave_command_v1('+actor+','+body+','+key+')';
@@ -27,7 +33,12 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  REVOKE ALL ON FUNCTION action_center_valid_leave_payload(jsonb),action_center_tenant_actor_authorized(text,uuid,uuid,text,uuid,bigint,text,text,text,text) FROM PUBLIC,municontrol_actions_runtime_app;
  INSERT INTO capabilities SELECT m,k FROM(VALUES ${['maker','checker','samePerson','unlinked','outsider'].flatMap(actor=>['actions.read','leave.request.all.manage','leave.request.restricted.read','leave.request.restricted.decide'].map(cap=>'('+q(ids[actor])+'::uuid,'+q(cap)+')')).join(',')}) v(m,k) WHERE NOT EXISTS(SELECT 1 FROM capabilities c WHERE c.membership_id=v.m AND c.capability_key=v.k);
  INSERT INTO capabilities SELECT ${q(ids.reader)}::uuid,k FROM unnest(ARRAY['actions.read','leave.request.all.read','leave.request.restricted.read']) k WHERE NOT EXISTS(SELECT 1 FROM capabilities c WHERE c.membership_id=${q(ids.reader)}::uuid AND c.capability_key=k);
+ EXECUTE ${q(reviewSql(installation.preflight))};
+ EXECUTE ${q(reviewSql(installation.before))};
  EXECUTE ${q(normalize(relocate(migration)))};
+ EXECUTE ${q(reviewSql(installation.after))};
+ EXECUTE ${q(reviewSql(installation.audit))};
+ EXECUTE ${q(reviewSql(installation.ownCheck))};
  CREATE FUNCTION qa_leave_input(actor jsonb,target uuid,cmd text,payload_value jsonb,entity uuid,reason_value text) RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,${schema},public,pg_temp AS $input$
  DECLARE b jsonb; expected integer:=0; BEGIN
   b:=native_leave_bootstrap_v1(actor,target);
@@ -44,6 +55,20 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  exec('SET LOCAL ROLE municontrol_actions_runtime_app;leave_boot:=native_leave_bootstrap_v1(reader,target_id);RESET ROLE;');
  ok("leave_boot#>>'{permissions,canCreate}'='false' AND leave_boot#>>'{permissions,canProposeProfile}'='false'",'read authority cannot prepare requests or balances');
  exec('leave_body:='+factory('maker','create',j(annual()))+';');
+ ok("current_setting('municontrol_sql111.before')::jsonb-'triggers'=current_setting('municontrol_sql111.after')::jsonb-'triggers'",'installation preserves every prior user table, row, function, role and membership');
+ for(const [mutation,error,label]of[
+  ['ALTER FUNCTION native_employment_lifecycle_state_v1(jsonb,uuid,jsonb) SECURITY INVOKER;','SQL111_PREREQUISITE_METADATA','matching authority body never permits changed SECURITY DEFINER'],
+  ['ALTER FUNCTION native_employment_change_context_v1(jsonb,text) SET search_path=public;','SQL111_PREREQUISITE_METADATA','matching authority body never permits changed search_path'],
+  ['GRANT EXECUTE ON FUNCTION native_employment_lifecycle_subject_v1(jsonb,uuid) TO municontrol_actions_runtime_app;','SQL111_PREREQUISITE_METADATA','private source helper cannot acquire a runtime grant']
+ ])temporary(mutation,()=>ok('qa_rejects('+q(reviewSql(installation.preflight))+','+q(error)+')',label));
+ for(const [mutation,error,label]of[
+  ['GRANT SELECT ON native_leave_event TO municontrol_actions_runtime_app;','SQL111_NEW_TABLE_SECURITY','installation rejects a direct runtime table grant'],
+  ['ALTER TABLE native_leave_event DISABLE TRIGGER native_leave_event_immutable;','SQL111_IMMUTABLE_GUARD','installation rejects a disabled history guard'],
+  ['ALTER TABLE native_leave_event ALTER COLUMN status DROP NOT NULL;','SQL111_NEW_TABLE_SHAPE','installation rejects a nullable status despite an unchanged column count'],
+  ['INSERT INTO grh_employees VALUES(99999,\'SYNTHETIC-DRIFT\');','SQL111_PRIOR_STATE_CHANGED','installation rejects any old data drift before commit'],
+  ['GRANT EXECUTE ON FUNCTION native_employment_lifecycle_subject_v1(jsonb,uuid) TO PUBLIC;','SQL111_PRIOR_STATE_CHANGED','installation rejects any old function ACL drift before commit']
+ ])temporary(mutation,()=>{exec('EXECUTE '+q(reviewSql(installation.after))+';');ok('qa_rejects('+q(reviewSql(installation.audit))+','+q(error)+')',label);});
+ temporary('ALTER FUNCTION native_leave_bootstrap_v1(jsonb,uuid) SECURITY INVOKER;',()=>ok('qa_rejects('+q(reviewSql(installation.ownCheck))+",'SQL111_NEW_FUNCTION_METADATA')",'installation rejects a changed facade even with the exact body'));
  const areaScope=`DELETE FROM capabilities WHERE membership_id=${q(ids.maker)}::uuid AND capability_key='leave.request.all.manage';
  INSERT INTO capabilities VALUES(${q(ids.maker)}::uuid,'leave.request.area.create');
  INSERT INTO tenant_action_area_scope SELECT gen_random_uuid(),'leave.request.area.create','sector',ec.legacy_company_id,ec.organization_unit_source_id,ec.sector_source_id,${q(ids.maker)}::uuid,ec.tenant_id,${q(ids.binding)}::uuid,true FROM employment_contract ec WHERE ec.id=target_id;`;
