@@ -58,7 +58,9 @@ try {
   scopeChanged = false; allowed = false; const after = queries.length;
   assert.equal((await send()).status, 403); assert.equal(queries.length, after); checks.push('revocation stops access before SQL');
   assert.equal(errors.length, 0); assert.equal(saved.size, 1);
-  fs.writeFileSync(path.resolve('verification/time-catalog-api-browser-result.json'), JSON.stringify({ok: true, checksPassed: checks.length, checks,
+  const reportPath = path.resolve('verification/time-catalog-api-browser-result.json');
+  fs.mkdirSync(path.dirname(reportPath), {recursive: true});
+  fs.writeFileSync(reportPath, JSON.stringify({ok: true, checksPassed: checks.length, checks,
     syntheticOnly: true, realHandler: true, databaseStandIn: true, operatorUiTested: false, municipalWrites: 0, errors}, null, 2));
   console.log(JSON.stringify({ok: true, checksPassed: checks.length, syntheticOnly: true, operatorUiTested: false}));
 } finally { await browser.close(); }
