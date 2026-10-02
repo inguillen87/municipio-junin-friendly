@@ -258,6 +258,7 @@ local-agents/
 !scripts/migrations/102-native-family-schooling.sql
 !scripts/migrations/103-native-employment-catalog.sql
 !scripts/migrations/104-native-employment-changes.sql
+!scripts/migrations/110-native-employment-lifecycle.sql
 
 # Source-only contracts for isolated payroll read regression QA.
 !scripts/migrations/105-payroll-independent-read-session.sql

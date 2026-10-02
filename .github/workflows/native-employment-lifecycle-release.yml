@@ -1,0 +1,145 @@
+name: Native employment lifecycle release
+on:
+  push:
+    branches: ['work/codex-autonomy-20260930', 'master']
+    paths:
+      - 'api/internal-employment-lifecycle.js'
+      - 'api/internal-employment-catalog.js'
+      - 'lib/internal-employment-lifecycle.js'
+      - 'lib/internal-native-employees.js'
+      - 'api/internal-data.js'
+      - 'lib/internal-native-roster.js'
+      - 'assets/native-employment-lifecycle*'
+      - 'assets/native-employee-*'
+      - 'assets/native-roster-*'
+      - 'internal-dashboard.html'
+      - 'scripts/migrations/110-*'
+      - 'scripts/migrations/093-*'
+      - 'scripts/migrations/101-*'
+      - 'scripts/migrations/102-*'
+      - 'scripts/migrations/103-*'
+      - 'scripts/migrations/104-*'
+      - 'tests/fixtures/native-employment-lifecycle-synthetic.js'
+      - 'scripts/verify-native-employment-lifecycle*'
+      - 'scripts/verify-native-roster-browser.mjs'
+      - 'tests/native-employment-lifecycle*'
+      - 'tests/native-roster.test.js'
+      - 'tests/fixtures/native-roster-synthetic.js'
+      - 'tests/fixtures/native-employee-catalog-installed-099.json'
+      - 'scripts/build-friendly.mjs'
+      - '.vercelignore'
+      - 'vercel.json'
+      - '.github/workflows/native-employment-lifecycle-release.yml'
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'api/internal-employment-lifecycle.js'
+      - 'api/internal-employment-catalog.js'
+      - 'lib/internal-employment-lifecycle.js'
+      - 'lib/internal-native-employees.js'
+      - 'api/internal-data.js'
+      - 'lib/internal-native-roster.js'
+      - 'assets/native-employment-lifecycle*'
+      - 'assets/native-employee-*'
+      - 'assets/native-roster-*'
+      - 'internal-dashboard.html'
+      - 'scripts/migrations/110-*'
+      - 'scripts/migrations/093-*'
+      - 'scripts/migrations/101-*'
+      - 'scripts/migrations/102-*'
+      - 'scripts/migrations/103-*'
+      - 'scripts/migrations/104-*'
+      - 'tests/fixtures/native-employment-lifecycle-synthetic.js'
+      - 'scripts/verify-native-employment-lifecycle*'
+      - 'scripts/verify-native-roster-browser.mjs'
+      - 'tests/native-employment-lifecycle*'
+      - 'tests/native-roster.test.js'
+      - 'tests/fixtures/native-roster-synthetic.js'
+      - 'tests/fixtures/native-employee-catalog-installed-099.json'
+      - 'scripts/build-friendly.mjs'
+      - '.github/workflows/native-employment-lifecycle-release.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-employment-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-native-employment-lifecycle-browser.mjs
+      - run: node scripts/verify-native-roster-browser.mjs
+      - run: node scripts/verify-native-employee-browser.mjs
+      - run: node scripts/verify-native-monthly-novelties-browser.mjs
+      - run: node scripts/verify-native-family-schooling-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-employment-lifecycle-browser-${{ github.run_id }}
+          path: |
+            verification/native-employment-lifecycle/**
+            verification/native-roster-browser.json
+            verification/native-roster-*.png
+          retention-days: 3
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: native_employment_lifecycle_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: native_lifecycle_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_employment_lifecycle_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:native_lifecycle_qa_only@127.0.0.1:5432/native_employment_lifecycle_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-native-employment-lifecycle-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/native-lifecycle.sql --write-lock-sql=verification/native-lifecycle-lock.sql
+      - name: Real PostgreSQL rules and independent publication lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-lifecycle-lock.sql > verification/native-lifecycle-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'FIXED_NOVELTIES_QA_LOCK_READY' verification/native-lifecycle-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/native-lifecycle-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-lifecycle.sql
+          wait "$blocker"
+          trap - EXIT
