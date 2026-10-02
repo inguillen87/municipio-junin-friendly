@@ -4,7 +4,7 @@ const requireInput=(condition,message)=>{if(!condition)throw new SalaryInputErro
 
 // A local draft transformation only. The existing complete-version command
 // remains the sole write; precision, units, dates and dependencies are preserved.
-export function salaryBulkPlan(raw,selections,change){
+export function salaryBulkSelection(raw,selections,change){
  const current=salaryItems(raw),byKey=new Map(current.map(row=>[salaryRowKey(row),row]));
  requireInput(Array.isArray(selections)&&selections.length>0&&selections.length<=1000,'Seleccioná las definiciones que querés actualizar; no se recortan filas.');
  requireInput(salaryExact(change,['unit','precision','value','ruleReference'])&&Object.hasOwn(SALARY_UNITS,change.unit)&&Number.isInteger(change.precision)&&change.precision>=0&&change.precision<=8,'Elegí la unidad y la precisión declaradas en las filas.');
@@ -20,6 +20,10 @@ export function salaryBulkPlan(raw,selections,change){
   requireInput(row.kind!=='scale'||change.value!==null,'Una escala requiere un valor explícito. No puede quedar como no informado.');
   chosen.set(selection.key,row);
  }
+ return {current,chosen};
+}
+export function salaryBulkPlan(raw,selections,change){
+ const {current,chosen}=salaryBulkSelection(raw,selections,change);
  const items=salaryItems(current.map(row=>chosen.has(salaryRowKey(row))?{...row,value:change.value,ruleReference:change.ruleReference}:row));
  const changes=salaryDiff(current,items);
  requireInput(changes.length>0,'La selección y los datos declarados no producen cambios.');
