@@ -23,7 +23,7 @@ export function functionPin(definition){
  const config=[];for(const s of header.matchAll(/\bSET\s+(search_path|timezone)\s*=\s*(.*?)(?=\s+SET\b|$)/gi))config.push(s[1].toLowerCase()==='timezone'?'TimeZone='+s[2].trim().replaceAll("'",''):'search_path='+s[2].split(',').map(x=>x.trim()).join(', '));
  return{name:m[1],signature:'public.'+m[1]+'('+params.map(p=>p.type).join(',')+')',sha256:hash(body[2]),argNames:params.map(p=>p.name),defaults:params.filter(p=>p.default).map(p=>p.default==='null'?'NULL::'+p.type:p.default).join(', '),resultType:m[4],language:m[5].toLowerCase(),returnsSet:!!m[3],strict:/\bSTRICT\b/i.test(header),definer:/\bSECURITY DEFINER\b/i.test(header),volatility:/\bIMMUTABLE\b/.test(header)?'i':/\bSTABLE\b/.test(header)?'s':'v',config,runtime:runtime.has(m[1])};
 }
-function pinsCheck(pins,code){
+export function pinsCheck(pins,code){
  return `DO $metadata$ DECLARE x jsonb;p pg_proc; BEGIN
  FOR x IN SELECT value FROM jsonb_array_elements(${q(JSON.stringify(pins))}::jsonb) LOOP
   SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure(x->>'signature');

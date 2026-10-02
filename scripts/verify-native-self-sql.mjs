@@ -3,6 +3,8 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash,randomUUID} from 'node:crypto';import {fileURLToPath} from 'node:url';
 import {buildNativeLeaveQa} from './verify-native-leave-sql.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
+import {buildNativeSelfInstallation} from './lib/native-self-installation.mjs';
+import {readSelfPrerequisites} from './prepare-native-self-installation.mjs';
 import {annual,profile} from '../tests/fixtures/native-leave-synthetic.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb',read=f=>fs.readFileSync(path.join(root,'scripts/migrations',f),'utf8').replaceAll('\r\n','\n');
 const original=(file,name)=>{const d=splitPostgresStatements(read(file)).find(s=>new RegExp('CREATE OR REPLACE FUNCTION (?:public\\.)?'+name+'\\s*\\(').test(s));assert.ok(d,name);return d+';';};
@@ -11,6 +13,10 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  const syntheticDni='99000113',prefix='20'+syntheticDni,checkDigit=11-[5,4,3,2,7,6,5,4,3,2].reduce((sum,w,n)=>sum+Number(prefix[n])*w,0)%11,syntheticCuil=prefix+(checkDigit===11?0:checkDigit===10?9:checkDigit);
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
  const normalized=s=>relocate(s).replaceAll("public.digest(replace(p.prosrc,E'\\r\\n',E'\\n')","public.digest(replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')").replaceAll("ARRAY['search_path=public, pg_temp']","ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp']").replaceAll("ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC']","ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp','TimeZone=UTC']");
+ const installation=buildNativeSelfInstallation({source:migration,prerequisiteDefinitions:readSelfPrerequisites(f=>fs.readFileSync(path.join(root,f),'utf8')),sourceCommit:'9'.repeat(40)});
+ // Only the disposable fixture namespace and body hashes are normalized. The
+ // productive batch remains byte-pinned and never receives these substitutions.
+ const reviewSql=s=>normalized(s).replaceAll("s.nspname='public'","s.nspname="+q(schema)).replaceAll("n.nspname='public'","n.nspname="+q(schema)).replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp');
  const curated=/DO \$curated_16\$[\s\S]+?END \$curated_16\$;/.exec(read('099-grh-curated-consumers.sql'))?.[0];assert.ok(curated);
  const curatedQa=relocate(curated).replaceAll("proconfig=ARRAY['search_path=public, pg_temp']","proconfig=ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp']").replaceAll("replace(prosrc,E'\\r\\n',E'\\n')","replace(replace(prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')").replace("encode(public.digest(current_body,'sha256')","encode(public.digest(replace(current_body,"+q(schema+'.')+",'public'||'.'),'sha256')");
  const statements=[];let count=0;const exec=s=>statements.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;};
@@ -54,10 +60,42 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  self_other_id:=(native_employee_create_v1(maker,new_draft||jsonb_build_object('dni',${q(syntheticDni)},'cuil',${q(syntheticCuil)},'legajo','29002','fullName','Otro empleado nativo sintético QA'),native_employment_catalog_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid())->>'contractId')::uuid;
  SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY c.membership_id,c.capability_key)::text) INTO self_capabilities FROM capabilities c;
  SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) INTO self_contracts FROM employment_contract ec;
+ -- Newly recreated original009/013 definitions have default PUBLIC ACLs in
+ -- this disposable schema. Reproduce their reviewed deployed ACLs before
+ -- exercising the installation protocol; no application role is broadened.
+ ${installation.prerequisitePins.map(p=>'REVOKE ALL ON FUNCTION '+p.signature.replace('public.',schema+'.')+' FROM PUBLIC,municontrol_actions_runtime_app;'+(p.runtime?'GRANT EXECUTE ON FUNCTION '+p.signature.replace('public.',schema+'.')+' TO municontrol_actions_runtime_app;':'')).join('\n')}
  `);
+ for(const [mutation,label]of[
+  ['GRANT EXECUTE ON FUNCTION tenant_action_validate_binding() TO PUBLIC;','extra PUBLIC prerequisite grant'],
+  ['ALTER FUNCTION native_leave_command_v1(jsonb,jsonb,uuid) SECURITY INVOKER;','old facade security drift'],
+  ['ALTER FUNCTION tenant_action_lookup_employment_v2(text,uuid,integer,text,uuid,text,integer) SET search_path=public;','old lookup path drift']
+ ])temporary(mutation,()=>reject(q(reviewSql(installation.preflight[1])),'SQL113_PREREQUISITE_METADATA',label));
  // Deliberate prerequisite faults must be rejected, not silently accepted.
  for(const mutation of ['ALTER FUNCTION native_leave_context_v1(jsonb) SECURITY INVOKER;','ALTER FUNCTION action_center_assert_tenant_read_session_v2(text,uuid,integer,text,uuid,uuid) SET search_path=public;','ALTER FUNCTION native_leave_authorized_v1(jsonb,uuid,text,text,text) VOLATILE;'])temporary(mutation,()=>reject(q(normalized(migration)),'NATIVE_SELF_PREREQUISITE_DRIFT','exact prerequisite metadata rejects '+mutation));
- exec('EXECUTE '+q(normalized(migration))+';');
+ for(const s of installation.installation)exec('EXECUTE '+q(reviewSql(s))+(s===installation.proof?' INTO self_install_proof;':';'));
+ for(const s of installation.durableVerification)exec('EXECUTE '+q(reviewSql(s))+(s===installation.proof?' INTO self_durable_proof;':';'));
+ ok("self_install_proof-'checkedAt'=self_durable_proof-'checkedAt' AND self_install_proof->>'nominalRowsReturned'='0'",'independent post-install read phase reproduces exact prior-state and new-function fingerprints');
+ ok("current_setting('municontrol_sql113.before')::jsonb=current_setting('municontrol_sql113.after')::jsonb",'113 installation preserves every existing row, ACL, trigger, role, view, sequence and other function');
+ for(const [mutation,label]of[
+  ["INSERT INTO grh_employees(company_id,legajo) VALUES(99999,'SYNTHETIC-113-DRIFT');",'existing source rows'],
+  ['ALTER TABLE native_leave_event DISABLE TRIGGER native_leave_event_immutable;','existing leave immutability guard'],
+  ['GRANT EXECUTE ON FUNCTION native_leave_bootstrap_v1(jsonb,uuid) TO PUBLIC;','existing leave function ACL'],
+  ['GRANT SELECT ON native_leave_event TO municontrol_actions_runtime_app;','existing leave ledger ACL']
+ ])temporary(mutation,()=>{exec('EXECUTE '+q(reviewSql(installation.after))+';');reject(q(reviewSql(installation.audit)),'SQL113_PRIOR_STATE_CHANGED','before-commit audit rejects drift of '+label);});
+ for(const [mutation,label]of[
+  ['GRANT EXECUTE ON FUNCTION native_account_contract_v1(uuid,uuid,uuid,boolean) TO municontrol_actions_runtime_app;','private source helper grant'],
+  ['GRANT EXECUTE ON FUNCTION native_employee_self_bootstrap_v1(jsonb) TO PUBLIC;','PUBLIC self facade grant'],
+  ['ALTER FUNCTION native_self_leave_command_v1(jsonb,jsonb,uuid) SECURITY INVOKER;','new command security mode']
+ ])temporary(mutation,()=>reject(q(reviewSql(installation.ownCheck)),'SQL113_NEW_FUNCTION_METADATA',label));
+ temporary('CREATE FUNCTION native_self_leave_command_v1(text) RETURNS text LANGUAGE sql AS $$ SELECT $1 $$;',()=>reject(q(reviewSql(installation.ownAudit)),'SQL113_NEW_FUNCTION_COUNT','extra overload cannot hide behind a reviewed facade name'));
+ temporary("INSERT INTO grh_employees(company_id,legajo) VALUES(99999,'SYNTHETIC-113-DURABILITY');",()=>{
+  exec('EXECUTE '+q(reviewSql(installation.after))+';EXECUTE '+q(reviewSql(installation.proof))+' INTO self_durable_proof;');
+  ok("self_install_proof->>'priorStateFingerprint'<>self_durable_proof->>'priorStateFingerprint'",'post-install fingerprint detects later old-data drift');
+ });
+ temporary('ALTER FUNCTION native_self_leave_bootstrap_v1(jsonb,uuid) SECURITY INVOKER;',()=>{
+  exec('EXECUTE '+q(reviewSql(installation.proof))+' INTO self_durable_proof;');
+  ok("self_install_proof->>'newObjectFingerprint'<>self_durable_proof->>'newObjectFingerprint'",'post-install fingerprint detects later self-facade drift');
+ });
  ok("(SELECT count(*)=5 AND count(*) FILTER(WHERE has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE'))=4 FROM pg_proc p WHERE p.pronamespace="+q(schema)+"::regnamespace AND p.proname IN('native_account_contract_v1','native_employee_self_bootstrap_v1','native_self_leave_bootstrap_v1','native_self_leave_attempt_v1','native_self_leave_command_v1'))",'four dedicated runtime facades and a private canonical source helper');
  ok(own('reader')+"->>'state'='unlinked'",'unlinked self-service account never invents an employee');
  temporary("INSERT INTO tenant_action_employment_link(membership_id,tenant_id,source_binding_id,employment_contract_id,active) VALUES("+q(ids.reader)+"::uuid,"+q(ids.tenant)+"::uuid,"+q(ids.binding)+"::uuid,"+q(ids.targetContract)+"::uuid,true);",()=>ok(own('reader')+"->>'state'='reference'",'imported employee with actual self-read capability retains its reference state'));
@@ -101,7 +139,7 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  ok("self_receipt->>'status'='cancelled' AND self_receipt->>'entityVersion'='3'",'employee cancels own pending request without erasing create and submission');
  ok('self_capabilities=(SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY c.membership_id,c.capability_key)::text) FROM capabilities c) AND self_contracts=(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) FROM employment_contract ec)','the installation and account/leave circuit preserve all capability grants and canonical employee rows');
  reject(q(normalized(migration)),'NATIVE_SELF_ALREADY_INSTALLED','a second installation fails without patching an installed object');
- const block=`DECLARE self_capabilities text;self_contracts text;self_view jsonb;self_receipt jsonb;self_body jsonb;self_id uuid;self_other_id uuid;self_profile_id uuid;self_link_key uuid:=gen_random_uuid();self_request_key uuid:=gen_random_uuid();BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1131',MESSAGE='RESTORE_SELF_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1131' THEN NULL;END;END;`;
+ const block=`DECLARE self_capabilities text;self_contracts text;self_view jsonb;self_receipt jsonb;self_body jsonb;self_install_proof jsonb;self_durable_proof jsonb;self_id uuid;self_other_id uuid;self_profile_id uuid;self_link_key uuid:=gen_random_uuid();self_request_key uuid:=gen_random_uuid();BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1131',MESSAGE='RESTORE_SELF_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1131' THEN NULL;END;END;`;
  const anchor="RAISE EXCEPTION USING ERRCODE='P1111',MESSAGE='RESTORE_LEAVE_FIXTURES';";assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,selfChecksPassed:count,checksPassed:base.report.checksPassed+count,migration113Sha256:createHash('sha256').update(migration).digest('hex'),limitations:[...base.report.limitations,'113 executes original006 platform session,009 account-link command/lookup and013 binding trigger with synthetic IAM tables. No productive installation or human employee acceptance is asserted.']};
  const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));return{...base,sql,report};
