@@ -22,7 +22,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  const scripts=[];let count=0;
  const exec=s=>scripts.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;};
  const args=(actor='maker')=>actor+"->>'actorEmail',("+actor+"->>'actorSessionId')::uuid,("+actor+"->>'actorSessionVersion')::integer,"+actor+"->>'releaseSha',("+actor+"->>'tenantId')::uuid,("+actor+"->>'membershipId')::uuid";
- const command=(cmd,actor='maker',entry='NULL',version=0,kind='NULL',payload='NULL',key='gen_random_uuid()')=>`time_catalog_apply_command_v1(${args(actor)},${q(cmd)},${key},${entry},${version},${kind==='NULL'?kind:q(kind)},${payload},repeat('a',64),${q({create_draft:'catalog_onboarding',update_draft:'draft_corrected',submit:'ready_for_review',approve:'configuration_verified',reject:'configuration_invalid',retire:'catalog_retired'}[cmd])},repeat('b',64))`;
+ const command=(cmd,actor='maker',entry='NULL',version=0,kind='NULL',payload='NULL',key='gen_random_uuid()')=>`time_catalog_apply_command_v1(${args(actor)},${q(cmd)},repeat('a',64),${entry},${version},${key},${kind==='NULL'?kind:q(kind)},${payload},${q({create_draft:'catalog_onboarding',update_draft:'draft_corrected',submit:'ready_for_review',approve:'configuration_verified',reject:'configuration_invalid',retire:'catalog_retired'}[cmd])},repeat('b',64))`;
  const reject=(call,error,label)=>ok('qa_rejects('+call+','+q(error)+')',label);
  const fault=(mutation,check)=>exec("BEGIN "+mutation+" "+check+" RAISE EXCEPTION USING ERRCODE='P1162',MESSAGE='RESTORE_TIME_FAULT'; EXCEPTION WHEN SQLSTATE 'P1162' THEN NULL; END;");
  exec(`ALTER TABLE tenant_action_authority ADD COLUMN version integer NOT NULL DEFAULT 1;
