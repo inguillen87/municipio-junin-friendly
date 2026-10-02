@@ -47,11 +47,13 @@ export function salaryBootstrap(v){
  salaryItems(v.catalog.items,{allowEmpty:true});v.proposals.forEach(salaryProposal);return v;
 }
 export function salaryProposal(p){
- ok(p&&salaryUuid(p.id)&&['pending','approved','rejected'].includes(p.status)&&salaryHash(p.requestSha256)&&salaryHash(p.baseVersion)&&salaryHash(p.classificationVersion)&&text(p.reason,10,1000)&&typeof p.canReview==='boolean'&&typeof p.authorLabel==='string'&&typeof p.createdAt==='string','No se pudo verificar la propuesta.','CONTRACT_INVALID');
+ ok(salaryExact(p,['id','status','requestSha256','baseVersion','classificationVersion','baseItems','items','reason','createdAt','authorLabel','canReview','decision'])&&salaryUuid(p.id)&&['pending','approved','rejected'].includes(p.status)&&salaryHash(p.requestSha256)&&salaryHash(p.baseVersion)&&salaryHash(p.classificationVersion)&&text(p.reason,10,1000)&&typeof p.canReview==='boolean'&&text(p.authorLabel,1,160)&&typeof p.createdAt==='string','No se pudo verificar la propuesta.','CONTRACT_INVALID');
+ ok(p.status==='pending'?p.decision===null:salaryExact(p.decision,['command','reason','actorLabel','recordedAt','revision'])&&p.decision.command===(p.status==='approved'?'approve':'reject')&&text(p.decision.reason,10,1000)&&text(p.decision.actorLabel,1,160)&&typeof p.decision.recordedAt==='string'&&Number.isSafeInteger(p.decision.revision)&&p.decision.revision>=0,'No se pudo verificar la decisión.','CONTRACT_INVALID');
  salaryDiff(p.baseItems,p.items);return p;
 }
 export function salaryReceipt(r,attempt=null){
- ok(r&&r.version===SALARY_VERSION&&salaryUuid(r.eventId)&&salaryUuid(r.proposalId)&&salaryKey(r.requestKey)&&salaryHash(r.requestSha256)&&typeof r.replayed==='boolean'&&r.payrollCalculated===false&&r.payrollPosted===false&&salaryHash(r.catalogVersion)&&Number.isSafeInteger(r.revision)&&r.revision>=0,'La confirmación no pudo verificarse.','CONTRACT_INVALID');
+ ok(salaryExact(r,['version','eventId','proposalId','requestKey','requestSha256','body','status','revision','catalogVersion','replayed','payrollCalculated','payrollPosted'])&&r.version===SALARY_VERSION&&salaryUuid(r.eventId)&&salaryUuid(r.proposalId)&&salaryKey(r.requestKey)&&salaryHash(r.requestSha256)&&typeof r.replayed==='boolean'&&r.payrollCalculated===false&&r.payrollPosted===false&&salaryHash(r.catalogVersion)&&Number.isSafeInteger(r.revision)&&r.revision>=0&&r.revision<=1000,'La confirmación no pudo verificarse.','CONTRACT_INVALID');
  const body=salaryCommand(r.body);ok(r.status===({propose:'pending',approve:'approved',reject:'rejected'})[body.command]&& (body.command!=='propose'?r.proposalId===body.proposalId:r.proposalId===r.eventId),'La confirmación no corresponde a la operación.','CONTRACT_INVALID');
+ ok(body.command==='propose'?r.catalogVersion===body.baseVersion:body.command!=='approve'||r.revision>0&&r.catalogVersion!==body.baseVersion,'La versión confirmada no corresponde al efecto de la decisión.','CONTRACT_INVALID');
  if(attempt)ok(r.requestKey===attempt.key&&salarySerialized(body)===salarySerialized(attempt.body),'La confirmación cambió el contenido o la referencia del envío.','CONTRACT_INVALID');return r;
 }
