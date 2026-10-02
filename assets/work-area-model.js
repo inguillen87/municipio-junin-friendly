@@ -8,7 +8,7 @@ const FILE_AREA = Object.freeze({
   'juridica-registro.html':'juridica',
   'internal-dashboard.html':'personas','centro-acciones.html':'personas',
   'estructura.html':'personas','licencias-control.html':'personas',
-  'relojes-marcaciones.html':'asistencia','fuentes-tiempo.html':'asistencia',
+  'relojes-marcaciones.html':'asistencia','fuentes-tiempo.html':'asistencia','catalogo-tiempo.html':'asistencia',
   'ausentismo-control.html':'asistencia','control-horario-readiness.html':'asistencia',
   'control-horario-homologacion.html':'asistencia',
   'nomina-control.html':'liquidaciones','novedades-nomina.html':'liquidaciones',
