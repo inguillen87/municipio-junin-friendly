@@ -44,6 +44,7 @@ test('native multi-account duties are combined with legacy duties, not substitut
  assert.match(body,/has_overtime_post:=has_overtime_post OR/);
  assert.match(body,/has_approve AND has_overtime_post/);assert.match(body,/TIME_CATALOG_PERSON_SOD_CONFLICT/);
  assert.match(body,/NOT public\.tenant_iam_operational_person_pair_v1/);
+ assert.match(body,/capabilities_native<>'\[\]'::jsonb OR NOT public\.tenant_iam_operational_person_pair_v1/);
  assert.match(timeFunction(candidate,'time_catalog_native_person_caps_v2').body,/tenant_iam_assert_no_sod_conflict\(member\)/);
 });
 test('migration preserves command/body/session/idempotency, geometry, payload validators and all4 runtime facades',()=>{

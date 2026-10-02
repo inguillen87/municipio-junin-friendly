@@ -329,7 +329,7 @@ BEGIN
   has_propose:=has_propose OR (capabilities_native ? 'time.catalog.propose');
   has_approve:=has_approve OR (capabilities_native ? 'time.catalog.approve');
   has_overtime_post:=has_overtime_post OR (capabilities_native ? 'time.overtime.post');
-  IF (has_propose AND has_approve AND NOT public.tenant_iam_operational_person_pair_v1(p_tenant_id,p_actor_person_id,p_certified_binding_id,'catalog')) OR (has_approve AND has_overtime_post) THEN
+  IF (has_propose AND has_approve AND (capabilities_native<>'[]'::jsonb OR NOT public.tenant_iam_operational_person_pair_v1(p_tenant_id,p_actor_person_id,p_certified_binding_id,'catalog'))) OR (has_approve AND has_overtime_post) THEN
     RAISE EXCEPTION 'TIME_CATALOG_PERSON_SOD_CONFLICT' USING ERRCODE = 'P0001';
   END IF;
 EXCEPTION WHEN lock_not_available THEN
