@@ -235,7 +235,7 @@ BEGIN
 EXCEPTION WHEN lock_not_available THEN
   RAISE EXCEPTION 'TIME_CATALOG_SESSION_BUSY' USING ERRCODE = 'P0001';
 END
-$$
+$$;
 
 CREATE OR REPLACE FUNCTION time_catalog_assert_person_sod_v1(
   p_tenant_id uuid,
@@ -335,7 +335,7 @@ BEGIN
 EXCEPTION WHEN lock_not_available THEN
   RAISE EXCEPTION 'TIME_CATALOG_SESSION_BUSY' USING ERRCODE = 'P0001';
 END
-$$
+$$;
 
 CREATE OR REPLACE FUNCTION time_catalog_guard_entry_v1()
 RETURNS trigger
@@ -486,7 +486,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END
-$$
+$$;
 
 CREATE OR REPLACE FUNCTION time_catalog_assert_approvable_v1(
   p_catalog_entry_id uuid,
@@ -642,4 +642,4 @@ BEGIN
     END IF;
   END IF;
 END
-$$
+$$;

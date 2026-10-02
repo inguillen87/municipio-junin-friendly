@@ -5,12 +5,17 @@ import {nativeTimeCandidate,nativeTimePrerequisiteSource} from '../scripts/prepa
 import {nativeTimeDefinitions,timeFunction,NATIVE_TIME_PATCHES} from '../scripts/lib/native-time-catalog-migration.mjs';
 import {buildNativeTimeCatalogQa} from '../scripts/verify-native-time-catalog-sql.mjs';
 import {validCuil} from '../assets/native-employee-contract.js';
+import {splitPostgresStatements} from '../scripts/lib/sql-statements.mjs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replaceAll('\r\n','\n');
 const original=nativeTimePrerequisiteSource();
 const candidate=read('scripts/migrations/116-native-time-catalog.sql');
 test('SQL116 is reproduced from exact011 and canonical/native period prerequisites',()=>{
  assert.equal(candidate,nativeTimeCandidate());
  assert.equal((candidate.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,7);
+ const statements=splitPostgresStatements(candidate);
+ assert.equal(statements.length,9);
+ assert.equal(statements.filter(s=>s.includes('CREATE OR REPLACE FUNCTION')).length,7);
+ for(const s of statements)assert.ok((s.match(/CREATE OR REPLACE FUNCTION/g)||[]).length<=1,'one complete definition per SQL statement');
  assert.equal((candidate.match(/pin\(signature,sha256\)/g)||[]).length,1);
  assert.doesNotMatch(candidate,/\b(?:GRANT|CREATE TABLE|ALTER TABLE|TRUNCATE|DROP|UPDATE employment_contract|INSERT INTO (?:employment_contract|native_employee_registration))\b/i);
  assert.match(candidate,/TIME_CATALOG_NATIVE_ALREADY_INSTALLED/);

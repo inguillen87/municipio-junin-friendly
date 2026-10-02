@@ -149,5 +149,5 @@ ${pins}
  END LOOP;
 END $prerequisite$;
 `;
-  return prerequisites + '\n' + helpers.replaceAll('\r\n', '\n') + '\n' + patches.map(p => p.definition).join('\n\n') + '\n';
+  return prerequisites + '\n' + helpers.replaceAll('\r\n', '\n') + '\n' + patches.map(p => p.definition.trimEnd().replace(/;$/, '')+';').join('\n\n') + '\n';
 }
