@@ -226,6 +226,7 @@ const shellFiles = [
   'assets/family-schooling-model.js',
   'assets/family-schooling-export.js',
   'assets/family-schooling.js',
+  'assets/family-schooling-photo.js',
   'assets/family-schooling.css',
   'assets/payroll-monthly-summary-model.js',
   'assets/payroll-monthly-summary-export.js',
