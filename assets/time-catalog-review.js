@@ -1,4 +1,4 @@
-import {TimeCatalogReviewSession, catalogCivilDate, CATALOG_KIND_LABELS as kinds, CATALOG_STATUS_LABELS as statuses,
+import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel, CATALOG_KIND_LABELS as kinds, CATALOG_STATUS_LABELS as statuses,
   CATALOG_COMMAND_LABELS as commands, CATALOG_REASON_LABELS as reasons} from './time-catalog-review-model.js';
 import {TIME_CATALOG_REASONS, timeCatalogExact} from './time-catalog-contract.js';
 
@@ -60,7 +60,7 @@ function controls() {
   nodes.refresh.disabled = busy; nodes.refresh.textContent = pending ? 'Retomar envío sin confirmación' : 'Verificar acceso y actualizar';
   nodes.filters.querySelectorAll('button,select').forEach(n => n.disabled = locked);
   nodes.showSubmitted.disabled = locked;
-  nodes.previous.disabled = locked || offset === 0; nodes.next.disabled = locked || !model.page?.hasMore;
+  nodes.previous.disabled = locked || offset === 0; nodes.next.disabled = locked || !model.page?.hasMore || offset + 25 > 100000;
   nodes.records.querySelectorAll('button').forEach(n => n.disabled = locked);
   nodes.send.disabled = busy; nodes.retry.disabled = busy; nodes.consultAttempt.disabled = busy;
   nodes.decision.querySelectorAll('select,textarea,input').forEach(n => n.disabled = locked);
@@ -75,13 +75,18 @@ function renderList() {
   model.records.forEach(r => {
     const item = make('article', undefined, 'record'), title = make('div');
     title.append(make('strong', kinds[r.kind]), make('small', 'Revisión ' + r.revision + ' · Versión ' + r.version));
+    const c = r.configuration;
+    if (r.kind === 'calendar') title.append(make('small', `${c.days.length} días declarados`));
+    if (r.kind === 'shift') title.append(make('small', `${c.intervals.length} tramos declarados`));
+    if (r.kind === 'rule_profile') title.append(make('small', `${c.parameters.length} parámetros · ${c.parameters[0].key}`));
     const dates = make('div'); dates.append(make('small', 'Vigencia'), make('span', range(r)));
     const button = make('button', 'Ver configuración'); button.type = 'button';
     button.setAttribute('aria-label', `Ver ${kinds[r.kind].toLowerCase()}, revisión ${r.revision}, desde ${catalogCivilDate(r.effectiveFrom)}`);
     button.addEventListener('click', () => openDetail(r.id));
     item.append(title, dates, make('span', statuses[r.status], 'badge ' + r.status), button); nodes.records.append(item);
   });
-  const p = model.page; nodes.pageCount.textContent = p.total === 0 ? '0 configuraciones' : `${p.offset + 1}–${p.offset + model.records.length} de ${p.total} configuraciones`;
+  const p = model.page; nodes.pageCount.textContent = catalogPageLabel(p, model.records.length);
+  if (p.hasMore && offset + 25 > 100000) nodes.pageCount.textContent += ' · Se alcanzó el límite disponible de consulta. Acotá los filtros.';
   controls();
 }
 async function readList() {

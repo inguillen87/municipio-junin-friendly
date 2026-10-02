@@ -17,6 +17,11 @@ const timestamp = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) &&
 export function catalogCivilDate(value) {
   return value ? value.split('-').reverse().join('/') : 'Sin fecha de fin';
 }
+export function catalogPageLabel(page, count) {
+  if (!page.total) return '0 configuraciones';
+  if (!count) return `0 en esta página · ${page.total} configuraciones en el filtro. Usá Anterior para volver.`;
+  return `${page.offset + 1}–${page.offset + count} de ${page.total} configuraciones`;
+}
 
 // Only verified read results and one frozen in-memory attempt. No persistence,
 // automatic retries, employee projection or calculation belong to this model.

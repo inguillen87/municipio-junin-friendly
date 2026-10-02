@@ -90,7 +90,11 @@ try {
   await load(); assert.match(await page.locator('#pageCount').innerText(), /1–25 de 33/);
   await page.getByRole('button', {name: 'Siguiente', exact: true}).click(); await page.waitForFunction(() => document.querySelector('#pageCount').textContent.includes('26–33'));
   assert.equal(await page.locator('#records .record').count(), 8); checks.push('complete multi-page global counts, no dropped records');
-  await page.getByRole('button', {name: 'Anterior', exact: true}).click(); await page.waitForFunction(() => document.querySelector('#pageCount').textContent.includes('1–25'));
+  const withdrawn = [...records.values()].slice(24); withdrawn.forEach(r => records.delete(r.id));
+  await page.locator('#refresh').click(); await page.waitForFunction(() => document.querySelector('#pageCount').textContent.includes('0 en esta página'));
+  assert.match(await page.locator('#pageCount').innerText(), /24 configuraciones en el filtro/); assert.equal(await page.locator('#next').isDisabled(), true);
+  await page.getByRole('button', {name: 'Anterior', exact: true}).click(); await page.waitForFunction(() => document.querySelector('#pageCount').textContent.includes('1–24'));
+  withdrawn.forEach(r => records.set(r.id, r)); checks.push('a concurrently emptied later page preserves its real total and back navigation');
   await filter('rule_profile'); await page.locator('#records button').first().click(); await page.locator('#detail').waitFor({state: 'visible'});
   assert.match(await page.locator('#configuration').innerText(), /99999999999999\.123456/); assert.match(await page.locator('#configuration').innerText(), /999999999999999999/); assert.match(await page.locator('#configuration').innerText(), /No · Unidad/);
   assert.match(await page.locator('#facts').innerText(), /01\/10\/2026/); assert.doesNotMatch(await page.locator('#detail').innerText(), /qa@example|aaaaaaaa-|11111111-|employmentContractId/);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {TimeCatalogReviewSession, catalogCivilDate} from '../assets/time-catalog-review-model.js';
+import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel} from '../assets/time-catalog-review-model.js';
 import {ID, record, command, payload, flags, scopeVersion} from './fixtures/time-catalog-synthetic.js';
 const permissions = {canPropose: true, canApprove: false, canAudit: false};
 const base = patch => ({version: 'time-catalog.v1', scopeVersion, permissions: {...permissions}, ...patch});
@@ -23,6 +23,11 @@ test('a full page preserves global totals; an omitted row or duplicate cannot lo
   assert.throws(() => s.list({...data, records: rows.slice(1)}, input));
   assert.throws(() => s.list({...data, records: [...rows.slice(1), rows[1]]}, input));
   assert.throws(() => s.list(data, {...input, kind: 'shift'}));
+});
+test('a later page becoming empty retains the real global total without an inverted range', () => {
+  const s = ready(), data = base({records: [], page: {limit: 25, offset: 25, total: 24, hasMore: false}});
+  s.list(data, {kind: '', status: '', limit: 25, offset: 25}); assert.equal(s.page.total, 24);
+  assert.equal(catalogPageLabel(s.page, 0), '0 en esta página · 24 configuraciones en el filtro. Usá Anterior para volver.');
 });
 test('source, actor scope or permissions changing invalidates every read and frozen attempt', () => {
   for (const change of [{scopeVersion: 'f'.repeat(64) + '.' + 'a'.repeat(64)}, {permissions: {...permissions, canPropose: false}}]) {
