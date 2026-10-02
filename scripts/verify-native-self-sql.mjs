@@ -32,6 +32,10 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  CREATE UNIQUE INDEX self_active_contract ON tenant_action_employment_link(tenant_id,employment_contract_id) WHERE active;
  CREATE TABLE tenant_action_authority_event(id bigint GENERATED ALWAYS AS IDENTITY,actor_user_email text,actor_session_id uuid,actor_session_version integer,release_sha text,tenant_id uuid,membership_id uuid,command text,target_type text,target_id text,idempotency_key uuid,command_hash text,expected_version integer,resulting_version integer,reason_code text,reason_hash text,before_snapshot jsonb,after_snapshot jsonb,result jsonb);
  CREATE TABLE platform_user_role(user_email text,role_key text,active boolean);
+ -- The prior native suites use a minimal read reference. The unmodified 009
+ -- lookup also reads these original GRH columns, even when there are no rows.
+ ALTER TABLE grh_employees ADD COLUMN IF NOT EXISTS import_run_id bigint,ADD COLUMN IF NOT EXISTS nombre text,ADD COLUMN IF NOT EXISTS sector text;
+ CREATE OR REPLACE VIEW grh_source_employees_v1 AS SELECT * FROM grh_employees;
  INSERT INTO internal_users(email,active,identity_version,display_name) VALUES('owner@example.invalid',true,1,'Responsable sintético QA');
  INSERT INTO tenant_identity_session VALUES(${q(ownerSession)},'owner@example.invalid',NULL,1,1,'platform','mfa','active',now()+interval '1 hour',now());
  INSERT INTO platform_user_role VALUES('owner@example.invalid','PLATFORM_OWNER',true);
