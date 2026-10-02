@@ -19,11 +19,12 @@ on:
       - 'tests/*family*'
       - 'tests/*schooling*'
       - 'tests/fixtures/*family*'
+      - 'tests/fixtures/*school-photo*'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
   push:
-    branches: ['internal-native-family-schooling-20260922', 'master']
+    branches: ['internal-native-family-schooling-20260922', 'codex/school-certificate-photo-20261002', 'master']
     paths:
       - 'api/internal-family-*.js'
       - 'lib/internal-family-*.js'
@@ -43,6 +44,7 @@ on:
       - 'tests/*family*'
       - 'tests/*schooling*'
       - 'tests/fixtures/*family*'
+      - 'tests/fixtures/*school-photo*'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
@@ -67,6 +69,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-family-schooling-browser.mjs
       - run: node scripts/verify-family-schooling-browser.mjs
+      - run: node scripts/verify-family-schooling-photo-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - uses: actions/upload-artifact@v4
