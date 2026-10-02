@@ -6,7 +6,8 @@ const source=fs.readFileSync('scripts/migrations/116-native-time-catalog.sql','u
 test('review contains the exact tested migration and auditable whole-state preservation',()=>{
  const p=buildTimeCatalogInstallation({source,sourceCommit});assert.equal(p.migrationStatements,19);assert.equal(p.installation.length,26);assert.equal(p.durableVerification.length,4);assert.equal(p.pins.length,15);assert.equal(p.pins.filter(p=>p.runtime).length,2);
  assert.doesNotMatch(p.before,/AND p\.oid IS DISTINCT FROM to_regclass\('public\.native_leave_event'\)/);
- assert.match(p.before,/to_jsonb\(r\)-ARRAY\['reference_code','display_name','legal_reference'\]/);assert.match(p.before,/to_jsonb\(p\)-'prosrc'/);
+ assert.match(p.before,/to_jsonb\(r\)-ARRAY\[''reference_code'',''display_name'',''legal_reference''\]/);assert.match(p.before,/to_jsonb\(p\)-'prosrc'/);
+ assert.match(p.before,/%L=''public\.time_catalog_entry''/);assert.doesNotMatch(p.before,/%L='public\.time_catalog_entry'/);
  for(const key of ['tables','functions','triggers','views','sequences','schemas','roles','memberships','defaultAcl'])assert.ok(p.before.includes("'"+key+"'"));
  assert.match(p.audit,/SQL116_PRIOR_STATE_CHANGED/);assert.match(p.metadata,/SQL116_PRIVATE_HELPER_GRANTED/);assert.match(p.columns,/SQL116_REFERENCE_COLUMNS/);assert.match(p.before,/SQL116_PROOF_LIMIT/);
 });

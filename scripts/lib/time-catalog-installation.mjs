@@ -16,7 +16,7 @@ export function timeCatalogPreservationSnapshot(slot){
  // reviewed checks are normalized on011; original fields/rows stay identical.
  s=s.replace(" AND p.oid IS DISTINCT FROM to_regclass('public.native_leave_event')",'');
  s=s.replace(" AND p.oid IS DISTINCT FROM to_regclass('public.native_leave_event')",'');
- s=s.replace('to_jsonb(r)::text',"(CASE WHEN %L='public.time_catalog_entry' THEN to_jsonb(r)-ARRAY['reference_code','display_name','legal_reference']::text[] ELSE to_jsonb(r) END)::text");
+ s=s.replace('to_jsonb(r)::text',"(CASE WHEN %L=''public.time_catalog_entry'' THEN to_jsonb(r)-ARRAY[''reference_code'',''display_name'',''legal_reference'']::text[] ELSE to_jsonb(r) END)::text");
  s=s.replace('c.nspname,c.relname) INTO n,h;',"c.nspname||'.'||c.relname,c.nspname,c.relname) INTO n,h;");
  s=s.replace('WHERE a.attrelid=c.oid AND a.attnum>0)',"WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT(c.oid='public.time_catalog_entry'::regclass AND a.attname IN ('reference_code','display_name','legal_reference')))");
  s=s.replace('WHERE k.conrelid=c.oid)',"WHERE k.conrelid=c.oid AND NOT(c.oid='public.time_catalog_entry'::regclass AND k.conname IN ('time_catalog_reference_shape_v2','time_catalog_reference_key_v2')))");
