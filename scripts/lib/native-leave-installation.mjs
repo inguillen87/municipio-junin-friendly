@@ -34,7 +34,7 @@ function pinsCheck(pins,code){
    OR encode(public.digest(replace(p.prosrc,E'\\r\\n',E'\\n'),'sha256'),'hex')<>x->>'sha256'
    OR has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE') IS DISTINCT FROM (x->>'runtime')::boolean
    OR EXISTS(SELECT 1 FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE a.grantee<>p.proowner AND NOT((x->>'runtime')::boolean AND a.grantee='municontrol_actions_runtime_app'::regrole AND a.privilege_type='EXECUTE' AND NOT a.is_grantable))
-  THEN RAISE EXCEPTION '${code}: %',x->>'signature'; END IF;
+  THEN RAISE EXCEPTION '${code}' USING DETAIL=x->>'signature'; END IF;
  END LOOP; END $metadata$`;
 }
 
