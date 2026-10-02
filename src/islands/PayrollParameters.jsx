@@ -3,6 +3,7 @@ import { AGREEMENT_LABELS, PARAMETER_RULES, PARAMETER_STATUSES, PARAMETER_COMMAN
 import { parameterRequest, parameterAttempt } from './payroll-parameter-client.js';
 import { parameterArtifact } from './payroll-parameter-export.js';
 import PayrollCatalog from './PayrollCatalog.jsx';
+import NativeSalaryCatalog from './NativeSalaryCatalog.jsx';
 const css = `
 [data-parameter-workspace]{color:#163e50;min-width:0;margin:18px 0 24px;font-size:14px;line-height:1.6}
 [data-parameter-workspace] *{box-sizing:border-box}
@@ -106,6 +107,7 @@ export default function PayrollParameters({ request = parameterRequest }) {
   const selectedDraft = selected && (() => { const { rows, sourceSha256, applied, currentCatalogVerified, ...input } = selected.draft; return input; })();
   return <section data-parameter-workspace="v1" aria-label="Gestión de parámetros salariales">
     <style>{css}</style>
+    <NativeSalaryCatalog revoked={blocked}/>
     <header className="pp-hero"><p className="pp-eyebrow">Configuración salarial · Registro propio en Neon</p><h2>Parámetros salariales</h2><p>Prepará los auxiliares 88 y 90 desde la escala aprobada, revisá el resultado por convenio y enviá el cambio a otra persona para su control. Sin escribir fórmulas ni reconstruir planillas.</p><div className="pp-steps"><span>1 · Preparar valores</span><span>2 · Guardar propuesta</span><span>3 · Revisión independiente</span></div></header>
     <div className="pp-status" data-error={bad} role="status" aria-live="polite">{notice}</div>
     {pending && <div className="pp-panel"><h3>Este intento necesita confirmación</h3><p>Conservamos la misma clave para no duplicar el cambio. No prepares otro hasta resolverlo.</p><small>Intento: {pending.key}</small><div className="pp-actions"><button disabled={busy || blocked} onClick={recover}>Consultar confirmación</button><button disabled={busy || blocked} onClick={() => transaction(() => send(pending))}>Reenviar el mismo intento</button></div></div>}
