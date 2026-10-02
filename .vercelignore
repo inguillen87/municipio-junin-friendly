@@ -95,6 +95,7 @@ test_prisma.js
 !control-horario-homologacion.html
 !attendance-policy-candidates.v1.json
 !fuentes-tiempo.html
+!catalogo-tiempo.html
 !relojes-marcaciones.html
 !administracion-plataforma.html
 !datos-personales.html
@@ -264,6 +265,8 @@ local-agents/
 !scripts/migrations/104-native-employment-changes.sql
 !scripts/migrations/110-native-employment-lifecycle.sql
 !scripts/migrations/111-native-leave-workflow.sql
+!scripts/migrations/112-native-salary-definitions.sql
+!scripts/migrations/113-native-employee-self-access.sql
 
 # Source-only contracts for isolated payroll read regression QA.
 !scripts/migrations/105-payroll-independent-read-session.sql
@@ -271,3 +274,6 @@ local-agents/
 
 # Additive staging schema used by isolated source regression tests only.
 !scripts/migrations/106-grh-successor-staging.sql
+
+# Exact reviewed source contract required by time catalogue build regressions.
+!scripts/migrations/116-native-time-catalog.sql

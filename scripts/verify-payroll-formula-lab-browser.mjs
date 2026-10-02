@@ -473,7 +473,23 @@ const address = server.address();
 const baseUrl = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
+async function requireCompletedResponse(response, label) {
+  let timer;
+  try {
+    const completion = await Promise.race([
+      response.finished(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}: source response transport did not finish within 30 seconds`)), 30_000);
+      }),
+    ]);
+    assert.equal(completion, null, `${label}: source response transport must finish before proceeding or closing the context`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function inspect(viewport, label) {
+  console.log(`Payroll browser QA: starting ${label}`);
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   const issues = [];
@@ -616,7 +632,9 @@ async function inspect(viewport, label) {
     await page.waitForFunction(() => document.querySelector('[data-source-preview-status]')?.textContent.includes('Análisis con observaciones'));
     const sourceResponse = await completedSourceResponse;
     assert.equal(sourceResponse.status(), 200);
-    assert.equal(await sourceResponse.finished(), null, `${label}: source response transport must finish before proceeding or closing the context`);
+    console.log(`Payroll browser QA: ${label} source response received; waiting for completed transport`);
+    await requireCompletedResponse(sourceResponse, label);
+    console.log(`Payroll browser QA: ${label} source transport completed`);
     assert.equal(previewRequests.length, priorPreviewRequests + 1, `${label}: one voluntary analysis sends exactly one request`);
     assert.equal(await sourcePreview.locator('[data-source-preview-result]').isVisible(), true);
     assert.equal(await sourcePreview.locator('[data-source-preview-records]').innerText(), '2');
@@ -991,6 +1009,7 @@ function resetModule7() {
 }
 
 async function inspectModule7(viewport, label) {
+  console.log(`Payroll browser QA: starting ${label}`);
   resetModule7();
   const context = await browser.newContext({
     viewport,
@@ -1068,6 +1087,7 @@ async function inspectModule7(viewport, label) {
 }
 
 async function inspectUnavailablePayroll() {
+  console.log('Payroll browser QA: starting unavailable payroll fallback');
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     extraHTTPHeaders: { 'x-payroll-fixture': 'unavailable' },
@@ -1135,7 +1155,11 @@ try {
   await inspectModule7({ width: 390, height: 844 }, 'module7-mobile');
   await inspectUnavailablePayroll();
   console.log(`Payroll formula browser QA: OK; screenshots: ${screenshots.join(', ')}; downloads: ${downloads.join(', ')}`);
+} catch (error) {
+  console.error('Payroll formula browser QA failed:', error);
+  throw error;
 } finally {
   await browser.close();
+  server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
 }

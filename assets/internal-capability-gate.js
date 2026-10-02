@@ -21,6 +21,7 @@
     'internal-legal-norm-relations.html': { any: ['legal.norm.read'] },
     'centro-acciones.html': { any: ['actions.read'] },
     'fuentes-tiempo.html': { any: ['time.source.read', 'time.catalog.read'] },
+    'catalogo-tiempo.html': { all: ['time.catalog.read'] },
     'relojes-marcaciones.html': { any: ['attendance.read'] },
     'estructura.html': { any: ['workforce.structure.read'] },
     'integracion-datos.html': { any: ['lineage.read'] },

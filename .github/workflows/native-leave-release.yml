@@ -1,9 +1,19 @@
-name: Native leave source integration
+name: Native leave and self-service source integration
 on:
   push:
-    branches: ['codex/native-leave-workflow-20261001', 'master']
+    branches: ['codex/native-leave-workflow-20261001', 'codex/native-employee-self-20261002', 'master']
     paths:
       - "api/internal-native-leave.js"
+      - "api/internal-native-self*.js"
+      - "lib/internal-native-self.js"
+      - "assets/native-self*.js"
+      - "centro-acciones.html"
+      - "administracion-plataforma.html"
+      - "scripts/verify-native-self*.mjs"
+      - "scripts/migrations/113-*"
+      - "tests/native-self*.test.js"
+      - "scripts/prepare-native-self-installation.mjs"
+      - "scripts/lib/native-self-installation.mjs"
       - "api/internal-employment-catalog.js"
       - "lib/internal-native-leave.js"
       - "lib/internal-leave-workflow.js"
@@ -29,6 +39,16 @@ on:
     branches: ['master', 'work/codex-autonomy-20260930']
     paths:
       - "api/internal-native-leave.js"
+      - "api/internal-native-self*.js"
+      - "lib/internal-native-self.js"
+      - "assets/native-self*.js"
+      - "centro-acciones.html"
+      - "administracion-plataforma.html"
+      - "scripts/verify-native-self*.mjs"
+      - "scripts/migrations/113-*"
+      - "tests/native-self*.test.js"
+      - "scripts/prepare-native-self-installation.mjs"
+      - "scripts/lib/native-self-installation.mjs"
       - "api/internal-employment-catalog.js"
       - "lib/internal-native-leave.js"
       - "lib/internal-leave-workflow.js"
@@ -69,13 +89,16 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-leave-browser.mjs
+      - run: node scripts/verify-native-self-browser.mjs
       - run: node scripts/verify-native-employment-lifecycle-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: native-leave-browser-${{ github.run_id }}
-          path: verification/native-leave-browser/**
+          path: |
+            verification/native-leave-browser/**
+            verification/native-self-browser/**
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
@@ -106,7 +129,7 @@ jobs:
           node-version-file: .nvmrc
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
-      - run: node scripts/verify-native-leave-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/native-leave.sql --write-lock-sql=verification/native-leave-lock.sql
+      - run: node scripts/verify-native-self-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/native-leave.sql --write-lock-sql=verification/native-leave-lock.sql
       - name: Real PostgreSQL rules and independent publication lock
         shell: bash
         run: |
