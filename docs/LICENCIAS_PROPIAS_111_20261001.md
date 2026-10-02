@@ -1,0 +1,33 @@
+# P3 · solicitudes y saldos administrativos propios
+
+Incremento dependiente de SQL110 y PR #79. Código candidato; no instalado ni publicado. Un contrato creado exclusivamente en MuniControl puede registrar borradores, corregir fechas, enviar, aprobar o rechazar con revisión independiente y cancelar conservando el historial. No crea un caso ni un lote GRH ficticio. Las bases existentes y la aplicación permanecen como destinos; no se crea otra plataforma.
+
+## Solicitud y decisión
+
+La ficha propia contiene una sección de licencias. Cada envío fija contrato UUID, identidad, ámbito autenticado, versión laboral, versión completa del libro, entidad y versión esperada. El servidor relee sesión, municipio, membresía, vínculo y facultades vigentes. La interfaz relee acceso y consulta antes del primer envío. No hay importación ni escrituras automáticas.
+
+Se conservan los motivos operativos, versión y reglas del catálogo de solicitudes existente, incluidas sus advertencias y restricciones. Un motivo soportado permite preparar una solicitud; no certifica su aplicabilidad municipal, derecho ni cantidad legal. Los motivos pendientes de otro régimen y los hechos de asistencia no se convierten en licencias. Los intervalos de solicitud deben caber completos en un solo período laboral aprobado, con el último día inclusive. No se unen períodos separados por una baja. Días corridos y minutos siguen siendo unidades diferentes; los minutos conservan el motivo habilitado existente y un intervalo horario de un solo día.
+
+Quienes prepararon, editaron o enviaron una solicitud, incluso mediante otra membresía de la misma persona, y su beneficiario no pueden aprobarla ni rechazarla. La cancelación de una licencia aprobada también exige una persona habilitada distinta de quienes la prepararon. Conserva fundamento y decisiones anteriores. La aprobación exige validación humana expresa y evidencia verificada para motivos restringidos. Los campos administrativos no admiten notas clínicas.
+
+## Declaración y revisión de saldo
+
+El sistema no deduce derechos del ingreso, de una escala histórica ni del respaldo privado. Personal declara motivo, año de aplicación, unidad, cantidad total, documento y fundamento. Otra persona habilitada revisa el respaldo y decide. Sólo se reutiliza la facultad existente de gestión integral de licencias, junto con el alcance municipal y la confidencialidad existentes; no se agregan roles ni permisos. Esta es una declaración administrativa documentada, no un cálculo automático de derechos legales. El traslado de días de otro ejercicio requiere un acto revisado; no se presume por la presencia de un código histórico.
+
+Una cantidad cero declarada se conserva como cero. La ausencia de declaración conserva `null` y bloquea la reserva; no se presume cero. El tratamiento «no aplicable» conserva una cantidad ausente y sólo opera con respaldo y revisión independientes. Una sustitución no puede reducir el total por debajo de reservas y unidades aprobadas. Dos propuestas preparadas sobre un mismo antecedente no pueden sustituirlo una después de otra sin revisar nuevamente la declaración vigente.
+
+Enviar reserva las unidades solicitadas; aprobar las pasa a unidades autorizadas sin debitarlas dos veces. Rechazo y cancelación liberan la reserva o autorización vigente y conservan el historial. «Aprobadas» no afirma que las unidades hayan sido utilizadas: no es asistencia observada, reconocimiento salarial ni una novedad pagable. No se compensan automáticamente distintos códigos o unidades. Una solicitud que cruza el año exige todas sus partes y los saldos respectivos; nunca se omite la porción siguiente.
+
+## Integridad, consulta y recuperación
+
+SQL111 crea un libro de eventos inmutable, con RLS, sin acceso directo del rol de aplicación. Sólo expone tres fachadas autenticadas: consulta completa, comando y recuperación. No modifica tablas de empleados, identidades, familias, liquidaciones ni IAM. Reutiliza la autoridad de ámbito vigente y la identidad/períodos propios de SQL104/110. Una segunda instalación se rechaza; la instalación productiva requiere revisión y autorización específicas.
+
+La consulta verifica todas las solicitudes y declaraciones. Búsqueda y páginas de veinte tarjetas sólo organizan la pantalla. Los límites de mil solicitudes, quinientas propuestas de saldo, quinientos saldos y cinco mil eventos por contrato son límites de almacenamiento explícitos; no autorizan recortar el libro ni describir una consulta parcial como completa. Cuando algún antecedente restringido queda fuera del permiso vigente, la consulta completa se rechaza sin revelar ese antecedente. Debe intervenir una persona con acceso al conjunto.
+
+El cuerpo y la clave del envío pendiente permanecen sólo en memoria de esta página. Se compara el recibo con todos los campos disponibles y el hash del contenido original. Una respuesta incierta no habilita otra operación. La recuperación consulta el intento original; un404 permite únicamente un reenvío voluntario con los mismos bytes y clave. Ocultar, cerrar o revocar acceso retira datos visibles y descarta respuestas tardías. No se persiste en almacenamiento del navegador ni se remiten datos a un servicio adicional.
+
+## Prueba y cierres pendientes
+
+Las pruebas utilizan identidades y cantidades sintéticas. API y navegador pueden probarse con una fachada SQL sintética; eso no acredita persistencia ni autoridad real de PostgreSQL. El generador de integración conserva la regresión real de SQL110 y agrega el circuito SQL111 sobre PostgreSQL17/18 descartables, con reversión total y bloqueo desde otra conexión. Los resultados se registran por separado.
+
+P3 todavía necesita instalación autorizada de SQL110/111, revisión de la publicación exacta y aceptación municipal. El acceso de un empleado nativo con su propia cuenta sigue perteneciendo al cierre E1: crear un legajo no crea una cuenta ni altera vínculos IAM. No se declara autonomía integral ni se resuelven novedades masivas/OSEP, el límite de500, cálculo/anulación/confirmación/cierre salarial, recibos de la misma corrida, homologación física de relojes o firma de expedientes. Los frentes rechazados y el trabajo paralelo de firmas conservan sus límites.

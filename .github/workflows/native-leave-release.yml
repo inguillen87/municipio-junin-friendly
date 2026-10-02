@@ -1,0 +1,128 @@
+name: Native leave source integration
+on:
+  push:
+    branches: ['codex/native-leave-workflow-20261001', 'master']
+    paths:
+      - "api/internal-native-leave.js"
+      - "api/internal-employment-catalog.js"
+      - "lib/internal-native-leave.js"
+      - "lib/internal-leave-workflow.js"
+      - "assets/native-leave*"
+      - "assets/native-employment-lifecycle*"
+      - "assets/mendoza-title-vi.js"
+      - "internal-dashboard.html"
+      - "scripts/build-friendly.mjs"
+      - "scripts/migrations/003-*"
+      - "scripts/migrations/006-*"
+      - "scripts/migrations/007-*"
+      - "scripts/migrations/104-*"
+      - "scripts/migrations/110-*"
+      - "scripts/migrations/111-*"
+      - "scripts/verify-native-leave*"
+      - "tests/native-leave*"
+      - "tests/fixtures/native-leave-synthetic.js"
+      - ".github/workflows/native-leave-release.yml"
+  pull_request:
+    branches: ['master', 'work/codex-autonomy-20260930']
+    paths:
+      - "api/internal-native-leave.js"
+      - "api/internal-employment-catalog.js"
+      - "lib/internal-native-leave.js"
+      - "lib/internal-leave-workflow.js"
+      - "assets/native-leave*"
+      - "assets/native-employment-lifecycle*"
+      - "assets/mendoza-title-vi.js"
+      - "internal-dashboard.html"
+      - "scripts/build-friendly.mjs"
+      - "scripts/migrations/003-*"
+      - "scripts/migrations/006-*"
+      - "scripts/migrations/007-*"
+      - "scripts/migrations/104-*"
+      - "scripts/migrations/110-*"
+      - "scripts/migrations/111-*"
+      - "scripts/verify-native-leave*"
+      - "tests/native-leave*"
+      - "tests/fixtures/native-leave-synthetic.js"
+      - ".github/workflows/native-leave-release.yml"
+permissions:
+  contents: read
+concurrency:
+  group: native-leave-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-native-leave-browser.mjs
+      - run: node scripts/verify-native-employment-lifecycle-browser.mjs
+      - run: node scripts/verify-native-employee-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-leave-browser-${{ github.run_id }}
+          path: verification/native-leave-browser/**
+          retention-days: 3
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ['17', '18']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_DB: native_employment_lifecycle_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: native_lifecycle_qa_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_employment_lifecycle_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:native_lifecycle_qa_only@127.0.0.1:5432/native_employment_lifecycle_qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-native-leave-sql.mjs --ci --expected-major=${{ matrix.postgres }} --require-concurrency --write-sql=verification/native-leave.sql --write-lock-sql=verification/native-leave-lock.sql
+      - name: Real PostgreSQL rules and independent publication lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-leave-lock.sql > verification/native-leave-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'FIXED_NOVELTIES_QA_LOCK_READY' verification/native-leave-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/native-leave-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-leave.sql
+          kill -0 "$blocker"
+          kill "$blocker"
+          wait "$blocker" || true
+          trap - EXIT
