@@ -34,17 +34,17 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  INSERT INTO capabilities SELECT m,k FROM(VALUES ${['maker','checker','samePerson','unlinked','outsider'].flatMap(actor=>['actions.read','leave.request.all.manage','leave.request.restricted.read','leave.request.restricted.decide'].map(cap=>'('+q(ids[actor])+'::uuid,'+q(cap)+')')).join(',')}) v(m,k) WHERE NOT EXISTS(SELECT 1 FROM capabilities c WHERE c.membership_id=v.m AND c.capability_key=v.k);
  INSERT INTO capabilities SELECT ${q(ids.reader)}::uuid,k FROM unnest(ARRAY['actions.read','leave.request.all.read','leave.request.restricted.read']) k WHERE NOT EXISTS(SELECT 1 FROM capabilities c WHERE c.membership_id=${q(ids.reader)}::uuid AND c.capability_key=k);
  EXECUTE ${q(reviewSql(installation.preflight))};
- EXECUTE ${q(reviewSql(installation.before))};
- EXECUTE ${q(normalize(relocate(migration)))};
- EXECUTE ${q(reviewSql(installation.after))};
- EXECUTE ${q(reviewSql(installation.audit))};
- EXECUTE ${q(reviewSql(installation.ownCheck))};
  CREATE FUNCTION qa_leave_input(actor jsonb,target uuid,cmd text,payload_value jsonb,entity uuid,reason_value text) RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,${schema},public,pg_temp AS $input$
  DECLARE b jsonb; expected integer:=0; BEGIN
   b:=native_leave_bootstrap_v1(actor,target);
   IF entity IS NOT NULL THEN SELECT (x->>'version')::integer INTO expected FROM jsonb_array_elements((b->'requests')||(b->'profileProposals')) x WHERE x->>'id'=entity::text; END IF;
   RETURN jsonb_build_object('contractId',b#>>'{subject,contractId}','identityToken',b#>>'{subject,identityToken}','scopeVersion',b->>'scopeVersion','employmentVersion',b#>>'{employment,version}','snapshotVersion',b->>'snapshotVersion','command',cmd,'entityId',entity,'expectedVersion',expected,'payload',payload_value,'reason',CASE WHEN cmd IN ('create','update_draft') THEN NULL ELSE reason_value END,'evidenceStatus',CASE WHEN cmd='approve' THEN 'verified' END,'manualValidationConfirmed',cmd IN ('approve','profile_approve'));
  END $input$;
+ EXECUTE ${q(reviewSql(installation.before))};
+ EXECUTE ${q(normalize(relocate(migration)))};
+ EXECUTE ${q(reviewSql(installation.after))};
+ EXECUTE ${q(reviewSql(installation.audit))};
+ EXECUTE ${q(reviewSql(installation.ownCheck))};
  leave_canonical:=(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) FROM employment_contract ec);
  leave_boot:=native_leave_bootstrap_v1(maker,target_id);`);
  ok("leave_boot->>'version'='native-leave-workflow.v1' AND leave_boot->>'complete'='true' AND leave_boot->'requests'='[]'::jsonb AND leave_boot->'balances'='[]'::jsonb",'native-only employee starts with no invented leave or entitlement');
