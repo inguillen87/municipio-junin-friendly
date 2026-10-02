@@ -53,7 +53,11 @@ export function buildTimeCatalogInstallation({source,sourceCommit}){
  const audit=`DO $audit$ BEGIN IF current_setting('municontrol_sql116.before')::jsonb IS DISTINCT FROM current_setting('municontrol_sql116.after')::jsonb THEN RAISE EXCEPTION 'SQL116_PRIOR_STATE_CHANGED'; END IF;
  IF EXISTS(SELECT 1 FROM public.time_catalog_entry WHERE reference_code IS NOT NULL OR display_name IS NOT NULL OR legal_reference IS NOT NULL) THEN RAISE EXCEPTION 'SQL116_PRIOR_REFERENCE_REWRITTEN'; END IF; END $audit$`;
  const proof=(beforeIncluded)=>`SELECT jsonb_build_object('sourceCommit',${q(sourceCommit)},'sqlSha256',${q(SQL116_SHA256)},'allChecksPassed',true,'nominalRowsReturned',0,${beforeIncluded?"'beforeFingerprint',encode(public.digest(current_setting('municontrol_sql116.before'),'sha256'),'hex'),":''}'afterFingerprint',encode(public.digest(current_setting('municontrol_sql116.after'),'sha256'),'hex'),
- 'objectFingerprint',encode(public.digest((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid)::text FROM pg_proc p WHERE p.oid IN (${pins.map(p=>q(p.signature)+'::regprocedure').join(',')})),'sha256'),'hex')) AS proof`;
+ 'objectFingerprint',encode(public.digest(jsonb_build_object(
+   'functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p WHERE p.oid IN (${pins.map(p=>q(p.signature)+'::regprocedure').join(',')})),
+   'referenceColumns',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid='public.time_catalog_entry'::regclass AND a.attname IN ('reference_code','display_name','legal_reference')),
+   'referenceConstraints',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.oid) FROM pg_constraint c WHERE c.conrelid='public.time_catalog_entry'::regclass AND c.conname IN ('time_catalog_reference_shape_v2','time_catalog_reference_key_v2'))
+ )::text,'sha256'),'hex')) AS proof`;
  return {sourceCommit,sqlSha256:SQL116_SHA256,migrationStatements:19,pins,preflight,before,after,audit,metadata,columns,
    installation:[preflight,before,...migration,after,audit,metadata,columns,proof(true)],durableVerification:[after,metadata,columns,proof(false)]};
 }

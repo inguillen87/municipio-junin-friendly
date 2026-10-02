@@ -10,6 +10,7 @@ test('review contains the exact tested migration and auditable whole-state prese
  assert.match(p.before,/%L=''public\.time_catalog_entry''/);assert.doesNotMatch(p.before,/%L='public\.time_catalog_entry'/);
  for(const key of ['tables','functions','triggers','views','sequences','schemas','roles','memberships','defaultAcl'])assert.ok(p.before.includes("'"+key+"'"));
  assert.match(p.audit,/SQL116_PRIOR_STATE_CHANGED/);assert.match(p.metadata,/SQL116_PRIVATE_HELPER_GRANTED/);assert.match(p.columns,/SQL116_REFERENCE_COLUMNS/);assert.match(p.before,/SQL116_PROOF_LIMIT/);
+ for(const key of ['functions','referenceColumns','referenceConstraints'])assert.ok(p.durableVerification.at(-1).includes("'"+key+"'"));
 });
 test('unreviewed source and incomplete commit cannot generate an installation package',()=>{
  assert.throws(()=>buildTimeCatalogInstallation({source:source+'\n-- Changed',sourceCommit}),/Unreviewed/);assert.throws(()=>buildTimeCatalogInstallation({source,sourceCommit:'not-a-commit'}));
