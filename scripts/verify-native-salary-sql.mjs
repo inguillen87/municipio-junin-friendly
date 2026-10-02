@@ -8,15 +8,36 @@ import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentLifecycleQa} from './verify-native-employment-lifecycle-sql.mjs';
 import {row,body} from '../tests/fixtures/native-salary-synthetic.js';
 import {salaryFingerprint} from '../lib/internal-native-salary.js';
+import {prepareNativeSalaryInstallation} from './prepare-native-salary-installation.mjs';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb',root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export function buildNativeSalaryQa({serverMajor,requireConcurrency=false}){
  const base=buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=fs.readFileSync(path.join(root,'scripts/migrations/112-native-salary-definitions.sql'),'utf8').replaceAll('\r\n','\n');
- const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll("'search_path=pg_catalog, public, pg_temp'",q('search_path=pg_catalog, '+schema+', public, pg_temp')).replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp').replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
+ const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll("s.nspname='public'","s.nspname="+q(schema)).replaceAll("'search_path=pg_catalog, public, pg_temp'",q('search_path=pg_catalog, '+schema+', public, pg_temp')).replaceAll("'search_path=public, pg_temp'",q('search_path='+schema+', public, pg_temp')).replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp').replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
+ const installation=prepareNativeSalaryInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8').replaceAll('\r\n','\n'),sourceCommit:'9'.repeat(40)});
  const statements=[];let count=0;const exec=s=>statements.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;},reject=(sql,code,label)=>ok('qa_rejects('+sql+','+q(code.startsWith('NATIVE_')?code:'NATIVE_SALARY_'+code)+')',label);
  const write=(actor='maker',payload='salary_body',key='gen_random_uuid()')=>'native_salary_command_v1('+actor+','+payload+','+key+')';
  const rejected=(payload,code,label,actor='maker',key='gen_random_uuid()')=>reject('format('+q('SELECT native_salary_command_v1(%1$L::jsonb,%2$L::jsonb,%3$L::uuid)')+','+actor+','+payload+','+key+')',code,label);
  exec(`salary_old_contracts:=(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY id)::text) FROM employment_contract ec);
- EXECUTE ${q(relocate(migration))};
+ EXECUTE ${q(relocate(installation.installation.slice(0,-1).join(';\n')))};
+ EXECUTE ${q(relocate(installation.proof))} INTO salary_install_proof;
+ EXECUTE ${q(relocate(installation.durableVerification.slice(0,-1).join(';\n')))};
+ EXECUTE ${q(relocate(installation.durableProof))} INTO salary_durable_proof;`);
+ ok("salary_install_proof->>'allChecksPassed'='true' AND salary_install_proof->>'beforeFingerprint'=salary_install_proof->>'afterFingerprint'",'installation retains all prior data and metadata before committing');
+ ok("salary_install_proof-'beforeFingerprint'=salary_durable_proof AND salary_install_proof->>'eventRows'='0' AND salary_install_proof->>'functions112'='12' AND salary_install_proof->>'runtimeFacades'='3'",'independent verification queries match every new object and the complete prior state');
+ const sqlReject=(sql,code,label)=>ok('qa_rejects('+q(relocate(sql))+','+q(code)+')',label);
+ const tamper=(sql,check)=>`DO $tamper$ BEGIN ${sql}; EXECUTE ${q(check)}; END $tamper$`;
+ for(const [sql,check,code,label] of [
+  ['ALTER TABLE public.native_salary_event ADD COLUMN unreviewed text',installation.newObjectAudit,'SQL112_NEW_TABLE_SHAPE','extra field never passes installation metadata'],
+  ['ALTER TABLE public.native_salary_event DISABLE ROW LEVEL SECURITY',installation.newObjectAudit,'SQL112_NEW_TABLE_SECURITY','disabled RLS stops verification'],
+  ['GRANT SELECT ON public.native_salary_event TO municontrol_actions_runtime_app',installation.newObjectAudit,'SQL112_NEW_TABLE_SECURITY','direct runtime table access is refused'],
+  ['ALTER TABLE public.native_salary_event DISABLE TRIGGER native_salary_immutable',installation.newObjectAudit,'SQL112_IMMUTABLE_GUARD','disabled immutable history guard is refused'],
+  ['GRANT EXECUTE ON FUNCTION public.native_salary_catalog_v1(jsonb) TO municontrol_actions_runtime_app',installation.ownCheck,'SQL112_NEW_FUNCTION_METADATA','private helper grant is refused'],
+  ['ALTER FUNCTION public.native_salary_bootstrap_v1(jsonb) COST 201',installation.ownCheck,'SQL112_NEW_FUNCTION_METADATA','changed execution metadata is refused'],
+  ['ALTER FUNCTION public.native_salary_bootstrap_v1(jsonb) SECURITY INVOKER',installation.ownCheck,'SQL112_NEW_FUNCTION_METADATA','changed function security is refused'],
+  ['ALTER FUNCTION public.native_employment_change_context_v1(jsonb,text) COST 201',installation.preflight,'SQL112_PREREQUISITE_METADATA','changed prerequisite metadata is refused'],
+ ])sqlReject(tamper(sql,check),code,label);
+ sqlReject(tamper('ALTER FUNCTION public.native_employment_catalog_capacity_v1(integer) COST 201',installation.after+';'+installation.audit),'SQL112_PRIOR_STATE_CHANGED','changed prior function is caught by complete conservation audit');
+ exec(`
  INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.parameter.read'),(${q(ids.maker)},'payroll.parameter.prepare'),(${q(ids.checker)},'payroll.parameter.read'),(${q(ids.checker)},'payroll.parameter.approve'),(${q(ids.samePerson)},'payroll.parameter.read'),(${q(ids.samePerson)},'payroll.parameter.approve'),(${q(ids.reader)},'payroll.parameter.read'),(${q(ids.unlinked)},'payroll.parameter.read'),(${q(ids.unlinked)},'payroll.parameter.prepare');
  salary_boot:=native_salary_bootstrap_v1(maker);
  salary_row:=${j(row())}||jsonb_build_object('agreementCode',(SELECT x->>'code' FROM jsonb_array_elements(salary_boot#>'{classification,items}') x WHERE x->>'kind'='agreements' ORDER BY x->>'code' LIMIT 1));
@@ -57,7 +78,7 @@ export function buildNativeSalaryQa({serverMajor,requireConcurrency=false}){
  for(const command of ['UPDATE native_salary_event SET body=body','DELETE FROM native_salary_event','TRUNCATE native_salary_event CASCADE'])reject(q(command),'IMMUTABLE','immutable history '+command.split(' ')[0]);
  ok('(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY id)::text) FROM employment_contract ec)=salary_old_contracts','all canonical employee values preserved');
  reject(q(relocate(migration)),'ALREADY_INSTALLED','second installation fails before changing objects');
- const block=`DECLARE salary_boot jsonb;salary_body jsonb;salary_review jsonb;salary_row jsonb;salary_receipt jsonb;salary_id uuid;salary_key uuid:=gen_random_uuid();salary_review_key uuid:=gen_random_uuid();salary_old_contracts text;salary_n integer;BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1121',MESSAGE='RESTORE_SALARY_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1121' THEN NULL;END;END;`;
+ const block=`DECLARE salary_boot jsonb;salary_body jsonb;salary_review jsonb;salary_row jsonb;salary_receipt jsonb;salary_install_proof jsonb;salary_durable_proof jsonb;salary_id uuid;salary_key uuid:=gen_random_uuid();salary_review_key uuid:=gen_random_uuid();salary_old_contracts text;salary_n integer;BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1121',MESSAGE='RESTORE_SALARY_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1121' THEN NULL;END;END;`;
  const anchor='-- LIFECYCLE_ROSTER_QA_ANCHOR';assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,nativeSalaryChecksPassed:count,checksPassed:base.report.checksPassed+count,migration112Sha256:createHash('sha256').update(migration).digest('hex'),limitations:[...base.report.limitations,'112 is a definition ledger tested with synthetic data, no rule homologation, formula evaluation, productive install or municipal acceptance.']};
  const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));return {...base,sql,report};

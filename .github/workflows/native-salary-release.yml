@@ -2,10 +2,10 @@ name: Native salary definitions integration
 on:
   push:
     branches: ['codex/native-salary-definitions-20261002', 'master']
-    paths: ['assets/native-salary*', 'api/internal-native-salary.js', 'lib/internal-native-salary.js', 'src/islands/NativeSalaryCatalog.jsx', 'src/islands/PayrollParameters.jsx', 'nomina-control.html', 'scripts/migrations/112-*', 'scripts/verify-native-salary*', 'tests/native-salary*', 'tests/fixtures/native-salary-synthetic.js', '.vercelignore', '.github/workflows/native-salary-release.yml']
+    paths: ['assets/native-salary*', 'api/internal-native-salary.js', 'lib/internal-native-salary.js', 'src/islands/NativeSalaryCatalog.jsx', 'src/islands/PayrollParameters.jsx', 'nomina-control.html', 'scripts/migrations/112-*', 'scripts/verify-native-salary*', 'scripts/prepare-native-salary-installation.mjs', 'scripts/lib/native-salary-installation.mjs', 'scripts/lib/native-leave-installation.mjs', 'tests/native-salary*', 'tests/fixtures/native-salary-synthetic.js', '.vercelignore', '.github/workflows/native-salary-release.yml']
   pull_request:
     branches: ['master', 'codex/native-leave-workflow-20261001']
-    paths: ['assets/native-salary*', 'api/internal-native-salary.js', 'lib/internal-native-salary.js', 'src/islands/NativeSalaryCatalog.jsx', 'src/islands/PayrollParameters.jsx', 'nomina-control.html', 'scripts/migrations/112-*', 'scripts/verify-native-salary*', 'tests/native-salary*', 'tests/fixtures/native-salary-synthetic.js', '.vercelignore', '.github/workflows/native-salary-release.yml']
+    paths: ['assets/native-salary*', 'api/internal-native-salary.js', 'lib/internal-native-salary.js', 'src/islands/NativeSalaryCatalog.jsx', 'src/islands/PayrollParameters.jsx', 'nomina-control.html', 'scripts/migrations/112-*', 'scripts/verify-native-salary*', 'scripts/prepare-native-salary-installation.mjs', 'scripts/lib/native-salary-installation.mjs', 'scripts/lib/native-leave-installation.mjs', 'tests/native-salary*', 'tests/fixtures/native-salary-synthetic.js', '.vercelignore', '.github/workflows/native-salary-release.yml']
 permissions:
   contents: read
 concurrency:
