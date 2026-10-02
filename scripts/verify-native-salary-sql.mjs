@@ -25,7 +25,7 @@ export function buildNativeSalaryQa({serverMajor,requireConcurrency=false}){
  ok("salary_install_proof->>'allChecksPassed'='true' AND salary_install_proof->>'beforeFingerprint'=salary_install_proof->>'afterFingerprint'",'installation retains all prior data and metadata before committing');
  ok("salary_install_proof-'beforeFingerprint'=salary_durable_proof AND salary_install_proof->>'eventRows'='0' AND salary_install_proof->>'functions112'='12' AND salary_install_proof->>'runtimeFacades'='3'",'independent verification queries match every new object and the complete prior state');
  const sqlReject=(sql,code,label)=>ok('qa_rejects('+q(relocate(sql))+','+q(code)+')',label);
- const tamper=(sql,check)=>`DO $tamper$ BEGIN ${sql}; EXECUTE ${q(check)}; END $tamper$`;
+ const temporary=(mutation,fn)=>{const start=statements.length;fn();exec('BEGIN '+relocate(mutation)+';'+statements.splice(start).join('\n')+" RAISE EXCEPTION USING ERRCODE='P1122',MESSAGE='RESTORE_SALARY_FAULT'; EXCEPTION WHEN SQLSTATE 'P1122' THEN NULL; END;");};
  for(const [sql,check,code,label] of [
   ['ALTER TABLE public.native_salary_event ADD COLUMN unreviewed text',installation.newObjectAudit,'SQL112_NEW_TABLE_SHAPE','extra field never passes installation metadata'],
   ['ALTER TABLE public.native_salary_event DISABLE ROW LEVEL SECURITY',installation.newObjectAudit,'SQL112_NEW_TABLE_SECURITY','disabled RLS stops verification'],
@@ -35,8 +35,11 @@ export function buildNativeSalaryQa({serverMajor,requireConcurrency=false}){
   ['ALTER FUNCTION public.native_salary_bootstrap_v1(jsonb) COST 201',installation.ownCheck,'SQL112_NEW_FUNCTION_METADATA','changed execution metadata is refused'],
   ['ALTER FUNCTION public.native_salary_bootstrap_v1(jsonb) SECURITY INVOKER',installation.ownCheck,'SQL112_NEW_FUNCTION_METADATA','changed function security is refused'],
   ['ALTER FUNCTION public.native_employment_change_context_v1(jsonb,text) COST 201',installation.preflight,'SQL112_PREREQUISITE_METADATA','changed prerequisite metadata is refused'],
- ])sqlReject(tamper(sql,check),code,label);
- sqlReject(tamper('ALTER FUNCTION public.native_employment_catalog_capacity_v1(integer) COST 201',installation.after+';'+installation.audit),'SQL112_PRIOR_STATE_CHANGED','changed prior function is caught by complete conservation audit');
+ ])temporary(sql,()=>sqlReject(check,code,label));
+ temporary('ALTER FUNCTION public.native_employment_catalog_capacity_v1(integer) COST 201',()=>{
+  exec('EXECUTE '+q(relocate(installation.after))+';');
+  sqlReject(installation.audit,'SQL112_PRIOR_STATE_CHANGED','changed prior function is caught by complete conservation audit');
+ });
  exec(`
  INSERT INTO capabilities VALUES(${q(ids.maker)},'payroll.parameter.read'),(${q(ids.maker)},'payroll.parameter.prepare'),(${q(ids.checker)},'payroll.parameter.read'),(${q(ids.checker)},'payroll.parameter.approve'),(${q(ids.samePerson)},'payroll.parameter.read'),(${q(ids.samePerson)},'payroll.parameter.approve'),(${q(ids.reader)},'payroll.parameter.read'),(${q(ids.unlinked)},'payroll.parameter.read'),(${q(ids.unlinked)},'payroll.parameter.prepare');
  salary_boot:=native_salary_bootstrap_v1(maker);
