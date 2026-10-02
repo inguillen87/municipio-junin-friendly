@@ -21,10 +21,12 @@ if(typeof window!=='undefined'){
  document.getElementById('logoutButton')?.addEventListener('click',()=>{for(const close of [...active])close();});
 }
 
-export function mountNativeLeave(host,{contractId}={}){
+export function mountNativeLeave(host,{contractId,selfService=false}={}){
  if(!host||host.dataset.nleaveMounted||!nativeLeaveUuid(contractId))return;
  contractId=contractId.toLowerCase();host.dataset.nleaveMounted='true';host.classList.add('nleave-panel');
- const state=contexts.get(contractId)??{actor:null,scope:null,pending:null};contexts.set(contractId,state);
+ const api=selfService?'/api/internal-native-self-leave':API;
+ const stateKey=(selfService?'self:':'administration:')+contractId;
+ const state=contexts.get(stateKey)??{actor:null,scope:null,pending:null};contexts.set(stateKey,state);
  let bootstrap=null,draft=null,decision=null,closed=false,busy=false,epoch=0,controller=null,authorityCaps=[];
  host.innerHTML=`<p class="nleave-note">Solicitudes y saldos del contrato propio. Las cantidades son días corridos o minutos solicitados; no son tiempo observado, haberes ni descuentos. Los derechos requieren respaldo municipal y revisión de otra persona.</p>
  <p data-nleave-status role="status" aria-live="polite"></p>
@@ -59,13 +61,14 @@ export function mountNativeLeave(host,{contractId}={}){
  }
  async function authority(seq){
   const d=await request('/api/internal-auth');if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
-  const caps=d.access?.tenantCapabilities,email=d.user?.email;if(d.authenticated!==true||typeof email!=='string'||!Array.isArray(caps)||!['workforce.employee.read','actions.read'].every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
+  const caps=d.access?.tenantCapabilities,email=d.user?.email;if(d.authenticated!==true||typeof email!=='string'||!Array.isArray(caps)||!(selfService?['leave.request.self.read','actions.read']:['workforce.employee.read','actions.read']).every(k=>caps.includes(k)))throw issue('FORBIDDEN',403);
   const actor=JSON.stringify([email.toLowerCase().trim(),d.access.tenant?.id??null,d.access.tenant?.membershipId??null,d.access.tenant?.roleKey??d.user.role??null]);
   if(state.actor&&state.actor!==actor){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
   state.actor=actor;authorityCaps=caps;
  }
  async function fresh(seq){
-  const b=validateNativeLeaveBootstrap(await request(API+'?'+new URLSearchParams({resource:'bootstrap',contractId})),contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
+  const b=validateNativeLeaveBootstrap(await request(api+'?'+new URLSearchParams({resource:'bootstrap',contractId})),contractId);if(!valid(seq))throw new DOMException('Consulta descartada','AbortError');
+  if(selfService&&(b.permissions.canProposeProfile||[...b.requests,...b.profileProposals].some(row=>row.canReview)))throw issue('CONTRACT_INVALID',503);
   if(state.scope&&state.scope!==b.scopeVersion){if(!state.pending){state.actor=null;state.scope=null;}clearVisible();throw issue('ACTOR_CHANGED',409);}
   state.scope=b.scopeVersion;bootstrap=b;return b;
  }
@@ -154,10 +157,10 @@ export function mountNativeLeave(host,{contractId}={}){
   try{
    await authority(seq);if(attempt.actor!==state.actor||attempt.scope!==state.scope)throw issue('ACTOR_CHANGED',409);
    let receipt;
-   if(recover){receipt=await request(API+'?'+new URLSearchParams({resource:'attempt',contractId,key:attempt.key}));}
+   if(recover){receipt=await request(api+'?'+new URLSearchParams({resource:'attempt',contractId,key:attempt.key}));}
    else{
     const b=await fresh(seq);if(!valid(seq))return;if(!attempt.uncertain)freshMatches(attempt,b);else if(b.scopeVersion!==attempt.body.payload.scopeVersion)throw issue('ACTOR_CHANGED',409);
-    started=true;receipt=await request(API,{method:'POST',headers:{'content-type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes});
+    started=true;receipt=await request(api,{method:'POST',headers:{'content-type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes});
    }
    if(!valid(seq))return;validateNativeLeaveReceipt(receipt,contractId,attempt.body.payload);if(receipt.requestSha256!==attempt.fingerprint)throw issue('CONTRACT_INVALID',503);
    state.pending=null;draft=null;decision=null;$('[data-nleave-form]').hidden=true;$('[data-nleave-decision]').hidden=true;confirmed=true;

@@ -390,7 +390,15 @@
       body { background: #fff; }
       .queue-panel, .metric { box-shadow: none; break-inside: avoid; }
     }
+    #appShell[data-native-self-only] .page-head .head-actions,
+    #appShell[data-native-self-only] #actionWorkflow,
+    #appShell[data-native-self-only] #actionMetrics,
+    #appShell[data-native-self-only] .queue-panel,
+    #appShell[data-native-self-only] .mc-guide-banner,
+    #appShell[data-native-self-only] .mc-guide-button { display: none; }
+    #appShell #nativeSelfPanel { min-width: 0; padding: 20px; }
   </style>
+  <link rel="stylesheet" href="assets/native-leave.css">
   <link rel="stylesheet" href="assets/action-workspace-layout.css">
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
@@ -483,6 +491,8 @@
               <button class="button primary" id="createActionButton" type="button" data-requires-any-capability="leave.request.self.create leave.request.area.create leave.request.all.manage" disabled>Nueva solicitud</button>
             </div>
           </header>
+
+          <section id="nativeSelfPanel" class="workflow-guide" aria-label="Mis licencias" hidden></section>
 
           <section class="permission-strip" aria-labelledby="permissionTitle">
             <div><strong id="permissionTitle">Alcance de tu sesión</strong><p id="permissionSummary">Consultando capacidades explícitas del backend.</p></div>
@@ -2878,6 +2888,21 @@
           var authRoot=unwrap(auth);
           var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);
           if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}
+          state.nativeSelf?.close();state.nativeSelf=null;
+          var nativeSelfModule=await import('./assets/native-self.js');
+          state.nativeSelf=await nativeSelfModule.mountNativeSelf(byId('nativeSelfPanel'),{auth:authRoot});
+          if(state.nativeSelf?.ownOnly){
+            state.user={name:text(first(authUser.name,authUser.displayName),'Empleado municipal'),role:'Autogestión'};
+            renderSession(state.user);
+            el.appShell.dataset.nativeSelfOnly='true';
+            el.permissionSummary.textContent='Podés consultar y preparar solicitudes de tu propio contrato. Personal debe revisar y decidir.';
+            el.sourceChip.textContent='Contrato propio · MuniControl';
+            document.querySelector('.page-lead').textContent='Prepará tus solicitudes, consultá el historial y seguí la revisión de Personal desde tu propia cuenta.';
+            el.authGate.hidden=true;el.appShell.hidden=false;
+            return;
+          }
+          delete el.appShell.dataset.nativeSelfOnly;
+          document.querySelector('.page-lead').textContent='Creá, revisá y resolvé solicitudes con evidencia, versión vigente y trazabilidad. Cada decisión conserva quién actuó, cuándo y con qué fuente.';
           var bootstrapPayload=await actionGet('bootstrap',{caseType:'leave_request'});
           state.bootstrap=normalizeBootstrap(bootstrapPayload,{id:text(first(authUser.id,authUser.email)),name:text(first(authUser.name,authUser.displayName,authUser.email),'Usuario interno'),role:text(first(authUser.role,authUser.profile),'Acceso interno')});
           state.initialSubjects=state.bootstrap.subjects.slice(0,50);
@@ -2959,7 +2984,7 @@
         window.addEventListener('pageshow',function(event){if(event.persisted)window.location.reload();});
         el.retryAuth.addEventListener('click', authenticate);
         el.retryActions.addEventListener('click', function () { loadActions(); });
-        el.refreshButton.addEventListener('click', function () { loadActions(); });
+        el.refreshButton.addEventListener('click', function () { if(state.nativeSelf?.ownOnly){authenticate();return;}loadActions(); });
         el.logoutButton.addEventListener('click', logout);
         el.menuButton.addEventListener('click', openMenu);
         el.menuClose.addEventListener('click', function () { closeMenu(true); });

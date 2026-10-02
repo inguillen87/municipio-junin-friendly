@@ -1552,6 +1552,7 @@
         sourceBindingId: text(first(row.sourceBindingId, row.bindingId)),
         legajo: text(first(row.legajo, row.employeeNumber)),
         displayName: text(first(row.displayName, row.name), 'Nombre no informado'),
+        origin: row.origin === 'MUNICONTROL' ? 'MUNICONTROL' : row.origin === 'GRH' ? 'GRH' : null,
         organizationUnitSourceId: text(first(row.organizationUnitSourceId, organization.sourceId, organization.id)),
         organizationLabel: text(first(row.organizationLabel, organization.label, organization.name)),
         sectorSourceId: text(first(row.sectorSourceId, sector.sourceId, sector.id)),
@@ -2818,7 +2819,7 @@
       placeholder.value = '';
       el.employmentCandidateSelect.appendChild(placeholder);
       state.employmentCandidates.forEach(function (candidate) {
-        var option = node('option', '', candidate.displayName + (candidate.legajo ? ' · legajo ' + candidate.legajo : '') + (candidate.sectorLabel ? ' · ' + candidate.sectorLabel : ''));
+        var option = node('option', '', candidate.displayName + (candidate.legajo ? ' · legajo ' + candidate.legajo : '') + (candidate.origin === 'MUNICONTROL' ? ' · MuniControl' : candidate.origin === 'GRH' ? ' · Fuente de referencia' : '') + (candidate.sectorLabel ? ' · ' + candidate.sectorLabel : ''));
         option.value = candidate.employmentContractId;
         el.employmentCandidateSelect.appendChild(option);
       });

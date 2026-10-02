@@ -517,6 +517,9 @@
       .page-head, .run-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
+      .topbar { flex-wrap: wrap; align-items: flex-start; }
+      .top-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+      .top-actions .button, .top-actions .mc-guide-button { max-width: 100%; white-space: normal; }
       .source-chip { display: none; }
       .page-head { gap: 20px; }
       .section-head { align-items: flex-start; flex-direction: column; }

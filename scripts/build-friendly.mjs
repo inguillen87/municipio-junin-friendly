@@ -18,6 +18,8 @@ const shellFiles = [
   'assets/native-leave-model.js',
   'assets/native-leave-contract.js',
   'assets/native-leave.css',
+  'assets/native-self.js',
+  'assets/native-self-model.js',
   'assets/release-status-panel.js',
   'assets/release-status.css',
   'assets/app-routes.js',
