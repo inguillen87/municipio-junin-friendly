@@ -1,6 +1,7 @@
 import {timeCatalogPayload, timeCatalogReferenceKey, timeCatalogInteger} from './time-catalog-contract.js';
 import {TimeCatalogReviewSession, catalogCivilDate, CATALOG_KIND_LABELS as kinds} from './time-catalog-review-model.js';
 import {pickerQuery, pickerResult} from './employee-picker-model.js';
+import {assignmentBulkPlan, ASSIGNMENT_BULK_LIMIT} from './time-catalog-bulk-assignment.js';
 
 const make = (tag, text) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; return n; };
 const option = (value, title) => { const n = make('option', title); n.value = value; return n; };
@@ -31,7 +32,7 @@ export class TimeCatalogEditor {
   constructor({container, session, catalogRead, directoryRead, changed, failed}) {
     Object.assign(this, {container, session, catalogRead, directoryRead, changed, failed}); this.clear();
   }
-  clear() { this.generation = (this.generation || 0) + 1; this.container.replaceChildren(); this.rows = []; this.target = null; this.dependencies = {}; this.original = null; this.fields = {}; this.kind = null; this.loading = false; }
+  clear() { this.generation = (this.generation || 0) + 1; this.container.replaceChildren(); this.rows = []; this.target = null; this.selectedTargets = null; this.employeeResults = null; this.targets = new Map(); this.multiple = false; this.dependencies = {}; this.original = null; this.fields = {}; this.kind = null; this.loading = false; }
   field(title, node, name) { this.fields[name] = node; this.grid.append(label(title, node)); return node; }
   start(kind, original = null, assignment = null) {
     this.clear(); this.kind = kind; this.original = original ? structuredClone(original) : null;
@@ -86,8 +87,15 @@ export class TimeCatalogEditor {
   }
   assignment(current) {
     this.target = current ? {...current.target} : null;
+    if (!current) {
+      const multiple = input('checkbox', '', false);
+      const mode = label('Preparar para varios contratos', multiple); mode.className='check'; this.container.append(mode);
+      multiple.addEventListener('change',()=>{this.multiple=multiple.checked;this.targets.clear();if(this.multiple&&this.target)this.targets.set(this.target.contractId.toLowerCase(),{...this.target});this.employeeResults.replaceChildren();this.renderTarget();this.changed();});
+      this.container.append(make('p','Para varios contratos, elegí hasta 100 entre páginas y búsquedas. El código común admite hasta 47 caracteres; cada borrador recibe un código estable propio.'));
+    }
     this.container.append(make('h4', 'Contrato destinatario'));
     this.targetLabel = make('p'); this.renderTarget(); this.container.append(this.targetLabel);
+    this.selectedTargets = make('div'); this.container.append(this.selectedTargets);
     const search = input('search', '', false); search.minLength = 2; search.maxLength = 100;
     const find = make('button', 'Buscar contrato'); find.type = 'button';
     const row = make('div'); row.className = 'editor-grid'; row.append(label('Nombre o número de legajo', search), find); this.container.append(row);
@@ -96,7 +104,13 @@ export class TimeCatalogEditor {
       const generation = this.generation, query = pickerQuery(search.value, page); this.loading = true; this.changed();
       try { const result = pickerResult(await this.directoryRead(query), page); if (generation !== this.generation) return;
         this.employeeResults.replaceChildren(make('p', `${result.pagination.total} contratos del filtro · Página ${page} de ${result.pagination.pages}`));
-        result.rows.forEach(r => { const b = make('button', `Elegir ${r.legajo} · ${r.nombre || 'Nombre no informado'}`); b.type = 'button'; b.addEventListener('click', () => { this.target = {contractId:r.contractId,legajo:r.legajo,name:r.nombre}; this.renderTarget(); this.employeeResults.replaceChildren(); }); this.employeeResults.append(b); });
+        if(this.multiple){for(const [title,selecting] of [['Seleccionar esta página',true],['Quitar esta página',false]]){const button=make('button',title);button.type='button';button.addEventListener('click',()=>{const size=new Set([...this.targets.keys(),...result.rows.map(r=>r.contractId.toLowerCase())]).size;if(selecting&&size>ASSIGNMENT_BULK_LIMIT){this.failed(Error('Esta página supera el límite conjunto de 100 contratos. No se seleccionó parcialmente.'));return;}for(const r of result.rows){const key=r.contractId.toLowerCase();if(selecting)this.targets.set(key,{contractId:r.contractId,legajo:r.legajo,name:r.nombre});else this.targets.delete(key);}this.target=[...this.targets.values()][0]||null;this.renderTarget();this.changed();});this.employeeResults.append(button);}}
+        result.rows.forEach(r => {
+          if(this.multiple){const chosen=input('checkbox','',false);chosen.dataset.assignmentContract=r.contractId.toLowerCase();chosen.checked=this.targets.has(r.contractId.toLowerCase());chosen.disabled=!chosen.checked&&this.targets.size>=ASSIGNMENT_BULK_LIMIT;
+            const item=label(`Seleccionar ${r.legajo} · ${r.nombre || 'Nombre no informado'}`,chosen);item.className='check assignment-target';
+            chosen.addEventListener('change',()=>{const key=r.contractId.toLowerCase();if(chosen.checked){if(this.targets.size>=ASSIGNMENT_BULK_LIMIT){chosen.checked=false;this.failed(Error('La selección admite hasta 100 contratos; no se recorta.'));return;}this.targets.set(key,{contractId:r.contractId,legajo:r.legajo,name:r.nombre});}else this.targets.delete(key);this.target=[...this.targets.values()][0]||null;this.renderTarget();this.changed();});this.employeeResults.append(item);
+          }else{const b = make('button', `Elegir ${r.legajo} · ${r.nombre || 'Nombre no informado'}`); b.type = 'button'; b.addEventListener('click', () => { this.target = {contractId:r.contractId,legajo:r.legajo,name:r.nombre}; this.renderTarget(); this.employeeResults.replaceChildren(); this.changed(); }); this.employeeResults.append(b);}
+        });
         for (const [title, next, disabled] of [['Anterior',page-1,page<=1],['Siguiente',page+1,page>=result.pagination.pages]]) { const b = make('button',title); b.type='button'; b.disabled=disabled; b.addEventListener('click',()=>employeePage(next).catch(this.failed)); this.employeeResults.append(b); }
       } finally { if (generation === this.generation) { this.loading=false; this.changed(); } }
     };
@@ -110,14 +124,22 @@ export class TimeCatalogEditor {
         try {const data=await this.catalogRead({resource:'list',kind,status:'approved',limit:'25',offset:String(offset)}); if(generation!==this.generation)return;
           const validator=new TimeCatalogReviewSession(); validator.scope=this.session.scope; validator.permissions={...this.session.permissions}; validator.list(data,{kind,status:'approved',limit:25,offset});
           results.replaceChildren(make('p',`${validator.page.total} revisiones aprobadas · ${validator.records.length} en esta página`));
-          validator.records.forEach(r=>{const b=make('button',`Elegir ${r.reference?.title || kinds[kind]+' sin nombre visible'} · Revisión ${r.revision} · Desde ${catalogCivilDate(r.effectiveFrom)}`); b.type='button'; b.addEventListener('click',()=>{this.dependencies[key].record=structuredClone(r);showChosen();results.replaceChildren();});results.append(b);});
+          validator.records.forEach(r=>{const b=make('button',`Elegir ${r.reference?.title || kinds[kind]+' sin nombre visible'} · Revisión ${r.revision} · Desde ${catalogCivilDate(r.effectiveFrom)}`); b.type='button'; b.addEventListener('click',()=>{this.dependencies[key].record=structuredClone(r);showChosen();results.replaceChildren();this.changed();});results.append(b);});
           for(const [title,next,disabled] of [['Anterior',offset-25,offset===0],['Siguiente',offset+25,!validator.page.hasMore||offset+25>100000]]){const b=make('button',title);b.type='button';b.disabled=disabled;b.addEventListener('click',()=>loadPage(next).catch(this.failed));results.append(b);}
         } finally {if(generation===this.generation){this.loading=false;this.changed();}}
       }; load.addEventListener('click',()=>loadPage(0).catch(this.failed));
     }
     this.container.append(make('p','La búsqueda muestra contratos administrativamente activos. El servidor verifica su vínculo, período laboral y las vigencias al enviar a revisión y aprobar.'));
   }
-  renderTarget() { this.targetLabel.textContent=this.target ? `${this.target.legajo} · ${this.target.name || 'Nombre no informado'}` : 'Sin contrato elegido'; }
+  renderTarget() {
+    this.targetLabel.textContent=this.multiple ? `${this.targets.size} contratos seleccionados · Las páginas y búsquedas no recortan la selección.` : this.target ? `${this.target.legajo} · ${this.target.name || 'Nombre no informado'}` : 'Sin contrato elegido';
+    this.employeeResults?.querySelectorAll('input[data-assignment-contract]').forEach(n=>{n.checked=this.targets.has(n.dataset.assignmentContract);n.disabled=!n.checked&&this.targets.size>=ASSIGNMENT_BULK_LIMIT;});
+    if(this.selectedTargets){this.selectedTargets.replaceChildren();if(this.multiple)for(const target of this.targets.values()){const row=make('div');row.className='assignment-target';row.append(make('span',`${target.legajo} · ${target.name || 'Nombre no informado'}`));const remove=make('button','Quitar '+target.legajo);remove.type='button';remove.addEventListener('click',()=>{this.targets.delete(target.contractId.toLowerCase());this.target=[...this.targets.values()][0]||null;this.employeeResults.replaceChildren();this.renderTarget();this.changed();});row.append(remove);this.selectedTargets.append(row);}}
+  }
+  async bulkPlan() {
+    if(!this.multiple||this.original||this.kind!=='assignment')throw Error('La preparación conjunta sólo crea borradores nuevos de asignación.');
+    return assignmentBulkPlan(await this.payload(),[...this.targets.values()],Object.fromEntries(Object.entries(this.dependencies).map(([key,value])=>[key,value.record])));
+  }
   async payload() {
     if(this.loading) throw Error('Esperá a que finalice la consulta de contratos o configuraciones.');
     const fields=Object.fromEntries(Object.entries(this.fields).map(([k,n])=>[k,n.value])); let spec;

@@ -21,7 +21,7 @@ for (let n = 1; n <= 33; n++) {
   const r = record(command({kind, payload: p})); r.id = id(n); records.set(r.id, r); payloads.set(r.id,p);
 }
 const caps = role => ['time.catalog.read', ...(role === 'proposer' ? ['time.catalog.propose'] : role === 'approver' ? ['time.catalog.approve', 'time.catalog.audit.read'] : []),...(nominalAllowed?['workforce.employee.read']:[])];
-let role = 'proposer', allowed = true, dropNext = false, invalidList = false, scope = 'b'.repeat(64), paused = null, nominalAllowed = false;
+let role = 'proposer', allowed = true, dropNext = false, invalidList = false, scope = 'b'.repeat(64), paused = null, nominalAllowed = false, afterWrite = null;
 const principal = () => ({...initialPrincipal, tenant: {...initialPrincipal.tenant, effectiveCapabilities: caps(role)}});
 const sqlPrincipal = () => ({roleKey: 'QA_' + role.toUpperCase(), authorityVersion: 1, capabilities: caps(role).filter(c=>c.startsWith('time.catalog.')), areaScopes: [], scopeVersion: scope,assignmentReadAllowed:nominalAllowed});
 const sql = {async query(query, values) {
@@ -38,6 +38,7 @@ const sql = {async query(query, values) {
     if(isDraft)payloads.set(next.id,p);
     records.set(next.id, next);
     const ack = {data: next, replayed: false, requestSha256: values[11], attemptKey: values[10], ...flags}; saved.set(values[10], ack);
+    if(afterWrite){const hook=afterWrite;afterWrite=null;await hook();}
     return [{result: sqlText(ack)}];
   }
   if (query.includes('time_catalog_list')) {
@@ -47,7 +48,8 @@ const sql = {async query(query, values) {
   }
   if (query.includes('time_catalog_detail')) {
     const r=records.get(values[6]), own=r.status==='draft'&&role==='proposer'&&(r.kind!=='assignment'||nominalAllowed),p=payloads.get(r.id);
-    const assignment=r.kind==='assignment'&&nominalAllowed?{target:{contractId:p.spec.employmentContractId,legajo:'900021',name:'Contrato sintético 21'},shift:records.get(p.spec.shiftEntryId),calendar:records.get(p.spec.calendarEntryId),ruleProfile:records.get(p.spec.ruleProfileEntryId)}:null;
+    const targetNumber=Number(p.spec.employmentContractId?.split('-').at(-1))-300;
+    const assignment=r.kind==='assignment'&&nominalAllowed?{target:{contractId:p.spec.employmentContractId,legajo:String(900000+targetNumber),name:'Contrato sintético '+targetNumber},shift:records.get(p.spec.shiftEntryId),calendar:records.get(p.spec.calendarEntryId),ruleProfile:records.get(p.spec.ruleProfileEntryId)}:null;
     return [{result: sqlText({principal: sqlPrincipal(), record:r,editPayload:own?p:null,assignment,allowedCommands:r.kind==='assignment'&&!nominalAllowed?[]:own?['update_draft','submit']:r.status==='submitted'&&role==='approver'?['approve','reject']:r.status==='approved'&&role==='approver'?['retire']:[],timeline: [], auditAvailable: role === 'approver', timelineLimit: 100})}];
   }
   const all = [...records.values()], count = kind => all.filter(r => r.kind === kind&&r.status==='approved').length;
@@ -63,8 +65,8 @@ const server = http.createServer(async (req, res) => {
     if(url.pathname==='/api/internal-data'){
       res.setHeader('Content-Type','application/json');
       if(!allowed||!nominalAllowed){res.statusCode=403;return res.end(JSON.stringify({ok:false,code:'TIME_CATALOG_FORBIDDEN',error:'Acceso retirado.'}));}
-      const page=Number(url.searchParams.get('page'));const rows=Array.from({length:21},(_,i)=>({contractId:id(300+i+1),legajo:String(900001+i),nombre:'Contrato sintético '+(i+1),sector:null,convenio:null,activo:true,statusSnapshotDate:'2026-10-02'}));
-      return res.end(JSON.stringify({ok:true,version:'employee-picker.v1',data:rows.slice((page-1)*20,page*20),pagination:{page,limit:20,total:21,pages:2},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}}));
+      const page=Number(url.searchParams.get('page')),search=(url.searchParams.get('search')||'').toLowerCase();const rows=Array.from({length:21},(_,i)=>({contractId:id(300+i+1),legajo:String(900001+i),nombre:'Contrato sintético '+(i+1),sector:null,convenio:null,activo:true,statusSnapshotDate:'2026-10-02'})).filter(r=>r.nombre.toLowerCase().includes(search)||r.legajo.includes(search));
+      return res.end(JSON.stringify({ok:true,version:'employee-picker.v1',data:rows.slice((page-1)*20,page*20),pagination:{page,limit:20,total:rows.length,pages:Math.max(1,Math.ceil(rows.length/20))},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:null,sourceCutoffTo:null}}));
     }
     if (url.pathname === '/api/internal-time-catalog') {
       req.query = Object.fromEntries(url.searchParams);
@@ -241,6 +243,61 @@ try {
   await mobile.locator('#saveDraft').scrollIntoViewIfNeeded();assert.equal(await mobile.locator('#closeEditor').evaluate(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),true);
   await mobile.screenshot({path:path.join(reportDir,'native-time-editor-mobile.png')});await mobile.keyboard.press('Escape');assert.equal(await mobile.locator('#editorDialog').isVisible(),false);
   checks.push('390px typed editor has no overflow and closes with keyboard Escape');
+  nominalAllowed=true;scope='f'.repeat(64);await load();
+  const prepareMany=async code=>{
+    await startDraft('assignment');await common('Asignaciones sintéticas completas',code);
+    await editorDialog.getByLabel('Preparar para varios contratos',{exact:true}).check();
+    await editorDialog.getByLabel('Nombre o número de legajo',{exact:true}).fill('Contrato');await editorDialog.getByRole('button',{name:'Buscar contrato',exact:true}).click();
+    await editorDialog.getByRole('button',{name:'Seleccionar esta página',exact:true}).click();
+    await editorDialog.getByRole('button',{name:'Siguiente',exact:true}).click();await editorDialog.getByRole('button',{name:'Seleccionar esta página',exact:true}).click();
+    for(const kind of ['turno','calendario','reglas']){await editorDialog.getByRole('button',{name:'Consultar '+kind+' aprobados',exact:true}).click();await editorDialog.getByRole('button',{name:new RegExp('Elegir '+({turno:'Turno',calendario:'Calendario',reglas:'Reglas'})[kind]+' sin nombre visible')}).first().click();}
+  };
+  await prepareMany('qa-bulk-complete');
+  await editorDialog.getByLabel('Nombre o número de legajo',{exact:true}).fill('900021');await editorDialog.getByRole('button',{name:'Buscar contrato',exact:true}).click();
+  assert.equal(await editorDialog.getByLabel('Seleccionar 900021 · Contrato sintético 21',{exact:true}).isChecked(),true);
+  const bulkBefore=writes.length;await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});assert.equal(writes.length,bulkBefore);assert.equal(await page.locator('#bulkTargets li strong').count(),21);assert.match(await page.locator('#bulkSummary').innerText(),/21 contratos/);
+  assert.match(await page.locator('#bulkTargets').innerText(),/900001/);assert.match(await page.locator('#bulkTargets').innerText(),/900021/);
+  await page.screenshot({path:path.join(reportDir,'native-time-bulk-review-desktop-20261002.png')});
+  for(const width of [390,320]){
+    await page.setViewportSize({width,height:844});
+    assert.equal(await page.evaluate(()=>{const d=document.querySelector('#editorDialog');return d.scrollWidth<=d.clientWidth&&d.getBoundingClientRect().width<=innerWidth&&document.documentElement.scrollWidth<=innerWidth;}),true);
+    assert.ok((await page.locator('#editorDialog button,#editorDialog .assignment-target').evaluateAll(all=>all.filter(n=>n.getClientRects().length).map(n=>n.getBoundingClientRect().height))).every(height=>height>=44));
+    await page.locator('#bulkReview').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(reportDir,`native-time-bulk-review-mobile-${width}-20261002.png`)});
+  }
+  await page.setViewportSize({width:1440,height:1000});checks.push('complete comparison at390px and320px has no horizontal overflow and44px accessible controls');
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click();await page.waitForFunction(()=>document.querySelector('#message').textContent.startsWith('21 borradores registrados'));
+  assert.equal(writes.length-bulkBefore,21);const bulkRows=[...records.values()].filter(r=>r.reference?.code?.startsWith('qa-bulk-complete.'));assert.equal(bulkRows.length,21);assert.ok(bulkRows.every(r=>r.status==='draft'));assert.equal(new Set(bulkRows.map(r=>payloads.get(r.id).spec.employmentContractId)).size,21);assert.equal(await page.locator('#bulkResults .assignment-result').count(),21);assert.equal(await page.locator('#bulkResults').getByText('Borrador registrado · Vínculo verificado',{exact:true}).count(),21);
+  await page.screenshot({path:path.join(reportDir,'native-time-bulk-results-desktop-20261002.png'),fullPage:true});
+  checks.push('21 destinations across pages survive a one-row search, preview makes no write, each draft is confirmed and target/dependencies read back; no automatic approval');
+  await prepareMany('qa-bulk-change');await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});
+  await editorDialog.getByLabel('Vigente hasta (opcional)',{exact:true}).fill('2026-10-30');assert.equal(await page.locator('#bulkReview').isVisible(),false);
+  await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});const changeBefore=writes.length;
+  const reviewedShift=[...records.values()].find(r=>r.kind==='shift'&&r.status==='approved'&&!r.reference);const shiftVersion=reviewedShift.version;reviewedShift.version++;
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click();await page.waitForFunction(()=>document.querySelector('#editorMessage').textContent.includes('Una configuración cambió'));assert.equal(writes.length,changeBefore);reviewedShift.version=shiftVersion;
+  checks.push('changing dates withdraws whole comparison; fresh dependency version change prevents every POST');await page.locator('#closeEditor').click();
+  await prepareMany('qa-bulk-stop');await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});const stopBefore=writes.length;
+  let finishStoppedWrite;const stoppedWrite=new Promise(resolve=>{finishStoppedWrite=resolve;});afterWrite=()=>stoppedWrite;
+  const stoppedRequest=page.waitForRequest(r=>r.method()==='POST');
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click({noWaitAfter:true});await stoppedRequest;await page.waitForFunction(()=>document.querySelector('#closeEditor').textContent==='Detener próximos envíos');
+  await page.locator('#closeEditor').click();finishStoppedWrite();await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('Se detuvieron los próximos envíos'));
+  assert.equal(writes.length-stopBefore,1);assert.equal(await page.locator('#bulkResults').getByText('Sin enviar',{exact:true}).count(),20);assert.equal(await page.locator('#bulkResults').getByText('Borrador registrado · Vínculo verificado',{exact:true}).count(),1);
+  checks.push('operator stop lets only the already sent draft settle and retains all20 unsent results');
+  await prepareMany('qa-bulk-mid-change');await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});const midBefore=writes.length;afterWrite=()=>{reviewedShift.version++;};
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click();await page.waitForFunction(()=>document.querySelector('#editorMessage').textContent.includes('Una configuración cambió'));
+  assert.equal(writes.length-midBefore,1);assert.equal(await page.locator('#bulkResults').getByText('Sin enviar',{exact:true}).count(),20);reviewedShift.version=shiftVersion;await page.locator('#closeEditor').click();
+  checks.push('dependency change after the first confirmed draft prevents the remaining20 and preserves the partial result');
+  await prepareMany('qa-bulk-mid-revoke');await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});const revokeBefore=writes.length;afterWrite=()=>{nominalAllowed=false;scope='a'.repeat(64);};
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click();await page.locator('#workspace').waitFor({state:'hidden'});
+  assert.equal(writes.length-revokeBefore,1);assert.equal(await page.locator('#bulkResults').innerText(),'');assert.equal(await page.locator('#bulkTargets').innerText(),'');assert.equal(await page.locator('#editorFields').innerText(),'');
+  nominalAllowed=true;scope='f'.repeat(64);await page.locator('#refresh').click();await page.locator('#workspace').waitFor({state:'visible'});assert.equal(writes.length-revokeBefore,1);
+  checks.push('revocation immediately after a write clears every rendered identity and prevents remaining drafts without automatic recovery');
+  await prepareMany('qa-bulk-recover');await page.locator('#saveDraft').click();await page.locator('#bulkReview').waitFor({state:'visible'});const recoveryBefore=writes.length;dropNext=true;
+  await page.locator('#bulkConfirmed').check();await page.locator('#saveDraft').click();await page.locator('#recovery').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.includes('No se recibió el acuse sintético'));assert.equal(writes.length-recoveryBefore,1);
+  const originalBulkAttempt=sends.at(-1);assert.equal(await page.locator('#newDraft').isEnabled(),false);assert.match(await page.locator('#bulkResults').innerText(),/0 borradores confirmados de 21/);assert.equal(await page.locator('#bulkResults').getByText('Sin enviar',{exact:true}).count(),20);
+  await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide')));assert.equal(await page.locator('#bulkResults').innerText(),'');assert.equal(await page.locator('#bulkTargets').innerText(),'');assert.equal(await page.locator('#editorFields').innerText(),'');
+  nominalAllowed=false;scope='a'.repeat(64);await page.locator('#refresh').click();await page.locator('#workspace').waitFor({state:'hidden'});assert.equal(writes.length-recoveryBefore,1);
+  nominalAllowed=true;scope='f'.repeat(64);await page.locator('#refresh').click();await page.locator('#recovery').waitFor({state:'visible'});assert.equal(writes.length-recoveryBefore,1);await page.locator('#retry').click();await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.startsWith('Operación registrada'));assert.deepEqual(sends.at(-1),originalBulkAttempt);assert.equal(writes.length-recoveryBefore,2);assert.equal([...records.values()].filter(r=>r.reference?.code?.startsWith('qa-bulk-recover.')).length,1);
+  checks.push('lost receipt stops remaining20, pagehide erases selection and results, revoked scope cannot retry; original access recovers exact body/key only, never resumes the rest');await page.locator('#closeDetail').click();
   assert.deepEqual(external, []); assert.deepEqual(errors, []);
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
   checks.push('no external requests, client persistence or browser exceptions');

@@ -42,6 +42,7 @@ const shellFiles = [
   'assets/time-catalog-review.js',
   'assets/time-catalog-review-model.js',
   'assets/time-catalog-editor.js',
+  'assets/time-catalog-bulk-assignment.js',
   'assets/time-catalog-review.css',
   'assets/time-catalog-contract.js',
   'relojes-marcaciones.html',

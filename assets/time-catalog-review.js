@@ -1,21 +1,24 @@
 import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel, CATALOG_KIND_LABELS as kinds, CATALOG_STATUS_LABELS as statuses,
   CATALOG_COMMAND_LABELS as commands, CATALOG_REASON_LABELS as reasons} from './time-catalog-review-model.js';
-import {TIME_CATALOG_REASONS, timeCatalogExact} from './time-catalog-contract.js';
+import {TIME_CATALOG_REASONS, timeCatalogExact, timeCatalogCommand} from './time-catalog-contract.js';
 import {TimeCatalogEditor} from './time-catalog-editor.js';
+import {restoreBulkAssignmentAttempt} from './time-catalog-bulk-assignment.js';
 
 const model = new TimeCatalogReviewSession(), byId = id => document.getElementById(id);
 const nodes = Object.fromEntries(['refresh', 'message', 'workspace', 'countCalendar', 'countShift', 'countRules', 'countAssignments', 'countSubmitted',
   'showSubmitted', 'filters', 'kind', 'status', 'records', 'empty', 'pageCount', 'previous', 'next', 'detail', 'closeDetail', 'detailTitle', 'facts',
   'configuration', 'audit', 'timeline', 'auditLimit', 'detailMessage', 'decision', 'command', 'reasonCode', 'reason', 'approvalField', 'approval',
   'send', 'recovery', 'retry', 'consultAttempt', 'recoveryCopy', 'preparation', 'newKind', 'newDraft', 'editDraft', 'readCurrent',
-  'editorDialog', 'editorForm', 'editorTitle', 'editorFields', 'editorReasonCode', 'editorReason', 'editorMessage', 'saveDraft', 'closeEditor'].map(id => [id, byId(id)]));
+  'editorDialog', 'editorForm', 'editorTitle', 'editorFields', 'editorReasonCode', 'editorReason', 'editorMessage', 'saveDraft', 'closeEditor',
+  'bulkReview', 'bulkSummary', 'bulkTargets', 'bulkConfirmed', 'bulkResults'].map(id => [id, byId(id)]));
 const active = new Set(), weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const dayKinds = {working: 'Laborable', non_working: 'No laborable', holiday: 'Feriado', special: 'Especial'};
 const intervalKinds = {work: 'Trabajo', break: 'Pausa', on_call: 'Guardia'};
 const valueKinds = {integer: 'Entero', decimal: 'Decimal', boolean: 'Sí / No', time: 'Horario', code: 'Código'};
 let offset = 0, busy = false, focusBeforeDetail = null;
+let bulkReview = null, bulkAttempt = null, bulkSending = false, bulkStop = false;
 const editor = new TimeCatalogEditor({container: nodes.editorFields, session: model, catalogRead: q => request(q),
-  directoryRead: url => request(null, null, url), changed: () => { if (model.scope) controls(); },
+  directoryRead: url => request(null, null, url), changed: () => { if(!bulkSending)clearBulkReview();if (model.scope) controls(); },
   failed: e => { if (!(e instanceof StaleRead) && model.scope) editorNotice(e.message); }});
 function editorNotice(text) { nodes.editorMessage.textContent = text; nodes.editorMessage.hidden = !text; nodes.editorMessage.classList.toggle('error', Boolean(text)); }
 const make = (tag, value, className) => { const n = document.createElement(tag); if (value !== undefined) n.textContent = String(value); if (className) n.className = className; return n; };
@@ -23,6 +26,7 @@ function notice(text, error = false, detail = false) {
   const node = detail ? nodes.detailMessage : nodes.message; node.textContent = text; node.classList.toggle('error', error); node.hidden = !text;
 }
 function wipe(text) {
+  bulkReview=null;bulkSending=false;nodes.bulkReview.hidden=true;nodes.bulkTargets.replaceChildren();nodes.bulkConfirmed.checked=false;nodes.bulkResults.replaceChildren();
   model.invalidate(); active.forEach(c => c.abort()); active.clear(); busy = false;
   nodes.detail.close(); nodes.decision.reset(); nodes.command.replaceChildren(); nodes.reasonCode.replaceChildren();
   nodes.editorDialog.close(); editor.clear(); nodes.editorForm.reset(); nodes.editorReasonCode.replaceChildren(); editorNotice('');
@@ -64,12 +68,14 @@ async function request(query = null, attempt = null, directoryUrl = null) {
   } finally { clearTimeout(timer); active.delete(controller); }
 }
 function controls() {
-  const pending = Boolean(model.pending), locked = busy || pending;
+  const pending = Boolean(model.pending || bulkAttempt), locked = busy || pending;
   nodes.refresh.disabled = busy; nodes.refresh.textContent = pending ? 'Retomar envío sin confirmación' : 'Verificar acceso y actualizar';
   nodes.filters.querySelectorAll('button,select').forEach(n => n.disabled = locked);
   nodes.showSubmitted.disabled = locked;
   nodes.previous.disabled = locked || offset === 0; nodes.next.disabled = locked || !model.page?.hasMore || offset + 25 > 100000;
   nodes.records.querySelectorAll('button').forEach(n => n.disabled = locked);
+  nodes.bulkResults.querySelectorAll('button').forEach(n => n.disabled = locked);
+  nodes.closeEditor.disabled=busy&&!bulkSending;nodes.closeEditor.textContent=bulkSending?'Detener próximos envíos':'Cerrar';
   nodes.send.disabled = busy; nodes.retry.disabled = busy; nodes.consultAttempt.disabled = busy;
   nodes.decision.querySelectorAll('select,textarea,input').forEach(n => n.disabled = locked);
   nodes.preparation.hidden = !model.permissions.canPropose;
@@ -118,7 +124,9 @@ async function refresh() {
   const generation = model.generation;
   busy = true; controls(); notice('Verificando acceso y catálogo…');
   try {
-    model.bootstrap(await request({resource: 'bootstrap'})); renderSummary(); await readList();
+    model.bootstrap(await request({resource: 'bootstrap'})); renderSummary();
+    if(bulkAttempt){restoreBulkAssignmentAttempt(model,bulkAttempt);nodes.workspace.hidden=false;renderDetail();nodes.detail.showModal();notice('Retomá sólo el borrador enviado. Los contratos restantes necesitan una nueva revisión.');return;}
+    await readList();
     nodes.workspace.hidden = false; notice('');
   } catch (e) { if (!(e instanceof StaleRead)) wipe(e.message || 'No se pudo consultar el catálogo.'); }
   finally { if (generation === model.generation) { busy = false; controls(); } }
@@ -195,7 +203,7 @@ async function sendPending() {
   busy = true; controls(); notice('Verificando el acceso antes del envío…', false, true);
   try {
     const attempt = model.attempt(); model.bootstrap(await request({resource: 'bootstrap'})); model.attempt();
-    const outcome = model.confirm(await request(null, attempt)); renderDetail();
+    const outcome = model.confirm(await request(null, attempt)); if(bulkAttempt){bulkAttempt=null;nodes.bulkResults.replaceChildren(make('p','Se recuperó el comprobante del borrador original. Las asignaciones restantes requieren una nueva revisión; no se enviaron automáticamente.'));} renderDetail();
     notice('');
     notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Operación registrada. No genera cálculos ni liquidaciones.', false, true);
     // A historical replay can be older than current state. Do not enable a new
@@ -221,12 +229,13 @@ nodes.next.addEventListener('click', () => { if (busy || model.pending || !model
 nodes.closeDetail.addEventListener('click', () => nodes.detail.close());
 nodes.readCurrent.addEventListener('click', () => { if (model.selected) openDetail(model.selected.id); });
 function openEditor(editing) {
-  if (busy || model.pending || !model.permissions.canPropose || document.hidden) return;
+  if (busy || model.pending || bulkAttempt || !model.permissions.canPropose || document.hidden) return;
   if (editing && !model.editPayload) return;
   const kind = editing ? model.selected.kind : nodes.newKind.value;
   if (kind === 'assignment' && !model.permissions.canReadAssignments) return;
   if (!editing) { model.selected=null; model.editPayload=null; model.assignment=null; model.allowedCommands=[]; }
   nodes.detail.close(); editor.start(kind, editing ? model.editPayload : null, editing ? model.assignment : null);
+  clearBulkReview();nodes.bulkResults.replaceChildren();
   nodes.editorTitle.textContent = editing ? 'Corregir borrador' : 'Preparar ' + kinds[kind].toLowerCase();
   nodes.editorReason.value=''; nodes.editorReasonCode.replaceChildren();
   const allowed = editing ? ['draft_corrected'] : ['catalog_onboarding','new_revision'];
@@ -235,11 +244,70 @@ function openEditor(editing) {
 }
 nodes.newDraft.addEventListener('click',()=>openEditor(false)); nodes.editDraft.addEventListener('click',()=>openEditor(true));
 nodes.closeEditor.addEventListener('click',()=>nodes.editorDialog.close());
-nodes.editorDialog.addEventListener('close',()=>{editor.clear();nodes.editorReason.value='';});
+nodes.editorDialog.addEventListener('close',()=>{if(bulkSending)bulkStop=true;editor.clear();nodes.editorReason.value='';clearBulkReview();});
+function clearBulkReview(){bulkReview=null;nodes.bulkReview.hidden=true;nodes.bulkTargets.replaceChildren();nodes.bulkConfirmed.checked=false;nodes.bulkConfirmed.required=false;nodes.saveDraft.textContent=editor.multiple?'Revisar asignaciones':'Guardar borrador';}
+for(const event of ['input','change'])nodes.editorForm.addEventListener(event,e=>{if(e.target!==nodes.bulkConfirmed&&!bulkSending)clearBulkReview();});
+function renderBulkReview(review){
+  nodes.bulkSummary.textContent=`${review.plan.total} contratos · ${catalogCivilDate(review.plan.entries[0].payload.effectiveFrom)} a ${catalogCivilDate(review.plan.entries[0].payload.effectiveTo)}. Cada borrador se confirma por separado; una falla detiene los siguientes. No activa horarios ni calcula horas.`;
+  nodes.bulkTargets.replaceChildren();
+  for(const row of review.plan.entries){const item=make('li');item.append(make('strong',`${row.target.legajo} · ${row.target.name||'Nombre no informado'}`));item.append(make('span',`Nuevo borrador · Revisión ${row.payload.revision} · ${row.payload.reference.title}`));nodes.bulkTargets.append(item);}
+  for(const [key,label] of [['shift','Turno'],['calendar','Calendario'],['ruleProfile','Reglas']]){const r=review.plan.dependencies[key];nodes.bulkTargets.append(make('li',`${label}: ${r.reference?.title||'Sin nombre visible'} · Revisión ${r.revision} · ${catalogCivilDate(r.effectiveFrom)} a ${catalogCivilDate(r.effectiveTo)}`));}
+  nodes.bulkReview.hidden=false;nodes.bulkConfirmed.required=true;nodes.saveDraft.textContent='Crear borradores revisados';
+}
+async function sendBulkAssignments(review,generation){
+  bulkSending=true;bulkStop=false;controls();const states=review.plan.entries.map(entry=>({entry,id:null,status:'Sin enviar'}));
+  const show=()=>{
+    nodes.bulkResults.replaceChildren(make('h3','Resultado de las asignaciones'),make('p',`${states.filter(s=>s.id).length} borradores confirmados de ${states.length}. Cada resultado corresponde a un contrato; ninguno se aprobó.`));
+    for(const row of states){
+      const item=make('div',undefined,'assignment-result');
+      item.append(make('strong',`${row.entry.target.legajo} · ${row.entry.target.name||'Nombre no informado'}`),make('span',row.status));
+      if(row.id){
+        const button=make('button','Ver borrador '+row.entry.target.legajo);button.type='button';button.disabled=busy||Boolean(model.pending)||Boolean(bulkAttempt);
+        button.addEventListener('click',()=>openDetail(row.id));item.append(button);
+      }
+      nodes.bulkResults.append(item);
+    }
+  };
+  try{
+    model.bootstrap(await request({resource:'bootstrap'}));
+    if(model.scope!==review.scope||generation!==model.generation||document.hidden)throw new StaleRead();
+    for(const row of states){
+      if(bulkStop)throw Error('Se detuvieron los próximos envíos. Los borradores ya registrados se conservan; revisá el resultado completo.');
+      if(generation!==model.generation||document.hidden)throw new StaleRead();
+      model.bootstrap(await request({resource:'bootstrap'}));
+      if(model.scope!==review.scope)throw new StaleRead();
+      for(const dep of Object.values(review.plan.dependencies)){
+        const validator=new TimeCatalogReviewSession();validator.scope=model.scope;validator.permissions={...model.permissions};validator.detail(await request({resource:'detail',id:dep.id}),dep.id);
+        if(JSON.stringify(validator.selected)!==JSON.stringify(dep))throw Error('Una configuración cambió desde la revisión. Se detuvieron los envíos; revisá los resultados y consultá nuevamente.');
+      }
+      if(bulkStop)throw Error('Se detuvieron los próximos envíos. Los borradores ya registrados se conservan; revisá el resultado completo.');
+      model.selected=null;model.editPayload=null;model.assignment=null;model.allowedCommands=[];
+      const attempt=model.prepareDraft('assignment',row.entry.payload,review.reasonCode,review.reason,crypto.randomUUID());bulkAttempt=attempt;row.status='Envío sin confirmación';
+      model.confirm(await request(null,attempt));bulkAttempt=null;row.id=model.selected.id;row.status='Borrador registrado · Vínculo pendiente de consulta';show();
+      model.detail(await request({resource:'detail',id:row.id}),row.id);
+      if(!model.assignment||model.assignment.target.contractId.toLowerCase()!==row.entry.payload.spec.employmentContractId.toLowerCase()
+        || ['shift','calendar','ruleProfile'].some(key=>model.assignment[key].id!==row.entry.payload.spec[key+'EntryId']))throw Error('El borrador se registró, pero su vínculo no pudo conciliarse. Se detuvieron los siguientes; consultá el resultado.');
+      row.status='Borrador registrado · Vínculo verificado';show();
+    }
+    nodes.editorDialog.close();await readList();renderSummary();notice(`${states.length} borradores registrados. Enviá cada uno a revisión y aprobación independiente antes de aplicar su horario.`);show();
+  }catch(error){
+    if(!model.scope)wipe(error.message);
+    else if(!(error instanceof StaleRead)&&generation===model.generation){show();if(model.pending){nodes.editorDialog.close();renderDetail();nodes.detail.showModal();notice('El proceso se detuvo: hay un borrador sin confirmación y no se enviaron los contratos siguientes.',true);notice(error.message,true,true);}else{editorNotice(error.message);notice(error.message,true);}}
+  }finally{bulkSending=false;}
+}
 nodes.editorForm.addEventListener('submit',async e=>{
-  e.preventDefault();if(busy || model.pending || document.hidden)return;
+  e.preventDefault();if(busy || model.pending || bulkAttempt || document.hidden)return;
   const generation=model.generation;busy=true;controls();
-  try { const payload=await editor.payload(); if(generation!==model.generation || document.hidden) return;
+  try {
+    if(editor.multiple){
+      const plan=await editor.bulkPlan();if(generation!==model.generation||document.hidden)return;
+      const review={plan,reasonCode:nodes.editorReasonCode.value,reason:nodes.editorReason.value,scope:model.scope};
+      timeCatalogCommand({command:'create_draft',kind:'assignment',id:null,expectedVersion:0,payload:plan.entries[0].payload,reasonCode:review.reasonCode,reason:review.reason,scopeVersion:review.scope,manualValidationConfirmed:false});
+      if(!bulkReview){bulkReview=review;renderBulkReview(review);return;}
+      if(JSON.stringify(review)!==JSON.stringify(bulkReview)||!nodes.bulkConfirmed.checked){clearBulkReview();throw Error('Revisá y confirmá otra vez el conjunto completo.');}
+      await sendBulkAssignments(review,generation);return;
+    }
+    const payload=await editor.payload(); if(generation!==model.generation || document.hidden) return;
     model.prepareDraft(editor.kind,payload,nodes.editorReasonCode.value,nodes.editorReason.value,crypto.randomUUID(),Boolean(editor.original));
     nodes.editorDialog.close(); renderDetail();nodes.detail.showModal();busy=false;await sendPending();
   } catch(error) { if(generation===model.generation)editorNotice(error.message); }
