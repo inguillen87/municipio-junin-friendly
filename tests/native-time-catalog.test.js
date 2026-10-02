@@ -58,7 +58,7 @@ test('an ambiguous or changed source cannot be generated silently',()=>{
 });
 test('integration uses real writers, both source origins, period gap and a separate-connection lock',()=>{
  const qa=buildNativeTimeCatalogQa({serverMajor:17,requireConcurrency:true});
- assert.equal(qa.report.timeCatalogChecksPassed,23);assert.equal(qa.report.checksPassed,558);
+ assert.equal(qa.report.timeCatalogChecksPassed,27);assert.equal(qa.report.checksPassed,562);
  assert.match(qa.sql,/native_time_catalog_qa/);assert.match(qa.sql,/TIME_CATALOG_NATIVE_PERIOD_INVALID/);
  assert.match(qa.sql,/time_catalog_apply_command_v1/);assert.match(qa.sql,/native_employee_create_v1/);
  assert.match(qa.sql,/tenant_iam_assert_no_sod_conflict/);
