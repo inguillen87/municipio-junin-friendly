@@ -2,10 +2,10 @@ name: Native time catalog release
 on:
   pull_request:
     branches: ['master']
-    paths: ['scripts/migrations/116-*', 'scripts/lib/native-time-catalog*', 'scripts/prepare-native-time-catalog.mjs', 'scripts/verify-native-time-catalog-sql.mjs', 'tests/native-time-catalog*', 'api/internal-time-catalog.js', 'lib/internal-time-catalog.js', 'lib/time-catalog-json.js', 'assets/time-catalog-contract.js', 'tests/time-catalog-api.test.js', 'tests/fixtures/time-catalog-synthetic.js', '.github/workflows/native-time-catalog-release.yml']
+    paths: ['scripts/migrations/116-*', 'scripts/lib/native-time-catalog*', 'scripts/prepare-native-time-catalog.mjs', 'scripts/verify-native-time-catalog-sql.mjs', 'scripts/verify-time-catalog-api-browser.mjs', 'tests/native-time-catalog*', 'api/internal-time-catalog.js', 'lib/internal-time-catalog.js', 'lib/time-catalog-json.js', 'assets/time-catalog-contract.js', 'tests/time-catalog-api.test.js', 'tests/fixtures/time-catalog-synthetic.js', '.github/workflows/native-time-catalog-release.yml']
   push:
     branches: ['codex/native-time-catalog-20261002', 'master']
-    paths: ['scripts/migrations/116-*', 'scripts/lib/native-time-catalog*', 'scripts/prepare-native-time-catalog.mjs', 'scripts/verify-native-time-catalog-sql.mjs', 'tests/native-time-catalog*', 'api/internal-time-catalog.js', 'lib/internal-time-catalog.js', 'lib/time-catalog-json.js', 'assets/time-catalog-contract.js', 'tests/time-catalog-api.test.js', 'tests/fixtures/time-catalog-synthetic.js', '.github/workflows/native-time-catalog-release.yml']
+    paths: ['scripts/migrations/116-*', 'scripts/lib/native-time-catalog*', 'scripts/prepare-native-time-catalog.mjs', 'scripts/verify-native-time-catalog-sql.mjs', 'scripts/verify-time-catalog-api-browser.mjs', 'tests/native-time-catalog*', 'api/internal-time-catalog.js', 'lib/internal-time-catalog.js', 'lib/time-catalog-json.js', 'assets/time-catalog-contract.js', 'tests/time-catalog-api.test.js', 'tests/fixtures/time-catalog-synthetic.js', '.github/workflows/native-time-catalog-release.yml']
 permissions:
   contents: read
 concurrency:
@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: node scripts/verify-time-catalog-api-browser.mjs
   sql:
     runs-on: ubuntu-latest
     timeout-minutes: 15
