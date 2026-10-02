@@ -11,17 +11,21 @@ const original=nativeTimePrerequisiteSource();
 const candidate=read('scripts/migrations/116-native-time-catalog.sql');
 test('SQL116 is reproduced from exact011 and canonical/native period prerequisites',()=>{
  assert.equal(candidate,nativeTimeCandidate());
- assert.equal((candidate.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,10);
+ assert.equal((candidate.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,15);
  const statements=splitPostgresStatements(candidate);
- assert.equal(statements.length,12);
- assert.equal(statements.filter(s=>s.includes('CREATE OR REPLACE FUNCTION')).length,10);
+ assert.equal(statements.length,19);
+ assert.equal(statements.filter(s=>s.includes('CREATE OR REPLACE FUNCTION')).length,15);
  for(const s of statements)assert.ok((s.match(/CREATE OR REPLACE FUNCTION/g)||[]).length<=1,'one complete definition per SQL statement');
  assert.equal((candidate.match(/pin\(signature,sha256,runtime_execute\)/g)||[]).length,1);
- assert.doesNotMatch(candidate,/\b(?:GRANT|CREATE TABLE|ALTER TABLE|TRUNCATE|DROP|UPDATE employment_contract|INSERT INTO (?:employment_contract|native_employee_registration))\b/i);
+ assert.doesNotMatch(candidate,/\b(?:GRANT|CREATE TABLE|TRUNCATE|DROP|UPDATE employment_contract|INSERT INTO (?:employment_contract|native_employee_registration))\b/i);
+ const schema=statements.filter(s=>/ALTER TABLE/.test(s));assert.equal(schema.length,1);
+ assert.match(schema[0],/^ALTER TABLE public\.time_catalog_entry/);
+ assert.equal((schema[0].match(/ADD COLUMN/g)||[]).length,3);
+ assert.doesNotMatch(schema[0],/DEFAULT|ADD COLUMN[^,\n]*NOT NULL|UPDATE/);
  assert.match(candidate,/TIME_CATALOG_NATIVE_ALREADY_INSTALLED/);
 });
-test('all7 modified bodies pin the original and keep the original GRH proof',()=>{
- const patches=nativeTimeDefinitions(original);assert.equal(patches.length,7);
+test('all10 modified bodies pin the original and keep the original GRH proof',()=>{
+ const patches=nativeTimeDefinitions(original);assert.equal(patches.length,10);
  for(const p of patches){assert.match(candidate,new RegExp(p.oldSha));assert.notEqual(p.oldSha,p.newSha);}
  for(const name of ['time_catalog_assert_actor_authority_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1']){
   const body=timeFunction(candidate,name).body;
@@ -52,21 +56,28 @@ test('native multi-account duties are combined with legacy duties, not substitut
  assert.match(body,/capabilities_native<>'\[\]'::jsonb OR NOT public\.tenant_iam_operational_person_pair_v1/);
  assert.match(timeFunction(candidate,'time_catalog_native_person_caps_v2').body,/tenant_iam_assert_no_sod_conflict\(member\)/);
 });
-test('command writer retains its behavior apart from the unused local and verifiable acknowledgement; read facades and payload rules are preserved',()=>{
+test('writer retains the existing circuit outside explicit metadata and nominal-scope changes; list and geometry are preserved',()=>{
  const changed=NATIVE_TIME_PATCHES.map(([name])=>name);
  const body=timeFunction(candidate,'time_catalog_apply_command_v1').body;
- const restored=body.replace("      'requestSha256', existing_event.command_hash,\n      'attemptKey', existing_event.idempotency_key,\n",'').replace("    'requestSha256', lower(p_command_hash),\n    'attemptKey', p_idempotency_key,\n",'');
+ let restored=body.replace("      'requestSha256', existing_event.command_hash,\n      'attemptKey', existing_event.idempotency_key,\n",'').replace("    'requestSha256', lower(p_command_hash),\n    'attemptKey', p_idempotency_key,\n",'');
+ restored=restored.replace("    IF entry_row.catalog_kind='assignment' AND NOT COALESCE((context_value->>'assignmentReadAllowed')::boolean,false) THEN\n      RAISE EXCEPTION 'TIME_CATALOG_CAPABILITY_REQUIRED';\n    END IF;\n",'');
+ restored=restored.replace("  IF target_kind='assignment' AND NOT COALESCE((context_value->>'assignmentReadAllowed')::boolean,false) THEN\n    RAISE EXCEPTION 'TIME_CATALOG_CAPABILITY_REQUIRED';\n  END IF;\n",'');
+ restored=restored.replace("    IF target_kind='assignment' THEN\n      PERFORM public.payroll_fixed_registry_subject_by_contract_v1(context_value,(p_payload#>>'{spec,employmentContractId}')::uuid,true);\n    END IF;\n",'');
+ restored=restored.replace("\n      OR (p_payload ? 'reference' AND (p_payload#>>'{reference,code}') IS DISTINCT FROM entry_row.reference_code)",'');
+ restored=restored.replace('reason_code, reason_hash, reference_code,display_name,legal_reference','reason_code, reason_hash');
+ restored=restored.replace("p_reason_code, lower(p_reason_hash),\n      p_payload#>>'{reference,code}',p_payload#>>'{reference,title}',p_payload#>>'{reference,legalReference}'","p_reason_code, lower(p_reason_hash)");
+ restored=restored.replace("      display_name=CASE WHEN p_payload ? 'reference' THEN p_payload#>>'{reference,title}' ELSE display_name END,\n      legal_reference=CASE WHEN p_payload ? 'reference' THEN p_payload#>>'{reference,legalReference}' ELSE legal_reference END,\n",'');
  assert.equal(restored,timeFunction(original,'time_catalog_apply_command_v1').body.replace('  item jsonb;\n',''));
  assert.match(body,/'requestSha256', existing_event.command_hash/);assert.match(body,/'attemptKey', p_idempotency_key/);
  assert.match(timeFunction(candidate,'time_catalog_guard_draft_child_v1').body,/TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE' THEN\n    IF NEW.day_date/);
- for(const name of ['time_catalog_bootstrap_v1','time_catalog_list_v1','time_catalog_detail_v1','time_catalog_payload_valid_v1','time_catalog_normalized_week_segments_v1'])assert.ok(!changed.includes(name));
- assert.doesNotMatch(candidate,/CREATE OR REPLACE FUNCTION (?:public\.)?(?:time_catalog_bootstrap_v1|time_catalog_list_v1|time_catalog_detail_v1|time_catalog_payload_valid_v1|time_catalog_normalized_week_segments_v1)\(/);
+ for(const name of ['time_catalog_bootstrap_v1','time_catalog_list_v1','time_catalog_normalized_week_segments_v1'])assert.ok(!changed.includes(name));
+ assert.doesNotMatch(candidate,/CREATE OR REPLACE FUNCTION (?:public\.)?(?:time_catalog_bootstrap_v1|time_catalog_list_v1|time_catalog_normalized_week_segments_v1)\(/);
  assert.match(candidate,/FROM PUBLIC,municontrol_actions_runtime_app/);
  assert.match(candidate,/has_function_privilege\('municontrol_actions_runtime_app',p.oid,'EXECUTE'\) IS NOT DISTINCT FROM item.runtime_execute/);
 });
 test('opaque projected scope includes binding, actor contract and authority without publishing those identifiers',()=>{
  const body=timeFunction(candidate,'time_catalog_principal_projection_v1').body;
- for(const name of ['tenantId','membershipId','certifiedBindingId','authorityVersion','actorPersonId','employmentContractId','roleKey','capabilities'])assert.match(body,new RegExp("p_context->>?'"+name+"'"));
+ for(const name of ['tenantId','membershipId','certifiedBindingId','authorityVersion','actorPersonId','employmentContractId','roleKey','capabilities','assignmentReadAllowed'])assert.match(body,new RegExp("p_context->>?'"+name+"'"));
  assert.match(body,/encode\(public\.digest\(jsonb_build_array/);assert.match(body,/'actorPersonId','actorEmail'/);
 });
 test('an ambiguous or changed source cannot be generated silently',()=>{
@@ -75,7 +86,7 @@ test('an ambiguous or changed source cannot be generated silently',()=>{
 });
 test('integration uses real writers, both source origins, period gap and a separate-connection lock',()=>{
  const qa=buildNativeTimeCatalogQa({serverMajor:17,requireConcurrency:true});
- assert.equal(qa.report.timeCatalogChecksPassed,38);assert.equal(qa.report.checksPassed,573);
+ assert.equal(qa.report.timeCatalogChecksPassed,52);assert.equal(qa.report.checksPassed,587);
  assert.match(qa.sql,/native_time_catalog_qa/);assert.match(qa.sql,/TIME_CATALOG_NATIVE_PERIOD_INVALID/);
  assert.match(qa.sql,/time_catalog_apply_command_v1/);assert.match(qa.sql,/native_employee_create_v1/);
  assert.match(qa.sql,/p_catalog_kind=>/);assert.match(qa.sql,/p_command_hash=>/);

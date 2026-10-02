@@ -3,11 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel} from '../assets/time-catalog-review-model.js';
 import {ID, record, command, payload, flags, scopeVersion} from './fixtures/time-catalog-synthetic.js';
-const permissions = {canPropose: true, canApprove: false, canAudit: false};
+const permissions = {canPropose: true, canApprove: false, canAudit: false, canReadAssignments: false};
 const base = patch => ({version: 'time-catalog.v1', scopeVersion, permissions: {...permissions}, ...patch});
 const boot = patch => base({summary: {calendar: 0, shift: 0, ruleProfile: 30, assignment: 0, submitted: 0}, ...flags, ...patch});
-const detail = (r = record(), patch) => base({record: r, timeline: [], auditAvailable: false, timelineLimit: 100, timelineMayBeIncomplete: false, ...patch});
-const ready = (r = record(), perms = permissions) => { const s = new TimeCatalogReviewSession(); s.bootstrap(boot({permissions: perms})); s.detail(detail(r, {permissions: perms, auditAvailable: perms.canAudit}), r.id); return s; };
+const detail = (r = record(), patch = {}) => {
+  const perms = patch.permissions || permissions, ownDraft = r.status === 'draft' && perms.canPropose && r.kind !== 'assignment';
+  return base({record: r, timeline: [], auditAvailable: false, timelineLimit: 100, timelineMayBeIncomplete: false,
+    editPayload: ownDraft ? payload(r.kind) : null, assignment: null,
+    allowedCommands: ownDraft ? ['update_draft','submit'] : r.kind === 'assignment' ? [] : r.status === 'submitted' && perms.canApprove ? ['approve','reject'] : r.status === 'approved' && perms.canApprove ? ['retire'] : [], ...patch});
+};
+const ready = (r = record(), perms = permissions) => { perms={canReadAssignments:false,...perms}; const s = new TimeCatalogReviewSession(); s.bootstrap(boot({permissions: perms})); s.detail(detail(r, {permissions: perms, auditAvailable: perms.canAudit}), r.id); return s; };
 
 test('read results retain exact values and are detached from response mutation', () => {
   const r = record(), s = ready(r); r.configuration.parameters[0].decimalValue = '1';
@@ -67,7 +72,8 @@ test('separation of roles and explicit human approval cannot be silently inferre
   assert.deepEqual(s.commands(), ['approve', 'reject']);
   assert.throws(() => s.prepare('approve', 'configuration_verified', 'Verificación sintética completa.', false, ID));
   assert.equal(s.prepare('approve', 'configuration_verified', 'Verificación sintética completa.', true, ID).key, ID);
-  assert.throws(() => ready(r, {canPropose: true, canApprove: true, canAudit: false}));
+  const governed = ready(r, {canPropose: true, canApprove: true, canAudit: false});
+  governed.detail(detail(r, {permissions: governed.permissions, allowedCommands: []}), r.id); assert.deepEqual(governed.commands(), []);
   assert.deepEqual(ready(r).commands(), []);
 });
 test('assignment target is unavailable: even an approver cannot decide blindly', () => {
@@ -87,7 +93,7 @@ test('audit never disguises its 100-event ceiling or removes malformed events', 
 });
 test('module is included in the build and gated without altering the postponed route patch', () => {
   const build = fs.readFileSync('scripts/build-friendly.mjs', 'utf8'), gate = fs.readFileSync('assets/internal-capability-gate.js', 'utf8');
-  for (const f of ['catalogo-tiempo.html', 'assets/time-catalog-review.js', 'assets/time-catalog-review-model.js', 'assets/time-catalog-review.css', 'assets/time-catalog-contract.js']) assert.ok(build.includes("'" + f + "'"));
+  for (const f of ['catalogo-tiempo.html', 'assets/time-catalog-review.js', 'assets/time-catalog-review-model.js', 'assets/time-catalog-editor.js', 'assets/time-catalog-review.css', 'assets/time-catalog-contract.js']) assert.ok(build.includes("'" + f + "'"));
   assert.match(gate, /'catalogo-tiempo\.html': \{ all: \['time\.catalog\.read'\] \}/);
   assert.match(fs.readFileSync('.vercelignore', 'utf8'), /^!catalogo-tiempo\.html$/m);
   const ui = fs.readFileSync('assets/time-catalog-review.js', 'utf8'); assert.doesNotMatch(ui, /localStorage|sessionStorage|indexedDB|innerHTML|sendBeacon/);

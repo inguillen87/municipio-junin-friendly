@@ -1,6 +1,7 @@
 // Evolves the installed 011 catalog; it does not enable an attendance evaluator.
 import {createHash} from 'node:crypto';
 import {splitPostgresStatements} from './sql-statements.mjs';
+import {TIME_CATALOG_EDITOR_SCHEMA_SQL,TIME_CATALOG_EDITOR_HELPERS_SQL,timeCatalogEditorDefinitions} from './time-catalog-editor-migration.mjs';
 
 export const NATIVE_TIME_PATCHES = Object.freeze([
   ['time_catalog_assert_actor_authority_v1', 'jsonb,text'],
@@ -10,6 +11,9 @@ export const NATIVE_TIME_PATCHES = Object.freeze([
   ['time_catalog_apply_command_v1', 'text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text'],
   ['time_catalog_guard_draft_child_v1', ''],
   ['time_catalog_principal_projection_v1', 'jsonb'],
+  ['time_catalog_payload_valid_v1', 'text,jsonb'],
+  ['time_catalog_entry_snapshot_v1', 'uuid,uuid'],
+  ['time_catalog_detail_v1', 'text,uuid,integer,text,uuid,uuid,uuid'],
 ]);
 const hash = s => createHash('sha256').update(s).digest('hex');
 export function timeFunction(source, name) {
@@ -21,7 +25,7 @@ export function timeFunction(source, name) {
 }
 const replaceOnce = (source, old, next) => {
   if (source.split(old).length !== 2) throw Error('TIME_CATALOG_PATCH_DRIFT');
-  return source.replace(old, next);
+  return source.replace(old, () => next);
 };
 export function nativeTimeDefinitions(source) {
   const originals = Object.fromEntries(NATIVE_TIME_PATCHES.map(([name]) => [name, timeFunction(source, name)]));
@@ -153,15 +157,19 @@ ${oldAssignment}    END IF;
   // this facade and writes in the same SQL statement, retaining its locks.
   definitions.time_catalog_principal_projection_v1=replaceOnce(originals.time_catalog_principal_projection_v1.definition,
     "  ]::text[]", "  ]::text[] || jsonb_build_object('scopeVersion',\n    encode(public.digest(jsonb_build_array(\n      p_context->>'tenantId',p_context->>'membershipId',\n      p_context->>'certifiedBindingId',p_context->>'authorityVersion',\n      p_context->>'actorPersonId',p_context->>'employmentContractId',\n      p_context->>'roleKey',p_context->'capabilities'\n    )::text,'sha256'),'hex'))");
-  return NATIVE_TIME_PATCHES.map(([name, args]) => ({name, args, oldSha: hash(originals[name].body), definition: definitions[name], newSha: hash(timeFunction(definitions[name], name).body)}));
+  timeCatalogEditorDefinitions(originals,definitions,replaceOnce);
+  return NATIVE_TIME_PATCHES.map(([name, args]) => {
+    try { return {name,args,oldSha:hash(originals[name].body),definition:definitions[name],newSha:hash(timeFunction(definitions[name],name).body)}; }
+    catch(error) { throw new Error('TIME_CATALOG_PATCH_INVALID:'+name,{cause:error}); }
+  });
 }
 
 export function nativeTimeMigration(source, helpers, dependencies) {
   const patches = nativeTimeDefinitions(source);
   if (!Array.isArray(dependencies) || dependencies.length !== 8 || dependencies.some(p => !p.signature || !/^[a-f0-9]{64}$/.test(p.sha256))) throw Error('TIME_CATALOG_DEPENDENCIES_REQUIRED');
-  const pins = [...patches.map(p => ({signature: `${p.name}(${p.args})`, sha256:p.oldSha,runtime:p.name==='time_catalog_apply_command_v1'})), ...dependencies].map(p => ` ('${p.signature}','${p.sha256}',${!!p.runtime})`).join(',\n');
+  const pins = [...patches.map(p => ({signature: `${p.name}(${p.args})`, sha256:p.oldSha,runtime:['time_catalog_apply_command_v1','time_catalog_detail_v1'].includes(p.name)})), ...dependencies].map(p => ` ('${p.signature}','${p.sha256}',${!!p.runtime})`).join(',\n');
   const prerequisites = `-- SQL116: native actors and subjects in the existing temporal catalog.
--- No new tables, runtime privileges, account grants, punches, rules or payroll writes.
+-- Three nullable reference columns on011; no new tables/grants/punches/payroll writes.
 -- Whole transaction only. A second installation or unknown body fails closed.
 DO $prerequisite$
 DECLARE item record; actual text;
@@ -169,7 +177,12 @@ BEGIN
  IF to_regprocedure('public.time_catalog_native_subject_v2(uuid,uuid,uuid,date,date)') IS NOT NULL
    OR to_regprocedure('public.time_catalog_native_actor_v2(uuid,uuid,uuid)') IS NOT NULL
    OR to_regprocedure('public.time_catalog_native_person_caps_v2(uuid,uuid,uuid)') IS NOT NULL
+   OR to_regprocedure('public.time_catalog_edit_payload_v2(jsonb,uuid)') IS NOT NULL
+   OR to_regprocedure('public.time_catalog_assignment_view_v2(jsonb,uuid)') IS NOT NULL
  THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_ALREADY_INSTALLED'; END IF;
+ IF EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='public.time_catalog_entry'::regclass
+   AND attname IN ('reference_code','display_name','legal_reference') AND NOT attisdropped)
+ THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  IF to_regprocedure('public.payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)') IS NULL
    OR to_regprocedure('public.native_employment_lifecycle_range_v1(jsonb,uuid,date,date,boolean)') IS NULL
    OR to_regclass('public.native_employee_registration') IS NULL
@@ -186,5 +199,5 @@ ${pins}
  END LOOP;
 END $prerequisite$;
 `;
-  return prerequisites + '\n' + helpers.replaceAll('\r\n', '\n') + '\n' + patches.map(p => p.definition.trimEnd().replace(/;$/, '')+';').join('\n\n') + '\n';
+  return prerequisites + '\n' + TIME_CATALOG_EDITOR_SCHEMA_SQL + '\n' + helpers.replaceAll('\r\n', '\n') + '\n' + TIME_CATALOG_EDITOR_HELPERS_SQL + '\n' + patches.map(p => p.definition.trimEnd().replace(/;$/, '')+';').join('\n\n') + '\n';
 }

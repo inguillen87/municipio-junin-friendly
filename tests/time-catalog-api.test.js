@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PassThrough} from 'node:stream';
 import {createTimeCatalogHandler} from '../api/internal-time-catalog.js';
 import {timeCatalogWrite, timeCatalogRead, TIME_CATALOG_MAX_BYTES} from '../lib/internal-time-catalog.js';
-import {timeCatalogCommand, timeCatalogPayload, timeCatalogMatches, timeCatalogNumeric} from '../assets/time-catalog-contract.js';
+import {timeCatalogCommand, timeCatalogPayload, timeCatalogMatches, timeCatalogNumeric, timeCatalogReferenceKey} from '../assets/time-catalog-contract.js';
 import {parseTimeCatalogSqlJson, normalizeTimeCatalogSqlJson, timeCatalogSqlPayload} from '../lib/time-catalog-json.js';
 import {ID, principal, session, scopeVersion, command, payload, receipt, record, sqlPrincipal, sqlText, bootstrap} from './fixtures/time-catalog-synthetic.js';
 const response = () => ({headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(n) { this.statusCode = n; return this; }, json(v) { this.payload = v; return this; }});
@@ -67,7 +67,7 @@ test('partial streams and declared lengths are rejected; duplicate nested names 
 });
 test('bootstrap returns scoped permissions and truthful readiness, without authority identities', async () => {
   const {handler, sql} = setup({result: bootstrap()}), res = response(); await handler(get({resource: 'bootstrap'}), res);
-  assert.equal(res.statusCode, 200); assert.equal(res.payload.data.scopeVersion, scopeVersion); assert.deepEqual(res.payload.data.permissions, {canPropose: true, canApprove: false, canAudit: false}); assert.equal(res.payload.data.minutesCalculated, false); assert.match(sql.calls[0].query, /time_catalog_bootstrap_v1/); assert.equal(res.payload.data.summary.ruleProfile, 1);
+  assert.equal(res.statusCode, 200); assert.equal(res.payload.data.scopeVersion, scopeVersion); assert.deepEqual(res.payload.data.permissions, {canPropose: true, canApprove: false, canAudit: false, canReadAssignments: false}); assert.equal(res.payload.data.minutesCalculated, false); assert.match(sql.calls[0].query, /time_catalog_bootstrap_v1/); assert.equal(res.payload.data.summary.ruleProfile, 1);
 });
 test('list preserves full count beyond the page; filters cannot return another kind or shorten a page', async () => {
   const input = {kind: 'rule_profile', status: 'draft', limit: 1, offset: 1}, valid = {principal: sqlPrincipal, records: [record()], page: {limit: 1, offset: 1, total: 3, hasMore: true}};
@@ -79,7 +79,7 @@ test('list preserves full count beyond the page; filters cannot return another k
 test('detail validates selected id and audit scope; a capped timeline is explicitly possibly incomplete', async () => {
   const p = {...sqlPrincipal, capabilities: [...sqlPrincipal.capabilities, 'time.catalog.audit.read']};
   const r = record(); r.version = 100;
-  const detail = {principal: p, record: r, timeline: Array.from({length: 100}, (_, i) => ({command: i ? 'update_draft' : 'create_draft', expectedVersion: i, resultingVersion: i + 1, reasonCode: i ? 'draft_corrected' : 'catalog_onboarding', occurredAt: '2026-10-02T12:00:00+00:00'})), auditAvailable: true, timelineLimit: 100};
+  const detail = {principal: p, record: r, timeline: Array.from({length: 100}, (_, i) => ({command: i ? 'update_draft' : 'create_draft', expectedVersion: i, resultingVersion: i + 1, reasonCode: i ? 'draft_corrected' : 'catalog_onboarding', occurredAt: '2026-10-02T12:00:00+00:00'})), auditAvailable: true, timelineLimit: 100,editPayload:null,assignment:null,allowedCommands:[]};
   const data = await timeCatalogRead({query: async () => [{result: sqlText(detail)}]}, principal, session, 'detail', {id: ID}); assert.equal(data.timelineMayBeIncomplete, true);
   detail.auditAvailable = false; await assert.rejects(timeCatalogRead({query: async () => [{result: sqlText(detail)}]}, principal, session, 'detail', {id: ID}), e => e.status === 503);
 });
@@ -111,4 +111,33 @@ test('lossless SQL JSON parser rejects duplicates, trailing input and malformed 
   for (const s of ['{"decimalValue":01}', '{"a":1,"a":2}', '{"a":1} garbage', '{"a":[1,]}', '{"decimalValue":"1.25"}', '{"integerValue":1e3}', '{"offset":9007199254740993}']) assert.throws(() => normalizeTimeCatalogSqlJson(parseTimeCatalogSqlJson(s)));
   assert.deepEqual(normalizeTimeCatalogSqlJson(parseTimeCatalogSqlJson('{"decimalValue":99999999999999.123456,"integerValue":999999999999999999}')), {decimalValue: '99999999999999.123456', integerValue: '999999999999999999'});
   assert.equal(timeCatalogNumeric('-0.000000', 'decimal'), '0'); assert.throws(() => timeCatalogSqlPayload({spec: {parameters: [{valueKind: 'decimal', value: '0,"tenantId":"inject"'}]}}));
+});
+test('owner editor projection keeps exact values and rejects another configuration or unauthorized fields',async()=>{
+ const p=payload(), detail={principal:sqlPrincipal,record:record(),editPayload:p,assignment:null,allowedCommands:['update_draft','submit'],timeline:[],auditAvailable:false,timelineLimit:100};
+ const read=d=>timeCatalogRead({query:async()=>[{result:sqlText(d)}]},principal,session,'detail',{id:ID});
+ const result=await read(detail);assert.equal(result.editPayload.spec.parameters[0].value,'99999999999999.123456');assert.equal(result.editPayload.spec.parameters[1].value,'999999999999999999');
+ for(const mutate of [d=>d.editPayload.spec.parameters[0].value='1.125',d=>d.allowedCommands=[],d=>d.allowedCommands.push('approve'),d=>d.editPayload.dni='99999999',d=>d.assignment={target:{name:'Private'}}]){
+  const d=structuredClone(detail);mutate(d);await assert.rejects(read(d),e=>e.status===503);
+ }
+ await assert.rejects(timeCatalogRead({query:async()=>[{result:JSON.stringify(detail)}]},principal,session,'detail',{id:ID}),e=>e.status===503);
+});
+test('assignment detail is minimal, scope-authorized, and agrees with its editable target and dependencies',async()=>{
+ const identity={...principal,tenant:{...principal.tenant,effectiveCapabilities:[...principal.tenant.effectiveCapabilities,'workforce.employee.read']}};
+ const p=payload('assignment'), r=record(command({kind:'assignment',payload:p}));
+ const assignment={target:{contractId:ID,legajo:'900001',name:'Contrato sintético'},shift:record(command({kind:'shift',payload:payload('shift')})),calendar:record(command({kind:'calendar',payload:payload('calendar')})),ruleProfile:record()};
+ const detail={principal:{...sqlPrincipal,assignmentReadAllowed:true},record:r,editPayload:p,assignment,allowedCommands:['update_draft','submit'],timeline:[],auditAvailable:false,timelineLimit:100};
+ const read=(d,i=identity)=>timeCatalogRead({query:async()=>[{result:sqlText(d)}]},i,session,'detail',{id:ID});
+ assert.equal((await read(detail)).assignment.target.name,'Contrato sintético');
+ for(const mutate of [d=>d.assignment.target.dni='99999999',d=>d.assignment.target.contractId='aaaaaaaa-0000-4000-8000-000000000001',d=>d.assignment.shift.revision=2,d=>d.principal.assignmentReadAllowed=false]){
+  const d=structuredClone(detail);mutate(d);await assert.rejects(read(d),e=>e.status===503);
+ }
+ await assert.rejects(read(detail,principal),e=>e.status===503);
+ const hidden={...detail,principal:sqlPrincipal,assignment:null,editPayload:null,allowedCommands:[]};assert.equal((await read(hidden,principal)).assignment,null);
+ let calls=0;await assert.rejects(timeCatalogWrite({query:()=>{calls++;}},principal,session,command({kind:'assignment',payload:p}),ID),e=>e.status===403);assert.equal(calls,0);
+});
+test('reference code and hash must agree before any SQL and are present in matching receipts',async()=>{
+ const p=payload('shift');p.reference={code:'qa-shift',title:'Turno sintético'};const body=command({kind:'shift',payload:p});
+ let calls=0;await assert.rejects(timeCatalogWrite({query:()=>{calls++;}},principal,session,body,ID),e=>e.status===422);assert.equal(calls,0);
+ p.logicalKeyHash=await timeCatalogReferenceKey('shift',p.reference.code);
+ const {handler,sql}=setup({result:receipt(body)}),res=response();await handler(request(body),res);assert.equal(res.statusCode,201);assert.equal(sql.calls.length,1);assert.equal(res.payload.data.data.reference.title,p.reference.title);
 });

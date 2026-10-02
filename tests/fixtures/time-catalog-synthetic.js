@@ -2,9 +2,10 @@
 import {ID, TENANT, MEMBER, session, principal as original} from './native-employee-synthetic.js';
 import {employeeContext} from '../../lib/internal-native-employees.js';
 import {timeCatalogHash} from '../../lib/internal-time-catalog.js';
+import {timeCatalogNumeric} from '../../assets/time-catalog-contract.js';
 export {ID, TENANT, MEMBER, session};
 export const principal = {...original, tenant: {...original.tenant, effectiveCapabilities: ['time.catalog.read', 'time.catalog.propose']}};
-export const sqlPrincipal = {roleKey: 'QA_PROPOSER', authorityVersion: 1, capabilities: ['time.catalog.read', 'time.catalog.propose'], areaScopes: [], scopeVersion: 'b'.repeat(64)};
+export const sqlPrincipal = {roleKey: 'QA_PROPOSER', authorityVersion: 1, capabilities: ['time.catalog.read', 'time.catalog.propose'], areaScopes: [], scopeVersion: 'b'.repeat(64),assignmentReadAllowed:false};
 export const scopeVersion = timeCatalogHash(employeeContext(principal, session)) + '.' + sqlPrincipal.scopeVersion;
 export const payload = (kind = 'rule_profile') => ({effectiveFrom: '2026-10-01', effectiveTo: '2026-10-31', logicalKeyHash: 'c'.repeat(64), revision: 1, timezone: 'America/Argentina/Mendoza', spec: {
   calendar: {days: [{date: '2026-10-12', kind: 'holiday', code: 'qa_holiday', evidenceSha256: 'd'.repeat(64)}]},
@@ -19,7 +20,7 @@ export function record(body = command()) {
   if (kind === 'calendar') configuration.days = configuration.days.map(({evidenceSha256, ...r}) => ({...r, evidencePresent: evidenceSha256 !== undefined}));
   if (kind === 'rule_profile') configuration.parameters = configuration.parameters.map(p => ({key: p.key, valueKind: p.valueKind, unitCode: p.unitCode, [({integer: 'integerValue', decimal: 'decimalValue', boolean: 'booleanValue'})[p.valueKind]]: p.value})).sort((a, b) => a.key.localeCompare(b.key));
   if (kind === 'assignment') configuration = {targetType: 'canonical_employment_contract', targetProjected: false, shiftRevision: 1, calendarRevision: 1, ruleProfileRevision: 1};
-  return {id: body.id ?? ID, kind, revision: p.revision, effectiveFrom: p.effectiveFrom, effectiveTo: p.effectiveTo, timezone: p.timezone, sourceLinked: false,
+  return {id: body.id ?? ID, kind, revision: p.revision, effectiveFrom: p.effectiveFrom, effectiveTo: p.effectiveTo, timezone: p.timezone, sourceLinked: Object.hasOwn(p,'sourceContractId'),...(p.reference?{reference:structuredClone(p.reference)}:{}),
     status: ({create_draft: 'draft', update_draft: 'draft', submit: 'submitted', approve: 'approved', reject: 'rejected', retire: 'retired'})[body.command],
     version: body.expectedVersion + 1, reasonCode: body.reasonCode, configuration, timestamps: {createdAt: '2026-10-02T12:00:00+00:00', updatedAt: '2026-10-02T12:00:00+00:00'}};
 }
@@ -29,5 +30,12 @@ export const receipt = (body = command(), patch = {}) => ({data: record(body), r
 // Emulates PostgreSQL ::text, including exact JSON numeric tokens. Deliberately
 // never obtains decimal/integer values by coercing them to a JS Number.
 export function sqlText(value) {
-  return JSON.stringify(value).replace(/"(decimalValue|integerValue)":"(-?\d+(?:\.\d+)?)"/g, '"$1":$2');
+  const serialize=(v,kind=null)=>{
+    if(kind){timeCatalogNumeric(v,kind);return v;}
+    if(Array.isArray(v))return '['+v.map(x=>serialize(x)).join(',')+']';
+    if(v&&typeof v==='object')return '{'+Object.keys(v).map(k=>JSON.stringify(k)+':'+serialize(v[k],
+      k==='integerValue'?'integer':k==='decimalValue'?'decimal':k==='value'&&['integer','decimal'].includes(v.valueKind)?v.valueKind:null)).join(',')+'}';
+    return JSON.stringify(v);
+  };
+  return serialize(value);
 }

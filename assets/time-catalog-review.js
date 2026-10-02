@@ -1,17 +1,23 @@
 import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel, CATALOG_KIND_LABELS as kinds, CATALOG_STATUS_LABELS as statuses,
   CATALOG_COMMAND_LABELS as commands, CATALOG_REASON_LABELS as reasons} from './time-catalog-review-model.js';
 import {TIME_CATALOG_REASONS, timeCatalogExact} from './time-catalog-contract.js';
+import {TimeCatalogEditor} from './time-catalog-editor.js';
 
 const model = new TimeCatalogReviewSession(), byId = id => document.getElementById(id);
 const nodes = Object.fromEntries(['refresh', 'message', 'workspace', 'countCalendar', 'countShift', 'countRules', 'countAssignments', 'countSubmitted',
   'showSubmitted', 'filters', 'kind', 'status', 'records', 'empty', 'pageCount', 'previous', 'next', 'detail', 'closeDetail', 'detailTitle', 'facts',
   'configuration', 'audit', 'timeline', 'auditLimit', 'detailMessage', 'decision', 'command', 'reasonCode', 'reason', 'approvalField', 'approval',
-  'send', 'recovery', 'retry', 'consultAttempt', 'recoveryCopy'].map(id => [id, byId(id)]));
+  'send', 'recovery', 'retry', 'consultAttempt', 'recoveryCopy', 'preparation', 'newKind', 'newDraft', 'editDraft', 'readCurrent',
+  'editorDialog', 'editorForm', 'editorTitle', 'editorFields', 'editorReasonCode', 'editorReason', 'editorMessage', 'saveDraft', 'closeEditor'].map(id => [id, byId(id)]));
 const active = new Set(), weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const dayKinds = {working: 'Laborable', non_working: 'No laborable', holiday: 'Feriado', special: 'Especial'};
 const intervalKinds = {work: 'Trabajo', break: 'Pausa', on_call: 'Guardia'};
 const valueKinds = {integer: 'Entero', decimal: 'Decimal', boolean: 'Sí / No', time: 'Horario', code: 'Código'};
 let offset = 0, busy = false, focusBeforeDetail = null;
+const editor = new TimeCatalogEditor({container: nodes.editorFields, session: model, catalogRead: q => request(q),
+  directoryRead: url => request(null, null, url), changed: () => { if (model.scope) controls(); },
+  failed: e => { if (!(e instanceof StaleRead) && model.scope) editorNotice(e.message); }});
+function editorNotice(text) { nodes.editorMessage.textContent = text; nodes.editorMessage.hidden = !text; nodes.editorMessage.classList.toggle('error', Boolean(text)); }
 const make = (tag, value, className) => { const n = document.createElement(tag); if (value !== undefined) n.textContent = String(value); if (className) n.className = className; return n; };
 function notice(text, error = false, detail = false) {
   const node = detail ? nodes.detailMessage : nodes.message; node.textContent = text; node.classList.toggle('error', error); node.hidden = !text;
@@ -19,18 +25,19 @@ function notice(text, error = false, detail = false) {
 function wipe(text) {
   model.invalidate(); active.forEach(c => c.abort()); active.clear(); busy = false;
   nodes.detail.close(); nodes.decision.reset(); nodes.command.replaceChildren(); nodes.reasonCode.replaceChildren();
+  nodes.editorDialog.close(); editor.clear(); nodes.editorForm.reset(); nodes.editorReasonCode.replaceChildren(); editorNotice('');
   ['records', 'facts', 'configuration', 'timeline'].forEach(id => nodes[id].replaceChildren());
   nodes.workspace.hidden = true; nodes.decision.hidden = true; nodes.recovery.hidden = true;
   nodes.detailTitle.textContent = ''; notice('', false, true); nodes.refresh.disabled = false; nodes.refresh.textContent = 'Verificar acceso y actualizar';
   notice(text, true);
 }
 class StaleRead extends Error {}
-async function request(query = null, attempt = null) {
+async function request(query = null, attempt = null, directoryUrl = null) {
   if (document.hidden) throw new StaleRead();
   const generation = model.generation, controller = new AbortController(); active.add(controller);
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch('/api/internal-time-catalog' + (query ? '?' + new URLSearchParams(query) : ''), {
+    const response = await fetch(directoryUrl || '/api/internal-time-catalog' + (query ? '?' + new URLSearchParams(query) : ''), {
       method: attempt ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
       headers: {Accept: 'application/json', 'Cache-Control': 'no-store', ...(attempt ? {'Content-Type': 'application/json', 'Idempotency-Key': attempt.key} : {})},
       ...(attempt ? {body: attempt.body} : {}),
@@ -47,6 +54,7 @@ async function request(query = null, attempt = null) {
         ? payload.error : 'No se confirmó la operación. Conservá el mismo envío antes de reintentar.';
       throw new Error(text);
     }
+    if (directoryUrl) return payload;
     if (!timeCatalogExact(payload, ['ok', 'data']) || payload.ok !== true) throw new Error('La respuesta no pudo verificarse.');
     return payload.data;
   } catch (e) {
@@ -64,6 +72,17 @@ function controls() {
   nodes.records.querySelectorAll('button').forEach(n => n.disabled = locked);
   nodes.send.disabled = busy; nodes.retry.disabled = busy; nodes.consultAttempt.disabled = busy;
   nodes.decision.querySelectorAll('select,textarea,input').forEach(n => n.disabled = locked);
+  nodes.preparation.hidden = !model.permissions.canPropose;
+  nodes.newKind.disabled = locked; nodes.newDraft.disabled = locked;
+  nodes.newKind.querySelector('option[value="assignment"]').disabled = !model.permissions.canReadAssignments;
+  if (!model.permissions.canReadAssignments && nodes.newKind.value === 'assignment') nodes.newKind.value = 'calendar';
+  nodes.editDraft.disabled = locked; nodes.readCurrent.disabled = locked;
+  nodes.editorForm.querySelectorAll('input,select,textarea,button').forEach(n => {
+    if (locked || editor.loading) { if (!n.dataset.locked) { n.dataset.beforeLock=String(n.disabled); n.dataset.locked='true'; } n.disabled=true; }
+    else if (n.dataset.locked) { n.disabled=n.dataset.beforeLock==='true'; delete n.dataset.locked; delete n.dataset.beforeLock; }
+  });
+  if (!locked && !editor.loading) editor.limit(); nodes.saveDraft.disabled = locked || editor.loading;
+  nodes.consultAttempt.disabled = busy || (model.pending && JSON.parse(model.pending.body).payload.id === null);
 }
 function renderSummary() {
   const s = model.summary;
@@ -74,7 +93,7 @@ function renderList() {
   nodes.records.replaceChildren(); nodes.empty.hidden = model.records.length !== 0;
   model.records.forEach(r => {
     const item = make('article', undefined, 'record'), title = make('div');
-    title.append(make('strong', kinds[r.kind]), make('small', 'Revisión ' + r.revision + ' · Versión ' + r.version));
+    title.append(make('strong', r.reference?.title || kinds[r.kind]), make('small', kinds[r.kind] + ' · Revisión ' + r.revision + ' · Versión ' + r.version));
     const c = r.configuration;
     if (r.kind === 'calendar') title.append(make('small', `${c.days.length} días declarados`));
     if (r.kind === 'shift') title.append(make('small', `${c.intervals.length} tramos declarados`));
@@ -122,7 +141,17 @@ function renderConfiguration(r) {
     });
   } else {
     configurationRow('Revisiones vinculadas', `Turno: ${c.shiftRevision} · Calendario: ${c.calendarRevision} · Reglas: ${c.ruleProfileRevision}`);
-    nodes.configuration.append(make('p', 'El catálogo no devuelve la identidad del contrato destinatario. Su revisión y aprobación desde esta pantalla quedan pendientes.', 'boundary'));
+    if (!model.assignment) nodes.configuration.append(make('p', 'No hay un contrato destinatario verificado en este detalle. Consultalo con permiso de acceso al padrón antes de decidir.', 'boundary'));
+    else {
+      configurationRow('Contrato destinatario', `Legajo ${model.assignment.target.legajo} · ${model.assignment.target.name || 'Nombre no informado'}`);
+      for (const key of ['shift','calendar','ruleProfile']) {
+        const linked = model.assignment[key]; nodes.configuration.append(make('h3', `${kinds[linked.kind]} · ${linked.reference?.title || 'Sin nombre visible'} · Revisión ${linked.revision}`));
+        configurationRow('Vigencia vinculada', range(linked)); configurationRow('Estado de la revisión vinculada',statuses[linked.status]);
+        if (key === 'shift') { const s=linked.configuration; configurationRow('Tolerancias', `Entrada ${s.entryToleranceSeconds} s · Salida ${s.exitToleranceSeconds} s`); s.intervals.forEach(i=>configurationRow(`${weekdays[i.day-1]} · ${intervalKinds[i.kind]}`,`${i.start} → ${i.end}${i.crossesMidnight?' del día siguiente':''}`)); }
+        if (key === 'calendar') linked.configuration.days.forEach(d=>configurationRow(catalogCivilDate(d.date),`${dayKinds[d.kind]} · ${d.code}${d.evidencePresent?' · Huella registrada':''}`));
+        if (key === 'ruleProfile') linked.configuration.parameters.forEach(p=>configurationRow(p.key,`${p[({integer:'integerValue',decimal:'decimalValue',boolean:'booleanValue',time:'timeValue',code:'codeValue'})[p.valueKind]]} · ${p.unitCode}`));
+      }
+    }
   }
 }
 function updateDecision() {
@@ -132,9 +161,13 @@ function updateDecision() {
   nodes.send.textContent = commands[command] || 'Registrar decisión';
 }
 function renderDetail() {
-  const r = model.selected; nodes.detailTitle.textContent = `${kinds[r.kind]} · Revisión ${r.revision}`;
+  const r = model.selected;
+  if (!r) { nodes.detailTitle.textContent = 'Guardar borrador · Envío sin confirmación'; nodes.facts.replaceChildren(); nodes.configuration.replaceChildren(); nodes.timeline.replaceChildren(); nodes.audit.hidden = true; nodes.editDraft.hidden = true; nodes.readCurrent.hidden = true; nodes.decision.hidden = true; nodes.recovery.hidden = !model.pending; nodes.recoveryCopy.textContent = 'Reintentá la misma clave para recuperar el acuse de creación. Consultar la lista no confirma por sí solo este envío.'; controls(); return; }
+  nodes.detailTitle.textContent = `${r.reference?.title || kinds[r.kind]} · Revisión ${r.revision}`;
   nodes.facts.replaceChildren(); fact('Estado', statuses[r.status]); fact('Versión registrada', String(r.version)); fact('Vigencia', range(r));
   fact('Horario municipal', 'Mendoza (UTC−3)'); fact('Fuente de referencia', r.sourceLinked ? 'Referencia vinculada' : 'Sin referencia vinculada');
+  if (r.reference?.code) fact('Código estable', r.reference.code);
+  if (r.reference?.legalReference) fact('Referencia documental', r.reference.legalReference);
   renderConfiguration(r); nodes.audit.hidden = !model.auditAvailable; nodes.auditLimit.hidden = !model.timelineMayBeIncomplete;
   nodes.timeline.replaceChildren(); model.timeline.forEach(e => {
     const li = make('li', commands[e.command] || ({create_draft: 'Borrador creado', update_draft: 'Borrador corregido'})[e.command]);
@@ -144,6 +177,7 @@ function renderDetail() {
   nodes.decision.reset(); nodes.command.replaceChildren(); const allowed = model.commands();
   allowed.forEach(c => { const option = make('option', commands[c]); option.value = c; nodes.command.append(option); });
   nodes.decision.hidden = !allowed.length; nodes.recovery.hidden = !model.pending;
+  nodes.editDraft.hidden = model.editPayload === null || Boolean(model.pending); nodes.readCurrent.hidden = Boolean(model.pending);
   nodes.recoveryCopy.textContent = 'El envío puede haberse registrado. El contenido quedó bloqueado para evitar otra decisión.';
   updateDecision(); notice('', false, true); controls();
 }
@@ -163,10 +197,10 @@ async function sendPending() {
     const attempt = model.attempt(); model.bootstrap(await request({resource: 'bootstrap'})); model.attempt();
     const outcome = model.confirm(await request(null, attempt)); renderDetail();
     notice('');
-    notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Decisión registrada. No genera cálculos ni liquidaciones.', false, true);
+    notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Operación registrada. No genera cálculos ni liquidaciones.', false, true);
     // A historical replay can be older than current state. Do not enable a new
     // decision based on that receipt; obtain a fresh detail first.
-    nodes.decision.hidden = true; renderSummary(); await readList();
+    nodes.decision.hidden = true; model.bootstrap(await request({resource:'bootstrap'})); renderSummary(); await readList();
   } catch (e) {
     if (!(e instanceof StaleRead)) {
       if (!model.scope) wipe(e.message);
@@ -185,6 +219,32 @@ nodes.showSubmitted.addEventListener('click', () => { if (busy || model.pending)
 nodes.previous.addEventListener('click', () => { if (busy || model.pending || !offset) return; offset -= 25; refresh(); });
 nodes.next.addEventListener('click', () => { if (busy || model.pending || !model.page?.hasMore) return; offset += 25; refresh(); });
 nodes.closeDetail.addEventListener('click', () => nodes.detail.close());
+nodes.readCurrent.addEventListener('click', () => { if (model.selected) openDetail(model.selected.id); });
+function openEditor(editing) {
+  if (busy || model.pending || !model.permissions.canPropose || document.hidden) return;
+  if (editing && !model.editPayload) return;
+  const kind = editing ? model.selected.kind : nodes.newKind.value;
+  if (kind === 'assignment' && !model.permissions.canReadAssignments) return;
+  if (!editing) { model.selected=null; model.editPayload=null; model.assignment=null; model.allowedCommands=[]; }
+  nodes.detail.close(); editor.start(kind, editing ? model.editPayload : null, editing ? model.assignment : null);
+  nodes.editorTitle.textContent = editing ? 'Corregir borrador' : 'Preparar ' + kinds[kind].toLowerCase();
+  nodes.editorReason.value=''; nodes.editorReasonCode.replaceChildren();
+  const allowed = editing ? ['draft_corrected'] : ['catalog_onboarding','new_revision'];
+  allowed.forEach(c=>{const n=make('option',({draft_corrected:'Corregir configuración',catalog_onboarding:'Registrar configuración',new_revision:'Nueva revisión'})[c]);n.value=c;nodes.editorReasonCode.append(n);});
+  editorNotice(''); nodes.editorDialog.showModal(); controls(); editor.fields.title.focus();
+}
+nodes.newDraft.addEventListener('click',()=>openEditor(false)); nodes.editDraft.addEventListener('click',()=>openEditor(true));
+nodes.closeEditor.addEventListener('click',()=>nodes.editorDialog.close());
+nodes.editorDialog.addEventListener('close',()=>{editor.clear();nodes.editorReason.value='';});
+nodes.editorForm.addEventListener('submit',async e=>{
+  e.preventDefault();if(busy || model.pending || document.hidden)return;
+  const generation=model.generation;busy=true;controls();
+  try { const payload=await editor.payload(); if(generation!==model.generation || document.hidden) return;
+    model.prepareDraft(editor.kind,payload,nodes.editorReasonCode.value,nodes.editorReason.value,crypto.randomUUID(),Boolean(editor.original));
+    nodes.editorDialog.close(); renderDetail();nodes.detail.showModal();busy=false;await sendPending();
+  } catch(error) { if(generation===model.generation)editorNotice(error.message); }
+  finally{if(generation===model.generation){busy=false;controls();}}
+});
 nodes.detail.addEventListener('close', () => { if (focusBeforeDetail?.isConnected) focusBeforeDetail.focus(); });
 nodes.command.addEventListener('change', updateDecision);
 nodes.decision.addEventListener('submit', e => {

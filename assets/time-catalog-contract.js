@@ -39,6 +39,17 @@ export function timeCatalogNumeric(v, kind) {
   const trimmed = v.includes('.') ? v.replace(/0+$/, '').replace(/\.$/, '') : v;
   return trimmed === '-0' ? '0' : trimmed;
 }
+export function timeCatalogReference(v) {
+  const text = (s, min, max) => typeof s === 'string' && s === s.trim() && s.length >= min && s.length <= max && !/[\u0000-\u001f\u007f]/.test(s);
+  if (!timeCatalogExact(v, ['title'], ['code', 'legalReference']) || !text(v.title, 3, 120)
+    || (Object.hasOwn(v, 'code') && (typeof v.code !== 'string' || !/^[a-z][a-z0-9_.-]{1,63}$/.test(v.code)))
+    || (Object.hasOwn(v, 'legalReference') && !text(v.legalReference, 3, 200))) fail('Revisá el nombre de la configuración, su código y la referencia documental.');
+  return v;
+}
+export async function timeCatalogReferenceKey(kind, code) {
+  if (!TIME_CATALOG_KINDS.includes(kind) || typeof code !== 'string' || !/^[a-z][a-z0-9_.-]{1,63}$/.test(code)) fail('Ingresá un código estable para esta configuración.');
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(kind + ':' + code))), b => b.toString(16).padStart(2, '0')).join('');
+}
 function intervals(rows) {
   if (!list(rows, 1, 224) || !unique(rows, r => `${r.day}:${r.sequence}`)) fail();
   const segments = [];
@@ -88,11 +99,12 @@ function spec(kind, s, from, to, snapshot = false) {
     || !Object.values(s).every(timeCatalogUuid)) fail();
 }
 export function timeCatalogPayload(kind, p) {
-  if (!TIME_CATALOG_KINDS.includes(kind) || !timeCatalogExact(p, ['effectiveFrom', 'logicalKeyHash', 'revision', 'spec', 'timezone'], ['effectiveTo', 'sourceContractId'])
+  if (!TIME_CATALOG_KINDS.includes(kind) || !timeCatalogExact(p, ['effectiveFrom', 'logicalKeyHash', 'revision', 'spec', 'timezone'], ['effectiveTo', 'sourceContractId', 'reference'])
     || !timeCatalogDate(p.effectiveFrom) || (Object.hasOwn(p, 'effectiveTo') && (!timeCatalogDate(p.effectiveTo) || p.effectiveTo < p.effectiveFrom))
     || !timeCatalogSha(p.logicalKeyHash) || !timeCatalogInteger(p.revision, 1, 999999)
     || p.timezone !== 'America/Argentina/Mendoza' || (Object.hasOwn(p, 'sourceContractId') && !timeCatalogUuid(p.sourceContractId))) fail();
   spec(kind, p.spec, p.effectiveFrom, p.effectiveTo);
+  if (Object.hasOwn(p, 'reference')) timeCatalogReference(p.reference);
   return structuredClone(p);
 }
 export function timeCatalogCommand(body) {
@@ -108,7 +120,7 @@ export function timeCatalogCommand(body) {
   return structuredClone(body);
 }
 export function timeCatalogRecord(r) {
-  if (!timeCatalogExact(r, ['id', 'kind', 'revision', 'effectiveFrom', 'timezone', 'sourceLinked', 'status', 'version', 'reasonCode', 'configuration', 'timestamps'], ['effectiveTo'])
+  if (!timeCatalogExact(r, ['id', 'kind', 'revision', 'effectiveFrom', 'timezone', 'sourceLinked', 'status', 'version', 'reasonCode', 'configuration', 'timestamps'], ['effectiveTo', 'reference'])
     || !timeCatalogUuid(r.id) || !TIME_CATALOG_KINDS.includes(r.kind) || !TIME_CATALOG_STATUSES.includes(r.status)
     || !timeCatalogInteger(r.revision, 1, 999999) || !timeCatalogInteger(r.version, 1, 2147483647)
     || !timeCatalogDate(r.effectiveFrom) || (Object.hasOwn(r, 'effectiveTo') && (!timeCatalogDate(r.effectiveTo) || r.effectiveTo < r.effectiveFrom))
@@ -117,6 +129,7 @@ export function timeCatalogRecord(r) {
     || !timeCatalogExact(r.timestamps, ['createdAt', 'updatedAt'], ['submittedAt', 'decidedAt', 'retiredAt'])
     || !Object.values(r.timestamps).every(t => typeof t === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(t) && Number.isFinite(Date.parse(t)))) fail('La respuesta del catálogo no pudo verificarse.');
   spec(r.kind, r.configuration, r.effectiveFrom, r.effectiveTo, true);
+  if (Object.hasOwn(r, 'reference')) timeCatalogReference(r.reference);
   return r;
 }
 export function timeCatalogMatches(r, body) {
@@ -128,6 +141,7 @@ export function timeCatalogMatches(r, body) {
   const p = body.payload;
   if (r.kind !== body.kind || r.revision !== p.revision || r.effectiveFrom !== p.effectiveFrom || r.effectiveTo !== p.effectiveTo
     || r.sourceLinked !== Object.hasOwn(p, 'sourceContractId')) fail('La confirmación contiene otra configuración.');
+  if (p.reference && ['title','code','legalReference'].some(k => r.reference?.[k] !== p.reference[k])) fail('La confirmación contiene otra referencia.');
   if (r.kind === 'assignment') return r; // References remain deliberately private in the SQL facade.
   const s = structuredClone(p.spec);
   if (r.kind === 'calendar') s.days = s.days.map(({evidenceSha256, ...d}) => ({...d, evidencePresent: evidenceSha256 !== undefined})).sort((a, b) => a.date.localeCompare(b.date));
@@ -139,4 +153,20 @@ export function timeCatalogMatches(r, body) {
   if (r.kind === 'rule_profile') c.parameters.forEach(p => { if (p.valueKind === 'decimal') p.decimalValue = timeCatalogNumeric(p.decimalValue, 'decimal'); });
   if (equal(c) !== equal(s)) fail('La confirmación contiene otros valores.');
   return r;
+}
+export function timeCatalogEditPayload(r, p) {
+  if (r.status !== 'draft') fail('Esta revisión ya no permite corregir el borrador.');
+  timeCatalogPayload(r.kind, p);
+  timeCatalogMatches(r, {command:'update_draft',id:r.id,kind:r.kind,expectedVersion:r.version-1,reasonCode:r.reasonCode,payload:p});
+  return p;
+}
+export function timeCatalogAssignment(v, r) {
+  if (r.kind !== 'assignment' || !timeCatalogExact(v, ['target','shift','calendar','ruleProfile'])
+    || !timeCatalogExact(v.target, ['contractId','legajo','name']) || !timeCatalogUuid(v.target.contractId)
+    || typeof v.target.legajo !== 'string' || !/^[1-9]\d{0,19}$/.test(v.target.legajo)
+    || !(v.target.name === null || (typeof v.target.name === 'string' && v.target.name.length >= 1 && v.target.name.length <= 240 && !/[\u0000-\u001f\u007f]/.test(v.target.name)))) fail('No se pudo verificar el contrato de la asignación.');
+  for (const [key, kind, revision] of [['shift','shift','shiftRevision'],['calendar','calendar','calendarRevision'],['ruleProfile','rule_profile','ruleProfileRevision']]) {
+    timeCatalogRecord(v[key]); if (v[key].kind !== kind || v[key].revision !== r.configuration[revision]) fail('La asignación contiene otra revisión vinculada.');
+  }
+  return v;
 }
