@@ -161,7 +161,7 @@ export function mountNativeLeave(host,{contractId}={}){
    }
    if(!valid(seq))return;validateNativeLeaveReceipt(receipt,contractId,attempt.body.payload);if(receipt.requestSha256!==attempt.fingerprint)throw issue('CONTRACT_INVALID',503);
    state.pending=null;draft=null;decision=null;$('[data-nleave-form]').hidden=true;$('[data-nleave-decision]').hidden=true;confirmed=true;
-  }catch(error){if(!valid(seq))return;if(recover||attempt.uncertain||started){attempt.uncertain=true;attempt.retryReady=recover&&error.status===404;}else state.pending=null;failure(error);if(bootstrap)render();}
+  }catch(error){if(!valid(seq))return;if(recover||attempt.uncertain||started&&(!error.status||error.status>=500||[401,403].includes(error.status))){attempt.uncertain=true;attempt.retryReady=recover&&error.status===404;}else state.pending=null;failure(error);if(bootstrap)render();}
   finally{if(valid(seq)){busy=false;controls();}}
   if(confirmed&&valid(seq)){await load();if(valid(epoch)&&bootstrap)say('Operación confirmada. Se conserva el historial. No se modificaron haberes ni pagos.');}
  }

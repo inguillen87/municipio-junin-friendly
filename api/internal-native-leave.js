@@ -4,6 +4,7 @@ import {principalHasCapabilities} from '../lib/internal-resource-access.js';
 import {schoolCertificateHttp} from './internal-family-certificates.js';
 import {schoolCertificateSafeError} from '../lib/internal-family-certificates.js';
 import {readPrivateJsonBody} from './internal-employment-catalog.js';
+import {employeeContext} from '../lib/internal-native-employees.js';
 import {nativeLeaveExact,nativeLeaveCommand} from '../assets/native-leave-contract.js';
 import {NATIVE_LEAVE_READ,NATIVE_LEAVE_CAPS,NATIVE_LEAVE_MAX_BYTES,nativeLeaveFail,nativeLeaveError,nativeLeaveOperation} from '../lib/internal-native-leave.js';
 export const config={api:{bodyParser:false}};
@@ -29,6 +30,7 @@ export function createNativeLeaveHandler(deps={}){
    if(!access)return;
    if(access.mode!=='managed'||access.principal?.tenant?.source!=='membership'||!principalHasCapabilities(access.principal,NATIVE_LEAVE_READ))nativeLeaveFail('FORBIDDEN',403,'La membresía no permite consultar el legajo y sus solicitudes.');
    const session=sessionFor(access,env);
+   employeeContext(access.principal,session);
    if(method==='POST'){
     const body=await readPrivateJsonBody(req,{maxBytes:NATIVE_LEAVE_MAX_BYTES});
     if(!nativeLeaveExact(body,['operation','payload'])||body.operation!=='command')nativeLeaveFail('INPUT_INVALID',400,'Operación o formulario no admitidos.');

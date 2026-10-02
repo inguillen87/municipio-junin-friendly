@@ -141,7 +141,7 @@ BEGIN
   OR (v->>'mode'='not_applicable' AND v->'entitledUnits' IS DISTINCT FROM 'null'::jsonb)
  THEN RAISE EXCEPTION 'NATIVE_LEAVE_INPUT_INVALID'; END IF;
  FOR field IN SELECT unnest(ARRAY['legalReference','reason']) LOOP
-  IF jsonb_typeof(v->field) IS DISTINCT FROM 'string' OR length(v->>field) NOT BETWEEN CASE field WHEN 'reason' THEN 10 ELSE 1 END AND CASE field WHEN 'reason' THEN 1000 ELSE 240 END OR v->>field~'[<>[:cntrl:]]' OR v->>field<>normalize(btrim(v->>field),NFC) THEN RAISE EXCEPTION 'NATIVE_LEAVE_INPUT_INVALID'; END IF;
+  IF jsonb_typeof(v->field) IS DISTINCT FROM 'string' OR length(v->>field) NOT BETWEEN (CASE field WHEN 'reason' THEN 10 ELSE 1 END) AND (CASE field WHEN 'reason' THEN 1000 ELSE 240 END) OR v->>field~'[<>[:cntrl:]]' OR v->>field<>normalize(btrim(v->>field),NFC) THEN RAISE EXCEPTION 'NATIVE_LEAVE_INPUT_INVALID'; END IF;
  END LOOP;
  p:=jsonb_build_object('reasonCode',v->>'reasonCode','policyVersionId','mendoza-ley-5811-title-vi.v1','policyRuleId',NULL,'startsOn','2000-01-01','endsOn','2000-01-01','durationUnit',v->>'durationUnit','startsAtLocal',CASE WHEN v->>'durationUnit'='minute' THEN '09:00' END,'endsAtLocal',CASE WHEN v->>'durationUnit'='minute' THEN '09:01' END,'confidentiality','restricted','employeeNote',NULL);
  PERFORM public.native_leave_payload_v1(p); RETURN v;
@@ -325,7 +325,7 @@ BEGIN
   FOR allocation IN SELECT a FROM jsonb_array_elements(public.native_leave_allocations_v1(payload_value)) a LOOP
    SELECT b INTO pool FROM jsonb_array_elements(balance_value) b WHERE b->>'year'=allocation->>'year' AND b->>'reasonCode'=allocation->>'reasonCode' AND b->>'durationUnit'=allocation->>'durationUnit';
    IF pool IS NULL OR pool->>'mode'='unavailable' THEN RAISE EXCEPTION 'NATIVE_LEAVE_BALANCE_UNAVAILABLE'; END IF;
-   IF pool->>'mode'='confirmed' AND(pool->>'availableUnits')::integer+CASE WHEN command_name='approve' THEN(allocation->>'units')::integer ELSE 0 END<(allocation->>'units')::integer THEN RAISE EXCEPTION 'NATIVE_LEAVE_BALANCE_INSUFFICIENT'; END IF;
+   IF pool->>'mode'='confirmed' AND(pool->>'availableUnits')::integer+(CASE WHEN command_name='approve' THEN(allocation->>'units')::integer ELSE 0 END)<(allocation->>'units')::integer THEN RAISE EXCEPTION 'NATIVE_LEAVE_BALANCE_INSUFFICIENT'; END IF;
   END LOOP;
  END IF;
  IF(SELECT count(*) FROM public.native_leave_event e WHERE e.tenant_id=(ctx->>'tenantId')::uuid AND e.source_binding_id=(ctx->>'sourceBindingId')::uuid AND e.contract_id=target)>=5000
