@@ -70,8 +70,14 @@ BEGIN
  ctx:=ctx||jsonb_build_object('actorEmail',lower(btrim(p->>'actorEmail')),'actorLabel',left(coalesce((SELECT nullif(btrim(full_name),'') FROM public.person_identity WHERE id=(ctx->>'actorPersonId')::uuid),'Responsable municipal'),160));$new$),
  ('public.native_leave_authorized_v1(jsonb,uuid,text,text,text)','35fe033688e5c53bf415fc4ebd74686f3ea1ae430d9a20b1210a1f1b949ee2ba',
  $old$ SELECT * INTO ec FROM public.employment_contract WHERE id=target$old$,
- $new$ IF NOT public.action_center_context_has_capability(ctx,'workforce.employee.read') AND target IS DISTINCT FROM (ctx->>'employmentContractId')::uuid THEN RETURN false; END IF;
+ $new$ IF NOT public.action_center_context_has_capability(ctx,'workforce.employee.read') THEN
+  IF target IS DISTINCT FROM (ctx->>'employmentContractId')::uuid OR command_name NOT IN('read','create','update_draft','submit','cancel') OR(command_name='cancel' AND current_status='approved') OR NOT public.action_center_context_has_capability(ctx,CASE command_name WHEN 'read' THEN 'leave.request.self.read' WHEN 'create' THEN 'leave.request.self.create' WHEN 'update_draft' THEN 'leave.request.self.update' WHEN 'submit' THEN 'leave.request.self.submit' WHEN 'cancel' THEN 'leave.request.self.cancel' END) THEN RETURN false; END IF;
+ END IF;
  SELECT * INTO ec FROM public.employment_contract WHERE id=target$new$),
+ ('public.native_leave_command_v1(jsonb,jsonb,uuid)','0040857e6ea4fa11363a90d8eba87b51e2c9516e41bda879a98206c5917ce250',
+ $old$ -- Reject a read-only actor before inspecting the actor's employment link.$old$,
+ $new$ IF command_name IN('approve','reject','profile_propose','profile_approve','profile_reject') AND NOT public.action_center_context_has_capability(ctx,'workforce.employee.read') THEN RAISE EXCEPTION 'NATIVE_LEAVE_FORBIDDEN'; END IF;
+ -- Reject a read-only actor before inspecting the actor's employment link.$new$),
  ('public.tenant_action_lookup_employment_v2(text,uuid,integer,text,uuid,text,integer)','66e987599d74f6fc70249d323eb5f6a2fc971c6f66caa1cb7a54319c1ce26031',
  $old$  RETURN jsonb_build_object(
     'tenantId', membership.tenant_id, 'membershipId', membership.id,
@@ -96,7 +102,7 @@ BEGIN
   );$new$)
  ) patches(sig,sha,old_value,new_value) LOOP
   SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure(signature);
-  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
+  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)','public.native_leave_command_v1(jsonb,jsonb,uuid)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
   IF p.oid IS NULL OR p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prokind<>'f'
    OR p.proconfig IS DISTINCT FROM expected_config OR p.provolatile IS DISTINCT FROM (CASE WHEN signature='public.native_leave_authorized_v1(jsonb,uuid,text,text,text)' THEN 's' ELSE 'v' END)::"char" OR p.proparallel<>'u' OR p.proleakproof OR p.proretset
    OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
