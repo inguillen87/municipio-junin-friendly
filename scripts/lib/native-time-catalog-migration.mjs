@@ -9,6 +9,7 @@ export const NATIVE_TIME_PATCHES = Object.freeze([
   ['time_catalog_assert_approvable_v1', 'uuid,uuid,uuid'],
   ['time_catalog_apply_command_v1', 'text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text'],
   ['time_catalog_guard_draft_child_v1', ''],
+  ['time_catalog_principal_projection_v1', 'jsonb'],
 ]);
 const hash = s => createHash('sha256').update(s).digest('hex');
 export function timeFunction(source, name) {
@@ -42,11 +43,19 @@ export function nativeTimeDefinitions(source) {
     actor_person_id:=public.time_catalog_native_actor_v2(
       (p_context->>'tenantId')::uuid,(p_context->>'certifiedBindingId')::uuid,
       (p_context->>'membershipId')::uuid);
+    SELECT link.employment_contract_id INTO actor_employment_contract_id
+    FROM tenant_action_employment_link link
+    WHERE link.membership_id=(p_context->>'membershipId')::uuid
+      AND link.tenant_id=(p_context->>'tenantId')::uuid
+      AND link.source_binding_id=(p_context->>'certifiedBindingId')::uuid
+      AND link.active IS TRUE;
   ELSE
 ${oldActor}  END IF;
 
 `);
   definitions.time_catalog_assert_actor_authority_v1 = d;
+  definitions.time_catalog_assert_actor_authority_v1=replaceOnce(definitions.time_catalog_assert_actor_authority_v1,
+    "    'actorPersonId', actor_person_id,", "    'actorPersonId', actor_person_id,\n    'employmentContractId', actor_employment_contract_id,");
 
   d = originals.time_catalog_assert_person_sod_v1.definition;
   const installedSodLine="  IF (has_propose AND has_approve AND NOT public.tenant_iam_operational_person_pair_v1(p_tenant_id,p_actor_person_id,p_certified_binding_id,'catalog')) OR (has_approve AND has_overtime_post) THEN";
@@ -132,9 +141,18 @@ ${oldAssignment}    END IF;
   // All item usages are JSON-array SQL aliases. The unused PL/pgSQL local
   // collides with them under PostgreSQL's default ambiguity checks.
   definitions.time_catalog_apply_command_v1=replaceOnce(originals.time_catalog_apply_command_v1.definition,'  item jsonb;\n','');
+  definitions.time_catalog_apply_command_v1=replaceOnce(definitions.time_catalog_apply_command_v1,
+    "      'replayed', true,", "      'replayed', true,\n      'requestSha256', existing_event.command_hash,\n      'attemptKey', existing_event.idempotency_key,");
+  definitions.time_catalog_apply_command_v1=replaceOnce(definitions.time_catalog_apply_command_v1,
+    "    'data', after_value,", "    'data', after_value,\n    'requestSha256', lower(p_command_hash),\n    'attemptKey', p_idempotency_key,");
   definitions.time_catalog_guard_draft_child_v1=replaceOnce(originals.time_catalog_guard_draft_child_v1.definition,
     "  IF TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE'\n     AND (NEW.day_date < entry_row.effective_from\n       OR NEW.day_date > COALESCE(entry_row.effective_to, DATE 'infinity')) THEN\n    RAISE EXCEPTION 'TIME_CATALOG_CALENDAR_DAY_OUTSIDE_EFFECTIVE_RANGE' USING ERRCODE = 'P0001';\n  END IF;",
     "  IF TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE' THEN\n    IF NEW.day_date < entry_row.effective_from\n       OR NEW.day_date > COALESCE(entry_row.effective_to, DATE 'infinity') THEN\n      RAISE EXCEPTION 'TIME_CATALOG_CALENDAR_DAY_OUTSIDE_EFFECTIVE_RANGE' USING ERRCODE = 'P0001';\n    END IF;\n  END IF;");
+  // Opaque scope pins the licensed binding and authority without projecting
+  // actor, tenant, membership or employment identifiers. An API command reads
+  // this facade and writes in the same SQL statement, retaining its locks.
+  definitions.time_catalog_principal_projection_v1=replaceOnce(originals.time_catalog_principal_projection_v1.definition,
+    "  ]::text[]", "  ]::text[] || jsonb_build_object('scopeVersion',\n    encode(public.digest(jsonb_build_array(\n      p_context->>'tenantId',p_context->>'membershipId',\n      p_context->>'certifiedBindingId',p_context->>'authorityVersion',\n      p_context->>'actorPersonId',p_context->>'employmentContractId',\n      p_context->>'roleKey',p_context->'capabilities'\n    )::text,'sha256'),'hex'))");
   return NATIVE_TIME_PATCHES.map(([name, args]) => ({name, args, oldSha: hash(originals[name].body), definition: definitions[name], newSha: hash(timeFunction(definitions[name], name).body)}));
 }
 

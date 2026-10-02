@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentLifecycleQa} from './verify-native-employment-lifecycle-sql.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 import {nativeTimePrerequisiteSource} from './prepare-native-time-catalog.mjs';
+import {TIME_CATALOG_COMMAND_SQL} from '../lib/internal-time-catalog.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=n=>fs.readFileSync(path.join(root,'scripts/migrations',n),'utf8').replaceAll('\r\n','\n');
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
@@ -33,7 +34,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  CREATE FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS 'SELECT false';
  REVOKE ALL ON FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;
  ${relocate(splitPostgresStatements(nativeTimePrerequisiteSource()).find(s=>s.includes('CREATE OR REPLACE FUNCTION time_catalog_assert_person_sod_v1(')))};
- time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1'));
+ time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1','time_catalog_principal_projection_v1'));
  time_native_payload:=legacy_draft||jsonb_build_object('legajo','','dni','99000310','cuil','20990003107','fullName','Actor propio sintético','startDate','2020-01-01');
  time_native_receipt:=native_employee_create_v1(maker,time_native_payload,native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_native_contract:=(time_native_receipt->>'contractId')::uuid;
@@ -56,9 +57,15 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  `);
  reject('format('+q('SELECT time_catalog_bootstrap_v1(%1$L,%2$L::uuid,1,%3$L,%4$L::uuid,%5$L::uuid)')+',maker->>\'actorEmail\',maker->>\'actorSessionId\',maker->>\'releaseSha\',maker->>\'tenantId\',maker->>\'membershipId\')','TIME_CATALOG_EMPLOYMENT_REQUIRED','011 actually blocks an actor created solely in MuniControl before116');
  exec('EXECUTE '+q(normalize(relocate(read('116-native-time-catalog.sql'))))+';');
- ok(`time_old_proof=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1'))`,'116 keeps the original6 OIDs, owners and ACLs');
+ ok(`time_old_proof=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1','time_catalog_principal_projection_v1'))`,'116 keeps the original7 OIDs, owners and ACLs');
  exec('time_boot:=time_catalog_bootstrap_v1('+args()+');');
  ok("time_boot->>'catalogReady'='false' AND time_boot->>'minutesCalculated'='false' AND time_boot->>'payrollPosted'='false'",'native catalog access does not assert attendance or payroll autonomy');
+ ok("time_boot#>>'{principal,scopeVersion}'~'^[a-f0-9]{64}$' AND NOT (time_boot->'principal' ?| ARRAY['tenantId','membershipId','actorPersonId','employmentContractId','certifiedBindingId','email'])",'opaque scope hides tenant, actor and contract coordinates');
+ exec("time_scope_context:=time_catalog_assert_actor_authority_v1(time_source_assert_tenant_session_v1("+args()+"),'time.catalog.read');");
+ for(const [field,value] of [['certifiedBindingId',q(ids.foreignBinding)],['employmentContractId','time_native_checker::text'],['actorPersonId',q(ids.samePerson)],['authorityVersion',"'2'"],['capabilities',"NULL"]]){
+  const modified=field==='capabilities'?"jsonb_set(time_scope_context,'{capabilities}','[\"time.catalog.read\"]'::jsonb)":`jsonb_set(time_scope_context,'{${field}}',to_jsonb(${value}::text))`;
+  ok(`time_catalog_principal_projection_v1(${modified})->>'scopeVersion' IS DISTINCT FROM time_boot#>>'{principal,scopeVersion}'`,'scope changes with '+field+' before a command is allowed');
+ }
  ok(`time_catalog_native_actor_v2(${q(ids.tenant)}::uuid,${q(ids.binding)}::uuid,${q(ids.maker)}::uuid)=time_native_person`,'own actor resolves through immutable canonical registration');
  ok(`time_catalog_native_subject_v2(${q(ids.tenant)}::uuid,${q(ids.binding)}::uuid,target_id,'2026-09-23','2026-10-01')=(SELECT person_id FROM employment_contract WHERE id=target_id)`,'inclusive closing date remains a valid native assignment');
  reject('format('+q('SELECT time_catalog_native_subject_v2(%L::uuid,%L::uuid,%L::uuid,%L::date,%L::date)')+','+q(ids.tenant)+','+q(ids.binding)+",target_id,'2026-09-23','2027-02-01')",'TIME_CATALOG_NATIVE_PERIOD_INVALID','an assignment cannot bridge the recorded termination and reentry gap');
@@ -66,6 +73,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  const payload={effectiveFrom:'2026-09-01',effectiveTo:'2027-12-31',logicalKeyHash:'c'.repeat(64),revision:1,timezone:'America/Argentina/Mendoza',spec:{days:[{date:'2026-09-23',kind:'working',code:'qa_day'}]}};
  exec('time_payload:='+j(payload)+';time_key:=gen_random_uuid();time_receipt:='+command('create_draft','maker','NULL',0,'calendar','time_payload','time_key')+";time_calendar:=(time_receipt#>>'{data,id}')::uuid;");
  ok("time_receipt#>>'{data,status}'='draft' AND time_receipt#>>'{data,kind}'='calendar'",'actual011 writer creates the draft with a native proposer');
+ ok("time_receipt->>'attemptKey'=time_key::text AND time_receipt->>'requestSha256'=repeat('a',64)",'fresh acknowledgement carries the original attempt and command hash');
  ok(command('create_draft','maker','NULL',0,'calendar','time_payload','time_key')+"->>'replayed'='true'",'exact same-key and same-body retry preserves its receipt');
  exec('time_receipt:='+command('submit','maker','time_calendar',1)+';');
  ok("time_receipt#>>'{data,status}'='submitted'",'native proposer submits for independent review');
@@ -92,10 +100,22 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  if(requireConcurrency){
   reject('format('+q('SELECT time_catalog_native_subject_v2(%L::uuid,%L::uuid,%L::uuid,%L::date,%L::date)')+','+q(ids.tenant)+','+q(ids.binding)+','+q(busyContract)+",'2026-09-01','2026-09-30')",'TIME_CATALOG_SESSION_BUSY','independent connection holds the same110 work-period lock used by native catalog');
  }
+ // Execute the exact API CTE with SQL typed parameters, including its filter.
+ // A mismatch must not invoke the volatile writer or append an event.
+ const rawSpec='{"parameters":[{"key":"qa_decimal_large","valueKind":"decimal","unitCode":"qa_units","value":99999999999999.123456},{"key":"qa_integer_large","valueKind":"integer","unitCode":"qa_units","value":999999999999999999}]}';
+ exec("time_payload:=jsonb_set(time_payload,'{logicalKeyHash}',to_jsonb(repeat('a',64)));time_payload:=jsonb_set(time_payload,'{spec}',"+q(rawSpec)+"::jsonb);time_key:=gen_random_uuid();time_before_events:=(SELECT count(*) FROM time_catalog_governance_event);time_boot:=time_catalog_bootstrap_v1("+args()+");");
+ const apiValues=["maker->>'actorEmail'","maker->>'actorSessionId'","maker->>'actorSessionVersion'","maker->>'releaseSha'","maker->>'tenantId'","maker->>'membershipId'",q('create_draft'),q('rule_profile'),'NULL','0','time_key',"repeat('a',64)",'time_payload::text',q('catalog_onboarding'),"repeat('b',64)","time_boot#>>'{principal,scopeVersion}'"];
+ const apiSql=values=>relocate(TIME_CATALOG_COMMAND_SQL.replace(/\$(\d+)/g,(_,n)=>'('+values[Number(n)-1]+')'));
+ ok('(SELECT count(*)=0 FROM ('+apiSql([...apiValues.slice(0,15),"repeat('0',64)"])+") api) AND time_before_events=(SELECT count(*) FROM time_catalog_governance_event)",'changed-scope exact API CTE returns no receipt and appends no event');
+ exec('SELECT api.result::jsonb INTO time_receipt FROM ('+apiSql(apiValues)+') api;');
+ ok("time_receipt#>>'{data,configuration,parameters,0,decimalValue}'='99999999999999.123456' AND time_receipt#>>'{data,configuration,parameters,1,integerValue}'='999999999999999999'",'exact API statement stores and projects numeric boundary tokens without JS rounding');
+ ok("time_receipt->>'requestSha256'=repeat('a',64) AND time_receipt->>'attemptKey'=time_key::text AND time_before_events+1=(SELECT count(*) FROM time_catalog_governance_event)",'one locked API statement appends one verified acknowledgement');
+ exec('SELECT api.result::jsonb INTO time_receipt FROM ('+apiSql(apiValues)+') api;');
+ ok("time_receipt->>'replayed'='true' AND time_receipt->>'attemptKey'=time_key::text AND time_before_events+1=(SELECT count(*) FROM time_catalog_governance_event)",'same API statement replay preserves key, body and the single event');
  ok('time_canonical_proof=(SELECT jsonb_agg(to_jsonb(ec) ORDER BY ec.id) FROM employment_contract ec)','all canonical GRH and native rows are unchanged by the catalog circuit');
  ok("(SELECT count(*)=3 AND bool_and(NOT has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE')) FROM pg_proc p WHERE p.pronamespace="+q(schema)+"::regnamespace AND p.proname IN ('time_catalog_native_subject_v2','time_catalog_native_actor_v2','time_catalog_native_person_caps_v2'))",'all3 new helpers are private and cannot be called by the app runtime');
  reject(q(normalize(relocate(read('116-native-time-catalog.sql')))),'TIME_CATALOG_NATIVE_ALREADY_INSTALLED','reinstallation fails before changing the installed catalog');
- const block=`DECLARE time_old_proof jsonb;time_native_payload jsonb;time_native_receipt jsonb;time_native_contract uuid;time_native_checker uuid;time_future_contract uuid;time_native_person uuid;time_canonical_proof jsonb;time_original_link jsonb;time_boot jsonb;time_payload jsonb;time_key uuid;time_receipt jsonb;time_calendar uuid;time_shift uuid;time_rules uuid;time_assignment uuid;time_gap uuid; BEGIN BEGIN ${scripts.join('\n')} RAISE EXCEPTION USING ERRCODE='P1161',MESSAGE='RESTORE_TIME_FIXTURES'; EXCEPTION WHEN SQLSTATE 'P1161' THEN NULL; END;END;`;
+ const block=`DECLARE time_old_proof jsonb;time_native_payload jsonb;time_native_receipt jsonb;time_native_contract uuid;time_native_checker uuid;time_future_contract uuid;time_native_person uuid;time_canonical_proof jsonb;time_original_link jsonb;time_scope_context jsonb;time_before_events bigint;time_boot jsonb;time_payload jsonb;time_key uuid;time_receipt jsonb;time_calendar uuid;time_shift uuid;time_rules uuid;time_assignment uuid;time_gap uuid; BEGIN BEGIN ${scripts.join('\n')} RAISE EXCEPTION USING ERRCODE='P1161',MESSAGE='RESTORE_TIME_FIXTURES'; EXCEPTION WHEN SQLSTATE 'P1161' THEN NULL; END;END;`;
  const anchor="RAISE EXCEPTION USING ERRCODE='P1101',MESSAGE='RESTORE_LIFECYCLE_FIXTURES';";assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,timeCatalogChecksPassed:count,checksPassed:base.report.checksPassed+count,migration116Sha256:createHash('sha256').update(read('116-native-time-catalog.sql')).digest('hex'),limitations:[...base.report.limitations,'Temporal catalog010/011 commands and004 conflict assertion are real; memberships and effective-capability sets are synthetic fixtures. The installed operational pair exception is retained byte-for-byte but its helper returns false in this QA; no exception grant is exercised. No operator UI, attendance evaluator, municipal rule, clock operation or Production installation is proved.']};
  let sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));

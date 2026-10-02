@@ -20,6 +20,7 @@ BEGIN
  ('time_catalog_assert_approvable_v1(uuid,uuid,uuid)','3510543ef293e222bef0072429fda52df21e56e5fd448156f44b485f1c80db18',false),
  ('time_catalog_apply_command_v1(text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text)','6ad1d544f0aa8c1359d716c429d6074fe9ee9193ced2e4166cf5da3bdf50faa7',true),
  ('time_catalog_guard_draft_child_v1()','30432b60a6dda6b32666a6db5a03918c2fb294dad6d905fd8d25639f58c9535d',false),
+ ('time_catalog_principal_projection_v1(jsonb)','50c69186a29f515f72622ef3a495d8b23fcd060bb6f9e252fd21fcca7d47f2a1',false),
  ('payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)','7b490b4cc34bd45205dacf169c1fc2432c5a711fd99d6384bdc0d22db4236e48',false),
  ('native_employment_change_subject_v1(jsonb,uuid)','3a50695689cc90517b0ef9795ce1588cc8a4e49b5515f16832c6c2d4521459b0',false),
  ('native_employment_lifecycle_subject_v1(jsonb,uuid)','4c5a4785240c5ebfb91c2445d265c2ebe6d3063710fe5d01ebc2b2bbfa591e95',false),
@@ -190,6 +191,12 @@ BEGIN
     actor_person_id:=public.time_catalog_native_actor_v2(
       (p_context->>'tenantId')::uuid,(p_context->>'certifiedBindingId')::uuid,
       (p_context->>'membershipId')::uuid);
+    SELECT link.employment_contract_id INTO actor_employment_contract_id
+    FROM tenant_action_employment_link link
+    WHERE link.membership_id=(p_context->>'membershipId')::uuid
+      AND link.tenant_id=(p_context->>'tenantId')::uuid
+      AND link.source_binding_id=(p_context->>'certifiedBindingId')::uuid
+      AND link.active IS TRUE;
   ELSE
   SELECT link.employment_contract_id, contract.person_id
     INTO actor_employment_contract_id, actor_person_id
@@ -231,6 +238,7 @@ BEGIN
   RETURN p_context || jsonb_build_object(
     'authorityVersion', authority_row.version,
     'actorPersonId', actor_person_id,
+    'employmentContractId', actor_employment_contract_id,
     'capabilities', capabilities,
     'areaScopes', '[]'::jsonb
   );
@@ -760,6 +768,8 @@ BEGIN
     END IF;
     RETURN existing_event.result || jsonb_build_object(
       'replayed', true,
+      'requestSha256', existing_event.command_hash,
+      'attemptKey', existing_event.idempotency_key,
       'historical', entry_row.version IS DISTINCT FROM existing_event.resulting_version
         OR entry_row.status IS DISTINCT FROM existing_event.after_snapshot->>'status'
     );
@@ -955,6 +965,8 @@ BEGIN
   );
   result_value := jsonb_build_object(
     'data', after_value,
+    'requestSha256', lower(p_command_hash),
+    'attemptKey', p_idempotency_key,
     'replayed', false,
     'catalogReady', false,
     'attendanceEvaluationReady', false,
@@ -1019,4 +1031,19 @@ BEGIN
   END IF;
   RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END
+$$;
+
+CREATE OR REPLACE FUNCTION time_catalog_principal_projection_v1(p_context jsonb)
+RETURNS jsonb
+LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT COALESCE(p_context, '{}'::jsonb) - ARRAY[
+    'actorPersonId','actorEmail','email','certifiedBindingId','sourceCompanyId',
+    'sourceDatabase','employmentContractId','membershipId','tenantId','sessionId'
+  ]::text[] || jsonb_build_object('scopeVersion',
+    encode(public.digest(jsonb_build_array(
+      p_context->>'tenantId',p_context->>'membershipId',
+      p_context->>'certifiedBindingId',p_context->>'authorityVersion',
+      p_context->>'actorPersonId',p_context->>'employmentContractId',
+      p_context->>'roleKey',p_context->'capabilities'
+    )::text,'sha256'),'hex'))
 $$;
