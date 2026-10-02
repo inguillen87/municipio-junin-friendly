@@ -68,6 +68,7 @@ test('integration uses real writers, both source origins, period gap and a separ
  assert.equal(qa.report.timeCatalogChecksPassed,27);assert.equal(qa.report.checksPassed,562);
  assert.match(qa.sql,/native_time_catalog_qa/);assert.match(qa.sql,/TIME_CATALOG_NATIVE_PERIOD_INVALID/);
  assert.match(qa.sql,/time_catalog_apply_command_v1/);assert.match(qa.sql,/native_employee_create_v1/);
+ assert.match(qa.sql,/p_catalog_kind=>/);assert.match(qa.sql,/p_command_hash=>/);
  assert.match(qa.sql,/tenant_iam_assert_no_sod_conflict/);
  assert.match(qa.lockSql,/native-employment-lifecycle:v1:/);
  assert.match(qa.sql,/ROLLBACK/);assert.doesNotMatch(qa.sql,/COMMIT;/);
