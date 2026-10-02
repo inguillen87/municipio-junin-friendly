@@ -238,6 +238,7 @@ try {
   checks.push('pagehide clears unfinished preparation and its fields without persisting private input');
   await mobile.goto(origin+'/catalogo-tiempo.html');await mobile.locator('#workspace').waitFor({state:'visible'});await mobile.locator('#newDraft').click();await mobile.locator('#editorDialog').waitFor({state:'visible'});
   assert.equal(await mobile.evaluate(()=>{const d=document.querySelector('#editorDialog');return d.scrollWidth<=d.clientWidth&&d.getBoundingClientRect().width<=innerWidth;}),true);
+  await mobile.locator('#saveDraft').scrollIntoViewIfNeeded();assert.equal(await mobile.locator('#closeEditor').evaluate(n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),true);
   await mobile.screenshot({path:path.join(reportDir,'native-time-editor-mobile.png')});await mobile.keyboard.press('Escape');assert.equal(await mobile.locator('#editorDialog').isVisible(),false);
   checks.push('390px typed editor has no overflow and closes with keyboard Escape');
   assert.deepEqual(external, []); assert.deepEqual(errors, []);

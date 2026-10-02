@@ -92,6 +92,7 @@ test('integration uses real writers, both source origins, period gap and a separ
  assert.match(qa.sql,/p_catalog_kind=>/);assert.match(qa.sql,/p_command_hash=>/);
  assert.match(qa.sql,/tenant_iam_assert_no_sod_conflict/);
  assert.doesNotMatch(qa.sql,/undefined/);
+ assert.doesNotMatch(qa.sql,/"config":\["search_path=pg_catalog, public, pg_temp"/);
  assert.match(qa.lockSql,/native-employment-lifecycle:v1:/);
  assert.match(qa.sql,/ROLLBACK/);assert.doesNotMatch(qa.sql,/COMMIT;/);
 });

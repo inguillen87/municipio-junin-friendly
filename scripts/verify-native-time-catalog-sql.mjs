@@ -59,7 +59,10 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  `);
  reject('format('+q('SELECT time_catalog_bootstrap_v1(%1$L,%2$L::uuid,1,%3$L,%4$L::uuid,%5$L::uuid)')+',maker->>\'actorEmail\',maker->>\'actorSessionId\',maker->>\'releaseSha\',maker->>\'tenantId\',maker->>\'membershipId\')','TIME_CATALOG_EMPLOYMENT_REQUIRED','011 actually blocks an actor created solely in MuniControl before116');
  const installation=buildTimeCatalogInstallation({source:read('116-native-time-catalog.sql'),sourceCommit:'f'.repeat(40)});
- const installSql=s=>normalize(relocate(s)).replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll("s.nspname='public'","s.nspname="+q(schema));
+ const installSql=s=>normalize(relocate(s))
+   .replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp')
+   .replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp')
+   .replaceAll("s.nspname='public'","s.nspname="+q(schema));
  for(const s of installation.installation.slice(0,-1))exec('EXECUTE '+q(installSql(s))+';');
  exec('EXECUTE '+q(installSql(installation.installation.at(-1)))+' INTO time_install_proof;');
  ok("time_install_proof->>'beforeFingerprint'=time_install_proof->>'afterFingerprint' AND time_install_proof->>'nominalRowsReturned'='0'",'full installation protocol preserves all old rows, metadata, ACLs and unrelated objects');
