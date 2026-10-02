@@ -15,7 +15,7 @@ BEGIN
  THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  FOR item IN SELECT * FROM (VALUES
  ('time_catalog_assert_actor_authority_v1(jsonb,text)','3aab92d252fc108dc5c08bb78142cb61e74c4b8bed310941f9009fb6722717fb'),
- ('time_catalog_assert_person_sod_v1(uuid,uuid,uuid)','0e82f2068bb87452f69e7bb6b4c7426fe06d2fe59f1e58ceb5e61055e721e3af'),
+ ('time_catalog_assert_person_sod_v1(uuid,uuid,uuid)','4c4042fb3b71d03d9ccd1da82c6f63f2023b1b2b7808397969edfab3aecb660b'),
  ('time_catalog_guard_entry_v1()','64185f00eab6d347f6b0a12045619117332214913b2e174aaa346930601b9a50'),
  ('time_catalog_assert_approvable_v1(uuid,uuid,uuid)','3510543ef293e222bef0072429fda52df21e56e5fd448156f44b485f1c80db18'),
  ('payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)','7b490b4cc34bd45205dacf169c1fc2432c5a711fd99d6384bdc0d22db4236e48'),
@@ -329,7 +329,7 @@ BEGIN
   has_propose:=has_propose OR (capabilities_native ? 'time.catalog.propose');
   has_approve:=has_approve OR (capabilities_native ? 'time.catalog.approve');
   has_overtime_post:=has_overtime_post OR (capabilities_native ? 'time.overtime.post');
-  IF (has_propose AND has_approve) OR (has_approve AND has_overtime_post) THEN
+  IF (has_propose AND has_approve AND NOT public.tenant_iam_operational_person_pair_v1(p_tenant_id,p_actor_person_id,p_certified_binding_id,'catalog')) OR (has_approve AND has_overtime_post) THEN
     RAISE EXCEPTION 'TIME_CATALOG_PERSON_SOD_CONFLICT' USING ERRCODE = 'P0001';
   END IF;
 EXCEPTION WHEN lock_not_available THEN

@@ -47,14 +47,17 @@ ${oldActor}  END IF;
   definitions.time_catalog_assert_actor_authority_v1 = d;
 
   d = originals.time_catalog_assert_person_sod_v1.definition;
-  d = replaceOnce(d, '  IF (has_propose AND has_approve) OR (has_approve AND has_overtime_post) THEN', `  -- Merge native accounts with the original GRH result. Neither origin can
+  const installedSodLine="  IF (has_propose AND has_approve AND NOT public.tenant_iam_operational_person_pair_v1(p_tenant_id,p_actor_person_id,p_certified_binding_id,'catalog')) OR (has_approve AND has_overtime_post) THEN";
+  const originalSodLine='  IF (has_propose AND has_approve) OR (has_approve AND has_overtime_post) THEN';
+  const sodLine=d.includes(installedSodLine)?installedSodLine:originalSodLine;
+  d = replaceOnce(d, sodLine, `  -- Merge native accounts with the original GRH result. Neither origin can
   -- split proposal, approval or payroll posting across accounts of one person.
   capabilities_native:=public.time_catalog_native_person_caps_v2(
     p_tenant_id,p_actor_person_id,p_certified_binding_id);
   has_propose:=has_propose OR (capabilities_native ? 'time.catalog.propose');
   has_approve:=has_approve OR (capabilities_native ? 'time.catalog.approve');
   has_overtime_post:=has_overtime_post OR (capabilities_native ? 'time.overtime.post');
-  IF (has_propose AND has_approve) OR (has_approve AND has_overtime_post) THEN`);
+${sodLine}`);
   d = replaceOnce(d, '  related_membership_id uuid;', '  related_membership_id uuid;\n  capabilities_native jsonb;');
   definitions.time_catalog_assert_person_sod_v1 = d;
 

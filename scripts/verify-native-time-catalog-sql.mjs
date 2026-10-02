@@ -7,6 +7,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentLifecycleQa} from './verify-native-employment-lifecycle-sql.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
+import {nativeTimePrerequisiteSource} from './prepare-native-time-catalog.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=n=>fs.readFileSync(path.join(root,'scripts/migrations',n),'utf8').replaceAll('\r\n','\n');
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
@@ -27,17 +28,24 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  exec(`ALTER TABLE tenant_action_authority ADD COLUMN version integer NOT NULL DEFAULT 1;
  ALTER TABLE iam_role ADD COLUMN label text,ADD COLUMN description text,ADD COLUMN system_managed boolean;
  ${relocate(function004('tenant_iam_reject_change'))};
- ${relocate(function004('tenant_iam_assert_no_sod_conflict'))};
- REVOKE ALL ON FUNCTION tenant_iam_reject_change(),tenant_iam_assert_no_sod_conflict(uuid) FROM PUBLIC,municontrol_actions_runtime_app;
  EXECUTE ${q(relocate(read('010-governed-time-source-registry.sql')))};
  EXECUTE ${q(relocate(read('011-versioned-time-catalog.sql')))};
- INSERT INTO capabilities SELECT id,'time.catalog.read' FROM tenant_membership WHERE user_email IN ('maker@example.invalid','checker@example.invalid','sameperson@example.invalid','reader@example.invalid');
- INSERT INTO capabilities VALUES (${q(ids.maker)}::uuid,'time.catalog.propose'),(${q(ids.checker)}::uuid,'time.catalog.approve');
+ CREATE FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS 'SELECT false';
+ REVOKE ALL ON FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;
+ ${relocate(splitPostgresStatements(nativeTimePrerequisiteSource()).find(s=>s.includes('CREATE OR REPLACE FUNCTION time_catalog_assert_person_sod_v1(')))};
  time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1'));
  time_native_payload:=legacy_draft||jsonb_build_object('legajo','19031','dni','99000310','fullName','Actor propio sintético','startDate','2020-01-01');
  time_native_receipt:=native_employee_create_v1(maker,time_native_payload,native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_native_contract:=(time_native_receipt->>'contractId')::uuid;
  time_native_person:=(SELECT person_id FROM employment_contract WHERE id=time_native_contract);
+ -- The inherited catalog QA deliberately leaves a self-review capability on
+ -- its maker. Define isolated temporal-only profiles after those tests have
+ -- run; no production account or original regression assertion is modified.
+ DELETE FROM capabilities WHERE membership_id IN (${q(ids.maker)}::uuid,${q(ids.checker)}::uuid,${q(ids.samePerson)}::uuid,${q(ids.reader)}::uuid);
+ INSERT INTO capabilities SELECT id,'time.catalog.read' FROM tenant_membership WHERE id IN (${q(ids.maker)}::uuid,${q(ids.checker)}::uuid,${q(ids.samePerson)}::uuid,${q(ids.reader)}::uuid);
+ INSERT INTO capabilities VALUES (${q(ids.maker)}::uuid,'time.catalog.propose'),(${q(ids.checker)}::uuid,'time.catalog.approve');
+ ${relocate(function004('tenant_iam_assert_no_sod_conflict'))};
+ REVOKE ALL ON FUNCTION tenant_iam_reject_change(),tenant_iam_assert_no_sod_conflict(uuid) FROM PUBLIC,municontrol_actions_runtime_app;
  time_canonical_proof:=(SELECT jsonb_agg(to_jsonb(ec) ORDER BY ec.id) FROM employment_contract ec);
  time_original_link:=(SELECT to_jsonb(l) FROM tenant_action_employment_link l WHERE membership_id=${q(ids.maker)}::uuid);
  UPDATE tenant_action_employment_link SET employment_contract_id=time_native_contract WHERE membership_id=${q(ids.maker)}::uuid;
@@ -80,7 +88,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  reject(q(normalize(relocate(read('116-native-time-catalog.sql')))),'TIME_CATALOG_NATIVE_ALREADY_INSTALLED','reinstallation fails before changing the installed catalog');
  const block=`DECLARE time_old_proof jsonb;time_native_payload jsonb;time_native_receipt jsonb;time_native_contract uuid;time_native_person uuid;time_canonical_proof jsonb;time_original_link jsonb;time_boot jsonb;time_payload jsonb;time_key uuid;time_receipt jsonb;time_calendar uuid;time_shift uuid;time_rules uuid;time_assignment uuid;time_gap uuid; BEGIN BEGIN ${scripts.join('\n')} RAISE EXCEPTION USING ERRCODE='P1161',MESSAGE='RESTORE_TIME_FIXTURES'; EXCEPTION WHEN SQLSTATE 'P1161' THEN NULL; END;END;`;
  const anchor="RAISE EXCEPTION USING ERRCODE='P1101',MESSAGE='RESTORE_LIFECYCLE_FIXTURES';";assert.equal(base.sql.split(anchor).length,2);
- const report={...base.report,timeCatalogChecksPassed:count,checksPassed:base.report.checksPassed+count,migration116Sha256:createHash('sha256').update(read('116-native-time-catalog.sql')).digest('hex'),limitations:[...base.report.limitations,'Temporal catalog010/011 commands and004 conflict assertion are real; memberships and effective-capability sets are synthetic fixtures. No operator UI, attendance evaluator, municipal rule, clock operation or Production installation is proved.']};
+ const report={...base.report,timeCatalogChecksPassed:count,checksPassed:base.report.checksPassed+count,migration116Sha256:createHash('sha256').update(read('116-native-time-catalog.sql')).digest('hex'),limitations:[...base.report.limitations,'Temporal catalog010/011 commands and004 conflict assertion are real; memberships and effective-capability sets are synthetic fixtures. The installed operational pair exception is retained byte-for-byte but its helper returns false in this QA; no exception grant is exercised. No operator UI, attendance evaluator, municipal rule, clock operation or Production installation is proved.']};
  let sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  let lockSql=base.lockSql;if(requireConcurrency)lockSql=lockSql.replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock(hashtextextended("+q('native-employment-lifecycle:v1:'+ids.tenant+':'+ids.binding+':'+busyContract)+",0));\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'");
  return {...base,sql:sql.replaceAll('native_employment_lifecycle_qa','native_time_catalog_qa'),lockSql:lockSql.replaceAll('native_employment_lifecycle_qa','native_time_catalog_qa'),report};

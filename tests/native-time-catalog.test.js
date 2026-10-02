@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {nativeTimeCandidate} from '../scripts/prepare-native-time-catalog.mjs';
+import {nativeTimeCandidate,nativeTimePrerequisiteSource} from '../scripts/prepare-native-time-catalog.mjs';
 import {nativeTimeDefinitions,timeFunction,NATIVE_TIME_PATCHES} from '../scripts/lib/native-time-catalog-migration.mjs';
 import {buildNativeTimeCatalogQa} from '../scripts/verify-native-time-catalog-sql.mjs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replaceAll('\r\n','\n');
-const original=read('scripts/migrations/011-versioned-time-catalog.sql');
+const original=nativeTimePrerequisiteSource();
 const candidate=read('scripts/migrations/116-native-time-catalog.sql');
 test('SQL116 is reproduced from exact011 and canonical/native period prerequisites',()=>{
  assert.equal(candidate,nativeTimeCandidate());
@@ -42,6 +42,7 @@ test('native multi-account duties are combined with legacy duties, not substitut
  assert.match(body,/has_propose:=has_propose OR/);assert.match(body,/has_approve:=has_approve OR/);
  assert.match(body,/has_overtime_post:=has_overtime_post OR/);
  assert.match(body,/has_approve AND has_overtime_post/);assert.match(body,/TIME_CATALOG_PERSON_SOD_CONFLICT/);
+ assert.match(body,/NOT public\.tenant_iam_operational_person_pair_v1/);
  assert.match(timeFunction(candidate,'time_catalog_native_person_caps_v2').body,/tenant_iam_assert_no_sod_conflict\(member\)/);
 });
 test('migration preserves command/body/session/idempotency, geometry, payload validators and all4 runtime facades',()=>{
