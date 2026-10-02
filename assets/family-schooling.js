@@ -2,6 +2,7 @@ import { schoolingData, schoolingFilter, schoolingRevision, schoolingDate, certi
   certificateFile, certificateFields, certificateEvidenceLabel, schoolingHistoryData, schoolingRegistrationResult, MAX_CERTIFICATE_BYTES, familyReference,
   familyContextData, familyDeclarationFields, familyDeclarationResult } from './family-schooling-model.js';
 import { schoolingXlsx } from './family-schooling-export.js';
+import {certificateInputFile,mountCertificatePhoto} from './family-schooling-photo.js';
 
 const ENDPOINT = '/api/internal-family-certificates';
 const FAMILY_ENDPOINT = '/api/internal-family-members';
@@ -271,7 +272,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const pending = pendingFamilyAttempts.get(pendingKey) ?? pendingSchoolingAttempts.get(pendingKey);
     if (authorityKey && key !== authorityKey || pending?.authorityKey && pending.authorityKey !== key) {
       pendingFamilyAttempts.delete(pendingKey); pendingSchoolingAttempts.delete(pendingKey);
-      editor?.form.reset(); editor?.form.remove(); declarationEditor?.form.reset(); declarationEditor?.form.remove(); editor = null; declarationEditor = null;
+      editor?.photo?.destroy(); editor?.form.reset(); editor?.form.remove(); declarationEditor?.form.reset(); declarationEditor?.form.remove(); editor = null; declarationEditor = null;
       authorityKey = key; invalidateConsultedData();
       throw Object.assign(Error('Cambió la sesión. Cerrá y abrí la ficha; el intento anterior no se reenviará desde otra identidad.'), { code: 'FAMILY_ACTOR_CHANGED', status: 409 });
     }
@@ -279,6 +280,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (!access.tenantCapabilities.includes('workforce.employee.read')) throw Object.assign(Error('Permiso de consulta retirado.'), { status: 403 });
   }
   function invalidateConsultedData() {
+    editor?.photo?.clear();
     data = null; familyContext = null; focusObserver?.disconnect(); focusObserver = null;
     if (editor) {
       // Only the local draft and its exact target/token survive. No consulted
@@ -463,17 +465,21 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       label.append(input); fields[name] = input; return label;
     }
     const modeLabel = node('label', 'Cómo se presentó'), mode = node('select'); mode.dataset.fsEvidenceMode = '';
-    for (const [value, label] of [['pdf','Adjuntar PDF'],['paper_declared','Presentado en papel']]) { const option = node('option', label); option.value = value; mode.append(option); }
+    for (const [value, label] of [['pdf','Adjuntar foto o PDF'],['paper_declared','Presentado en papel']]) { const option = node('option', label); option.value = value; mode.append(option); }
     modeLabel.append(mode);
-    const fileLabel = node('label', 'Certificado en PDF'), file = node('input'); file.type = 'file'; file.accept = '.pdf,application/pdf'; file.required = true; file.dataset.fsFile = '';
-    const hint = node('small', 'Un PDF sin contraseña · hasta 2 MiB y 30 páginas'); hint.id = 'fs-file-hint-' + suffix; file.setAttribute('aria-describedby', hint.id); fileLabel.append(file, hint);
+    const fileLabel = node('label', 'Foto o PDF del certificado'), file = node('input'); file.type = 'file'; file.accept = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'; file.required = true; file.dataset.fsFile = '';
+    const hint = node('small', 'PDF sin contraseña, JPEG o PNG · documento final hasta 2 MiB. La foto original se conserva dentro del PDF privado.'); hint.id = 'fs-file-hint-' + suffix; file.setAttribute('aria-describedby', hint.id); fileLabel.append(file, hint);
+    const camera = node('input'); camera.type = 'file'; camera.accept = 'image/jpeg,image/png'; camera.setAttribute('capture','environment'); camera.hidden=true; camera.dataset.fsCameraInput='';
+    const takePhoto = button('Sacar foto'); takePhoto.dataset.fsCamera='';
+    takePhoto.addEventListener('click',()=>{if(!editor?.pendingBody&&mayRegister())camera.click();});
+    camera.addEventListener('change',()=>{if(!camera.files[0]||editor?.pendingBody||!mayRegister())return;const transfer=new DataTransfer();transfer.items.add(camera.files[0]);file.files=transfer.files;file.dispatchEvent(new Event('change',{bubbles:true}));});
     const presentedLabel = node('label', 'Fecha de presentación'), presented = node('input'); presented.type = 'date'; presented.required = true; presented.min = '1900-01-01'; presented.max = '2100-12-31'; presented.dataset.fsPresented = ''; presentedLabel.append(presented);
     const expiryLabel = node('label', 'Fecha de vencimiento (si consta)'), expiry = node('input'); expiry.type = 'date'; expiry.min = '1900-01-01'; expiry.max = '2100-12-31'; expiry.dataset.fsExpires = ''; expiryLabel.append(expiry);
     const paperLabel = field('paperReference', 'Referencia de la presentación en papel', 'text', 500); paperLabel.hidden = true;
     fields.paperReference.placeholder = 'Por ejemplo, mesa de entradas o ubicación del certificado';
     const reasonLabel = field('reason', row.certificate ? 'Motivo del nuevo registro o corrección' : 'Motivo del registro', 'text', 500); fields.reason.required = true;
     if (!row.certificate) fields.reason.value = 'Registro administrativo de escolaridad';
-    fieldset.append(modeLabel, fileLabel, paperLabel, presentedLabel, expiryLabel,
+    fieldset.append(modeLabel, fileLabel, takePhoto, camera, paperLabel, presentedLabel, expiryLabel,
       field('institution', 'Institución (si consta)'), field('educationLevel', 'Nivel (si consta)', 'text', 80),
       field('course', 'Curso / sala / grado (si consta)', 'text', 100), field('schoolYear', 'Ciclo lectivo (si consta)'),
       field('issuedOn', 'Fecha de emisión (si consta)', 'date'), reasonLabel);
@@ -484,12 +490,14 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const review = node('div'); review.dataset.fsIdentityReview = ''; review.hidden = true;
     form.append(fieldset, spaceHint, note, actions, feedback, review); card.append(form);
     editor = { form, fieldset, submit, file, presented, expiry, row, expectedCertificateId: row.certificate?.id ?? null, idempotencyKey: null, pendingBody: null, needsIdentityReview: false };
+    const photo = mountCertificatePhoto({host:fieldset,input:file,available:()=>available()&&editor?.form===form&&canPropose&&!editor.pendingBody,onChange:()=>{if(editor?.form===form&&!editor.pendingBody)editor.idempotencyKey=null;}});
+    editor.photo=photo;
     if (pending) {
       editor.pendingBody = pending.body; editor.idempotencyKey = pending.key; editor.pendingFile = pending.file;
       editor.expectedCertificateId = pending.body.expectedCertificateId; editor.needsIdentityReview = !identityCurrent;
       mode.value = pending.body.evidenceMode; presented.value = pending.body.presentedOn; expiry.value = pending.body.expiresOn ?? '';
       for (const [key, input] of Object.entries(fields)) input.value = pending.body[key] ?? '';
-      const paperMode = mode.value === 'paper_declared'; fileLabel.hidden = paperMode; file.required = !paperMode;
+      const paperMode = mode.value === 'paper_declared'; fileLabel.hidden = paperMode; takePhoto.hidden=paperMode; file.required = !paperMode;
       paperLabel.hidden = !paperMode; fields.paperReference.required = paperMode;
       if (pending.file && typeof DataTransfer === 'function') { const transfer = new DataTransfer(); transfer.items.add(pending.file); file.files = transfer.files; }
       recheck.hidden = false; recheck.textContent = 'Verificar si quedó guardado';
@@ -502,16 +510,16 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (editorBody) editorBody.scrollTop += form.getBoundingClientRect().top - editorBody.getBoundingClientRect().top - (editorBody.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12;
     form.addEventListener('input', () => { if (editor && !editor.pendingBody) editor.idempotencyKey = null; feedback.textContent = ''; });
     mode.addEventListener('change', () => {
-      const paper = mode.value === 'paper_declared'; fileLabel.hidden = paper; file.required = !paper;
+      const paper = mode.value === 'paper_declared'; fileLabel.hidden = paper; takePhoto.hidden=paper; file.required = !paper; photo.clear();
       paperLabel.hidden = !paper; fields.paperReference.required = paper; fileSpaceHint();
-      if (paper) fields.paperReference.focus(); else file.focus();
+      if (paper) fields.paperReference.focus(); else {file.focus();photo.refresh();}
     });
     function fileSpaceHint() {
       spaceHint.hidden = mode.value === 'paper_declared' || !data || !file.files[0] || file.files[0].size <= data.storage.remainingBytes;
       spaceHint.textContent = 'Este PDF supera el espacio disponible informado. Podés intentar guardarlo: el sistema verificará el espacio y si ya existe una copia del mismo archivo. Tu selección y fechas se conservarán si no se puede guardar.';
     }
     file.addEventListener('change', fileSpaceHint);
-    cancel.addEventListener('click', () => { if (busy || editor?.pendingBody || pendingSchoolingAttempts.has(pendingKey)) return; form.reset(); form.remove(); editor = null; if (data) render(); else controls(); $('[data-fs-family-refresh]').focus(); });
+    cancel.addEventListener('click', () => { if (busy || editor?.pendingBody || pendingSchoolingAttempts.has(pendingKey)) return; photo.destroy(); form.reset(); form.remove(); editor = null; if (data) render(); else controls(); $('[data-fs-family-refresh]').focus(); });
     recheck.addEventListener('click', async () => {
       if (busy || !editor || !available()) return;
       const activeEditor = editor; controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls();
@@ -525,7 +533,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
             schoolingRegistrationResult(await receipt.json());
             clearPending(activeEditor.idempotencyKey);
             if (seq !== generation || !available() || editor !== activeEditor) return;
-            form.reset(); form.remove(); editor = null; busy = false;
+            photo.destroy(); form.reset(); form.remove(); editor = null; busy = false;
             await load('Certificado guardado. Se recuperó la confirmación del mismo intento, sin duplicarlo.'); return;
           } catch (e) { if (e.status !== 404) throw e; /* The original POST may still be validating its PDF before taking a database lock. Keep this exact attempt. */ }
         }
@@ -551,6 +559,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
           if (activeEditor.lastError === 'SCHOOL_CERTIFICATE_IDEMPOTENCY_REUSE') activeEditor.idempotencyKey = null;
           review.hidden = true; feedback.textContent = mayRegister() ? 'Vínculo y permisos revisados. Conservás los datos; podés guardar. El espacio para PDF se verifica al adjuntar.' : 'El vínculo se consultó, pero tu perfil no tiene permiso de carga. Tus datos se conservan.';
           if (current.identityReviewRequired) feedback.textContent = 'El vínculo sigue con una coincidencia por revisar. No se puede registrar escolaridad hasta resolverla; conservamos tu propuesta.';
+          photo.refresh();
           if (!current.identityReviewRequired && (current.certificate?.id ?? null) !== activeEditor.expectedCertificateId) {
             activeEditor.needsIdentityReview = true; review.replaceChildren(); review.hidden = false;
             review.append(node('p', 'Otra persona registró una versión. Revisá sus datos antes de agregar el registro que estás preparando. Tu propuesta se conserva.', 'fs-note'));
@@ -590,7 +599,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       let selected, fieldsValue;
       try {
         if (!editor.pendingBody) {
-          selected = mode.value === 'pdf' ? certificateFile(file.files[0]) : null;
+          selected = mode.value === 'pdf' ? certificateInputFile(file.files[0]) : null;
           fieldsValue = certificateFields({ ...Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value])), presentedOn: presented.value, expiresOn: expiry.value, evidenceMode: mode.value, paperReference: mode.value === 'paper_declared' ? fields.paperReference.value : null });
         }
       } catch (e) { feedback.textContent = message(e); return; }
@@ -606,6 +615,8 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         if (!body) {
           let documentFields = { filename: null, contentBase64: null, sha256: null };
           if (selected) {
+            selected = await photo.file(selected);
+            if (seq !== generation || !available() || editor !== activeEditor) return;
             const bytes = new Uint8Array(await selected.arrayBuffer());
             const sha256 = await digest(bytes);
             let binary = ''; for (let at = 0; at < bytes.length; at += 32768) binary += String.fromCharCode(...bytes.subarray(at, at + 32768));
@@ -615,13 +626,13 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
             expectedCertificateId: activeEditor.expectedCertificateId, ...documentFields, ...fieldsValue };
         }
         if (seq !== generation || !available()) return;
-        activeEditor.pendingBody = body; if (!wasPending) activeEditor.pendingFile = selected ?? null; sent = true;
+        activeEditor.pendingBody = body; photo.clear(); if (!wasPending) activeEditor.pendingFile = selected ?? null; sent = true;
         pendingSchoolingAttempts.set(pendingKey, { body, key: activeEditor.idempotencyKey, file: activeEditor.pendingFile, authorityKey });
         const response = await request(ENDPOINT + '?version=3', controller, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': activeEditor.idempotencyKey }, body: JSON.stringify(body) });
         schoolingRegistrationResult(await response.json());
         clearPending(activeEditor.idempotencyKey);
         if (seq !== generation || !available()) return;
-        saved = true; form.reset(); form.remove(); editor = null;
+        saved = true; photo.destroy(); form.reset(); form.remove(); editor = null;
       } catch (e) {
         if (seq === generation && available()) {
           activeEditor.lastError = e.code;
@@ -634,7 +645,9 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
           if (activeEditor.pendingBody) { recheck.hidden = false; recheck.textContent = 'Verificar si quedó guardado'; feedback.textContent = message(e) + ' Todavía no se pudo confirmar si quedó guardado. Conservamos este intento sin cambios: reintentá para recuperar su confirmación o verificá su estado. No crees otro registro.'; }
         }
       } finally {
-        if (seq === generation && available()) { busy = false; controls(); }
+        if (seq === generation && available()) { busy = false; controls();
+          if (sent && !saved && !activeEditor.pendingBody && mayRegister()) photo.refresh();
+        }
       }
       if (saved && available()) { await load('Certificado guardado. El registro anterior se conserva; esta carga no aprueba escolaridad ni haberes.'); $('[data-fs-family-refresh]').focus(); }
     });
@@ -749,7 +762,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     canPropose = nextPropose; generation++; controller?.abort(); busy = false;
     invalidateConsultedData(); controls();
   }
-  function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();
+  function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.photo?.destroy(); editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();
     document.removeEventListener('mc:family-schooling-close', stop); document.removeEventListener('municontrol:capabilities-ready', accessChanged); window.removeEventListener('pagehide', stop); }
   $('[data-fs-family-refresh]').addEventListener('click', () => load());
   $('[data-fs-add-child]').addEventListener('click', () => openDeclaration());
