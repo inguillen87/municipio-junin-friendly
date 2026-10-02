@@ -69,13 +69,13 @@ export function buildNativeLeaveInstallation({source,prerequisiteDefinitions,sou
  const declaredPins=[...source.matchAll(/\('(public\.[\w]+\([^']*\))','([a-f0-9]{64})'\)/g)].map(m=>({signature:m[1],sha256:m[2]}));assert.equal(declaredPins.length,7);
  for(const p of prerequisitePins)assert.ok(declaredPins.some(x=>x.signature===p.signature&&x.sha256===p.sha256),'Unreviewed prerequisite '+p.signature);
  const before=preservationSnapshot('before'),after=preservationSnapshot('after'),preflight=pinsCheck(prerequisitePins,'SQL111_PREREQUISITE_METADATA'),ownCheck=pinsCheck(ownPins,'SQL111_NEW_FUNCTION_METADATA');
- const audit=`DO $audit$ DECLARE old jsonb:=current_setting('municontrol_sql111.before')::jsonb;new jsonb:=current_setting('municontrol_sql111.after')::jsonb;x jsonb;y jsonb; BEGIN
+ const priorAudit=`DO $audit$ DECLARE old jsonb:=current_setting('municontrol_sql111.before')::jsonb;new jsonb:=current_setting('municontrol_sql111.after')::jsonb;x jsonb;y jsonb; BEGIN
  IF old-'triggers' IS DISTINCT FROM new-'triggers' THEN RAISE EXCEPTION 'SQL111_PRIOR_STATE_CHANGED'; END IF;
  FOR x IN SELECT value FROM jsonb_array_elements(old->'triggers') LOOP SELECT value INTO y FROM jsonb_array_elements(new->'triggers') WHERE value->'oid'=x->'oid'; IF x IS DISTINCT FROM y THEN RAISE EXCEPTION 'SQL111_OLD_TRIGGER_CHANGED'; END IF; END LOOP;
  FOR y IN SELECT n.value FROM jsonb_array_elements(new->'triggers') n WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(old->'triggers') o WHERE o.value->'oid'=n.value->'oid') LOOP
   IF NOT EXISTS(SELECT 1 FROM pg_trigger t JOIN pg_constraint c ON c.oid=t.tgconstraint WHERE t.oid=(y->>'oid')::oid AND t.tgisinternal AND t.tgenabled='O' AND c.contype='f' AND c.conrelid='public.native_leave_event'::regclass) THEN RAISE EXCEPTION 'SQL111_UNEXPECTED_OLD_TRIGGER'; END IF;
- END LOOP;
- IF (SELECT count(*) FROM public.native_leave_event)<>0 THEN RAISE EXCEPTION 'SQL111_NEW_TABLE_NOT_EMPTY'; END IF;
+ END LOOP;`;
+ const newAudit=`IF (SELECT count(*) FROM public.native_leave_event)<>0 THEN RAISE EXCEPTION 'SQL111_NEW_TABLE_NOT_EMPTY'; END IF;
  IF (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'native_leave_%')<>16 THEN RAISE EXCEPTION 'SQL111_NEW_FUNCTION_COUNT'; END IF;
  IF (SELECT jsonb_agg(jsonb_build_array(a.attname,format_type(a.atttypid,a.atttypmod),a.attnotnull,pg_get_expr(d.adbin,d.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid='public.native_leave_event'::regclass AND a.attnum>0 AND NOT a.attisdropped) IS DISTINCT FROM ${q(JSON.stringify(columnShape))}::jsonb
  THEN RAISE EXCEPTION 'SQL111_NEW_TABLE_SHAPE'; END IF;
@@ -94,8 +94,31 @@ export function buildNativeLeaveInstallation({source,prerequisiteDefinitions,sou
  THEN RAISE EXCEPTION 'SQL111_NEW_TABLE_SECURITY'; END IF;
  IF (SELECT count(*) FROM pg_trigger WHERE tgrelid='public.native_leave_event'::regclass AND NOT tgisinternal)<>1
   OR NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.native_leave_event'::regclass AND tgname='native_leave_event_immutable' AND tgtype=58 AND tgenabled='O' AND NOT tgisinternal AND tgfoid='public.native_leave_immutable_v1()'::regprocedure AND tgqual IS NULL)
- THEN RAISE EXCEPTION 'SQL111_IMMUTABLE_GUARD'; END IF;
- END $audit$`;
- const proof=`SELECT jsonb_build_object('checkedAt',clock_timestamp(),'sourceCommit',${q(sourceCommit)},'sqlSha256',${q(SQL111_SHA256)},'allChecksPassed',true,'functions111',16,'runtimeFacades',3,'eventRows',0,'priorTableCount',jsonb_array_length(current_setting('municontrol_sql111.before')::jsonb->'tables'),'beforeFingerprint',encode(public.digest(current_setting('municontrol_sql111.before'),'sha256'),'hex'),'afterFingerprint',encode(public.digest(current_setting('municontrol_sql111.after'),'sha256'),'hex'),'nominalRowsReturned',0) AS proof`;
- return{sourceCommit,sqlSha256:SQL111_SHA256,migrationStatements:migration.length,ownPins,prerequisitePins,preflight,before,after,audit,ownCheck,proof,installation:[preflight,before,...migration,after,audit,ownCheck,proof]};
+ THEN RAISE EXCEPTION 'SQL111_IMMUTABLE_GUARD'; END IF;`;
+ const audit=priorAudit+newAudit+' END $audit$',newObjectAudit='DO $new_objects$ BEGIN '+newAudit+' END $new_objects$';
+ const newObjectFingerprint=`(SELECT encode(public.digest(jsonb_build_object(
+  'class',jsonb_build_object('oid',c.oid,'owner',c.relowner,'acl',c.relacl,'kind',c.relkind,'persistence',c.relpersistence,'options',c.reloptions,'rls',c.relrowsecurity,'forceRls',c.relforcerowsecurity,'replicaIdentity',c.relreplident),
+  'columns',(SELECT jsonb_agg(jsonb_build_object('attribute',to_jsonb(a),'default',pg_get_expr(d.adbin,d.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid=c.oid AND a.attnum>0),
+  'constraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.oid) FROM pg_constraint k WHERE k.conrelid=c.oid),
+  'indexes',(SELECT jsonb_agg(jsonb_build_object('index',to_jsonb(i),'definition',pg_get_indexdef(i.indexrelid)) ORDER BY i.indexrelid) FROM pg_index i WHERE i.indrelid=c.oid),
+  'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid=c.oid),
+  'policies',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid=c.oid),
+  'functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname LIKE 'native_leave_%')
+ )::text,'sha256'),'hex') FROM pg_class c WHERE c.oid='public.native_leave_event'::regclass)`;
+ const aggregate=includeBefore=>`SELECT jsonb_build_object('checkedAt',clock_timestamp(),'sourceCommit',${q(sourceCommit)},'sqlSha256',${q(SQL111_SHA256)},'allChecksPassed',true,'functions111',16,'runtimeFacades',3,'eventRows',0,'priorTableCount',jsonb_array_length(current_setting('municontrol_sql111.after')::jsonb->'tables'),${includeBefore?"'beforeFingerprint',encode(public.digest(current_setting('municontrol_sql111.before'),'sha256'),'hex'),":''}'afterFingerprint',encode(public.digest(current_setting('municontrol_sql111.after'),'sha256'),'hex'),'newObjectFingerprint',${newObjectFingerprint},'nominalRowsReturned',0) AS proof`;
+ const proof=aggregate(true),durableProof=aggregate(false);
+ return{sourceCommit,sqlSha256:SQL111_SHA256,migrationStatements:migration.length,ownPins,prerequisitePins,preflight,before,after,audit,ownCheck,proof,durableProof,installation:[preflight,before,...migration,after,audit,ownCheck,proof],durableVerification:[preflight,after,newObjectAudit,ownCheck,durableProof]};
+}
+
+export function assertNativeLeaveDurability({installed,durable,sourceCommit}){
+ assert.match(sourceCommit,/^[a-f0-9]{40}$/);
+ for(const proof of [installed,durable]){
+  assert.equal(proof.sourceCommit,sourceCommit);assert.equal(proof.sqlSha256,SQL111_SHA256);assert.equal(proof.allChecksPassed,true);
+  for(const [key,value] of Object.entries({functions111:16,runtimeFacades:3,eventRows:0,nominalRowsReturned:0}))assert.equal(proof[key],value,key);
+  assert.ok(Number.isSafeInteger(proof.priorTableCount)&&proof.priorTableCount>0);
+  for(const key of ['afterFingerprint','newObjectFingerprint'])assert.match(proof[key],/^[a-f0-9]{64}$/);
+ }
+ assert.match(installed.beforeFingerprint,/^[a-f0-9]{64}$/);
+ for(const key of ['priorTableCount','afterFingerprint','newObjectFingerprint'])assert.equal(durable[key],installed[key],'SQL111_DURABILITY_MISMATCH: '+key);
+ return{ok:true,sourceCommit,sqlSha256:SQL111_SHA256,priorStatePreserved:true,newObjectsPreserved:true,nominalRowsReturned:0};
 }

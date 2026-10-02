@@ -22,7 +22,7 @@ export function prepareNativeLeaveInstallation({read,sourceCommit}){
   OR (SELECT count(*) FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'native_employment_lifecycle_%')<>23
   OR has_schema_privilege('municontrol_actions_runtime_app','public','CREATE') OR EXISTS(SELECT 1 FROM pg_namespace n CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a WHERE n.nspname='public' AND a.grantee=0 AND a.privilege_type='CREATE')
   THEN RAISE EXCEPTION 'SQL111_DESTINATION_MISMATCH'; END IF; END $destination$`;
- return{...batch,connects:false,executesSql:false,targets:targets.map(t=>({...t,preflight:['SET TRANSACTION READ ONLY',...settings,identity(t),batch.preflight],installation:[...settings,identity(t),'SELECT public.native_employment_catalog_capacity_v1(2097152)',...batch.installation,'SELECT public.native_employment_catalog_capacity_v1(1048576)'],durablePrefix:['SET TRANSACTION READ ONLY',...settings,identity(t)]}))};
+ return{...batch,connects:false,executesSql:false,targets:targets.map(t=>({...t,preflight:['SET TRANSACTION READ ONLY',...settings,identity(t),batch.preflight],installation:[...settings,identity(t),'SELECT public.native_employment_catalog_capacity_v1(2097152)',...batch.installation,'SELECT public.native_employment_catalog_capacity_v1(1048576)'],durableVerification:['SET TRANSACTION READ ONLY',...settings,identity(t),...batch.durableVerification]}))};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{

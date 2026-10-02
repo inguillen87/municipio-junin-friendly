@@ -45,6 +45,8 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  EXECUTE ${q(reviewSql(installation.after))};
  EXECUTE ${q(reviewSql(installation.audit))};
  EXECUTE ${q(reviewSql(installation.ownCheck))};
+ EXECUTE ${q(reviewSql(installation.proof))} INTO leave_install_proof;
+ ${installation.durableVerification.map(s=>s===installation.durableProof?'EXECUTE '+q(reviewSql(s))+' INTO leave_durable_proof;':'EXECUTE '+q(reviewSql(s))+';').join('\n')}
  leave_canonical:=(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) FROM employment_contract ec);
  leave_boot:=native_leave_bootstrap_v1(maker,target_id);`);
  ok("leave_boot->>'version'='native-leave-workflow.v1' AND leave_boot->>'complete'='true' AND leave_boot->'requests'='[]'::jsonb AND leave_boot->'balances'='[]'::jsonb",'native-only employee starts with no invented leave or entitlement');
@@ -56,6 +58,15 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  ok("leave_boot#>>'{permissions,canCreate}'='false' AND leave_boot#>>'{permissions,canProposeProfile}'='false'",'read authority cannot prepare requests or balances');
  exec('leave_body:='+factory('maker','create',j(annual()))+';');
  ok("current_setting('municontrol_sql111.before')::jsonb-'triggers'=current_setting('municontrol_sql111.after')::jsonb-'triggers'",'installation preserves every prior user table, row, function, role and membership');
+ ok("leave_install_proof-'beforeFingerprint'-'checkedAt'=leave_durable_proof-'checkedAt' AND leave_durable_proof->>'nominalRowsReturned'='0'",'post-install read reproduces the prior-state and new-object fingerprints without nominal rows');
+ temporary("INSERT INTO grh_employees VALUES(99999,'SYNTHETIC-DURABILITY');",()=>{
+  exec('EXECUTE '+q(reviewSql(installation.after))+';EXECUTE '+q(reviewSql(installation.durableProof))+' INTO leave_durable_proof;');
+  ok("leave_install_proof->>'afterFingerprint'<>leave_durable_proof->>'afterFingerprint'",'durability fingerprint detects prior data drift');
+ });
+ temporary('ALTER TABLE native_leave_event DISABLE TRIGGER native_leave_event_immutable;',()=>{
+  exec('EXECUTE '+q(reviewSql(installation.durableProof))+' INTO leave_durable_proof;');
+  ok("leave_install_proof->>'newObjectFingerprint'<>leave_durable_proof->>'newObjectFingerprint'",'durability fingerprint detects changed new-object metadata');
+ });
  for(const [mutation,error,label]of[
   ['ALTER FUNCTION native_employment_lifecycle_state_v1(jsonb,uuid,jsonb) SECURITY INVOKER;','SQL111_PREREQUISITE_METADATA','matching authority body never permits changed SECURITY DEFINER'],
   ['ALTER FUNCTION native_employment_change_context_v1(jsonb,text) SET search_path=public;','SQL111_PREREQUISITE_METADATA','matching authority body never permits changed search_path'],
@@ -124,7 +135,7 @@ export function buildNativeLeaveQa({serverMajor,requireConcurrency=false}){
  for(const op of ['UPDATE native_leave_event SET reason=reason','DELETE FROM native_leave_event','TRUNCATE native_leave_event'])reject(q(op),'IMMUTABLE','immutable history '+op.split(' ')[0]);
  ok("(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) FROM employment_contract ec)=leave_canonical",'every original canonical employee column is preserved');
  reject(q(relocate(migration)),'ALREADY_INSTALLED','second installation fails before changing objects');
- const block=`DECLARE leave_canonical text;leave_boot jsonb;leave_body jsonb;leave_receipt jsonb;leave_key uuid:=gen_random_uuid();leave_id uuid;leave_other_id uuid;leave_profile_id uuid;leave_extra_id uuid;leave_n integer; BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1111',MESSAGE='RESTORE_LEAVE_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1111' THEN NULL;END;END;`;
+ const block=`DECLARE leave_canonical text;leave_boot jsonb;leave_body jsonb;leave_receipt jsonb;leave_install_proof jsonb;leave_durable_proof jsonb;leave_key uuid:=gen_random_uuid();leave_id uuid;leave_other_id uuid;leave_profile_id uuid;leave_extra_id uuid;leave_n integer; BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1111',MESSAGE='RESTORE_LEAVE_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1111' THEN NULL;END;END;`;
  const anchor='-- LIFECYCLE_ROSTER_QA_ANCHOR';assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,nativeLeaveChecksPassed:count,checksPassed:base.report.checksPassed+count,migration111Sha256:createHash('sha256').update(migration).digest('hex'),limitations:[...base.report.limitations,'111 uses original006 scope authorization and003 payload validation with synthetic IAM tables. It is not a productive installation, native employee login acceptance or payroll calculation.']};
  const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));return{...base,sql:sql.replace("SET LOCAL statement_timeout='90s'","SET LOCAL statement_timeout='180s'"),lockSql:base.lockSql,report};

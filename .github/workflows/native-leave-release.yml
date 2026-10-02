@@ -23,6 +23,7 @@ on:
       - "scripts/lib/native-leave-installation.mjs"
       - "tests/native-leave*"
       - "tests/fixtures/native-leave-synthetic.js"
+      - ".vercelignore"
       - ".github/workflows/native-leave-release.yml"
   pull_request:
     branches: ['master', 'work/codex-autonomy-20260930']
@@ -47,6 +48,7 @@ on:
       - "scripts/lib/native-leave-installation.mjs"
       - "tests/native-leave*"
       - "tests/fixtures/native-leave-synthetic.js"
+      - ".vercelignore"
       - ".github/workflows/native-leave-release.yml"
 permissions:
   contents: read

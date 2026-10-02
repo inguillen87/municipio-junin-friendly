@@ -1,5 +1,9 @@
 node_modules
 verification/
+.handoff/
+AGENTS.md
+CODEX_TASK.md
+MUNICONTROL_HANDOFF.md
 MuniControl_Fuentes_Privadas*/
 MuniControl_Codex_Handoff*/
 *.dump
@@ -259,6 +263,7 @@ local-agents/
 !scripts/migrations/103-native-employment-catalog.sql
 !scripts/migrations/104-native-employment-changes.sql
 !scripts/migrations/110-native-employment-lifecycle.sql
+!scripts/migrations/111-native-leave-workflow.sql
 
 # Source-only contracts for isolated payroll read regression QA.
 !scripts/migrations/105-payroll-independent-read-session.sql
