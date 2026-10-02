@@ -1154,6 +1154,7 @@
 <script type="module" src="assets/native-employment-catalog.js"></script>
 <link rel="stylesheet" href="assets/native-employment-change.css">
 <link rel="stylesheet" href="assets/native-employment-lifecycle.css">
+<link rel="stylesheet" href="assets/native-leave.css">
   <link rel="stylesheet" href="assets/payroll-detail-panel.css">
 <link rel="stylesheet" href="assets/payroll-document-library.css">
 <link rel="stylesheet" href="assets/report-centre.css">
@@ -3706,6 +3707,8 @@
         section.append(heading, host);
         const lifecycleSection=document.createElement('section');lifecycleSection.className='employee-section';const lifecycleTitle=document.createElement('h3');lifecycleTitle.textContent='Baja, reingreso e historial laboral';const lifecycleHost=document.createElement('div');lifecycleSection.append(lifecycleTitle,lifecycleHost);
         import('./assets/native-employment-lifecycle.js').then(function(module){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;module.mountNativeEmploymentLifecycle(lifecycleHost,{contractId:employee.contractId,onApplied:function(){if(!lifecycleHost.isConnected||!els.employeeDialog.open)return;openEmployee(employee.contractId,employee.legajo,employee.companyId,employee.nombre);loadEmployees(state.pagination.page);}});}).catch(function(){if(lifecycleHost.isConnected)lifecycleHost.textContent='No se pudo abrir el historial laboral. Volvé a consultar la ficha.';});
+        const leaveSection=document.createElement('section');leaveSection.className='employee-section';const leaveTitle=document.createElement('h3');leaveTitle.textContent='Licencias y saldos propios';const leaveHost=document.createElement('div');leaveSection.append(leaveTitle,leaveHost);
+        import('./assets/native-leave.js').then(function(module){if(!leaveHost.isConnected||!els.employeeDialog.open)return;module.mountNativeLeave(leaveHost,{contractId:employee.contractId});}).catch(function(){if(leaveHost.isConnected)leaveHost.textContent='No se pudo abrir la consulta de licencias. Cerrá y volvé a abrir la ficha.';});
         import('./assets/native-employment-change.js').then(function (module) {
           if (!host.isConnected || !els.employeeDialog.open) return;
           module.mountNativeEmploymentChange(host, { contractId: employee.contractId, onApplied: function () {
@@ -3714,7 +3717,7 @@
             loadEmployees(state.pagination.page);
           }});
         }).catch(function () { if (host.isConnected) host.textContent = 'No se pudo abrir la consulta del encuadre. Cerrá y volvé a abrir la ficha.'; });
-        const fragment=document.createDocumentFragment();fragment.append(section,lifecycleSection);return fragment;
+        const fragment=document.createDocumentFragment();fragment.append(section,lifecycleSection,leaveSection);return fragment;
       }
 
       function renderEmployeeDetail(detail, destination = {}, sourceSeniority = null) {

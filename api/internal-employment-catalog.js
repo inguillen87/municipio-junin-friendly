@@ -61,7 +61,7 @@ function streamBytes(req, timeoutMs, maxBytes) {
     } catch { unavailable(); }
   });
 }
-export async function readCatalogBody(req, {timeoutMs = 10000, maxBytes = EMPLOYMENT_CATALOG_MAX_BYTES} = {}) {
+export async function readPrivateJsonBody(req, {timeoutMs = 10000, maxBytes = EMPLOYMENT_CATALOG_MAX_BYTES} = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10000 || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > EMPLOYMENT_CATALOG_MAX_BYTES) catalogFail('INPUT_INVALID', 400, 'Límite de lectura inválido.');
   schoolCertificateHttp.checkLength(req, maxBytes);
   let bytes = typeof req.on === 'function' && typeof req.read === 'function' || typeof req[Symbol.asyncIterator] === 'function'
@@ -72,10 +72,13 @@ export async function readCatalogBody(req, {timeoutMs = 10000, maxBytes = EMPLOY
   const length = schoolCertificateHttp.header(req, 'content-length');
   if (length && Number(length) !== bytes.length) catalogFail('INPUT_INVALID', 400, 'El envío está incompleto.');
   let source; try { source = new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch { catalogFail('INPUT_INVALID', 400, 'El formulario no contiene texto válido.'); }
-  const value = parseCatalogJson(source);
+  return parseCatalogJson(source);
+}
+export async function readCatalogBody(req, options = {}) {
+  const value = await readPrivateJsonBody(req, options);
   if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).sort().join('|') !== 'operation|payload'
     || !Object.hasOwn(EMPLOYMENT_CATALOG_CAPS, value.operation)) catalogFail('INPUT_INVALID', 400, 'Operación o formulario no admitidos.');
-  if (Buffer.byteLength(JSON.stringify(value)) > maxBytes) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
+  if (Buffer.byteLength(JSON.stringify(value)) > (options.maxBytes ?? EMPLOYMENT_CATALOG_MAX_BYTES)) catalogFail('LIMIT', 413, 'El formulario supera el tamaño permitido.');
   return value;
 }
 export function createEmploymentCatalogHandler(deps = {}) {

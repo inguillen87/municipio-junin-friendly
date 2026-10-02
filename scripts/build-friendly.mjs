@@ -14,6 +14,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
   'assets/release-status-model.js',
+  'assets/native-leave.js',
+  'assets/native-leave-model.js',
+  'assets/native-leave-contract.js',
+  'assets/native-leave.css',
   'assets/release-status-panel.js',
   'assets/release-status.css',
   'assets/app-routes.js',
