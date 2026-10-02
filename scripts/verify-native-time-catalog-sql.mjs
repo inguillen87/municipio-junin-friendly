@@ -33,7 +33,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  CREATE FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS 'SELECT false';
  REVOKE ALL ON FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;
  ${relocate(splitPostgresStatements(nativeTimePrerequisiteSource()).find(s=>s.includes('CREATE OR REPLACE FUNCTION time_catalog_assert_person_sod_v1(')))};
- time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1'));
+ time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1'));
  time_native_payload:=legacy_draft||jsonb_build_object('legajo','','dni','99000310','cuil','20990003107','fullName','Actor propio sintético','startDate','2020-01-01');
  time_native_receipt:=native_employee_create_v1(maker,time_native_payload,native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_native_contract:=(time_native_receipt->>'contractId')::uuid;
@@ -56,7 +56,7 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  `);
  reject('format('+q('SELECT time_catalog_bootstrap_v1(%1$L,%2$L::uuid,1,%3$L,%4$L::uuid,%5$L::uuid)')+',maker->>\'actorEmail\',maker->>\'actorSessionId\',maker->>\'releaseSha\',maker->>\'tenantId\',maker->>\'membershipId\')','TIME_CATALOG_EMPLOYMENT_REQUIRED','011 actually blocks an actor created solely in MuniControl before116');
  exec('EXECUTE '+q(normalize(relocate(read('116-native-time-catalog.sql'))))+';');
- ok(`time_old_proof=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1'))`,'116 keeps the original4 OIDs, owners and ACLs');
+ ok(`time_old_proof=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1','time_catalog_apply_command_v1','time_catalog_guard_draft_child_v1'))`,'116 keeps the original6 OIDs, owners and ACLs');
  exec('time_boot:=time_catalog_bootstrap_v1('+args()+');');
  ok("time_boot->>'catalogReady'='false' AND time_boot->>'minutesCalculated'='false' AND time_boot->>'payrollPosted'='false'",'native catalog access does not assert attendance or payroll autonomy');
  ok(`time_catalog_native_actor_v2(${q(ids.tenant)}::uuid,${q(ids.binding)}::uuid,${q(ids.maker)}::uuid)=time_native_person`,'own actor resolves through immutable canonical registration');

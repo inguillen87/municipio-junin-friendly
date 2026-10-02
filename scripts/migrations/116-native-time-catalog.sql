@@ -19,6 +19,7 @@ BEGIN
  ('time_catalog_guard_entry_v1()','64185f00eab6d347f6b0a12045619117332214913b2e174aaa346930601b9a50',false),
  ('time_catalog_assert_approvable_v1(uuid,uuid,uuid)','3510543ef293e222bef0072429fda52df21e56e5fd448156f44b485f1c80db18',false),
  ('time_catalog_apply_command_v1(text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text)','6ad1d544f0aa8c1359d716c429d6074fe9ee9193ced2e4166cf5da3bdf50faa7',true),
+ ('time_catalog_guard_draft_child_v1()','30432b60a6dda6b32666a6db5a03918c2fb294dad6d905fd8d25639f58c9535d',false),
  ('payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)','7b490b4cc34bd45205dacf169c1fc2432c5a711fd99d6384bdc0d22db4236e48',false),
  ('native_employment_change_subject_v1(jsonb,uuid)','3a50695689cc90517b0ef9795ce1588cc8a4e49b5515f16832c6c2d4521459b0',false),
  ('native_employment_lifecycle_subject_v1(jsonb,uuid)','4c5a4785240c5ebfb91c2445d265c2ebe6d3063710fe5d01ebc2b2bbfa591e95',false),
@@ -984,5 +985,38 @@ BEGIN
   RETURN result_value;
 EXCEPTION WHEN lock_not_available THEN
   RAISE EXCEPTION 'TIME_CATALOG_SESSION_BUSY' USING ERRCODE = 'P0001';
+END
+$$;
+
+CREATE OR REPLACE FUNCTION time_catalog_guard_draft_child_v1()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  target_id uuid;
+  target_tenant uuid;
+  entry_row time_catalog_entry%ROWTYPE;
+BEGIN
+  target_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.catalog_entry_id ELSE NEW.catalog_entry_id END;
+  target_tenant := CASE WHEN TG_OP = 'DELETE' THEN OLD.tenant_id ELSE NEW.tenant_id END;
+  SELECT * INTO entry_row FROM time_catalog_entry entry
+  WHERE entry.id = target_id AND entry.tenant_id = target_tenant
+  FOR SHARE;
+  IF NOT FOUND OR entry_row.status <> 'draft' THEN
+    RAISE EXCEPTION 'TIME_CATALOG_CHILD_IMMUTABLE' USING ERRCODE = 'P0001';
+  END IF;
+  IF TG_OP = 'UPDATE' AND (
+    NEW.catalog_entry_id IS DISTINCT FROM OLD.catalog_entry_id
+    OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+    OR NEW.catalog_kind IS DISTINCT FROM OLD.catalog_kind
+  ) THEN
+    RAISE EXCEPTION 'TIME_CATALOG_CHILD_IDENTITY_IMMUTABLE' USING ERRCODE = 'P0001';
+  END IF;
+  IF TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE' THEN
+    IF NEW.day_date < entry_row.effective_from
+       OR NEW.day_date > COALESCE(entry_row.effective_to, DATE 'infinity') THEN
+      RAISE EXCEPTION 'TIME_CATALOG_CALENDAR_DAY_OUTSIDE_EFFECTIVE_RANGE' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END
 $$;

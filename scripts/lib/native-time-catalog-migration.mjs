@@ -8,6 +8,7 @@ export const NATIVE_TIME_PATCHES = Object.freeze([
   ['time_catalog_guard_entry_v1', ''],
   ['time_catalog_assert_approvable_v1', 'uuid,uuid,uuid'],
   ['time_catalog_apply_command_v1', 'text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text'],
+  ['time_catalog_guard_draft_child_v1', ''],
 ]);
 const hash = s => createHash('sha256').update(s).digest('hex');
 export function timeFunction(source, name) {
@@ -131,6 +132,9 @@ ${oldAssignment}    END IF;
   // All item usages are JSON-array SQL aliases. The unused PL/pgSQL local
   // collides with them under PostgreSQL's default ambiguity checks.
   definitions.time_catalog_apply_command_v1=replaceOnce(originals.time_catalog_apply_command_v1.definition,'  item jsonb;\n','');
+  definitions.time_catalog_guard_draft_child_v1=replaceOnce(originals.time_catalog_guard_draft_child_v1.definition,
+    "  IF TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE'\n     AND (NEW.day_date < entry_row.effective_from\n       OR NEW.day_date > COALESCE(entry_row.effective_to, DATE 'infinity')) THEN\n    RAISE EXCEPTION 'TIME_CATALOG_CALENDAR_DAY_OUTSIDE_EFFECTIVE_RANGE' USING ERRCODE = 'P0001';\n  END IF;",
+    "  IF TG_TABLE_NAME = 'time_calendar_day' AND TG_OP <> 'DELETE' THEN\n    IF NEW.day_date < entry_row.effective_from\n       OR NEW.day_date > COALESCE(entry_row.effective_to, DATE 'infinity') THEN\n      RAISE EXCEPTION 'TIME_CATALOG_CALENDAR_DAY_OUTSIDE_EFFECTIVE_RANGE' USING ERRCODE = 'P0001';\n    END IF;\n  END IF;");
   return NATIVE_TIME_PATCHES.map(([name, args]) => ({name, args, oldSha: hash(originals[name].body), definition: definitions[name], newSha: hash(timeFunction(definitions[name], name).body)}));
 }
 
