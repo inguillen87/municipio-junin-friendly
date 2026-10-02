@@ -23,12 +23,11 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  exec(`
  ALTER TABLE tenant_action_authority ADD COLUMN version integer NOT NULL DEFAULT 1,ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
  ALTER TABLE tenant_action_employment_link ADD COLUMN id uuid NOT NULL DEFAULT gen_random_uuid(),ADD COLUMN linked_by_user_email text,ADD COLUMN linked_at timestamptz DEFAULT now(),ADD COLUMN revoked_at timestamptz,ADD COLUMN updated_at timestamptz DEFAULT now();
- -- Prior regressions model two memberships of one person with one contract.
- -- Use two contracts of that same person here to exercise the real unique-link
- -- constraints without changing or skipping the prior maker/checker tests.
- self_alias_id:=gen_random_uuid();
- INSERT INTO employment_contract SELECT(jsonb_populate_record(NULL::employment_contract,to_jsonb(ec)||jsonb_build_object('id',self_alias_id,'legacy_legajo','909'))).* FROM employment_contract ec WHERE id=${q(ids.makerContract)}::uuid;
- UPDATE tenant_action_employment_link SET employment_contract_id=self_alias_id WHERE membership_id=${q(ids.samePerson)}::uuid;
+ -- Prior regressions deliberately exercise two memberships of one person with
+ -- one contract. Those checks already ran unchanged. This separate fixture
+ -- revokes that duplicate link before installing the real unique-link indexes;
+ -- its surrounding subtransaction restores the inherited fixture afterward.
+ UPDATE tenant_action_employment_link SET active=false,revoked_at=now(),updated_at=now() WHERE membership_id=${q(ids.samePerson)}::uuid;
  CREATE UNIQUE INDEX self_active_membership ON tenant_action_employment_link(membership_id) WHERE active;
  CREATE UNIQUE INDEX self_active_contract ON tenant_action_employment_link(tenant_id,employment_contract_id) WHERE active;
  CREATE TABLE tenant_action_authority_event(id bigint GENERATED ALWAYS AS IDENTITY,actor_user_email text,actor_session_id uuid,actor_session_version integer,release_sha text,tenant_id uuid,membership_id uuid,command text,target_type text,target_id text,idempotency_key uuid,command_hash text,expected_version integer,resulting_version integer,reason_code text,reason_hash text,before_snapshot jsonb,after_snapshot jsonb,result jsonb);
@@ -92,7 +91,7 @@ export function buildNativeSelfQa({serverMajor,requireConcurrency=false}){
  ok("self_receipt->>'status'='cancelled' AND self_receipt->>'entityVersion'='3'",'employee cancels own pending request without erasing create and submission');
  ok('self_capabilities=(SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY c.membership_id,c.capability_key)::text) FROM capabilities c) AND self_contracts=(SELECT md5(jsonb_agg(to_jsonb(ec) ORDER BY ec.id)::text) FROM employment_contract ec)','the installation and account/leave circuit preserve all capability grants and canonical employee rows');
  reject(q(normalized(migration)),'NATIVE_SELF_ALREADY_INSTALLED','a second installation fails without patching an installed object');
- const block=`DECLARE self_capabilities text;self_contracts text;self_view jsonb;self_receipt jsonb;self_body jsonb;self_id uuid;self_other_id uuid;self_alias_id uuid;self_profile_id uuid;self_link_key uuid:=gen_random_uuid();self_request_key uuid:=gen_random_uuid();BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1131',MESSAGE='RESTORE_SELF_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1131' THEN NULL;END;END;`;
+ const block=`DECLARE self_capabilities text;self_contracts text;self_view jsonb;self_receipt jsonb;self_body jsonb;self_id uuid;self_other_id uuid;self_profile_id uuid;self_link_key uuid:=gen_random_uuid();self_request_key uuid:=gen_random_uuid();BEGIN BEGIN ${statements.join('\n')} RAISE EXCEPTION USING ERRCODE='P1131',MESSAGE='RESTORE_SELF_FIXTURES';EXCEPTION WHEN SQLSTATE 'P1131' THEN NULL;END;END;`;
  const anchor="RAISE EXCEPTION USING ERRCODE='P1111',MESSAGE='RESTORE_LEAVE_FIXTURES';";assert.equal(base.sql.split(anchor).length,2);
  const report={...base.report,selfChecksPassed:count,checksPassed:base.report.checksPassed+count,migration113Sha256:createHash('sha256').update(migration).digest('hex'),limitations:[...base.report.limitations,'113 executes original006 platform session,009 account-link command/lookup and013 binding trigger with synthetic IAM tables. No productive installation or human employee acceptance is asserted.']};
  const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));return{...base,sql,report};
