@@ -272,3 +272,6 @@ local-agents/
 
 # Additive staging schema used by isolated source regression tests only.
 !scripts/migrations/106-grh-successor-staging.sql
+
+# Exact reviewed source contract required by time catalogue build regressions.
+!scripts/migrations/116-native-time-catalog.sql
