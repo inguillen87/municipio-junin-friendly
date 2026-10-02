@@ -1,5 +1,9 @@
 # MuniControl · plan de cierres funcionales
 
+**Corte actualizado 02/10:** #84 integra y publica el maestro salarial112, el acceso/las licencias propias113 y el catálogo de asistencia116; seis verificaciones independientes confirmaron las instalaciones en PG17/PG18. Master y producción `d99c56a4d0625107f3a8780a61e3b921043f608f`, dominio propio `https://municontrol.com`, treinta controles posteriores al merge aprobados. Baja/reingreso110 y licencias111 anteriores se conservan. No se declara aceptación municipal ni cálculo de haberes/tiempo.
+
+El siguiente incremento de C1 añade [actualización conjunta de valores del maestro propio](NOELIA_PARAMETROS_ACTUALIZACION_CONJUNTA_20261002.md): selección entre convenios/páginas, comparación completa y una única propuesta revisable sobre SQL112 existente. Mantiene los pendientes de fórmulas homologadas, C2/C3, masivas/OSEP, imputación, recibos, presupuesto anual y autonomía física. Los cortes históricos siguientes conservan sus fechas y no sustituyen este estado; la publicación del incremento nuevo se acredita en su resultado.
+
 Base contrastada el 01/10 en esta conversación: master y producción en `f433277c4fb3f43b8a0e0f596dad23f5909ba1ba`, PR #78. SQL104 fue instalada anteriormente con autorización expresa en las bases existentes PG18 y PG17 para #75; se verificó la conservación de datos y permisos, sin rectificaciones nominales. Este plan conserva los diez módulos de Noelia y los circuitos de Hugo, Mariano, Marcelo, administrativos y empleados. El objetivo solicitado sigue siendo sustituir GRH durante octubre por circuitos propios aceptados. No reemplaza sus criterios de aceptación ni declara el reemplazo integral terminado.
 
 ## Feedback vivo del01/10 y secuencia inmediata
