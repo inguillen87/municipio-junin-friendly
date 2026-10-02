@@ -34,13 +34,13 @@ export function buildNativeTimeCatalogQa({serverMajor,requireConcurrency=false})
  REVOKE ALL ON FUNCTION tenant_iam_operational_person_pair_v1(uuid,uuid,uuid,text) FROM PUBLIC,municontrol_actions_runtime_app;
  ${relocate(splitPostgresStatements(nativeTimePrerequisiteSource()).find(s=>s.includes('CREATE OR REPLACE FUNCTION time_catalog_assert_person_sod_v1(')))};
  time_old_proof:=(SELECT jsonb_agg(jsonb_build_object('oid',p.oid,'owner',p.proowner,'acl',p.proacl,'name',p.proname) ORDER BY p.proname) FROM pg_proc p WHERE p.pronamespace=${q(schema)}::regnamespace AND p.proname IN ('time_catalog_assert_actor_authority_v1','time_catalog_assert_person_sod_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1'));
- time_native_payload:=legacy_draft||jsonb_build_object('legajo','19031','dni','99000310','fullName','Actor propio sintético','startDate','2020-01-01');
+ time_native_payload:=legacy_draft||jsonb_build_object('legajo','19031','dni','99000310','cuil','20990003107','fullName','Actor propio sintético','startDate','2020-01-01');
  time_native_receipt:=native_employee_create_v1(maker,time_native_payload,native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_native_contract:=(time_native_receipt->>'contractId')::uuid;
  time_native_person:=(SELECT person_id FROM employment_contract WHERE id=time_native_contract);
- time_native_receipt:=native_employee_create_v1(maker,legacy_draft||jsonb_build_object('legajo','19032','dni','99000320','fullName','Revisor propio sintético','startDate','2020-01-01'),native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
+ time_native_receipt:=native_employee_create_v1(maker,legacy_draft||jsonb_build_object('legajo','19032','dni','99000320','cuil','20990003204','fullName','Revisor propio sintético','startDate','2020-01-01'),native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_native_checker:=(time_native_receipt->>'contractId')::uuid;
- time_native_receipt:=native_employee_create_v1(maker,legacy_draft||jsonb_build_object('legajo','19033','dni','99000330','fullName','Actor futuro sintético','startDate','2099-01-01'),native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
+ time_native_receipt:=native_employee_create_v1(maker,legacy_draft||jsonb_build_object('legajo','19033','dni','99000330','cuil','20990003301','fullName','Actor futuro sintético','startDate','2099-01-01'),native_employee_bootstrap_v1(maker)#>>'{catalog,version}',gen_random_uuid());
  time_future_contract:=(time_native_receipt->>'contractId')::uuid;
  -- The inherited catalog QA deliberately leaves a self-review capability on
  -- its maker. Define isolated temporal-only profiles after those tests have

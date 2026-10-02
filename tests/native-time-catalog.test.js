@@ -4,6 +4,7 @@ import test from 'node:test';
 import {nativeTimeCandidate,nativeTimePrerequisiteSource} from '../scripts/prepare-native-time-catalog.mjs';
 import {nativeTimeDefinitions,timeFunction,NATIVE_TIME_PATCHES} from '../scripts/lib/native-time-catalog-migration.mjs';
 import {buildNativeTimeCatalogQa} from '../scripts/verify-native-time-catalog-sql.mjs';
+import {validCuil} from '../assets/native-employee-contract.js';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8').replaceAll('\r\n','\n');
 const original=nativeTimePrerequisiteSource();
 const candidate=read('scripts/migrations/116-native-time-catalog.sql');
@@ -64,4 +65,9 @@ test('integration uses real writers, both source origins, period gap and a separ
  assert.match(qa.sql,/tenant_iam_assert_no_sod_conflict/);
  assert.match(qa.lockSql,/native-employment-lifecycle:v1:/);
  assert.match(qa.sql,/ROLLBACK/);assert.doesNotMatch(qa.sql,/COMMIT;/);
+});
+test('synthetic identity inputs satisfy the existing canonical DNI/CUIL contract',()=>{
+ const qa=read('scripts/verify-native-time-catalog-sql.mjs');
+ const subjects=[...qa.matchAll(/'dni','([0-9]{8})','cuil','([0-9]{11})'/g)];assert.equal(subjects.length,3);
+ for(const [,dni,cuil] of subjects){assert.equal(validCuil(cuil),true);assert.equal(cuil.slice(2,10),dni);}
 });
