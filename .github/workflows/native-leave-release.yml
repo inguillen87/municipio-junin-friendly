@@ -1,7 +1,7 @@
 name: Native leave and self-service source integration
 on:
   push:
-    branches: ['codex/native-leave-workflow-20261001', 'codex/native-employee-self-20261002', 'master']
+    branches: ['codex/native-leave-workflow-20261001', 'codex/native-employee-self-20261002', 'codex/native-leave-downloads-20261002', 'master']
     paths:
       - "api/internal-native-leave.js"
       - "api/internal-native-self*.js"

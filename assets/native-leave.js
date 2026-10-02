@@ -1,6 +1,7 @@
 import {nativeLeaveUuid,nativeLeaveCommand,nativeLeaveSame,validateNativeLeaveBootstrap,validateNativeLeaveReceipt} from './native-leave-contract.js';
 import {nativeLeavePayload,nativeLeaveProfile,nativeLeaveAllocations,NATIVE_LEAVE_STATES,NATIVE_LEAVE_UNITS,NATIVE_LEAVE_POLICY_VERSION} from './native-leave-model.js';
 import {getTitleViCatalog,reasonPolicyMapping} from './mendoza-title-vi.js';
+import {assertNativeLeaveExportSame,nativeLeaveCsv,nativeLeaveXlsx} from './native-leave-export.js';
 
 const API='/api/internal-native-leave',contexts=new Map(),active=new Set();
 const reasonCodes=['3','4','5','6','7','8','9','10','11','12','13','14','16','19','21','30','31','32','33','36'];
@@ -36,6 +37,9 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  <form data-nleave-form hidden><h4 data-nleave-form-title></h4><p data-nleave-policy class="nleave-note"></p><div class="nleave-fields" data-nleave-fields></div><p data-nleave-summary></p><label class="nleave-check"><input type="checkbox" data-nleave-checked>Revisé el motivo, las fechas o el año, la unidad, la cantidad y el respaldo</label><div class="nleave-actions"><button type="submit" data-nleave-save>Guardar para revisión</button><button type="button" data-nleave-discard>Descartar preparación</button></div></form>
  <form data-nleave-decision hidden><h4 data-nleave-decision-title></h4><div data-nleave-comparison></div><label>Fundamento administrativo, sin datos clínicos<textarea data-nleave-reason required minlength="10" maxlength="1000" rows="3"></textarea></label><label data-nleave-evidence-label hidden>Revisión de la evidencia<select data-nleave-evidence><option value="">Elegí una opción</option><option value="verified">Evidencia verificada</option><option value="not_required">No requiere evidencia, según regla municipal revisada</option></select></label><label class="nleave-check"><input type="checkbox" data-nleave-decision-checked>Revisé los datos y el respaldo antes de decidir</label><div class="nleave-actions"><button type="submit" data-nleave-decide>Confirmar decisión</button><button type="button" data-nleave-decision-close>Cerrar revisión</button></div></form>`;
  const $=s=>host.querySelector(s),say=(message,error=false)=>{$('[data-nleave-status]').textContent=message;$('[data-nleave-status]').dataset.error=String(error);};
+ const exports=el('div');exports.className='nleave-actions';
+ for(const [format,label]of [['csv','Descargar registro completo (CSV)'],['xlsx','Descargar registro completo (Excel)']]){const button=el('button',label);button.type='button';button.dataset.nleaveExport=format;button.addEventListener('click',()=>download(format));exports.append(button);}
+ const exportHelp=el('p','Incluye todas las solicitudes, decisiones y saldos del contrato, aunque uses búsqueda o cambies de página. No incluye observaciones libres ni fundamentos. Es un registro administrativo de consulta.');exportHelp.className='nleave-note';$('[data-nleave-content]').prepend(exports,exportHelp);
  host.insertBefore($('[data-nleave-form]'),$('[data-nleave-content]'));host.insertBefore($('[data-nleave-decision]'),$('[data-nleave-content]'));
  let page=1;
  for(const[value,label]of Object.entries(NATIVE_LEAVE_STATES))$('[data-nleave-filter]').add(new Option(label,value));
@@ -51,6 +55,7 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
   for(const n of host.querySelectorAll('[data-nleave-form] input,[data-nleave-form] select,[data-nleave-form] textarea,[data-nleave-form] button,[data-nleave-decision] input,[data-nleave-decision] select,[data-nleave-decision] textarea,[data-nleave-decision] button,[data-nleave-row-action]'))n.disabled=busy||closed||!!pending;
   $('[data-nleave-save]').disabled=busy||closed||!!pending||!draft||!$('[data-nleave-checked]').checked;
   $('[data-nleave-decide]').disabled=busy||closed||!!pending||!decision||!$('[data-nleave-decision-checked]').checked||(decision?.command==='approve'&&!$('[data-nleave-evidence]').value);
+  for(const n of host.querySelectorAll('[data-nleave-export]'))n.disabled=busy||closed||!!pending||!bootstrap||!!draft||!!decision;
   if(draft?.kind==='request')for(const key of ['startsAtLocal','endsAtLocal']){const n=$('[data-nleave-field="'+key+'"]');if(n)n.disabled=busy||!!pending||draft.values.durationUnit!=='minute';}
   if(draft?.entity)for(const key of ['reasonCode','durationUnit']){const n=$('[data-nleave-field="'+key+'"]');if(n)n.disabled=true;}
   if(draft?.kind==='profile'){const n=$('[data-nleave-field="entitledUnits"]');if(n)n.disabled=busy||!!pending||draft.values.mode!=='confirmed';}
@@ -135,6 +140,18 @@ export function mountNativeLeave(host,{contractId,selfService=false}={}){
  async function load(){
   if(busy||closed)return;const seq=++epoch;controller?.abort();controller=new AbortController();busy=true;controls();say('Consultando licencias, saldos y permisos…');
   try{await authority(seq);await fresh(seq);if(!valid(seq))return;render();say(state.pending?'Hay un envío sin confirmar. Consultá su resultado.':'Consulta completa. Los saldos no implican cálculo de haberes.');}catch(error){if(valid(seq))failure(error);}finally{if(valid(seq)){busy=false;controls();drawRequests();}}
+ }
+ async function download(format){
+  if(busy||closed||state.pending||!bootstrap||draft||decision||document.hidden)return;
+  const before=structuredClone(bootstrap),seq=++epoch;controller?.abort();controller=new AbortController();busy=true;controls();say('Verificando el registro completo antes de descargar…');
+  try{
+   await authority(seq);const after=await fresh(seq);if(!valid(seq)||document.hidden)return;
+   try{assertNativeLeaveExportSame(before,after,contractId);}catch(error){render();throw issue('REVIEW_CHANGED',409,error.message);}
+   const at=new Date().toISOString(),bytes=format==='csv'?nativeLeaveCsv(after,contractId,at):nativeLeaveXlsx(after,contractId,at);
+   await new Promise(resolve=>setTimeout(resolve,0));if(!valid(seq)||document.hidden||state.pending)return;
+   const blob=new Blob([bytes],{type:format==='csv'?'text/csv;charset=utf-8':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),link=el('a');link.href=url;link.download='licencias-'+after.subject.legajo+'-'+at.slice(0,10)+'.'+format;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+   say('Registro completo descargado: '+after.requests.length+' solicitudes, sus decisiones y '+after.balances.length+' saldos.');
+  }catch(error){if(valid(seq)){if(error.code==='REVIEW_CHANGED')say(error.message,true);else if([401,403].includes(error.status)||['CONTRACT_INVALID','ACTOR_CHANGED'].includes(error.code))failure(error);else say('No se pudo verificar el registro completo. No se descargó. Actualizá la consulta y volvé a intentar la descarga.',true);}}finally{if(valid(seq)){busy=false;controls();drawRequests();}}
  }
  function beginDecision(row,command){
   if(busy||closed||state.pending||!bootstrap)return;const permitted=command==='submit'?row.canSubmit:command==='cancel'?row.canCancel:row.canReview;if(!permitted)return;

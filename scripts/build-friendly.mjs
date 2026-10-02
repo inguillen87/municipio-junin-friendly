@@ -15,6 +15,7 @@ const output = path.join(root, 'public');
 const shellFiles = [
   'assets/release-status-model.js',
   'assets/native-leave.js',
+  'assets/native-leave-export.js',
   'assets/native-leave-model.js',
   'assets/native-leave-contract.js',
   'assets/native-leave.css',
