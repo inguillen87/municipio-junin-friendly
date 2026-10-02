@@ -3,6 +3,8 @@ import {TimeCatalogReviewSession, catalogCivilDate, catalogPageLabel, CATALOG_KI
 import {TIME_CATALOG_REASONS, timeCatalogExact, timeCatalogCommand} from './time-catalog-contract.js';
 import {TimeCatalogEditor} from './time-catalog-editor.js';
 import {restoreBulkAssignmentAttempt} from './time-catalog-bulk-assignment.js';
+import {restoreAssignmentDecisionAttempt} from './time-catalog-bulk-decision.js';
+import {TimeCatalogBulkDecisionUi} from './time-catalog-bulk-decision-ui.js';
 
 const model = new TimeCatalogReviewSession(), byId = id => document.getElementById(id);
 const nodes = Object.fromEntries(['refresh', 'message', 'workspace', 'countCalendar', 'countShift', 'countRules', 'countAssignments', 'countSubmitted',
@@ -20,12 +22,18 @@ let bulkReview = null, bulkAttempt = null, bulkSending = false, bulkStop = false
 const editor = new TimeCatalogEditor({container: nodes.editorFields, session: model, catalogRead: q => request(q),
   directoryRead: url => request(null, null, url), changed: () => { if(!bulkSending)clearBulkReview();if (model.scope) controls(); },
   failed: e => { if (!(e instanceof StaleRead) && model.scope) editorNotice(e.message); }});
+const assignmentDecisions=new TimeCatalogBulkDecisionUi({model,request,isLocked:()=>busy||Boolean(model.pending||bulkAttempt),
+  lock:value=>{busy=value;controls();},remember:attempt=>{bulkAttempt=attempt;},
+  pending:error=>{renderDetail();nodes.detail.showModal();notice('Se detuvieron las siguientes decisiones. Recuperá sólo el intento original.',true);notice(error.message,true,true);},
+  finish:async text=>{await readList();renderSummary();notice(text);},
+  failed:error=>{if(!model.scope)wipe(error.message);else if(!(error instanceof StaleRead))notice(error.message,true);}});
 function editorNotice(text) { nodes.editorMessage.textContent = text; nodes.editorMessage.hidden = !text; nodes.editorMessage.classList.toggle('error', Boolean(text)); }
 const make = (tag, value, className) => { const n = document.createElement(tag); if (value !== undefined) n.textContent = String(value); if (className) n.className = className; return n; };
 function notice(text, error = false, detail = false) {
   const node = detail ? nodes.detailMessage : nodes.message; node.textContent = text; node.classList.toggle('error', error); node.hidden = !text;
 }
 function wipe(text) {
+  assignmentDecisions.clear();
   bulkReview=null;bulkSending=false;nodes.bulkReview.hidden=true;nodes.bulkTargets.replaceChildren();nodes.bulkConfirmed.checked=false;nodes.bulkResults.replaceChildren();
   model.invalidate(); active.forEach(c => c.abort()); active.clear(); busy = false;
   nodes.detail.close(); nodes.decision.reset(); nodes.command.replaceChildren(); nodes.reasonCode.replaceChildren();
@@ -69,6 +77,7 @@ async function request(query = null, attempt = null, directoryUrl = null) {
 }
 function controls() {
   const pending = Boolean(model.pending || bulkAttempt), locked = busy || pending;
+  assignmentDecisions.controls(locked);
   nodes.refresh.disabled = busy; nodes.refresh.textContent = pending ? 'Retomar envío sin confirmación' : 'Verificar acceso y actualizar';
   nodes.filters.querySelectorAll('button,select').forEach(n => n.disabled = locked);
   nodes.showSubmitted.disabled = locked;
@@ -108,7 +117,7 @@ function renderList() {
     const button = make('button', 'Ver configuración'); button.type = 'button';
     button.setAttribute('aria-label', `Ver ${kinds[r.kind].toLowerCase()}, revisión ${r.revision}, desde ${catalogCivilDate(r.effectiveFrom)}`);
     button.addEventListener('click', () => openDetail(r.id));
-    item.append(title, dates, make('span', statuses[r.status], 'badge ' + r.status), button); nodes.records.append(item);
+    item.append(title, dates, make('span', statuses[r.status], 'badge ' + r.status), button);const choice=assignmentDecisions.choice(r);if(choice)item.append(choice);nodes.records.append(item);
   });
   const p = model.page; nodes.pageCount.textContent = catalogPageLabel(p, model.records.length);
   if (p.hasMore && offset + 25 > 100000) nodes.pageCount.textContent += ' · Se alcanzó el límite disponible de consulta. Acotá los filtros.';
@@ -125,7 +134,12 @@ async function refresh() {
   busy = true; controls(); notice('Verificando acceso y catálogo…');
   try {
     model.bootstrap(await request({resource: 'bootstrap'})); renderSummary();
-    if(bulkAttempt){restoreBulkAssignmentAttempt(model,bulkAttempt);nodes.workspace.hidden=false;renderDetail();nodes.detail.showModal();notice('Retomá sólo el borrador enviado. Los contratos restantes necesitan una nueva revisión.');return;}
+    if(bulkAttempt){
+      const command=JSON.parse(bulkAttempt.body).payload;
+      if(command.command==='create_draft')restoreBulkAssignmentAttempt(model,bulkAttempt);
+      else{model.detail(await request({resource:'detail',id:command.id}),command.id);restoreAssignmentDecisionAttempt(model,bulkAttempt);}
+      nodes.workspace.hidden=false;renderDetail();nodes.detail.showModal();notice('Retomá sólo el envío original. Los contratos restantes necesitan una nueva revisión.');return;
+    }
     await readList();
     nodes.workspace.hidden = false; notice('');
   } catch (e) { if (!(e instanceof StaleRead)) wipe(e.message || 'No se pudo consultar el catálogo.'); }
@@ -203,7 +217,7 @@ async function sendPending() {
   busy = true; controls(); notice('Verificando el acceso antes del envío…', false, true);
   try {
     const attempt = model.attempt(); model.bootstrap(await request({resource: 'bootstrap'})); model.attempt();
-    const outcome = model.confirm(await request(null, attempt)); if(bulkAttempt){bulkAttempt=null;nodes.bulkResults.replaceChildren(make('p','Se recuperó el comprobante del borrador original. Las asignaciones restantes requieren una nueva revisión; no se enviaron automáticamente.'));} renderDetail();
+    const outcome = model.confirm(await request(null, attempt)); if(bulkAttempt){bulkAttempt=null;nodes.bulkResults.replaceChildren(make('p','Se recuperó el comprobante del envío original. Las asignaciones restantes requieren una nueva revisión; no se enviaron automáticamente.'));} renderDetail();
     notice('');
     notice(outcome.historical ? 'Se recuperó el acuse original. Consultá la versión actual antes de otra decisión.' : 'Operación registrada. No genera cálculos ni liquidaciones.', false, true);
     // A historical replay can be older than current state. Do not enable a new
