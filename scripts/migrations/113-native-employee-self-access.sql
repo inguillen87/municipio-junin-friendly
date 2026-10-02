@@ -96,7 +96,7 @@ BEGIN
   );$new$)
  ) patches(sig,sha,old_value,new_value) LOOP
   SELECT * INTO p FROM pg_proc WHERE oid=to_regprocedure(signature);
-  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','timezone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
+  expected_config:=CASE WHEN signature IN('public.native_leave_context_v1(jsonb)','public.native_leave_authorized_v1(jsonb,uuid,text,text,text)') THEN ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC'] ELSE ARRAY['search_path=public, pg_temp'] END;
   IF p.oid IS NULL OR p.proowner<>current_user::regrole OR NOT p.prosecdef OR p.prokind<>'f'
    OR p.proconfig IS DISTINCT FROM expected_config OR p.provolatile IS DISTINCT FROM (CASE WHEN signature='public.native_leave_authorized_v1(jsonb,uuid,text,text,text)' THEN 's' ELSE 'v' END)::"char" OR p.proparallel<>'u' OR p.proleakproof OR p.proretset
    OR p.prolang<>(SELECT oid FROM pg_language WHERE lanname='plpgsql')
