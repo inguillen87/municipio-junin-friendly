@@ -255,6 +255,16 @@ BEGIN
  THEN RAISE EXCEPTION 'NATIVE_LEAVE_INPUT_INVALID'; END IF;
  command_name:=body->>'command'; target:=(body->>'contractId')::uuid; kind:=CASE WHEN command_name LIKE 'profile_%' THEN 'profile' ELSE 'request' END;
  IF command_name IS NULL OR command_name NOT IN ('create','update_draft','submit','approve','reject','cancel','profile_propose','profile_approve','profile_reject') THEN RAISE EXCEPTION 'NATIVE_LEAVE_INPUT_INVALID'; END IF;
+ -- Reject a read-only actor before inspecting the actor's employment link.
+ -- This preliminary capability gate never replaces the exact scoped check below.
+ IF NOT EXISTS(SELECT 1 FROM unnest(CASE command_name
+  WHEN 'create' THEN ARRAY['leave.request.self.create','leave.request.area.create','leave.request.all.manage']
+  WHEN 'update_draft' THEN ARRAY['leave.request.self.update','leave.request.area.update','leave.request.all.manage']
+  WHEN 'submit' THEN ARRAY['leave.request.self.submit','leave.request.area.submit','leave.request.all.manage']
+  WHEN 'approve' THEN ARRAY['leave.request.area.decide','leave.request.all.manage']
+  WHEN 'reject' THEN ARRAY['leave.request.area.decide','leave.request.all.manage']
+  WHEN 'cancel' THEN ARRAY['leave.request.self.cancel','leave.request.area.cancel_pending','leave.request.area.cancel_approved','leave.request.all.manage']
+  ELSE ARRAY['leave.request.all.manage'] END) cap WHERE public.action_center_context_has_capability(ctx,cap)) THEN RAISE EXCEPTION 'NATIVE_LEAVE_FORBIDDEN'; END IF;
  IF ctx->>'actorPersonId' IS NULL OR ctx->>'employmentContractId' IS NULL THEN RAISE EXCEPTION 'NATIVE_LEAVE_EMPLOYMENT_REQUIRED'; END IF;
  PERFORM public.native_employment_lifecycle_lock_v1(ctx,target); subject:=public.native_employment_lifecycle_subject_v1(ctx,target);
  fingerprint:=encode(public.digest(public.native_leave_serialized_v1(body),'sha256'),'hex');
