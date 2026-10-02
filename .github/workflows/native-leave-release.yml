@@ -122,7 +122,7 @@ jobs:
           done
           test "$ready" = true
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/native-leave.sql
-          kill -0 "$blocker"
-          kill "$blocker"
-          wait "$blocker" || true
+          # The inherited QA releases the second connection through its finish
+          # handshake. Its successful exit is part of concurrency acceptance.
+          wait "$blocker"
           trap - EXIT
