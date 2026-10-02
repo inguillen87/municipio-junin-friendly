@@ -479,6 +479,16 @@ BEGIN
       END IF;
     END IF;
   END IF;
+  -- Native assignments must already have coherent periods and approved
+  -- dependencies when submitted. The original GRH submission path is kept.
+  IF transition_command='submit' AND NEW.catalog_kind='assignment' AND EXISTS (
+    SELECT 1 FROM time_assignment_spec spec
+    JOIN employment_contract contract ON contract.id=spec.employment_contract_id
+    WHERE spec.catalog_entry_id=NEW.id AND spec.tenant_id=NEW.tenant_id
+      AND contract.source_system='MUNICONTROL'
+  ) THEN
+    PERFORM time_catalog_assert_approvable_v1(NEW.id,NEW.tenant_id,NEW.certified_binding_id);
+  END IF;
   IF transition_command = 'approve' THEN
     PERFORM time_catalog_assert_approvable_v1(
       NEW.id, NEW.tenant_id, NEW.certified_binding_id

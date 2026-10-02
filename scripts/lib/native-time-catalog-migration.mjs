@@ -98,6 +98,17 @@ ${oldGuard}    END IF;
         RAISE EXCEPTION 'TIME_CATALOG_APPROVER_INVALID' USING ERRCODE='P0001';
       END IF;
     END IF;`);
+  d = replaceOnce(d,"  IF transition_command = 'approve' THEN",`  -- Native assignments must already have coherent periods and approved
+  -- dependencies when submitted. The original GRH submission path is kept.
+  IF transition_command='submit' AND NEW.catalog_kind='assignment' AND EXISTS (
+    SELECT 1 FROM time_assignment_spec spec
+    JOIN employment_contract contract ON contract.id=spec.employment_contract_id
+    WHERE spec.catalog_entry_id=NEW.id AND spec.tenant_id=NEW.tenant_id
+      AND contract.source_system='MUNICONTROL'
+  ) THEN
+    PERFORM time_catalog_assert_approvable_v1(NEW.id,NEW.tenant_id,NEW.certified_binding_id);
+  END IF;
+  IF transition_command = 'approve' THEN`);
   definitions.time_catalog_guard_entry_v1 = d;
 
   d = originals.time_catalog_assert_approvable_v1.definition;
