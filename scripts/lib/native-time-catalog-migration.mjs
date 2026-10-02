@@ -7,6 +7,7 @@ export const NATIVE_TIME_PATCHES = Object.freeze([
   ['time_catalog_assert_person_sod_v1', 'uuid,uuid,uuid'],
   ['time_catalog_guard_entry_v1', ''],
   ['time_catalog_assert_approvable_v1', 'uuid,uuid,uuid'],
+  ['time_catalog_apply_command_v1', 'text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text'],
 ]);
 const hash = s => createHash('sha256').update(s).digest('hex');
 export function timeFunction(source, name) {
@@ -127,13 +128,16 @@ ${oldGuard}    END IF;
 ${oldAssignment}    END IF;
 `);
   definitions.time_catalog_assert_approvable_v1 = d;
+  // All item usages are JSON-array SQL aliases. The unused PL/pgSQL local
+  // collides with them under PostgreSQL's default ambiguity checks.
+  definitions.time_catalog_apply_command_v1=replaceOnce(originals.time_catalog_apply_command_v1.definition,'  item jsonb;\n','');
   return NATIVE_TIME_PATCHES.map(([name, args]) => ({name, args, oldSha: hash(originals[name].body), definition: definitions[name], newSha: hash(timeFunction(definitions[name], name).body)}));
 }
 
 export function nativeTimeMigration(source, helpers, dependencies) {
   const patches = nativeTimeDefinitions(source);
   if (!Array.isArray(dependencies) || dependencies.length !== 8 || dependencies.some(p => !p.signature || !/^[a-f0-9]{64}$/.test(p.sha256))) throw Error('TIME_CATALOG_DEPENDENCIES_REQUIRED');
-  const pins = [...patches.map(p => ({signature: `${p.name}(${p.args})`, sha256:p.oldSha})), ...dependencies].map(p => ` ('${p.signature}','${p.sha256}')`).join(',\n');
+  const pins = [...patches.map(p => ({signature: `${p.name}(${p.args})`, sha256:p.oldSha,runtime:p.name==='time_catalog_apply_command_v1'})), ...dependencies].map(p => ` ('${p.signature}','${p.sha256}',${!!p.runtime})`).join(',\n');
   const prerequisites = `-- SQL116: native actors and subjects in the existing temporal catalog.
 -- No new tables, runtime privileges, account grants, punches, rules or payroll writes.
 -- Whole transaction only. A second installation or unknown body fails closed.
@@ -151,11 +155,11 @@ BEGIN
  THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  FOR item IN SELECT * FROM (VALUES
 ${pins}
- ) pin(signature,sha256) LOOP
+ ) pin(signature,sha256,runtime_execute) LOOP
   SELECT encode(public.digest(replace(p.prosrc,E'\\r\\n',E'\\n'),'sha256'),'hex') INTO actual
   FROM pg_proc p WHERE p.oid=to_regprocedure('public.'||item.signature)
     AND p.prosecdef AND p.proowner=current_user::regrole
-    AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE') IS FALSE;
+    AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE') IS NOT DISTINCT FROM item.runtime_execute;
   IF actual IS DISTINCT FROM item.sha256 THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  END LOOP;
 END $prerequisite$;

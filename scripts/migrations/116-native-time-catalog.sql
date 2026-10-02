@@ -14,23 +14,24 @@ BEGIN
    OR to_regclass('public.native_employment_lifecycle_review') IS NULL
  THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  FOR item IN SELECT * FROM (VALUES
- ('time_catalog_assert_actor_authority_v1(jsonb,text)','3aab92d252fc108dc5c08bb78142cb61e74c4b8bed310941f9009fb6722717fb'),
- ('time_catalog_assert_person_sod_v1(uuid,uuid,uuid)','4c4042fb3b71d03d9ccd1da82c6f63f2023b1b2b7808397969edfab3aecb660b'),
- ('time_catalog_guard_entry_v1()','64185f00eab6d347f6b0a12045619117332214913b2e174aaa346930601b9a50'),
- ('time_catalog_assert_approvable_v1(uuid,uuid,uuid)','3510543ef293e222bef0072429fda52df21e56e5fd448156f44b485f1c80db18'),
- ('payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)','7b490b4cc34bd45205dacf169c1fc2432c5a711fd99d6384bdc0d22db4236e48'),
- ('native_employment_change_subject_v1(jsonb,uuid)','3a50695689cc90517b0ef9795ce1588cc8a4e49b5515f16832c6c2d4521459b0'),
- ('native_employment_lifecycle_subject_v1(jsonb,uuid)','4c5a4785240c5ebfb91c2445d265c2ebe6d3063710fe5d01ebc2b2bbfa591e95'),
- ('native_employment_lifecycle_range_v1(jsonb,uuid,date,date,boolean)','d3d8b65fbcb27cfa3926c224be27832007e5a55f7e933c839fa7bb39d954fed7'),
- ('native_employment_lifecycle_state_v1(jsonb,uuid,jsonb)','dd5ea2251c5e7279df3bdab239381c80b2112aca3731464d3cb551e1fb45b380'),
- ('native_employment_lifecycle_intervals_v1(jsonb)','8b195f02bb936108c373f14b7338b707771966fec8c064ac51d0132d38f2b988'),
- ('native_employment_lifecycle_activity_v1(jsonb,date)','6a31b3c7be5e6226975e0283954ef2ca0b217aac8799010f98ef07b8d64fac23'),
- ('native_employment_lifecycle_version_v1(jsonb,jsonb,integer)','44b8e2f32e6f55b9fbd994657e3a69f5de17991cc4680307734c48302f72d2f3')
- ) pin(signature,sha256) LOOP
+ ('time_catalog_assert_actor_authority_v1(jsonb,text)','3aab92d252fc108dc5c08bb78142cb61e74c4b8bed310941f9009fb6722717fb',false),
+ ('time_catalog_assert_person_sod_v1(uuid,uuid,uuid)','4c4042fb3b71d03d9ccd1da82c6f63f2023b1b2b7808397969edfab3aecb660b',false),
+ ('time_catalog_guard_entry_v1()','64185f00eab6d347f6b0a12045619117332214913b2e174aaa346930601b9a50',false),
+ ('time_catalog_assert_approvable_v1(uuid,uuid,uuid)','3510543ef293e222bef0072429fda52df21e56e5fd448156f44b485f1c80db18',false),
+ ('time_catalog_apply_command_v1(text,uuid,integer,text,uuid,uuid,text,text,uuid,integer,uuid,text,jsonb,text,text)','6ad1d544f0aa8c1359d716c429d6074fe9ee9193ced2e4166cf5da3bdf50faa7',true),
+ ('payroll_fixed_registry_subject_by_contract_v1(jsonb,uuid,boolean)','7b490b4cc34bd45205dacf169c1fc2432c5a711fd99d6384bdc0d22db4236e48',false),
+ ('native_employment_change_subject_v1(jsonb,uuid)','3a50695689cc90517b0ef9795ce1588cc8a4e49b5515f16832c6c2d4521459b0',false),
+ ('native_employment_lifecycle_subject_v1(jsonb,uuid)','4c5a4785240c5ebfb91c2445d265c2ebe6d3063710fe5d01ebc2b2bbfa591e95',false),
+ ('native_employment_lifecycle_range_v1(jsonb,uuid,date,date,boolean)','d3d8b65fbcb27cfa3926c224be27832007e5a55f7e933c839fa7bb39d954fed7',false),
+ ('native_employment_lifecycle_state_v1(jsonb,uuid,jsonb)','dd5ea2251c5e7279df3bdab239381c80b2112aca3731464d3cb551e1fb45b380',false),
+ ('native_employment_lifecycle_intervals_v1(jsonb)','8b195f02bb936108c373f14b7338b707771966fec8c064ac51d0132d38f2b988',false),
+ ('native_employment_lifecycle_activity_v1(jsonb,date)','6a31b3c7be5e6226975e0283954ef2ca0b217aac8799010f98ef07b8d64fac23',false),
+ ('native_employment_lifecycle_version_v1(jsonb,jsonb,integer)','44b8e2f32e6f55b9fbd994657e3a69f5de17991cc4680307734c48302f72d2f3',false)
+ ) pin(signature,sha256,runtime_execute) LOOP
   SELECT encode(public.digest(replace(p.prosrc,E'\r\n',E'\n'),'sha256'),'hex') INTO actual
   FROM pg_proc p WHERE p.oid=to_regprocedure('public.'||item.signature)
     AND p.prosecdef AND p.proowner=current_user::regrole
-    AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE') IS FALSE;
+    AND has_function_privilege('municontrol_actions_runtime_app',p.oid,'EXECUTE') IS NOT DISTINCT FROM item.runtime_execute;
   IF actual IS DISTINCT FROM item.sha256 THEN RAISE EXCEPTION 'TIME_CATALOG_NATIVE_PREREQUISITE'; END IF;
  END LOOP;
 END $prerequisite$;
@@ -651,5 +652,337 @@ BEGIN
       RAISE EXCEPTION 'TIME_CATALOG_ASSIGNMENT_DEPENDENCY_INVALID' USING ERRCODE = 'P0001';
     END IF;
   END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION time_catalog_apply_command_v1(
+  p_actor_email text,
+  p_actor_session_id uuid,
+  p_actor_session_version integer,
+  p_release_sha text,
+  p_tenant_id uuid,
+  p_membership_id uuid,
+  p_command text,
+  p_catalog_kind text,
+  p_catalog_entry_id uuid,
+  p_expected_version integer,
+  p_idempotency_key uuid,
+  p_command_hash text,
+  p_payload jsonb,
+  p_reason_code text,
+  p_reason_hash text
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  context_value jsonb;
+  entry_row time_catalog_entry%ROWTYPE;
+  existing_event time_catalog_governance_event%ROWTYPE;
+  target_id uuid;
+  target_kind text;
+  source_contract_id_value uuid;
+  before_value jsonb := '{}'::jsonb;
+  after_value jsonb;
+  result_value jsonb;
+  required_capability text;
+BEGIN
+  IF p_command IS NULL OR p_command NOT IN (
+       'create_draft','update_draft','submit','approve','reject','retire'
+     )
+     OR p_idempotency_key IS NULL
+     OR lower(COALESCE(p_command_hash,'')) !~ '^[a-f0-9]{64}$'
+     OR p_expected_version IS NULL OR p_expected_version < 0
+     OR lower(COALESCE(p_reason_hash,'')) !~ '^[a-f0-9]{64}$'
+     OR time_catalog_reason_allowed_v1(p_command, p_reason_code) IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'TIME_CATALOG_COMMAND_INVALID' USING ERRCODE = 'P0001';
+  END IF;
+  IF p_command = 'create_draft' THEN
+    IF p_catalog_kind NOT IN ('calendar','shift','rule_profile','assignment')
+       OR p_catalog_entry_id IS NOT NULL OR p_expected_version <> 0
+       OR NOT time_catalog_payload_valid_v1(p_catalog_kind, p_payload) THEN
+      RAISE EXCEPTION 'TIME_CATALOG_COMMAND_SHAPE_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+  ELSIF p_command = 'update_draft' THEN
+    IF p_catalog_kind NOT IN ('calendar','shift','rule_profile','assignment')
+       OR p_catalog_entry_id IS NULL OR p_expected_version < 1
+       OR NOT time_catalog_payload_valid_v1(p_catalog_kind, p_payload) THEN
+      RAISE EXCEPTION 'TIME_CATALOG_COMMAND_SHAPE_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+  ELSIF p_catalog_kind IS NOT NULL OR p_catalog_entry_id IS NULL
+     OR p_expected_version < 1 OR p_payload IS NOT NULL THEN
+    RAISE EXCEPTION 'TIME_CATALOG_COMMAND_SHAPE_INVALID' USING ERRCODE = 'P0001';
+  END IF;
+
+  context_value := time_source_assert_tenant_session_v1(
+    p_actor_email, p_actor_session_id, p_actor_session_version,
+    p_release_sha, p_tenant_id, p_membership_id
+  );
+  PERFORM pg_advisory_xact_lock(hashtextextended(
+    'time-catalog-idempotency:' || (context_value->>'tenantId') || ':'
+      || (context_value->>'membershipId') || ':' || p_idempotency_key::text, 0
+  ));
+  required_capability := CASE
+    WHEN p_command IN ('create_draft','update_draft','submit')
+      THEN 'time.catalog.propose'
+    ELSE 'time.catalog.approve'
+  END;
+  context_value := time_catalog_assert_actor_authority_v1(
+    context_value, required_capability
+  );
+
+  SELECT * INTO existing_event FROM time_catalog_governance_event event
+  WHERE event.tenant_id = (context_value->>'tenantId')::uuid
+    AND event.actor_membership_id = (context_value->>'membershipId')::uuid
+    AND event.idempotency_key = p_idempotency_key
+  FOR SHARE;
+  IF FOUND THEN
+    IF existing_event.command IS DISTINCT FROM p_command
+       OR existing_event.command_hash IS DISTINCT FROM lower(p_command_hash)
+       OR existing_event.expected_version IS DISTINCT FROM p_expected_version
+       OR existing_event.actor_person_id IS DISTINCT FROM (context_value->>'actorPersonId')::uuid
+       OR existing_event.actor_session_id IS DISTINCT FROM p_actor_session_id
+       OR existing_event.actor_session_version IS DISTINCT FROM p_actor_session_version
+       OR existing_event.release_sha IS DISTINCT FROM lower(p_release_sha)
+       OR existing_event.actor_certified_binding_id
+          IS DISTINCT FROM (context_value->>'certifiedBindingId')::uuid
+       OR (p_catalog_entry_id IS NOT NULL
+         AND existing_event.catalog_entry_id IS DISTINCT FROM p_catalog_entry_id) THEN
+      RAISE EXCEPTION 'TIME_CATALOG_IDEMPOTENCY_REUSED' USING ERRCODE = 'P0001';
+    END IF;
+    SELECT * INTO entry_row FROM time_catalog_entry entry
+    WHERE entry.id = existing_event.catalog_entry_id
+      AND entry.tenant_id = existing_event.tenant_id
+    FOR SHARE;
+    IF NOT FOUND OR entry_row.certified_binding_id
+       IS DISTINCT FROM existing_event.catalog_certified_binding_id THEN
+      RAISE EXCEPTION 'TIME_CATALOG_AUDIT_DRIFT' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN existing_event.result || jsonb_build_object(
+      'replayed', true,
+      'historical', entry_row.version IS DISTINCT FROM existing_event.resulting_version
+        OR entry_row.status IS DISTINCT FROM existing_event.after_snapshot->>'status'
+    );
+  END IF;
+
+  IF p_command = 'create_draft' THEN
+    target_id := gen_random_uuid();
+    target_kind := p_catalog_kind;
+  ELSE
+    SELECT * INTO entry_row FROM time_catalog_entry entry
+    WHERE entry.id = p_catalog_entry_id
+      AND entry.tenant_id = (context_value->>'tenantId')::uuid
+    FOR UPDATE NOWAIT;
+    IF NOT FOUND THEN RAISE EXCEPTION 'TIME_CATALOG_NOT_FOUND' USING ERRCODE = 'P0001'; END IF;
+    target_id := entry_row.id;
+    target_kind := entry_row.catalog_kind;
+    IF entry_row.version IS DISTINCT FROM p_expected_version THEN
+      RAISE EXCEPTION 'TIME_CATALOG_VERSION_CONFLICT' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_command = 'update_draft' AND (
+      p_catalog_kind IS DISTINCT FROM entry_row.catalog_kind
+      OR lower(p_payload->>'logicalKeyHash') IS DISTINCT FROM entry_row.logical_key_hash
+      OR (p_payload->>'revision')::integer IS DISTINCT FROM entry_row.revision
+    ) THEN
+      RAISE EXCEPTION 'TIME_CATALOG_IDENTITY_IMMUTABLE' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_command <> 'retire'
+       AND entry_row.certified_binding_id
+         IS DISTINCT FROM (context_value->>'certifiedBindingId')::uuid THEN
+      RAISE EXCEPTION 'TIME_CATALOG_BINDING_STALE' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_command IN ('update_draft','submit')
+       AND entry_row.proposer_person_id
+         IS DISTINCT FROM (context_value->>'actorPersonId')::uuid THEN
+      RAISE EXCEPTION 'TIME_CATALOG_PROPOSER_REQUIRED' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_command IN ('approve','reject','retire')
+       AND entry_row.proposer_person_id
+         IS NOT DISTINCT FROM (context_value->>'actorPersonId')::uuid THEN
+      RAISE EXCEPTION 'TIME_CATALOG_SEPARATION_OF_DUTIES' USING ERRCODE = 'P0001';
+    END IF;
+    before_value := time_catalog_entry_snapshot_v1(entry_row.id, entry_row.tenant_id);
+  END IF;
+
+  IF p_command IN ('create_draft','update_draft') THEN
+    source_contract_id_value := CASE WHEN p_payload ? 'sourceContractId'
+      THEN (p_payload->>'sourceContractId')::uuid END;
+  END IF;
+
+  IF p_command = 'create_draft' THEN
+    INSERT INTO time_catalog_entry (
+      id, tenant_id, certified_binding_id, catalog_kind, logical_key_hash,
+      revision, effective_from, effective_to, timezone,
+      source_contract_id, source_contract_certified_binding_id,
+      status, version, proposer_person_id, proposer_membership_id,
+      reason_code, reason_hash
+    ) VALUES (
+      target_id, (context_value->>'tenantId')::uuid,
+      (context_value->>'certifiedBindingId')::uuid, target_kind,
+      lower(p_payload->>'logicalKeyHash'), (p_payload->>'revision')::integer,
+      (p_payload->>'effectiveFrom')::date,
+      CASE WHEN p_payload ? 'effectiveTo' THEN (p_payload->>'effectiveTo')::date END,
+      p_payload->>'timezone', source_contract_id_value,
+      CASE WHEN source_contract_id_value IS NOT NULL
+        THEN (context_value->>'certifiedBindingId')::uuid END,
+      'draft', 1, (context_value->>'actorPersonId')::uuid,
+      (context_value->>'membershipId')::uuid,
+      p_reason_code, lower(p_reason_hash)
+    );
+  ELSIF p_command = 'update_draft' THEN
+    IF entry_row.status <> 'draft' THEN
+      RAISE EXCEPTION 'TIME_CATALOG_TRANSITION_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE time_catalog_entry SET
+      effective_from = (p_payload->>'effectiveFrom')::date,
+      effective_to = CASE WHEN p_payload ? 'effectiveTo'
+        THEN (p_payload->>'effectiveTo')::date END,
+      timezone = p_payload->>'timezone',
+      source_contract_id = source_contract_id_value,
+      source_contract_certified_binding_id = CASE WHEN source_contract_id_value IS NOT NULL
+        THEN (context_value->>'certifiedBindingId')::uuid END,
+      version = version + 1, reason_code = p_reason_code,
+      reason_hash = lower(p_reason_hash), updated_at = now()
+    WHERE id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+  ELSIF p_command = 'submit' THEN
+    IF entry_row.status <> 'draft' THEN
+      RAISE EXCEPTION 'TIME_CATALOG_TRANSITION_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE time_catalog_entry SET
+      status = 'submitted', version = version + 1,
+      reason_code = p_reason_code, reason_hash = lower(p_reason_hash),
+      submitted_at = now(), updated_at = now()
+    WHERE id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+  ELSIF p_command IN ('approve','reject') THEN
+    IF entry_row.status <> 'submitted' THEN
+      RAISE EXCEPTION 'TIME_CATALOG_TRANSITION_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+    IF p_command = 'approve' THEN
+      PERFORM pg_advisory_xact_lock(hashtextextended(
+        'time-catalog-approval:' || entry_row.tenant_id::text || ':'
+          || entry_row.catalog_kind || ':' || entry_row.logical_key_hash, 0
+      ));
+    END IF;
+    UPDATE time_catalog_entry SET
+      status = CASE p_command WHEN 'approve' THEN 'approved' ELSE 'rejected' END,
+      version = version + 1, reason_code = p_reason_code,
+      reason_hash = lower(p_reason_hash),
+      approver_person_id = (context_value->>'actorPersonId')::uuid,
+      approver_membership_id = (context_value->>'membershipId')::uuid,
+      decided_at = now(), updated_at = now()
+    WHERE id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+  ELSIF p_command = 'retire' THEN
+    IF entry_row.status <> 'approved' THEN
+      RAISE EXCEPTION 'TIME_CATALOG_TRANSITION_INVALID' USING ERRCODE = 'P0001';
+    END IF;
+    UPDATE time_catalog_entry SET
+      status = 'retired', version = version + 1,
+      reason_code = p_reason_code, reason_hash = lower(p_reason_hash),
+      retired_at = now(), updated_at = now()
+    WHERE id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+  END IF;
+
+  IF p_command IN ('create_draft','update_draft') THEN
+    DELETE FROM time_calendar_day
+    WHERE catalog_entry_id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+    DELETE FROM time_shift_weekly_interval
+    WHERE catalog_entry_id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+    DELETE FROM time_shift_spec
+    WHERE catalog_entry_id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+    DELETE FROM time_rule_parameter
+    WHERE catalog_entry_id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+    DELETE FROM time_assignment_spec
+    WHERE catalog_entry_id = target_id AND tenant_id = (context_value->>'tenantId')::uuid;
+
+    IF target_kind = 'calendar' THEN
+      INSERT INTO time_calendar_day (
+        catalog_entry_id, tenant_id, catalog_kind,
+        day_date, day_kind, day_code, evidence_sha256
+      )
+      SELECT target_id, (context_value->>'tenantId')::uuid, 'calendar',
+        (item->>'date')::date, item->>'kind', item->>'code',
+        CASE WHEN item ? 'evidenceSha256' THEN lower(item->>'evidenceSha256') END
+      FROM jsonb_array_elements(p_payload->'spec'->'days') row(item);
+    ELSIF target_kind = 'shift' THEN
+      INSERT INTO time_shift_spec (
+        catalog_entry_id, tenant_id, catalog_kind,
+        entry_tolerance_seconds, exit_tolerance_seconds
+      ) VALUES (
+        target_id, (context_value->>'tenantId')::uuid, 'shift',
+        (p_payload->'spec'->>'entryToleranceSeconds')::integer,
+        (p_payload->'spec'->>'exitToleranceSeconds')::integer
+      );
+      INSERT INTO time_shift_weekly_interval (
+        catalog_entry_id, tenant_id, catalog_kind, weekday,
+        interval_sequence, interval_kind, starts_at, ends_at, crosses_midnight
+      )
+      SELECT target_id, (context_value->>'tenantId')::uuid, 'shift',
+        (item->>'day')::smallint, (item->>'sequence')::smallint,
+        item->>'kind', (item->>'start')::time, (item->>'end')::time,
+        (item->>'crossesMidnight')::boolean
+      FROM jsonb_array_elements(p_payload->'spec'->'intervals') row(item);
+    ELSIF target_kind = 'rule_profile' THEN
+      INSERT INTO time_rule_parameter (
+        catalog_entry_id, tenant_id, catalog_kind, parameter_key, value_kind,
+        integer_value, decimal_value, boolean_value, time_value, code_value, unit_code
+      )
+      SELECT target_id, (context_value->>'tenantId')::uuid, 'rule_profile',
+        item->>'key', item->>'valueKind',
+        CASE WHEN item->>'valueKind' = 'integer' THEN (item->>'value')::bigint END,
+        CASE WHEN item->>'valueKind' = 'decimal' THEN (item->>'value')::numeric END,
+        CASE WHEN item->>'valueKind' = 'boolean' THEN (item->>'value')::boolean END,
+        CASE WHEN item->>'valueKind' = 'time' THEN (item->>'value')::time END,
+        CASE WHEN item->>'valueKind' = 'code' THEN item->>'value' END,
+        item->>'unitCode'
+      FROM jsonb_array_elements(p_payload->'spec'->'parameters') row(item);
+    ELSE
+      INSERT INTO time_assignment_spec (
+        catalog_entry_id, tenant_id, catalog_kind, employment_contract_id,
+        shift_entry_id, shift_kind, calendar_entry_id, calendar_kind,
+        rule_profile_entry_id, rule_profile_kind
+      ) VALUES (
+        target_id, (context_value->>'tenantId')::uuid, 'assignment',
+        (p_payload->'spec'->>'employmentContractId')::uuid,
+        (p_payload->'spec'->>'shiftEntryId')::uuid, 'shift',
+        (p_payload->'spec'->>'calendarEntryId')::uuid, 'calendar',
+        (p_payload->'spec'->>'ruleProfileEntryId')::uuid, 'rule_profile'
+      );
+    END IF;
+  END IF;
+
+  after_value := time_catalog_entry_snapshot_v1(
+    target_id, (context_value->>'tenantId')::uuid
+  );
+  result_value := jsonb_build_object(
+    'data', after_value,
+    'replayed', false,
+    'catalogReady', false,
+    'attendanceEvaluationReady', false,
+    'punchesLoaded', false,
+    'minutesCalculated', false,
+    'payrollPosted', false,
+    'grhMutation', false
+  );
+  INSERT INTO time_catalog_governance_event (
+    tenant_id, catalog_entry_id, catalog_certified_binding_id,
+    actor_certified_binding_id, actor_membership_id, actor_person_id,
+    actor_session_id, actor_session_version, release_sha,
+    command, idempotency_key, command_hash, expected_version, resulting_version,
+    reason_code, reason_hash, before_snapshot, after_snapshot, result
+  ) VALUES (
+    (context_value->>'tenantId')::uuid, target_id,
+    CASE WHEN p_command = 'create_draft'
+      THEN (context_value->>'certifiedBindingId')::uuid
+      ELSE entry_row.certified_binding_id END,
+    (context_value->>'certifiedBindingId')::uuid,
+    (context_value->>'membershipId')::uuid,
+    (context_value->>'actorPersonId')::uuid,
+    p_actor_session_id, p_actor_session_version, lower(p_release_sha),
+    p_command, p_idempotency_key, lower(p_command_hash), p_expected_version,
+    (after_value->>'version')::integer, p_reason_code, lower(p_reason_hash),
+    before_value, after_value, result_value
+  );
+  RETURN result_value;
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'TIME_CATALOG_SESSION_BUSY' USING ERRCODE = 'P0001';
 END
 $$;

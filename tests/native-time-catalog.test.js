@@ -11,17 +11,17 @@ const original=nativeTimePrerequisiteSource();
 const candidate=read('scripts/migrations/116-native-time-catalog.sql');
 test('SQL116 is reproduced from exact011 and canonical/native period prerequisites',()=>{
  assert.equal(candidate,nativeTimeCandidate());
- assert.equal((candidate.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,7);
+ assert.equal((candidate.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,8);
  const statements=splitPostgresStatements(candidate);
- assert.equal(statements.length,9);
- assert.equal(statements.filter(s=>s.includes('CREATE OR REPLACE FUNCTION')).length,7);
+ assert.equal(statements.length,10);
+ assert.equal(statements.filter(s=>s.includes('CREATE OR REPLACE FUNCTION')).length,8);
  for(const s of statements)assert.ok((s.match(/CREATE OR REPLACE FUNCTION/g)||[]).length<=1,'one complete definition per SQL statement');
- assert.equal((candidate.match(/pin\(signature,sha256\)/g)||[]).length,1);
+ assert.equal((candidate.match(/pin\(signature,sha256,runtime_execute\)/g)||[]).length,1);
  assert.doesNotMatch(candidate,/\b(?:GRANT|CREATE TABLE|ALTER TABLE|TRUNCATE|DROP|UPDATE employment_contract|INSERT INTO (?:employment_contract|native_employee_registration))\b/i);
  assert.match(candidate,/TIME_CATALOG_NATIVE_ALREADY_INSTALLED/);
 });
-test('all4 modified bodies pin the original and keep the original GRH proof',()=>{
- const patches=nativeTimeDefinitions(original);assert.equal(patches.length,4);
+test('all5 modified bodies pin the original and keep the original GRH proof',()=>{
+ const patches=nativeTimeDefinitions(original);assert.equal(patches.length,5);
  for(const p of patches){assert.match(candidate,new RegExp(p.oldSha));assert.notEqual(p.oldSha,p.newSha);}
  for(const name of ['time_catalog_assert_actor_authority_v1','time_catalog_guard_entry_v1','time_catalog_assert_approvable_v1']){
   const body=timeFunction(candidate,name).body;
@@ -52,12 +52,13 @@ test('native multi-account duties are combined with legacy duties, not substitut
  assert.match(body,/capabilities_native<>'\[\]'::jsonb OR NOT public\.tenant_iam_operational_person_pair_v1/);
  assert.match(timeFunction(candidate,'time_catalog_native_person_caps_v2').body,/tenant_iam_assert_no_sod_conflict\(member\)/);
 });
-test('migration preserves command/body/session/idempotency, geometry, payload validators and all4 runtime facades',()=>{
+test('command writer changes only its unused ambiguous local; other facades and payload rules are preserved',()=>{
  const changed=NATIVE_TIME_PATCHES.map(([name])=>name);
- for(const name of ['time_catalog_apply_command_v1','time_catalog_bootstrap_v1','time_catalog_list_v1','time_catalog_detail_v1','time_catalog_payload_valid_v1','time_catalog_normalized_week_segments_v1'])assert.ok(!changed.includes(name));
- assert.doesNotMatch(candidate,/CREATE OR REPLACE FUNCTION (?:public\.)?(?:time_catalog_apply_command_v1|time_catalog_bootstrap_v1|time_catalog_list_v1|time_catalog_detail_v1|time_catalog_payload_valid_v1|time_catalog_normalized_week_segments_v1)\(/);
+ assert.equal(timeFunction(candidate,'time_catalog_apply_command_v1').body,timeFunction(original,'time_catalog_apply_command_v1').body.replace('  item jsonb;\n',''));
+ for(const name of ['time_catalog_bootstrap_v1','time_catalog_list_v1','time_catalog_detail_v1','time_catalog_payload_valid_v1','time_catalog_normalized_week_segments_v1'])assert.ok(!changed.includes(name));
+ assert.doesNotMatch(candidate,/CREATE OR REPLACE FUNCTION (?:public\.)?(?:time_catalog_bootstrap_v1|time_catalog_list_v1|time_catalog_detail_v1|time_catalog_payload_valid_v1|time_catalog_normalized_week_segments_v1)\(/);
  assert.match(candidate,/FROM PUBLIC,municontrol_actions_runtime_app/);
- assert.match(candidate,/has_function_privilege\('municontrol_actions_runtime_app',p.oid,'EXECUTE'\) IS FALSE/);
+ assert.match(candidate,/has_function_privilege\('municontrol_actions_runtime_app',p.oid,'EXECUTE'\) IS NOT DISTINCT FROM item.runtime_execute/);
 });
 test('an ambiguous or changed source cannot be generated silently',()=>{
  assert.throws(()=>nativeTimeDefinitions(original+'\n'+timeFunction(original,'time_catalog_assert_actor_authority_v1').definition),/AMBIGUOUS/);
