@@ -40,29 +40,29 @@ CREATE FUNCTION public.native_salary_serialized_v1(v jsonb) RETURNS text LANGUAG
 $$;
 CREATE FUNCTION public.native_salary_row_key_v1(r jsonb) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$ SELECT concat_ws(':',r->>'kind',r->>'agreementCode',coalesce(r->>'categoryCode',''),r->>'code',r->>'validFrom') $$;
 CREATE FUNCTION public.native_salary_items_v1(items jsonb) RETURNS jsonb LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
-DECLARE r jsonb; value_text text; prec integer; remaining text[]; next_remaining text[];
+DECLARE item jsonb; value_text text; prec integer; remaining text[]; next_remaining text[];
 BEGIN
  IF jsonb_typeof(items) IS DISTINCT FROM 'array' OR jsonb_array_length(items)>1000 OR octet_length(items::text)>2097152 THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
- FOR r IN SELECT value FROM jsonb_array_elements(items) LOOP
-  IF jsonb_typeof(r) IS DISTINCT FROM 'object' OR(SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(r) k) IS DISTINCT FROM ARRAY['active','agreementCode','categoryCode','code','dependencies','kind','label','nature','precision','ruleReference','unit','validFrom','validUntil','value']::text[]
-   OR r->>'kind' IS NULL OR r->>'kind' NOT IN('concept','scale') OR jsonb_typeof(r->'code') IS DISTINCT FROM 'string' OR r->>'code'!~'^[0-9]{1,9}$'
-   OR jsonb_typeof(r->'agreementCode') IS DISTINCT FROM 'string' OR r->>'agreementCode'!~'^[0-9]{1,9}$'
-   OR jsonb_typeof(r->'label') IS DISTINCT FROM 'string' OR length(r->>'label') NOT BETWEEN 1 AND 160 OR r->>'label'<>btrim(r->>'label') OR r->>'label'<>normalize(r->>'label',NFC) OR r->>'label'~'[<>[:cntrl:]]'
-   OR jsonb_typeof(r->'ruleReference') IS DISTINCT FROM 'string' OR length(r->>'ruleReference') NOT BETWEEN 3 AND 180 OR r->>'ruleReference'<>btrim(r->>'ruleReference') OR r->>'ruleReference'<>normalize(r->>'ruleReference',NFC) OR r->>'ruleReference'~'[<>[:cntrl:]]'
-   OR jsonb_typeof(r->'active') IS DISTINCT FROM 'boolean' OR jsonb_typeof(r->'precision') IS DISTINCT FROM 'number' OR r->>'precision'!~'^[0-8]$'
-   OR r->>'unit' IS NULL OR r->>'unit' NOT IN('money','hours','minutes','percent','units','coefficient')
-   OR jsonb_typeof(r->'validFrom') IS DISTINCT FROM 'string' OR r->>'validFrom'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
-   OR(r->'validUntil'<>'null'::jsonb AND(jsonb_typeof(r->'validUntil') IS DISTINCT FROM 'string' OR r->>'validUntil'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' OR r->>'validUntil'<r->>'validFrom'))
-   OR jsonb_typeof(r->'dependencies') IS DISTINCT FROM 'array' OR jsonb_array_length(r->'dependencies')>50
+ FOR item IN SELECT value FROM jsonb_array_elements(items) LOOP
+  IF jsonb_typeof(item) IS DISTINCT FROM 'object' OR(SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(item) k) IS DISTINCT FROM ARRAY['active','agreementCode','categoryCode','code','dependencies','kind','label','nature','precision','ruleReference','unit','validFrom','validUntil','value']::text[]
+   OR item->>'kind' IS NULL OR item->>'kind' NOT IN('concept','scale') OR jsonb_typeof(item->'code') IS DISTINCT FROM 'string' OR item->>'code'!~'^[0-9]{1,9}$'
+   OR jsonb_typeof(item->'agreementCode') IS DISTINCT FROM 'string' OR item->>'agreementCode'!~'^[0-9]{1,9}$'
+   OR jsonb_typeof(item->'label') IS DISTINCT FROM 'string' OR length(item->>'label') NOT BETWEEN 1 AND 160 OR item->>'label'<>btrim(item->>'label') OR item->>'label'<>normalize(item->>'label',NFC) OR item->>'label'~'[<>[:cntrl:]]'
+   OR jsonb_typeof(item->'ruleReference') IS DISTINCT FROM 'string' OR length(item->>'ruleReference') NOT BETWEEN 3 AND 180 OR item->>'ruleReference'<>btrim(item->>'ruleReference') OR item->>'ruleReference'<>normalize(item->>'ruleReference',NFC) OR item->>'ruleReference'~'[<>[:cntrl:]]'
+   OR jsonb_typeof(item->'active') IS DISTINCT FROM 'boolean' OR jsonb_typeof(item->'precision') IS DISTINCT FROM 'number' OR item->>'precision'!~'^[0-8]$'
+   OR item->>'unit' IS NULL OR item->>'unit' NOT IN('money','hours','minutes','percent','units','coefficient')
+   OR jsonb_typeof(item->'validFrom') IS DISTINCT FROM 'string' OR item->>'validFrom'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+   OR(item->'validUntil'<>'null'::jsonb AND(jsonb_typeof(item->'validUntil') IS DISTINCT FROM 'string' OR item->>'validUntil'!~'^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' OR item->>'validUntil'<item->>'validFrom'))
+   OR jsonb_typeof(item->'dependencies') IS DISTINCT FROM 'array' OR jsonb_array_length(item->'dependencies')>50
   THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
-  IF(r->>'kind'='concept' AND(r->'categoryCode'<>'null'::jsonb OR r->>'nature' IS NULL OR r->>'nature' NOT IN('remuneration','non_remuneration','deduction','employer_contribution','auxiliary')))
-   OR(r->>'kind'='scale' AND(jsonb_typeof(r->'categoryCode') IS DISTINCT FROM 'string' OR r->>'categoryCode'!~'^[0-9]{1,9}$' OR r->'nature'<>'null'::jsonb OR r->>'unit'<>'money' OR r->'value'='null'::jsonb OR jsonb_array_length(r->'dependencies')<>0))
+  IF(item->>'kind'='concept' AND(item->'categoryCode'<>'null'::jsonb OR item->>'nature' IS NULL OR item->>'nature' NOT IN('remuneration','non_remuneration','deduction','employer_contribution','auxiliary')))
+   OR(item->>'kind'='scale' AND(jsonb_typeof(item->'categoryCode') IS DISTINCT FROM 'string' OR item->>'categoryCode'!~'^[0-9]{1,9}$' OR item->'nature'<>'null'::jsonb OR item->>'unit'<>'money' OR item->'value'='null'::jsonb OR jsonb_array_length(item->'dependencies')<>0))
   THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
-  prec:=(r->>'precision')::integer;value_text:=r->>'value';
-  IF r->'value'<>'null'::jsonb AND(jsonb_typeof(r->'value') IS DISTINCT FROM 'string' OR value_text!~'^-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,8})?$' OR value_text~'^-0(\.0+)?$' OR length(coalesce(nullif(split_part(value_text,'.',2),''),''))<>prec)
+  prec:=(item->>'precision')::integer;value_text:=item->>'value';
+  IF item->'value'<>'null'::jsonb AND(jsonb_typeof(item->'value') IS DISTINCT FROM 'string' OR value_text!~'^-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,8})?$' OR value_text~'^-0(\.0+)?$' OR length(coalesce(nullif(split_part(value_text,'.',2),''),''))<>prec)
   THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
-  IF EXISTS(SELECT 1 FROM jsonb_array_elements(r->'dependencies') WITH ORDINALITY d(x,n) WHERE jsonb_typeof(x)<>'string' OR length(x#>>'{}') NOT BETWEEN 1 AND 120 OR x#>>'{}'~'[<>[:cntrl:]]'
-    OR x#>>'{}'<>btrim(x#>>'{}') OR x#>>'{}'<>normalize(x#>>'{}',NFC) OR(n>1 AND (r->'dependencies'->>((n-2)::integer)) COLLATE "C">=(x#>>'{}') COLLATE "C")) THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(item->'dependencies') WITH ORDINALITY d(x,n) WHERE jsonb_typeof(x)<>'string' OR length(x#>>'{}') NOT BETWEEN 1 AND 120 OR x#>>'{}'~'[<>[:cntrl:]]'
+    OR x#>>'{}'<>btrim(x#>>'{}') OR x#>>'{}'<>normalize(x#>>'{}',NFC) OR(n>1 AND (item->'dependencies'->>((n-2)::integer)) COLLATE "C">=(x#>>'{}') COLLATE "C")) THEN RAISE EXCEPTION 'NATIVE_SALARY_INPUT_INVALID'; END IF;
  END LOOP;
  IF EXISTS(SELECT 1 FROM jsonb_array_elements(items) r GROUP BY public.native_salary_row_key_v1(r) HAVING count(*)>1) THEN RAISE EXCEPTION 'NATIVE_SALARY_DUPLICATE'; END IF;
  IF EXISTS(SELECT 1 FROM jsonb_array_elements(items) a JOIN jsonb_array_elements(items) b ON public.native_salary_row_key_v1(a)<public.native_salary_row_key_v1(b)
