@@ -1,4 +1,5 @@
 import {catalogUuid,catalogAttemptKey} from './native-employment-catalog-model.js';
+import {isoDay} from './native-employee-contract.js';
 import {validateLifecycleBootstrap} from './native-employment-lifecycle-model.js';
 import {NativeLeaveError,NATIVE_LEAVE_VERSION,NATIVE_LEAVE_STATES,nativeLeavePayload,nativeLeaveProfile,nativeLeaveAllocations} from './native-leave-model.js';
 
@@ -8,7 +9,7 @@ export const nativeLeaveExact=(v,keys)=>v!==null&&typeof v==='object'&&!Array.is
 const hash=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const fail=(code,message)=>{throw new NativeLeaveError(code,message);};
 const text=(v,min,max)=>typeof v==='string'&&[...v].length>=min&&[...v].length<=max&&!/[\p{Cc}<>]/u.test(v)&&v===v.normalize('NFC').trim();
-const stamp=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(v)&&Number.isFinite(Date.parse(v));
+const stamp=v=>typeof v==='string'&&isoDay(v.slice(0,10))&&/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(v)&&Number.isFinite(Date.parse(v));
 const checked=v=>{if(!v)fail('CONTRACT_INVALID','No se pudo verificar la consulta completa. Volvé a consultar antes de continuar.');};
 export const nativeLeaveSame=(a,b)=>{const sorted=v=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v;return JSON.stringify(sorted(a))===JSON.stringify(sorted(b));};
 
