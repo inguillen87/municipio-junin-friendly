@@ -91,7 +91,10 @@ export function mountCertificatePhoto({host,input,available,onChange}){
  input.addEventListener('change',load);rotate.addEventListener('click',()=>{if(!bitmap||busy||!available())return;rotation=(rotation+90)%360;draw();onChange();});
  for(const v of Object.values(cropFields))v.addEventListener('input',()=>{if(!bitmap||busy||!available())return;try{draw();onChange();}catch(e){status.textContent=e.message;}});
  const hide=()=>{if(document.hidden)clear();};document.addEventListener('visibilitychange',hide);
- return{clear,refresh:load,destroy(){clear();input.removeEventListener('change',load);document.removeEventListener('visibilitychange',hide);panel.remove();},async file(file){
+ return{clear,refresh:load,readingCanvas(){
+  if(busy||!bitmap||!raw||!allowed()||!canvas.width||!canvas.height)fail('Esperá a que termine la vista de la foto antes de leerla.');
+  const copy=element('canvas');copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);return copy;
+ },destroy(){clear();input.removeEventListener('change',load);document.removeEventListener('visibilitychange',hide);panel.remove();},async file(file){
   certificateInputFile(file);if(/\.pdf$/i.test(file.name))return file;
   if(busy||!raw||!bitmap||!allowed())fail('Esperá a que termine la vista de la foto, o elegí otra captura válida.');
   const current=seq,a=settings(),original=raw.slice(),displayData=canvas.toDataURL('image/jpeg',0.9).split(',')[1],display=Uint8Array.from(atob(displayData),c=>c.charCodeAt(0));

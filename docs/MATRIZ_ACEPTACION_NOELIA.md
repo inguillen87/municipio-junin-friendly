@@ -73,6 +73,8 @@ Pruebas a cerrar: botón blanco PDF con fecha ISO real; navegación por tarea si
 
 ## Ampliación expresa del 15/09/2026 · certificados asistidos y conexiones
 
+Corte03/10: revisión de ciclo/vencimientos de ESC-IA-05 publicada en #91/#92. Se añade el incremento de [lectura local con revisión](NOELIA_ESCOLARIDAD_LECTURA_LOCAL_20261003.md) de ESC-IA-03, sin deducir identidad ni presentación. La tabla siguiente conserva el corte original; pruebas/publicación del incremento y aceptación municipal son estados separados. No se declara completada la extracción auditada integral ni el autoservicio.
+
 Detalle y criterios de aceptación: [Directivas de certificados IA y conexión de relojes](DIRECTIVAS_CERTIFICADOS_IA_Y_CONEXION_RELOJES_20260915.md). Esta ampliación agrega requisitos; no declara nuevas funciones en producción ni sustituye los módulos anteriores.
 
 | Referencia | Resultado esperado | Estado |
