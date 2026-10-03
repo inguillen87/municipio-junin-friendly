@@ -3,6 +3,7 @@ import { schoolingData, schoolingFilter, schoolingRevision, schoolingDate, certi
   familyContextData, familyDeclarationFields, familyDeclarationResult } from './family-schooling-model.js';
 import { schoolingXlsx } from './family-schooling-export.js';
 import {certificateInputFile,mountCertificatePhoto} from './family-schooling-photo.js';
+import {mountSchoolingReview} from './family-schooling-review.js';
 
 const ENDPOINT = '/api/internal-family-certificates';
 const FAMILY_ENDPOINT = '/api/internal-family-members';
@@ -123,18 +124,19 @@ export function mountSchoolingReport(host) {
     <div class="fs-actions"><button type="button" class="fs-button primary" data-fs-export>Descargar Excel del filtro</button><p data-fs-range></p></div>
     <p class="fs-note">Las fechas muestran su origen: registro manual en MuniControl o fuente histórica GRH por revisar. El registro manual prevalece para ambas fechas. “Sin registro” o una fecha ausente no permiten afirmar que no se presentó. Este control no aprueba escolaridad ni habilita haberes.</p>
     <div class="fs-table-wrap" tabindex="0" role="region" aria-label="Detalle de hijos y certificados, desplazable"><table class="fs-table"><caption class="fs-sr">Legajos activos con hijos y último certificado registrado</caption><thead><tr><th scope="col">Agente / legajo</th><th scope="col">Hijo/a y origen</th><th scope="col">Presentación informada</th><th scope="col">Vencimiento informado</th><th scope="col">Registro y documento</th><th scope="col">Ficha</th></tr></thead><tbody data-fs-rows></tbody></table></div>
-    <nav class="fs-pagination" aria-label="Páginas del reporte de hijos"><button type="button" class="fs-button" data-fs-previous>Anterior</button><span data-fs-page></span><button type="button" class="fs-button" data-fs-next>Siguiente</button></nav></div>`;
+    <nav class="fs-pagination" aria-label="Páginas del reporte de hijos"><button type="button" class="fs-button" data-fs-previous>Anterior</button><span data-fs-page></span><button type="button" class="fs-button" data-fs-next>Siguiente</button></nav><div data-fs-review></div></div>`;
   const $ = selector => host.querySelector(selector), status = $('[data-fs-status]'), result = $('[data-fs-result]');
   // Keep table semantics when its existing cells become cards on small screens.
   for (const [selector, role] of [['.fs-table', 'table'], ['.fs-table thead,.fs-table tbody', 'rowgroup'], ['.fs-table thead tr', 'row'], ['.fs-table th', 'columnheader']]) {
     host.querySelectorAll(selector).forEach(element => element.setAttribute('role', role));
   }
-  let data = null, queriedAt = null, page = 1, busy = false, generation = 0, controller = null, destroyed = false, readAllowed = true;
+  let data = null, queriedAt = null, page = 1, busy = false, generation = 0, controller = null, destroyed = false, readAllowed = true, review = null;
   const available = () => !destroyed && host.isConnected && !host.closest('[hidden]') && !document.hidden;
   const view = () => schoolingFilter(data, { search: $('[data-fs-search]').value, status: $('[data-fs-filter]').value });
   function controls() {
     host.setAttribute('aria-busy', String(busy));
     host.querySelectorAll('button,input,select').forEach(n => n.disabled = busy || !readAllowed);
+    review?.setBusy(busy || !readAllowed);
     $('[data-fs-export]').disabled = busy || !readAllowed || !data;
     if (!data) return;
     const count = view().rows.length;
@@ -142,7 +144,7 @@ export function mountSchoolingReport(host) {
     $('[data-fs-previous]').disabled = busy || page <= 1;
     $('[data-fs-next]').disabled = busy || page * PAGE_SIZE >= count;
   }
-  function clear() { data = null; queriedAt = null; result.hidden = true; $('[data-fs-rows]').replaceChildren();
+  function clear() { review?.close(); review = null; data = null; queriedAt = null; result.hidden = true; $('[data-fs-rows]').replaceChildren();
     for (const name of ['source','storage','contracts','children','registered','review-count','page']) $('[data-fs-' + name + ']').textContent = ''; }
   function start() { controller?.abort(); controller = new AbortController(); busy = true; controls(); return ++generation; }
   function render() {
@@ -192,7 +194,11 @@ export function mountSchoolingReport(host) {
     if (busy || !readAllowed || !available()) return;
     const seq = start(); clear(); status.textContent = 'Consultando legajos activos con hijos…'; $('[data-fs-login]').hidden = true;
     try { const next = await readSchooling('report', controller); if (seq !== generation || !available()) return;
-      data = next; queriedAt = new Date().toISOString(); page = 1; render(); status.textContent = 'Reporte consultado. Filtrá y descargá el mismo resultado. Los certificados se cargan desde la ficha.';
+      data = next; queriedAt = new Date().toISOString(); page = 1; render();
+      review = mountSchoolingReview($('[data-fs-review]'), {data, queriedAt, available: () => available() && !busy && readAllowed,
+        fresh: freshController => readSchooling('report', freshController), save,
+        onInvalidated: notice => { generation++; controller?.abort(); busy = false; clear(); status.textContent = notice; controls(); }});
+      status.textContent = 'Reporte consultado. Filtrá y descargá el mismo resultado. También podés revisar ciclo y próximos vencimientos. Los certificados se cargan desde la ficha.';
     } catch (e) { if (seq !== generation || !available()) return; clear(); status.textContent = message(e); $('[data-fs-login]').hidden = e.status !== 401; }
     finally { if (seq === generation && available()) { busy = false; controls(); } }
   }
@@ -232,7 +238,7 @@ export function mountSchoolingReport(host) {
   function stop() { destroyed = true; generation++; controller?.abort(); clear(); document.removeEventListener('municontrol:capabilities-ready', accessChanged); }
   window.addEventListener('pagehide', stop, { once: true });
   function cancelHiddenRequest() {
-    if (!busy || available() || destroyed) return;
+    if (available() || destroyed) return;
     generation++; controller?.abort(); busy = false; clear(); controls();
     status.textContent = 'La consulta se canceló al salir del reporte. Consultá nuevamente para continuar.';
   }
