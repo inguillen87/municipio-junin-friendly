@@ -238,7 +238,7 @@ export function mountSchoolingReport(host) {
   function stop() { destroyed = true; generation++; controller?.abort(); clear(); document.removeEventListener('municontrol:capabilities-ready', accessChanged); }
   window.addEventListener('pagehide', stop, { once: true });
   function cancelHiddenRequest() {
-    if (available() || destroyed) return;
+    if (available() || destroyed || (!busy && !data)) return;
     generation++; controller?.abort(); busy = false; clear(); controls();
     status.textContent = 'La consulta se canceló al salir del reporte. Consultá nuevamente para continuar.';
   }
