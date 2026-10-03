@@ -20,11 +20,12 @@ on:
       - 'tests/*schooling*'
       - 'tests/fixtures/*family*'
       - 'tests/fixtures/*school-photo*'
+      - 'tests/fixtures/*school-reading*'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
   push:
-    branches: ['internal-native-family-schooling-20260922', 'codex/school-certificate-photo-20261002', 'codex/noelia-schooling-review-20261003', 'master']
+    branches: ['internal-native-family-schooling-20260922', 'codex/school-certificate-photo-20261002', 'codex/noelia-schooling-review-20261003', 'codex/noelia-schooling-reading-20261003', 'master']
     paths:
       - 'api/internal-family-*.js'
       - 'lib/internal-family-*.js'
@@ -45,6 +46,7 @@ on:
       - 'tests/*schooling*'
       - 'tests/fixtures/*family*'
       - 'tests/fixtures/*school-photo*'
+      - 'tests/fixtures/*school-reading*'
       - 'scripts/build-friendly.mjs'
       - '.vercelignore'
       - '.github/workflows/native-family-schooling-release.yml'
@@ -71,6 +73,7 @@ jobs:
       - run: node scripts/verify-family-schooling-browser.mjs
       - run: node scripts/verify-family-schooling-review-browser.mjs
       - run: node scripts/verify-family-schooling-photo-browser.mjs
+      - run: node scripts/verify-family-schooling-reading-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - uses: actions/upload-artifact@v4
@@ -80,6 +83,7 @@ jobs:
           path: |
             verification/native-family-schooling-local/**
             verification/family-schooling-review/**
+            verification/family-schooling-reading/**
             verification/family-schooling-browser.json
             verification/family-schooling-*.png
           retention-days: 3

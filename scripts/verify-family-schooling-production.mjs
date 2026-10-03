@@ -5,6 +5,9 @@ import '../assets/app-routes.js';
 const origin = 'https://municipio-junin-friendly.vercel.app';
 const files = ['internal-dashboard.html','reportes-rrhh.html','assets/family-schooling.js',
   'assets/family-schooling-model.js','assets/family-schooling-export.js','assets/family-schooling.css',
+  'assets/family-schooling-photo.js','assets/family-schooling-reading.js','assets/family-schooling-reading-model.js',
+  'assets/document-reader-source.js','assets/document-reader-model.js','assets/legal-pdf-text-model.js',
+  'assets/document-ocr-client.js','assets/document-ocr-worker.js',
   'assets/report-centre.js','assets/internal-capability-gate.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const expected = Object.fromEntries(files.map(file => {

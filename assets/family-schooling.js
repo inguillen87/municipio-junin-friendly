@@ -4,6 +4,7 @@ import { schoolingData, schoolingFilter, schoolingRevision, schoolingDate, certi
 import { schoolingXlsx } from './family-schooling-export.js';
 import {certificateInputFile,mountCertificatePhoto} from './family-schooling-photo.js';
 import {mountSchoolingReview} from './family-schooling-review.js';
+import {mountSchoolingReading} from './family-schooling-reading.js';
 
 const ENDPOINT = '/api/internal-family-certificates';
 const FAMILY_ENDPOINT = '/api/internal-family-members';
@@ -278,7 +279,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const pending = pendingFamilyAttempts.get(pendingKey) ?? pendingSchoolingAttempts.get(pendingKey);
     if (authorityKey && key !== authorityKey || pending?.authorityKey && pending.authorityKey !== key) {
       pendingFamilyAttempts.delete(pendingKey); pendingSchoolingAttempts.delete(pendingKey);
-      editor?.photo?.destroy(); editor?.form.reset(); editor?.form.remove(); declarationEditor?.form.reset(); declarationEditor?.form.remove(); editor = null; declarationEditor = null;
+      editor?.reading?.destroy(); editor?.photo?.destroy(); editor?.form.reset(); editor?.form.remove(); declarationEditor?.form.reset(); declarationEditor?.form.remove(); editor = null; declarationEditor = null;
       authorityKey = key; invalidateConsultedData();
       throw Object.assign(Error('Cambió la sesión. Cerrá y abrí la ficha; el intento anterior no se reenviará desde otra identidad.'), { code: 'FAMILY_ACTOR_CHANGED', status: 409 });
     }
@@ -286,6 +287,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (!access.tenantCapabilities.includes('workforce.employee.read')) throw Object.assign(Error('Permiso de consulta retirado.'), { status: 403 });
   }
   function invalidateConsultedData() {
+    editor?.reading?.clear('Se retiró la lectura al cambiar el acceso. Los datos manuales se conservan.');
     editor?.photo?.clear();
     data = null; familyContext = null; focusObserver?.disconnect(); focusObserver = null;
     if (editor) {
@@ -319,6 +321,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     host.querySelectorAll('[data-fs-register]').forEach(b => b.disabled = busy || Boolean(editor) || Boolean(declarationEditor) || !mayRegister() || hasPending());
     host.querySelectorAll('[data-fs-document],[data-fs-history]').forEach(b => b.disabled = busy);
     if (editor) { editor.fieldset.disabled = busy || Boolean(editor.pendingBody); editor.submit.disabled = busy || !mayRegister() || editor.needsIdentityReview;
+      editor.reading?.update();
       editor.form.querySelector('[data-fs-recheck]').disabled = busy; editor.form.querySelector('[data-fs-cancel]').disabled = busy || Boolean(editor.pendingBody); }
     if (declarationEditor) {
       declarationEditor.fieldset.disabled = busy || Boolean(declarationEditor.pending);
@@ -496,8 +499,11 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     const review = node('div'); review.dataset.fsIdentityReview = ''; review.hidden = true;
     form.append(fieldset, spaceHint, note, actions, feedback, review); card.append(form);
     editor = { form, fieldset, submit, file, presented, expiry, row, expectedCertificateId: row.certificate?.id ?? null, idempotencyKey: null, pendingBody: null, needsIdentityReview: false };
-    const photo = mountCertificatePhoto({host:fieldset,input:file,available:()=>available()&&editor?.form===form&&canPropose&&!editor.pendingBody,onChange:()=>{if(editor?.form===form&&!editor.pendingBody)editor.idempotencyKey=null;}});
+    const photo = mountCertificatePhoto({host:fieldset,input:file,available:()=>available()&&editor?.form===form&&canPropose&&!editor.pendingBody,onChange:()=>{if(editor?.form===form&&!editor.pendingBody){editor.idempotencyKey=null;editor.reading?.clear('El archivo o su vista cambiaron. Leelo nuevamente antes de usar campos.');}}});
     editor.photo=photo;
+    const reading=mountSchoolingReading({host:fieldset,input:file,fields:{...fields,expiresOn:expiry},raster:()=>photo.readingCanvas(),
+      context:()=>({allowed:available()&&editor?.form===form&&mayRegister()&&!busy&&!editor.pendingBody&&!editor.needsIdentityReview&&mode.value==='pdf',key:JSON.stringify([editor?.row?.familyRef,editor?.row?.identityToken,editor?.expectedCertificateId])}),
+      onApplied:()=>{if(editor?.form===form&&!editor.pendingBody){editor.idempotencyKey=null;feedback.textContent='Campos revisados incorporados. El certificado todavía no se guardó.';}}});editor.reading=reading;
     if (pending) {
       editor.pendingBody = pending.body; editor.idempotencyKey = pending.key; editor.pendingFile = pending.file;
       editor.expectedCertificateId = pending.body.expectedCertificateId; editor.needsIdentityReview = !identityCurrent;
@@ -516,7 +522,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     if (editorBody) editorBody.scrollTop += form.getBoundingClientRect().top - editorBody.getBoundingClientRect().top - (editorBody.querySelector('.employee-section-nav')?.getBoundingClientRect().height || 0) - 12;
     form.addEventListener('input', () => { if (editor && !editor.pendingBody) editor.idempotencyKey = null; feedback.textContent = ''; });
     mode.addEventListener('change', () => {
-      const paper = mode.value === 'paper_declared'; fileLabel.hidden = paper; takePhoto.hidden=paper; file.required = !paper; photo.clear();
+      const paper = mode.value === 'paper_declared'; fileLabel.hidden = paper; takePhoto.hidden=paper; file.required = !paper; reading.clear();photo.clear();reading.update();
       paperLabel.hidden = !paper; fields.paperReference.required = paper; fileSpaceHint();
       if (paper) fields.paperReference.focus(); else {file.focus();photo.refresh();}
     });
@@ -525,7 +531,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
       spaceHint.textContent = 'Este PDF supera el espacio disponible informado. Podés intentar guardarlo: el sistema verificará el espacio y si ya existe una copia del mismo archivo. Tu selección y fechas se conservarán si no se puede guardar.';
     }
     file.addEventListener('change', fileSpaceHint);
-    cancel.addEventListener('click', () => { if (busy || editor?.pendingBody || pendingSchoolingAttempts.has(pendingKey)) return; photo.destroy(); form.reset(); form.remove(); editor = null; if (data) render(); else controls(); $('[data-fs-family-refresh]').focus(); });
+    cancel.addEventListener('click', () => { if (busy || editor?.pendingBody || pendingSchoolingAttempts.has(pendingKey)) return; reading.destroy();photo.destroy(); form.reset(); form.remove(); editor = null; if (data) render(); else controls(); $('[data-fs-family-refresh]').focus(); });
     recheck.addEventListener('click', async () => {
       if (busy || !editor || !available()) return;
       const activeEditor = editor; controller?.abort(); controller = new AbortController(); const seq = ++generation; busy = true; controls();
@@ -539,7 +545,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
             schoolingRegistrationResult(await receipt.json());
             clearPending(activeEditor.idempotencyKey);
             if (seq !== generation || !available() || editor !== activeEditor) return;
-            photo.destroy(); form.reset(); form.remove(); editor = null; busy = false;
+            reading.destroy();photo.destroy(); form.reset(); form.remove(); editor = null; busy = false;
             await load('Certificado guardado. Se recuperó la confirmación del mismo intento, sin duplicarlo.'); return;
           } catch (e) { if (e.status !== 404) throw e; /* The original POST may still be validating its PDF before taking a database lock. Keep this exact attempt. */ }
         }
@@ -638,7 +644,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
         schoolingRegistrationResult(await response.json());
         clearPending(activeEditor.idempotencyKey);
         if (seq !== generation || !available()) return;
-        saved = true; photo.destroy(); form.reset(); form.remove(); editor = null;
+        saved = true; reading.destroy();photo.destroy(); form.reset(); form.remove(); editor = null;
       } catch (e) {
         if (seq === generation && available()) {
           activeEditor.lastError = e.code;
@@ -768,7 +774,7 @@ export function mountFamilyCertificates(host, { contractId, canPropose = false, 
     canPropose = nextPropose; generation++; controller?.abort(); busy = false;
     invalidateConsultedData(); controls();
   }
-  function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.photo?.destroy(); editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();
+  function stop() { destroyed = true; generation++; controller?.abort(); focusObserver?.disconnect(); focusObserver = null; editor?.reading?.destroy(); editor?.photo?.destroy(); editor?.form.reset(); declarationEditor?.form.reset(); editor = null; declarationEditor = null; data = null; familyContext = null; list.replaceChildren(); $('[data-fs-declaration-host]').replaceChildren();
     document.removeEventListener('mc:family-schooling-close', stop); document.removeEventListener('municontrol:capabilities-ready', accessChanged); window.removeEventListener('pagehide', stop); }
   $('[data-fs-family-refresh]').addEventListener('click', () => load());
   $('[data-fs-add-child]').addEventListener('click', () => openDeclaration());
