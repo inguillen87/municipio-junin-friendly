@@ -6,21 +6,34 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildMonthlyDecisionsQa} from './verify-payroll-monthly-decisions-sql.mjs';
+import {buildMonthlyAnnulInstallation} from './lib/monthly-annul-installation.mjs';
 const q=x=>"'"+String(x).replaceAll("'","''")+"'";
 export function buildMonthlyAnnulQa(options){
  const base=buildMonthlyDecisionsQa(options),schema=base.schema;
  const original=fs.readFileSync(new URL('./migrations/120-monthly-approved-annulments.sql',import.meta.url),'utf8').replace(/\r\n?/g,'\n');
+ const installation=buildMonthlyAnnulInstallation({source:original,sourceCommit:'a'.repeat(40),read:file=>fs.readFileSync(new URL('../'+file,import.meta.url),'utf8')});
  // Normalize only the synthetic namespace for the two unchanged source pins.
  const migration=original.replaceAll('public.',schema+'.').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace')
  .replace(/SET search_path=pg_catalog,public,pg_temp/g,`SET search_path=pg_catalog,${schema},public,pg_temp`)
  .replaceAll("convert_to(prosrc,'UTF8')",`convert_to(replace(prosrc,${q(schema+'.')},'public'||'.'),'UTF8')`);
+ const relocate=sql=>sql.replaceAll('public.',schema+'.').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll("s.nspname='public'",'s.nspname='+q(schema))
+ .replaceAll(schema+'.digest','public.digest')
+ .replaceAll('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${schema},public,pg_temp`)
+ .replaceAll('search_path=pg_catalog, public, pg_temp',`search_path=pg_catalog, ${schema}, public, pg_temp`)
+ .replaceAll('search_path=public, pg_temp',`search_path=${schema}, public, pg_temp`)
+ .replaceAll("convert_to(prosrc,'UTF8')",`convert_to(replace(prosrc,${q(schema+'.')},'public'||'.'),'UTF8')`)
+ .replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')",`replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(schema+'.')},'public'||'.')`);
  const statements=[];let count=0;
  const ok=(condition,label)=>{statements.push(`PERFORM qa_assert((${condition}),${q(label)});checks:=checks+1;`);count++;};
  const rejects=(sql,error,label)=>ok(`qa_rejects(${sql},${q(error)})`,label);
  ok(`(SELECT count(*)=26 FROM payroll_novelty_batch WHERE period_month=DATE '2026-11-01' AND status='approved')`,'26 previously approved complete batches remain available');
  // Prior synthetic writers enqueue the unchanged deferred audit. Discharge it
  // before DDL; production installation contains no preceding business writes.
- statements.push(`SET CONSTRAINTS ALL IMMEDIATE;SET CONSTRAINTS ALL DEFERRED;EXECUTE ${q(migration)};`);
+ statements.push('SET CONSTRAINTS ALL IMMEDIATE;SET CONSTRAINTS ALL DEFERRED;');
+ statements.push(...installation.installation.map(s=>`EXECUTE ${q(relocate(s))};`));
+ ok(`current_setting('municontrol_sql120.before')::jsonb=current_setting('municontrol_sql120.after')::jsonb`,'exact installation preserves all previous rows metadata permissions and guard identities');
+ statements.push(...installation.durableVerification.map(s=>`EXECUTE ${q(relocate(s))};`));
+ ok(`current_setting('municontrol_sql120.before')::jsonb=current_setting('municontrol_sql120.after')::jsonb`,'independent metadata verification retains the initial installation fingerprint');
  ok(`(SELECT count(*)=3 FROM pg_class WHERE relnamespace=${q(schema)}::regnamespace AND relname IN('payroll_monthly_annul_proposal','payroll_monthly_annul_review','payroll_monthly_annul_attempt') AND relrowsecurity)`,'three append-only private tables installed with RLS');
  ok(`(SELECT count(*)=4 FROM pg_proc WHERE pronamespace=${q(schema)}::regnamespace AND proname LIKE 'payroll_monthly_annul_%' AND has_function_privilege('municontrol_actions_runtime_app',oid,'EXECUTE'))`,'only four runtime facades are executable');
  ok(`NOT has_table_privilege('municontrol_actions_runtime_app','payroll_monthly_annul_review','INSERT')`,'runtime cannot forge a persisted review');
