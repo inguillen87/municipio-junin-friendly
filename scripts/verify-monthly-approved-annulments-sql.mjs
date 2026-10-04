@@ -18,7 +18,9 @@ export function buildMonthlyAnnulQa(options){
  const ok=(condition,label)=>{statements.push(`PERFORM qa_assert((${condition}),${q(label)});checks:=checks+1;`);count++;};
  const rejects=(sql,error,label)=>ok(`qa_rejects(${sql},${q(error)})`,label);
  ok(`(SELECT count(*)=26 FROM payroll_novelty_batch WHERE period_month=DATE '2026-11-01' AND status='approved')`,'26 previously approved complete batches remain available');
- statements.push(`EXECUTE ${q(migration)};`);
+ // Prior synthetic writers enqueue the unchanged deferred audit. Discharge it
+ // before DDL; production installation contains no preceding business writes.
+ statements.push(`SET CONSTRAINTS ALL IMMEDIATE;SET CONSTRAINTS ALL DEFERRED;EXECUTE ${q(migration)};`);
  ok(`(SELECT count(*)=3 FROM pg_class WHERE relnamespace=${q(schema)}::regnamespace AND relname IN('payroll_monthly_annul_proposal','payroll_monthly_annul_review','payroll_monthly_annul_attempt') AND relrowsecurity)`,'three append-only private tables installed with RLS');
  ok(`(SELECT count(*)=4 FROM pg_proc WHERE pronamespace=${q(schema)}::regnamespace AND proname LIKE 'payroll_monthly_annul_%' AND has_function_privilege('municontrol_actions_runtime_app',oid,'EXECUTE'))`,'only four runtime facades are executable');
  ok(`NOT has_table_privilege('municontrol_actions_runtime_app','payroll_monthly_annul_review','INSERT')`,'runtime cannot forge a persisted review');
