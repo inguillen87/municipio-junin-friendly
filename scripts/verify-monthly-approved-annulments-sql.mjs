@@ -85,7 +85,9 @@ export function buildMonthlyAnnulQa(options){
  statements.push(`SELECT b.id,e.idempotency_key INTO annul_id,annul_key FROM payroll_novelty_batch b JOIN payroll_novelty_event e ON e.batch_id=b.id AND e.command='submit' WHERE b.period_month=DATE '2026-11-01' AND b.contract_version='payroll-novelty-batch.v2' LIMIT 1;
  annul_receipt:=payroll_novelty_transition_v2(maker,annul_id,'submit',1,'ready_for_review',NULL,annul_key,repeat('b',64));`);
  ok(`annul_receipt->>'replayed'='true' AND annul_receipt#>>'{data,status}'='submitted' AND annul_receipt#>>'{data,version}'='2' AND annul_receipt#>>'{data,decidedAt}' IS NULL`,'old native submission receipt keeps its original state and timeline after annulment');
- rejects(`format('SELECT payroll_novelty_export_v2(%L::jsonb,%L::uuid)',maker,annul_items#>>'{0,batchId}')`,'PAYROLL_NOVELTY_EXPORT_INVALID','existing export path refuses an annulled batch');
+ rejects(`format('SELECT payroll_novelty_export_v2(%L::jsonb,%L::uuid)',maker,annul_id)`,'PAYROLL_NOVELTY_NOT_EXPORTABLE','existing native export path refuses an annulled batch');
+ statements.push(`SELECT b.id INTO annul_id FROM payroll_novelty_batch b WHERE b.period_month=DATE '2026-11-01' AND b.contract_version='payroll-novelty-batch.v1' LIMIT 1;`);
+ rejects(`format('SELECT payroll_novelty_export_v2(%L::jsonb,%L::uuid)',maker,annul_id)`,'PAYROLL_NOVELTY_EXPORT_INVALID','existing historical export path refuses an annulled batch');
  rejects(q('UPDATE payroll_monthly_annul_proposal SET reason=reason'),'PAYROLL_NOVELTY_APPEND_ONLY','proposal cannot be rewritten');
  rejects(q('DELETE FROM payroll_monthly_annul_review'),'PAYROLL_NOVELTY_APPEND_ONLY','review cannot be deleted');
  rejects(q('TRUNCATE payroll_monthly_annul_attempt'),'PAYROLL_NOVELTY_APPEND_ONLY','recovery receipts cannot be truncated');
