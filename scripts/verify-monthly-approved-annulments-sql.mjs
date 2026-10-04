@@ -70,7 +70,7 @@ export function buildMonthlyAnnulQa(options){
  END $abort$;
  CREATE TRIGGER qa_abort_annul AFTER INSERT ON payroll_novelty_event FOR EACH ROW EXECUTE FUNCTION qa_abort_annul_v1();`);
  rejects(`format('SELECT payroll_monthly_annul_command_v1(%L::jsonb,%L::jsonb,%L::uuid)',checker,annul_review,gen_random_uuid())`,'ANNUL_QA_ABORT','failure after the first annulled batch rolls back the entire command');
- ok(`(SELECT count(*)=26 FROM payroll_novelty_batch WHERE period_month=DATE '2026-11-01' AND status='approved' AND version=3 AND exportable) AND (SELECT count(*)=0 FROM payroll_novelty_event WHERE command='annul') AND NOT EXISTS(SELECT 1 FROM payroll_monthly_annul_review WHERE proposal_id=annul_proposal)`,'rollback conserves all batches, events and the pending proposal');
+ ok(`(SELECT count(*)=26 FROM payroll_novelty_batch WHERE period_month=DATE '2026-11-01' AND status='approved' AND version=3 AND exportable) AND (SELECT count(*)=0 FROM payroll_novelty_event WHERE command='annul') AND NOT EXISTS(SELECT 1 FROM payroll_monthly_annul_review ar WHERE ar.proposal_id=annul_proposal)`,'rollback conserves all batches, events and the pending proposal');
  statements.push(`DROP TRIGGER qa_abort_annul ON payroll_novelty_event;DROP FUNCTION qa_abort_annul_v1();`);
  rejects(`format('UPDATE payroll_novelty_batch SET status=''cancelled'',version=version+1,reason_code=''annulled_after_review'',reason_reference=%L,exportable=false WHERE id=%L::uuid','ref:'||gen_random_uuid()::text,annul_items#>>'{0,batchId}')`,'PAYROLL_MONTHLY_ANNUL_AUDIT_REQUIRED','direct approved cancellation cannot forge a review reference');
  statements.push(`annul_review_key:=gen_random_uuid();annul_review_receipt:=payroll_monthly_annul_command_v1(checker,annul_review,annul_review_key);
