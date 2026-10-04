@@ -2,6 +2,12 @@ import {fixedText,fixedReceipt,fixedForm,fixedMoneyInput} from './payroll-fixed-
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
 const fail=()=>{throw Error('No se pudo verificar el conjunto. Volvé a consultar y revisar las novedades.');};
 export const fixedGroupEligible=row=>Boolean(row?.identityCurrent&&row.canPropose&&row.approved?.operation==='set'&&row.pending===null&&row.version<200);
+export const fixedReviewGroupEligible=row=>Boolean(row?.identityCurrent&&row.pending?.canReview&&row.version<200);
+export function fixedReviewGroupDraft(rows,decision,reason){
+ if(!Array.isArray(rows)||rows.length<1||rows.length>500||!['approve','reject'].includes(decision))fail();
+ const seen=new Set(),items=rows.map(row=>{if(!fixedReviewGroupEligible(row)||!uuid(row.id)||!uuid(row.pending.id)||!Number.isSafeInteger(row.version)||seen.has(row.id))fail();seen.add(row.id);return Object.freeze({recordId:row.id,proposalId:row.pending.id,expectedVersion:row.version});});
+ return Object.freeze({items:Object.freeze(items),decision,reason:fixedText(reason,'el fundamento de la decisión conjunta')});
+}
 export function fixedGroupDraft(rows,reason){
  if(!Array.isArray(rows)||rows.length<1||rows.length>500)fail();
  const seen=new Set();const items=rows.map(row=>{
@@ -21,15 +27,16 @@ export function fixedCorrectionGroupDraft(rows,changes,reason){
  });return Object.freeze({items:Object.freeze(items),reason:base.reason});
 }
 export function fixedGroupReceipt(envelope,key,payload){
- const data=envelope?.ok===true?envelope.data:null,keys=['version','groupId','key','requestSha256','total','rows','duplicate','effects'];
- const version=payload.items.every(item=>Object.hasOwn(item,'values'))?'payroll-fixed-correction-group.v1':'payroll-fixed-annul-group.v1';
+ const review=Object.hasOwn(payload,'decision'),data=envelope?.ok===true?envelope.data:null,keys=['version','groupId','key','requestSha256','total','rows','duplicate','effects',...(review?['decision']:[])];
+ const version=review?'payroll-fixed-review-group.v1':payload.items.every(item=>Object.hasOwn(item,'values'))?'payroll-fixed-correction-group.v1':'payroll-fixed-annul-group.v1';
  if(!data||Object.keys(data).length!==keys.length||Object.keys(data).some(k=>!keys.includes(k))||data.version!==version||!uuid(data.groupId)
  ||data.key!==key||!/^[a-f0-9]{64}$/.test(data.requestSha256)||typeof data.duplicate!=='boolean'||data.total!==payload.items.length||!Array.isArray(data.rows)||data.rows.length!==data.total
  ||JSON.stringify(Object.keys(data.effects??{}).sort())!==JSON.stringify(['approvalEffect','grhMutation','payrollCalculated','payrollPosted'].sort())||data.effects.approvalEffect!=='control_export_only'
  ||[data.effects.grhMutation,data.effects.payrollCalculated,data.effects.payrollPosted].some(v=>v!==false))fail();
- const seen=new Set();data.rows.forEach((row,i)=>{fixedReceipt({ok:true,data:row},'propose',payload.items[i]);if(row.duplicate!==false||seen.has(row.recordId))fail();seen.add(row.recordId);});return data;
+ if(review&&data.decision!==payload.decision)fail();
+ const seen=new Set();data.rows.forEach((row,i)=>{fixedReceipt({ok:true,data:row},review?'review':'propose',payload.items[i]);if(row.duplicate!==false||seen.has(row.recordId))fail();seen.add(row.recordId);});return data;
 }
-export function fixedGroupUnchanged(original,fresh){
+export function fixedGroupUnchanged(original,fresh,review=false){
  const current=new Map(fresh.rows.map(row=>[row.id,row]));
- return original.every(row=>fixedGroupEligible(current.get(row.id))&&JSON.stringify(row)===JSON.stringify(current.get(row.id)));
+ return original.every(row=>(review?fixedReviewGroupEligible:fixedGroupEligible)(current.get(row.id))&&JSON.stringify(row)===JSON.stringify(current.get(row.id)));
 }

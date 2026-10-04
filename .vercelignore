@@ -280,3 +280,5 @@ local-agents/
 !scripts/migrations/117-fixed-novelty-annul-groups.sql
 
 !scripts/migrations/118-fixed-novelty-correction-groups.sql
+
+!scripts/migrations/119-fixed-novelty-review-groups.sql
