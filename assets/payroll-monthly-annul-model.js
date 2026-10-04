@@ -21,8 +21,9 @@ const code=v=>typeof v==='string'&&/^(?:0|[1-9][0-9]{0,19})$/.test(v);
 const text=(v,max)=>v===null||typeof v==='string'&&v.length>0&&v.length<=max&&v===v.trim()&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(v);
 export function monthlyAnnulBatch(b){
  verifyMonthlyBatch(b,{mode:'receipt'});
+ const approvedReason=b.reasonCode==='validated_for_export'||b.reasonCode==='corrected_after_review'&&b.version>=4&&typeof b.reasonReference==='string'&&b.reasonReference.startsWith('ref:')&&monthlyAnnulUuid(b.reasonReference.slice(4));
  requireValue(monthlyAnnulExact(b,batchKeys)&&b.status==='approved'&&b.exportable===true&&b.version>=3&&b.version<2147483647&&b.rows.length===b.rowCount&&typeof b.releaseSha==='string'&&/^[a-f0-9]{40}$/.test(b.releaseSha)
- &&b.reasonCode==='validated_for_export'&&text(b.reasonReference,128)&&b.blockingIssueCount===0&&Number.isSafeInteger(b.warningIssueCount)&&b.warningIssueCount>=0
+ &&approvedReason&&text(b.reasonReference,128)&&b.blockingIssueCount===0&&Number.isSafeInteger(b.warningIssueCount)&&b.warningIssueCount>=0
  &&['createdAt','updatedAt','submittedAt','decidedAt'].every(k=>stamp(b[k])));
  for(const[rIndex,r]of b.rows.entries()){
   requireValue(monthlyAnnulExact(r,[...rowKeys,...(b.contractVersion.endsWith('v2')?['subject']:[])])&&r.rowOrdinal===rIndex+1&&monthlyAnnulUuid(r.employmentContractId)
