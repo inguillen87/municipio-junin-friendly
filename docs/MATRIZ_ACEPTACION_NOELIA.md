@@ -1,5 +1,7 @@
 # MuniControl · Criterios de aceptación derivados de los módulos de Noelia
 
+Continuación N1: [decisiones de varios lotes mensuales](NOELIA_DECISIONES_LOTES_MENSUALES_20261004.md). Selección conservada entre páginas/filtros, revisión de todas las filas y comandos existentes de envío/aprobación/rechazo/cancelación. Conserva decisiones independientes por lote, resultados parciales explícitos y recuperación del mismo envío. No amplía escritor/masivas nativas, no anula haberes y no cierra M5/M7. Instalación de SQL nuevo no corresponde; pruebas, producción y aceptación se acreditan por separado.
+
 Incremento119: [decisión independiente conjunta de fijas](NOELIA_REVISION_CONJUNTA_FIJAS_119_20261004.md), continuación5.5 de117/118. Otra persona revisa todas las propuestas seleccionadas, incluso fuera de páginas/búsquedas, y aprueba o rechaza entero o nada. Mantiene una decisión individual auditada, versiones/historia, permisos separados, valores exactos, superposición y recuperación original. Instalación/publicación/aceptación requieren evidencia propia. No cierra lotes mensuales masivos, OSEP ni cálculo/anulación salarial de M7.
 
 Esta matriz no declara que el reemplazo de GRH esté completo. Distingue requerimientos de la documentación entregada, avances comprobables en código y funciones pendientes. Los PDF originales y sus capturas permanecen fuera del repositorio; no se publica información nominal ni la firma. Una fórmula visible en una captura no se sustituye por una tasa supuesta.

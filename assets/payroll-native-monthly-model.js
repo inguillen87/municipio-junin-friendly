@@ -119,6 +119,19 @@ export function verifyMonthlyBootstrap(payload) {
   return payload;
 }
 
+// Historical SQL event snapshots pin updatedAt to the immutable event, while
+// their two timeline fields come from the current batch. In the v2 response,
+// derive transition dates from that original event and the single submission.
+// Preserve the v1 SQL/HTTP contracts and all nominal row values.
+export function historicalMonthlyTransitionReceipt(batch) {
+  verifyMonthlyBatch(batch,{mode:'receipt'});
+  if(batch.contractVersion!=='payroll-novelty-batch.v1'||!Object.hasOwn(batch,'updatedAt'))return batch;
+  if(!instant(batch.updatedAt))fail();
+  if(batch.status==='submitted')return {...batch,submittedAt:batch.updatedAt,decidedAt:null};
+  if(['approved','rejected','cancelled'].includes(batch.status))return {...batch,decidedAt:batch.updatedAt};
+  return batch;
+}
+
 // A saved review must contain the complete, ordered batch, including its issues.
 // Keep a detached immutable copy so filtering cannot alter a pending decision.
 export function savedNoveltyBatch(batch) {
