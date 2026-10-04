@@ -3,6 +3,8 @@ on:
   push:
     branches: ['internal-native-employment-catalog-20260923', 'master']
     paths:
+      - 'lib/private-json-body.js'
+      - 'tests/private-json-body.test.js'
       - 'api/internal-employment-catalog.js'
       - 'lib/internal-employment-catalog.js'
       - 'lib/internal-native-employees.js'

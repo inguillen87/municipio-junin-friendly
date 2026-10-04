@@ -1,6 +1,7 @@
 import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.js';
 import { actionMutationSession, getActionCenterSql } from './internal-actions.js';
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
+import { hasPrivateBodyStream, readRawPrivateJson } from '../lib/private-json-body.js';
 import {
   SCHOOL_CERTIFICATE_MAX_BODY_BYTES, SCHOOL_CERTIFICATE_READ_CAPABILITY, SCHOOL_CERTIFICATE_WRITE_CAPABILITY,
   schoolCertificateFail, schoolCertificateSafeError, schoolCertificateUuid, schoolCertificateContractId,
@@ -72,47 +73,15 @@ function checkLength(req, maxBytes = SCHOOL_CERTIFICATE_MAX_BODY_BYTES) {
   if (length && !/^(?:0|[1-9][0-9]*)$/.test(length)) schoolCertificateFail('BODY_INVALID');
   if (length && Number(length) > maxBytes) schoolCertificateFail('BODY_TOO_LARGE');
 }
-function parseJson(value) {
-  // Accepted objects use disjoint names (v2 adds only familyRef.kind/id).
-  // Reject repeated, including escaped, names before JSON.parse overwrites them.
-  const keys = new Set();
-  try {
-    for (let i = 0; i < value.length; i++) {
-      if (value[i] !== '"') continue;
-      const start = i++;
-      for (; i < value.length && value[i] !== '"'; i++) if (value[i] === '\\') i++;
-      const end = i + 1;
-      let next = end; while (/\s/.test(value[next] ?? '') && next < value.length) next++;
-      if (value[next] === ':') {
-        const key = JSON.parse(value.slice(start, end));
-        if (keys.has(key)) schoolCertificateFail('BODY_INVALID');
-        keys.add(key);
-      }
-    }
-    return JSON.parse(value);
-  } catch { schoolCertificateFail('BODY_INVALID'); }
-}
 async function readBody(req, maxBytes = SCHOOL_CERTIFICATE_MAX_BODY_BYTES) {
   checkLength(req, maxBytes);
-  let value = req.body;
-  if (value === undefined && typeof req[Symbol.asyncIterator] === 'function') {
-    const chunks = []; let size = 0;
-    for await (const chunk of req) {
-      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      size += bytes.length;
-      if (size > maxBytes) schoolCertificateFail('BODY_TOO_LARGE');
-      chunks.push(bytes);
-    }
-    value = Buffer.concat(chunks, size);
-  }
-  if (Buffer.isBuffer(value)) {
-    if (value.length > maxBytes) schoolCertificateFail('BODY_TOO_LARGE');
-    value = value.toString('utf8');
-  }
-  if (typeof value === 'string') {
-    if (Buffer.byteLength(value) > maxBytes) schoolCertificateFail('BODY_TOO_LARGE');
-    value = parseJson(value);
-  }
+  // Retain explicit decoded bodies from in-process callers. A real HTTP stream
+  // always takes precedence, without invoking a provider's lazy parsed getter.
+  let value = hasPrivateBodyStream(req) ? undefined : Object.getOwnPropertyDescriptor(req, 'body')?.value;
+  if (value === undefined || typeof value === 'string' || Buffer.isBuffer(value)) value = await readRawPrivateJson(req, {
+    maxBytes, declaredLength: header(req, 'content-length'),
+    fail: kind => schoolCertificateFail(kind === 'large' ? 'BODY_TOO_LARGE' : kind === 'unavailable' ? 'UNAVAILABLE' : 'BODY_INVALID'),
+  });
   if (!value || typeof value !== 'object' || Array.isArray(value)) schoolCertificateFail('BODY_INVALID');
   let size;
   try { size = Buffer.byteLength(JSON.stringify(value)); } catch { schoolCertificateFail('BODY_INVALID'); }

@@ -4,6 +4,8 @@ on:
   push:
     branches: ['codex/noelia-schooling-record-20260921', 'internal-noelia-feedback-20260921', 'master']
     paths:
+      - 'lib/private-json-body.js'
+      - 'tests/private-json-body.test.js'
       - 'api/internal-family-certificates.js'
       - 'api/internal-attendance.js'
       - 'lib/internal-family-certificates.js'

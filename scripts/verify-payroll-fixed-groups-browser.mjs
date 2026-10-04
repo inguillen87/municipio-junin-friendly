@@ -2,37 +2,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {createHash,randomUUID} from 'node:crypto';
 import {chromium} from 'playwright';
 import {fixedFixture,fixedApprovedRecord,fixedNativeSubject,fixedPayrollTypes} from '../tests/fixtures/payroll-fixed-novelties-synthetic.js';
 import '../assets/app-routes.js';
-const origin='https://municontrol.test',base=path.resolve('public'),out=path.resolve('verification/fixed-groups-browser');fs.mkdirSync(out,{recursive:true});
+import {fixedGroupsBrowserApi,serveFixedGroupsBrowserFile} from './lib/fixed-groups-browser-api.mjs';
+const live=process.argv.includes('--published'),origin=live?'https://municontrol.com':'https://municontrol.test',base=path.resolve('public'),out=path.resolve('verification/fixed-groups-browser'+(live?'-published':'')),served=new Set();fs.mkdirSync(out,{recursive:true});
 let fixture,state,groups,denied=false,dropAck=false,badAck=false,holdList=null,conflictLast=false;
 const checks=[],errors=[],posts=[];let page;
 const resetFixture=()=>{fixture=fixedFixture();state=fixture.state;groups=new Map();denied=false;dropAck=false;badAck=false;conflictLast=false;
  state.records=Array.from({length:45},(_,i)=>fixedApprovedRecord(i,{quantityDecimal:i===0?'0':'1',amountCents:null}));state.records[25].subject=fixedNativeSubject();
  for(const r of state.records){state.subjects.set(r.subject.contractId,r.subject);state.histories.set(r.id,[r.latest]);}};
 resetFixture();
+const wireApi=fixedGroupsBrowserApi({command:'annul',origin,fixtureFor:()=>fixture,groupsFor:()=>groups,posts,denied:()=>denied,
+ takeConflict:()=>{const value=conflictLast;conflictLast=false;return value;},takeDropAck:()=>{const value=dropAck;dropAck=false;return value;},takeBadAck:()=>{const value=badAck;badAck=false;return value;}});
 const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:process.env.FIXED_GROUPS_BROWSER_CHANNEL?{channel:process.env.FIXED_GROUPS_BROWSER_CHANNEL}:{})});
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());if(u.origin!==origin)return route.abort();
-  if(!u.pathname.startsWith('/api/')){const file=path.resolve(base,globalThis.MuniControlRoutes.resolve(u.href,origin)?.file||u.pathname.slice(1));if(!file.startsWith(base+path.sep)||!fs.existsSync(file))return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:/\.m?js$/.test(file)?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream',body:fs.readFileSync(file)});}
+  if(!u.pathname.startsWith('/api/'))return serveFixedGroupsBrowserFile(route,{base,origin,live,served});
   const ok=data=>route.fulfill({json:{ok:true,data}}),fail=(status,code)=>route.fulfill({status,json:{ok:false,code:'PAYROLL_FIXED_'+code,error:'Rechazo sintético'}});
-  if(u.pathname==='/api/internal-payroll-fixed-groups'){
-   if(denied)return fail(403,'CAPABILITY_REQUIRED');
-   const key=req.method()==='POST'?req.headers()['idempotency-key']:u.searchParams.get('key'),scopeKey=state.role+':'+key;
-   if(req.method()==='GET'){const g=groups.get(scopeKey);return g?ok({...g.receipt,duplicate:true}):fail(404,'NOT_FOUND');}
-   const body=req.postDataJSON();posts.push({body:structuredClone(body),key});assert.equal(body.command,'annul');
-   const hash=createHash('sha256').update(JSON.stringify(body.payload)).digest('hex'),previous=groups.get(scopeKey);
-   if(previous){if(previous.hash!==hash)return fail(409,'IDEMPOTENCY_REUSE');return ok({...previous.receipt,duplicate:true});}
-   if(conflictLast){conflictLast=false;const item=body.payload.items.at(-1);assert.ok(fixture.mutate('propose',{...item,operation:'annul',values:null,reason:'Cambio concurrente de ensayo'},randomUUID()).data);}
-   const snapshot=structuredClone(state),receipts=[];
-   for(const item of body.payload.items){const result=fixture.mutate('propose',{...item,operation:'annul',values:null,reason:body.payload.reason},randomUUID());if(!result.data){Object.assign(state,snapshot);return fail(result.status,result.code.replace('PAYROLL_FIXED_',''));}receipts.push(result.data);}
-   const receipt={version:'payroll-fixed-annul-group.v1',groupId:randomUUID(),key,requestSha256:hash,total:receipts.length,rows:receipts,duplicate:false,effects:fixture.bootstrap().effects};groups.set(scopeKey,{hash,receipt});
-   if(dropAck){dropAck=false;return route.abort('timedout');}if(badAck){badAck=false;const changed=structuredClone(receipt);changed.rows[0].recordVersion++;return ok(changed);}return ok(receipt);
-  }
+  if(u.pathname==='/api/internal-payroll-fixed-groups')return wireApi.route(route);
   if(u.pathname==='/api/internal-payroll-fixed-novelties'){
    if(denied)return fail(403,'CAPABILITY_REQUIRED');const resource=u.searchParams.get('resource')||'bootstrap';
    if(resource==='bootstrap')return ok(fixture.bootstrap());
@@ -69,5 +59,6 @@ try{
  await reset();await host.locator('[data-fn-group-id]').first().check();await review();await page.locator('#fixedNovelties > summary').click();await page.waitForFunction(()=>document.querySelector('[data-fn-group-source]')?.textContent==='');await page.locator('#fixedNovelties > summary').click();assert.equal(await s('save').isDisabled(),true);assert.equal(await s('group-reviewed').isChecked(),false);assert.equal(await s('group-reason').inputValue(),'Corrección conjunta documentada de ensayo');checks.push('collapsing the workbench invalidates the review without discarding the reason');
  await reset();await host.locator('[data-fn-group-id]').first().check();await review();
  for(const width of [390,320]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile page overflow '+width);assert.ok(await s('save').isVisible());await page.screenshot({path:path.join(out,'group-review-'+width+'-synthetic.png'),fullPage:true});await s('group-reason').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'group-actions-'+width+'-synthetic.png')});checks.push('complete reviewed group and accessible controls fit '+width+'px');}
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({ok:true,checksPassed:checks.length,checks,syntheticOnly:true,municipalWrites:0,postCount:posts.length},null,2));console.log(JSON.stringify({ok:true,checksPassed:checks.length}));
+ assert.deepEqual(errors,[]);assert.equal(wireApi.stats.rawPosts,posts.length);assert.ok(wireApi.stats.sqlCalls>0);checks.push('original browser bytes traverse real handler and parameterized facade; SQL responses remain synthetic');
+ fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({ok:true,checksPassed:checks.length,checks,syntheticOnly:true,municipalWrites:0,postCount:posts.length,transport:wireApi.stats,published:live,publishedAssets:[...served]},null,2));console.log(JSON.stringify({ok:true,checksPassed:checks.length,transport:wireApi.stats,published:live}));
 }catch(error){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({ok:false,message:error.message,stack:error.stack,checks,errors},null,2));if(page)await page.screenshot({path:path.join(out,'failure-synthetic.png'),fullPage:true});throw error;}finally{await browser.close();}
