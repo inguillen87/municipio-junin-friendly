@@ -6,7 +6,7 @@ import {fixedFail,fixedSafeError,fixedUuid,FIXED_READ_CAPS} from '../lib/interna
 import {FIXED_GROUP_MAX_BODY,FIXED_CORRECTION_GROUP_MAX_BODY,prepareFixedGroup,fixedGroupCall} from '../lib/internal-payroll-fixed-groups.js';
 export const config={api:{bodyParser:false}};
 export function createInternalPayrollFixedGroupsHandler(deps={},command='annul'){
- if(!['annul','correct'].includes(command))throw Error('Invalid fixed group command');
+ if(!['annul','correct','review'].includes(command))throw Error('Invalid fixed group command');
  const bodyLimit=command==='correct'?FIXED_CORRECTION_GROUP_MAX_BODY:FIXED_GROUP_MAX_BODY;
  const env=deps.env??process.env;
  return async(req,res)=>{
@@ -16,7 +16,7 @@ export function createInternalPayrollFixedGroupsHandler(deps={},command='annul')
    const q=req.query??{};if(!q||typeof q!=='object'||Array.isArray(q))fixedFail('QUERY_INVALID');
    if(req.url){const params=new URL(req.url,'http://localhost').searchParams,seen=new Set();for(const[k,v]of params){if(seen.has(k)||q[k]!==v)fixedFail('QUERY_INVALID');seen.add(k);}if(seen.size!==Object.keys(q).length)fixedFail('QUERY_INVALID');}
    if(method==='POST'?Object.keys(q).length!==0:Object.keys(q).length!==2||q.resource!=='attempt'||!fixedUuid(q.key))fixedFail('QUERY_INVALID');
-   const caps=[...FIXED_READ_CAPS,'payroll.fixed.prepare'];
+   const caps=[...FIXED_READ_CAPS,command==='review'?'payroll.fixed.approve':'payroll.fixed.prepare'];
    const access=await(deps.requireCompatibleInternalAccess??requireCompatibleInternalAccess)(req,res,{env,requiredCapabilities:caps,capabilityMode:'all',requireDataPlaneReady:true,requireCertifiedDataBinding:true,allowLegacy:false});
    if(!access)return;if(access.mode!=='managed'||!principalHasCapabilities(access.principal,caps))fixedFail('CAPABILITY_REQUIRED');
    const session=(deps.actionMutationSession??actionMutationSession)(access,env);let payload,key;

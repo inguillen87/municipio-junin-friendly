@@ -4,13 +4,14 @@ import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
-import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
+import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedReviewGroupEligible,fixedReviewGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
 const GROUP_ENDPOINT='/api/internal-payroll-fixed-groups';
 const CORRECTION_GROUP_ENDPOINT='/api/internal-payroll-fixed-correction-groups';
-const isGroupKind=kind=>kind==='annulGroup'||kind==='correctGroup';
-const groupEndpoint=kind=>kind==='correctGroup'?CORRECTION_GROUP_ENDPOINT:GROUP_ENDPOINT;
+const REVIEW_GROUP_ENDPOINT='/api/internal-payroll-fixed-review-groups';
+const isGroupKind=kind=>['annulGroup','correctGroup','reviewGroup'].includes(kind);
+const groupEndpoint=kind=>kind==='reviewGroup'?REVIEW_GROUP_ENDPOINT:kind==='correctGroup'?CORRECTION_GROUP_ENDPOINT:GROUP_ENDPOINT;
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(text,attr,primary=false)=>{const n=node('button',text,'button'+(primary?' primary':''));n.type='button';n.setAttribute('data-fn-'+attr,'');return n;};
 const dayLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'Sin informar';
@@ -53,13 +54,15 @@ export function mountFixedNovelties(shell){
   if(!shell)return {setAccess(){},setExternalBusy(){},deny(){}};
   const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null;
   let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
-  const groupIds=new Set();
+  const groupIds=new Set(),reviewGroupIds=new Set();
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
   const can=cap=>fixedCapability(bootstrap,access,cap);
   const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
   const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
-  let groupGateAllowed=false;
+  let groupGateAllowed=false,reviewGroupGateAllowed=false;
   const groupAllowedPrepare=()=>allowedPrepare()&&groupGateAllowed;
+  const groupAllowedReview=()=>allowedReview()&&reviewGroupGateAllowed;
+  const groupAuthority=kind=>kind==='reviewGroup'?groupAllowedReview():groupAllowedPrepare();
   let picker=null,directoryAllowed=false,directoryGateSeen=false,requestedContract=new URL(location.href).searchParams.get('fixedContractId');
   if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestedContract||''))requestedContract=null;
   else requestedContract=requestedContract.toLowerCase();
@@ -75,7 +78,7 @@ export function mountFixedNovelties(shell){
     box.append(fields,node('p','Se generó el archivo; no se envió a AMARU. La aceptación por el receptor sigue pendiente.','fn-note'),node('p','55 bytes por registro. Separación CRLF, sin salto final: convención de MuniControl que debe contrastarse con un archivo aceptado por AMARU. El resumen no muestra DNI ni nombres.','fn-note'));box.hidden=false;
   }
   function clearConsulted(){clearTxtReview();
-    groupIds.clear();
+    groupIds.clear();reviewGroupIds.clear();
     bootstrap=null;data=null;detail=null;
     if(mounted){$('[data-fn-list]').replaceChildren();$('[data-fn-detail]').replaceChildren();$('[data-fn-detail]').hidden=true;$('[data-fn-count]').textContent='';$('[data-fn-pagination]').hidden=true;}
     if(editor){editor.subject=editor.subject?{contractId:editor.subject.contractId,legajo:editor.subject.legajo,identityToken:editor.subject.identityToken}:null;
@@ -99,6 +102,14 @@ export function mountFixedNovelties(shell){
       $('[data-fn-group-count]').textContent=groupIds.size+' seleccionadas en toda la consulta · '+[...groupIds].filter(id=>!matches.some(r=>r.id===id)).length+' fuera del filtro actual. La búsqueda y la página no cambian la selección.';
       host.querySelectorAll('[data-fn-group-id]').forEach(n=>n.disabled=busy||externalBusy||Boolean(editor)||!groupAllowedPrepare()||!fixedGroupEligible(data?.rows.find(r=>r.id===n.dataset.fnGroupId)));
     }
+    const reviewToolbar=$('[data-fn-review-group-toolbar]');if(reviewToolbar){reviewToolbar.hidden=!groupAllowedReview();
+      const matches=data?selected().rows:[],eligible=matches.filter(fixedReviewGroupEligible),locked=busy||externalBusy||Boolean(editor)||Boolean(attempt)||!groupAllowedReview();
+      $('[data-fn-review-group-select]').textContent='Seleccionar '+eligible.length+' pendientes del filtro';$('[data-fn-review-group-select]').disabled=locked||!eligible.length;
+      $('[data-fn-review-group-clear]').disabled=locked||!reviewGroupIds.size;
+      for(const decision of ['approve','reject']){const b=$('[data-fn-review-group-'+decision+']');b.textContent='Revisar '+reviewGroupIds.size+' para '+(decision==='approve'?'aprobar':'rechazar');b.disabled=locked||!reviewGroupIds.size;}
+      $('[data-fn-review-group-count]').textContent=reviewGroupIds.size+' pendientes seleccionadas · '+[...reviewGroupIds].filter(id=>!matches.some(r=>r.id===id)).length+' fuera del filtro actual. La decisión incluye toda la selección.';
+      host.querySelectorAll('[data-fn-review-group-id]').forEach(n=>n.disabled=locked||!fixedReviewGroupEligible(data?.rows.find(r=>r.id===n.dataset.fnReviewGroupId)));
+    }
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!data?.periodMonth||!data.rows.length;
     const txtReady=txtAvailability();$('[data-fn-junin638]').disabled=!txtReady.ready;$('[data-fn-txt638-availability]').textContent=txtReady.message;
     $('[data-fn-refresh]').disabled=busy||externalBusy;
@@ -111,13 +122,13 @@ export function mountFixedNovelties(shell){
       if(editor.kind==='correctGroup'){for(const [key,input]of Object.entries(editor.correctionFields))input.disabled=locked||!editor.correctionChoices[key].checked;const preview=editor.form.querySelector('[data-fn-group-preview]');preview.disabled=locked||editor.needsReview||!groupAllowedPrepare();preview.hidden=Boolean(editor.preview);editor.form.querySelector('[data-fn-save]').hidden=!editor.preview;}
       const target=editor.form.querySelector('[data-fn-save]')||editor.form.querySelector('[data-fn-decision-save]');
       if(target)target.disabled=locked||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare())||!editor.preview||editor.kind==='review'&&!editor.reviewed.checked;
-      if(target&&isGroupKind(editor.kind))target.disabled=locked||editor.needsReview||!groupAllowedPrepare()||!editor.preview||!editor.reviewed.checked;
+      if(target&&isGroupKind(editor.kind))target.disabled=locked||editor.needsReview||!groupAuthority(editor.kind)||!editor.preview||!editor.reviewed.checked;
       editor.form.querySelector('[data-fn-preview]')?.toggleAttribute('disabled',locked||editor.needsReview||!allowedPrepare());
       const lookup=editor.form.querySelector('[data-fn-lookup]');if(lookup)lookup.disabled=locked||!allowedPrepare()||Boolean(editor.row);
       const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);}
       editor.form.querySelector('[data-fn-cancel]').disabled=busy||externalBusy||Boolean(attempt);
       const retry=editor.form.querySelector('[data-fn-retry]');retry.hidden=!attempt;retry.disabled=busy||externalBusy||!(attempt?.command==='review'?allowedReview():allowedPrepare());
-      if(isGroupKind(attempt?.command))retry.disabled=busy||externalBusy||!groupAllowedPrepare();
+      if(isGroupKind(attempt?.command))retry.disabled=busy||externalBusy||!groupAuthority(attempt.command);
     }
     if(detail){for(const name of ['correct','annul']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.canPropose||!allowedPrepare();}
       for(const name of ['approve','reject']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.pending?.canReview||!allowedReview();}}
@@ -137,11 +148,13 @@ export function mountFixedNovelties(shell){
   async function loadBootstrap(){
     const next=fixedBootstrap(await request({resource:'bootstrap'})),oldKey=bootstrap?fixedPrincipalKey(bootstrap):editor?.principalKey||attempt?.principalKey;
     if(oldKey&&oldKey!==fixedPrincipalKey(next)){const pending=Boolean(attempt);if(pending)clearConsulted();else clearAll();const message=pending?'El guardado pendiente corresponde a otro ámbito. Se conservan su contenido y clave originales; volvé a la sesión que lo inició. No se reenviaron datos.':'Cambió el municipio, la membresía o la fuente. Se descartó el borrador anterior; no se reenvió. Volvé a consultar.';status(message);throw Error(message);}
-    bootstrap=next;if(!hasRead(access)||!hasRead(new Set(next.principal.capabilities))){clearConsulted();throw Error('No hay permiso para consultar novedades nominales.');}return next;
+    bootstrap=next;if(!hasRead(access)||!hasRead(new Set(next.principal.capabilities))){clearConsulted();throw Error('No hay permiso para consultar novedades nominales.');}
+    if(!groupAllowedReview()){reviewGroupIds.clear();if(editor?.kind==='reviewGroup'){editor.groupRows=null;editor.preview=null;editor.needsReview=true;editor.reviewed.checked=false;editor.sourceHost.replaceChildren();}}
+    return next;
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
   async function loadList(){
-    if(!editor&&!attempt)groupIds.clear();
+    if(!editor&&!attempt){groupIds.clear();reviewGroupIds.clear();}
     clearTxtReview();const period=currentPeriod();data=null;$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';
     data=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);page=1;renderList();
   }
@@ -156,6 +169,7 @@ export function mountFixedNovelties(shell){
         label.append(check,node('span','Seleccionar para corregir o anular'));check.addEventListener('change',()=>{if(editor||busy||attempt||!groupAllowedPrepare()||!fixedGroupEligible(r)){check.checked=groupIds.has(r.id);return;}check.checked?groupIds.add(r.id):groupIds.delete(r.id);controls();});card.append(label);
         if(!fixedGroupEligible(r))card.append(node('p',r.pending?'Requiere resolver la propuesta pendiente antes de anular.':!r.identityCurrent?'Requiere verificar la identidad de origen.':r.version>=200?'Alcanzó el límite de historia admitido.':'Sin una versión aprobada activa para anular.','fn-note'));}
       card.append(node('p',fixedOriginLabel(r.subject)+' · '+(current?'Versión aprobada conservada':'Sin valores aprobados activos'),'fn-note'),facts(current||r.latest.values));
+      if(groupAllowedReview()&&r.pending){const label=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnReviewGroupId=r.id;check.checked=reviewGroupIds.has(r.id);check.disabled=!fixedReviewGroupEligible(r);label.append(check,node('span','Seleccionar para revisión independiente'));check.addEventListener('change',()=>{if(editor||busy||attempt||!groupAllowedReview()||!fixedReviewGroupEligible(r)){check.checked=reviewGroupIds.has(r.id);return;}check.checked?reviewGroupIds.add(r.id):reviewGroupIds.delete(r.id);controls();});card.append(label);}
       if(r.pending)card.append(node('p',r.pending.operation==='annul'?'Anulación propuesta; la versión aprobada sigue conservada hasta la decisión.':'Propuesta pendiente; no reemplaza los valores aprobados.','fn-note'));
       if(!r.identityCurrent)card.append(node('p','Identidad de origen por revisar. No se habilitan cambios ni exportación para este vínculo.','fn-note'));
       if(data.periodMonth&&current)card.append(node('p',fixedCoverage(current,data.periodMonth).label+'. Se conservan las unidades e importes completos.','fn-note'));
@@ -222,13 +236,32 @@ export function mountFixedNovelties(shell){
       reason.addEventListener('input',update);reviewed.addEventListener('change',mode==='correct'?controls:update);send.addEventListener('click',prepareSend);box.feedback.textContent='Informá el motivo y revisá todo el conjunto. Todavía no se guardó ninguna propuesta.';reason.focus();
     });
   }
+  async function openReviewGroup(decision){
+    if(editor||attempt||busy||!groupAllowedReview()||!data||!reviewGroupIds.size)return;
+    const original=data.rows.filter(r=>reviewGroupIds.has(r.id)),period=data.periodMonth;
+    await operation(async live=>{
+      await loadBootstrap();if(!live()||!groupAllowedReview())return;
+      const fresh=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);if(!live()||!groupAllowedReview())return;
+      if(!fixedGroupUnchanged(original,fresh,true)||original.length!==reviewGroupIds.size)throw Error('Cambió una propuesta seleccionada. Actualizá y revisá el conjunto; no se decidió nada.');
+      const quantityLabel=original.length+(original.length===1?' propuesta':' propuestas');
+      const box=editorShell((decision==='approve'?'Aprobar':'Rechazar')+' '+quantityLabel+' para control'),source=node('section',undefined,'fn-group-source');source.dataset.fnGroupSource='';
+      source.append(node('p','Incluye toda la selección, también fuera de la búsqueda y la página. Se registra una decisión por propuesta; todas se deciden juntas o ninguna. No calcula, confirma ni anula liquidaciones.','fn-note'));
+      for(const r of original){const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Propuesta por '+r.pending.proposedBy+' · '+stamp(r.pending.proposedAt),'fn-note'),reviewSource(r,decision));source.append(card);}
+      const fields=node('fieldset'),label=node('label','Fundamento de la decisión conjunta'),reason=node('textarea');reason.maxLength=500;reason.dataset.fnGroupReason='';label.append(reason);fields.append(label);
+      const acknowledgement=node('label',undefined,'fn-group-select'),reviewed=node('input');reviewed.type='checkbox';reviewed.dataset.fnGroupReviewed='';acknowledgement.append(reviewed,node('span','Revisé los diez campos, instrumentos, motivos y alcance de todas las propuestas.'));fields.append(acknowledgement);
+      const send=button((decision==='approve'?'Aprobar':'Rechazar')+' '+quantityLabel+' para control','save',true);box.actions.prepend(send);box.form.append(source,fields,box.feedback,box.actions);box.form.querySelector('[data-fn-cancel]').textContent='Cancelar decisión local';
+      editor={...box,kind:'reviewGroup',decision,sourceHost:source,groupRows:original,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+      const active=editor,update=()=>{if(editor!==active||attempt||busy)return;try{active.preview=fixedReviewGroupDraft(active.groupRows,decision,reason.value);active.feedback.textContent=reviewed.checked?'Revisión confirmada. Se guardarán todas las decisiones o ninguna, conservando su historial.':'Confirmá la revisión completa. Cada decisión conservará su historial.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();};
+      reason.addEventListener('input',()=>{reviewed.checked=false;update();});reviewed.addEventListener('change',update);send.addEventListener('click',prepareSend);box.feedback.textContent='Revisá todas las propuestas e informá el fundamento. Todavía no se guardó ninguna decisión.';reason.focus();
+    });
+  }
   async function prepareGroupSend(){
-    const active=editor;if(!active||attempt||busy||active.needsReview||!groupAllowedPrepare()||!active.reviewed.checked||!active.preview)return;
+    const active=editor;if(!active||attempt||busy||active.needsReview||!groupAuthority(active.kind)||!active.reviewed.checked||!active.preview)return;
     const payload=active.preview;let ready=false;
     await operation(async live=>{
-      await loadBootstrap();if(!live()||editor!==active||!groupAllowedPrepare()||active.principalKey!==fixedPrincipalKey(bootstrap))return;
-      const fresh=fixedList(await request({resource:'list',...(active.period?{periodMonth:active.period}:{})}),active.period);if(!live()||editor!==active||!groupAllowedPrepare())return;
-      if(!active.groupRows||!fixedGroupUnchanged(active.groupRows,fresh)){active.needsReview=true;active.preview=null;active.reviewed.checked=false;throw Error('Cambió el conjunto completo, incluidos valores o permisos. No se enviaron propuestas. Actualizá y revisá de nuevo; el motivo se conserva.');}
+      await loadBootstrap();if(!live()||editor!==active||!groupAuthority(active.kind)||active.principalKey!==fixedPrincipalKey(bootstrap))return;
+      const fresh=fixedList(await request({resource:'list',...(active.period?{periodMonth:active.period}:{})}),active.period);if(!live()||editor!==active||!groupAuthority(active.kind))return;
+      if(!active.groupRows||!fixedGroupUnchanged(active.groupRows,fresh,active.kind==='reviewGroup')){active.needsReview=true;active.preview=null;active.reviewed.checked=false;throw Error('Cambió el conjunto completo, incluidos valores o permisos. No se enviaron propuestas. Actualizá y revisá de nuevo; el motivo se conserva.');}
       ready=true;
     });
     if(!ready||!available()||editor!==active||attempt)return;
@@ -337,14 +370,14 @@ export function mountFixedNovelties(shell){
   }
   function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
   async function sendAttempt(){
-    if(isGroupKind(attempt?.command)&&!groupAllowedPrepare())return;
-    if(!attempt||!editor||!(attempt.command==='review'?allowedReview():allowedPrepare()))return;
+    if(isGroupKind(attempt?.command)&&!groupAuthority(attempt.command))return;
+    if(!attempt||!editor||!(isGroupKind(attempt.command)?groupAuthority(attempt.command):attempt.command==='review'?allowedReview():allowedPrepare()))return;
     const pending=attempt,active=editor;
     await operation(async live=>{
       active.feedback.textContent='Guardando el mismo intento…';
       try{
         const isGroup=isGroupKind(pending.command);
-        const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:isGroup?(pending.command==='correctGroup'?'correct':'annul'):pending.command,payload:pending.payload})},isGroup?groupEndpoint(pending.command):ENDPOINT);
+        const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:isGroup?(pending.command==='reviewGroup'?'review':pending.command==='correctGroup'?'correct':'annul'):pending.command,payload:pending.payload})},isGroup?groupEndpoint(pending.command):ENDPOINT);
         const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);
         if(!live()||attempt!==pending){if(attempt===pending)pending.uncertain=true;return;}await finish(receipt,live);
       }catch(error){if(!live()){if(attempt===pending)pending.uncertain=true;return;}
@@ -361,8 +394,8 @@ export function mountFixedNovelties(shell){
     });
   }
   async function finish(receipt,live){
-    const id=receipt.recordId;attempt=null;editor?.form.reset();editor=null;groupIds.clear();$('[data-fn-editor]').replaceChildren();
-    status(receipt.total?receipt.total+' propuestas confirmadas juntas. Requieren revisión independiente; se conservan las versiones aprobadas.':'Operación confirmada. Se conserva su historial; no se generaron liquidaciones.');
+    const id=receipt.recordId;attempt=null;editor?.form.reset();editor=null;groupIds.clear();reviewGroupIds.clear();$('[data-fn-editor]').replaceChildren();
+    status(receipt.decision?receipt.total+' propuestas '+(receipt.decision==='approve'?'aprobadas':'rechazadas')+' juntas para control. Se conserva el historial; no se generaron liquidaciones.':receipt.total?receipt.total+' propuestas confirmadas juntas. Requieren revisión independiente; se conservan las versiones aprobadas.':'Operación confirmada. Se conserva su historial; no se generaron liquidaciones.');
     try{await loadList();if(id){const next=fixedDetail(await request({resource:'detail',recordId:id}),id);if(live()){detail=next;renderDetail();}}else {detail=null;renderDetail();}}
     catch(error){if([401,403].includes(error.status))clearConsulted();status('Operación confirmada, pero no pudimos actualizar la vista. Actualizá el registro; no repitas el alta.');}
   }
@@ -370,6 +403,7 @@ export function mountFixedNovelties(shell){
     status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
     if(attempt){
       const pending=attempt;
+      if(pending.command==='reviewGroup'&&!groupAllowedReview()){status('Falta permiso vigente de aprobación. Se conserva el intento original; no se consultó ni reenvió.');return;}
       try{const isGroup=isGroupKind(pending.command),envelope=await request({resource:'attempt',...(!isGroup?{command:pending.command}:{}),key:pending.key},{},isGroup?groupEndpoint(pending.command):ENDPOINT);
         const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);if(live()&&attempt===pending)await finish(receipt,live);return;}
       catch(error){if(error.status!==404)throw error;}
@@ -428,18 +462,23 @@ export function mountFixedNovelties(shell){
     const chooseGroup=button('Seleccionar disponibles del filtro','group-select'),clearGroup=button('Retirar selección','group-clear'),openGroup=button('Revisar selección para anular','group-open');
     const correctGroup=button('Corregir selección','group-correct');groupActions.append(chooseGroup,clearGroup,correctGroup,openGroup);correctGroup.addEventListener('click',()=>openGroupEditor('correct'));const groupCount=node('p','','fn-note');groupCount.dataset.fnGroupCount='';groupCount.setAttribute('role','status');groupToolbar.append(groupActions,groupCount);$('[data-fn-list]').before(groupToolbar);
     chooseGroup.addEventListener('click',()=>{if(editor||busy||attempt||!groupAllowedPrepare()||!data)return;for(const r of selected().rows.filter(fixedGroupEligible))groupIds.add(r.id);renderList();});
-    clearGroup.addEventListener('click',()=>{if(editor||busy||attempt)return;groupIds.clear();renderList();});openGroup.addEventListener('click',()=>openGroupEditor('annul'));
+    clearGroup.addEventListener('click',()=>{if(editor||busy||attempt)return;groupIds.clear();reviewGroupIds.clear();renderList();});openGroup.addEventListener('click',()=>openGroupEditor('annul'));
     $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
+    const reviewToolbar=node('section');reviewToolbar.dataset.fnReviewGroupToolbar='';reviewToolbar.append(node('h3','Revisión independiente del conjunto'),node('p','Elegí propuestas de otra persona para aprobar o rechazar todas juntas. No decide liquidaciones.','fn-note'));
+    const reviewActions=node('div',undefined,'fn-actions');for(const [key,title]of [['select','Seleccionar pendientes del filtro'],['clear','Retirar selección de revisión'],['approve','Revisar para aprobar'],['reject','Revisar para rechazar']]){const b=button(title,'review-group-'+key);reviewActions.append(b);b.addEventListener('click',()=>{if(editor||attempt||busy||!groupAllowedReview()||!data)return;if(key==='select'){for(const r of selected().rows.filter(fixedReviewGroupEligible))reviewGroupIds.add(r.id);renderList();}else if(key==='clear'){reviewGroupIds.clear();renderList();}else openReviewGroup(key);});}const reviewCount=node('p','','fn-note');reviewCount.dataset.fnReviewGroupCount='';reviewToolbar.append(reviewActions,reviewCount);$('[data-fn-list]').before(reviewToolbar);
     for(const key of ['search','filter'])$('[data-fn-'+key+']').addEventListener('input',()=>{if(data&&!busy&&!editor){page=1;renderList();}});
-    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;groupIds.clear();clearTxtReview();data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
+    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;groupIds.clear();reviewGroupIds.clear();clearTxtReview();data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }
-  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(groupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
-  const groupVisibility=()=>{if(document.hidden&&(groupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)))deny();};
+  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
+  const groupVisibility=()=>{if(document.hidden&&(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)))deny();};
   document.addEventListener('visibilitychange',groupVisibility);
-  function acceptDirectoryGate(detail){const current=new Set(detail?.tenantCapabilities||[]);directoryAllowed=current.has('workforce.employee.read');if(!directoryAllowed)picker?.close();groupGateAllowed=current.has('payroll.fixed.prepare');
-    if(!groupGateAllowed){if(groupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){seq++;controller?.abort();busy=false;}groupIds.clear();if(isGroupKind(editor?.kind)){editor.groupRows=null;editor.preview=null;editor.needsReview=true;editor.reviewed.checked=false;editor.form.querySelector('[data-fn-group-source]')?.replaceChildren();}}controls();}
+  function acceptDirectoryGate(detail){const current=new Set(detail?.tenantCapabilities||[]);directoryAllowed=current.has('workforce.employee.read');if(!directoryAllowed)picker?.close();groupGateAllowed=current.has('payroll.fixed.prepare');reviewGroupGateAllowed=current.has('payroll.fixed.approve');
+    const lostEditor=isGroupKind(editor?.kind)&&!(editor.kind==='reviewGroup'?reviewGroupGateAllowed:groupGateAllowed),lostAttempt=isGroupKind(attempt?.command)&&!(attempt.command==='reviewGroup'?reviewGroupGateAllowed:groupGateAllowed);
+    if(!groupGateAllowed&&groupIds.size||!reviewGroupGateAllowed&&reviewGroupIds.size||lostEditor||lostAttempt){seq++;controller?.abort();busy=false;}
+    if(!groupGateAllowed)groupIds.clear();if(!reviewGroupGateAllowed)reviewGroupIds.clear();
+    if(lostEditor){editor.groupRows=null;editor.preview=null;editor.needsReview=true;editor.reviewed.checked=false;editor.form.querySelector('[data-fn-group-source]')?.replaceChildren();}controls();}
   function capabilityChange(event){const raw=event.detail?.tenantCapabilities;if(!raw)return;const caps=raw instanceof Set?[...raw]:raw;if(Array.isArray(caps)){directoryGateSeen=true;acceptDirectoryGate(event.detail);access=new Set(caps);if(!hasRead(access))deny();else controls();}}
   document.addEventListener('municontrol:capabilities-ready',capabilityChange);
   Promise.resolve(globalThis.MuniControlCapabilityGate?.ready).then(result=>{if(!stopped&&!directoryGateSeen)acceptDirectoryGate(result);}).catch(()=>{});
