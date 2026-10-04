@@ -17,6 +17,7 @@ import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buil
 import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
 import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
+import {mountMonthlyCorrection} from './payroll-monthly-correction.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -71,7 +72,8 @@ let reviewPanel = null;
 let savedReviewPanel = null;
 let monthlyDecisions = null;
 let monthlyAnnul = null;
-const monthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked();
+let monthlyCorrection = null;
+const monthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked() || monthlyCorrection?.locked();
 let reviewedBatch = null;
 let detailReadVersion = 0;
 let txtOptions = null;
@@ -162,7 +164,8 @@ function applyMonthlyLocks() {
   fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(monthlyLocked()));
   monthlyDecisions?.update();
   monthlyAnnul?.update();
-  byId('refreshButton').disabled = busy || Boolean(monthlyDecisions?.inFlight()) || Boolean(monthlyAnnul?.inFlight());
+  monthlyCorrection?.update();
+  byId('refreshButton').disabled = busy || Boolean(monthlyDecisions?.inFlight()) || Boolean(monthlyAnnul?.inFlight()) || Boolean(monthlyCorrection?.inFlight());
   renderPreparationGuide();
 }
 function renderPreparationGuide() {
@@ -189,6 +192,7 @@ function clearEntryValidation() {
 function clearConsulted() {
   if (typeof monthlyDecisions !== 'undefined') monthlyDecisions?.clear();
   if (typeof monthlyAnnul !== 'undefined') monthlyAnnul?.clear();
+  if (typeof monthlyCorrection !== 'undefined') monthlyCorrection?.clear();
   cancelFileRead();
   requestEpoch++; lookupEpoch++; readBlocked = true;
   clearBatchDetail();
@@ -630,7 +634,7 @@ function renderBatches() {
     const status = document.createElement('td');
     const badge = document.createElement('span');
     badge.className = `status ${stateClass(batch.status)}`;
-    badge.textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : STATE_LABELS[batch.status] || batch.status || 'Sin estado';
+    badge.textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status || 'Sin estado';
     status.appendChild(badge);
     tr.appendChild(status);
     const actionCell = document.createElement('td');
@@ -692,7 +696,7 @@ function renderBatchDetail(payload) {
     ? 'Excel y CSV de control: conservan la identidad del alta propia y los valores informados. No son una liquidación ni un formato homologado para importar en GRH.'
     : 'Excel de revisión: conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.';
   byId('detailTitle').textContent = `Lote ${String(batch.id).slice(0, 8).toUpperCase()}`;
-  byId('detailState').textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : STATE_LABELS[batch.status] || batch.status;
+  byId('detailState').textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status;
   byId('detailPeriod').textContent = String(batch.periodMonth || '').slice(0, 7);
   byId('detailType').textContent = TYPE_LABELS[batch.payrollType] || batch.payrollType || '—';
   byId('detailCount').textContent = String(batch.rowCount || batch.rows?.length || 0);
@@ -751,6 +755,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     readBlocked = false;
     monthlyDecisions?.setAccess(payload);
     monthlyAnnul?.setAccess(payload);
+    monthlyCorrection?.setAccess(payload);
     const mayRestore = !monthlyContractId || hasCapability('payroll.novelty.nominal.read');
     if (!changed && suspendedFields && mayRestore) {
       for (const [field,value,checked] of suspendedFields) { field.value=value; field.checked=checked; }
@@ -1437,12 +1442,17 @@ function initialize() {
     request:api, renderList:()=>{renderBatches();applyMonthlyLocks();}, onLockChange:applyMonthlyLocks,
     onChanged:()=>loadBootstrap({quiet:true}),
     onAccessInvalidated:()=>{clearConsulted();showMessage('info','El acceso cambió','Se retiraron los datos consultados. Actualizá para verificar los permisos y recuperar únicamente el envío original, si quedó pendiente.');},
-    externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyAnnul?.locked()) || document.body.dataset.busy==='true',
+    externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyAnnul?.locked()) || Boolean(monthlyCorrection?.locked()) || document.body.dataset.busy==='true',
   });
   monthlyAnnul = mountMonthlyAnnul(byId('monthlyAnnul'), {
     request:api, onLockChange:applyMonthlyLocks, onChanged:()=>loadBootstrap({quiet:true}),
     onAccessInvalidated:()=>{clearConsulted();showMessage('info','El acceso cambió','Se retiraron los datos. Actualizá para verificar permisos y recuperar sólo el envío original, si quedó pendiente.');},
-    externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyDecisions?.locked()) || document.body.dataset.busy==='true',
+    externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyDecisions?.locked()) || Boolean(monthlyCorrection?.locked()) || document.body.dataset.busy==='true',
+  });
+  monthlyCorrection = mountMonthlyCorrection(byId('monthlyCorrection'), {
+    request:api, onLockChange:applyMonthlyLocks, onChanged:()=>loadBootstrap({quiet:true}),
+    onAccessInvalidated:()=>{clearConsulted();showMessage('info','El acceso cambió','Se retiraron los datos. Actualizá para verificar permisos y recuperar sólo el envío original, si quedó pendiente.');},
+    externalLocked:()=>readBlocked || Boolean(pendingWrite) || Boolean(monthlyDecisions?.locked()) || Boolean(monthlyAnnul?.locked()) || document.body.dataset.busy==='true',
   });
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   document.addEventListener('visibilitychange', () => {
@@ -1459,7 +1469,7 @@ function initialize() {
     agileDraftRows = []; agileTemplate = null; clearAgileInput();
     invalidatePreparedDraft(); renderAgileRows();
   });
-  window.addEventListener('beforeunload',event=>{if(pendingWrite || monthlyDecisions?.hasPending() || monthlyAnnul?.hasPending()){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{if(pendingWrite || monthlyDecisions?.hasPending() || monthlyAnnul?.hasPending() || monthlyCorrection?.hasPending()){event.preventDefault();event.returnValue='';}});
   let gateSeen=false;
   function acceptDirectoryGate(detail) {
     directoryAllowed=new Set(detail?.tenantCapabilities||[]).has('workforce.employee.read');
