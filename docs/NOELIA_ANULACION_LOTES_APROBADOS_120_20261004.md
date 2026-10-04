@@ -1,0 +1,19 @@
+# Anulación administrativa de lotes mensuales aprobados · M5
+
+Este circuito propone y decide la anulación de novedades ya aprobadas para exportar. No calcula, anula o recalcula haberes. El ciclo salarial propio de M7 continúa pendiente y no se sustituye por este registro administrativo.
+
+En Novedades → Lotes y decisiones → Anular lotes mensuales aprobados, consultar el período o el registro completo. La consulta admite hasta 1.000 lotes candidatos y 1.000 propuestas del ámbito; superar esa cantidad informa un límite global y permite elegir un período. No devuelve una primera página como si fuera el registro completo. La pantalla pagina de a 20 y conserva la selección entre páginas y búsquedas.
+
+Seleccionar entre uno y 100 lotes completos, con hasta 5.000 filas en la revisión. Escribir un motivo de 10 a 1.000 caracteres y revisar la selección completa. Se muestran todos los valores originales, origen propio o histórico, unidades e importes exactos, nulos distintos de cero, validaciones y aprobación anterior. Confirmar y enviar la propuesta es una acción voluntaria; todavía no cambia los lotes.
+
+Otra persona con autorización de aprobación consulta las propuestas pendientes, revisa todas sus filas y el motivo y decide aprobar o rechazar, con fundamento propio. La separación se comprueba por membresía y persona, no sólo por nombre de perfil. Aprobar anula todo el conjunto en una transacción, incrementa cada versión y retira su exportación; rechazar conserva los estados aprobados originales. Nunca se registra un subconjunto como si hubiera terminado la operación completa.
+
+SQL120 conserva las filas, la persona y membresía que aprobaron originalmente y toda su historia. Añade tres registros privados e inmutables: propuesta con valores congelados, revisión independiente y comprobante del intento. Cada lote anulado obtiene además un evento `annul` en el ledger anterior. El nuevo estado se presenta como «Anulado tras revisión», distinto de la cancelación por quien preparó un borrador. Sólo se amplían cinco restricciones y dos guards, con una rama que exige la revisión persistida en la misma transacción. Una referencia o variable de sesión inventada no constituye esa autorización. Los comandos anteriores conservan sus reglas.
+
+Antes de confirmar se consultan otra vez acceso, propuesta y todos los valores de todos los lotes. Un cambio con la misma versión retira la revisión. Ocultar o cerrar la página, retirar permisos o cambiar de cuenta borra los datos visibles y descarta respuestas tardías. No se utiliza localStorage, otra API de datos o persistencia del formulario en el navegador.
+
+Ante un acuse incierto, se conserva exclusivamente el envío original en memoria, con su contenido, orden, motivo, ámbito y clave. Se bloquean las demás escrituras. La recuperación voluntaria primero consulta su comprobante sin escribir. Si todavía no existe, otro clic explícito permite reintentar sólo el mismo envío. Nunca genera otra clave, cambia el cuerpo o inicia otra operación. La recuperación exige el acceso original vigente; recargar por completo pierde la memoria y corresponde consultar el registro antes de otro envío.
+
+Se mantienen los permisos, fuentes y roles existentes. La instalación necesita controles de conservación y durabilidad en las dos bases existentes; no realiza una anulación municipal, cálculo, pago o cambio nominal. Los ensayos usan sólo fixtures sintéticos, el handler HTTP real con bytes originales y PostgreSQL descartable con rollback. Implementación, pruebas, instalación, publicación y aceptación municipal requieren evidencia distinta en verification.
+
+Este cierre no amplía el escritor histórico de 500 filas o el mensual propio de una fila; tampoco implementa masivas/OSEP, homologación 88/95, fórmulas, liquidación salarial, informes/recibos/imputación/presupuesto, relojes físicos o firmas/expedientes. Los frentes rechazados siguen excluidos y el objetivo integral conserva su alcance.

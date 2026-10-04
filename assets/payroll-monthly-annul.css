@@ -1,0 +1,15 @@
+.monthly-annul{border-top:1px solid var(--border,#cbd5d2);padding-top:1.2rem;margin-top:1.2rem;min-width:0}
+.monthly-annul-controls{display:flex;flex-wrap:wrap;align-items:end;gap:.7rem;margin:.8rem 0}
+.monthly-annul label{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.monthly-annul input,.monthly-annul select,.monthly-annul textarea{max-width:100%;min-height:44px}
+.monthly-annul input[type=checkbox]{min-height:24px;min-width:24px;flex-shrink:0}
+.monthly-annul-card{padding:.8rem;border:1px solid var(--border,#cbd5d2);border-radius:.5rem;margin:.5rem 0}
+.monthly-annul-card label{flex-direction:row;align-items:center;overflow-wrap:anywhere}
+.monthly-annul details{padding:.6rem;margin:.4rem 0;border:1px solid var(--border,#cbd5d2);border-radius:.4rem}
+.monthly-annul summary{cursor:pointer;min-height:44px;overflow-wrap:anywhere}
+.monthly-annul dl{display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);gap:.4rem}
+.monthly-annul dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.monthly-annul textarea{width:100%;box-sizing:border-box}
+.monthly-annul p{overflow-wrap:anywhere}
+.monthly-annul button{min-height:44px;white-space:normal}
+@media(max-width:600px){.monthly-annul-controls>*{width:100%;box-sizing:border-box}.monthly-annul dl{grid-template-columns:1fr}.monthly-annul dt{font-weight:600}.monthly-annul dd{margin-bottom:.6rem}}
