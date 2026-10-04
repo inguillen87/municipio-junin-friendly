@@ -4,6 +4,7 @@ import {prepareFixedGroup,fixedGroupResponse} from '../lib/internal-payroll-fixe
 import {createInternalPayrollFixedGroupsHandler} from '../api/internal-payroll-fixed-groups.js';
 import {fixedUuid as uuid,fixedSubject,fixedEffects} from './fixtures/payroll-fixed-novelties-synthetic.js';
 import {buildFixedGroupsQa} from '../scripts/verify-payroll-fixed-groups-sql.mjs';
+import fs from 'node:fs';
 const item=n=>({recordId:uuid(n),expectedVersion:2,contractId:fixedSubject().contractId,legajo:'1001',identityToken:fixedSubject().identityToken});
 const payload=()=>({items:[item(40),item(41)],reason:'Rectificación administrativa sintética'});
 const receipt=()=>({version:'payroll-fixed-annul-group.v1',groupId:uuid(50),key:uuid(777),requestSha256:'a'.repeat(64),total:2,duplicate:false,effects:{...fixedEffects},rows:[40,41].map(n=>({version:'payroll-fixed-receipt.v1',command:'propose',recordId:uuid(n),proposalId:uuid(n+100),recordVersion:3,duplicate:false}))});
@@ -37,5 +38,8 @@ test('invalid transport and lost acknowledgement retain the original scoped oper
  const replay={...receipt(),duplicate:true},{handler,calls}=setup(undefined,replay),r=res();await handler({method:'GET',query:{resource:'attempt',key:uuid(777)}},r);assert.equal(r.statusCode,200);assert.match(calls[0].sql,/payroll_fixed_group_attempt_v1/);assert.equal(calls[0].args[1],uuid(777));
 });
 test('real SQL verifier contains atomic failure, exact replay, identity and privilege cases on both versions',()=>{
- for(const serverMajor of [17,18]){const qa=buildFixedGroupsQa({serverMajor});assert.ok(qa.report.groupChecksPassed>=25);assert.ok(qa.sql.includes('failed second item leaves no first proposal'));assert.ok(qa.sql.includes('same key cannot shrink'));assert.ok(qa.sql.includes('runtime has no direct receipt'));assert.ok(!/INSERT\s+INTO\s+public\./i.test(qa.sql));}
+ for(const serverMajor of [17,18]){const qa=buildFixedGroupsQa({serverMajor});assert.ok(qa.report.groupChecksPassed>=25);assert.ok(qa.sql.includes('failed second item leaves no first proposal'));assert.ok(qa.sql.includes('same key cannot shrink'));assert.ok(qa.sql.includes('runtime has no direct receipt'));assert.ok(!/INSERT\s+INTO\s+public\./i.test(qa.sql));
+  const exact=fs.readFileSync('scripts/migrations/117-fixed-novelty-annul-groups.sql','utf8').replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp');
+  assert.ok(qa.sql.includes("EXECUTE '"+exact.replaceAll("'","''")+"';"),'Every dollar-quoted function and literal must survive embedding unchanged');
+ }
 });

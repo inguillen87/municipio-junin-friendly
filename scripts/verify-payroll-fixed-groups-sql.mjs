@@ -67,7 +67,7 @@ export function buildFixedGroupsQa({serverMajor,requireConcurrency=false}){
  const anchor="next_payload:=np||jsonb_build_object('recordId',nr->>'recordId','expectedVersion',2,'reason','Corrección nativa de ensayo'";
  assert.equal(base.sql.split(anchor).length,2,'Native approved fixture anchor must remain unique');
  const report={...base.report,checksPassed:base.report.checksPassed+n,groupChecksPassed:n,migration117Sha256:createHash('sha256').update(migration).digest('hex')};
- const sql=base.sql.replace(anchor,block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
+ const sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  assert.ok(sql.includes('checks<>'+report.checksPassed));assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return {...base,sql,report};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
