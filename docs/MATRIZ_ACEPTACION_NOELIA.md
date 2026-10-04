@@ -47,6 +47,8 @@ Fuente: `5º MODULO NOVEDADDES DE LIQUIDACION`, páginas 1–4.
 
 Incremento 092: [registro y revisión de novedades fijas](NOELIA_NOVEDADES_FIJAS_092.md). Agrega vigencias declaradas, propuestas, decisiones independientes, corrección/anulación individual e historial. Su exportación es de control; no activa consumo salarial automático ni cierra la corrección masiva 5.5. Instalación y publicación sujetas a los gates de su release.
 
+Incremento117: [revisión conjunta de anulaciones de fijas](NOELIA_ANULACION_CONJUNTA_FIJAS_117_20261004.md), parte de5.5. Selección completa entre páginas y filtros, diez campos por fila, motivo, envío atómico y comprobante recuperable; cada propuesta conserva revisión independiente individual. Instalación y publicación deben acreditarse por separado. Corrección masiva de valores, novedades mensuales masivas propias y anulación salarial siguen pendientes.
+
 101 ya publicado agrega alta propia → novedad mensual individual por UUID → revisión independiente → exportación de control. Mantiene `export_only`, un registro por lote nativo y tipo mensual; no extiende automáticamente la modalidad masiva a legajos propios ni calcula haberes. La aceptación municipal con casos reales se mantiene separada del cierre técnico.
 
 La [selección desde Buscar por nombre](NOELIA_BUSQUEDA_NOVEDAD_PROPIA_20261004.md) corrige el paso que copiaba altas propias al circuito histórico por legajo. Reutiliza101, conserva el origen y obliga a verificar/revisar; carga rápida y planilla explican la limitación propia sin ocultar coincidencias. Su resultado técnico se acredita por separado; no homologa95 ni reemplaza el cálculo de M7.

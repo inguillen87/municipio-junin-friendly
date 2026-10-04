@@ -16,6 +16,11 @@
 .fixed-novelties textarea { min-height:88px;resize:vertical }
 .fixed-novelties input:disabled,.fixed-novelties select:disabled,.fixed-novelties textarea:disabled { background:#f1f4f3 }
 .fixed-novelties .fn-cards { display:grid;gap:14px }
+.fixed-novelties .fn-group-toolbar { margin:20px 0;padding:14px;border:1px solid var(--line-strong,#afc1ba);border-radius:6px }
+.fixed-novelties .fn-group-select { display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;min-height:44px;margin:12px 0 }
+.fixed-novelties .fn-group-select input { width:22px;height:22px;min-height:22px;padding:0;margin:2px 0 }
+.fixed-novelties .fn-group-source { display:grid;gap:14px;margin:16px 0 }
+.fixed-novelties .fn-group-source .fn-card { min-width:0;overflow-wrap:anywhere }
 .fixed-novelties .fn-card { padding:18px;border:1px solid var(--line,#d4dfdb);border-radius:6px;overflow-wrap:anywhere;background:#fff }
 .fixed-novelties .fn-card h4 { margin:0;font-size:17px;color:var(--navy,#123247) }
 .fixed-novelties .fn-card-head { display:flex;justify-content:space-between;gap:12px;align-items:start }

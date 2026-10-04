@@ -270,6 +270,7 @@ const shellFiles = [
   'assets/payroll-native-monthly-review.css',
   'assets/payroll-fixed-novelties.js',
   'assets/payroll-fixed-novelties-model.js',
+  'assets/payroll-fixed-groups-model.js',
   'assets/payroll-fixed-novelties-export.js',
   'assets/payroll-junin-638.js',
   'assets/payroll-junin-638-review.js',
