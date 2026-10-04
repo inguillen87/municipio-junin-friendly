@@ -41,5 +41,6 @@ test('real SQL verifier contains atomic failure, exact replay, identity and priv
  for(const serverMajor of [17,18]){const qa=buildFixedGroupsQa({serverMajor});assert.ok(qa.report.groupChecksPassed>=25);assert.ok(qa.sql.includes('failed second item leaves no first proposal'));assert.ok(qa.sql.includes('same key cannot shrink'));assert.ok(qa.sql.includes('runtime has no direct receipt'));assert.ok(!/INSERT\s+INTO\s+public\./i.test(qa.sql));
   const exact=fs.readFileSync('scripts/migrations/117-fixed-novelty-annul-groups.sql','utf8').replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp');
   assert.ok(qa.sql.includes("EXECUTE '"+exact.replaceAll("'","''")+"';"),'Every dollar-quoted function and literal must survive embedding unchanged');
+  assert.ok(qa.sql.includes("pronamespace='"+"'"+qa.schema+"''::regnamespace AND proname LIKE ''payroll_fixed_group_%''"),'Metadata count must inspect the isolated schema');
  }
 });

@@ -28,7 +28,7 @@ export function buildFixedGroupsQa({serverMajor,requireConcurrency=false}){
  jsonb_build_object('recordId',nr->>'recordId','expectedVersion',2,'contractId',native_contract,'legajo','19001','identityToken',native_subject->>'identityToken'),
  jsonb_build_object('recordId',grh_receipt->>'recordId','expectedVersion',2,'contractId',grh_subject->>'contractId','legajo','903','identityToken',grh_subject->>'identityToken')));`);
  ok("NOT EXISTS(SELECT 1 FROM payroll_fixed_annul_group)",'117 installs an empty private receipt ledger');
- checks.push('EXECUTE '+q(protocol.newObjectAudit.replaceAll('public.',schema+'.'))+';','EXECUTE '+q(pinsCheck(qaPins,'SQL117_QA_FUNCTION_METADATA'))+';');
+ checks.push('EXECUTE '+q(protocol.newObjectAudit.replaceAll('public.',schema+'.').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace'))+';','EXECUTE '+q(pinsCheck(qaPins,'SQL117_QA_FUNCTION_METADATA'))+';');
  ok('TRUE','installation audits verify all nine columns, constraints, RLS, immutable guard and function metadata');
  ok("(SELECT md5(string_agg(pg_get_functiondef(p.oid),'' ORDER BY p.oid)) FROM pg_proc p WHERE p.pronamespace="+q(schema)+"::regnamespace AND p.proname NOT LIKE 'payroll_fixed_group_%')=funcs_before",'117 preserves every existing function definition');
  reject(call('annul','reader'),'CAPABILITY_REQUIRED','reader cannot propose a group');
