@@ -5,6 +5,16 @@ on:
     paths:
       - '.vercelignore'
       - 'api/internal-payroll-novelties.js'
+      - 'api/internal-payroll-monthly-annul.js'
+      - 'lib/internal-payroll-monthly-annul.js'
+      - 'assets/payroll-monthly-annul*'
+      - 'scripts/migrations/120-*'
+      - 'scripts/lib/monthly-annul-installation.mjs'
+      - 'scripts/prepare-monthly-annul-installation.mjs'
+      - 'tests/monthly-annul-installation.test.js'
+      - 'scripts/verify-monthly-approved-annulments-*'
+      - 'tests/payroll-monthly-annul.test.js'
+      - 'tests/fixtures/payroll-monthly-annul-synthetic.js'
       - 'lib/internal-grh-import.js'
       - 'lib/grh-import-prepare-sql.js'
       - 'assets/payroll-grh-*.js'
@@ -56,6 +66,16 @@ on:
       - 'scripts/verify-native-monthly-novelties-browser.mjs'
       - 'tests/native-monthly-preparation.test.js'
       - 'api/internal-payroll-novelties.js'
+      - 'api/internal-payroll-monthly-annul.js'
+      - 'lib/internal-payroll-monthly-annul.js'
+      - 'assets/payroll-monthly-annul*'
+      - 'scripts/migrations/120-*'
+      - 'scripts/lib/monthly-annul-installation.mjs'
+      - 'scripts/prepare-monthly-annul-installation.mjs'
+      - 'tests/monthly-annul-installation.test.js'
+      - 'scripts/verify-monthly-approved-annulments-*'
+      - 'tests/payroll-monthly-annul.test.js'
+      - 'tests/fixtures/payroll-monthly-annul-synthetic.js'
       - 'lib/internal-grh-import.js'
       - 'lib/grh-import-prepare-sql.js'
       - 'assets/payroll-grh-*.js'
@@ -86,6 +106,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-monthly-decisions-browser.mjs
+      - run: node scripts/verify-monthly-approved-annulments-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - run: node scripts/verify-grh-import-browser.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
@@ -106,6 +127,7 @@ jobs:
             verification/native-monthly-local/**
             verification/grh-import-browser/**
             verification/monthly-decisions-local/**
+            verification/monthly-annul-local/**
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
@@ -167,11 +189,11 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-source.sql
           node scripts/verify-grh-import-atomic-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/grh-atomic.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-atomic.sql
-      - name: Complete selection through existing monthly decisions
+      - name: Complete existing monthly decisions and ledger-authorized approved annulments
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/verify-payroll-monthly-decisions-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/monthly-decisions.sql --write-lock-sql=verification/monthly-decisions-lock.sql
+          node scripts/verify-monthly-approved-annulments-sql.mjs --ci --expected-major=${{ matrix.postgres }} --write-sql=verification/monthly-decisions.sql --write-lock-sql=verification/monthly-decisions-lock.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/monthly-decisions-lock.sql > verification/monthly-decisions-lock.log 2>&1 &
           blocker=$!
           trap 'kill "$blocker" 2>/dev/null || true' EXIT
@@ -206,9 +228,12 @@ jobs:
       - run: node scripts/build-friendly.mjs
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-monthly-decisions-browser.mjs --published
+      - run: node scripts/verify-monthly-approved-annulments-browser.mjs --published
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: monthly-decisions-production-${{ github.run_id }}
-          path: verification/monthly-decisions-published/**
+          path: |
+            verification/monthly-decisions-published/**
+            verification/monthly-annul-published/**
           retention-days: 3

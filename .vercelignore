@@ -282,3 +282,6 @@ local-agents/
 !scripts/migrations/118-fixed-novelty-correction-groups.sql
 
 !scripts/migrations/119-fixed-novelty-review-groups.sql
+
+# Reviewed source contract required by monthly annulment build and SQL QA.
+!scripts/migrations/120-monthly-approved-annulments.sql
