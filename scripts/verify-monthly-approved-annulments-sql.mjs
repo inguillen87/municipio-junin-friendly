@@ -20,7 +20,7 @@ export function buildMonthlyAnnulQa(options){
  .replaceAll(schema+'.digest','public.digest')
  .replaceAll('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${schema},public,pg_temp`)
  .replaceAll('search_path=pg_catalog, public, pg_temp',`search_path=pg_catalog, ${schema}, public, pg_temp`)
- .replaceAll('search_path=public, pg_temp',`search_path=${schema}, public, pg_temp`)
+ .replaceAll('search_path=public, pg_temp',`search_path=pg_catalog, ${schema}, public, pg_temp`)
  .replaceAll("convert_to(prosrc,'UTF8')",`convert_to(replace(prosrc,${q(schema+'.')},'public'||'.'),'UTF8')`)
  .replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')",`replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(schema+'.')},'public'||'.')`);
  const statements=[];let count=0;
