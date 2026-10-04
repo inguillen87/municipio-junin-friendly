@@ -20,6 +20,8 @@ Este incremento reutiliza la migración 101 y sus fachadas; no instala SQL nuevo
 
 ## Alcance y límites
 
+La [búsqueda habitual de novedades propias](NOELIA_BUSQUEDA_NOVEDAD_PROPIA_20261004.md) ahora conecta «Buscar por nombre» con este mismo recorrido: conserva el origen, verifica el UUID y exige la revisión explícita. Las altas propias permanecen visibles con explicación en las modalidades que todavía no las admiten. La prueba del código95 es administrativa, con datos sintéticos y sin valoración salarial.
+
 - Altas propias: una fila, carga individual, tipo mensual. Cantidades exactas e importe opcional; ausencia de importe y cero siguen siendo distintos.
 - Segunda persona para aprobar; el preparador no puede aprobar su propia solicitud.
 - CSV y Excel nativos identifican origen, contrato, registro, fecha y alcance administrativo. Las exportaciones históricas v1 conservan sus bytes.

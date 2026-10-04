@@ -1,5 +1,6 @@
 import './app-routes.js';
 import { createEmployeePicker } from './employee-picker.js';
+import { noveltySelectionIssue } from './employee-picker-model.js';
 import { mountAttendancePreparte } from './attendance-preparte-panel.js';
 import { mountNoveltySheet } from './payroll-novelty-sheet.js';
 import { reviewSheetRows } from './payroll-novelty-sheet-model.js';
@@ -209,7 +210,7 @@ function discardLocalDraft({preservePending=true}={}) {
   attendancePreparte?.clear(); sheetEditor?.clear(); agileDraftRows = []; agileTemplate = null; clearAgileInput();
   invalidatePreparedDraft(); updateMode(); applyMonthlyLocks();
 }
-async function chooseMonthlySubject(contractId) {
+async function chooseMonthlySubject(contractId, expectedOrigin = null) {
   if (!CONTRACT_UUID.test(contractId || '') || !canUseMonthlySubject() || pendingWrite || document.body.dataset.busy === 'true') return;
   const generation = ++lookupEpoch;
   monthlyContractId = contractId;
@@ -222,6 +223,7 @@ async function chooseMonthlySubject(contractId) {
     const payload = await api(`${API_URL}?resource=employee&version=2&contractId=${encodeURIComponent(contractId)}`);
     const subject = verifyMonthlyEmployee(payload,contractId);
     if (generation !== lookupEpoch || readBlocked) return;
+    if(expectedOrigin&&subject.origin!==expectedOrigin)throw Error('El origen del vínculo cambió desde la búsqueda. Actualizá la consulta y revisá la persona antes de preparar.');
     monthlySubject = subject;
     byId('legajo').value = subject.legajo;
     if (nativeSelected()) byId('payrollType').value = 'monthly';
@@ -1329,6 +1331,7 @@ function initialize() {
   fixedNovelties = mountFixedNovelties(byId('fixedNovelties'));
   employeePicker = createEmployeePicker({
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
+    selectionIssue:item=>noveltySelectionIssue(item,{mode:document.querySelector('[name="sourceMode"]:checked')?.value,canUseNative:directoryAllowed&&canUseMonthlySubject()}),
     onDirectoryInvalidated: () => { byId('pickedLegajoName').textContent = ''; sheetEditor?.clearLookupLabels(); },
   });
   monthlyPicker = createEmployeePicker({instanceId:'nativeMonthlyPicker',
@@ -1381,6 +1384,12 @@ function initialize() {
   byId('pickLegajoButton').addEventListener('click', () => {
     try { employeePicker.open({onUse: items => {
       if (byId('legajo').disabled) throw Error('La carga cambió. Volvé a abrir la búsqueda.');
+      if(items[0].recordOrigin==='MUNICONTROL'){
+        const issue=noveltySelectionIssue(items[0],{mode:document.querySelector('[name="sourceMode"]:checked')?.value,canUseNative:directoryAllowed&&canUseMonthlySubject()});
+        if(issue)throw Error(issue);
+        if(byId('payrollType').value!=='monthly'&&!window.confirm('Las altas propias admiten una novedad individual mensual. ¿Cambiar el tipo a Mensual y verificar este vínculo? Se conservan el concepto, las unidades y el importe.'))throw Error('Se conservó la carga anterior. Elegí Mensual para preparar una novedad de esta alta propia.');
+        void chooseMonthlySubject(items[0].contractId,'MUNICONTROL');return;
+      }
       byId('legajo').value = items[0].legajo;
       byId('legajo').dispatchEvent(new Event('input', {bubbles:true}));
       byId('pickedLegajoName').textContent = (items[0].nombre || 'Nombre no informado') + ' · ' + (items[0].sector || 'Sector no informado');
@@ -1423,7 +1432,7 @@ function initialize() {
   let gateSeen=false;
   function acceptDirectoryGate(detail) {
     directoryAllowed=new Set(detail?.tenantCapabilities||[]).has('workforce.employee.read');
-    if(!directoryAllowed)monthlyPicker?.close();
+    if(!directoryAllowed){monthlyPicker?.close();employeePicker?.close();byId('pickedLegajoName').textContent='';sheetEditor?.clearLookupLabels();}
     renderMonthlySubject();applyMonthlyLocks();
   }
   document.addEventListener('municontrol:capabilities-ready',event=>{

@@ -3251,7 +3251,7 @@ export async function employees(sql, req, binding = null) {
     ), directory_scope AS (
       ${operationalScopeSelectSql('')}
     ), directory_page AS (
-      SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate"' : '*'},
+      SELECT ${picker ? '"contractId", legajo, nombre, sector, convenio, activo, "statusSnapshotDate", "recordOrigin"' : '*'},
              row_number() OVER (ORDER BY ${pageOrder}) AS "__pageOrder"
       FROM filtered_directory
       ORDER BY ${pageOrder}

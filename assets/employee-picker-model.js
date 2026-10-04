@@ -28,7 +28,16 @@ function optionalText(value, max = 240) {
 }
 export function pickerEmployee(row) {
   if(!row || !uuid.test(row.contractId) || typeof row.legajo !== 'string' || !digits.test(row.legajo) || row.activo !== true) throw Error('La respuesta no contiene un legajo activo válido.');
-  return Object.freeze({contractId:row.contractId,legajo:row.legajo,nombre:optionalText(row.nombre),sector:optionalText(row.sector),convenio:optionalText(row.convenio),activo:true,statusSnapshotDate:date(row.statusSnapshotDate)});
+  if(row.recordOrigin!==undefined&&!['GRH','MUNICONTROL'].includes(row.recordOrigin))throw Error('El origen del legajo no está confirmado. Volvé a consultar.');
+  return Object.freeze({contractId:row.contractId,legajo:row.legajo,nombre:optionalText(row.nombre),sector:optionalText(row.sector),convenio:optionalText(row.convenio),activo:true,statusSnapshotDate:date(row.statusSnapshotDate),...(row.recordOrigin===undefined?{}:{recordOrigin:row.recordOrigin})});
+}
+// This is only entry guidance. The existing monthly API verifies the UUID,
+// identity and authority again; a directory row never authorizes a write.
+export function noveltySelectionIssue(employee,{mode,canUseNative=false}={}) {
+  if(employee.recordOrigin!=='MUNICONTROL')return null;
+  if(mode!=='individual')return 'Alta propia: usá la carga individual mensual. Esta modalidad todavía no admite su vínculo.';
+  if(!canUseNative)return 'Falta permiso vigente para verificar y preparar una novedad sobre esta alta propia.';
+  return null;
 }
 export function pickerResult(payload, expectedPage) {
   const p=payload?.pagination;

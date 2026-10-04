@@ -49,6 +49,8 @@ Incremento 092: [registro y revisión de novedades fijas](NOELIA_NOVEDADES_FIJAS
 
 101 ya publicado agrega alta propia → novedad mensual individual por UUID → revisión independiente → exportación de control. Mantiene `export_only`, un registro por lote nativo y tipo mensual; no extiende automáticamente la modalidad masiva a legajos propios ni calcula haberes. La aceptación municipal con casos reales se mantiene separada del cierre técnico.
 
+La [selección desde Buscar por nombre](NOELIA_BUSQUEDA_NOVEDAD_PROPIA_20261004.md) corrige el paso que copiaba altas propias al circuito histórico por legajo. Reutiliza101, conserva el origen y obliga a verificar/revisar; carga rápida y planilla explican la limitación propia sin ocultar coincidencias. Su resultado técnico se acredita por separado; no homologa95 ni reemplaza el cálculo de M7.
+
 La reunión pide importe opcional, no obligatorio. La ausencia de importe no se convierte en cero. La valoración depende de fórmulas vigentes, no de ocultar el campo.
 
 ## 6. Parámetros
