@@ -1,4 +1,4 @@
-import {fixedText,fixedReceipt} from './payroll-fixed-novelties-model.js';
+import {fixedText,fixedReceipt,fixedForm,fixedMoneyInput} from './payroll-fixed-novelties-model.js';
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
 const fail=()=>{throw Error('No se pudo verificar el conjunto. Volvé a consultar y revisar las novedades.');};
 export const fixedGroupEligible=row=>Boolean(row?.identityCurrent&&row.canPropose&&row.approved?.operation==='set'&&row.pending===null&&row.version<200);
@@ -9,9 +9,21 @@ export function fixedGroupDraft(rows,reason){
   return Object.freeze({recordId:row.id,expectedVersion:row.version,contractId:row.subject.contractId,legajo:row.subject.legajo,identityToken:row.subject.identityToken});
  });return Object.freeze({items:Object.freeze(items),reason:fixedText(reason,'el motivo de las anulaciones')});
 }
+export function fixedCorrectionGroupDraft(rows,changes,reason){
+ const base=fixedGroupDraft(rows,reason),keys=['conceptSourceId','costCenterSourceId','payrollType','quantityDecimal','amountArs','forced','forcedReason','legalInstrument','validFrom','validTo'];
+ if(!changes||typeof changes!=='object'||Array.isArray(changes)||!Object.keys(changes).length||Object.keys(changes).some(k=>!keys.includes(k)))throw Error('Elegí los campos que vas a corregir. Los demás conservarán el valor de cada novedad.');
+ if(Object.hasOwn(changes,'forcedReason')&&!Object.hasOwn(changes,'forced')||changes.forced===true&&!Object.hasOwn(changes,'forcedReason'))throw Error('Declarar modo forzado requiere elegir también su fundamento.');
+ const items=base.items.map((item,i)=>{
+  const before=rows[i].approved.values,fields={...before,legajo:item.legajo,amountArs:fixedMoneyInput(before.amountCents),reason:base.reason,...changes};
+  const values=fixedForm(fields).values;
+  if(Object.keys(before).every(k=>before[k]===values[k]))throw Error('La novedad del legajo '+item.legajo+' ya tiene esos valores. Retirala de la selección o cambiá la corrección; no se omiten filas automáticamente.');
+  return Object.freeze({...item,values});
+ });return Object.freeze({items:Object.freeze(items),reason:base.reason});
+}
 export function fixedGroupReceipt(envelope,key,payload){
  const data=envelope?.ok===true?envelope.data:null,keys=['version','groupId','key','requestSha256','total','rows','duplicate','effects'];
- if(!data||Object.keys(data).length!==keys.length||Object.keys(data).some(k=>!keys.includes(k))||data.version!=='payroll-fixed-annul-group.v1'||!uuid(data.groupId)
+ const version=payload.items.every(item=>Object.hasOwn(item,'values'))?'payroll-fixed-correction-group.v1':'payroll-fixed-annul-group.v1';
+ if(!data||Object.keys(data).length!==keys.length||Object.keys(data).some(k=>!keys.includes(k))||data.version!==version||!uuid(data.groupId)
  ||data.key!==key||!/^[a-f0-9]{64}$/.test(data.requestSha256)||typeof data.duplicate!=='boolean'||data.total!==payload.items.length||!Array.isArray(data.rows)||data.rows.length!==data.total
  ||JSON.stringify(Object.keys(data.effects??{}).sort())!==JSON.stringify(['approvalEffect','grhMutation','payrollCalculated','payrollPosted'].sort())||data.effects.approvalEffect!=='control_export_only'
  ||[data.effects.grhMutation,data.effects.payrollCalculated,data.effects.payrollPosted].some(v=>v!==false))fail();

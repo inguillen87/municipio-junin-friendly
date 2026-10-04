@@ -3,9 +3,11 @@ import {principalHasCapabilities} from '../lib/internal-resource-access.js';
 import {actionMutationSession,getActionCenterSql} from './internal-actions.js';
 import {schoolCertificateHttp as http} from './internal-family-certificates.js';
 import {fixedFail,fixedSafeError,fixedUuid,FIXED_READ_CAPS} from '../lib/internal-payroll-fixed-novelties.js';
-import {FIXED_GROUP_MAX_BODY,prepareFixedGroup,fixedGroupCall} from '../lib/internal-payroll-fixed-groups.js';
+import {FIXED_GROUP_MAX_BODY,FIXED_CORRECTION_GROUP_MAX_BODY,prepareFixedGroup,fixedGroupCall} from '../lib/internal-payroll-fixed-groups.js';
 export const config={api:{bodyParser:false}};
-export function createInternalPayrollFixedGroupsHandler(deps={}){
+export function createInternalPayrollFixedGroupsHandler(deps={},command='annul'){
+ if(!['annul','correct'].includes(command))throw Error('Invalid fixed group command');
+ const bodyLimit=command==='correct'?FIXED_CORRECTION_GROUP_MAX_BODY:FIXED_GROUP_MAX_BODY;
  const env=deps.env??process.env;
  return async(req,res)=>{
   http.headers(res);
@@ -20,12 +22,12 @@ export function createInternalPayrollFixedGroupsHandler(deps={}){
    const session=(deps.actionMutationSession??actionMutationSession)(access,env);let payload,key;
    if(method==='POST'){
     http.assertOrigin(req,env);if(!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(http.header(req,'content-type')))fixedFail('CONTENT_TYPE_REQUIRED');
-    http.checkLength(req,FIXED_GROUP_MAX_BODY);const body=await http.readBody(req,FIXED_GROUP_MAX_BODY);
-    if(Object.keys(body).length!==2||body.command!=='annul'||!Object.hasOwn(body,'payload'))fixedFail('BODY_INVALID');
-    payload=prepareFixedGroup(body.payload);key=http.header(req,'idempotency-key');if(!key)fixedFail('IDEMPOTENCY_KEY_REQUIRED');if(!fixedUuid(key))fixedFail('IDEMPOTENCY_KEY_INVALID');
+    http.checkLength(req,bodyLimit);const body=await http.readBody(req,bodyLimit);
+    if(Object.keys(body).length!==2||body.command!==command||!Object.hasOwn(body,'payload'))fixedFail('BODY_INVALID');
+    payload=prepareFixedGroup(body.payload,command);key=http.header(req,'idempotency-key');if(!key)fixedFail('IDEMPOTENCY_KEY_REQUIRED');if(!fixedUuid(key))fixedFail('IDEMPOTENCY_KEY_INVALID');
    }else key=q.key;
    key=key.toLowerCase();const sql=await(deps.getInternalSql??getActionCenterSql)(env);
-   const data=await fixedGroupCall(sql,access.principal,session,{key,...(payload?{payload}:{})});
+   const data=await fixedGroupCall(sql,access.principal,session,{key,command,...(payload?{payload}:{})});
    if(method==='POST'&&data.duplicate)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.duplicate?201:200).json({ok:true,data});
   }catch(error){const safe=fixedSafeError(error);if(safe.code==='PAYROLL_FIXED_SESSION_BUSY')res.setHeader('Retry-After','1');return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}
  };

@@ -18,6 +18,12 @@ on:
       - '.github/workflows/payroll-fixed-novelties-release.yml'
       - 'api/internal-payroll-fixed-novelties.js'
       - 'api/internal-payroll-fixed-groups.js'
+      - 'api/internal-payroll-fixed-correction-groups.js'
+      - 'scripts/lib/fixed-correction-groups-installation.mjs'
+      - 'scripts/prepare-fixed-correction-groups-installation.mjs'
+      - 'scripts/migrations/118-*'
+      - 'scripts/verify-payroll-fixed-correction-groups-*.mjs'
+      - 'tests/payroll-fixed-correction-groups.test.js'
       - 'lib/internal-payroll-fixed-groups.js'
       - 'scripts/lib/fixed-groups-installation.mjs'
       - 'scripts/prepare-fixed-groups-installation.mjs'
@@ -48,6 +54,12 @@ on:
       - '.vercelignore'
       - 'api/internal-payroll-fixed-novelties.js'
       - 'api/internal-payroll-fixed-groups.js'
+      - 'api/internal-payroll-fixed-correction-groups.js'
+      - 'scripts/lib/fixed-correction-groups-installation.mjs'
+      - 'scripts/prepare-fixed-correction-groups-installation.mjs'
+      - 'scripts/migrations/118-*'
+      - 'scripts/verify-payroll-fixed-correction-groups-*.mjs'
+      - 'tests/payroll-fixed-correction-groups.test.js'
       - 'lib/internal-payroll-fixed-groups.js'
       - 'scripts/lib/fixed-groups-installation.mjs'
       - 'scripts/prepare-fixed-groups-installation.mjs'
@@ -122,6 +134,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
       - run: node scripts/verify-payroll-fixed-groups-browser.mjs
+      - run: node scripts/verify-payroll-fixed-correction-groups-browser.mjs
       - run: node scripts/verify-payroll-formula-lab-browser.mjs
       - run: node scripts/verify-grh-source-preview-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
@@ -201,6 +214,12 @@ jobs:
           set -euo pipefail
           node scripts/verify-payroll-fixed-groups-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/fixed-groups.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/fixed-groups.sql 2>&1 | tee verification/fixed-groups.log
+      - name: Atomic correction groups on existing writers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-fixed-correction-groups-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/fixed-correction-groups.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/fixed-correction-groups.sql 2>&1 | tee verification/fixed-correction-groups.log
       - name: Module 7 lifecycle on isolated database
         shell: bash
         run: |

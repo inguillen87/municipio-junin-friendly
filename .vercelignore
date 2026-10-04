@@ -278,3 +278,5 @@ local-agents/
 # Exact reviewed source contract required by time catalogue build regressions.
 !scripts/migrations/116-native-time-catalog.sql
 !scripts/migrations/117-fixed-novelty-annul-groups.sql
+
+!scripts/migrations/118-fixed-novelty-correction-groups.sql
