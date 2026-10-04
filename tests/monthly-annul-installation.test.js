@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
 import {prepareMonthlyAnnulInstallation} from '../scripts/prepare-monthly-annul-installation.mjs';
 import {assertMonthlyAnnulDurability,SQL120_SHA256} from '../scripts/lib/monthly-annul-installation.mjs';
 const sourceCommit='a'.repeat(40),read=f=>fs.readFileSync(f,'utf8'),build=()=>prepareMonthlyAnnulInstallation({read,sourceCommit});
@@ -14,4 +14,10 @@ test('120 refuses unreviewed source, unknown commits or changed installed metada
  assert.equal(assertMonthlyAnnulDurability({installed,durable,sourceCommit}).ok,true);
  for(const patch of [{afterFingerprint:'d'.repeat(64)},{newObjectFingerprint:'e'.repeat(64)},{eventRows:1},{guardsChanged:3},{constraintsChanged:4},{functions120:12},{sourceCommit:'f'.repeat(40)},{nominalRowsReturned:1}])assert.throws(()=>assertMonthlyAnnulDurability({installed,durable:{...durable,...patch},sourceCommit}));
  assert.throws(()=>assertMonthlyAnnulDurability({installed:{...installed,beforeFingerprint:'e'.repeat(64)},durable,sourceCommit}),/PRIOR_STATE_CHANGED/);
+});
+test('filtered Vercel package retains the real reviewed120 and every installation dependency without private sources',()=>{
+ const rules=read('.vercelignore').split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+ const included=file=>{let keep=true;for(const rule of rules){const negated=rule.startsWith('!'),pattern=negated?rule.slice(1):rule;const matches=pattern.endsWith('/')?file.startsWith(pattern):path.matchesGlob(file,pattern)||(!pattern.includes('/')&&path.matchesGlob(path.basename(file),pattern));if(matches)keep=negated;}return keep;};
+ const p=prepareMonthlyAnnulInstallation({read:file=>{assert.ok(included(file),'Required source excluded: '+file);return read(file);},sourceCommit});assert.equal(p.ownPins.length,11);assert.equal(p.sqlSha256,SQL120_SHA256);
+ for(const file of ['.handoff/sync-current.json','AGENTS.md','CODEX_TASK.md','MUNICONTROL_HANDOFF.md','.env.local','verification/review.json','data-rrhh/private.json','source.txt','source.sql.gz','grh_junin.backup_2026100115_plataforma.sql.gz'])assert.equal(included(file),false,'Private source included: '+file);
 });
