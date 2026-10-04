@@ -4,8 +4,10 @@ import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
+import {fixedGroupEligible,fixedGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
+const GROUP_ENDPOINT='/api/internal-payroll-fixed-groups';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(text,attr,primary=false)=>{const n=node('button',text,'button'+(primary?' primary':''));n.type='button';n.setAttribute('data-fn-'+attr,'');return n;};
 const dayLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'Sin informar';
@@ -48,10 +50,13 @@ export function mountFixedNovelties(shell){
   if(!shell)return {setAccess(){},setExternalBusy(){},deny(){}};
   const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null;
   let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
+  const groupIds=new Set();
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
   const can=cap=>fixedCapability(bootstrap,access,cap);
   const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
   const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
+  let groupGateAllowed=false;
+  const groupAllowedPrepare=()=>allowedPrepare()&&groupGateAllowed;
   let picker=null,directoryAllowed=false,directoryGateSeen=false,requestedContract=new URL(location.href).searchParams.get('fixedContractId');
   if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestedContract||''))requestedContract=null;
   else requestedContract=requestedContract.toLowerCase();
@@ -67,9 +72,11 @@ export function mountFixedNovelties(shell){
     box.append(fields,node('p','Se generó el archivo; no se envió a AMARU. La aceptación por el receptor sigue pendiente.','fn-note'),node('p','55 bytes por registro. Separación CRLF, sin salto final: convención de MuniControl que debe contrastarse con un archivo aceptado por AMARU. El resumen no muestra DNI ni nombres.','fn-note'));box.hidden=false;
   }
   function clearConsulted(){clearTxtReview();
+    groupIds.clear();
     bootstrap=null;data=null;detail=null;
     if(mounted){$('[data-fn-list]').replaceChildren();$('[data-fn-detail]').replaceChildren();$('[data-fn-detail]').hidden=true;$('[data-fn-count]').textContent='';$('[data-fn-pagination]').hidden=true;}
     if(editor){editor.subject=editor.subject?{contractId:editor.subject.contractId,legajo:editor.subject.legajo,identityToken:editor.subject.identityToken}:null;
+      if(editor.kind==='annulGroup'){editor.groupRows=null;editor.needsReview=true;editor.form.querySelector('[data-fn-group-source]')?.replaceChildren();}
       editor.row=editor.row?{id:editor.row.id,version:editor.row.version}:null;editor.form.querySelector('[data-fn-subject]')?.replaceChildren();
       editor.form.querySelector('[data-fn-comparison]')?.replaceChildren();editor.preview=null;editor.form.querySelector('[data-fn-preview-result]')?.replaceChildren();
       editor.form.querySelector('[data-fn-review-source]')?.replaceChildren();
@@ -82,6 +89,13 @@ export function mountFixedNovelties(shell){
     if(!mounted)return;host.setAttribute('aria-busy',String(busy));
     host.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=busy||externalBusy);
     $('[data-fn-new]').hidden=!allowedPrepare();$('[data-fn-new]').disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt);
+    const groupButton=$('[data-fn-group-open]');if(groupButton){groupButton.hidden=!groupAllowedPrepare();groupButton.disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt)||!groupIds.size;
+      groupButton.textContent='Revisar '+groupIds.size+' para anular';$('[data-fn-group-clear]').disabled=busy||externalBusy||Boolean(editor)||!groupIds.size;
+      const matches=data?selected().rows:[],eligible=matches.filter(fixedGroupEligible);$('[data-fn-group-select]').textContent='Seleccionar '+eligible.length+' disponibles del filtro';
+      $('[data-fn-group-select]').disabled=busy||externalBusy||Boolean(editor)||!groupAllowedPrepare()||!eligible.length;
+      $('[data-fn-group-count]').textContent=groupIds.size+' seleccionadas en toda la consulta · '+[...groupIds].filter(id=>!matches.some(r=>r.id===id)).length+' fuera del filtro actual. La búsqueda y la página no cambian la selección.';
+      host.querySelectorAll('[data-fn-group-id]').forEach(n=>n.disabled=busy||externalBusy||Boolean(editor)||!groupAllowedPrepare()||!fixedGroupEligible(data?.rows.find(r=>r.id===n.dataset.fnGroupId)));
+    }
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').disabled=busy||externalBusy||Boolean(editor)||!can('payroll.novelty.export')||!data?.periodMonth||!data.rows.length;
     const txtReady=txtAvailability();$('[data-fn-junin638]').disabled=!txtReady.ready;$('[data-fn-txt638-availability]').textContent=txtReady.message;
     $('[data-fn-refresh]').disabled=busy||externalBusy;
@@ -93,18 +107,20 @@ export function mountFixedNovelties(shell){
       const locked=busy||externalBusy||Boolean(attempt);editor.form.querySelectorAll('fieldset').forEach(f=>f.disabled=locked);
       const target=editor.form.querySelector('[data-fn-save]')||editor.form.querySelector('[data-fn-decision-save]');
       if(target)target.disabled=locked||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare())||!editor.preview||editor.kind==='review'&&!editor.reviewed.checked;
+      if(target&&editor.kind==='annulGroup')target.disabled=locked||editor.needsReview||!groupAllowedPrepare()||!editor.preview||!editor.reviewed.checked;
       editor.form.querySelector('[data-fn-preview]')?.toggleAttribute('disabled',locked||editor.needsReview||!allowedPrepare());
       const lookup=editor.form.querySelector('[data-fn-lookup]');if(lookup)lookup.disabled=locked||!allowedPrepare()||Boolean(editor.row);
       const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);}
       editor.form.querySelector('[data-fn-cancel]').disabled=busy||externalBusy||Boolean(attempt);
       const retry=editor.form.querySelector('[data-fn-retry]');retry.hidden=!attempt;retry.disabled=busy||externalBusy||!(attempt?.command==='review'?allowedReview():allowedPrepare());
+      if(attempt?.command==='annulGroup')retry.disabled=busy||externalBusy||!groupAllowedPrepare();
     }
     if(detail){for(const name of ['correct','annul']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.canPropose||!allowedPrepare();}
       for(const name of ['approve','reject']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.pending?.canReview||!allowedReview();}}
   }
-  async function request(query,options={}){
+  async function request(query,options={},endpoint=ENDPOINT){
     const activeController=controller;
-    const response=await fetch(ENDPOINT+(query?'?'+new URLSearchParams(query):''),{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([activeController.signal,AbortSignal.timeout(30000)])});
+    const response=await fetch(endpoint+(query?'?'+new URLSearchParams(query):''),{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...options.headers},signal:AbortSignal.any([activeController.signal,AbortSignal.timeout(30000)])});
     if(!response.ok){let code='';try{code=(await response.json()).code||'';}catch{}throw Object.assign(Error('Request failed'),{status:response.status,code});}
     const payload=await response.json();if(activeController.signal.aborted)throw new DOMException('Aborted','AbortError');return payload;
   }
@@ -121,6 +137,7 @@ export function mountFixedNovelties(shell){
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
   async function loadList(){
+    if(!editor&&!attempt)groupIds.clear();
     clearTxtReview();const period=currentPeriod();data=null;$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';
     data=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);page=1;renderList();
   }
@@ -131,6 +148,9 @@ export function mountFixedNovelties(shell){
       const card=node('article',undefined,'fn-card');card.dataset.fnRecord=r.id;
       const heading=node('div',undefined,'fn-card-head');heading.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('span',fixedState(r),'fn-badge'+(r.pending?' pending':'')));card.append(heading);
       const current=r.approved?.operation==='set'?r.approved.values:null;
+      if(allowedPrepare()){const label=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnGroupId=r.id;check.checked=groupIds.has(r.id);check.disabled=!fixedGroupEligible(r);
+        label.append(check,node('span','Seleccionar para proponer anulación'));check.addEventListener('change',()=>{if(editor||busy||attempt||!groupAllowedPrepare()||!fixedGroupEligible(r)){check.checked=groupIds.has(r.id);return;}check.checked?groupIds.add(r.id):groupIds.delete(r.id);controls();});card.append(label);
+        if(!fixedGroupEligible(r))card.append(node('p',r.pending?'Requiere resolver la propuesta pendiente antes de anular.':!r.identityCurrent?'Requiere verificar la identidad de origen.':r.version>=200?'Alcanzó el límite de historia admitido.':'Sin una versión aprobada activa para anular.','fn-note'));}
       card.append(node('p',fixedOriginLabel(r.subject)+' · '+(current?'Versión aprobada conservada':'Sin valores aprobados activos'),'fn-note'),facts(current||r.latest.values));
       if(r.pending)card.append(node('p',r.pending.operation==='annul'?'Anulación propuesta; la versión aprobada sigue conservada hasta la decisión.':'Propuesta pendiente; no reemplaza los valores aprobados.','fn-note'));
       if(!r.identityCurrent)card.append(node('p','Identidad de origen por revisar. No se habilitan cambios ni exportación para este vínculo.','fn-note'));
@@ -170,6 +190,36 @@ export function mountFixedNovelties(shell){
     cancel.addEventListener('click',()=>{if(busy||attempt)return;form.reset();form.remove();editor=null;controls();$('[data-fn-new]').focus();});retry.addEventListener('click',()=>sendAttempt());
     actions.append(retry,cancel);form.addEventListener('submit',e=>e.preventDefault());
     $('[data-fn-editor]').replaceChildren(form);return {form,feedback,previewHost:preview,comparison,actions,subjectHost:subject};
+  }
+  async function openGroupEditor(){
+    if(editor||attempt||busy||!groupAllowedPrepare()||!data||!groupIds.size)return;
+    const original=data.rows.filter(r=>groupIds.has(r.id)),period=data.periodMonth;
+    await operation(async live=>{
+      await loadBootstrap();if(!live()||!groupAllowedPrepare())return;
+      const fresh=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);if(!live()||!groupAllowedPrepare())return;
+      if(!fixedGroupUnchanged(original,fresh)||original.length!==groupIds.size)throw Error('Cambió una novedad seleccionada. Actualizá el registro y revisá la selección; no se guardó nada.');
+      const box=editorShell('Proponer anulación de '+original.length+(original.length===1?' novedad fija':' novedades fijas')),source=node('section',undefined,'fn-group-source');source.dataset.fnGroupSource='';
+      source.append(node('p','Incluye toda la selección, también las novedades fuera de la página y de la búsqueda. Se conservan las versiones aprobadas hasta una decisión independiente. No anula liquidaciones ni revierte archivos ya entregados.','fn-note'));
+      for(const r of original){const section=node('article',undefined,'fn-card');section.dataset.fnGroupReviewedId=r.id;section.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,'annul',null));source.append(section);}
+      const fields=node('fieldset'),label=node('label','Motivo del conjunto'),reason=node('textarea');reason.maxLength=500;reason.dataset.fnGroupReason='';label.append(reason);fields.append(label);
+      const acknowledgement=node('label',undefined,'fn-group-select'),reviewed=node('input');reviewed.type='checkbox';reviewed.dataset.fnGroupReviewed='';acknowledgement.append(reviewed,node('span',original.length===1?'Revisé la novedad y el alcance administrativo de su anulación.':'Revisé las '+original.length+' novedades y el alcance administrativo de sus anulaciones.'));fields.append(acknowledgement);
+      const send=button('Proponer '+original.length+(original.length===1?' anulación':' anulaciones'),'save',true);box.actions.prepend(send);box.form.append(source,fields,box.feedback,box.actions);
+      editor={...box,kind:'annulGroup',groupRows:original,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+      const active=editor;const update=()=>{if(editor!==active||attempt||busy)return;try{active.preview=fixedGroupDraft(active.groupRows,reason.value);active.feedback.textContent=reviewed.checked?'Conjunto revisado. Guardar crea todas las propuestas o ninguna.':'Confirmá la revisión de todo el conjunto antes de guardar.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();};
+      reason.addEventListener('input',update);reviewed.addEventListener('change',update);send.addEventListener('click',prepareSend);box.feedback.textContent='Informá el motivo y revisá todo el conjunto. Todavía no se guardó ninguna propuesta.';reason.focus();
+    });
+  }
+  async function prepareGroupSend(){
+    const active=editor;if(!active||attempt||busy||active.needsReview||!groupAllowedPrepare()||!active.reviewed.checked||!active.preview)return;
+    const payload=active.preview;let ready=false;
+    await operation(async live=>{
+      await loadBootstrap();if(!live()||editor!==active||!groupAllowedPrepare()||active.principalKey!==fixedPrincipalKey(bootstrap))return;
+      const fresh=fixedList(await request({resource:'list',...(active.period?{periodMonth:active.period}:{})}),active.period);if(!live()||editor!==active||!groupAllowedPrepare())return;
+      if(!active.groupRows||!fixedGroupUnchanged(active.groupRows,fresh)){active.needsReview=true;active.preview=null;active.reviewed.checked=false;throw Error('Cambió el conjunto completo, incluidos valores o permisos. No se enviaron anulaciones. Actualizá y revisá de nuevo; el motivo se conserva.');}
+      ready=true;
+    });
+    if(!ready||!available()||editor!==active||attempt)return;
+    attempt={command:'annulGroup',payload:structuredClone(payload),key:crypto.randomUUID(),principalKey:active.principalKey};sendAttempt();
   }
   function openEditor(row=null,operationKind='set',selectedSubject=null){
     if(editor||attempt||busy||!allowedPrepare()||row&&!row.canPropose)return;
@@ -244,6 +294,7 @@ export function mountFixedNovelties(shell){
     showSubject();submit.addEventListener('click',prepareSend);controls();box.form.scrollIntoView({block:'start'});input.focus({preventScroll:true});
   }
   async function prepareSend(){
+    if(editor?.kind==='annulGroup'){await prepareGroupSend();return;}
     if(!editor||attempt||busy||editor.needsReview||!(editor.kind==='review'?allowedReview():allowedPrepare()))return;let payload;
     try{payload=editor.kind==='review'?{recordId:editor.row.id,proposalId:editor.proposalId,expectedVersion:editor.expectedVersion,decision:editor.decision,reason:fixedText(editor.decisionInput.value,'el fundamento de la decisión')}:editor.preview;
       if(!payload)throw Error('Revisá la propuesta antes de guardar.');
@@ -273,18 +324,22 @@ export function mountFixedNovelties(shell){
   }
   function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
   async function sendAttempt(){
+    if(attempt?.command==='annulGroup'&&!groupAllowedPrepare())return;
     if(!attempt||!editor||!(attempt.command==='review'?allowedReview():allowedPrepare()))return;
     const pending=attempt,active=editor;
     await operation(async live=>{
       active.feedback.textContent='Guardando el mismo intento…';
       try{
-        const receipt=fixedReceipt(await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:pending.command,payload:pending.payload})}),pending.command,pending.payload);
+        const isGroup=pending.command==='annulGroup';
+        const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:isGroup?'annul':pending.command,payload:pending.payload})},isGroup?GROUP_ENDPOINT:ENDPOINT);
+        const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);
         if(!live()||attempt!==pending){if(attempt===pending)pending.uncertain=true;return;}await finish(receipt,live);
       }catch(error){if(!live()){if(attempt===pending)pending.uncertain=true;return;}
         // A controlled first refusal confirms no mutation. An uncertain replay
         // stays locked until its receipt is recovered; a 404 is not an outcome.
         if(!pending.uncertain&&trustedFailure(error)){attempt=null;active.preview=null;if(active.kind==='review'){active.preview={};active.reviewed.checked=false;}
           active.needsReview=['PAYROLL_FIXED_VERSION_CONFLICT','PAYROLL_FIXED_PENDING_EXISTS','PAYROLL_FIXED_IDENTITY_CHANGED','PAYROLL_FIXED_OVERLAP'].includes(error.code);
+          if(active.kind==='annulGroup'){active.needsReview=true;active.reviewed.checked=false;active.groupRows=null;active.form.querySelector('[data-fn-group-source]')?.replaceChildren();}
           if(active.kind==='propose'){active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;}}
         else {pending.uncertain=true;active.feedback.textContent='No se pudo confirmar el guardado. Conservamos exactamente los datos y la clave; reintentá el mismo envío o verificá su estado. No inicies otra propuesta.';}
         if([401,403].includes(error.status))clearConsulted();
@@ -293,22 +348,24 @@ export function mountFixedNovelties(shell){
     });
   }
   async function finish(receipt,live){
-    const id=receipt.recordId;attempt=null;editor?.form.reset();editor=null;$('[data-fn-editor]').replaceChildren();
-    status('Operación confirmada. Se conserva su historial; no se generaron liquidaciones.');
-    try{await loadList();const next=fixedDetail(await request({resource:'detail',recordId:id}),id);if(live()){detail=next;renderDetail();}}
+    const id=receipt.recordId;attempt=null;editor?.form.reset();editor=null;groupIds.clear();$('[data-fn-editor]').replaceChildren();
+    status(receipt.total?receipt.total+' propuestas de anulación confirmadas juntas. Requieren revisión independiente; se conservan las versiones aprobadas.':'Operación confirmada. Se conserva su historial; no se generaron liquidaciones.');
+    try{await loadList();if(id){const next=fixedDetail(await request({resource:'detail',recordId:id}),id);if(live()){detail=next;renderDetail();}}else {detail=null;renderDetail();}}
     catch(error){if([401,403].includes(error.status))clearConsulted();status('Operación confirmada, pero no pudimos actualizar la vista. Actualizá el registro; no repitas el alta.');}
   }
   async function refresh(){await operation(async live=>{
     status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
     if(attempt){
       const pending=attempt;
-      try{const receipt=fixedReceipt(await request({resource:'attempt',command:pending.command,key:pending.key}),pending.command,pending.payload);if(live()&&attempt===pending)await finish(receipt,live);return;}
+      try{const isGroup=pending.command==='annulGroup',envelope=await request({resource:'attempt',...(!isGroup?{command:pending.command}:{}),key:pending.key},{},isGroup?GROUP_ENDPOINT:ENDPOINT);
+        const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);if(live()&&attempt===pending)await finish(receipt,live);return;}
       catch(error){if(error.status!==404)throw error;}
       if(editor)editor.feedback.textContent='El intento todavía no tiene confirmación. Puede seguir procesándose. Conservamos los mismos datos y clave para reintentar; no se habilitan cambios.';
       status('El intento sigue sin confirmación. Podés reintentar exactamente el mismo envío.');return;
     }
     await loadList();if(!live())return;
     if(editor){const active=editor;
+      if(active.kind==='annulGroup'){active.preview=null;active.reviewed.checked=false;active.needsReview=true;active.feedback.textContent='El motivo se conserva. Cancelá esta propuesta local y seleccioná nuevamente el conjunto consultado para revisar todos sus valores.';return;}
       if(!active.row){const legajo=active.fields.legajo.value.trim(),contractId=active.subject?.contractId||active.lookupContractId;if(!contractId&&!/^(?:0|[1-9]\d{0,19})$/.test(legajo)){active.feedback.textContent='Permisos revisados. Ingresá y verificá el legajo exacto para continuar.';return;}const lookup=contractId?{contractId}:{legajo};const next=fixedEmployee(await request({resource:'employee',...lookup}),contractId?lookup:legajo);if(!live()||editor!==active)return;
         if(active.subject&&(next.contractId!==active.subject.contractId||next.identityToken!==active.subject.identityToken)){active.needsReview=true;active.feedback.textContent='Cambió la identidad. Cancelá esta propuesta local y verificá el legajo; no se reasignó.';}
         else {active.subject=next;if(contractId){active.fields.legajo.value=next.legajo;active.fields.legajo.readOnly=true;}showSubject();active.feedback.textContent='Permisos e identidad revisados. El borrador se conserva; revisalo antes de guardar.';}return;}
@@ -354,20 +411,28 @@ export function mountFixedNovelties(shell){
   function mount(){
     if(mounted)return;mounted=true;
     host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Elegí un período para exportar. CSV y Excel incluyen las versiones aprobadas vigentes del filtro completo. El TXT 638 incluye todas las novedades 638 aprobadas vigentes del período; no aplica la búsqueda ni el filtro de pantalla.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638 aria-describedby="fixedTxt638Availability">Descargar TXT 638 · AMARU</button></div><p id="fixedTxt638Availability" class="fn-note fn-txt638-availability" role="status" data-fn-txt638-availability></p><section class="fn-txt638-review" data-fn-txt638-review hidden></section><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
+    const groupToolbar=node('section',undefined,'fn-group-toolbar');groupToolbar.setAttribute('aria-label','Anulación conjunta de novedades fijas');const groupActions=node('div',undefined,'fn-actions');
+    const chooseGroup=button('Seleccionar disponibles del filtro','group-select'),clearGroup=button('Retirar selección','group-clear'),openGroup=button('Revisar selección para anular','group-open');
+    groupActions.append(chooseGroup,clearGroup,openGroup);const groupCount=node('p','','fn-note');groupCount.dataset.fnGroupCount='';groupCount.setAttribute('role','status');groupToolbar.append(groupActions,groupCount);$('[data-fn-list]').before(groupToolbar);
+    chooseGroup.addEventListener('click',()=>{if(editor||busy||attempt||!groupAllowedPrepare()||!data)return;for(const r of selected().rows.filter(fixedGroupEligible))groupIds.add(r.id);renderList();});
+    clearGroup.addEventListener('click',()=>{if(editor||busy||attempt)return;groupIds.clear();renderList();});openGroup.addEventListener('click',openGroupEditor);
     $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
     for(const key of ['search','filter'])$('[data-fn-'+key+']').addEventListener('input',()=>{if(data&&!busy&&!editor){page=1;renderList();}});
-    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;clearTxtReview();data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
+    $('[data-fn-period]').addEventListener('input',()=>{if(editor)return;groupIds.clear();clearTxtReview();data=null;detail=null;renderDetail();$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';status('Período cambiado. Presioná Consultar para obtener el resultado completo.');controls();});
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }
-  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
-  function acceptDirectoryGate(detail){directoryAllowed=new Set(detail?.tenantCapabilities||[]).has('workforce.employee.read');if(!directoryAllowed)picker?.close();controls();}
+  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(groupIds.size||editor?.kind==='annulGroup'||attempt?.command==='annulGroup'){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
+  const groupVisibility=()=>{if(document.hidden&&(groupIds.size||editor?.kind==='annulGroup'||attempt?.command==='annulGroup'))deny();};
+  document.addEventListener('visibilitychange',groupVisibility);
+  function acceptDirectoryGate(detail){const current=new Set(detail?.tenantCapabilities||[]);directoryAllowed=current.has('workforce.employee.read');if(!directoryAllowed)picker?.close();groupGateAllowed=current.has('payroll.fixed.prepare');
+    if(!groupGateAllowed){if(groupIds.size||editor?.kind==='annulGroup'||attempt?.command==='annulGroup'){seq++;controller?.abort();busy=false;}groupIds.clear();if(editor?.kind==='annulGroup'){editor.groupRows=null;editor.preview=null;editor.needsReview=true;editor.reviewed.checked=false;editor.form.querySelector('[data-fn-group-source]')?.replaceChildren();}}controls();}
   function capabilityChange(event){const raw=event.detail?.tenantCapabilities;if(!raw)return;const caps=raw instanceof Set?[...raw]:raw;if(Array.isArray(caps)){directoryGateSeen=true;acceptDirectoryGate(event.detail);access=new Set(caps);if(!hasRead(access))deny();else controls();}}
   document.addEventListener('municontrol:capabilities-ready',capabilityChange);
   Promise.resolve(globalThis.MuniControlCapabilityGate?.ready).then(result=>{if(!stopped&&!directoryGateSeen)acceptDirectoryGate(result);}).catch(()=>{});
   const warnPending=event=>{if(attempt){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',warnPending);
-  window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
+  window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('visibilitychange',groupVisibility);document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
   return {setExternalBusy(value){externalBusy=Boolean(value);controls();},deny,setAccess({capabilities,principalKey}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();

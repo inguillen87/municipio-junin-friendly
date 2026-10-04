@@ -17,6 +17,14 @@ on:
       - 'scripts/verify-native-employee-browser.mjs'
       - '.github/workflows/payroll-fixed-novelties-release.yml'
       - 'api/internal-payroll-fixed-novelties.js'
+      - 'api/internal-payroll-fixed-groups.js'
+      - 'lib/internal-payroll-fixed-groups.js'
+      - 'scripts/lib/fixed-groups-installation.mjs'
+      - 'scripts/prepare-fixed-groups-installation.mjs'
+      - 'assets/payroll-fixed-groups*'
+      - 'tests/*fixed-groups*'
+      - 'scripts/migrations/117-*'
+      - 'scripts/verify-payroll-fixed-groups-*.mjs'
       - 'lib/internal-payroll-fixed-novelties.js'
       - 'assets/payroll-fixed-novelties*'
       - 'assets/payroll-junin-638.js'
@@ -39,6 +47,14 @@ on:
     paths:
       - '.vercelignore'
       - 'api/internal-payroll-fixed-novelties.js'
+      - 'api/internal-payroll-fixed-groups.js'
+      - 'lib/internal-payroll-fixed-groups.js'
+      - 'scripts/lib/fixed-groups-installation.mjs'
+      - 'scripts/prepare-fixed-groups-installation.mjs'
+      - 'assets/payroll-fixed-groups*'
+      - 'tests/*fixed-groups*'
+      - 'scripts/migrations/117-*'
+      - 'scripts/verify-payroll-fixed-groups-*.mjs'
       - 'lib/internal-payroll-fixed-novelties.js'
       - 'assets/payroll-fixed-novelties*'
       - 'assets/payroll-junin-638.js'
@@ -105,6 +121,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
+      - run: node scripts/verify-payroll-fixed-groups-browser.mjs
       - run: node scripts/verify-payroll-formula-lab-browser.mjs
       - run: node scripts/verify-grh-source-preview-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
@@ -172,11 +189,18 @@ jobs:
           wait "$blocker"
           trap - EXIT
       - name: Junín 638 AMARU fixed-width contract
+        # The additive group writer runs on this same disposable database below.
         shell: bash
         run: |
           set -euo pipefail
           node scripts/verify-payroll-junin638-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/junin638.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/junin638.sql 2>&1 | tee verification/junin638.log
+      - name: Atomic native and historical annulment groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-fixed-groups-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/fixed-groups.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/fixed-groups.sql 2>&1 | tee verification/fixed-groups.log
       - name: Module 7 lifecycle on isolated database
         shell: bash
         run: |
