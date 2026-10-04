@@ -18,6 +18,9 @@ on:
       - 'lib/internal-payroll-novelty.js'
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/payroll-native-monthly-review.*'
+      - 'assets/payroll-monthly-decisions*'
+      - 'tests/payroll-monthly-decisions.test.js'
+      - 'scripts/verify-payroll-monthly-decisions-*.mjs'
       - 'assets/payroll-novelty-*.js'
       - 'assets/employee-picker*'
       - 'lib/employee-picker-view.js'
@@ -38,6 +41,9 @@ on:
       - '.github/workflows/native-monthly-novelties-release.yml'
   pull_request:
     paths:
+      - 'assets/payroll-monthly-decisions*'
+      - 'tests/payroll-monthly-decisions.test.js'
+      - 'scripts/verify-payroll-monthly-decisions-*.mjs'
       - 'lib/internal-payroll-novelty.js'
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/payroll-native-monthly-review.*'
@@ -79,6 +85,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-payroll-monthly-decisions-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - run: node scripts/verify-grh-import-browser.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
@@ -98,6 +105,7 @@ jobs:
           path: |
             verification/native-monthly-local/**
             verification/grh-import-browser/**
+            verification/monthly-decisions-local/**
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
@@ -159,3 +167,48 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-source.sql
           node scripts/verify-grh-import-atomic-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/grh-atomic.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/grh-atomic.sql
+      - name: Complete selection through existing monthly decisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-payroll-monthly-decisions-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/monthly-decisions.sql --write-lock-sql=verification/monthly-decisions-lock.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/monthly-decisions-lock.sql > verification/monthly-decisions-lock.log 2>&1 &
+          blocker=$!
+          trap 'kill "$blocker" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..100}; do
+            if grep -q 'FIXED_NOVELTIES_QA_LOCK_READY' verification/monthly-decisions-lock.log; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$blocker" 2>/dev/null; then
+              cat verification/monthly-decisions-lock.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          test "$ready" = true
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/monthly-decisions.sql
+          wait "$blocker"
+          trap - EXIT
+  production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [verify, sql]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/build-friendly.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-payroll-monthly-decisions-browser.mjs --published
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monthly-decisions-production-${{ github.run_id }}
+          path: verification/monthly-decisions-published/**
+          retention-days: 3

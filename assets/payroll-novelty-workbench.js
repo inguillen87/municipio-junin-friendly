@@ -15,6 +15,7 @@ import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 import { mountFixedNovelties } from './payroll-fixed-novelties.js';
 import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision, nativeMonthlyPreparation, sameNativeMonthlySubject, assertNativeMonthlyPrepareReceipt } from './payroll-native-monthly-model.js';
 import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
+import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -67,6 +68,7 @@ function issueLabel(issue) {
 const byId = (id) => document.getElementById(id);
 let reviewPanel = null;
 let savedReviewPanel = null;
+let monthlyDecisions = null;
 let reviewedBatch = null;
 let detailReadVersion = 0;
 let txtOptions = null;
@@ -118,7 +120,7 @@ function renderMonthlySubject() {
 }
 function applyMonthlyLocks() {
   const busy = document.body.dataset.busy === 'true';
-  if (!pendingWrite && pendingDisabled.size) {
+  if (!pendingWrite && !monthlyDecisions?.locked() && pendingDisabled.size) {
     for (const [field, disabled] of pendingDisabled) {
       field.disabled = disabled;
       // A retry began while the pending lock was active. Its busy snapshot must
@@ -142,18 +144,21 @@ function applyMonthlyLocks() {
     byId('prepareButton').disabled = true;
   }
   if (nativeSelected() && !pendingWrite) byId('prepareButton').disabled = busy || readBlocked || !canUseMonthlySubject() || !preparedNativeReview || !nativeMonthlyReview.confirmed(preparedNativeReview);
-  if (pendingWrite && !busy) {
-    for (const field of document.querySelectorAll('#entrySection input, #entrySection select, #entrySection textarea, #entrySection button, #detailActions button')) {
+  if ((pendingWrite || monthlyDecisions?.locked()) && !busy) {
+    for (const field of document.querySelectorAll('#entrySection input, #entrySection select, #entrySection textarea, #entrySection button, #detailActions button, #batchRows input, #batchRows button')) {
       if (!pendingDisabled.has(field)) pendingDisabled.set(field, field.disabled);
       field.disabled = true;
     }
   }
   byId('nativeMonthlyPending').hidden = !pendingWrite;
   byId('nativeMonthlyRetry').disabled = busy || readBlocked || !pendingWrite
+    || monthlyDecisions?.locked()
     || pendingWrite.attempt.scopeKey !== principalKey(bootstrapState?.principal)
     || !hasCapability(pendingWrite.attempt.command === 'prepare' ? 'payroll.novelty.prepare' : ['approve','reject'].includes(pendingWrite.attempt.command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare')
     || (pendingWrite.requiresNominal || pendingWrite.contractVersion === 'payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read');
-  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite));
+  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(monthlyDecisions?.locked()));
+  monthlyDecisions?.update();
+  byId('refreshButton').disabled = busy || Boolean(monthlyDecisions?.inFlight());
   renderPreparationGuide();
 }
 function renderPreparationGuide() {
@@ -178,6 +183,7 @@ function clearEntryValidation() {
   invalidEntryField = null;
 }
 function clearConsulted() {
+  if (typeof monthlyDecisions !== 'undefined') monthlyDecisions?.clear();
   cancelFileRead();
   requestEpoch++; lookupEpoch++; readBlocked = true;
   clearBatchDetail();
@@ -592,10 +598,14 @@ function stateClass(status) {
 }
 
 function renderBatches() {
-  const batches = Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
+  const batches = monthlyDecisions && !readBlocked ? monthlyDecisions.view()
+    : Array.isArray(bootstrapState?.batches) ? bootstrapState.batches : [];
   const body = byId('batchRows');
   body.replaceChildren();
   byId('batchEmpty').hidden = batches.length > 0;
+  byId('batchEmpty').textContent = bootstrapState?.batches?.length
+    ? 'No hay lotes para este filtro. Cambiá la búsqueda o el estado; la selección completa se conserva.'
+    : 'Todavía no hay lotes visibles para esta sesión y binding certificado.';
   byId('batchTable').hidden = batches.length === 0;
   for (const batchValue of batches) {
     const batch = assertBatchContract(batchValue);
@@ -633,6 +643,7 @@ function renderBatches() {
       actionCell.appendChild(restricted);
     }
     tr.appendChild(actionCell);
+    monthlyDecisions?.addSelector(batch,actionCell);
     body.appendChild(tr);
   }
 }
@@ -733,6 +744,7 @@ async function loadBootstrap({ quiet = false } = {}) {
     }
     bootstrapState = payload;
     readBlocked = false;
+    monthlyDecisions?.setAccess(payload);
     const mayRestore = !monthlyContractId || hasCapability('payroll.novelty.nominal.read');
     if (!changed && suspendedFields && mayRestore) {
       for (const [field,value,checked] of suspendedFields) { field.value=value; field.checked=checked; }
@@ -839,7 +851,7 @@ function transitionAttempt(batch, command) {
 }
 
 async function applyTransition(batch, command) {
-  if (pendingWrite || readBlocked || document.hidden || document.body.dataset.busy==='true'
+  if (pendingWrite || typeof monthlyDecisions !== 'undefined' && monthlyDecisions?.locked() || readBlocked || document.hidden || document.body.dataset.busy==='true'
       || batch !== reviewedBatch || selectedBatchId !== batch.id || !batch.allowedCommands.includes(command)) return;
   const generation = detailReadVersion, epoch = requestEpoch, scope = principalKey(bootstrapState.principal);
   const reason = byId('rejectReason').value;
@@ -882,6 +894,7 @@ async function applyTransition(batch, command) {
 }
 
 async function sendPendingWrite() {
+  if (typeof monthlyDecisions !== 'undefined' && monthlyDecisions?.locked()) return;
   const pending=pendingWrite;
   if (!pending || readBlocked || pending.attempt.scopeKey!==principalKey(bootstrapState?.principal) || document.body.dataset.busy==='true') return;
   if ((pending.requiresNominal || pending.contractVersion==='payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read')) return;
@@ -920,6 +933,7 @@ async function sendPendingWrite() {
 }
 
 async function exportBatch(id, format) {
+  if (typeof monthlyDecisions !== 'undefined' && monthlyDecisions?.locked()) return;
   if (pendingWrite || readBlocked || document.body.dataset.busy==='true') return;
   setBusy(true, 'Preparando exportación aprobada…');
   try {
@@ -1181,7 +1195,7 @@ function preflight() {
 }
 
 async function prepare() {
-  if (!preparedDraft || pendingWrite || readBlocked || document.body.dataset.busy==='true' || !hasCapability('payroll.novelty.prepare')) return;
+  if (!preparedDraft || pendingWrite || typeof monthlyDecisions !== 'undefined' && monthlyDecisions?.locked() || readBlocked || document.body.dataset.busy==='true' || !hasCapability('payroll.novelty.prepare')) return;
   if (!preparedDraftKey) preparedDraftKey=crypto.randomUUID();
   const native=Object.hasOwn(preparedDraft.rows[0]||{},'contractId');
   if (native&&!canUseMonthlySubject()) return;
@@ -1413,6 +1427,12 @@ function initialize() {
   });
   reviewPanel = mountNoveltyReviewPanel(byId('previewPanel'));
   savedReviewPanel = mountNoveltyReviewPanel(byId('savedReviewPanel'), {saved:true, issueLabel});
+  monthlyDecisions = mountMonthlyDecisions(byId('monthlyDecisions'), {
+    request:api, renderList:()=>{renderBatches();applyMonthlyLocks();}, onLockChange:applyMonthlyLocks,
+    onChanged:()=>loadBootstrap({quiet:true}),
+    onAccessInvalidated:()=>{clearConsulted();showMessage('info','El acceso cambió','Se retiraron los datos consultados. Actualizá para verificar los permisos y recuperar únicamente el envío original, si quedó pendiente.');},
+    externalLocked:()=>readBlocked || Boolean(pendingWrite) || document.body.dataset.busy==='true',
+  });
   issuesPanel = mountNoveltyIssues(byId('noveltyIssuesPanel'));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearConsulted();
@@ -1428,7 +1448,7 @@ function initialize() {
     agileDraftRows = []; agileTemplate = null; clearAgileInput();
     invalidatePreparedDraft(); renderAgileRows();
   });
-  window.addEventListener('beforeunload',event=>{if(pendingWrite){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{if(pendingWrite || monthlyDecisions?.hasPending()){event.preventDefault();event.returnValue='';}});
   let gateSeen=false;
   function acceptDirectoryGate(detail) {
     directoryAllowed=new Set(detail?.tenantCapabilities||[]).has('workforce.employee.read');

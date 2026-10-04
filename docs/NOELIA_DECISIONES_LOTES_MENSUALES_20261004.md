@@ -1,0 +1,19 @@
+# Decisiones de varios lotes mensuales · módulo5/N1
+
+En Novedades → Lotes y decisiones, seleccionar los lotes que necesitan la misma decisión. La selección se conserva entre páginas, búsqueda y estados. La consulta existente devuelve los últimos100 lotes del ámbito; esta herramienta lo declara y no los presenta como todo el histórico.
+
+Elegir enviar a aprobación, aprobar para exportar, rechazar o cancelar. Cada lote conserva las acciones que habilita el servidor para el estado y actor actuales. La persona preparadora no puede aprobar su propia novedad. La revisión conjunta admite a quien tiene aprobación aunque no tenga preparación.
+
+**Revisar selección completa** vuelve a consultar cuenta/permisos y todos los detalles. Muestra período, tipo, estado, versión, origen, validaciones y todos los campos de todas las filas, incluidas las que no aparecen en el filtro. Las altas propias conservan su identidad y procedencia; los lotes históricos no se convierten en propios. Las unidades y los importes informados permanecen exactos; ausencia y cero son distintos. No se calcula valoración salarial.
+
+Después de revisar, marcar la confirmación y confirmar las decisiones. Se comprueban todos los lotes antes del primer envío y otra vez el acceso y cada lote antes de su comando. Un cambio con la misma versión también retira la revisión. La aprobación habilita sólo exportación de control. La cancelación conserva el lote y su historia; no anula una liquidación salarial ni cancela un lote aprobado si su estado no permite esa acción.
+
+Cada comando existente decide un lote completo de manera independiente. El resultado identifica confirmados, confirmación pendiente y sin enviar. **Detener próximas decisiones** permite terminar sólo el envío ya iniciado. Ante un conflicto se conservan las decisiones confirmadas y se detienen las restantes. No se anuncia una transacción única entre varios lotes.
+
+Un acuse perdido o malformado conserva exactamente cuenta, lote, contenido, comando, motivo, referencia y clave del intento en memoria. Impide otras escrituras. Actualizar sigue disponible para verificar el acceso. La recuperación voluntaria reintenta sólo el comando original; SQL101 devuelve el evento anterior sin crear otra decisión. No reanuda los lotes restantes. Otra membresía no puede recuperarlo. Volver a la original exige una nueva consulta de permisos.
+
+Ocultar/cerrar la página o retirar permisos borra selección, identidades, comparaciones y resultados visibles, y descarta respuestas tardías. El envío incierto se conserva únicamente en memoria para recuperar su comprobante con el acceso original. Recargar completamente pierde esa memoria: corresponde consultar el estado antes de otra operación. No se utiliza localStorage ni otra API.
+
+Límites declarados:100 lotes y5.000 filas para la revisión conjunta. Superarlos produce una incidencia global; no corta filas ni divide un lote. El escritor conserva500 filas históricas y una fila individual mensual propia. Este cierre no amplía la capacidad de OSEP ni implementa masivas propias, corrección de valores mensuales, cálculo/anulación salarial o el evaluador/intake rechazados.
+
+Pruebas publicables usan sólo fixtures sintéticos. El navegador integra la pantalla y el handler de API reales con respuestas de negocio sintéticas; verifica26 lotes/793 filas entre páginas bajo búsqueda sin resultados, los cuatro comandos, otro actor, concurrencia, detención, acuses, revocación y móvil. PostgreSQL17/18 descartables usan los comandos101 exactos y conservan sus pruebas anteriores; la secuencia adicional incluye26 lotes propios/históricos, revisión completa, aprobación independiente y recuperación de los eventos originales. No añade migraciones, permisos o una base. Implementación, pruebas, producción y aceptación municipal se acreditan por separado en verification.

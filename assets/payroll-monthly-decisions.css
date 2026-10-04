@@ -1,0 +1,15 @@
+.monthly-decisions{border:1px solid #cedbd8;border-radius:12px;padding:18px;margin:16px 0;background:#f7faf9}
+.monthly-decisions-controls{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:12px 0}
+.monthly-decisions-controls label{display:grid;gap:6px;flex:1 1 220px}
+.monthly-decisions input[type=search],.monthly-decisions select{width:100%;min-height:44px;padding:10px;border:1px solid #bacbc5;border-radius:6px;background:white;color:inherit;font:inherit}
+.monthly-decisions input[type=checkbox],.monthly-decision-pick input{width:22px;height:22px;margin:0;flex-shrink:0}
+.monthly-decisions label:has(input[type=checkbox]),.monthly-decision-pick{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.monthly-decisions button{min-height:44px;white-space:normal}
+.monthly-decisions details{border:1px solid #cbd7d3;border-radius:8px;padding:10px;margin:10px 0;background:white}
+.monthly-decisions summary{min-height:44px;cursor:pointer;font-weight:600;overflow-wrap:anywhere}
+.monthly-decisions dl{display:grid;grid-template-columns:minmax(120px,1fr) minmax(0,3fr);gap:8px;margin:12px 0}
+.monthly-decisions dt{font-weight:600}.monthly-decisions dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.monthly-decisions p,.monthly-decisions li{overflow-wrap:anywhere}
+.monthly-decisions :focus-visible,.monthly-decision-pick :focus-visible{outline:3px solid #177e76;outline-offset:3px}
+.monthly-decisions [hidden]{display:none!important}
+@media(max-width:600px){.monthly-decisions{padding:12px}.monthly-decisions-controls>*{flex-basis:100%;width:100%}.monthly-decisions dl{grid-template-columns:minmax(0,1fr)}.monthly-decisions dd{margin-bottom:8px}}
