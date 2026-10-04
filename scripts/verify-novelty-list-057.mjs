@@ -35,7 +35,9 @@ try{
      return route.fulfill({status:200,json:{ok:true,data:[]}});
    }
    if(live)return route.continue();
-   const file=path.resolve(root,'.'+decodeURIComponent(u.pathname));
+   // The unchanged build already maps login.html to its clean route. Serve the
+   // real built login document in this local fixture, without changing routes.
+   const file=path.resolve(root,u.pathname===build.url('login.html').pathname?'login.html':'.'+decodeURIComponent(u.pathname));
    if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
    return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream',body:fs.readFileSync(file)});
  });
@@ -141,6 +143,7 @@ try{
  assert.equal(await page.locator('#agileLegajos').inputValue(),'');assert.equal(await page.locator('#agileRows tr').count(),0);
  checks.push('pagehide removes legajo preparation from memory-backed UI; no persistent local cache');
  deny=true;await page.locator('#refreshButton').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===build.url('login.html').pathname&&['novedades-nomina.html',build.url('novedades-nomina.html').pathname].includes(url.searchParams.get('next')));
+ await page.locator('#login-title').filter({hasText:'Ingresar a MuniControl'}).waitFor();assert.equal(await page.locator('#agileLegajos').count(),0);
  checks.push('expired session requires ordinary login; no municipal MFA bypass');
  assert.deepEqual(errors,[]);checks.push('no unhandled JavaScript errors');
  fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,productionApiWrites:0,realMunicipalSessionTested:false,liveAssets:live},null,2));

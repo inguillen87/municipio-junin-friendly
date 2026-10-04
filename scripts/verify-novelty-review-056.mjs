@@ -39,7 +39,9 @@ try {
       return route.fulfill({status:200,json:{ok:true,data:[]}});
     }
     if (live) return route.continue();
-    const file = path.resolve(root,'.'+decodeURIComponent(u.pathname));
+    // Serve the existing build's real login document at its canonical URL in
+    // this synthetic fixture. Product routes and redirect assertions stay intact.
+    const file = path.resolve(root,u.pathname===build.url('login.html').pathname?'login.html':'.'+decodeURIComponent(u.pathname));
     if (!file.startsWith(root+path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({status:404,body:''});
     return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream',body:fs.readFileSync(file)});
   });
@@ -96,7 +98,7 @@ try {
   await page.locator('#bulkFile').setInputFiles({name:'slow-new.csv',mimeType:'text/csv',buffer:Buffer.from(csv([values('8004')]))});await page.waitForFunction(()=>window.__readers[2]?.buffer);
   await page.evaluate(()=>{window.__readers[1].finish();window.__readers[2].finish();});assert.match(await page.locator('#bulkSource').inputValue(),/8004/);checks.push('superseded FileReader response cannot replace newest selected file');
   await page.locator('#preflightButton').click();canPrepare=false;await page.locator('#refreshButton').click();await page.locator('#readOnlySection:visible').waitFor();assert.equal(await page.locator('[data-review-row]').count(),0);assert.equal(await page.locator('#prepareButton').isDisabled(),true);checks.push('permission revocation clears bulk and individual prepared snapshots, not only agile');
-  canPrepare=true;await page.locator('#refreshButton').click();await page.locator('#entrySection:visible').waitFor();deny=true;await page.locator('#refreshButton').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===build.url('login.html').pathname&&['novedades-nomina.html',build.url('novedades-nomina.html').pathname].includes(url.searchParams.get('next')));checks.push('expired session redirects to canonical login without a backend bypass');
+  canPrepare=true;await page.locator('#refreshButton').click();await page.locator('#entrySection:visible').waitFor();deny=true;await page.locator('#refreshButton').click();await page.waitForURL(url=>url.origin===origin&&url.pathname===build.url('login.html').pathname&&['novedades-nomina.html',build.url('novedades-nomina.html').pathname].includes(url.searchParams.get('next')));await page.locator('#login-title').filter({hasText:'Ingresar a MuniControl'}).waitFor();assert.equal(await page.locator('#bulkSource').count(),0);checks.push('expired session redirects to canonical login without a backend bypass');
   assert.deepEqual(errors,[]);checks.push('no unhandled browser JavaScript errors');
   fs.writeFileSync(out+'/browser.json',JSON.stringify({checksPassed:checks.length,checks,errors,apiResponsesSynthetic:true,postRequestsIntercepted:posts.length,productionApiWrites:0,realMunicipalSessionTested:false,liveAssets:live},null,2));
   console.log(JSON.stringify({checksPassed:checks.length,errors,liveAssets:live}));

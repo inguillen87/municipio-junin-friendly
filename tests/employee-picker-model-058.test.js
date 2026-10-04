@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {pickerSearch,pickerQuery,pickerEmployee,pickerResult,addPickerSelection} from '../assets/employee-picker-model.js';
+import {pickerSearch,pickerQuery,pickerEmployee,pickerResult,addPickerSelection,noveltySelectionIssue} from '../assets/employee-picker-model.js';
 import {assertEmployeePickerRequest,employeePickerPayload,escapePickerLike} from '../lib/employee-picker-view.js';
 const item=(i=1)=>({contractId:'00000000-0000-4000-8000-'+String(i).padStart(12,'0'),legajo:String(1000+i),nombre:'Persona sintética '+i,sector:'Área de prueba',convenio:'Convenio de prueba',activo:true,statusSnapshotDate:'2026-09-01'});
 const binding={database:'grh_qa',companyId:999};
@@ -24,3 +24,17 @@ test('inactive/unknown scope never becomes selectable active by default',()=>{co
 test('selection respects exact capacity and excludes existing legajos',()=>{const list=addPickerSelection([],item(),{maximum:1});assert.throws(()=>addPickerSelection(list,item(2),{maximum:1}));assert.throws(()=>addPickerSelection([],item(),{excluded:['1001']}));assert.throws(()=>addPickerSelection(list,item()));assert.equal(list.length,1);});
 test('selection UI never persists the directory, copies amounts or creates novelty requests',()=>{const s=fs.readFileSync('assets/employee-picker.js','utf8');assert.doesNotMatch(s,/localStorage|sessionStorage|indexedDB|method:\s*['"]POST|innerHTML\s*\+=/);assert.match(s,/AbortController/);assert.match(s,/requestVersion/);assert.match(s,/pagehide/);assert.match(s,/credentials:'same-origin'/);assert.match(s,/cache:'no-store'/);});
 test('source projection and selector are published but not in public service worker precache',()=>{const s=fs.readFileSync('scripts/build-friendly.mjs','utf8');assert.match(s,/'assets\/employee-picker.js'/);const precache=s.match(/const publicCacheInputs = \[([\s\S]*?)\n\];/)[1];assert.doesNotMatch(precache,/employee-picker/);});
+test('origin survives projection, validation and selection without being inferred from dates or legajo',()=>{
+  const own={...item(),recordOrigin:'MUNICONTROL',statusSnapshotDate:null},historical={...item(2),recordOrigin:'GRH'};
+  const p=payload([own,historical]),view=pickerResult(p,1),selection=addPickerSelection([],view.rows[0]);
+  assert.equal(view.rows[0].recordOrigin,'MUNICONTROL');assert.equal(selection[0].recordOrigin,'MUNICONTROL');assert.equal(view.rows[1].recordOrigin,'GRH');
+  assert.equal(pickerEmployee({...item(),statusSnapshotDate:null}).recordOrigin,undefined);assert.equal(pickerEmployee(item()).recordOrigin,undefined);
+});
+for(const origin of [null,'','native','grh','OTHER',true,{}])test('unconfirmed explicit origin is rejected '+JSON.stringify(origin),()=>assert.throws(()=>pickerEmployee({...item(),recordOrigin:origin})));
+test('own selection is available only for individual with its current nominal preparation authority',()=>{
+  const own=pickerEmployee({...item(),recordOrigin:'MUNICONTROL'});
+  assert.equal(noveltySelectionIssue(own,{mode:'individual',canUseNative:true}),null);
+  assert.match(noveltySelectionIssue(own,{mode:'individual',canUseNative:false}),/permiso/);
+  for(const mode of ['agile','sheet','bulk',undefined])assert.match(noveltySelectionIssue(own,{mode,canUseNative:true}),/individual mensual/);
+  for(const mode of ['individual','agile','sheet'])assert.equal(noveltySelectionIssue(pickerEmployee({...item(),recordOrigin:'GRH'}),{mode,canUseNative:false}),null);
+});

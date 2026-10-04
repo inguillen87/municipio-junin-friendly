@@ -2,7 +2,7 @@ import { pickerSearch, pickerQuery, pickerResult, addPickerSelection } from './e
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const dateLabel=value=>value?new Intl.DateTimeFormat('es-AR',{timeZone:'UTC'}).format(new Date(value.slice(0,10)+'T12:00:00Z')):'fecha no informada';
 /** One modal reused by individual, agile and native-sheet entry. All state is in memory. */
-export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker'}={}) {
+export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=>{},instanceId='employeePicker',selectionIssue=()=>null}={}) {
   if(!/^[A-Za-z][A-Za-z0-9]{1,60}$/.test(instanceId))throw Error('Identificador de búsqueda inválido.');
   const dialog=node('dialog',undefined,'employee-picker');dialog.id=instanceId;dialog.setAttribute('aria-labelledby',instanceId+'Title');
   dialog.innerHTML=`<header class="picker-header"><div><p class="picker-eyebrow">DIRECTORIO MUNICIPAL · SELECCIÓN ASISTIDA</p><h2 id="employeePickerTitle">Buscar legajos activos</h2><p>Elegí personas por nombre o legajo. No hace falta copiar datos de un Excel.</p></div><button class="button" type="button" data-picker-close aria-label="Cerrar búsqueda de legajos">Cerrar</button></header>
@@ -34,10 +34,12 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
     results.replaceChildren(...view.rows.map(item=>{
       const label=node('label',undefined,'picker-row'),control=node('input');control.type=options.multiple?'checkbox':'radio';control.name='picker-employee';control.value=item.contractId;
       const excluded=options.excluded.includes(item.legajo);
-      control.checked=selected.some(x=>x.contractId===item.contractId);control.disabled=excluded||busy||!canUse();control.setAttribute('aria-label','Seleccionar '+(item.nombre||'legajo')+' · '+item.legajo);
-      const text=node('span',undefined,'picker-person');text.append(node('strong',item.nombre||'Nombre no informado'),node('span','Legajo '+item.legajo+' · '+(item.sector||'Sector no informado')),node('small',(item.convenio||'Convenio no informado')+' · Estado al '+dateLabel(item.statusSnapshotDate)));
-      label.append(control,text,node('span',excluded?'Ya incluido':'Activo al corte',excluded?'picker-pill muted':'picker-pill'));
-      control.addEventListener('change',()=>{if(!options||!canUse())return;try{if(!control.checked)selected=selected.filter(x=>x.contractId!==item.contractId);else selected=addPickerSelection(options.multiple?selected:[],item,options);status.textContent='Selección actualizada. Usá el botón inferior para llevarla a la carga.';}catch(error){status.textContent=error.message;}renderSelection();renderRows();results.querySelector(`input[value="${item.contractId}"]`)?.focus();});
+      const issue=selectionIssue(item),own=item.recordOrigin==='MUNICONTROL';
+      control.checked=selected.some(x=>x.contractId===item.contractId);control.disabled=excluded||Boolean(issue)||busy||!canUse();control.setAttribute('aria-label','Seleccionar '+(item.nombre||'legajo')+' · '+item.legajo);
+      const text=node('span',undefined,'picker-person');text.append(node('strong',item.nombre||'Nombre no informado'),node('span','Legajo '+item.legajo+' · '+(item.sector||'Sector no informado')),node('small',(item.convenio||'Convenio no informado')+' · '+(own?'Alta propia de MuniControl · novedad individual mensual':'Estado al '+dateLabel(item.statusSnapshotDate))));
+      if(issue){const reason=node('small',issue,'picker-selection-issue');reason.id=instanceId+'Issue'+item.contractId;control.setAttribute('aria-describedby',reason.id);text.append(reason);}
+      label.append(control,text,node('span',excluded?'Ya incluido':own?'Alta propia activa':'Activo al corte',excluded?'picker-pill muted':'picker-pill'));
+      control.addEventListener('change',()=>{if(!options||!canUse())return;try{const currentIssue=selectionIssue(item);if(currentIssue)throw Error(currentIssue);if(!control.checked)selected=selected.filter(x=>x.contractId!==item.contractId);else selected=addPickerSelection(options.multiple?selected:[],item,options);status.textContent='Selección actualizada. Usá el botón inferior para llevarla a la carga.';}catch(error){status.textContent=error.message;}renderSelection();renderRows();results.querySelector(`input[value="${item.contractId}"]`)?.focus();});
       return label;
     }));
   }
@@ -85,7 +87,7 @@ export function createEmployeePicker({canUse=()=>true,onDirectoryInvalidated=()=
   dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
   // Search inputs consume Escape natively; close the active modal consistently.
   dialog.addEventListener('keydown',e=>{if(e.key==='Escape'&&dialog.open){e.preventDefault();e.stopPropagation();close();}});
-  apply.addEventListener('click',()=>{if(!options||busy||!canUse()||!selected.length)return;try{const use=options.onUse;use([...selected]);close();}catch(error){status.textContent=error.message;}});
+  apply.addEventListener('click',()=>{if(!options||busy||!canUse()||!selected.length)return;try{for(const item of selected){const issue=selectionIssue(item);if(issue)throw Error(issue);}const use=options.onUse;use([...selected]);close();}catch(error){status.textContent=error.message;}});
   window.addEventListener('pagehide',close);
   return {close,open({multiple=false,maximum=1,excluded=[],onUse,initialSearch=''}={}){
     if(!canUse())return false;if(typeof onUse!=='function'||!Number.isSafeInteger(maximum)||maximum<1||maximum>500)throw Error('No quedan lugares disponibles en la carga.');

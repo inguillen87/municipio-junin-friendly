@@ -23,7 +23,7 @@ const ids={contract:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',other:'dddddddd-dddd-
 const original={contractId:ids.contract,legajo:'571',employeeName:'Alta propia sintética QA',identityToken:'a'.repeat(64),
   sourceCutoff:null,origin:'MUNICONTROL',registrationId:ids.registration,registeredAt:'2026-09-22T12:30:00.123456Z'};
 let actor='maker',nominal=true,prepare=true,deny=false,current=true,failPrepare=false,failTransition=false,rejectIdentity=false,
-  currentSubject=structuredClone(original),consultedSubject=null,holdEmployee=false,releaseEmployee=null,number=0,receiptPatch=null;
+  currentSubject=structuredClone(original),consultedSubject=null,holdEmployee=false,releaseEmployee=null,number=0,receiptPatch=null,directory=false,acceptDialog=true,originMismatch=false;
 const batches=new Map(),receipts=new Map(),requests=[],posts=[],errors=[],checks=[];
 const clone=value=>structuredClone(value);
 function capabilities(){return ['payroll.novelty.read',...(nominal?['payroll.novelty.nominal.read']:[]),
@@ -72,7 +72,15 @@ try{
     const request=route.request(),url=new URL(request.url());if(url.origin!==origin)return route.abort();
     if(url.pathname.startsWith('/api/')){
       requests.push({path:url.pathname,query:url.search,method:request.method()});
-      if(url.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:actor+'@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read',...capabilities()],platformCapabilities:[],platformRoles:[]}}});
+      if(url.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{name:'QA sintética',email:actor+'@example.invalid',role:'ADMIN_INTERNO'},access:{tenantCapabilities:['payroll.read',...capabilities(),...(directory?['workforce.employee.read']:[])],platformCapabilities:[],platformRoles:[]}}});
+      if(url.pathname==='/api/internal-data'&&directory){
+        assert.equal(request.method(),'GET');assert.equal(url.searchParams.get('view'),'novelty-selector');assert.equal(url.searchParams.get('status'),'administrative_active');
+        assert.equal(url.searchParams.get('limit'),'20');assert.equal(url.searchParams.get('includeFacets'),'0');
+        return route.fulfill({json:{ok:true,version:'employee-picker.v1',data:[
+          {contractId:ids.contract,legajo:'571',nombre:'Alta propia sintética QA',sector:'Sector QA',convenio:'Convenio QA',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'},
+          {contractId:ids.grh,legajo:'1721',nombre:'Fuente histórica sintética QA',sector:'Sector QA',convenio:'Convenio QA',activo:true,statusSnapshotDate:'2026-09-10',recordOrigin:'GRH'},
+        ],pagination:{page:1,limit:20,total:2,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-09-10',sourceCutoffTo:'2026-09-10'}}});
+      }
       if(url.pathname==='/api/internal-payroll-novelties'){
         if(deny)return route.fulfill({status:403,json:{ok:false,error:'Permiso revocado en fixture'}});
         if(request.method()==='POST'){
@@ -91,6 +99,7 @@ try{
           assert.equal(nominal,true);assert.equal(url.searchParams.has('legajo'),false);const contractId=url.searchParams.get('contractId');
           let subject=contractId===ids.other?{...original,contractId:ids.other,employeeName:'Otra alta QA con el mismo legajo',registrationId:'ffffffff-ffff-4fff-8fff-ffffffffffff'}:clone(currentSubject);
           if(contractId===ids.grh)subject={contractId:ids.grh,legajo:'571',employeeName:'Origen GRH QA',identityToken:'b'.repeat(64),sourceCutoff:'2026-09-10T15:00:00Z'};
+          if(originMismatch)subject={contractId,legajo:'571',employeeName:'Fuente cambiada QA',identityToken:'b'.repeat(64),sourceCutoff:'2026-09-10T15:00:00Z'};
           consultedSubject=clone(subject);
           if(holdEmployee){holdEmployee=false;await new Promise(resolve=>{releaseEmployee=resolve;});}
           return route.fulfill({json:{ok:true,version:'payroll-novelty-employee.v2',subject}});
@@ -111,7 +120,7 @@ try{
     if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});
     return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream'});
   });
-  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>dialog.accept());
+  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>acceptDialog?dialog.accept():dialog.dismiss());
   const open=async(contractId=ids.contract)=>{
     const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);target.searchParams.set('monthlyContractId',contractId);
     await page.goto(target.href);await page.locator('#nativeMonthlySubject').filter({hasText:contractId===ids.other?'Otra alta QA':contractId===ids.grh?'Origen GRH':'Alta propia sintética'}).waitFor();
@@ -242,6 +251,38 @@ try{
   await page.waitForFunction(()=>document.body.dataset.busy!=='true');
   assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   checks.push('late employee response cannot restore nominal identity after a newer denied authority read');
+  deny=false;directory=true;nominal=true;prepare=true;actor='maker';current=true;currentSubject=clone(original);batches.clear();
+  const openWithoutContract=async()=>{const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);await page.goto(target.href);await page.locator('#preflightButton:enabled').waitFor();};
+  const searchDirectory=async(button)=>{await page.locator(button).click();const dialog=page.locator('#employeePicker');await dialog.locator('input[type=search]').fill('QA');await dialog.locator('button[type=submit]').click();await dialog.locator('.picker-row').first().waitFor();return dialog;};
+  await openWithoutContract();await page.locator('#periodMonth').fill('2026-10');await page.locator('#conceptSourceId').fill('95');await page.locator('#quantityDecimal').fill('100');
+  const beforeName=posts.length;
+  let picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();const identityReads=requests.filter(r=>r.query.includes('resource=employee')).length;await picker.locator('[data-picker-apply]').click();
+  await page.locator('#nativeMonthlySubject').filter({hasText:'Alta propia de MuniControl'}).waitFor();
+  assert.equal(requests.filter(r=>r.query.includes('resource=employee')).length,identityReads+1);assert.ok(requests.at(-1).query.includes('contractId='+ids.contract));
+  assert.equal(await page.locator('#legajo').inputValue(),'571');assert.equal(await page.locator('#legajo').isDisabled(),true);assert.equal(await page.locator('#conceptSourceId').inputValue(),'95');assert.equal(await page.locator('#quantityDecimal').inputValue(),'100');assert.equal(posts.length,beforeName);
+  await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();assert.equal(await page.locator('#prepareButton').isDisabled(),true);
+  await page.locator('#nativeMonthlyReviewConfirm').check();await page.locator('#prepareButton').click();await page.locator('#nativeMonthlyPending').waitFor({state:'hidden'});await page.locator('#detailTitle').filter({hasText:'Lote'}).waitFor();
+  assert.equal(posts.length,beforeName+1);assert.equal(posts.at(-1).body.payload.rows[0].contractId,ids.contract);assert.equal(posts.at(-1).body.payload.rows[0].conceptSourceId,'95');assert.equal(posts.at(-1).body.payload.rows[0].quantityDecimal,'100');assert.equal(posts.at(-1).body.payload.rows[0].amountCents,null);
+  checks.push('ordinary name selection routes an own employee to the existing UUID monthly review and only voluntary creation writes one exact synthetic95 draft');
+  await openWithoutContract();await page.locator('[name=sourceMode][value=agile]').check();picker=await searchDirectory('#agilePickButton');
+  assert.equal(await picker.locator('.picker-row').count(),2);assert.equal(await picker.locator('[data-picker-results] input').first().isDisabled(),true);assert.match(await picker.locator('.picker-row').first().innerText(),/individual mensual/);
+  assert.equal(await picker.locator('[data-picker-results] input').nth(1).isDisabled(),false);await picker.locator('[data-picker-results] input').nth(1).check();await picker.locator('[data-picker-apply]').click();assert.equal(await page.locator('#agileLegajos').inputValue(),'1721');
+  checks.push('agile search retains all results, explains unsupported own entries and preserves historical selection without slicing the result');
+  await page.locator('[name=sourceMode][value=sheet]').check();picker=await searchDirectory('#sheetFind');assert.equal(await picker.locator('[data-picker-results] input').first().isDisabled(),true);await picker.locator('[data-picker-results] input').nth(1).check();await picker.locator('[data-picker-apply]').click();assert.equal(await page.locator('[data-sheet-index="0"][data-sheet-field="0"]').inputValue(),'1721');
+  checks.push('sheet selection keeps the original historical input contract and explains own monthly scope before adding any row');
+  nominal=false;await openWithoutContract();picker=await searchDirectory('#pickLegajoButton');assert.equal(await picker.locator('[data-picker-results] input').first().isDisabled(),true);assert.match(await picker.locator('.picker-row').first().innerText(),/permiso/);assert.equal(await picker.locator('[data-picker-results] input').nth(1).isDisabled(),false);assert.equal(posts.length,beforeName+1);
+  checks.push('missing nominal capability prevents own selection, keeps original GRH capability scope and creates no request or new permission');
+  await page.keyboard.press('Escape');nominal=true;
+  await openWithoutContract();await page.locator('#payrollType').selectOption('sac');await page.locator('#conceptSourceId').fill('95');await page.locator('#quantityDecimal').fill('100');acceptDialog=false;picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();const readsBeforeCancel=requests.filter(r=>r.query.includes('resource=employee')).length;await picker.locator('[data-picker-apply]').click();assert.match(await picker.locator('[data-picker-state]').innerText(),/Se conservó la carga/);assert.equal(requests.filter(r=>r.query.includes('resource=employee')).length,readsBeforeCancel);assert.equal(await page.locator('#payrollType').inputValue(),'sac');assert.equal(await page.locator('#quantityDecimal').inputValue(),'100');await page.keyboard.press('Escape');acceptDialog=true;
+  checks.push('declining a change from SAC to own monthly keeps type and fields intact and performs no identity read or write');
+  await openWithoutContract();originMismatch=true;picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();await picker.locator('[data-picker-apply]').click();await page.locator('#messageHost').filter({hasText:'El origen del vínculo cambió'}).waitFor();assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'El vínculo elegido necesita una consulta vigente. Actualizalo para continuar.');assert.equal(await page.locator('#preflightButton').isDisabled(),true);assert.equal(await page.locator('#prepareButton').isDisabled(),true);assert.equal(posts.length,beforeName+1);originMismatch=false;
+  checks.push('a conflicting employee origin cannot silently fall back to a legacy legajo preparation');
+  await openWithoutContract();picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:['payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare','payroll.novelty.export']}})));assert.equal(await picker.isVisible(),false);assert.equal(await picker.locator('.picker-row').count(),0);assert.equal(posts.length,beforeName+1);
+  checks.push('revoking only directory authority clears the ordinary selector while retaining the separate payroll capability boundaries');
+  await openWithoutContract();holdEmployee=true;picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();await picker.locator('[data-picker-apply]').click();for(let i=0;i<120&&!releaseEmployee;i++)await page.waitForTimeout(10);assert.ok(releaseEmployee);nominal=false;await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:['workforce.employee.read','payroll.novelty.read','payroll.novelty.prepare','payroll.novelty.export']}})));releaseEmployee();releaseEmployee=null;await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);assert.equal(posts.length,beforeName+1);nominal=true;
+  checks.push('late identity lookup from ordinary name selection cannot restore the own subject after nominal revocation');
+  for(const width of [390,320]){await page.setViewportSize({width,height:844});await openWithoutContract();await page.locator('[name=sourceMode][value=agile]').check();picker=await searchDirectory('#agilePickButton');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.ok(await picker.evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.match(await picker.locator('.picker-row').first().innerText(),/individual mensual/);assert.ok(await picker.locator('.picker-person strong').first().evaluate(n=>{const style=getComputedStyle(n),line=parseFloat(style.lineHeight)||parseFloat(style.fontSize)*1.5;return n.getBoundingClientRect().height<=line*2+1;}),'The representative own name remains legible in at most two lines');await picker.locator('.picker-row').first().evaluate(n=>n.scrollIntoView({block:'center'}));const issueBox=await picker.locator('.picker-selection-issue').boundingBox(),footerBox=await picker.locator('.picker-footer').boundingBox();assert.ok(issueBox.y>0&&issueBox.y+issueBox.height<=footerBox.y,'Own selection reason is fully visible above the sticky action bar');await page.screenshot({path:path.join(out,'own-selection-'+width+'-synthetic.png')});await page.keyboard.press('Escape');}
+  checks.push('own-versus-historical selection reasons remain visible without horizontal overflow at390 and320px');
   assert.deepEqual(errors,[]);checks.push('no unhandled JavaScript errors; every private request intercepted');
   const result={ok:true,checksPassed:checks.length,checks,publishedAssets:published,assetHashes:hashes,
     apiResponsesSynthetic:true,privateApisIntercepted:true,interceptedPosts:posts.length,realMunicipalWrites:0,realMunicipalSessionTested:false};

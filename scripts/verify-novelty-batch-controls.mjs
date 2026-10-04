@@ -55,7 +55,7 @@ const bootstrap=()=>({ok:true,principal:{email:'qa@example.invalid',membershipId
   feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',sourceModes:['individual','bulk'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,maxRows:500,payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other']},batches:[]});
 const values=Array.from({length:60},(_,i)=>[String(6001+i%30),i<30?'44':'144','',i%5===0?'2026-08':'','1',['','0','-2,50','100,01'][i%4],'standard','Acta sintética QA','Fundamento sintético para revisión',i%4===3?'SI':'NO']);
 const csv=NOVELTY_CSV_HEADER.join(';')+'\r\n'+values.map(row=>row.map(v=>'"'+v.replaceAll('"','""')+'"').join(';')).join('\r\n')+'\r\n';
-const browser=await chromium.launch({headless:true});let page;
+const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE}:{})});let page;
 try{
  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,serviceWorkers:'block',locale:'es-AR'});
  await context.route('**/*',async route=>{

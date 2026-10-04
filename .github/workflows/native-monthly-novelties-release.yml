@@ -19,6 +19,10 @@ on:
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/payroll-native-monthly-review.*'
       - 'assets/payroll-novelty-*.js'
+      - 'assets/employee-picker*'
+      - 'lib/employee-picker-view.js'
+      - 'api/internal-data.js'
+      - 'tests/employee-picker*'
       - 'assets/native-employee-create.js'
       - 'novedades-nomina.html'
       - 'scripts/build-friendly.mjs'
@@ -38,6 +42,10 @@ on:
       - 'assets/payroll-native-monthly-model.js'
       - 'assets/payroll-native-monthly-review.*'
       - 'assets/payroll-novelty-workbench.js'
+      - 'assets/employee-picker*'
+      - 'lib/employee-picker-view.js'
+      - 'api/internal-data.js'
+      - 'tests/employee-picker*'
       - 'novedades-nomina.html'
       - 'scripts/verify-native-monthly-novelties-browser.mjs'
       - 'tests/native-monthly-preparation.test.js'
@@ -81,6 +89,7 @@ jobs:
       - run: node scripts/verify-novelty-review-056.mjs
       - run: node scripts/verify-attendance-preparte-browser.mjs
       - run: node scripts/verify-employee-picker-058.mjs
+      - run: node scripts/verify-employee-picker-loading.mjs
       - run: node scripts/verify-clock-dashboard-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
