@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {batch,bootstrap,id} from './fixtures/novelty-saved-review-synthetic.js';
 import {monthlyDecisionAccess,monthlyDecisionAllowed,sameMonthlyDecisionAccess,monthlyDecisionPlan,
   monthlyDecisionUnchanged,monthlyDecisionAttempt,assertMonthlyDecisionReceipt} from '../assets/payroll-monthly-decisions-model.js';
+import {historicalMonthlyTransitionReceipt} from '../assets/payroll-native-monthly-model.js';
+import {transitionPayrollNoveltyV2,transitionPayrollNovelty} from '../lib/internal-payroll-novelty.js';
 const access=()=>monthlyDecisionAccess(bootstrap());
 const batches=(n,rows=60)=>Array.from({length:n},(_,i)=>({...batch(rows),id:id(1000+i)}));
 const native=()=>{const b=batch(1),r=b.rows[0];b.contractVersion='payroll-novelty-batch.v2';b.sourceMode='individual';
@@ -59,4 +61,25 @@ test('reject requires original reason code and approved receipt cannot claim pay
   assert.throws(()=>monthlyDecisionPlan([b],'reject','invented',access()),/motivo/);
   const p=monthlyDecisionPlan([b],'approve',null,access()),attempt=monthlyDecisionAttempt(p,p.batches[0],id(900)),r=response(b,'approve');assertMonthlyDecisionReceipt(b,attempt,r);
   r.data.version++;assert.throws(()=>assertMonthlyDecisionReceipt(b,attempt,r));
+});
+test('v2 historical transition restores dates from the immutable event while retaining every row and v1 source',()=>{
+  const b=response(batches(1)[0]).data;b.updatedAt='2026-10-01T12:30:00.123456Z';b.submittedAt='2026-10-01T12:30:00.123456Z';b.decidedAt=null;
+  const original=historicalMonthlyTransitionReceipt(b),raw={...structuredClone(b),decidedAt:'2026-10-02T14:00:00.000001Z'};
+  assert.deepEqual(historicalMonthlyTransitionReceipt(raw),original);assert.equal(raw.decidedAt,'2026-10-02T14:00:00.000001Z');
+  assert.equal(historicalMonthlyTransitionReceipt(raw).rows,raw.rows);
+  const approved={...raw,status:'approved',version:3,exportable:true,updatedAt:'2026-10-02T14:00:00.000001Z'};
+  assert.equal(historicalMonthlyTransitionReceipt(approved).decidedAt,approved.updatedAt);assert.equal(historicalMonthlyTransitionReceipt(approved).submittedAt,b.submittedAt);
+  assert.throws(()=>historicalMonthlyTransitionReceipt({...raw,updatedAt:'fecha inventada'}));
+  const n=response(native()).data;assert.equal(historicalMonthlyTransitionReceipt(n),n);
+});
+test('real v2 facade projects historical event dates without modifying command, key, scope, rows or legacy response',async()=>{
+  const b=response(batches(1)[0]).data;b.updatedAt='2026-10-01T12:30:00.123456Z';b.submittedAt=b.updatedAt;b.decidedAt='2026-10-02T14:00:00.000001Z';
+  const original=structuredClone(b),calls=[],sql={query:async(text,values)=>{calls.push({text,values});return [{result:{replayed:true,data:structuredClone(b)}}];}};
+  const principal={user:{email:'qa@example.invalid'},tenant:{id:id(1),membershipId:id(2),source:'membership'}},session={id:id(3),email:'qa@example.invalid',version:2,releaseSha:'a'.repeat(40)};
+  const payload={batchId:b.id,expectedVersion:1,reasonCode:'ready_for_review',reasonReference:null},key=id(801);
+  const result=await transitionPayrollNoveltyV2(sql,principal,session,'submit',payload,key);
+  assert.equal(result.data.decidedAt,null);assert.equal(result.data.submittedAt,b.updatedAt);assert.deepEqual(result.data.rows,original.rows);assert.deepEqual(b,original);
+  assert.match(calls[0].text,/payroll_novelty_transition_v2/);assert.deepEqual(calls[0].values.slice(1,7),[b.id,'submit',1,'ready_for_review',null,key]);
+  const legacy=await transitionPayrollNovelty(sql,principal,session,'submit',payload,key);
+  assert.deepEqual(legacy.data,original);assert.match(calls[1].text,/payroll_novelty_transition_v1/);
 });

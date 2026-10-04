@@ -35,19 +35,23 @@ export function buildMonthlyDecisionsQa(options){
  END LOOP;checks:=checks+26;
  FOR group_i IN 1..26 LOOP
   group_value:=payroll_novelty_transition_v2(maker,group_ids[group_i],'submit',1,'ready_for_review',NULL,group_keys[group_i],repeat('b',64));
-  PERFORM qa_assert(group_value->>'replayed'='true' AND (group_value-'replayed')=(group_receipts[group_i]-'replayed'),'recovered receipt retains its original submit event after approval');
- END LOOP;checks:=checks+26;
+  PERFORM qa_assert(group_value->>'replayed'='true' AND ((group_value-'replayed')#-'{data,submittedAt}'#-'{data,decidedAt}')=((group_receipts[group_i]-'replayed')#-'{data,submittedAt}'#-'{data,decidedAt}'),'recovered receipt retains every original event field and row after approval');
+  IF group_i%2=0 THEN PERFORM qa_assert(group_value#>>'{data,decidedAt}' IS NULL AND group_value#>>'{data,submittedAt}'=group_value#>>'{data,updatedAt}','native receipt keeps its original event timeline');
+  ELSE PERFORM qa_assert(group_value#>>'{data,decidedAt}' IS NOT NULL AND group_value#>>'{data,updatedAt}'=group_receipts[group_i]#>>'{data,updatedAt}','historical raw timeline is current but immutable event timestamp is preserved for v2 projection');END IF;
+ END LOOP;checks:=checks+52;
  PERFORM qa_assert((SELECT count(*)=78 FROM payroll_novelty_event WHERE batch_id=ANY(group_ids)),'lost response recovery creates no fourth event');checks:=checks+1;
  PERFORM qa_assert(qa_rejects(format('SELECT payroll_novelty_transition_v2(%L::jsonb,%L::uuid,%L,2,%L,NULL,%L::uuid,repeat(''b'',64))',maker,group_ids[26],'approve','validated_for_export',group_keys[26]),'PAYROLL_NOVELTY_IDEMPOTENCY_REUSE'),'recovering cannot replace the original command');checks:=checks+1;
  PERFORM qa_assert(qa_rejects(format('SELECT payroll_novelty_transition_v2(%L::jsonb,%L::uuid,%L,1,%L,NULL,%L::uuid,repeat(''b'',64))',outsider,group_ids[26],'submit','ready_for_review',group_keys[26]),'PAYROLL_NOVELTY_NOT_FOUND'),'other scope cannot recover the selected batch');checks:=checks+1;
  PERFORM qa_assert((SELECT bool_and(NOT grh_mutation AND NOT payroll_calculated AND NOT payroll_posted) FROM payroll_novelty_batch WHERE id=ANY(group_ids)),'selected decisions never calculate post or mutate GRH');checks:=checks+1;
  END;
  `;
-  const newChecks=111,anchor="RAISE EXCEPTION USING ERRCODE='P1010',MESSAGE='RESTORE_NATIVE_MONTHLY_FIXTURES';";
+  const newChecks=137,anchor="RAISE EXCEPTION USING ERRCODE='P1010',MESSAGE='RESTORE_NATIVE_MONTHLY_FIXTURES';";
   assert.equal(base.sql.split(anchor).length,2);
   const report={...base.report,monthlyDecisionChecksPassed:newChecks,monthlyDecisionBatches:26,monthlyDecisionRows:39,checksPassed:base.report.checksPassed+newChecks,
     limitations:[...base.report.limitations,'Each existing batch transition commits independently in production; this QA schema rolls back all synthetic fixtures. It does not claim atomic multi-batch decisions or human acceptance.']};
   let sql=base.sql.replace(anchor,()=>block+anchor);
+  const expectedCount=`checks<>${base.report.checksPassed} THEN`;
+  assert.equal(sql.split(expectedCount).length,2);sql=sql.replace(expectedCount,`checks<>${report.checksPassed} THEN`);
   assert.equal(sql.split(JSON.stringify(base.report)).length,2);sql=sql.replace(JSON.stringify(base.report),()=>JSON.stringify(report));
   return {...base,sql,report};
 }

@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {batch as historical,bootstrap as baseBootstrap,id} from '../tests/fixtures/novelty-saved-review-synthetic.js';
 import {createInternalPayrollNoveltiesHandler} from '../api/internal-payroll-novelties.js';
+import {transitionPayrollNoveltyV2 as executeMonthlyTransition} from '../lib/internal-payroll-novelty.js';
 import {publishedBuildVerification} from './lib/published-build-verification.mjs';
 
 const live=process.argv.includes('--published'),origin=live?'https://municontrol.com':'https://municontrol.test';
@@ -30,6 +31,7 @@ function seed(count=26,rows=60,status='draft'){
   stored=new Map();receipts=new Map();posts=[];actor=status==='submitted'?'checker':'maker';member=actor==='maker'?3:5;nominal=true;approve=true;prepare=true;
   failAck=false;badAck=false;driftAfterFirst=false;hold=false;release=null;lateRead=false;releaseRead=null;
   for(let i=0;i<count;i++){const b=historical(i%2?1:rows);b.id=id(1000+i);b.status=status;b.version=status==='submitted'?2:1;
+    b.createdAt='2026-09-30T12:00:00.123456Z';b.updatedAt=b.createdAt;b.submittedAt=status==='submitted'?b.createdAt:null;b.decidedAt=null;
     if(i%2){b.contractVersion='payroll-novelty-batch.v2';b.sourceMode='individual';const r=b.rows[0];r.quantityDecimal='100.000001';r.amountCents=null;
       r.subject={contractId:r.employmentContractId,legajo:r.legajo,employeeName:'Alta propia sintética QA '+i,identityToken:'a'.repeat(64),sourceCutoff:null,
         origin:'MUNICONTROL',registrationId:id(9000+i),registeredAt:'2026-09-22T12:30:00.123456Z'};
@@ -39,20 +41,26 @@ function seed(count=26,rows=60,status='draft'){
   }
 }
 const handler=createInternalPayrollNoveltiesHandler({env:{NODE_ENV:'test',INTERNAL_APP_ORIGIN:origin,INTERNAL_CERTIFIED_DATA_CONTRACT_SHA:'a'.repeat(40)},
-  requireCompatibleInternalAccess:async()=>({mode:'managed',session:{id:id(7),email:actor+'@example.invalid',version:1},
+  requireCompatibleInternalAccess:async()=>({mode:'managed',session:{id:id(7),email:actor+'@example.invalid',version:1,releaseSha:'a'.repeat(40)},
     principal:{user:{email:actor+'@example.invalid'},tenant:{id:id(2),membershipId:id(member),source:'membership',certifiedReleaseSha:'a'.repeat(40)}}}),
   getInternalSql:async()=>({query(){throw Error('No real SQL is allowed in this browser harness');}}),
   getPayrollNoveltyBootstrapV2:async()=>bootstrap(),readPayrollNoveltyV2:async(_s,_p,_session,batchId)=>{
     const value=read(stored.get(batchId));if(lateRead){lateRead=false;await new Promise(resolve=>{releaseRead=resolve;});}return {data:value};},
-  transitionPayrollNoveltyV2:async(_s,_p,_session,command,payload,key)=>{
+  transitionPayrollNoveltyV2:async(_s,principal,session,command,payload,key)=>{
+    const adapt=response=>executeMonthlyTransition({query:async()=>[{result:response}]},principal,session,command,payload,key);
     assert.ok(nominal);assert.ok(caps().includes(['approve','reject'].includes(command)?'payroll.novelty.approve':'payroll.novelty.prepare'));
     const body={command,payload},scope=id(member);posts.push({key,body:structuredClone(body),scope});
-    if(receipts.has(key)){const old=receipts.get(key);assert.deepEqual(body,old.body);assert.equal(scope,old.scope);return {...structuredClone(old.response),replayed:true};}
+    if(receipts.has(key)){const old=receipts.get(key);assert.deepEqual(body,old.body);assert.equal(scope,old.scope);
+      const response={...structuredClone(old.response),replayed:true};if(response.data.contractVersion.endsWith('v1')){
+        const current=stored.get(payload.batchId);response.data.submittedAt=current.submittedAt;response.data.decidedAt=current.decidedAt;}
+      return adapt(response);}
     const b=stored.get(payload.batchId);assert.ok(read(b).allowedCommands.includes(command));assert.equal(payload.expectedVersion,b.version);
     b.status={submit:'submitted',approve:'approved',reject:'rejected',cancel:'cancelled'}[command];b.version++;b.exportable=command==='approve';
+    b.updatedAt=`2026-10-01T12:00:${String(receipts.size+1).padStart(2,'0')}.123456Z`;
+    if(command==='submit')b.submittedAt=b.updatedAt;else b.decidedAt=b.updatedAt;
     const response={replayed:false,data:structuredClone(b)};receipts.set(key,{scope,body:structuredClone(body),response:structuredClone(response)});
     if(driftAfterFirst){driftAfterFirst=false;const last=[...stored.values()].at(-1);last.rows[0].observation='Cambio posterior con igual versión';}
-    if(hold){hold=false;await new Promise(resolve=>{release=resolve;});}return response;
+    if(hold){hold=false;await new Promise(resolve=>{release=resolve;});}return adapt(response);
   },
 });
 const browser=await chromium.launch({headless:true,...(process.env.MONTHLY_DECISIONS_BROWSER_CHANNEL?{channel:process.env.MONTHLY_DECISIONS_BROWSER_CHANNEL}:{})});let page;
@@ -118,6 +126,11 @@ try{
     assert.deepEqual(posts[0],posts[1]);assert.equal(receipts.size,1);assert.equal(await page.locator('[data-decision-result="Confirmado"]').count(),1);
     assert.equal(await page.locator('[data-decision-result="Sin enviar"]').count(),2);checks.push((bad?'malformed':'lost')+' ACK seals the exact attempt, prevents other writes and recovers one original receipt without resuming the selection');
   }
+  seed(3);await open();await selectAll();await compare();failAck=true;await confirm();await settled();
+  const advanced=[...stored.values()][0];advanced.status='approved';advanced.version=3;advanced.exportable=true;advanced.decidedAt='2026-10-02T14:00:00.000001Z';advanced.updatedAt=advanced.decidedAt;
+  await page.locator('#monthlyDecisionRetry').click();await settled();assert.equal(posts.length,2);assert.deepEqual(posts[0],posts[1]);assert.equal(receipts.size,1);
+  assert.equal(advanced.status,'approved');assert.equal(await page.locator('[data-decision-result="Confirmado"]').count(),1);
+  checks.push('real v2 facade recovers the historical original event after later approval without borrowing its decision date or changing current state');
   seed(3);await open();await selectAll();await compare();nominal=false;await page.locator('#monthlyDecisionConfirm').check();await page.locator('#monthlyDecisionSend').click();await settled();
   assert.equal(posts.length,0);assert.equal(await page.locator('[data-monthly-decision-row]').count(),0);assert.equal(await page.locator('#monthlyDecisions').isVisible(),false);
   checks.push('bootstrap-only nominal revocation purges the whole reviewed selection before any write');
@@ -141,7 +154,7 @@ try{
   seed(26);actor='checker';member=5;approve=false;await page.goto(live?build.url('novedades-nomina.html').href:origin+'/novedades-nomina.html');await page.locator('#batchTable:visible').waitFor();
   assert.equal(await page.locator('#monthlyDecisions').isVisible(),false);assert.equal(await page.locator('#batchRows tr').count(),26);assert.equal(await page.locator('#batchRows button').count(),26);
   assert.equal(posts.length,0);checks.push('read-only actor retains the complete original batch overview and individual detail without decision privileges');
-  assert.deepEqual(errors,[]);const report={ok:true,checksPassed:checks.length,checks,publishedAssets:live,apiHandlerReal:true,businessResponsesSynthetic:true,realMunicipalWrites:0,humanAcceptance:false,assets:Object.fromEntries(expected)};
+  assert.deepEqual(errors,[]);const report={ok:true,checksPassed:checks.length,checks,publishedAssets:live,apiHandlerReal:true,transitionFacadeReal:true,sqlResponsesSynthetic:true,businessResponsesSynthetic:true,realMunicipalWrites:0,humanAcceptance:false,assets:Object.fromEntries(expected)};
   fs.writeFileSync(out+'/result.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }catch(error){fs.writeFileSync(out+'/failure.json',JSON.stringify({checks,errors,posts:posts.length,message:error.message},null,2));if(page)await page.screenshot({path:out+'/failure-synthetic.png'}).catch(()=>{});throw error;}
 finally{await browser.close();}
