@@ -133,7 +133,7 @@ export function buildNativeJurisdictionQa({serverMajor,requireConcurrency=false}
  const report={...base.report,jurisdictionChecksPassed:checks,checksPassed:base.report.checksPassed+checks,migration095Sha256:sha(migration),limitations:[...base.report.limitations,'095 executes against an actual pre-existing 13-field hire; dedicated jurisdiction fixtures roll back before full 093 and 092 regressions. This is synthetic local QA, not municipal or fiscal certification.']};
  const sql=base.sql.replace(anchor,()=>anchor+'\n'+block).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql),'Synthetic public writes prohibited');
- return{...base,sql,report};
+ return{...base,sql,report,qaFoundation:{...base.qaFoundation,setup:base.qaFoundation.setup+'\n'+observedDefinitions.map(f=>'EXECUTE '+q(relocate(f.definition))+';').join('\n')+'\nEXECUTE '+install+';'}};
 }
 function main(){
  const args={};for(const a of process.argv.slice(2)){

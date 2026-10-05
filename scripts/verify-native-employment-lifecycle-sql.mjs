@@ -8,8 +8,8 @@ import {buildNativeEmploymentChangeQa} from './verify-native-employment-change-s
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8').replaceAll('\r\n','\n');
-export function buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency=false}){
- const base=buildNativeEmploymentChangeQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=read('scripts/migrations/110-native-employment-lifecycle.sql');
+export function buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency=false,withMonthlySource=false}){
+ const base=buildNativeEmploymentChangeQa({serverMajor,requireConcurrency,withMonthlySource}),{schema,ids}=base,migration=read('scripts/migrations/110-native-employment-lifecycle.sql');
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll("ARRAY['search_path=public, pg_temp']","ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp']").replaceAll("ARRAY['search_path=pg_catalog, public, pg_temp']","ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp']").replaceAll("'search_path=public, pg_temp'",q('search_path=pg_catalog, '+schema+', public, pg_temp')).replaceAll("'search_path=pg_catalog, public, pg_temp'",q('search_path=pg_catalog, '+schema+', public, pg_temp')).replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
  const normalize=s=>s.replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')").replaceAll("replace(prosrc,E'\\r\\n',E'\\n')","replace(replace(prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
  const statements=[];let count=0;const exec=s=>statements.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;};

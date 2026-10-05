@@ -13,8 +13,8 @@ import {salaryEffectivePlan} from '../assets/native-salary-effective-model.js';
 import {salaryRowKey} from '../assets/native-salary-catalog-model.js';
 import {salaryCopyPlan} from '../assets/native-salary-copy-model.js';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb',root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-export function buildNativeSalaryQa({serverMajor,requireConcurrency=false}){
- const base=buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=fs.readFileSync(path.join(root,'scripts/migrations/112-native-salary-definitions.sql'),'utf8').replaceAll('\r\n','\n');
+export function buildNativeSalaryQa({serverMajor,requireConcurrency=false,withMonthlySource=false}){
+ const base=buildNativeEmploymentLifecycleQa({serverMajor,requireConcurrency,withMonthlySource}),{schema,ids}=base,migration=fs.readFileSync(path.join(root,'scripts/migrations/112-native-salary-definitions.sql'),'utf8').replaceAll('\r\n','\n');
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll("s.nspname='public'","s.nspname="+q(schema)).replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp').replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll('search_path=public, pg_temp','search_path=pg_catalog, '+schema+', public, pg_temp').replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')");
  const installation=prepareNativeSalaryInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8').replaceAll('\r\n','\n'),sourceCommit:'9'.repeat(40)});
  const statements=[];let count=0;const exec=s=>statements.push(s),ok=(s,label)=>{exec('PERFORM qa_assert(('+s+'),'+q(label)+');checks:=checks+1;');count++;},reject=(sql,code,label)=>ok('qa_rejects('+sql+','+q(code.startsWith('NATIVE_')?code:'NATIVE_SALARY_'+code)+')',label);

@@ -1,0 +1,99 @@
+name: Own payroll calculation
+on:
+  push:
+    branches: ['master', 'codex/own-payroll-engine-20261004']
+    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
+  pull_request:
+    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
+permissions:
+  contents: read
+jobs:
+  exact-calculation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - major: 17
+            port: 55417
+          - major: 18
+            port: 55418
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: native_monthly_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: own-payroll-synthetic-qa
+        ports:
+          - ${{ matrix.port }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_monthly_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/own-payroll-program-workspace.test.js tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-installation.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
+      - run: mkdir -p verification
+      - name: Compare with independent PostgreSQL numeric
+        run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+      - name: Create isolated own-program QA database
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: |
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE own_payroll_program_qa;'
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_program_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-own-payroll-program-sql.mjs --ci --expected-major=${{ matrix.major }} --write-sql=verification/own-program.sql
+      - name: Verify actual program approval and original regressions
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_program_qa -v ON_ERROR_STOP=1 -f verification/own-program.sql > verification/own-program-sql.log 2>&1
+      - run: node scripts/verify-own-payroll-program-contract.mjs verification/own-program-sql.log
+      - name: Create isolated own-run QA database
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: |
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE own_payroll_run_qa;'
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto;'
+      - run: node scripts/verify-own-payroll-run-sql.mjs --ci --expected-major=${{ matrix.major }} --write-sql=verification/own-run.sql
+      - name: Verify real fixed source capture and immutable result
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -f verification/own-run.sql > verification/own-run-sql.log 2>&1
+      - run: node scripts/verify-own-payroll-run-contract.mjs verification/own-run-sql.log
+      - run: node scripts/verify-own-payroll-run-sql.mjs --ci --expected-major=${{ matrix.major }} --with-monthly-source --write-sql=verification/own-monthly.sql
+      - name: Verify full published monthly writer to own calculation
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -f verification/own-monthly.sql > verification/own-monthly-sql.log 2>&1
+      - run: node scripts/verify-own-payroll-run-contract.mjs verification/own-monthly-sql.log
+      - run: npx playwright install --with-deps chromium
+      - name: Verify committed capture, result, independent connections and real HTTP retries
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-durable.mjs --ci --major=${{ matrix.major }} --browser=chromium --output=verification/own-durable.json
+      - name: Build the actual public package
+        run: node scripts/build-friendly.mjs
+      - name: Verify product UI, immutable retry, mobile and SQL revocation
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-run-ui.mjs --ci --built --major=${{ matrix.major }} --browser=chromium --output=verification/own-run-ui.json
+      - name: Author from empty, independently approve and calculate through actual product UI
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --major=${{ matrix.major }} --browser=chromium --output=verification/own-program-ui.json
+      - name: Install exact122/123 conservatively, COMMIT and verify independent durability
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-installation.mjs --ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-installation.json
+      - run: node scripts/verify-own-payroll-browser.mjs
+      - run: node scripts/verify-own-payroll-program-browser.mjs --sql-log=verification/own-program-sql.log
+      - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-run-sql.log
+      - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-monthly-sql.log

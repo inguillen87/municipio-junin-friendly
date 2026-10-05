@@ -4,11 +4,45 @@ import {createHash, randomUUID} from 'node:crypto';
 import {mkdir,lstat,readdir,readFile,open,rename,rm,statfs} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {fault} from './config.mjs';
 import {replaceFile} from './file-replacement.mjs';
 export const hash=b=>createHash('sha256').update(b).digest('hex');
 const HEX=/^[a-f0-9]{64}$/;
 const MAX_RAW=4194304;
+const executeFile=promisify(execFile),ownerFileTime=Symbol('ownerFileTime');
+const ticksPattern=/^[1-9][0-9]{16,18}$/;
+let ownStartTicksPromise;
+export async function windowsProcessStartTicks(pid){
+ if(process.platform!=='win32'||!Number.isSafeInteger(pid)||pid<1)throw fault('LOCK_IDENTITY_UNAVAILABLE');
+ const systemRoot=process.env.SystemRoot;
+ if(typeof systemRoot!=='string'||!path.isAbsolute(systemRoot))throw fault('LOCK_IDENTITY_UNAVAILABLE');
+ const executable=path.join(systemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+ // PID is validated above. No argument, command line, identity or secret is read.
+ const command=`[Console]::Out.Write([System.Diagnostics.Process]::GetProcessById(${pid}).StartTime.ToUniversalTime().Ticks.ToString([Globalization.CultureInfo]::InvariantCulture))`;
+ const {stdout}=await executeFile(executable,['-NoProfile','-NonInteractive','-Command',command],{encoding:'utf8',timeout:5000,maxBuffer:4096,windowsHide:true});
+ const ticks=stdout.trim();if(!ticksPattern.test(ticks))throw fault('LOCK_IDENTITY_UNAVAILABLE');return ticks;
+}
+export function replacedOwnerGeneration(owner,currentTicks,modifiedNs){
+ if(typeof currentTicks!=='string'||!ticksPattern.test(currentTicks)||typeof modifiedNs!=='bigint'||modifiedNs<=0n)return false;
+ if(owner.processStartTicks!==undefined){
+  if(typeof owner.processStartTicks!=='string'||!ticksPattern.test(owner.processStartTicks))return false;
+  return BigInt(currentTicks)>BigInt(owner.processStartTicks);
+ }
+ // Old locks contain no generation. A process born AFTER that exact owner file
+ // cannot have written it. The ten-second margin covers timestamp resolution.
+ const birthNs=(BigInt(currentTicks)-621355968000000000n)*100n;
+ return birthNs>modifiedNs+10000000000n;
+}
+async function newOwner(token){
+ const owner={pid:process.pid,hostname:os.hostname(),token};
+ if(process.platform==='win32'){
+  ownStartTicksPromise??=windowsProcessStartTicks(process.pid).catch(()=>null);
+  const ticks=await ownStartTicksPromise;if(ticks)owner.processStartTicks=ticks;
+ }
+ return owner;
+}
 async function syncDir(p){
  if(process.platform==='win32')return; // NTFS durability also depends on volume/cache settings.
  const h=await open(p,'r');try{await h.sync();}finally{await h.close();}
@@ -26,28 +60,36 @@ async function lockOwner(dir){
  const s=await lstat(dir);if(!s.isDirectory()||s.isSymbolicLink())throw fault('LOCK_INVALID');
  let owner;
  try{
-  const file=path.join(dir,'owner.json'),st=await lstat(file);
-  if(!st.isFile()||st.isSymbolicLink()||st.size>4096)throw fault('LOCK_NEEDS_REVIEW');
+  const file=path.join(dir,'owner.json'),st=await lstat(file,{bigint:true});
+  if(!st.isFile()||st.isSymbolicLink()||st.size>4096n)throw fault('LOCK_NEEDS_REVIEW');
   owner=JSON.parse(await readFile(file,'utf8'));
+  Object.defineProperty(owner,ownerFileTime,{value:st.mtimeNs});
  }catch{throw fault('LOCK_NEEDS_REVIEW');}
- if(!owner||!Number.isSafeInteger(owner.pid)||owner.pid<1||owner.hostname!==os.hostname()||typeof owner.token!=='string'||!owner.token)throw fault('LOCK_NEEDS_REVIEW');
+ if(!owner||!Number.isSafeInteger(owner.pid)||owner.pid<1||owner.hostname!==os.hostname()||typeof owner.token!=='string'||!owner.token||(owner.processStartTicks!==undefined&&(typeof owner.processStartTicks!=='string'||!ticksPattern.test(owner.processStartTicks))))throw fault('LOCK_NEEDS_REVIEW');
  return owner;
 }
-function ownerIsDead(owner){
- try{process.kill(owner.pid,0);return false;}
+async function ownerIsDead(owner){
+ try{process.kill(owner.pid,0);}
  catch(e){if(e.code==='ESRCH')return true;throw fault('ALREADY_RUNNING');}
+ if(process.platform!=='win32')return false;
+ try{return replacedOwnerGeneration(owner,await windowsProcessStartTicks(owner.pid),owner[ownerFileTime]);}
+ catch{
+  // Lack of inspection authority never permits taking a live owner's lock.
+  try{process.kill(owner.pid,0);return false;}catch(e){if(e.code==='ESRCH')return true;throw fault('ALREADY_RUNNING');}
+ }
 }
 async function lockTransition(root){
  const gate=path.join(root,'process.lock.transition');
+ const gateOwner=await newOwner(randomUUID());
  try{await mkdir(gate,{mode:0o700});}
  catch(e){
   if(e.code!=='EEXIST')throw e;
   // Never recover this short-lived gate: doing so would recreate the same race.
   // An interrupted transition is preserved for review; an ordinary dead owner
   // in process.lock remains recoverable on the next start.
-  throw fault(ownerIsDead(await lockOwner(gate))?'LOCK_NEEDS_REVIEW':'ALREADY_RUNNING');
+  throw fault(await ownerIsDead(await lockOwner(gate))?'LOCK_NEEDS_REVIEW':'ALREADY_RUNNING');
  }
- await atomicJson(path.join(gate,'owner.json'),{pid:process.pid,hostname:os.hostname(),token:randomUUID()});
+ await atomicJson(path.join(gate,'owner.json'),gateOwner);
  return async()=>{await rm(gate,{recursive:true});await syncDir(root);};
 }
 export async function acquireLock(root){
@@ -56,13 +98,13 @@ export async function acquireLock(root){
  try{
   try{await mkdir(dir,{mode:0o700});}catch(e){
    if(e.code!=='EEXIST')throw e;
-   if(!ownerIsDead(await lockOwner(dir)))throw fault('ALREADY_RUNNING');
+   if(!await ownerIsDead(await lockOwner(dir)))throw fault('ALREADY_RUNNING');
    // All acquisitions and releases use the gate. Nobody can replace the owner
    // between checking the dead PID and retaining its directory as evidence.
    await rename(dir,path.join(root,'recovered-lock-'+randomUUID()));
    await mkdir(dir,{mode:0o700});
   }
-  await atomicJson(path.join(dir,'owner.json'),{pid:process.pid,hostname:os.hostname(),token});
+  await atomicJson(path.join(dir,'owner.json'),await newOwner(token));
  }finally{await leave();}
  let releasing;
  return ()=>releasing??=(async()=>{

@@ -442,7 +442,10 @@ export function buildFixedNoveltiesQa({serverMajor,requireConcurrency=false}){
  SELECT pg_sleep(45);
  ROLLBACK;
  `;
- return {sql,lockSql,report,schema,ids};
+ // Separate foundation for committed integration. No regression statement or
+ // restore guard above is removed, skipped or converted into a commit.
+ const qaFoundation={pins,actors,setup:`CREATE SCHEMA ${schema}; SET LOCAL search_path=${schema},pg_catalog,public,pg_temp; ${baseTables} ${legacyFixtures} EXECUTE ${q(relocate(migration))}; ${fixtures}`};
+ return {sql,lockSql,report,schema,ids,qaFoundation};
 }
 
 function main(){

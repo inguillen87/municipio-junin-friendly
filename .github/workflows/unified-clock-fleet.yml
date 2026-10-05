@@ -6,6 +6,8 @@ on:
       - local-agents/clock-fleet/**
       - local-agents/pm10/**
       - scripts/verify-fleet-local-panel.mjs
+      - scripts/install-pm10-owner-generation.mjs
+      - tests/pm10-owner-installation.test.mjs
       - .github/workflows/unified-clock-fleet.yml
   push:
     branches: [master, internal-unified-clock-fleet-20260923]
@@ -13,6 +15,8 @@ on:
       - local-agents/clock-fleet/**
       - local-agents/pm10/**
       - docs/clock-windows-installer/**
+      - scripts/install-pm10-owner-generation.mjs
+      - tests/pm10-owner-installation.test.mjs
       - docs/CLOCK_FLEET_UNIFIED_20260923.md
       - .github/workflows/unified-clock-fleet.yml
 permissions:
@@ -38,6 +42,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify complete PM10 source manifest before regression
         run: node scripts/verify-fleet-local-panel.mjs --manifest-only
+      - name: Verify conservative owner-generation installation against actual clock source
+        run: node --test tests/pm10-owner-installation.test.mjs
       - run: node scripts/verify-platform-baseline.mjs
       - run: node scripts/verify-friendly-containment.mjs
       # Keep isolated PDF workers within their production deadline on shared runners.

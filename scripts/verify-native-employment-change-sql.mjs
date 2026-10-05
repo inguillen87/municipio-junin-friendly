@@ -6,10 +6,11 @@ import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentCatalogQa} from './verify-native-employment-catalog-sql.mjs';
 import {splitPostgresStatements} from './lib/sql-statements.mjs';
+import {nativeMonthlyQaInstallation} from './lib/native-monthly-qa-installation.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const q=x=>"'"+String(x).replaceAll("'","''")+"'",j=x=>q(JSON.stringify(x))+'::jsonb',sha=x=>createHash('sha256').update(x).digest('hex');
 const read=f=>fs.readFileSync(path.join(root,'scripts/migrations',f),'utf8').replaceAll('\r\n','\n');
-export function buildNativeEmploymentChangeQa({serverMajor,requireConcurrency=false}){
+export function buildNativeEmploymentChangeQa({serverMajor,requireConcurrency=false,withMonthlySource=false}){
  const base=buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency}),{schema,ids}=base,migration=read('104-native-employment-changes.sql');
  const relocate=s=>s.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(')
   .replaceAll("'public'::regnamespace",q(schema)+'::regnamespace')
@@ -38,7 +39,8 @@ export function buildNativeEmploymentChangeQa({serverMajor,requireConcurrency=fa
  assert.equal(sha(baselineBody),'ac2378ffb46bee399050ba658970db3eb8bde955e859116b7482b6359c9e5a70');
  const baselineProof="(SELECT jsonb_build_object('function',jsonb_build_object('oid',p.oid,'definition',pg_get_functiondef(p.oid),'owner',p.proowner,'acl',p.proacl),'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid='employment_contract'::regclass AND t.tgname LIKE 'grh_effective_baseline_%')) FROM pg_proc p WHERE p.oid='grh_effective_baseline_guard_v1()'::regprocedure)";
  exec(`SET LOCAL timezone='UTC'; ALTER TABLE employment_contract ADD COLUMN IF NOT EXISTS position_source_id text, ADD COLUMN IF NOT EXISTS status_explanation text, ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT clock_timestamp(), ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT clock_timestamp();
- ${consumerFns.join('\n')}
+ ${withMonthlySource ? nativeMonthlyQaInstallation(schema) : ''}
+ ${consumerFns.filter((_,i)=>!withMonthlySource||i===2).join('\n')}
  INSERT INTO capabilities SELECT m,k FROM (VALUES (${q(ids.maker)}::uuid,'employee.record.propose'),(${q(ids.checker)}::uuid,'employee.record.approve'),(${q(ids.samePerson)}::uuid,'employee.record.approve'),(${q(ids.unlinked)}::uuid,'employee.record.propose')) v(m,k) WHERE NOT EXISTS(SELECT 1 FROM capabilities c WHERE c.membership_id=v.m AND c.capability_key=v.k);
  target_id:=(new_receipt->>'contractId')::uuid; before_row:=${snapshot}; other_contracts:=${preserved}; old_registration:=(SELECT to_jsonb(reg_row) FROM native_employee_registration reg_row WHERE contract_id=target_id); old_person:=(SELECT to_jsonb(person_row) FROM person_identity person_row WHERE person_row.id=(before_row->>'person_id')::uuid); saved_hire:=native_employee_attempt_v1(maker,hire_key);
  EXECUTE ${install};
