@@ -10,8 +10,9 @@ import { splitPostgresStatements } from './sql-statements.mjs';
 import { definitions, command } from '../../tests/fixtures/own-payroll-program-synthetic.js';
 export const qaLiteral = v => "'" + String(v).replaceAll("'", "''") + "'";
 const q = qaLiteral, j = v => q(JSON.stringify(v)) + '::jsonb';
-export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true}={}) {
+export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true,installOwnPayroll=true}={}) {
   assert.equal(typeof seedProgram,'boolean');
+  assert.equal(typeof installOwnPayroll,'boolean');assert.ok(installOwnPayroll||!seedProgram,'Cannot seed an uninstalled program');
   const base = buildNativeEmploymentCatalogQa({ serverMajor }), { schema, ids, qaFoundation } = base;
   assert.match(schema, /^mc_qa_fixed_092_[a-f0-9]{32}$/);
   const read = file => fs.readFileSync(new URL('../migrations/' + file, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
@@ -47,8 +48,8 @@ export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true}={}) {
     REVOKE ALL ON FUNCTION school_certificate_native_family_v5(jsonb,uuid) FROM PUBLIC,municontrol_actions_runtime_app;
     ${install('110-native-employment-lifecycle.sql')}
     ${install('112-native-salary-definitions.sql')}
-    ${install('122-own-payroll-programs.sql')}
-    ${install('123-own-payroll-runs.sql')}
+    ${installOwnPayroll?install('122-own-payroll-programs.sql'):''}
+    ${installOwnPayroll?install('123-own-payroll-runs.sql'):''}
     INSERT INTO capabilities SELECT ${q(ids.maker)}::uuid,c FROM unnest(ARRAY['payroll.parameter.read','payroll.parameter.prepare','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare']) c;
     INSERT INTO capabilities SELECT ${q(ids.checker)}::uuid,c FROM unnest(ARRAY['payroll.parameter.read','payroll.parameter.approve']) c;
     boot:=native_employment_catalog_bootstrap_v1(maker);
@@ -70,7 +71,7 @@ export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true}={}) {
       PERFORM payroll_novelty_transition_v2(checker,(receipt#>>'{data,id}')::uuid,'approve',2,'validated_for_export',NULL,gen_random_uuid(),repeat('b',64));
     END LOOP;
     PERFORM qa_assert(NOT EXISTS(SELECT 1 FROM employment_movement WHERE employment_contract_id=(hire->>'contractId')::uuid) AND NOT EXISTS(SELECT 1 FROM grh_employees WHERE legajo='19041'),'synthetic own employee has no GRH predecessor');
-    PERFORM qa_assert((SELECT count(*)=2 FROM payroll_novelty_batch WHERE status='approved') AND (SELECT count(*)=0 FROM own_payroll_run_capture),'fixture seeds approved sources but never precomputes a capture/result');`;
+    PERFORM qa_assert((SELECT count(*)=2 FROM payroll_novelty_batch WHERE status='approved') ${installOwnPayroll?'AND (SELECT count(*)=0 FROM own_payroll_run_capture)':''},'fixture seeds approved sources but never precomputes a capture/result');`;
   const sql = `BEGIN ISOLATION LEVEL READ COMMITTED;
     SET LOCAL statement_timeout='90s'; SET LOCAL lock_timeout='2s';
     DO $seed$ DECLARE maker jsonb:=${j(qaFoundation.actors.maker)};checker jsonb:=${j(qaFoundation.actors.checker)};boot jsonb;body jsonb;receipt jsonb;hire jsonb;subject jsonb;cents text;BEGIN
