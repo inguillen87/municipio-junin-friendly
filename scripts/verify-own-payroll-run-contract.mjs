@@ -17,11 +17,19 @@ export function readOwnRunSqlFixture(logFile) {
   assert.equal(sqlReport.migration123Sha256, ownRunHashRaw(migration)); assert.ok(sqlReport.ownRunChecksPassed >= 30);
   const { sourceInventory: _audit, ...sources } = c.payload, expected = createOwnPayrollSnapshot(prepareOwnPayrollInput(sources));
   assert.deepEqual(c.saved.input, expected.input); assert.deepEqual(c.saved.result, expected.result); assert.equal(c.saved.inputSha256, expected.inputSha256); assert.equal(c.saved.resultSha256, expected.resultSha256);
+  if (sqlReport.fullMonthlyWriter) {
+    assert.equal(c.payload.monthly.batches.length, 2);
+    assert.equal(c.payload.fixed.export.data.total, 0);
+    const rows = c.payload.monthly.batches.flatMap(b => b.rows);
+    assert.equal(rows.reduce((sum, r) => sum + BigInt(r.amountCents), 0n), 2025n);
+    assert.ok(rows.every(r => r.subject.origin === 'MUNICONTROL' && r.subject.sourceCutoff === null && r.issues.length === 1 && r.issues[0].code === 'concept_not_observed' && r.issues[0].blocking === false));
+    assert.equal(expected.input.employees[0].inputs.find(i => i.key === 'addition').value, '20.25000000');
+  }
   return { capture: c, sqlReport };
 }
 import { createHash } from 'node:crypto';
 const ownRunHashRaw = s => createHash('sha256').update(s).digest('hex');
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
   assert.equal(process.argv.length, 3); const { capture: c, sqlReport } = readOwnRunSqlFixture(process.argv[2]);
-  console.log(JSON.stringify({ passed: true, synthetic: true, sqlChecks: sqlReport.checksPassed, captureChecks: sqlReport.ownRunChecksPassed, inputSha256: c.saved.inputSha256, resultSha256: c.saved.resultSha256, employeeCount: c.saved.result.employeeCount, rowCount: c.saved.result.rowCount, productiveInstallation: false, municipalApprovalVerified: false, paymentExecuted: false }));
+  console.log(JSON.stringify({ passed: true, synthetic: true, sqlChecks: sqlReport.checksPassed, captureChecks: sqlReport.ownRunChecksPassed, fullMonthlyWriter: !!sqlReport.fullMonthlyWriter, monthlyBatchCount: c.payload.monthly.batches.length, preservedObservationCount: c.payload.monthly.batches.flatMap(b => b.rows).reduce((sum,r)=>sum+r.issues.length,0), inputSha256: c.saved.inputSha256, resultSha256: c.saved.resultSha256, employeeCount: c.saved.result.employeeCount, rowCount: c.saved.result.rowCount, productiveInstallation: false, municipalApprovalVerified: false, paymentExecuted: false }));
 } catch (e) { console.error(JSON.stringify({ passed: false, message: e.message })); process.exitCode = 1; }

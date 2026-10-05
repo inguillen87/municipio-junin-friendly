@@ -11,8 +11,8 @@ import { programFingerprint } from '../lib/internal-own-payroll-program.js';
 import { command } from '../tests/fixtures/own-payroll-program-synthetic.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const q = v => "'" + String(v).replaceAll("'", "''") + "'", j = v => q(JSON.stringify(v)) + '::jsonb';
-export function buildOwnProgramQa({ serverMajor }) {
-  const base = buildNativeSalaryQa({ serverMajor }), { schema, ids } = base;
+export function buildOwnProgramQa({ serverMajor, withMonthlySource = false }) {
+  const base = buildNativeSalaryQa({ serverMajor, withMonthlySource }), { schema, ids } = base;
   const migration = fs.readFileSync(path.join(root, 'scripts/migrations/122-own-payroll-programs.sql'), 'utf8').replaceAll('\r\n', '\n');
   const relocate = s => s.replaceAll('public.', schema + '.').replaceAll(schema + '.digest(', 'public.digest(').replaceAll("'public'::regnamespace", q(schema) + '::regnamespace').replace(/SET search_path\s*=\s*pg_catalog,public,pg_temp/g, 'SET search_path=pg_catalog,' + schema + ',public,pg_temp');
   const statements = []; let count = 0;

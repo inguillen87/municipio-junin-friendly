@@ -33,6 +33,32 @@ test('sumar varias novedades requiere decisión expresa; no se supone que son ú
   assert.equal(prepareOwnPayrollInput(source).employees[0].inputs.find(i => i.key === 'addition').value, '20.25000000');
   source.programState.program.definition.bindings.find(b => b.key === 'addition').combine = 'single'; assert.throws(() => prepareOwnPayrollInput(source), e => e.code === 'SOURCE_AMBIGUOUS');
 });
+
+const unseenConcept = () => ({ code: 'concept_not_observed', severity: 'warning', blocking: false, field: 'conceptSourceId', details: { basis: 'published_grh_observation' } });
+test('el concepto aprobado propio no necesita un movimiento anterior en GRH; conserva la advertencia en la versión', () => {
+  const source = approvedSources(1), before = prepareOwnPayrollInput(source);
+  source.monthly.batches[0].rows[0].issues = [unseenConcept()];
+  const after = prepareOwnPayrollInput(source);
+  assert.deepEqual(after.employees, before.employees);
+  assert.notEqual(after.sourceVersions.novelties, before.sourceVersions.novelties);
+  assert.equal(source.monthly.batches[0].rows[0].issues.length, 1);
+});
+test('la observación histórica no homologa un concepto inactivo ni permite omitir otro código', () => {
+  const source = approvedSources(1); source.monthly.batches[0].rows[0].issues = [unseenConcept()];
+  source.programState.salaryCatalog.items.find(r => r.code === '120').active = false;
+  assert.throws(() => prepareOwnPayrollInput(source), e => e.code === 'DEFINITION_MISSING');
+  const other = approvedSources(1); Object.assign(other.monthly.batches[0].rows[0], { conceptSourceId: '999999999', issues: [unseenConcept()] });
+  assert.throws(() => prepareOwnPayrollInput(other), e => e.code === 'SOURCE_UNUSED');
+});
+for (const [label, patch] of [
+  ['bloqueante', { blocking: true }], ['error', { severity: 'error' }],
+  ['otro código', { code: 'existing_movement_conflict' }], ['centro sin homologar', { code: 'cost_center_not_observed', field: 'costCenterSourceId' }],
+  ['movimiento sin homologar', { code: 'movement_type_not_observed', field: 'movementType' }],
+  ['otro campo', { field: 'amountCents' }], ['otra base', { details: { basis: 'unknown' } }], ['contenido adicional', { extra: true }],
+]) test('una advertencia ' + label + ' no se elimina para habilitar el cálculo', () => {
+  const source = approvedSources(1); source.monthly.batches[0].rows[0].issues = [{ ...unseenConcept(), ...patch }];
+  assert.throws(() => prepareOwnPayrollInput(source), e => e.code === 'SOURCE_INVALID');
+});
 test('escala exige clase exacta; no toma el valor de otra categoría', () => {
   const source = approvedSources(), binding = source.programState.program.definition.bindings.find(b => b.key === 'base'); binding.sourceKind = 'scale';
   Object.assign(source.programState.salaryCatalog.items.find(x => x.code === '8800'), { kind: 'scale', categoryCode: '6', nature: null });

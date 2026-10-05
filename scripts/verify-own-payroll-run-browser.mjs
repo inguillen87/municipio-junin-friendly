@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 import { readOwnRunSqlFixture } from './verify-own-payroll-run-contract.mjs';
 const root = path.resolve(import.meta.dirname, '..'), args = process.argv.slice(2), log = args.find(a => a.startsWith('--sql-log='))?.slice(10), channel = args.find(a => a.startsWith('--channel='))?.slice(10);
 assert.ok(log); assert.ok(channel === undefined || ['chrome', 'msedge'].includes(channel)); assert.equal(args.length, channel ? 2 : 1);
-const { capture } = readOwnRunSqlFixture(log), files = new Map(['own-payroll-run-model.js', 'own-payroll-engine.js', 'own-payroll-exact.js', 'native-salary-catalog-model.js'].map(n => ['/assets/' + n, fs.readFileSync(path.join(root, 'assets', n))]));
+const { capture, sqlReport } = readOwnRunSqlFixture(log), files = new Map(['own-payroll-run-model.js', 'own-payroll-engine.js', 'own-payroll-exact.js', 'native-salary-catalog-model.js'].map(n => ['/assets/' + n, fs.readFileSync(path.join(root, 'assets', n))]));
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET') { res.writeHead(405).end(); return; }
   if (req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }).end('<!doctype html><html lang="es"><title>QA sintético de recuperación C2</title></html>'); return; }
@@ -23,6 +23,6 @@ try {
   for (const change of [c => c.saved.result.paymentExecuted = true, c => c.body.period = '2026-13', c => c.payload.period = '2026-01', c => c.saved.input.period = '2026-01']) {
     const c = structuredClone(capture); change(c); assert.equal(await page.evaluate(async c => { try { (await import('/assets/own-payroll-run-model.js')).ownRunCapture(c); return false; } catch { return true; } }, c), true); checks++;
   }
-  const report = { passed: true, checks, runtime: channel ?? 'Chromium', synthetic: true, savedResultFromRealPostgres: true, employeeCount: capture.saved.result.employeeCount, resultRows: capture.saved.result.rowCount, productUiVerified: false, municipalApisCalled: 0, productiveInstallation: false };
-  fs.writeFileSync(path.join(root, 'verification/own-payroll-run-browser-20261005.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
+  const report = { passed: true, checks, runtime: channel ?? 'Chromium', synthetic: true, savedResultFromRealPostgres: true, fullMonthlyWriter: !!sqlReport.fullMonthlyWriter, monthlyBatchCount: capture.payload.monthly.batches.length, preservedObservationCount: capture.payload.monthly.batches.flatMap(b => b.rows).reduce((sum,r)=>sum+r.issues.length,0), employeeCount: capture.saved.result.employeeCount, resultRows: capture.saved.result.rowCount, productUiVerified: false, municipalApisCalled: 0, productiveInstallation: false };
+  fs.writeFileSync(path.join(root, sqlReport.fullMonthlyWriter ? 'verification/own-payroll-monthly-browser-20261005.json' : 'verification/own-payroll-run-browser-20261005.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

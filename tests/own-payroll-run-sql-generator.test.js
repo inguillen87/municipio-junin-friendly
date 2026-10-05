@@ -12,3 +12,16 @@ test('SQL123 conserva las648 verificaciones previas y añade persistencia en bas
     assert.ok(qa.report.limitations.some(x => x.includes('typed empty fixtures')));
   }
 });
+
+test('la composición mensual instala101 completo antes104/110 y conserva todas las regresiones originales', () => {
+  for (const serverMajor of [17, 18]) {
+    const qa = buildOwnRunQa({ serverMajor, withMonthlySource: true });
+    assert.equal(qa.report.checksPassed, 684); assert.equal(qa.report.ownRunChecksPassed, 36);
+    assert.equal(qa.report.fullMonthlyWriter, true);
+    assert.ok(qa.sql.includes("'concept_not_observed'"));
+    assert.ok(qa.sql.includes('payroll_novelty_prepare_v2(maker')); assert.ok(qa.sql.includes('payroll_novelty_transition_v2(checker'));
+    assert.ok(qa.sql.includes('two full101 prepare-submit-approve cycles'));
+    assert.ok(qa.sql.includes("current_database()<>'own_payroll_run_qa'")); assert.ok(qa.sql.includes("current_setting('neon.project_id',true)"));
+    assert.ok(qa.sql.trimEnd().endsWith('ROLLBACK;')); assert.ok(qa.report.limitations.some(x => x.includes('committed durability')));
+  }
+});

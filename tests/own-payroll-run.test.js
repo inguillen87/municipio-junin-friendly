@@ -11,6 +11,14 @@ test('captura completa se calcula en servidor y se persiste sin entregar importe
   const r = await operate(sql); assert.equal(calls.length, 2); assert.match(calls[0][0], /own_run_capture/); assert.match(calls[1][0], /own_run_complete/);
   assert.equal(r.saved.result.rowCount, 12); assert.equal(r.saved.result.paymentExecuted, false); assert.equal(r.saved.result.municipalApprovalVerified, false); assert.equal(r.saved.inputSha256, ownRunHash(JSON.parse(calls[1][1][2])));
 });
+
+test('una observación histórica de GRH no impide guardar el cálculo de un concepto propio aprobado', async () => {
+  const c = capture(); c.payload.monthly.batches[0].rows[0].issues = [{ code: 'concept_not_observed', severity: 'warning', blocking: false, field: 'conceptSourceId', details: { basis: 'published_grh_observation' } }];
+  c.payloadSha256 = ownRunHash(c.payload); let calls = 0;
+  const r = await operate({ query: async () => [{ result: ++calls === 1 ? c : saved(c) }] });
+  assert.equal(calls, 2); assert.equal(r.saved.input.employees[0].inputs.find(i => i.key === 'addition').value, '20.00000000');
+  assert.deepEqual(r.payload.monthly.batches[0].rows[0].issues, c.payload.monthly.batches[0].rows[0].issues);
+});
 test('resultado recuperado conserva fuentes anteriores incluso con otra versión actual del motor', async () => {
   const c = capture(); c.saved = saved(c); c.replayed = true; let count = 0;
   const r = await operate({ query: async () => { count++; return [{ result: c }]; } }, 'calculate', { key: c.key, body: c.body }, hash('e'));

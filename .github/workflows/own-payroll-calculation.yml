@@ -2,9 +2,9 @@ name: Own payroll calculation
 on:
   push:
     branches: ['master', 'codex/own-payroll-engine-20261004']
-    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
   pull_request:
-    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
 permissions:
   contents: read
 jobs:
@@ -68,7 +68,14 @@ jobs:
           PGPASSWORD: own-payroll-synthetic-qa
         run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -f verification/own-run.sql > verification/own-run-sql.log 2>&1
       - run: node scripts/verify-own-payroll-run-contract.mjs verification/own-run-sql.log
+      - run: node scripts/verify-own-payroll-run-sql.mjs --ci --expected-major=${{ matrix.major }} --with-monthly-source --write-sql=verification/own-monthly.sql
+      - name: Verify full published monthly writer to own calculation
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -f verification/own-monthly.sql > verification/own-monthly-sql.log 2>&1
+      - run: node scripts/verify-own-payroll-run-contract.mjs verification/own-monthly-sql.log
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-own-payroll-browser.mjs
       - run: node scripts/verify-own-payroll-program-browser.mjs --sql-log=verification/own-program-sql.log
       - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-run-sql.log
+      - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-monthly-sql.log
