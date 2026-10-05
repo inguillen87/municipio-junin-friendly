@@ -119,3 +119,9 @@ Fuentes: [criterios de los diez módulos](MATRIZ_ACEPTACION_NOELIA.md), [priorid
 ### Continuidad del 04/10: corrección de lotes aprobados
 
 El incremento de fase 2 / módulo 5 conecta selección completa, campos elegidos, antes/después, propuesta y revisión independiente de los lotes aprobados. [Alcance y evidencia local](NOELIA_CORRECCION_LOTES_APROBADOS_20261004.md): probado en PostgreSQL 17/18 y navegador; instalación conservadora, CI y publicación todavía pendientes. Conserva #100, no agrega otro escritor de novedades ni cálculo salarial y no cierra la fase 2 integral.
+
+### C2 · reglas ejecutables y entradas propias
+
+La corrección de lotes anterior quedó publicada con #101, SHA `a302dca820690863e4589008cf25117ddf963cc0`; conserva su alcance administrativo. El frente actual continúa la [base nueva del motor](MOTOR_PROPIO_C2_BASE_20261004.md) y agrega [programas aprobables y entradas exactas](MOTOR_PROPIO_C2_REGLAS_Y_ENTRADAS_20261004.md). El código nuevo funciona en pruebas aisladas, con aprobación independiente real en PostgreSQL y cálculo técnico de fuentes sintéticas. No se leyó, ejecutó ni reconstruyó un borrador rechazado.
+
+SQL122, su API y el adaptador están implementados y probados localmente; instalación productiva, captura autorizada persistente de fuentes, UI, CI remoto y publicación de este incremento siguen pendientes. Un catálogo o programa desactualizado, identidad cambiada o entrada ausente impide calcular. No se declaran C2, los módulos6/7, el límite500 ni la autonomía integral cerrados.

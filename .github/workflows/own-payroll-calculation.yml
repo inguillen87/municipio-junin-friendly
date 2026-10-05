@@ -2,15 +2,15 @@ name: Own payroll calculation
 on:
   push:
     branches: ['master', 'codex/own-payroll-engine-20261004']
-    paths: ['assets/own-payroll-*.js', 'lib/own-payroll-snapshot.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-synthetic.js', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
   pull_request:
-    paths: ['assets/own-payroll-*.js', 'lib/own-payroll-snapshot.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-synthetic.js', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'api/internal-own-payroll-program.js', 'lib/internal-own-payroll-program.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
 permissions:
   contents: read
 jobs:
   exact-calculation:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -38,11 +38,24 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: node --test tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js
+      - run: node --test tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
       - run: mkdir -p verification
       - name: Compare with independent PostgreSQL numeric
         run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
         env:
           PGPASSWORD: own-payroll-synthetic-qa
+      - name: Create isolated own-program QA database
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: |
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE own_payroll_program_qa;'
+          psql -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_program_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app;'
+      - run: node scripts/verify-own-payroll-program-sql.mjs --ci --expected-major=${{ matrix.major }} --write-sql=verification/own-program.sql
+      - name: Verify actual program approval and original regressions
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: psql -X -h 127.0.0.1 -p ${{ matrix.port }} -U postgres -d own_payroll_program_qa -v ON_ERROR_STOP=1 -f verification/own-program.sql > verification/own-program-sql.log 2>&1
+      - run: node scripts/verify-own-payroll-program-contract.mjs verification/own-program-sql.log
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-own-payroll-browser.mjs
+      - run: node scripts/verify-own-payroll-program-browser.mjs --sql-log=verification/own-program-sql.log

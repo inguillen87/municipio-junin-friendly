@@ -6,6 +6,14 @@ import {schoolCertificateHttp} from '../api/internal-family-certificates.js';
 const fail = kind => {throw Object.assign(Error('Safe private body failure'), {kind});};
 const options = {maxBytes: 4096, timeoutMs: 30, fail};
 
+test('explicit program depth keeps default limit and duplicate-name guard unchanged', async () => {
+  const source = '{"node":' + '['.repeat(12) + '0' + ']'.repeat(12) + '}';
+  assert.throws(() => parseScopedPrivateJson(source));
+  assert.deepEqual(await readRawPrivateJson({ body: source }, { ...options, maxDepth: 40 }), JSON.parse(source));
+  for (const maxDepth of [0, 49, Infinity, '40']) assert.throws(() => parseScopedPrivateJson('{}', { maxDepth }));
+  assert.throws(() => parseScopedPrivateJson('{"node":' + '['.repeat(12) + '{"x":0,"\\u0078":1}' + ']'.repeat(12) + '}', { maxDepth: 40 }));
+});
+
 test('identical field names in parent, child and sibling objects retain every exact value', () => {
   const value = {command: 'outer', payload: {command: 'inner', items: [{values: {id: 'first', text: '{"fake":1} \\ " :'}}, {values: {id: 'second', text: 'áéíóú'}}]}};
   assert.deepEqual(parseScopedPrivateJson(JSON.stringify(value)), value);

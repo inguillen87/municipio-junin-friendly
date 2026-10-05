@@ -57,21 +57,25 @@ export function normalizeOwnPayrollInput(input) {
     const inputs = e.inputs.map(i => { shape(i, ['key', 'unit', 'value', 'sourceReference']); require(key(i.key) && units.has(i.unit) && reference(i.sourceReference), 'INPUT_INVALID', 'Cada entrada necesita clave, unidad y procedencia.'); if (i.value !== null) decimal(i.value); return { ...i }; }).sort((a, b) => order(a.key, b.key));
     unique(inputs.map(i => i.key)); return { ...e, inputs };
   }).sort((a, b) => order(a.contractId, b.contractId)); unique(employees.map(e => e.contractId));
-  list(input.rules, OWN_PAYROLL_LIMITS.rules);
-  const rules = input.rules.map(r => {
+  const rules = normalizeOwnPayrollRules(input.rules);
+  return { ...input, selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
+}
+export function normalizeOwnPayrollRules(raw) {
+  list(raw, OWN_PAYROLL_LIMITS.rules);
+  const rules = raw.map(r => {
     shape(r, ['code', 'agreementCode', 'nature', 'unit', 'validFrom', 'validUntil', 'liquidationTypes', 'ruleReference', 'rounding', 'expression']);
     require(code(r.code) && code(r.agreementCode) && natures.has(r.nature) && units.has(r.unit) && (r.nature === 'auxiliary' || r.unit === 'money') && month(r.validFrom) && (r.validUntil === null || month(r.validUntil) && r.validUntil >= r.validFrom) && reference(r.ruleReference), 'RULE_INVALID', 'La regla necesita naturaleza, unidad, vigencia y respaldo explícitos.');
     list(r.liquidationTypes, types.size); require(r.liquidationTypes.every(t => types.has(t)), 'RULE_INVALID', 'El tipo de liquidación no está admitido.'); unique(r.liquidationTypes);
     return { ...r, liquidationTypes: [...r.liquidationTypes].sort(), rounding: roundingPolicy(r.rounding), expression: expression(r.expression) };
-  }).sort((a, b) => order(JSON.stringify([a.agreementCode, a.code, a.validFrom, a.liquidationTypes]), JSON.stringify([b.agreementCode, b.code, b.validFrom, b.liquidationTypes])));
+  }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.code, b.code) || order(a.validFrom, b.validFrom) || order(a.liquidationTypes.join(','), b.liquidationTypes.join(',')));
   const groups = new Map();
   for (const r of rules) for (const type of r.liquidationTypes) {
     const id = `${r.agreementCode}:${r.code}:${type}`, previous = groups.get(id) ?? [];
     require(previous.every(p => (r.validUntil ?? '9999-12') < p.validFrom || (p.validUntil ?? '9999-12') < r.validFrom), 'RULE_OVERLAP', 'Hay reglas superpuestas para el mismo convenio, concepto y tipo.'); previous.push(r); groups.set(id, previous);
   }
-  return { ...input, selection: { kind: input.selection.kind, values: [...input.selection.values].sort() }, sourceVersions: { ...input.sourceVersions }, employees, rules };
+  return rules;
 }
-function compileRules(rules) {
+function compileRules(rules, budget = { operations: 0 }) {
   const map = new Map(rules.map(r => [r.code, r])), compiled = new Map(), visiting = new Set();
   function compile(code) {
     require(map.has(code), 'RULE_MISSING', 'Falta una regla referenciada vigente para este convenio y tipo.');
@@ -80,6 +84,7 @@ function compileRules(rules) {
     require(visiting.size < OWN_PAYROLL_LIMITS.dependencyDepth, 'DEPENDENCY_LIMIT', 'La cadena de dependencias supera la capacidad declarada; no se omiten conceptos.');
     visiting.add(code); const dependencies = new Set();
     function unit(n) {
+      require(++budget.operations <= OWN_PAYROLL_LIMITS.operations, 'EXPRESSION_LIMIT', 'La revisión supera su capacidad de operaciones. No se omiten reglas.');
       if (['literal', 'input'].includes(n.op)) return n.unit;
       if (n.op === 'concept') { dependencies.add(n.code); return compile(n.code).unit; }
       if (n.op === 'round') { const result = unit(n.value); require(result !== 'boolean', 'UNIT_MISMATCH', 'No se redondea una condición.'); return result; }
@@ -97,6 +102,23 @@ function compileRules(rules) {
   }
   for (const code of map.keys()) compile(code);
   return compiled;
+}
+export function validateOwnPayrollRulePeriods(raw) {
+  const rules = normalizeOwnPayrollRules(raw), groups = new Map();
+  const budget = { operations: 0 };
+  let checks = 0;
+  const nextMonth = m => { const [y, n] = m.split('-').map(Number); return String(n === 12 ? y + 1 : y) + '-' + String(n === 12 ? 1 : n + 1).padStart(2, '0'); };
+  for (const rule of rules) for (const type of rule.liquidationTypes) { const k = `${rule.agreementCode}:${type}`, group = groups.get(k) ?? []; group.push(rule); groups.set(k, group); }
+  for (const group of groups.values()) {
+    const boundaries = [...new Set(group.flatMap(r => [r.validFrom, ...(r.validUntil ? [nextMonth(r.validUntil)] : [])]))].sort();
+    for (const period of boundaries) {
+      const active = group.filter(r => r.validFrom <= period && (r.validUntil === null || r.validUntil >= period));
+      checks += active.length;
+      require(checks <= 50000, 'EXPRESSION_LIMIT', 'El programa supera la capacidad de revisión de vigencias. No se omiten reglas.');
+      compileRules(active, budget);
+    }
+  }
+  return rules;
 }
 export function calculateOwnPayroll(raw) {
   const snapshot = normalizeOwnPayrollInput(raw), { period, liquidationType, selection } = snapshot;
