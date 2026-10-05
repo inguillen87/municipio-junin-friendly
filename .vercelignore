@@ -291,3 +291,4 @@ local-agents/
 !scripts/migrations/122-own-payroll-programs.sql
 !scripts/migrations/123-own-payroll-runs.sql
 !scripts/migrations/124-own-payroll-liquidation-decisions.sql
+!scripts/migrations/125-own-payroll-close.sql
