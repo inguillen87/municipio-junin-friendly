@@ -38,7 +38,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: node --test tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
+      - run: node --test tests/own-payroll-program-workspace.test.js tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
       - run: mkdir -p verification
       - name: Compare with independent PostgreSQL numeric
         run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
@@ -85,6 +85,10 @@ jobs:
         env:
           PGPASSWORD: own-payroll-synthetic-qa
         run: node scripts/verify-own-payroll-run-ui.mjs --ci --built --major=${{ matrix.major }} --browser=chromium --output=verification/own-run-ui.json
+      - name: Author from empty, independently approve and calculate through actual product UI
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --major=${{ matrix.major }} --browser=chromium --output=verification/own-program-ui.json
       - run: node scripts/verify-own-payroll-browser.mjs
       - run: node scripts/verify-own-payroll-program-browser.mjs --sql-log=verification/own-program-sql.log
       - run: node scripts/verify-own-payroll-run-browser.mjs --sql-log=verification/own-run-sql.log

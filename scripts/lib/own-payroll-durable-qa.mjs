@@ -10,7 +10,8 @@ import { splitPostgresStatements } from './sql-statements.mjs';
 import { definitions, command } from '../../tests/fixtures/own-payroll-program-synthetic.js';
 export const qaLiteral = v => "'" + String(v).replaceAll("'", "''") + "'";
 const q = qaLiteral, j = v => q(JSON.stringify(v)) + '::jsonb';
-export function buildOwnPayrollDurableQa(serverMajor) {
+export function buildOwnPayrollDurableQa(serverMajor,{seedProgram=true}={}) {
+  assert.equal(typeof seedProgram,'boolean');
   const base = buildNativeEmploymentCatalogQa({ serverMajor }), { schema, ids, qaFoundation } = base;
   assert.match(schema, /^mc_qa_fixed_092_[a-f0-9]{32}$/);
   const read = file => fs.readFileSync(new URL('../migrations/' + file, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
@@ -57,10 +58,10 @@ export function buildOwnPayrollDurableQa(serverMajor) {
     body:=jsonb_build_object('command','propose','scopeVersion',boot->>'scopeVersion','baseVersion',boot#>>'{catalog,version}','classificationVersion',boot#>>'{classification,version}','proposalId',NULL,'proposalSha256',NULL,'items',${j(definitions())},'reason','Synthetic salary definitions; no municipal rules','reviewConfirmed',false);
     receipt:=native_salary_command_v1(maker,body,gen_random_uuid());
     PERFORM native_salary_command_v1(checker,body||jsonb_build_object('command','approve','scopeVersion',native_salary_bootstrap_v1(checker)->>'scopeVersion','items',NULL,'proposalId',receipt->>'proposalId','proposalSha256',receipt->>'requestSha256','reviewConfirmed',true),gen_random_uuid());
-    boot:=own_program_bootstrap_v1(maker);
+    ${seedProgram?`boot:=own_program_bootstrap_v1(maker);
     body:=${j(command())}||jsonb_build_object('scopeVersion',boot->>'scopeVersion','baseVersion',boot#>>'{program,version}','salaryVersion',boot#>>'{salaryCatalog,version}');
     receipt:=own_program_command_v1(maker,body,gen_random_uuid());
-    PERFORM own_program_command_v1(checker,body||jsonb_build_object('command','approve','scopeVersion',own_program_bootstrap_v1(checker)->>'scopeVersion','program',NULL,'proposalId',receipt->>'proposalId','proposalSha256',receipt->>'requestSha256','reviewConfirmed',true),gen_random_uuid());
+    PERFORM own_program_command_v1(checker,body||jsonb_build_object('command','approve','scopeVersion',own_program_bootstrap_v1(checker)->>'scopeVersion','program',NULL,'proposalId',receipt->>'proposalId','proposalSha256',receipt->>'requestSha256','reviewConfirmed',true),gen_random_uuid());`:''}
     hire:=native_employee_create_v1(maker,'{"agreementCode":"1","birthDate":"1990-01-01","categoryCode":"1","cuil":"20990000418","dni":"99000041","fullName":"Corrida durable sintética propia","jobTitle":"Administración QA","legajo":"19041","legalReference":"Resolución sintética QA","organizationId":"10","sectorCode":"20","sexCode":"X","startDate":"2026-10-01","jurisdictionCode":"42"}'::jsonb,native_employee_catalog_v1(native_employee_context_v1(maker))->>'version',gen_random_uuid());
     subject:=payroll_fixed_registry_employee_by_contract_v1(maker,(hire->>'contractId')::uuid)->'subject';
     FOR cents IN SELECT unnest(ARRAY['2000','25']) LOOP
