@@ -1,0 +1,48 @@
+name: Own payroll calculation
+on:
+  push:
+    branches: ['master', 'codex/own-payroll-engine-20261004']
+    paths: ['assets/own-payroll-*.js', 'lib/own-payroll-snapshot.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-synthetic.js', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+  pull_request:
+    paths: ['assets/own-payroll-*.js', 'lib/own-payroll-snapshot.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-synthetic.js', 'scripts/verify-own-payroll-*.mjs', '.github/workflows/own-payroll-calculation.yml']
+permissions:
+  contents: read
+jobs:
+  exact-calculation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - major: 17
+            port: 55417
+          - major: 18
+            port: 55418
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: native_monthly_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: own-payroll-synthetic-qa
+        ports:
+          - ${{ matrix.port }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d native_monthly_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js
+      - run: mkdir -p verification
+      - name: Compare with independent PostgreSQL numeric
+        run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-own-payroll-browser.mjs
