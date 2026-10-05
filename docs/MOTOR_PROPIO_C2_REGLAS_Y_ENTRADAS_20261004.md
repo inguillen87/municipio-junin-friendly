@@ -1,5 +1,7 @@
 # C2 · reglas propias aprobables y entradas exactas
 
+Continuación05/10: [captura autorizada y resultado propio](MOTOR_PROPIO_C2_CAPTURA_Y_RESULTADO_20261005.md) añade la API y SQL123 locales. Sus pruebas y límites se acreditan por separado; la captura completa mensual, durabilidad trasCOMMIT, UI, instalación y publicación conservan sus pendientes. Los párrafos siguientes documentan el incremento de reglas del04/10.
+
 Noelia necesita calcular lo cargado con una versión concreta de las reglas y las novedades. Este incremento agrega un registro propio de programas estructurados, vinculado al catálogo salarial aprobado112, y un adaptador que entrega al motor los parámetros, escalas y novedades propias verificados. Continúa la autorización de Marcelo para desarrollar el motor nuevo en pruebas; los borradores rechazados permanecen excluidos. No acredita una liquidación municipal ni un cierre de fase en producción.
 
 El programa declara conceptos, naturaleza del resultado, unidad, convenio, vigencia, tipos de liquidación, expresiones estructuradas, etapa de cada dependencia y redondeo. Cada entrada declara fuente y código, unidad, tratamiento de ausencia y combinación única o suma expresa. La unidad y precisión de la entrada del catálogo no determinan la unidad o el redondeo de un importe salarial calculado. No se transforma el código95 ni otra unidad en horas o porcentajes por defecto.
