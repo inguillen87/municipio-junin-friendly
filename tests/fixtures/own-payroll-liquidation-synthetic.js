@@ -1,0 +1,7 @@
+import {approvedSources} from './own-payroll-approved-synthetic.js';
+import {capture,saved} from './own-payroll-run-synthetic.js';
+import {uid,hash} from './own-payroll-program-synthetic.js';
+import {ownRunHash} from '../../lib/internal-own-payroll-run.js';
+export function detail(count=2){const c=capture();c.payload={...approvedSources(count),sourceInventory:{populationDomain:'native_registered'}};c.payloadSha256=ownRunHash(c.payload);c.saved=saved(c);return {version:'own-liquidation-detail.v1',id:c.id,scopeVersion:hash('a'),stateVersion:hash('b'),reviewAccessRequired:true,capture:c,employees:c.saved.result.employeeTotals.map(e=>({contractId:e.contractId,state:'calculated',version:0,liquidationVersion:null,blockedBy:null,allowedCommands:['confirm'],events:[]})),effects:{paymentExecuted:false,accountingPosted:false,periodClosed:false}};}
+export function command(patch={}){const d=detail();return {runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command:'confirm',selection:{kind:'all',values:[]},reason:'Confirmación exclusivamente sintética QA',reviewConfirmed:true,...patch};}
+export function receipt(patch={}){const body=command();return {version:'own-liquidation-receipt.v1',id:uid(80),key:uid(9),body,bodySha256:ownRunHash(body),runId:body.runId,resultSha256:body.resultSha256,affected:detail().employees.map(e=>({contractId:e.contractId,state:'confirmed',version:1,liquidationVersion:1})),recordedAt:'2026-10-05T12:00:00Z',replayed:false,...patch};}

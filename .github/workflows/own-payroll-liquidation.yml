@@ -1,0 +1,49 @@
+name: Own payroll liquidation decisions
+on:
+  push:
+    branches: ['master', 'codex/own-liquidation-decisions-20261005']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+  pull_request:
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-liquidation.js', 'lib/internal-own-payroll-*.js', 'scripts/migrations/124-*', 'scripts/*own-payroll*liquidation*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-liquidation*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-liquidation.yml']
+permissions:
+  contents: read
+jobs:
+  decisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        major: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: own_payroll_run_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: own-liquidation-synthetic-qa
+        ports:
+          - 554${{ matrix.major }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGPASSWORD: own-liquidation-synthetic-qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: mkdir -p verification
+      - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
+      - run: node --test tests/own-payroll-liquidation*.test.js tests/own-payroll-run*.test.js
+      - name: Confirm, annul, recalculate, scoped decisions and real SQL revocation
+        run: node scripts/verify-own-payroll-liquidation.mjs --major=${{ matrix.major }} --output=verification/own-liquidation-sql.json
+      - name: Exact installation COMMIT and independent preservation
+        run: node scripts/verify-own-payroll-liquidation-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/own-liquidation-installation.json
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Actual built product UI and HTTP handler, mobile, all pages and immutable retries
+        run: node scripts/verify-own-payroll-liquidation-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/own-liquidation-ui.json
