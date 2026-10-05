@@ -1,0 +1,13 @@
+# PM10 · propiedad de locks cuando Windows reutiliza un PID
+
+La lectura operativa del05/10 encontró captura reciente y entrega detenida. El lock de entrega pertenecía a un PID que Windows había reutilizado para un proceso posterior. La guarda anterior comprobaba sólo la existencia del número: trataba ese proceso distinto como dueño del lock y bloqueaba la adquisición. No faltaban capturas del dispositivo.
+
+La corrección mantiene la exclusión mediante `process.lock.transition`. En Windows consulta únicamente el instante de creación del PID, sin leer argumentos, cuentas o credenciales. Los locks nuevos conservan esa generación. Un PID vivo de la misma generación sigue ocupado; una generación anterior o una inspección no disponible no concede la adquisición. La ausencia comprobada del proceso conserva el comportamiento existente.
+
+Para locks anteriores sin generación, sólo se recupera si Windows prueba que el proceso actual nació después del archivo de dueño, con margen conservador de diez segundos para resolución temporal. El directorio antiguo se conserva como evidencia y el nuevo dueño se registra bajo el mismo gate. Los gates incompletos/interrumpidos nunca se recuperan automáticamente, incluso si su PID es obsoleto. Linux conserva su comprobación de PID anterior.
+
+Las pruebas usan procesos y colas sintéticos. Verifican dueño vivo, datos incompletos, generación exacta, compatibilidad anterior, conservación de originales/recibos y dos procesos reales que intentan recuperar el mismo PID. No se cambian protocolos, reglas de asistencia, identidades de empleados, parsers, tokens, criterios de acuse ni límites de captura.
+
+El instalador acotado admite sólo la instalación PM10 ya existente bajo LocalAppData. Revisa huellas exactas, exige parada normal y locks de supervisor/captura ausentes, respalda el módulo y cambia únicamente su prefijo de propiedad. Conserva byte por byte la parte de captura instalada, incluyendo su variante anterior. Rechaza otro proyecto, drift, fuente sin commit y cambios concurrentes. No borra ni mueve un lock municipal por fuera de la adquisición normal del agente y no inicia otro lector/remitente.
+
+La instalación efectiva, conservación de cola, nuevos acuses y reanudación se acreditan en `verification/CODEX_PM10_OWNER_RESULT_20261005.md`. El código probado y un acuse reciente no certifican autonomía con la PC personal apagada, ni convierten las marcaciones en extras aprobadas. Mantienen sus pendientes el host municipal/cloud, vínculos por vigencia, reglas de jornada/pausas/extras y circuito de Personal→novedades→nómina propia. Los diez módulos y las firmas/expedientes conservan íntegro su alcance.
