@@ -183,7 +183,7 @@ export function buildNativeFixedQa({serverMajor,requireConcurrency=false}){
  let sql=base.sql.replace(anchor,()=>block+'\n'+anchor).replace('checks<>'+base.report.checksPassed,'checks<>'+report.checksPassed).replace(j(base.report),()=>j(report));
  assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql),'Synthetic public writes prohibited');
  assert.ok(sql.includes('checks<>'+report.checksPassed));
- return {...base,sql,report};
+ return {...base,sql,report,qaFoundation:{...base.qaFoundation,setup:base.qaFoundation.setup+'\n'+setup+'\nEXECUTE '+q(relocate(migration))+';'}};
 }
 function main(){
  const args={};for(const a of process.argv.slice(2)){

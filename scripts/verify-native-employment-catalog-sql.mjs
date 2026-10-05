@@ -39,7 +39,7 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
  const rejectCall=(op,actor,payload,key,error,label)=>reject('format('+q('SELECT '+call(op,'%1$L::jsonb','%2$L::jsonb,%3$L::uuid'))+','+[actor,payload,key].join(',')+')',error,label);
  const fault=(mutation,body)=>exec("BEGIN "+mutation+' '+body+" RAISE EXCEPTION USING ERRCODE='P1032',MESSAGE='RESTORE_CATALOG_FAULT'; EXCEPTION WHEN SQLSTATE 'P1032' THEN NULL; END;");
  const fingerprint="(SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY id)::text) FROM employment_contract c)";
- exec(`
+ const catalogSetup=`
  CREATE VIEW grh_source_employees_v1 AS SELECT * FROM grh_employees;
  CREATE VIEW grh_source_catalog_rows_v1 AS SELECT * FROM grh_catalog_rows;
  CREATE VIEW grh_effective_source_batch_v1 AS SELECT * FROM source_import_batch;
@@ -52,9 +52,12 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
  ALTER TABLE iam_role ADD PRIMARY KEY(role_key); ALTER TABLE iam_role_capability ADD PRIMARY KEY(role_key,capability_key);
  INSERT INTO iam_role VALUES('CATALOG_MAKER_QA','tenant'),('CATALOG_REVIEWER_QA','tenant'),('CATALOG_PLATFORM_QA','platform');
  INSERT INTO iam_role_capability VALUES('CATALOG_MAKER_QA','employee.record.propose'),('CATALOG_REVIEWER_QA','employee.record.approve'),('CATALOG_PLATFORM_QA','employee.record.propose');
+ `;
+ const catalogCapabilities=`INSERT INTO capabilities VALUES(${q(ids.maker)},'employee.catalog.propose'),(${q(ids.checker)},'employee.catalog.approve'),(${q(ids.samePerson)},'employee.catalog.approve'),(${q(ids.unlinked)},'employee.catalog.propose'),(${q(ids.unlinked)},'employee.catalog.approve'),(${q(ids.outsider)},'employee.catalog.propose'),(${q(ids.blocked)},'employee.catalog.propose');`;
+ exec(`${catalogSetup}
  old_contracts:=${fingerprint}; old_receipt:=native_employee_attempt_v1(maker,native_key);
  EXECUTE ${install};
- INSERT INTO capabilities VALUES(${q(ids.maker)},'employee.catalog.propose'),(${q(ids.checker)},'employee.catalog.approve'),(${q(ids.samePerson)},'employee.catalog.approve'),(${q(ids.unlinked)},'employee.catalog.propose'),(${q(ids.unlinked)},'employee.catalog.approve'),(${q(ids.outsider)},'employee.catalog.propose'),(${q(ids.blocked)},'employee.catalog.propose');
+ ${catalogCapabilities}
  boot:=${call('bootstrap')}; initial_catalog:=boot->'catalog'; items_value:=initial_catalog->'items';
  proposal_body:=jsonb_build_object('baseVersion',initial_catalog->>'version','scopeVersion',boot->>'scopeVersion','reason','Actualizar el catálogo municipal','items',items_value);
  `);
@@ -177,7 +180,7 @@ export function buildNativeEmploymentCatalogQa({serverMajor,requireConcurrency=f
  const lockSql=base.lockSql.replaceAll("current_database()<>'fixed_novelties_qa'","current_database()<>'native_employment_catalog_qa'")
   .replace(" SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'"," SELECT pg_advisory_xact_lock("+catalogLock+");\n SELECT 'FIXED_NOVELTIES_QA_LOCK_READY'")
   .replace(' SELECT pg_sleep(45);'," DO $hold$ DECLARE deadline timestamptz:=clock_timestamp()+interval '210 seconds'; BEGIN LOOP IF NOT pg_try_advisory_lock("+finishLock+") THEN EXIT; END IF; PERFORM pg_advisory_unlock("+finishLock+"); IF clock_timestamp()>deadline THEN RAISE EXCEPTION 'CATALOG_QA_MAIN_TIMEOUT'; END IF; PERFORM pg_sleep(0.05); END LOOP; END $hold$;");
- assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return {...base,sql,lockSql,report};
+ assert.ok(!/INSERT\s+INTO\s+public\./i.test(sql));return {...base,sql,lockSql,report,qaFoundation:{...base.qaFoundation,setup:base.qaFoundation.setup+'\n'+catalogSetup+'\nEXECUTE '+install+';\n'+catalogCapabilities}};
 }
 function main(){
  const args={};for(const a of process.argv.slice(2)){if(a==='--ci'){args.ci=true;continue;}if(a==='--require-concurrency'){args.requireConcurrency=true;continue;}const m=/^--(expected-major|write-sql|write-lock-sql)=(.+)$/.exec(a);assert.ok(m,'Unknown or incomplete argument');assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
