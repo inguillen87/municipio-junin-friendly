@@ -32,4 +32,6 @@ M9 debe reutilizar estos resultados inmutables con los datos personales y autori
 
 Pruebas del modelo: censo completo de meses/tipos, 61 legajos, múltiples versiones, dimensiones históricas, precisión/unidad, auxiliares, más de diez mil conceptos, exportación de 2.001 filas, CSV seguro y conservación de cuerpos/huellas. Prueba de producto construido con handler/SQL reales y COMMIT sintético: año y siete tipos, grupos parciales, paginación, los tres archivos reales, móvil, descarga en curso, reapertura, expiración y revocación SQL con auth fixture todavía vigente.
 
+La regresión de volumen reúne 150.000 participaciones sintéticas en treinta grupos de diez meses y tres tipos, con censo, planilla, resumen y CSV completos. Detectó y corrigió un desbordamiento de argumentos al obtener la precisión común; los límites explícitos se mantienen. El recorrido del lector incorporado abre su desplegable mediante el control normal y conserva todas las comprobaciones anteriores.
+
 Los datos, identidades y permisos de QA son explícitamente sintéticos; no representan aceptación municipal. SHA, CI, producción y conservación de trabajo ajeno se acreditan separadamente en `verification/CODEX_OWN_REPORTS_RESULT_20261005.md`. El objetivo integral de diez módulos, actores y todo el parque de relojes continúa activo.

@@ -87,3 +87,17 @@ test('no modifica cuerpos, claves ni snapshots ya guardados al emitir las cuatro
 test('resumen por período/tipo/convenio/repartición concilia sin volver a sumar conceptos',()=>{
  const f=reportFixture(61),doc=ownReportDocument(bundle(f),filters(),'summary');assert.equal(doc.rows.length,1);assert.equal(doc.rows[0][4],61);assert.deepEqual(doc.rows[0].slice(5),['gross','deduction','net'].map(k=>f.receipts[0].snapshot.totals[k]));const selected=ownReportDocument(bundle(f),filters({employeeTo:'1002'}),'summary');assert.equal(selected.rows[0][4],2);
 });
+
+test('histórico anual de 150000 participaciones conserva alcance y totales sin desbordar argumentos',()=>{
+ const sample=historicalReportFixture('2026-01','monthly'),details=[],receipts=[],types=['monthly','sac','other'];
+ for(let month=1;month<=10;month++)for(const type of types){
+  const period='2026-'+String(month).padStart(2,'0'),r=structuredClone(sample.receipts[0]),s=r.snapshot,e=s.employees[0],d=structuredClone(sample.details[0]),number=700+receipts.length;
+  r.id=uid(number);r.groupId=r.id;r.key=uid(number+1000);r.body.period=period;r.body.liquidationType=type;s.period=period;s.liquidationType=type;
+  const zero='0.'+'0'.repeat(s.precision);s.employees=Array.from({length:5000},(_,i)=>{const contractId=uid(10000+i);return {...e,contractId,employeeNumber:String(1001+i),conceptCount:0,totals:Object.fromEntries(Object.keys(e.totals).map(k=>[k,k==='contractId'?contractId:zero]))};});
+  s.employeeCount=5000;s.populationCount=5000;s.populationComplete=true;s.concepts=[];s.conceptCount=0;s.totals=Object.fromEntries(Object.keys(s.totals).map(k=>[k,zero]));
+  r.bodySha256=ownRunHash(r.body);r.snapshotSha256=ownRunHash(s);d.period=period;d.liquidationType=type;d.groups=[reportGroup(r)];details.push(d);receipts.push(r);
+ }
+ const b=ownReportBundle({from:'2026-01',to:'2026-10',types},details,receipts),d=ownReportDocument(b),summary=ownReportDocument(b,filters(),'summary');
+ assert.equal(d.rows.length,150000);assert.equal(d.metadata.find(r=>r[0]==='Participaciones seleccionadas')[1],150000);assert.equal(d.metadata.find(r=>r[0]==='Contratos distintos')[1],5000);assert.equal(summary.rows.length,30);assert.equal(summary.rows.reduce((n,r)=>n+r[4],0),150000);
+ assert.ok(summary.rows.every(r=>r.slice(5).every(value=>value===receipts[0].snapshot.totals.net)));const csv=reportCsv(d);assert.equal(csv.split('\r\n').length,150002);assert.equal(csv.split('\r\n').filter(line=>line.startsWith('"2026-')).length,150000);assert.match(csv,/"2026-10";"Aguinaldo";"6000"/);
+});
