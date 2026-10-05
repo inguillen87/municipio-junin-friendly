@@ -290,3 +290,4 @@ local-agents/
 # Reviewed own-payroll source contracts required by the unchanged build tests.
 !scripts/migrations/122-own-payroll-programs.sql
 !scripts/migrations/123-own-payroll-runs.sql
+!scripts/migrations/124-own-payroll-liquidation-decisions.sql
