@@ -1,4 +1,4 @@
-import {salaryExact,salarySerialized} from './native-salary-catalog-model.js';
+import {salaryExact,salarySerialized,salaryUuid} from './native-salary-catalog-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {ownCloseDetail,ownCloseReceipt,verifiedOwnCloseDetail,verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {decimal,rational,exactAdd,quantize} from './own-payroll-exact.js';
@@ -12,6 +12,14 @@ const indexMonth=v=>String(Math.floor(v/12))+'-'+String(v%12+1).padStart(2,'0');
 const key=(period,type)=>period+':'+type;
 const code=v=>typeof v==='string'&&/^\d{1,9}$/.test(v);
 const compare=(a,b)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:a.localeCompare(b);
+// Display ordering only. Numeric identifiers retain their existing order;
+// opaque identifiers remain exact strings and never become numeric ranges.
+const compareEmployee=(a,b)=>code(a)&&code(b)?compare(a,b):code(a)?-1:code(b)?1:a<b?-1:a>b?1:0;
+
+export function ownReportContracts(value=[]){
+ need(Array.isArray(value)&&value.length<=10000&&Reflect.ownKeys(value).length===value.length+1&&value.every(salaryUuid)&&new Set(value).size===value.length,'Elegí legajos del histórico consultado sin repetir destinos.');
+ return [...value].sort();
+}
 
 export function ownReportQuery(value){
  need(salaryExact(value,['from','to','types'])&&month(value.from)&&month(value.to),'Elegí un rango válido de meses.');
@@ -45,16 +53,22 @@ export function ownReportBundle(query,details,receipts){
  }
  need(employees.length<=OWN_REPORT_MAX_ROWS&&sources.reduce((n,r)=>n+r.snapshot.conceptCount,0)<=OWN_REPORT_MAX_ROWS,'El histórico completo supera 250.000 participaciones o conceptos. No se omitieron ni dividieron filas.');
  sources.sort((a,b)=>key(a.snapshot.period,a.snapshot.liquidationType).localeCompare(key(b.snapshot.period,b.snapshot.liquidationType))||a.groupId.localeCompare(b.groupId));
- employees.sort((a,b)=>key(a.period,a.type).localeCompare(key(b.period,b.type))||compare(a.employee.employeeNumber,b.employee.employeeNumber)||a.employee.contractId.localeCompare(b.employee.contractId));
+ employees.sort((a,b)=>key(a.period,a.type).localeCompare(key(b.period,b.type))||compareEmployee(a.employee.employeeNumber,b.employee.employeeNumber)||a.employee.contractId.localeCompare(b.employee.contractId));
  return {query:q,details,sources,employees,proof:salarySerialized(details.map(d=>[d.period,d.liquidationType,d.scopeVersion,d.stateVersion,d.groups.map(g=>[g.id,g.state,g.snapshotSha256])]))};
 }
 export async function verifiedOwnReportBundle(query,details,receipts){for(const d of details)await verifiedOwnCloseDetail(d);for(const r of receipts)await verifiedOwnCloseReceipt(r);return ownReportBundle(query,details,receipts);}
-function selected(bundle,filters){const f=ownReportFilters(filters);return bundle.employees.filter(({employee:e})=>[['employee','employeeNumber'],['department','departmentCode'],['agreement','agreementCode']].every(([range,field])=>(!f[range+'From']||BigInt(e[field])>=BigInt(f[range+'From']))&&(!f[range+'To']||BigInt(e[field])<=BigInt(f[range+'To']))));}
+function selected(bundle,filters,contracts){
+ const f=ownReportFilters(filters),ids=ownReportContracts(contracts),available=new Set(bundle.employees.map(({employee:e})=>e.contractId));
+ need(ids.every(id=>available.has(id)),'Falta un legajo seleccionado en el histórico cerrado. Consultá nuevamente; no se omitió ese destino.');
+ const selectedIds=new Set(ids),candidates=bundle.employees.filter(({employee:e})=>(!ids.length||selectedIds.has(e.contractId))&&[['department','departmentCode'],['agreement','agreementCode']].every(([range,field])=>(!f[range+'From']||BigInt(e[field])>=BigInt(f[range+'From']))&&(!f[range+'To']||BigInt(e[field])<=BigInt(f[range+'To']))));
+ need((!f.employeeFrom&&!f.employeeTo)||candidates.every(({employee:e})=>code(e.employeeNumber)),'El alcance contiene legajos que no admiten un rango numérico. Retirá ese rango y elegí los legajos exactos del histórico. No se omitieron filas.');
+ return candidates.filter(({employee:e})=>(!f.employeeFrom||BigInt(e.employeeNumber)>=BigInt(f.employeeFrom))&&(!f.employeeTo||BigInt(e.employeeNumber)<=BigInt(f.employeeTo)));
+}
 const sum=(values,precision)=>quantize(values.reduce((total,value)=>exactAdd(total,decimal(value)),rational(0n)),{precision,mode:'exact'}).amount;
 
-export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='payroll',grouping='concept'){
+export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='payroll',grouping='concept',contracts=[]){
  // Recheck the complete census and original concept totals before deriving a view.
- const b=ownReportBundle(bundle.query,bundle.details,bundle.sources),f=ownReportFilters(filters),chosen=selected(b,f);
+ const b=ownReportBundle(bundle.query,bundle.details,bundle.sources),f=ownReportFilters(filters),ids=ownReportContracts(contracts),chosen=selected(b,f,ids);
  need(['payroll','summary','concepts','statistics','sources'].includes(view)&&['concept','department','agreement','agreement_department'].includes(grouping),'Elegí un informe y una agrupación disponibles.');
  const text=label=>({label,type:'text',width:24}),integer=label=>({label,type:'integer',width:20});let columns,rows,title;
  if(view==='payroll'){
@@ -82,5 +96,5 @@ export function ownReportDocument(bundle,filters=emptyOwnReportFilters(),view='p
  need(rows.length<=OWN_REPORT_MAX_ROWS,'El informe completo supera la capacidad. No se exportaron filas parciales.');
  const precision=chosen.reduce((p,r)=>Math.max(p,r.employee.precision),0),totals=chosen.length?Object.fromEntries(OWN_CLOSE_TOTAL_KEYS.map(k=>[k,sum(chosen.map(r=>r.employee.totals[k]),precision)])):null;
  const ranges=['employee','department','agreement'].map((key,i)=>['Legajos','Reparticiones','Convenios'][i]+': '+(f[key+'From']||'inicio')+' a '+(f[key+'To']||'fin')).join(' · ');
- return {layout:'own-payroll-report.v1',title,columns,rows,totals:[],metadata:[['Períodos',b.query.from+' a '+b.query.to],['Tipos',b.query.types.map(t=>OWN_RUN_TYPES[t]).join(', ')],['Rangos',ranges],['Grupos originales cerrados',b.sources.length],['Participaciones seleccionadas',chosen.length],['Contratos distintos',new Set(chosen.map(e=>e.employee.contractId)).size],['Bruto exacto del alcance',totals?.gross??'Sin participaciones'],['Retenciones exactas del alcance',totals?.deduction??'Sin participaciones'],['Neto exacto del alcance',totals?.net??'Sin participaciones'],['Filas completas del informe',rows.length]],notes:['Histórico propio de altas registradas en MuniControl; no certifica cobertura del padrón municipal migrado.','Sólo grupos actualmente cerrados. Los grupos reabiertos se conservan en el histórico de cierre y quedan fuera de este informe vigente.','Los importes y valores originales conservan su precisión. No se evalúan fórmulas, se imputan haberes ni se ejecutan pagos.','Búsqueda y página cambian sólo la vista; rangos, tipos y agrupación definen el mismo alcance en todas las descargas.','Cada contrato, período y tipo es una participación. Los auxiliares son valores de cálculo separados; no se suman como haberes.','Convenio y repartición proceden de la copia histórica. Jurisdicción, identidad documental y antigüedad no se infieren de datos actuales.','No es un recibo institucional ni un documento firmado. Consultá Fuentes y cobertura para las huellas y cantidades originales.'],filename:'municontrol_nomina_propia_'+view+'_'+b.query.from+'_'+b.query.to};
+ return {layout:'own-payroll-report.v1',title,columns,rows,totals:[],metadata:[['Períodos',b.query.from+' a '+b.query.to],['Tipos',b.query.types.map(t=>OWN_RUN_TYPES[t]).join(', ')],['Rangos',ranges],['Selección de legajos',ids.length?String(ids.length)+' contratos exactos':'Todos los contratos del alcance'],['Grupos originales cerrados',b.sources.length],['Participaciones seleccionadas',chosen.length],['Contratos distintos',new Set(chosen.map(e=>e.employee.contractId)).size],['Bruto exacto del alcance',totals?.gross??'Sin participaciones'],['Retenciones exactas del alcance',totals?.deduction??'Sin participaciones'],['Neto exacto del alcance',totals?.net??'Sin participaciones'],['Filas completas del informe',rows.length]],notes:['Histórico cerrado de registros propios, incluidas adopciones aprobadas; no certifica cobertura del padrón municipal migrado.','Sólo grupos actualmente cerrados. Los grupos reabiertos se conservan en el histórico de cierre y quedan fuera de este informe vigente.','Los importes y valores originales conservan su precisión. No se evalúan fórmulas, se imputan haberes ni se ejecutan pagos.','Búsqueda y página cambian sólo la vista; legajos elegidos, rangos, tipos y agrupación definen el mismo alcance en todas las descargas.','Cada contrato, período y tipo es una participación. Los auxiliares son valores de cálculo separados; no se suman como haberes.','Convenio y repartición proceden de la copia histórica. Jurisdicción, identidad documental y antigüedad no se infieren de datos actuales.','No es un recibo institucional ni un documento firmado. Consultá Fuentes y cobertura para las huellas y cantidades originales.'],filename:'municontrol_nomina_propia_'+view+'_'+b.query.from+'_'+b.query.to};
 }
