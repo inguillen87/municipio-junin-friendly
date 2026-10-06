@@ -40,7 +40,7 @@ export function createEmploymentLifecycleHandler(deps = {}) {
         if (!principalHasCapabilities(access.principal, [EMPLOYMENT_LIFECYCLE_CAPS[operation]])) lifecycleFail('FORBIDDEN', 403, 'La membresía no permite esta operación sobre el historial laboral.');
         input = {body: body.payload, key: schoolCertificateHttp.header(req, 'idempotency-key')};
       }
-      const data = await employmentLifecycleOperation(await getSql(env), access.principal, session, operation, input);
+      const data = await employmentLifecycleOperation(await getSql(env), access.principal, session, operation, {...input,current:true});
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ok: true, data});
     } catch (error) {

@@ -18,12 +18,13 @@ export const related=()=>({archived:[{telefono:null,email:'historico@example.inv
  assertions:[{sourceSystem:'GRH',attributeName:'phone',rawValue:null},{sourceSystem:'PERSONAS',attributeName:'email',rawValue:'oculto@example.invalid'}],
  references:[{sourceSystem:'GRH',sourceEntity:'employees',sourceId:'A/07',sourceBatchId:uid(6)},{sourceSystem:'PERSONAS',sourceEntity:'persons',sourceId:'private'}],
  employmentHistory:[{contractId:CONTRACT,companyId:101,legajo:'A/07',recordOrigin:'MUNICONTROL',startDate:null,endDate:null,status:'unknown'}]});
-export function historySql({detail=row(),relations=related(),sourceRows=[{token:'c'.repeat(64)}],proofValue=proof(),onProof=()=>null}={}){
+export function historySql({detail=row(),relations=related(),sourceRows=[{token:'c'.repeat(64)}],proofValue=proof(),onProof=()=>null,onCurrent=()=>null}={}){
  const calls=[];let reads=0;
  return{calls,get proofReads(){return reads;},async query(statement,values=[]){
   calls.push({statement,values});
   if(statement.includes('effective-source:snapshot'))return structuredClone(sourceRows);
   if(statement.includes('employment_adoption_history_read_v1')){reads++;const error=onProof(reads);if(error)throw error;return[{result:structuredClone(typeof proofValue==='function'?proofValue(reads):proofValue)}];}
+  if(statement.includes('native_employee_read_projection_v1')){const error=onCurrent();if(error)throw error;const p=typeof proofValue==='function'?proofValue(Math.max(reads,1)):proofValue;return[{result:structuredClone({version:'native-employee-read.v1',scope:p.scope,contract:{...p.contract,recordKind:'adopted'}})}];}
   if(statement.includes('__contractReadVersion'))return detail?[structuredClone(detail)]:[];
   const name=statement.includes('AS "statusSnapshot"')?'archived':statement.includes('AS "absenceTotal"')?'counts':statement.includes('FROM grh_effective_absences_v1 absence')?'absences':statement.includes('FROM grh_effective_leaves_v1')?'leaves':statement.includes('FROM grh_effective_family_v1 family')?'family':statement.includes('FROM grh_effective_employment_movement_v1')?'movements':statement.includes('FROM person_identity_assertion')?'assertions':statement.includes('FROM source_xref')?'references':statement.includes('FROM employment_contract contract')?'employmentHistory':null;
   if(!name)throw Error('Unexpected synthetic SQL');return structuredClone(relations[name]);

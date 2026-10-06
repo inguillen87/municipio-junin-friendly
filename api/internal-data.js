@@ -3631,7 +3631,7 @@ export async function employee(sql, req, tenantId = null, options = {}) {
     };
   }
   const {__contractReadVersion: contractReadVersion,__identityReadVersion: identityReadVersion,...row}=rows[0];
-  let adoption=null;
+  let adoption=null,currentAdopted=null;
   if (row.recordOrigin === 'MUNICONTROL') {
     const marker=safeJsonObject(safeJsonObject(row.rawFields).native);
     const adopted=Object.hasOwn(marker,'adoptionProposalId')||Object.hasOwn(marker,'adoptionReviewId');
@@ -3651,6 +3651,10 @@ export async function employee(sql, req, tenantId = null, options = {}) {
     if(adoption.contract.readVersion!==contractReadVersion||adoption.contract.identityReadVersion!==identityReadVersion||adoption.scope.tenantId!==tenantId||adoption.scope.companyId!==Number(row.companyId)
       ||adoption.contract.id!==row.contractId||adoption.contract.personId!==row.canonicalPersonId||adoption.contract.legajo!==row.legajo||adoption.contract.registrationId!==marker.registrationId)
       throw new AdoptionHistoryError('CHANGED',409,'Cambió el legajo durante la consulta. Volvé a abrir su ficha.');
+    if(typeof options.resolveCurrentEmployee==='function'){
+      currentAdopted=await options.resolveCurrentEmployee(row.contractId);const c=currentAdopted.contract;
+      if(c.recordKind!=='adopted'||c.readVersion!==contractReadVersion||c.identityReadVersion!==identityReadVersion||c.id!==row.contractId||c.personId!==row.canonicalPersonId||c.legajo!==row.legajo||c.registrationId!==marker.registrationId||currentAdopted.scope.tenantId!==tenantId||currentAdopted.scope.companyId!==Number(row.companyId))throw new NativeEmployeeReadError('CHANGED',409,'Cambió el legajo durante la consulta. Volvé a abrir su ficha.');
+    }
     const archived=await sql.query(`SELECT e.telefono,e.email,e.domicilio,e.localidad,e.gremio,e.lugar_trabajo AS "lugarTrabajo",e.profesion,
       (SELECT to_jsonb(s) FROM employment_status_snapshot s WHERE s.employment_contract_id=$3::uuid AND s.source_batch_id=$4::uuid AND s.source_system='GRH' ORDER BY s.snapshot_date DESC LIMIT 1) AS "statusSnapshot",
       (SELECT to_jsonb(a) FROM payroll_snapshot_assignment a WHERE a.employment_contract_id=$3::uuid AND a.source_batch_id=$4::uuid AND a.source_system='GRH' ORDER BY a.snapshot_date DESC LIMIT 1) AS "assignmentSnapshot"
@@ -3659,6 +3663,7 @@ export async function employee(sql, req, tenantId = null, options = {}) {
     row.history={...adoption.history,readOnly:true,employee:archived[0]??null};
     row.legalReference=adoption.contract.legalReference;row.createdAt=adoption.contract.registeredAt;
     row.administrativeStatus=adoption.contract.status;row.activo=adoption.contract.status==='active';
+    if(currentAdopted){const c=currentAdopted.contract;row.fechaIngreso=c.startDate;row.fechaEgreso=c.endDate;row.administrativeStatus=c.status;row.activo=c.status==='active';}
     row.liquidable=false;row.payrollStatus='not_liquidated';
     row.controlState='registro_municipal_sin_liquidacion_propia';
   }
@@ -3808,6 +3813,7 @@ export async function employee(sql, req, tenantId = null, options = {}) {
     }
     const fresh=await options.resolveAdoptionHistory(row.contractId);
     if(JSON.stringify(fresh)!==JSON.stringify(adoption))throw new AdoptionHistoryError('CHANGED',409,'Cambió el legajo o la procedencia durante la consulta. Volvé a abrir su ficha.');
+    if(currentAdopted&&JSON.stringify(await options.resolveCurrentEmployee(row.contractId))!==JSON.stringify(currentAdopted))throw new NativeEmployeeReadError('CHANGED',409,'Cambió el historial laboral durante la consulta. Volvé a abrir su ficha.');
   }
 
   return {
@@ -3965,7 +3971,7 @@ export function createInternalDataHandler(dependencies = {}) {
           return send(res,result.status,result.payload);
         }
         let used=false;
-        const result=await employee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding);}});
+        const result=await employee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding);},resolveCurrentEmployee:async id=>readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding)});
         if(!result.payload.meta?.currentEmploymentVerified)throw error;
         return send(res,result.status,result.payload);
       }
@@ -4027,7 +4033,8 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       if (resource === 'employee') {
         const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null,{
-          resolveAdoptionHistory:async contractId=>readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),contractId,sourceBinding)
+          resolveAdoptionHistory:async contractId=>readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),contractId,sourceBinding),
+          ...(access.mode==='managed'?{resolveCurrentEmployee:async id=>readNativeEmployee(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding)}:{})
         });
         if(result.status===200&&result.payload.data?.recordOrigin==='MUNICONTROL'&&!result.payload.meta?.currentEmploymentVerified){
           const lifecycle=await employmentLifecycleOperation(sql,access.principal,getTenantSession(access,env),'bootstrap',{contractId:result.payload.data.contractId});

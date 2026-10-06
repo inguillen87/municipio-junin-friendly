@@ -10,19 +10,19 @@ export function reviewedLifecycleAttempt(body,bootstrap,proposal,key){
  validateLifecycleBootstrap(bootstrap,payload.contractId);requireValue(bootstrap.scopeVersion===payload.scopeVersion);
  if(body.operation==='propose'){
   requireValue(bootstrap.permissions.canPropose&&payload.identityToken===bootstrap.subject.identityToken&&payload.baseVersion===bootstrap.employment.version);
-  lifecycleAfter(bootstrap.employment.intervals,payload.movement,payload.date);
+  lifecycleAfter(bootstrap.employment.intervals,payload.movement,payload.date,bootstrap.version);
  }else{
   validateLifecycleProposal({version:bootstrap.version,proposal},payload.contractId,payload.proposalId);
   requireValue(bootstrap.permissions.canReview&&proposal.canReview&&proposal.status==='pending'&&same(proposal.subject,bootstrap.subject));
-  if(payload.decision==='approve')requireValue(proposal.baseVersion===bootstrap.employment.version&&same(proposal.before.intervals,bootstrap.employment.intervals));
+  if(payload.decision==='approve')requireValue(bootstrap.employment.datesVerified!==false&&proposal.baseVersion===bootstrap.employment.version&&same(proposal.before.intervals,bootstrap.employment.intervals));
  }
  const input={operation:body.operation,payload},attempt=freeze(structuredClone({key,body:input,bytes:JSON.stringify(input),bootstrap,proposal:proposal??null}));reviewed.add(attempt);return attempt;
 }
 export function assertLifecycleAttemptFresh(attempt,bootstrap,proposal){
  requireValue(reviewed.has(attempt));validateLifecycleBootstrap(bootstrap,attempt.body.payload.contractId);
  const fresh=v=>{if(!v)throw Object.assign(Error('Cambió el historial o la propuesta. Volvé a consultar antes de decidir.'),{code:'REVIEW_CHANGED',status:409});};
- fresh(bootstrap.scopeVersion===attempt.body.payload.scopeVersion&&same(bootstrap.subject,attempt.bootstrap.subject));
- const employment=e=>({version:e.version,revision:e.revision,appliedAt:e.appliedAt,intervals:e.intervals});
+ fresh(bootstrap.version===attempt.bootstrap.version&&bootstrap.scopeVersion===attempt.body.payload.scopeVersion&&same(bootstrap.subject,attempt.bootstrap.subject));
+ const employment=e=>({version:e.version,revision:e.revision,appliedAt:e.appliedAt,intervals:e.intervals,...(Object.hasOwn(e,'datesVerified')?{datesVerified:e.datesVerified}:{})});
  if(attempt.body.operation==='propose')fresh(bootstrap.permissions.canPropose&&same(employment(bootstrap.employment),employment(attempt.bootstrap.employment)));
  else{
   validateLifecycleProposal({version:bootstrap.version,proposal},attempt.body.payload.contractId,attempt.body.payload.proposalId);
@@ -34,10 +34,10 @@ export function assertLifecycleAttemptFresh(attempt,bootstrap,proposal){
 export function assertLifecycleAttemptReceipt(receipt,attempt,envelope,bootstrap){
  requireValue(reviewed.has(attempt));const {operation,payload}=attempt.body;
  validateLifecycleReceipt(receipt,payload.contractId);validateLifecycleBootstrap(bootstrap,payload.contractId);validateLifecycleProposal(envelope,payload.contractId,receipt.proposalId);
- const p=envelope.proposal;requireValue(receipt.operation===operation&&bootstrap.scopeVersion===payload.scopeVersion&&same(p.subject,attempt.bootstrap.subject));
+ const p=envelope.proposal;requireValue(receipt.version===attempt.bootstrap.version&&envelope.version===receipt.version&&bootstrap.version===receipt.version&&receipt.operation===operation&&bootstrap.scopeVersion===payload.scopeVersion&&same(p.subject,attempt.bootstrap.subject));
  if(operation==='propose'){
   requireValue(receipt.status==='pending'&&receipt.employmentVersion===payload.baseVersion&&receipt.revision===attempt.bootstrap.employment.revision&&p.baseVersion===payload.baseVersion&&p.reason===payload.reason&&p.legalReference===payload.legalReference&&p.movement===payload.movement&&p.date===payload.date&&same(p.before.intervals,attempt.bootstrap.employment.intervals));
-  requireValue(same(p.after.intervals,lifecycleAfter(attempt.bootstrap.employment.intervals,payload.movement,payload.date)));
+  requireValue(same(p.after.intervals,lifecycleAfter(attempt.bootstrap.employment.intervals,payload.movement,payload.date,attempt.bootstrap.version)));
  }else{
   const expected=payload.decision==='approve'?'approved':'rejected';requireValue(receipt.proposalId.toLowerCase()===payload.proposalId&&receipt.status===expected&&p.status===expected&&p.review?.decision===payload.decision&&p.review.reason===payload.reason);
   for(const key of ['subject','baseVersion','movement','date','before','after','reason','legalReference','createdAt','authorLabel'])requireValue(same(p[key],attempt.proposal[key]));
