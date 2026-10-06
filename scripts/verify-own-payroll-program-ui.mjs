@@ -16,8 +16,9 @@ import {createEmploymentCatalogHandler} from '../api/internal-employment-catalog
 import {PROGRAM_READ,PROGRAM_CAPS} from '../lib/internal-own-payroll-program.js';
 import {RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
 import {program as syntheticProgram} from '../tests/fixtures/own-payroll-program-synthetic.js';
+import {buildOwnReferenceScaleInstallation} from './lib/own-payroll-reference-scale-sql.mjs';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};
-for(const a of process.argv.slice(2)){if(a==='--ci'||a==='--built'){args[a.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(a);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
+for(const a of process.argv.slice(2)){if(a==='--ci'||a==='--built'||a==='--reference-scales'){args[a.slice(2)]=true;continue;}const m=/^--(major|psql|output|browser)=(.+)$/.exec(a);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
 const pageRoot=args.built?path.join(root,'public'):root,output=path.resolve(args.output),prefix=output.replace(/\.json$/,'');assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
 const qa=buildOwnPayrollDurableQa(major,{seedProgram:false}),executable=args.psql??'psql',db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
@@ -41,6 +42,22 @@ const deps={env,requireAccess:async req=>({mode:'managed',principal:principal(ac
 }})};
 try{
  const seeded=await execute(executable,[...db.args,'-f',seed],{timeout:90000,maxBuffer:4*1024*1024,windowsHide:true});installed=true;fs.writeFileSync(prefix+'-seed.log',seeded.stdout+seeded.stderr);
+ let referenceInstallation=null;
+ if(args['reference-scales']){
+  const batch=buildOwnReferenceScaleInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8'),sourceCommit:'a'.repeat(40)});
+  const relocate=s=>s.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replaceAll("s.nspname='public'",'s.nspname='+q(qa.schema)).replace(/SET search_path\s*=\s*pg_catalog,public,pg_temp/g,'SET search_path=pg_catalog,'+qa.schema+',public,pg_temp').replaceAll('search_path=pg_catalog, public, pg_temp','search_path=pg_catalog, '+qa.schema+', public, pg_temp').replaceAll("replace(p.prosrc,E'\\r\\n',E'\\n')","replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(qa.schema+'.')+",'public'||'.')");
+  const installation=await db.run(relocate(batch.installation.join(';'))),durable=await db.run(relocate(batch.durableVerification.join(';')));
+  assert.equal(installation.beforeFingerprint,installation.afterFingerprint);assert.deepEqual(durable,Object.fromEntries(Object.entries(installation).filter(([k])=>k!=='beforeFingerprint')));checks++;
+  await assert.rejects(db.run(relocate(batch.installation.join(';'))),/SQL131_PREREQUISITE_CHANGED/);checks++;
+  await assert.rejects(db.run('ALTER FUNCTION '+qa.schema+'.own_program_definition_v1(jsonb,jsonb) COST 101;'+relocate(batch.durableVerification.join(';'))),/SQL131_METADATA_CHANGED/);checks++;
+  referenceInstallation={installation,durable,priorStatePreserved:true,negativeMetadataCases:2};
+  const scales=[{active:true,agreementCode:'4',categoryCode:'13',code:'8900',dependencies:[],kind:'scale',label:'Referencia inventada QA',nature:null,precision:2,ruleReference:'Fuente sintética; ninguna norma municipal',unit:'money',validFrom:'2026-10',validUntil:null,value:'201.35'},{active:true,agreementCode:'4',categoryCode:'14',code:'8900',dependencies:[],kind:'scale',label:'Otra clase inventada QA',nature:null,precision:2,ruleReference:'Fuente sintética; ninguna norma municipal',unit:'money',validFrom:'2026-10',validUntil:null,value:'999.99'}];
+  await db.run(`DO $reference$ DECLARE maker jsonb:=${q(JSON.stringify(qa.actors.maker))}::jsonb;checker jsonb:=${q(JSON.stringify(qa.actors.checker))}::jsonb;b jsonb;r jsonb;body jsonb;BEGIN
+   b:=native_employment_catalog_bootstrap_v1(maker);body:=jsonb_build_object('scopeVersion',b->>'scopeVersion','baseVersion',b#>>'{catalog,version}','reason','Clases de referencia sintéticas propias QA','items',(b#>'{catalog,items}')||'[{"kind":"agreements","code":"4","label":"Convenio inventado QA","key":"a4","agreementCode":null},{"kind":"categories","code":"13","label":"Referencia inventada QA","key":"c413","agreementCode":"4"},{"kind":"categories","code":"14","label":"Otra clase inventada QA","key":"c414","agreementCode":"4"}]'::jsonb);
+   r:=native_employment_catalog_propose_v1(maker,body,gen_random_uuid());PERFORM native_employment_catalog_review_v1(checker,jsonb_build_object('scopeVersion',native_employment_catalog_bootstrap_v1(checker)->>'scopeVersion','proposalId',r->>'proposalId','decision','approve','reason','Revisión independiente de clases sintéticas QA'),gen_random_uuid());
+   b:=native_salary_bootstrap_v1(maker);body:=jsonb_build_object('command','propose','scopeVersion',b->>'scopeVersion','baseVersion',b#>>'{catalog,version}','classificationVersion',b#>>'{classification,version}','proposalId',NULL,'proposalSha256',NULL,'items',(b#>'{catalog,items}')||${q(JSON.stringify(scales))}::jsonb,'reason','Escalas sintéticas propias; ninguna homologación municipal','reviewConfirmed',false);
+   r:=native_salary_command_v1(maker,body,gen_random_uuid());PERFORM native_salary_command_v1(checker,body||jsonb_build_object('command','approve','scopeVersion',native_salary_bootstrap_v1(checker)->>'scopeVersion','items',NULL,'proposalId',r->>'proposalId','proposalSha256',r->>'requestSha256','reviewConfirmed',true),gen_random_uuid());END $reference$`);
+ }
  // Synthetic dual capability proves that SQL still forbids reviewing one's own proposal.
  await db.run("INSERT INTO capabilities VALUES("+q(qa.ids.maker)+"::uuid,'payroll.parameter.approve')");
  const sources=await db.run("SELECT jsonb_build_object('contractId',(SELECT contract_id FROM native_employee_registration),'period',greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
@@ -72,7 +89,23 @@ try{
  check(await page.locator('.own-program h2').innerText()==='Reglas de cálculo','actual product task is visible');
  check(await select('rule-select').locator('option').count()===0&&await select('binding-select').locator('option').count()===0,'first installation starts without inventing an approved program');
  const fixture=syntheticProgram();
- for(const binding of fixture.bindings){await select('add-binding').click();for(const [field,key,dropdown] of [['binding-agreement','agreementCode',false],['binding-key','key',false],['binding-source','sourceKind',true],['binding-code','sourceCode',false],['binding-unit','unit',true],['binding-missing','onMissing',true],['binding-combine','combine',true],['binding-reference','ruleReference',false]]){const input=page.locator('[data-program-field="'+field+'"]');if(dropdown)await input.selectOption(binding[key]);else await input.fill(binding[key]);}}
+ if(args['reference-scales']){
+  Object.assign(fixture.bindings.find(b=>b.key==='base'),{sourceKind:'scale_reference',sourceCode:'8900',sourceAgreementCode:'4',sourceCategoryCode:'13'});
+  const definition=p=>'SELECT own_program_definition_v1('+q(JSON.stringify(p))+'::jsonb,own_program_bootstrap_v1('+q(JSON.stringify(qa.actors.maker))+'::jsonb)#>\'{salaryCatalog,items}\')';
+  assert.deepEqual(await db.run(definition(fixture)),fixture);checks++;
+  assert.deepEqual(await db.run(definition(syntheticProgram())),syntheticProgram());checks++;
+  for(const [change,code] of [[b=>delete b.sourceCategoryCode,'BINDING_INVALID'],[b=>b.sourceAgreementCode='9','SOURCE_DEFINITION_MISSING'],[b=>b.sourceCategoryCode='6-D','BINDING_INVALID'],[b=>b.sourceCategoryCode='99','SOURCE_DEFINITION_MISSING'],[b=>b.sourceCategoryCode=13,'BINDING_INVALID'],[b=>b.onMissing='zero','BINDING_INVALID'],[b=>b.combine='sum','BINDING_INVALID'],[b=>b.unit='hours','BINDING_INVALID']]){
+   const p=structuredClone(fixture);change(p.bindings.find(b=>b.key==='base'));await assert.rejects(db.run(definition(p)),new RegExp('OWN_PROGRAM_'+code));checks++;
+  }
+  await assert.rejects(db.run('SELECT own_program_definition_v1('+q(JSON.stringify(fixture))+"::jsonb,(SELECT jsonb_agg(CASE WHEN i->>'kind'='scale' AND i->>'categoryCode'='13' THEN i||jsonb_build_object('validUntil','2026-10') ELSE i END) FROM jsonb_array_elements(own_program_bootstrap_v1("+q(JSON.stringify(qa.actors.maker))+"::jsonb)#>'{salaryCatalog,items}') i))"),/OWN_PROGRAM_SOURCE_DEFINITION_MISSING/);checks++;
+ }
+ for(const binding of fixture.bindings){await select('add-binding').click();const fields=[['binding-agreement','agreementCode',false],['binding-key','key',false],['binding-source','sourceKind',true],...(binding.sourceKind==='scale_reference'?[['binding-source-agreement','sourceAgreementCode',true],['binding-code','sourceCode',true],['binding-source-category','sourceCategoryCode',true]]:[['binding-code','sourceCode',false]]),['binding-unit','unit',true],['binding-missing','onMissing',true],['binding-combine','combine',true],['binding-reference','ruleReference',false]];for(const [field,key,dropdown] of fields){const input=page.locator('[data-program-field="'+field+'"]');if(dropdown)await input.selectOption(binding[key]);else await input.fill(binding[key]);}}
+ if(args['reference-scales']){
+  await select('binding-select').selectOption('1');
+  check(await page.locator('[data-program-field="binding-source-category"]').inputValue()==='13','reference class remains explicitly selected before review');
+  for(const width of [390,320]){await page.setViewportSize({width,height:900});for(const label of ['Convenio de la escala de referencia','Código de la escala aprobada','Clase de referencia aprobada']){check(await select('binding-editor').getByLabel(label,{exact:true}).evaluate(el=>el.getBoundingClientRect().width<=innerWidth&&el.getBoundingClientRect().height>=44),'accessible reference choice fits mobile '+width+' · '+label);}}
+  await select('binding-editor').screenshot({path:prefix+'-reference-editor-mobile.png'});await page.setViewportSize({width:1440,height:1000});
+ }
  async function fillExpression(value,steps=[]){
   await page.locator('[data-program-expression-path="'+steps.join('.')+'"]').selectOption(value.op);
   const key='expression-'+(steps.join('-')||'root'),input=name=>page.locator('[data-program-field="'+key+'-'+name+'"]');
@@ -127,7 +160,8 @@ try{
  await page.getByRole('tab',{name:'Calcular',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false'&&!document.querySelector('[data-own-fields]').disabled);
  await page.locator('[data-own-period]').fill(sources.period);await page.locator('[data-own-type]').selectOption('monthly');await page.locator('[data-own-kind]').selectOption('all');await page.locator('[data-own-confirm]').check();await page.locator('[data-own-send]').click();await page.locator('[data-own-result]').waitFor({state:'visible'});
  const result=await db.run("SELECT jsonb_build_object('programVersion',c.payload#>>'{programState,program,version}','requestProgramVersion',c.body->>'programVersion','rows',r.result->'rows','captures',(SELECT count(*) FROM own_payroll_run_capture)) FROM own_payroll_run_result r JOIN own_payroll_run_capture c ON c.id=r.capture_id");
- check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount==='13.01','actual own run uses the approved UI coefficient, exact expected result');
+ const expected110=args['reference-scales']?'26.18':'13.01';
+ check(result.captures===1&&result.rows.find(r=>r.conceptCode==='110')?.amount===expected110,'actual own run uses the approved UI coefficient and exact reference scale when declared');
  check(result.programVersion===beforeCalculation.program.version&&result.requestProgramVersion===beforeCalculation.program.version,'saved own run is linked to the exact newly approved program');
  await page.getByRole('tab',{name:'Reglas de cálculo',exact:true}).click();await settled();hold=true;await select('refresh').click();
  for(let i=0;i<100&&!held;i++)await new Promise(r=>setTimeout(r,50));assert.ok(held,'synthetic delayed read is held');
@@ -142,7 +176,7 @@ try{
  check(await select('content').isHidden()&&await select('send').isDisabled(),'actual SQL revocation withdraws program despite stale HTTP capability fixture');
  check(await page.evaluate(()=>![...Object.values(localStorage),...Object.values(sessionStorage)].some(v=>v.includes('own-payroll-program')||v.includes('19041')||v.includes('coeficiente inventado'))),'rules and nominal results are not stored in browser storage');
  check(errors.length===0,'no unhandled browser errors: '+errors.join(';'));
- report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:'13.01',separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
+ report={passed:true,checks,serverMajor:major,productUiVerified:true,builtPackage:!!args.built,synthetic:true,committed:true,realHttpAndSql:true,firstProgramAuthoredFromEmpty:true,approvalToActualCalculation:true,selfApprovalDeniedInSql:true,absentAttemptPreservesCompleteDraft:true,unregisteredSendFixture:true,authenticationGatewayFixture:true,directoryProjectionFixture:true,historicalDashboardUnavailableFixture:true,posts,programEvents:beforeCalculation.events,programRevision:2,calculatedConcept110:expected110,...(referenceInstallation?{referenceScale:true,referenceInstallation}:{}),separateConnections:new Set(db.connections).size,productiveInstallation:false,municipalApprovalVerified:false,paymentExecuted:false};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true,productiveInstallation:false};if(diagnosticPage){report.browserDiagnostic=await diagnosticPage.evaluate(()=>({status:document.querySelector('[data-program-status]')?.textContent,busy:document.querySelector('.own-program')?.getAttribute('aria-busy'),url:location.pathname+location.hash,contentHidden:document.querySelector('[data-program-content]')?.hidden})).catch(()=>null);await diagnosticPage.screenshot({path:prefix+'-failure.png',fullPage:true}).catch(()=>{});}process.exitCode=1;}
 finally{
  held?.();await browser?.close();if(server)await new Promise(r=>server.close(r));

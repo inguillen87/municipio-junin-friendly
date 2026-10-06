@@ -23,9 +23,11 @@ export function ownProgramStructure(raw) {
   const rules = validateOwnPayrollRulePeriods(raw.rules);
   require(Number.isInteger(raw.totalsPrecision) && raw.totalsPrecision >= 0 && raw.totalsPrecision <= 8 && Array.isArray(raw.bindings) && raw.bindings.length <= 1000, 'PROGRAM_INVALID', 'Revisá la precisión de totales y las entradas del programa.');
   const bindings = raw.bindings.map(b => {
-    require(salaryExact(b, ['agreementCode', 'key', 'unit', 'sourceKind', 'sourceCode', 'onMissing', 'combine', 'ruleReference']) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && ['money', 'hours', 'minutes', 'percent', 'units', 'coefficient'].includes(b.unit) && ['parameter', 'scale', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && code(b.sourceCode) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos.');
-    require(!['parameter', 'scale'].includes(b.sourceKind) || b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'Un parámetro o escala debe ser único e informado; no se suma ni se supone cero.');
-    require(!['scale', 'monthly_amount', 'fixed_amount'].includes(b.sourceKind) || b.unit === 'money', 'BINDING_INVALID', 'Los importes y escalas se expresan en dinero.'); return { ...b };
+    const fields = ['agreementCode', 'key', 'unit', 'sourceKind', 'sourceCode', 'onMissing', 'combine', 'ruleReference'];
+    if (b?.sourceKind === 'scale_reference') fields.push('sourceAgreementCode', 'sourceCategoryCode');
+    require(salaryExact(b, fields) && code(b.agreementCode) && typeof b.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.key) && ['money', 'hours', 'minutes', 'percent', 'units', 'coefficient'].includes(b.unit) && ['parameter', 'scale', 'scale_reference', 'monthly_quantity', 'monthly_amount', 'fixed_quantity', 'fixed_amount'].includes(b.sourceKind) && code(b.sourceCode) && ['error', 'zero'].includes(b.onMissing) && ['single', 'sum'].includes(b.combine) && text(b.ruleReference, 3, 180) && (b.sourceKind !== 'scale_reference' || code(b.sourceAgreementCode) && code(b.sourceCategoryCode)), 'BINDING_INVALID', 'Cada entrada necesita origen, unidad, combinación, tratamiento de ausencia y respaldo explícitos. La escala de referencia necesita su convenio y clase.');
+    require(!['parameter', 'scale', 'scale_reference'].includes(b.sourceKind) || b.combine === 'single' && b.onMissing === 'error', 'BINDING_INVALID', 'Un parámetro o escala debe ser único e informado; no se suma ni se supone cero.');
+    require(!['scale', 'scale_reference', 'monthly_amount', 'fixed_amount'].includes(b.sourceKind) || b.unit === 'money', 'BINDING_INVALID', 'Los importes y escalas se expresan en dinero.'); return { ...b };
   }).sort((a, b) => order(a.agreementCode, b.agreementCode) || order(a.key, b.key));
   require(new Set(bindings.map(bindingKey)).size === bindings.length, 'BINDING_DUPLICATE', 'Hay entradas repetidas en un convenio.');
   return { rules, bindings, totalsPrecision: raw.totalsPrecision };
@@ -38,7 +40,7 @@ export function ownProgramDefinition(raw, catalogItems) {
     for (const n of inputNodes(r.expression)) {
       const id = r.agreementCode + ':' + n.key, b = byBinding.get(id); used.add(id);
       require(b && b.unit === n.unit, 'BINDING_MISSING', 'Falta una entrada con unidad compatible para la regla.');
-      require(coverage(catalog, r, d => d.active && d.agreementCode === b.agreementCode && d.code === b.sourceCode && d.kind === (b.sourceKind === 'scale' ? 'scale' : 'concept') && (['monthly_amount', 'fixed_amount', 'scale'].includes(b.sourceKind) || d.unit === b.unit) && (b.sourceKind !== 'parameter' || d.value !== null)), 'SOURCE_DEFINITION_MISSING', 'La fuente declarada no cubre toda la vigencia o tiene un valor ausente.');
+      require(coverage(catalog, r, d => d.active && d.agreementCode === (b.sourceKind === 'scale_reference' ? b.sourceAgreementCode : b.agreementCode) && d.code === b.sourceCode && d.kind === (['scale', 'scale_reference'].includes(b.sourceKind) ? 'scale' : 'concept') && (b.sourceKind !== 'scale_reference' || d.categoryCode === b.sourceCategoryCode) && (['monthly_amount', 'fixed_amount', 'scale', 'scale_reference'].includes(b.sourceKind) || d.unit === b.unit) && (b.sourceKind !== 'parameter' || d.value !== null)), 'SOURCE_DEFINITION_MISSING', 'La fuente declarada no cubre toda la vigencia o tiene un valor ausente.');
     }
   }
   require(bindings.every(b => used.has(bindingKey(b))), 'BINDING_UNUSED', 'Hay una entrada sin uso que debe revisarse, no descartarse.');
