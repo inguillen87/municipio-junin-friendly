@@ -1,8 +1,9 @@
 // Exact conservative batch in an existing guarded disposable loopback QA DB.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFile} from 'node:child_process';import {promisify} from 'node:util';
-import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';import {buildOwnNoveltyInstallation,assertOwnNoveltyDurability} from './lib/own-novelties-installation.mjs';
+import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';import {buildOwnNoveltyInstallation,assertOwnNoveltyDurability} from './lib/own-novelties-installation.mjs';
+import {buildOwnNoveltyQa} from './lib/own-novelties-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),opts={};for(const a of process.argv.slice(2)){const m=/^--(major|psql|output)=(.+)$/.exec(a);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}const major=Number(opts.major);assert.ok([17,18].includes(major));const output=path.resolve(opts.output);assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const qa=buildOwnPayrollDurableQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),sourceCommit='a'.repeat(40),batch=buildOwnNoveltyInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8'),sourceCommit});let seeded=false,report,stage='seed';
+const qa=buildOwnNoveltyQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),sourceCommit='a'.repeat(40),batch=buildOwnNoveltyInstallation({read:f=>fs.readFileSync(path.join(root,f),'utf8'),sourceCommit});let seeded=false,report,stage='seed';
 const relocate=s=>s.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace')
  .replaceAll("s.nspname='public'",'s.nspname='+q(qa.schema))
  .replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+qa.schema+',public,pg_temp')

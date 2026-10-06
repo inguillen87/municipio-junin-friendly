@@ -1,11 +1,11 @@
 // Built component + real API + committed disposable PostgreSQL. Authentication
 // and municipal actors are synthetic; this is not acceptance by Noelia.
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import assert from 'node:assert/strict';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {chromium} from 'playwright';
-import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
+import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';import {buildOwnNoveltyQa} from './lib/own-novelties-qa.mjs';
 import {createOwnNoveltyHandler} from '../api/internal-own-payroll-novelties.js';import {OWN_NOVELTY_READ} from '../assets/own-payroll-novelties-model.js';
 const root=path.resolve(import.meta.dirname,'..'),opts={};for(const arg of process.argv.slice(2)){const m=/^--(major|psql|browser|output)=(.+)$/.exec(arg);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}const major=Number(opts.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium'].includes(opts.browser));
 const output=path.resolve(opts.output),base=path.join(root,'public');assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const qa=buildOwnPayrollDurableQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),j=v=>q(JSON.stringify(v))+'::jsonb';
+const qa=buildOwnNoveltyQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),j=v=>q(JSON.stringify(v))+'::jsonb';
 const relocate=sql=>sql.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+qa.schema+',public,pg_temp');
 let seeded=false,browser,server,report,checks=0,revoked=false,lose=false,hold=false,held=null;const writes=[],errors=[],check=(v,label)=>{assert.ok(v,label);checks++;},env={};
 const caps=actor=>[...OWN_NOVELTY_READ,'payroll.novelty.export',actor==='checker'?'payroll.novelty.approve':'payroll.novelty.prepare'];

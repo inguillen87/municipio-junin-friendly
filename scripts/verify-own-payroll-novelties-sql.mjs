@@ -1,18 +1,21 @@
 // Disposable loopback QA only. Synthetic hires use original closed writers;
 // each API operation commits independently. Never an installation for Neon.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {randomUUID} from 'node:crypto';
-import {buildOwnPayrollDurableQa,qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
+import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {createOwnPayrollPsqlQa} from './lib/own-payroll-psql-qa.mjs';
 import {ownNoveltyOperation} from '../lib/internal-own-payroll-novelties.js';
-import {ownRunOperation} from '../lib/internal-own-payroll-run.js';
+import {ownRunOperation,ownRunAlgorithmHash} from '../lib/internal-own-payroll-run.js';
+import {buildOwnNoveltyQa} from './lib/own-novelties-qa.mjs';
+import {ownLiquidationOperation,OWN_LIQ_REVIEW} from '../lib/internal-own-payroll-liquidation.js';
+import {ownCloseOperation} from '../lib/internal-own-payroll-close.js';
 const root=path.resolve(import.meta.dirname,'..'),opts={};for(const a of process.argv.slice(2)){const m=/^--(major|psql|output)=(.+)$/.exec(a);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}
 const major=Number(opts.major);assert.ok([17,18].includes(major));const output=path.resolve(opts.output);assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const qa=buildOwnPayrollDurableQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),j=v=>q(JSON.stringify(v))+'::jsonb';let seeded=false,checks=0,report;
+const qa=buildOwnNoveltyQa(major),db=createOwnPayrollPsqlQa({executable:opts.psql,major,port:55400+major,schema:qa.schema,pins:qa.pins}),execute=promisify(execFile),j=v=>q(JSON.stringify(v))+'::jsonb';let seeded=false,checks=0,report;
 const check=(v,label)=>{assert.ok(v,label);checks++;};
 const relocate=sql=>sql.replaceAll('public.',qa.schema+'.').replaceAll(qa.schema+'.digest(','public.digest(').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+qa.schema+',public,pg_temp');
-const principal=key=>({user:{email:qa.actors[key].actorEmail},tenant:{source:'membership',id:qa.actors[key].tenantId,membershipId:qa.actors[key].membershipId}}),session=key=>({email:qa.actors[key].actorEmail,id:qa.actors[key].actorSessionId,version:qa.actors[key].actorSessionVersion,releaseSha:qa.actors[key].releaseSha});
+const principal=key=>({user:{email:qa.actors[key].actorEmail},tenant:{source:'membership',id:qa.actors[key].tenantId,membershipId:qa.actors[key].membershipId,effectiveCapabilities:key==='checker'?OWN_LIQ_REVIEW:[]}}),session=key=>({email:qa.actors[key].actorEmail,id:qa.actors[key].actorSessionId,version:qa.actors[key].actorSessionVersion,releaseSha:qa.actors[key].releaseSha});
 const sqlDiagnostics=[];
-const transport={query:async(query,values)=>{assert.match(query,/^SELECT public\.(own_novelty_(bootstrap|detail|attempt|command)|own_run_(bootstrap|attempt|capture|complete))_v1\(/);const sql=query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});try{return [{result:await db.run(sql,true)}];}catch(e){sqlDiagnostics.push(e.message);throw e;}}};
+const transport={query:async(query,values)=>{assert.match(query,/^SELECT public\.(own_novelty_(bootstrap|detail|attempt|command)|own_run_(bootstrap|attempt|capture|complete)|own_liquidation_(detail|command)|own_close_(detail|command))_v1\(/);const sql=query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});try{return [{result:await db.run(sql,true)}];}catch(e){sqlDiagnostics.push(e.message);throw e;}}};
 const operation=(actor,name,input={})=>ownNoveltyOperation(transport,principal(actor),session(actor),name,input);
 const send=(actor,body,key=randomUUID())=>operation(actor,'command',{body,key});
 const change=(actor,snapshot,command)=>send(actor,{command,batchId:snapshot.id,expectedRevision:snapshot.revision,reasonReference:['cancel','reject'].includes(command)?'ref:'+randomUUID():null,reviewConfirmed:true});
@@ -46,6 +49,15 @@ try{
  const calculated=await ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:command,key:randomUUID()});check(calculated.saved.result.employeeCount===2,'whole native batch feeds actual own CPU');check(calculated.payload.monthly.nativeBatches[0].rowCount===2,'original full approved batch frozen in capture');
  const single=await ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:{...command,selection:{kind:'contracts',values:[selected[0].contractId]}},key:randomUUID()});check(single.saved.result.employeeCount===1&&single.payload.monthly.nativeBatches[0].rowCount===2,'legajo selection consumes one but preserves whole batch');
  await assert.rejects(change('maker',approved.snapshot,'cancel'),/capturó/);checks++;
+ const liquidationDetail=await ownLiquidationOperation(transport,principal('checker'),session('checker'),'detail',{id:calculated.id});
+ await ownLiquidationOperation(transport,principal('checker'),session('checker'),'command',{key:randomUUID(),body:{runId:liquidationDetail.id,resultSha256:liquidationDetail.capture.saved.resultSha256,scopeVersion:liquidationDetail.scopeVersion,stateVersion:liquidationDetail.stateVersion,command:'confirm',selection:{kind:'all',values:[]},reason:'Confirmación exclusivamente sintética del lote QA',reviewConfirmed:true}});
+ const pendingCaptureKey=randomUUID();await transport.query('SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result',[JSON.stringify(qa.actors.maker),JSON.stringify(command),pendingCaptureKey,ownRunAlgorithmHash()]);
+ const closedDetail=await ownCloseOperation(transport,principal('checker'),session('checker'),'detail',{period:'2026-10',liquidationType:'monthly'});
+ await ownCloseOperation(transport,principal('checker'),session('checker'),'command',{key:randomUUID(),body:{period:closedDetail.period,liquidationType:closedDetail.liquidationType,scopeVersion:closedDetail.scopeVersion,stateVersion:closedDetail.stateVersion,selection:{kind:'contracts',values:[selected[0].contractId]},command:'close',groupId:null,reason:'Cierre exclusivamente sintético del lote QA',reviewConfirmed:true}});
+ await assert.rejects(ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:command,key:randomUUID()}),e=>e.code==='OWN_RUN_REOPEN_REQUIRED');checks++;
+ await assert.rejects(ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:command,key:pendingCaptureKey}),e=>e.code==='OWN_RUN_REOPEN_REQUIRED');checks++;
+ const closedReplay=await ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:command,key:calculated.key});check(JSON.stringify(closedReplay.saved)===JSON.stringify(calculated.saved),'completed original receipt survives close without another calculation');
+ const unrelated=await ownRunOperation(transport,principal('maker'),session('maker'),'calculate',{body:{...command,selection:{kind:'contracts',values:[selected[1].contractId]}},key:randomUUID()});check(unrelated.saved.result.employeeCount===1&&unrelated.payload.monthly.nativeBatches[0].rowCount===2,'closed legajo does not block another and full batch remains original');
  await db.run("DELETE FROM capabilities WHERE membership_id="+q(qa.ids.maker)+"::uuid AND capability_key='payroll.novelty.prepare'");await assert.rejects(operation('maker','attempt',{key}),/permite/);checks++;
  check(await db.run("SELECT to_jsonb(count(*)=3) FROM native_employee_registration WHERE contract_id NOT IN(SELECT employment_contract_id FROM employment_movement)")===true,'no GRH or historical movement prerequisite');
  report={ok:true,major,checksPassed:checks,independentConnections:db.connections.length,distinctConnections:new Set(db.connections).size,batchRows:759,source:'synthetic_disposable_loopback',municipalWrites:false,wholeAndSelectedCalculation:true};

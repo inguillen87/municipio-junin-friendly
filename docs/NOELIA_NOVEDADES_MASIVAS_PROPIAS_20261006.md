@@ -20,6 +20,8 @@ La cancelación retira todas las filas del lote y conserva su historia. Si algun
 
 SQL130 crea una tabla vacía de eventos, 16 funciones con cuatro fachadas privadas, un control de conflicto con la carga individual publicada y adapta la captura existente de cálculo para leer el nuevo origen. La instalación no agrega usuarios, asignaciones de roles, definiciones de capacidad, bases de datos, empleados, novedades o resultados; verifica los datos y objetos anteriores y la durabilidad en una conexión independiente. V1/V2 y sus cuerpos, claves y límites se conservan.
 
+La captura adaptada parte de la versión publicada con SQL125: conserva el bloqueo de legajos cerrados para capturas nuevas y reintentos todavía sin resultado. Los resultados ya guardados conservan su respuesta original. La carga propia espera un guardado incierto de la pantalla fija; su recuperación mantiene el cuerpo y la clave anteriores.
+
 ## Capacidades y límites pendientes
 
 El lote nuevo admite hasta **10.000 filas**, un máximo global de **4 MiB de envío** y un comprobante completo —contenido original e identidades verificadas— de hasta 4 MiB, con margen para su respuesta. El censo admite 10.000 altas propias activas; una consulta admite 1.000 lotes. El tamaño de los eventos tiene límite global. Al alcanzarlos se rechaza el conjunto, sin división ni omisión. La captura de cálculo conserva su límite global publicado de 4 MiB: un lote administrativamente registrado puede requerir revisar esa capacidad antes de calcularlo.
