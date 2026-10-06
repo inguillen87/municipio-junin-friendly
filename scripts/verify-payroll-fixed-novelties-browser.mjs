@@ -118,8 +118,10 @@ try{
   await role('preparer');state.employmentLinked=false;await refresh();assert.equal(await host.locator('[data-fn-new]:visible:enabled').count(),0);assert.match(await host.innerText(),/vínculo laboral/);state.employmentLinked=true;await refresh();checks.push('an operator without verified employment identity can consult but cannot propose or review');
   await role('preparer');await fill('1002');dropAck=true;hideAttempt=true;await save();await host.locator('[data-fn-retry]').waitFor();
   const uncertain=posts.at(-1);assert.equal(state.records.length,2);assert.equal(await field('quantityDecimal').isDisabled(),true);checks.push('lost acknowledgement locks the exact submitted draft and idempotency key');
+  assert.equal(await page.locator('[data-n-refresh]').isDisabled(),true);checks.push('an unresolved fixed novelty prevents starting a new native bulk operation');
   await refresh();await host.locator('[data-fn-retry]').waitFor();assert.equal(await field('quantityDecimal').isDisabled(),true);hideAttempt=false;
   await refresh();await host.locator('[data-fn-record]').first().waitFor();assert.equal(state.records.length,2);
+  assert.equal(await page.locator('[data-n-refresh]').isEnabled(),true);checks.push('recovering the original fixed receipt releases the native bulk operation without another write');
   for(const attempt of posts.filter(p=>p.key===uncertain.key))assert.deepEqual(attempt.body,uncertain.body);
   checks.push('an unconfirmed attempt never permits editing or a new key; receipt recovery cannot duplicate the proposal');
   await fill('1003');dropAck=true;await save();await host.locator('[data-fn-retry]').waitFor();const retried=posts.at(-1),beforeRetry=state.records.length;await host.locator('[data-fn-retry]').click();await host.locator('[data-fn-refresh]:enabled').waitFor();assert.equal(state.records.length,beforeRetry);assert.equal(posts.at(-1).key,retried.key);assert.deepEqual(posts.at(-1).body,retried.body);checks.push('explicit retry after a lost acknowledgement sends exactly the same body and key');

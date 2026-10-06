@@ -18,6 +18,7 @@ import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
 import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
 import {mountMonthlyCorrection} from './payroll-monthly-correction.js';
+import {mountOwnPayrollNovelties} from './own-payroll-novelties-panel.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -73,7 +74,10 @@ let savedReviewPanel = null;
 let monthlyDecisions = null;
 let monthlyAnnul = null;
 let monthlyCorrection = null;
-const monthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked() || monthlyCorrection?.locked();
+let ownBulkLocked = false, ownBulkNovelties = null, fixedLocked = false;
+const decisionMonthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked() || monthlyCorrection?.locked();
+const otherMonthlyLocked = () => fixedLocked || decisionMonthlyLocked();
+const monthlyLocked = () => ownBulkLocked || otherMonthlyLocked();
 let reviewedBatch = null;
 let detailReadVersion = 0;
 let txtOptions = null;
@@ -161,7 +165,8 @@ function applyMonthlyLocks() {
     || pendingWrite.attempt.scopeKey !== principalKey(bootstrapState?.principal)
     || !hasCapability(pendingWrite.attempt.command === 'prepare' ? 'payroll.novelty.prepare' : ['approve','reject'].includes(pendingWrite.attempt.command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare')
     || (pendingWrite.requiresNominal || pendingWrite.contractVersion === 'payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read');
-  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(monthlyLocked()));
+  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || ownBulkLocked || Boolean(decisionMonthlyLocked()));
+  ownBulkNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(otherMonthlyLocked()));
   monthlyDecisions?.update();
   monthlyAnnul?.update();
   monthlyCorrection?.update();
@@ -266,9 +271,10 @@ function setBusy(value, label = '') {
     for (const [field, disabled] of busyEntryFields) field.disabled = disabled;
     busyEntryFields.clear();
   }
-  for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell]')) button.disabled = Boolean(value);
+  for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell],[data-own-novelties-shell]')) button.disabled = Boolean(value);
   if (!value) savedReviewPanel?.render();
-  fixedNovelties?.setExternalBusy(value);
+  fixedNovelties?.setExternalBusy(value || Boolean(pendingWrite) || ownBulkLocked || Boolean(decisionMonthlyLocked()));
+  ownBulkNovelties?.setExternalBusy(value || Boolean(pendingWrite) || Boolean(otherMonthlyLocked()));
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
     if (!readBlocked) { renderAgileRows(); reviewPanel?.render(); }
@@ -1353,7 +1359,8 @@ function initialize() {
     invalidatePreparedDraft();
     if (encodingChanged) { byId('bulkSource').value='';byId('bulkFile').value='';showMessage('info','Codificación cambiada','Cargá nuevamente el archivo para decodificar sus bytes con la opción elegida.'); }
   });
-  fixedNovelties = mountFixedNovelties(byId('fixedNovelties'));
+  fixedNovelties = mountFixedNovelties(byId('fixedNovelties'), locked => {fixedLocked=locked;applyMonthlyLocks();});
+  ownBulkNovelties = mountOwnPayrollNovelties(byId('ownNativeBulkNovelties'), locked => {if(ownBulkLocked!==locked){ownBulkLocked=locked;applyMonthlyLocks();}});
   employeePicker = createEmployeePicker({
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
     selectionIssue:item=>noveltySelectionIssue(item,{mode:document.querySelector('[name="sourceMode"]:checked')?.value,canUseNative:directoryAllowed&&canUseMonthlySubject()}),

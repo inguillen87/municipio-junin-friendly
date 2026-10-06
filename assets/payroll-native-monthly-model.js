@@ -63,6 +63,14 @@ function inputRow(row, periodMonth, validAmount = cents) {
       || typeof row.forced !== 'boolean' || row.forced && (row.amountCents === null || (row.observation?.length ?? 0) < 10)) fail();
 }
 
+// Closed business validation shared by own batch entry. This does not select
+// an identity, broaden v2, infer units or alter a published write contract.
+export function validateMonthlyInputRow(row, periodMonth) {
+  if (!exact(row, inputKeys) || !month(periodMonth)) fail();
+  inputRow(row, periodMonth);
+  return row;
+}
+
 export function buildNativeMonthlyDraft(draft, subject) {
   assertNativeMonthlySubject(subject);
   if (!exact(draft,['sourceMode','periodMonth','payrollType','rows']) || draft.sourceMode !== 'individual'
