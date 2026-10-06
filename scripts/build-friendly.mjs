@@ -154,6 +154,7 @@ const shellFiles = [
   'assets/own-payroll-program-panel.css',
   'assets/own-payroll-program-workspace-model.js',
   'assets/own-payroll-program-model.js',
+  'assets/own-payroll-program-copy-model.js',
   'assets/own-payroll-run-panel.css',
   'assets/own-payroll-run-workspace-model.js',
   'assets/own-payroll-run-model.js',
