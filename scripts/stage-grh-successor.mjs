@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {parseArgs} from 'node:util';
 import {Pool,neonConfig} from '@neondatabase/serverless';
 import {prepareSuccessorPackage} from './lib/grh-successor-package-source.mjs';
-import {verifySuccessorPackage} from './lib/grh-successor-package.mjs';
+import {verifyStagingSuccessorPackage as verifySuccessorPackage} from './lib/grh-successor-package.mjs';
 import {validateSuccessorTarget} from './lib/grh-successor-operational-read.mjs';
 import {stageSuccessorWithinTransaction} from './lib/grh-successor-staging-load.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code});};

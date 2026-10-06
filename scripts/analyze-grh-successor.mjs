@@ -6,6 +6,7 @@ import {preflightGrhCore} from './import-grh-core-canonical.mjs';
 import {verifyMultirunCandidate} from './verify-grh-multirun-candidate.mjs';
 import {streamDeterministicJsonArray} from './lib/canonical-import.mjs';
 import {compareGrhSuccessorEntity} from './lib/grh-successor-comparison.mjs';
+import {successorCandidateProfile} from './lib/grh-successor-package.mjs';
 const files=Object.freeze({payrollRuns:'grh-core-payroll-runs.json',payrollSnapshot:'grh-core-payroll-snapshot.json',movements:'grh-core-movements.json',payrollMonthly:'grh-core-payroll-monthly.json',employmentReconciliation:'grh-core-employment-reconciliation.json'});
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const fail=code=>{throw Object.assign(new Error(code),{code})};
@@ -18,11 +19,12 @@ async function closures(artifact,currentDate){
  }
  return{currentRuns:currentRuns.sort((a,b)=>a.payrollType.localeCompare(b.payrollType)),latestClosedByType};
 }
-export async function analyzeGrhSuccessor({baselineDir,candidateDir}){
+export async function analyzeGrhSuccessor({baselineDir,candidateDir,candidateProfileId='grh-junin-2026-09-22'}){
+ successorCandidateProfile(candidateProfileId);
  const baseline=await fs.realpath(baselineDir),candidate=await fs.realpath(candidateDir);
  if(baseline===candidate)fail('GRH_SUCCESSOR_DISTINCT_SOURCES_REQUIRED');
  const before=await preflightGrhCore({dataDir:pathToFileURL(baseline+path.sep),profileId:'grh-junin-2026-09-10'});
- const accepted=await verifyMultirunCandidate({dataDir:candidate,profileId:'grh-junin-2026-09-22'});
+ const accepted=await verifyMultirunCandidate({dataDir:candidate,profileId:candidateProfileId});
  const manifestPath=await fs.realpath(path.join(candidate,'grh-core-manifest.json'));
  const bytes=await fs.readFile(manifestPath);if(hash(bytes)!==accepted.manifestSha256)fail('GRH_SUCCESSOR_MANIFEST_CHANGED');
  const manifest=JSON.parse(bytes),artifacts={};
@@ -45,9 +47,9 @@ export async function analyzeGrhSuccessor({baselineDir,candidateDir}){
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{
-  const {values}=parseArgs({options:{baseline:{type:'string'},candidate:{type:'string'},output:{type:'string'}},strict:true});
+    const {values}=parseArgs({options:{baseline:{type:'string'},candidate:{type:'string'},output:{type:'string'},'candidate-profile':{type:'string'}},strict:true});
   if(!values.baseline||!values.candidate||!values.output)fail('GRH_SUCCESSOR_USAGE');
-  const report=await analyzeGrhSuccessor({baselineDir:values.baseline,candidateDir:values.candidate});
+    const report=await analyzeGrhSuccessor({baselineDir:values.baseline,candidateDir:values.candidate,candidateProfileId:values['candidate-profile']});
   await fs.writeFile(path.resolve(values.output),JSON.stringify(report,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(report));
  }catch(e){console.error(/^GRH_[A-Z0-9_]+$/.test(e?.code??'')?e.code:'GRH_SUCCESSOR_COMPARISON_FAILED');process.exitCode=1;}
 }

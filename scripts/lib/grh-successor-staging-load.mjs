@@ -1,6 +1,6 @@
 // Carga sólo las tres tablas privadas 106. El llamador es dueño de BEGIN/COMMIT/ROLLBACK.
 import fs from 'node:fs';
-import {verifySuccessorPackage,SUCCESSOR_ENTITIES,successorHash} from './grh-successor-package.mjs';
+import {verifyStagingSuccessorPackage as verifySuccessorPackage,SUCCESSOR_ENTITIES,successorHash} from './grh-successor-package.mjs';
 import {planSuccessorStagingRead,evaluateSuccessorStagingRead,validateSuccessorTarget} from './grh-successor-operational-read.mjs';
 import {stableJson} from './canonical-import.mjs';
 import {readSourceCapacity} from './grh-source-capacity.mjs';

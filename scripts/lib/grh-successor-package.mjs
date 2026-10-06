@@ -12,6 +12,13 @@ export const SUCCESSOR_PACKAGE_VERSION = 'grh-successor-package.v1';
 export const SUCCESSOR_LIMITS = Object.freeze({rowsPerEntity:1000000,changes:100000,bytes:24*1024*1024});
 export const successorHash = value=>createHash('sha256').update(value).digest('hex');
 export function successorFault(code){throw Object.assign(new Error(code),{code});}
+// Explicit evidence profiles only; this selector never authorizes a writer.
+export function successorCandidateProfile(profileId='grh-junin-2026-09-22'){
+  if(!['grh-junin-2026-09-22','grh-junin-2026-10-01'].includes(profileId))successorFault('SUCCESSOR_CANDIDATE_PROFILE_INVALID');
+  const profile=getGrhSourceProfile(profileId,{allowCandidateRead:true});
+  if(profile.publicationMode!=='candidate_only'||profile.core.schemaVersion!==2)successorFault('SUCCESSOR_CANDIDATE_PROFILE_INVALID');
+  return profile;
+}
 function project(entity, raw){
   if(!SUCCESSOR_ENTITIES.includes(entity))successorFault('SUCCESSOR_ENTITY_INVALID');
   const [scope,name]=entity.split('/');
@@ -85,7 +92,8 @@ export function verifySuccessorPackage(input){
   if(!exact(input,['version','baseline','candidate','entities','changes','operational','sourcePromoted','payloadSha256']))bad();
   if(input.version!==SUCCESSOR_PACKAGE_VERSION||input.operational!==false||input.sourcePromoted!==false)bad();
   if(!validSource(input.baseline)||!validSource(input.candidate)||!digest(input.payloadSha256))bad();
-  if(input.baseline.profileId!=='grh-junin-2026-09-10'||input.candidate.profileId!=='grh-junin-2026-09-22')bad();
+  if(input.baseline.profileId!=='grh-junin-2026-09-10')bad();
+  try{successorCandidateProfile(input.candidate.profileId);}catch{bad();}
   if(!exact(input.entities,SUCCESSOR_ENTITIES)||!Array.isArray(input.changes)||input.changes.length>SUCCESSOR_LIMITS.changes)bad();
   const {payloadSha256,...payload}=input;
   if(Buffer.byteLength(stableJson(input))>SUCCESSOR_LIMITS.bytes||successorHash(stableJson(payload))!==payloadSha256)bad();
@@ -133,6 +141,12 @@ function assertSuccessorChanges(input,counts){
     if(n>0&&proof.baseline.sha256===proof.candidate.sha256)bad();
     for(const value of [proof.baseline,proof.candidate])if(value.rows===0&&value.sha256!==successorHash(''))bad();
   }
+}
+// Offline acceptance must not widen the installed22/09 maintenance schema.
+export function verifyStagingSuccessorPackage(input){
+  const pack=verifySuccessorPackage(input);
+  if(pack.candidate.profileId!=='grh-junin-2026-09-22')successorFault('SUCCESSOR_STAGE_SOURCE_NOT_SUPPORTED');
+  return pack;
 }
 export function sealSuccessorPackage({baseline,candidate,results}){
   if(!Array.isArray(results)||results.length!==SUCCESSOR_ENTITIES.length)successorFault('SUCCESSOR_PACKAGE_INCOMPLETE');

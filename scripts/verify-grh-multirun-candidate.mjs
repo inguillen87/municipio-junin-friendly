@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import { parseArgs } from 'node:util';
 import { getGrhSourceProfile } from './lib/grh-source-profile.mjs';
 import { streamDeterministicJsonArray, verifyStreamArtifact, stableJson, enforceLogicalSizeGate } from './lib/canonical-import.mjs';
 const FILES=Object.freeze({payrollRuns:'grh-core-payroll-runs.json',payrollSnapshot:'grh-core-payroll-snapshot.json',
@@ -114,7 +115,15 @@ export async function verifyMultirunCandidate({dataDir,profileId='grh-junin-2026
    databaseWrites:0,sourcePromoted:false,v1ImporterCompatible:false,candidateOnly:true};
  }catch(e){if(/^V2_[A-Z_]+$/.test(e?.code??''))throw e;fail('V2_CANDIDATE_VERIFICATION_FAILED')}
 }
+export function parseMultirunCandidateArgs(args){
+ try{
+  const {values,positionals}=parseArgs({args,allowPositionals:true,options:{profile:{type:'string'}}});
+  const profileId=values.profile??'grh-junin-2026-09-22';
+  if(positionals.length!==1||!positionals[0]||!['grh-junin-2026-09-22','grh-junin-2026-10-01'].includes(profileId))fail('V2_USAGE');
+  return {dataDir:positionals[0],profileId};
+ }catch{fail('V2_USAGE')}
+}
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
- try{if(process.argv.length!==3)fail('V2_USAGE');console.log(JSON.stringify(await verifyMultirunCandidate({dataDir:process.argv[2]}),null,2))}
+ try{console.log(JSON.stringify(await verifyMultirunCandidate(parseMultirunCandidateArgs(process.argv.slice(2))),null,2))}
  catch(e){console.error(e.code??'V2_CANDIDATE_VERIFICATION_FAILED');process.exitCode=1}
 }

@@ -10,9 +10,8 @@ import {canonicalCuratedNumber} from './grh-curated-numbers.mjs';
 import {streamDeterministicJsonArray,sha256File} from './canonical-import.mjs';
 import {CURATED_REVIEW_DOMAINS} from '../../assets/grh-curated-review-model.js';
 import {getGrhSourceProfile} from './grh-source-profile.mjs';
-import {SUCCESSOR_ENTITIES,buildSuccessorDelta,sealSuccessorPackage,successorHash,successorFault} from './grh-successor-package.mjs';
+import {SUCCESSOR_ENTITIES,buildSuccessorDelta,sealSuccessorPackage,successorHash,successorFault,successorCandidateProfile} from './grh-successor-package.mjs';
 const fail=successorFault;
-const profiles={baseline:'grh-junin-2026-09-10',candidate:'grh-junin-2026-09-22'};
 export function parseSuccessorJson(bytes){
   try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes),(_key,value,context)=>{
     if(typeof value!=='number')return value;
@@ -27,7 +26,7 @@ async function confined(directory,name){
   if(!entry.isFile()||entry.isSymbolicLink()||path.dirname(await fs.realpath(file))!==directory)fail('SUCCESSOR_FILE_OUTSIDE_DIRECTORY');
   return file;
 }
-async function openCore(directory,side){
+async function openCore(directory,side,profiles){
   const root=await fs.realpath(directory),profileId=profiles[side];
   const manifestPath=await confined(root,'grh-core-manifest.json');
   const bytes=await boundedCuratedRead(manifestPath,1024*1024),manifest=parseSuccessorJson(bytes);
@@ -42,7 +41,7 @@ async function openCore(directory,side){
   }
   return {root,manifest,manifestPath,manifestSha256:successorHash(bytes),artifacts};
 }
-async function loadCurated(directory,side){
+async function loadCurated(directory,side,profiles){
   const source=await openCuratedSource(directory,profiles[side]),datasets={};
   for(const name of CURATED_REVIEW_DOMAINS){
     const descriptor=source.manifest.outputs[name];
@@ -73,12 +72,13 @@ async function recheck(source,kind){
     }
   }
 }
-export async function prepareSuccessorPackage({baselineCore,candidateCore,baselineCurated,candidateCurated,onProgress=()=>{}}={}){
+export async function prepareSuccessorPackage({baselineCore,candidateCore,baselineCurated,candidateCurated,candidateProfileId='grh-junin-2026-09-22',onProgress=()=>{}}={}){
   if(![baselineCore,candidateCore,baselineCurated,candidateCurated].every(v=>typeof v==='string'&&path.isAbsolute(v)))fail('SUCCESSOR_SOURCE_DIRECTORY_REQUIRED');
+  const profiles={baseline:'grh-junin-2026-09-10',candidate:successorCandidateProfile(candidateProfileId).id};
   const core={},curated={};
   for(const side of ['baseline','candidate']){
-    core[side]=await openCore(side==='baseline'?baselineCore:candidateCore,side);
-    curated[side]=await loadCurated(side==='baseline'?baselineCurated:candidateCurated,side);
+    core[side]=await openCore(side==='baseline'?baselineCore:candidateCore,side,profiles);
+    curated[side]=await loadCurated(side==='baseline'?baselineCurated:candidateCurated,side,profiles);
     const profile=getGrhSourceProfile(profiles[side],{allowCandidateRead:true});
     if(core[side].manifest.source.sha256.toLowerCase()!==curated[side].manifest.source.sha256.toLowerCase()
       ||core[side].manifest.source.sha256.toLowerCase()!==profile.source.sha256.toLowerCase())fail('SUCCESSOR_COORDINATED_SOURCE_MISMATCH');
