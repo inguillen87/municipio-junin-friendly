@@ -1,0 +1,9 @@
+import {runCapture,uid,hash} from './position-assignment-synthetic.js';
+import {bootstrap} from './annual-position-budget-synthetic.js';
+import {budgetHash} from '../../assets/annual-position-budget-model.js';
+export {uid,hash};
+export async function comparisonFixture(count=51){
+ const positions=runCapture(count),people=positions.payload.employees.map(e=>({contractId:e.contractId,employeeNumber:e.employeeNumber,agreementCode:'101',categoryCode:'001',departmentCode:'7',identityToken:e.identityToken,origin:'MUNICONTROL'})),version=await budgetHash(people),dimensionsPayload={version:'own-position-dimensions.v1',populationVersion:version,complete:true,employeeCount:count,employees:people.map((e,i)=>({contractId:e.contractId,employeeNumber:e.employeeNumber,identityToken:e.identityToken,name:'Persona sintética QA '+String(count-i).padStart(3,'0'),activeInPeriod:i%2===0}))};
+ positions.payload.populationVersion=version;positions.payloadSha256=await budgetHash(positions.payload);
+ return {version:'own-position-comparison.v1',year:2026,revision:1,period:'2026-10',liquidationType:'monthly',scopeVersion:hash('a'),annual:bootstrap({approved:true}),complete:true,groups:[{id:uid(90),snapshotSha256:hash('f'),recordedAt:'2026-10-01T15:00:00Z',employeeCount:count,populationCount:count,populationComplete:true}],employees:people.map(e=>({groupId:uid(90),contractId:e.contractId,employeeNumber:e.employeeNumber,captureId:positions.captureId,resultSha256:hash('c'),liquidationVersion:1})),captures:[{id:positions.captureId,payloadSha256:positions.capturePayloadSha256,population:{complete:true,version,employees:people},positions,dimensions:{version:'own-run-position-dimensions.v1',captureId:positions.captureId,capturePayloadSha256:positions.capturePayloadSha256,status:'captured',payload:dimensionsPayload,payloadSha256:await budgetHash(dimensionsPayload)}}]};
+}
