@@ -81,6 +81,8 @@ jobs:
         run: node scripts/verify-own-payroll-durable.mjs --ci --major=${{ matrix.major }} --browser=chromium --output=verification/own-durable.json
       - name: Build the actual public package
         run: node scripts/build-friendly.mjs
+      - name: Verify complete native formula copy, history, mobile, revocation and exact retry
+        run: node scripts/verify-own-payroll-program-copy-browser.mjs --browser=chromium --output=verification/own-program-copy-browser.json
       - name: Verify product UI, immutable retry, mobile and SQL revocation
         env:
           PGPASSWORD: own-payroll-synthetic-qa
