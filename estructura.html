@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light">
   <title>Estructura municipal | MuniControl</title>
   <script src="assets/internal-capability-gate.js"></script>
-  <meta name="description" content="Estructura y asignaciones organizacionales del personal municipal desde la fuente GRH.">
+  <meta name="description" content="Planta presupuestaria anual propia y consulta trazable de las asignaciones organizacionales históricas del municipio.">
   <style>
     :root {
       --navy: #102d3e;
@@ -376,6 +376,8 @@
     }
   </style>
   <script src="assets/internal-guide.js" defer></script>
+  <link rel="stylesheet" href="assets/annual-position-budget.css">
+  <script type="module" src="assets/annual-position-budget-panel.js"></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/structure-task-entry.css">
@@ -445,16 +447,17 @@
       <main id="contenido">
         <section class="page-head" aria-labelledby="pageTitle">
           <div>
-            <div class="eyebrow">Asignaciones organizacionales GRH</div>
+            <div class="eyebrow">Personal · cargos y organización</div>
             <h1 id="pageTitle">Estructura municipal</h1>
-            <p>Lectura trazable de organizaciones, sectores y catálogos laborales. Los recuentos se obtienen de los legajos cargados; la plataforma no completa dependencias ni relaciones que el respaldo no define.</p>
+            <p>Consultá la planta presupuestaria anual propia y su fuente normativa. Los cuadros organizacionales históricos conservan las asignaciones literales del respaldo, sin completar relaciones ausentes.</p>
           </div>
           <div class="method-summary">
-            <strong>Qué representa esta vista</strong>
-            <span>Cada fila agrupa asignaciones literales de GRH. No equivale a un organigrama normativo ni identifica autoridades vigentes.</span>
+            <strong>Fuentes y alcance</strong>
+            <span>La planta anual requiere revisión independiente. Los agregados históricos no constituyen un organigrama normativo ni certifican cargos o autoridades vigentes.</span>
           </div>
         </section>
 
+        <div data-annual-position-budget></div>
         <section class="structure-task" aria-labelledby="structureNominalTitle">
           <div>
             <span class="structure-task-eyebrow">Cargos presupuestarios · módulo 10</span>
