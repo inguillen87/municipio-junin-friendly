@@ -1,0 +1,25 @@
+name: Complete municipal clock park
+on:
+  push:
+    branches: ['master', 'codex/clock-full-park-20261006']
+    paths: ['api/internal-clock-source.js', 'lib/internal-clock-reported-park.js', 'assets/clock-fleet-workspace*', 'tests/clock-full-park.test.js', 'tests/clock-workspace.test.js', 'tests/fixtures/clock-workspace-synthetic.js', 'scripts/verify-clock-workspace-browser.mjs', '.github/workflows/clock-full-park.yml']
+  pull_request:
+    paths: ['api/internal-clock-source.js', 'lib/internal-clock-reported-park.js', 'assets/clock-fleet-workspace*', 'tests/clock-full-park.test.js', 'tests/clock-workspace.test.js', 'tests/fixtures/clock-workspace-synthetic.js', 'scripts/verify-clock-workspace-browser.mjs', '.github/workflows/clock-full-park.yml']
+permissions:
+  contents: read
+jobs:
+  park:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: mkdir -p verification
+      - run: node --test tests/clock-full-park.test.js tests/clock-workspace.test.js tests/clock-source-api.test.js tests/clock-source-model.test.js tests/attendance-inventory-contract.test.js
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-clock-workspace-browser.mjs

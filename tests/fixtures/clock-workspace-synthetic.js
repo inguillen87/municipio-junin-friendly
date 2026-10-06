@@ -7,8 +7,9 @@ export function workspaceSource(){return {version:'clock-source-fleet.v1',checke
  const received=[2,3,14].includes(n),enrolled=n!==10&&n!==5;
  return {deviceId:id(n),siteId:enrolled?id(200+n):null,enrolled,enabled:enrolled,receipts:received?4:0,recordsPersisted:received?800+n:0,completedBatches:received?n===3?1:2:0,pendingBatches:n===3?1:0,lastReceivedAt:received?'2026-09-24T09:50:00.000Z':null,lastCapturedAt:received?'2026-09-24T09:49:00.000Z':null};}),scope:'source_only',reconciliationState:'pending',payrollModified:false};}
 export function workspaceDevices(){return {resource:'device',data:workspaceCore().devices.map(d=>({id:d.deviceId,siteId:id(200+Number(d.siteKey.slice(3))),version:1,driverKey:'zk40-snapshot.v1',model:d.model,status:d.deviceState})),pagination:{page:1,pageSize:100,total:6,pages:1}};}
-export function workspaceFixture({unavailable=false}={}){
+export function reportedParkFixture(){return {version:'clock-reported-park.v1',physicalConnectionVerified:false,pointCount:14,points:Array.from({length:14},(_,i)=>({siteKey:'pm-'+String(i+1).padStart(2,'0'),label:'Punto sintético '+(i+1),model:'K20/ID'}))};}
+export function workspaceFixture({unavailable=false,reported=false}={}){
  const core=workspaceCore(),source=workspaceSource(),archive=unavailable?null:{version:'clock-source-dashboard.v1',checkedAt:at,coreCheckedAt:at,sourceCheckedAt:source.checkedAt,snapshotConsistency:'composed_revalidated',sourceBindingSha256:source.sourceBindingSha256,revision:source.revision,devices:source.devices.map(d=>{const c=core.devices.find(c=>c.deviceId===d.deviceId);return {...d,siteKey:c.siteKey,label:c.label,model:c.model,deviceState:c.deviceState};}),scope:'source_only',reconciliationState:'pending',payrollModified:false,liveConnectionVerified:false};
- return createClockWorkspace(core,archive,unavailable?'CLOCK_SOURCE_UNAVAILABLE':null);
+ return createClockWorkspace(core,archive,unavailable?'CLOCK_SOURCE_UNAVAILABLE':null,reported?reportedParkFixture():null);
 }
 export const workspaceDeps=(extra={})=>({env:{},authorize:async()=>workspaceAccess(),sessionFor:a=>a.session,getCoreSql:async()=>({}),getSourceSql:async()=>({}),getFleet:async()=>workspaceCore(),readFleet:async()=>workspaceSource(),readDevices:async()=>workspaceDevices(),...extra});

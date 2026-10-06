@@ -2,6 +2,7 @@ import { requireCompatibleInternalAccess } from '../lib/internal-access-gateway.
 import { principalHasCapabilities } from '../lib/internal-resource-access.js';
 import { getActionCenterSql, actionMutationSession } from './internal-actions.js';
 import { getClockFleet } from '../lib/internal-clock-fleet.js';
+import { getReportedClockPark } from '../lib/internal-clock-reported-park.js';
 import { createClockWorkspace } from '../assets/clock-fleet-workspace-model.js';
 import { assertClockSourceDashboard } from '../assets/clock-source-model.js';
 import { getClockSourceSql, readClockSourceFleet } from '../lib/clock-source-store.js';
@@ -24,6 +25,7 @@ export function createInternalClockSourceHandler(deps = {}) {
       const workspace=sourceRequestShape(req,'/api/internal-clock-source',false,true);
       const first = await authorize(req,res,options); if (!first) return;
       const session = (deps.sessionFor ?? actionMutationSession)(first,env), initial = authority(first,session);
+      const reportedPark=workspace?(deps.reportedParkFor??getReportedClockPark)(first.principal):null;
       const coreSql = await (deps.getCoreSql ?? getActionCenterSql)(env);
       const core = await (deps.getFleet ?? getClockFleet)(coreSql,first.principal,session);
       const before = await sourceCoreInventory(coreSql,first.principal,session,core,deps.readDevices);
@@ -45,6 +47,7 @@ export function createInternalClockSourceHandler(deps = {}) {
       const current = await authorize(req,res,options); if (!current) return;
       const currentSession = (deps.sessionFor ?? actionMutationSession)(current,env), final = authority(current,currentSession);
       if (final.fingerprint !== initial.fingerprint) sourceFail('CLOCK_SOURCE_BINDING_CHANGED');
+      if(workspace&&sourceHash(JSON.stringify(reportedPark))!==sourceHash(JSON.stringify((deps.reportedParkFor??getReportedClockPark)(current.principal))))sourceFail('CLOCK_SOURCE_SNAPSHOT_CHANGED');
       const refreshedCore = await (deps.getFleet ?? getClockFleet)(coreSql,current.principal,currentSession);
       const after = await sourceCoreInventory(coreSql,current.principal,currentSession,refreshedCore,deps.readDevices);
       if (after.fingerprint !== before.fingerprint) sourceFail('CLOCK_SOURCE_SNAPSHOT_CHANGED');
@@ -53,7 +56,7 @@ export function createInternalClockSourceHandler(deps = {}) {
         snapshotConsistency:'composed_revalidated',sourceBindingSha256:source.sourceBindingSha256,revision:source.revision,
         devices:source.devices.map(device => ({...device,...byId.get(device.deviceId)})),scope:'source_only',reconciliationState:'pending',payrollModified:false,liveConnectionVerified:false} : null;
       try { if(result)assertClockSourceDashboard(result); } catch { sourceFail('CLOCK_SOURCE_RESPONSE_INVALID'); }
-      if(workspace){let value;try{value=createClockWorkspace(refreshedCore,result,archiveErrorCode);}catch{sourceFail('CLOCK_SOURCE_RESPONSE_INVALID');}return res.status(200).json({ok:true,...value});}
+      if(workspace){let value;try{value=createClockWorkspace(refreshedCore,result,archiveErrorCode,reportedPark);}catch{sourceFail('CLOCK_SOURCE_RESPONSE_INVALID');}return res.status(200).json({ok:true,...value});}
       return res.status(200).json({ok:true,...result});
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) { const denied = safeSourceError({message:error.status === 401 ? 'CLOCK_SOURCE_AUTH_DENIED' : 'CLOCK_SOURCE_FORBIDDEN'}); return res.status(denied.status).json({ok:false,code:denied.code,error:denied.message}); }
