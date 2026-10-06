@@ -174,9 +174,14 @@ try {
   assert.equal(await rows().count(),10); await page.screenshot({ path: out + '/comparison-payroll-task-qa.png', fullPage:true });
   checks.push('Same fully functional comparison task is available in Nómina');
   await page.getByRole('tab',{name:'Comparar liquidaciones',exact:true}).focus(); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
+  assert.equal(await page.getByRole('tab',{name:'Recibos propios',exact:true}).getAttribute('aria-selected'),'true');
+  await page.locator('#task-recibos').waitFor({state:'visible'}); assert.equal(await rows().count(),0);
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
   assert.equal(await page.getByRole('tab',{name:'Reportes',exact:true}).getAttribute('aria-selected'),'true');
+  await page.goBack(); await page.locator('#task-recibos').waitFor({state:'visible'});
+  assert.equal(await page.getByRole('tab',{name:'Recibos propios',exact:true}).getAttribute('aria-selected'),'true');
   await page.goBack(); await visible('[data-pc-catalog]'); assert.equal(await $('[data-pc-result]').isVisible(),false);
-  checks.push('Keyboard and browser-back navigation preserve tasks without reviving stale results');
+  checks.push('Keyboard and browser-back traverse Comparar, Recibos propios and Reportes without reviving private comparison results');
   assert.deepEqual(errors,[]); checks.push('No unhandled JavaScript errors');
   fs.writeFileSync(out + '/browser.json', JSON.stringify({ checksPassed:checks.length, checks, downloads:downloads.length, errors,
     liveAssets:live, financialDataSynthetic:true, realMunicipalSessionTested:false, backendWrites:false },null,2));
