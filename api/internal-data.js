@@ -13,6 +13,8 @@ import {AdoptionReviewError} from '../assets/employment-adoption-review-model.js
 import {employeeContext} from '../lib/internal-native-employees.js';
 import {employmentLifecycleOperation} from '../lib/internal-employment-lifecycle.js';
 import {NativeRosterError} from '../assets/native-roster-model.js';
+import {nativeDirectorySql} from '../lib/native-directory-sql.js';
+import {readNativeDirectorySnapshot,readNativeEmployee,NativeEmployeeReadError} from '../lib/internal-native-employee-read.js';
 import { assertEmployeePickerRequest, employeePickerPayload, escapePickerLike } from '../lib/employee-picker-view.js';
 import { internalBudgetPayroll } from '../lib/internal-budget-payroll.js';
 import { internalPayrollDocumentBatch } from '../lib/internal-payroll-document-batch.js';
@@ -3061,7 +3063,7 @@ function payrollMoneyFromCents(cents) {
   return `${negative ? '-' : ''}${magnitude / 100n}.${String(magnitude % 100n).padStart(2, '0')}`;
 }
 
-function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false) {
+function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBound = false, currentNativeRead = false) {
   return `
     WITH directory_employees AS MATERIALIZED (
       SELECT company_id, legajo, nombre, sector, categoria, convenio, cargo
@@ -3127,7 +3129,7 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
              crosswalk.confidence AS "crosswalkConfidence"
       FROM employment_contract contract
       JOIN person_identity identity ON identity.id = contract.person_id
-      ${lifecycleBound ? "LEFT JOIN LATERAL (SELECT public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id) AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
+      ${lifecycleBound ? "LEFT JOIN LATERAL (SELECT "+(currentNativeRead?"public.native_employee_read_projection_v1($4::jsonb,contract.id)->'contract'":"public.native_employment_lifecycle_projection_v1($4::jsonb,contract.id)")+" AS data WHERE contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid AND contract.legacy_company_id=$2::bigint) lifecycle ON true" : ''}
       LEFT JOIN source_import_batch source_batch ON source_batch.id = contract.source_batch_id
       LEFT JOIN directory_employees employee
         ON employee.company_id = contract.legacy_company_id
@@ -3169,7 +3171,8 @@ function directoryBaseSql(sourceBound = false, nativeBound = false, lifecycleBou
   `;
 }
 
-export async function employees(sql, req, binding = null) {
+export async function employees(sql, req, binding = null, options = {}) {
+  if(options.nativeOnly&&!binding?.lifecycleContext)throw new NativeEmployeeReadError('SCOPE_CHANGED',409);
   const view = req.query?.view;
   const picker = view === 'novelty-selector';
   if (view !== undefined) {
@@ -3189,6 +3192,7 @@ export async function employees(sql, req, binding = null) {
   const includeFacets = queryValue(req, 'includeFacets', '1') !== '0';
   const requestedStatus = boundedQueryValue(req, 'status', 32).toLowerCase() || DEFAULT_WORKFORCE_STATUS;
   const status = requestedStatus === 'active' ? 'administrative_active' : requestedStatus;
+  if(options.nativeOnly&&['liquidable','gap','last_closed'].includes(status))return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_PAYROLL_UNAVAILABLE',error:'Este padrón verifica los contratos propios. La cobertura de liquidaciones todavía no está certificada; consultá por situación administrativa.'}};
   const crosswalk = boundedQueryValue(req, 'crosswalk', 32).toLowerCase() || 'all';
   if (!DIRECTORY_STATUS.has(requestedStatus)) {
     return { status: 400, payload: { ok: false, code: 'DIRECTORY_STATUS_INVALID', error: 'Filtro de estado inválido' } };
@@ -3232,7 +3236,7 @@ export async function employees(sql, req, binding = null) {
   if (status === 'unknown') conditions.push("(directory.\"administrativeStatus\" IS NULL OR directory.\"administrativeStatus\" = 'unknown')");
   if (crosswalk !== 'all') conditions.push(`directory."crosswalkStatus" = ${parameter(crosswalk)}`);
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseSql = operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext)));
+  const baseSql = options.nativeOnly?nativeDirectorySql():operationalDirectorySql(directoryBaseSql(Boolean(binding),nativeBound,Boolean(binding?.lifecycleContext),Boolean(options.currentNativeRead)));
   const dataValues = [...values, limit, (page - 1) * limit];
 
   const pageOrder = `CASE
@@ -3287,17 +3291,20 @@ export async function employees(sql, req, binding = null) {
     __sectors, __organizations, __agreements, __pageOrder, ...row
   }) => row);
   const total = Number(metadata.__total || 0);
-  if (picker) return {status:200,payload:employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope)};
+  if (picker) {
+    if(options.nativeOnly&&data.some(row=>typeof row.legajo!=='string'||!/^(?:0|[1-9]\d{0,19})$/.test(row.legajo)))return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_SELECTOR_UNSUPPORTED',error:'Este resultado incluye identificadores históricos que la selección de novedades todavía no admite. Consultá el padrón propio; no se omitieron filas ni se alteraron legajos.'}};
+    return {status:200,payload:employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope),...(options.nativeOnly?{currentCensusTotal:Number(scope.totalContracts)}:{})};
+  }
   return {
     status: 200,
     payload: {
       ok: true,
       data: data.map(({sourceSystem, sourceBatchId, sourceCutoff, ...row}) => row),
-      operational: operationalScopeFromRow(scope, status),
+      operational: {...operationalScopeFromRow(scope, status),...(options.nativeOnly?{countsScope:'authenticated_native_directory',payrollIncluded:null,activeOutsidePayroll:null,lastClosedContracts:null,lastClosedMonth:null}:{})},
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
       scope: {
         grain: 'employment_contract',
-        authority: nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
+        authority: options.nativeOnly?'MUNICONTROL':nativeBound ? 'GRH_AND_MUNICONTROL' : 'GRH',
         personasRole: 'auxiliary_identity_and_territory_only',
         totalContracts: Number(scope?.totalContracts || 0),
         totalPeople: Number(scope?.totalPeople || 0),
@@ -3628,7 +3635,17 @@ export async function employee(sql, req, tenantId = null, options = {}) {
   if (row.recordOrigin === 'MUNICONTROL') {
     const marker=safeJsonObject(safeJsonObject(row.rawFields).native);
     const adopted=Object.hasOwn(marker,'adoptionProposalId')||Object.hasOwn(marker,'adoptionReviewId');
-    if(!adopted)return nativeEmployeeDetail(row,recordYear);
+    if(!adopted){
+      if(typeof options.resolveCurrentEmployee!=='function')return nativeEmployeeDetail(row,recordYear);
+      const first=await options.resolveCurrentEmployee(row.contractId),c=first.contract;
+      if(c.recordKind!=='hire'||c.readVersion!==contractReadVersion||c.identityReadVersion!==identityReadVersion||first.scope.tenantId!==tenantId||first.scope.companyId!==Number(row.companyId)||c.id!==row.contractId||c.personId!==row.canonicalPersonId||c.legajo!==row.legajo||c.registrationId!==marker.registrationId)throw new NativeEmployeeReadError('CHANGED',409,'Cambió el legajo durante la consulta. Volvé a abrir su ficha.');
+      const fresh=await options.resolveCurrentEmployee(row.contractId);
+      if(JSON.stringify(first)!==JSON.stringify(fresh))throw new NativeEmployeeReadError('CHANGED',409,'Cambió el legajo durante la consulta. Volvé a abrir su ficha.');
+      const result=nativeEmployeeDetail({...row,fechaIngreso:c.startDate,fechaEgreso:c.endDate,administrativeStatus:c.status,activo:c.status==='active'},recordYear);
+      result.payload.data.legalReference=c.legalReference;result.payload.data.createdAt=c.registeredAt;
+      result.payload.meta.currentEmploymentVerified=true;
+      return result;
+    }
     if(typeof options.resolveAdoptionHistory!=='function')throw new AdoptionHistoryError('UNAVAILABLE',503,'No se pudieron verificar los antecedentes del legajo. Volvé a consultar.');
     adoption=await options.resolveAdoptionHistory(row.contractId);
     if(adoption.contract.readVersion!==contractReadVersion||adoption.contract.identityReadVersion!==identityReadVersion||adoption.scope.tenantId!==tenantId||adoption.scope.companyId!==Number(row.companyId)
@@ -3924,12 +3941,29 @@ export function createInternalDataHandler(dependencies = {}) {
       let sourceSnapshot;
       try{sourceSnapshot=await effectiveSourceSnapshot(sql,sourceBinding);}
       catch(error){
-        // Full adoption leaves no canonical GRH contract for the old source
-        // sentinel. Only a verified adoption of this exact UUID can authorize
-        // this read; every other resource keeps the original source guard.
+        // Empty imported cohorts use current authenticated municipal proofs.
+        // A partial imported cohort never becomes a silently truncated census.
         const target=queryValue(req,'contractId').toLowerCase();
-        if(resource!=='employee'||access.mode!=='managed'||error?.code!=='GRH_SOURCE_SCOPE_INVALID'||!adoptionUuid(target)||!sourceBinding.database||!sourceBinding.companyId)throw error;
-        const first=await readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),target,sourceBinding);
+        if(!['employees','employee'].includes(resource)||access.mode!=='managed'||error?.code!=='GRH_SOURCE_SCOPE_INVALID'||!sourceBinding.database||!sourceBinding.companyId)throw error;
+        const currentSql=await getPayrollSql(env),currentSession=getTenantSession(access,env);
+        if(resource==='employees'){
+          const first=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          if(first.imported!==0)throw error;
+          const result=await employees(sql,req,{...sourceBinding,lifecycleContext:employeeContext(access.principal,currentSession)},{nativeOnly:true});
+          const fresh=await readNativeDirectorySnapshot(currentSql,access.principal,currentSession,sourceBinding);
+          if(first.token!==fresh.token||JSON.stringify(first.scope)!==JSON.stringify(fresh.scope)||fresh.imported!==0||result.status===200&&(result.currentCensusTotal??result.payload.scope?.totalContracts)!==first.total)throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');
+          return send(res,result.status,result.payload);
+        }
+        if(!adoptionUuid(target))throw error;
+        let first;
+        try{first=await readAdoptionHistory(currentSql,access.principal,currentSession,target,sourceBinding);}
+        catch(historyError){
+          if(historyError?.code!=='EMPLOYMENT_ADOPTION_HISTORY_NOT_FOUND')throw historyError;
+          const initial=await readNativeEmployee(currentSql,access.principal,currentSession,target,sourceBinding);let consumed=false;
+          const result=await employee(sql,req,access.principal.tenant.id,{resolveCurrentEmployee:async id=>{if(!consumed&&id.toLowerCase()===target){consumed=true;return initial;}return readNativeEmployee(currentSql,access.principal,currentSession,id,sourceBinding);}});
+          if(!result.payload.meta?.currentEmploymentVerified)throw error;
+          return send(res,result.status,result.payload);
+        }
         let used=false;
         const result=await employee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding);}});
         if(!result.payload.meta?.currentEmploymentVerified)throw error;
@@ -3985,7 +4019,10 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond( result.status, result.payload);
       }
       if (resource === 'employees') {
-        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })());
+        const nativeRead=access.mode==='managed';
+        const before=nativeRead?await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding):null;
+        const result = await employees(sql, req, (() => { const binding=directorySourceBinding(env); return binding && access.mode==='managed' && access.principal?.tenant?.id ? {...binding,tenantId:access.principal.tenant.id,lifecycleContext:employeeContext(access.principal,getTenantSession(access,env))} : binding; })(),{currentNativeRead:access.mode==='managed'});
+        if(nativeRead){const after=await readNativeDirectorySnapshot(await getPayrollSql(env),access.principal,getTenantSession(access,env),sourceBinding);if(before.token!==after.token||JSON.stringify(before.scope)!==JSON.stringify(after.scope))throw new NativeEmployeeReadError('CHANGED',409,'El padrón o su ámbito cambiaron durante la consulta. Volvé a consultar.');}
         return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
@@ -4001,7 +4038,7 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
-      if(error instanceof NativeRosterError||error instanceof AdoptionReviewError||error instanceof AdoptionHistoryError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
+      if(error instanceof NativeRosterError||error instanceof AdoptionReviewError||error instanceof AdoptionHistoryError||error instanceof NativeEmployeeReadError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
       const failure = payrollReadFailure(error);
       const requestId = randomUUID();
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';

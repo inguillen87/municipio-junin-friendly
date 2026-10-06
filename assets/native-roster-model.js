@@ -1,6 +1,7 @@
 import {isoDay} from './native-employee-contract.js';
 export const MAX_NATIVE_ROSTER_ROWS=10000;
-export const NATIVE_ROSTER_STATUSES=Object.freeze({all:'Todos',active:'Activos',pending_start:'Ingreso futuro',inactive:'Inactivos',state_error:'Estado a revisar'});
+export const NATIVE_ROSTER_STATUSES=Object.freeze({all:'Todos',active:'Activos',pending_start:'Ingreso futuro',inactive:'Inactivos',state_error:'Estado a revisar',unknown:'Sin clasificación'});
+export const NATIVE_ROSTER_KINDS=Object.freeze({hire:'Alta propia',adopted:'Contrato adoptado'});
 export const NATIVE_ROSTER_FILTERS=Object.freeze(['search','status','jurisdiction','organization','sector','agreement']);
 export const NATIVE_ROSTER_FIELDS=Object.freeze(['contractId','registrationId','legajo','name','dni','cuil','sexCode','birthDate','startDate','endDate','status','jurisdictionCode','agreement','category','organization','sector','jobTitle','legalReference','registeredAt']);
 const verified=new WeakSet(),uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v)&&!/^0+$/.test(v.replaceAll('-',''));
@@ -18,15 +19,23 @@ export function nativeRosterFilters(input={}){
 export function nativeRosterScope(scope){if(!exact(scope,['tenantId','membershipId','bindingId','companyId'])||![scope.tenantId,scope.membershipId,scope.bindingId].every(uuid)||!Number.isSafeInteger(scope.companyId)||scope.companyId<1)fail();return [scope.tenantId,scope.membershipId,scope.bindingId,scope.companyId].join(':');}
 const timestamp=v=>typeof v==='string'&&isoDay(v.slice(0,10))&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(v)&&Number.isFinite(Date.parse(v));
 const nullableText=v=>v===null||typeof v==='string'&&v.length<=180&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v);
+const civilDay=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+function identityValid(r,adopted){
+ if(adopted)return typeof r.legajo==='string'&&r.legajo.trim().length>0&&r.legajo.length<=64&&!/[\u0000-\u001f\u007f]/.test(r.legajo)
+  &&['name','dni','cuil'].every(k=>nullableText(r[k]))&&[r.birthDate,r.startDate,r.endDate].every(v=>v===null||civilDay(v));
+ return typeof r.legajo==='string'&&/^[1-9]\d{0,8}$/.test(r.legajo)&&typeof r.name==='string'&&r.name.trim().length>0&&r.name.length<=160
+  &&typeof r.dni==='string'&&/^\d{5,8}$/.test(r.dni)&&!/^0+$/.test(r.dni)&&typeof r.cuil==='string'&&/^\d{11}$/.test(r.cuil)&&isoDay(r.birthDate)&&isoDay(r.startDate)&&(r.endDate===null||isoDay(r.endDate));
+}
 export function nativeRoster(value,expectedFilters=null){
- if(!exact(value,['version','origin','complete','today','queriedAt','scope','filters','total','people','counts','facets','rows','snapshot'])||value.version!=='native-roster.v1'||value.origin!=='MUNICONTROL'||value.complete!==true||!isoDay(value.today)||!timestamp(value.queriedAt)||!/^[a-f0-9]{64}$/.test(value.snapshot)||!Array.isArray(value.rows)||value.rows.length>MAX_NATIVE_ROSTER_ROWS||!Number.isSafeInteger(value.total)||value.total!==value.rows.length||!Number.isSafeInteger(value.people)||value.people<0||value.people>value.total)fail();
+ const v2=value?.version==='native-roster.v2';
+ if(!exact(value,['version','origin','complete','today','queriedAt','scope','filters','total','people','counts','facets','rows','snapshot'])||!['native-roster.v1','native-roster.v2'].includes(value.version)||value.origin!=='MUNICONTROL'||value.complete!==true||!isoDay(value.today)||!timestamp(value.queriedAt)||!/^[a-f0-9]{64}$/.test(value.snapshot)||!Array.isArray(value.rows)||value.rows.length>MAX_NATIVE_ROSTER_ROWS||!Number.isSafeInteger(value.total)||value.total!==value.rows.length||!Number.isSafeInteger(value.people)||value.people<0||value.people>value.total)fail();
  nativeRosterScope(value.scope);const filters=nativeRosterFilters(value.filters);if(expectedFilters&&JSON.stringify(filters)!==JSON.stringify(nativeRosterFilters(expectedFilters)))fail();
- if(!exact(value.counts,['active','pending_start','inactive','state_error'])||!exact(value.facets,['organization','sector','agreement']))fail();
+ if(!exact(value.counts,['active','pending_start','inactive','state_error',...(v2?['unknown']:[])])||!exact(value.facets,['organization','sector','agreement']))fail();
  for(const items of Object.values(value.facets))if(!Array.isArray(items)||items.some(v=>typeof v!=='string'||!v||v.length>160)||new Set(items).size!==items.length)fail();
- const ids=new Set(),counts={active:0,pending_start:0,inactive:0,state_error:0};
+ const ids=new Set(),counts={active:0,pending_start:0,inactive:0,state_error:0,...(v2?{unknown:0}:{})};
  for(const r of value.rows){
-  if(!exact(r,NATIVE_ROSTER_FIELDS)||!uuid(r.contractId)||!uuid(r.registrationId)||ids.has(r.contractId.toLowerCase())||typeof r.legajo!=='string'||!/^[1-9]\d{0,8}$/.test(r.legajo)||typeof r.name!=='string'||!r.name.trim()||r.name.length>160||typeof r.dni!=='string'||!/^\d{5,8}$/.test(r.dni)||/^0+$/.test(r.dni)||typeof r.cuil!=='string'||!/^\d{11}$/.test(r.cuil)||!['F','M','X',null].includes(r.sexCode)||!isoDay(r.birthDate)||!isoDay(r.startDate)||r.endDate!==null&&!isoDay(r.endDate)||!['42','55',null].includes(r.jurisdictionCode)||!Object.hasOwn(counts,r.status)||!timestamp(r.registeredAt)||!['agreement','category','organization','sector','jobTitle','legalReference'].every(k=>nullableText(r[k])))fail();
-  if(filters.status!=='all'&&r.status!==filters.status||filters.jurisdiction&&(filters.jurisdiction==='not_reported'?r.jurisdictionCode!==null:r.jurisdictionCode!==filters.jurisdiction)||['organization','sector','agreement'].some(k=>filters[k]&&r[k]!==filters[k])||r.status==='pending_start'&&r.startDate<=value.today||r.status==='active'&&r.startDate>value.today)fail();
+  if(!exact(r,[...NATIVE_ROSTER_FIELDS,...(v2?['recordKind']:[])])||!uuid(r.contractId)||!uuid(r.registrationId)||ids.has(r.contractId.toLowerCase())||v2&&!Object.hasOwn(NATIVE_ROSTER_KINDS,r.recordKind)||!identityValid(r,v2&&r.recordKind==='adopted')||!['F','M','X',null].includes(r.sexCode)||!['42','55',null].includes(r.jurisdictionCode)||!Object.hasOwn(counts,r.status)||!timestamp(r.registeredAt)||!['agreement','category','organization','sector','jobTitle','legalReference'].every(k=>nullableText(r[k])))fail();
+  if(filters.status!=='all'&&r.status!==filters.status||filters.jurisdiction&&(filters.jurisdiction==='not_reported'?r.jurisdictionCode!==null:r.jurisdictionCode!==filters.jurisdiction)||['organization','sector','agreement'].some(k=>filters[k]&&r[k]!==filters[k])||r.status==='pending_start'&&(!r.startDate||r.startDate<=value.today)||r.status==='active'&&(!r.startDate||r.startDate>value.today||r.endDate!==null&&r.endDate<value.today))fail();
   ids.add(r.contractId.toLowerCase());counts[r.status]++;
  }
  if(Object.keys(counts).some(k=>value.counts[k]!==counts[k]))fail();
