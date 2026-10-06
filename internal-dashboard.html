@@ -3418,7 +3418,7 @@
           });
         }).catch(function () { if (certificateHost.isConnected) certificateHost.textContent = 'No se pudo abrir la carga de certificados. Cerrá y abrí nuevamente la ficha.'; });
         else certificateHost.textContent = 'Esta ficha no incluye la referencia del legajo necesaria para consultar o cargar certificados.';
-        if (detail.employee.recordOrigin === 'MUNICONTROL') return section;
+        if (detail.employee.recordOrigin === 'MUNICONTROL' && !detail.meta.history?.readOnly) return section;
         const total = nonNegativeNumber(firstValue(detail.meta, [['familyTotal'], ['totalFamiliares']]));
         const received = detail.family.length;
         const sourceDetails = create('details', 'fs-source-history');
@@ -3647,9 +3647,12 @@
         const head = create('div', 'detail-section-head');
         head.append(create('h3', '', 'Historial de legajos'), create('span', 'evidence source', 'Fuente'));
         section.appendChild(head);
-        section.appendChild(create('p', 'detail-section-copy', 'Contratos GRH que apuntan a la misma identidad canónica; no es una unión por IDPERSONA entre bases.'));
+        section.appendChild(create('p', 'detail-section-copy', detail.meta.history?.readOnly
+          ? 'Contratos del mismo municipio e identidad canónica. Cada vínculo conserva su origen y situación; no se unen personas por su número de legajo.'
+          : 'Contratos GRH que apuntan a la misma identidad canónica; no es una unión por IDPERSONA entre bases.'));
         const timeline = create('ol', 'timeline');
         detail.employmentHistory.forEach(function (contract) {
+          const adoptedStatus=detail.meta.history?.readOnly ? statusDisplay(contract.status,contract.status==='active') : null;
           const item = create('li', 'timeline-item');
           const top = create('div', 'timeline-top');
           top.append(create('span', 'timeline-title', 'Legajo ' + displayValue(contract.legajo) + ' · compañía ' + displayValue(contract.companyId)));
@@ -3659,7 +3662,7 @@
             create('span', '', displayValue(contract.organization)),
             create('span', '', displayValue(contract.sector)),
             create('span', '', displayValue(contract.role)),
-            create('span', 'state-pill ' + (contract.status === 'inactive' ? 'inactive' : 'active'), readableKey(contract.status, 'status'))
+            create('span', 'state-pill ' + (adoptedStatus ? adoptedStatus.className : (contract.status === 'inactive' ? 'inactive' : 'active')), adoptedStatus ? adoptedStatus.label : readableKey(contract.status, 'status'))
           );
           item.append(top, meta);
           timeline.appendChild(item);
@@ -3737,8 +3740,10 @@
           : 'Legajo no disponible · fuente laboral GRH';
         els.dialogBody.replaceChildren();
         if(employee.recordOrigin === 'MUNICONTROL') {
-          els.dialogSubtitle.textContent = 'Legajo ' + legajo + ' · Alta propia de MuniControl';
-          els.dialogBody.appendChild(detailSection('Datos personales', 'Identidad declarada en el alta. No se generó un registro ficticio de GRH.', [
+          const adopted=detail.meta.history?.readOnly===true && employee.history?.readOnly===true;
+          els.dialogSubtitle.textContent = 'Legajo ' + legajo + (adopted ? ' · Registro municipal con antecedentes migrados' : ' · Alta propia de MuniControl');
+          if(adopted)els.dialogBody.appendChild(create('p','notice','El legajo pertenece al registro municipal. Los antecedentes migrados se conservan sólo para consulta; no generan novedades, certificados, derechos ni liquidaciones.'));
+          els.dialogBody.appendChild(detailSection('Datos personales', adopted ? 'Identidad conservada en la adopción municipal, sin crear otra persona.' : 'Identidad declarada en el alta. No se generó un registro ficticio de GRH.', [
             detailField('Legajo',employee.legajo),detailField('Apellido y nombres',employee.nombre),detailField('DNI',employee.dni),detailField('CUIL',employee.cuil),
             detailField('Nacimiento',employee.fechaNacimiento,formatDate),detailField('Sexo registrado',employee.sexo)
           ]));
@@ -3748,12 +3753,27 @@
             detailField('Repartición',employee.sector),detailField('Cargo / función',employee.cargo)
           ]));
           els.dialogBody.appendChild(renderNativeEmploymentChangeSection(employee));
-          els.dialogBody.appendChild(detailSection('Registro del alta', 'Esta alta no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
-            detailField('Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
+          els.dialogBody.appendChild(detailSection(adopted ? 'Registro de adopción' : 'Registro del alta', 'Este registro no crea una cuenta de acceso ni calcula haberes. La incorporación a cada circuito operativo se realiza por separado.', [
+            detailField(adopted?'Documento de adopción':'Documento de alta',employee.legalReference),detailField('Fecha de registro',employee.createdAt,formatDate),detailField('Origen','MuniControl'),detailField('Contrato',employee.contractId)
           ]));
           const nativeFamilySection = renderFamilySection(detail, destination);
           els.dialogBody.appendChild(nativeFamilySection);
           if (destination.section === 'family') focusFamilySection(nativeFamilySection.querySelector('#employeeFamilyTitle'));
+          if(adopted){
+            const history=create('section','detail-section');history.setAttribute('data-adopted-history','');
+            history.appendChild(create('h3','','Antecedentes migrados · sólo consulta'));
+            history.appendChild(create('p','detail-section-copy','Fuente histórica GRH · corte '+formatDate(detail.meta.history.cutoff)+'. Se conserva la procedencia de cada registro.'));
+            const totals=create('div','detail-counts');
+            [['Ausencias',detail.meta.absenceTotal,detail.absences],['Licencias',detail.meta.leaveTotal,detail.leaves],['Familiares históricos',detail.meta.familyTotal,detail.family],['Movimientos',detail.meta.movementTotal,detail.movements]].forEach(function(values){
+              const card=detailCount(values[0],values[1],values[2]);card.appendChild(create('span','','Recibidos: '+formatNumber(values[2].length)));totals.appendChild(card);
+            });history.appendChild(totals);
+            if(detail.meta.relationRowsComplete!==true)history.appendChild(create('p','notice warning','La ficha muestra una parte de los antecedentes. Consultá las cantidades informadas y recibidas; no representa el historial completo.'));
+            const source=employee.history.employee||{};
+            history.appendChild(detailSection('Contacto del antecedente','Datos históricos; no actualizan el registro municipal.',[detailField('Teléfono',source.telefono),detailField('Email',source.email),detailField('Domicilio',source.domicilio),detailField('Localidad',source.localidad)]));
+            const events=create('ol','timeline');normalizeEvents(detail.absences,detail.leaves).forEach(event=>events.appendChild(eventItem(event)));history.appendChild(events);
+            history.appendChild(renderEmploymentHistorySection(detail));history.appendChild(renderMembershipSection(detail));history.appendChild(renderMovementSection(detail));history.appendChild(renderPersonasSection(detail));
+            els.dialogBody.appendChild(history);
+          }
           return;
         }
 
@@ -3987,6 +4007,14 @@
       els.logoutButton.addEventListener('click', logout);
       els.closeDialog.addEventListener('click', closeDialog);
       els.employeeDialog.addEventListener('cancel', function (event) { event.preventDefault(); closeDialog(); });
+      function withdrawEmployeeDetail() {
+        closeDialog();els.dialogBody.replaceChildren();els.dialogTitle.textContent='Ficha de legajo';els.dialogSubtitle.textContent='Volvé a consultar para verificar el acceso y la procedencia.';
+      }
+      document.addEventListener('visibilitychange',function(){if(document.hidden)withdrawEmployeeDetail();});
+      document.addEventListener('municontrol:capabilities-ready',function(event){
+        const values=event.detail?.tenantCapabilities;
+        if(values && !(typeof values.has==='function'?values.has('workforce.employee.read'):Array.isArray(values)&&values.includes('workforce.employee.read')))withdrawEmployeeDetail();
+      });
       document.addEventListener('mc:native-employee-created', function(event) {
         if(!event.detail || !/^[1-9]\d{0,8}$/.test(event.detail.legajo)) return;
         els.employeeFilters.reset(); els.employeeSearch.value=event.detail.legajo;

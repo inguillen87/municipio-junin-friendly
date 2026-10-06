@@ -5,6 +5,8 @@ import { internalAbsencePerson } from '../lib/internal-absence-person.js';
 import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPattern } from '../lib/absence-event-context.js';
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
+import {readAdoptionHistory,AdoptionHistoryError} from '../lib/internal-employment-adoption-history.js';
+import {adoptionUuid} from '../assets/employment-adoption-contract.js';
 import {internalNativeRoster} from '../lib/internal-native-roster.js';
 import {internalAdoptionReview} from '../lib/internal-employment-adoption-review.js';
 import {AdoptionReviewError} from '../assets/employment-adoption-review-model.js';
@@ -3477,7 +3479,7 @@ function assertionValue(assertions, sourceSystem, attributeName) {
   return assertions.find((row) => row.sourceSystem === sourceSystem && row.attributeName === attributeName)?.rawValue ?? null;
 }
 
-export async function employee(sql, req, tenantId = null) {
+export async function employee(sql, req, tenantId = null, options = {}) {
   const contractId = boundedQueryValue(req, 'contractId', 64);
   const legajo = boundedQueryValue(req, 'legajo', 64);
   const companyId = boundedQueryValue(req, 'companyId', 32);
@@ -3509,6 +3511,8 @@ export async function employee(sql, req, tenantId = null) {
   const detailValues = [...identifierSql.values,...(tenantId ? [tenantId] : [])];
   const rows = await sql.query(`
     SELECT contract.id AS "contractId",
+           encode(sha256(convert_to((to_jsonb(contract)-ARRAY['created_at','updated_at'])::text,'UTF8')),'hex') AS "__contractReadVersion",
+           encode(sha256(convert_to((to_jsonb(identity)-ARRAY['created_at','updated_at'])::text,'UTF8')),'hex') AS "__identityReadVersion",
            contract.person_id AS "canonicalPersonId",
            contract.legacy_company_id AS "companyId",
            contract.legacy_legajo AS legajo,
@@ -3619,8 +3623,28 @@ export async function employee(sql, req, tenantId = null) {
       }
     };
   }
-  const row = rows[0];
-  if (row.recordOrigin === 'MUNICONTROL') return nativeEmployeeDetail(row,recordYear);
+  const {__contractReadVersion: contractReadVersion,__identityReadVersion: identityReadVersion,...row}=rows[0];
+  let adoption=null;
+  if (row.recordOrigin === 'MUNICONTROL') {
+    const marker=safeJsonObject(safeJsonObject(row.rawFields).native);
+    const adopted=Object.hasOwn(marker,'adoptionProposalId')||Object.hasOwn(marker,'adoptionReviewId');
+    if(!adopted)return nativeEmployeeDetail(row,recordYear);
+    if(typeof options.resolveAdoptionHistory!=='function')throw new AdoptionHistoryError('UNAVAILABLE',503,'No se pudieron verificar los antecedentes del legajo. Volvé a consultar.');
+    adoption=await options.resolveAdoptionHistory(row.contractId);
+    if(adoption.contract.readVersion!==contractReadVersion||adoption.contract.identityReadVersion!==identityReadVersion||adoption.scope.tenantId!==tenantId||adoption.scope.companyId!==Number(row.companyId)
+      ||adoption.contract.id!==row.contractId||adoption.contract.personId!==row.canonicalPersonId||adoption.contract.legajo!==row.legajo||adoption.contract.registrationId!==marker.registrationId)
+      throw new AdoptionHistoryError('CHANGED',409,'Cambió el legajo durante la consulta. Volvé a abrir su ficha.');
+    const archived=await sql.query(`SELECT e.telefono,e.email,e.domicilio,e.localidad,e.gremio,e.lugar_trabajo AS "lugarTrabajo",e.profesion,
+      (SELECT to_jsonb(s) FROM employment_status_snapshot s WHERE s.employment_contract_id=$3::uuid AND s.source_batch_id=$4::uuid AND s.source_system='GRH' ORDER BY s.snapshot_date DESC LIMIT 1) AS "statusSnapshot",
+      (SELECT to_jsonb(a) FROM payroll_snapshot_assignment a WHERE a.employment_contract_id=$3::uuid AND a.source_batch_id=$4::uuid AND a.source_system='GRH' ORDER BY a.snapshot_date DESC LIMIT 1) AS "assignmentSnapshot"
+      FROM grh_effective_employees_v1 e WHERE e.company_id=$1 AND e.legajo=$2 LIMIT 2`,[row.companyId,row.legajo,row.contractId,adoption.history.contractSourceBatchId]);
+    if(!Array.isArray(archived)||archived.length>1)throw new AdoptionHistoryError('INVALID',503,'Los antecedentes no tienen una correspondencia única. Revisá su procedencia.');
+    row.history={...adoption.history,readOnly:true,employee:archived[0]??null};
+    row.legalReference=adoption.contract.legalReference;row.createdAt=adoption.contract.registeredAt;
+    row.administrativeStatus=adoption.contract.status;row.activo=adoption.contract.status==='active';
+    row.liquidable=false;row.payrollStatus='not_liquidated';
+    row.controlState='registro_municipal_sin_liquidacion_propia';
+  }
   const relationParams = [row.companyId, row.legajo];
   const recordFrom = recordYear ? `${recordYear}-01-01` : null;
   const recordTo = recordYear ? `${recordYear + 1}-01-01` : null;
@@ -3728,8 +3752,9 @@ export async function employee(sql, req, tenantId = null) {
              contract.source_payload #>> '{employment,cargoName}' AS role
       FROM employment_contract contract
       WHERE contract.person_id = $1::uuid
+      ${adoption ? "AND contract.legacy_company_id=$2 AND (contract.source_system='GRH' OR (contract.source_system='MUNICONTROL' AND contract.tenant_id=$3::uuid))" : ''}
       ORDER BY contract.start_date DESC NULLS LAST, contract.legacy_company_id, contract.legacy_legajo
-    `, [row.canonicalPersonId])
+    `, adoption ? [row.canonicalPersonId,row.companyId,tenantId] : [row.canonicalPersonId])
   ]);
 
   const rawFields = safeJsonObject(row.rawFields);
@@ -3758,6 +3783,15 @@ export async function employee(sql, req, tenantId = null) {
       : row.crosswalkStatus === 'unmatched'
         ? 'No se encontró una identidad PERSONAS con evidencia suficiente.'
         : 'El crosswalk PERSONAS todavía no está disponible para esta identidad.';
+
+  if(adoption){
+    for(const [key,received,maximum] of [['absenceTotal',absences,DETAIL_EVENT_LIMIT],['leaveTotal',leaves,DETAIL_EVENT_LIMIT],['familyTotal',family,DETAIL_EVENT_LIMIT],['movementTotal',movements,DETAIL_MOVEMENT_LIMIT]]){
+      const total=counts?.[key];
+      if(!Number.isSafeInteger(total)||total<0||!Array.isArray(received)||received.length!==Math.min(total,maximum))throw new AdoptionHistoryError('INCOMPLETE',503,'No se pudo comprobar la cantidad de antecedentes. Volvé a consultar.');
+    }
+    const fresh=await options.resolveAdoptionHistory(row.contractId);
+    if(JSON.stringify(fresh)!==JSON.stringify(adoption))throw new AdoptionHistoryError('CHANGED',409,'Cambió el legajo o la procedencia durante la consulta. Volvé a abrir su ficha.');
+  }
 
   return {
     status: 200,
@@ -3800,6 +3834,7 @@ export async function employee(sql, req, tenantId = null) {
         }
       },
       meta: {
+        ...(adoption?{source:'MUNICONTROL',history:{...adoption.history,readOnly:true},currentEmploymentVerified:true}:{}),
         absenceTotal: Number(counts?.absenceTotal || 0),
         leaveTotal: Number(counts?.leaveTotal || 0),
         familyTotal: Number(counts?.familyTotal || 0),
@@ -3812,6 +3847,7 @@ export async function employee(sql, req, tenantId = null) {
           Number(counts?.absenceTotal || 0) <= DETAIL_EVENT_LIMIT
           && Number(counts?.leaveTotal || 0) <= DETAIL_EVENT_LIMIT
           && Number(counts?.familyTotal || 0) <= DETAIL_EVENT_LIMIT
+          && (!adoption || Number(counts?.movementTotal || 0) <= DETAIL_MOVEMENT_LIMIT)
       }
     }
   };
@@ -3885,7 +3921,20 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       const sql = await getSql();
       const sourceBinding = { ...directorySourceBinding(env), tenantId: access.principal?.tenant?.id };
-      const sourceSnapshot = await effectiveSourceSnapshot(sql, sourceBinding);
+      let sourceSnapshot;
+      try{sourceSnapshot=await effectiveSourceSnapshot(sql,sourceBinding);}
+      catch(error){
+        // Full adoption leaves no canonical GRH contract for the old source
+        // sentinel. Only a verified adoption of this exact UUID can authorize
+        // this read; every other resource keeps the original source guard.
+        const target=queryValue(req,'contractId').toLowerCase();
+        if(resource!=='employee'||access.mode!=='managed'||error?.code!=='GRH_SOURCE_SCOPE_INVALID'||!adoptionUuid(target)||!sourceBinding.database||!sourceBinding.companyId)throw error;
+        const first=await readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),target,sourceBinding);
+        let used=false;
+        const result=await employee(sql,req,access.principal.tenant.id,{resolveAdoptionHistory:async id=>{if(!used&&id===target){used=true;return first;}return readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),id,sourceBinding);}});
+        if(!result.payload.meta?.currentEmploymentVerified)throw error;
+        return send(res,result.status,result.payload);
+      }
       const respond = async (status, payload) => {
         await assertEffectiveSourceSnapshot(sql, sourceBinding, sourceSnapshot);
         return send(res, status, payload);
@@ -3940,8 +3989,10 @@ export function createInternalDataHandler(dependencies = {}) {
         return await respond( result.status, result.payload);
       }
       if (resource === 'employee') {
-        const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null);
-        if(result.status===200&&result.payload.data?.recordOrigin==='MUNICONTROL'){
+        const result = await employee(sql, req, access.mode==='managed' ? access.principal?.tenant?.id : null,{
+          resolveAdoptionHistory:async contractId=>readAdoptionHistory(await getPayrollSql(env),access.principal,getTenantSession(access,env),contractId,sourceBinding)
+        });
+        if(result.status===200&&result.payload.data?.recordOrigin==='MUNICONTROL'&&!result.payload.meta?.currentEmploymentVerified){
           const lifecycle=await employmentLifecycleOperation(sql,access.principal,getTenantSession(access,env),'bootstrap',{contractId:result.payload.data.contractId});
           result.payload.data.administrativeStatus=lifecycle.employment.status;
           result.payload.data.activo=lifecycle.employment.status==='active';
@@ -3950,7 +4001,7 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
-      if(error instanceof NativeRosterError||error instanceof AdoptionReviewError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
+      if(error instanceof NativeRosterError||error instanceof AdoptionReviewError||error instanceof AdoptionHistoryError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
       const failure = payrollReadFailure(error);
       const requestId = randomUUID();
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
