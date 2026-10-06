@@ -13,6 +13,9 @@ import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/employment-adoption-review-model.js',
+  'assets/employment-adoption-review-ui.js',
+  'assets/employment-adoption-review.css',
   'assets/position-assignment-model.js',
   'assets/position-assignment-client.js',
   'assets/position-assignment-panel.js',

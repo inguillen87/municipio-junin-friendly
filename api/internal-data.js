@@ -6,6 +6,8 @@ import { absenceRangeIntegrity, normalizeAbsenceDetailScope, absenceSearchPatter
 import { payrollReadFailure, payrollReadDiagnostic } from '../lib/payroll-read-errors.js';
 import { nativeEmployeeDetail } from '../lib/native-employee-directory.js';
 import {internalNativeRoster} from '../lib/internal-native-roster.js';
+import {internalAdoptionReview} from '../lib/internal-employment-adoption-review.js';
+import {AdoptionReviewError} from '../assets/employment-adoption-review-model.js';
 import {employeeContext} from '../lib/internal-native-employees.js';
 import {employmentLifecycleOperation} from '../lib/internal-employment-lifecycle.js';
 import {NativeRosterError} from '../assets/native-roster-model.js';
@@ -3847,6 +3849,10 @@ export function createInternalDataHandler(dependencies = {}) {
         const result=await internalNativeRoster(await getSql(),req,access.principal,getTenantSession(access,env));
         return send(res,result.status,result.payload);
       }
+      if(resource==='employmentadoptionreview'){
+        const result=await internalAdoptionReview(await getSql(),req,access.principal,getTenantSession(access,env));
+        return send(res,result.status,result.payload);
+      }
       if (resource === 'budgetapproved') {
         const result = budgetApproved();
         return send(res, result.status, result.payload);
@@ -3944,7 +3950,7 @@ export function createInternalDataHandler(dependencies = {}) {
       }
       return await respond( 400, { ok: false, code: 'UNKNOWN_RESOURCE', error: 'Recurso desconocido' });
     } catch (error) {
-      if(error instanceof NativeRosterError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
+      if(error instanceof NativeRosterError||error instanceof AdoptionReviewError)return send(res,error.status,{ok:false,code:error.code,error:error.message});
       const failure = payrollReadFailure(error);
       const requestId = randomUUID();
       const safeResource = capabilitiesForInternalDataResource(resource) ? resource : 'unknown';
