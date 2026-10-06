@@ -1,0 +1,46 @@
+name: Own position assignments
+on:
+  push:
+    branches: ['master', 'codex/own-position-assignment-20261006']
+    paths: ['assets/position-*', 'assets/own-payroll-run-panel.js', 'internal-dashboard.html', 'api/internal-position-assignment.js', 'lib/internal-position-assignment.js', 'scripts/migrations/128-*', 'scripts/*position-assignment*.mjs', 'scripts/lib/position-assignment*.mjs', 'tests/position-assignment*.test.js', 'tests/fixtures/position-assignment-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-assignment.yml']
+  pull_request:
+    paths: ['assets/position-*', 'assets/own-payroll-run-panel.js', 'internal-dashboard.html', 'api/internal-position-assignment.js', 'lib/internal-position-assignment.js', 'scripts/migrations/128-*', 'scripts/*position-assignment*.mjs', 'scripts/lib/position-assignment*.mjs', 'tests/position-assignment*.test.js', 'tests/fixtures/position-assignment-synthetic.js', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/position-assignment.yml']
+permissions:
+  contents: read
+jobs:
+  budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        major: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: own_payroll_run_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: position-assignment-synthetic-qa
+        ports:
+          - 554${{ matrix.major }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGPASSWORD: position-assignment-synthetic-qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: mkdir -p verification
+      - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
+      - run: node --test tests/position-assignment*.test.js tests/own-payroll-run*.test.js tests/annual-position-budget*.test.js
+      - run: node scripts/verify-position-assignment.mjs --major=${{ matrix.major }} --output=verification/position-assignment-sql.json
+      - run: node scripts/verify-position-assignment-installation.mjs --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/position-assignment-installation.json
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-position-assignment-ui.mjs --major=${{ matrix.major }} --browser=chromium --output=verification/position-assignment-ui.json

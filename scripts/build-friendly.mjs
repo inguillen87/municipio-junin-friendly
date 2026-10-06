@@ -13,6 +13,11 @@ import { buildReactIslands, buildLeaveRulesIsland } from './build-react-islands.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'public');
 const shellFiles = [
+  'assets/position-assignment-model.js',
+  'assets/position-assignment-client.js',
+  'assets/position-assignment-panel.js',
+  'assets/position-capture-panel.js',
+  'assets/position-assignment.css',
   'assets/release-status-model.js',
   'assets/native-leave.js',
   'assets/native-leave-export.js',
