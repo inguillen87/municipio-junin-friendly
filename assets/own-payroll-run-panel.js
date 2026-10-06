@@ -1,6 +1,7 @@
 import {ownRunBootstrap,ownRunCommand,OWN_RUN_MAX_RESPONSE} from './own-payroll-run-model.js';
 import {validateCatalogBootstrap} from './native-employment-catalog-model.js';
 import {createEmployeePicker} from './employee-picker.js';
+import {mountPositionCapture} from './position-capture-panel.js';
 import {OWN_RUN_READ,OWN_RUN_NOMINAL,OWN_RUN_PREPARE,OWN_RUN_TYPES,OWN_RUN_NATURES,hasOwnRunAccess,ownRunWorkspaceAccess,ownRunWorkspaceAttempt,verifiedWorkspaceCapture,ownRunWorkspaceResult,ownRunWorkspaceRows,ownRunWorkspaceCsv,formatOwnRunDecimal} from './own-payroll-run-workspace-model.js';
 
 const endpoint='/api/internal-own-payroll-run';
@@ -42,10 +43,11 @@ export function mountOwnPayrollRun(host) {
     <label for="ownRunSearch">Buscar legajo o concepto en el resultado<input id="ownRunSearch" data-own-search type="search" maxlength="100" autocomplete="off"></label>
     <p data-own-range></p><div class="own-run-scroll" tabindex="0" role="region" aria-label="Detalle por concepto, tabla desplazable"><table><caption>Detalle por concepto · la búsqueda no limita la descarga</caption><thead><tr><th>Legajo</th><th>Concepto</th><th>Naturaleza</th><th>Valor calculado</th><th>Respaldo</th></tr></thead><tbody data-own-rows></tbody></table></div>
     <nav class="own-run-actions" aria-label="Páginas del detalle"><button class="button" type="button" data-own-prev>Anterior</button><span data-own-page></span><button class="button" type="button" data-own-next>Siguiente</button></nav>
-    <details><summary>Ver versiones y trazabilidad</summary><dl data-own-trace></dl></details>
+    <details><summary>Ver versiones y trazabilidad</summary><dl data-own-trace></dl></details><div data-own-position-capture></div>
   </section>
   <section aria-labelledby="ownRunHistoryTitle"><h3 id="ownRunHistoryTitle">Cálculos propios guardados</h3><p>Consultá un resultado o recuperá una captura pendiente. Abrir una corrida no ejecuta otro cálculo.</p><div data-own-history></div></section>`;
   const $=s=>host.querySelector('[data-own-'+s+']');
+  const positionCapture=mountPositionCapture($('position-capture'));
   for(const [value,text]of Object.entries(OWN_RUN_TYPES)){const option=node('option',text);option.value=value;$('type').append(option);}
   let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,catalog=null,chosen=[],attempt=null,current=null,notFound=false,page=1;
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
@@ -54,6 +56,7 @@ export function mountOwnPayrollRun(host) {
   const picker=createEmployeePicker({instanceId:'ownRunPicker',canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este cálculo admite altas propias de MuniControl. El legajo seleccionado pertenece a la fuente histórica.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
+    positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));
     $('fields').disabled=busy||!canPrepare()||!!attempt;$('refresh').disabled=busy||!live();
     $('send').disabled=busy||!canPrepare()||!!current?.saved||!attempt&&!$('confirm').checked||!!attempt&&!attempt.body;
     $('send').textContent=attempt?'Reintentar el mismo cálculo':'Calcular y guardar resultado';
@@ -67,6 +70,7 @@ export function mountOwnPayrollRun(host) {
     host.setAttribute('aria-busy',String(busy));
   }
   function clearViews(){
+    positionCapture.clear();
     picker.close();chosen=[];current=null;boot=null;catalog=null;page=1;notFound=false;
     $('result').hidden=true;for(const key of ['totals','rows','trace','history','chips','codes'])$(key).replaceChildren();
     $('result-summary').textContent='';$('range').textContent='';$('page').textContent='';$('search').value='';$('confirm').checked=false;
@@ -120,6 +124,7 @@ export function mountOwnPayrollRun(host) {
     $('page').textContent='Página '+view.page+' de '+view.pages;$('prev').disabled=view.page<=1;$('next').disabled=view.page>=view.pages;
   }
   function showCapture(value){
+    positionCapture.setCapture(value.saved?value:null);
     current=value;notFound=false;
     if(!attempt||attempt.key!==value.key)attempt=ownRunWorkspaceAttempt(value.key,value.body,access.key);
     $('period').value=value.body.period;$('type').value=value.body.liquidationType;$('kind').value=value.body.selection.kind;
