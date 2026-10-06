@@ -493,6 +493,7 @@
           </header>
 
           <section id="nativeSelfPanel" class="workflow-guide" aria-label="Mis licencias" hidden></section>
+          <section id="ownReceiptSelfPanel" aria-label="Mis recibos propios" hidden></section>
 
           <section class="permission-strip" aria-labelledby="permissionTitle">
             <div><strong id="permissionTitle">Alcance de tu sesión</strong><p id="permissionSummary">Consultando capacidades explícitas del backend.</p></div>
@@ -930,6 +931,7 @@
       function redirectToLogin() {
         if (state.redirecting) return;
         state.redirecting = true;
+        state.ownReceiptSelf?.close();state.ownReceiptSelf=null;
         actionPageGeneration++;actionRecovery=null;byId('actionRecoveryNotice')?.remove();
         state.subjectSearchSequence += 1;
         if (state.subjectSearchController) state.subjectSearchController.abort();
@@ -2889,9 +2891,14 @@
           var authUser=firstObject(authRoot.user,auth.user,authRoot.session&&authRoot.session.user);
           if(!text(first(authUser.id,authUser.email))){redirectToLogin();return;}
           state.nativeSelf?.close();state.nativeSelf=null;
+          state.ownReceiptSelf?.close();state.ownReceiptSelf=null;
+          if(authRoot.access?.tenantCapabilities?.includes('payroll.receipt.self.read')){
+            var ownReceiptModule=await import('./assets/own-payroll-receipt-self.js');
+            state.ownReceiptSelf=ownReceiptModule.mountOwnReceiptSelf(byId('ownReceiptSelfPanel'),{auth:authRoot});
+          }
           var nativeSelfModule=await import('./assets/native-self.js');
           state.nativeSelf=await nativeSelfModule.mountNativeSelf(byId('nativeSelfPanel'),{auth:authRoot});
-          if(state.nativeSelf?.ownOnly){
+          if(state.nativeSelf?.ownOnly||state.ownReceiptSelf?.ownOnly){
             state.user={name:text(first(authUser.name,authUser.displayName),'Empleado municipal'),role:'Autogestión'};
             renderSession(state.user);
             el.appShell.dataset.nativeSelfOnly='true';
