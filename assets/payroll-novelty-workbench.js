@@ -118,10 +118,11 @@ const hasRequestedBatch = new URL(location.href).searchParams.has('batchId');
 function nativeSelected() { return monthlySubject?.origin === 'MUNICONTROL'; }
 function canUseMonthlySubject() { return hasCapability('payroll.novelty.prepare') && hasCapability('payroll.novelty.nominal.read'); }
 function renderMonthlySubject() {
+  byId('legajo').maxLength = nativeSelected() ? 128 : 20;
   const host = byId('nativeMonthlySubject');
   host.textContent = readBlocked || !hasCapability('payroll.novelty.nominal.read') ? '' : monthlySubject
-    ? `${monthlySubject.origin === 'MUNICONTROL' ? 'Alta propia de MuniControl' : 'Fuente GRH'} · ${monthlySubject.employeeName || 'Nombre no informado'} · Legajo ${monthlySubject.legajo}`
-    : monthlyContractId ? 'El vínculo elegido necesita una consulta vigente. Actualizalo para continuar.' : 'Elegí una persona para verificar su vínculo. Las altas propias admiten una novedad mensual por vez.';
+    ? `${monthlySubject.origin === 'MUNICONTROL' ? 'Registro propio de MuniControl' : 'Fuente GRH'} · ${monthlySubject.employeeName || 'Nombre no informado'} · Legajo ${monthlySubject.legajo}`
+    : monthlyContractId ? 'El vínculo elegido necesita una consulta vigente. Actualizalo para continuar.' : 'Elegí una persona para verificar su vínculo. Los registros propios admiten una novedad mensual por vez.';
   byId('nativeMonthlyPick').hidden = !directoryAllowed;
   byId('nativeMonthlyRefresh').hidden = !monthlyContractId;
   byId('nativeMonthlyClear').hidden = !monthlyContractId;
@@ -245,6 +246,7 @@ async function chooseMonthlySubject(contractId, expectedOrigin = null) {
     if (generation !== lookupEpoch || readBlocked) return;
     if(expectedOrigin&&subject.origin!==expectedOrigin)throw Error('El origen del vínculo cambió desde la búsqueda. Actualizá la consulta y revisá la persona antes de preparar.');
     monthlySubject = subject;
+    byId('legajo').maxLength = subject.origin === 'MUNICONTROL' ? 128 : 20;
     byId('legajo').value = subject.legajo;
     if (nativeSelected()) byId('payrollType').value = 'monthly';
     renderMonthlySubject();
@@ -417,15 +419,18 @@ function parseBoolean(value) {
   throw new Error('Forzado debe indicar SI o NO.');
 }
 
-function rowFromValues(values, ordinal, periodMonth) {
+function rowFromValues(values, ordinal, periodMonth, verifiedSubject = null) {
   const [
     legajoValue, conceptValue, costCenterValue, adjustmentValue, quantityValue,
     amountValue, movementValue, legalValue, observationValue, forcedValue,
   ] = values;
-  const legajo = String(legajoValue || '').trim();
+  const ownLegajo = verifiedSubject?.origin === 'MUNICONTROL';
+  const legajo = ownLegajo ? String(legajoValue || '') : String(legajoValue || '').trim();
   const conceptSourceId = String(conceptValue || '').trim();
   const costCenterSourceId = nullable(costCenterValue);
-  if (!/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw Object.assign(new Error(`Fila ${ordinal}: legajo inválido. Ingresá sólo el número, sin separadores, letras o ceros iniciales.`), { entryField: 'legajo' });
+  if (ownLegajo ? legajo !== verifiedSubject.legajo : !/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw Object.assign(new Error(ownLegajo
+    ? `Fila ${ordinal}: legajo inválido. Volvé a verificar la persona seleccionada.`
+    : `Fila ${ordinal}: legajo inválido. Ingresá sólo el número, sin separadores, letras o ceros iniciales.`), { entryField: 'legajo' });
   if (!/^(?:0|[1-9]\d{0,19})$/.test(conceptSourceId)) throw new Error(`Fila ${ordinal}: concepto inválido.`);
   if (costCenterSourceId && !/^(?:0|[1-9]\d{0,19})$/.test(costCenterSourceId)) {
     throw new Error(`Fila ${ordinal}: centro de costo inválido.`);
@@ -485,7 +490,7 @@ function currentEntryValues() {
 }
 
 function individualRows(periodMonth) {
-  return [rowFromValues(currentEntryValues(), 1, periodMonth)];
+  return [rowFromValues(currentEntryValues(), 1, periodMonth, monthlySubject)];
 }
 
 function agileRows(periodMonth) {
@@ -567,7 +572,7 @@ function moneyFromCents(value) {
 }
 
 function renderPreflight(draft) {
-  reviewPanel.setRows(draft.rows);
+  reviewPanel.setRows(draft.rows,null,nativeSelected()?monthlySubject:null);
   if(nativeSelected()){
     preparedNativeReview=nativeMonthlyPreparation(draft,monthlySubject,principalKey(bootstrapState.principal));
     nativeMonthlyReview.show(preparedNativeReview);
@@ -699,7 +704,7 @@ function renderBatchDetail(payload) {
   selectedBatchId = batch.id;
   const native = batch.contractVersion==='payroll-novelty-batch.v2';
   byId('detailExportNote').textContent = native
-    ? 'Excel y CSV de control: conservan la identidad del alta propia y los valores informados. No son una liquidación ni un formato homologado para importar en GRH.'
+    ? 'Excel y CSV de control: conservan la identidad del registro propio y los valores informados. No son una liquidación ni un formato homologado para importar en GRH.'
     : 'Excel de revisión: conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.';
   byId('detailTitle').textContent = `Lote ${String(batch.id).slice(0, 8).toUpperCase()}`;
   byId('detailState').textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status;
@@ -708,8 +713,8 @@ function renderBatchDetail(payload) {
   byId('detailCount').textContent = String(batch.rowCount || batch.rows?.length || 0);
   byId('detailIssues').textContent = `${Number(batch.blockingIssueCount || 0)} bloqueantes · ${Number(batch.warningIssueCount || 0)} avisos`;
   if (batch.contractVersion==='payroll-novelty-batch.v2') byId('detailIssues').textContent += batch.rows[0].identityCurrent
-    ? ' · Alta propia de MuniControl · Identidad del vínculo verificada'
-    : ' · Alta propia de MuniControl · El vínculo cambió: requiere una nueva preparación';
+    ? ' · Registro propio de MuniControl · Identidad del vínculo verificada'
+    : ' · Registro propio de MuniControl · El vínculo cambió: requiere una nueva preparación';
   const actions = byId('detailActions');
   actions.replaceChildren();
   const commands = Array.isArray(batch.allowedCommands) ? batch.allowedCommands : [];
@@ -969,7 +974,7 @@ async function exportBatch(id, format) {
     showMessage(
       'success',
       `${native ? isExcel ? 'Excel de control' : 'CSV de control' : isExcel ? 'Excel de revisión' : 'CSV técnico'} descargado`,
-      `${fileName}. ${native ? 'Control del alta propia. No liquida haberes ni es un formato homologado de importación.' : 'La salida no confirma importación en GRH ni cálculo de haberes.'}`,
+      `${fileName}. ${native ? 'Control del registro propio. No liquida haberes ni es un formato homologado de importación.' : 'La salida no confirma importación en GRH ni cálculo de haberes.'}`,
     );
   } catch (error) {
     showMessage('error', 'No se pudo exportar el lote', errorMessage(error));

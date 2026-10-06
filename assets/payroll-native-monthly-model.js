@@ -5,6 +5,7 @@ const exact = (value, keys) => object(value) && Object.keys(value).length === ke
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(value);
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const code = value => typeof value === 'string' && /^(?:0|[1-9]\d{0,19})$/.test(value);
+const nativeLegajo = value => typeof value === 'string' && [...value].length >= 1 && [...value].length <= 64 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 const month = value => typeof value === 'string' && /^20(?:0[8-9]|[1-9]\d)-(?:0[1-9]|1[0-2])-01$/.test(value);
 const text = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max && value === value.trim() && !/[\x00-\x1f\x7f]/.test(value);
 const instant = value => {
@@ -37,7 +38,7 @@ const freeze = value => { if (value && typeof value === 'object') { Object.value
 export function assertNativeMonthlySubject(subject) {
   if (!exact(subject, nativeKeys) || subject.origin !== 'MUNICONTROL' || subject.sourceCutoff !== null
       || !uuid(subject.contractId) || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(subject.registrationId || '') || !hash(subject.identityToken)
-      || !code(subject.legajo) || subject.employeeName !== null && !text(subject.employeeName,300)
+      || !nativeLegajo(subject.legajo) || subject.employeeName !== null && !text(subject.employeeName,300)
       || !instant(subject.registeredAt)) fail();
   return subject;
 }
@@ -52,8 +53,8 @@ export function verifyMonthlyEmployee(payload, contractId) {
   return subject;
 }
 
-function inputRow(row, periodMonth, validAmount = cents) {
-  if (row.rowOrdinal !== 1 || !code(row.legajo) || !code(row.conceptSourceId)
+function inputRow(row, periodMonth, validAmount = cents, ownLegajo = false) {
+  if (row.rowOrdinal !== 1 || !(ownLegajo ? nativeLegajo(row.legajo) : code(row.legajo)) || !code(row.conceptSourceId)
       || row.costCenterSourceId !== null && !code(row.costCenterSourceId)
       || row.adjustmentMonth !== null && (!month(row.adjustmentMonth) || row.adjustmentMonth > periodMonth)
       || !quantity(row.quantityDecimal) || !validAmount(row.amountCents) || row.quantityDecimal === null && row.amountCents === null
@@ -76,7 +77,7 @@ export function buildNativeMonthlyDraft(draft, subject) {
   if (!exact(draft,['sourceMode','periodMonth','payrollType','rows']) || draft.sourceMode !== 'individual'
       || draft.payrollType !== 'monthly' || !month(draft.periodMonth) || !Array.isArray(draft.rows) || draft.rows.length !== 1
       || !exact(draft.rows[0],inputKeys) || draft.rows[0].legajo !== subject.legajo) fail();
-  inputRow(draft.rows[0],draft.periodMonth);
+  inputRow(draft.rows[0],draft.periodMonth,cents,true);
   return freeze({...draft, rows:[{...draft.rows[0], contractId:subject.contractId, identityToken:subject.identityToken}]});
 }
 
@@ -103,7 +104,7 @@ export function verifyMonthlyBatch(batch, {mode = 'detail'} = {}) {
       if (!exact(row,[...inputKeys,'employmentContractId','issues','subject',...(mode==='receipt'?[]:['identityCurrent'])]) || !Array.isArray(row.issues)) fail();
       assertNativeMonthlySubject(row.subject);
       if (row.employmentContractId !== row.subject.contractId || row.legajo !== row.subject.legajo) fail();
-      inputRow(row,batch.periodMonth);
+      inputRow(row,batch.periodMonth,cents,true);
       if (mode === 'receipt') { if (Object.hasOwn(row,'identityCurrent')) fail(); }
       else if (typeof row.identityCurrent !== 'boolean' || mode === 'export' && row.identityCurrent !== true) fail();
       if (row.identityCurrent === false && (batch.canExport === true || batch.allowedCommands?.some(command => ['submit','approve'].includes(command)))) fail();
@@ -150,7 +151,7 @@ export function savedNoveltyBatch(batch) {
   for (const [index, row] of batch.rows.entries()) {
     if (!object(row) || row.rowOrdinal !== index + 1 || !uuid(row.employmentContractId)
         || !Array.isArray(row.issues)) fail();
-    inputRow({...row, rowOrdinal:1}, batch.periodMonth, batch.contractVersion === 'payroll-novelty-batch.v1' ? legacyAmount : cents);
+    inputRow({...row, rowOrdinal:1}, batch.periodMonth, batch.contractVersion === 'payroll-novelty-batch.v1' ? legacyAmount : cents, batch.contractVersion === 'payroll-novelty-batch.v2');
     for (const issue of row.issues) {
       if (!object(issue) || !text(issue.code,100) || typeof issue.blocking !== 'boolean'
           || !['info','warning','error'].includes(issue.severity)) fail();
@@ -209,7 +210,7 @@ export function assertNativeMonthlyPrepareReceipt(batch,draft,reviewedSubject=nu
       || batch.exportable !== false || draft?.sourceMode !== 'individual' || draft.payrollType !== 'monthly'
       || batch.periodMonth !== draft.periodMonth || !Array.isArray(draft.rows) || draft.rows.length !== 1) fail();
   const expected=draft.rows[0],actual=batch.rows[0];
-  inputRow(expected,draft.periodMonth);
+  inputRow(expected,draft.periodMonth,cents,true);
   if (!uuid(expected.contractId) || actual.employmentContractId.toLowerCase() !== expected.contractId.toLowerCase()
       || actual.subject.identityToken !== expected.identityToken
       || inputKeys.some(key=>preparedValue(key,expected[key])!==preparedValue(key,actual[key]))

@@ -238,9 +238,9 @@ export function createPayrollNoveltyXlsxArtifact(snapshot) {
   const entries = workbookEntries(context);
   if (context.nativeTable) {
     const core = entries.find((entry) => entry[0] === 'docProps/core.xml');
-    core[1] = core[1].replace('Revisión de novedades de nómina', 'Control de novedad de alta propia');
+    core[1] = core[1].replace('Revisión de novedades de nómina', 'Control de novedad de registro propio');
     const workbook = entries.find((entry) => entry[0] === 'xl/workbook.xml');
-    workbook[1] = workbook[1].replace('Novedades aprobadas', 'Control de alta propia');
+    workbook[1] = workbook[1].replace('Novedades aprobadas', 'Control de registro propio');
   }
   return Object.freeze({
     fileName: payrollNoveltyXlsxFileName(snapshot),

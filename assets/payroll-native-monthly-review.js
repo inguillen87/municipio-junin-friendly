@@ -38,7 +38,7 @@ export function mountNativeMonthlyReview(host, onChange) {
       const { draft, subject } = review, row = draft.rows[0];
       confirm.checked = false;
       person.textContent = (subject.employeeName ?? 'Nombre no informado')
-        + ' · Legajo ' + subject.legajo + ' · Alta propia de MuniControl';
+        + ' · Legajo ' + subject.legajo + ' · Registro propio de MuniControl';
       grid.replaceChildren();
       const fields = [
         ['Período', draft.periodMonth.slice(0, 7)],

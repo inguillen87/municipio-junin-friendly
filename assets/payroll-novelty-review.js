@@ -1,4 +1,5 @@
 /** Local review only. Never drops an invalid row into a partially accepted draft. */
+import { assertNativeMonthlySubject, sameNativeMonthlySubject } from './payroll-native-monthly-model.js';
 export const NOVELTY_CSV_HEADER = Object.freeze([
   'legajo', 'concepto', 'centro_costo', 'mes_ajuste', 'unidades', 'importe_ars',
   'movimiento', 'instrumento_legal', 'observacion', 'forzado',
@@ -116,12 +117,20 @@ export const NOVELTY_REVIEW_KINDS = Object.freeze({
 });
 const SOURCE_ID = /^(?:0|[1-9]\d{0,19})$/;
 const CENTS = /^-?(?:0|[1-9]\d{0,17})$/;
-function checkedReviewRows(rows, saved) {
+function checkedReviewRows(rows, saved, nativeSubject) {
   if (!Array.isArray(rows) || rows.length < 1 || rows.length > NOVELTY_REVIEW_MAX_ROWS) throw Error('Lote de control inválido.');
+  if (nativeSubject) {
+    assertNativeMonthlySubject(nativeSubject);
+    if (rows.length !== 1) throw Error('El control propio corresponde a una novedad individual.');
+  }
   const ordinals = new Set();
   for (const row of rows) {
     if (!row || !Number.isSafeInteger(row.rowOrdinal) || row.rowOrdinal < 1 || row.rowOrdinal > NOVELTY_REVIEW_MAX_ROWS
-      || ordinals.has(row.rowOrdinal) || typeof row.legajo !== 'string' || !SOURCE_ID.test(row.legajo)
+      || ordinals.has(row.rowOrdinal) || typeof row.legajo !== 'string' || (nativeSubject
+        ? row.legajo !== nativeSubject.legajo
+          || String(saved ? row.employmentContractId : row.contractId).toLowerCase() !== nativeSubject.contractId.toLowerCase()
+          || (saved ? !sameNativeMonthlySubject(row.subject,nativeSubject) || typeof row.identityCurrent !== 'boolean' : row.identityToken !== nativeSubject.identityToken)
+        : !SOURCE_ID.test(row.legajo))
       || typeof row.conceptSourceId !== 'string' || !SOURCE_ID.test(row.conceptSourceId)
       || (row.amountCents !== null && (typeof row.amountCents !== 'string'
         || !(saved ? /^-?(?:0|[1-9]\d{0,18})$/ : CENTS).test(row.amountCents) || row.amountCents === '-0'
@@ -132,8 +141,8 @@ function checkedReviewRows(rows, saved) {
     ordinals.add(row.rowOrdinal);
   }
 }
-export function noveltyBatchControl(rows, {saved = false} = {}) {
-  checkedReviewRows(rows, saved);
+export function noveltyBatchControl(rows, {saved = false, nativeSubject = null} = {}) {
+  checkedReviewRows(rows, saved, nativeSubject);
   function summary(selected) {
     let sum = 0n;
     for (const row of selected) if (row.amountCents !== null) sum += BigInt(row.amountCents);
@@ -157,8 +166,8 @@ function controlAmount(cents) {
   const value = BigInt(cents), abs = (value < 0n ? -value : value).toString().padStart(3, '0');
   return (value < 0n ? '-' : '') + abs.slice(0, -2) + '.' + abs.slice(-2);
 }
-export function noveltyControlCsv(rows) {
-  const summary = noveltyBatchControl(rows);
+export function noveltyControlCsv(rows, options = {}) {
+  const summary = noveltyBatchControl(rows, options);
   const header = ['Nivel', 'Concepto', 'Filas', 'Legajos distintos', 'Con importe', 'Sin importe', 'Forzadas',
     'En cero', 'Negativas', 'Con mes de ajuste', 'Suma aritmética informada ARS', 'Cobertura de importes', 'Alcance'];
   const scope = 'Control local antes de guardar. No es liquidación, aprobación ni pago. No sumar LOTE y CONCEPTO ni legajos entre conceptos.';
