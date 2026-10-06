@@ -12,12 +12,15 @@ export function buildAdoptionPreparationQa(options){
  const relocation=sql=>sql.replaceAll('public.',schema+'.').replaceAll(schema+'.digest(','public.digest(').replace(/SET search_path\s*=\s*(?:pg_catalog,\s*)?public,\s*pg_temp/gi,'SET search_path=pg_catalog,'+schema+',public,pg_temp');
  const migration=fs.readFileSync(new URL('./migrations/132-employment-adoption-preparation.sql',import.meta.url),'utf8');
  const serializer=splitPostgresStatements(fs.readFileSync(new URL('./migrations/112-native-salary-definitions.sql',import.meta.url),'utf8')).find(s=>s.startsWith('CREATE FUNCTION public.native_salary_serialized_v1('));assert.ok(serializer);
+ const salarySql=options.withOwnRunSource?fs.readFileSync(new URL('./migrations/112-native-salary-definitions.sql',import.meta.url),'utf8')
+  .replace("ARRAY['search_path=pg_catalog, public, pg_temp','TimeZone=UTC']", "ARRAY['search_path=pg_catalog, "+schema+", public, pg_temp','TimeZone=UTC']")
+  .replace("replace(p.prosrc,E'\\r\\n',E'\\n')", "replace(replace(p.prosrc,E'\\r\\n',E'\\n'),"+q(schema+'.')+",'public'||'.')"):serializer;
  const check=(expression,label)=>{statements.push('PERFORM qa_assert(('+expression+'),'+q(label)+');checks:=checks+1;');checks++;};
  const reject=(expression,error,label)=>check('qa_rejects('+q('SELECT '+expression)+','+q(error)+')',label);
  const call=(body='adoption_body',key='adoption_key')=>'employment_adoption_propose_v1(maker,'+body+','+key+')';
  const rejectedBody=(change,code,label)=>{statements.push('invalid_body:='+change+';');check('qa_rejects(format('+q('SELECT employment_adoption_propose_v1(%1$L::jsonb,%2$L::jsonb,gen_random_uuid())')+',maker,invalid_body),'+q('EMPLOYMENT_ADOPTION_'+code)+')',label);};
  statements.push(`BEGIN
- EXECUTE ${q(relocation(serializer))};REVOKE ALL ON FUNCTION native_salary_serialized_v1(jsonb) FROM PUBLIC,municontrol_actions_runtime_app;
+ EXECUTE ${q(relocation(salarySql))};REVOKE ALL ON FUNCTION native_salary_serialized_v1(jsonb) FROM PUBLIC,municontrol_actions_runtime_app;
  EXECUTE ${q(relocation(migration))};
  original_contracts:=(SELECT md5(jsonb_agg(to_jsonb(c) ORDER BY id)::text) FROM employment_contract c);original_persons:=(SELECT md5(jsonb_agg(to_jsonb(i) ORDER BY id)::text) FROM person_identity i);
  raw_review:=employment_adoption_source_v1(maker);adoption_boot:=employment_adoption_bootstrap_v1(maker);

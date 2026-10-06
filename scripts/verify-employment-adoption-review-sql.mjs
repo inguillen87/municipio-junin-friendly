@@ -1,10 +1,11 @@
 // Disposable synthetic integration with the unchanged native authority/lifecycle suite.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {fileURLToPath} from 'node:url';
 import {buildNativeEmploymentLifecycleQa} from './verify-native-employment-lifecycle-sql.mjs';
+import {buildOwnRunQa} from './verify-own-payroll-run-sql.mjs';
 import {ADOPTION_REVIEW_SQL} from '../lib/internal-employment-adoption-review.js';
 const q=v=>"'"+String(v).replaceAll("'","''")+"'",j=v=>q(JSON.stringify(v))+'::jsonb';
 export function buildAdoptionReviewQa(options){
- const base=buildNativeEmploymentLifecycleQa(options),{ids,schema}=base,anchor='-- LIFECYCLE_ROSTER_QA_ANCHOR';assert.equal(base.sql.split(anchor).length,2);
+ const base=options.withOwnRunSource?buildOwnRunQa(options):buildNativeEmploymentLifecycleQa(options),{ids,schema}=base,anchor='-- LIFECYCLE_ROSTER_QA_ANCHOR';assert.equal(base.sql.split(anchor).length,2);
  const database=({17:'fixed_novelties_qa',18:'own_payroll_run_qa'})[Number(options.serverMajor)];assert.ok(database);
  // Earlier published synthetic dependencies use minimal source-version stubs.
  // Supply their missing columns/curated version, never alter an authority function.

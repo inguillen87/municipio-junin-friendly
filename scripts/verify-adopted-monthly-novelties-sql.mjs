@@ -18,8 +18,8 @@ export const ADOPTED_MONTHLY_PATCH_FUNCTIONS = [
   'payroll_novelty_subject_v2(jsonb,uuid,boolean)',
   'payroll_novelty_native_subject_v2(jsonb,jsonb,date,boolean)'
 ];
-export async function buildAdoptedMonthlyQa({ serverMajor, calibrateOnly = false }) {
-  const base = await buildAdoptedFixedQa({ serverMajor, withMonthlySource: true });
+export async function buildAdoptedMonthlyQa({ serverMajor, calibrateOnly = false, withOwnRunSource = false }) {
+  const base = await buildAdoptedFixedQa({ serverMajor, withMonthlySource: true, withOwnRunSource });
   const { schema } = base;
   const names = ADOPTED_MONTHLY_PATCH_FUNCTIONS.map(name => schema + '.' + name);
   const calibration = `RAISE NOTICE 'SQL139_PINS %', (SELECT jsonb_object_agg(signature,encode(sha256(convert_to(replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(schema + '.')},'public'||'.'),'UTF8')),'hex')) FROM unnest(ARRAY[${names.map(q).join(',')}]) signature JOIN pg_proc p ON p.oid=to_regprocedure(signature));`;
@@ -38,7 +38,10 @@ export async function buildAdoptedMonthlyQa({ serverMajor, calibrateOnly = false
   const prepare = (actor='maker',rows='mm_rows',key='mm_key',period="DATE '2026-10-01'") => `payroll_novelty_prepare_v2(${actor},'individual',${period},'monthly',${rows},${key},repeat('a',64))`;
   // Persist a genuine v2 monthly approval before the actor is adopted. Later
   // retry assertions use this exact original body, key and event snapshot.
-  const sourceAnchor = "UPDATE employment_contract SET start_date=NULL,end_date=NULL,status='unknown',legacy_legajo=legacy_legajo";
+  // Complete every fresh-hire fixture before the existing lifecycle test
+  // chooses and snapshots the first UUID. Later insertion made that choice
+  // depend on random UUID order and compared two different employees.
+  const sourceAnchor = 'CREATE TEMP TABLE qa136_fresh_before(value jsonb);';
   const legacy = `DECLARE prev_hire jsonb;prev_subject jsonb;prev_rows jsonb;prev_saved jsonb;prev_key uuid:=gen_random_uuid();BEGIN
    ${caps}
    prev_hire:=native_employee_create_v1(maker,new_draft||'{"dni":"99000139","cuil":"20990001392","legajo":"55139","fullName":"Registro sintético mensual anterior","startDate":"2026-10-01","agreementCode":"1","categoryCode":"1","organizationId":"10","sectorCode":"20"}'::jsonb,native_employee_catalog_v1(native_employee_context_v1(maker))->>'version',gen_random_uuid());

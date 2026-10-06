@@ -22,8 +22,8 @@ export const ADOPTED_FIXED_PATCH_FUNCTIONS = [
   'payroll_fixed_registry_native_dates_v1(jsonb,uuid,jsonb)',
   'payroll_fixed_registry_export_v1(jsonb,date,text)'
 ];
-export async function buildAdoptedFixedQa({ serverMajor, calibrateOnly = false, withMonthlySource = false }) {
-  const base = await buildAdoptedOperatorContextQa({ serverMajor, withMonthlySource });
+export async function buildAdoptedFixedQa({ serverMajor, calibrateOnly = false, withMonthlySource = false, withOwnRunSource = false }) {
+  const base = await buildAdoptedOperatorContextQa({ serverMajor, withMonthlySource, withOwnRunSource });
   const names = ADOPTED_FIXED_PATCH_FUNCTIONS.map(name => name.replaceAll('public.', base.schema + '.'));
   const calibration = `RAISE NOTICE 'SQL138_PINS %', (SELECT jsonb_object_agg(signature,encode(sha256(convert_to(replace(replace(p.prosrc,E'\\r\\n',E'\\n'),${q(base.schema + '.')},'public'||'.'),'UTF8')),'hex')) FROM unnest(ARRAY[${names.map(name => q(base.schema + '.' + name)).join(',')}]) signature JOIN pg_proc p ON p.oid=to_regprocedure(signature));`;
   if (calibrateOnly) return { ...base, sql: once(base.sql, anchor, calibration + '\n' + anchor) };
