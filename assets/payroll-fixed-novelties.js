@@ -305,7 +305,13 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     previewButton.addEventListener('click',previewProposal);saveButton.addEventListener('click',prepareSend);
     controls();box.form.scrollIntoView({block:'start'});fields.legajo.focus({preventScroll:true});
   }
-  function showSubject(){if(editor?.subject?.employeeName!==undefined){const s=editor.subject;editor.subjectHost.textContent=(s.employeeName||'Nombre no informado')+' · Legajo '+s.legajo+' · '+fixedOriginLabel(s)+' · '+(s.origin==='MUNICONTROL'?'Alta registrada el '+dayLabel(s.registeredAt):'Fuente al '+dayLabel(s.sourceCutoff))+'. No certifica elegibilidad salarial.';}}
+  function showSubject(){
+    if(editor?.subject?.employeeName!==undefined){
+      const s=editor.subject;
+      if(editor.fields?.legajo)editor.fields.legajo.maxLength=s.origin==='MUNICONTROL'?128:20;
+      editor.subjectHost.textContent=(s.employeeName||'Nombre no informado')+' · Legajo '+s.legajo+' · '+fixedOriginLabel(s)+' · '+(s.origin==='MUNICONTROL'?'Registro propio desde '+dayLabel(s.registeredAt):'Fuente al '+dayLabel(s.sourceCutoff))+'. No certifica elegibilidad salarial.';
+    }
+  }
   async function lookupContract(contractId){
     if(!editor||editor.kind!=='propose'||editor.row||attempt)return;const active=editor;active.lookupContractId=contractId;
     await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();const next=fixedEmployee(await request({resource:'employee',contractId}),{contractId});if(!live()||editor!==active)return;
@@ -321,9 +327,9 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   function previewProposal(){
     if(!editor||attempt||busy||editor.needsReview)return;const active=editor;
     try{
-      if(!active.subject||active.fields.legajo.value.trim()!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
+      if(!active.subject||(active.subject.origin==='MUNICONTROL'?active.fields.legajo.value:active.fields.legajo.value.trim())!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
-      const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields);
+      const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields,active.subject);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
       active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
       active.previewHost.hidden=false;active.form.querySelector('[data-fn-save]').hidden=false;active.form.querySelector('[data-fn-preview]').hidden=true;active.feedback.textContent='Propuesta preparada; todavía no está guardada.';controls();
