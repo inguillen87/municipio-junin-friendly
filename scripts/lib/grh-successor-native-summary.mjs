@@ -1,6 +1,7 @@
 // Contrato cerrado de evidencia agregada. No genera SQL ni modifica registros municipales.
 import {createHash} from 'node:crypto';
 import {stableJson} from './canonical-import.mjs';
+import {MUNICIPAL_CONTINUITY_PROFILE,MUNICIPAL_CONTINUITY_TABLES,MUNICIPAL_CONTINUITY_EXCLUSIONS} from './grh-municipal-continuity-schema.mjs';
 export const NATIVE_CONTINUITY_TABLES=Object.freeze([
  'action_case','action_case_event','employee_family_member','employee_family_member_event',
  'native_employee_registration','native_employment_catalog_proposal','native_employment_catalog_review',
@@ -16,19 +17,24 @@ const integer=value=>Number.isSafeInteger(value)&&value>=0;
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const planKeys='links|planSha256|roots|tables|version';
 export function summarizeNativeContinuity(plan){
- if(!plan||Object.keys(plan).sort().join('|')!==planKeys||plan.version!=='grh-native-continuity-plan.v1'||!sha(plan.planSha256))fail('NATIVE_CONTINUITY_PLAN_INVALID');
+ const municipal=plan?.version==='grh-native-continuity-plan.v2';
+ const requiredKeys=municipal?'excludedScopeTables|links|planSha256|profileId|roots|tables|version':planKeys;
+ if(!plan||Object.keys(plan).sort().join('|')!==requiredKeys||(!municipal&&plan.version!=='grh-native-continuity-plan.v1')||!sha(plan.planSha256))fail('NATIVE_CONTINUITY_PLAN_INVALID');
+ if(municipal&&(plan.profileId!==MUNICIPAL_CONTINUITY_PROFILE||stableJson(plan.excludedScopeTables)!==stableJson(MUNICIPAL_CONTINUITY_EXCLUSIONS)))fail('NATIVE_CONTINUITY_PLAN_INVALID');
  const {planSha256,...content}=plan;if(nativeContinuityHash(content)!==planSha256)fail('NATIVE_CONTINUITY_PLAN_CHANGED');
  if(!Array.isArray(plan.roots)||!Array.isArray(plan.tables)||!Array.isArray(plan.links))fail('NATIVE_CONTINUITY_PLAN_INVALID');
  const actual=plan.tables.map(t=>t.name);if(new Set(actual).size!==actual.length)fail('NATIVE_CONTINUITY_PLAN_INVALID');
- const unreviewedTables=actual.filter(n=>!NATIVE_CONTINUITY_TABLES.includes(n));
- const missingTables=NATIVE_CONTINUITY_TABLES.filter(n=>!actual.includes(n));
+ const expected=municipal?MUNICIPAL_CONTINUITY_TABLES:NATIVE_CONTINUITY_TABLES;
+ const unreviewedTables=actual.filter(n=>!expected.includes(n));
+ const missingTables=expected.filter(n=>!actual.includes(n));
  const rootSet=new Set(plan.roots),actualSet=new Set(actual);
  const nativeLinks=plan.links.filter(f=>actualSet.has(f.parent));
  const domains=plan.tables.map(t=>({table:t.name,root:rootSet.has(t.name),
-  scope:t.binding?'tenant_and_declared_binding':'tenant_and_parent_batch',bindingColumn:t.binding,
+  scope:t.binding?'tenant_and_declared_binding':municipal?'declared_parent_scope':'tenant_and_parent_batch',bindingColumn:t.binding,
   nativeParents:[...new Set(nativeLinks.filter(f=>f.child===t.name).map(f=>f.parent))].sort(),
   declaredForeignKeys:plan.links.filter(f=>f.child===t.name).length}));
- const report={version:'grh-native-dependency-coverage.v1',planSha256,
+ const report={version:municipal?'grh-native-dependency-coverage.v2':'grh-native-dependency-coverage.v1',planSha256,
+  ...(municipal?{profileId:plan.profileId,excludedScopeTables:[...plan.excludedScopeTables]}:{}),
   rootTables:plan.roots.length,dependentTables:actual.length-plan.roots.length,totalTables:actual.length,
   internalForeignKeys:nativeLinks.length,contractForeignKeys:plan.links.filter(f=>f.parent==='employment_contract').length,
   personForeignKeys:plan.links.filter(f=>f.parent==='person_identity').length,

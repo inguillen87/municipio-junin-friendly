@@ -13,3 +13,13 @@ node scripts/verify-grh-multirun-candidate.mjs <directorio-core-privado> --profi
 La migración de staging instalada para el 22/09 no admite el respaldo del 01/10. Los dos ejecutores rechazan ese perfil antes de consultar SQL o abrir una conexión. Tampoco se habilitan los importadores anteriores ni los agregados públicos para un candidato. La aceptación de archivos y su comparación no autorizan restaurar un dump, incorporar empleados, recalcular haberes o cambiar el corte productivo.
 
 Antes de cualquier incorporación se necesitan los artefactos verificables de la fuente efectiva del 10/09, la comparación completa de los diez dominios, revisión de diferencias y un circuito propio probado que conserve contratos e historia. Los archivos municipales extraídos permanecen fuera de Git, CI y servicios externos. Los controles publicados usan únicamente datos sintéticos.
+
+La revisión de dependencias tiene un perfil explícito para el esquema municipal vigente hasta SQL131:
+
+```powershell
+node scripts/verify-grh-native-continuity.mjs --catalog <ruta-absoluta-al-catalogo-privado.json> --expect-catalog <sha256-exacto-del-archivo> --profile municipal-sql131
+```
+
+El catálogo contiene sólo tablas, columnas y claves foráneas obtenidas mediante lectura autorizada. La herramienta trabaja sobre ese archivo y no abre una conexión. El perfil incluye raíces independientes de salarios, novedades, programas, capturas/resultados, cierres, recibos, cargos anuales y tiempo, además de las dependencias familiares y administrativas anteriores. Los hijos sin vínculo directo deben conservar exactamente la relación declarada con su padre, incluidas las columnas de municipio y vínculo cuando corresponden. Tablas desconocidas o faltantes impiden afirmar cobertura completa; claves sin validar, relaciones externas o ámbitos ambiguos detienen la revisión.
+
+La selección mantiene el contrato anterior si se omite `--profile`. No hay selector `latest`. El perfil actual identifica por separado las exclusiones de infraestructura de versiones de fuente e identidad. `coverageComplete` acredita únicamente cobertura del catálogo relacional declarado. No acredita revisión semántica de registros, conservación de bytes adjuntos, resolución de conflictos, recuperación ni autorización para promover la fuente. Ninguna fórmula, alta, liquidación o evaluación de tiempo se ejecuta con esta herramienta.
