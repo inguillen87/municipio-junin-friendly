@@ -1,4 +1,5 @@
 import {verifiedAdoptionReview,adoptionReviewCsv,adoptionReviewScope,ADOPTION_REVIEW_MAX_BYTES} from './employment-adoption-review-model.js';
+import {mountAdoptionPreparation} from './employment-adoption-preparation-ui.js';
 export function mountAdoptionReview(root){
  if(!root||root.dataset.mounted)return;root.dataset.mounted='true';
  root.innerHTML=`<summary><strong>Revisar el padrón antes de su adopción</strong><span>Antecedentes pendientes para trabajar con el circuito propio</span></summary><div class="ar-body">
@@ -9,19 +10,22 @@ export function mountAdoptionReview(root){
  <label>Buscar en esta revisión por nombre o legajo<input type="search" maxlength="100" autocomplete="off" data-ar-search></label><p data-ar-visible></p>
  <div class="ar-pages" role="navigation" aria-label="Páginas de revisión · inicio"><button type="button" class="button" data-ar-prev>Anterior</button><span data-ar-page></span><button type="button" class="button" data-ar-next>Siguiente</button></div>
  <div class="ar-table-wrap"><table><caption>Contratos históricos pendientes de adopción municipal</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Situación</th><th>Observaciones</th><th>Ficha</th></tr></thead><tbody data-ar-rows></tbody></table></div>
- </section></div>`;
+ <div data-ar-preparation></div></section></div>`;
  const $=key=>root.querySelector('[data-ar-'+key+']'),pages=root.querySelector('.ar-pages').cloneNode(true);pages.setAttribute('aria-label','Páginas de revisión · final');$('result').append(pages);
  let snapshot=null,page=1,allowed=false,busy=false,generation=0,controller=null;
  const message=text=>{$('status').textContent=text;},live=()=>allowed&&!document.hidden&&root.open&&root.isConnected;
+ const preparation=mountAdoptionPreparation($('preparation'),{isLive:live,onAuthorityLost:()=>invalidate('Cambió el acceso o el ámbito. Consultá nuevamente el padrón completo.')});
  const filtered=()=>snapshot?snapshot.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('search').value.toLocaleLowerCase('es')))):[];
  function controls(){
   $('consult').disabled=busy||!allowed||document.hidden;$('download').disabled=busy||!snapshot||!live();$('search').disabled=busy||!snapshot||!live();
   const total=filtered().length;root.querySelectorAll('[data-ar-prev]').forEach(n=>n.disabled=busy||!live()||!snapshot||page<=1);root.querySelectorAll('[data-ar-next]').forEach(n=>n.disabled=busy||!live()||!snapshot||page*25>=total);root.setAttribute('aria-busy',String(busy));
  }
  function invalidate(text='Revisión retirada. Consultá nuevamente el padrón completo.'){
+  preparation.invalidate();
   generation++;controller?.abort();snapshot=null;busy=false;page=1;$('search').value='';$('result').hidden=true;$('rows').replaceChildren();$('counts').textContent='';$('source').textContent='';$('visible').textContent='';root.querySelectorAll('[data-ar-page]').forEach(n=>n.textContent='');message(text);controls();
  }
  function paint(){
+  preparation.setReview(snapshot);
   const d=snapshot,rows=filtered();$('result').hidden=false;$('counts').textContent=`${d.total} contratos revisados · ${d.counts.active} activos · ${d.counts.inactive} inactivos · ${d.counts.state_error} con estado a revisar. ${d.counts.dataReview} requieren revisar datos; ${d.counts.jurisdictionPending} tienen jurisdicción por declarar.`;
   $('source').textContent=`Corte de la fuente instalada: ${d.source.cutoff.replace('T',' ')}. Un respaldo posterior no se incorpora por esta consulta. Varios contratos de una persona no implican identidad duplicada.`;
   $('visible').textContent=`${rows.length} contratos coinciden en pantalla; la descarga conserva las ${d.counts.observations} observaciones del padrón completo.`;$('rows').replaceChildren();

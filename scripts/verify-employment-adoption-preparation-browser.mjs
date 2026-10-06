@@ -1,0 +1,68 @@
+// Built UI + real handlers, synthetic SQL adapter. PostgreSQL is tested separately.
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
+import {createEmploymentAdoptionHandler} from '../api/internal-employment-adoption.js';
+import {createInternalDataHandler} from '../api/internal-data.js';
+import {ADOPTION_REVIEW_SQL} from '../lib/internal-employment-adoption-review.js';
+import {reviewRaw,reviewId} from '../tests/fixtures/employment-adoption-review-synthetic.js';
+import {principal,session,preparationEnvelope,catalogVersion} from '../tests/fixtures/employment-adoption-preparation-synthetic.js';
+
+const origin='https://municontrol.test',root=path.resolve('public'),checks=[],errors=[],posts=[],attemptReads=[],saved=new Map();
+let caps=['workforce.employee.read','employee.record.propose'],changed=false,scopeChanged=false,catalogChanged=false,empty=false,losePost=false,loseBeforePost=false,tamper=false,denyAfterPost=false,holdPost=false,release=null;
+const raw=()=>{const r=reviewRaw(empty?0:57);if(!empty){r.rows[0].jurisdictionCode='55';if(changed)r.rows[0].name='PERSONA SINTÉTICA REVISADA';}if(scopeChanged)r.scope.bindingId=reviewId(9901);return r;};
+const currentPrincipal=()=>({...principal,tenant:{...principal.tenant,effectiveCapabilities:caps}});
+const res=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
+const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:1050},serviceWorkers:'block'}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await context.route('**/*',async route=>{
+  const req=route.request(),url=new URL(req.url());if(url.origin!==origin)return route.abort();
+  if(url.pathname.startsWith('/api/')){
+   if(url.pathname==='/api/internal-auth')return route.fulfill({json:{ok:true,authenticated:true,user:{email:session.email,name:'Operador sintético QA',role:'ADMIN_INTERNO'},access:{tenantCapabilities:caps,platformCapabilities:[],platformRoles:[]}}});
+   const query=Object.fromEntries(url.searchParams),response=res(),access=async()=>({mode:'managed',principal:currentPrincipal()});
+   if(url.pathname==='/api/internal-employment-adoption'){
+    const post=req.method()==='POST',bytes=post?req.postData():null,key=req.headers()['idempotency-key'];if(post){posts.push({key,bytes});if(loseBeforePost){loseBeforePost=false;return route.abort('connectionfailed');}}
+    const handler=createEmploymentAdoptionHandler({env:{INTERNAL_APP_ORIGIN:origin},requireAccess:access,sessionFor:()=>session,getSql:async()=>({query:async(sql,args)=>{
+     if(sql.includes('bootstrap'))return[{result:{version:'employment-adoption-preparation.v1',rawReview:raw(),catalogVersion:catalogChanged?'f'.repeat(64):catalogVersion,canPrepare:caps.includes('employee.record.propose'),applicationAvailable:false,attempts:[...saved.values()].map(a=>({...a,receipt:{...a.receipt,replayed:true}}))}}];
+     if(sql.includes('attempt')){attemptReads.push(args[1]);const a=saved.get(args[1]);if(!a)throw Error('EMPLOYMENT_ADOPTION_NOT_FOUND');return[{result:{...a,receipt:{...a.receipt,replayed:true}}}];}
+     assert.ok(sql.includes('propose'));const body=JSON.parse(args[1]),prior=saved.get(args[2]);if(prior)return[{result:{...prior,receipt:{...prior.receipt,replayed:true}}}];
+     const a=await preparationEnvelope(body,args[2]);a.receipt.proposalId=reviewId(9900+saved.size);saved.set(args[2],a);return[{result:a}];
+    }})});
+    await handler({method:req.method(),url:url.pathname+url.search,query,headers:req.headers(),body:bytes},response);
+    if(post&&losePost){losePost=false;return route.abort('connectionfailed');}if(post&&tamper){tamper=false;response.body.data=structuredClone(response.body.data);response.body.data.receipt.effects.contractsAdopted=57;}if(post&&denyAfterPost){denyAfterPost=false;caps=[];}
+    if(post&&holdPost){holdPost=false;await new Promise(resolve=>{release=resolve;});}
+    try{return await route.fulfill({status:response.code,json:response.body,headers:response.headers});}catch(e){if(req.failure()?.errorText==='net::ERR_ABORTED')return;throw e;}
+   }
+   assert.equal(req.method(),'GET');
+   if(query.resource==='employmentadoptionreview'){
+    const handler=createInternalDataHandler({env:{},requireCompatibleInternalAccess:access,actionMutationSession:()=>session,getInternalSql:async()=>({query:async sql=>{assert.equal(sql,ADOPTION_REVIEW_SQL);return[{result:raw()}];}})});
+    await handler({method:'GET',query},response);return route.fulfill({status:response.code,json:response.body,headers:response.headers});
+   }
+   return route.fulfill({json:{ok:true,data:[],pagination:{page:1,limit:25,total:0,pages:1},facets:{}}});
+  }
+  const file=path.resolve(root,'.'+url.pathname);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return route.fulfill({status:404,body:''});return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'application/octet-stream'});
+ });
+ await page.goto(origin+'/internal-dashboard.html#legajos');const panel=page.locator('[data-adoption-review]'),consult=panel.locator('[data-ar-consult]'),form=panel.locator('[data-ap-form]');await panel.locator('summary').click();
+ const ready=()=>page.waitForFunction(()=>!document.querySelector('[data-ar-consult]').disabled),apReady=()=>page.waitForFunction(()=>document.querySelector('[data-ar-preparation]').getAttribute('aria-busy')==='false');
+ const grant=async()=>page.evaluate(values=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:new Set(values)}})),caps);
+ const query=async()=>{await ready();await consult.click();await panel.locator('[data-ar-result]:not([hidden])').waitFor();await ready();};
+ const open=async()=>{if(!await panel.locator('[data-ap-panel]').isVisible())await panel.locator('[data-ap-open]').click();};
+ const load=async()=>{await open();await panel.locator('[data-ap-load]').click();await apReady();};
+ const fill=async()=>{await form.waitFor();await panel.locator('[data-ap-jurisdiction]').selectOption('42');await panel.locator('[data-ap-reference]').fill('Resolución sintética QA 132');await panel.locator('[data-ap-reason]').fill('Preparación completa con antecedentes sintéticos conservados');await panel.locator('[data-ap-confirm]').check();};
+ const submit=async()=>{await panel.locator('[data-ap-send]').click();await apReady();};
+ const recovered=async()=>{await panel.locator('[data-ap-recover]').click();await apReady();assert.match(await panel.locator('[data-ap-status]').innerText(),/Propuesta completa guardada/);};
+ await query();await open();assert.equal(posts.length,0);assert.equal(saved.size,0);checks.push('opening preparation is voluntary and never saves');
+ await load();await panel.locator('[data-ar-next]').first().click();await panel.locator('[data-ar-next]').last().click();await panel.locator('[data-ar-search]').fill('001');await fill();await panel.locator('[data-ap-jurisdiction]').selectOption('');await panel.locator('[data-ap-confirm]').check();await panel.locator('[data-ap-send]').click();assert.equal(posts.length,0);checks.push('jurisdiction is explicitly required before any write');
+ await fill();await submit();const body=JSON.parse(posts[0].bytes).payload;assert.equal(body.rows.length,57);assert.equal(body.rows[0].jurisdictionCode,'55');assert.equal(body.rows[56].jurisdictionCode,'42');assert.equal(saved.size,1);assert.match(await panel.locator('[data-ap-status]').innerText(),/57 contratos, 0 adoptados/);assert.doesNotMatch(posts[0].bytes,/PERSONA SINTÉTICA|dni|cuil|legajo|name/);checks.push('three pages plus a one-row search save every contract once, preserving prior jurisdiction and excluding nominal identity fields');
+ await fill();losePost=true;await submit();const lost=posts.at(-1);assert.ok(await panel.locator('[data-ap-pending]').isVisible());assert.ok(await panel.locator('[data-ap-send]').isDisabled());await recovered();assert.equal(posts.length,2);assert.equal(attemptReads.at(-1),lost.key);assert.equal(saved.size,2);checks.push('committed synthetic write with a lost response recovers by GET with the original key and no new write');
+ await fill();loseBeforePost=true;await submit();const absent=posts.at(-1);await panel.locator('[data-ap-recover]').click();await apReady();assert.ok(await panel.locator('[data-ap-retry]').isEnabled());await panel.locator('[data-ap-retry]').click();await apReady();assert.deepEqual(posts.at(-1),absent);assert.equal(saved.size,3);checks.push('a missing result permits only the same exact bytes and key to be resent voluntarily');
+ await fill();tamper=true;await submit();assert.ok(await panel.locator('[data-ap-pending]').isVisible());await recovered();assert.equal(saved.size,4);checks.push('a forged adoption effect is refused and the real same-attempt receipt is recovered');
+ await fill();holdPost=true;await panel.locator('[data-ap-send]').click();await page.waitForFunction(()=>document.querySelector('[data-ar-preparation]').getAttribute('aria-busy')==='true');while(!release)await page.waitForTimeout(10);const done=release;release=null;const hiddenAttempt=posts.at(-1);
+ await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});done();assert.equal(await panel.locator('[data-ar-rows] a').count(),0);assert.equal(await panel.locator('[data-ap-reference]').inputValue(),'');await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});await grant();await query();await open();await recovered();assert.equal(attemptReads.at(-1),hiddenAttempt.key);assert.equal(saved.size,5);checks.push('hiding during a committed send removes visible data, ignores the late response and retains the original recoverable attempt');
+ await load();await fill();changed=true;let count=posts.length;await submit();assert.equal(posts.length,count);assert.match(await panel.locator('[data-ap-status]').innerText(),/Cambió el padrón/);changed=false;await query();await load();await fill();catalogChanged=true;await submit();assert.equal(posts.length,count);assert.match(await panel.locator('[data-ap-status]').innerText(),/catálogo/);catalogChanged=false;await load();checks.push('fresh source and catalog changes refuse saving and require another review');
+ caps=['workforce.employee.read'];await grant();assert.ok(await panel.locator('[data-ap-send]').isDisabled());assert.equal(posts.length,count);caps=['workforce.employee.read','employee.record.propose'];await grant();await load();await fill();scopeChanged=true;await submit();assert.equal(posts.length,count);assert.equal(await panel.locator('[data-ar-result]').isVisible(),false);scopeChanged=false;await grant();await query();await load();checks.push('withdrawn preparation permission disables saving; a changed scope withdraws the entire nominal review before POST');
+ await fill();denyAfterPost=true;await submit();const revoked=posts.at(-1);assert.equal(await panel.locator('[data-ar-result]').isVisible(),false);assert.equal(await panel.locator('[data-ar-rows] a').count(),0);caps=['workforce.employee.read','employee.record.propose'];await grant();await query();await open();await recovered();assert.equal(attemptReads.at(-1),revoked.key);checks.push('authority loss after a send cannot announce acceptance in the withdrawn scope and can recover with the original authorized account');
+ await page.reload();await panel.locator('summary').click();await query();await load();assert.equal(await panel.locator('[data-ap-attempts] li').count(),saved.size);assert.equal(posts.length,count+1);checks.push('reload lists every own prepared receipt from the server without persistence in browser storage or another write');
+ await panel.locator('[data-ar-search]').fill('001');await fill();for(const width of [1440,390,320]){await page.setViewportSize({width,height:1050});assert.ok(await panel.locator('[data-ar-preparation]').evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.ok(await panel.locator('[data-ap-send]').evaluate(n=>n.getBoundingClientRect().height>=44));await panel.locator('[data-ap-panel]').scrollIntoViewIfNeeded();await page.screenshot({path:`verification/adoption-preparation-${width}-20261006.png`});}checks.push('complete preparation form fits desktop and mobile 1440/390/320px with accessible labels and controls');
+ empty=true;await query();await load();assert.equal(await form.isVisible(),false);assert.match(await panel.locator('[data-ap-status]').innerText(),/No hay contratos históricos/);assert.equal(posts.length,count+1);checks.push('an empty complete cohort cannot create a fabricated proposal');
+ assert.deepEqual(errors,[]);const result={ok:true,checksPassed:checks.length,checks,syntheticPostRequests:posts.length,syntheticStoredProposals:saved.size,recoveryReads:attemptReads.length,realApiCalls:0,municipalWrites:0,postgresConnected:false,browserChannel:process.env.CLOCK_BROWSER_CHANNEL??null};fs.writeFileSync('verification/adoption-preparation-browser-20261006.json',JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
+}finally{await browser.close();}
