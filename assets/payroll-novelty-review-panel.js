@@ -14,7 +14,7 @@ const amount = value => {
 };
 
 export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issue => issue.code } = {}) {
-  let rows = null, page = 1, fullControl = null;
+  let rows = null, page = 1, fullControl = null, nativeScope = null;
   const id = suffix => (saved ? 'savedReview' : 'review') + suffix;
   const captionNode = host.querySelector(saved ? '#savedReviewCaption' : '#previewCaption');
   const controls = el('div', undefined, 'novelty-review-controls');
@@ -69,7 +69,7 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
   summaryBox.append(explanation, summaryWrap); if (!saved) summaryBox.append(exportControl); kpis.after(totals, summaryBox);
   exportControl.addEventListener('click', () => {
     if (saved || !rows || host.hidden || !host.isConnected || exportControl.disabled) return;
-    const url = URL.createObjectURL(new Blob([noveltyControlCsv(rows)], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([noveltyControlCsv(rows,{nativeSubject:nativeScope})], { type: 'text/csv;charset=utf-8' }));
     const a = el('a'); a.href = url; a.download = 'municontrol_control_previo_novedades.csv';
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
   });
@@ -132,14 +132,18 @@ export function mountNoveltyReviewPanel(host, { saved = false, issueLabel = issu
       const verified = savedNoveltyBatch(batch);
       this.setRows(verified.rows, verified);
     },
-    setRows(value, verified = null) {
+    setRows(value, verified = null, nativeSubject = null) {
       if (saved && (!verified || value !== verified.rows)) throw Error('Consultá un lote completo antes de revisarlo.');
-      this.clear(); fullControl = noveltyBatchControl(value, {saved}); rows = value.map(row => Object.freeze({ ...row }));
+      this.clear();
+      const subject = saved && verified.contractVersion==='payroll-novelty-batch.v2' ? verified.rows[0].subject : nativeSubject;
+      fullControl = noveltyBatchControl(value, {saved,nativeSubject:subject});
+      nativeScope = subject ? Object.freeze(structuredClone(subject)) : null;
+      rows = value.map(row => Object.freeze({ ...row }));
       const all = el('option', 'Todos los conceptos'); all.value = 'all'; concept.append(all);
       for (const c of fullControl.concepts) { const option = el('option', `${c.conceptSourceId} · ${c.rows} filas`); option.value = c.conceptSourceId; concept.append(option); }
       concept.value = 'all'; renderControl(); render(); host.hidden = false;
     },
-    clear() { rows = null; fullControl = null; page = 1; summaryBox.open = false; summaryBody.replaceChildren(); summaryTitle.textContent = 'Control de todos los conceptos'; totals.textContent = ''; concept.replaceChildren(); body.replaceChildren(); kpis.replaceChildren(); range.textContent = ''; search.value = ''; kind.value = 'all'; issueKind.value = 'all'; captionNode.textContent = ''; note.textContent = ''; host.hidden = true; },
+    clear() { rows = null; fullControl = null; nativeScope = null; page = 1; summaryBox.open = false; summaryBody.replaceChildren(); summaryTitle.textContent = 'Control de todos los conceptos'; totals.textContent = ''; concept.replaceChildren(); body.replaceChildren(); kpis.replaceChildren(); range.textContent = ''; search.value = ''; kind.value = 'all'; issueKind.value = 'all'; captionNode.textContent = ''; note.textContent = ''; host.hidden = true; },
   };
 }
 

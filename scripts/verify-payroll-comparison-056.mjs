@@ -71,6 +71,13 @@ try {
   const visible = async selector => $(selector).waitFor({ state: 'visible' });
   const hidden = async selector => $(selector).waitFor({ state: 'hidden' });
   const rows = () => $('[data-pc-rows] tr');
+  async function openHistoricalComparison() {
+    await page.locator('#task-comparar [data-oc-refresh]').waitFor({state:'visible'});
+    const summary=page.locator('#task-comparar summary').filter({hasText:'Comparar liquidaciones incorporadas desde respaldos'});
+    await summary.waitFor({state:'visible'});
+    if(!await summary.evaluate(n=>n.parentElement.open))await summary.click();
+    await visible('[data-pc-catalog]');
+  }
   // Helper deliberately waits for state rather than arbitrary network sleeps.
   async function loadCatalog() {
     await $('[data-pc-catalog]').click(); await visible('[data-pc-query]');
@@ -83,7 +90,11 @@ try {
     await $('[data-pc-compare]').click(); await visible('[data-pc-result]');
     await page.waitForFunction(() => !document.querySelector('#task-comparar [data-pc-format="pdf"]')?.disabled);
   }
-  await page.goto(origin+(live?build.url('reportes-rrhh.html').pathname:'/reportes-rrhh.html')+'#comparar'); await visible('[data-pc-catalog]');
+  await page.goto(origin+(live?build.url('reportes-rrhh.html').pathname:'/reportes-rrhh.html')+'#comparar');
+  await page.locator('#task-comparar [data-oc-refresh]').waitFor({state:'visible'});
+  assert.equal(await $('[data-pc-catalog]').isVisible(),false);
+  assert.equal(calls.length,0);checks.push('Own comparison is the primary task; historical sources remain behind an accessible voluntary disclosure');
+  await openHistoricalComparison();
   assert.equal(await page.locator('.task-panel:visible').count(), 1);
   assert.equal(await page.locator('input[type=file]:visible').count(), 0);
   assert.equal(calls.length, 0); checks.push('Direct link opens only the comparison task without automatically reading payroll');
@@ -155,7 +166,7 @@ try {
   await $('[data-pc-format="pdf"]').click(); await until(() => waiting.length === 2);
   await page.getByRole('tab',{name:'Biblioteca',exact:true}).click(); release(); await page.waitForTimeout(250);
   assert.equal(downloads.length,count); assert.equal(await rows().count(),0);
-  await page.locator('a.rc-card[href="#comparar"]').click(); await visible('[data-pc-catalog]');
+  await page.locator('a.rc-card[href="#comparar"]').click(); await openHistoricalComparison();
   assert.equal(await $('[data-pc-result]').isVisible(),false); assert.equal(await $('[data-pc-query]').isVisible(),false);
   checks.push('Leaving the task cancels pending exports and removes all source data before returning through the library card');
   mode = ''; catalogMode = 'empty'; await $('[data-pc-catalog]').click();
@@ -170,7 +181,7 @@ try {
   await $('[data-pc-base]').selectOption(IDS[2]); release(); await page.waitForTimeout(250);
   assert.equal(downloads.length,count); assert.equal(await rows().count(),0);
   checks.push('Changing a source while exporting aborts the previous comparison');
-  await page.goto(origin+(live?build.url('nomina-control.html').pathname:'/nomina-control.html')+'#comparar'); await visible('[data-pc-catalog]'); await compareFresh();
+  await page.goto(origin+(live?build.url('nomina-control.html').pathname:'/nomina-control.html')+'#comparar'); await openHistoricalComparison(); await compareFresh();
   assert.equal(await rows().count(),10); await page.screenshot({ path: out + '/comparison-payroll-task-qa.png', fullPage:true });
   checks.push('Same fully functional comparison task is available in Nómina');
   await page.getByRole('tab',{name:'Comparar liquidaciones',exact:true}).focus(); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Enter');
@@ -180,7 +191,7 @@ try {
   assert.equal(await page.getByRole('tab',{name:'Reportes',exact:true}).getAttribute('aria-selected'),'true');
   await page.goBack(); await page.locator('#task-recibos').waitFor({state:'visible'});
   assert.equal(await page.getByRole('tab',{name:'Recibos propios',exact:true}).getAttribute('aria-selected'),'true');
-  await page.goBack(); await visible('[data-pc-catalog]'); assert.equal(await $('[data-pc-result]').isVisible(),false);
+  await page.goBack(); await openHistoricalComparison(); assert.equal(await $('[data-pc-result]').isVisible(),false);
   checks.push('Keyboard and browser-back traverse Comparar, Recibos propios and Reportes without reviving private comparison results');
   assert.deepEqual(errors,[]); checks.push('No unhandled JavaScript errors');
   fs.writeFileSync(out + '/browser.json', JSON.stringify({ checksPassed:checks.length, checks, downloads:downloads.length, errors,

@@ -18,6 +18,7 @@ import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
 import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
 import {mountMonthlyCorrection} from './payroll-monthly-correction.js';
+import {mountOwnPayrollNovelties} from './own-payroll-novelties-panel.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
@@ -73,7 +74,10 @@ let savedReviewPanel = null;
 let monthlyDecisions = null;
 let monthlyAnnul = null;
 let monthlyCorrection = null;
-const monthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked() || monthlyCorrection?.locked();
+let ownBulkLocked = false, ownBulkNovelties = null, fixedLocked = false;
+const decisionMonthlyLocked = () => monthlyDecisions?.locked() || monthlyAnnul?.locked() || monthlyCorrection?.locked();
+const otherMonthlyLocked = () => fixedLocked || decisionMonthlyLocked();
+const monthlyLocked = () => ownBulkLocked || otherMonthlyLocked();
 let reviewedBatch = null;
 let detailReadVersion = 0;
 let txtOptions = null;
@@ -114,10 +118,11 @@ const hasRequestedBatch = new URL(location.href).searchParams.has('batchId');
 function nativeSelected() { return monthlySubject?.origin === 'MUNICONTROL'; }
 function canUseMonthlySubject() { return hasCapability('payroll.novelty.prepare') && hasCapability('payroll.novelty.nominal.read'); }
 function renderMonthlySubject() {
+  byId('legajo').maxLength = nativeSelected() ? 128 : 20;
   const host = byId('nativeMonthlySubject');
   host.textContent = readBlocked || !hasCapability('payroll.novelty.nominal.read') ? '' : monthlySubject
-    ? `${monthlySubject.origin === 'MUNICONTROL' ? 'Alta propia de MuniControl' : 'Fuente GRH'} · ${monthlySubject.employeeName || 'Nombre no informado'} · Legajo ${monthlySubject.legajo}`
-    : monthlyContractId ? 'El vínculo elegido necesita una consulta vigente. Actualizalo para continuar.' : 'Elegí una persona para verificar su vínculo. Las altas propias admiten una novedad mensual por vez.';
+    ? `${monthlySubject.origin === 'MUNICONTROL' ? 'Registro propio de MuniControl' : 'Fuente GRH'} · ${monthlySubject.employeeName || 'Nombre no informado'} · Legajo ${monthlySubject.legajo}`
+    : monthlyContractId ? 'El vínculo elegido necesita una consulta vigente. Actualizalo para continuar.' : 'Elegí una persona para verificar su vínculo. Los registros propios admiten una novedad mensual por vez.';
   byId('nativeMonthlyPick').hidden = !directoryAllowed;
   byId('nativeMonthlyRefresh').hidden = !monthlyContractId;
   byId('nativeMonthlyClear').hidden = !monthlyContractId;
@@ -161,7 +166,8 @@ function applyMonthlyLocks() {
     || pendingWrite.attempt.scopeKey !== principalKey(bootstrapState?.principal)
     || !hasCapability(pendingWrite.attempt.command === 'prepare' ? 'payroll.novelty.prepare' : ['approve','reject'].includes(pendingWrite.attempt.command) ? 'payroll.novelty.approve' : 'payroll.novelty.prepare')
     || (pendingWrite.requiresNominal || pendingWrite.contractVersion === 'payroll-novelty-batch.v2') && !hasCapability('payroll.novelty.nominal.read');
-  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(monthlyLocked()));
+  fixedNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || ownBulkLocked || Boolean(decisionMonthlyLocked()));
+  ownBulkNovelties?.setExternalBusy(busy || Boolean(pendingWrite) || Boolean(otherMonthlyLocked()));
   monthlyDecisions?.update();
   monthlyAnnul?.update();
   monthlyCorrection?.update();
@@ -240,6 +246,7 @@ async function chooseMonthlySubject(contractId, expectedOrigin = null) {
     if (generation !== lookupEpoch || readBlocked) return;
     if(expectedOrigin&&subject.origin!==expectedOrigin)throw Error('El origen del vínculo cambió desde la búsqueda. Actualizá la consulta y revisá la persona antes de preparar.');
     monthlySubject = subject;
+    byId('legajo').maxLength = subject.origin === 'MUNICONTROL' ? 128 : 20;
     byId('legajo').value = subject.legajo;
     if (nativeSelected()) byId('payrollType').value = 'monthly';
     renderMonthlySubject();
@@ -266,9 +273,10 @@ function setBusy(value, label = '') {
     for (const [field, disabled] of busyEntryFields) field.disabled = disabled;
     busyEntryFields.clear();
   }
-  for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell]')) button.disabled = Boolean(value);
+  for (const button of document.querySelectorAll('button')) if (!button.closest('[data-fixed-shell],[data-own-novelties-shell]')) button.disabled = Boolean(value);
   if (!value) savedReviewPanel?.render();
-  fixedNovelties?.setExternalBusy(value);
+  fixedNovelties?.setExternalBusy(value || Boolean(pendingWrite) || ownBulkLocked || Boolean(decisionMonthlyLocked()));
+  ownBulkNovelties?.setExternalBusy(value || Boolean(pendingWrite) || Boolean(otherMonthlyLocked()));
   if (!value) {
     byId('prepareButton').disabled = preparedDraft === null;
     if (!readBlocked) { renderAgileRows(); reviewPanel?.render(); }
@@ -411,15 +419,18 @@ function parseBoolean(value) {
   throw new Error('Forzado debe indicar SI o NO.');
 }
 
-function rowFromValues(values, ordinal, periodMonth) {
+function rowFromValues(values, ordinal, periodMonth, verifiedSubject = null) {
   const [
     legajoValue, conceptValue, costCenterValue, adjustmentValue, quantityValue,
     amountValue, movementValue, legalValue, observationValue, forcedValue,
   ] = values;
-  const legajo = String(legajoValue || '').trim();
+  const ownLegajo = verifiedSubject?.origin === 'MUNICONTROL';
+  const legajo = ownLegajo ? String(legajoValue || '') : String(legajoValue || '').trim();
   const conceptSourceId = String(conceptValue || '').trim();
   const costCenterSourceId = nullable(costCenterValue);
-  if (!/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw Object.assign(new Error(`Fila ${ordinal}: legajo inválido. Ingresá sólo el número, sin separadores, letras o ceros iniciales.`), { entryField: 'legajo' });
+  if (ownLegajo ? legajo !== verifiedSubject.legajo : !/^(?:0|[1-9]\d{0,19})$/.test(legajo)) throw Object.assign(new Error(ownLegajo
+    ? `Fila ${ordinal}: legajo inválido. Volvé a verificar la persona seleccionada.`
+    : `Fila ${ordinal}: legajo inválido. Ingresá sólo el número, sin separadores, letras o ceros iniciales.`), { entryField: 'legajo' });
   if (!/^(?:0|[1-9]\d{0,19})$/.test(conceptSourceId)) throw new Error(`Fila ${ordinal}: concepto inválido.`);
   if (costCenterSourceId && !/^(?:0|[1-9]\d{0,19})$/.test(costCenterSourceId)) {
     throw new Error(`Fila ${ordinal}: centro de costo inválido.`);
@@ -479,7 +490,7 @@ function currentEntryValues() {
 }
 
 function individualRows(periodMonth) {
-  return [rowFromValues(currentEntryValues(), 1, periodMonth)];
+  return [rowFromValues(currentEntryValues(), 1, periodMonth, monthlySubject)];
 }
 
 function agileRows(periodMonth) {
@@ -561,7 +572,7 @@ function moneyFromCents(value) {
 }
 
 function renderPreflight(draft) {
-  reviewPanel.setRows(draft.rows);
+  reviewPanel.setRows(draft.rows,null,nativeSelected()?monthlySubject:null);
   if(nativeSelected()){
     preparedNativeReview=nativeMonthlyPreparation(draft,monthlySubject,principalKey(bootstrapState.principal));
     nativeMonthlyReview.show(preparedNativeReview);
@@ -693,7 +704,7 @@ function renderBatchDetail(payload) {
   selectedBatchId = batch.id;
   const native = batch.contractVersion==='payroll-novelty-batch.v2';
   byId('detailExportNote').textContent = native
-    ? 'Excel y CSV de control: conservan la identidad del alta propia y los valores informados. No son una liquidación ni un formato homologado para importar en GRH.'
+    ? 'Excel y CSV de control: conservan la identidad del registro propio y los valores informados. No son una liquidación ni un formato homologado para importar en GRH.'
     : 'Excel de revisión: conserva legajos, conceptos e importes como texto exacto para abrirlos sin pérdida de precisión. El CSV es la salida técnica de integración; no lo abras y vuelvas a guardar con Excel.';
   byId('detailTitle').textContent = `Lote ${String(batch.id).slice(0, 8).toUpperCase()}`;
   byId('detailState').textContent = batch.reasonCode === 'annulled_after_review' ? 'Anulado tras revisión' : batch.reasonCode === 'corrected_after_review' ? 'Corregido tras revisión' : STATE_LABELS[batch.status] || batch.status;
@@ -702,8 +713,8 @@ function renderBatchDetail(payload) {
   byId('detailCount').textContent = String(batch.rowCount || batch.rows?.length || 0);
   byId('detailIssues').textContent = `${Number(batch.blockingIssueCount || 0)} bloqueantes · ${Number(batch.warningIssueCount || 0)} avisos`;
   if (batch.contractVersion==='payroll-novelty-batch.v2') byId('detailIssues').textContent += batch.rows[0].identityCurrent
-    ? ' · Alta propia de MuniControl · Identidad del vínculo verificada'
-    : ' · Alta propia de MuniControl · El vínculo cambió: requiere una nueva preparación';
+    ? ' · Registro propio de MuniControl · Identidad del vínculo verificada'
+    : ' · Registro propio de MuniControl · El vínculo cambió: requiere una nueva preparación';
   const actions = byId('detailActions');
   actions.replaceChildren();
   const commands = Array.isArray(batch.allowedCommands) ? batch.allowedCommands : [];
@@ -963,7 +974,7 @@ async function exportBatch(id, format) {
     showMessage(
       'success',
       `${native ? isExcel ? 'Excel de control' : 'CSV de control' : isExcel ? 'Excel de revisión' : 'CSV técnico'} descargado`,
-      `${fileName}. ${native ? 'Control del alta propia. No liquida haberes ni es un formato homologado de importación.' : 'La salida no confirma importación en GRH ni cálculo de haberes.'}`,
+      `${fileName}. ${native ? 'Control del registro propio. No liquida haberes ni es un formato homologado de importación.' : 'La salida no confirma importación en GRH ni cálculo de haberes.'}`,
     );
   } catch (error) {
     showMessage('error', 'No se pudo exportar el lote', errorMessage(error));
@@ -1353,7 +1364,8 @@ function initialize() {
     invalidatePreparedDraft();
     if (encodingChanged) { byId('bulkSource').value='';byId('bulkFile').value='';showMessage('info','Codificación cambiada','Cargá nuevamente el archivo para decodificar sus bytes con la opción elegida.'); }
   });
-  fixedNovelties = mountFixedNovelties(byId('fixedNovelties'));
+  fixedNovelties = mountFixedNovelties(byId('fixedNovelties'), locked => {fixedLocked=locked;applyMonthlyLocks();});
+  ownBulkNovelties = mountOwnPayrollNovelties(byId('ownNativeBulkNovelties'), locked => {if(ownBulkLocked!==locked){ownBulkLocked=locked;applyMonthlyLocks();}});
   employeePicker = createEmployeePicker({
     canUse: () => !pendingWrite && !monthlyContractId && document.body.dataset.busy !== 'true' && !byId('entrySection').hidden && hasCapability('payroll.novelty.prepare'),
     selectionIssue:item=>noveltySelectionIssue(item,{mode:document.querySelector('[name="sourceMode"]:checked')?.value,canUseNative:directoryAllowed&&canUseMonthlySubject()}),

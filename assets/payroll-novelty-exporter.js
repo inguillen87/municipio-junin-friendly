@@ -52,7 +52,7 @@ function integerText(value) {
 }
 
 function neutralizeSpreadsheetFormula(value) {
-  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
 }
 
 function csvCell(value, { numeric = false } = {}) {
@@ -61,12 +61,12 @@ function csvCell(value, { numeric = false } = {}) {
   return /[;"\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-function canonicalRow(row, index, periodMonth) {
+function canonicalRow(row, index, periodMonth, native = false) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) {
     fail('PAYROLL_NOVELTY_EXPORT_ROW_INVALID', 'La exportación contiene una fila inválida');
   }
   const ordinal = Number(row.rowOrdinal);
-  const legajo = text(row.legajo ?? row.legajoSnapshot, 20);
+  const legajo = text(row.legajo ?? row.legajoSnapshot, native ? 128 : 20);
   const conceptSourceId = text(row.conceptSourceId, 20);
   const costCenterSourceId = text(row.costCenterSourceId, 20);
   const adjustmentMonth = text(row.adjustmentMonth, 10);
@@ -76,7 +76,7 @@ function canonicalRow(row, index, periodMonth) {
   const legalInstrument = text(row.legalInstrument, 160);
   const observation = text(row.observation, 500);
   if (!Number.isSafeInteger(ordinal) || ordinal !== index + 1
-      || !/^(?:0|[1-9]\d{0,19})$/.test(legajo)
+      || (native ? [...legajo].length < 1 || [...legajo].length > 64 || /[\x00-\x1f\x7f-\x9f]/.test(legajo) : !/^(?:0|[1-9]\d{0,19})$/.test(legajo))
       || !/^(?:0|[1-9]\d{0,19})$/.test(conceptSourceId)
       || (costCenterSourceId && !/^(?:0|[1-9]\d{0,19})$/.test(costCenterSourceId))
       || (adjustmentMonth && !validMonth(adjustmentMonth))
@@ -109,7 +109,7 @@ function canonicalRow(row, index, periodMonth) {
 export function createPayrollNoveltyCsv(snapshot) {
   if (snapshot?.contractVersion === 'payroll-novelty-batch.v2') {
     const table = nativePayrollNoveltyExportTable(snapshot);
-    const numeric = new Set([2, 3, 4, 5, 7, 8]);
+    const numeric = new Set([2, 4, 5, 7, 8]);
     return `\uFEFF${[table.headers.join(';'), table.values.map((value, index) =>
       csvCell(value, { numeric: numeric.has(index) })).join(';')].join('\r\n')}\r\n`;
   }
@@ -185,16 +185,15 @@ export function nativePayrollNoveltyExportTable(snapshot) {
         value === null || (typeof value === 'string' && value.length > 0))) {
     fail('PAYROLL_NOVELTY_EXPORT_ROW_INVALID', 'Debe consultarse la identidad vigente antes de exportar');
   }
-  // Reuse all v1 approval, non-posting, exact decimal and row checks, without
-  // pretending that the native subject comes from GRH.
-  createPayrollNoveltyCsv({ ...snapshot, contractVersion: CONTRACT_VERSION });
-  const row = canonicalRow(original, 0, snapshot.periodMonth);
+  // The complete v2 snapshot was verified above. Reuse exact business-value
+  // checks while preserving its verified opaque municipal identifier.
+  const row = canonicalRow(original, 0, snapshot.periodMonth, true);
   return Object.freeze({
     headers: Object.freeze([
       'periodo', 'tipo_liquidacion', 'orden', 'legajo', 'concepto', 'centro_costo',
       'mes_ajuste', 'unidades', 'importe_centavos', 'movimiento', 'instrumento_legal',
       'observacion', 'forzado', 'lote_municontrol', 'origen_registro', 'contrato_uuid',
-      'registro_alta_uuid', 'fecha_alta', 'nombre_empleado', 'alcance_control',
+      'registro_propio_uuid', 'fecha_registro_propio', 'nombre_empleado', 'alcance_control',
     ]),
     values: Object.freeze([
       snapshot.periodMonth, snapshot.payrollType, String(row.ordinal), row.legajo,
@@ -202,7 +201,7 @@ export function nativePayrollNoveltyExportTable(snapshot) {
       row.quantityDecimal, row.amountCents, row.movementType, row.legalInstrument,
       row.observation, row.forced, snapshot.id, 'MUNICONTROL', subject.contractId,
       subject.registrationId, subject.registeredAt, subject.employeeName ?? '',
-      'Control administrativo de alta propia; no calcula, liquida ni contabiliza salarios',
+      'Control administrativo de registro propio; no calcula, liquida ni contabiliza salarios',
     ]),
   });
 }

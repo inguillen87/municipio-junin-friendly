@@ -88,6 +88,36 @@
         ]
       },
       "publicationMode":"candidate_only"
+    },
+    {
+      "id":"grh-junin-2026-10-01","profileVersion":"3.0.0",
+      "source":{
+        "name":"grh_junin","database":"grh_junin",
+        "sha256":"50A4CC2673BE5E275DC5850AA8779F46DE82DD81733A87E4B2CFA2AEC49E025F",
+        "logicalBytes":783030719,"cutoff":"2026-10-01T15:17:29",
+        "currentPayrollDate":"2026-10-31","currentPayrollClosureStatus":"open","latestClosedPayrollDate":"2026-09-30",
+        "gzipSha256":"E07356321D6AA319481F754C09F16C1707EE30FCCE49BB8E676272242A47F457",
+        "gzipBytes":45105372,"latestClosedMonthlyPayrollDate":"2026-09-30"
+      },
+      "curated":{
+        "profileId":"grh-junin-2026-10-01",
+        "expectedCounts":{"ausencia":31783,"cargo":5,"catego":156,"convenio":14,"familia":3650,"gremio":6,"legagremio":845,"legajo":2452,"licencia":3448,"motause":27,"motibaja":19,"organiza":83,"persona":2351,"revista":3,"sectores":36,"vinculo":9},
+        "expectedOutputCounts":{"employees":2452,"absences":31783,"leaves":3448,"familyMembers":3650,"sectors":36,"categories":156,"unions":6,"unionMemberships":845,"agreements":14,"absenceReasons":27,"familyRelationships":9,"jobRoles":5,"organizations":83,"exitReasons":19,"employmentStatuses":3}
+      },
+      "core":{
+        "profileId":"grh-core-junin-2026-10-01-multirun",
+        "expectedCounts":{"calculo":4424334,"concepto":294,"histocal":632,"histolegajo":842,"legajo":2452,"legamov":498810},
+        "expectedClosureStatusCounts":{"closed":524,"open":2,"unknown":101},
+        "currentRunTypes":["M","O"],
+        "expectedReconciliation":{"administrativeActive":869,"liquidatedCurrent":842,"activeAndLiquidated":842,"activeNotLiquidated":27,"liquidatedNotActive":0},
+        "schemaVersion":2,
+        "snapshotCohorts":[{"period":2026,"month":10,"payrollType":"M","payrollDate":"2026-10-31","rows":842}],
+        "currentRuns":[
+          {"companyCode":"101","payrollDate":"2026-10-31","period":2026,"month":10,"payrollType":"M","closureStatus":"open"},
+          {"companyCode":"101","payrollDate":"2026-10-31","period":2026,"month":10,"payrollType":"O","closureStatus":"open"}
+        ]
+      },
+      "publicationMode":"candidate_only"
     }
   ]
 }

@@ -8,6 +8,7 @@ const natures = new Set(['remuneration', 'non_remuneration', 'deduction', 'emplo
 const types = new Set(['monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other']);
 const uuid = v => typeof v === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(v);
 const code = v => typeof v === 'string' && /^[0-9]{1,9}$/.test(v);
+export const ownPayrollEmployeeNumber = v => typeof v === 'string' && [...v].length >= 1 && [...v].length <= 64 && !/[\x00-\x1f\x7f-\x9f]/.test(v);
 const key = v => typeof v === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(v);
 const hash = v => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 const month = v => typeof v === 'string' && /^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$/.test(v);
@@ -52,7 +53,7 @@ export function normalizeOwnPayrollInput(input) {
   list(input.employees, OWN_PAYROLL_LIMITS.employees);
   const employees = input.employees.map(e => {
     shape(e, ['contractId', 'employeeNumber', 'agreementCode', 'departmentCode', 'inputs']);
-    require(uuid(e.contractId) && code(e.employeeNumber) && code(e.agreementCode) && code(e.departmentCode), 'EMPLOYEE_INVALID', 'El contrato y sus referencias deben ser exactos.');
+    require(uuid(e.contractId) && ownPayrollEmployeeNumber(e.employeeNumber) && code(e.agreementCode) && code(e.departmentCode), 'EMPLOYEE_INVALID', 'El contrato y sus referencias deben ser exactos.');
     list(e.inputs, OWN_PAYROLL_LIMITS.inputs, true);
     const inputs = e.inputs.map(i => { shape(i, ['key', 'unit', 'value', 'sourceReference']); require(key(i.key) && units.has(i.unit) && reference(i.sourceReference), 'INPUT_INVALID', 'Cada entrada necesita clave, unidad y procedencia.'); if (i.value !== null) decimal(i.value); return { ...i }; }).sort((a, b) => order(a.key, b.key));
     unique(inputs.map(i => i.key)); return { ...e, inputs };

@@ -50,7 +50,7 @@ test('native control preserves provenance and exact decimal strings in CSV and X
     snapshot.rows[0].subject.registrationId,'2026-09-22T12:30:00.123456Z','Persona sintética QA']);
   assert.match(rows[1][19],/no calcula, liquida ni contabiliza salarios/);
   assert.match(csv,/;1\.000001;999999999999999999;/);
-  assert.match(csv,/origen_registro;contrato_uuid;registro_alta_uuid;fecha_alta;nombre_empleado;alcance_control/);
+  assert.match(csv,/origen_registro;contrato_uuid;registro_propio_uuid;fecha_registro_propio;nombre_empleado;alcance_control/);
   assert.doesNotMatch(csv,/GRH|homologad|respaldo/i);
   assert.equal(JSON.stringify(snapshot),before);
   assert.equal(createPayrollNoveltyCsv(snapshot),csv);

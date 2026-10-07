@@ -21,7 +21,7 @@ export function fixedCorrectionGroupDraft(rows,changes,reason){
  if(Object.hasOwn(changes,'forcedReason')&&!Object.hasOwn(changes,'forced')||changes.forced===true&&!Object.hasOwn(changes,'forcedReason'))throw Error('Declarar modo forzado requiere elegir también su fundamento.');
  const items=base.items.map((item,i)=>{
   const before=rows[i].approved.values,fields={...before,legajo:item.legajo,amountArs:fixedMoneyInput(before.amountCents),reason:base.reason,...changes};
-  const values=fixedForm(fields).values;
+  const values=fixedForm(fields,rows[i].subject).values;
   if(Object.keys(before).every(k=>before[k]===values[k]))throw Error('La novedad del legajo '+item.legajo+' ya tiene esos valores. Retirala de la selección o cambiá la corrección; no se omiten filas automáticamente.');
   return Object.freeze({...item,values});
  });return Object.freeze({items:Object.freeze(items),reason:base.reason});

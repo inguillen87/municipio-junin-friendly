@@ -2,9 +2,9 @@ name: Own payroll calculation
 on:
   push:
     branches: ['master', 'codex/own-payroll-engine-20261004']
-    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/migrations/130-*', 'scripts/migrations/131-*', 'scripts/prepare-own-reference-scale-installation.mjs', 'scripts/install-own-reference-scales.mjs', 'api/internal-own-payroll-novelties.js', 'lib/internal-own-payroll-novelties.js', 'scripts/lib/own-novelties-*.mjs', 'scripts/verify-own-novelties-installation.mjs', 'scripts/prepare-own-novelties-installation.mjs', 'scripts/install-own-novelties.mjs', 'tests/own-novelties-installation.test.js', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
   pull_request:
-    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
+    paths: ['assets/own-payroll-*.js', 'assets/own-payroll-*.css', 'assets/payroll-navigation.js', 'assets/native-salary-catalog-model.js', 'scripts/build-friendly.mjs', 'api/internal-own-payroll-program.js', 'api/internal-own-payroll-run.js', 'lib/internal-own-payroll-program.js', 'lib/internal-own-payroll-run.js', 'lib/own-payroll-*.js', 'lib/private-json-body.js', 'tests/own-payroll-*.test.js', 'tests/fixtures/own-payroll-*.js', 'scripts/migrations/122-*', 'scripts/migrations/123-*', 'scripts/migrations/130-*', 'scripts/migrations/131-*', 'scripts/prepare-own-reference-scale-installation.mjs', 'scripts/install-own-reference-scales.mjs', 'api/internal-own-payroll-novelties.js', 'lib/internal-own-payroll-novelties.js', 'scripts/lib/own-novelties-*.mjs', 'scripts/verify-own-novelties-installation.mjs', 'scripts/prepare-own-novelties-installation.mjs', 'scripts/install-own-novelties.mjs', 'tests/own-novelties-installation.test.js', 'scripts/verify-own-payroll-*.mjs', 'scripts/prepare-own-payroll-installation.mjs', 'scripts/lib/native-monthly-qa-installation.mjs', 'scripts/lib/own-payroll-*.mjs', 'scripts/verify-payroll-fixed-novelties-sql.mjs', 'scripts/verify-native-fixed-novelties-sql.mjs', 'scripts/verify-native-jurisdiction-sql.mjs', 'scripts/verify-native-employment-catalog-sql.mjs', 'scripts/verify-native-employment-change-sql.mjs', 'scripts/verify-native-employment-lifecycle-sql.mjs', 'scripts/verify-native-salary-sql.mjs', '.github/workflows/own-payroll-calculation.yml']
 permissions:
   contents: read
 jobs:
@@ -38,7 +38,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: node --test tests/own-payroll-program-workspace.test.js tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-installation.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
+      - run: node --test tests/own-payroll-reference-scale.test.js tests/own-payroll-program-workspace.test.js tests/own-payroll-run-workspace.test.js tests/own-payroll-durable-qa.test.js tests/own-payroll-installation.test.js tests/own-payroll-exact.test.js tests/own-payroll-engine.test.js tests/own-payroll-program.test.js tests/own-payroll-program-api.test.js tests/own-payroll-approved-input.test.js tests/own-payroll-run.test.js tests/own-payroll-run-api.test.js tests/own-payroll-run-sql-generator.test.js tests/private-json-body.test.js tests/private-json-fixed-groups.test.js tests/native-salary-catalog.test.js tests/native-salary-api.test.js
       - run: mkdir -p verification
       - name: Compare with independent PostgreSQL numeric
         run: node scripts/verify-own-payroll-postgres.mjs --ci --major=${{ matrix.major }}
@@ -83,6 +83,18 @@ jobs:
         run: node scripts/build-friendly.mjs
       - name: Verify complete native formula copy, history, mobile, revocation and exact retry
         run: node scripts/verify-own-payroll-program-copy-browser.mjs --browser=chromium --output=verification/own-program-copy-browser.json
+      - name: Verify one complete native novelty batch, independent approval and selected own calculation
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-novelties-sql.mjs --major=${{ matrix.major }} --psql=psql --output=verification/own-novelties-sql.json
+      - name: Verify built native bulk entry, complete CSV, mobile, revocation and lost ACK through real API
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-novelties-browser.mjs --major=${{ matrix.major }} --psql=psql --browser=chromium --output=verification/own-novelties-browser.json
+      - name: Verify exact SQL130 installation, prior data/security preservation and independent durability
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-novelties-installation.mjs --major=${{ matrix.major }} --psql=psql --output=verification/own-novelties-installation.json
       - name: Verify product UI, immutable retry, mobile and SQL revocation
         env:
           PGPASSWORD: own-payroll-synthetic-qa
@@ -91,6 +103,10 @@ jobs:
         env:
           PGPASSWORD: own-payroll-synthetic-qa
         run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --major=${{ matrix.major }} --browser=chromium --output=verification/own-program-ui.json
+      - name: Verify approved reference scale, exact installation and complete actual product calculation
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --reference-scales --major=${{ matrix.major }} --browser=chromium --output=verification/own-reference-scale-ui.json
       - name: Install exact122/123 conservatively, COMMIT and verify independent durability
         env:
           PGPASSWORD: own-payroll-synthetic-qa

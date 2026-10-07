@@ -13,6 +13,8 @@ const root=path.resolve('public'),out=path.resolve('verification/native-monthly-
 fs.mkdirSync(out,{recursive:true});
 const build=publishedBuildVerification({origin,root});
 const assets=['novedades-nomina.html','assets/payroll-novelty-workbench.js','assets/payroll-native-monthly-model.js',
+  'assets/employee-picker-model.js',
+  'assets/payroll-novelty-review.js','assets/payroll-novelty-review-panel.js',
   'assets/payroll-novelty-exporter.js','assets/payroll-novelty-xlsx-exporter.js','assets/payroll-native-monthly-review.js','assets/payroll-native-monthly-review.css'];
 const hashes=build.expectedHashes(assets),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 if(published) for(const file of assets){const response=await build.fetchFile(file);assert.equal(response.status,200);assert.equal(sha(Buffer.from(await response.arrayBuffer())),hashes[file],file);}
@@ -20,7 +22,7 @@ const ids={contract:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',other:'dddddddd-dddd-
   grh:'00000000-0000-f000-0000-000000000009',registration:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   tenant:'00000000-0000-4000-8000-000000000001',binding:'00000000-0000-4000-8000-000000000002',
   maker:'00000000-0000-4000-8000-000000000003',checker:'00000000-0000-4000-8000-000000000004'};
-const original={contractId:ids.contract,legajo:'571',employeeName:'Alta propia sintética QA',identityToken:'a'.repeat(64),
+const original={contractId:ids.contract,legajo:' A/009010 ',employeeName:'Alta propia sintética QA',identityToken:'a'.repeat(64),
   sourceCutoff:null,origin:'MUNICONTROL',registrationId:ids.registration,registeredAt:'2026-09-22T12:30:00.123456Z'};
 let actor='maker',nominal=true,prepare=true,deny=false,current=true,failPrepare=false,failTransition=false,rejectIdentity=false,
   currentSubject=structuredClone(original),consultedSubject=null,holdEmployee=false,releaseEmployee=null,number=0,receiptPatch=null,directory=false,acceptDialog=true,originMismatch=false;
@@ -77,7 +79,7 @@ try{
         assert.equal(request.method(),'GET');assert.equal(url.searchParams.get('view'),'novelty-selector');assert.equal(url.searchParams.get('status'),'administrative_active');
         assert.equal(url.searchParams.get('limit'),'20');assert.equal(url.searchParams.get('includeFacets'),'0');
         return route.fulfill({json:{ok:true,version:'employee-picker.v1',data:[
-          {contractId:ids.contract,legajo:'571',nombre:'Alta propia sintética QA',sector:'Sector QA',convenio:'Convenio QA',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'},
+          {contractId:ids.contract,legajo:original.legajo,nombre:'Alta propia sintética QA',sector:'Sector QA',convenio:'Convenio QA',activo:true,statusSnapshotDate:null,recordOrigin:'MUNICONTROL'},
           {contractId:ids.grh,legajo:'1721',nombre:'Fuente histórica sintética QA',sector:'Sector QA',convenio:'Convenio QA',activo:true,statusSnapshotDate:'2026-09-10',recordOrigin:'GRH'},
         ],pagination:{page:1,limit:20,total:2,pages:1},scope:{status:'administrative_active',payrollEligibilityCertified:false,sourceCutoffFrom:'2026-09-10',sourceCutoffTo:'2026-09-10'}}});
       }
@@ -138,7 +140,17 @@ try{
   };
   const refresh=async()=>{await page.locator('#refreshButton').click();await page.locator('#refreshButton:enabled').waitFor();};
   const action=async name=>{await page.locator('#detailActions').getByRole('button',{name,exact:true}).click();await page.locator('#refreshButton:enabled').waitFor();};
-  await open();assert.equal(posts.length,0);assert.equal(await page.locator('#legajo').inputValue(),'571');assert.equal(await page.locator('#legajo').isDisabled(),true);
+  for(const [kind,legajo] of [['ascii','A'.repeat(64)],['unicode','😀'.repeat(64)]]){
+    currentSubject={...clone(original),legajo};
+    await page.setViewportSize({width:390,height:844});await open();await preview();
+    assert.equal(await page.locator('#legajo').inputValue(),currentSubject.legajo);
+    assert.equal(await page.locator('#legajo').getAttribute('maxlength'),'128');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    await page.locator('#nativeMonthlyReview').screenshot({path:path.join(out,'opaque-'+kind+'-review-390-synthetic.png')});
+  }
+  assert.equal(posts.length,0);checks.push('64 Unicode codepoints survive verified mobile selection and complete review without a write or page overflow');
+  currentSubject=clone(original);await page.setViewportSize({width:1440,height:1000});
+  await open();assert.equal(posts.length,0);assert.equal(await page.locator('#legajo').inputValue(),original.legajo);assert.equal(await page.locator('#legajo').isDisabled(),true);
   assert.equal(await page.locator('#nativeMonthlyPick').isVisible(),false);checks.push('explicit UUID lookup works without workforce directory capability and creates nothing');
   await preview();assert.equal(posts.length,0);failPrepare=true;await page.locator('#prepareButton').click();
   await page.locator('#nativeMonthlyPending:visible').waitFor();assert.equal(await page.locator('#conceptSourceId').isDisabled(),true);
@@ -160,8 +172,8 @@ try{
   for(const [name,extension] of [['Descargar CSV de control','csv'],['Descargar Excel de control','xlsx']]){
     const pending=page.waitForEvent('download');await action(name);const download=await pending;
     assert.match(download.suggestedFilename(),/control-novedad-alta-propia/);const file=path.join(out,'control-synthetic.'+extension);await download.saveAs(file);
-    if(extension==='csv'){const text=fs.readFileSync(file,'utf8');assert.match(text,/MUNICONTROL/);assert.ok(text.includes(ids.contract));assert.match(text,/;1\.000001;;;;;NO;/);assert.doesNotMatch(text,/homologad|backup/i);}
-    else{const workbook=await readXlsxFile(file),rows=Array.isArray(workbook[0]?.data)?workbook[0].data:workbook;assert.equal(rows[1][15],ids.contract);assert.equal(rows[1][8],null);}
+    if(extension==='csv'){const text=fs.readFileSync(file,'utf8');assert.match(text,/MUNICONTROL/);assert.ok(text.includes(ids.contract));assert.ok(text.includes(';'+original.legajo+';'));assert.match(text,/;1\.000001;;;;;NO;/);assert.doesNotMatch(text,/homologad|backup/i);}
+    else{const workbook=await readXlsxFile(file,{trim:false}),rows=Array.isArray(workbook[0]?.data)?workbook[0].data:workbook;assert.equal(rows[1][15],ids.contract);assert.equal(rows[1][8],null);assert.equal(rows[1][3],original.legajo);}
   }
   checks.push('approved native control CSV/XLSX preserve subject provenance, exact units and missing amount');
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:width===1440?1000:844});
@@ -171,7 +183,7 @@ try{
   }checks.push('1440, 390 and 320px retain approved detail and export controls without page overflow');
   current=false;await refresh();assert.equal(await page.locator('#detailActions').getByRole('button',{name:/Descargar/}).count(),0);
   checks.push('identity drift revokes export without assigning the old batch to a different same-legajo person');
-  actor='maker';current=true;batches.clear();await open(ids.other);assert.equal(await page.locator('#legajo').inputValue(),'571');
+  actor='maker';current=true;batches.clear();await open(ids.other);assert.equal(await page.locator('#legajo').inputValue(),original.legajo);
   await preview();assert.equal(posts.filter(p=>p.body.command==='prepare').length,2);
   checks.push('same legajo in another native contract is displayed as a separate explicit UUID selection');
   await open();await preview();rejectIdentity=true;const beforeDrift=posts.length,readsBeforeDrift=requests.filter(r=>r.query.includes('resource=employee')).length;
@@ -257,9 +269,9 @@ try{
   await openWithoutContract();await page.locator('#periodMonth').fill('2026-10');await page.locator('#conceptSourceId').fill('95');await page.locator('#quantityDecimal').fill('100');
   const beforeName=posts.length;
   let picker=await searchDirectory('#pickLegajoButton');await picker.locator('[data-picker-results] input').first().check();const identityReads=requests.filter(r=>r.query.includes('resource=employee')).length;await picker.locator('[data-picker-apply]').click();
-  await page.locator('#nativeMonthlySubject').filter({hasText:'Alta propia de MuniControl'}).waitFor();
+  await page.locator('#nativeMonthlySubject').filter({hasText:'Registro propio de MuniControl'}).waitFor();
   assert.equal(requests.filter(r=>r.query.includes('resource=employee')).length,identityReads+1);assert.ok(requests.at(-1).query.includes('contractId='+ids.contract));
-  assert.equal(await page.locator('#legajo').inputValue(),'571');assert.equal(await page.locator('#legajo').isDisabled(),true);assert.equal(await page.locator('#conceptSourceId').inputValue(),'95');assert.equal(await page.locator('#quantityDecimal').inputValue(),'100');assert.equal(posts.length,beforeName);
+  assert.equal(await page.locator('#legajo').inputValue(),original.legajo);assert.equal(await page.locator('#legajo').isDisabled(),true);assert.equal(await page.locator('#conceptSourceId').inputValue(),'95');assert.equal(await page.locator('#quantityDecimal').inputValue(),'100');assert.equal(posts.length,beforeName);
   await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   await page.locator('#nativeMonthlyReviewConfirm').check();await page.locator('#prepareButton').click();await page.locator('#nativeMonthlyPending').waitFor({state:'hidden'});await page.locator('#detailTitle').filter({hasText:'Lote'}).waitFor();
   assert.equal(posts.length,beforeName+1);assert.equal(posts.at(-1).body.payload.rows[0].contractId,ids.contract);assert.equal(posts.at(-1).body.payload.rows[0].conceptSourceId,'95');assert.equal(posts.at(-1).body.payload.rows[0].quantityDecimal,'100');assert.equal(posts.at(-1).body.payload.rows[0].amountCents,null);
@@ -287,5 +299,5 @@ try{
   const result={ok:true,checksPassed:checks.length,checks,publishedAssets:published,assetHashes:hashes,
     apiResponsesSynthetic:true,privateApisIntercepted:true,interceptedPosts:posts.length,realMunicipalWrites:0,realMunicipalSessionTested:false};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
-}catch(error){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({checks,requests,posts:posts.length,errors,error:String(error.stack)},null,2));if(page)await page.screenshot({path:path.join(out,'failure-synthetic.png')}).catch(()=>{});throw error;}
+}catch(error){const ui=page?await page.evaluate(()=>({message:document.querySelector('#messageHost')?.textContent,busy:document.body.dataset.busy,legajo:document.querySelector('#legajo')?.value,subject:document.querySelector('#nativeMonthlySubject')?.textContent})).catch(()=>null):null;fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({checks,requests,posts:posts.length,errors,ui,error:String(error.stack)},null,2));if(page)await page.screenshot({path:path.join(out,'failure-synthetic.png')}).catch(()=>{});throw error;}
 finally{await browser.close();}

@@ -10,10 +10,11 @@ export async function verifySuccessorSources(options){
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   try{
     const {values}=parseArgs({options:{'baseline-core':{type:'string'},'candidate-core':{type:'string'},
-      'baseline-curated':{type:'string'},'candidate-curated':{type:'string'},progress:{type:'boolean',default:false}},strict:true});
+      'baseline-curated':{type:'string'},'candidate-curated':{type:'string'},'candidate-profile':{type:'string'},progress:{type:'boolean',default:false}},strict:true});
     const options={baselineCore:values['baseline-core'],candidateCore:values['candidate-core'],
       baselineCurated:values['baseline-curated'],candidateCurated:values['candidate-curated']};
     if(!Object.values(options).every(v=>typeof v==='string'&&path.isAbsolute(v)))successorFault('SUCCESSOR_USAGE');
+    options.candidateProfileId=values['candidate-profile'];
     if(values.progress)options.onProgress=event=>console.error(JSON.stringify(event));
     const summary=await verifySuccessorSources(options);
     console.log(JSON.stringify(summary,null,2));

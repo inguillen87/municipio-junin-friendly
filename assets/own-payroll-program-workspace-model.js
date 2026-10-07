@@ -3,7 +3,7 @@ import {salarySerialized,salaryKey} from './native-salary-catalog-model.js';
 import {ownRunWorkspaceAccess} from './own-payroll-run-workspace-model.js';
 
 export const PROGRAM_UNITS=Object.freeze({money:'Dinero',hours:'Horas',minutes:'Minutos',percent:'Porcentaje',units:'Unidades',coefficient:'Coeficiente'});
-export const PROGRAM_SOURCES=Object.freeze({parameter:'Valor del concepto aprobado',scale:'Escala de la clase y convenio',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
+export const PROGRAM_SOURCES=Object.freeze({parameter:'Valor del concepto aprobado',scale:'Escala de la clase del empleado',scale_reference:'Escala de una clase de referencia',monthly_quantity:'Cantidad de novedad mensual',monthly_amount:'Importe de novedad mensual',fixed_quantity:'Cantidad de novedad fija',fixed_amount:'Importe de novedad fija'});
 export const PROGRAM_ROUNDING=Object.freeze({exact:'Exigir resultado exacto',half_up:'Más cercano; mitad alejada del cero',half_even:'Más cercano; mitad al par',toward_zero:'Hacia cero',floor:'Hacia el inferior',ceiling:'Hacia el superior'});
 export const PROGRAM_OPERATIONS=Object.freeze({input:'Usar una entrada',concept:'Usar otro concepto calculado',literal:'Valor explícito',add:'Sumar',subtract:'Restar',multiply:'Multiplicar',divide:'Dividir',min:'Elegir el menor',max:'Elegir el mayor',round:'Redondear en esta etapa',convert:'Convertir con respaldo',compare:'Comparar',choose:'Elegir según una condición'});
 export const PROGRAM_COMPARE=Object.freeze({lt:'Menor que',le:'Menor o igual',eq:'Igual',ne:'Distinto',ge:'Mayor o igual',gt:'Mayor que'});

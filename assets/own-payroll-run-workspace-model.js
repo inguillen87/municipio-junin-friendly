@@ -1,3 +1,4 @@
+import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
 import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
 
@@ -22,7 +23,7 @@ export function ownRunWorkspaceAttempt(key, body, accessKey) {
   return freeze({key,body:structuredClone(ownRunCommand(body)),accessKey});
 }
 export async function verifiedWorkspaceCapture(value, attempt = null) {
-  ownRunCapture(value,attempt);
+  ownRunCapture(value,attempt);ownRunJurisdictions(value);
   const hash = async v => [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(v))))].map(b=>b.toString(16).padStart(2,'0')).join('');
   if(await hash(value.body)!==value.bodySha256 || await hash(value.payload)!==value.payloadSha256
     || value.saved && (await hash(value.saved.input)!==value.saved.inputSha256 || await hash(value.saved.result)!==value.saved.resultSha256))
@@ -62,7 +63,7 @@ export function ownRunWorkspaceResult(capture) {
 export function ownRunWorkspaceRows(capture, search = '', page = 1, pageSize = 25) {
   const verified=ownRunWorkspaceResult(capture);
   if(!verified || !Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(pageSize)||pageSize<1)fail('No hay un resultado completo para consultar.');
-  const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.includes(term)||r.conceptCode.includes(term));
+  const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.toLowerCase().includes(term)||r.conceptCode.toLowerCase().includes(term));
   const pages=Math.max(1,Math.ceil(rows.length/pageSize)), current=Math.min(page,pages);
   return {rows:rows.slice((current-1)*pageSize,current*pageSize),filtered:rows.length,total:verified.result.rowCount,page:current,pages};
 }

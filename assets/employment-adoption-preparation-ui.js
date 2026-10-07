@@ -1,0 +1,119 @@
+import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt} from './employment-adoption-preparation-model.js';
+import {adoptionReviewScope} from './employment-adoption-review-model.js';
+
+const API='/api/internal-employment-adoption';
+const issue=(message,status,code)=>Object.assign(Error(message),{status,code});
+export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
+ if(!host)return;
+ host.innerHTML=`<button type="button" class="button" data-ap-open aria-expanded="false" aria-controls="adoption-preparation-body">Preparar la adopción del padrón</button><section id="adoption-preparation-body" data-ap-panel hidden><h4>Guardar los antecedentes para su revisión</h4>
+ <p>La propuesta conserva todos los contratos de la revisión, incluidos los inactivos. Guardarla no adopta contratos, completa datos faltantes ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción, cuando el circuito esté instalado y verificado.</p>
+ <button type="button" class="button" data-ap-load>Consultar condiciones y propuestas</button><p role="status" aria-live="polite" data-ap-status>La consulta es voluntaria. No se guarda nada al abrir este apartado.</p>
+ <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
+ <form data-ap-form hidden><p data-ap-counts></p>
+ <label>Jurisdicción para los contratos que no la tienen declarada<select data-ap-jurisdiction required><option value="">Elegí según el respaldo municipal</option><option value="42">Jurisdicción 42</option><option value="55">Jurisdicción 55</option></select></label>
+ <p>Las jurisdicciones ya declaradas se conservan. Esta elección no se deduce del número de empresa, legajo, sector o archivo.</p>
+ <label>Resolución o documento de respaldo<input data-ap-reference required minlength="3" maxlength="180" autocomplete="off"></label>
+ <label>Motivo de la propuesta<textarea data-ap-reason required minlength="10" maxlength="1000" rows="3"></textarea></label>
+ <label class="ap-confirm"><input type="checkbox" data-ap-confirm required>Revisé el padrón completo y el respaldo de la jurisdicción declarada</label>
+ <button type="submit" class="button primary" data-ap-send>Guardar propuesta completa</button></form>
+ <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>Este registro conserva la preparación original y no muestra las decisiones posteriores. Consultá la bandeja de revisión para conocer su resultado.</p><ol data-ap-attempts></ol></section></section>`;
+ const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
+ let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
+ const live=()=>readAllowed&&!document.hidden&&!panel.hidden&&host.isConnected&&isLive?.();
+ const say=text=>{$('status').textContent=text;};
+ function controls(){
+  const enabled=live()&&!busy;
+  $('open').disabled=busy||!readAllowed||document.hidden||!review||!isLive?.();
+  $('load').disabled=!enabled||!review;
+  for(const n of $('form').querySelectorAll('input,textarea,select,button'))n.disabled=!enabled||!prepareAllowed||!bootstrap?.canPrepare||!!pending;
+  $('send').disabled||=!$('confirm').checked;
+  $('pending').hidden=!pending||!live();$('recover').disabled=!enabled||!pending;
+  $('retry').disabled=!enabled||!pending||!retryReady||!prepareAllowed||!bootstrap?.canPrepare;
+  host.setAttribute('aria-busy',String(busy));
+ }
+ function withdraw(text='Consultá nuevamente las condiciones del padrón.'){
+  epoch++;controller?.abort();bootstrap=null;busy=false;retryReady=false;
+  $('form').hidden=true;$('history').hidden=true;$('attempts').replaceChildren();$('counts').textContent='';
+  for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;say(text);controls();
+ }
+ function start(text){controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(text);return{token,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)])};}
+ const current=token=>token===epoch&&live();
+ async function request(url,signal,init={}){
+  const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...init,headers:{Accept:'application/json',...init.headers},signal});
+  const bytes=await response.text();if(new TextEncoder().encode(bytes).length>7000000)throw issue('La respuesta supera la capacidad completa. Consultá el mismo intento.');
+  let value;try{value=JSON.parse(bytes);}catch{throw issue('No se pudo verificar la respuesta. Consultá el mismo intento.');}
+  if(!response.ok||value.ok!==true)throw issue(typeof value.error==='string'?value.error:'No se confirmó la operación. Consultá el mismo intento.',response.status,value.code);return value.data;
+ }
+ async function authority(signal){
+  const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',signal}),value=await response.json(),caps=value.access?.tenantCapabilities;
+  if(!response.ok||value.ok!==true||!value.authenticated||!Array.isArray(caps)||!caps.includes('workforce.employee.read')||typeof value.user?.email!=='string')throw issue('Tu sesión o permiso cambió. Volvé a consultar con acceso autorizado.',response.status===401?401:403);
+  return{actor:value.user.email.toLowerCase(),canPrepare:caps.includes('employee.record.propose')};
+ }
+ async function fresh(signal){
+  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(API+'?resource=bootstrap',signal));
+  return{...access,value,scope:adoptionReviewScope(value.review.scope)};
+ }
+ function sameScope(freshValue,attempt){
+  if(!review||freshValue.scope!==adoptionReviewScope(review.scope)||attempt&&(freshValue.scope!==attempt.scope||freshValue.actor!==attempt.actor))throw issue('Cambió la cuenta o el municipio. Recuperá el intento con su acceso original.',403);
+ }
+ function paint(value){
+  bootstrap=value.value;prepareAllowed=value.canPrepare;
+  $('form').hidden=!bootstrap.canPrepare||!prepareAllowed||!bootstrap.review.total||!!pending;
+  $('counts').textContent=`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} requieren la jurisdicción declarada. La búsqueda no reduce la propuesta.`;
+  $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
+   const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
+  }
+  $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}controls();
+ }
+ function failure(e,token){
+  if(!current(token))return;
+  if([401,403].includes(e.status)){readAllowed=false;withdraw('Tu sesión o permiso cambió. Los datos fueron retirados; el intento original se conserva.');onAuthorityLost?.();return;}
+  say(e instanceof TypeError||['AbortError','TimeoutError'].includes(e.name)?'La consulta se interrumpió. Consultá el mismo intento antes de preparar otra propuesta.':e.message||'No se confirmó la operación. Consultá el mismo intento.');
+ }
+ async function load(){
+  if(busy||!live()||!review)return;const {token,signal}=start('Consultando condiciones y propuestas del padrón completo…');
+  try{const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
+   if(f.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;say('El padrón cambió. Volvé a Revisar padrón completo antes de preparar una propuesta.');return;}
+   paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
+  }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
+ }
+ async function send(recover=false,retry=false){
+  if(busy||!live()||!review)return;const {token,signal}=start(recover?'Consultando el resultado del mismo intento…':'Verificando el padrón y el acceso antes del envío…');let started=false;
+  try{
+   const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
+   if(recover||retry)paint(f);
+   if(!recover&&(!f.value.canPrepare||!f.canPrepare)){prepareAllowed=false;bootstrap=null;$('form').hidden=true;throw issue('Tu cuenta ya no permite preparar propuestas. Podés consultar el resultado de un intento pendiente.');}
+   if(!recover&&!retry){
+    if(pending)return;
+    if(f.value.review.snapshot!==review.snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón o el catálogo. Volvé a revisar antes de guardar.');}
+    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,$('jurisdiction').value,$('reference').value,$('reason').value);
+    if(!current(token))return;
+    pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
+   }
+   if(!pending)return;const attempt=pending.attempt;started=!recover;
+   const raw=await request(recover?API+'?'+new URLSearchParams({resource:'attempt',key:attempt.key}):API,signal,recover?{}:{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':attempt.key},body:attempt.bytes});
+   const receipt=await adoptionPreparationReceipt(raw,{key:attempt.key,body:attempt.body});
+   if(!current(token))return;
+   // An acknowledgement alone is insufficient after a scope/authority change.
+   const confirmed=await fresh(signal);if(!current(token))return;sameScope(confirmed,attempt);
+   if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
+   pending=null;retryReady=false;$('confirm').checked=false;paint(confirmed);
+   if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}
+   say(`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados al prepararla. Requiere una decisión independiente en la bandeja de revisión.`);
+  }catch(e){
+   if(!current(token))return;
+   if(pending){retryReady=recover&&e.status===404;if(started&&['SOURCE_CHANGED','CATALOG_CHANGED','SELECTION_CHANGED','LIMIT','INPUT_INVALID'].some(code=>e.code==='EMPLOYMENT_ADOPTION_'+code))pending=null;}
+   failure(e,token);
+  }finally{if(token===epoch){busy=false;controls();}}
+ }
+ $('load').addEventListener('click',load);$('form').addEventListener('submit',event=>{event.preventDefault();if($('confirm').checked&&!pending&&bootstrap?.canPrepare)send();});
+ $('recover').addEventListener('click',()=>send(true));$('retry').addEventListener('click',()=>{if(retryReady&&pending)send(false,true);});
+ $('confirm').addEventListener('change',controls);for(const key of ['jurisdiction','reference','reason'])$(key).addEventListener('input',()=>{$('confirm').checked=false;controls();});
+ $('open').addEventListener('click',()=>{panel.hidden=!panel.hidden;$('open').setAttribute('aria-expanded',String(!panel.hidden));if(panel.hidden)withdraw();else controls();});
+ const permissions=event=>{const caps=event?.detail?.tenantCapabilities;readAllowed=caps instanceof Set?caps.has('workforce.employee.read'):Array.isArray(caps)&&caps.includes('workforce.employee.read');prepareAllowed=caps instanceof Set?caps.has('employee.record.propose'):Array.isArray(caps)&&caps.includes('employee.record.propose');if(!readAllowed)withdraw('Tu permiso de consulta cambió. Los datos fueron retirados.');else controls();};
+ document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(result=>permissions({detail:result}));
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)withdraw('Datos retirados al ocultar la pantalla. Consultá el mismo intento si quedó pendiente.');});
+ window.addEventListener('pagehide',()=>withdraw());document.getElementById('logoutButton')?.addEventListener('click',()=>{readAllowed=false;withdraw('Sesión cerrada. Recuperá cualquier intento con su acceso original.');});
+ window.addEventListener('beforeunload',event=>{if(pending){event.preventDefault();event.returnValue='';}});
+ controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;}controls();},invalidate(){review=null;withdraw();}};
+}

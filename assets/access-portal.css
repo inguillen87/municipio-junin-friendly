@@ -18,7 +18,7 @@
 .access-page [hidden] { display: none !important; }
 .access-page button, .access-page input { font: inherit; }
 .access-page a { color: var(--access-green); text-underline-offset: 4px; }
-.access-page :is(a, button, input):focus-visible { outline: 3px solid #237e76; outline-offset: 3px; }
+.access-page :is(a, button, input, summary):focus-visible { outline: 3px solid #237e76; outline-offset: 3px; }
 .access-page .skip-link { position: fixed; z-index: 10001; top: 8px; left: 16px; padding: 12px 18px; color: #fff; background: #153a4b; border-radius: 8px; transform: translateY(-150%); }
 .access-page .skip-link:focus { transform: translateY(0); }
 .access-page .site-header { background: #fff; border-bottom: 1px solid var(--access-line); }
@@ -106,6 +106,9 @@
 .access-page .email-mfa-status:not(:empty) { margin-top: 12px; }
 .access-page .mfa-method-separator { text-align: center; font-size: 11px !important; color: #6a7973 !important; }
 .access-page .mfa-alternate-actions { display: grid; gap: 3px; margin-top: 12px; }
+.access-page .mfa-access-help { margin-top: 16px; border-top: 1px solid #c6d5cd; }
+.access-page .mfa-access-help summary { min-height: 44px; padding: 12px 2px; color: var(--access-green); font-size: 12px; font-weight: 600; line-height: 1.6; cursor: pointer; }
+.access-page .mfa-access-help p { margin: 0 0 12px; color: var(--access-muted); font-size: 12px; line-height: 1.6; }
 .access-page .text-button { min-height: 44px; padding: 9px; border: 0; border-radius: 6px; color: var(--access-green); background: transparent; font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .access-page .text-button:hover:not(:disabled) { background: #f1f6f1; box-shadow: none; }
 .access-page .text-button:disabled { color: #798c83; cursor: not-allowed; }

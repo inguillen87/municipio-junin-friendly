@@ -1,5 +1,6 @@
 import {mountPayrollDocumentBatch} from './payroll-document-batch-panel.js';
 import { mountPayrollComparison } from './payroll-comparison.js';
+import {mountOwnPayrollComparison} from './own-payroll-comparison-panel.js';
 import {taskWorkspace,toolDetails} from './task-workspace.js';
 import {analysisModel,analysisDocument} from './report-analysis.js';
 import {saveReport} from './report-document.js';
@@ -43,7 +44,7 @@ function start(){const root=document.getElementById('reportContent');if(!root||r
  const documentBatch=node('div');documentBatch.id='seleccion-documental';mountPayrollDocumentBatch(documentBatch);
  const monthly=node('div');monthly.id='resumen-mensual';mountMonthlySummary(monthly);
  const banking=node('div');banking.id='planilla-bancaria';mountPayrollBankGenerator(banking);
- const comparison=node('div');mountPayrollComparison(comparison);
+ const comparison=node('div'),ownComparison=node('div'),sourceComparison=node('div');mountOwnPayrollComparison(ownComparison);mountPayrollComparison(sourceComparison);comparison.append(ownComparison,toolDetails(sourceComparison,'Comparar liquidaciones incorporadas desde respaldos'));
  const structure=node('div');structure.id='estructura-presupuestaria';void mountAuthorizedBudgetStructure(structure);
  const certificates=document.getElementById('certificados-escolares');mountSchoolingReport(certificates);
  const controls=node('div');controls.innerHTML='<header class="rc-panel-head"><p class="rc-eyebrow">Herramientas de transición</p><h2>Controles externos y formatos</h2><p>Estos controles comparan archivos del sistema anterior. Están separados de los reportes que ya se generan desde MuniControl; no acreditan pagos ni presentan declaraciones.</p></header>';

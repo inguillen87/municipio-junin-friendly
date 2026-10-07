@@ -185,9 +185,10 @@ try{
  checks.push('report revocation clears rows, counts and source; a late export refresh cannot restore data or download Excel');
  await reportAccess(true);await reportPanel.locator('[data-fs-consult]').click();await page.waitForFunction(()=>document.querySelector('[data-fs-status]')?.textContent.includes('Reporte consultado'));
 
- const beforeDownloads=downloads.length;dataset.data.rows.find(r=>r.contractId===subject.contractId).nativeRegisteredAt='2026-09-22T10:01:00Z';await reportPanel.locator('[data-fs-export]').click();
+ const beforeDownloads=downloads.length,driftedRow=dataset.data.rows.find(r=>r.contractId===subject.contractId),originalRegisteredAt=driftedRow.nativeRegisteredAt;driftedRow.nativeRegisteredAt='2026-09-22T10:01:00Z';await reportPanel.locator('[data-fs-export]').click();
  await page.waitForFunction(()=>document.querySelector('[data-fs-status]')?.textContent.includes('Los datos cambiaron'));assert.equal(downloads.length,beforeDownloads);assert.equal(await reportPanel.locator('tbody tr').count(),0);
  checks.push('native provenance change invalidates stale export without downloading');
+ driftedRow.nativeRegisteredAt=originalRegisteredAt;
  await openFamily();await openChild('Borrador ante cambio de identidad');subject.identityToken='b'.repeat(64);const beforeIdentity=familyPosts.length;
  await family.locator('[data-fs-child-save]').click();await ready();await family.locator('[data-fs-child-recheck]').click();await ready();assert.equal(familyPosts.length,beforeIdentity+1);assert.equal(await family.locator('[data-fs-child-save]').isDisabled(),true);
  assert.equal(familyPosts.at(-1).body.contractIdentityToken,'c'.repeat(64));checks.push('identity change blocks the draft and never transfers it to a new subject or token');
@@ -200,9 +201,16 @@ try{
  checks.push('revoked read authority clears child names and disables writes');
  await family.locator('[data-fs-family-refresh]').click();await ready();let finishRevoked;delayedRead=new Promise(resolve=>finishRevoked=resolve);
  const revokedRequest=page.waitForRequest(r=>r.url().includes('resource=family'));await family.locator('[data-fs-family-refresh]').click();await revokedRequest;
- await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));finishRevoked();await ready();
- assert.equal(await family.locator('.fs-child').count(),0);assert.equal(await family.locator('[data-fs-add-child]').isEnabled(),false);checks.push('capability revocation during a retained GET discards its late family response');
- await family.locator('[data-fs-family-refresh]').click();await ready();let release;delayedRead=new Promise(resolve=>release=resolve);
+ const retainedRequest=await revokedRequest,beforeRevocationPosts=familyPosts.length+schoolPosts.length;
+ const revokedReadAborted=page.waitForEvent('requestfailed',{predicate:r=>r===retainedRequest});
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:[]}})));finishRevoked();await revokedReadAborted;
+ await page.locator('#employeeDialog').waitFor({state:'hidden'});
+ assert.equal(await family.count(),0);assert.equal(await page.locator('#employeeDialog .dialog-body').innerText(),'');
+ assert.equal(familyPosts.length+schoolPosts.length,beforeRevocationPosts);checks.push('capability revocation aborts the retained GET, closes and clears the entire nominal ficha, without another write');
+ // The ficha was destroyed by nominal revocation. Only a fresh authorized
+ // consultation may mount it again; never wait on or click its removed nodes.
+ await page.evaluate(()=>document.dispatchEvent(new CustomEvent('municontrol:capabilities-ready',{detail:{tenantCapabilities:['workforce.employee.read','employee.record.propose']}})));
+ await page.reload();await ready();assert.ok(await family.locator('.fs-child').count()>0);let release;delayedRead=new Promise(resolve=>release=resolve);
  const waiting=page.waitForRequest(r=>r.url().includes('resource=family'));await family.locator('[data-fs-family-refresh]').click();await waiting;
  await page.locator('#employeeDialog').getByRole('button',{name:/Cerrar ficha/}).click();release();await page.waitForTimeout(100);
  assert.equal(await page.locator('dialog[open]').count(),0);assert.equal(await family.locator('.fs-child').count(),0);checks.push('late family response cannot restore data into a closed employee dialog');

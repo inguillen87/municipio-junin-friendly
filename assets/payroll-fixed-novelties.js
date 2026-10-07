@@ -50,9 +50,9 @@ function comparison(row,operation,values){
 }
 function reviewSource(row,decision){const source=node('section');source.dataset.fnReviewSource='';source.append(node('p',(row.pending.operation==='annul'?'Anulación propuesta':'Valores propuestos')+' · Revisión '+row.version,'fn-note'),comparison(row,row.pending.operation,row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason),node('p',decision==='reject'?'Rechazar conserva la última versión aprobada y registra el rechazo.':'Aprobar habilita únicamente control y exportación; no calcula haberes.','fn-note'));return source;}
 
-export function mountFixedNovelties(shell){
+export function mountFixedNovelties(shell,onLock=()=>{}){
   if(!shell)return {setAccess(){},setExternalBusy(){},deny(){}};
-  const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null;
+  const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null,reportedLock=false;
   let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
   const groupIds=new Set(),reviewGroupIds=new Set();
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
@@ -90,8 +90,9 @@ export function mountFixedNovelties(shell){
       editor.form.querySelector('h3').textContent='Propuesta local pendiente';}
   }
   function deny(){seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
-  function clearAll(){deny();editor?.form.reset();editor=null;attempt=null;if(mounted)$('[data-fn-editor]').replaceChildren();}
+  function clearAll(){deny();editor?.form.reset();editor=null;attempt=null;if(mounted){$('[data-fn-editor]').replaceChildren();controls();}}
   function controls(){
+    const locked=busy||Boolean(attempt);if(locked!==reportedLock){reportedLock=locked;onLock(locked);}
     if(!mounted)return;host.setAttribute('aria-busy',String(busy));
     host.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=busy||externalBusy);
     $('[data-fn-new]').hidden=!allowedPrepare();$('[data-fn-new]').disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt);
@@ -304,7 +305,13 @@ export function mountFixedNovelties(shell){
     previewButton.addEventListener('click',previewProposal);saveButton.addEventListener('click',prepareSend);
     controls();box.form.scrollIntoView({block:'start'});fields.legajo.focus({preventScroll:true});
   }
-  function showSubject(){if(editor?.subject?.employeeName!==undefined){const s=editor.subject;editor.subjectHost.textContent=(s.employeeName||'Nombre no informado')+' · Legajo '+s.legajo+' · '+fixedOriginLabel(s)+' · '+(s.origin==='MUNICONTROL'?'Alta registrada el '+dayLabel(s.registeredAt):'Fuente al '+dayLabel(s.sourceCutoff))+'. No certifica elegibilidad salarial.';}}
+  function showSubject(){
+    if(editor?.subject?.employeeName!==undefined){
+      const s=editor.subject;
+      if(editor.fields?.legajo)editor.fields.legajo.maxLength=s.origin==='MUNICONTROL'?128:20;
+      editor.subjectHost.textContent=(s.employeeName||'Nombre no informado')+' · Legajo '+s.legajo+' · '+fixedOriginLabel(s)+' · '+(s.origin==='MUNICONTROL'?'Registro propio desde '+dayLabel(s.registeredAt):'Fuente al '+dayLabel(s.sourceCutoff))+'. No certifica elegibilidad salarial.';
+    }
+  }
   async function lookupContract(contractId){
     if(!editor||editor.kind!=='propose'||editor.row||attempt)return;const active=editor;active.lookupContractId=contractId;
     await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();const next=fixedEmployee(await request({resource:'employee',contractId}),{contractId});if(!live()||editor!==active)return;
@@ -320,9 +327,9 @@ export function mountFixedNovelties(shell){
   function previewProposal(){
     if(!editor||attempt||busy||editor.needsReview)return;const active=editor;
     try{
-      if(!active.subject||active.fields.legajo.value.trim()!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
+      if(!active.subject||(active.subject.origin==='MUNICONTROL'?active.fields.legajo.value:active.fields.legajo.value.trim())!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
-      const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields);
+      const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields,active.subject);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
       active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
       active.previewHost.hidden=false;active.form.querySelector('[data-fn-save]').hidden=false;active.form.querySelector('[data-fn-preview]').hidden=true;active.feedback.textContent='Propuesta preparada; todavía no está guardada.';controls();

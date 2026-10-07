@@ -20,7 +20,9 @@
 .own-run .button.primary {background:#176f64; border-color:#176f64; color:#fff; font-weight:700}
 .own-run button:disabled {opacity:.55; cursor:default}
 .own-run-chips {display:flex; flex-wrap:wrap; gap:10px; margin:14px 0}
-.own-run-chips>span {display:flex; align-items:center; gap:8px; border:1px solid var(--own-line); border-radius:8px; padding:8px; overflow-wrap:anywhere}
+.own-run-chips>span {display:flex; align-items:center; gap:8px; border:1px solid var(--own-line); border-radius:8px; padding:8px; overflow-wrap:anywhere; max-width:100%; box-sizing:border-box}
+.own-run-chips>span>span {min-width:0}
+.own-run-chips>span>button {flex-shrink:0; white-space:nowrap}
 .own-run-scroll {max-width:100%; overflow:auto; margin:16px 0; border:1px solid var(--own-line); border-radius:10px}
 .own-run table {border-collapse:collapse; width:100%; min-width:610px; text-align:left; font-size:14px}
 .own-run th,.own-run td {padding:12px; border-bottom:1px solid var(--own-line); vertical-align:top; font-variant-numeric:tabular-nums}

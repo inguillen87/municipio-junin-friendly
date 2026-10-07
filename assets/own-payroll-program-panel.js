@@ -87,7 +87,7 @@ export function mountOwnPayrollProgram(container){
   }}finally{clearTimeout(timer);if(version===seq){busy=false;controller=null;controls();}}
  }
  function field(parent,label,value,options,onChange,{type='text',key='',max=180}={}){
-  const wrap=node('label',label),input=node(options?'select':type==='textarea'?'textarea':'input');if(!options&&type!=='textarea')input.type=type;
+  const wrap=node('label',label),input=node(options?'select':type==='textarea'?'textarea':'input');input.setAttribute('aria-label',label);if(!options&&type!=='textarea')input.type=type;
   if(options){input.append(new Option('Elegir…',''),...Object.entries(options).map(([v,t])=>new Option(t,v)));}else{input.maxLength=max;if(type==='textarea')input.rows=3;}
   if(type==='decimal'){input.type='text';input.inputMode='decimal';}if(key)input.dataset.programField=key;
   input.value=value??'';input.addEventListener(options||type==='month'?'change':'input',()=>{if(attempt)return;onChange(input.value);invalidate();});wrap.append(input);parent.append(wrap);return input;
@@ -155,13 +155,24 @@ export function mountOwnPayrollProgram(container){
  function renderBinding(){
   $('binding-editor').replaceChildren();const b=draft?.bindings[bindingIndex];if(!b)return;const group=node('div');group.className='own-program-grid';
   field(group,'Código de convenio',b.agreementCode,null,v=>{b.agreementCode=v;selectors();},{key:'binding-agreement',max:9});field(group,'Identificador utilizado en la fórmula',b.key,null,v=>{b.key=v;selectors();},{key:'binding-key',max:64});
-  field(group,'Fuente del valor',b.sourceKind,PROGRAM_SOURCES,v=>b.sourceKind=v,{key:'binding-source'});field(group,'Código de la fuente aprobada',b.sourceCode,null,v=>b.sourceCode=v,{key:'binding-code',max:9});
+  field(group,'Fuente del valor',b.sourceKind,PROGRAM_SOURCES,v=>{b.sourceKind=v;if(v==='scale_reference'){b.sourceAgreementCode='';b.sourceCategoryCode='';b.sourceCode='';}else{delete b.sourceAgreementCode;delete b.sourceCategoryCode;}renderBinding();},{key:'binding-source'});
+  if(b.sourceKind==='scale_reference'){
+   const scales=boot.salaryCatalog.items.filter(i=>i.active&&i.kind==='scale');
+   const choices=(rows,key,current,label)=>{const out=Object.fromEntries(rows.map(i=>[i[key],label(i)]));if(current&&!out[current])out[current]=current+' · sin escala aprobada en esta consulta';return out;};
+   field(group,'Convenio de la escala de referencia',b.sourceAgreementCode,choices(scales,'agreementCode',b.sourceAgreementCode,i=>'Convenio '+i.agreementCode),v=>{b.sourceAgreementCode=v;b.sourceCode='';b.sourceCategoryCode='';renderBinding();},{key:'binding-source-agreement'});
+   const agreementRows=scales.filter(i=>i.agreementCode===b.sourceAgreementCode);
+   field(group,'Código de la escala aprobada',b.sourceCode,choices(agreementRows,'code',b.sourceCode,i=>'Escala '+i.code),v=>{b.sourceCode=v;b.sourceCategoryCode='';renderBinding();},{key:'binding-code'});
+   const sourceRows=agreementRows.filter(i=>i.code===b.sourceCode);
+   const categories=[...new Set(sourceRows.map(i=>i.categoryCode))].map(categoryCode=>({categoryCode,label:[...new Set(sourceRows.filter(i=>i.categoryCode===categoryCode).map(i=>i.label))].join(' / ')}));
+   field(group,'Clase de referencia aprobada',b.sourceCategoryCode,choices(categories,'categoryCode',b.sourceCategoryCode,i=>'Clase '+i.categoryCode+' · '+i.label),v=>b.sourceCategoryCode=v,{key:'binding-source-category'});
+  }else field(group,'Código de la fuente aprobada',b.sourceCode,null,v=>b.sourceCode=v,{key:'binding-code',max:9});
   field(group,'Unidad de la entrada',b.unit,PROGRAM_UNITS,v=>b.unit=v,{key:'binding-unit'});field(group,'Si no hay filas en la fuente completa',b.onMissing,{error:'Bloquear y revisar',zero:'Cero expresamente autorizado'},v=>b.onMissing=v,{key:'binding-missing'});
   field(group,'Si hay más de una fila',b.combine,{single:'Exigir un único valor',sum:'Sumar expresamente'},v=>b.combine=v,{key:'binding-combine'});$('binding-editor').append(group);
   field($('binding-editor'),'Respaldo de la entrada',b.ruleReference,null,v=>b.ruleReference=v,{key:'binding-reference'});$('binding-editor').append(node('p','Un parámetro o escala ausente bloquea. El cero sólo puede corresponder a ausencia de filas en una fuente completa cuando la regla lo autoriza.'));
+  if(b.sourceKind==='scale_reference')$('binding-editor').append(node('p','Esta entrada usa el convenio y la clase elegidos, aunque el empleado pertenezca a otra clase. La escala debe estar aprobada y cubrir toda la vigencia de la regla. Un coeficiente se declara en la fórmula con su respaldo.'));
   const remove=node('button','Retirar esta entrada de la preparación');remove.type='button';remove.addEventListener('click',()=>{if(attempt)return;draft.bindings.splice(bindingIndex,1);invalidate();selectors();renderBinding();});$('binding-editor').append(remove);
  }
- function describe(row,kind){if(!row)return 'No existe';if(kind==='bindings')return `Convenio ${row.agreementCode}; entrada ${row.key}; ${PROGRAM_SOURCES[row.sourceKind]} ${row.sourceCode}; ${PROGRAM_UNITS[row.unit]}; ausencia ${row.onMissing==='error'?'bloquea':'cero expresamente autorizado'}; ${row.combine==='single'?'único valor':'suma expresa'}; respaldo: ${row.ruleReference}`;
+ function describe(row,kind){if(!row)return 'No existe';if(kind==='bindings')return `Convenio ${row.agreementCode}; entrada ${row.key}; ${PROGRAM_SOURCES[row.sourceKind]} ${row.sourceCode}${row.sourceKind==='scale_reference'?'; convenio de referencia '+row.sourceAgreementCode+'; clase de referencia '+row.sourceCategoryCode:''}; ${PROGRAM_UNITS[row.unit]}; ausencia ${row.onMissing==='error'?'bloquea':'cero expresamente autorizado'}; ${row.combine==='single'?'único valor':'suma expresa'}; respaldo: ${row.ruleReference}`;
   return `Convenio ${row.agreementCode}; concepto ${row.code}; ${OWN_RUN_NATURES[row.nature]}; ${PROGRAM_UNITS[row.unit]}; desde ${row.validFrom} hasta ${row.validUntil??'sin término'}; ${row.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}; ${row.rounding.precision} decimales (${PROGRAM_ROUNDING[row.rounding.mode]}); respaldo: ${row.ruleReference}\n${describeProgramExpression(row.expression)}`;
  }
  function comparison(parent,before,after){

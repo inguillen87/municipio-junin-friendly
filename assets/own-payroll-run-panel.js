@@ -12,6 +12,10 @@ const errors={
   OWN_RUN_PROGRAM_CHANGED:'Cambió el programa aprobado. Consultá el intento antes de revisar otra preparación.',
   OWN_RUN_PRORATION_REQUIRED:'Hay una vigencia laboral parcial. Se necesita una regla de prorrateo aprobada; no se supusieron días ni horas.',
   OWN_RUN_HISTORY_REQUIRED:'Falta verificar el encuadre histórico propio de este período.',
+  OWN_RUN_SOURCE_VIGENCY_INVALID:'Hay un registro sin vigencia laboral verificada para todo el período. Revisá sus fechas y consultá este intento antes de preparar otro cálculo.',
+  OWN_RUN_SOURCE_IDENTITY_CHANGED:'Cambió la identidad de un registro del alcance. Revisá su vínculo y consultá este intento antes de otra captura.',
+  OWN_RUN_SOURCE_UNUSED:'El programa aprobado no contempla todas las novedades capturadas. Revisá sus conceptos; no se omitieron novedades ni se completó el cálculo.',
+  OWN_RUN_SOURCE_VALUE_MISSING:'Falta un valor requerido en las novedades capturadas. Revisá importe y unidades; un dato ausente no se tomó como cero.',
   OWN_RUN_SELECTION_INVALID:'No se pudo verificar todo el alcance. Revisá los legajos y su vigencia.',
   OWN_RUN_LIMIT:'El conjunto completo supera la capacidad. No se omitieron ni dividieron filas.',
   OWN_RUN_BUSY:'Otra operación está en curso. Consultá o reintentá este mismo cálculo.',
@@ -53,7 +57,7 @@ export function mountOwnPayrollRun(host) {
   const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
   const can=required=>live()&&hasOwnRunAccess(access?.caps,required);
   const canPrepare=()=>can(OWN_RUN_PREPARE)&&boot?.canCalculate===true;
-  const picker=createEmployeePicker({instanceId:'ownRunPicker',canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este cálculo admite altas propias de MuniControl. El legajo seleccionado pertenece a la fuente histórica.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
+  const picker=createEmployeePicker({instanceId:'ownRunPicker',canUse:()=>canPrepare()&&!busy&&!attempt,selectionIssue:item=>item.recordOrigin==='MUNICONTROL'?null:'Este cálculo admite registros propios de MuniControl. El legajo seleccionado pertenece a la fuente histórica.',onDirectoryInvalidated:()=>{chosen=[];$('confirm').checked=false;renderChosen();}});
   const status=(text,state='neutral')=>{$('status').textContent=text;$('status').dataset.state=state;};
   function controls(){
     positionCapture.setAvailable(can(['workforce.employee.read','workforce.structure.read','payroll.calculation.read']));

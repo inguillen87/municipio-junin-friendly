@@ -12,6 +12,7 @@ export function fixedCapability(bootstrap, outerCapabilities, capability) {
 const fail = () => { throw Error('No se pudo verificar el registro de novedades fijas. Volvé a consultar.'); };
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const ownLegajo = value => typeof value === 'string' && [...value].length >= 1 && [...value].length <= 64 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 const object = value => value && typeof value === 'object' && !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
 const safeText = (value, max, min = 1) => typeof value === 'string' && value.length >= min && value.length <= max && value === value.trim() && value === value.normalize('NFC') && !/[<>\x00-\x1f\x7f]/.test(value);
@@ -61,9 +62,10 @@ export function fixedText(value, label, max = 500, min = 5, optional = false) {
   const normalized = value.normalize('NFC').trim();
   if (!safeText(normalized, max, min)) throw Error('Revisá ' + label + ': entre ' + min + ' y ' + max + ' caracteres.'); return normalized;
 }
-export function fixedForm(fields) {
-  const legajo = fields.legajo?.trim(), conceptSourceId = fields.conceptSourceId?.trim(), costCenterSourceId = fields.costCenterSourceId?.trim() || null;
-  if (!code(legajo)) throw Error('Ingresá un legajo exacto, sin separadores ni ceros iniciales.');
+export function fixedForm(fields, verifiedSubject = null) {
+  const selected = verifiedSubject === null ? null : subject(verifiedSubject), native = selected?.origin === 'MUNICONTROL';
+  const legajo = native ? fields.legajo : fields.legajo?.trim(), conceptSourceId = fields.conceptSourceId?.trim(), costCenterSourceId = fields.costCenterSourceId?.trim() || null;
+  if (native ? !ownLegajo(legajo) || legajo !== selected.legajo : !code(legajo)) throw Error(native ? 'El legajo cambió. Volvé a elegir y verificar el contrato.' : 'Ingresá un legajo exacto, sin separadores ni ceros iniciales.');
   if (!code(conceptSourceId) || costCenterSourceId !== null && !code(costCenterSourceId)) throw Error('Revisá el código del concepto y el centro de costo. No se completan automáticamente.');
   if (!Object.hasOwn(FIXED_TYPES, fields.payrollType)) throw Error('Elegí el tipo de liquidación.');
   const quantityDecimal = typeof fields.quantityDecimal === 'string' && fields.quantityDecimal.trim() ? fields.quantityDecimal.trim().replace(',', '.') : null;
@@ -90,11 +92,11 @@ function values(value) {
 }
 function subject(value) {
   const native=value?.origin==='MUNICONTROL';
-  if (!exact(value,['contractId','legajo','employeeName','identityToken','sourceCutoff',...(native?['origin','registrationId','registeredAt']:[])]) || !uuid(value.contractId) || !code(value.legajo)
+  if (!exact(value,['contractId','legajo','employeeName','identityToken','sourceCutoff',...(native?['origin','registrationId','registeredAt']:[])]) || !uuid(value.contractId) || !(native ? ownLegajo(value.legajo) : code(value.legajo))
     || !hash(value.identityToken) || value.employeeName !== null && !safeText(value.employeeName,300)) fail();
   if(native){if(value.sourceCutoff!==null||typeof value.registrationId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.registrationId))fail();instant(value.registeredAt);}else instant(value.sourceCutoff);return {...value};
 }
-export const fixedOriginLabel=value=>value.origin==='MUNICONTROL'?'Alta propia de MuniControl':'Fuente GRH';
+export const fixedOriginLabel=value=>value.origin==='MUNICONTROL'?'Registro propio de MuniControl':'Fuente GRH';
 function effects(value) {
   if (!exact(value,['approvalEffect','grhMutation','payrollCalculated','payrollPosted']) || value.approvalEffect !== 'control_export_only'
     || value.grhMutation !== false || value.payrollCalculated !== false || value.payrollPosted !== false) fail(); return {...value};

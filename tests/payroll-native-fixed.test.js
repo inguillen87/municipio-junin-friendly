@@ -15,7 +15,7 @@ test('exact contract lookup binds canonical UUID and reuses nominal authority wi
  const data={version:'payroll-fixed-employee.v1',subject:native},{handler:run,calls}=handler(data),res=response();
  await run({method:'GET',query:{resource:'employee',contractId:native.contractId.toUpperCase()}},res);
  assert.equal(res.statusCode,200);assert.match(calls[0].text,/payroll_fixed_registry_employee_by_contract_v1\(\$1::jsonb,\$2::uuid\)/);assert.equal(calls[0].values[1],native.contractId);
- assert.equal(JSON.parse(calls[0].values[0]).tenantId,uuid(1));assert.deepEqual(fixedEmployee(res.body,{contractId:native.contractId}),native);assert.equal(fixedOriginLabel(native),'Alta propia de MuniControl');
+ assert.equal(JSON.parse(calls[0].values[0]).tenantId,uuid(1));assert.deepEqual(fixedEmployee(res.body,{contractId:native.contractId}),native);assert.equal(fixedOriginLabel(native),'Registro propio de MuniControl');
 });
 test('lookup rejects mixed selectors, missing selector, malformed UUID and tenant injection before SQL',async()=>{
  for(const query of [{resource:'employee',contractId:native.contractId,legajo:native.legajo},{resource:'employee'},{resource:'employee',contractId:'9001'},{resource:'employee',contractId:'00000000-0000-0000-0000-000000000000'},{resource:'employee',contractId:native.contractId,tenantId:uuid(99)}]){
@@ -56,7 +56,7 @@ test('native history and exports preserve origin, absent cutoff and original app
  assert.equal(list.rows[0].subject.origin,'MUNICONTROL');assert.equal(detail.record.approved.values.quantityDecimal,'1');assert.equal(detail.record.pending.values.quantityDecimal,'2');
  assert.equal(exported.rows[0].values.quantityDecimal,'1');assert.equal(exported.rows[0].subject.sourceCutoff,null);
  const csv=fixedCsv(exported),files=unzipSync(fixedXlsx(exported)),sheet=strFromU8(files['xl/worksheets/sheet1.xml']);
- for(const text of ['Alta propia de MuniControl','No corresponde · alta propia',native.registeredAt]){assert.ok(csv.includes(text));assert.ok(sheet.includes(text));}
+ for(const text of ['Registro propio de MuniControl','No corresponde · registro propio',native.registeredAt]){assert.ok(csv.includes(text));assert.ok(sheet.includes(text));}
  for(const secret of [native.registrationId,native.contractId,native.identityToken]){assert.equal(csv.includes(secret),false);assert.equal(sheet.includes(secret),false);}
  const drift=structuredClone(f.exporter('2026-09-01'));drift.rows[0].subject.registrationId=uuid(999);assert.throws(()=>fixedExportData(wrap(drift),list));
 });

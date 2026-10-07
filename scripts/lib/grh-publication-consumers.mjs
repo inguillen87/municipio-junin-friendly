@@ -19,7 +19,9 @@ export const GRH_PUBLICATION_CONSUMERS = Object.freeze([
   ['api/internal-data.js','payrollControl',{vw_liquidacion_mensual:1,vw_nomina_totales:2},'effective_history'],
   ['api/internal-data.js','managementAnalytics',{payroll_monthly_fact:2,payroll_run:4,employment_movement:2},'effective_history'],
   ['api/internal-data.js','directoryBaseSql',{vw_empleado_actual:1,employment_status_snapshot:1,payroll_snapshot_assignment:1},'current_cohort'],
-  ['api/internal-data.js','employee',{vw_empleado_actual:1,employment_status_snapshot:1,payroll_run:1,payroll_snapshot_assignment:1,employment_movement:2},'current_and_history'],
+  // The second status/assignment sites read the original contract's frozen batch
+  // only after authenticated adoption provenance, then revalidate before response.
+  ['api/internal-data.js','employee',{vw_empleado_actual:1,employment_status_snapshot:2,payroll_run:1,payroll_snapshot_assignment:2,employment_movement:2},'current_and_history'],
   ['lib/workforce-operational-scope.js','operationalDirectorySql',{payroll_run:2,payroll_monthly_fact:1},'effective_history'],
   ['scripts/migrations/002-canonical-integration.sql','validate_payroll_run_link',{payroll_run:1},'preserve_real_run_identity'],
   ['scripts/migrations/002-canonical-integration.sql','vw_empleado_actual',{employment_status_snapshot:1,payroll_run:1},'current_cohort'],

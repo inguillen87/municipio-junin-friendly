@@ -1,0 +1,65 @@
+name: Noelia complete own payroll circuit
+on:
+  push:
+    branches: ['master', 'codex/final-september-source-20261006']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'contracts/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/**']
+  pull_request:
+    branches: ['master']
+    paths: ['assets/**', 'api/**', 'lib/**', 'scripts/**', 'tests/**', 'contracts/**', 'package.json', 'package-lock.json', '.nvmrc', '.github/workflows/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  circuit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        major: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.major }}
+        env:
+          POSTGRES_DB: own_payroll_run_qa
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: noelia-circuit-synthetic-qa
+        ports:
+          - 554${{ matrix.major }}:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d own_payroll_run_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGPASSWORD: noelia-circuit-synthetic-qa
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build and run all existing regressions
+        run: npm run build
+      - name: Prepare the disposable synthetic database
+        run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
+        run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
+      - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
+        run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci
+      - name: Preserve synthetic evidence even when a check fails
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: noelia-circuit-pg${{ matrix.major }}-${{ github.sha }}
+          path: |
+            verification/noelia-circuit-ci/result.json
+            verification/noelia-circuit-ci/*-proof.json
+            verification/noelia-circuit-ci/*-browser.json
+            verification/noelia-circuit-ci/browser-transport.json
+            verification/noelia-circuit-ci/*.png
+            verification/published-adoption-ci/result.json
+            verification/published-adoption-ci/installation-proof.json
+          retention-days: 7

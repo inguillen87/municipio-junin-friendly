@@ -1,6 +1,7 @@
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized} from './native-salary-catalog-model.js';
 import {ownRunCommand,ownRunCapture} from './own-payroll-run-model.js';
 import {ownRunWorkspaceResult,verifiedWorkspaceCapture,OWN_RUN_NOMINAL,OWN_RUN_READ,OWN_RUN_PREPARE} from './own-payroll-run-workspace-model.js';
+import {decimal,exactAdd,quantize} from './own-payroll-exact.js';
 export const OWN_LIQ_READ=OWN_RUN_READ,OWN_LIQ_NOMINAL=OWN_RUN_NOMINAL;
 export const OWN_LIQ_REVIEW=Object.freeze([...OWN_LIQ_NOMINAL,'payroll.calculation.approve']);
 export const OWN_LIQ_CANCEL=OWN_RUN_PREPARE;
@@ -43,6 +44,18 @@ export function ownLiquidationSelection(detail,selection,command){
  const rows=detail.employees.filter(e=>selection.kind==='all'||selection.values.includes(selection.kind==='contracts'?e.contractId:selection.kind==='agreements'?people.get(e.contractId).agreementCode:people.get(e.contractId).departmentCode));
  if(!rows.length||selection.kind!=='all'&&selection.values.some(value=>!rows.some(e=>value===(selection.kind==='contracts'?e.contractId:selection.kind==='agreements'?people.get(e.contractId).agreementCode:people.get(e.contractId).departmentCode))))fail();
  return {rows,complete:true,allowed:rows.every(e=>e.allowedCommands.includes(command)),count:rows.length};
+}
+// Review the selected result, never the search or page. These amounts describe
+// the stored calculation; they are not a new calculation or a payment order.
+export function ownLiquidationReview(detail,selection,command){
+ const selected=ownLiquidationSelection(detail,selection,command),saved=detail.capture.saved;
+ const people=new Map(saved.input.employees.map(e=>[e.contractId,e])),totals=new Map(saved.result.employeeTotals.map(e=>[e.contractId,e]));
+ const rows=selected.rows.map(e=>{
+  const person=people.get(e.contractId),amounts=totals.get(e.contractId);
+  return {contractId:e.contractId,employeeNumber:person.employeeNumber,agreementCode:person.agreementCode,departmentCode:person.departmentCode,state:e.state,liquidationVersion:e.liquidationVersion,allowed:e.allowedCommands.includes(command),gross:amounts.gross,deduction:amounts.deduction,net:amounts.net};
+ });
+ const aggregate=Object.fromEntries(['gross','deduction','net'].map(key=>[key,quantize(rows.reduce((sum,row)=>exactAdd(sum,decimal(row[key])),decimal('0')),{precision:saved.input.totalsPrecision,mode:'exact'}).amount]));
+ return {rows,count:selected.count,allowed:selected.allowed,complete:true,totals:aggregate};
 }
 export function ownLiquidationReceipt(v,attempt=null){
  exact(v,['version','id','key','body','bodySha256','runId','resultSha256','affected','recordedAt','replayed']);
