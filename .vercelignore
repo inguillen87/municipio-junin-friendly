@@ -296,3 +296,19 @@ local-agents/
 !scripts/migrations/127-annual-position-budget.sql
 !scripts/migrations/129-own-position-comparison.sql
 !scripts/migrations/128-own-position-assignments.sql
+
+# Reviewed source contracts read by the Noelia build tests; no SQL execution.
+!scripts/migrations/130-own-bulk-novelties.sql
+!scripts/migrations/131-own-payroll-reference-scale.sql
+!scripts/migrations/132-employment-adoption-preparation.sql
+!scripts/migrations/133-employment-adoption-application.sql
+!scripts/migrations/134-employment-adoption-history-read.sql
+!scripts/migrations/135-native-employee-read-projection.sql
+!scripts/migrations/136-adopted-employment-lifecycle.sql
+!scripts/migrations/137-adopted-operator-context.sql
+!scripts/migrations/138-adopted-fixed-novelties.sql
+!scripts/migrations/139-adopted-monthly-novelties.sql
+!scripts/migrations/140-adopted-own-payroll-capture.sql
+!scripts/migrations/141-adopted-own-payroll-close.sql
+!scripts/migrations/142-adopted-own-payroll-receipts.sql
+!scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql
