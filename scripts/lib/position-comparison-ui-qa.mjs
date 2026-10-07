@@ -2,6 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {createPositionComparisonHandler} from '../../api/internal-position-comparison.js';
 import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
+import {closeQaHttpServer} from './qa-http-server-close.mjs';
 export async function verifyComparisonUi({db,qa,identity,year,period,output,browserName,root,toggleClosed,completeRows=52,employeeNeedle='QA0025',expectedIdentifiers=[]}){
  const errors=[],requests=[];let browser,server,checks=0,revoked=false,changeOnRead=false,reads=0;const check=(v,label)=>{assert.ok(v,label);checks++;},env={};
  const handler=createPositionComparisonHandler({env,requireAccess:async()=>({mode:'managed',principal:identity('checker').principal}),sessionFor:()=>identity('checker').session,getSql:async()=>db});
@@ -21,5 +22,5 @@ export async function verifyComparisonUi({db,qa,identity,year,period,output,brow
   let downloads=0;page.on('download',()=>downloads++);changeOnRead=true;reads=0;await $('pdf').click();await $('status').filter({hasText:'Cambió el cierre durante la descarga'}).waitFor();changeOnRead=false;check(downloads===0&&await $('content').isHidden(),'actual reopen between verified reads cancels download');await toggleClosed(true);await consult();await db.run(`DELETE FROM capabilities WHERE membership_id=${q(qa.ids.checker)}::uuid AND capability_key='workforce.structure.read'`);revoked=true;await $('csv').click();await $('status').filter({hasText:'Tu membresía no permite'}).waitFor();check(await $('content').isHidden()&&downloads===0,'actual SQL revocation before download');await db.run(`INSERT INTO capabilities(membership_id,capability_key) VALUES(${q(qa.ids.checker)}::uuid,'workforce.structure.read')`);revoked=false;
   check(requests.every(m=>m==='GET'),'no UI writes, calculations or saves');check(await page.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'no browser persistence');check(errors.length===0,'no browser/server errors');
   return {passed:true,checks,actualPostgres:true,actualHttpHandler:true,actualProductPanel:true,completeRows,filterDoesNotCrop:true,allThreeFormats:true,desktopAndMobile:true,actualSqlRevocation:true,noWrites:true,productiveBusinessOperations:0};
- }finally{if(revoked)await db.run(`INSERT INTO capabilities(membership_id,capability_key) VALUES(${q(qa.ids.checker)}::uuid,'workforce.structure.read')`);await browser?.close();if(server)await new Promise(r=>server.close(r));}
+ }finally{try{if(revoked)await db.run(`INSERT INTO capabilities(membership_id,capability_key) VALUES(${q(qa.ids.checker)}::uuid,'workforce.structure.read')`);}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}}
 }
