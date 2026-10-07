@@ -1,10 +1,11 @@
 import {verifiedAdoptionReview,adoptionReviewCsv,adoptionReviewScope,ADOPTION_REVIEW_MAX_BYTES} from './employment-adoption-review-model.js';
 import {mountAdoptionPreparation} from './employment-adoption-preparation-ui.js';
+import {mountMunicipalAdoptionOperator} from './municipal-adoption-operator-ui.js';
 export function mountAdoptionReview(root){
  if(!root||root.dataset.mounted)return;root.dataset.mounted='true';
  root.innerHTML=`<summary><strong>Revisar el padrón antes de su adopción</strong><span>Antecedentes pendientes para trabajar con el circuito propio</span></summary><div class="ar-body">
  <p>Revisá todos los contratos históricos de la fuente municipal instalada, incluidos inactivos y estados pendientes. Las fechas, encuadres y jurisdicciones necesitan respaldo; la revisión no adopta contratos ni habilita liquidaciones.</p>
- <button type="button" class="button primary" data-ar-consult>Revisar padrón completo</button><p role="status" aria-live="polite" data-ar-status>La revisión es voluntaria. Abrir este panel no consulta datos personales.</p>
+ <button type="button" class="button primary" data-ar-consult>Revisar padrón completo</button><p role="status" aria-live="polite" data-ar-status>La revisión es voluntaria. Abrir este panel no consulta datos personales.</p><div data-ar-operator></div>
  <section data-ar-result hidden><p data-ar-counts></p><p data-ar-source></p><button type="button" class="button" data-ar-download>Descargar observaciones sin datos personales</button>
  <p>El CSV contiene fila de esta revisión, estado y acción sugerida. Incluye todas las observaciones, aunque haya búsqueda o cambio de página. No contiene nombres, legajos, documentos, identificadores o importes. La fila corresponde al padrón revisado, no a un TXT.</p>
  <label>Buscar en esta revisión por nombre o legajo<input type="search" maxlength="100" autocomplete="off" data-ar-search></label><p data-ar-visible></p>
@@ -15,13 +16,15 @@ export function mountAdoptionReview(root){
  let snapshot=null,page=1,allowed=false,busy=false,generation=0,controller=null;
  const message=text=>{$('status').textContent=text;},live=()=>allowed&&!document.hidden&&root.open&&root.isConnected;
  const preparation=mountAdoptionPreparation($('preparation'),{isLive:live,onAuthorityLost:()=>invalidate('Cambió el acceso o el ámbito. Consultá nuevamente el padrón completo.')});
+ const operator=mountMunicipalAdoptionOperator($('operator'),{isLive:live});
  const filtered=()=>snapshot?snapshot.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('search').value.toLocaleLowerCase('es')))):[];
  function controls(){
   $('consult').disabled=busy||!allowed||document.hidden;$('download').disabled=busy||!snapshot||!live();$('search').disabled=busy||!snapshot||!live();
   const total=filtered().length;root.querySelectorAll('[data-ar-prev]').forEach(n=>n.disabled=busy||!live()||!snapshot||page<=1);root.querySelectorAll('[data-ar-next]').forEach(n=>n.disabled=busy||!live()||!snapshot||page*25>=total);root.setAttribute('aria-busy',String(busy));
  }
- function invalidate(text='Revisión retirada. Consultá nuevamente el padrón completo.'){
+ function invalidate(text='Revisión retirada. Consultá nuevamente el padrón completo.',withdrawOperator=true){
   preparation.invalidate();
+  if(withdrawOperator)operator.invalidate();
   generation++;controller?.abort();snapshot=null;busy=false;page=1;$('search').value='';$('result').hidden=true;$('rows').replaceChildren();$('counts').textContent='';$('source').textContent='';$('visible').textContent='';root.querySelectorAll('[data-ar-page]').forEach(n=>n.textContent='');message(text);controls();
  }
  function paint(){
@@ -62,9 +65,10 @@ export function mountAdoptionReview(root){
  }
  $('consult').addEventListener('click',()=>run());$('download').addEventListener('click',()=>run(true));$('search').addEventListener('input',()=>{if(snapshot){page=1;paint();}});
  root.querySelectorAll('[data-ar-prev]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page>1){page--;paint();}}));root.querySelectorAll('[data-ar-next]').forEach(n=>n.addEventListener('click',()=>{if(snapshot&&page*25<filtered().length){page++;paint();}}));
- root.addEventListener('toggle',()=>{if(!root.open)invalidate();});document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidate('Datos retirados al ocultar la pantalla. Consultá nuevamente.');else controls();});window.addEventListener('pagehide',()=>invalidate());document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;invalidate('Sesión cerrada.');});
- const permissions=event=>{const caps=event?.detail?.tenantCapabilities;allowed=caps instanceof Set&&caps.has('workforce.employee.read');if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else controls();};
+ root.addEventListener('toggle',()=>{if(!root.open)invalidate();else operator.refreshControls();});document.addEventListener('visibilitychange',()=>{if(document.hidden)invalidate('Datos retirados al ocultar la pantalla. Consultá nuevamente.');else{controls();operator.refreshControls();}});window.addEventListener('pagehide',()=>invalidate());document.getElementById('logoutButton')?.addEventListener('click',()=>{allowed=false;invalidate('Sesión cerrada.');});
+ const permissions=event=>{const caps=event?.detail?.tenantCapabilities;allowed=caps instanceof Set&&caps.has('workforce.employee.read');if(!allowed)invalidate('Tu acceso no permite revisar el padrón.');else{controls();operator.refreshControls();}};
  document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(result=>permissions({detail:result}));
  for(const event of ['mc:native-employee-created','mc:native-employment-changed','mc:native-employment-lifecycle-changed'])document.addEventListener(event,()=>invalidate('Cambió un legajo o su situación. Consultá nuevamente la revisión completa.'));controls();
+ document.addEventListener('mc:municipal-adoption-decided',event=>{if(event.detail?.status==='approved')invalidate('Se adoptó el padrón. Consultá nuevamente el padrón propio para continuar.',false);});
 }
 if(typeof document!=='undefined')mountAdoptionReview(document.querySelector('[data-adoption-review]'));

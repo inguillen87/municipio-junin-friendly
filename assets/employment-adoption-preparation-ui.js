@@ -6,7 +6,7 @@ const issue=(message,status,code)=>Object.assign(Error(message),{status,code});
 export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  if(!host)return;
  host.innerHTML=`<button type="button" class="button" data-ap-open aria-expanded="false" aria-controls="adoption-preparation-body">Preparar la adopción del padrón</button><section id="adoption-preparation-body" data-ap-panel hidden><h4>Guardar los antecedentes para su revisión</h4>
- <p>La propuesta conserva todos los contratos de la revisión, incluidos los inactivos. Guardarla no adopta contratos, completa datos faltantes ni habilita liquidaciones. La aprobación y aplicación todavía están pendientes de implementación.</p>
+ <p>La propuesta conserva todos los contratos de la revisión, incluidos los inactivos. Guardarla no adopta contratos, completa datos faltantes ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción, cuando el circuito esté instalado y verificado.</p>
  <button type="button" class="button" data-ap-load>Consultar condiciones y propuestas</button><p role="status" aria-live="polite" data-ap-status>La consulta es voluntaria. No se guarda nada al abrir este apartado.</p>
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
  <form data-ap-form hidden><p data-ap-counts></p>
@@ -16,7 +16,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <label>Motivo de la propuesta<textarea data-ap-reason required minlength="10" maxlength="1000" rows="3"></textarea></label>
  <label class="ap-confirm"><input type="checkbox" data-ap-confirm required>Revisé el padrón completo y el respaldo de la jurisdicción declarada</label>
  <button type="submit" class="button primary" data-ap-send>Guardar propuesta completa</button></form>
- <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>No hay contratos adoptados por este registro. Todas las propuestas requieren la revisión y aplicación pendientes.</p><ol data-ap-attempts></ol></section></section>`;
+ <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>Este registro conserva la preparación original y no muestra las decisiones posteriores. Consultá la bandeja de revisión para conocer su resultado.</p><ol data-ap-attempts></ol></section></section>`;
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
  const live=()=>readAllowed&&!document.hidden&&!panel.hidden&&host.isConnected&&isLive?.();
@@ -61,7 +61,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('form').hidden=!bootstrap.canPrepare||!prepareAllowed||!bootstrap.review.total||!!pending;
   $('counts').textContent=`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} requieren la jurisdicción declarada. La búsqueda no reduce la propuesta.`;
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
-   const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · pendiente de revisión · 0 contratos adoptados.`;$('attempts').append(li);
+   const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
   }
   $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}controls();
  }
@@ -99,7 +99,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
    pending=null;retryReady=false;$('confirm').checked=false;paint(confirmed);
    if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}
-   say(`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados. La revisión y aplicación siguen pendientes.`);
+   say(`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados al prepararla. Requiere una decisión independiente en la bandeja de revisión.`);
   }catch(e){
    if(!current(token))return;
    if(pending){retryReady=recover&&e.status===404;if(started&&['SOURCE_CHANGED','CATALOG_CHANGED','SELECTION_CHANGED','LIMIT','INPUT_INVALID'].some(code=>e.code==='EMPLOYMENT_ADOPTION_'+code))pending=null;}
