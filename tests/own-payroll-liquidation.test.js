@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ownLiquidationCommand,ownLiquidationDetail,ownLiquidationSelection,ownLiquidationReceipt,verifiedOwnLiquidationDetail,OWN_LIQ_REVIEW,OWN_LIQ_CANCEL} from '../assets/own-payroll-liquidation-model.js';
+import {ownLiquidationCommand,ownLiquidationDetail,ownLiquidationSelection,ownLiquidationReview,ownLiquidationReceipt,verifiedOwnLiquidationDetail,OWN_LIQ_REVIEW,OWN_LIQ_CANCEL} from '../assets/own-payroll-liquidation-model.js';
 import {ownRunWorkspaceRows} from '../assets/own-payroll-run-workspace-model.js';
 import {ownLiquidationOperation,liquidationError} from '../lib/internal-own-payroll-liquidation.js';
 import {detail,command,receipt} from './fixtures/own-payroll-liquidation-synthetic.js';
 import {uid,hash} from './fixtures/own-payroll-program-synthetic.js';
 import {ownRunHash} from '../lib/internal-own-payroll-run.js';
+import {saved} from './fixtures/own-payroll-run-synthetic.js';
 const principal={user:{email:'qa@example.invalid'},tenant:{source:'membership',id:uid(50),membershipId:uid(51),effectiveCapabilities:OWN_LIQ_REVIEW}},session={email:'qa@example.invalid',id:uid(52),version:1,releaseSha:'d'.repeat(40)};
 test('revisar no requiere permiso de preparar ni reemplaza confirmación por cálculo',()=>{assert.ok(!OWN_LIQ_REVIEW.includes('payroll.calculation.prepare'));assert.ok(OWN_LIQ_CANCEL.includes('payroll.calculation.prepare'));assert.ok(!OWN_LIQ_CANCEL.includes('payroll.calculation.approve'));assert.equal(detail().capture.saved.result.municipalApprovalVerified,false);});
 test('todos y grupos incluyen 41 legajos aunque el detalle tenga búsqueda y diez páginas',()=>{const d=detail(41);assert.equal(ownLiquidationDetail(d),d);const filter=ownRunWorkspaceRows(d.capture,'1001',1,25);assert.equal(filter.filtered,6);assert.ok(ownRunWorkspaceRows(d.capture,'',1,25).pages>1);for(const kind of ['all','agreements','departments']){const s={kind,values:kind==='all'?[]:['1']};const selected=ownLiquidationSelection(d,s,'confirm');assert.equal(selected.count,41);assert.equal(selected.allowed,true);}});
@@ -21,3 +22,22 @@ test('hash coherente de entrada ajena no convierte la captura en un resultado ap
 test('errores SQL privados no se exponen y preservan incertidumbre',()=>{const safe=liquidationError(Error('ERROR: private SQL fixture information'));assert.equal(safe.status,503);assert.ok(!safe.message.includes('private'));assert.equal(liquidationError(Error('OWN_LIQ_STATE_CHANGED')).status,409);});
 test('permiso nominal no sustituye autoridad para abrir otra persona preparadora',async()=>{const d=detail(),p={...principal,tenant:{...principal.tenant,effectiveCapabilities:OWN_LIQ_REVIEW.filter(c=>c!=='payroll.calculation.approve')}};await assert.rejects(ownLiquidationOperation({query:async()=>[{result:d}]},p,session,'detail',{id:d.id}),e=>e.status===403);});
 test('recibo íntegro requiere cada legajo del alcance congelado, incluso cuando se borra la vista',()=>{const r=receipt(),ids=r.affected.map(e=>e.contractId);ownLiquidationReceipt(r,{key:r.key,body:r.body,expectedContracts:ids});const bad=structuredClone(r);bad.affected.pop();assert.throws(()=>ownLiquidationReceipt(bad,{key:r.key,body:r.body,expectedContracts:ids}));});
+
+test('revisión previa conserva los 41 legajos y suma sólo sus importes guardados, sin filtros ni recálculo',()=>{
+ const d=detail(41),before=structuredClone(d),all=ownLiquidationReview(d,{kind:'all',values:[]},'confirm');
+ assert.equal(all.count,41);assert.equal(all.rows.length,41);assert.equal(all.complete,true);assert.equal(all.allowed,true);
+ const first=d.capture.saved.result.employeeTotals[0],one=ownLiquidationReview(d,{kind:'contracts',values:[first.contractId]},'confirm');
+ assert.deepEqual(one.totals,Object.fromEntries(['gross','deduction','net'].map(key=>[key,first[key]])));
+ for(const kind of ['agreements','departments'])assert.deepEqual(ownLiquidationReview(d,{kind,values:['1']},'confirm'),all);
+ ownRunWorkspaceRows(d.capture,'1001',2,25);assert.deepEqual(ownLiquidationReview(d,{kind:'all',values:[]},'confirm'),all);assert.deepEqual(d,before);
+ for(const extra of ['search','page','amount'])assert.throws(()=>ownLiquidationReview(d,{kind:'all',values:[],[extra]:'1'},'confirm'));
+});
+
+test('totales de revisión suman decimales grandes exactamente y no silencian legajos incompatibles',()=>{
+ const d=detail(2),parameter=d.capture.payload.programState.salaryCatalog.items.find(v=>v.code==='8800');
+ assert.ok(parameter);parameter.value='9007199254740993.00';d.capture.payloadSha256=ownRunHash(d.capture.payload);d.capture.saved=saved(d.capture);
+ const totals=d.capture.saved.result.employeeTotals,v=ownLiquidationReview(d,{kind:'all',values:[]},'confirm');
+ const cents=text=>BigInt(text.replace('.','')),expected=key=>{const n=totals.reduce((sum,t)=>sum+cents(t[key]),0n);return n/100n+'.'+(n%100n).toString().padStart(2,'0');};
+ for(const key of ['gross','deduction','net'])assert.equal(v.totals[key],expected(key));
+ d.employees[1].allowedCommands=[];const denied=ownLiquidationReview(d,{kind:'all',values:[]},'confirm');assert.equal(denied.allowed,false);assert.equal(denied.rows.length,2);assert.equal(denied.rows[1].allowed,false);assert.deepEqual(denied.totals,v.totals);
+});

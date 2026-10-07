@@ -41,3 +41,10 @@ test('la recuperación verifica hashes sin recalcular ni alterar fuentes congela
   const changed=full();changed.saved.result.rows[0].amount='100.11';await assert.rejects(verifiedWorkspaceCapture(changed),/integridad/);
   c.payloadSha256=ownRunHash({different:true});await assert.rejects(verifiedWorkspaceCapture(c),/integridad/);
 });
+
+test('buscar un legajo propio con letras conserva sus conceptos, identidad y resultado original',()=>{
+ const c=capture();c.payload.population.employees[1].employeeNumber='A/3501';c.payloadSha256=ownRunHash(c.payload);c.saved=saved(c);const before=structuredClone(c);
+ const expected=c.saved.result.rows.filter(r=>r.employeeNumber==='A/3501');assert.ok(expected.length>0);
+ for(const term of ['A/3501','a/3501',' A/3501 '])assert.deepEqual(ownRunWorkspaceRows(c,term).rows,expected);
+ assert.deepEqual(c,before);assert.equal(ownRunWorkspaceRows(c,'',1).total,c.saved.result.rowCount);assert.ok(ownRunWorkspaceCsv(c).includes('A/3501'));
+});

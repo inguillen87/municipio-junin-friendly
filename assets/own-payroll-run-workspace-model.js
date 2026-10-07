@@ -62,7 +62,7 @@ export function ownRunWorkspaceResult(capture) {
 export function ownRunWorkspaceRows(capture, search = '', page = 1, pageSize = 25) {
   const verified=ownRunWorkspaceResult(capture);
   if(!verified || !Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(pageSize)||pageSize<1)fail('No hay un resultado completo para consultar.');
-  const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.includes(term)||r.conceptCode.includes(term));
+  const term=String(search).trim().toLowerCase(), rows=verified.result.rows.filter(r=>!term||r.employeeNumber.toLowerCase().includes(term)||r.conceptCode.toLowerCase().includes(term));
   const pages=Math.max(1,Math.ceil(rows.length/pageSize)), current=Math.min(page,pages);
   return {rows:rows.slice((current-1)*pageSize,current*pageSize),filtered:rows.length,total:verified.result.rowCount,page:current,pages};
 }

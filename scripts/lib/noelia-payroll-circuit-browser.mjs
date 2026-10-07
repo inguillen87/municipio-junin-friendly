@@ -1,6 +1,8 @@
 // Built product over actual HTTP handlers and PostgreSQL, synthetic auth only.
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import {unzipSync} from 'fflate';
+import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.js';
+import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.js';
 const root=path.resolve(import.meta.dirname,'../..');
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check}){
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
@@ -32,8 +34,30 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'bulk product fits '+width+'px');check(await n('refresh').evaluate(e=>e.getBoundingClientRect().height>=44),'bulk primary control accessible at '+width+'px');await page.locator('.own-novelties').screenshot({path:path.join(output,'novedades-'+width+'.png')});}
    await page.setViewportSize({width:1440,height:1100});return original.receipt;
   }
+  async function decide({detail,command,selection}){
+   await page.goto(origin+'/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('.own-liquidation')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await page.locator('[data-liq-run-id="'+detail.id+'"]').waitFor();await lidle();if(await l('next-decision').isVisible()){await l('next-decision').click();await lidle();}const before=writes.length;await page.locator('[data-liq-run-id="'+detail.id+'"]').click();await lidle();
+   check(writes.length===before,'opening saved calculation and reviewing scope never registers a decision');
+   if(!await l('search').isVisible())await page.getByText('Revisar conceptos y versiones del cálculo',{exact:true}).click();await l('search').fill('a/3501');check(await l('rows').locator('tr').count()===6,'actual result search retains all six concepts for the opaque employee number regardless of case');
+   await l('command').selectOption(command);await l('kind').selectOption('all');
+   const full=ownLiquidationReview(detail,{kind:'all',values:[]},command);assert.equal(full.count,29);
+   check(await l('review-rows').locator('tr').count()===25&&!await l('review-next').isDisabled(),'decision review presents 25 of all 29 adopted/native employees');await l('review-next').click();check(await l('review-rows').locator('tr').count()===4,'decision review second page retains remaining four employees');
+   const fullTotals=await l('review-totals').innerText();for(const amount of Object.values(full.totals))assert.ok(fullTotals.includes(formatOwnRunDecimal(amount)));
+   await l('review-search').fill('A/3501');check(await l('review-rows').locator('tr').count()===1&&(await l('review-range').innerText()).includes('29 afectados'),'search narrows review without changing complete decision scope');
+   await l('review-search').fill('sin-coincidencias-sinteticas');check((await l('review-range').innerText()).startsWith('0 legajos')&&await l('review-totals').innerText()===fullTotals,'zero search matches preserves every affected employee and exact totals');
+   if(selection.kind!=='all'){await l('kind').selectOption(selection.kind);await l('values').selectOption(selection.values);}
+   else await l('review-search').fill('A/3501');
+   const selected=ownLiquidationReview(detail,selection,command);check((await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'explicit selected decision shows its own affected count');for(const amount of Object.values(selected.totals))assert.ok((await l('review-totals').innerText()).includes(formatOwnRunDecimal(amount)));
+   await l('reason').fill('Decisión exclusivamente sintética del circuito completo');await l('confirm').check();
+   for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'decision review fits '+width+'px');check(await l('review-search').evaluate(e=>e.getBoundingClientRect().height>=44),'review search accessible at '+width+'px');await page.locator('.own-liquidation').screenshot({path:path.join(output,'decision-'+command+'-'+width+'.png')});}
+   await page.setViewportSize({width:1440,height:1100});drop=true;await l('send').click();await lidle();const original=writes.at(-1);assert.equal(original.kind,'liquidation');assert.deepEqual(original.receipt.body.selection,selection);check(await l('recover').isVisible()&&!await l('next-decision').isVisible(),'uncertain committed decision preserves original body and key');
+   await l('kind').evaluate(el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));});await l('command').evaluate(el=>{el.value='cancel';el.dispatchEvent(new Event('change',{bubbles:true}));});
+   check((await l('review-summary').innerText()).startsWith(command==='confirm'?'Confirmar':'Anular')&&(await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'DOM changes cannot replace the scope review of a pending decision');
+   await l('recover').click();await lidle();check(writes.length===before+1&&await l('next-decision').isVisible(),'readback recovers the same full decision without another POST');
+   return original.receipt;
+  }
   async function outputs({period,batchId,emissionId}){
-   await page.reload();await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();check(await n('detail').locator('tbody tr').count()===29,'approved own novelty detail rechecks all original rows');
+   await page.goto(origin+'/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();check(await n('detail').locator('tbody tr').count()===29,'approved own novelty detail rechecks all original rows');
    const noveltyEvent=page.waitForEvent('download');noveltyEvent.catch(()=>{});await n('download').click();const noveltyDownload=await noveltyEvent;await noveltyDownload.saveAs(path.join(output,'browser-novedades.csv'));await idle();const noveltyCsv=fs.readFileSync(path.join(output,'browser-novedades.csv'),'utf8');check(noveltyCsv.split('\r\n').length===31&&['A/3501','0901','901'].every(s=>noveltyCsv.includes('"'+s+'"')),'voluntary actual bulk CSV retains all 29 rows and distinct identifiers');
    await page.goto(origin+'/nomina-control.html#reportes');const r=k=>page.locator('[data-report-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-report')?.getAttribute('aria-busy')==='false');await r('from').waitFor({state:'visible'});await r('from').fill(period);await r('to').fill(period);await r('types').selectOption(['monthly']);await r('consult').click();await ridle();assert.ok(await r('result').isVisible(),await r('status').innerText());
    check(await r('rows').locator('tr').count()===25&&!await r('next').isDisabled(),'closed planilla shows 29 participants across pages');await r('next').click();check(await r('rows').locator('tr').count()===4,'planilla second page complete');await r('search').fill('A/3501');check(await r('rows').locator('tr').count()===1,'planilla search affects only visible rows');
@@ -48,8 +72,8 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'receipt product fits '+width+'px');await page.locator('.own-receipt').screenshot({path:path.join(output,'recibos-'+width+'.png')});}
    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});check(!await p('result').isVisible()&&await p('rows').locator('tr').count()===0,'hiding actual product withdraws nominal receipt view');
    check(await page.evaluate(()=>Object.keys(localStorage).every(k=>!/(novelty|novedad|receipt|recibo|own.?payroll|nominal)/i.test(k))),'own circuit does not persist its nominal views in localStorage');check(errors.length===0&&diagnostics.length===0,'actual built browser circuit has no page or transport exceptions');
-   return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
+   return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#decisiones','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
-  return {prepare,outputs,close};
+  return {prepare,decide,outputs,close};
  }catch(e){await close();throw e;}
 }
