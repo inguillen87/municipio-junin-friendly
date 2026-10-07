@@ -6,11 +6,25 @@ import {relocateMunicipalAdoptionOperator} from './municipal-adoption-operator-q
 import {POSITION_QA_CAPS} from './position-assignment-qa.mjs';
 export function buildNoeliaCircuitQa(major){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
  const caps=[...new Set([...POSITION_QA_CAPS,'employee.record.propose','employee.record.approve','workforce.employee.read','workforce.structure.read','payroll.parameter.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.calculation.approve','payroll.calculation.close','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare','payroll.novelty.approve','payroll.novelty.export','payroll.receipt.prepare','payroll.receipt.approve'])];
- qa.sql=qa.sql.replace(anchor,()=>`INSERT INTO capabilities SELECT a.id,c FROM unnest(ARRAY[${q(qa.ids.maker)}::uuid,${q(qa.ids.checker)}::uuid]) a(id) CROSS JOIN unnest(ARRAY[${caps.map(q).join(',')}]) c WHERE NOT EXISTS(SELECT 1 FROM capabilities old WHERE old.membership_id=a.id AND old.capability_key=c);\n`+anchor);return {...qa,caps};
+ qa.sql=qa.sql.replace(anchor,()=>`INSERT INTO capabilities SELECT a.id,c FROM unnest(ARRAY[${q(qa.ids.maker)}::uuid,${q(qa.ids.checker)}::uuid]) a(id) CROSS JOIN unnest(ARRAY[${caps.map(q).join(',')}]) c WHERE NOT EXISTS(SELECT 1 FROM capabilities old WHERE old.membership_id=a.id AND old.capability_key=c);
+ -- Canonical columns omitted by the earlier writer fixture; synthetic schema only.
+ ALTER TABLE person_identity ADD COLUMN data_quality_score numeric(5,2);
+ ALTER TABLE source_import_batch ADD COLUMN source_sha256 text;
+ CREATE OR REPLACE VIEW grh_effective_source_batch_v1 AS SELECT * FROM source_import_batch;
+ `+anchor);return {...qa,caps};
 }
 export function createNoeliaCircuitPsqlQa(options){const expected=new URL('../../verification/postgresql-qa-20261004/pg'+options.major+'/pgsql/bin/psql.exe',import.meta.url);assert.equal(fs.realpathSync(options.executable).toLowerCase(),fs.realpathSync(expected).toLowerCase());const db=createOwnReceiptPsqlQa(options);return {...db,query:async(query,values)=>{
- if(!/^SELECT public\.(?:municipal_adoption_|employment_adoption_|own_novelty_|native_employment_catalog_|position_assignment_|position_comparison_|annual_budget_)/.test(query))return db.query(query,values);
- assert.match(query,/^SELECT public\.(?:municipal_adoption_(?:queue|review|attempt|command)_v1|employment_adoption_(?:bootstrap|attempt|propose)_v1|own_novelty_(?:bootstrap|detail|attempt|command)_v1|native_employment_catalog_bootstrap_v1|position_assignment_(?:bootstrap|attempt|command|capture)_v1|position_comparison_detail_v1|annual_budget_(?:bootstrap|attempt|command)_v1)\([\s\S]+\) AS result$/);
+ if(query.includes('/* effective-source:snapshot */')||/^WITH authority AS MATERIALIZED\s*\(/.test(query.trimStart())){
+  // Execute the application's complete read, never substitute directory rows.
+  assert.ok(query.includes('/* effective-source:snapshot */')&&query.includes('grh_effective_source_batch_v1')||query.includes('native_employee_directory_snapshot_v1($4::jsonb)')&&query.includes('AS "__total"'));
+  assert.doesNotMatch(query,/;|\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i);
+  const sql=query.replaceAll('public.native_employee_',options.schema+'.native_employee_').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});
+  // Authenticated read RPCs take FOR SHARE locks. Keep their normal transaction
+  // mode; the bounded SELECT and the verifier's before/after proof forbid data effects.
+  return await db.run("SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+sql+") qa_read");
+ }
+ if(!/^SELECT public\.(?:municipal_adoption_|employment_adoption_|own_novelty_|native_employee_|native_employment_catalog_|position_assignment_|position_comparison_|annual_budget_)/.test(query))return db.query(query,values);
+ assert.match(query,/^SELECT public\.(?:municipal_adoption_(?:queue|review|attempt|command)_v1|employment_adoption_(?:bootstrap|attempt|propose)_v1|own_novelty_(?:bootstrap|detail|attempt|command)_v1|native_employee_directory_snapshot_v1|native_employment_catalog_bootstrap_v1|position_assignment_(?:bootstrap|attempt|command|capture)_v1|position_comparison_detail_v1|annual_budget_(?:bootstrap|attempt|command)_v1)\([\s\S]+\) AS result$/);
  const sql=query.replaceAll('public.',options.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});return[{result:await db.run(sql,true)}];
  }};}
 export function relocateNoeliaNoveltyInstallation(batch,qa){

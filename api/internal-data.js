@@ -3292,8 +3292,17 @@ export async function employees(sql, req, binding = null, options = {}) {
   }) => row);
   const total = Number(metadata.__total || 0);
   if (picker) {
-    if(options.nativeOnly&&data.some(row=>typeof row.legajo!=='string'||!/^(?:0|[1-9]\d{0,19})$/.test(row.legajo)))return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_SELECTOR_UNSUPPORTED',error:'Este resultado incluye identificadores históricos que la selección de novedades todavía no admite. Consultá el padrón propio; no se omitieron filas ni se alteraron legajos.'}};
-    return {status:200,payload:employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope),...(options.nativeOnly?{currentCensusTotal:Number(scope.totalContracts)}:{})};
+    let payload;
+    try {
+      // The existing municipal picker contract preserves opaque identifiers.
+      // Validate the complete page and its origin before exposing any row.
+      if(options.nativeOnly&&data.some(row=>row.recordOrigin!=='MUNICONTROL'))throw Error('NATIVE_DIRECTORY_SELECTOR_ORIGIN');
+      payload=employeePickerPayload(data,{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))},scope);
+    } catch(error) {
+      if(!options.nativeOnly)throw error;
+      return {status:422,payload:{ok:false,code:'NATIVE_DIRECTORY_SELECTOR_UNSUPPORTED',error:'No se pudo verificar la selección completa del padrón propio. Consultá el padrón y revisá sus registros; no se omitieron filas ni se alteraron legajos.'}};
+    }
+    return {status:200,payload,...(options.nativeOnly?{currentCensusTotal:Number(scope.totalContracts)}:{})};
   }
   return {
     status: 200,

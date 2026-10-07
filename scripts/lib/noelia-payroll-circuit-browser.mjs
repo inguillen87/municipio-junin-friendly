@@ -6,13 +6,13 @@ import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.
 const root=path.resolve(import.meta.dirname,'../..');
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check}){
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
- const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt']]);
- const close=async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));};
+ const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory']]);
+ const close=async()=>{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??'calculate'}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true});}await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));};
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
    if(req.method==='GET'&&url.pathname==='/api/internal-auth'){json(200,{ok:true,authenticated:true,sessionVersion:2,user:{id:current.session.id,email:current.session.email},access:{context:'tenant',tenant:{id:current.principal.tenant.id,roleKey:'QA'},tenantCapabilities:[...current.principal.tenant.effectiveCapabilities,'payroll.read'],platformCapabilities:[],platformRoles:[]},expiresAt:new Date(Date.now()+3600000).toISOString()});return;}
-   const kind=endpoints.get(url.pathname);if(kind){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{
-    if(req.method==='POST'&&value.ok){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
+   const kind=endpoints.get(url.pathname);if(kind==='directory'&&(url.searchParams.get('resource')!=='employees'||url.searchParams.get('view')!=='novelty-selector')){json(503,{ok:false,error:'API ajena al selector no disponible en esta prueba sintética.'});return;}if(kind){req.query=Object.fromEntries(url.searchParams);res.status=n=>{res.statusCode=n;return res;};res.json=value=>{
+    if(req.method==='POST'&&value.ok&&req.headers['idempotency-key']){writes.push({kind,key:req.headers['idempotency-key'],receipt:value.data});if(drop){drop=false;res.statusCode=503;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:false,error:'Respuesta sintética interrumpida después de conservar el lote.'}));return res;}}
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));return res;};await handlers[kind](req,res);return;}
    if(url.pathname.startsWith('/api/')){json(503,{ok:false,error:'API ajena al circuito no disponible en esta prueba sintética.'});return;}
    const base=path.join(root,'public'),file=path.resolve(base,'.'+decodeURIComponent(url.pathname));if(req.method!=='GET'||!file.startsWith(base+path.sep)||!/\.(html|js|css|png|svg|webp)$/.test(file)||!fs.existsSync(file)){res.writeHead(404).end();return;}
@@ -21,6 +21,55 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
   browser=await chromium.launch({headless:true,channel:'chrome'});const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true,serviceWorkers:'block'});page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   const n=k=>page.locator('[data-n-'+k+']'),idle=()=>page.waitForFunction(()=>document.querySelector('#ownNativeBulkNovelties')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+  // Role changes start a fresh product document; no pending attempt crosses actors.
+  const fresh=async url=>{await page.goto('about:blank');await page.goto(origin+url);};
+  async function commitAndRecover({kind,send,recover,idle,verify}){
+   const before=writes.length;drop=true;await send.click();await idle();
+   assert.equal(writes.length,before+1,await page.locator('[role=status]:visible').allTextContents());const original=writes.at(-1);assert.equal(original.kind,kind);verify(original.receipt);
+   check(await recover.isVisible(),'actual '+kind+' preserves its committed attempt after lost response');await recover.click();await idle();check(writes.length===before+1,'actual '+kind+' readback recovers the same key and body without another write');return original.receipt;
+  }
+  async function noveltyDecision({batchId,command}){
+   await fresh('/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();
+   check(await n('detail').locator('tbody tr').count()===29,'actual '+command+' reviews all 29 novelty rows before deciding');await page.locator('[data-n-decisions] [data-command="'+command+'"]').click();await idle();assert.ok((await n('reviewed').innerText()).includes('29 filas'));await n('confirm').check();
+   return commitAndRecover({kind:'novelty',send:n('send'),recover:n('recover'),idle,verify:r=>{assert.equal(r.body.command,command);assert.equal(r.body.batchId,batchId);assert.equal(r.snapshot.rowCount,29);}});
+  }
+  async function calculate({period,selection,expectedCount}){
+   await fresh('/nomina-control.html#calculo');const r=k=>page.locator('[data-own-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(!await page.locator('[data-own-fields]').isDisabled(),await r('status').innerText());await r('period').fill(period);await r('type').selectOption('monthly');await r('kind').selectOption(selection.kind);
+   if(selection.kind==='contracts'){
+    assert.equal(selection.values.length,1);await r('picker').click();const picker=page.locator('#ownRunPicker');await picker.locator('#ownRunPickerSearch').fill('A/3501');await picker.locator('[data-picker-form] button[type=submit]').click();
+    const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact opaque adopted legajo from PostgreSQL');
+    check((await picker.innerText()).includes('Registro propio de MuniControl'),'picker describes municipal ownership without confusing adopted records with hires');
+    await input.check();await picker.locator('[data-picker-apply]').click();check((await r('chips').innerText()).includes('A/3501'),'actual calculator preserves the exact selected identifier');
+   }
+   await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.saved.result.employeeCount,expectedCount);}});
+   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill('a/3501');check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact opaque legajo');
+   return result;
+  }
+  async function confirmPartial({detail}){
+   await fresh('/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('.own-liquidation')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await page.locator('[data-liq-run-id="'+detail.id+'"]').waitFor();await lidle();await page.locator('[data-liq-run-id="'+detail.id+'"]').click();await lidle();await l('command').selectOption('confirm');await l('kind').selectOption('all');
+   check((await l('review-summary').innerText()).includes('1 legajos afectados')&&await l('review-rows').locator('tr').count()===1,'actual confirmation of partial recalculation affects its one original contract');await l('reason').fill('Confirmación exclusivamente sintética del recálculo individual');await l('confirm').check();
+   return commitAndRecover({kind:'liquidation',send:l('send'),recover:l('recover'),idle:lidle,verify:r=>{assert.equal(r.body.runId,detail.id);assert.equal(r.affected.length,1);assert.equal(r.body.command,'confirm');}});
+  }
+  async function closePeriod({period}){
+   await fresh('/nomina-control.html#cierre');const c=k=>page.locator('[data-close-'+k+']'),cidle=()=>page.waitForFunction(()=>document.querySelector('.own-close')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await c('period').waitFor({state:'visible'});await c('period').fill(period);await c('type').selectOption('monthly');await c('consult').click();await cidle();assert.ok(await c('detail').isVisible(),await c('status').innerText());
+   check(await c('rows').locator('tr').count()===25,'actual complete close review presents first 25 participants');await c('next').click();check(await c('rows').locator('tr').count()===4,'actual close retains all remaining four participants');await c('search').fill('A/3501');await c('kind').selectOption('all');
+   check((await c('scope').innerText()).includes('29 de 29'),'applied search never reduces complete closing scope');await c('reason').fill('Cierre exclusivamente sintético del circuito completo');await c('confirm').check();
+   return commitAndRecover({kind:'close',send:c('send'),recover:c('recover'),idle:cidle,verify:r=>{assert.equal(r.body.command,'close');assert.equal(r.snapshot.employeeCount,29);assert.deepEqual(r.body.selection,{kind:'all',values:[]});}});
+  }
+  async function prepareReceipts({params}){
+   await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await p('period').waitFor({state:'visible'});await p('period').fill(params.period);await p('types').selectOption(params.types);await p('issuer').fill(params.issuer.name);await p('tax').fill(params.issuer.taxId);await p('address').fill(params.issuer.address);await p('legend').fill(params.legend);await p('consult').click();await pidle();assert.ok(await p('result').isVisible(),await p('status').innerText());
+   check(await p('rows').locator('tr').count()===25,'actual receipt preview presents first 25 of all closed employees');await p('next').click();check(await p('rows').locator('tr').count()===4,'actual receipt preview retains remaining four employees');await p('search').fill('A/3501');check((await p('range').innerText()).includes('29 recibos'),'receipt search never reduces the preparation');await p('reason').fill('Preparación de recibos exclusivamente sintéticos QA');
+   return commitAndRecover({kind:'receipt',send:p('prepare'),recover:p('recover'),idle:pidle,verify:r=>{assert.equal(r.body.command,'prepare');assert.deepEqual(r.body.params,params);}});
+  }
+  async function approveReceipts({period,batchId}){
+   await fresh('/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+   await p('period').waitFor({state:'visible'});await p('period').fill(period);await p('history').click();await pidle();await page.locator('[data-receipt-open="'+batchId+'"]').click();await pidle();check((await p('summary').innerText()).startsWith('29 recibos'),'independent actor reviews the complete conserved receipt set');
+   await p('reason').fill('Revisión independiente de recibos exclusivamente sintéticos QA');await p('confirm').check();return commitAndRecover({kind:'receipt',send:p('approve'),recover:p('recover'),idle:pidle,verify:r=>{assert.equal(r.body.command,'approve');assert.equal(r.body.batchId,batchId);}});
+  }
   async function prepare(rows,period){
    expectedNumbers=rows.map(r=>r.legajo).sort();
    await page.goto(origin+'/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();assert.ok(await n('content').isVisible(),await n('status').innerText());
@@ -72,8 +121,8 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'receipt product fits '+width+'px');await page.locator('.own-receipt').screenshot({path:path.join(output,'recibos-'+width+'.png')});}
    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});check(!await p('result').isVisible()&&await p('rows').locator('tr').count()===0,'hiding actual product withdraws nominal receipt view');
    check(await page.evaluate(()=>Object.keys(localStorage).every(k=>!/(novelty|novedad|receipt|recibo|own.?payroll|nominal)/i.test(k))),'own circuit does not persist its nominal views in localStorage');check(errors.length===0&&diagnostics.length===0,'actual built browser circuit has no page or transport exceptions');
-   return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#decisiones','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
+   return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
-  return {prepare,decide,outputs,close};
+  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,close};
  }catch(e){await close();throw e;}
 }
