@@ -4,7 +4,7 @@ import {buildAdoptedConsumersInstallationQa} from './adopted-consumers-installat
 import {createOwnReceiptPsqlQa} from './own-payroll-receipt-qa.mjs';import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {relocateMunicipalAdoptionOperator} from './municipal-adoption-operator-qa.mjs';import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';import {pinsCheck} from './native-leave-installation.mjs';
 import {POSITION_QA_CAPS} from './position-assignment-qa.mjs';
-import {noeliaCircuitRuntime} from './noelia-circuit-runtime.mjs';
+import {noeliaCircuitRuntime,noeliaQaApplicationName} from './noelia-circuit-runtime.mjs';
 export function buildNoeliaCircuitQa(major,{jurisdictions=false}={}){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
  assert.equal(typeof jurisdictions,'boolean');
  if(jurisdictions){let count=0;qa.sql=qa.sql.replace(/hire:=native_employee_create_v1\(maker,'(\{"agreementCode"[^\n]*?"legajo":"20[0-9]+"[^\n]*?"jurisdictionCode":)"42"(\})'::jsonb/g,(_,prefix,suffix)=>{count++;return "hire:=native_employee_create_v1(maker,'"+prefix+'"55"'+suffix+"'::jsonb";});assert.equal(count,24,'complete synthetic 55 cohort must be explicitly declared at hire time');}
@@ -24,7 +24,7 @@ export function relocateNoeliaJurisdictionInstallation(batch,qa,previous){
  const apply=`DO $apply$ BEGIN IF current_setting('municontrol_jurisdiction.mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
  return {...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
 }
-export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment:runtime.environment});return {...db,executable:runtime.executable,environment:runtime.environment,query:async(query,values)=>{
+export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRuntime({root:fs.realpathSync(new URL('../..',import.meta.url)),major:options.major,transport:options.transport,browser:options.browser});if(options.executable)assert.equal(fs.realpathSync(options.executable),fs.realpathSync(runtime.executable));const environment=Object.freeze({...runtime.environment,PGAPPNAME:noeliaQaApplicationName(options.schema)}),db=createOwnReceiptPsqlQa({...options,executable:runtime.executable,environment});return {...db,executable:runtime.executable,environment,applicationName:environment.PGAPPNAME,query:async(query,values)=>{
  if(query.includes('/* effective-source:snapshot */')||/^WITH authority AS MATERIALIZED\s*\(/.test(query.trimStart())){
   // Execute the application's complete read, never substitute directory rows.
   assert.ok(query.includes('/* effective-source:snapshot */')&&query.includes('grh_effective_source_batch_v1')||query.includes('native_employee_directory_snapshot_v1($4::jsonb)')&&query.includes('AS "__total"'));

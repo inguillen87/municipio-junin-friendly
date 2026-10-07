@@ -5,6 +5,10 @@ import assert from 'node:assert/strict';
 // Two explicit synthetic destinations: the existing Windows QA and the
 // ephemeral GitHub service. There is no URL, host or executable CLI override.
 export const NOELIA_CI_PASSWORD = 'noelia-circuit-synthetic-qa';
+export function noeliaQaApplicationName(schema) {
+  assert.match(schema,/^mc_qa_fixed_092_[a-f0-9]{32}$/,'QA_SCHEMA_INVALID');
+  return 'mc-noelia:'+schema;
+}
 export function noeliaCircuitRuntime({root, major, transport = 'local', browser = 'none'},
   {platform = process.platform, env = process.env, realpath = fs.realpathSync} = {}) {
   assert.ok([17, 18].includes(major), 'QA_MAJOR_UNSUPPORTED');

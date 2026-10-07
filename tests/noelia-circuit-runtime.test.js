@@ -3,11 +3,18 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {NOELIA_CI_PASSWORD, noeliaCircuitRuntime, noeliaCircuitOptions} from '../scripts/lib/noelia-circuit-runtime.mjs';
+import {NOELIA_CI_PASSWORD, noeliaCircuitRuntime, noeliaCircuitOptions,noeliaQaApplicationName} from '../scripts/lib/noelia-circuit-runtime.mjs';
 import {createOwnPayrollPsqlQa} from '../scripts/lib/own-payroll-psql-qa.mjs';
 import {buildOwnPayrollDurableQa} from '../scripts/lib/own-payroll-durable-qa.mjs';
 const root=path.resolve(import.meta.dirname,'..'),sha='a'.repeat(40);
 const ci={platform:'linux',env:{CI:'true',GITHUB_ACTIONS:'true',GITHUB_RUN_ID:'1001',GITHUB_SHA:sha,GITHUB_WORKSPACE:'/qa',PGHOST:'remote.invalid',PGDATABASE:'neondb',PGPASSWORD:'must-not-use',PGOPTIONS:'-c role=unknown',PGSERVICE:'unknown',PATH:'/usr/bin'},realpath:p=>p==='/usr/bin/psql'?'/usr/share/postgresql-common/pg_wrapper':p};
+test('synthetic connection ownership survives container NAT and never collides after PostgreSQL name truncation',()=>{
+ const first=noeliaQaApplicationName('mc_qa_fixed_092_'+'a'.repeat(32)),second=noeliaQaApplicationName('mc_qa_fixed_092_'+'b'.repeat(32));
+ assert.notEqual(first,second);assert.ok(Buffer.byteLength(first,'utf8')<=63);
+ for(const schema of ['public','mc_qa_fixed_092_'+ 'a'.repeat(31),'mc_qa_fixed_092_'+ 'a'.repeat(33)])assert.throws(()=>noeliaQaApplicationName(schema));
+ const runner=fs.readFileSync(new URL('../scripts/verify-noelia-payroll-circuit.mjs',import.meta.url),'utf8');
+ assert.match(runner,/application_name=\$\{qaLiteral\(db.applicationName\)\}/);assert.doesNotMatch(runner,/client_addr=/);
+});
 
 test('CI uses only the fixed loopback client and its synthetic credential, clearing ambient PostgreSQL settings',()=>{
  const r=noeliaCircuitRuntime({root:'/qa',major:17,transport:'ci',browser:'chromium'},ci);
