@@ -11,7 +11,14 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
  <form data-ap-form hidden><p data-ap-counts></p>
  <label>Jurisdicción para los contratos que no la tienen declarada<select data-ap-jurisdiction required><option value="">Elegí según el respaldo municipal</option><option value="42">Jurisdicción 42</option><option value="55">Jurisdicción 55</option></select></label>
- <p>Las jurisdicciones ya declaradas se conservan. Esta elección no se deduce del número de empresa, legajo, sector o archivo.</p>
+ <p>La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.</p>
+ <p data-ap-jurisdiction-counts role="status" aria-live="polite"></p>
+ <button type="button" class="button" data-ap-jurisdiction-open aria-expanded="false" aria-controls="adoption-jurisdiction-body">Revisar jurisdicción por contrato</button>
+ <section id="adoption-jurisdiction-body" data-ap-jurisdiction-panel hidden><h5>Declaraciones de esta revisión completa</h5>
+ <label>Buscar contrato por nombre o legajo<input type="search" maxlength="100" autocomplete="off" data-ap-jurisdiction-search></label>
+ <p>La búsqueda y las páginas no cambian la propuesta. Cada excepción se conserva hasta que cambie la revisión o se retiren los datos.</p>
+ <div class="ar-pages" role="navigation" aria-label="Páginas de jurisdicciones"><button type="button" class="button" data-ap-jurisdiction-prev>Anterior</button><span data-ap-jurisdiction-page></span><button type="button" class="button" data-ap-jurisdiction-next>Siguiente</button></div>
+ <div class="ar-table-wrap"><table><caption>Jurisdicción declarada por contrato</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Jurisdicción</th></tr></thead><tbody data-ap-jurisdiction-rows></tbody></table></div></section>
  <label>Resolución o documento de respaldo<input data-ap-reference required minlength="3" maxlength="180" autocomplete="off"></label>
  <label>Motivo de la propuesta<textarea data-ap-reason required minlength="10" maxlength="1000" rows="3"></textarea></label>
  <label class="ap-confirm"><input type="checkbox" data-ap-confirm required>Revisé el padrón completo y el respaldo de la jurisdicción declarada</label>
@@ -19,6 +26,32 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>Este registro conserva la preparación original y no muestra las decisiones posteriores. Consultá la bandeja de revisión para conocer su resultado.</p><ol data-ap-attempts></ol></section></section>`;
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
+ let jurisdictionPage=1;const jurisdictions=new Map();
+ const code=row=>row.jurisdictionCode??jurisdictions.get(row.contractId)??$('jurisdiction').value;
+ const jurisdictionRows=()=>review?review.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('jurisdiction-search').value.toLocaleLowerCase('es')))):[];
+ function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:'pending']++;}return counts;}
+ function clearJurisdictions(){jurisdictions.clear();jurisdictionPage=1;$('jurisdiction-search').value='';$('jurisdiction-rows').replaceChildren();$('jurisdiction-panel').hidden=true;$('jurisdiction-open').setAttribute('aria-expanded','false');$('jurisdiction-counts').textContent='';$('jurisdiction-page').textContent='';}
+ function paintJurisdictions(){
+  if(!review)return;
+  const counts=jurisdictionCounts(),rows=jurisdictionRows();
+  $('jurisdiction-counts').textContent=`Propuesta completa: ${counts['42']} contratos en jurisdicción 42 · ${counts['55']} en jurisdicción 55 · ${counts.pending} sin declarar. Se conservan los ${review.total} contratos.`;
+  $('jurisdiction-page').textContent=`Página ${jurisdictionPage} de ${Math.max(1,Math.ceil(rows.length/25))} · ${rows.length} coincidencias`;
+  $('jurisdiction-rows').replaceChildren();
+  for(const r of rows.slice((jurisdictionPage-1)*25,jurisdictionPage*25)){
+   const tr=document.createElement('tr');
+   for(const [label,text]of [['Fila',String(r.rowNumber)],['Legajo / agente',(r.legajo??'Sin número informado')+' · '+(r.name??'Nombre pendiente')]]){const td=document.createElement('td');td.dataset.label=label;td.textContent=text;tr.append(td);}
+   const td=document.createElement('td');td.dataset.label='Jurisdicción';
+   if(r.jurisdictionCode!==null)td.textContent=`${r.jurisdictionCode} · ya declarada`;
+   else{
+    const select=document.createElement('select');select.dataset.apJurisdictionRow=String(r.rowNumber);select.setAttribute('aria-label',`Jurisdicción de la fila ${r.rowNumber} · ${r.name??'nombre pendiente'}`);
+    for(const [value,label]of [['',`Usar declaración general (${$('jurisdiction').value||'pendiente'})`],['42','Jurisdicción 42'],['55','Jurisdicción 55']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}
+    select.value=jurisdictions.get(r.contractId)??'';
+    select.addEventListener('change',()=>{if(!live()||busy||pending||!prepareAllowed||!bootstrap?.canPrepare)return;if(select.value)jurisdictions.set(r.contractId,select.value);else jurisdictions.delete(r.contractId);$('confirm').checked=false;paintJurisdictions();controls();host.querySelector(`[data-ap-jurisdiction-row="${r.rowNumber}"]`)?.focus();});td.append(select);
+   }
+   tr.append(td);$('jurisdiction-rows').append(tr);
+  }
+  if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=3;td.textContent='Sin coincidencias. La propuesta conserva el padrón completo.';tr.append(td);$('jurisdiction-rows').append(tr);}
+ }
  const live=()=>readAllowed&&!document.hidden&&!panel.hidden&&host.isConnected&&isLive?.();
  const say=text=>{$('status').textContent=text;};
  function controls(){
@@ -26,7 +59,10 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('open').disabled=busy||!readAllowed||document.hidden||!review||!isLive?.();
   $('load').disabled=!enabled||!review;
   for(const n of $('form').querySelectorAll('input,textarea,select,button'))n.disabled=!enabled||!prepareAllowed||!bootstrap?.canPrepare||!!pending;
-  $('send').disabled||=!$('confirm').checked;
+  const counts=jurisdictionCounts();$('jurisdiction').required=counts.pending>0;
+  $('send').disabled||=!$('confirm').checked||counts.pending>0;
+  $('jurisdiction-prev').disabled||=jurisdictionPage<=1;
+  $('jurisdiction-next').disabled||=jurisdictionPage*25>=jurisdictionRows().length;
   $('pending').hidden=!pending||!live();$('recover').disabled=!enabled||!pending;
   $('retry').disabled=!enabled||!pending||!retryReady||!prepareAllowed||!bootstrap?.canPrepare;
   host.setAttribute('aria-busy',String(busy));
@@ -34,7 +70,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  function withdraw(text='Consultá nuevamente las condiciones del padrón.'){
   epoch++;controller?.abort();bootstrap=null;busy=false;retryReady=false;
   $('form').hidden=true;$('history').hidden=true;$('attempts').replaceChildren();$('counts').textContent='';
-  for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;say(text);controls();
+  for(const key of ['reference','reason','jurisdiction'])$(key).value='';clearJurisdictions();$('confirm').checked=false;say(text);controls();
  }
  function start(text){controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(text);return{token,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)])};}
  const current=token=>token===epoch&&live();
@@ -63,7 +99,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
    const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
   }
-  $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}controls();
+  $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}paintJurisdictions();controls();
  }
  function failure(e,token){
   if(!current(token))return;
@@ -86,7 +122,8 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    if(!recover&&!retry){
     if(pending)return;
     if(f.value.review.snapshot!==review.snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón o el catálogo. Volvé a revisar antes de guardar.');}
-    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,$('jurisdiction').value,$('reference').value,$('reason').value);
+    const declaration={snapshot:review.snapshot,rows:review.rows.map(r=>({contractId:r.contractId,jurisdictionCode:code(r)}))};
+    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value);
     if(!current(token))return;
     pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
    }
@@ -108,12 +145,16 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  }
  $('load').addEventListener('click',load);$('form').addEventListener('submit',event=>{event.preventDefault();if($('confirm').checked&&!pending&&bootstrap?.canPrepare)send();});
  $('recover').addEventListener('click',()=>send(true));$('retry').addEventListener('click',()=>{if(retryReady&&pending)send(false,true);});
- $('confirm').addEventListener('change',controls);for(const key of ['jurisdiction','reference','reason'])$(key).addEventListener('input',()=>{$('confirm').checked=false;controls();});
+ $('confirm').addEventListener('change',controls);for(const key of ['jurisdiction','reference','reason'])$(key).addEventListener('input',()=>{$('confirm').checked=false;if(key==='jurisdiction')paintJurisdictions();controls();});
+ $('jurisdiction-open').addEventListener('click',()=>{$('jurisdiction-panel').hidden=!$('jurisdiction-panel').hidden;$('jurisdiction-open').setAttribute('aria-expanded',String(!$('jurisdiction-panel').hidden));paintJurisdictions();controls();});
+ $('jurisdiction-search').addEventListener('input',()=>{jurisdictionPage=1;paintJurisdictions();controls();});
+ $('jurisdiction-prev').addEventListener('click',()=>{if(jurisdictionPage>1){jurisdictionPage--;paintJurisdictions();controls();}});
+ $('jurisdiction-next').addEventListener('click',()=>{if(jurisdictionPage*25<jurisdictionRows().length){jurisdictionPage++;paintJurisdictions();controls();}});
  $('open').addEventListener('click',()=>{panel.hidden=!panel.hidden;$('open').setAttribute('aria-expanded',String(!panel.hidden));if(panel.hidden)withdraw();else controls();});
- const permissions=event=>{const caps=event?.detail?.tenantCapabilities;readAllowed=caps instanceof Set?caps.has('workforce.employee.read'):Array.isArray(caps)&&caps.includes('workforce.employee.read');prepareAllowed=caps instanceof Set?caps.has('employee.record.propose'):Array.isArray(caps)&&caps.includes('employee.record.propose');if(!readAllowed)withdraw('Tu permiso de consulta cambió. Los datos fueron retirados.');else controls();};
+ const permissions=event=>{const caps=event?.detail?.tenantCapabilities;readAllowed=caps instanceof Set?caps.has('workforce.employee.read'):Array.isArray(caps)&&caps.includes('workforce.employee.read');prepareAllowed=caps instanceof Set?caps.has('employee.record.propose'):Array.isArray(caps)&&caps.includes('employee.record.propose');if(!readAllowed)withdraw('Tu permiso de consulta cambió. Los datos fueron retirados.');else if(!prepareAllowed)withdraw('Tu permiso para preparar cambió. Se retiraron las declaraciones; consultá el mismo intento si quedó pendiente.');else controls();};
  document.addEventListener('municontrol:capabilities-ready',permissions);window.MuniControlCapabilityGate?.ready?.then(result=>permissions({detail:result}));
  document.addEventListener('visibilitychange',()=>{if(document.hidden)withdraw('Datos retirados al ocultar la pantalla. Consultá el mismo intento si quedó pendiente.');});
  window.addEventListener('pagehide',()=>withdraw());document.getElementById('logoutButton')?.addEventListener('click',()=>{readAllowed=false;withdraw('Sesión cerrada. Recuperá cualquier intento con su acceso original.');});
  window.addEventListener('beforeunload',event=>{if(pending){event.preventDefault();event.returnValue='';}});
- controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;}controls();},invalidate(){review=null;withdraw();}};
+ controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;clearJurisdictions();$('jurisdiction').value='';$('confirm').checked=false;}controls();},invalidate(){review=null;withdraw();}};
 }
