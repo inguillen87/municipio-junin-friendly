@@ -3,6 +3,7 @@ import {budgetYear,budgetHash,verifiedAnnualBudgetBootstrap,BUDGET_UNITS} from '
 import {verifiedPositionRunCapture} from './position-assignment-model.js';
 import {OWN_CLOSE_NOMINAL} from './own-payroll-close-model.js';
 import {OWN_RUN_TYPES} from './own-payroll-run-workspace-model.js';
+import {ownPayrollEmployeeNumber} from './own-payroll-engine.js';
 export const COMPARISON_READ=Object.freeze([...new Set([...OWN_CLOSE_NOMINAL,'workforce.structure.read'])]);
 export const COMPARISON_MAX_BYTES=67108864,COMPARISON_MAX_ROWS=250000;
 const need=(v,m)=>{if(!v)throw Error(m);},code=v=>typeof v==='string'&&/^[0-9]{1,9}$/.test(v),instant=v=>typeof v==='string'&&Number.isFinite(Date.parse(v));
@@ -21,7 +22,7 @@ export async function verifiedPositionComparison(v,query){
  const norms=new Map();for(const p of v.annual.proposals.filter(p=>p.status==='approved'))norms.set(p.decision.revision,{p,hash:await budgetHash(p.body.definition)});
  for(const c of v.captures){
   need(salaryExact(c,['id','payloadSha256','population','positions','dimensions'])&&salaryHash(c.payloadSha256)&&salaryExact(c.population,['complete','version','employees'])&&c.population.complete===true&&salaryHash(c.population.version)&&Array.isArray(c.population.employees)&&c.population.employees.length>0&&c.population.employees.length<=10000,'La población original no está completa.');uuidSet(c.population.employees,'contractId');
-  for(const e of c.population.employees)need(salaryExact(e,['contractId','employeeNumber','agreementCode','categoryCode','departmentCode','identityToken','origin'])&&['employeeNumber','agreementCode','categoryCode','departmentCode'].every(k=>code(e[k]))&&salaryHash(e.identityToken)&&e.origin==='MUNICONTROL','La población no corresponde a contratos propios.');
+  for(const e of c.population.employees)need(salaryExact(e,['contractId','employeeNumber','agreementCode','categoryCode','departmentCode','identityToken','origin'])&&ownPayrollEmployeeNumber(e.employeeNumber)&&['agreementCode','categoryCode','departmentCode'].every(k=>code(e[k]))&&salaryHash(e.identityToken)&&e.origin==='MUNICONTROL','La población no corresponde a contratos propios.');
   need(await budgetHash(c.population.employees)===c.population.version,'La huella de la población original no coincide.');
   await verifiedPositionRunCapture(c.positions,{id:c.id,payloadSha256:c.payloadSha256,body:{period:v.period,liquidationType:v.liquidationType},payload:{population:c.population}});
   for(const e of c.positions.payload?.employees||[])for(const a of e.allocations){const n=norms.get(a.budgetRevision),row=n?.p.body.definition.rows.find(r=>r.code===a.rowCode);need(n&&row&&a.definitionSha256===n.hash&&a.normative.approvalId===n.p.decision.id&&a.normative.proposalId===n.p.id&&salarySerialized(a.normative.row)===salarySerialized(row)&&salarySerialized(a.normative.source)===salarySerialized(n.p.body.definition.source),'Una asignación no coincide con su norma anual original.');}
@@ -39,7 +40,9 @@ export function positionComparisonDetails(v){
  const captures=new Map(v.captures.map(c=>[c.id,{positions:new Map((c.positions.payload?.employees||[]).map(e=>[e.contractId,e])),dimensions:new Map((c.dimensions.payload?.employees||[]).map(e=>[e.contractId,e]))}]));
  return v.employees.flatMap(e=>{const c=captures.get(e.captureId),p=c.positions.get(e.contractId),d=c.dimensions.get(e.contractId),base={...e,name:d?.name??null,activeInPeriod:d?.activeInPeriod??null};return p?.allocations.length?p.allocations.map(a=>({...base,...a,assignmentStatus:p.status})):[{...base,rowCode:null,quantity:null,normative:null,budgetRevision:null,definitionSha256:null,coverage:null,validFrom:null,validTo:null,assignmentStatus:p?.status??'not_captured'}];});
 }
-const numeric=(a,b)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:a.localeCompare(b);
+// A total order keeps opaque identifiers intact and numeric pairs in their
+// existing order. Separate numeric/non-numeric groups avoid comparison cycles.
+const numeric=(a,b)=>{const an=/^[0-9]+$/.test(a),bn=/^[0-9]+$/.test(b);return an!==bn?(an?-1:1):an?(BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:a.localeCompare(b)):a.localeCompare(b);};
 const collator=new Intl.Collator('es-AR',{usage:'sort',sensitivity:'base'});
 export function positionComparisonRows(v,filters=emptyPositionComparisonFilters()){
  const f=positionComparisonFilters(filters);return positionComparisonDetails(v).filter(r=>f.active==='all'||r.activeInPeriod===null||r.activeInPeriod===(f.active==='yes')).sort((a,b)=>(f.order==='name'?(a.name===null&&b.name===null?0:a.name===null?1:b.name===null?-1:collator.compare(a.name,b.name)):0)||numeric(a.employeeNumber,b.employeeNumber)||(a.rowCode??'').localeCompare(b.rowCode??'')||a.contractId.localeCompare(b.contractId));
