@@ -4,7 +4,9 @@ import {buildAdoptedConsumersInstallationQa} from './adopted-consumers-installat
 import {createOwnReceiptPsqlQa} from './own-payroll-receipt-qa.mjs';import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {relocateMunicipalAdoptionOperator} from './municipal-adoption-operator-qa.mjs';import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';import {pinsCheck} from './native-leave-installation.mjs';
 import {POSITION_QA_CAPS} from './position-assignment-qa.mjs';
-export function buildNoeliaCircuitQa(major){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
+export function buildNoeliaCircuitQa(major,{jurisdictions=false}={}){const qa=buildAdoptedConsumersInstallationQa(major),anchor='    END $seed$; COMMIT;';assert.equal(qa.sql.split(anchor).length,2);
+ assert.equal(typeof jurisdictions,'boolean');
+ if(jurisdictions){let count=0;qa.sql=qa.sql.replace(/hire:=native_employee_create_v1\(maker,'(\{"agreementCode"[^\n]*?"legajo":"20[0-9]+"[^\n]*?"jurisdictionCode":)"42"(\})'::jsonb/g,(_,prefix,suffix)=>{count++;return "hire:=native_employee_create_v1(maker,'"+prefix+'"55"'+suffix+"'::jsonb";});assert.equal(count,24,'complete synthetic 55 cohort must be explicitly declared at hire time');}
  const caps=[...new Set([...POSITION_QA_CAPS,'employee.record.propose','employee.record.approve','workforce.employee.read','workforce.structure.read','payroll.parameter.read','payroll.calculation.read','payroll.calculation.nominal.read','payroll.calculation.prepare','payroll.calculation.approve','payroll.calculation.close','payroll.novelty.read','payroll.novelty.nominal.read','payroll.novelty.prepare','payroll.novelty.approve','payroll.novelty.export','payroll.receipt.prepare','payroll.receipt.approve'])];
  qa.sql=qa.sql.replace(anchor,()=>`INSERT INTO capabilities SELECT a.id,c FROM unnest(ARRAY[${q(qa.ids.maker)}::uuid,${q(qa.ids.checker)}::uuid]) a(id) CROSS JOIN unnest(ARRAY[${caps.map(q).join(',')}]) c WHERE NOT EXISTS(SELECT 1 FROM capabilities old WHERE old.membership_id=a.id AND old.capability_key=c);
  -- Canonical columns omitted by the earlier writer fixture; synthetic schema only.
@@ -12,6 +14,14 @@ export function buildNoeliaCircuitQa(major){const qa=buildAdoptedConsumersInstal
  ALTER TABLE source_import_batch ADD COLUMN source_sha256 text;
  CREATE OR REPLACE VIEW grh_effective_source_batch_v1 AS SELECT * FROM source_import_batch;
  `+anchor);return {...qa,caps};
+}
+export function relocateNoeliaJurisdictionInstallation(batch,qa,previous){
+ const n=qa.normalized,ready=n(batch.ready.slice(0,batch.ready.indexOf(' BEGIN ')))+' BEGIN '+batch.readyChecks.map(s=>'EXECUTE '+q(n(s))+';').join('\n')+' END $operator$';
+ const readyPin={...ownInstallationFunctionPin(ready.replace('CREATE FUNCTION '+qa.schema+'.','CREATE FUNCTION public.')),signature:batch.afterPins[4].signature.replace('public.',qa.schema+'.'),runtime:false};
+ const before=n(pinsCheck(batch.beforePins.slice(0,4),'JURISDICTION_BEFORE_CHANGED'))+';'+pinsCheck([previous.readyPin],'JURISDICTION_BEFORE_CHANGED'),after=n(pinsCheck([...batch.afterPins.slice(0,4),batch.newPin],'JURISDICTION_AFTER_CHANGED'))+';'+pinsCheck([readyPin],'JURISDICTION_AFTER_CHANGED');
+ const initial=`DO $initial$ BEGIN IF current_setting('municontrol_jurisdiction.mode')='first' THEN EXECUTE ${q(before)};ELSE EXECUTE ${q(after)};END IF;END $initial$`,migration=batch.migration.map(s=>s.startsWith('CREATE OR REPLACE FUNCTION public.municipal_adoption_ready_v1')?ready.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION '):n(s));
+ const apply=`DO $apply$ BEGIN IF current_setting('municontrol_jurisdiction.mode')='first' THEN ${migration.map(s=>'EXECUTE '+q(s)+';').join('\n')} END IF;END $apply$`;
+ return {...batch,readyPin,installation:batch.installation.map((s,i)=>i===1?initial:i===3?apply:i===4?after:n(s)),durableVerification:batch.durableVerification.map((s,i)=>i===0?after:n(s))};
 }
 export function createNoeliaCircuitPsqlQa(options){const expected=new URL('../../verification/postgresql-qa-20261004/pg'+options.major+'/pgsql/bin/psql.exe',import.meta.url);assert.equal(fs.realpathSync(options.executable).toLowerCase(),fs.realpathSync(expected).toLowerCase());const db=createOwnReceiptPsqlQa(options);return {...db,query:async(query,values)=>{
  if(query.includes('/* effective-source:snapshot */')||/^WITH authority AS MATERIALIZED\s*\(/.test(query.trimStart())){

@@ -1,3 +1,4 @@
+import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
 import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
 
@@ -22,7 +23,7 @@ export function ownRunWorkspaceAttempt(key, body, accessKey) {
   return freeze({key,body:structuredClone(ownRunCommand(body)),accessKey});
 }
 export async function verifiedWorkspaceCapture(value, attempt = null) {
-  ownRunCapture(value,attempt);
+  ownRunCapture(value,attempt);ownRunJurisdictions(value);
   const hash = async v => [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salarySerialized(v))))].map(b=>b.toString(16).padStart(2,'0')).join('');
   if(await hash(value.body)!==value.bodySha256 || await hash(value.payload)!==value.payloadSha256
     || value.saved && (await hash(value.saved.input)!==value.saved.inputSha256 || await hash(value.saved.result)!==value.saved.resultSha256))
