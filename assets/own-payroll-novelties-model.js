@@ -1,5 +1,5 @@
 import {salaryExact, salaryUuid, salaryKey, salaryHash, salarySerialized} from './native-salary-catalog-model.js';
-import {assertNativeMonthlySubject, validateMonthlyInputRow} from './payroll-native-monthly-model.js';
+import {assertNativeMonthlySubject, validateOwnMonthlyInputRow} from './payroll-native-monthly-model.js';
 export const OWN_NOVELTY_MAX_ROWS = 10000, OWN_NOVELTY_MAX_BYTES = 4 * 1024 * 1024;
 export const OWN_NOVELTY_TYPES = ['monthly','first_fortnight','sac','vacation','supplementary','final','other'];
 export const OWN_NOVELTY_READ = ['workforce.employee.read','payroll.novelty.read','payroll.novelty.nominal.read'];
@@ -16,9 +16,9 @@ export function ownNoveltyRows(rows,periodMonth){
  let total=0n;const seen=new Set();
  const result=rows.map((r,i)=>{
   need(salaryExact(r,rowKeys)&&r.rowOrdinal===i+1&&salaryUuid(r.contractId)&&r.contractId===r.contractId.toLowerCase()&&salaryHash(r.identityToken));
-  // Reuse the closed per-row validation without broadening the published v2.
+  // Match the own subject's opaque employee number without selecting identity.
   const {contractId,identityToken,...values}=r;
-  try{validateMonthlyInputRow({...values,rowOrdinal:1},periodMonth);}catch{fail('INPUT_INVALID',`Revisá los valores completos de la fila ${i+1}.`);}
+  try{validateOwnMonthlyInputRow({...values,rowOrdinal:1},periodMonth);}catch{fail('INPUT_INVALID',`Revisá los valores completos de la fila ${i+1}.`);}
   need(!seen.has(business(r)),'DUPLICATE_ROW','Hay un destino repetido en el lote completo.');seen.add(business(r));
   const row={...r,quantityDecimal:numeric(r.quantityDecimal),amountCents:r.amountCents===null?null:BigInt(r.amountCents).toString()};
   if(row.amountCents!==null)total+=BigInt(row.amountCents);

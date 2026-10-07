@@ -6,6 +6,25 @@ import {createOwnPayrollSnapshot} from '../lib/own-payroll-snapshot.js';
 import {ownNoveltyCaptureSql} from '../scripts/lib/own-novelties-sql.mjs';
 import {prepare,batch,bootstrap,receipt,row} from './fixtures/own-payroll-novelties-synthetic.js';
 import {approvedSources} from './fixtures/own-payroll-approved-synthetic.js';
+import {validateMonthlyInputRow} from '../assets/payroll-native-monthly-model.js';
+
+test('own bulk preserves opaque employee numbers, prefixes and 64 Unicode code points through review, receipt and CSV',()=>{
+ const numbers=['A/3501','0901','901','0','á'.repeat(64)],body=prepare(numbers.length),boot=bootstrap(numbers.length);
+ numbers.forEach((n,i)=>{body.rows[i].legajo=n;boot.subjects[i].legajo=n;});
+ const review=prepareOwnNoveltyReview(boot,body);assert.deepEqual(review.body.rows.map(r=>r.legajo),numbers);
+ const stored=batch(numbers.length);numbers.forEach((n,i)=>{stored.rows[i].values.legajo=n;stored.rows[i].subject.legajo=n;});
+ stored.rowsSha256=ownNoveltyHash(stored.rows.map(({values,subject})=>({values,subject})));verifyOwnNoveltyHashes(stored);
+ const r=receipt(body);r.snapshot={...stored,status:'draft',revision:1,decidedBy:null,approvals:[]};
+ ownNoveltyReceipt(r,{key:r.requestKey,body});assert.equal(r.requestSha256,ownNoveltyHash(body));
+ const csv=ownNoveltyCsv(stored);for(const n of numbers)assert.ok(csv.includes('"'+n+'"'));
+ const {contractId,identityToken,...legacy}=body.rows[0];assert.throws(()=>validateMonthlyInputRow(legacy,body.periodMonth));
+ const changed=structuredClone(boot);changed.subjects[1].legajo='901';assert.throws(()=>prepareOwnNoveltyReview(changed,body),/Cambió un legajo/);
+});
+test('opaque own numbers never waive controls, complete row validation or identity binding',()=>{
+ for(const number of ['',123,'x'.repeat(65),'á'.repeat(65),'A\n1','A\u00851',null]){const body=prepare(1);body.rows[0].legajo=number;assert.throws(()=>ownNoveltyCommand(body));}
+ for(const mutate of [r=>r.conceptSourceId='A',r=>r.quantityDecimal='1e2',r=>r.amountCents='20.5',r=>{r.amountCents=null;r.quantityDecimal=null;},r=>r.adjustmentMonth='2026-11-01',r=>r.forced=true,r=>r.legalInstrument='x'.repeat(161)]){const body=prepare(1);body.rows[0].legajo='A/3501';mutate(body.rows[0]);assert.throws(()=>ownNoveltyCommand(body));}
+ const body=prepare(1),boot=bootstrap(1);body.rows[0].legajo='A/3501';boot.subjects[0].legajo='A/3501';body.rows[0].identityToken='a'.repeat(64);assert.throws(()=>prepareOwnNoveltyReview(boot,body),/Cambió un legajo/);
+});
 test('one complete native batch includes 759 rows, seven types, exact values and frozen body',()=>{for(const payrollType of ['monthly','first_fortnight','sac','vacation','supplementary','final','other']){const command=ownNoveltyCommand(prepare(759,{payrollType}));assert.equal(command.rows.length,759);assert.ok(Object.isFrozen(command.rows));assert.equal(command.rows.at(-1).rowOrdinal,759);}const b=prepare(2);b.rows[0].quantityDecimal='0.000000';b.rows[0].amountCents=null;b.rows[1].amountCents='0';const result=ownNoveltyCommand(b);assert.equal(result.rows[0].quantityDecimal,'0');assert.equal(result.rows[0].amountCents,null);assert.equal(result.rows[1].amountCents,'0');});
 test('global capacity, no missing values, repeated business keys and ordinal gaps fail complete batch',()=>{for(const mutate of [v=>v.rows.push(...Array(10000).fill(v.rows[0])),v=>v.rows[1]={...v.rows[0],rowOrdinal:2},v=>v.rows[1].rowOrdinal=4,v=>v.rows[0].amountCents=null,v=>v.rows[0].quantityDecimal='-0',v=>v.rows[0].identityToken='unknown',v=>v.rows[0].extra='x',v=>v.reviewConfirmed=false,v=>v.rows[0].forced=true]){const v=prepare(2);mutate(v);assert.throws(()=>ownNoveltyCommand(v));}});
 test('native review rechecks complete identities and never depends on page/search',()=>{const boot=bootstrap(61),body=prepare(61);assert.equal(prepareOwnNoveltyReview(boot,body).rows.length,61);const changed=structuredClone(boot);changed.subjects[60].identityToken='a'.repeat(64);assert.throws(()=>prepareOwnNoveltyReview(changed,body),/Cambió un legajo/);assert.throws(()=>ownNoveltyBootstrap({...boot,complete:false}));});

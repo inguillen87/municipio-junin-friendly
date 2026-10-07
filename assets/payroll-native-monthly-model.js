@@ -72,6 +72,14 @@ export function validateMonthlyInputRow(row, periodMonth) {
   return row;
 }
 
+// Own employee numbers are opaque strings, including adopted source numbers.
+// Keep the historical numeric validator and every business check unchanged.
+export function validateOwnMonthlyInputRow(row, periodMonth) {
+  if (!exact(row, inputKeys) || !month(periodMonth)) fail();
+  inputRow(row, periodMonth, cents, true);
+  return row;
+}
+
 export function buildNativeMonthlyDraft(draft, subject) {
   assertNativeMonthlySubject(subject);
   if (!exact(draft,['sourceMode','periodMonth','payrollType','rows']) || draft.sourceMode !== 'individual'
