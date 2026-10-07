@@ -63,4 +63,5 @@ jobs:
             verification/published-adoption-ci/result.json
             verification/published-adoption-ci/installation-proof.json
             verification/published-adoption-ci/uuid-repair-proof.json
+            verification/published-adoption-ci/uuid-three-defaults-proof.json
           retention-days: 7

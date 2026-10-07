@@ -7,8 +7,8 @@ test('installation uses the same trusted function resolution as runtime',()=>{
  assert.ok(ownInstallationSettings.includes('SET LOCAL search_path=pg_catalog,public,pg_temp'));
  assert.ok(!ownInstallationSettings.includes('SET LOCAL search_path=public,pg_catalog,pg_temp'));
 });
-test('repair changes only two reviewed empty-table defaults; runtime checks stay strict',()=>{
- const b=build(options);assert.equal(b.apply.length,2);assert.deepEqual(UUID_REPAIR_TABLES,['employment_adoption_proposal','employment_adoption_decision']);
+test('repair changes only three reviewed empty-table defaults; runtime checks stay strict',()=>{
+ const b=build(options);assert.equal(b.apply.length,3);assert.deepEqual(UUID_REPAIR_TABLES,['employment_adoption_proposal','employment_adoption_decision','own_payroll_novelty_event']);
  for(const [i,s]of b.apply.entries()){assert.ok(s.includes('ALTER TABLE public.'+UUID_REPAIR_TABLES[i]+' ALTER COLUMN id SET DEFAULT pg_catalog.gen_random_uuid()'));assert.ok(s.includes("expression='public.gen_random_uuid()'"));}
  assert.ok(b.initial.includes('ADOPTION_UUID_TABLE_NOT_EMPTY'));assert.ok(b.final.includes('ADOPTION_UUID_TABLE_NOT_EMPTY'));
  assert.ok(b.initial.includes('8c6b4fb849252ccdbf2c312f362a876d017246d0f5194b50eaee0dccd20fc776'));assert.ok(!b.final.includes("AND actual IS DISTINCT FROM (item->>'wrapper')"));
@@ -24,7 +24,7 @@ test('batch is review-only, committed-source pinned and constrained to existing 
  for(const t of b.targets){assert.equal(t.durableVerification[0],'SET TRANSACTION READ ONLY');assert.equal(t.durableVerification.at(-1),b.proof);assert.ok(t.installation.some(s=>[t.projectId,t.branchId,t.endpointId,String(t.guardOid)].every(v=>s.includes(v))));assert.ok(t.installation.includes("SET LOCAL statement_timeout='45s'"));assert.ok(t.installation.every(s=>!/^\s*(BEGIN|COMMIT|ROLLBACK)\b/.test(s)));}
 });
 test('independent proof cannot accept mutation, broadened effects or missing readiness',()=>{
- const b=build(options),p={version:b.version,sourceCommit:b.sourceCommit,sourceHashes:b.sourceHashes,allChecksPassed:true,runtimeReadinessPassed:true,reviewedDefaults:2,newTables:0,newFunctions:0,permissionChanges:0,businessOperations:0,nominalRowsReturned:0,adoptionRows:0,priorFingerprint:'a'.repeat(64),tableFingerprint:'b'.repeat(64)};
+ const b=build(options),p={version:b.version,sourceCommit:b.sourceCommit,sourceHashes:b.sourceHashes,allChecksPassed:true,runtimeReadinessPassed:true,reviewedDefaults:3,newTables:0,newFunctions:0,permissionChanges:0,businessOperations:0,nominalRowsReturned:0,adoptionRows:0,noveltyRows:0,priorFingerprint:'a'.repeat(64),tableFingerprint:'b'.repeat(64)};
  assert.ok(durable({installed:p,durable:p,batch:b}).passed);
  for(const changes of [{runtimeReadinessPassed:false},{permissionChanges:1},{businessOperations:1},{nominalRowsReturned:1},{adoptionRows:1},{extra:true},{sourceCommit:'b'.repeat(40)}])assert.throws(()=>durable({installed:{...p,...changes},durable:{...p,...changes},batch:b}));
  assert.throws(()=>durable({installed:p,durable:{...p,priorFingerprint:'c'.repeat(64)},batch:b}));
