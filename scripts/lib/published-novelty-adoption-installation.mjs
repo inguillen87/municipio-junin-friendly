@@ -15,6 +15,15 @@ export function publishedAdoptionAtomicConditional(statements,condition){
  return conditional(statements,condition).replace(/^DO \$conditional\$/,'DO $published_adoption$').replace(/\$conditional\$$/,'$published_adoption$');
 }
 
+// One transaction still covers every stage. Give each existing preservation
+// scan its own statement deadline instead of accumulating all scans in one DO.
+export function publishedAdoptionStages({consumerStatements,baseFirst,baseUpgrade,baseStatements,baseVerification,operatorStatements,upgrades}){
+ const consumers=consumerStatements.flatMap(s=>s===baseFirst
+  ?baseStatements.slice(0,-1).map(v=>conditional([v],"current_setting('municontrol_adopted_consumers_install.mode')='first'"))
+  :s===baseUpgrade?baseVerification.slice(0,4).map(v=>conditional([v],"current_setting('municontrol_adopted_consumers_install.mode')='upgrade'")):[s]);
+ return [...consumers,...operatorStatements,...upgrades];
+}
+
 export function buildPublishedNoveltyAdoptionInstallation(options){
  const bulk=buildAdoptedOwnNoveltyInstallation(options),originalOperator=bulk.operator,c=originalOperator.consumers,n=bulk.novelty;
  const former=c.beforePins.find(p=>p.name==='own_run_capture_v1');
@@ -69,8 +78,8 @@ export function buildPublishedNoveltyAdoptionInstallation(options){
  ELSE RAISE EXCEPTION 'PUBLISHED_ADOPTION_PARTIAL_STATE';END IF;END $state$`;
  const finalChecks=[...bulk.consumerChecks,pinsCheck(bulk.finalPins,'PUBLISHED_ADOPTION_AFTER_METADATA'),bulk.runtimeObjects,c.verification.at(-4)];
  const initial=`current_setting('${prefix}mode')='first'`;
- const stages=[...consumerStatements,...operatorStatements,...upgrades];
- const apply=publishedAdoptionAtomicConditional(stages,initial);
+ const stages=publishedAdoptionStages({consumerStatements,baseFirst:c.baseFirst,baseUpgrade:c.baseUpgrade,baseStatements:c.base.statements,baseVerification:c.base.verification,operatorStatements,upgrades});
+ const apply=stages.map(s=>publishedAdoptionAtomicConditional([s],initial));
  const check=conditional(initialChecks,initial);
  const preflightChecks=[...initialChecks,pinsCheck(c.base.priorPins,'PUBLISHED_ADOPTION_PREREQUISITE_METADATA'),c.base.guardBeforeCheck,c.initialCheckStatements[1]];
  const preflight=[state,conditional(preflightChecks,initial),conditional(finalChecks,`NOT(${initial})`),"SELECT jsonb_build_object('allChecksPassed',true,'businessOperations',0,'nominalRowsReturned',0) AS proof"];
@@ -82,7 +91,7 @@ export function buildPublishedNoveltyAdoptionInstallation(options){
  const objects=`jsonb_build_object('functions',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.oid) FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE ${functionCondition}),'adoptionTables',(${c.base.tableShapeSql}),'tableObjects',jsonb_build_object('tables',(SELECT jsonb_agg(to_jsonb(t) ORDER BY oid) FROM pg_class t WHERE oid IN ${tables}),'attributes',(SELECT jsonb_agg(to_jsonb(a) ORDER BY attrelid,attnum) FROM pg_attribute a WHERE attrelid IN ${tables}),'constraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY oid) FROM pg_constraint k WHERE conrelid IN ${tables}),'indexes',(SELECT jsonb_agg(to_jsonb(i) ORDER BY indexrelid) FROM pg_index i WHERE indrelid IN ${tables}),'triggers',(SELECT jsonb_agg(to_jsonb(t) ORDER BY oid) FROM pg_trigger t WHERE tgrelid IN ${tables})),'monthlyColumn',(SELECT to_jsonb(a) FROM pg_attribute a WHERE a.attrelid='public.payroll_novelty_row'::regclass AND a.attname='legajo_snapshot'),'monthlyConstraints',(SELECT jsonb_agg(to_jsonb(k) ORDER BY k.conname COLLATE "C") FROM pg_constraint k WHERE k.conrelid='public.payroll_novelty_row'::regclass AND k.conname IN('payroll_novelty_row_legajo_ck','payroll_novelty_row_legajo_snapshot_not_null')))`;
  const proof=`SELECT jsonb_build_object('version','published-novelty-adoption-installation.v1','sourceCommit',${q(options.sourceCommit)},'sourceHashes',${q(JSON.stringify(sourceHashes))}::jsonb,'allChecksPassed',true,'newTables',4,'newFunctions',57,'adaptedFunctions',21,'roleAssignmentsAdded',0,'businessOperations',0,'nominalRowsReturned',0,'priorFingerprint',${fingerprint},'objectsFingerprint',encode(public.digest((${objects})::text,'sha256'),'hex'),'dataFingerprint',encode(public.digest(current_setting('${prefix}data')::jsonb::text,'sha256'),'hex'),'counts',current_setting('${prefix}data')::jsonb) AS proof`;
  return {version:'published-novelty-adoption-installation.v1',sourceCommit:options.sourceCommit,connects:false,executesSql:false,sourceHashes,bulk,consumers,operator,beforePins,initialChecks,consumerStatements,upgrades,state,before,after,audit,stages,apply,check,preflightChecks,preflight,finalChecks,dataProof,proof,
-  installation:[state,check,before,apply,...finalChecks,after,audit,dataProof,proof],
+  installation:[state,check,before,...apply,...finalChecks,after,audit,dataProof,proof],
   durableVerification:['SET TRANSACTION READ ONLY',state,...finalChecks,after,dataProof,proof]};
 }
 export function assertPublishedNoveltyAdoptionDurability({installed,durable,batch}){

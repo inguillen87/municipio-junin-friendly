@@ -8,11 +8,12 @@ test('published SQL130 requires a separate atomic upgrade; old standalone pins r
  assert.equal(b.beforePins.find(p=>p.name==='own_run_capture_v1').sha256,b.bulk.novelty.consumerPin.sha256);
  assert.ok(original.initialChecks.includes(original.beforePins.find(p=>p.name==='own_run_capture_v1').sha256));
  assert.ok(!original.initialChecks.includes(b.bulk.novelty.consumerPin.sha256));
- assert.equal(b.installation.filter(s=>s===b.apply).length,1);
- assert.ok(b.apply.includes('CREATE OR REPLACE FUNCTION public.own_novelty_bootstrap_v1'));
- assert.ok(b.apply.includes('native_batches:=public.own_novelty_sources_v1'));
- assert.ok(!b.apply.includes('CREATE TABLE public.own_payroll_novelty_event'));
- assert.ok(!b.apply.includes('DROP TABLE'));
+ const application=b.apply.join('\n');
+ assert.deepEqual(b.installation.slice(3,3+b.apply.length),b.apply);
+ assert.ok(application.includes('CREATE OR REPLACE FUNCTION public.own_novelty_bootstrap_v1'));
+ assert.ok(application.includes('native_batches:=public.own_novelty_sources_v1'));
+ assert.ok(!application.includes('CREATE TABLE public.own_payroll_novelty_event'));
+ assert.ok(!application.includes('DROP TABLE'));
  // Existing immutable-table triggers explicitly forbid TRUNCATE. Check the
  // executed statements, rather than mistaking their guard declarations for DML.
  assert.ok(b.stages.every(s=>!/^\s*(?:DROP|TRUNCATE|INSERT|UPDATE|DELETE)\b/i.test(s)));
@@ -38,7 +39,19 @@ test('review binds both existing databases and verifies durability read-only',()
  const b=preparePublishedNoveltyAdoptionInstallation(options);
  assert.deepEqual(b.targets.map(t=>t.major),[17,18]);assert.equal(b.targets.length,2);
  for(const t of b.targets){assert.ok(t.installation.some(s=>[t.projectId,t.branchId,t.endpointId,t.database,t.role].every(v=>s.includes(v))));assert.equal(t.installation.at(-1),b.proof);assert.equal(t.durableVerification[0],'SET TRANSACTION READ ONLY');assert.equal(t.durableVerification.filter(s=>s==='SET TRANSACTION READ ONLY').length,1);}
- assert.ok(b.apply.startsWith('DO $published_adoption$'));assert.ok(b.apply.endsWith('$published_adoption$'));assert.ok(b.apply.includes('DO $conditional$'));
+ for(const s of b.apply){assert.ok(s.startsWith('DO $published_adoption$'));assert.ok(s.endsWith('$published_adoption$'));}
+ assert.ok(b.apply.some(s=>s.includes('DO $conditional$')));
+});
+
+test('every preservation scan has a separate deadline while the full installation remains one transaction',()=>{
+ const b=preparePublishedNoveltyAdoptionInstallation(options),c=b.consumers;
+ // Keep both complete base snapshots and their conservation audit. Previously
+ // they were nested together in baseFirst, itself inside a single outer DO.
+ for(const s of c.base.statements.slice(0,-1))assert.ok(b.stages.some(v=>v.includes(s.replaceAll("'","''"))));
+ for(const scan of [c.before,c.after,b.operator.before,b.operator.after])assert.ok(b.stages.includes(scan));
+ assert.ok(b.stages.includes(c.priorAudit));assert.ok(b.stages.includes(b.operator.audit));
+ for(const s of b.apply)assert.ok((s.match(/DO \$snapshot\$/g)??[]).length<=1);
+ for(const t of b.targets){assert.ok(t.installation.includes("SET LOCAL statement_timeout='45s'"));assert.ok(t.installation.includes('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'));assert.ok(t.installation.every(s=>!/^\s*(?:BEGIN|COMMIT|ROLLBACK)\b/i.test(s)));}
 });
 test('durability compares complete aggregate proof and rejects broadened effects',()=>{
  const b=build(options),counts=Object.fromEntries(['employment_adoption_application','employment_adoption_decision','employment_adoption_proposal','employment_adoption_seal'].map(k=>[k,{count:0,hash:'a'.repeat(64)}]));
