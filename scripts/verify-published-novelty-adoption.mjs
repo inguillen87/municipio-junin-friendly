@@ -25,6 +25,7 @@ export async function verifyPublishedNoveltyAdoption({major,sourceCommit,output,
  const api=async(kind,query,body,key=randomUUID(),expected=200)=>{const url='/api/qa-'+kind+(query?'?'+new URLSearchParams(query):''),res={setHeader(){},status(v){this.statusCode=v;return this;},json(v){this.value=v;return this;}};await handlers[kind]({method:body?'POST':'GET',url,query:query??{},headers:body?{origin:env.INTERNAL_APP_ORIGIN,'sec-fetch-site':'same-origin','content-type':'application/json','idempotency-key':key}:{},...(body?{body:JSON.stringify({operation:kind==='run'?'calculate':'command',payload:body})}:{})},res);assert.equal(res.statusCode,expected,JSON.stringify(res.value));assert.equal(res.value.ok,true);return res.value.data;};
  try{
   run(qa.sql);seeded=true;
+  run(tx([`CREATE TABLE ${qa.schema}.preservation_sentinel(value text NOT NULL)`,`INSERT INTO ${qa.schema}.preservation_sentinel VALUES('original')`]));
   run(tx(batch.bulk.novelty.installation.map(qa.normalized)));ok(true,'exact published SQL130 installs before adoption in the synthetic database');
   const boot=await api('novelty',{resource:'bootstrap'}),subject=boot.subjects.find(s=>s.legajo==='19041');assert.ok(subject);
   const period=await db.run("SELECT to_jsonb(greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
@@ -39,6 +40,7 @@ export async function verifyPublishedNoveltyAdoption({major,sourceCommit,output,
   run(tx([...b.installation,"DO $$ BEGIN RAISE EXCEPTION 'QA_ATOMIC_UPGRADE_FAULT';END $$"]),'QA_ATOMIC_UPGRADE_FAULT');assert.deepEqual(proof(),before);ok(true,'late failure rolls back all new objects, body changes and pre-existing rows');
   const firstWrite=b.installation.findIndex(s=>s.includes('CREATE TABLE'));
   assert.ok(firstWrite>0);run(tx([...b.installation.slice(0,firstWrite+1),"DO $$ BEGIN RAISE EXCEPTION 'QA_SPLIT_STAGE_FAULT';END $$"]),'QA_SPLIT_STAGE_FAULT');assert.deepEqual(proof(),before);ok(true,'failure between separate stages still rolls back the same complete transaction');
+  run(tx([...b.installation.slice(0,firstWrite+1),`UPDATE ${qa.schema}.preservation_sentinel SET value='unexpected'`,...b.installation.slice(firstWrite+1)]),'PUBLISHED_ADOPTION_PRIOR_STATE_CHANGED');assert.deepEqual(proof(),before);ok(true,'full final row comparison rejects prior-row changes even when inner stages reuse row fingerprints');
   const installed=JSON.parse(run(tx(["SET LOCAL statement_timeout='45s'",...b.installation]))),durable=JSON.parse(run(tx(["SET LOCAL statement_timeout='45s'",...b.durableVerification])));assertPublishedNoveltyAdoptionDurability({installed,durable,batch});
   fs.writeFileSync(path.join(destination,'installation-proof.json'),JSON.stringify({installed,durable},null,2),{flag:'wx'});ok(true,'atomic upgrade commits and is independently durable without losing existing novelty rows');
   const after=proof();assert.deepEqual(JSON.parse(run(tx(b.installation))),installed);assert.deepEqual(proof(),after);ok(true,'whole upgraded installation repeats without changes');

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {buildPublishedNoveltyAdoptionInstallation as build,assertPublishedNoveltyAdoptionDurability as durable} from '../scripts/lib/published-novelty-adoption-installation.mjs';
+import {buildPublishedNoveltyAdoptionInstallation as build,assertPublishedNoveltyAdoptionDurability as durable,publishedAdoptionCachedRows} from '../scripts/lib/published-novelty-adoption-installation.mjs';
 import {preparePublishedNoveltyAdoptionInstallation} from '../scripts/prepare-published-novelty-adoption-installation.mjs';
 const options={read:p=>fs.readFileSync(p,'utf8'),sourceCommit:'4ccde11e8c98bc8942f76dfb04e0a1f25ef2ec73'};
 test('published SQL130 requires a separate atomic upgrade; old standalone pins remain strict',()=>{
@@ -47,11 +47,20 @@ test('every preservation scan has a separate deadline while the full installatio
  const b=preparePublishedNoveltyAdoptionInstallation(options),c=b.consumers;
  // Keep both complete base snapshots and their conservation audit. Previously
  // they were nested together in baseFirst, itself inside a single outer DO.
- for(const s of c.base.statements.slice(0,-1))assert.ok(b.stages.some(v=>v.includes(s.replaceAll("'","''"))));
- for(const scan of [c.before,c.after,b.operator.before,b.operator.after])assert.ok(b.stages.includes(scan));
+ for(const s of c.base.statements.slice(0,-1))assert.ok(b.stages.some(v=>v.includes(publishedAdoptionCachedRows(s).replaceAll("'","''"))));
+ for(const scan of [c.before,c.after,b.operator.before,b.operator.after])assert.ok(b.stages.includes(publishedAdoptionCachedRows(scan)));
  assert.ok(b.stages.includes(c.priorAudit));assert.ok(b.stages.includes(b.operator.audit));
  for(const s of b.apply)assert.ok((s.match(/DO \$snapshot\$/g)??[]).length<=1);
  for(const t of b.targets){assert.ok(t.installation.includes("SET LOCAL statement_timeout='45s'"));assert.ok(t.installation.includes('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'));assert.ok(t.installation.every(s=>!/^\s*(?:BEGIN|COMMIT|ROLLBACK)\b/i.test(s)));}
+});
+
+test('only inner row scans are reused; whole-transaction snapshots and all stage metadata remain freshly read',()=>{
+ const b=build(options),inner=publishedAdoptionCachedRows(b.consumers.before);
+ assert.ok(!b.before.includes('IF NOT FOUND THEN'));assert.ok(!b.after.includes('IF NOT FOUND THEN'));
+ assert.ok(b.before.includes('FROM %I.%I r) hashed'));assert.ok(b.after.includes('FROM %I.%I r) hashed'));
+ assert.ok(inner.includes("WHERE (value->>'oid')::oid=c.oid"));assert.ok(inner.includes('IF NOT FOUND THEN'));
+ assert.ok(inner.includes('FROM %I.%I r) hashed'));assert.equal(inner.slice(inner.indexOf('  SELECT jsonb_build_object')),b.consumers.before.slice(b.consumers.before.indexOf('  SELECT jsonb_build_object')));
+ assert.ok(b.audit.includes("old-'triggers' IS DISTINCT FROM new-'triggers'"));
 });
 test('durability compares complete aggregate proof and rejects broadened effects',()=>{
  const b=build(options),counts=Object.fromEntries(['employment_adoption_application','employment_adoption_decision','employment_adoption_proposal','employment_adoption_seal'].map(k=>[k,{count:0,hash:'a'.repeat(64)}]));

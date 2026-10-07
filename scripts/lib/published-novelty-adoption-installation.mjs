@@ -17,11 +17,25 @@ export function publishedAdoptionAtomicConditional(statements,condition){
 
 // One transaction still covers every stage. Give each existing preservation
 // scan its own statement deadline instead of accumulating all scans in one DO.
+export function publishedAdoptionCachedRows(sql){
+ if(!sql.startsWith('DO $snapshot$'))return sql;
+ const start=sql.indexOf('  EXECUTE format('),end=sql.indexOf(' INTO n,h;',start)+' INTO n,h;'.length;
+ assert.ok(start>0&&end>start,'PUBLISHED_ADOPTION_ROW_SCAN_CHANGED');
+ const scan=sql.slice(start,end);assert.ok(scan.includes('FROM %I.%I r) hashed'));
+ // The outer snapshots freshly hash ALL prior rows before and after the entire
+ // transaction. Inner stages reuse those row facts, while still independently
+ // reading all metadata, sequences, roles, ACLs and triggers at each boundary.
+ // New tables are absent from the outer cache and receive the original scan.
+ const cached=`  SELECT (value->>'rows')::bigint,value->>'rowsSha256' INTO n,h
+  FROM jsonb_array_elements(current_setting('municontrol_published_adoption.before')::jsonb->'tables') WHERE (value->>'oid')::oid=c.oid;
+  IF NOT FOUND THEN\n${scan}\n  END IF;`;
+ return once(sql,scan,cached);
+}
 export function publishedAdoptionStages({consumerStatements,baseFirst,baseUpgrade,baseStatements,baseVerification,operatorStatements,upgrades}){
  const consumers=consumerStatements.flatMap(s=>s===baseFirst
-  ?baseStatements.slice(0,-1).map(v=>conditional([v],"current_setting('municontrol_adopted_consumers_install.mode')='first'"))
-  :s===baseUpgrade?baseVerification.slice(0,4).map(v=>conditional([v],"current_setting('municontrol_adopted_consumers_install.mode')='upgrade'")):[s]);
- return [...consumers,...operatorStatements,...upgrades];
+  ?baseStatements.slice(0,-1).map(v=>conditional([publishedAdoptionCachedRows(v)],"current_setting('municontrol_adopted_consumers_install.mode')='first'"))
+  :s===baseUpgrade?baseVerification.slice(0,4).map(v=>conditional([publishedAdoptionCachedRows(v)],"current_setting('municontrol_adopted_consumers_install.mode')='upgrade'")):[publishedAdoptionCachedRows(s)]);
+ return [...consumers,...operatorStatements.map(publishedAdoptionCachedRows),...upgrades];
 }
 
 export function buildPublishedNoveltyAdoptionInstallation(options){
