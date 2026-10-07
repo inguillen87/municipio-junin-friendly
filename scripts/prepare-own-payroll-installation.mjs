@@ -11,7 +11,9 @@ export function ownInstallationDestination(t){return `DO $destination$ BEGIN
  OR(SELECT count(*) FROM public.platform_tenant t JOIN public.platform_tenant_source_binding b ON b.tenant_id=t.id WHERE t.slug='junin-mendoza' AND t.status='active' AND b.verified AND b.source_system='GRH' AND b.source_database='grh_junin' AND b.source_company_id=101)<>1
  OR NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='municontrol_actions_runtime_app' AND NOT rolsuper AND NOT rolbypassrls)
  OR has_schema_privilege('municontrol_actions_runtime_app','public','CREATE') OR EXISTS(SELECT 1 FROM pg_namespace n CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a WHERE n.nspname='public' AND a.grantee=0 AND a.privilege_type='CREATE') THEN RAISE EXCEPTION 'OWN_INSTALL_DESTINATION_MISMATCH';END IF;END $destination$`;}
-export const ownInstallationSettings=Object.freeze(['SET TRANSACTION ISOLATION LEVEL REPEATABLE READ','SET LOCAL search_path=public,pg_catalog,pg_temp',"SET LOCAL timezone='UTC'","SET LOCAL statement_timeout='45s'","SET LOCAL lock_timeout='2s'","SET LOCAL idle_in_transaction_session_timeout='60s'"]);
+// Match SECURITY DEFINER runtime resolution; public pgcrypto also exposes a
+// gen_random_uuid wrapper which must not shadow PostgreSQL's builtin default.
+export const ownInstallationSettings=Object.freeze(['SET TRANSACTION ISOLATION LEVEL REPEATABLE READ','SET LOCAL search_path=pg_catalog,public,pg_temp',"SET LOCAL timezone='UTC'","SET LOCAL statement_timeout='45s'","SET LOCAL lock_timeout='2s'","SET LOCAL idle_in_transaction_session_timeout='60s'"]);
 export function prepareOwnPayrollInstallation({read,sourceCommit}){
  const batch=buildOwnPayrollInstallation({read,sourceCommit});
  return {...batch,connects:false,executesSql:false,targets:OWN_RELEASE_TARGETS.map(t=>({...t,preflight:['SET TRANSACTION READ ONLY',...ownInstallationSettings,ownInstallationDestination(t),...batch.preflight],installation:[...ownInstallationSettings,ownInstallationDestination(t),...batch.installation],durableVerification:['SET TRANSACTION READ ONLY',...ownInstallationSettings,ownInstallationDestination(t),...batch.durableVerification]}))};
