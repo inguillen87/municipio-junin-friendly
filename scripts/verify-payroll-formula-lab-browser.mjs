@@ -6,6 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
+// Keep CI's bundled Chromium default. Local Windows QA can use the already
+// installed Chrome without installing or changing shared browser packages.
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === '--browser=chrome'), 'Unsupported browser QA option');
+const browserOptions = { headless: true, ...(process.argv[2] === '--browser=chrome' ? { channel: 'chrome' } : {}) };
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const screenshots = [];
 const downloads = [];
@@ -471,7 +476,7 @@ await new Promise((resolve, reject) => {
 });
 const address = server.address();
 const baseUrl = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch(browserOptions);
 
 async function requireCompletedResponse(response, label) {
   let timer;

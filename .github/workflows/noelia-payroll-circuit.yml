@@ -45,6 +45,8 @@ jobs:
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium
+      - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
+        run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
       - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
         run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci
       - name: Preserve synthetic evidence even when a check fails
@@ -58,4 +60,6 @@ jobs:
             verification/noelia-circuit-ci/*-browser.json
             verification/noelia-circuit-ci/browser-transport.json
             verification/noelia-circuit-ci/*.png
+            verification/published-adoption-ci/result.json
+            verification/published-adoption-ci/installation-proof.json
           retention-days: 7
