@@ -45,6 +45,8 @@ jobs:
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium
+      - name: Complete adoption declarations, mixed jurisdictions and immutable recovery
+        run: node scripts/verify-employment-adoption-preparation-browser.mjs --output-prefix=verification/adoption-jurisdictions-ci
       - name: Upgrade the published SQL130 baseline and preserve existing synthetic history
         run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
       - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
@@ -63,5 +65,7 @@ jobs:
             verification/published-adoption-ci/result.json
             verification/published-adoption-ci/installation-proof.json
             verification/published-adoption-ci/uuid-repair-proof.json
+            verification/adoption-jurisdictions-ci-*.json
+            verification/adoption-jurisdictions-ci-*.png
             verification/published-adoption-ci/uuid-three-defaults-proof.json
           retention-days: 7

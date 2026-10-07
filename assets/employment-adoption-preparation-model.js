@@ -8,8 +8,18 @@ const fail=()=>{throw new AdoptionInputError('CONTRACT_INVALID','No se pudo veri
 export async function adoptionSelectionVersion(review){const r=await verifiedAdoptionReview(review);return adoptionReviewHash(r.rows.map(({contractId,contractVersion})=>({contractId,contractVersion})));}
 export async function adoptionPreparationPayload(review,catalogVersion,jurisdictionCode,legalReference,reason){
  const r=await verifiedAdoptionReview(review);
- if(!['42','55'].includes(jurisdictionCode))throw new AdoptionInputError('INPUT_INVALID','Elegí expresamente la jurisdicción de los contratos que no la tienen declarada.');
- return adoptionProposalInput({sourceContextVersion:r.sourceContextVersion,selectionVersion:await adoptionSelectionVersion(r),catalogVersion,rows:r.rows.map(row=>({contractId:row.contractId,contractVersion:row.contractVersion,jurisdictionCode:row.jurisdictionCode??jurisdictionCode})),legalReference,reason});
+ let rows;
+ if(typeof jurisdictionCode==='string'){
+  if(!['42','55'].includes(jurisdictionCode))throw new AdoptionInputError('INPUT_INVALID','Elegí expresamente la jurisdicción de los contratos que no la tienen declarada.');
+  rows=r.rows.map(row=>({contractId:row.contractId,jurisdictionCode:row.jurisdictionCode??jurisdictionCode}));
+ }else{
+  // A declaration belongs to one complete review, including inactive contracts.
+  // Existing declarations remain immutable; search/pagination cannot supply a subset.
+  if(!exact(jurisdictionCode,['snapshot','rows'])||jurisdictionCode.snapshot!==r.snapshot||!Array.isArray(jurisdictionCode.rows)||jurisdictionCode.rows.length!==r.total)fail();
+  rows=jurisdictionCode.rows;
+  for(const [n,row]of rows.entries())if(!exact(row,['contractId','jurisdictionCode'])||row.contractId!==r.rows[n].contractId||!['42','55'].includes(row.jurisdictionCode)||r.rows[n].jurisdictionCode!==null&&row.jurisdictionCode!==r.rows[n].jurisdictionCode)fail();
+ }
+ return adoptionProposalInput({sourceContextVersion:r.sourceContextVersion,selectionVersion:await adoptionSelectionVersion(r),catalogVersion,rows:rows.map((row,n)=>({...row,contractVersion:r.rows[n].contractVersion})),legalReference,reason});
 }
 export async function adoptionPreparationReceipt(value,expected={}){
  if(!exact(expected,Object.keys(expected??{}))||Object.keys(expected).some(k=>!['key','body'].includes(k))||expected.key!==undefined&&!adoptionAttemptKey(expected.key))fail();
