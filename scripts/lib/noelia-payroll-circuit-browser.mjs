@@ -3,6 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import http from 'node:htt
 import {unzipSync} from 'fflate';
 import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.js';
 import {formatOwnRunDecimal} from '../../assets/own-payroll-run-workspace-model.js';
+import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 const root=path.resolve(import.meta.dirname,'../..');
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check}){
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
@@ -123,6 +124,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    check(await page.evaluate(()=>Object.keys(localStorage).every(k=>!/(novelty|novedad|receipt|recibo|own.?payroll|nominal)/i.test(k))),'own circuit does not persist its nominal views in localStorage');check(errors.length===0&&diagnostics.length===0,'actual built browser circuit has no page or transport exceptions');
    return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
-  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,close};
+  const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
+  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,close};
  }catch(e){await close();throw e;}
 }
