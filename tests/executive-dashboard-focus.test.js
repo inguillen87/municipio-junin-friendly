@@ -74,12 +74,11 @@ test('la cabecera pública ofrece ingreso y sólo muestra cierre tras verificar 
 
   assert.ok(topbar, 'falta la cabecera principal');
   assert.match(topbar[1], /href="internal-dashboard\.html#inicio">Portal interno<\/a>/);
-  assert.match(topbar[1], /<button class="logout" id="logout" type="button">Ingresar<\/button>/);
-  assert.ok(topbar[1].indexOf('Portal interno') < topbar[1].indexOf('Ingresar'));
-  assert.match(html, /authenticatedSession\?'Cerrar sesión':'Ingresar'/);
+  assert.match(topbar[1], /<button class="logout" id="logout" type="button" hidden>Cerrar sesión<\/button>/);
+  assert.match(html, /\$\('logout'\)\.hidden=!authenticatedSession/);
   assert.match(html, /payload&&payload\.authenticated===true/);
-  assert.match(html, /\.internal-entry\{min-height:34px;white-space:nowrap\}/);
-  assert.match(html, /\.top-actions \.internal-entry\{padding:7px 8px;font-size:9px\}/);
+  assert.match(html, /\.internal-entry\{min-height:44px;white-space:nowrap\}/);
+  assert.match(html, /\.top-actions \.internal-entry\{min-height:44px;padding:10px 14px;font-size:12px\}/);
   assert.doesNotMatch(html, /\$\('logout'\)\.textContent='Portal interno'/);
 });
 

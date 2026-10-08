@@ -72,12 +72,12 @@
     .workspace{background:#eef2f0}.topbar{height:70px;padding:0 30px;border-color:#d8dfdc;background:#fff;backdrop-filter:none;box-shadow:0 1px 0 rgba(28,47,56,.03)}
     .crumb{color:#718087;font-size:11px}.top-title{color:#183043;font-size:14px}
     .snapshot{border:1px solid #bfd8d2;background:#edf7f4;border-radius:4px;color:#186b65;font-size:10px}.snapshot i{background:#27877e;box-shadow:none}
-    .logout{border-color:#cdd6d2;background:#fff;color:#46565e;border-radius:4px;font-size:11px}.logout:hover{border-color:#7e8d94;color:#17242c;background:#f4f6f5}.internal-entry{min-height:34px;white-space:nowrap}
+    .logout{border-color:#cdd6d2;background:#fff;color:#46565e;border-radius:4px;font-size:12px;min-height:44px}.logout:hover{border-color:#7e8d94;color:#17242c;background:#f4f6f5}.internal-entry{min-height:44px;white-space:nowrap}
     .content{width:min(1440px,100%);padding:28px 30px 64px}.section{animation:enter .16s ease-out}
     .eyebrow{color:#28746f;font-size:9px;letter-spacing:.14em}
     h1,.section-head h1{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#142d3e;letter-spacing:-.035em}
     .hero{grid-template-columns:minmax(0,1fr) 255px;gap:28px;align-items:center;padding:26px 28px;border:0;background:#123447;border-radius:7px;box-shadow:none}
-    .hero:after{display:none}.hero h1{margin:5px 0 9px;color:#fff;font:760 clamp(28px,3vw,40px)/1.06 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.035em}.hero p{max-width:720px;color:#cfdae0;font-size:14px}
+    .hero:after{display:none}.hero h2{margin:5px 0 9px;color:#fff;font:760 clamp(25px,3vw,34px)/1.12 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.035em}.hero p{max-width:720px;color:#cfdae0;font-size:14px}
     .hero .eyebrow{color:#a9d9cf}.hero-aside{padding:8px 0 8px 25px;border-left:1px solid #416174}.hero-aside strong{margin:4px 0;font:760 24px/1.1 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}.hero-aside span{color:#b8c7ce;font-size:10px}
     .source-line{margin-top:14px}.tag{padding:4px 7px;border-radius:3px;font-size:8px;letter-spacing:.05em}.tag.real{color:#176b62;border-color:#b6d8cf;background:#edf7f4}.tag.derived{color:#365f85;border-color:#c6d3e0;background:#f0f4f8}.tag.unavailable{color:#83581d;border-color:#dfcca8;background:#fbf5e8}
     .kpis{gap:1px;margin:18px 0;background:#d8dfdc;border:1px solid #d8dfdc}.kpi{min-height:132px;padding:17px 18px;border:0;background:#fff;border-radius:0}.kpi:before{left:0;right:auto;top:0;bottom:0;width:3px;height:auto}.kpi-head{color:#64737b;font-size:10px}.kpi-value{margin:16px 0 5px;font:750 32px/1 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#173447}.kpi-detail{color:#718087;font-size:10px}
@@ -103,6 +103,13 @@
       .app{display:block}.sidebar{position:static;height:auto;padding:12px 12px 9px}.brand{padding:0 3px 11px;margin:0 0 9px}.brand-mark{width:35px;height:35px}.nav{display:flex;gap:5px;overflow-x:auto;padding:0 0 4px}.nav-group{display:contents}.nav-group-title{display:none}.nav button,.nav-product-link{display:grid;grid-template-columns:22px auto;min-width:max-content;padding:7px 9px}.nav-code{width:21px;height:21px}.side-foot{display:none}.topbar{position:sticky;top:0;padding:11px 14px}.top-actions{gap:6px;justify-content:flex-end}.top-actions .internal-entry{padding:7px 8px;font-size:9px}.content{padding:18px 14px 48px}.hero{grid-template-columns:1fr;padding:22px}.hero-aside{padding:16px 0 0;border-left:0;border-top:1px solid #416174}.directory-head,.executive-focus-head{display:block}.directory-head p,.executive-focus-head p{margin-top:6px}.module-grid{grid-template-columns:1fr 1fr}.module-card{min-height:178px}.module-empty-head{grid-template-columns:42px 1fr}.module-empty-head>.module-state{grid-column:2}.scope-grid,.report-links{grid-template-columns:1fr}.privacy-list{grid-template-columns:1fr}.top-actions .logout{font-size:0;width:34px;min-height:34px;padding-inline:5px}.top-actions .logout:after{content:"Salir";font-size:10px}
     }
     @media(max-width:480px){.module-grid,.executive-quick-actions{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.kpi{min-height:118px}.kpi-value{font-size:27px}.module-card{min-height:0}.snapshot{display:none}.executive-focus{padding:15px}}
+    .public-entry{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,320px);gap:28px;align-items:center;margin-bottom:24px;padding:30px;border:1px solid #bfd8d2;border-top:4px solid #167468;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(8,40,58,.06)}
+    .public-entry h1{margin:8px 0 12px;font-size:clamp(28px,3vw,38px);line-height:1.12;letter-spacing:-.03em}.public-entry p{margin:0;max-width:62ch;color:#465d6b;font-size:15px;line-height:1.6}.public-entry-actions{display:grid;gap:12px;text-align:center}
+    .public-entry-primary{display:flex;align-items:center;justify-content:center;gap:12px;min-height:58px;padding:16px 20px;border:2px solid #167468;border-radius:8px;background:#167468;color:#fff;text-decoration:none;font-size:16px;font-weight:800;line-height:1.3}.public-entry-primary:hover{background:#125e55;border-color:#125e55}.public-entry-primary:focus-visible,.public-indicators:focus-visible,.logout:focus-visible{outline:3px solid #153a4b;outline-offset:4px}
+    .public-entry-actions small{color:#526773;font-size:12px}.public-indicators{min-height:44px;padding:9px 12px;border:1px solid #b9c9cf;border-radius:6px;background:#fff;color:#153a4b;font-size:14px;font-weight:700;cursor:pointer}.public-indicators:hover{background:#edf5f3}.logout[hidden]{display:none}.top-actions .logout:after{content:none}
+    #inicio{scroll-margin-top:88px}#inicio:focus-visible{outline:3px solid #167468;outline-offset:5px}
+    @media(max-width:1180px){.public-entry{grid-template-columns:1fr}.public-entry-actions{max-width:380px;text-align:left}.public-indicators{text-align:center}}
+    @media(max-width:760px){.topbar{height:auto;flex-wrap:wrap;gap:10px}.top-actions{flex-wrap:wrap;justify-content:flex-start}.top-actions .internal-entry{min-height:44px;padding:10px 14px;font-size:12px}.top-actions .logout{width:auto;min-height:44px;padding:10px 12px;font-size:12px}.public-entry{gap:20px;padding:22px;margin-bottom:20px}.public-entry-actions{max-width:none}.public-entry-primary{font-size:16px}#inicio{scroll-margin-top:140px}}
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
@@ -145,10 +152,15 @@
     </aside>
 
     <div class="workspace">
-      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Plataforma de gestión</div><div class="top-title" id="pageTitle">Centro ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><a class="action primary internal-entry" href="internal-dashboard.html#inicio">Portal interno</a><button class="logout" id="logout" type="button">Ingresar</button></div></header>
-      <main class="content" id="main"><div class="loading" id="loading">Preparando el tablero verificado...</div><div id="dashboard" hidden>
-        <section class="section active" id="inicio">
-          <div class="hero"><div><div class="eyebrow">Centro ejecutivo</div><h1>Situación municipal al corte</h1><p>Vista consolidada del snapshot GRH. Los demás dominios permanecen visibles en el mapa de producto y se habilitan cuando existe una fuente municipal homologada.</p><div class="source-line"><span class="tag real">Fuente GRH</span><span class="tag derived">Indicador derivado</span><span class="tag unavailable">Fuente pendiente</span></div></div><div class="hero-aside"><div class="eyebrow">Corte de información</div><strong id="heroCutoff">06 AGO 2026</strong><span>Fotografía controlada; no es una conexión en tiempo real.</span></div></div>
+      <header class="topbar"><div><div class="crumb">Municipalidad de Junín · Vista de consulta</div><div class="top-title" id="pageTitle">Centro ejecutivo</div></div><div class="top-actions"><div class="snapshot"><i></i><span id="snapshotLabel">Cargando fuente...</span></div><a class="action primary internal-entry" href="internal-dashboard.html#inicio">Portal interno</a><button class="logout" id="logout" type="button" hidden>Cerrar sesión</button></div></header>
+      <main class="content" id="main">
+        <section class="public-entry" aria-labelledby="publicEntryTitle">
+          <div><div class="eyebrow">Personal municipal</div><h1 id="publicEntryTitle">Entrá a tu espacio de trabajo</h1><p>Ingresá para consultar legajos, cargar novedades y acceder a las herramientas de tu área. Los indicadores municipales siguen disponibles más abajo.</p></div>
+          <div class="public-entry-actions"><a class="public-entry-primary" id="publicPortalEntry" href="internal-dashboard.html#inicio"><span>Ingresar al portal interno</span><span aria-hidden="true">→</span></a><small>Usá tu cuenta institucional.</small><button class="public-indicators" id="publicIndicatorsButton" type="button">Ver indicadores municipales</button></div>
+        </section>
+        <div class="loading" id="loading">Preparando el tablero verificado...</div><div id="dashboard" hidden>
+        <section class="section active" id="inicio" tabindex="-1" aria-labelledby="publicIndicatorsTitle">
+          <div class="hero"><div><div class="eyebrow">Indicadores · Vista de consulta</div><h2 id="publicIndicatorsTitle">Situación municipal al corte</h2><p>Vista consolidada del snapshot GRH. Los demás dominios permanecen visibles en el mapa de producto y se habilitan cuando existe una fuente municipal homologada.</p><div class="source-line"><span class="tag real">Fuente GRH</span><span class="tag derived">Indicador derivado</span><span class="tag unavailable">Fuente pendiente</span></div></div><div class="hero-aside"><div class="eyebrow">Corte de información</div><strong id="heroCutoff">06 AGO 2026</strong><span>Fotografía controlada; no es una conexión en tiempo real.</span></div></div>
           <div class="kpis">
             <article class="kpi" style="--tone:var(--lime)"><div class="kpi-head"><span>Personas activas</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiActive">—</div><div class="kpi-detail">Con fecha de egreso vacía al corte</div></article>
             <article class="kpi" style="--tone:var(--cyan)"><div class="kpi-head"><span>Legajos históricos</span><span class="tag real">Real</span></div><div class="kpi-value" id="kpiHistorical">—</div><div class="kpi-detail">Clave legajo sin duplicados</div></article>
@@ -402,7 +414,8 @@
           const response=await fetch('/api/internal-auth',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Cache-Control':'no-store'}});
           if(response.ok){const payload=await response.json();authenticatedSession=payload&&payload.authenticated===true;}
         }catch(_){authenticatedSession=false;}
-        $('logout').textContent=authenticatedSession?'Cerrar sesión':'Ingresar';
+        $('logout').hidden=!authenticatedSession;
+        $('publicPortalEntry').querySelector('span').textContent=authenticatedSession?'Continuar al portal interno':'Ingresar al portal interno';
       }
       async function logout(){
         if(!authenticatedSession){
@@ -421,6 +434,10 @@
         }
       }
       $('logout').addEventListener('click',logout);
+      $('publicIndicatorsButton').addEventListener('click',()=>{
+        if(!$('dashboard').hidden){openSection('inicio',false);$('inicio').focus({preventScroll:true});}
+        ($('dashboard').hidden?$('loading'):$('inicio')).scrollIntoView({block:'start'});
+      });
       syncSessionAction();
       window.addEventListener('hashchange',()=>openSection(location.hash.slice(1),false));
 
