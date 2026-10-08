@@ -249,6 +249,7 @@ local-agents/
 !scripts/extract_schooling_source.py
 !scripts/extract_rrhh_curated.py
 !tests/test_extract_schooling_source.py
+!tests/test_extract_rrhh_payroll_fields.py
 
 # Reviewed effective source SQL and synthetic offline build checks.
 !scripts/internal-schema.sql
