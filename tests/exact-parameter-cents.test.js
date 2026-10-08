@@ -25,6 +25,7 @@ test('el servidor bloquea pérdida de precisión antes de consultar SQL',async()
  await assert.rejects(writePayrollParameters({query:async()=>{calls++;}},principal,session,'prepare',{bindingId:id('d'),draft:draft('10001')},id('e')),e=>e.code==='PAYROLL_PARAMETER_PRECISION_LOSS'&&e.status===422);assert.equal(calls,0);
 });
 test('la instalación sólo adapta el cuerpo conocido y conserva permisos, filas y metadatos',()=>{
+ assert.match(fs.readFileSync('.vercelignore','utf8'),/^!scripts\/migrations\/041-governed-payroll-parameters\.sql$/m,'El build publicado necesita la fuente original para comprobar la adaptación');
  const batch=buildExactParameterCentsInstallation({read:p=>fs.readFileSync(p,'utf8'),sourceCommit:'a'.repeat(40)});
  assert.equal(batch.connects,false);assert.equal(batch.executesSql,false);assert.equal(batch.beforePin.signature,batch.afterPin.signature);assert.notEqual(batch.beforePin.sha256,batch.afterPin.sha256);
  assert.match(batch.changed,/exact_cent[\s\S]*PAYROLL_PARAMETER_PRECISION_LOSS/);assert.match(batch.conservation,/before[\s\S]*IS DISTINCT FROM[\s\S]*after/);

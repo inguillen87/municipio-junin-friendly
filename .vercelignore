@@ -151,6 +151,7 @@ api/whatsapp-voice.js
 api/whatsapp-webhook.js
 
 # Source-only schema contracts required by npm test during Vercel builds.
+!scripts/migrations/041-governed-payroll-parameters.sql
 !scripts/migrations/048-payroll-detail-source.sql
 !scripts/migrations/049-payroll-detail-private-delivery.sql
 !scripts/migrations/050-payroll-detail-tls-delivery.sql
