@@ -9,6 +9,11 @@ const draft=()=>({sourceMode:'individual',periodMonth:'2026-09-01',payrollType:'
 const batch=(mode='detail')=>({id:id(3),sourceMode:'individual',periodMonth:'2026-09-01',payrollType:'monthly',contractVersion:'payroll-novelty-batch.v2',status:'draft',version:1,rowCount:1,exportable:false,grhMutation:false,payrollCalculated:false,payrollPosted:false,...(['detail','bootstrap'].includes(mode)?{allowedCommands:['submit','cancel'],canExport:false}:{}),rows:[{...input(),employmentContractId:id(1),subject:subject(),issues:[],...(mode!=='receipt'?{identityCurrent:true}:{})}]});
 const bootstrap=()=>({feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},limits:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only',maxRows:500,sourceModes:['individual','bulk'],payrollTypes:['monthly','first_fortnight','sac','vacation','supplementary','final','other'],native:{maxRows:1,sourceModes:['individual'],payrollTypes:['monthly']},grhMutation:false,payrollCalculated:false,payrollPosted:false},principal:{tenantId:id(4),membershipId:id(5),certifiedBindingId:id(6),capabilities:['payroll.novelty.read','payroll.novelty.nominal.read']},batches:[batch('bootstrap')]});
 
+test('installed capacity exposes 2000 while retaining the native individual boundary',()=>{
+ const value=bootstrap();value.limits.maxRows=2000;assert.equal(verifyMonthlyBootstrap(value),value);assert.equal(value.limits.native.maxRows,1);
+ for(const maxRows of [501,1999,2001,'2000']){const invalid=bootstrap();invalid.limits.maxRows=maxRows;assert.throws(()=>verifyMonthlyBootstrap(invalid));}
+});
+
 test('employee authority binds exact UUID, not a repeated legajo',()=>{
   const value=subject();assert.equal(assertNativeMonthlySubject(value),value);
   assert.equal(verifyMonthlyEmployee({version:'payroll-novelty-employee.v2',subject:value},id(1)),value);

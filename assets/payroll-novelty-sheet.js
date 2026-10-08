@@ -1,9 +1,10 @@
 import { analyzeLegajoList } from './payroll-novelty-legajo-list.js';
+import { NOVELTY_REVIEW_MAX_ROWS } from './payroll-novelty-review.js';
 import { emptySheetRow, appendSheetGroup, appendPreparteRows, sheetPage } from './payroll-novelty-sheet-model.js';
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
 const button = (text, id, cls = '') => { const n = el('button', text, 'button ' + cls); n.type = 'button'; if (id) n.id = id; return n; };
 const fields = [[2,'Centro de costo',20],[3,'Mes de ajuste',7],[6,'Movimiento',32],[7,'Instrumento legal',160],[8,'Observación / fundamento',500]];
-export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = null, maximumRows = () => 500 } = {}) {
+export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = null, maximumRows = () => NOVELTY_REVIEW_MAX_ROWS } = {}) {
   host.classList.add('novelty-sheet'); host.dataset.reviewOnly = 'true';
   let rows = [], page = 1, size = 10, locked = false, undo = null, boundPeriod = null;
   const pickedNames = new Map();
@@ -68,16 +69,16 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
     }
     empty.hidden=rows.length>0;wrap.hidden=nav.hidden=!rows.length;
     range.textContent=rows.length?`${view.offset+1}–${Math.min(view.offset+size,rows.length)} de ${rows.length} · Página ${page} de ${view.pages}`:'Sin filas';
-    add.disabled=group.disabled=find.disabled=locked||rows.length>=Math.min(500,maximumRows());clear.disabled=locked||(!rows.length&&!boundPeriod);restore.disabled=locked||!undo;
+    add.disabled=group.disabled=find.disabled=locked||rows.length>=Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows());clear.disabled=locked||(!rows.length&&!boundPeriod);restore.disabled=locked||!undo;
     previous.disabled=locked||page<=1;next.disabled=locked||page>=view.pages;pageSize.disabled=locked;
     if(focusIndex!==null)host.querySelector(`[data-sheet-index="${focusIndex}"][data-sheet-field="0"]`)?.focus();
   }
-  add.addEventListener('click',()=>{if(locked||rows.length>=500)return;rows.push(emptySheetRow());undo=null;page=Math.ceil(rows.length/size);notify('Fila agregada. Completá legajo, concepto y unidades o importe.');render(rows.length-1);});
+  add.addEventListener('click',()=>{if(locked||rows.length>=NOVELTY_REVIEW_MAX_ROWS)return;rows.push(emptySheetRow());undo=null;page=Math.ceil(rows.length/size);notify('Fila agregada. Completá legajo, concepto y unidades o importe.');render(rows.length-1);});
   find.addEventListener('click',()=>{
     if(locked||!pickEmployees)return;
     const captured=rows;
-    pickEmployees({multiple:true,maximum:Math.min(500,maximumRows())-rows.length,excluded:rows.map(r=>r[0]),onUse:items=>{
-      if(locked||rows!==captured||rows.length+items.length>Math.min(500,maximumRows()))throw Error('La planilla cambió. Volvé a consultar.');
+    pickEmployees({multiple:true,maximum:Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows())-rows.length,excluded:rows.map(r=>r[0]),onUse:items=>{
+      if(locked||rows!==captured||rows.length+items.length>Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows()))throw Error('La planilla cambió. Volvé a consultar.');
       const first=rows.length;
       for(const item of items){const row=emptySheetRow();row[0]=item.legajo;rows.push(row);pickedNames.set(item.legajo,item.nombre||'Nombre no informado');}
       undo=null;page=Math.floor(first/size)+1;notify(items.length+' legajos agregados. Completá los conceptos y unidades de cada fila.');render(first);
@@ -88,10 +89,10 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
     if(locked||!pickEmployees)return;
     try{
       const initial=$('sheetGroupLegajos').value;
-      const analysis=analyzeLegajoList(initial,rows.map(r=>r[0]),Math.min(500,maximumRows()));
+      const analysis=analyzeLegajoList(initial,rows.map(r=>r[0]),Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows()));
       if(analysis.issues.length)throw Error('Corregí primero la lista escrita.');
       const pending=initial.trim().split(/[\s,;]+/).filter(Boolean);
-      pickEmployees({multiple:true,maximum:Math.min(500,maximumRows())-rows.length-pending.length,excluded:[...rows.map(r=>r[0]),...pending],onUse:items=>{
+      pickEmployees({multiple:true,maximum:Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows())-rows.length-pending.length,excluded:[...rows.map(r=>r[0]),...pending],onUse:items=>{
         if(locked||!dialog.open||$('sheetGroupLegajos').value!==initial)throw Error('El grupo cambió. Volvé a consultar.');
         $('sheetGroupLegajos').value=[...pending,...items.map(r=>r.legajo)].join('\n');
         for(const item of items)pickedNames.set(item.legajo,item.nombre||'Nombre no informado');
@@ -105,7 +106,7 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
   $('sheetGroupCancel').addEventListener('click',()=>dialog.close());
   dialog.querySelector('form').addEventListener('submit',event=>{event.preventDefault();if(locked)return;try{const first=rows.length;const updated=appendSheetGroup(rows,{legajos:$('sheetGroupLegajos').value,concepto:$('sheetGroupConcept').value,unidades:$('sheetGroupQuantity').value});rows=updated;undo=null;page=Math.floor(first/size)+1;dialog.close();notify(`${rows.length-first} legajos agregados. Revisá las unidades de cada fila.`);render(first);}catch(error){$('sheetGroupError').textContent=error.message;$('sheetGroupError').hidden=false;}});
   clear.addEventListener('click',()=>{if(locked||(!rows.length&&!boundPeriod)||!window.confirm('¿Vaciar las '+rows.length+' filas de esta planilla sin guardar? Los lotes del servidor no se modifican.'))return;rows=[];boundPeriod=null;pickedNames.clear();undo=null;page=1;notify('Planilla vaciada.');render();add.focus();});
-  restore.addEventListener('click',()=>{if(locked||!undo||rows.length>=500)return;const item=undo;undo=null;rows.splice(item.index,0,item.row);page=Math.floor(item.index/size)+1;notify('Fila restaurada.');render(item.index);});
+  restore.addEventListener('click',()=>{if(locked||!undo||rows.length>=NOVELTY_REVIEW_MAX_ROWS)return;const item=undo;undo=null;rows.splice(item.index,0,item.row);page=Math.floor(item.index/size)+1;notify('Fila restaurada.');render(item.index);});
   previous.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});pageSize.addEventListener('change',()=>{size=Number(pageSize.value);page=1;render();});
   render();state.textContent='Sin filas. La planilla se conserva sólo en esta pestaña hasta crear el lote.';
   return {
@@ -114,7 +115,7 @@ export function mountNoveltySheet(host, { onChange = () => {}, pickEmployees = n
     appendPreparte(incoming,period){
       if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(period||'') || boundPeriod&&boundPeriod!==period)throw Error('El preparte pertenece a otro período.');
       if(locked)throw Error('La planilla está procesando otra operación.');
-      const next=appendPreparteRows(rows,incoming,Math.min(500,maximumRows()));
+      const next=appendPreparteRows(rows,incoming,Math.min(NOVELTY_REVIEW_MAX_ROWS,maximumRows()));
       boundPeriod=period;const first=rows.length;rows=next;undo=null;page=Math.floor(first/size)+1;
       notify(incoming.length+' filas del preparte agregadas sin reemplazar las anteriores.');render(first);
     },

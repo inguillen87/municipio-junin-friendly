@@ -1,6 +1,7 @@
 /** Pure preparation helpers. No employee lookup, inferred identity or payroll mutation. */
-export const LEGAJO_LIST_MAX_ROWS = 500;
-export const LEGAJO_LIST_MAX_CHARS = 12000;
+import {MONTHLY_BATCH_MAX_ROWS} from './payroll-native-monthly-model.js';
+export const LEGAJO_LIST_MAX_ROWS = MONTHLY_BATCH_MAX_ROWS;
+export const LEGAJO_LIST_MAX_CHARS = MONTHLY_BATCH_MAX_ROWS * 24;
 const canonicalLegajo = /^(?:0|[1-9]\d{0,19})$/;
 
 /** Analyze the complete input. Invalid/repeated items are never silently discarded. */
