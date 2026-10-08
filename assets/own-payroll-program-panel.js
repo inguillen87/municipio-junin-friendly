@@ -1,6 +1,6 @@
 import {ownProgramBootstrap,ownProgramRuleKey,OWN_PROGRAM_MAX_BYTES} from './own-payroll-program-model.js';
 import {salarySerialized} from './native-salary-catalog-model.js';
-import {prepareProgramCopy,applyProgramCopy} from './own-payroll-program-copy-model.js';
+import {prepareProgramCopy,prepareProgramCopies,applyProgramCopy} from './own-payroll-program-copy-model.js';
 import {OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 import {PROGRAM_READ,PROGRAM_UNITS,PROGRAM_SOURCES,PROGRAM_ROUNDING,PROGRAM_OPERATIONS,PROGRAM_COMPARE,programWorkspaceAccess,programWorkspaceAttempt,verifiedProgramWorkspaceReceipt,prepareProgramWorkspace,decideProgramWorkspace,expressionChildren,expressionSize,changeExpressionOperation,describeProgramExpression,programWorkspaceChanges} from './own-payroll-program-workspace-model.js';
 
@@ -20,12 +20,15 @@ export function mountOwnPayrollProgram(container){
  <div data-program-content hidden><p data-program-current></p><details><summary>Consultar conceptos y valores aprobados</summary><div data-program-catalog></div></details><div class="own-program-tabs" role="group" aria-label="Tarea de reglas"><button type="button" data-program-edit-tab>Preparar reglas</button><button type="button" data-program-review-tab>Revisar propuestas</button></div>
  <form data-program-form><fieldset data-program-fields><legend>1. Preparar el programa completo</legend><p>Las reglas anteriores se conservan. Cada cambio requiere vigencia, fuentes, redondeo y respaldo expresos.</p>
  <label>Decimales de los totales<select data-program-precision><option value="">Elegir precisión</option>${Array.from({length:9},(_,i)=>`<option value="${i}">${i}</option>`).join('')}</select></label>
- <details data-program-copy><summary>Copiar una fórmula a varios convenios</summary><p>Elegí una regla propia y los destinos. La copia conserva fórmula, unidades, tipos y redondeo; cada destino necesita sus definiciones y dependencias compatibles.</p>
- <label>Regla de origen<select data-program-copy-source></select></label><fieldset data-program-copy-targets><legend>Convenios de destino</legend></fieldset>
+ <details data-program-copy><summary>Copiar fórmulas a varios convenios</summary><p>Elegí reglas propias y destinos. La copia conserva fórmula, unidades, tipos y redondeo; cada destino necesita sus definiciones y dependencias compatibles.</p>
+ <label class="own-program-check"><input type="checkbox" data-program-copy-multiple>Seleccionar varias fórmulas para una actualización conjunta</label>
+ <label data-program-copy-single>Regla de origen<select data-program-copy-source></select></label>
+ <section data-program-copy-sources-panel hidden><label>Buscar concepto, convenio o vigencia<input type="search" data-program-copy-search></label><p data-program-copy-selection role="status" aria-live="polite"></p><div class="own-program-actions"><button type="button" data-program-copy-select-filtered>Seleccionar todas las coincidencias</button><button type="button" data-program-copy-clear-selection>Limpiar selección</button></div><fieldset data-program-copy-sources><legend>Fórmulas de origen</legend></fieldset><nav class="own-program-actions" aria-label="Páginas de fórmulas de origen"><button type="button" data-program-copy-prev>Anterior</button><span data-program-copy-page></span><button type="button" data-program-copy-next>Siguiente</button></nav></section>
+ <fieldset data-program-copy-targets><legend>Convenios de destino</legend></fieldset>
  <div class="own-program-grid"><label>Desde el período<input type="month" data-program-copy-from></label><label>Hasta el período (vacío: sin término)<input type="month" data-program-copy-until></label></div>
  <label>Tratamiento de las reglas anteriores<select data-program-copy-mode><option value="">Elegir…</option><option value="add">Agregar donde no hay una regla superpuesta</option><option value="replace">Cerrar la regla anterior y crear una nueva vigencia</option></select></label>
  <label>Respaldo explícito para los destinos<input type="text" maxlength="180" data-program-copy-reference></label><button type="button" data-program-copy-preview>Revisar copia completa</button>
- <section data-program-copy-review hidden><h3>Comparación completa de la copia</h3><div data-program-copy-comparison></div><label class="own-program-check"><input type="checkbox" data-program-copy-confirm>Revisé todos los destinos, fuentes y cierres de vigencia.</label><button type="button" data-program-copy-apply>Aplicar al borrador completo</button></section><p>Aplicar conserva el trabajo en esta pantalla. Después revisá y registrá la propuesta completa para que otra persona la decida.</p></details>
+ <section data-program-copy-review hidden><h3>Comparación completa de la copia</h3><p data-program-copy-summary></p><div data-program-copy-comparison></div><label class="own-program-check"><input type="checkbox" data-program-copy-confirm>Revisé todas las fórmulas, destinos, fuentes y cierres de vigencia.</label><button type="button" data-program-copy-apply>Aplicar al borrador completo</button></section><p>Aplicar conserva el trabajo en esta pantalla. Después revisá y registrá la propuesta completa para que otra persona la decida.</p></details>
  <div class="own-program-actions"><button type="button" data-program-add-rule>Agregar regla</button><button type="button" data-program-add-binding>Agregar entrada</button></div>
  <label>Regla para editar<select data-program-rule-select></select></label><div data-program-rule-editor></div>
  <label>Entrada para editar<select data-program-binding-select></select></label><div data-program-binding-editor></div>
@@ -38,6 +41,7 @@ export function mountOwnPayrollProgram(container){
  <div class="own-program-actions"><button type="button" data-program-send hidden>Registrar propuesta</button><button type="button" data-program-recover hidden>Consultar el mismo intento</button><button type="button" data-program-new hidden>Nueva preparación</button><button type="button" data-program-revise hidden>Revisar intento no registrado</button></div><p data-program-receipt hidden></p>`;
  container.append(host);const $=key=>host.querySelector('[data-program-'+key+']');
  let active=false,stopped=false,busy=false,seq=0,controller=null,access=null,boot=null,draft=null,prepared=null,attempt=null,receipt=null,notFound=false,tab='edit',ruleIndex=0,bindingIndex=0,historicalRules=new WeakSet(),copyPlan=null;
+ const copySelection=new Set();let copySourcePage=1;
  const live=()=>active&&!stopped&&!document.hidden&&host.isConnected;
  const can=required=>live()&&required.every(c=>access?.caps.has(c));
  const status=(message,state='neutral')=>{$('status').textContent=message;$('status').dataset.state=state;};
@@ -56,10 +60,11 @@ export function mountOwnPayrollProgram(container){
   $('copy-apply').disabled=busy||!!attempt||!copyPlan||!$('copy-confirm').checked||!can(capsFor('propose'))||!boot?.permissions.canPropose;
   host.setAttribute('aria-busy',String(busy));
  }
- function clearCopy(){copyPlan=null;$('copy-confirm').checked=false;$('copy-review').hidden=true;$('copy-comparison').replaceChildren();}
+ function clearCopy(){copyPlan=null;$('copy-confirm').checked=false;$('copy-review').hidden=true;$('copy-summary').textContent='';$('copy-comparison').replaceChildren();}
  function invalidate(){if(attempt)return;clearCopy();prepared=null;$('confirm').checked=false;$('impact').hidden=true;$('impact-table').replaceChildren();$('send-box').hidden=true;controls();}
  function clearViews(){
   clearCopy();$('copy').open=false;for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).value='';$('copy-source').replaceChildren();$('copy-targets').replaceChildren(node('legend','Convenios de destino'));
+  copySelection.clear();copySourcePage=1;$('copy-multiple').checked=false;$('copy-search').value='';$('copy-single').hidden=false;$('copy-sources-panel').hidden=true;$('copy-sources').replaceChildren();$('copy-selection').textContent='';$('copy-page').textContent='';
   boot=null;draft=null;historicalRules=new WeakSet();prepared=null;receipt=null;notFound=false;$('content').hidden=true;$('receipt').hidden=true;$('receipt').textContent='';$('current').textContent='';
   for(const key of ['rule-editor','binding-editor','impact-table','proposal-detail','rule-select','binding-select','proposal-select','catalog'])$(key).replaceChildren();
   for(const key of ['reason','decision-reason','decision','precision'])$(key).value='';$('confirm').checked=false;$('impact').hidden=true;$('send-box').hidden=true;
@@ -129,15 +134,32 @@ export function mountOwnPayrollProgram(container){
   const selected=$('copy-source').value;
   $('copy-source').replaceChildren(new Option('Elegir regla…',''),...draft.rules.map(r=>new Option(`Concepto ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`,ownProgramRuleKey(r))));
   if(draft.rules.some(r=>ownProgramRuleKey(r)===selected))$('copy-source').value=selected;
+  renderCopySources();
   renderCopyTargets();
+ }
+ function copyFilteredSources(){const query=$('copy-search').value.trim().toLocaleLowerCase('es');return (draft?.rules??[]).filter(r=>`Concepto ${r.code} convenio ${r.agreementCode} ${r.validFrom} ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(' ')}`.toLocaleLowerCase('es').includes(query));}
+ function copySelectionStatus(rows=copyFilteredSources()){
+  const keys=new Set((draft?.rules??[]).map(ownProgramRuleKey)),missing=[...copySelection].filter(key=>!keys.has(key)).length;
+  $('copy-selection').textContent=`${copySelection.size} fórmulas seleccionadas en todo el programa · ${rows.length} coincidencias${missing?` · ${missing} cambiaron: limpiá y revisá la selección`:''}. La búsqueda y la página no reducen la copia.`;
+ }
+ function renderCopySources(){
+  const multiple=$('copy-multiple').checked;$('copy-single').hidden=multiple;$('copy-sources-panel').hidden=!multiple;
+  const rows=copyFilteredSources(),pages=Math.max(1,Math.ceil(rows.length/25));copySourcePage=Math.max(1,Math.min(copySourcePage,pages));
+  copySelectionStatus(rows);
+  $('copy-page').textContent=`Página ${copySourcePage} de ${pages}`;$('copy-prev').disabled=copySourcePage<=1;$('copy-next').disabled=copySourcePage>=pages;
+  $('copy-sources').replaceChildren(node('legend','Fórmulas de origen'));
+  for(const r of rows.slice((copySourcePage-1)*25,copySourcePage*25)){
+   const key=ownProgramRuleKey(r),label=node('label',`Concepto ${r.code||'por definir'} · convenio ${r.agreementCode||'por definir'} · ${r.validFrom||'vigencia pendiente'} · ${r.liquidationTypes.map(t=>OWN_RUN_TYPES[t]).join(', ')}`),input=node('input');input.type='checkbox';input.value=key;input.dataset.programCopyRule=key;input.checked=copySelection.has(key);label.className='own-program-check';label.prepend(input);
+   input.addEventListener('change',()=>{if(attempt||busy)return;if(input.checked)copySelection.add(key);else copySelection.delete(key);invalidate();copySelectionStatus();renderCopyTargets();});$('copy-sources').append(label);
+  }
  }
  function renderCopyTargets(){
   const selected=new Set([...$('copy-targets').querySelectorAll('input:checked')].map(i=>i.value));
-  const source=draft?.rules.find(r=>ownProgramRuleKey(r)===$('copy-source').value);
+  const sources=draft?.rules.filter(r=>$('copy-multiple').checked?copySelection.has(ownProgramRuleKey(r)):ownProgramRuleKey(r)===$('copy-source').value)??[],origins=new Set(sources.map(r=>r.agreementCode));
   $('copy-targets').replaceChildren(node('legend','Convenios de destino'));
   for(const agreement of [...new Set(boot?.salaryCatalog.items.filter(i=>i.active&&i.kind==='concept').map(i=>i.agreementCode)??[])].sort()){
-   if(agreement===source?.agreementCode)continue;
-   const label=node('label',`Convenio ${agreement}`),input=node('input');input.type='checkbox';input.value=agreement;input.dataset.programCopyTarget=agreement;input.checked=selected.has(agreement);input.addEventListener('change',invalidate);label.className='own-program-check';label.prepend(input);$('copy-targets').append(label);
+   if(origins.has(agreement)&&!selected.has(agreement))continue;
+   const label=node('label',`Convenio ${agreement}${origins.has(agreement)?' · también es origen: retiralo de los destinos o revisá las fórmulas elegidas':''}`),input=node('input');input.type='checkbox';input.value=agreement;input.dataset.programCopyTarget=agreement;input.checked=selected.has(agreement);input.addEventListener('change',invalidate);label.className='own-program-check';label.prepend(input);$('copy-targets').append(label);
   }
  }
  function renderRule(){
@@ -219,6 +241,11 @@ export function mountOwnPayrollProgram(container){
  });}
  $('prepare').addEventListener('click',()=>{if(!draft||attempt||busy)return;try{const body=prepareProgramWorkspace(boot,draft,$('reason').value);comparison($('impact-table'),boot.program.definition,body.program);$('impact-summary').textContent='Revisá todas las reglas, entradas y vigencias antes de registrar la propuesta.';$('impact').hidden=false;showPrepared(body);}catch(e){invalidate();status(e.message,'warning');}});
  $('copy-source').addEventListener('change',()=>{invalidate();renderCopyTargets();});
+ $('copy-multiple').addEventListener('change',()=>{invalidate();renderCopySources();renderCopyTargets();});
+ $('copy-search').addEventListener('input',()=>{copySourcePage=1;renderCopySources();});
+ for(const [key,step] of [['copy-prev',-1],['copy-next',1]])$(key).addEventListener('click',()=>{copySourcePage+=step;renderCopySources();});
+ $('copy-select-filtered').addEventListener('click',()=>{if(attempt||busy)return;for(const r of copyFilteredSources())copySelection.add(ownProgramRuleKey(r));invalidate();renderCopySources();renderCopyTargets();});
+ $('copy-clear-selection').addEventListener('click',()=>{if(attempt||busy)return;copySelection.clear();invalidate();renderCopySources();renderCopyTargets();});
  for(const key of ['copy-from','copy-until','copy-mode','copy-reference'])$(key).addEventListener(key==='copy-reference'?'input':'change',invalidate);
  $('copy-confirm').addEventListener('change',controls);
  $('copy-preview').addEventListener('click',()=>{
@@ -226,7 +253,9 @@ export function mountOwnPayrollProgram(container){
   perform(async valid=>{invalidate();await session(capsFor('propose'));if(!valid())return;
    const latest=ownProgramBootstrap((await request(endpoint+'?resource=bootstrap')).data);if(!valid())return;
    if(latest.scopeVersion!==boot.scopeVersion||latest.program.version!==boot.program.version||latest.salaryCatalog.version!==boot.salaryCatalog.version)throw Error('Cambió el programa o el catálogo. Actualizá y revisá todas las fuentes.');
-   copyPlan=prepareProgramCopy(latest,draft,{sourceKey:$('copy-source').value,targets:[...$('copy-targets').querySelectorAll('input:checked')].map(i=>i.value),validFrom:$('copy-from').value,validUntil:$('copy-until').value||null,ruleReference:$('copy-reference').value,mode:$('copy-mode').value});
+   const multiple=$('copy-multiple').checked,intent={...(multiple?{sourceKeys:[...copySelection]}:{sourceKey:$('copy-source').value}),targets:[...$('copy-targets').querySelectorAll('input:checked')].map(i=>i.value),validFrom:$('copy-from').value,validUntil:$('copy-until').value||null,ruleReference:$('copy-reference').value,mode:$('copy-mode').value};
+   copyPlan=multiple?prepareProgramCopies(latest,draft,intent):prepareProgramCopy(latest,draft,intent);
+   const sourceCount=multiple?intent.sourceKeys.length:1;$('copy-summary').textContent=`${sourceCount} fórmulas de origen × ${intent.targets.length} convenios de destino: ${sourceCount*intent.targets.length} reglas nuevas. Se revisan también todas las reglas y fuentes anteriores.`;
    comparison($('copy-comparison'),draft,copyPlan.program);$('copy-review').hidden=false;status('Copia completa revisada contra las fuentes consultadas. Confirmá antes de aplicarla al borrador.');controls();
   });
  });

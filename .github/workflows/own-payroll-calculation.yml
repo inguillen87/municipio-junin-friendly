@@ -107,6 +107,10 @@ jobs:
         env:
           PGPASSWORD: own-payroll-synthetic-qa
         run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --reference-scales --major=${{ matrix.major }} --browser=chromium --output=verification/own-reference-scale-ui.json
+      - name: Copy all selected formulas, independently approve one proposal and calculate with real SQL
+        env:
+          PGPASSWORD: own-payroll-synthetic-qa
+        run: node scripts/verify-own-payroll-program-ui.mjs --ci --built --multi-copy --major=${{ matrix.major }} --browser=chromium --output=verification/own-program-multi-copy-ui.json
       - name: Install exact122/123 conservatively, COMMIT and verify independent durability
         env:
           PGPASSWORD: own-payroll-synthetic-qa
