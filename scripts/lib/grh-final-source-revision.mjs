@@ -8,6 +8,11 @@ import {GRH_VERSION_STORAGE_BUDGET} from './grh-core-source-version.mjs';
 import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './grh-municipal-footprint.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
+// Neon raised existing Free projects to 1 GiB on 2026-10-02. The live server
+// limit still clamps this ceiling; reserve and per-revision growth stay intact.
+// https://neon.com/blog/neon-free-plan-1-gb-per-project
+export const FINAL_SOURCE_REVISION_STORAGE_BUDGET=Object.freeze({...GRH_VERSION_STORAGE_BUDGET,
+ maximumDatabaseBytes:1024*1024*1024});
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const same=(a,b)=>stableJson(a)===stableJson(b);
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
@@ -56,8 +61,8 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
   const municipalBefore=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
   const existing=s.installed?(await query(storedSql,[target.tenantId,target.bindingId,pack.candidate.sourceSha256])).rows:[];
   if(!Array.isArray(existing)||existing.length>1)fail('GRH_FINAL_REVISION_STORED');
-  const capacityBefore=await readSourceCapacity({query},GRH_VERSION_STORAGE_BUDGET,
-   existing.length?0:GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes);
+  const capacityBefore=await readSourceCapacity({query},FINAL_SOURCE_REVISION_STORAGE_BUDGET,
+   existing.length?0:FINAL_SOURCE_REVISION_STORAGE_BUDGET.maximumGrowthBytes);
   if(!capacityBefore.fits)fail('GRH_FINAL_REVISION_CAPACITY_REQUIRED');
   if(!s.installed){
    if(!installSchema)fail('GRH_FINAL_REVISION_SCHEMA_REQUIRED');
@@ -119,8 +124,8 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
   const municipalAfter=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
   const municipalConservation=compareMunicipalFootprints(municipalBefore,municipalAfter);
   if(!municipalConservation.preserved)fail('GRH_FINAL_REVISION_MUNICIPAL_PRESERVATION');
-  const capacityAfter=await readSourceCapacity({query},GRH_VERSION_STORAGE_BUDGET,0);
-  if(!capacityAfter.fits||capacityAfter.databaseBytes-capacityBefore.databaseBytes>GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes)
+  const capacityAfter=await readSourceCapacity({query},FINAL_SOURCE_REVISION_STORAGE_BUDGET,0);
+  if(!capacityAfter.fits||capacityAfter.databaseBytes-capacityBefore.databaseBytes>FINAL_SOURCE_REVISION_STORAGE_BUDGET.maximumGrowthBytes)
    fail('GRH_FINAL_REVISION_CAPACITY_EXCEEDED');
   await query('RELEASE SAVEPOINT grh_final_revision_preparation');
   return freeze({version:'grh-final-source-revision-receipt.v1',revisionId:id,packageSha256:pack.payloadSha256,

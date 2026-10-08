@@ -11,6 +11,8 @@ import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints
 import {bindFinalSourceConsumersWithinTransaction} from './lib/grh-final-source-consumers.mjs';
 import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTransition} from './lib/grh-final-contract-transition.mjs';
 import {addFinalTransitionQaLinks,finalTransitionQaPackage} from '../tests/fixtures/final-contract-transition-postgres.js';
+import {readSourceCapacity} from './lib/grh-source-capacity.mjs';
+import {FINAL_SOURCE_REVISION_STORAGE_BUDGET} from './lib/grh-final-source-revision.mjs';
 
 const args=Object.fromEntries(process.argv.slice(2).map(arg=>{const match=/^--(expected-major|port|database|data-directory|pg-driver|output)=(.+)$/.exec(arg);assert.ok(match,'Unknown QA option');return [match[1],match[2]];}));
 const major=Number(args['expected-major']),port=Number(args.port);
@@ -53,7 +55,8 @@ const identity=async()=>{
  assert.equal(r.db,database);assert.equal(r.major,major);assert.ok(!r.project&&!r.branch,'No hosted source target');
  if(expectedData)assert.equal(fs.realpathSync(r.data).toLowerCase(),expectedData.toLowerCase());
 };
-const context=()=>raw.query(`SELECT set_config('neon.project_id',$1,false),set_config('neon.branch_id',$2,false)`,[target.projectId,target.branchId]);
+const context=()=>raw.query(`SELECT set_config('neon.project_id',$1,false),set_config('neon.branch_id',$2,false),
+ set_config('neon.max_cluster_size','1GB',false)`,[target.projectId,target.branchId]);
 async function footprint(scope){
  assert.ok([schema,'public'].includes(scope));
  const tables=(await raw.query('SELECT tablename FROM pg_tables WHERE schemaname=$1 ORDER BY tablename',[scope])).rows;
@@ -105,6 +108,21 @@ try{
  const baseline=await footprint(schema),pack=await finalRevisionPackage();
  const base={client:{query},prepared:pack,target,expectedPackageSha256:pack.payloadSha256,installSchema:false};
  await raw.query('COMMIT');
+ await context();
+ // Exercise the actual SQL conversion and clamping, including a missing setting.
+ const currentCapacity=await readSourceCapacity(raw,FINAL_SOURCE_REVISION_STORAGE_BUDGET);
+ ok(currentCapacity.maximumBytes===1073741824&&currentCapacity.reserveBytes===16777216&&currentCapacity.requiredGrowthBytes===25165824,
+  'live 1GB setting converts exactly to bytes and preserves reserve and growth');
+ await raw.query("SELECT set_config('neon.max_cluster_size','512MB',false)");
+ ok((await readSourceCapacity(raw,FINAL_SOURCE_REVISION_STORAGE_BUDGET)).maximumBytes===536870912,
+  'smaller live provider limit narrows the final-source ceiling');
+ await raw.query("SELECT set_config('neon.max_cluster_size','2GB',false)");
+ ok((await readSourceCapacity(raw,FINAL_SOURCE_REVISION_STORAGE_BUDGET)).maximumBytes===1073741824,
+  'larger provider limit does not widen the reviewed application ceiling');
+ await raw.query("SELECT set_config('neon.max_cluster_size','',false)");
+ await assert.rejects(readSourceCapacity(raw,FINAL_SOURCE_REVISION_STORAGE_BUDGET),/GRH_VERSION_CAPACITY_INVALID/);
+ checks.push('missing live limit fails closed on a Neon-scoped connection');
+ await context();
  let released=0;const connect=async()=>({query,release(){released++;}});
  const rehearsal=await executeFinalSourceRevision({...base,connect,installSchema:true});
  ok(rehearsal.rolledBack&&!rehearsal.committed,'maintenance rehearsal rolls back its own transaction');
