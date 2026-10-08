@@ -1,5 +1,6 @@
+import {DECLARED_ADOPTION_INPUT_VERSION} from './employment-source-declarations.js';
 import {adoptionProposalInput,adoptionReviewInput,adoptionReceipt,AdoptionInputError} from './employment-adoption-contract.js';
-import {verifiedAdoptionReview,adoptionReviewHash,adoptionReviewScope} from './employment-adoption-review-model.js';
+import {verifiedAdoptionReview,adoptionReviewHash,adoptionReviewScope,adoptionReviewJson} from './employment-adoption-review-model.js';
 import {adoptionAttemptKey,adoptionSelectionVersion} from './employment-adoption-preparation-model.js';
 export const MUNICIPAL_ADOPTION_OPERATOR_VERSION='municipal-adoption-operator.v1';
 const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&[Object.prototype,null].includes(Object.getPrototypeOf(v))&&Reflect.ownKeys(v).length===keys.length&&Object.values(Object.getOwnPropertyDescriptors(v)).every(d=>Object.hasOwn(d,'value'))&&Reflect.ownKeys(v).every(k=>keys.includes(k));
@@ -18,6 +19,7 @@ export async function municipalAdoptionDetail(v){
  ||p.sourceContextVersion!==body.sourceContextVersion||review.sourceContextVersion!==body.sourceContextVersion||p.catalogVersion!==body.catalogVersion
  ||p.proposalVersion!==v.proposal.proposalVersion||body.selectionVersion!==await adoptionSelectionVersion(review)
  ||['tenantId','bindingId','companyId'].some(k=>v.scope[k]!==review.scope[k]))fail();
+ if(body.version===DECLARED_ADOPTION_INPUT_VERSION&&adoptionReviewJson(body.declarations)!==adoptionReviewJson(review.source.municipalDeclarations?.rows))fail();
  for(let n=0;n<body.rows.length;n++){const r=body.rows[n],s=review.rows[n];if(r.contractId!==s.contractId||r.contractVersion!==s.contractVersion||s.jurisdictionCode!==null&&r.jurisdictionCode!==s.jurisdictionCode)fail();}
  return freeze({...v,proposal:p,body,review});
 }

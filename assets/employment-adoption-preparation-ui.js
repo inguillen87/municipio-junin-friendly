@@ -1,4 +1,5 @@
 import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt,adoptionInactiveJurisdictionPending,ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION} from './employment-adoption-preparation-model.js';
+import {verifySourceDeclarations} from './employment-source-declarations.js';
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 
 const API='/api/internal-employment-adoption';
@@ -9,7 +10,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <p>La propuesta conserva todos los contratos del alcance elegido: personal activo o fuente histórica completa. El alcance y sus cantidades se muestran antes de guardar. Guardarla no adopta contratos ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción.</p>
  <button type="button" class="button" data-ap-load>Consultar condiciones y propuestas</button><p role="status" aria-live="polite" data-ap-status>La consulta es voluntaria. No se guarda nada al abrir este apartado.</p>
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
- <form data-ap-form hidden><p data-ap-counts></p>
+ <form data-ap-form hidden><p data-ap-counts></p><section data-ap-facts hidden><h5>Completar los datos faltantes del personal activo</h5><p>Declaralos según el antecedente municipal. El respaldo original se conserva. Revisar estas declaraciones no guarda una propuesta ni adopta contratos.</p><div data-ap-facts-rows></div><button type="button" class="button" data-ap-preview>Revisar declaraciones sin guardar</button><p data-ap-facts-status role="status" aria-live="polite"></p></section>
  <label>Jurisdicción para los contratos que no la tienen declarada<select data-ap-jurisdiction required><option value="">Elegí según el respaldo municipal</option><option value="42">Jurisdicción 42</option><option value="55">Jurisdicción 55</option></select></label>
  <p data-ap-jurisdiction-help>La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.</p>
  <p data-ap-jurisdiction-counts role="status" aria-live="polite"></p>
@@ -21,14 +22,17 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <div class="ar-table-wrap"><table><caption>Jurisdicción declarada por contrato</caption><thead><tr><th>Fila</th><th>Legajo / agente</th><th>Jurisdicción</th></tr></thead><tbody data-ap-jurisdiction-rows></tbody></table></div></section>
  <label>Resolución o documento de respaldo<input data-ap-reference required minlength="3" maxlength="180" autocomplete="off"></label>
  <label>Motivo de la propuesta<textarea data-ap-reason required minlength="10" maxlength="1000" rows="3"></textarea></label>
- <label class="ap-confirm"><input type="checkbox" data-ap-confirm required>Revisé el padrón completo y el respaldo de la jurisdicción declarada</label>
+ <label class="ap-confirm"><input type="checkbox" data-ap-confirm required>Revisé el padrón completo, las declaraciones y su respaldo municipal</label>
  <button type="submit" class="button primary" data-ap-send>Guardar propuesta completa</button></form>
  <section data-ap-history hidden><h4>Mis propuestas preparadas</h4><p>Este registro conserva la preparación original y no muestra las decisiones posteriores. Consultá la bandeja de revisión para conocer su resultado.</p><ol data-ap-attempts></ol></section></section>`;
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
- let jurisdictionPage=1;const jurisdictions=new Map();
+ let jurisdictionPage=1;const jurisdictions=new Map(),facts=new Map();let prepared=null,previewInput=null;
+ const gapFields=r=>[["startDate","Fecha de ingreso","START_DATE_MISSING"],["agreementCode","Convenio","CLASSIFICATION_MISSING"],["categoryCode","Categoría","CLASSIFICATION_MISSING"],["jurisdictionCode","Jurisdicción","JURISDICTION_MISSING_ACTIVE"]].filter(([k,,issue])=>r[k]===null&&r.sourceIssues?.includes(issue));
+ const gapRows=()=>review?.source.operationalCohort?review.rows.filter(r=>gapFields(r).length):[];
+ const clearFacts=()=>{facts.clear();prepared=null;previewInput=null;$("facts-rows").replaceChildren();$("facts").hidden=true;$("facts-status").textContent="";};
  const supportsPending=()=>[ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION].includes(bootstrap?.version);
- const code=row=>row.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
+ const code=row=>row.jurisdictionCode??prepared?.review.rows[row.rowNumber-1]?.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
  const jurisdictionRows=()=>review?review.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('jurisdiction-search').value.toLocaleLowerCase('es')))):[];
  function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0,inactivePending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:supportsPending()&&value===null&&adoptionInactiveJurisdictionPending(r,review.today)?'inactivePending':'pending']++;}return counts;}
  function clearJurisdictions(){jurisdictions.clear();jurisdictionPage=1;$('jurisdiction-search').value='';$('jurisdiction-rows').replaceChildren();$('jurisdiction-panel').hidden=true;$('jurisdiction-open').setAttribute('aria-expanded','false');$('jurisdiction-counts').textContent='';$('jurisdiction-page').textContent='';}
@@ -61,7 +65,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('load').disabled=!enabled||!review;
   for(const n of $('form').querySelectorAll('input,textarea,select,button'))n.disabled=!enabled||!prepareAllowed||!bootstrap?.canPrepare||!!pending;
   const counts=jurisdictionCounts();$('jurisdiction').required=counts.pending>0;
-  $('send').disabled||=!$('confirm').checked||counts.pending>0;
+  $('send').disabled||=!$('confirm').checked||counts.pending>0||gapRows().length>0&&!prepared;
   $('jurisdiction-prev').disabled||=jurisdictionPage<=1;
   $('jurisdiction-next').disabled||=jurisdictionPage*25>=jurisdictionRows().length;
   $('pending').hidden=!pending||!live();$('recover').disabled=!enabled||!pending;
@@ -71,7 +75,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  function withdraw(text='Consultá nuevamente las condiciones del padrón.'){
   epoch++;controller?.abort();bootstrap=null;busy=false;retryReady=false;
   $('form').hidden=true;$('history').hidden=true;$('attempts').replaceChildren();$('counts').textContent='';
-  for(const key of ['reference','reason','jurisdiction'])$(key).value='';clearJurisdictions();$('confirm').checked=false;say(text);controls();
+  for(const key of ['reference','reason','jurisdiction'])$(key).value='';clearJurisdictions();clearFacts();$('confirm').checked=false;say(text);controls();
  }
  function start(text){controller?.abort();controller=new AbortController();const token=++epoch;busy=true;controls();say(text);return{token,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)])};}
  const current=token=>token===epoch&&live();
@@ -89,11 +93,46 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  async function fresh(signal,historyOnly=false){
   const selected=!historyOnly&&review?.source.finalRevision;
   const query=selected?'?'+new URLSearchParams({resource:review.source.operationalCohort?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
-  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(API+query,signal));
+  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(prepared&&!historyOnly?API:API+query,signal,prepared&&!historyOnly?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview-declarations',payload:previewInput})}:{}));
   return{...access,value,scope:adoptionReviewScope(value.review.scope)};
  }
  function sameScope(freshValue,attempt){
   if(!review||freshValue.scope!==adoptionReviewScope(review.scope)||attempt&&(freshValue.scope!==attempt.scope||freshValue.actor!==attempt.actor))throw issue('Cambió la cuenta o el municipio. Recuperá el intento con su acceso original.',403);
+ }
+ function paintFacts(){
+  const opened=new Set([...$('facts-rows').querySelectorAll('details[open]')].map(n=>n.dataset.apFact));
+  const rows=gapRows();$('facts').hidden=!rows.length;$('facts-rows').replaceChildren();
+  for(const r of rows){
+   const draft=facts.get(r.contractId)??{values:{},reference:'',reason:''};facts.set(r.contractId,draft);
+   const details=document.createElement('details'),summary=document.createElement('summary');details.dataset.apFact=String(r.rowNumber);details.open=opened.has(String(r.rowNumber));summary.textContent=`Fila ${r.sourceRowNumber} · ${r.legajo??'Sin número'} · ${r.name??'Nombre pendiente'}`;details.append(summary);
+   const change=()=>{if(!live()||busy||pending||!prepareAllowed)return;prepared=null;previewInput=null;$('confirm').checked=false;$('facts-status').textContent='Cambió una declaración. Revisá nuevamente antes de guardar.';paintJurisdictions();controls();};
+   for(const [field,label]of gapFields(r)){
+    const wrapper=document.createElement('label'),input=document.createElement(field==='jurisdictionCode'?'select':'input');wrapper.append(document.createTextNode(label));input.dataset.apFactField=field;input.setAttribute('aria-label',`${label} de la fila ${r.sourceRowNumber}`);input.required=true;
+    if(field==='jurisdictionCode'){for(const [value,text]of [['','Elegí según el respaldo municipal'],['42','Jurisdicción 42'],['55','Jurisdicción 55']]){const o=document.createElement('option');o.value=value;o.textContent=text;input.append(o);}}
+    else if(field==='startDate'){input.type='date';input.max=review.today;}
+    else{input.type='text';input.inputMode='numeric';input.pattern='[0-9]{1,9}';input.maxLength=9;input.autocomplete='off';}
+    input.value=draft.values[field]??'';input.addEventListener('input',()=>{if(!live()||busy||pending||!prepareAllowed)return;draft.values[field]=input.value;change();});wrapper.append(input);details.append(wrapper);
+   }
+   const note=document.createElement('p');note.textContent='Convenio y categoría se verifican juntos contra el catálogo vigente. Ningún código ni fecha se completa por defecto.';details.append(note);
+   for(const [field,label,min,max]of [['reference','Documento que respalda estos datos',3,180],['reason','Fundamento de la declaración',10,1000]]){
+    const wrapper=document.createElement('label'),input=document.createElement(field==='reason'?'textarea':'input');wrapper.append(document.createTextNode(label));input.dataset.apFactField=field;input.setAttribute('aria-label',`${label} de la fila ${r.sourceRowNumber}`);input.required=true;input.minLength=min;input.maxLength=max;input.value=draft[field];input.addEventListener('input',()=>{if(!live()||busy||pending||!prepareAllowed)return;draft[field]=input.value;change();});wrapper.append(input);details.append(wrapper);
+   }
+   $('facts-rows').append(details);
+  }
+  $('facts-status').textContent=prepared?`${rows.length} declaraciones verificadas para los ${review.total} activos. Revisar no guardó una propuesta; el respaldo original se conserva.`:`${rows.length} contratos requieren datos explícitos. Completá su respaldo y revisá el conjunto antes de guardar.`;
+ }
+ async function previewFacts(){
+  if(busy||!live()||pending||!bootstrap?.canPrepare||!prepareAllowed)return;
+  for(const input of $('facts').querySelectorAll('input,textarea,select'))if(!input.checkValidity()){input.closest('details').open=true;input.reportValidity();return;}
+  const {token,signal}=start('Verificando declaraciones y el padrón activo completo, sin guardar…');
+  try{
+   const access=await authority(signal);if(!current(token))return;if(!access.canPrepare)throw issue('Tu permiso para preparar cambió.',403);
+   const declarations=verifySourceDeclarations(review.rows,gapRows().map(r=>{const d=facts.get(r.contractId);return{contractId:r.contractId,values:{...d.values},reference:d.reference.normalize('NFC').trim(),reason:d.reason.normalize('NFC').trim()};}),review.today);
+   const input={revisionId:review.source.finalRevision.revisionId,packageSha256:review.source.finalRevision.packageSha256,sourceContextVersion:review.sourceContextVersion,catalogVersion:bootstrap.catalogVersion,declarations};
+   const value=await adoptionPreparationBootstrap(await request(API,signal,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'preview-declarations',payload:input})}));if(!current(token))return;
+   sameScope({scope:adoptionReviewScope(value.review.scope),actor:access.actor});prepared=value;previewInput=Object.freeze(input);$('confirm').checked=false;paint({...access,value});
+   say(value.review.rows.some(r=>r.sourceIssues.length)?'La revisión conserva otras incidencias. La propuesta completa sigue pendiente; no se omitió ningún activo.':'Declaraciones verificadas. Revisá el padrón completo y su respaldo antes de guardar la propuesta para otra persona.');
+  }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
  function paint(value){
   bootstrap=value.value;prepareAllowed=value.canPrepare;
@@ -104,7 +143,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
    const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
   }
-  $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}paintJurisdictions();controls();
+  $('history').hidden=false;if(!bootstrap.attempts.length){const li=document.createElement('li');li.textContent='No hay propuestas preparadas por tu cuenta en este municipio.';$('attempts').append(li);}paintFacts();paintJurisdictions();controls();
  }
  function failure(e,token){
   if(!current(token))return;
@@ -114,7 +153,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  async function load(){
   if(busy||!live()||!review)return;const {token,signal}=start('Consultando condiciones y propuestas del padrón completo…');
   try{const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
-   if(f.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;say('El padrón cambió. Volvé a Revisar padrón completo antes de preparar una propuesta.');return;}
+   if(f.value.review.snapshot!==(prepared?.review??review).snapshot){bootstrap=null;$('form').hidden=true;say('El padrón cambió. Volvé a Revisar padrón completo antes de preparar una propuesta.');return;}
    paint(f);say(pending?'Hay un envío sin confirmar. Consultá el mismo intento.':!bootstrap.review.total?'No hay contratos históricos pendientes. No se generará una propuesta vacía.':bootstrap.canPrepare&&prepareAllowed?'Completá el documento, el motivo y la jurisdicción para guardar una propuesta completa.':'Tu cuenta puede consultar, pero no preparar esta propuesta.');
   }catch(e){failure(e,token);}finally{if(token===epoch){busy=false;controls();}}
  }
@@ -126,9 +165,9 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    if(!recover&&(!f.value.canPrepare||!f.canPrepare)){prepareAllowed=false;bootstrap=null;$('form').hidden=true;throw issue('Tu cuenta ya no permite preparar propuestas. Podés consultar el resultado de un intento pendiente.');}
    if(!recover&&!retry){
     if(pending)return;
-    if(f.value.review.snapshot!==review.snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion||f.value.version!==bootstrap?.version){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón, el catálogo o las condiciones de preparación. Volvé a revisar antes de guardar.');}
-    const declaration={snapshot:review.snapshot,rows:review.rows.map(r=>({contractId:r.contractId,jurisdictionCode:code(r)}))};
-    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value,{allowInactivePending:supportsPending()});
+    if(f.value.review.snapshot!==(prepared?.review??review).snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion||f.value.version!==bootstrap?.version){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón, el catálogo o las condiciones de preparación. Volvé a revisar antes de guardar.');}
+    const working=prepared?.review??review,declaration={snapshot:working.snapshot,rows:review.rows.map(r=>({contractId:r.contractId,jurisdictionCode:code(r)}))};
+    const body=await adoptionPreparationPayload(working,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value,{allowInactivePending:supportsPending()});
     if(!current(token))return;
     pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
    }
@@ -141,7 +180,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    // attempt through the ordinary scoped history, without rebuilding that cut.
    const confirmed=await fresh(signal,true);if(!current(token))return;sameScope(confirmed,attempt);
    if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
-   pending=null;retryReady=false;$('confirm').checked=false;paint(confirmed);
+   pending=null;retryReady=false;clearFacts();clearJurisdictions();for(const key of ['reference','reason','jurisdiction'])$(key).value='';$('confirm').checked=false;paint(confirmed);
    if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}
    say(`Propuesta completa guardada: ${receipt.receipt.total} contratos, 0 adoptados al prepararla. Requiere una decisión independiente en la bandeja de revisión.`);
   }catch(e){
@@ -150,6 +189,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    failure(e,token);
   }finally{if(token===epoch){busy=false;controls();}}
  }
+ $('preview').addEventListener('click',previewFacts);
  $('load').addEventListener('click',load);$('form').addEventListener('submit',event=>{event.preventDefault();if($('confirm').checked&&!pending&&bootstrap?.canPrepare)send();});
  $('recover').addEventListener('click',()=>send(true));$('retry').addEventListener('click',()=>{if(retryReady&&pending)send(false,true);});
  $('confirm').addEventListener('change',controls);for(const key of ['jurisdiction','reference','reason'])$(key).addEventListener('input',()=>{$('confirm').checked=false;if(key==='jurisdiction')paintJurisdictions();controls();});
@@ -163,5 +203,5 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)withdraw('Datos retirados al ocultar la pantalla. Consultá el mismo intento si quedó pendiente.');});
  window.addEventListener('pagehide',()=>withdraw());document.getElementById('logoutButton')?.addEventListener('click',()=>{readAllowed=false;withdraw('Sesión cerrada. Recuperá cualquier intento con su acceso original.');});
  window.addEventListener('beforeunload',event=>{if(pending){event.preventDefault();event.returnValue='';}});
- controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;clearJurisdictions();$('jurisdiction').value='';$('confirm').checked=false;}controls();},invalidate(){review=null;withdraw();}};
+ controls();return{setReview(value){const same=review&&value&&review.snapshot===value.snapshot&&adoptionReviewScope(review.scope)===adoptionReviewScope(value.scope);review=value;if(!same){bootstrap=null;$('form').hidden=true;$('history').hidden=true;clearJurisdictions();$('jurisdiction').value='';clearFacts();$('confirm').checked=false;}controls();},invalidate(){review=null;withdraw();}};
 }

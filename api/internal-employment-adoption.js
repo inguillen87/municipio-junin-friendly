@@ -29,10 +29,10 @@ export function createEmploymentAdoptionHandler(deps={}){
    const session=sessionFor(access,env);employeeContext(access.principal,session);
    if(method==='POST'){
     if(!principalHasCapabilities(access.principal,['employee.record.propose']))adoptionFail('FORBIDDEN',403,'Tu cuenta no permite preparar esta propuesta.');
-    const body=await readPrivateJsonBody(req,{maxBytes:ADOPTION_PREPARATION_MAX_BYTES});if(!body||Array.isArray(body)||Object.keys(body).sort().join('|')!=='operation|payload'||body.operation!=='propose')adoptionFail('INPUT_INVALID',400,'Sólo se admite preparar una propuesta completa.');
-    operation='propose';input={body:body.payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
+    const body=await readPrivateJsonBody(req,{maxBytes:ADOPTION_PREPARATION_MAX_BYTES});if(!body||Array.isArray(body)||Object.keys(body).sort().join('|')!=='operation|payload'||!['propose','preview-declarations'].includes(body.operation))adoptionFail('INPUT_INVALID',400,'Sólo se admite preparar una propuesta completa.');
+    operation=body.operation;input=operation==='propose'?{body:body.payload,key:schoolCertificateHttp.header(req,'idempotency-key')}:body.payload;if(operation==='preview-declarations'&&schoolCertificateHttp.header(req,'idempotency-key'))adoptionFail('INPUT_INVALID',400,'La revisión sin guardado no admite una clave de intento.');
    }
-   const data=await adoptionPreparationOperation(await getSql(env),access.principal,session,operation,input);if(data.receipt?.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(method==='POST'&&!data.receipt?.replayed?201:200).json({ok:true,data});
+   const data=await adoptionPreparationOperation(await getSql(env),access.principal,session,operation,input);if(data.receipt?.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(operation==='propose'&&!data.receipt?.replayed?201:200).json({ok:true,data});
   }catch(e){const safe=String(e?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(e):adoptionPreparationError(e);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}
  };
 }
