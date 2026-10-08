@@ -35,7 +35,8 @@ export async function panel(t,count=12,setup={}){
    if(state.hold)await state.hold;
    if(options.signal?.aborted)throw Object.assign(Error('aborted'),{name:'AbortError'});
    if(state.bootstrapFailure)throw Error('synthetic network failure');
-   if(state.deny){status=403;data={ok:false};}
+   if(state.bootstrapStatus){status=state.bootstrapStatus;data={ok:false};}
+   else if(state.deny){status=403;data={ok:false};}
    else data={ok:true,principal:{tenantId:state.tenantId,membershipId:state.membershipId,certifiedBindingId:state.binding,capabilities:state.bootstrapCaps}};
   }else{
    const body=JSON.parse(options.body);
