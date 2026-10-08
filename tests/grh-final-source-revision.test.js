@@ -3,9 +3,43 @@ import assert from 'node:assert/strict';
 import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput,FINAL_SOURCE_REVISION_STORAGE_BUDGET} from '../scripts/lib/grh-final-source-revision.mjs';
 import {loaderQaPackage} from './fixtures/successor-loader-postgres.js';
 import {finalRevisionPackage,finalRevisionClient,finalRevisionTarget as target} from './fixtures/final-source-revision-synthetic.js';
+import {syntheticManifestEvidence} from './fixtures/core-manifest-provenance-synthetic.js';
 const pack=await finalRevisionPackage();
 const prepare=(client,options={})=>prepareFinalSourceRevisionWithinTransaction({client,prepared:pack,target,
  expectedPackageSha256:pack.payloadSha256,installSchema:true,...options});
+
+test('a documented predecessor manifest requires explicit bytes while conserving the exact reviewed package',async()=>{
+ const evidence=syntheticManifestEvidence(pack),original=structuredClone(evidence.pack);
+ const create=()=>finalRevisionClient(evidence.pack,{observation:rows=>{
+  if(rows[0]?.observation?.core_manifest)rows[0].observation.core_manifest=evidence.storedManifestSha256;
+ }});
+ const options={prepared:evidence.pack,expectedPackageSha256:evidence.pack.payloadSha256};
+ const refused=create();await assert.rejects(prepare(refused,options),{code:'GRH_FINAL_REVISION_BASELINE_CHANGED'});
+ assert.equal(refused.stored,null);
+ const accepted=create(),receipt=await prepare(accepted,{...options,baselineCoreManifestBytes:evidence.bytes});
+ assert.equal(receipt.deltaRows,pack.changes.length);assert.equal(receipt.coreManifestProvenance.otherBytesUnchanged,true);
+ assert.equal(receipt.coreManifestProvenance.historicalManifestSha256,evidence.storedManifestSha256);
+ assert.equal(receipt.municipalConservation.preserved,true);assert.deepEqual(evidence.pack,original);
+ const second=await prepare(accepted,{...options,baselineCoreManifestBytes:evidence.bytes});
+ assert.equal(second.replayed,true);assert.equal(second.revisionId,receipt.revisionId);
+});
+
+for(const failure of ['stored manifest','curated manifest','projection','previous values','sealed fingerprint'])
+ test('metadata provenance never conceals actual predecessor or delta drift: '+failure,async()=>{
+  const evidence=syntheticManifestEvidence(pack),client=finalRevisionClient(evidence.pack,{observation:rows=>{
+   const r=rows[0]?.observation;
+   if(r?.core_manifest){r.core_manifest=evidence.storedManifestSha256;
+    if(failure==='stored manifest')r.core_manifest='0'.repeat(64);
+    if(failure==='curated manifest')r.curated_manifest='0'.repeat(64);
+    if(failure==='projection')r.core_evidence.payrollRuns.candidateProjectionSha256='0'.repeat(64);
+    if(failure==='sealed fingerprint')r.core_seals.payrollRuns.md5='0'.repeat(32);
+   }
+   if(failure==='previous values'&&r?.entity==='curated/grh_employees')r.previousMismatches=1;
+  }});
+  await assert.rejects(prepare(client,{prepared:evidence.pack,expectedPackageSha256:evidence.pack.payloadSha256,
+   baselineCoreManifestBytes:evidence.bytes}),{code:'GRH_FINAL_REVISION_BASELINE_CHANGED'});
+  assert.equal(client.stored,null);assert.equal(client.deltaRows,0);
+ });
 
 test('the final profile uses its reviewed predecessor and preserves the supplied package',()=>{
  const original=structuredClone(pack),validated=validateFinalSourceRevisionInput(pack,target,pack.payloadSha256);

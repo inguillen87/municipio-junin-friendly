@@ -13,6 +13,7 @@ import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTr
 import {addFinalTransitionQaLinks,finalTransitionQaPackage} from '../tests/fixtures/final-contract-transition-postgres.js';
 import {readSourceCapacity} from './lib/grh-source-capacity.mjs';
 import {FINAL_SOURCE_REVISION_STORAGE_BUDGET} from './lib/grh-final-source-revision.mjs';
+import {syntheticManifestEvidence} from '../tests/fixtures/core-manifest-provenance-synthetic.js';
 
 const args=Object.fromEntries(process.argv.slice(2).map(arg=>{const match=/^--(expected-major|port|database|data-directory|pg-driver|output)=(.+)$/.exec(arg);assert.ok(match,'Unknown QA option');return [match[1],match[2]];}));
 const major=Number(args['expected-major']),port=Number(args.port);
@@ -275,6 +276,40 @@ try{
  assert.deepEqual(await footprint('public'),original);checks.push('all existing public table rows unchanged');
  await raw.query(`BEGIN;DO $cleanup$ BEGIN IF (SELECT oid::text FROM pg_namespace WHERE nspname='${schema}') IS DISTINCT FROM '${namespace}' THEN RAISE EXCEPTION 'QA_NAMESPACE_CHANGED';END IF;END $cleanup$;DROP SCHEMA ${schema} CASCADE;COMMIT`);created=false;
  ok((await raw.query('SELECT to_regnamespace($1) IS NULL AS absent',[schema])).rows[0].absent,'isolated synthetic schema removed');
+ // A second independent fixture keeps every preceding exact-manifest check.
+ // Only its initial historical manifest metadata differs; source rows and seals
+ // are the same real SQL projections. Never update an immutable predecessor.
+ const evidence=syntheticManifestEvidence(pack),manifestToken="repeat('c',64),repeat('d',64),repeat('e',64)";
+ const coreStart=setup.indexOf('INSERT INTO grh_core_source_version(id,'),coreEnd=setup.indexOf('INSERT INTO grh_core_source_version_seal',coreStart);
+ assert.ok(coreStart>=0&&coreEnd>coreStart);const coreInsert=setup.slice(coreStart,coreEnd);
+ assert.equal(coreInsert.split(manifestToken).length,2);
+ const historicalCoreInsert=coreInsert.replace(manifestToken,"repeat('c',64),'"+evidence.storedManifestSha256+"',repeat('e',64)");
+ await raw.query(setup.slice(0,coreStart)+historicalCoreInsert+setup.slice(coreEnd));created=true;
+ await addFinalConservationQaTables(query,target);await addFinalTransitionQaLinks(query);
+ namespace=(await raw.query('SELECT oid::text AS oid FROM pg_namespace WHERE nspname=$1',[schema])).rows[0].oid;
+ const manifestBaseline=await footprint(schema);await raw.query('COMMIT');await context();
+ const manifestBase={...base,prepared:evidence.pack,expectedPackageSha256:evidence.pack.payloadSha256,installSchema:true};
+ await assert.rejects(executeFinalSourceRevision({...manifestBase,connect}),{code:'GRH_FINAL_REVISION_BASELINE_CHANGED'});
+ ok((await query("SELECT to_regclass('public.grh_final_source_revision') IS NULL AS absent")).rows[0].absent,
+  'documented metadata mismatch still refuses default maintenance with no effects');
+ const manifestFirst=await executeFinalSourceRevision({...manifestBase,connect,baselineCoreManifestBytes:evidence.bytes,commit:true});
+ ok(manifestFirst.committed&&!manifestFirst.replayed&&manifestFirst.deltaRows===410,
+  'explicit byte evidence saves all differences through the original maintenance transaction');
+ ok(manifestFirst.coreManifestProvenance.historicalManifestSha256===evidence.storedManifestSha256
+  &&manifestFirst.coreManifestProvenance.otherBytesUnchanged&&manifestFirst.coreManifestProvenance.sourceManifestsWritten===0,
+  'receipt distinguishes metadata reconstruction from recovery of the original artifact');
+ await raw.end();raw=new pg.Client(connection);await raw.connect();await identity();await raw.query("SET TIME ZONE 'UTC'");await context();
+ const manifestReplay=await executeFinalSourceRevision({...manifestBase,connect,baselineCoreManifestBytes:evidence.bytes,commit:true});
+ ok(manifestReplay.replayed&&manifestReplay.revisionId===manifestFirst.revisionId,
+  'metadata-bound revision replays durably through a new physical connection');
+ ok((await query('SELECT count(*)::int AS n FROM public.grh_final_source_delta')).rows[0].n===410,
+  'metadata-bound retry neither duplicates nor omits differences');
+ assert.deepEqual(await footprint(schema),manifestBaseline);
+ checks.push('metadata proof conserves every predecessor, municipal row and original manifest');
+ assert.deepEqual(await footprint('public'),original);
+ await raw.query(`BEGIN;DO $cleanup$ BEGIN IF (SELECT oid::text FROM pg_namespace WHERE nspname='${schema}') IS DISTINCT FROM '${namespace}' THEN RAISE EXCEPTION 'QA_NAMESPACE_CHANGED';END IF;END $cleanup$;DROP SCHEMA ${schema} CASCADE;COMMIT`);created=false;
+ ok((await raw.query('SELECT to_regnamespace($1) IS NULL AS absent',[schema])).rows[0].absent,
+  'additional metadata fixture removed without effects on existing public tables');
  fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify({major,checks,passed:true,synthetic:true,durability:true,cleanup:true,sourceSelected:false,municipalWrites:0},null,2));
  console.log(JSON.stringify({major,passed:true,checks:checks.length,durability:true,cleanup:true}));
 }catch(error){

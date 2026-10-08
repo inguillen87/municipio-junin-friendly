@@ -3,10 +3,20 @@ import {spawnSync} from 'node:child_process';
 import {executeFinalSourceRevision,parseFinalSourceRevisionArgs,finalSourceMaintenanceErrorCode} from '../scripts/prepare-grh-final-source-revision.mjs';
 import {loaderQaPackage} from './fixtures/successor-loader-postgres.js';
 import {finalRevisionPackage,finalRevisionClient,finalRevisionTarget as target} from './fixtures/final-source-revision-synthetic.js';
+import {syntheticManifestEvidence} from './fixtures/core-manifest-provenance-synthetic.js';
 const pack=await finalRevisionPackage();
 const run=(connect,options={})=>executeFinalSourceRevision({connect,prepared:pack,target,expectedPackageSha256:pack.payloadSha256,installSchema:true,...options});
 const lease=options=>{const client=finalRevisionClient(pack,options),releases=[];client.release=e=>releases.push(e);return {client,releases};};
 const args=['target','baseline-core','candidate-core','baseline-curated','candidate-curated'].map(key=>'--'+key+'='+path.resolve('verification/synthetic-'+key)).concat('--expect-package='+pack.payloadSha256);
+
+test('manifest provenance is an explicit maintenance option and invalid evidence cannot open a connection',async()=>{
+ assert.equal(parseFinalSourceRevisionArgs([...args,'--rehearse','--verify-predecessor-manifest'])['verify-predecessor-manifest'],true);
+ const evidence=syntheticManifestEvidence(pack);let opened=false;
+ await assert.rejects(run(async()=>{opened=true;return lease().client;},{prepared:evidence.pack,
+  expectedPackageSha256:evidence.pack.payloadSha256,baselineCoreManifestBytes:Buffer.from('{}')}),
+  {code:'GRH_FINAL_REVISION_MANIFEST_PROVENANCE'});
+ assert.equal(opened,false);
+});
 test('maintenance reports the global comparison limit and revocation without revealing SQL or private errors',()=>{
  for(const code of ['GRH_FINAL_TRANSITION_GLOBAL_LIMIT','GRH_FINAL_CONSUMER_CONTEXT','GRH_FINAL_REVISION_CAPACITY_REQUIRED'])
   assert.equal(finalSourceMaintenanceErrorCode({code,message:'private SQL contents'}),code);
