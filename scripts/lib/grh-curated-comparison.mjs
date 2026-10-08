@@ -2,6 +2,7 @@
 import {createHash} from 'node:crypto';
 import {ExactCuratedNumber,canonicalCuratedNumber} from './grh-curated-numbers.mjs';
 import {CURATED_REVIEW_SCHEMA} from '../../assets/grh-curated-review-model.js';
+import {employeeSourceFacts} from '../../assets/grh-employee-source-facts.js';
 export const curatedDigest=value=>createHash('sha256').update(value).digest('hex');
 export function curatedComparisonFault(code){throw Object.assign(new Error(code),{code});}
 export function stableCuratedValue(value,depth=0){
@@ -23,6 +24,7 @@ export function compareCuratedArtifact(name,baseline,candidate){
    if(!row||typeof row!=='object'||Array.isArray(row)||!row.sourceKey||typeof row.sourceKey!=='object'||Array.isArray(row.sourceKey)
     ||!Object.keys(row.sourceKey).length||Object.keys(row).some(k=>!fields.includes(k)))curatedComparisonFault('GRH_CURATED_REVIEW_RECORD_INVALID');
    for(const value of Object.values(row.sourceKey))if(!['string','number'].includes(typeof value)||value===''||typeof value==='number'&&!Number.isSafeInteger(value))curatedComparisonFault('GRH_CURATED_REVIEW_KEY_INVALID');
+   if(name==='employees')employeeSourceFacts(row);
    const key=curatedDigest(stableCuratedValue(row.sourceKey));
    if(map.has(key))curatedComparisonFault('GRH_CURATED_REVIEW_DUPLICATE_KEY');
    map.set(key,{row,sha:curatedDigest(stableCuratedValue(row))});

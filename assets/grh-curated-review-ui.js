@@ -1,17 +1,17 @@
-import {CURATED_REVIEW_DOMAINS,CURATED_REVIEW_SCHEMA,COORDINATED_REVIEW_VERSION} from './grh-curated-review-model.js';
+import {CURATED_REVIEW_DOMAINS,CURATED_REVIEW_SCHEMA,isCoordinatedReview} from './grh-curated-review-model.js';
 import {coreReviewCutoff} from './grh-core-review-model.js';
 import {renderSuccessorReview} from './grh-successor-review-ui.js';
 const n=(tag,text,cls)=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=String(text);if(cls)element.className=cls;return element;};
 const shown=value=>value.toLocaleString('es-AR');
 const label=name=>CURATED_REVIEW_SCHEMA[name][1];
-const fields={employment:'Datos laborales',identity:'Identificación',relatedRecordCounts:'Cantidades de registros relacionados',unionMemberships:'Afiliaciones gremiales',reason:'Motivo',reasonCode:'Código de motivo',endDate:'Fecha de fin',baseSalary:'Sueldo básico',address:'Domicilio',days:'Días',quantity:'Cantidad',startDate:'Fecha de inicio'};
+const fields={employment:'Datos laborales',identity:'Identificación',relatedRecordCounts:'Cantidades de registros relacionados',unionMemberships:'Afiliaciones gremiales',reason:'Motivo',reasonCode:'Código de motivo',endDate:'Fecha de fin',baseSalary:'Sueldo básico',address:'Domicilio',days:'Días',quantity:'Cantidad',startDate:'Fecha de inicio',sourceFields:'Valores originales conservados',sourceProvenance:'Procedencia del registro original',sourceReferences:'Referencia al departamento original'};
 function rows(data,onlyChanges=false){return CURATED_REVIEW_DOMAINS.filter(name=>!onlyChanges||data.artifacts[name].added+data.artifacts[name].removed+data.artifacts[name].changed>0).map(name=>{
  const row=data.artifacts[name],tr=n('tr'),th=n('th',label(name));th.scope='row';tr.append(th);
  for(const key of ['before','after','unchanged','added','removed','changed'])tr.append(n('td',shown(row[key])));return tr;
 });}
 function totals(data){return Object.fromEntries(['added','removed','changed'].map(key=>[key,CURATED_REVIEW_DOMAINS.reduce((sum,name)=>sum+BigInt(data.artifacts[name][key]),0n)]));}
 export function renderCuratedSourceReview(host,report,fingerprint){
- const joint=report.version===COORDINATED_REVIEW_VERSION,data=joint?report.curated:report,$=s=>host.querySelector(s),sum=totals(data);
+ const joint=isCoordinatedReview(report.version),data=joint?report.curated:report,$=s=>host.querySelector(s),sum=totals(data);
  const changed=CURATED_REVIEW_DOMAINS.filter(name=>{const r=data.artifacts[name];return r.added+r.removed+r.changed>0;});
  if(joint){renderSuccessorReview(host,report.core,fingerprint);$('[data-br-verdict]').textContent='Núcleo salarial y datos de personal revisados contra los mismos dos respaldos. No se incorporaron datos ni se autorizó ningún pago.';}
  else{
@@ -27,6 +27,20 @@ export function renderCuratedSourceReview(host,report,fingerprint){
  }
  let section=$('[data-br-curated]');if(!section){section=n('section',undefined,'br-curated');section.dataset.brCurated='';$('[data-br-trace]').closest('details').before(section);}section.hidden=false;section.replaceChildren();
  section.append(n('h3','Datos de personal · 15 archivos'),n('p',shown(changed.length)+' archivos con diferencias y '+shown(15-changed.length)+' sin diferencias. Los conteos son registros, no personas únicas.','br-notice'));
+ if(data.employeeSourceFacts){
+  const facts=n('section');facts.dataset.brEmployeeFacts='';facts.append(n('h4','Departamento original y situación laboral'));
+  const candidate=data.employeeSourceFacts.candidate,base=data.employeeSourceFacts.baseline;
+  facts.append(n('p',`${shown(candidate.retainedFacts)} de ${shown(candidate.total)} legajos del candidato conservan su procedencia y valores originales. En la base comparada: ${shown(base.retainedFacts)} de ${shown(base.total)}.`));
+  const wrap=n('div',undefined,'br-table-wrap');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label','Departamento original por situación laboral, desplazable');
+  const table=n('table'),head=n('thead'),line=n('tr'),body=n('tbody');table.append(n('caption','Candidato completo · referencia del departamento original'));
+  for(const text of ['Situación en la fuente','Total','042','055','Otra referencia','Sin referencia']){const th=n('th',text);th.scope='col';line.append(th);}head.append(line);
+  for(const [key,label]of [['active','Activo por fecha de egreso'],['inactive','Inactivo por fecha de egreso'],['notDeclared','Situación no informada']]){const tr=n('tr'),th=n('th',label);th.scope='row';tr.append(th);for(const field of ['total','original042','original055','otherReference','notDeclared'])tr.append(n('td',shown(candidate.states[key][field])));body.append(tr);}
+  table.append(head,body);wrap.append(table);facts.append(wrap);
+  facts.append(n('p',`Sin referencia de departamento: ${shown(candidate.states.active.notDeclared)} activos y ${shown(candidate.states.inactive.notDeclared)} históricos inactivos. Estos antecedentes permanecen sin una asignación inventada.`));
+  const indicator=candidate.liquidationIndicator;
+  facts.append(n('p',`Indicador original «liquida»: ${shown(indicator.zero)} valores 0; ${shown(indicator.one)} valores 1; ${shown(indicator.null)} nulos; ${shown(indicator.blank)} vacíos; ${shown(indicator.absent)} no conservados; ${shown(indicator.other)} otros valores.`));
+  facts.append(n('p','La fecha de egreso y el indicador de liquidación son datos distintos. Los valores 0/1 no se traducen a permiso para liquidar. Una referencia faltante permanece pendiente; estos datos no asignan jurisdicciones ni habilitan haberes.','br-notice'));section.append(facts);
+ }
  let body=$('[data-br-domains]');
  if(joint){
   const counts=n('div',undefined,'br-counts');section.append(counts);
