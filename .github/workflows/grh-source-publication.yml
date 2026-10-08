@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'scripts/lib/grh-final-source-revision.mjs'
+      - 'scripts/lib/grh-final-source-consumers.mjs'
+      - 'tests/grh-final-source-consumers.test.js'
+      - 'tests/fixtures/final-source-consumer-synthetic.js'
       - 'scripts/prepare-grh-final-source-revision.mjs'
       - 'scripts/migrations/144-final-grh-source-revision.sql'
       - 'scripts/verify-grh-final-source-revision-postgres.mjs'
@@ -22,6 +25,9 @@ on:
   push:
     branches: ['internal-september-publication-20260922', 'master']
     paths:
+      - 'scripts/lib/grh-final-source-consumers.mjs'
+      - 'tests/grh-final-source-consumers.test.js'
+      - 'tests/fixtures/final-source-consumer-synthetic.js'
       - 'api/internal-data.js'
       - 'lib/payroll-read-errors.js'
       - 'tests/payroll-read*.test.js'

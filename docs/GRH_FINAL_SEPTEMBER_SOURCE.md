@@ -42,7 +42,19 @@ La publicación del código, la instalación del esquema vacío, el guardado de 
 
 La regresión real está en `scripts/verify-grh-final-source-revision-postgres.mjs`. Sólo conecta a loopback y bases de QA expresamente admitidas; la base local existente exige además su directorio de datos exacto dentro de `verification`. Usa un esquema sintético aislado, compara el contenido previo, ensaya fallos y cancelación, prueba COMMIT y repetición después de reconectar, y retira su propio esquema. PostgreSQL 17 y 18 se verifican en CI. El driver de QA fijado en pg 8.16.3 se instala en un prefijo temporal independiente; no cambia paquetes de la aplicación, dependencias compartidas ni paquetes globales.
 
-## Conservación municipal antes de incorporar el corte final
+## Contrato común de lectura para adaptar los consumidores
+
+`bindFinalSourceConsumersWithinTransaction` (`scripts/lib/grh-final-source-consumers.mjs`) vincula una revisión SQL144 sellada a un destino exacto y a su paquete esperado. Exige la misma transacción SERIALIZABLE o REPEATABLE READ del propietario, las dos versiones predecesoras, la certificación vigente y los diez sellos. No escoge un último archivo, no abre conexiones, no selecciona la fuente operativa y no concede acceso runtime. Es la entrada común para la adaptación coordinada de los lectores; todavía no sustituye sus consultas vigentes.
+
+`readRows(entity, {pageSize})` recorre cada conjunto completo con un cursor SQL propio. Ejecuta la reconstrucción una vez por conjunto, evitando repetirla para cada página. No acepta filtros, búsquedas, cursores externos o identificadores de tablas. Cierra el cursor incluso si el consumidor interrumpe la iteración. Las claves de procedencia permanecen literales y no se convierten en UUID de contratos o corridas. `recordJson` es el texto JSONB original de PostgreSQL; no debe pasar por JSON.parse/stringify para transportar decimales numéricos que superen la precisión de JavaScript.
+
+El recibo `assertComplete()` sólo existe después de recorrer los diez conjuntos, incluidos los vacíos, y comprobar cantidades y huellas completas contra el sello. Una interrupción, diferencia de contenido con igual cantidad de filas, revocación, cambio de rol o cambio de transacción invalida la lectura. El llamador debe revertir sus propias operaciones si falta ese recibo; el lector no hace COMMIT/ROLLBACK. Los adaptadores deben convertir los campos con SQL o tipos exactos y conservar las claves canónicas reales. Este contrato no acredita por sí mismo selección, aplicación, adopción o homologación salarial.
+
+El contexto distingue `revision_id` final de `parent_source_batch_id` y `parent_import_run_id`. Esos identificadores del predecesor no se presentan como un lote final nuevo ni se insertan en los contratos de los lectores anteriores. Los adaptadores de selección deben conservar esa distinción y registrar su propia activación coherente antes de dirigir consultas operativas al corte final.
+
+Las regresiones PostgreSQL ejercitan lectura completa en preparación SERIALIZABLE y, tras COMMIT/reconexión, en READ ONLY/REPEATABLE READ; comprueban cierre de cursores, interrupción, revocación y rechazo al reutilizar el mismo lector después de COMMIT. Sólo fixtures sintéticos y esquema QA aislado.
+
+## Cobertura de conservación vigente
 
 El perfil explícito `municipal-sql144` revisa 86 tablas: 67 raíces y 19 hijos. Incluye propuesta, decisión, sello y aplicación de adopción. El sello hereda municipio y vínculo de su propuesta; la aplicación los hereda de su decisión, mediante sus claves foráneas validadas. No se añade una columna de municipio ficticia a esos hijos ni se omiten porque carecen de esa columna. Las tres tablas privadas SQL144 se identifican como infraestructura de fuente excluida del circuito de decisiones. El perfil histórico `municipal-sql131` y los comandos anteriores conservan sus contratos de lectura.
 
