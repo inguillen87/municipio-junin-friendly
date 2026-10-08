@@ -1,6 +1,16 @@
 name: GRH coordinated source publication checks
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/lib/grh-final-source-revision.mjs'
+      - 'scripts/prepare-grh-final-source-revision.mjs'
+      - 'scripts/migrations/144-final-grh-source-revision.sql'
+      - 'scripts/verify-grh-final-source-revision-postgres.mjs'
+      - 'tests/grh-final-source-revision.test.js'
+      - 'tests/grh-final-source-revision-execution.test.js'
+      - 'tests/fixtures/final-source-revision-synthetic.js'
+      - '.github/workflows/grh-source-publication.yml'
   push:
     branches: ['internal-september-publication-20260922', 'master']
     paths:
@@ -11,6 +21,7 @@ on:
       - 'scripts/apply-payroll-read-session.mjs'
       - 'scripts/migrations/105-payroll-independent-read-session.sql'
       - 'scripts/migrations/106-grh-successor-staging.sql'
+      - 'scripts/migrations/144-final-grh-source-revision.sql'
       - 'scripts/fixtures/payroll-read-*'
       - 'contracts/payroll-read-session.v1.json'
       - 'scripts/verify-payroll-summary-055.mjs'
@@ -23,6 +34,7 @@ on:
       - 'tests/*grh*'
       - 'tests/successor-stage-transaction-lifecycle.test.js'
       - 'tests/fixtures/successor-loader-postgres.js'
+      - 'tests/fixtures/final-source-revision-synthetic.js'
       - 'tests/fixtures/grh-*'
       - 'tests/fixtures/native-continuity-catalog.js'
       - 'scripts/verify-native-catalog-postgres.mjs'
@@ -138,6 +150,11 @@ jobs:
           set -euo pipefail
           npm install --prefix "$RUNNER_TEMP/successor-pg" pg@8.16.3 --ignore-scripts --no-audit --no-fund
           SUCCESSOR_QA_PG_DRIVER="$RUNNER_TEMP/successor-pg/node_modules/pg/lib/index.js" SUCCESSOR_QA_PORT=5432 SUCCESSOR_QA_USER=postgres node scripts/verify-grh-successor-loader-postgres.mjs
+      - name: Final source revision, complete reconstruction and durable replay
+        run: |
+          set -euo pipefail
+          docker exec -e PGPASSWORD="$PGPASSWORD" ${{ job.services.postgres.id }} createdb -h 127.0.0.1 -U postgres final_source_revision_qa
+          FINAL_SOURCE_QA_PASSWORD="$PGPASSWORD" node scripts/verify-grh-final-source-revision-postgres.mjs --expected-major=${{ matrix.postgres }} --port=5432 --pg-driver="$RUNNER_TEMP/successor-pg/node_modules/pg/lib/index.js" --output="verification/final-source-revision-pg${{ matrix.postgres }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
