@@ -40,6 +40,7 @@ export function loaderQaSetup(major=17){
  sql+=`\nINSERT INTO public.action_case(id,tenant_id,source_binding_id,beneficiary_contract_id) SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,tenant,binding,employee FROM qa_ids;
  INSERT INTO public.payroll_novelty_batch(id,tenant_id,certified_binding_id) SELECT 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid,tenant,binding FROM qa_ids;
  SET CONSTRAINTS ALL IMMEDIATE; COMMIT;
- SELECT set_config('neon.project_id','${loaderQaTarget.projectId}',false),set_config('neon.branch_id','${loaderQaTarget.branchId}',false);`;
+ SELECT set_config('neon.project_id','${loaderQaTarget.projectId}',false),set_config('neon.branch_id','${loaderQaTarget.branchId}',false),
+ set_config('neon.max_cluster_size','512MB',false);`;
  return sql;
 }

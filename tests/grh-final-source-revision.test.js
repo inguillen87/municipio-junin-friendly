@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput} from '../scripts/lib/grh-final-source-revision.mjs';
+import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput,FINAL_SOURCE_REVISION_STORAGE_BUDGET} from '../scripts/lib/grh-final-source-revision.mjs';
 import {loaderQaPackage} from './fixtures/successor-loader-postgres.js';
 import {finalRevisionPackage,finalRevisionClient,finalRevisionTarget as target} from './fixtures/final-source-revision-synthetic.js';
 const pack=await finalRevisionPackage();
@@ -94,9 +94,40 @@ test('the final package retains closed September, open October M/O and exact sou
  assert.equal(payload.seniority,'9007199254740993.0000001');assert.equal(payload.bank,null);assert.equal(payload.zero,'0.00');
 });
 test('insufficient cluster capacity rejects preparation before installing a schema',async()=>{
- const client=finalRevisionClient(pack,{capacity:()=>({database_bytes:'1000000',cluster_bytes:String(500*1024*1024)})});
+ const client=finalRevisionClient(pack,{capacity:()=>({database_bytes:'1000000',cluster_bytes:String(500*1024*1024),
+  neon_project_id:target.projectId,enforced_limit_bytes:String(512*1024*1024)})});
  await assert.rejects(prepare(client),{code:'GRH_FINAL_REVISION_CAPACITY_REQUIRED'});
  assert.equal(client.state.installed,false);assert.equal(client.stored,null);
+});
+
+test('the final revision fits the current provider ceiling at the formerly blocked size',async()=>{
+ const client=finalRevisionClient(pack,{capacity:()=>({database_bytes:String(470*1024*1024),cluster_bytes:String(490*1024*1024),
+  neon_project_id:target.projectId,enforced_limit_bytes:'1073741824'})});
+ const receipt=await prepare(client);
+ assert.equal(receipt.capacityBefore.maximumBytes,1073741824);assert.equal(receipt.capacityBefore.fits,true);
+ assert.equal(receipt.capacityBefore.reserveBytes,16777216);assert.equal(receipt.capacityBefore.requiredGrowthBytes,25165824);
+ assert.equal(FINAL_SOURCE_REVISION_STORAGE_BUDGET.maximumGrowthBytes,25165824);
+ assert.equal(receipt.deltaRows,410);assert.equal(receipt.operationalSourceChanged,false);assert.equal(receipt.adoptionPerformed,false);
+});
+
+test('a full 1 GiB provider cluster rejects the final revision before writes',async()=>{
+ const client=finalRevisionClient(pack,{capacity:()=>({database_bytes:'1000000',cluster_bytes:String(1020*1024*1024),
+  neon_project_id:target.projectId,enforced_limit_bytes:'1073741824'})});
+ await assert.rejects(prepare(client),{code:'GRH_FINAL_REVISION_CAPACITY_REQUIRED'});
+ assert.equal(client.state.installed,false);assert.equal(client.stored,null);assert.equal(client.deltaRows,0);
+});
+
+test('a withdrawn provider ceiling after preparation rolls back every row',async()=>{
+ const client=finalRevisionClient(pack,{capacity:n=>({database_bytes:String(470*1024*1024),cluster_bytes:String(500*1024*1024),
+  neon_project_id:target.projectId,enforced_limit_bytes:String((n===1?1024:512)*1024*1024)})});
+ await assert.rejects(prepare(client),{code:'GRH_FINAL_REVISION_CAPACITY_EXCEEDED'});
+ assert.equal(client.state.installed,false);assert.equal(client.stored,null);assert.equal(client.deltaRows,0);
+});
+
+test('a missing provider ceiling prevents a real Neon revision rather than assuming unlimited space',async()=>{
+ const client=finalRevisionClient(pack,{capacity:()=>({database_bytes:'1000000',cluster_bytes:'4000000',neon_project_id:target.projectId})});
+ await assert.rejects(prepare(client),/GRH_VERSION_CAPACITY_INVALID/);
+ assert.equal(client.state.installed,false);assert.equal(client.stored,null);assert.equal(client.deltaRows,0);
 });
 test('excessive measured growth rolls back the preparation',async()=>{
  const client=finalRevisionClient(pack,{capacity:n=>({database_bytes:String(n===1?1000000:30*1024*1024),cluster_bytes:String(40*1024*1024)})});
