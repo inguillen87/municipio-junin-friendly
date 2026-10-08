@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 import '../assets/app-routes.js';
 
@@ -52,11 +53,14 @@ try {
         assert.match(await page.locator('.crumb').innerText(), /Vista de consulta/);
         const layout = await entry.evaluate(el => {
           const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
-          return { height: rect.height, top: rect.top, bottom: rect.bottom, fontSize: parseFloat(style.fontSize), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+          const outliers = [...document.querySelectorAll('body *')].map(node => ({ tag: node.tagName, id: node.id, className: node.className, right: node.getBoundingClientRect().right, width: node.getBoundingClientRect().width })).filter(node => node.right > innerWidth + 1 && node.width > 0).slice(0, 20);
+          return { height: rect.height, top: rect.top, bottom: rect.bottom, fontSize: parseFloat(style.fontSize), overflow: document.documentElement.scrollWidth > innerWidth + 1, outliers };
         });
+        fs.writeFileSync(path.join(output, 'last-layout.json'), JSON.stringify({ width, state, layout }, null, 2) + '\n');
         assert.ok(layout.height >= 56 && layout.fontSize >= 16, 'Prominent readable access');
         assert.ok(layout.top >= 0 && layout.bottom <= page.viewportSize().height, 'Entry is visible without scrolling');
-        assert.equal(layout.overflow, false, 'No horizontal overflow');
+        if(layout.overflow) await page.screenshot({ path: path.join(output, `overflow-${state}-${width}.png`), fullPage: false });
+        assert.equal(layout.overflow, false, `${width}/${state}: No horizontal overflow; ${JSON.stringify(layout.outliers)}`);
         if (['anonymous', 'authenticated'].includes(state) && [1440, 390].includes(width)) {
           await page.screenshot({ path: path.join(output, `entry-${state}-${width}.png`), fullPage: false });
         }
@@ -91,5 +95,5 @@ try {
     }
   }
 } finally { await browser.close(); }
-fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ fixtureOnly: true, municipalWrites: 0, checks }, null, 2) + '\n');
+fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ fixtureOnly: true, municipalWrites: 0, verifiedPageSha256: createHash('sha256').update(fs.readFileSync(path.join(root, 'friendly-dashboard.html'))).digest('hex'), checks }, null, 2) + '\n');
 console.log(JSON.stringify({ ok: true, scenarios: checks.length, municipalWrites: 0 }));
