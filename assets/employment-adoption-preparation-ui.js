@@ -6,7 +6,7 @@ const issue=(message,status,code)=>Object.assign(Error(message),{status,code});
 export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  if(!host)return;
  host.innerHTML=`<button type="button" class="button" data-ap-open aria-expanded="false" aria-controls="adoption-preparation-body">Preparar la adopción del padrón</button><section id="adoption-preparation-body" data-ap-panel hidden><h4>Guardar los antecedentes para su revisión</h4>
- <p>La propuesta conserva todos los contratos de la revisión, incluidos los inactivos. Guardarla no adopta contratos, completa datos faltantes ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción, cuando el circuito esté instalado y verificado.</p>
+ <p>La propuesta conserva todos los contratos del alcance elegido: personal activo o fuente histórica completa. El alcance y sus cantidades se muestran antes de guardar. Guardarla no adopta contratos ni habilita liquidaciones. Otra persona debe revisarla y decidirla en Revisar propuestas de adopción.</p>
  <button type="button" class="button" data-ap-load>Consultar condiciones y propuestas</button><p role="status" aria-live="polite" data-ap-status>La consulta es voluntaria. No se guarda nada al abrir este apartado.</p>
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
  <form data-ap-form hidden><p data-ap-counts></p>
@@ -40,7 +40,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   $('jurisdiction-rows').replaceChildren();
   for(const r of rows.slice((jurisdictionPage-1)*25,jurisdictionPage*25)){
    const tr=document.createElement('tr');
-   for(const [label,text]of [['Fila',String(r.rowNumber)],['Legajo / agente',(r.legajo??'Sin número informado')+' · '+(r.name??'Nombre pendiente')]]){const td=document.createElement('td');td.dataset.label=label;td.textContent=text;tr.append(td);}
+   for(const [label,text]of [['Fila',String(r.sourceRowNumber??r.rowNumber)],['Legajo / agente',(r.legajo??'Sin número informado')+' · '+(r.name??'Nombre pendiente')]]){const td=document.createElement('td');td.dataset.label=label;td.textContent=text;tr.append(td);}
    const td=document.createElement('td');td.dataset.label='Jurisdicción';
    if(r.jurisdictionCode!==null)td.textContent=`${r.jurisdictionCode} · ya declarada`;
    else{
@@ -88,7 +88,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  }
  async function fresh(signal,historyOnly=false){
   const selected=!historyOnly&&review?.source.finalRevision;
-  const query=selected?'?'+new URLSearchParams({resource:'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
+  const query=selected?'?'+new URLSearchParams({resource:review.source.operationalCohort?'final-active-bootstrap':'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
   const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(API+query,signal));
   return{...access,value,scope:adoptionReviewScope(value.review.scope)};
  }
@@ -98,7 +98,8 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  function paint(value){
   bootstrap=value.value;prepareAllowed=value.canPrepare;
   $('form').hidden=!bootstrap.canPrepare||!prepareAllowed||!bootstrap.review.total||!!pending;
-  $('counts').textContent=`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} tienen jurisdicción pendiente. La búsqueda no reduce la propuesta.`;
+  const cohort=bootstrap.review.source.operationalCohort;
+  $('counts').textContent=cohort?`Se prepararán los ${bootstrap.review.total} contratos activos del corte completo. ${cohort.archivedTotal} inactivos quedan como antecedentes y no se incorporan al circuito diario. La búsqueda no reduce la propuesta.`:`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} tienen jurisdicción pendiente. La búsqueda no reduce la propuesta.`;
   $('jurisdiction-help').textContent=supportsPending()?'La elección general se aplica a los contratos pendientes que requieren declaración. Los inactivos con fecha de finalización anterior a hoy pueden conservar su jurisdicción pendiente; esto no habilita su liquidación. Podés declarar excepciones por contrato. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.':'La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.';
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
    const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);

@@ -35,7 +35,7 @@ export function createNoeliaCircuitPsqlQa(options){const runtime=noeliaCircuitRu
   return await db.run("SELECT coalesce(jsonb_agg(to_jsonb(qa_read)), '[]'::jsonb) FROM ("+sql+") qa_read");
  }
  if(!/^SELECT public\.(?:municipal_adoption_|employment_adoption_|own_novelty_|native_employee_|native_employment_catalog_|position_assignment_|position_comparison_|annual_budget_)/.test(query))return db.query(query,values);
- assert.match(query,/^SELECT public\.(?:municipal_adoption_(?:queue|review|attempt|command)_v1|employment_adoption_(?:bootstrap|attempt|propose|history_read|final_bootstrap|final_available)_v1|own_novelty_(?:bootstrap|detail|attempt|command)_v1|native_employee_directory_snapshot_v1|native_employment_catalog_bootstrap_v1|position_assignment_(?:bootstrap|attempt|command|capture)_v1|position_comparison_detail_v1|annual_budget_(?:bootstrap|attempt|command)_v1)\([\s\S]+\) AS result$/);
+ assert.match(query,/^SELECT public\.(?:municipal_adoption_(?:queue|review|attempt|command)_v1|employment_adoption_(?:bootstrap|attempt|propose|history_read|final_bootstrap|final_available|active_bootstrap)_v1|own_novelty_(?:bootstrap|detail|attempt|command)_v1|native_employee_directory_snapshot_v1|native_employment_catalog_bootstrap_v1|position_assignment_(?:bootstrap|attempt|command|capture)_v1|position_comparison_detail_v1|annual_budget_(?:bootstrap|attempt|command)_v1)\([\s\S]+\) AS result$/);
  const sql=query.replaceAll('public.',options.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);});return[{result:await db.run(sql,true)}];
  }};}
 export function relocateNoeliaNoveltyInstallation(batch,qa){

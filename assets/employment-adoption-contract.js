@@ -2,6 +2,8 @@
 export const ADOPTION_VERSION = 'employment-adoption.v1';
 export const ADOPTION_PENDING_INPUT_VERSION = 'employment-adoption-input.v2';
 export const ADOPTION_FINAL_INPUT_VERSION = 'employment-adoption-input.v3';
+export const ADOPTION_ACTIVE_INPUT_VERSION = 'employment-adoption-input.v4';
+export const ADOPTION_ACTIVE_COHORT = 'active-contracts.v1';
 export const ADOPTION_MAX_ROWS = 10000;
 export const EMPLOYMENT_ORIGINS = Object.freeze({historical: 'GRH', own: 'MUNICONTROL'});
 export class AdoptionInputError extends Error {
@@ -23,21 +25,22 @@ function text(value, min, max) {
   return result;
 }
 export function adoptionProposalInput(value) {
-  const final=value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
-  if (!exact(value, ['sourceContextVersion', 'selectionVersion', 'catalogVersion', 'rows', 'legalReference', 'reason',...(pending?['version']:[]),...(final?['finalSource']:[])])
+  const active=value?.version===ADOPTION_ACTIVE_INPUT_VERSION,final=active||value?.version===ADOPTION_FINAL_INPUT_VERSION,pending=final||value?.version===ADOPTION_PENDING_INPUT_VERSION;
+  if (!exact(value, ['sourceContextVersion', 'selectionVersion', 'catalogVersion', 'rows', 'legalReference', 'reason',...(pending?['version']:[]),...(final?['finalSource']:[]),...(active?['cohort']:[])])
     || ![value.sourceContextVersion, value.selectionVersion, value.catalogVersion].every(sha) || !Array.isArray(value.rows)) fail();
   if(final&&(!exact(value.finalSource,['revisionId','packageSha256'])||!adoptionUuid(value.finalSource.revisionId)||!sha(value.finalSource.packageSha256)))fail();
+  if(active&&value.cohort!==ADOPTION_ACTIVE_COHORT)fail();
   if (value.rows.length < 1 || value.rows.length > ADOPTION_MAX_ROWS) fail('LIMIT', 'La selección completa requiere entre uno y diez mil contratos. No se omitieron filas.');
   const seen = new Set(), rows = [];
   for (const row of value.rows) {
     if (!exact(row, ['contractId', 'contractVersion', 'jurisdictionCode']) || !adoptionUuid(row.contractId)
-      || !sha(row.contractVersion) || !['42', '55',...(pending?[null]:[])].includes(row.jurisdictionCode)) fail();
+      || !sha(row.contractVersion) || !['42', '55',...(pending&&!active?[null]:[])].includes(row.jurisdictionCode)) fail();
     const identity = row.contractId.toLowerCase();
     if (seen.has(identity)) fail('DUPLICATE', 'Un contrato aparece más de una vez. Revisá la selección completa.');
     seen.add(identity);
     rows.push({contractId: row.contractId, contractVersion: row.contractVersion, jurisdictionCode: row.jurisdictionCode});
   }
-  return freeze({...(pending?{version:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
+  return freeze({...(pending?{version:active?ADOPTION_ACTIVE_INPUT_VERSION:final?ADOPTION_FINAL_INPUT_VERSION:ADOPTION_PENDING_INPUT_VERSION}:{}),...(final?{finalSource:{...value.finalSource}}:{}),...(active?{cohort:ADOPTION_ACTIVE_COHORT}:{}),sourceContextVersion: value.sourceContextVersion, selectionVersion: value.selectionVersion,
     catalogVersion: value.catalogVersion, rows, legalReference: text(value.legalReference, 3, 180), reason: text(value.reason, 10, 1000)});
 }
 export function adoptionReviewInput(value) {
