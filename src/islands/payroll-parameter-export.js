@@ -1,4 +1,4 @@
-import { verifiedParameterProposal, AGREEMENT_LABELS, PARAMETER_STATUSES } from '../../lib/payroll-parameter-contract.js';
+import { verifiedParameterProposal, AGREEMENT_LABELS, PARAMETER_STATUSES, PARAMETER_ROUNDING_LABELS } from '../../lib/payroll-parameter-contract.js';
 import { reportCsv, reportXlsx, reportPdf } from '../../assets/report-document.js';
 export function parameterDocument(proposal, queriedAt) {
   const p = verifiedParameterProposal(proposal), d = p.draft;
@@ -9,7 +9,7 @@ export function parameterDocument(proposal, queriedAt) {
     columns: [ ['Convenio', 'text', 29], ['Auxiliar', 'text', 12], ['Clase', 'text', 12], ['Base de escala', 'money', 22], ['Valor propuesto', 'money', 22], ['Desde', 'text', 15], ['Estado', 'text', 25], ['Escala / resolución', 'text', 42] ].map(([label, type, width]) => ({ label, type, width })),
     rows: d.rows.map(row => [String(row.agreementId) + ' · ' + AGREEMENT_LABELS[row.agreementId], String(row.auxiliaryId), row.baseClass, decimal(d.baseAmountCents), decimal(row.newValueCents), d.validFrom, PARAMETER_STATUSES[p.status], d.sourceReference]),
     totals: [], notes: ['Propuesta registrada en MuniControl. No acredita vigencia aplicada, liquidación, cierre ni pago.'],
-    metadata: [['Fuente', 'Registro propio de parámetros en Neon'], ['Estado', PARAMETER_STATUSES[p.status]], ['Período', d.validFrom], ['Propuesta', p.id], ['Versión', String(p.version)], ['Escala / resolución', d.sourceReference], ['Redondeo', d.rounding === 'nearest_cent' ? 'Al centavo más próximo' : 'Truncar al centavo'], ['Consultado', queriedAt], ['SHA-256', d.sourceSha256]],
+    metadata: [['Fuente', 'Registro propio de parámetros en Neon'], ['Estado', PARAMETER_STATUSES[p.status]], ['Período', d.validFrom], ['Propuesta', p.id], ['Versión', String(p.version)], ['Escala / resolución', d.sourceReference], ['Precisión registrada', PARAMETER_ROUNDING_LABELS[d.rounding]], ['Consultado', queriedAt], ['SHA-256', d.sourceSha256]],
   };
 }
 export function parameterArtifact(proposal, extension, queriedAt) {

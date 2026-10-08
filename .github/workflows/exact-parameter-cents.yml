@@ -1,0 +1,58 @@
+name: Exact parameter cents
+on:
+  pull_request:
+    paths: ['lib/payroll-parameter-contract.js', 'lib/internal-payroll-parameters.js', 'src/islands/PayrollParameters.jsx', 'src/islands/payroll-parameter-export.js', 'scripts/*exact-parameter-cents*', 'scripts/lib/exact-parameter-cents-installation.mjs', 'scripts/verify-payroll-parameters-browser.mjs', 'tests/exact-parameter-cents.test.js', '.github/workflows/exact-parameter-cents.yml']
+  push:
+    branches: ['master']
+    paths: ['lib/payroll-parameter-contract.js', 'lib/internal-payroll-parameters.js', 'src/islands/PayrollParameters.jsx', 'src/islands/payroll-parameter-export.js', 'scripts/*exact-parameter-cents*', 'scripts/lib/exact-parameter-cents-installation.mjs', 'scripts/verify-payroll-parameters-browser.mjs', 'tests/exact-parameter-cents.test.js', '.github/workflows/exact-parameter-cents.yml']
+permissions:
+  contents: read
+concurrency:
+  group: exact-parameter-cents-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Exact preparation, history, recovery and mobile interface
+        run: node scripts/verify-payroll-parameters-browser.mjs
+      - name: Real PostgreSQL exact cents and preserved historical policies
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-exact-parameter-cents-sql.mjs --major=${{ matrix.pg }} --psql=psql --port=5432 --output=verification/exact-parameter-cents-pg${{ matrix.pg }}.json
+      - name: Published parameters and anonymous denials
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: node scripts/verify-payroll-parameters-production.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exact-parameter-cents-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: |
+            verification/parameters-local/
+            verification/exact-parameter-cents-pg*.json
+            verification/payroll-parameters-production.json
+          retention-days: 5
