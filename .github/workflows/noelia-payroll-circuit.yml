@@ -63,6 +63,10 @@ jobs:
         run: node scripts/verify-active-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/active-adoption-legacy-ci
       - name: Correct complete identity profiles without changing rows, permissions or earlier requests
         run: node scripts/verify-final-identity-profile.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-identity-profile-ci
+      - name: Declare missing active facts and independently adopt the complete roster without editing the source
+        run: node scripts/verify-active-source-declarations.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/active-source-declarations-ci
+      - name: Preview declared facts, preserve all pages and recover the original voluntary attempt
+        run: node scripts/verify-active-source-declarations-browser.mjs --output-prefix=verification/active-source-declarations-browser-ci
       - name: Review all 869 active rows, download observations and recover the same voluntary attempt
         run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/active-adoption-browser-ci --active=true
       - name: Independently decide and consult the final-cut result through actual SQL and HTTP
@@ -95,6 +99,12 @@ jobs:
             verification/final-adoption-operator-ci/failure.json
             verification/final-adoption-operator-ci/*.png
             verification/active-adoption-ci/result.json
+            verification/final-identity-profile-ci/result.json
+            verification/final-identity-profile-ci/failure.txt
+            verification/active-source-declarations-ci/result.json
+            verification/active-source-declarations-ci/failure.txt
+            verification/active-source-declarations-browser-ci-*.json
+            verification/active-source-declarations-browser-ci-*.png
             verification/active-adoption-ci/failure.txt
             verification/active-adoption-ci/adapter-failure.txt
             verification/active-adoption-legacy-ci/result.json
