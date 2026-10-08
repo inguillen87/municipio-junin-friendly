@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {finalRevisionTarget} from './final-source-revision-synthetic.js';
 import {SUCCESSOR_ENTITIES} from '../../scripts/lib/grh-successor-package.mjs';
-import {FINAL_CONSUMER_CONTEXT_SQL,FINAL_CONSUMER_ROWS_SQL} from '../../scripts/lib/grh-final-source-consumers.mjs';
+import {FINAL_CONSUMER_CONTEXT_SQL,FINAL_CONSUMER_ROWS_SQL,FINAL_CONSUMER_FINGERPRINT_SQL} from '../../scripts/lib/grh-final-source-consumers.mjs';
 export const finalConsumerRevision='88888888-8888-4888-8888-888888888888';
 export const finalConsumerPackage='c'.repeat(64);
 const md5=v=>createHash('md5').update(v).digest('hex');
@@ -24,6 +24,8 @@ export function finalConsumerFixture({editContext,editPage}={}){
  const calls=[],cursors=new Map();let reads=0;
  const client={async query(text,values){calls.push({text,values});
   if(text===FINAL_CONSUMER_CONTEXT_SQL){const copy=structuredClone(r);editContext?.(copy,++reads);return {rows:[copy]};}
+  if(text===FINAL_CONSUMER_FINGERPRINT_SQL){if(values[0]!==finalConsumerRevision||!Object.hasOwn(data,values[1]))throw Error('Unknown synthetic revision/entity');
+   const rows=data[values[1]];return {rows:[{fingerprint:{rows:rows.length,md5:md5(rows.map(row=>md5(row.row_key+row.record_json)).join(''))}}]};}
   if(text.startsWith('DECLARE ')&&text.endsWith(FINAL_CONSUMER_ROWS_SQL)){const match=/^DECLARE (mc_final_consumer_[a-f0-9]{32}) NO SCROLL CURSOR FOR/.exec(text);
    if(!match||values[0]!==finalConsumerRevision)throw Error('Unknown synthetic revision');cursors.set(match[1],{entity:values[1],offset:0});return {rows:[]};}
   const fetch=/^FETCH FORWARD ([0-9]+) FROM (mc_final_consumer_[a-f0-9]{32})$/.exec(text);

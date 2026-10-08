@@ -151,6 +151,17 @@ try{
  await raw.query('ROLLBACK TO SAVEPOINT other_municipality');
  ok(first.entities===10&&first.deltaRows===410&&!first.operationalSourceChanged,'ten domains and 410 differences without selection');
  const consumer=await consumerRead(first.revisionId,pack,'serializable preparation');
+ const scalarConsumer=await bindFinalSourceConsumersWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
+ for(const entity of Object.keys(pack.entities))await scalarConsumer.verifyEntity(entity);
+ const scalarReceipt=await scalarConsumer.assertComplete();
+ ok(JSON.stringify(scalarReceipt.counts)===JSON.stringify((await consumer.assertComplete()).counts),'server fingerprint verifies all ten full sets with the same complete counts as row transport');
+ ok((await query("SELECT count(*)::integer AS n FROM pg_cursors WHERE name LIKE 'mc_final_consumer_%'")).rows[0].n===0,'server-only full verification does not open transport cursors');
+ await query('SAVEPOINT scalar_consumer_authority');
+ await query('UPDATE public.platform_tenant_source_binding SET verified=false WHERE id=$1::uuid',[target.bindingId]);
+ await assert.rejects(scalarConsumer.verifyEntity('core/payrollMonthly'),{code:'GRH_FINAL_CONSUMER_CONTEXT'});
+ await query('ROLLBACK TO SAVEPOINT scalar_consumer_authority');
+ await assert.rejects(scalarConsumer.assertComplete(),{code:'GRH_FINAL_CONSUMER_INCOMPLETE'});
+ checks.push('withdrawn SQL certification invalidates a previously completed server verification');
  const comparison=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
  ok(comparison.rows.length===3&&comparison.cohort.missing_core_keys===2&&comparison.reviewRequired,'transition preserves all final employees and exposes the existing fixture core gaps');
  ok(comparison.rows.filter(r=>r.issues.includes('CONTRACT_NOT_FOUND')).length===2,'transition does not create UUIDs for missing canonical contracts');

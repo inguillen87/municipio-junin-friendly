@@ -45,6 +45,7 @@ export const FINAL_CONSUMER_ROWS_SQL=`/* final-consumer:rows */
  SELECT row_key,record::text AS record_json
  FROM public.grh_final_source_rows_v1($1::uuid,$2::text)
  ORDER BY row_key`;
+export const FINAL_CONSUMER_FINGERPRINT_SQL='/* final-consumer:fingerprint */ SELECT public.grh_final_source_fingerprint_v1($1::uuid,$2::text,false) AS fingerprint';
 
 /** Source JSON stays text: JSON.parse/stringify would round a raw numeric value.
  * Pages are a transport detail. A complete receipt requires every row of all ten
@@ -90,6 +91,25 @@ export async function bindFinalSourceConsumersWithinTransaction({client,target:i
   contextSha256:digest('sha256',stableJson(source)),operationalSourceChanged:false});
  const assertCurrent=async()=>{if(stableJson(await inspect())!==stableJson(before))fail('GRH_FINAL_CONSUMER_CHANGED');};
  const completed=new Map();let active=false;
+ // A consumer that needs no records still verifies every row in PostgreSQL.
+ // Compare the exact same ordered JSONB fingerprint as the stream, in this
+ // transaction and context; only counts/digest cross the transport boundary.
+ async function verifyEntity(entity,...extra){
+  if(extra.length||!SUCCESSOR_ENTITIES.includes(entity))fail('GRH_FINAL_CONSUMER_ARGUMENT');
+  if(active)fail('GRH_FINAL_CONSUMER_READ_ACTIVE');
+  active=true;completed.delete(entity);
+  try{
+   await assertCurrent();
+   const rows=(await query(FINAL_CONSUMER_FINGERPRINT_SQL,[revisionId,entity])).rows;
+   const f=rows?.[0]?.fingerprint,expected=before.fingerprints[entity];
+   if(!Array.isArray(rows)||rows.length!==1||!rows[0]||Object.keys(rows[0]).length!==1||!f||Array.isArray(f)
+    ||Object.keys(f).length!==2||!Object.hasOwn(f,'rows')||!Object.hasOwn(f,'md5')
+    ||!Number.isSafeInteger(f.rows)||f.rows<0||f.rows!==expected.rows||f.md5!==expected.md5)
+    fail('GRH_FINAL_CONSUMER_FINGERPRINT');
+   await assertCurrent();completed.set(entity,f.rows);
+   return freeze({entity,rows:f.rows,md5:f.md5,contextSha256:context.contextSha256});
+  }finally{active=false;}
+ }
  async function* readRows(entity,options={}){
   if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='pageSize'))fail('GRH_FINAL_CONSUMER_ARGUMENT');
   const pageSize=Object.hasOwn(options,'pageSize')?options.pageSize:500;
@@ -129,5 +149,5 @@ export async function bindFinalSourceConsumersWithinTransaction({client,target:i
    counts:Object.fromEntries(SUCCESSOR_ENTITIES.map(e=>[e,completed.get(e)])),
    complete:true,callerOwnedTransaction:true,sourceSelected:false,municipalWrites:0});
  }
- return Object.freeze({context,readRows,assertComplete});
+ return Object.freeze({context,readRows,verifyEntity,assertComplete});
 }
