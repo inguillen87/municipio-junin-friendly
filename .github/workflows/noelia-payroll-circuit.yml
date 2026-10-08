@@ -53,6 +53,12 @@ jobs:
         run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci
       - name: Preserve inactive history with unknown jurisdiction and refuse active unknowns
         run: node scripts/verify-adoption-inactive-jurisdiction.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/inactive-jurisdiction-ci
+      - name: Complete final-cut source, proposal and exact immutable application
+        run: node scripts/verify-final-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-ci
+      - name: Review, compare, download and recover the complete final-cut proposal
+        run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/final-adoption-browser-ci
+      - name: Independently decide and consult the final-cut result through actual SQL and HTTP
+        run: node scripts/verify-municipal-adoption-operator-browser.mjs --transport=ci --final-cut=true --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-operator-ci
       - name: Preserve synthetic evidence even when a check fails
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -72,4 +78,11 @@ jobs:
             verification/published-adoption-ci/uuid-three-defaults-proof.json
             verification/inactive-jurisdiction-ci/result.json
             verification/inactive-jurisdiction-ci/failure.txt
+            verification/final-adoption-ci/result.json
+            verification/final-adoption-ci/failure.txt
+            verification/final-adoption-browser-ci-*.json
+            verification/final-adoption-browser-ci-*.png
+            verification/final-adoption-operator-ci/result.json
+            verification/final-adoption-operator-ci/failure.json
+            verification/final-adoption-operator-ci/*.png
           retention-days: 7
