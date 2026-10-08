@@ -10,7 +10,7 @@ export function emptySheetRow(legajo = '', concepto = '', unidades = '') {
 function assertRows(rows) {
   if (!Array.isArray(rows) || rows.length > NOVELTY_REVIEW_MAX_ROWS
       || rows.some(r => !Array.isArray(r) || r.length !== 10 || r.some(v => typeof v !== 'string'))) {
-    throw Error('La planilla admite hasta 500 filas con diez campos de texto.');
+    throw Error('La planilla admite hasta 2.000 filas con diez campos de texto.');
   }
 }
 const businessKey = r => JSON.stringify([r.legajo, r.conceptSourceId, r.costCenterSourceId || '', r.adjustmentMonth || '', r.movementType || '']);
@@ -37,7 +37,7 @@ export function appendSheetGroup(rows, { legajos, concepto = '', unidades = '' }
   if (typeof legajos !== 'string' || legajos.length > 12000) throw Error('La lista de legajos supera el tamaño permitido.');
   const tokens = legajos.trim().replace(/\r\n?/g, '\n').split('\n').map(s => s.trim());
   if (!legajos.trim()) throw Error('Ingresá un número de legajo por línea.');
-  if (rows.length + tokens.length > NOVELTY_REVIEW_MAX_ROWS) throw Error('El lote completo admite hasta 500 filas.');
+  if (rows.length + tokens.length > NOVELTY_REVIEW_MAX_ROWS) throw Error('El lote completo admite hasta 2.000 filas.');
   if (typeof concepto !== 'string' || !/^(?:0|[1-9]\d{0,19})$/.test(concepto.trim())) throw Error('Ingresá un código de concepto válido.');
   if (typeof unidades !== 'string' || unidades.length > 24) throw Error('Las unidades superan el tamaño permitido.');
   const seen = new Set();
@@ -60,9 +60,9 @@ export function sheetPage(rows, page = 1, pageSize = 10) {
 }
 
 /** Append a reviewed preparte atomically. Never replace existing administrative work. */
-export function appendPreparteRows(rows, incoming, limit = 500) {
+export function appendPreparteRows(rows, incoming, limit = NOVELTY_REVIEW_MAX_ROWS) {
   assertRows(rows); assertRows(incoming);
-  if (!Number.isSafeInteger(limit) || limit<1 || limit>500 || !incoming.length || rows.length+incoming.length>limit) throw Error('La planilla no tiene espacio para todo el preparte. No se agregó ninguna fila.');
+  if (!Number.isSafeInteger(limit) || limit<1 || limit>NOVELTY_REVIEW_MAX_ROWS || !incoming.length || rows.length+incoming.length>limit) throw Error('La planilla no tiene espacio para todo el preparte. No se agregó ninguna fila.');
   const canonical=value=>/^\d{1,20}$/.test(value.trim())?value.trim().replace(/^0+(?=\d)/,''):value.trim();
   const occupied=new Set(rows.filter(row=>['44','95'].includes(canonical(row[1]))).map(row=>canonical(row[0])));
   for (const row of incoming) {

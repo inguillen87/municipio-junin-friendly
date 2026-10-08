@@ -1,10 +1,10 @@
-import { verifyMonthlyBatch } from './payroll-native-monthly-model.js';
+import { MONTHLY_BATCH_MAX_ROWS, verifyMonthlyBatch } from './payroll-native-monthly-model.js';
 
 const CONTRACT_VERSION = 'payroll-novelty-batch.v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MONTH = /^(?:19|20)[0-9]{2}-(?:0[1-9]|1[0-2])-01$/;
 const INT64 = /^-?(?:0|[1-9][0-9]{0,18})$/;
-const MAX_ROWS = 500;
+const MAX_ROWS = MONTHLY_BATCH_MAX_ROWS;
 const SOURCE_MODES = new Set(['individual', 'bulk']);
 const PAYROLL_TYPES = new Set([
   'monthly', 'first_fortnight', 'sac', 'vacation', 'supplementary', 'final', 'other',

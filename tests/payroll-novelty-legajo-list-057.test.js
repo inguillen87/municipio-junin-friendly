@@ -26,11 +26,11 @@ test('duplicados propios y contra lote se explican juntos sin quitar ninguno', (
   assert.equal(a.count, 5); assert.deepEqual(a.issues.map(i => i.position), [1, 3, 4]); assert.equal(a.ready, false);
   assert.match(a.issues[1].message, /posición 2/); assert.deepEqual(a.items, ['1001','1002','1002','xxx','1003']);
 });
-test('máximo exacto de 500; nunca acepta 501 ni recorta', () => {
-  const rows = Array.from({length:500}, (_,i) => String(i + 1));
+test('máximo exacto de 2000; nunca acepta 2001 ni recorta', () => {
+  const rows = Array.from({length:2000}, (_,i) => String(i + 1));
   assert.equal(analyzeLegajoList(rows.join('\n')).ready, true);
-  assert.equal(analyzeLegajoList([...rows,'501'].join('\n')).ready, false);
-  assert.equal(append(rows.join('\n')).length, 500);
+  assert.equal(analyzeLegajoList([...rows,'2001'].join('\n')).ready, false);
+  assert.equal(append(rows.join('\n')).length, 2000);
 });
 test('respeta lugares restantes y límite menor informado por servidor', () => {
   assert.equal(analyzeLegajoList('2 3', ['1'], 3).ready, true);
@@ -38,10 +38,10 @@ test('respeta lugares restantes y límite menor informado por servidor', () => {
   assert.equal(analyzeLegajoList('2 3', ['1','4'], 3).ready, false);
 });
 test('la lista no puede exceder el presupuesto de caracteres', () => {
-  assert.equal(analyzeLegajoList(' '.repeat(12001)).ready, false);
-  assert.ok(analyzeLegajoList('1'.repeat(12001)).issues.length);
+  assert.equal(analyzeLegajoList(' '.repeat(48001)).ready, false);
+  assert.ok(analyzeLegajoList('1'.repeat(48001)).issues.length);
 });
-for (const maximum of [0, 501, 2.5, '500', null]) test('rechaza límite inválido ' + maximum, () => assert.throws(() => analyzeLegajoList('1', [], maximum)));
+for (const maximum of [0, 2001, 2.5, '500', null]) test('rechaza límite inválido ' + maximum, () => assert.throws(() => analyzeLegajoList('1', [], maximum)));
 test('conserva la plantilla y cada legajo sin Number, redondeos ni coerción', () => {
   const before = JSON.stringify(common), rows = append('9007199254740993\n12345678901234567890');
   assert.equal(rows[0].legajo, '9007199254740993'); assert.equal(rows[1].legajo, '12345678901234567890');

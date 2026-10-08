@@ -28,8 +28,8 @@ test('concept IDs are sorted numerically without converting them to Number',()=>
   const r=noveltyBatchControl([row(1,{conceptSourceId:'90071992547409931'}),row(2,{conceptSourceId:'2'}),row(3,{conceptSourceId:'90071992547409930'})]);
   assert.deepEqual(r.concepts.map(c=>c.conceptSourceId),['2','90071992547409930','90071992547409931']);
 });
-test('500 rows are counted in full, with no hidden truncation',()=>{
-  const source=Array.from({length:500},(_,i)=>row(i+1,{amountCents:'123'}));assert.equal(noveltyBatchControl(source).knownAmountCents,'61500');assert.throws(()=>noveltyBatchControl([...source,row(501)]));
+test('2000 rows are counted in full, with no hidden truncation',()=>{
+  const source=Array.from({length:2000},(_,i)=>row(i+1,{amountCents:'123'}));assert.equal(noveltyBatchControl(source).knownAmountCents,'246000');assert.throws(()=>noveltyBatchControl([...source,row(2001)]));
 });
 test('invalid or ambiguous structural values cannot produce a trusted control',()=>{
   for(const patch of [{amountCents:0},{amountCents:'-0'},{amountCents:''},{amountCents:'1.5'},{amountCents:'01'},{amountCents:'1e3'},

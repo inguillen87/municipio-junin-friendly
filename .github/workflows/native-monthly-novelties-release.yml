@@ -58,6 +58,10 @@ on:
       - 'tests/*native-monthly*'
       - 'tests/internal-payroll-novelty*'
       - 'tests/payroll-deployment-package.test.js'
+      - 'scripts/lib/monthly-batch-capacity-installation.mjs'
+      - 'scripts/prepare-monthly-batch-capacity-installation.mjs'
+      - 'scripts/verify-monthly-complete-batches-*.mjs'
+      - 'tests/monthly-complete-batches.test.js'
       - '.github/workflows/native-monthly-novelties-release.yml'
   pull_request:
     paths:
@@ -106,6 +110,10 @@ on:
       - 'scripts/verify-grh-import-*.mjs'
       - 'tests/grh-import*.test.js'
       - 'tests/fixtures/grh-import-synthetic.js'
+      - 'scripts/lib/monthly-batch-capacity-installation.mjs'
+      - 'scripts/prepare-monthly-batch-capacity-installation.mjs'
+      - 'scripts/verify-monthly-complete-batches-*.mjs'
+      - 'tests/monthly-complete-batches.test.js'
       - '.github/workflows/native-monthly-novelties-release.yml'
 permissions:
   contents: read
@@ -130,6 +138,7 @@ jobs:
       - run: node scripts/verify-monthly-approved-corrections-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - run: node scripts/verify-grh-import-browser.mjs
+      - run: node scripts/verify-monthly-complete-batches-browser.mjs
       - run: node scripts/verify-grh-import-login-recovery-browser.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
@@ -148,6 +157,7 @@ jobs:
           path: |
             verification/native-monthly-local/**
             verification/grh-import-browser/**
+            verification/monthly-complete-batches-browser/**
             verification/monthly-decisions-local/**
             verification/monthly-annul-local/**
             verification/monthly-correction-local/**
@@ -206,6 +216,10 @@ jobs:
           wait "$blocker"
           trap - EXIT
 
+      - name: Complete monthly batches and conservative capacity installation
+        run: |
+          node scripts/verify-monthly-complete-batches-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/monthly-complete-batches.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f verification/monthly-complete-batches.sql
       - name: Original candidate SQL and atomic import through existing facades
         run: |
           node scripts/verify-grh-import-source-sql.mjs --expected-major=${{ matrix.postgres }} --write-sql=verification/grh-source.sql

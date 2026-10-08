@@ -13,7 +13,7 @@ import { amountEntryPolicy } from './payroll-novelty-amount-policy.js';
 import { downloadPayrollNoveltyCsv } from './payroll-novelty-exporter.js';
 import { downloadPayrollNoveltyXlsx } from './payroll-novelty-xlsx-exporter.js';
 import { mountFixedNovelties } from './payroll-fixed-novelties.js';
-import { verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision, nativeMonthlyPreparation, sameNativeMonthlySubject, assertNativeMonthlyPrepareReceipt } from './payroll-native-monthly-model.js';
+import { MONTHLY_BATCH_MAX_ROWS, verifyMonthlyBootstrap, verifyMonthlyBatch, verifyMonthlyEmployee, buildNativeMonthlyDraft, monthlyWriteAttempt, requestedNoveltyBatch, savedNoveltyBatch, sameNoveltyDecision, nativeMonthlyPreparation, sameNativeMonthlySubject, assertNativeMonthlyPrepareReceipt } from './payroll-native-monthly-model.js';
 import {mountNativeMonthlyReview} from './payroll-native-monthly-review.js';
 import {mountMonthlyDecisions} from './payroll-monthly-decisions.js';
 import {mountMonthlyAnnul} from './payroll-monthly-annul.js';
@@ -22,7 +22,7 @@ import {mountOwnPayrollNovelties} from './own-payroll-novelties-panel.js';
 
 const API_URL = '/api/internal-payroll-novelties';
 const LOGIN_URL = globalThis.MuniControlRoutes.loginHref('novedades-nomina.html');
-const MAX_ROWS = 500;
+const MAX_ROWS = MONTHLY_BATCH_MAX_ROWS;
 const PAYROLL_NOVELTY_HANDOFF_KEY = 'municontrol.payroll-novelty-handoff.v1';
 const PAYROLL_NOVELTY_HANDOFF_MAX_AGE_MS = 5 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -1257,7 +1257,7 @@ function handleFile(event) {
   if (!file) return;
   byId('bulkSource').value = '';
   if (file.size === 0 || file.size > 480 * 1024 || !/\.(csv|txt)$/i.test(file.name)) {
-    showMessage('error', 'Archivo no admitido', 'Usá un TXT o CSV de hasta 480 KiB y 500 filas. Elegí su formato; no se conserva una previsualización anterior.');
+    showMessage('error', 'Archivo no admitido', 'Usá un TXT o CSV de hasta 480 KiB y hasta 2.000 filas, según la capacidad habilitada. Elegí su formato; no se conserva una previsualización anterior.');
     event.target.value = '';
     return;
   }

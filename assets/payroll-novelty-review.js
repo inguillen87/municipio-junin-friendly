@@ -1,10 +1,10 @@
 /** Local review only. Never drops an invalid row into a partially accepted draft. */
-import { assertNativeMonthlySubject, sameNativeMonthlySubject } from './payroll-native-monthly-model.js';
+import { MONTHLY_BATCH_MAX_ROWS, assertNativeMonthlySubject, sameNativeMonthlySubject } from './payroll-native-monthly-model.js';
 export const NOVELTY_CSV_HEADER = Object.freeze([
   'legajo', 'concepto', 'centro_costo', 'mes_ajuste', 'unidades', 'importe_ars',
   'movimiento', 'instrumento_legal', 'observacion', 'forzado',
 ]);
-export const NOVELTY_REVIEW_MAX_ROWS = 500;
+export const NOVELTY_REVIEW_MAX_ROWS = MONTHLY_BATCH_MAX_ROWS;
 export const NOVELTY_REVIEW_MAX_BYTES = 480 * 1024;
 
 export class NoveltyReviewError extends Error {
@@ -30,7 +30,7 @@ export function noveltyCsvRecords(raw) {
   const cell = () => { cells.push(value); value = ''; closed = false; };
   const record = () => {
     cell(); records.push({ cells, line: startLine }); cells = [];
-    if (records.length > NOVELTY_REVIEW_MAX_ROWS + 1) fail('El lote admite hasta 500 filas.', startLine);
+    if (records.length > NOVELTY_REVIEW_MAX_ROWS + 1) fail(`El lote admite hasta ${NOVELTY_REVIEW_MAX_ROWS} filas.`, startLine);
   };
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -50,7 +50,7 @@ export function noveltyCsvRecords(raw) {
   if (JSON.stringify(header) !== JSON.stringify(NOVELTY_CSV_HEADER)) {
     fail(`El encabezado debe ser: ${NOVELTY_CSV_HEADER.join(';')}`);
   }
-  if (!records.length) fail('El lote debe tener entre 1 y 500 filas.');
+  if (!records.length) fail(`El lote debe tener entre 1 y ${NOVELTY_REVIEW_MAX_ROWS} filas.`);
   return records;
 }
 

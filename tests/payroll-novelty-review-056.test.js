@@ -32,10 +32,10 @@ test('duplicate key ignores amounts but includes adjustment, centre and movement
   assert.equal(invalid(csv([values(), values({ importe:'50' })])).issues.length, 1);
   assert.equal(review([values(), values({ centro:'2' }), values({ ajuste:'2026-08' }), values({ movimiento:'retro' })]).length, 4);
 });
-test('500 rows accepted completely; 501 rejected before any draft', () => {
-  const list = Array.from({length:500}, (_,i)=>values({legajo:String(1000+i)}));
-  assert.equal(review(list).length, 500);
-  assert.match(invalid(csv([...list, values({legajo:'9999'})])).issues[0].message, /500/);
+test('2000 rows accepted completely; 2001 rejected before any draft', () => {
+  const list = Array.from({length:2000}, (_,i)=>values({legajo:String(1000+i)}));
+  assert.equal(review(list).length, 2000);
+  assert.match(invalid(csv([...list, values({legajo:'9999'})])).issues[0].message, /2000/);
 });
 for (const [label, text] of [
   ['empty', ''], ['header only',header+'\n'], ['wrong header', 'legajo;importe\n1;2'],

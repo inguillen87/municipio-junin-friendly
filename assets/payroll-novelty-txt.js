@@ -37,7 +37,7 @@ export function reviewNoveltyInput(raw,parseRow,periodMonth,options={format:'csv
  let lines=raw.replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').split('\n');if(lines.at(-1)==='')lines.pop();let start=1;
  const columns=options.format==='columns',fields=columns&&Object.hasOwn(TXT_LAYOUTS,options.layout)?TXT_LAYOUTS[options.layout]:null,p=columns?null:fixedConfig(options);
  let separator;if(columns){separator={semicolon:';',tab:'\t',pipe:'|'}[options.separator];if(!fields||!separator||typeof options.header!=='boolean')fail('Elegí las columnas, el separador y si existe encabezado.');if(options.header){if(lines[0]?.split(separator).map(v=>v.trim().toLowerCase()).join('|')!==fields.join('|'))fail('El encabezado debe coincidir exactamente con '+fields.join(separator)+'.');lines.shift();start=2;}}
- if(!lines.length||lines.length>NOVELTY_REVIEW_MAX_ROWS)fail('El TXT debe contener entre 1 y 500 registros.');
+ if(!lines.length||lines.length>NOVELTY_REVIEW_MAX_ROWS)fail('El TXT debe contener entre 1 y 2.000 registros.');
  let common=null;if(!columns||!fields.includes('concepto')){try{common=sourceId(options.concept??'');}catch{fail('Completá el concepto común del archivo antes de validar.');}}
  const rows=[],issues=[],seen=new Map();
  lines.forEach((line,index)=>{const ordinal=index+1,physical=start+index;try{

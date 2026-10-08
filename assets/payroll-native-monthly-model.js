@@ -1,4 +1,6 @@
 // Shared, browser-safe checks for the additive monthly contract. No persistence.
+export const MONTHLY_BATCH_MAX_ROWS = 2000;
+export const MONTHLY_BATCH_WRITER_LIMITS = Object.freeze([500, MONTHLY_BATCH_MAX_ROWS]);
 const fail = () => { throw Error('La respuesta de novedades no cumple el contrato seguro. Volvé a consultar.'); };
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
@@ -94,7 +96,7 @@ export function verifyMonthlyBatch(batch, {mode = 'detail'} = {}) {
   if (!object(batch) || !uuid(batch.id) || !['payroll-novelty-batch.v1','payroll-novelty-batch.v2'].includes(batch.contractVersion)
       || !states.has(batch.status) || !['individual','bulk'].includes(batch.sourceMode) || !types.includes(batch.payrollType)
       || !month(batch.periodMonth) || !Number.isSafeInteger(batch.version) || batch.version < 1
-      || !Number.isSafeInteger(batch.rowCount) || batch.rowCount < 1 || batch.rowCount > 500
+      || !Number.isSafeInteger(batch.rowCount) || batch.rowCount < 1 || batch.rowCount > MONTHLY_BATCH_MAX_ROWS
       || typeof batch.exportable !== 'boolean' || !effects(batch)) fail();
   if (['bootstrap','detail'].includes(mode) && (!Array.isArray(batch.allowedCommands)
       || new Set(batch.allowedCommands).size !== batch.allowedCommands.length || batch.allowedCommands.some(command => !commands.has(command))
@@ -126,7 +128,7 @@ export function verifyMonthlyBootstrap(payload) {
   if (!object(payload) || !object(limits) || !object(feature) || !object(principal)
       || limits.contractVersion !== 'payroll-novelty-batch.v2' || feature.contractVersion !== 'payroll-novelty-batch.v2'
       || limits.approvalEffect !== 'export_only' || feature.approvalEffect !== 'export_only' || !effects(limits)
-      || !Number.isSafeInteger(limits.maxRows) || limits.maxRows < 1 || limits.maxRows > 500 || !sameSet(limits.sourceModes,['individual','bulk']) || !sameSet(limits.payrollTypes,types)
+      || !Number.isSafeInteger(limits.maxRows) || limits.maxRows < 1 || (limits.maxRows > 500 && limits.maxRows !== MONTHLY_BATCH_MAX_ROWS) || !sameSet(limits.sourceModes,['individual','bulk']) || !sameSet(limits.payrollTypes,types)
       || !exact(limits.native,['maxRows','sourceModes','payrollTypes']) || limits.native.maxRows !== 1
       || !sameSet(limits.native.sourceModes,['individual']) || !sameSet(limits.native.payrollTypes,['monthly'])
       || !['tenantId','membershipId','certifiedBindingId'].every(key => uuid(principal[key]))

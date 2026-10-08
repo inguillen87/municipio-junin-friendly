@@ -23,8 +23,8 @@ test('group duplicate with existing plain business key blocks all additions',()=
  const old=[emptySheetRow('1001','44','1')];assert.throws(()=>appendSheetGroup(old,{legajos:'1002\n1001',concepto:'44'}),/ya tiene/);assert.equal(old.length,1);
 });
 test('different concept for same legajo is not an automatic duplicate',()=>assert.equal(appendSheetGroup([emptySheetRow('1001','44')],{legajos:'1001',concepto:'95'}).length,2));
-test('maximum500 exact, plus one rejected without modifying current array',()=>{
- const list=Array.from({length:500},(_,i)=>String(10001+i)).join('\n');const rows=appendSheetGroup([],{legajos:list,concepto:'44',unidades:'1'});assert.equal(rows.length,500);assert.throws(()=>appendSheetGroup(rows,{legajos:'9999',concepto:'44'}),/500/);assert.equal(rows.length,500);
+test('maximum2000 exact, plus one rejected without modifying current array',()=>{
+ const list=Array.from({length:2000},(_,i)=>String(10001+i)).join('\n');const rows=appendSheetGroup([],{legajos:list,concepto:'44',unidades:'1'});assert.equal(rows.length,2000);assert.throws(()=>appendSheetGroup(rows,{legajos:'9999',concepto:'44'}),/2.000/);assert.equal(rows.length,2000);
 });
 test('large numeric legajo stays a string',()=>assert.equal(appendSheetGroup([],{legajos:'9007199254740993',concepto:'44'})[0][0],'9007199254740993'));
 test('empty list, bad concept and too-long body reject',()=>{
@@ -45,7 +45,7 @@ test('paging never truncates or edits the batch',()=>{
  const all=Array.from({length:57},(_,i)=>emptySheetRow(String(i+1),'44'));const before=JSON.stringify(all);const v=sheetPage(all,6,10);assert.equal(v.rows.length,7);assert.equal(v.offset,50);assert.equal(v.total,57);assert.equal(sheetPage(all,99,25).page,3);v.rows[0][0]='changed';assert.equal(JSON.stringify(all),before);
 });
 test('invalid shape/size/page refuses instead of inventing data',()=>{
- assert.throws(()=>reviewSheetRows([],parse,''));assert.throws(()=>reviewSheetRows([['1']],parse,''));assert.throws(()=>sheetPage([],0));assert.throws(()=>sheetPage([],1,7));assert.throws(()=>sheetPage(Array.from({length:501},()=>emptySheetRow())));
+ assert.throws(()=>reviewSheetRows([],parse,''));assert.throws(()=>reviewSheetRows([['1']],parse,''));assert.throws(()=>sheetPage([],0));assert.throws(()=>sheetPage([],1,7));assert.throws(()=>sheetPage(Array.from({length:2001},()=>emptySheetRow())));
 });
 test('integration uses same governed bulk payload, explicit confirmation and production shell list',()=>{
  const s=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');assert.match(s,/reviewSheetRows\(sheetEditor.values\(\), rowFromValues, periodMonth\)/);assert.match(s,/\['agile', 'sheet'\]\.includes\(entryMode\) \? 'bulk'/);assert.match(s,/if \(pending\.entryMode==='sheet'\) sheetEditor.clear/);

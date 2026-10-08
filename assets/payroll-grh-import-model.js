@@ -1,6 +1,6 @@
 import {readGrhTxt} from './payroll-grh-input.js';
 import {isPayrollRecordIdentity} from './payroll-record-identity.js';
-import {verifyMonthlyBatch} from './payroll-native-monthly-model.js';
+import {MONTHLY_BATCH_WRITER_LIMITS,verifyMonthlyBatch} from './payroll-native-monthly-model.js';
 export const GRH_IMPORT_CAPABILITIES=Object.freeze(['payroll.novelty.read','payroll.novelty.prepare','payroll.novelty.nominal.read','workforce.employee.read']);
 const fail=()=>{throw Error('La respuesta no corresponde al archivo y la selección revisados. No se habilitó otro envío.');};
 const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
@@ -21,7 +21,7 @@ export async function grhFileRequest(bytes,{concept,periodMonth,choices=[]}={}){
 }
 export function grhPreview(payload,expected){
  if(payload?.ok!==true||payload.replayed!==false)fail();const d=payload.data,r=expected.request;
- if(!exact(d,['version','profileId','concept','periodMonth','payrollType','sourceSha256','previewToken','inputRows','outputRows','resolvedRows','readyToPrepare','writerLimit','rows','totalAmountCents','persistencePerformed','payrollCalculated','payrollPosted'])||d.version!=='grh-import-preview.v1'||d.sourceSha256!==expected.sourceSha256||!hash(d.previewToken)||d.profileId!==r.profileId||d.concept!==r.concept||d.periodMonth!==r.periodMonth||d.payrollType!==r.payrollType||d.inputRows!==expected.parsed.inputRows||d.outputRows!==expected.parsed.rows.length||d.writerLimit!==500||!Array.isArray(d.rows)||d.rows.length!==d.outputRows||d.persistencePerformed!==false||d.payrollCalculated!==false||d.payrollPosted!==false)fail();
+ if(!exact(d,['version','profileId','concept','periodMonth','payrollType','sourceSha256','previewToken','inputRows','outputRows','resolvedRows','readyToPrepare','writerLimit','rows','totalAmountCents','persistencePerformed','payrollCalculated','payrollPosted'])||d.version!=='grh-import-preview.v1'||d.sourceSha256!==expected.sourceSha256||!hash(d.previewToken)||d.profileId!==r.profileId||d.concept!==r.concept||d.periodMonth!==r.periodMonth||d.payrollType!==r.payrollType||d.inputRows!==expected.parsed.inputRows||d.outputRows!==expected.parsed.rows.length||!MONTHLY_BATCH_WRITER_LIMITS.includes(d.writerLimit)||!Array.isArray(d.rows)||d.rows.length!==d.outputRows||d.persistencePerformed!==false||d.payrollCalculated!==false||d.payrollPosted!==false)fail();
  const choices=new Map(r.choices.map(c=>[c.rowOrdinal,c.contractId]));let resolved=0,total=0n;const selectedLegajos=new Map();
  for(let i=0;i<d.rows.length;i++){
   const row=d.rows[i],original=expected.parsed.rows[i];if(!exact(row,['rowOrdinal','sourceLines','dni','conceptSourceId','quantityDecimal','amountCents','status','contractId','candidates'])||row.rowOrdinal!==i+1||JSON.stringify(row.sourceLines)!==JSON.stringify(original.sourceLines)||row.dni!==original.dni||row.conceptSourceId!==r.concept||row.quantityDecimal!==original.quantityDecimal||row.amountCents!==original.amountCents||!Array.isArray(row.candidates)||row.candidates.length>2000||!['resolved','choose_contract','not_found','duplicate_target','identity_review'].includes(row.status))fail();
@@ -31,7 +31,7 @@ export function grhPreview(payload,expected){
   else if(row.contractId!==null||row.status==='not_found'&&row.candidates.length!==0||['choose_contract','identity_review'].includes(row.status)&&row.candidates.length<2)fail();total+=BigInt(row.amountCents);
  }
  for(const row of d.rows)if(row.contractId){const c=row.candidates.find(c=>c.contractId===row.contractId),duplicate=selectedLegajos.get(c.legajo)>1;if(duplicate!==(row.status==='duplicate_target'))fail();}
- if(d.resolvedRows!==resolved||d.totalAmountCents!==total.toString()||d.readyToPrepare!==(resolved===d.outputRows&&d.outputRows<=500))fail();
+ if(d.resolvedRows!==resolved||d.totalAmountCents!==total.toString()||d.readyToPrepare!==(resolved===d.outputRows&&d.outputRows<=d.writerLimit))fail();
  const checked=freeze(structuredClone(d));verifiedPreviews.add(checked);return checked;
 }
 // Only verified, immutable previews are accepted. No file/server text enters the CSV.

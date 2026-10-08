@@ -236,7 +236,7 @@
               <label class="mode"><input type="radio" name="sourceMode" value="individual" checked><span><strong>Carga individual</strong><small>Concepto, unidades y fundamento; importe sólo cuando corresponde.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="agile"><span><strong>Carga rápida por legajo</strong><small>Uno o varios legajos, una misma novedad. Sin archivos.</small></span></label>
               <label class="mode"><input type="radio" name="sourceMode" value="sheet"><span><strong>Planilla en pantalla</strong><small>Varios legajos, conceptos y unidades. Sin subir archivos.</small></span></label>
-              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · TXT / CSV</strong><small>Archivos por columnas o posiciones, hasta 500 filas, con revisión completa.</small></span></label>
+              <label class="mode"><input type="radio" name="sourceMode" value="bulk"><span><strong>Carga masiva · TXT / CSV</strong><small>Archivos por columnas o posiciones, según la capacidad habilitada, con revisión completa.</small></span></label>
             </div>
 
             <div class="form-grid">
@@ -271,7 +271,7 @@
                   <h3>Una novedad para varios legajos</h3>
                   <p>Escribí o pegá sólo los números de legajo. Se aplican los mismos datos de la novedad a cada uno; no necesitás preparar un archivo.</p>
                   <label for="agileLegajos">Lista de legajos</label>
-                  <textarea id="agileLegajos" rows="4" maxlength="12000" spellcheck="false" autocomplete="off" aria-describedby="agileLegajosHelp agileListStatus" placeholder="1001&#10;1002&#10;1003"></textarea>
+                  <textarea id="agileLegajos" rows="4" maxlength="48000" spellcheck="false" autocomplete="off" aria-describedby="agileLegajosHelp agileListStatus" placeholder="1001&#10;1002&#10;1003"></textarea>
                   <p id="agileLegajosHelp">Separá por saltos de línea, espacios, comas o punto y coma. No pegues DNI, nombres ni rangos. El sistema no corrige ni elimina legajos repetidos automáticamente.</p>
                   <p id="agileListStatus" role="status" aria-live="polite"></p>
                   <ul id="agileListIssues" hidden aria-label="Incidencias de la lista"></ul>
@@ -310,7 +310,7 @@
               <aside class="boundary" style="margin-bottom:20px"><strong>TXT original con DNI · Formato Junín</strong><p>Para la entrada del concepto 614 y otros con este mismo diseño: revisá todas las filas y su vínculo laboral antes de guardar. No es el TXT de devolución a la mutual.</p><a class="button primary" href="importar-novedades-grh.html">Importar TXT Formato Junín por DNI</a></aside>
               <div id="bulkImportOptions"></div>
               <div class="form-grid">
-                <div class="field full"><label for="bulkFile">Archivo de novedades TXT o CSV</label><input id="bulkFile" type="file" accept=".txt,.csv,text/csv,text/plain"><small>TXT o CSV, hasta 500 filas y 480 KiB. Elegí el formato de origen. Se revisa el archivo completo antes de crear el lote; no se importa automáticamente.</small></div>
+                <div class="field full"><label for="bulkFile">Archivo de novedades TXT o CSV</label><input id="bulkFile" type="file" accept=".txt,.csv,text/csv,text/plain"><small>TXT o CSV, hasta la cantidad habilitada y 480 KiB. Elegí el formato de origen. Se revisa el archivo completo antes de crear el lote; no se importa automáticamente.</small></div>
                 <div class="field full"><label for="bulkSource">Contenido a validar</label><textarea id="bulkSource" rows="10" spellcheck="false" placeholder="Pegá el contenido exacto del archivo, conservando sus espacios y separadores."></textarea></div>
               </div>
               <div id="bulkCsvHeader"><p class="panel-note">Encabezado obligatorio para CSV / TXT de 10 columnas:</p>
