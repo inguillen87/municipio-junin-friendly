@@ -2,7 +2,7 @@
 import {createHash} from 'node:crypto';
 import {NATIVE_READ_DOMAINS} from './grh-successor-operational-read.mjs';
 import {stableJson} from './canonical-import.mjs';
-import {MUNICIPAL_CONTINUITY_PROFILE,MUNICIPAL_CONTINUITY_EXCLUSIONS,MUNICIPAL_CONTINUITY_INHERITANCE,MUNICIPAL_CONTINUITY_BINDINGS} from './grh-municipal-continuity-schema.mjs';
+import {municipalContinuityProfile} from './grh-municipal-continuity-schema.mjs';
 export const continuityHash=value=>createHash('sha256').update(stableJson(value)).digest('hex');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const name=value=>typeof value==='string'&&/^[a-z_][a-z0-9_]{0,62}$/.test(value);
@@ -20,8 +20,8 @@ export const CONTINUITY_FOREIGN_KEYS_SQL=`SELECT c.relname AS child,p.relname AS
  WHERE f.contype='f' AND (n.nspname='public' OR np.nspname='public') ORDER BY n.nspname,c.relname,f.conname`;
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 export function planNativeContinuity(catalog){return planContinuity(catalog,false);}
-export function planMunicipalContinuity(catalog){return planContinuity(catalog,true);}
-function planContinuity(catalog,municipal){
+export function planMunicipalContinuity(catalog,{profileId}={}){return planContinuity(catalog,true,municipalContinuityProfile(profileId));}
+function planContinuity(catalog,municipal,profile){
  if(!Array.isArray(catalog?.tables)||!Array.isArray(catalog.foreignKeys)||catalog.tables.length>512||catalog.foreignKeys.length>2000)fail('SUCCESSOR_CONTINUITY_CATALOG');
  const tables=new Map();for(const t of catalog.tables){
   if(!name(t.name)||tables.has(t.name)||!Array.isArray(t.columns)||t.columns.some(c=>!name(c))||new Set(t.columns).size!==t.columns.length)fail('SUCCESSOR_CONTINUITY_CATALOG');tables.set(t.name,t);
@@ -29,10 +29,11 @@ function planContinuity(catalog,municipal){
  const roots=new Map(NATIVE_READ_DOMAINS.map(([t,binding])=>[t,binding]));
  for(const [t,binding]of roots)if(!tables.get(t)?.columns.includes(binding)||!tables.get(t)?.columns.includes('tenant_id'))fail('SUCCESSOR_CONTINUITY_ROOT_MISSING');
  if(municipal)for(const t of tables.values()){
-  if(MUNICIPAL_CONTINUITY_EXCLUSIONS.includes(t.name))continue;
+  if(profile.exclusions.includes(t.name))continue;
   const bindings=['source_binding_id','certified_binding_id'].filter(c=>t.columns.includes(c));
   if(bindings.length>1)fail('SUCCESSOR_CONTINUITY_AMBIGUOUS_BINDING');
-  const declaredBinding=MUNICIPAL_CONTINUITY_BINDINGS[t.name];
+  if(bindings.length&&profile.inheritance.some(p=>p.child===t.name))fail('SUCCESSOR_CONTINUITY_BINDING_DRIFT');
+  const declaredBinding=profile.bindings[t.name];
   if(declaredBinding&&bindings[0]!==declaredBinding)fail('SUCCESSOR_CONTINUITY_BINDING_DRIFT');
   if(bindings.length&&!t.columns.includes('tenant_id'))fail('SUCCESSOR_CONTINUITY_UNSUPPORTED_TABLE');
   if(bindings.length&&t.columns.includes('tenant_id'))roots.set(t.name,bindings[0]);
@@ -52,12 +53,12 @@ function planContinuity(catalog,municipal){
  const links=catalog.foreignKeys.filter(f=>f.child_schema==='public'&&selected.has(f.child));
  for(const f of links){if(f.parent_schema!=='public'||!f.validated)fail('SUCCESSOR_CONTINUITY_UNVERIFIED_FOREIGN_KEY');
   if(f.child_columns.some(c=>!tables.get(f.child)?.columns.includes(c))||f.parent_columns.some(c=>!tables.get(f.parent)?.columns.includes(c)))fail('SUCCESSOR_CONTINUITY_CATALOG');}
- const scoped=[...selected].sort().map(n=>{const t=tables.get(n);if(t?.kind!=='r'||(!t.columns.includes('tenant_id')&&!(municipal&&MUNICIPAL_CONTINUITY_INHERITANCE.some(p=>p.child===n))))fail('SUCCESSOR_CONTINUITY_UNSUPPORTED_TABLE');
+ const scoped=[...selected].sort().map(n=>{const t=tables.get(n);if(t?.kind!=='r'||(!t.columns.includes('tenant_id')&&!(municipal&&profile.inheritance.some(p=>p.child===n))))fail('SUCCESSOR_CONTINUITY_UNSUPPORTED_TABLE');
   const bindings=['source_binding_id','certified_binding_id'].filter(c=>t.columns.includes(c));if(bindings.length>1)fail('SUCCESSOR_CONTINUITY_AMBIGUOUS_BINDING');return {name:t.name,kind:t.kind,columns:[...t.columns],binding:bindings[0]??null};});
  for(const table of scoped){
   if(table.binding)continue;
   if(municipal){
-   const path=MUNICIPAL_CONTINUITY_INHERITANCE.find(p=>p.child===table.name);
+   const path=profile.inheritance.find(p=>p.child===table.name);
    if(!path)fail('SUCCESSOR_CONTINUITY_UNSCOPED_TABLE');
    if(table.columns.includes('tenant_id')!==path.childColumns.includes('tenant_id'))fail('SUCCESSOR_CONTINUITY_PARENT_SCOPE_REQUIRED');
    const inherited=links.some(f=>f.child===path.child&&f.parent===path.parent&&roots.has(f.parent)
@@ -70,7 +71,7 @@ function planContinuity(catalog,municipal){
   if(!inherited)fail('SUCCESSOR_CONTINUITY_PARENT_SCOPE_REQUIRED');
  }
  const plan={version:municipal?'grh-native-continuity-plan.v2':'grh-native-continuity-plan.v1',
-  ...(municipal?{profileId:MUNICIPAL_CONTINUITY_PROFILE,excludedScopeTables:[...MUNICIPAL_CONTINUITY_EXCLUSIONS]}:{}),
+  ...(municipal?{profileId:profile.id,excludedScopeTables:[...profile.exclusions]}:{}),
   roots:[...roots.keys()].sort(),tables:scoped,links:links.toSorted((a,b)=>(a.child+'.'+a.name).localeCompare(b.child+'.'+b.name))};
  return freeze(structuredClone({...plan,planSha256:continuityHash(plan)}));
 }

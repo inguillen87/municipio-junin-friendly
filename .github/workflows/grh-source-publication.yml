@@ -10,6 +10,14 @@ on:
       - 'tests/grh-final-source-revision.test.js'
       - 'tests/grh-final-source-revision-execution.test.js'
       - 'tests/fixtures/final-source-revision-synthetic.js'
+      - 'scripts/lib/grh-municipal-*.mjs'
+      - 'scripts/lib/grh-successor-continuity.mjs'
+      - 'scripts/lib/grh-successor-native-summary.mjs'
+      - 'scripts/verify-grh-native-continuity.mjs'
+      - 'tests/grh-final-source-conservation.test.js'
+      - 'tests/grh-municipal-*.test.js'
+      - 'tests/fixtures/final-source-conservation-postgres.js'
+      - 'tests/fixtures/municipal-footprint-synthetic.js'
       - '.github/workflows/grh-source-publication.yml'
   push:
     branches: ['internal-september-publication-20260922', 'master']
@@ -33,6 +41,8 @@ on:
       - 'scripts/fixtures/grh-*'
       - 'tests/*grh*'
       - 'tests/successor-stage-transaction-lifecycle.test.js'
+      - 'tests/fixtures/final-source-conservation-postgres.js'
+      - 'tests/fixtures/municipal-footprint-synthetic.js'
       - 'tests/fixtures/successor-loader-postgres.js'
       - 'tests/fixtures/final-source-revision-synthetic.js'
       - 'tests/fixtures/grh-*'

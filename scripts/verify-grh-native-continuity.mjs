@@ -2,20 +2,20 @@
 import fs from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';import {createHash} from 'node:crypto';
 import {planNativeContinuity,planMunicipalContinuity} from './lib/grh-successor-continuity.mjs';
-import {MUNICIPAL_CONTINUITY_PROFILE} from './lib/grh-municipal-continuity-schema.mjs';
+import {municipalContinuityProfile} from './lib/grh-municipal-continuity-schema.mjs';
 import {summarizeNativeContinuity} from './lib/grh-successor-native-summary.mjs';
 export function parseNativeContinuityArgs(args){
  let values;try{({values}=parseArgs({args,strict:true,allowPositionals:false,options:{catalog:{type:'string'},'expect-catalog':{type:'string'},profile:{type:'string'}}}));}catch{throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');}
  if(!path.isAbsolute(values.catalog??'')||!/^[a-f0-9]{64}$/.test(values['expect-catalog']??''))throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');
- if(values.profile!==undefined&&values.profile!==MUNICIPAL_CONTINUITY_PROFILE)throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');
+ if(values.profile!==undefined){try{municipalContinuityProfile(values.profile);}catch{throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');}}
  return values;
 }
 export async function readNativeCatalogEvidence(file,expectedHash,{profile}={}){
- if(profile!==undefined&&profile!==MUNICIPAL_CONTINUITY_PROFILE)throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');
+ if(profile!==undefined){try{municipalContinuityProfile(profile);}catch{throw Error('NATIVE_CONTINUITY_ARGUMENT_INVALID');}}
  const stat=await fs.lstat(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>1024*1024)throw Error('NATIVE_CONTINUITY_FILE_INVALID');
  const bytes=await fs.readFile(file);if(bytes.length>1024*1024||createHash('sha256').update(bytes).digest('hex')!==expectedHash)throw Error('NATIVE_CONTINUITY_CATALOG_CHANGED');
  const catalog=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
- const plan=profile===MUNICIPAL_CONTINUITY_PROFILE?planMunicipalContinuity(catalog):planNativeContinuity(catalog),report=summarizeNativeContinuity(plan);
+ const plan=profile!==undefined?planMunicipalContinuity(catalog,{profileId:profile}):planNativeContinuity(catalog),report=summarizeNativeContinuity(plan);
  return {...report,catalogFileSha256:expectedHash,queryExecuted:false,writeStatements:0};
 }
 async function main(){

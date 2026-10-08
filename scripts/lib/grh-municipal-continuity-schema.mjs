@@ -62,3 +62,24 @@ const certifiedBindings=new Set([
 export const MUNICIPAL_CONTINUITY_BINDINGS=Object.freeze(Object.fromEntries(MUNICIPAL_CONTINUITY_TABLES
  .filter(name=>!MUNICIPAL_CONTINUITY_INHERITANCE.some(p=>p.child===name))
  .map(name=>[name,certifiedBindings.has(name)?'certified_binding_id':'source_binding_id'])));
+
+// SQL132/133 add decisions, seals and applications. SQL144 is source
+// infrastructure, not a municipal business record or an adoption decision.
+export const FINAL_MUNICIPAL_CONTINUITY_PROFILE='municipal-sql144';
+const finalInheritance=Object.freeze([...MUNICIPAL_CONTINUITY_INHERITANCE,
+ Object.freeze({child:'employment_adoption_seal',parent:'employment_adoption_proposal',childColumns:Object.freeze(['proposal_id']),parentColumns:Object.freeze(['id'])}),
+ Object.freeze({child:'employment_adoption_application',parent:'employment_adoption_decision',childColumns:Object.freeze(['decision_id']),parentColumns:Object.freeze(['id'])})]);
+const finalTables=Object.freeze([...MUNICIPAL_CONTINUITY_TABLES,'employment_adoption_proposal','employment_adoption_decision',
+ 'employment_adoption_seal','employment_adoption_application'].sort());
+const finalBindings=Object.freeze({...MUNICIPAL_CONTINUITY_BINDINGS,employment_adoption_proposal:'source_binding_id',employment_adoption_decision:'source_binding_id'});
+const profiles=Object.freeze({
+ [MUNICIPAL_CONTINUITY_PROFILE]:Object.freeze({id:MUNICIPAL_CONTINUITY_PROFILE,tables:MUNICIPAL_CONTINUITY_TABLES,
+  bindings:MUNICIPAL_CONTINUITY_BINDINGS,inheritance:MUNICIPAL_CONTINUITY_INHERITANCE,exclusions:MUNICIPAL_CONTINUITY_EXCLUSIONS}),
+ [FINAL_MUNICIPAL_CONTINUITY_PROFILE]:Object.freeze({id:FINAL_MUNICIPAL_CONTINUITY_PROFILE,tables:finalTables,
+  bindings:finalBindings,inheritance:finalInheritance,exclusions:Object.freeze([...MUNICIPAL_CONTINUITY_EXCLUSIONS,
+   'grh_final_source_revision','grh_final_source_delta','grh_final_source_seal'])})
+});
+export function municipalContinuityProfile(id=MUNICIPAL_CONTINUITY_PROFILE){
+ if(typeof id!=='string'||!Object.hasOwn(profiles,id))throw Object.assign(new Error('SUCCESSOR_CONTINUITY_PROFILE_INVALID'),{code:'SUCCESSOR_CONTINUITY_PROFILE_INVALID'});
+ return profiles[id];
+}

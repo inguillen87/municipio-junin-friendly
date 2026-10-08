@@ -5,6 +5,7 @@ import {planSuccessorStagingRead,evaluateSuccessorStagingRead,validateSuccessorT
 import {stableJson} from './canonical-import.mjs';
 import {readSourceCapacity} from './grh-source-capacity.mjs';
 import {GRH_VERSION_STORAGE_BUDGET} from './grh-core-source-version.mjs';
+import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './grh-municipal-footprint.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
 const fail=code=>{throw Object.assign(new Error(code),{code});};
@@ -52,6 +53,7 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
   if(lock.rows?.length!==1||lock.rows[0].acquired!==true)fail('GRH_FINAL_REVISION_BUSY');
   const before=await read();
   if(!before.baselineCompatible||!before.manifests.coreExact||!before.manifests.curatedExact)fail('GRH_FINAL_REVISION_BASELINE_CHANGED');
+  const municipalBefore=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
   const existing=s.installed?(await query(storedSql,[target.tenantId,target.bindingId,pack.candidate.sourceSha256])).rows:[];
   if(!Array.isArray(existing)||existing.length>1)fail('GRH_FINAL_REVISION_STORED');
   const capacityBefore=await readSourceCapacity({query},GRH_VERSION_STORAGE_BUDGET,
@@ -114,6 +116,9 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
    if(result.rows?.length!==1||!same(result.rows[0].fingerprint,fingerprints[entity]))fail('GRH_FINAL_REVISION_REPLAY_DRIFT');
   }
   const after=await read();if(!same(preserved(before),preserved(after)))fail('GRH_FINAL_REVISION_PRESERVATION');
+  const municipalAfter=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
+  const municipalConservation=compareMunicipalFootprints(municipalBefore,municipalAfter);
+  if(!municipalConservation.preserved)fail('GRH_FINAL_REVISION_MUNICIPAL_PRESERVATION');
   const capacityAfter=await readSourceCapacity({query},GRH_VERSION_STORAGE_BUDGET,0);
   if(!capacityAfter.fits||capacityAfter.databaseBytes-capacityBefore.databaseBytes>GRH_VERSION_STORAGE_BUDGET.maximumGrowthBytes)
    fail('GRH_FINAL_REVISION_CAPACITY_EXCEEDED');
@@ -121,7 +126,7 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
   return freeze({version:'grh-final-source-revision-receipt.v1',revisionId:id,packageSha256:pack.payloadSha256,
    candidateSourceSha256:pack.candidate.sourceSha256,sourceDeclaredCutoff:pack.candidate.cutoff,
    entities:SUCCESSOR_ENTITIES.length,deltaRows:changes.length,replayed,committed:false,callerOwnedTransaction:true,
-   nativeReviewRequired:before.nativeReviewRequired,capacityBefore,capacityAfter,
+   nativeReviewRequired:before.nativeReviewRequired,municipalConservation,capacityBefore,capacityAfter,
    operationalSourceChanged:false,adoptionPerformed:false,payrollCalculated:false});
  }catch(error){
   try{await client.query('ROLLBACK TO SAVEPOINT grh_final_revision_preparation');}
