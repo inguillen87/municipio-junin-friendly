@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 
-SCRIPT_VERSION = "1.2.0"
+SCRIPT_VERSION = "1.3.0"
 PROFILE_NAME = "grh-junin-2026-08-06"
 EXPECTED_SOURCE_SHA256 = (
     "CB5C60A0E5DD2462AB7D5E89BA4FE9B7F57B9283AEEB0F89F7C8918730359E92"
@@ -79,6 +79,7 @@ PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "revista": ("IDREVISTA",),
     "sectores": ("CODI_01", "CODI_07"),
     "vinculo": ("IDVINCULO",),
+    "departamento": ("iddepartamento",),
 }
 
 OUTPUT_FILES: dict[str, str] = {
@@ -113,9 +114,19 @@ LOOKUP_TABLES = {
     "sectores",
     "vinculo",
 }
-BUFFERED_TABLES = LOOKUP_TABLES | {"legajo"}
+# Optional in older snapshots; when present it belongs to the same verified dump.
+# It is not a payroll jurisdiction inferred from cost, agreement or sector codes.
+OPTIONAL_REFERENCE_TABLES = {"departamento"}
+BUFFERED_TABLES = LOOKUP_TABLES | {"legajo"} | OPTIONAL_REFERENCE_TABLES
+
+EMPLOYEE_PAYROLL_SOURCE_FIELDS = (
+    "iddepartamento", "NOLI_12", "CODI_02", "CODI_07", "CODI_10",
+    "FING_12", "FEGR_12", "ANTA_12", "ANTM_12", "SUEL_12",
+    "CODI_19", "concursado", "REGI_12", "CUEN_12", "NORD_05", "IDREVISTA",
+)
 
 REQUIRED_COLUMNS: dict[str, set[str]] = {
+    "departamento": {"iddepartamento", "nombre"},
     "legajo": {
         "CODI_01", "LEGA_12", "FING_12", "FEGR_12", "CODI_02",
         "CODI_03", "CODI_07", "CODI_10", "SUEL_12", "ANTA_12",
@@ -477,7 +488,7 @@ def scan_source(source: Path) -> ScanResult:
     schemas: dict[str, list[str]] = {}
     counts: Counter[str] = Counter()
     duplicate_primary_keys: Counter[str] = Counter()
-    primary_keys_seen = {table: set() for table in EXPECTED_COUNTS}
+    primary_keys_seen = {table: set() for table in EXPECTED_COUNTS.keys() | OPTIONAL_REFERENCE_TABLES}
     lookups = {table: [] for table in BUFFERED_TABLES}
     employee_keys: set[tuple[str | None, str | None]] = set()
     absence_counts: Counter[tuple[str | None, str | None]] = Counter()
@@ -508,7 +519,7 @@ def scan_source(source: Path) -> ScanResult:
             dump_completed_at = line.removeprefix("-- Dump completed on ").strip()
 
         table = _insert_table(line)
-        if table not in EXPECTED_COUNTS:
+        if table not in EXPECTED_COUNTS and table not in OPTIONAL_REFERENCE_TABLES:
             continue
         if table not in schemas:
             raise ExtractionError(f"INSERT for {table} appeared before its schema")
@@ -570,6 +581,8 @@ def validate_scan(
     if missing_tables:
         raise ExtractionError(f"Required source tables not found: {', '.join(missing_tables)}")
     for table, required in REQUIRED_COLUMNS.items():
+        if table in OPTIONAL_REFERENCE_TABLES and table not in scan.schemas:
+            continue
         if required - set(scan.schemas[table]):
             raise ExtractionError(f"Required source columns missing in {table}")
 
@@ -745,6 +758,29 @@ def _employee_record(
             "leaves": scan.leave_counts[employee_key],
             "familyMembers": scan.family_counts[employee_key],
             "unionMemberships": len(employee_memberships),
+        },
+        # Preserve original decoded SQL values: NULL, missing, blank, padded
+        # codes and decimals remain distinct. NOLI_12 is not an eligibility rule.
+        "sourceFields": {key: row[key] for key in EMPLOYEE_PAYROLL_SOURCE_FIELDS if key in row},
+        "sourceProvenance": {
+            "table": "legajo",
+            "primaryKey": {key: row[key] for key in PRIMARY_KEYS["legajo"]},
+        },
+        "sourceReferences": _employee_source_references(row, indexes),
+    }
+
+
+def _employee_source_references(row: Mapping[str, Any], indexes: Mapping[str, Any]) -> dict[str, Any]:
+    # Use the exact foreign key. No numeric coercion, trimming or sector fallback.
+    key = row.get("iddepartamento")
+    department = indexes.get("departamento", {}).get((key,)) if key is not None else None
+    if department is None:
+        return {}
+    return {
+        "department": {
+            "table": "departamento",
+            "primaryKey": {"iddepartamento": department["iddepartamento"]},
+            "sourceFields": {"nombre": department["nombre"]},
         },
     }
 
@@ -1020,6 +1056,10 @@ def _build_indexes(scan: ScanResult) -> tuple[dict[str, Any], dict[Any, list[Map
         for table in LOOKUP_TABLES
         if table != "legagremio"
     }
+    # scan/validation reject duplicate or NULL reference primary keys first.
+    indexes["departamento"] = {
+        (row["iddepartamento"],): row for row in scan.lookups.get("departamento", [])
+    }
     memberships: dict[tuple[str | None, str | None], list[Mapping[str, Any]]] = defaultdict(list)
     for row in scan.lookups["legagremio"]:
         memberships[_employee_key(row["CODI_01"], row["LEGA_12"])].append(row)
@@ -1032,8 +1072,17 @@ def _join_quality(scan: ScanResult, indexes: Mapping[str, Any]) -> dict[str, Any
     employee_sector_orphans = 0
     employee_category_null = 0
     employee_category_orphans = 0
+    department_missing_column = 0
+    department_null = 0
+    department_orphans = 0
 
     for row in scan.lookups["legajo"]:
+        if "iddepartamento" not in row:
+            department_missing_column += 1
+        elif row["iddepartamento"] is None:
+            department_null += 1
+        elif (row["iddepartamento"],) not in indexes.get("departamento", {}):
+            department_orphans += 1
         person_id = _as_code(row["IDPERSONA"])
         if (person_id,) not in indexes["persona"]:
             employee_person_orphans += 1
@@ -1065,6 +1114,11 @@ def _join_quality(scan: ScanResult, indexes: Mapping[str, Any]) -> dict[str, Any
     )
 
     return {
+        "employeeDepartment": {
+            "absentColumnRows": department_missing_column,
+            "nullRows": department_null,
+            "orphanRows": department_orphans,
+        },
         "employeePerson": {"orphanRows": employee_person_orphans},
         "employeeSector": {
             "nullRows": employee_sector_null,
@@ -1202,6 +1256,16 @@ def build_outputs(
                     for table in sorted(EXPECTED_COUNTS)
                 },
                 "joins": join_quality,
+                "optionalReferences": {
+                    table: {
+                        "present": table in scan.schemas,
+                        "actual": scan.counts[table],
+                        "primaryKey": list(PRIMARY_KEYS[table]),
+                        "distinctPrimaryKeys": len(scan.primary_keys_seen[table]),
+                        "duplicatePrimaryKeyRows": scan.duplicate_primary_keys[table],
+                    }
+                    for table in sorted(OPTIONAL_REFERENCE_TABLES)
+                },
             },
             "outputs": output_metadata,
             "mappingNotes": [
@@ -1212,6 +1276,9 @@ def build_outputs(
                 "absence and leave semantic source fields are retained where labels are ambiguous",
                 "familyMembers.sourceFields retains familia.PRES_14 and familia.VENC_14 as decoded SQL values without date parsing or certificate-state inference; SQL NULL, empty values and absent columns remain distinct",
                 "familyMembers.sourceProvenance identifies the source table and primary key; the manifest source SHA-256 and import_run_id trace the originating snapshot",
+                "employees.sourceFields preserves original legajo payroll facts, including iddepartamento and NOLI_12, without interpreting liquidation permission, amounts or seniority",
+                "employees.sourceReferences.department preserves the exact same-dump departamento primary key and nombre; unmatched, NULL or absent references are never reconstructed from sector, agreement, cost or employee number",
+                "employees.sourceProvenance identifies legajo and its original composite primary key; original reference labels such as 042/055 are retained without assigning municipal jurisdiction",
                 "personas_junin is intentionally not cross-joined; identity resolution requires a separate reviewed pipeline",
             ],
         }
