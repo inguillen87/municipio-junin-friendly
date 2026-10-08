@@ -9,3 +9,10 @@ export function copyFixture(targets = ['2','4']) {
   base.program = {version:hash('b'),revision:1,definition,salaryVersion:hash('c'),proposalId:uid(80),approvalId:uid(81)};
   return {boot:base,draft:structuredClone(definition),intent:{sourceKey:ownProgramRuleKey(rule),targets,validFrom:'2026-10',validUntil:null,ruleReference:'Cambio explícito sintético QA',mode:'add'}};
 }
+export function multiCopyFixture(targets=['2','4'],codes=['606','607','612','550']) {
+  const f=copyFixture(targets),rule=f.draft.rules[0],item=f.boot.salaryCatalog.items[0];
+  f.draft.rules=codes.map(code=>({...structuredClone(rule),code,expression:{op:'literal',unit:'money',value:code+'.125'}}));
+  f.boot.salaryCatalog.items=codes.flatMap(code=>['1',...targets].map(agreementCode=>({...item,code,agreementCode})));
+  f.boot.program.definition=structuredClone(f.draft);
+  f.intent={...f.intent,sourceKeys:f.draft.rules.map(ownProgramRuleKey)};delete f.intent.sourceKey;return f;
+}
