@@ -1,4 +1,4 @@
-import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt,adoptionInactiveJurisdictionPending,ADOPTION_PENDING_PREPARATION_VERSION} from './employment-adoption-preparation-model.js';
+import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt,adoptionInactiveJurisdictionPending,ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION} from './employment-adoption-preparation-model.js';
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 
 const API='/api/internal-employment-adoption';
@@ -27,7 +27,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
  let jurisdictionPage=1;const jurisdictions=new Map();
- const supportsPending=()=>bootstrap?.version===ADOPTION_PENDING_PREPARATION_VERSION;
+ const supportsPending=()=>[ADOPTION_PENDING_PREPARATION_VERSION,ADOPTION_FINAL_PREPARATION_VERSION].includes(bootstrap?.version);
  const code=row=>row.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
  const jurisdictionRows=()=>review?review.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('jurisdiction-search').value.toLocaleLowerCase('es')))):[];
  function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0,inactivePending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:supportsPending()&&value===null&&adoptionInactiveJurisdictionPending(r,review.today)?'inactivePending':'pending']++;}return counts;}
@@ -86,8 +86,10 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
   if(!response.ok||value.ok!==true||!value.authenticated||!Array.isArray(caps)||!caps.includes('workforce.employee.read')||typeof value.user?.email!=='string')throw issue('Tu sesión o permiso cambió. Volvé a consultar con acceso autorizado.',response.status===401?401:403);
   return{actor:value.user.email.toLowerCase(),canPrepare:caps.includes('employee.record.propose')};
  }
- async function fresh(signal){
-  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(API+'?resource=bootstrap',signal));
+ async function fresh(signal,historyOnly=false){
+  const selected=!historyOnly&&review?.source.finalRevision;
+  const query=selected?'?'+new URLSearchParams({resource:'final-bootstrap',revisionId:selected.revisionId,packageSha256:selected.packageSha256}):'?resource=bootstrap';
+  const access=await authority(signal),value=await adoptionPreparationBootstrap(await request(API+query,signal));
   return{...access,value,scope:adoptionReviewScope(value.review.scope)};
  }
  function sameScope(freshValue,attempt){
@@ -118,7 +120,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  async function send(recover=false,retry=false){
   if(busy||!live()||!review)return;const {token,signal}=start(recover?'Consultando el resultado del mismo intento…':'Verificando el padrón y el acceso antes del envío…');let started=false;
   try{
-   const f=await fresh(signal);if(!current(token))return;sameScope(f,pending?.attempt);
+   const f=await fresh(signal,recover);if(!current(token))return;sameScope(f,pending?.attempt);
    if(recover||retry)paint(f);
    if(!recover&&(!f.value.canPrepare||!f.canPrepare)){prepareAllowed=false;bootstrap=null;$('form').hidden=true;throw issue('Tu cuenta ya no permite preparar propuestas. Podés consultar el resultado de un intento pendiente.');}
    if(!recover&&!retry){
@@ -134,7 +136,9 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    const receipt=await adoptionPreparationReceipt(raw,{key:attempt.key,body:attempt.body});
    if(!current(token))return;
    // An acknowledgement alone is insufficient after a scope/authority change.
-   const confirmed=await fresh(signal);if(!current(token))return;sameScope(confirmed,attempt);
+   // A completed adoption no longer has an imported cohort. Confirm the saved
+   // attempt through the ordinary scoped history, without rebuilding that cut.
+   const confirmed=await fresh(signal,true);if(!current(token))return;sameScope(confirmed,attempt);
    if(!confirmed.value.attempts.some(a=>a.requestKey===receipt.requestKey&&a.bodySha256===receipt.bodySha256&&a.receipt.proposalId===receipt.receipt.proposalId&&a.receipt.proposalVersion===receipt.receipt.proposalVersion))throw issue('El registro consultado no confirma el mismo intento. Consultá otra vez.');
    pending=null;retryReady=false;$('confirm').checked=false;paint(confirmed);
    if(confirmed.value.review.snapshot!==review.snapshot){bootstrap=null;$('form').hidden=true;}

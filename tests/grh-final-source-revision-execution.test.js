@@ -1,17 +1,30 @@
 import test from 'node:test';import assert from 'node:assert/strict';import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {executeFinalSourceRevision,parseFinalSourceRevisionArgs} from '../scripts/prepare-grh-final-source-revision.mjs';
+import {executeFinalSourceRevision,parseFinalSourceRevisionArgs,finalSourceMaintenanceErrorCode} from '../scripts/prepare-grh-final-source-revision.mjs';
 import {loaderQaPackage} from './fixtures/successor-loader-postgres.js';
 import {finalRevisionPackage,finalRevisionClient,finalRevisionTarget as target} from './fixtures/final-source-revision-synthetic.js';
 const pack=await finalRevisionPackage();
 const run=(connect,options={})=>executeFinalSourceRevision({connect,prepared:pack,target,expectedPackageSha256:pack.payloadSha256,installSchema:true,...options});
 const lease=options=>{const client=finalRevisionClient(pack,options),releases=[];client.release=e=>releases.push(e);return {client,releases};};
 const args=['target','baseline-core','candidate-core','baseline-curated','candidate-curated'].map(key=>'--'+key+'='+path.resolve('verification/synthetic-'+key)).concat('--expect-package='+pack.payloadSha256);
+test('maintenance reports the global comparison limit and revocation without revealing SQL or private errors',()=>{
+ for(const code of ['GRH_FINAL_TRANSITION_GLOBAL_LIMIT','GRH_FINAL_CONSUMER_CONTEXT','GRH_FINAL_REVISION_CAPACITY_REQUIRED'])
+  assert.equal(finalSourceMaintenanceErrorCode({code,message:'private SQL contents'}),code);
+ for(const code of ['42P01','GRH_FINAL_TRANSITION_PRIVATE\nname','private source row'])
+  assert.equal(finalSourceMaintenanceErrorCode({code,message:'private SQL contents'}),'GRH_FINAL_REVISION_FAILED');
+});
 test('maintenance requires an explicit rehearsal or save mode and complete absolute inputs',()=>{
  assert.equal(parseFinalSourceRevisionArgs([...args,'--rehearse']).rehearse,true);
  assert.equal(parseFinalSourceRevisionArgs([...args,'--save-revision']).rehearse,undefined);
  for(const invalid of [args,[...args,'--rehearse','--save-revision'],[...args,'--rehearse','--candidate-profile=latest'],['--rehearse']])
   assert.throws(()=>parseFinalSourceRevisionArgs(invalid),{code:'GRH_FINAL_REVISION_ARGUMENT'});
+});
+test('contract comparison is an explicit maintenance option and never changes save authorization',async()=>{
+ assert.equal(parseFinalSourceRevisionArgs([...args,'--rehearse','--review-contracts'])['review-contracts'],true);
+ let opened=false;await assert.rejects(run(async()=>{opened=true;return lease().client;},{reviewContracts:'true'}),{code:'GRH_FINAL_REVISION_ARGUMENT'});
+ assert.equal(opened,false);
+ const {client,releases}=lease();await assert.rejects(run(async()=>client,{reviewContracts:true}),/Unexpected synthetic SQL/);
+ assert.equal(client.stored,null);assert.equal(client.calls.at(-1).text,'ROLLBACK');assert.deepEqual(releases,[undefined]);
 });
 test('default execution rehearses and rolls back the complete preparation',async()=>{
  const {client,releases}=lease(),receipt=await run(async()=>client);

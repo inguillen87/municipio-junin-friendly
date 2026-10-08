@@ -8,6 +8,9 @@ import {executeFinalSourceRevision} from './prepare-grh-final-source-revision.mj
 import {addFinalConservationQaTables} from '../tests/fixtures/final-source-conservation-postgres.js';
 import {CONTINUITY_FOREIGN_KEYS_SQL} from './lib/grh-successor-continuity.mjs';
 import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './lib/grh-municipal-footprint.mjs';
+import {bindFinalSourceConsumersWithinTransaction} from './lib/grh-final-source-consumers.mjs';
+import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTransition} from './lib/grh-final-contract-transition.mjs';
+import {addFinalTransitionQaLinks,finalTransitionQaPackage} from '../tests/fixtures/final-contract-transition-postgres.js';
 
 const args=Object.fromEntries(process.argv.slice(2).map(arg=>{const match=/^--(expected-major|port|database|data-directory|pg-driver|output)=(.+)$/.exec(arg);assert.ok(match,'Unknown QA option');return [match[1],match[2]];}));
 const major=Number(args['expected-major']),port=Number(args.port);
@@ -65,6 +68,22 @@ async function denied(action,code){
   await assert.rejects(action,e=>e.message.includes(code)||e.code===code);checks.push('rejected '+code);
  }finally{await raw.query('ROLLBACK TO SAVEPOINT expected_rejection');}
 }
+async function consumerRead(revision,pack,label){
+ const reader=await bindFinalSourceConsumersWithinTransaction({client:{query},target,revisionId:revision,expectedPackageSha256:pack.payloadSha256});
+ await assert.rejects(reader.assertComplete(),{code:'GRH_FINAL_CONSUMER_INCOMPLETE'});
+ let total=0;const observed={};
+ for(const entity of Object.keys(pack.entities)){
+  let count=0;for await(const row of reader.readRows(entity,{pageSize:2})){
+   assert.equal(row.contextSha256,reader.context.contextSha256);assert.equal(row.entity,entity);assert.equal(typeof row.recordJson,'string');
+   count++;total++;
+  }assert.equal(count,pack.entities[entity].candidate.rows);observed[entity]=count;
+ }
+ const receipt=await reader.assertComplete();assert.deepEqual(receipt.counts,observed);assert.equal(receipt.entities,10);
+ assert.equal(receipt.sourceSelected,false);assert.equal(receipt.municipalWrites,0);
+ ok(total===Object.values(pack.entities).reduce((n,e)=>n+e.candidate.rows,0),label+' consumes all ten final sets through actual SQL cursors');
+ ok((await query("SELECT count(*)::integer AS n FROM pg_cursors WHERE name LIKE 'mc_final_consumer_%'")).rows[0].n===0,label+' closes every server cursor');
+ return reader;
+}
 try{
  await raw.connect();await identity();await raw.query("SET TIME ZONE 'UTC'");
  assert.equal((await raw.query('SELECT to_regnamespace($1) IS NULL AS absent',[schema])).rows[0].absent,true);
@@ -81,6 +100,7 @@ try{
  setup=setup.replace('SET CONSTRAINTS ALL IMMEDIATE; COMMIT;','SET CONSTRAINTS ALL IMMEDIATE;');
  await raw.query(setup);created=true;
  await addFinalConservationQaTables(query,target);
+ await addFinalTransitionQaLinks(query);
  namespace=(await raw.query('SELECT oid::text AS oid FROM pg_namespace WHERE nspname=$1',[schema])).rows[0].oid;
  const baseline=await footprint(schema),pack=await finalRevisionPackage();
  const base={client:{query},prepared:pack,target,expectedPackageSha256:pack.payloadSha256,installSchema:false};
@@ -111,6 +131,20 @@ try{
  ok(compareMunicipalFootprints(scopeProof,otherProof).preserved,'other municipality data does not enter the target footprint');
  await raw.query('ROLLBACK TO SAVEPOINT other_municipality');
  ok(first.entities===10&&first.deltaRows===410&&!first.operationalSourceChanged,'ten domains and 410 differences without selection');
+ const consumer=await consumerRead(first.revisionId,pack,'serializable preparation');
+ const comparison=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
+ ok(comparison.rows.length===3&&comparison.cohort.missing_core_keys===2&&comparison.reviewRequired,'transition preserves all final employees and exposes the existing fixture core gaps');
+ ok(comparison.rows.filter(r=>r.issues.includes('CONTRACT_NOT_FOUND')).length===2,'transition does not create UUIDs for missing canonical contracts');
+ ok(comparison.rows.find(r=>r.contract_id!==null).issues.includes('PERSON_FACTS_CHANGED'),'transition does not silently replace current personal identity');
+ await assert.rejects(bindFinalSourceConsumersWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:'0'.repeat(64)}),{code:'GRH_FINAL_CONSUMER_CONTEXT'});
+ checks.push('consumer rejects another package despite a valid sealed revision');
+ await query('SAVEPOINT consumer_authority');
+ await query('UPDATE public.platform_tenant_source_binding SET verified=false WHERE id=$1::uuid',[target.bindingId]);
+ await assert.rejects(consumer.assertComplete(),{code:'GRH_FINAL_CONSUMER_CONTEXT'});
+ await query('ROLLBACK TO SAVEPOINT consumer_authority');checks.push('consumer rejects withdrawn source certification');
+ for await(const row of consumer.readRows('curated/grh_employees',{pageSize:1})){assert.ok(row);break;}
+ await assert.rejects(consumer.assertComplete(),{code:'GRH_FINAL_CONSUMER_INCOMPLETE'});
+ ok((await query("SELECT count(*)::integer AS n FROM pg_cursors WHERE name LIKE 'mc_final_consumer_%'")).rows[0].n===0,'interrupted consumer closes its real cursor without certifying completeness');
  for(const entity of Object.keys(pack.entities)){
   const n=(await query('SELECT count(*)::integer AS n FROM public.grh_final_source_rows_v1($1::uuid,$2)',[first.revisionId,entity])).rows[0].n;
   ok(n===pack.entities[entity].candidate.rows,'complete reconstruction '+entity);
@@ -163,13 +197,63 @@ try{
  await assert.rejects(prepareFinalSourceRevisionWithinTransaction({...base,client:interrupted,signal:abort.signal}),{name:'AbortError'});
  ok((await query('SELECT count(*)::integer AS n FROM public.grh_final_source_delta')).rows[0].n===0,'cancellation rolls back partial rows');
  assert.deepEqual(await footprint(schema),baseline);checks.push('preservation after failed SQL and cancellation');
- first=await prepareFinalSourceRevisionWithinTransaction(base);await raw.query('COMMIT');await raw.end();
+ const transitionPack=await finalTransitionQaPackage();
+ const transitionBase={...base,prepared:transitionPack,expectedPackageSha256:transitionPack.payloadSha256};
+ const transitionRevision=await prepareFinalSourceRevisionWithinTransaction(transitionBase);
+ const projection=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:transitionRevision.revisionId,expectedPackageSha256:transitionPack.payloadSha256});
+ ok(projection.rows.length===3&&projection.cohort.missing_core_keys===0&&projection.globalIssues.length===0,'transition compares coherent complete final core and curated cohorts');
+ const mapped=projection.rows.find(r=>r.contract_id!==null),mappedFacts=JSON.parse(mapped.candidate_facts_json);
+ ok(mapped.contract_id==='66666666-6666-4666-8666-666666666666'&&!mapped.issues.includes('PERSON_LINK_MISSING'),'exact original bigint person crosswalk preserves the canonical contract UUID');
+ ok(mappedFacts.startDate==='2015-01-01'&&mappedFacts.endDate==='2026-09-30'&&mappedFacts.active===false,'final dates and administrative state are separate from the old active contract');
+ ok(mappedFacts.agreementCode==='SYNTHETIC'&&mappedFacts.categoryCode==='TEST'&&mappedFacts.organizationId==='SYNTHETIC_AREA'&&mappedFacts.positionCode==='POSITION','final classification and organization are retained in proposed facts');
+ ok(mappedFacts.jurisdictionCode==='42'&&projection.rows.some(r=>JSON.parse(r.candidate_facts_json).jurisdictionCode==='55'),'jurisdictions require the original department key and named table reference');
+ ok(mappedFacts.sourcePayload.sourceFields.SUEL_12==='9007199254740993.0000001'&&mappedFacts.sourcePayload.sourceFields.NOLI_12==='0'&&mappedFacts.sourcePayload.sourceFields.CUEN_12===null,'literal salary, liquidation indicator and missing bank value conserved without eligibility inference');
+ const incompatible=projection.rows.find(r=>r.issues.includes('PERIOD_INVALID'));
+ ok(incompatible&&JSON.parse(incompatible.candidate_facts_json).endDate==='2014-12-31','incompatible final date is visible instead of silently nulled');
+ const previous=JSON.parse(mapped.previous_facts_json);
+ ok(previous.contract.status==='active'&&previous.contract.id===mapped.contract_id,'old contract facts remain separately reviewable');
+ const summary=summarizeFinalContractTransition(projection);
+ ok(!/Synthetic original identity|9007199254740993|sourcePayload|candidate_facts_json/.test(JSON.stringify(summary)),'maintenance console exposes counts and hashes without personal or source payloads');
+ await raw.query('SAVEPOINT wrong_person_crosswalk');
+ await query("UPDATE public.source_xref SET source_id='9007199254740999' WHERE source_entity='persona'");
+ const wrongLink=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:transitionRevision.revisionId,expectedPackageSha256:transitionPack.payloadSha256});
+ ok(wrongLink.rows.find(r=>r.contract_id===mapped.contract_id).issues.includes('PERSON_LINK_MISSING'),'same employee key cannot substitute for a missing exact person crosswalk');
+ await raw.query('ROLLBACK TO SAVEPOINT wrong_person_crosswalk');
+ await raw.query('SAVEPOINT foreign_contract_scope');
+ await query("UPDATE public.employment_contract SET tenant_id='01010101-0101-4101-8101-010101010101' WHERE id=$1::uuid",[mapped.contract_id]);
+ const wrongScope=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:transitionRevision.revisionId,expectedPackageSha256:transitionPack.payloadSha256});
+ ok(wrongScope.rows.find(r=>r.contract_id===mapped.contract_id).issues.includes('CONTRACT_SCOPE_CONFLICT'),'another municipality contract cannot be silently adopted by its legacy key');
+ ok(wrongScope.factsSha256!==projection.factsSha256,'same-count contract content change invalidates the proposal facts hash');
+ await raw.query('ROLLBACK TO SAVEPOINT foreign_contract_scope');
+ assert.deepEqual(await footprint(schema),baseline);checks.push('transition comparison preserves every existing synthetic row');
+ await raw.query('ROLLBACK TO SAVEPOINT candidate_empty');
+ await raw.query('COMMIT');
+ let transitionReleases=0;
+ const transitionRehearsal=await executeFinalSourceRevision({...transitionBase,reviewContracts:true,
+  connect:async()=>({query,release(){transitionReleases++;}})});
+ ok(transitionRehearsal.rolledBack&&transitionReleases===1&&transitionRehearsal.contractTransition.cohort.candidate_rows===3,
+  'maintenance rehearsal performs complete contract comparison in the same transaction and releases it');
+ ok((await query('SELECT count(*)::integer AS n FROM public.grh_final_source_revision')).rows[0].n===0,
+  'maintenance contract review rehearsal leaves no saved final revision');
+ await raw.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+ first=await prepareFinalSourceRevisionWithinTransaction(base);
+ const committedComparison=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
+ await raw.query('COMMIT');await raw.end();
  raw=new pg.Client(connection);await raw.connect();await identity();await raw.query("SET TIME ZONE 'UTC'");await context();
  const replay=await executeFinalSourceRevision({...base,connect,commit:true});
  ok(replay.replayed&&replay.revisionId===first.revisionId,'durable replay after COMMIT and reconnection');
  ok((await query('SELECT count(*)::integer AS n FROM public.grh_final_source_delta')).rows[0].n===410,'durability without duplicate rows');
  assert.deepEqual(await footprint(schema),baseline);checks.push('all source, contract and native rows conserved after durable replay');
  ok(replay.committed&&!replay.rolledBack&&released===2,'maintenance confirms and releases its committed replay');
+ await raw.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+ await consumerRead(first.revisionId,pack,'read-only durable revision');
+ const durableComparison=await prepareFinalContractTransitionWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
+ ok(durableComparison.factsSha256===committedComparison.factsSha256&&durableComparison.rows.length===3,
+  'durable read-only reconnection yields the same complete contract facts without new grants');
+ const oldTransaction=await bindFinalSourceConsumersWithinTransaction({client:{query},target,revisionId:first.revisionId,expectedPackageSha256:pack.payloadSha256});
+ await raw.query('COMMIT');await raw.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+ await assert.rejects(oldTransaction.assertComplete(),{code:'GRH_FINAL_CONSUMER_CHANGED'});checks.push('consumer rejects reuse after COMMIT even on the same physical connection');
+ await raw.query('ROLLBACK');
  assert.deepEqual(await footprint('public'),original);checks.push('all existing public table rows unchanged');
  await raw.query(`BEGIN;DO $cleanup$ BEGIN IF (SELECT oid::text FROM pg_namespace WHERE nspname='${schema}') IS DISTINCT FROM '${namespace}' THEN RAISE EXCEPTION 'QA_NAMESPACE_CHANGED';END IF;END $cleanup$;DROP SCHEMA ${schema} CASCADE;COMMIT`);created=false;
  ok((await raw.query('SELECT to_regnamespace($1) IS NULL AS absent',[schema])).rows[0].absent,'isolated synthetic schema removed');
