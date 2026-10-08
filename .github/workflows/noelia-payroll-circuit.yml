@@ -93,8 +93,10 @@ jobs:
             verification/final-adoption-operator-ci/*.png
             verification/active-adoption-ci/result.json
             verification/active-adoption-ci/failure.txt
+            verification/active-adoption-ci/adapter-failure.txt
             verification/active-adoption-legacy-ci/result.json
             verification/active-adoption-legacy-ci/failure.txt
+            verification/active-adoption-legacy-ci/adapter-failure.txt
             verification/active-adoption-browser-ci-*.json
             verification/active-adoption-browser-ci-*.png
           retention-days: 7
