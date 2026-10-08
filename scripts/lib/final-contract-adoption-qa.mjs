@@ -7,14 +7,20 @@ import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 
-export function buildFinalAdoptionQa(major){
+export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddingBytes=0,invalidInactive=false}={}){
+ assert.ok(Number.isSafeInteger(contractCount)&&contractCount>=57&&contractCount<=10000);
+ assert.ok(Number.isSafeInteger(activeCount)&&activeCount>=2&&activeCount<contractCount);
+ assert.ok(Number.isSafeInteger(paddingBytes)&&paddingBytes>=0&&paddingBytes<=8192);assert.equal(typeof invalidInactive,'boolean');
  const qa=buildInactiveJurisdictionQa(major),source=fs.readFileSync(new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url),'utf8');
+ const fixtureAnchor='FOR fixture_n IN 1..54 LOOP';assert.equal(qa.sql.split(fixtureAnchor).length,2);
+ qa.sql=qa.sql.replace(fixtureAnchor,`FOR fixture_n IN 1..${contractCount-3} LOOP`);
  const definitions=splitPostgresStatements(source),find=name=>{const d=definitions.find(s=>s.includes('CREATE FUNCTION public.'+name+'('));assert.ok(d);return d;};
  const entities=find('grh_final_source_entities_v1');
  const revision='64000000-6400-4400-8400-000000000001',packageSha='6'.repeat(64);
  const anchor='CREATE TRIGGER grh_effective_baseline_rows';assert.equal(qa.sql.split(anchor).length,2);
  qa.sql=qa.sql.replace(anchor,()=>`UPDATE employment_contract SET status='active',end_date=NULL WHERE id=${q(qa.ids.targetContract)}::uuid;\n`+anchor);
- const active=`c.id IN(${q(qa.ids.makerContract)}::uuid,${q(qa.ids.checkerContract)}::uuid)`;
+ const ordinal=`CASE WHEN c.legacy_legajo~'^H/QA-[0-9]+$' THEN substring(c.legacy_legajo from 6)::integer END`;
+ const active=`(c.id IN(${q(qa.ids.makerContract)}::uuid,${q(qa.ids.checkerContract)}::uuid) OR coalesce(${ordinal}<=${activeCount-2},false))`;
  const seed=`SET LOCAL search_path=${qa.schema},pg_catalog,public,pg_temp;
  CREATE TABLE source_xref(source_system text,source_entity text,source_id text,source_batch_id uuid,canonical_entity text,canonical_id uuid,valid_to timestamptz);
  INSERT INTO source_xref SELECT 'GRH','persona',c.person_id::text,c.source_batch_id,'person_identity',c.person_id,NULL FROM employment_contract c WHERE c.source_system='GRH' AND c.legacy_company_id=101;
@@ -23,11 +29,11 @@ export function buildFinalAdoptionQa(major){
  -- Existing identities and natural keys are copied explicitly, never manufactured by the application.
  INSERT INTO qa_final_rows SELECT ${q(revision)}::uuid,'curated/grh_employees',encode(public.digest(c.id::text,'sha256'),'hex'),jsonb_build_object(
  'company_id','101','legajo',c.legacy_legajo,'person_id',c.person_id::text,'nombre',p.full_name,'dni',p.dni,'cuil',p.cuil,'fecha_nacimiento',p.birth_date,'sexo',p.sex_code,
- 'fecha_ingreso','2001-02-03','fecha_egreso',CASE WHEN ${active} THEN NULL ELSE '2019-12-31' END,
+ 'fecha_ingreso','2001-02-03','fecha_egreso',CASE WHEN ${active} THEN NULL ${invalidInactive?`WHEN c.id=${q(qa.ids.targetContract)}::uuid THEN '1999-12-31'`:''} ELSE '2019-12-31' END,
  'activo',${active},'convenio_code','1','categoria_code','1','cargo_code','QA_POSITION','sector_code','20',
  'source_payload',jsonb_build_object('sourceKey',jsonb_build_object('companyCode','101','employeeNumber',c.legacy_legajo),
  'employment',jsonb_build_object('activeProxy',${active},'organizationId','10'),
- 'sourceFields',jsonb_build_object('iddepartamento',CASE WHEN ${active} THEN '1' ELSE NULL END,'SUEL_12',9007199254740993.0000001::numeric,'NOLI_12','0'),
+ 'sourceFields',jsonb_build_object('iddepartamento',CASE WHEN ${active} THEN '1' ELSE NULL END,'SUEL_12',9007199254740993.0000001::numeric,'NOLI_12','0'${paddingBytes?`, 'QA_SYNTHETIC_PADDING',repeat('x',${paddingBytes})`:''}),
  'sourceProvenance',jsonb_build_object('table','legajo','primaryKey',jsonb_build_object('CODI_01','101','LEGA_12',c.legacy_legajo)),
  'sourceReferences',CASE WHEN ${active} THEN jsonb_build_object('department',jsonb_build_object('table','departamento','primaryKey',jsonb_build_object('iddepartamento','1'),'sourceFields',jsonb_build_object('nombre','042'))) ELSE '{}'::jsonb END))
  FROM employment_contract c JOIN person_identity p ON p.id=c.person_id WHERE c.source_system='GRH' AND c.legacy_company_id=101;
@@ -62,7 +68,7 @@ export function buildFinalAdoptionQa(major){
  // Evidence must be in the immutable initial INSERT, not patched afterwards.
  const evidence=`(SELECT jsonb_object_agg(e,jsonb_build_object('baseline',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM qa_base_rows WHERE entity=e),'candidate',(SELECT jsonb_build_object('rows',count(*),'md5',md5(coalesce(string_agg(md5(row_key||record::text),'' ORDER BY row_key),''))) FROM qa_final_rows WHERE entity=e),'changes',jsonb_build_object('add',0,'remove',0,'replace',(SELECT count(*) FROM qa_base_rows b JOIN qa_final_rows f USING(revision_id,entity,row_key) WHERE f.entity=e AND b.record<>f.record)))) FROM unnest(grh_final_source_entities_v1()) e)`;
  assert.equal(revisionSeed.split(`${q(packageSha)},'{}'::jsonb`).length,2);
- return {...qa,revision,packageSha,sourceFixture:qa.normalized(seed+predecessor+source+';\n'+revisionSeed.replace(`${q(packageSha)},'{}'::jsonb`,`${q(packageSha)},${evidence}`))};
+ return {...qa,revision,packageSha,contractCount,activeCount,paddingBytes,sourceFixture:qa.normalized(seed+predecessor+source+';\n'+revisionSeed.replace(`${q(packageSha)},'{}'::jsonb`,`${q(packageSha)},${evidence}`))};
 }
 
 export function relocateFinalAdoption(batch,qa,previous){

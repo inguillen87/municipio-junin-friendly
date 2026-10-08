@@ -1,6 +1,7 @@
 // Complete, read-only review of existing contracts. No identity resolution or decisions.
 export const ADOPTION_REVIEW_VERSION='employment-adoption-review.v1';
 export const ADOPTION_FINAL_REVIEW_VERSION='employment-adoption-review.v2';
+export const ADOPTION_ACTIVE_REVIEW_VERSION='employment-adoption-review.v3';
 export const ADOPTION_REVIEW_MAX_ROWS=10000;
 export const ADOPTION_REVIEW_MAX_BYTES=6000000;
 export class AdoptionReviewError extends Error {
@@ -51,15 +52,18 @@ function validateRaw(raw){
  if(!exact(raw,['scope','source','today','queriedAt','total','rows'])||!civilDay(raw.today)||!stamp(raw.queriedAt)||!Number.isSafeInteger(raw.total)||raw.total<0||!Array.isArray(raw.rows))fail();
  if(raw.total>ADOPTION_REVIEW_MAX_ROWS)throw new AdoptionReviewError('El padrón completo supera la capacidad de revisión. No se omitieron ni dividieron contratos.',422,'ADOPTION_REVIEW_LIMIT');
  if(raw.total!==raw.rows.length)fail();adoptionReviewScope(raw.scope);
- const s=raw.source,final=Object.hasOwn(s??{},'finalRevision');if(!exact(s,[...sourceFields,...(final?['finalRevision']:[])])||!sourceFields.slice(0,5).every(k=>uuid(s[k]))||!sourceFields.slice(5,9).every(k=>hash(s[k]))||!stamp(s.cutoff))fail();
+ const s=raw.source,final=Object.hasOwn(s??{},'finalRevision'),active=Object.hasOwn(s??{},'operationalCohort');if(!exact(s,[...sourceFields,...(final?['finalRevision']:[]),...(active?['operationalCohort']:[])])||!sourceFields.slice(0,5).every(k=>uuid(s[k]))||!sourceFields.slice(5,9).every(k=>hash(s[k]))||!stamp(s.cutoff))fail();
  if(final){const f=s.finalRevision;if(!exact(f,finalSourceFields)||!uuid(f.revisionId)||!finalSourceFields.filter(k=>!['revisionId','cutoff'].includes(k)).every(k=>hash(f[k]))||!stamp(f.cutoff))fail();}
+ if(active){const c=s.operationalCohort;if(!final||!exact(c,['version','sourceTotal','archivedTotal'])||c.version!=='active-contracts.v1'||!Number.isSafeInteger(c.sourceTotal)||c.sourceTotal<1||c.sourceTotal>ADOPTION_REVIEW_MAX_ROWS||!Number.isSafeInteger(c.archivedTotal)||c.archivedTotal<0||c.sourceTotal-c.archivedTotal!==raw.total)fail();}
+ let lastSourceRow=0;
  const seen=new Set();for(const [index,r]of raw.rows.entries()){
-  if(!exact(r,[...ADOPTION_REVIEW_ROW_FIELDS,...(final?['previous','sourceIssues']:[])])||r.rowNumber!==index+1||!uuid(r.contractId)||seen.has(r.contractId.toLowerCase())||!['active','inactive','state_error'].includes(r.status)
+  if(!exact(r,[...ADOPTION_REVIEW_ROW_FIELDS,...(final?['previous','sourceIssues']:[]),...(active?['sourceRowNumber']:[])])||r.rowNumber!==index+1||!uuid(r.contractId)||seen.has(r.contractId.toLowerCase())||!['active','inactive','state_error'].includes(r.status)
    ||!['legajo','name','agreementCode','categoryCode','organizationId','sectorCode'].every(k=>text(r[k]))||r.startDate!==null&&!civilDay(r.startDate)||r.endDate!==null&&!civilDay(r.endDate)
    ||!['42','55',null].includes(r.jurisdictionCode)||!Number.isSafeInteger(r.activeContractsForPerson)||r.activeContractsForPerson<0||r.activeContractsForPerson>raw.total)fail();
   if(final){const b=r.previous;if(!exact(b,previousFields)||!['active','inactive','state_error','unknown'].includes(b.status)||!previousFields.filter(k=>k!=='status').every(k=>text(b[k]))
    ||b.startDate!==null&&!civilDay(b.startDate)||b.endDate!==null&&!civilDay(b.endDate)||!['42','55',null].includes(b.jurisdictionCode)
    ||!Array.isArray(r.sourceIssues)||new Set(r.sourceIssues).size!==r.sourceIssues.length||r.sourceIssues.some(k=>!ADOPTION_FINAL_SOURCE_ISSUES.includes(k)))fail();}
+  if(active){if(r.status!=='active'||!Number.isSafeInteger(r.sourceRowNumber)||r.sourceRowNumber<=lastSourceRow||r.sourceRowNumber>s.operationalCohort.sourceTotal)fail();lastSourceRow=r.sourceRowNumber;}
   seen.add(r.contractId.toLowerCase());
  }
  if(new TextEncoder().encode(adoptionReviewJson(raw)).length>ADOPTION_REVIEW_MAX_BYTES)throw new AdoptionReviewError('El padrón completo supera la capacidad de consulta. No se omitieron contratos.',422,'ADOPTION_REVIEW_LIMIT');
@@ -69,19 +73,19 @@ export async function sealAdoptionReview(raw){
  const rows=await Promise.all(raw.rows.map(async r=>({...structuredClone(r),contractVersion:await adoptionReviewHash({sourceContextVersion,row:r}),observations:adoptionReviewObservations(r)})));
  const counts={active:0,inactive:0,state_error:0,dataReview:0,jurisdictionPending:0,multipleActive:0,observations:0};
  for(const r of rows){counts[r.status]++;counts.observations+=r.observations.length;if(r.observations.some(o=>!['JURISDICTION_REQUIRED','MULTIPLE_ACTIVE'].includes(o.code)))counts.dataReview++;if(r.jurisdictionCode===null)counts.jurisdictionPending++;if(r.activeContractsForPerson>1)counts.multipleActive++;}
- const data={version:raw.source.finalRevision?ADOPTION_FINAL_REVIEW_VERSION:ADOPTION_REVIEW_VERSION,complete:true,...structuredClone(raw),sourceContextVersion,counts,rows};
+ const data={version:raw.source.operationalCohort?ADOPTION_ACTIVE_REVIEW_VERSION:raw.source.finalRevision?ADOPTION_FINAL_REVIEW_VERSION:ADOPTION_REVIEW_VERSION,complete:true,...structuredClone(raw),sourceContextVersion,counts,rows};
  data.snapshot=await adoptionReviewHash({...data,queriedAt:null});
  if(new TextEncoder().encode(adoptionReviewJson(data)).length>ADOPTION_REVIEW_MAX_BYTES)throw new AdoptionReviewError('El padrón completo supera la capacidad de consulta. No se omitieron contratos.',422,'ADOPTION_REVIEW_LIMIT');
  return freeze(data);
 }
 export async function verifiedAdoptionReview(value){
- const final=value?.version===ADOPTION_FINAL_REVIEW_VERSION,fields=[...ADOPTION_REVIEW_ROW_FIELDS,...(final?['previous','sourceIssues']:[])];
- if(!exact(value,['version','complete','scope','source','today','queriedAt','total','rows','sourceContextVersion','counts','snapshot'])||![ADOPTION_REVIEW_VERSION,ADOPTION_FINAL_REVIEW_VERSION].includes(value.version)||value.complete!==true||!Array.isArray(value.rows)||final!==Boolean(value.source?.finalRevision))fail();
+ const active=value?.version===ADOPTION_ACTIVE_REVIEW_VERSION,final=active||value?.version===ADOPTION_FINAL_REVIEW_VERSION,fields=[...ADOPTION_REVIEW_ROW_FIELDS,...(final?['previous','sourceIssues']:[]),...(active?['sourceRowNumber']:[])];
+ if(!exact(value,['version','complete','scope','source','today','queriedAt','total','rows','sourceContextVersion','counts','snapshot'])||![ADOPTION_REVIEW_VERSION,ADOPTION_FINAL_REVIEW_VERSION,ADOPTION_ACTIVE_REVIEW_VERSION].includes(value.version)||value.complete!==true||!Array.isArray(value.rows)||final!==Boolean(value.source?.finalRevision)||active!==Boolean(value.source?.operationalCohort))fail();
  const raw={scope:value.scope,source:value.source,today:value.today,queriedAt:value.queriedAt,total:value.total,rows:value.rows.map(r=>{if(!exact(r,[...fields,'contractVersion','observations']))fail();return Object.fromEntries(fields.map(k=>[k,r[k]]));})};
  const sealed=await sealAdoptionReview(raw);if(adoptionReviewJson(sealed)!==adoptionReviewJson(value))fail();verified.add(sealed);return sealed;
 }
 export function adoptionReviewCsv(review){
  if(!verified.has(review))fail();const quote=v=>'"'+String(v).replaceAll('"','""')+'"';
- const rows=[['Fila de la revisión','Estado','Acción sugerida']];for(const r of review.rows)for(const o of r.observations)rows.push([r.rowNumber,o.status,o.action]);
+ const active=Boolean(review.source.operationalCohort),rows=[[active?'Fila de la fuente completa':'Fila de la revisión','Estado','Acción sugerida']];for(const r of review.rows)for(const o of r.observations)rows.push([active?r.sourceRowNumber:r.rowNumber,o.status,o.action]);
  return '\ufeff'+rows.map(r=>r.map(quote).join(';')).join('\r\n')+'\r\n';
 }

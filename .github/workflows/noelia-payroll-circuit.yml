@@ -57,6 +57,12 @@ jobs:
         run: node scripts/verify-final-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-ci
       - name: Review, compare, download and recover the complete final-cut proposal
         run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/final-adoption-browser-ci
+      - name: Adopt every active contract at full operational volume while preserving inactive history
+        run: node scripts/verify-active-contract-adoption.mjs --scale=true --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/active-adoption-ci
+      - name: Recover and replay earlier complete adoption requests after the active schema upgrade
+        run: node scripts/verify-active-contract-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/active-adoption-legacy-ci
+      - name: Review all 869 active rows, download observations and recover the same voluntary attempt
+        run: node scripts/verify-final-contract-adoption-browser.mjs --output-prefix=verification/active-adoption-browser-ci --active=true
       - name: Independently decide and consult the final-cut result through actual SQL and HTTP
         run: node scripts/verify-municipal-adoption-operator-browser.mjs --transport=ci --final-cut=true --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/final-adoption-operator-ci
       - name: Preserve synthetic evidence even when a check fails
@@ -85,4 +91,10 @@ jobs:
             verification/final-adoption-operator-ci/result.json
             verification/final-adoption-operator-ci/failure.json
             verification/final-adoption-operator-ci/*.png
+            verification/active-adoption-ci/result.json
+            verification/active-adoption-ci/failure.txt
+            verification/active-adoption-legacy-ci/result.json
+            verification/active-adoption-legacy-ci/failure.txt
+            verification/active-adoption-browser-ci-*.json
+            verification/active-adoption-browser-ci-*.png
           retention-days: 7
