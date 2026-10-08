@@ -51,6 +51,8 @@ jobs:
         run: node scripts/verify-published-novelty-adoption.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/published-adoption-ci
       - name: Complete actual HTTP, SQL and browser circuit, jurisdiction and annual positions
         run: node scripts/verify-noelia-payroll-circuit.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --browser=chromium --jurisdictions=true --positions=true --output=verification/noelia-circuit-ci
+      - name: Preserve inactive history with unknown jurisdiction and refuse active unknowns
+        run: node scripts/verify-adoption-inactive-jurisdiction.mjs --transport=ci --major=${{ matrix.major }} --source-commit=${{ github.sha }} --output=verification/inactive-jurisdiction-ci
       - name: Preserve synthetic evidence even when a check fails
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -68,4 +70,6 @@ jobs:
             verification/adoption-jurisdictions-ci-*.json
             verification/adoption-jurisdictions-ci-*.png
             verification/published-adoption-ci/uuid-three-defaults-proof.json
+            verification/inactive-jurisdiction-ci/result.json
+            verification/inactive-jurisdiction-ci/failure.txt
           retention-days: 7

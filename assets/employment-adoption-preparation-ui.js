@@ -1,4 +1,4 @@
-import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt} from './employment-adoption-preparation-model.js';
+import {adoptionPreparationBootstrap,adoptionPreparationPayload,adoptionPreparationReceipt,adoptionInactiveJurisdictionPending,ADOPTION_PENDING_PREPARATION_VERSION} from './employment-adoption-preparation-model.js';
 import {adoptionReviewScope} from './employment-adoption-review-model.js';
 
 const API='/api/internal-employment-adoption';
@@ -11,7 +11,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  <section data-ap-pending hidden><h4>Envío sin confirmar</h4><p>Consultá el mismo intento antes de preparar otra propuesta. Se conserva su contenido y referencia en esta página.</p><button type="button" class="button" data-ap-recover>Consultar resultado del mismo intento</button><button type="button" class="button" data-ap-retry disabled>Reenviar el mismo intento</button></section>
  <form data-ap-form hidden><p data-ap-counts></p>
  <label>Jurisdicción para los contratos que no la tienen declarada<select data-ap-jurisdiction required><option value="">Elegí según el respaldo municipal</option><option value="42">Jurisdicción 42</option><option value="55">Jurisdicción 55</option></select></label>
- <p>La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.</p>
+ <p data-ap-jurisdiction-help>La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.</p>
  <p data-ap-jurisdiction-counts role="status" aria-live="polite"></p>
  <button type="button" class="button" data-ap-jurisdiction-open aria-expanded="false" aria-controls="adoption-jurisdiction-body">Revisar jurisdicción por contrato</button>
  <section id="adoption-jurisdiction-body" data-ap-jurisdiction-panel hidden><h5>Declaraciones de esta revisión completa</h5>
@@ -27,14 +27,15 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  const $=key=>host.querySelector('[data-ap-'+key+']'),panel=$('panel');
  let review=null,bootstrap=null,readAllowed=false,prepareAllowed=false,busy=false,epoch=0,controller=null,pending=null,retryReady=false;
  let jurisdictionPage=1;const jurisdictions=new Map();
- const code=row=>row.jurisdictionCode??jurisdictions.get(row.contractId)??$('jurisdiction').value;
+ const supportsPending=()=>bootstrap?.version===ADOPTION_PENDING_PREPARATION_VERSION;
+ const code=row=>row.jurisdictionCode??jurisdictions.get(row.contractId)??(supportsPending()&&adoptionInactiveJurisdictionPending(row,review?.today)?null:$('jurisdiction').value);
  const jurisdictionRows=()=>review?review.rows.filter(r=>[r.name,r.legajo].some(v=>(v??'').toLocaleLowerCase('es').includes($('jurisdiction-search').value.toLocaleLowerCase('es')))):[];
- function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:'pending']++;}return counts;}
+ function jurisdictionCounts(){const counts={'42':0,'55':0,pending:0,inactivePending:0};for(const r of review?.rows??[]){const value=code(r);counts[['42','55'].includes(value)?value:supportsPending()&&value===null&&adoptionInactiveJurisdictionPending(r,review.today)?'inactivePending':'pending']++;}return counts;}
  function clearJurisdictions(){jurisdictions.clear();jurisdictionPage=1;$('jurisdiction-search').value='';$('jurisdiction-rows').replaceChildren();$('jurisdiction-panel').hidden=true;$('jurisdiction-open').setAttribute('aria-expanded','false');$('jurisdiction-counts').textContent='';$('jurisdiction-page').textContent='';}
  function paintJurisdictions(){
   if(!review)return;
   const counts=jurisdictionCounts(),rows=jurisdictionRows();
-  $('jurisdiction-counts').textContent=`Propuesta completa: ${counts['42']} contratos en jurisdicción 42 · ${counts['55']} en jurisdicción 55 · ${counts.pending} sin declarar. Se conservan los ${review.total} contratos.`;
+  $('jurisdiction-counts').textContent=`Propuesta completa: ${counts['42']} contratos en jurisdicción 42 · ${counts['55']} en jurisdicción 55 · ${counts.pending} sin declarar${supportsPending()?` · ${counts.inactivePending} inactivos conservados con jurisdicción pendiente, sin habilitación salarial`:''}. Se conservan los ${review.total} contratos.`;
   $('jurisdiction-page').textContent=`Página ${jurisdictionPage} de ${Math.max(1,Math.ceil(rows.length/25))} · ${rows.length} coincidencias`;
   $('jurisdiction-rows').replaceChildren();
   for(const r of rows.slice((jurisdictionPage-1)*25,jurisdictionPage*25)){
@@ -44,7 +45,7 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    if(r.jurisdictionCode!==null)td.textContent=`${r.jurisdictionCode} · ya declarada`;
    else{
     const select=document.createElement('select');select.dataset.apJurisdictionRow=String(r.rowNumber);select.setAttribute('aria-label',`Jurisdicción de la fila ${r.rowNumber} · ${r.name??'nombre pendiente'}`);
-    for(const [value,label]of [['',`Usar declaración general (${$('jurisdiction').value||'pendiente'})`],['42','Jurisdicción 42'],['55','Jurisdicción 55']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}
+    for(const [value,label]of [['',supportsPending()&&adoptionInactiveJurisdictionPending(r,review.today)?'Conservar pendiente · inactivo':`Usar declaración general (${$('jurisdiction').value||'pendiente'})`],['42','Jurisdicción 42'],['55','Jurisdicción 55']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}
     select.value=jurisdictions.get(r.contractId)??'';
     select.addEventListener('change',()=>{if(!live()||busy||pending||!prepareAllowed||!bootstrap?.canPrepare)return;if(select.value)jurisdictions.set(r.contractId,select.value);else jurisdictions.delete(r.contractId);$('confirm').checked=false;paintJurisdictions();controls();host.querySelector(`[data-ap-jurisdiction-row="${r.rowNumber}"]`)?.focus();});td.append(select);
    }
@@ -95,7 +96,8 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
  function paint(value){
   bootstrap=value.value;prepareAllowed=value.canPrepare;
   $('form').hidden=!bootstrap.canPrepare||!prepareAllowed||!bootstrap.review.total||!!pending;
-  $('counts').textContent=`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} requieren la jurisdicción declarada. La búsqueda no reduce la propuesta.`;
+  $('counts').textContent=`Se guardarán ${bootstrap.review.total} contratos de todas las páginas. ${bootstrap.review.counts.jurisdictionPending} tienen jurisdicción pendiente. La búsqueda no reduce la propuesta.`;
+  $('jurisdiction-help').textContent=supportsPending()?'La elección general se aplica a los contratos pendientes que requieren declaración. Los inactivos con fecha de finalización anterior a hoy pueden conservar su jurisdicción pendiente; esto no habilita su liquidación. Podés declarar excepciones por contrato. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.':'La elección general se aplica a los contratos pendientes. Podés declarar excepciones por contrato en la misma propuesta. Las jurisdicciones ya declaradas se conservan; ninguna se deduce del legajo, sector o archivo.';
   $('attempts').replaceChildren();for(const [index,a]of bootstrap.attempts.entries()){
    const li=document.createElement('li');li.textContent=`Propuesta ${index+1}: ${a.receipt.total} contratos · registrada para revisión · 0 contratos adoptados al prepararla.`;$('attempts').append(li);
   }
@@ -121,9 +123,9 @@ export function mountAdoptionPreparation(host,{isLive,onAuthorityLost}={}){
    if(!recover&&(!f.value.canPrepare||!f.canPrepare)){prepareAllowed=false;bootstrap=null;$('form').hidden=true;throw issue('Tu cuenta ya no permite preparar propuestas. Podés consultar el resultado de un intento pendiente.');}
    if(!recover&&!retry){
     if(pending)return;
-    if(f.value.review.snapshot!==review.snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón o el catálogo. Volvé a revisar antes de guardar.');}
+    if(f.value.review.snapshot!==review.snapshot||f.value.catalogVersion!==bootstrap?.catalogVersion||f.value.version!==bootstrap?.version){bootstrap=null;$('form').hidden=true;throw issue('Cambió el padrón, el catálogo o las condiciones de preparación. Volvé a revisar antes de guardar.');}
     const declaration={snapshot:review.snapshot,rows:review.rows.map(r=>({contractId:r.contractId,jurisdictionCode:code(r)}))};
-    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value);
+    const body=await adoptionPreparationPayload(review,bootstrap.catalogVersion,declaration,$('reference').value,$('reason').value,{allowInactivePending:supportsPending()});
     if(!current(token))return;
     pending={attempt:Object.freeze({key:crypto.randomUUID(),body,bytes:JSON.stringify({operation:'propose',payload:body}),scope:f.scope,actor:f.actor})};retryReady=false;
    }
