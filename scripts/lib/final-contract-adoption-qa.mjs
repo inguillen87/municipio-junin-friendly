@@ -6,6 +6,7 @@ import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck} from './native-leave-installation.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
+import {identityProfileValidatorQaDefinitions} from '../../tests/fixtures/final-identity-profile-synthetic.js';
 
 export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddingBytes=0,invalidInactive=false}={}){
  assert.ok(Number.isSafeInteger(contractCount)&&contractCount>=57&&contractCount<=10000);
@@ -14,6 +15,14 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  const qa=buildInactiveJurisdictionQa(major),source=fs.readFileSync(new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url),'utf8');
  const fixtureAnchor='FOR fixture_n IN 1..54 LOOP';assert.equal(qa.sql.split(fixtureAnchor).length,2);
  qa.sql=qa.sql.replace(fixtureAnchor,`FOR fixture_n IN 1..${contractCount-3} LOOP`);
+ // The final-source fixture must follow the existing canonical CUIL validator.
+ // Unknown synthetic tax IDs are NULL; never clone a fabricated invalid CUIL.
+ const invalidCuil="'cuil','20'||(99110000+fixture_n)::text||'0'";
+ assert.equal(qa.sql.split(invalidCuil).length,2);
+ qa.sql=qa.sql.replace(invalidCuil,"'cuil',NULL");
+ const invalidOriginalCuil="cuil='20'||(99008000+x.n)::text||'0'";
+ assert.equal(qa.sql.split(invalidOriginalCuil).length,2);
+ qa.sql=qa.sql.replace(invalidOriginalCuil,'cuil=NULL');
  const definitions=splitPostgresStatements(source),find=name=>{const d=definitions.find(s=>s.includes('CREATE FUNCTION public.'+name+'('));assert.ok(d);return d;};
  const entities=find('grh_final_source_entities_v1');
  const revision='64000000-6400-4400-8400-000000000001',packageSha='6'.repeat(64);
@@ -22,6 +31,7 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  const ordinal=`CASE WHEN c.legacy_legajo~'^H/QA-[0-9]+$' THEN substring(c.legacy_legajo from 6)::integer END`;
  const active=`(c.id IN(${q(qa.ids.makerContract)}::uuid,${q(qa.ids.checkerContract)}::uuid) OR coalesce(${ordinal}<=${activeCount-2},false))`;
  const seed=`SET LOCAL search_path=${qa.schema},pg_catalog,public,pg_temp;
+ ${identityProfileValidatorQaDefinitions().join(';\n')};
  CREATE TABLE source_xref(source_system text,source_entity text,source_id text,source_batch_id uuid,canonical_entity text,canonical_id uuid,valid_to timestamptz);
  INSERT INTO source_xref SELECT 'GRH','persona',c.person_id::text,c.source_batch_id,'person_identity',c.person_id,NULL FROM employment_contract c WHERE c.source_system='GRH' AND c.legacy_company_id=101;
  CREATE TABLE qa_final_rows(revision_id uuid,entity text,row_key text,record jsonb,PRIMARY KEY(revision_id,entity,row_key));
@@ -31,7 +41,8 @@ export function buildFinalAdoptionQa(major,{contractCount=57,activeCount=2,paddi
  'company_id','101','legajo',c.legacy_legajo,'person_id',c.person_id::text,'nombre',p.full_name,'dni',p.dni,'cuil',p.cuil,'fecha_nacimiento',p.birth_date,'sexo',p.sex_code,
  'fecha_ingreso','2001-02-03','fecha_egreso',CASE WHEN ${active} THEN NULL ${invalidInactive?`WHEN c.id=${q(qa.ids.targetContract)}::uuid THEN '1999-12-31'`:''} ELSE '2019-12-31' END,
  'activo',${active},'convenio_code','1','categoria_code','1','cargo_code','QA_POSITION','sector_code','20',
- 'source_payload',jsonb_build_object('sourceKey',jsonb_build_object('companyCode','101','employeeNumber',c.legacy_legajo),
+ 'source_payload',jsonb_build_object('personId',c.person_id::text,'identity',jsonb_build_object('fullName',p.full_name,'documentNumber',p.dni,'cuil',p.cuil,'birthDate',p.birth_date,'sexCode',p.sex_code,'sexLabel',NULL),
+ 'sourceKey',jsonb_build_object('companyCode','101','employeeNumber',c.legacy_legajo),
  'employment',jsonb_build_object('activeProxy',${active},'organizationId','10'),
  'sourceFields',jsonb_build_object('iddepartamento',CASE WHEN ${active} THEN '1' ELSE NULL END,'SUEL_12',9007199254740993.0000001::numeric,'NOLI_12','0'${paddingBytes?`, 'QA_SYNTHETIC_PADDING',repeat('x',${paddingBytes})`:''}),
  'sourceProvenance',jsonb_build_object('table','legajo','primaryKey',jsonb_build_object('CODI_01','101','LEGA_12',c.legacy_legajo)),
