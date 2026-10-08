@@ -267,6 +267,7 @@ const shellFiles = [
   'assets/grh-successor-review-model.js',
   'assets/grh-successor-review-ui.js',
   'assets/grh-curated-review-model.js',
+  'assets/grh-employee-source-facts.js',
   'assets/grh-curated-review-ui.js',
   'assets/grh-backup-review.js',
   'assets/grh-backup-review.css',

@@ -8,6 +8,9 @@ on:
       - 'assets/grh-core-review-model.js'
       - 'assets/grh-successor-review*'
       - 'assets/grh-curated-review*'
+      - 'assets/grh-employee-source-facts.js'
+      - 'tests/grh-employee-source-*.test.js'
+      - 'tests/fixtures/grh-employee-source-synthetic.js'
       - 'scripts/compare-grh-curated-successor.mjs'
       - 'scripts/lib/grh-curated-comparison.mjs'
       - 'scripts/lib/grh-curated-source-reader.mjs'
@@ -23,6 +26,21 @@ on:
       - 'tests/grh-successor-panel.test.js'
       - 'tests/fixtures/grh-*review*'
       - 'tests/fixtures/grh-successor-panel-synthetic.js'
+      - '.github/workflows/source-review.yml'
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'assets/grh-*review*'
+      - 'assets/grh-employee-source-facts.js'
+      - 'scripts/compare-grh-curated-successor.mjs'
+      - 'scripts/lib/grh-curated-*.mjs'
+      - 'scripts/build-friendly.mjs'
+      - 'scripts/verify-grh-backup-review-browser.mjs'
+      - 'scripts/verify-successor-review-component.mjs'
+      - 'tests/grh-*review*.test.js'
+      - 'tests/grh-curated-*.test.js'
+      - 'tests/grh-employee-source-*.test.js'
+      - 'tests/fixtures/grh-employee-source-synthetic.js'
       - '.github/workflows/source-review.yml'
 permissions:
   contents: read

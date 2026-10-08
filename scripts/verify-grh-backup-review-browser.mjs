@@ -9,6 +9,7 @@ import { backupReviewFixture } from '../tests/fixtures/grh-backup-review-synthet
 import { coreReviewFixture } from '../tests/fixtures/grh-core-review-synthetic.js';
 import { curatedFixture,coordinatedFixture } from '../tests/fixtures/grh-successor-panel-synthetic.js';
 import { successorFixture } from '../tests/fixtures/grh-successor-panel-synthetic.js';
+import {employeeFactsFixture,coordinatedEmployeeFactsFixture} from '../tests/fixtures/grh-employee-source-synthetic.js';
 
 const publishedOrigin = process.env.BACKUP_REVIEW_PUBLISHED_ORIGIN;
 if (publishedOrigin !== undefined) assert.equal(publishedOrigin, 'https://municipio-junin-friendly.vercel.app', 'PUBLISHED_ORIGIN_NOT_ALLOWED');
@@ -241,7 +242,23 @@ try {
   checks.push('clear removes both halves of the coordinated review and its local file selection');
 
   assert.ok(requests.every(r => r.method === 'GET' && r.body === null));
-  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|grh-curated-successor-comparison\.v1|grh-coordinated-successor-review\.v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
+  for(const fixture of [employeeFactsFixture,coordinatedEmployeeFactsFixture]){
+    const value=fixture();await select(value);await open();
+    assert.equal(await panel.locator('[data-br-employee-facts]').count(),1);
+    assert.equal(await panel.locator('[data-br-employee-facts] tbody tr').count(),3);
+    assert.match(await panel.locator('[data-br-employee-facts]').innerText(),/0\/1 no se traducen a permiso para liquidar/);
+    const summary=await panel.locator('[data-br-employee-facts]').innerText();
+    await panel.locator('select[aria-label="Archivos de personal a mostrar"]').selectOption('changed');
+    assert.equal(await panel.locator('[data-br-employee-facts]').innerText(),summary);
+    for(const width of [1440,390,320]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));const region=panel.getByRole('region',{name:'Departamento original por situación laboral, desplazable'});await region.focus();assert.equal(await region.evaluate(el=>el===document.activeElement),true);}
+    await evidence('grh-curated-original-fields-mobile-qa',320,'[data-br-employee-facts]');
+    await panel.locator('[data-br-clear]').click();assert.equal(await panel.locator('[data-br-employee-facts]').count(),0);
+  }
+  checks.push('original employee facts in both complete v2 reports survive filtering, fit 1440/390/320px and clear without writes');
+  await select(coordinatedEmployeeFactsFixture());await open();lineage=false;await open();
+  assert.equal(await panel.locator('[data-br-employee-facts]').count(),0);assert.equal(await panel.locator('[data-br-file]').inputValue(),'');lineage=true;
+  checks.push('revocation withdraws the original-facts summary and file selection');
+  assert.doesNotMatch(JSON.stringify(requests), /PRIVATE_LOCAL_FILENAME|PRIVATE_NOMINAL_MARKER|grh-backup-review\.v1|grh-core-artifact-comparison\.v1|grh-curated-successor-comparison\.v[12]|grh-coordinated-successor-review\.v[12]|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
   assert.ok(requests.filter(r => new URL(r.url).pathname.startsWith('/api/')).every(r => ['/api/internal-auth', '/api/internal-data'].includes(new URL(r.url).pathname)));
   checks.push('all network requests are content-free GETs; no filename, report, backup hash, nominal marker or upload leaves the browser');
   assert.deepEqual(errors, []); assert.equal(publishedFailures.size, 0); if (publishedOrigin) assert.ok(publishedAssets.size > 0);

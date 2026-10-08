@@ -1,8 +1,13 @@
 import {exactReviewKeys,reviewHash,reviewCount,successorSource,reviewGeneratedAt,rejectSuccessorReview,successorReviewData,SUCCESSOR_REVIEW_VERSION} from './grh-successor-review-model.js';
+import {verifiedEmployeeSourceSummary} from './grh-employee-source-facts.js';
 export const CURATED_REVIEW_VERSION='grh-curated-successor-comparison.v1';
 export const COORDINATED_REVIEW_VERSION='grh-coordinated-successor-review.v1';
+export const CURATED_FACTS_REVIEW_VERSION='grh-curated-successor-comparison.v2';
+export const COORDINATED_FACTS_REVIEW_VERSION='grh-coordinated-successor-review.v2';
+export const isCuratedReview=version=>[CURATED_REVIEW_VERSION,CURATED_FACTS_REVIEW_VERSION].includes(version);
+export const isCoordinatedReview=version=>[COORDINATED_REVIEW_VERSION,COORDINATED_FACTS_REVIEW_VERSION].includes(version);
 export const CURATED_REVIEW_SCHEMA=Object.freeze({
- employees:['curated-employees.json','Legajos','address employment externalId identity personId relatedRecordCounts sourceKey unionMemberships'],
+ employees:['curated-employees.json','Legajos','address employment externalId identity personId relatedRecordCounts sourceKey unionMemberships sourceFields sourceProvenance sourceReferences'],
  absences:['curated-absences.json','Ausencias','absenceDate days employeeExternalId period presentationDate quantity reason reasonCode registeredDate sourceFields sourceKey untilDate'],
  leaves:['curated-leaves.json','Licencias','days employeeExternalId endDate observations sourceFields sourceKey startDate typeCode'],
  familyMembers:['curated-family-members.json','Familiares','birthDate courseCode cuil deductionPercentage documentNumber documentTypeCode employeeExternalId employeeSourceKey endDate fullName incapacityCode observations relationship relationshipId schoolingCode sexCode sourceFields sourceKey sourceProvenance'],
@@ -23,7 +28,8 @@ for(const value of Object.values(CURATED_REVIEW_SCHEMA))Object.freeze(value);
 const COUNTS=['before','after','added','removed','changed','unchanged'];
 const SCOPE=Object.freeze({databaseQueries:0,databaseWrites:0,sourcePromoted:false,containsPersonalRecords:false,containsSalaryAmounts:false,nativeOperationsCompared:false,canonicalCompared:false});
 export function curatedReviewData(value){
- if(!exactReviewKeys(value,['version','generatedAt','baseline','candidate','artifacts','comparisonComplete','scope'])||value.version!==CURATED_REVIEW_VERSION
+ const modern=value?.version===CURATED_FACTS_REVIEW_VERSION;
+ if(!exactReviewKeys(value,['version','generatedAt','baseline','candidate','artifacts','comparisonComplete','scope',...(modern?['employeeSourceFacts']:[])])||!isCuratedReview(value.version)
   ||value.comparisonComplete!==true||!exactReviewKeys(value.scope,Object.keys(SCOPE))||Object.entries(SCOPE).some(([k,v])=>value.scope[k]!==v)
   ||!exactReviewKeys(value.artifacts,CURATED_REVIEW_DOMAINS))rejectSuccessorReview();
  const baseline=successorSource(value.baseline),candidate=successorSource(value.candidate);reviewGeneratedAt(value.generatedAt);
@@ -39,15 +45,18 @@ export function curatedReviewData(value){
   if((row.added+row.removed+row.changed===0)!==(row.baselineProjectionSha256.toLowerCase()===row.candidateProjectionSha256.toLowerCase()))rejectSuccessorReview();
   return[name,Object.freeze({...row,changedFields:Object.freeze({...fields})})];
  })));
- return Object.freeze({version:CURATED_REVIEW_VERSION,generatedAt:value.generatedAt,baseline,candidate,comparisonComplete:true,scope:SCOPE,artifacts});
+ let employeeSourceFacts;
+ if(modern){if(!exactReviewKeys(value.employeeSourceFacts,['baseline','candidate']))rejectSuccessorReview();try{employeeSourceFacts=Object.freeze({baseline:verifiedEmployeeSourceSummary(value.employeeSourceFacts.baseline,artifacts.employees.before),candidate:verifiedEmployeeSourceSummary(value.employeeSourceFacts.candidate,artifacts.employees.after)});}catch{rejectSuccessorReview();}}
+ return Object.freeze({version:value.version,generatedAt:value.generatedAt,baseline,candidate,comparisonComplete:true,scope:SCOPE,artifacts,...(modern?{employeeSourceFacts}:{})});
 }
 export function coordinatedReviewData(value){
- if(!exactReviewKeys(value,['version','generatedAt','coreReportSha256','core','curated','scope'])||value.version!==COORDINATED_REVIEW_VERSION||!reviewHash(value.coreReportSha256))rejectSuccessorReview();
+ if(!exactReviewKeys(value,['version','generatedAt','coreReportSha256','core','curated','scope'])||!isCoordinatedReview(value.version)||!reviewHash(value.coreReportSha256))rejectSuccessorReview();
  const core=successorReviewData(value.core),curated=curatedReviewData(value.curated);reviewGeneratedAt(value.generatedAt);
+ if((value.version===COORDINATED_FACTS_REVIEW_VERSION)!==(curated.version===CURATED_FACTS_REVIEW_VERSION))rejectSuccessorReview();
  const scope={databaseQueries:0,databaseWrites:0,sourcePromoted:false,nativeOperationsCompared:false,canonicalCompared:false,coreArtifactsReread:false,curatedArtifactsRead:true,containsPersonalRecords:false,containsSalaryAmounts:false};
  if(!exactReviewKeys(value.scope,Object.keys(scope))||Object.entries(scope).some(([k,v])=>value.scope[k]!==v))rejectSuccessorReview();
  for(const key of ['baseline','candidate'])for(const field of ['profileId','sourceSha256','sourceCutoff'])if(core[key][field]!==curated[key][field])rejectSuccessorReview();
- return Object.freeze({version:COORDINATED_REVIEW_VERSION,generatedAt:value.generatedAt,coreReportSha256:value.coreReportSha256.toLowerCase(),core,curated,scope:Object.freeze(scope)});
+ return Object.freeze({version:value.version,generatedAt:value.generatedAt,coreReportSha256:value.coreReportSha256.toLowerCase(),core,curated,scope:Object.freeze(scope)});
 }
-export function expandedReviewData(value){return value?.version===COORDINATED_REVIEW_VERSION?coordinatedReviewData(value):value?.version===CURATED_REVIEW_VERSION?curatedReviewData(value):successorReviewData(value);}
-export const isExpandedReview=version=>[SUCCESSOR_REVIEW_VERSION,CURATED_REVIEW_VERSION,COORDINATED_REVIEW_VERSION].includes(version);
+export function expandedReviewData(value){return isCoordinatedReview(value?.version)?coordinatedReviewData(value):isCuratedReview(value?.version)?curatedReviewData(value):successorReviewData(value);}
+export const isExpandedReview=version=>version===SUCCESSOR_REVIEW_VERSION||isCuratedReview(version)||isCoordinatedReview(version);

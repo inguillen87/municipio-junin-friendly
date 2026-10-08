@@ -1,6 +1,6 @@
 import { successorReviewData, SUCCESSOR_REVIEW_VERSION } from './grh-successor-review-model.js';
 import { renderSuccessorReview } from './grh-successor-review-ui.js';
-import { curatedReviewData,coordinatedReviewData,CURATED_REVIEW_VERSION,COORDINATED_REVIEW_VERSION } from './grh-curated-review-model.js';
+import { curatedReviewData,coordinatedReviewData,isCuratedReview,isCoordinatedReview } from './grh-curated-review-model.js';
 import { renderCuratedSourceReview } from './grh-curated-review-ui.js';
 import { backupReviewData, backupReviewTotals, backupReviewCutoff, BackupReviewError, BACKUP_REVIEW_LABELS, BACKUP_REVIEW_ISSUES, MAX_BACKUP_REVIEW_BYTES } from './grh-backup-review-model.js';
 import { coreReviewData, coreReviewTotals, coreReviewCutoff, CoreReviewError, CORE_REVIEW_VERSION, CORE_REVIEW_DOMAINS, CORE_REVIEW_LABELS } from './grh-core-review-model.js';
@@ -19,8 +19,8 @@ export function localGrhReviewBytes(bytes) {
   let value;
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
   catch { throw new BackupReviewError('El informe no cumple el contrato de revisión local. Generá nuevamente el informe agregado con la herramienta correspondiente.'); }
-  if (value?.version === CURATED_REVIEW_VERSION) return curatedReviewData(value);
-  if (value?.version === COORDINATED_REVIEW_VERSION) return coordinatedReviewData(value);
+  if (isCuratedReview(value?.version)) return curatedReviewData(value);
+  if (isCoordinatedReview(value?.version)) return coordinatedReviewData(value);
   if (value?.version === SUCCESSOR_REVIEW_VERSION) return successorReviewData(value);
   return value?.version === CORE_REVIEW_VERSION ? coreReviewData(value) : backupReviewData(value);
 }
@@ -75,7 +75,7 @@ export function mountBackupReview(host) {
     if (!Array.isArray(payload.access?.tenantCapabilities) || !payload.access.tenantCapabilities.includes('lineage.read')) throw Object.assign(Error(), { status: 403 });
   }
   function render(data, fingerprint) {
-    if ([CURATED_REVIEW_VERSION,COORDINATED_REVIEW_VERSION].includes(data.version)) { renderCuratedSourceReview(host,data,fingerprint); return; }
+    if (isCuratedReview(data.version)||isCoordinatedReview(data.version)) { renderCuratedSourceReview(host,data,fingerprint); return; }
     if (data.version === SUCCESSOR_REVIEW_VERSION) { renderSuccessorReview(host, data, fingerprint); return; }
     const core = data.version === CORE_REVIEW_VERSION, totals = core ? coreReviewTotals(data) : backupReviewTotals(data);
     const changed = totals.added + totals.removed + totals.changed > 0n;
