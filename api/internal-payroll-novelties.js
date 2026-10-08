@@ -83,6 +83,19 @@ function send(res, status, payload) {
   return res.status(status).json(payload);
 }
 
+function bootstrapWithEmployeeRead(result, identityPrincipal) {
+  if (!Array.isArray(result?.principal?.capabilities)) return result;
+  // The SQL facade projects payroll.novelty.* only. Employee read is checked
+  // against the freshly authenticated membership, including on every retry.
+  const capability = 'workforce.employee.read';
+  const capabilities = new Set(result.principal.capabilities.filter(value => value !== capability));
+  if (principalHasCapabilities(identityPrincipal, [capability])) capabilities.add(capability);
+  return {
+    ...result,
+    principal: { ...result.principal, capabilities: [...capabilities].sort() },
+  };
+}
+
 function firstHeader(req, name) {
   const value = typeof req?.headers?.get === 'function'
     ? req.headers.get(name)
@@ -371,7 +384,9 @@ export function createInternalPayrollNoveltiesHandler(dependencies = {}) {
         }
         if (resource === 'bootstrap') {
           assertQueryKeys(req, new Set(['resource']));
-          const result = await bootstrap(sql, access.principal, session);
+          const result = bootstrapWithEmployeeRead(
+            await bootstrap(sql, access.principal, session), access.principal,
+          );
           return send(res, 200, { ok: true, ...result, sourceFeatures: {
             attendancePreparte: principalHasCapabilities(access.principal,
               ['attendance.read','workforce.employee.read','payroll.novelty.prepare']),

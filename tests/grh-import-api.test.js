@@ -17,3 +17,22 @@ test('a source publication change prevents preparation',async()=>{const a=setup(
 test('unknown command and excessive body are rejected before any source query',async()=>{const a=setup();assert.equal((await a.send(a.request('anything'))).statusCode,400);const r=a.request();r.headers['content-length']='524289';assert.equal((await a.send(r)).statusCode,413);assert.equal(a.state.readerCalls,0);});
 test('a 501-row original cannot result in a successful first 500 rows',async()=>{const a=setup(501),p=await a.send();assert.equal(p.payload.data.inputRows,501);assert.equal(p.payload.data.readyToPrepare,false);a.f.payload.previewToken=p.payload.data.previewToken;const r=await a.send(a.request('grhPrepare'));assert.equal(r.statusCode,422);assert.equal(a.f.state.writes,0);});
 test('guard failure returns conflict, not a misleading saved-file receipt',async()=>{const a=setup(),p=await a.send();a.f.payload.previewToken=p.payload.data.previewToken;a.f.state.guardFailure=true;const r=await a.send(a.request('grhPrepare'));assert.equal(r.statusCode,409);assert.equal(r.payload.code,'PAYROLL_NOVELTY_IDENTITY_CHANGED');assert.equal(r.payload.data,undefined);});
+
+test('SQL bootstrap projects novelty capabilities; HTTP reports the current employee-read authority needed by the TXT panel',async()=>{
+ const a=setup(),sqlResult=(await a.f.runtime.query('SELECT payroll_novelty_bootstrap_v1($1::jsonb) AS result',[]))[0].result;
+ assert.equal(sqlResult.principal.capabilities.includes('workforce.employee.read'),false);
+ const response=await a.send({method:'GET',query:{resource:'bootstrap'},headers:{}});
+ assert.equal(response.statusCode,200);assert.equal(response.payload.ok,true);
+ assert.deepEqual(response.payload.principal.capabilities,[...a.p.tenant.effectiveCapabilities].sort());
+ assert.equal(sqlResult.principal.capabilities.includes('workforce.employee.read'),false);
+ assert.equal(a.f.state.writes,0);assert.equal(a.state.readerCalls,0);assert.match(response.headers['cache-control'],/no-store/);
+});
+
+test('a revoked employee-read authority is never restored by a stale SQL projection or an operational-role label',async()=>{
+ const a=setup();a.p.tenant.roleKey='PLATFORM_OWNER_OPERATIVO_INTEGRAL';
+ a.p.tenant.effectiveCapabilities=a.p.tenant.effectiveCapabilities.filter(c=>c!=='workforce.employee.read');
+ const query=a.f.runtime.query;a.f.runtime.query=async(...args)=>{const result=await query(...args);if(args[0].includes('SELECT payroll_novelty_bootstrap_v1'))result[0].result.principal.capabilities.push('workforce.employee.read');return result;};
+ const response=await a.send({method:'GET',query:{resource:'bootstrap'},headers:{}});
+ assert.equal(response.statusCode,200);assert.equal(response.payload.principal.capabilities.includes('workforce.employee.read'),false);
+ assert.equal((await a.send()).statusCode,403);assert.equal(a.state.readerCalls,0);assert.equal(a.f.state.writes,0);
+});
