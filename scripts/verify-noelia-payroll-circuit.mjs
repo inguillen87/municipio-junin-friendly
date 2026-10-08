@@ -2,6 +2,8 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';import {fileURLToPath} from 'node:url';
 import {buildAdoptedOwnNoveltyInstallation,assertAdoptedOwnNoveltyDurability} from './lib/adopted-own-novelties-installation.mjs';import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa,relocateNoeliaNoveltyInstallation,relocateNoeliaJurisdictionInstallation} from './lib/noelia-payroll-circuit-qa.mjs';
 import {buildOwnJurisdictionInstallation,assertOwnJurisdictionDurability} from './lib/own-payroll-jurisdiction-installation.mjs';
+import {buildInactiveJurisdictionInstallation} from './lib/adoption-inactive-jurisdiction-installation.mjs';
+import {relocateInactiveJurisdictionInstallation} from './lib/adoption-inactive-jurisdiction-qa.mjs';
 import {qaLiteral} from './lib/own-payroll-durable-qa.mjs';import {ownRunHash} from '../lib/internal-own-payroll-run.js';
 import {preservationSnapshot} from './lib/native-leave-installation.mjs';import {adoptionPreparationOperation} from '../lib/internal-employment-adoption.js';import {adoptionPreparationPayload} from '../assets/employment-adoption-preparation-model.js';import {municipalAdoptionOperation} from '../lib/internal-municipal-adoption.js';
 import {createOwnNoveltyHandler} from '../api/internal-own-payroll-novelties.js';import {createOwnRunHandler} from '../api/internal-own-payroll-run.js';import {createOwnLiquidationHandler} from '../api/internal-own-payroll-liquidation.js';import {createOwnCloseHandler} from '../api/internal-own-payroll-close.js';import {createOwnReceiptHandler} from '../api/internal-own-payroll-receipts.js';
@@ -40,6 +42,7 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
   const before=proof();run(tx([...batch.novelty.installation.map(qa.normalized)]),'SQL130_PREREQUISITE_CHANGED');assert.deepEqual(proof(),before);checks.push('original isolated SQL130 refuses adopted prerequisites without partial changes');
   run(tx([...b.installation,"DO $$ BEGIN RAISE EXCEPTION 'QA_COMPOSITION_FAULT';END $$"]),'QA_COMPOSITION_FAULT');assert.deepEqual(proof(),before);checks.push('interrupted complete composition rolls back every object and old function');
   const installed=JSON.parse(run(tx(b.installation))),durable=JSON.parse(run(tx(b.durableVerification)));assertAdoptedOwnNoveltyDurability({installed,durable,batch:b,sourceCommit});checks.push('reviewed composition is durable and preserves all prior rows and security');
+  let pendingBatch;
   if(jurisdictions){
    const reviewed=buildOwnJurisdictionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit}),j=relocateNoeliaJurisdictionInstallation(reviewed,qa,b),beforeJurisdiction=proof();
    fs.writeFileSync(path.join(destination,'jurisdiction-reviewed-installation.sql'),tx(reviewed.installation));fs.writeFileSync(path.join(destination,'jurisdiction-source-pins.json'),JSON.stringify({sourceCommit,sourceHashes:reviewed.sourceHashes,beforePins:reviewed.beforePins,afterPins:reviewed.afterPins,newPin:reviewed.newPin},null,2));
@@ -53,7 +56,8 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
    const legacyParams={...emptyOwnReceiptParams(period),issuer:{name:'Municipio exclusivamente sintético QA',taxId:'30990000001',address:'Domicilio inventado QA'},legend:'Recibo anterior exclusivamente sintético sin firma ni pago'},response={setHeader(){},status(v){this.statusCode=v;return this;},json(v){this.value=v;return this;}};current=maker;
    await handlers.receipt({method:'POST',url:'/api/internal-own-payroll-receipts',query:{},headers:{origin:env.INTERNAL_APP_ORIGIN,'sec-fetch-site':'same-origin','content-type':'application/json'},body:JSON.stringify({operation:'preview',params:legacyParams})},response);assert.equal(response.statusCode,200,JSON.stringify(response.value));ok(response.value.data.snapshot.recordCount===29,'adapted real receipt reader still accepts every original v1 closed participant');
    current=checker;const c=await api('close',{resource:'detail',period,liquidationType:'monthly'});const reopened=await api('close',null,{period,liquidationType:'monthly',scopeVersion:c.scopeVersion,stateVersion:c.stateVersion,selection:{kind:'all',values:[]},command:'reopen',groupId:legacyClose.groupId,reason:'Reapertura exclusivamente sintética QA para continuar pruebas',reviewConfirmed:true},undefined,201);assert.deepEqual(reopened.snapshot,legacyClose.snapshot);const d=await api('liquidation',{resource:'detail',id:old.id});await api('liquidation',null,{runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command:'annul',selection:{kind:'all',values:[]},reason:'Anulación exclusivamente sintética QA para siguiente corrida',reviewConfirmed:true},undefined,201);ok(true,'reopening preserves original v1 snapshot instead of upgrading or reconstructing it');current=maker;
-  }
+    pendingBatch=relocateInactiveJurisdictionInstallation(buildInactiveJurisdictionInstallation({read:p=>fs.readFileSync(path.join(root,p),'utf8'),sourceCommit}),qa,j);
+   }
   await assert.rejects(()=>db.run(`SELECT ${qa.schema}.employment_adoption_decide_v1('{}'::jsonb,'{}'::jsonb,gen_random_uuid())`,true),/permission denied/);checks.push('composition never grants the private adoption writer to runtime');
   assert.deepEqual(await api('run',{resource:'attempt',key:oldKey}),{...old,replayed:true});checks.push('old captured body, input, result and key remain exactly recoverable');
   let positionQa,positionResult=null;
@@ -78,6 +82,13 @@ export async function verifyNoeliaPayrollCircuit({major,output,sourceCommit,brow
    run(tx([qa.normalized(originalPositionReader.replace('CREATE FUNCTION ','CREATE OR REPLACE FUNCTION ')),...installation]));assert.deepEqual(proof(),afterPositions);ok(true,'exact former four-function installation upgrades the reader and preserves every row, OID and ACL');
    run(tx(['GRANT EXECUTE ON FUNCTION '+positionBatch.afterPins[0].signature.replace('public.',qa.schema+'.')+' TO municontrol_actions_runtime_app',...installation]),'ADOPTED_POSITIONS_AFTER_METADATA');assert.deepEqual(proof(),afterPositions);ok(true,'unexpected private-writer execute grant is rejected and rolled back');
    const recovered=await api('run',null,runBody,failedKey,201);ok(recovered.saved.result.employeeCount===29,'same failed payroll body and key succeeds with complete original position capture');
+  }
+  // Existing position consumers precede this later adoption policy.
+  if(pendingBatch){
+   const pendingSql=tx(pendingBatch.installation).replace('SET LOCAL search_path=pg_catalog,'+qa.schema+',public,pg_temp;','SET LOCAL search_path=pg_catalog, '+qa.schema+', public, pg_temp;');
+   const pendingInstalled=JSON.parse(run(pendingSql)),pendingDurable=JSON.parse(run(tx(pendingBatch.verification)));
+   const {mode:pendingMode,...pendingInstallationProof}=pendingInstalled,{mode:verificationMode,...durableProof}=pendingDurable;assert.equal(pendingMode,'first');assert.equal(verificationMode,'verify');assert.deepEqual(pendingInstallationProof,durableProof);ok(true,'inactive-history schema evolution preserves the earlier real 29-employee payroll circuit before all further operations');
+   fs.writeFileSync(path.join(destination,'inactive-jurisdiction-proof.json'),JSON.stringify({installed:pendingInstalled,durable:pendingDurable},null,2));
   }
   const list=await api('novelty',{resource:'bootstrap'});ok(list.subjects.length===29,'bulk includes all adopted and originally native contracts');ok(['A/3501','901','0901'].every(n=>list.subjects.some(s=>s.legajo===n)),'opaque and zero-prefixed source identifiers remain distinct');
   const selectorBefore=proof(),pickerQuery=search=>({resource:'employees',view:'novelty-selector',status:'administrative_active',includeFacets:'0',limit:'20',page:'1',search}),opaque=await api('directory',pickerQuery('A/3501')),numeric=await api('directory',pickerQuery('901'));

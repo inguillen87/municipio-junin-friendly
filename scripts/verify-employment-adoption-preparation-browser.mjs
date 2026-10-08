@@ -8,8 +8,8 @@ import {principal,session,preparationEnvelope,catalogVersion} from '../tests/fix
 
 const origin='https://municontrol.test',root=path.resolve('public'),checks=[],errors=[],posts=[],attemptReads=[],saved=new Map();
 assert.ok(process.argv.length===2||process.argv.length===3&&/^--output-prefix=verification\/[a-zA-Z0-9_-]+$/.test(process.argv[2]));const outputPrefix=process.argv[2]?.slice(16),out=name=>{const file=outputPrefix?outputPrefix+'-'+path.basename(name):name;assert.ok(!fs.existsSync(file),'Preserve previous browser evidence: '+file);return file;};
-let caps=['workforce.employee.read','employee.record.propose'],changed=false,scopeChanged=false,catalogChanged=false,empty=false,losePost=false,loseBeforePost=false,tamper=false,denyAfterPost=false,holdPost=false,release=null;
-const raw=()=>{const r=reviewRaw(empty?0:57);if(!empty){r.rows[0].jurisdictionCode='55';if(changed)r.rows[0].name='PERSONA SINTÉTICA REVISADA';}if(scopeChanged)r.scope.bindingId=reviewId(9901);return r;};
+let caps=['workforce.employee.read','employee.record.propose'],changed=false,scopeChanged=false,catalogChanged=false,empty=false,losePost=false,loseBeforePost=false,tamper=false,denyAfterPost=false,holdPost=false,release=null,pendingPolicy=false;
+const raw=()=>{const r=reviewRaw(empty?0:57);if(!empty){r.rows[0].jurisdictionCode='55';if(changed)r.rows[0].name='PERSONA SINTÉTICA REVISADA';if(pendingPolicy)for(const row of r.rows.slice(2)){row.status='inactive';row.startDate='2000-01-01';row.endDate='2020-01-01';}}if(scopeChanged)r.scope.bindingId=reviewId(9901);return r;};
 const currentPrincipal=()=>({...principal,tenant:{...principal.tenant,effectiveCapabilities:caps}});
 const res=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:process.env.CLOCK_BROWSER_CHANNEL?{channel:process.env.CLOCK_BROWSER_CHANNEL}:{})});
@@ -23,7 +23,7 @@ try{
    if(url.pathname==='/api/internal-employment-adoption'){
     const post=req.method()==='POST',bytes=post?req.postData():null,key=req.headers()['idempotency-key'];if(post){posts.push({key,bytes});if(loseBeforePost){loseBeforePost=false;return route.abort('connectionfailed');}}
     const handler=createEmploymentAdoptionHandler({env:{INTERNAL_APP_ORIGIN:origin},requireAccess:access,sessionFor:()=>session,getSql:async()=>({query:async(sql,args)=>{
-     if(sql.includes('bootstrap'))return[{result:{version:'employment-adoption-preparation.v1',rawReview:raw(),catalogVersion:catalogChanged?'f'.repeat(64):catalogVersion,canPrepare:caps.includes('employee.record.propose'),applicationAvailable:false,attempts:[...saved.values()].map(a=>({...a,receipt:{...a.receipt,replayed:true}}))}}];
+     if(sql.includes('bootstrap'))return[{result:{version:pendingPolicy?'employment-adoption-preparation.v2':'employment-adoption-preparation.v1',rawReview:raw(),catalogVersion:catalogChanged?'f'.repeat(64):catalogVersion,canPrepare:caps.includes('employee.record.propose'),applicationAvailable:false,attempts:[...saved.values()].map(a=>({...a,receipt:{...a.receipt,replayed:true}}))}}];
      if(sql.includes('attempt')){attemptReads.push(args[1]);const a=saved.get(args[1]);if(!a)throw Error('EMPLOYMENT_ADOPTION_NOT_FOUND');return[{result:{...a,receipt:{...a.receipt,replayed:true}}}];}
      assert.ok(sql.includes('propose'));const body=JSON.parse(args[1]),prior=saved.get(args[2]);if(prior)return[{result:{...prior,receipt:{...prior.receipt,replayed:true}}}];
      const a=await preparationEnvelope(body,args[2]);a.receipt.proposalId=reviewId(9900+saved.size);saved.set(args[2],a);return[{result:a}];
@@ -81,6 +81,20 @@ try{
  caps=['workforce.employee.read'];await grant();assert.equal(await panel.locator('[data-ap-jurisdiction-row]').count(),0);assert.equal(await panel.locator('[data-ap-jurisdiction]').inputValue(),'');assert.ok(!await panel.locator('[data-ap-confirm]').isChecked());
  caps=['workforce.employee.read','employee.record.propose'];await grant();await load();await fill();await panel.locator('[data-ap-jurisdiction-open]').click();assert.equal(await panel.locator('[data-ap-jurisdiction-row="2"]').inputValue(),'');checks.push('preparation revocation clears unsaved declarations without concealing or rewriting the recovered server proposal');
  await panel.locator('[data-ar-search]').fill('001');await fill();for(const width of [1440,390,320]){await page.setViewportSize({width,height:1050});assert.ok(await panel.locator('[data-ar-preparation]').evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.ok(await panel.locator('[data-ap-send]').evaluate(n=>n.getBoundingClientRect().height>=44));await panel.locator('[data-ap-panel]').scrollIntoViewIfNeeded();await page.screenshot({path:out(`verification/adoption-preparation-${width}-20261006.png`)});}checks.push('complete preparation form fits desktop and mobile 1440/390/320px with accessible labels and controls');
+ pendingPolicy=true;await query();await load();await fill();await panel.locator('[data-ap-jurisdiction-open]').click();
+ assert.match(await panel.locator('[data-ap-jurisdiction-help]').innerText(),/no habilita su liquidación/);
+ await panel.locator('[data-ap-jurisdiction-search]').fill('not-a-synthetic-person');
+ assert.equal(await panel.locator('[data-ap-jurisdiction-row]').count(),0);assert.match(await panel.locator('[data-ap-jurisdiction-counts]').innerText(),/55 inactivos conservados/);
+ await panel.locator('[data-ar-search]').fill('001');await panel.locator('[data-ap-confirm]').check();loseBeforePost=true;await submit();
+ const pendingAttempt=posts.at(-1),pendingBody=JSON.parse(pendingAttempt.bytes).payload;
+ assert.equal(pendingBody.version,'employment-adoption-input.v2');assert.equal(pendingBody.rows.length,57);assert.equal(pendingBody.rows.filter(r=>r.jurisdictionCode===null).length,55);
+ checks.push('v2 retains all 57 rows and 55 inactive null jurisdictions regardless of either search');
+ for(const width of [390,320]){await page.setViewportSize({width,height:1050});assert.ok(await panel.locator('[data-ar-preparation]').evaluate(n=>n.scrollWidth<=n.clientWidth+1));assert.ok(await panel.locator('[data-ap-recover]').evaluate(n=>n.getBoundingClientRect().height>=44));}
+ caps=[];await grant();assert.equal(await panel.locator('[data-ar-result]').isVisible(),false);assert.equal(await panel.locator('[data-ap-jurisdiction-row]').count(),0);
+ caps=['workforce.employee.read','employee.record.propose'];await grant();await query();await open();await panel.locator('[data-ap-recover]').click();await apReady();await panel.locator('[data-ap-retry]').click();await apReady();assert.deepEqual(posts.at(-1),pendingAttempt);
+ checks.push('v2 revocation removes nominal declarations and recovery retains the exact body and key on mobile');
+ await load();await fill();const versionPosts=posts.length;pendingPolicy=false;await submit();assert.equal(posts.length,versionPosts);assert.match(await panel.locator('[data-ap-status]').innerText(),/condiciones|Cambió|consult/i);
+ checks.push('a withdrawn schema policy cannot send or silently rewrite the reviewed v2 proposal');
  const beforeEmpty=posts.length;empty=true;await query();await load();assert.equal(await form.isVisible(),false);assert.match(await panel.locator('[data-ap-status]').innerText(),/No hay contratos históricos/);assert.equal(posts.length,beforeEmpty);checks.push('an empty complete cohort cannot create a fabricated proposal');
  assert.deepEqual(errors,[]);const result={ok:true,checksPassed:checks.length,checks,syntheticPostRequests:posts.length,syntheticStoredProposals:saved.size,recoveryReads:attemptReads.length,realApiCalls:0,municipalWrites:0,postgresConnected:false,browserChannel:process.env.CLOCK_BROWSER_CHANNEL??null};fs.writeFileSync(out('verification/adoption-preparation-browser-20261006.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(result));
 }finally{await browser.close();}
