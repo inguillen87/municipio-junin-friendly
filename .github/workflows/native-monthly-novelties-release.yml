@@ -130,6 +130,7 @@ jobs:
       - run: node scripts/verify-monthly-approved-corrections-browser.mjs
       - run: node scripts/verify-native-monthly-novelties-browser.mjs
       - run: node scripts/verify-grh-import-browser.mjs
+      - run: node scripts/verify-grh-import-login-recovery-browser.mjs
       - run: node scripts/verify-payroll-fixed-novelties-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
       - run: node scripts/verify-novelty-batch-controls.mjs
