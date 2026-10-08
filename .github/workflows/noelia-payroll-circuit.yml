@@ -86,6 +86,7 @@ jobs:
             verification/inactive-jurisdiction-ci/failure.txt
             verification/final-adoption-ci/result.json
             verification/final-adoption-ci/failure.txt
+            verification/final-adoption-ci/adapter-failure.txt
             verification/final-adoption-browser-ci-*.json
             verification/final-adoption-browser-ci-*.png
             verification/final-adoption-operator-ci/result.json
