@@ -5,6 +5,9 @@ import {loaderQaSetup,loaderQaTarget} from '../tests/fixtures/successor-loader-p
 import {finalRevisionPackage} from '../tests/fixtures/final-source-revision-synthetic.js';
 import {prepareFinalSourceRevisionWithinTransaction,FINAL_SOURCE_REVISION_SCHEMA_URL} from './lib/grh-final-source-revision.mjs';
 import {executeFinalSourceRevision} from './prepare-grh-final-source-revision.mjs';
+import {addFinalConservationQaTables} from '../tests/fixtures/final-source-conservation-postgres.js';
+import {CONTINUITY_FOREIGN_KEYS_SQL} from './lib/grh-successor-continuity.mjs';
+import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './lib/grh-municipal-footprint.mjs';
 
 const args=Object.fromEntries(process.argv.slice(2).map(arg=>{const match=/^--(expected-major|port|database|data-directory|pg-driver|output)=(.+)$/.exec(arg);assert.ok(match,'Unknown QA option');return [match[1],match[2]];}));
 const major=Number(args['expected-major']),port=Number(args.port);
@@ -30,12 +33,17 @@ const target={...loaderQaTarget,databaseName:database},checks=[];
 const normalized=sql=>sql.replaceAll('public.',schema+'.')
  .replaceAll("'public'::regnamespace","'"+schema+"'::regnamespace")
  .replaceAll("n.nspname='public'","n.nspname='"+schema+"'")
+ .replaceAll("np.nspname='public'","np.nspname='"+schema+"'")
  .replace('CREATE SCHEMA grh_effective_qa_curated;','')
  .replace(/search_path=([a-z_,0-9]+)/g,(_,value)=>{
   const tokens=value.split(',');assert.ok(tokens.every(t=>['pg_catalog','public','pg_temp','grh_effective_qa_curated',schema].includes(t)));
   return 'search_path='+[...new Set(tokens.flatMap(t=>t==='public'?[schema,'public']:t==='grh_effective_qa_curated'?[schema]:[t]))].join(',');
  }).replaceAll(schema+'.digest','public.digest');
-const query=(sql,values)=>raw.query(normalized(sql),values);
+const query=async(sql,values)=>{const result=await raw.query(normalized(sql),values);
+ if(sql===CONTINUITY_FOREIGN_KEYS_SQL)result.rows=result.rows.map(r=>({...r,
+  child_schema:r.child_schema===schema?'public':r.child_schema==='public'?'qa_external_public':r.child_schema,
+  parent_schema:r.parent_schema===schema?'public':r.parent_schema==='public'?'qa_external_public':r.parent_schema}));
+ return result;};
 const ok=(value,label)=>{assert.ok(value,label);checks.push(label);};
 const identity=async()=>{
  const r=(await raw.query("SELECT current_database() AS db,current_setting('server_version_num')::integer/10000 AS major,current_setting('data_directory') AS data,current_setting('neon.project_id',true) AS project,current_setting('neon.branch_id',true) AS branch")).rows[0];
@@ -71,18 +79,37 @@ try{
   .replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;','CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;');
  assert.equal(setup.split('SET CONSTRAINTS ALL IMMEDIATE; COMMIT;').length,2);
  setup=setup.replace('SET CONSTRAINTS ALL IMMEDIATE; COMMIT;','SET CONSTRAINTS ALL IMMEDIATE;');
- await raw.query(setup);await query(fs.readFileSync(FINAL_SOURCE_REVISION_SCHEMA_URL,'utf8'));created=true;
+ await raw.query(setup);created=true;
+ await addFinalConservationQaTables(query,target);
  namespace=(await raw.query('SELECT oid::text AS oid FROM pg_namespace WHERE nspname=$1',[schema])).rows[0].oid;
  const baseline=await footprint(schema),pack=await finalRevisionPackage();
  const base={client:{query},prepared:pack,target,expectedPackageSha256:pack.payloadSha256,installSchema:false};
  await raw.query('COMMIT');
  let released=0;const connect=async()=>({query,release(){released++;}});
- const rehearsal=await executeFinalSourceRevision({...base,connect});
+ const rehearsal=await executeFinalSourceRevision({...base,connect,installSchema:true});
  ok(rehearsal.rolledBack&&!rehearsal.committed,'maintenance rehearsal rolls back its own transaction');
- ok((await query('SELECT count(*)::integer AS n FROM public.grh_final_source_revision')).rows[0].n===0,'rehearsal leaves no revision');
+ ok((await query("SELECT to_regclass('public.grh_final_source_revision') IS NULL AS absent")).rows[0].absent,'rehearsal removes its new schema and leaves no revision');
+ await query(fs.readFileSync(FINAL_SOURCE_REVISION_SCHEMA_URL,'utf8'));
  await raw.query(`BEGIN ISOLATION LEVEL SERIALIZABLE;SET LOCAL search_path=${schema},public,pg_temp`);
  await raw.query('SAVEPOINT candidate_empty');
  let first=await prepareFinalSourceRevisionWithinTransaction(base);
+ ok(first.municipalConservation.tables===86&&first.municipalConservation.preserved,'all 86 municipal domains preserved, including adoption');
+ const scopeProof=await inspectMunicipalConservationWithinTransaction({client:{query},target});
+ for(const table of ['employment_adoption_proposal','employment_adoption_decision','employment_adoption_seal','employment_adoption_application']){
+  ok(scopeProof.entities[table].rows===1,'other municipality excluded from '+table);
+  const initial=await footprint(schema);let changed=false;
+  const tamperingClient={async query(text,values){const result=await query(text,values);
+   if(!changed&&text.startsWith('SELECT public.grh_final_source_parent_v1')){
+    changed=true;await query(`UPDATE public.${table} SET synthetic='changed same-count record' WHERE id='03030303-0303-4303-8303-030303030301'::uuid`);
+   }return result;}};
+  await assert.rejects(prepareFinalSourceRevisionWithinTransaction({...base,client:tamperingClient}),{code:'GRH_FINAL_REVISION_MUNICIPAL_PRESERVATION'});
+  assert.ok(changed);assert.deepEqual(await footprint(schema),initial);checks.push('same-count '+table+' mutation rejected and rolled back');
+ }
+ await raw.query('SAVEPOINT other_municipality');
+ await query("UPDATE public.employment_adoption_application SET synthetic='other municipality fixture' WHERE id='03030303-0303-4303-8303-030303030302'::uuid");
+ const otherProof=await inspectMunicipalConservationWithinTransaction({client:{query},target});
+ ok(compareMunicipalFootprints(scopeProof,otherProof).preserved,'other municipality data does not enter the target footprint');
+ await raw.query('ROLLBACK TO SAVEPOINT other_municipality');
  ok(first.entities===10&&first.deltaRows===410&&!first.operationalSourceChanged,'ten domains and 410 differences without selection');
  for(const entity of Object.keys(pack.entities)){
   const n=(await query('SELECT count(*)::integer AS n FROM public.grh_final_source_rows_v1($1::uuid,$2)',[first.revisionId,entity])).rows[0].n;

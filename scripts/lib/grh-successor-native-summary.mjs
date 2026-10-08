@@ -1,7 +1,7 @@
 // Contrato cerrado de evidencia agregada. No genera SQL ni modifica registros municipales.
 import {createHash} from 'node:crypto';
 import {stableJson} from './canonical-import.mjs';
-import {MUNICIPAL_CONTINUITY_PROFILE,MUNICIPAL_CONTINUITY_TABLES,MUNICIPAL_CONTINUITY_EXCLUSIONS} from './grh-municipal-continuity-schema.mjs';
+import {municipalContinuityProfile} from './grh-municipal-continuity-schema.mjs';
 export const NATIVE_CONTINUITY_TABLES=Object.freeze([
  'action_case','action_case_event','employee_family_member','employee_family_member_event',
  'native_employee_registration','native_employment_catalog_proposal','native_employment_catalog_review',
@@ -20,11 +20,12 @@ export function summarizeNativeContinuity(plan){
  const municipal=plan?.version==='grh-native-continuity-plan.v2';
  const requiredKeys=municipal?'excludedScopeTables|links|planSha256|profileId|roots|tables|version':planKeys;
  if(!plan||Object.keys(plan).sort().join('|')!==requiredKeys||(!municipal&&plan.version!=='grh-native-continuity-plan.v1')||!sha(plan.planSha256))fail('NATIVE_CONTINUITY_PLAN_INVALID');
- if(municipal&&(plan.profileId!==MUNICIPAL_CONTINUITY_PROFILE||stableJson(plan.excludedScopeTables)!==stableJson(MUNICIPAL_CONTINUITY_EXCLUSIONS)))fail('NATIVE_CONTINUITY_PLAN_INVALID');
+ let profile;if(municipal){try{profile=municipalContinuityProfile(plan.profileId);}catch{fail('NATIVE_CONTINUITY_PLAN_INVALID');}
+  if(stableJson(plan.excludedScopeTables)!==stableJson(profile.exclusions))fail('NATIVE_CONTINUITY_PLAN_INVALID');}
  const {planSha256,...content}=plan;if(nativeContinuityHash(content)!==planSha256)fail('NATIVE_CONTINUITY_PLAN_CHANGED');
  if(!Array.isArray(plan.roots)||!Array.isArray(plan.tables)||!Array.isArray(plan.links))fail('NATIVE_CONTINUITY_PLAN_INVALID');
  const actual=plan.tables.map(t=>t.name);if(new Set(actual).size!==actual.length)fail('NATIVE_CONTINUITY_PLAN_INVALID');
- const expected=municipal?MUNICIPAL_CONTINUITY_TABLES:NATIVE_CONTINUITY_TABLES;
+ const expected=municipal?profile.tables:NATIVE_CONTINUITY_TABLES;
  const unreviewedTables=actual.filter(n=>!expected.includes(n));
  const missingTables=expected.filter(n=>!actual.includes(n));
  const rootSet=new Set(plan.roots),actualSet=new Set(actual);

@@ -5,6 +5,8 @@ import {buildSuccessorDelta,sealSuccessorPackage,SUCCESSOR_ENTITIES} from '../..
 import {curatedSyntheticRows} from '../../scripts/verify-grh-curated-source-postgres.mjs';
 import {normalizeGrhCuratedVersionRecord} from '../../scripts/lib/grh-curated-source-version.mjs';
 import {SOURCE_CAPACITY_QUERY} from '../../scripts/lib/grh-source-capacity.mjs';
+import {municipalFootprintCatalog,municipalFootprintResults} from './municipal-footprint-synthetic.js';
+import {CONTINUITY_TABLES_SQL,CONTINUITY_FOREIGN_KEYS_SQL} from '../../scripts/lib/grh-successor-continuity.mjs';
 
 export const finalRevisionTarget=operationalTarget;
 // Fictional records exercise the actual date, decimal and literal-payload projections.
@@ -46,6 +48,9 @@ export function finalRevisionClient(pack,options={}){
  for(const index of [0,observations.length-1])Object.assign(observations[index][0].observation,{readOnly:'off',isolation:'serializable'});
  const state={database:finalRevisionTarget.databaseName,project:finalRevisionTarget.projectId,branch:finalRevisionTarget.branchId,
   read_only:'off',isolation:'serializable',owner:true,installed:false,...options.state};
+ const municipalCatalog=municipalFootprintCatalog('municipal-sql144'),municipalObservations=municipalFootprintResults(municipalCatalog,finalRevisionTarget,'municipal-sql144');
+ for(const i of [0,municipalObservations.length-1])Object.assign(municipalObservations[i][0].observation,{readOnly:'off',isolation:'serializable',owner:true});
+ let municipalCursor=0;
  let cursor=0,stored=null,deltaRows=0,chunks=0,capacities=0;
  const checkpoint=()=>({stored:structuredClone(stored),deltaRows,installed:state.installed});let saved,transaction;
  const restore=snapshot=>{stored=snapshot.stored;deltaRows=snapshot.deltaRows;state.installed=snapshot.installed;};
@@ -62,6 +67,14 @@ export function finalRevisionClient(pack,options={}){
    if(text.startsWith('ROLLBACK TO SAVEPOINT')){restore(saved);return {rows:[]};}
    if(text.startsWith('RELEASE SAVEPOINT'))return {rows:[]};
    if(text.includes('pg_try_advisory'))return {rows:[{acquired:options.lock!==false}]};
+   if(text===CONTINUITY_TABLES_SQL)return {rows:structuredClone(municipalCatalog.tables)};
+   if(text===CONTINUITY_FOREIGN_KEYS_SQL)return {rows:structuredClone(municipalCatalog.foreignKeys)};
+   if(text.startsWith("SELECT jsonb_build_object('projectId'")||text.startsWith("SELECT jsonb_build_object('table'")){
+    const i=municipalCursor++;
+    // Catalog queries above do not consume these synthetic result positions.
+    const positions=[0,...Array.from({length:86},(_,n)=>n+3),municipalObservations.length-1];
+    const rows=structuredClone(municipalObservations[positions[i%positions.length]]);options.municipal?.(rows,municipalCursor);return {rows};
+   }
    if(text.startsWith('/* successor-preflight:')||text.startsWith('WITH selected')){
     const rows=structuredClone(observations[cursor++%observations.length]);options.observation?.(rows,cursor);return {rows};
    }
