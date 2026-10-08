@@ -3,8 +3,10 @@ import {finalRevisionPackage,finalRevisionCoreRows} from './final-source-revisio
 import {buildSuccessorDelta,sealSuccessorPackage,SUCCESSOR_ENTITIES} from '../../scripts/lib/grh-successor-package.mjs';
 import {curatedSyntheticRows} from '../../scripts/verify-grh-curated-source-postgres.mjs';
 import {normalizeGrhCuratedVersionRecord} from '../../scripts/lib/grh-curated-source-version.mjs';
+import {identityProfileValidatorQaDefinitions} from './final-identity-profile-synthetic.js';
 /** Extend only the bounded isolated QA schema, before taking its initial footprint. */
 export async function addFinalTransitionQaLinks(query){
+ for(const definition of identityProfileValidatorQaDefinitions())await query(definition);
  await query('ALTER TABLE public.employment_contract ADD COLUMN tenant_id uuid,ADD COLUMN jurisdiction_code text');
  await query('ALTER TABLE public.person_identity ADD COLUMN full_name text,ADD COLUMN dni text,ADD COLUMN cuil text,ADD COLUMN birth_date date,ADD COLUMN sex_code text');
  const sql=readFileSync(new URL('../../scripts/migrations/002-canonical-integration.sql',import.meta.url),'utf8').replaceAll('\r\n','\n');

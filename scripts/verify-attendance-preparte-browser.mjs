@@ -13,6 +13,9 @@ fs.mkdirSync(out, { recursive: true });
 if (published) await verifyPrepartePublication(out);
 const checks = [], errors = [], requests = [], posts = [];
 let changed = false, newReceipt = false, denied = false, canPrepare = true, delay = 0, splitStream = false, reboundStream = false;
+let receiptRefreshHeld = false, releaseReceiptRefresh, receiptRefreshObserved;
+const receiptRefreshGate = new Promise(resolve => { releaseReceiptRefresh = resolve; });
+const receiptRefreshReached = new Promise(resolve => { receiptRefreshObserved = resolve; });
 const bootstrap = () => ({ ok: true, principal: {
   email: 'qa@example.invalid', membershipId: '00000000-0000-4000-8000-000000000001',
   tenantId: '00000000-0000-4000-8000-000000000002',
@@ -48,6 +51,11 @@ try {
             grhMutation: false, payrollCalculated: false, payrollPosted: false } } });
         }
         assert.equal(url.searchParams.get('version'), '2');
+        // A verified POST receipt is shown before the subsequent bootstrap read
+        // finishes. Hold that read so the busy-lock regression is deterministic.
+        if (posts.length && !receiptRefreshHeld) {
+          receiptRefreshHeld = true; receiptRefreshObserved(); await receiptRefreshGate;
+        }
         return route.fulfill({ json: bootstrap() });
       }
       if (url.pathname === '/api/internal-attendance') {
@@ -119,11 +127,17 @@ try {
   await page.locator('#preflightButton').click(); await page.locator('#prepareButton:enabled').waitFor();
   assert.equal(await page.locator('[data-review-row]').count(), 2);
   await page.locator('#prepareButton').click(); await page.waitForFunction(() => document.querySelector('#messageHost')?.textContent.includes('Lote creado y auditado'));
+  await receiptRefreshReached;
+  assert.equal(await page.locator('#periodMonth').isDisabled(), true);
+  assert.equal(await page.locator('#payrollType').isDisabled(), true);
   assert.equal(posts.length, 1); const rows = posts[0].body.payload.rows;
   assert.equal(rows.length, 2); assert.equal(rows[1].conceptSourceId, '44');
   assert.equal(rows[1].quantityDecimal, '3'); assert.equal(rows[1].amountCents, null); assert.equal(rows[1].forced, false);
   assert.match(rows[1].observation, /evidencia personal/);
+  releaseReceiptRefresh();
+  await page.waitForFunction(() => document.body.dataset.busy !== 'true');
   assert.equal(await page.locator('#periodMonth').isEnabled(), true);
+  assert.equal(await page.locator('#payrollType').isEnabled(), true);
   checks.push('explicit normal validation and batch creation persists percentage units, no manual amount or forced override');
   await first.locator('[type=checkbox]').check(); await review(); changed = true;
   await panel.locator('[data-ap-export]').click(); await page.waitForFunction(() => document.querySelector('[data-ap-status]')?.textContent.includes('cambiaron'));

@@ -46,7 +46,8 @@ export const FINAL_CONTRACT_TRANSITION_COHORT_SQL=`/* final-contract-transition:
  (SELECT count(*)::integer FROM (SELECT company,legajo FROM core GROUP BY 1,2 HAVING count(*)>1) d) AS duplicate_core_keys,
  (SELECT count(*)::integer FROM existing c WHERE NOT EXISTS(SELECT 1 FROM employees e WHERE (e.company,e.legajo)=(c.legacy_company_id::text,c.legacy_legajo))) AS missing_existing_keys,
  (SELECT count(*)::integer FROM employees WHERE company IS DISTINCT FROM $2) AS foreign_company_rows`;
-export const FINAL_CONTRACT_TRANSITION_ROWS_SQL=`/* final-contract-transition:rows */ ${sourceSql},linked AS (
+// Retain the exact published comparator solely to pin a conservative upgrade.
+export const FINAL_CONTRACT_TRANSITION_LEGACY_ROWS_SQL=`/* final-contract-transition:rows */ ${sourceSql},linked AS (
  SELECT e.*,ec.n AS contract_count,ec.id AS contract_id,ec.person_id,
  ec.before_contract,p.id AS existing_person_id,to_jsonb(p) AS before_person,
  ec.allowed AS contract_allowed,x.n AS person_links,x.all_links AS all_person_links,
@@ -122,6 +123,47 @@ export const FINAL_CONTRACT_TRANSITION_ROWS_SQL=`/* final-contract-transition:ro
    OR record->'cuil' IS DISTINCT FROM before_person->'cuil' OR record->'fecha_nacimiento' IS DISTINCT FROM before_person->'birth_date'
    OR record->'sexo' IS DISTINCT FROM before_person->'sex_code') THEN 'PERSON_FACTS_CHANGED' END
  ],NULL)::text[] AS issues FROM facts ORDER BY row_key`;
+
+// SQL097 already recognizes these two complete source-backed identity profiles.
+// Compare one whole tuple; never mix a legacy DNI with a master sex code. The
+// curated fields must also equal their original payload projection, so a changed
+// display field cannot be hidden behind an unchanged identity payload.
+export const FINAL_CONTRACT_IDENTITY_PROFILE_MATCH_SQL=`EXISTS (
+ SELECT 1 FROM (SELECT
+  record#>'{source_payload,identity}' AS identity,
+  CASE WHEN public.is_valid_cuil(record#>>'{source_payload,identity,cuil}')
+   THEN public.normalize_digits(record#>>'{source_payload,identity,cuil}') END AS expected_cuil,
+  NULLIF(public.normalize_digits(record#>>'{source_payload,identity,documentNumber}'),'') AS legacy_dni,
+  CASE WHEN length(ltrim(public.normalize_digits(record#>>'{source_payload,identity,documentNumber}'),'0')) BETWEEN 6 AND 8
+   THEN ltrim(public.normalize_digits(record#>>'{source_payload,identity,documentNumber}'),'0') END AS master_dni,
+  NULLIF(btrim(record#>>'{source_payload,identity,fullName}'),'') AS expected_name,
+  CASE WHEN record#>>'{source_payload,identity,birthDate}' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+   AND pg_input_is_valid(record#>>'{source_payload,identity,birthDate}','date')
+   THEN CASE WHEN (record#>>'{source_payload,identity,birthDate}')::date BETWEEN DATE '1900-01-01'
+    AND (SELECT source_cutoff::date FROM revision)
+    THEN (record#>>'{source_payload,identity,birthDate}')::date END END AS expected_birth,
+  NULLIF(btrim(COALESCE(record#>>'{source_payload,identity,sexLabel}',record#>>'{source_payload,identity,sexCode}')),'') AS legacy_sex,
+  NULLIF(btrim(record#>>'{source_payload,identity,sexCode}'),'') AS master_sex
+ ) expected
+ WHERE jsonb_typeof(expected.identity)='object'
+ AND (record->>'person_id',record->>'nombre',record->>'dni',record->>'cuil',record->>'fecha_nacimiento',record->>'sexo')
+  IS NOT DISTINCT FROM (record#>>'{source_payload,personId}',expected.identity->>'fullName',
+   expected.identity->>'documentNumber',expected.identity->>'cuil',expected.identity->>'birthDate',
+   COALESCE(expected.identity->>'sexLabel',expected.identity->>'sexCode'))
+ AND CASE WHEN COALESCE(expected.identity->>'birthDate','')='' THEN true
+  WHEN expected.identity->>'birthDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+   THEN pg_input_is_valid(expected.identity->>'birthDate','date') ELSE false END
+ AND ((before_person->>'cuil',before_person->>'dni',before_person->>'full_name',before_person->>'birth_date',before_person->>'sex_code')
+  IS NOT DISTINCT FROM (expected.expected_cuil,expected.legacy_dni,expected.expected_name,expected.expected_birth::text,expected.legacy_sex)
+  OR (before_person->>'cuil',before_person->>'dni',before_person->>'full_name',before_person->>'birth_date',before_person->>'sex_code')
+  IS NOT DISTINCT FROM (expected.expected_cuil,expected.master_dni,expected.expected_name,expected.expected_birth::text,expected.master_sex))
+)`;
+const legacyDifference=`record->'nombre' IS DISTINCT FROM before_person->'full_name' OR record->'dni' IS DISTINCT FROM before_person->'dni'
+   OR record->'cuil' IS DISTINCT FROM before_person->'cuil' OR record->'fecha_nacimiento' IS DISTINCT FROM before_person->'birth_date'
+   OR record->'sexo' IS DISTINCT FROM before_person->'sex_code'`;
+if(FINAL_CONTRACT_TRANSITION_LEGACY_ROWS_SQL.split(legacyDifference).length!==2)fail('GRH_FINAL_IDENTITY_ANCHOR_CHANGED');
+export const FINAL_CONTRACT_TRANSITION_ROWS_SQL=FINAL_CONTRACT_TRANSITION_LEGACY_ROWS_SQL.replace(legacyDifference,
+ ()=>`NOT (${FINAL_CONTRACT_IDENTITY_PROFILE_MATCH_SQL})`);
 
 export async function prepareFinalContractTransitionWithinTransaction(input={}){
  const reader=await bindFinalSourceConsumersWithinTransaction(input),{client,signal}=input;

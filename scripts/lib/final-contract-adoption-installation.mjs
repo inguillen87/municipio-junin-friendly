@@ -7,7 +7,7 @@ import {buildEmploymentAdoptionInstallation} from './employment-adoption-install
 import {buildMunicipalAdoptionOperatorInstallation} from './municipal-adoption-operator-installation.mjs';
 import {ownInstallationFunctionPin} from './own-payroll-installation.mjs';
 import {pinsCheck,preservationSnapshot} from './native-leave-installation.mjs';
-import {FINAL_CONTRACT_TRANSITION_COHORT_SQL,FINAL_CONTRACT_TRANSITION_ROWS_SQL} from './grh-final-contract-transition.mjs';
+import {FINAL_CONTRACT_TRANSITION_COHORT_SQL,FINAL_CONTRACT_TRANSITION_ROWS_SQL,FINAL_CONTRACT_TRANSITION_LEGACY_ROWS_SQL} from './grh-final-contract-transition.mjs';
 import {splitPostgresStatements} from './sql-statements.mjs';
 
 export const FINAL_ADOPTION_INPUT_VERSION='employment-adoption-input.v3';
@@ -51,8 +51,9 @@ export function finalSourcePrerequisite(read){
  return {pins,check};
 }
 
-export function finalContractAdoptionDefinitions(){
- const rows=`${header('rows','p_revision uuid,p_company text','SETOF jsonb','sql')} SELECT to_jsonb(row_value) FROM (${projection(FINAL_CONTRACT_TRANSITION_ROWS_SQL)}) row_value $final$`;
+export function finalContractAdoptionDefinitions({legacyIdentityComparison=false}={}){
+ assert.equal(typeof legacyIdentityComparison,'boolean');
+ const rows=`${header('rows','p_revision uuid,p_company text','SETOF jsonb','sql')} SELECT to_jsonb(row_value) FROM (${projection(legacyIdentityComparison?FINAL_CONTRACT_TRANSITION_LEGACY_ROWS_SQL:FINAL_CONTRACT_TRANSITION_ROWS_SQL)}) row_value $final$`;
  const source=`${header('source','p jsonb,p_revision uuid,p_package text')}
  DECLARE ctx jsonb;selected_revision public.grh_final_source_revision;seal public.grh_final_source_seal;parent jsonb;cohort jsonb;entity text;observed jsonb;facts jsonb;records jsonb;private_records jsonb;result jsonb;total integer;p_company text;
  BEGIN
@@ -194,7 +195,7 @@ export function buildFinalContractAdoptionInstallation(options){
  const oldAttempt=find(original.migration,'employment_adoption_attempt_v1');
  const attempt=once(oldAttempt,'ctx:=public.native_employee_context_v1(p);',"ctx:=public.native_employment_lifecycle_adopted_context_v2(p);IF NOT public.action_center_context_has_capability(ctx,'workforce.employee.read') THEN RAISE EXCEPTION 'EMPLOYMENT_ADOPTION_FORBIDDEN';END IF;");
  beforeDefinitions.push(oldAttempt);afterDefinitions.push(attempt);
- const newDefinitions=[...finalContractAdoptionDefinitions(),originalAllowed,finalAllowed];
+ const newDefinitions=[...finalContractAdoptionDefinitions(options),originalAllowed,finalAllowed];
  const existingPins=new Map([...original.pins,...operator.pins,...inactive.afterPins].map(p=>[p.name,p]));
  const pin=d=>{const p=ownInstallationFunctionPin(d);return {...p,runtime:existingPins.get(p.name)?.runtime??['employment_adoption_final_bootstrap_v1','employment_adoption_final_available_v1'].includes(p.name)};};
  const newPins=newDefinitions.map(pin),sourcePrerequisite=finalSourcePrerequisite(options.read);
