@@ -5,6 +5,7 @@ import {prepareSuccessorPackage} from './lib/grh-successor-package-source.mjs';
 import {validateSuccessorTarget} from './lib/grh-successor-operational-read.mjs';
 import {prepareFinalSourceRevisionWithinTransaction,validateFinalSourceRevisionInput} from './lib/grh-final-source-revision.mjs';
 import {prepareFinalContractTransitionWithinTransaction,summarizeFinalContractTransition} from './lib/grh-final-contract-transition.mjs';
+import {verifyCoreManifestProvenance} from './lib/grh-core-manifest-provenance.mjs';
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 export const finalSourceMaintenanceErrorCode=error=>/^(?:GRH_FINAL_(?:REVISION|CONSUMER|TRANSITION)|SUCCESSOR)_[A-Z_]+$/.test(error?.code??'')
  ?error.code:'GRH_FINAL_REVISION_FAILED';
@@ -12,16 +13,17 @@ export function parseFinalSourceRevisionArgs(args){
  let values;try{({values}=parseArgs({args,strict:true,allowPositionals:false,options:{target:{type:'string'},
   'baseline-core':{type:'string'},'candidate-core':{type:'string'},'baseline-curated':{type:'string'},'candidate-curated':{type:'string'},
   'expect-package':{type:'string'},'install-schema':{type:'boolean'},rehearse:{type:'boolean'},'save-revision':{type:'boolean'},
-  'review-contracts':{type:'boolean'}}}));}
+  'review-contracts':{type:'boolean'},'verify-predecessor-manifest':{type:'boolean'}}}));}
  catch{fail('GRH_FINAL_REVISION_ARGUMENT');}
  if(!['target','baseline-core','candidate-core','baseline-curated','candidate-curated'].every(k=>typeof values[k]==='string'&&path.isAbsolute(values[k]))
   ||!/^[a-f0-9]{64}$/.test(values['expect-package']??'')||Number(values.rehearse===true)+Number(values['save-revision']===true)!==1)
   fail('GRH_FINAL_REVISION_ARGUMENT');
  return values;
 }
-export async function executeFinalSourceRevision({connect,prepared,target,expectedPackageSha256,installSchema=false,commit=false,reviewContracts=false,signal}={}){
+export async function executeFinalSourceRevision({connect,prepared,target,expectedPackageSha256,installSchema=false,commit=false,reviewContracts=false,baselineCoreManifestBytes,signal}={}){
  if(typeof connect!=='function'||typeof commit!=='boolean'||typeof installSchema!=='boolean'||typeof reviewContracts!=='boolean')fail('GRH_FINAL_REVISION_ARGUMENT');
  signal?.throwIfAborted();const checked=validateFinalSourceRevisionInput(prepared,target,expectedPackageSha256);
+ verifyCoreManifestProvenance(baselineCoreManifestBytes,checked.pack.baseline);
  let client,inTransaction=false,commitSent=false,discard=false;
  try{
   client=await connect();signal?.throwIfAborted();
@@ -29,7 +31,7 @@ export async function executeFinalSourceRevision({connect,prepared,target,expect
   await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE READ WRITE');inTransaction=true;
   await client.query("SET LOCAL timezone='UTC';SET LOCAL statement_timeout='120s';SET LOCAL lock_timeout='2s';SET LOCAL idle_in_transaction_session_timeout='120s'");
   const receipt=await prepareFinalSourceRevisionWithinTransaction({client,prepared:checked.pack,target:checked.target,
-   expectedPackageSha256,installSchema,signal});
+   expectedPackageSha256,installSchema,baselineCoreManifestBytes,signal});
   const contractTransition=reviewContracts?summarizeFinalContractTransition(await prepareFinalContractTransitionWithinTransaction({
    client,target:checked.target,revisionId:receipt.revisionId,expectedPackageSha256,signal})):null;
   signal?.throwIfAborted();commitSent=commit;
@@ -56,9 +58,17 @@ async function main(){
   baselineCurated:args['baseline-curated'],candidateCurated:args['candidate-curated'],candidateProfileId:'grh-junin-2026-10-01'});
  // Validate before creating a pool or opening any connection.
  validateFinalSourceRevisionInput(prepared,target,args['expect-package']);
+ let baselineCoreManifestBytes;
+ if(args['verify-predecessor-manifest']===true){
+  const directory=await fs.realpath(args['baseline-core']),file=path.join(directory,'grh-core-manifest.json');
+  const entry=await fs.lstat(file);
+  if(!entry.isFile()||entry.isSymbolicLink()||entry.size>1024*1024||path.dirname(await fs.realpath(file))!==directory)
+   fail('GRH_FINAL_REVISION_MANIFEST_PROVENANCE');
+  baselineCoreManifestBytes=await fs.readFile(file);
+ }
  neonConfig.webSocketConstructor=WebSocket;const pool=new Pool({connectionString:connection,max:1,connectionTimeoutMillis:15000});
  try{const receipt=await executeFinalSourceRevision({connect:()=>pool.connect(),prepared,target,expectedPackageSha256:args['expect-package'],
-  installSchema:args['install-schema']===true,commit:args['save-revision']===true,reviewContracts:args['review-contracts']===true,
+  installSchema:args['install-schema']===true,commit:args['save-revision']===true,reviewContracts:args['review-contracts']===true,baselineCoreManifestBytes,
   signal:AbortSignal.timeout(240000)});
   console.log(JSON.stringify({checkedAt:new Date().toISOString(),...receipt},null,2));
  }finally{await pool.end();}

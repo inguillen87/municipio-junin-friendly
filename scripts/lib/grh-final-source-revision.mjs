@@ -6,6 +6,7 @@ import {stableJson} from './canonical-import.mjs';
 import {readSourceCapacity} from './grh-source-capacity.mjs';
 import {GRH_VERSION_STORAGE_BUDGET} from './grh-core-source-version.mjs';
 import {inspectMunicipalConservationWithinTransaction,compareMunicipalFootprints} from './grh-municipal-footprint.mjs';
+import {verifyCoreManifestProvenance,coreManifestProvenanceMatches} from './grh-core-manifest-provenance.mjs';
 
 export const FINAL_SOURCE_REVISION_SCHEMA_URL=new URL('../migrations/144-final-grh-source-revision.sql',import.meta.url);
 // Neon raised existing Free projects to 1 GiB on 2026-10-02. The live server
@@ -42,8 +43,9 @@ export function validateFinalSourceRevisionInput(prepared,targetInput,expectedPa
  return freeze({pack,target});
 }
 export async function prepareFinalSourceRevisionWithinTransaction({client,prepared,target:targetInput,
- expectedPackageSha256,installSchema=false,signal}={}){
+ expectedPackageSha256,installSchema=false,baselineCoreManifestBytes,signal}={}){
  const {pack,target}=validateFinalSourceRevisionInput(prepared,targetInput,expectedPackageSha256);
+ const manifestProvenance=verifyCoreManifestProvenance(baselineCoreManifestBytes,pack.baseline);
  if(typeof client?.query!=='function'||typeof installSchema!=='boolean')fail('GRH_FINAL_REVISION_ARGUMENT');
  const query=async(text,values)=>{signal?.throwIfAborted();const r=await client.query(text,values);signal?.throwIfAborted();return r;};
  const state=await query(stateSql),s=state.rows?.[0];
@@ -57,7 +59,9 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
    ['municontrol:final-source-revision:'+target.tenantId+':'+target.bindingId]);
   if(lock.rows?.length!==1||lock.rows[0].acquired!==true)fail('GRH_FINAL_REVISION_BUSY');
   const before=await read();
-  if(!before.baselineCompatible||!before.manifests.coreExact||!before.manifests.curatedExact)fail('GRH_FINAL_REVISION_BASELINE_CHANGED');
+  if(!before.baselineCompatible||!before.manifests.curatedExact
+   ||(!before.manifests.coreExact&&!coreManifestProvenanceMatches(manifestProvenance,before.manifests.coreStored)))
+   fail('GRH_FINAL_REVISION_BASELINE_CHANGED');
   const municipalBefore=await inspectMunicipalConservationWithinTransaction({client:{query},target,signal});
   const existing=s.installed?(await query(storedSql,[target.tenantId,target.bindingId,pack.candidate.sourceSha256])).rows:[];
   if(!Array.isArray(existing)||existing.length>1)fail('GRH_FINAL_REVISION_STORED');
@@ -132,7 +136,8 @@ export async function prepareFinalSourceRevisionWithinTransaction({client,prepar
    candidateSourceSha256:pack.candidate.sourceSha256,sourceDeclaredCutoff:pack.candidate.cutoff,
    entities:SUCCESSOR_ENTITIES.length,deltaRows:changes.length,replayed,committed:false,callerOwnedTransaction:true,
    nativeReviewRequired:before.nativeReviewRequired,municipalConservation,capacityBefore,capacityAfter,
-   operationalSourceChanged:false,adoptionPerformed:false,payrollCalculated:false});
+   operationalSourceChanged:false,adoptionPerformed:false,payrollCalculated:false,
+   ...(!before.manifests.coreExact?{coreManifestProvenance:manifestProvenance}:{} )});
  }catch(error){
   try{await client.query('ROLLBACK TO SAVEPOINT grh_final_revision_preparation');}
   catch(rollbackError){throw new AggregateError([error,rollbackError],'GRH_FINAL_REVISION_TRANSACTION_UNCERTAIN');}
