@@ -290,7 +290,9 @@ for (const missing of [null, ...PREPARTE_CAPS]) test('preparte availability uses
   await handler({ method:'GET', query:{ resource:'bootstrap' }, headers:{} }, res);
   assert.equal(res.statusCode,200);
   assert.equal(res.payload.sourceFeatures.attendancePreparte, missing === null);
-  assert.deepEqual(res.payload.principal.capabilities,['payroll.novelty.prepare']);
+  assert.deepEqual(res.payload.principal.capabilities,
+    ['payroll.novelty.prepare', ...(missing === 'workforce.employee.read' ? [] : ['workforce.employee.read'])]);
+  assert.deepEqual(projected.principal.capabilities,['payroll.novelty.prepare'],'SQL projection is never mutated');
   assert.equal(projected.sourceFeatures.attendancePreparte,true,'projection is never mutated');
 });
 test('unspecified complete authority cannot grant preparte through a fabricated feature response', async () => {
