@@ -5,6 +5,9 @@ on:
     paths:
       - 'scripts/lib/grh-final-source-revision.mjs'
       - 'scripts/lib/grh-final-source-consumers.mjs'
+      - 'scripts/lib/grh-final-contract-transition.mjs'
+      - 'tests/grh-final-contract-transition.test.js'
+      - 'tests/fixtures/final-contract-transition-*.js'
       - 'tests/grh-final-source-consumers.test.js'
       - 'tests/fixtures/final-source-consumer-synthetic.js'
       - 'scripts/prepare-grh-final-source-revision.mjs'
@@ -26,6 +29,7 @@ on:
     branches: ['internal-september-publication-20260922', 'master']
     paths:
       - 'scripts/lib/grh-final-source-consumers.mjs'
+      - 'tests/fixtures/final-contract-transition-*.js'
       - 'tests/grh-final-source-consumers.test.js'
       - 'tests/fixtures/final-source-consumer-synthetic.js'
       - 'api/internal-data.js'

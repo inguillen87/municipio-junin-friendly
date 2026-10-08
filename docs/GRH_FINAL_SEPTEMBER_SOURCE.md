@@ -54,6 +54,16 @@ El contexto distingue `revision_id` final de `parent_source_batch_id` y `parent_
 
 Las regresiones PostgreSQL ejercitan lectura completa en preparación SERIALIZABLE y, tras COMMIT/reconexión, en READ ONLY/REPEATABLE READ; comprueban cierre de cursores, interrupción, revocación y rechazo al reutilizar el mismo lector después de COMMIT. Sólo fixtures sintéticos y esquema QA aislado.
 
+## Comparación de contratos antes de adoptar
+
+`prepareFinalContractTransitionWithinTransaction` compara el corte final sellado con los contratos y personas existentes dentro de la misma transacción del propietario. Consume los diez conjuntos completos; exige coincidencia entre la nómina administrativa y la conciliación core; enlaza por compañía y legajo originales y verifica la referencia exacta de persona en `source_xref`. No busca por DNI ni genera UUID. Los contratos ausentes, duplicados, de otro municipio o sin esa referencia quedan observados; no se crean sustitutos ni se omiten filas.
+
+La revisión mantiene separados los hechos actuales del contrato/persona y los hechos propuestos del corte final. PostgreSQL proyecta fechas, estado administrativo, encuadre, organización, cargo, sector, identidad, departamento y payload completo; las cantidades permanecen como JSON textual exacto. Una pareja de fechas incompatible se conserva y se observa, sin convertir el egreso en nulo. Las jurisdicciones42/55 requieren la referencia original de `departamento` con su clave y nombre042/055. El indicador `NOLI_12` permanece literal y no determina elegibilidad salarial. Los cambios de identidad requieren revisión explícita.
+
+Cada fila y el conjunto completo reciben una huella que incluye los hechos actuales, los propuestos y el contexto sellado. Las diferencias de cobertura son incidencias globales. Más de10.000 contratos detienen el conjunto mediante `GRH_FINAL_TRANSITION_GLOBAL_LIMIT`, sin truncado o partición. Cancelación, cambio de transacción o retirada de la certificación impiden emitir un comprobante completo. La revisión es privada; sus filas nominales nunca se imprimen en el recibo de mantenimiento.
+
+El ejecutor existente admite `--review-contracts` junto a `--rehearse` o `--save-revision`. La comparación ocurre antes del COMMIT/ROLLBACK y la salida sólo agrega cantidades, códigos y huellas. El ensayo revierte toda la preparación. La opción no aplica contratos, selecciona el corte ni adopta empleados; guardar una revisión sigue siendo una operación distinta. Faltan todavía la integración con la propuesta/decisión de adopción y la actualización coordinada de los consumidores operativos antes de usar el padrón final municipal.
+
 ## Cobertura de conservación vigente
 
 El perfil explícito `municipal-sql144` revisa 86 tablas: 67 raíces y 19 hijos. Incluye propuesta, decisión, sello y aplicación de adopción. El sello hereda municipio y vínculo de su propuesta; la aplicación los hereda de su decisión, mediante sus claves foráneas validadas. No se añade una columna de municipio ficticia a esos hijos ni se omiten porque carecen de esa columna. Las tres tablas privadas SQL144 se identifican como infraestructura de fuente excluida del circuito de decisiones. El perfil histórico `municipal-sql131` y los comandos anteriores conservan sus contratos de lectura.
