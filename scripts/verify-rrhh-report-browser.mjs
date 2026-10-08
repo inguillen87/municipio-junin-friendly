@@ -1,15 +1,25 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 import readXlsxFile from 'read-excel-file/node';
 
-const publicRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const outputRoot = path.join(os.tmpdir(), 'municontrol-rrhh-report-browser');
+// Compiled public report plus a synthetic read-only session. This server never
+// authenticates a municipal account or implements a business writer.
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const publicRoot = path.join(projectRoot, 'public');
+const outputRoot = path.resolve(process.env.RRHH_REPORT_QA_OUTPUT || path.join(projectRoot, 'verification', 'rrhh-report-browser'));
+assert.ok(outputRoot.startsWith(path.join(projectRoot, 'verification') + path.sep), 'QA output must stay inside the worktree');
+const sessionFixture = {
+  ok: true, authenticated: true, sessionVersion: 2,
+  user: { id: '11111111-1111-4111-8111-111111111111', name: 'Consulta sintética QA', email: 'rrhh-qa@example.invalid' },
+  access: { context: 'tenant', tenant: { id: '22222222-2222-4222-8222-222222222222', roleKey: 'QA_READ_ONLY' },
+    tenantCapabilities: ['workforce.summary.read'], platformCapabilities: [], platformRoles: [] },
+};
+const apiRequests = [];
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],
@@ -28,6 +38,15 @@ function safeFile(requestPath) {
 
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
+  if (url.pathname.startsWith('/api/')) {
+    apiRequests.push({ method: request.method, path: url.pathname, query: url.search });
+    const allowed = request.method === 'GET' && url.pathname === '/api/internal-auth' && url.search === '';
+    response.writeHead(allowed ? 200 : 404, {
+      'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
+    });
+    response.end(JSON.stringify(allowed ? sessionFixture : { ok: false, code: 'QA_PRIVATE_API_NOT_IMPLEMENTED' }));
+    return;
+  }
   const file = safeFile(url.pathname);
   if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -49,7 +68,9 @@ await new Promise((resolve, reject) => {
 fs.mkdirSync(outputRoot, { recursive: true });
 const address = server.address();
 const baseUrl = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.RRHH_REPORT_BROWSER_CHANNEL ? { channel: process.env.RRHH_REPORT_BROWSER_CHANNEL } : {}),
+});
 const artifacts = {};
 
 async function assertHealthy(page, label) {
@@ -92,16 +113,24 @@ async function assertHealthy(page, label) {
 }
 
 async function inspect(viewport, label, downloadFiles) {
-  const context = await browser.newContext({ viewport, acceptDownloads: true });
+  const context = await browser.newContext({ viewport, acceptDownloads: true, serviceWorkers: 'block' });
+  await context.route('**/*', route => new URL(route.request().url()).origin === baseUrl ? route.continue() : route.abort());
   const page = await context.newPage();
   const issues = [];
+  const requestsBefore = apiRequests.length;
   page.on('console', (message) => { if (message.type() === 'error') issues.push(`console: ${message.text()}`); });
   page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
   page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   page.on('response', (response) => { if (response.status() >= 400) issues.push(`HTTP ${response.status()} ${response.url()}`); });
 
   try {
-    await page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' });
+    const [sessionResponse] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/internal-auth'
+        && response.request().method() === 'GET'),
+      page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' }),
+    ]);
+    assert.equal(sessionResponse.status(), 200, `${label}: respuesta de sesión sintética`);
+    assert.deepEqual(await sessionResponse.json(), sessionFixture, `${label}: contrato de sesión completo`);
     await page.waitForSelector('#reportContent:not([hidden])');
     await page.waitForFunction(() => document.querySelector('#reportPackStatus')?.dataset.state === 'ready');
     await page.locator('.rc-overview summary').click();
@@ -151,7 +180,22 @@ async function inspect(viewport, label, downloadFiles) {
     const screenshot = path.join(outputRoot, `rrhh-report-${label}.png`);
     await page.screenshot({ path: screenshot, fullPage: true });
     artifacts[`screenshot_${label}`] = screenshot;
+    assert.ok(apiRequests.length > requestsBefore, `${label}: la interfaz debe comprobar la sesión`);
+    assert.ok(apiRequests.slice(requestsBefore).every(request => request.method === 'GET'
+      && request.path === '/api/internal-auth' && request.query === ''), `${label}: ninguna API privada ni escritura inesperada`);
     assert.deepEqual(issues, [], `${label}: errores de navegador:\n${issues.join('\n')}`);
+  } catch (error) {
+    const state = await page.evaluate(() => ({
+      capabilityState: document.documentElement.getAttribute('data-mc-capability-state'),
+      capabilityReady: document.documentElement.getAttribute('data-mc-capability-ready'),
+      reportState: document.querySelector('#reportPackStatus')?.dataset.state,
+      gateLoaded: Boolean(globalThis.MuniControlCapabilityGate),
+    })).catch(() => null);
+    fs.writeFileSync(path.join(outputRoot, `failure-${label}.json`), JSON.stringify({
+      error: String(error.stack), issues, apiRequests: apiRequests.slice(requestsBefore), state,
+    }, null, 2));
+    await page.screenshot({ path: path.join(outputRoot, `failure-${label}.png`), fullPage: true }).catch(() => {});
+    throw error;
   } finally {
     await context.close();
   }
@@ -160,7 +204,11 @@ async function inspect(viewport, label, downloadFiles) {
 try {
   await inspect({ width: 1440, height: 900 }, 'desktop', true);
   await inspect({ width: 390, height: 844 }, 'mobile', false);
-  process.stdout.write(`${JSON.stringify({ ok: true, artifacts }, null, 2)}\n`);
+  const result = { ok: true, artifacts, browser: browser.version(), widths: [1440, 390],
+    authResponsesSynthetic: true, apiRequests, realMunicipalSessionTested: false, businessWrites: 0,
+    scope: 'published aggregate report, compiled local assets and synthetic read-only session' };
+  fs.writeFileSync(path.join(outputRoot, 'result.json'), JSON.stringify(result, null, 2));
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
