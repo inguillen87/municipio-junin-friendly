@@ -127,8 +127,11 @@ export async function prepareFinalContractTransitionWithinTransaction(input={}){
  const reader=await bindFinalSourceConsumersWithinTransaction(input),{client,signal}=input;
  if(reader.context.fingerprints['curated/grh_employees'].rows>FINAL_CONTRACT_TRANSITION_LIMIT)fail('GRH_FINAL_TRANSITION_GLOBAL_LIMIT');
  const originalRows=new Map();
- for(const entity of SUCCESSOR_ENTITIES)for await(const row of reader.readRows(entity))
-  if(entity==='curated/grh_employees')originalRows.set(row.rowKey,row.recordJson);
+ for(const entity of SUCCESSOR_ENTITIES){
+  if(entity==='curated/grh_employees')for await(const row of reader.readRows(entity,{pageSize:1000}))
+   originalRows.set(row.rowKey,row.recordJson);
+  else await reader.verifyEntity(entity);
+ }
  const sourceReceipt=await reader.assertComplete();
  const values=[reader.context.revision_id,reader.context.source_company_id];
  const query=async sql=>{signal?.throwIfAborted();const r=await client.query(sql,values);signal?.throwIfAborted();return r.rows;};

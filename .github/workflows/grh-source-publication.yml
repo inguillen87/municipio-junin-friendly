@@ -9,6 +9,7 @@ on:
       - 'tests/grh-final-contract-transition.test.js'
       - 'tests/fixtures/final-contract-transition-*.js'
       - 'tests/grh-final-source-consumers.test.js'
+      - 'tests/grh-final-source-fingerprint-consumer.test.js'
       - 'tests/fixtures/final-source-consumer-synthetic.js'
       - 'scripts/prepare-grh-final-source-revision.mjs'
       - 'scripts/migrations/144-final-grh-source-revision.sql'
