@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {buildOwnPayrollDurableQa,qaLiteral as q} from './own-payroll-durable-qa.mjs';
 import {createOwnPayrollPsqlQa} from './own-payroll-psql-qa.mjs';
-export function buildOwnLiquidationQa(major,{employees=2}={}){
+export function buildOwnLiquidationQa(major,{employees=2,declaredDate=false}={}){
  assert.ok(Number.isSafeInteger(employees)&&employees>=2&&employees<=12);
- const qa=buildOwnPayrollDurableQa(major),{schema,ids}=qa;
+ const qa=buildOwnPayrollDurableQa(major,{declaredDate}),{schema,ids}=qa;
  const source=fs.readFileSync(new URL('../migrations/124-own-payroll-liquidation-decisions.sql',import.meta.url),'utf8').replaceAll('\r\n','\n');
  const relocated=source.replaceAll('public.',schema+'.').replaceAll("'public'::regnamespace",q(schema)+'::regnamespace').replaceAll('SET search_path=pg_catalog,public,pg_temp',`SET search_path=pg_catalog,${schema},public,pg_temp`);
  let extra=`EXECUTE ${q(relocated)};

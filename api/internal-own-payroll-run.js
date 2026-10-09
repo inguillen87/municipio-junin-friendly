@@ -28,7 +28,7 @@ export function createOwnRunHandler(deps = {}) {
         if (schoolCertificateHttp.header(req, 'content-type').split(';')[0].trim().toLowerCase() !== 'application/json') runFail('CONTENT_TYPE', 415, 'Se requiere un formulario JSON.');
         schoolCertificateHttp.checkLength(req, OWN_RUN_MAX_BODY);
         operation = 'calculate';
-      } else if (q.resource === 'bootstrap' && Object.keys(q).join('|') === 'resource') { operation = 'bootstrap'; input = {}; }
+      } else if (q.resource === 'bootstrap' && (Object.keys(q).join('|') === 'resource'||Object.keys(q).sort().join('|') === 'contractVersion|resource' && q.contractVersion==='2')) { operation = 'bootstrap'; input = {contractVersion:q.contractVersion}; }
       else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
       else runFail('QUERY_INVALID', 400, 'Consulta inválida.');
       const required = operation === 'bootstrap' ? RUN_READ : operation === 'attempt' ? RUN_NOMINAL : RUN_CALCULATE;

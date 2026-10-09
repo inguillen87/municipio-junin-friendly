@@ -1,3 +1,4 @@
+import {ownRunDateLabel} from './own-payroll-run-date.js';
 import {ownRunJurisdictions} from './own-payroll-jurisdiction-model.js';
 import { ownRunCommand, ownRunCapture } from './own-payroll-run-model.js';
 import { salarySerialized, salaryUuid } from './native-salary-catalog-model.js';
@@ -76,7 +77,7 @@ export function ownRunWorkspaceCsv(capture) {
   const {result}=ownRunWorkspaceResult(capture)??{};
   if(!result)fail('No hay un cálculo guardado para descargar.');
   return '\uFEFF'+[
-    ['Periodo','Liquidacion','Legajo','Convenio','Reparticion','Concepto','Naturaleza','Unidad','Valor calculado','Respaldo de regla'],
-    ...result.rows.map(r=>[result.period,OWN_RUN_TYPES[result.liquidationType],"'"+r.employeeNumber,"'"+r.agreementCode,"'"+r.departmentCode,"'"+r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,r.ruleReference])
+    ['Periodo','Liquidacion','Fecha declarada de liquidacion','Legajo','Convenio','Reparticion','Concepto','Naturaleza','Unidad','Valor calculado','Respaldo de regla'],
+    ...result.rows.map(r=>[result.period,OWN_RUN_TYPES[result.liquidationType],capture.body.liquidationDate??ownRunDateLabel(null),"'"+r.employeeNumber,"'"+r.agreementCode,"'"+r.departmentCode,"'"+r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,r.ruleReference])
   ].map(row=>row.map(csv).join(';')).join('\r\n')+'\r\n';
 }

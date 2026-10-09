@@ -17,7 +17,7 @@ for(const arg of process.argv.slice(2)){if(arg==='--ci'||arg==='--built'){args[a
 assert.equal(args.ci,true);const major=Number(args.major);assert.ok([17,18].includes(major));assert.ok(['chrome','chromium','msedge'].includes(args.browser));
 const pageRoot=args.built?path.join(root,'public'):root;
 const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major),executable=args.psql??'psql';
+const prefix=output.replace(/\.json$/,''),qa=buildOwnPayrollDurableQa(major,{declaredDate:true}),executable=args.psql??'psql';
 const db=createOwnPayrollPsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins});
 const seed=prefix+'-seed.sql';assert.ok(!fs.existsSync(seed));fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 let installed=false,server,browser,testPage,held=null,delay=false,lose=false,denyAuth=false,expireAuth=false,otherSession=false,checks=0,posts=0;
@@ -76,7 +76,7 @@ try{
   await page.goto(origin+'/nomina-control.html#calculo');await settled();
   check(posts===0,'opening actual product page never executes payroll');
   check(await scope.locator('h2').innerText()==='Calcular nómina','product tab opens own calculation');
-  async function prepare(kind){await select('period').fill(sources.period);await select('type').selectOption('monthly');await select('kind').selectOption(kind);}
+  async function prepare(kind){await select('period').fill(sources.period);await select('period-end').click();await select('type').selectOption('monthly');await select('kind').selectOption(kind);}
   async function calculate(){await select('confirm').check();await select('send').click();await select('result').waitFor({state:'visible',timeout:20000});await page.waitForFunction(()=>document.querySelector('.own-run').getAttribute('aria-busy')==='false');}
   await prepare('all');await calculate();
   check((await select('rows').locator('tr').count())===6,'actual saved CPU result renders all concepts');
