@@ -15,7 +15,8 @@ import {PROGRAM_READ} from '../assets/own-payroll-program-workspace-model.js';
 const root=path.resolve(import.meta.dirname,'..'),opts={};
 for(const arg of process.argv.slice(2)){const m=/^--(output|browser)=(.+)$/.exec(arg);assert.ok(m);assert.equal(opts[m[1]],undefined);opts[m[1]]=m[2];}
 assert.ok(['chrome','chromium'].includes(opts.browser));const output=path.resolve(opts.output);assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const base=path.join(root,'public'),targets=Array.from({length:61},(_,i)=>String(i+2)),fixture=copyFixture(targets);
+const exactFixture=f=>{f.draft.rules.forEach(r=>r.rounding={precision:3,mode:'exact'});f.draft.totalsPrecision=3;f.boot.program.definition=structuredClone(f.draft);return f;};
+const base=path.join(root,'public'),targets=Array.from({length:61},(_,i)=>String(i+2)),historical=copyFixture(targets),fixture=exactFixture(copyFixture(targets));
 let boot=structuredClone(fixture.boot),revoked=false,lose=false,held=null,hold=false,requests=0,checks=0,report,browser;
 const posts=[],committed=new Map(),errors=[],check=(value,label)=>{assert.ok(value,label);checks++;};
 const sha=v=>createHash('sha256').update(salarySerialized(v)).digest('hex');
@@ -43,7 +44,7 @@ const server=http.createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
 try {
- browser=await chromium.launch({...(opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ browser=await chromium.launch({...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  const $=key=>page.locator('[data-program-'+key+']');
  const settled=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
  const load=async()=>{await page.goto(origin+'/qa.html');await $('content').waitFor({state:'visible'});await settled();await $('copy').locator('summary').click();};
@@ -52,7 +53,9 @@ try {
   await $('copy-from').fill('2026-10');await $('copy-mode').selectOption(mode);await $('copy-reference').fill('Cambio explícito sintético QA');
  };
  const preview=async()=>{await $('copy-preview').click();await settled();await $('copy-review').waitFor({state:'visible'});};
- await load();await configure();await preview();
+ boot=structuredClone(historical.boot);await load();await configure(['2']);await preview();await $('copy-confirm').check();await $('copy-apply').click();await settled();await $('reason').fill('Intento sintético de copiar una política histórica');await $('prepare').click();
+ check(posts.length===0&&await $('rule-select').locator('option').count()===2&&(await $('status').innerText()).includes('resultado exacto'),'new copy of historical rounding is rejected without sending or losing either draft rule');
+ boot=structuredClone(fixture.boot);await load();await configure();await preview();
  check(await $('copy-comparison').locator('tbody tr').count()===62,'review includes source and every one of 61 targets without pagination loss');
  check(posts.length===0&&await $('copy-apply').isDisabled(),'review sends no writes and requires explicit confirmation');
  await $('copy-from').fill('2026-11');check(await $('copy-review').isHidden(),'changing declared period invalidates the complete plan');await $('copy-from').fill('2026-10');await preview();
@@ -81,7 +84,7 @@ try {
  check((await $('copy-comparison').innerText()).includes('2026-09')&&await $('copy-comparison').locator('tbody tr').count()===3,'replacement review shows old closure and new rule beside original source');
  await $('copy-confirm').check();await $('copy-apply').click();await settled();check(await $('rule-select').locator('option').count()===3,'replacement preserves historical rule and adds new period');
  // Multiple sources span pages; filtering must never narrow the explicit selection.
- const multi=multiCopyFixture(['2','4'],Array.from({length:27},(_,i)=>String(600+i)));
+ const multi=exactFixture(multiCopyFixture(['2','4'],Array.from({length:27},(_,i)=>String(600+i))));
  boot=structuredClone(multi.boot);await load();await $('copy-multiple').check();
  check(await page.locator('[data-program-copy-rule]').count()===25,'source chooser paginates without discarding remaining formulas');
  await page.locator('[data-program-copy-rule]').first().focus();await page.keyboard.press('Space');check(await page.locator('[data-program-copy-rule]').first().evaluate(el=>el===document.activeElement),'selecting a source retains its keyboard focus');await page.keyboard.press('Tab');check(await page.locator('[data-program-copy-rule]').nth(1).evaluate(el=>el===document.activeElement),'Tab continues to the next source after selecting');
