@@ -1,5 +1,5 @@
 import {storedZip} from './clock-dashboard-zip.js';
-import {verifiedBankControl, bankControlGroups, BANK_OUTPUT_ISSUES} from './own-bank-output-model.js';
+import {verifiedBankControl, bankControlGroups, verifiedBankOutputControl, bankOutputGroups, BNA_DESTINATION_LABELS, BANK_OUTPUT_ISSUES} from './own-bank-output-model.js';
 
 const shown=v=>v===null||v===undefined||v===''?'No informado':String(v);
 const accountType=v=>({CA:'Caja de ahorro',CC:'Cuenta corriente'})[v]??'No informado';
@@ -10,6 +10,16 @@ export function bankControlMoney(cents) {
 }
 export function bankControlTables(value) {
   const r=verifiedBankControl(value),groups=bankControlGroups(r);
+  return bankTables(r,groups);
+}
+export function bankOutputTables(value) {
+  const r=verifiedBankOutputControl(value),t=bankTables(r,bankOutputGroups(r));
+  t.detail[0].push('Incluido en TXT BNA','Motivo de selección','Destinos elegidos','Entidad del CBU aprobado');
+  for(const [i,e]of r.rows.entries())t.detail[i+1].push(e.selected?'Sí':'No',e.selectionReason,BNA_DESTINATION_LABELS[r.profile.destinationScope],shown(e.account?.cbu.slice(0,3)));
+  t.control.push(['Destinos elegidos',BNA_DESTINATION_LABELS[r.profile.destinationScope]],['Jurisdicción del TXT',r.profile.jurisdictionCode],['Filas del TXT elegido',String(r.selectedCount)],['Filas de otra jurisdicción',String(r.otherJurisdictionCount)],['Filas de otras entidades',String(r.otherBankCount)],['Filas de otro tipo de cuenta Nación en la jurisdicción elegida',String(r.otherAccountTypeCount)],['Neto del TXT elegido en centavos',r.totalCents??'No evaluable; hay observaciones'],['Observaciones globales BNA',r.issues.map(c=>BANK_OUTPUT_ISSUES[c]).join(' | ')||'Sin observaciones globales'],['Compensación declarada',r.profile.compensationDate],['Convenio BNA declarado',r.profile.agreementCode],['Número de envío declarado',r.profile.sendNumber],['Tratamiento bancario de préstamos',r.profile.loanIdentifier],['Selección bancaria','La entidad se toma del CBU aprobado. El tipo CA se conserva de la cuenta aprobada; no se deduce del CBU. Los rótulos libres no deciden la selección.']);
+  return t;
+}
+function bankTables(r,groups) {
   const total=groups.reduce((n,g)=>n+BigInt(g.knownCents),0n).toString(),unresolved=groups.reduce((n,g)=>n+g.unresolvedNetCount,0);
   const columns=['Fila de origen','Repartición conservada','Banco declarado en cuenta','Tipo de cuenta','Número de cuenta','Legajo','Nombre','CUIL','CBU','Neto original','Moneda declarada','Moneda de cuenta','Jurisdicción conservada','Observaciones','Centavos exactos','Contrato propio','Registro propio','Cierre propio','Huella cierre','Corrida propia','Versión liquidación','Convenio laboral conservado','Cuenta propia','Vigencia desde','Vigencia hasta','Emisión aprobada','Huella emisión','Revisión emisión','Aprobación cuentas','Versión cuentas','Procedencia jurisdicción','Huella captura jurisdicción','Huella revisión completa','Tipo liquidación original'];
   const detail=[columns,...r.rows.map(e=>[e.ordinal,shown(e.departmentCode),shown(e.account?.bankLabel),accountType(e.account?.accountType),shown(e.account?.accountNumber),e.employeeNumber,e.name,e.cuil,shown(e.account?.cbu),e.net,r.profile.currency,shown(e.account?.currency),shown(e.jurisdiction.code),e.issues.length?e.issues.map(c=>BANK_OUTPUT_ISSUES[c]).join(' | '):'Sin observaciones de fila',e.cents===null?'No evaluable en centavos':e.cents,e.contractId,e.registrationId,e.sourceGroupId,e.closeSha256,e.runId,e.liquidationVersion,shown(e.agreementCode),shown(e.account?.id),shown(e.account?.validFrom),shown(e.account?.validUntil),r.receiptId,r.receiptSha256,r.receiptReviewId,r.accountsApprovalId,r.accountsVersion,e.jurisdiction.basis,shown(e.jurisdiction.sourceSha256),r.fingerprint,e.liquidationType])];
@@ -31,6 +41,9 @@ function sheet(rows,widths,filter) {
 }
 export function createBankControlXlsx(review) {
   return bankLiteralWorkbook(bankControlTables(review),'planilla-bancaria-propia-'+review.period+'.xlsx');
+}
+export function createBankOutputXlsx(review) {
+  return bankLiteralWorkbook(bankOutputTables(review),'control-bna-propio-'+review.period+'-j'+review.profile.jurisdictionCode+'-'+(review.profile.destinationScope==='nacion_ca'?'nacion-ca':'todos-destinos')+'.xlsx');
 }
 // A literal workbook builder shared by the verified full-control and Credicoop
 // exporters. Authority/source checks stay in those callers, before serialization.

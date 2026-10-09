@@ -24,13 +24,18 @@ export const BANK_OUTPUT_ISSUES = Object.freeze({
   REPEATED_DESTINATION: 'Hay otro recibo con el mismo CBU. Revisá expresamente los pagos separados.',
   JURISDICTION_MISSING: 'El cierre no conserva una jurisdicción 42/55. No se puede asegurar un archivo completo separado.',
   EMPTY_JURISDICTION: 'La emisión no contiene recibos de la jurisdicción elegida.',
+  ACCOUNT_DESTINATION_UNKNOWN: 'Hay una cuenta faltante. No se puede asegurar la selección Nación sin omitir un recibo.',
+  ACCOUNT_TYPE_UNKNOWN: 'Falta el tipo aprobado de una cuenta Nación. No se deduce del CBU.',
+  EMPTY_DESTINATION: 'No hay cajas de ahorro Nación en la jurisdicción elegida.',
 });
+export const BNA_DESTINATION_LABELS = Object.freeze({nacion_ca:'Caja de ahorro Banco Nación',all:'Todos los destinos del convenio GT'});
 const need = (value, message) => { if (!value) throw Error(message); };
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const reviews = new WeakSet();
 
 export function bankOutputProfile(v) {
-  need(salaryExact(v, ['jurisdictionCode','payerCbu','currency','compensationDate','creditDate','agreementCode','sendNumber','information','loanIdentifier','calendarConfirmed','allowRepeatedDestinations']), 'Completá el perfil BNA declarado.');
+  need(salaryExact(v, ['destinationScope','jurisdictionCode','payerCbu','currency','compensationDate','creditDate','agreementCode','sendNumber','information','loanIdentifier','calendarConfirmed','allowRepeatedDestinations']), 'Completá el perfil BNA declarado.');
+  need(['nacion_ca','all'].includes(v.destinationScope), 'Elegí los destinos: caja de ahorro Nación o todos los destinos del convenio GT.');
   need(['42','55'].includes(v.jurisdictionCode), 'Elegí expresamente la jurisdicción 42 o 55 del archivo.');
   need(bankAccountCbu(v.payerCbu) && v.payerCbu.startsWith('011'), 'Informá el CBU completo y válido de la cuenta ordenante de Banco Nación.');
   need(['ARS','USD'].includes(v.currency), 'Elegí expresamente la moneda de esta emisión. No se convierte el neto.');
@@ -63,7 +68,7 @@ export async function prepareBankControl(batchValue, accountsValue, profileValue
   return prepareSource(batchValue, accountsValue, bankControlProfile(profileValue), closeValues, 'control');
 }
 async function prepareSource(batchValue, accountsValue, profile, closeValues, kind) {
-  const batch = ownReceiptBatch(batchValue), accounts = bankAccountsBootstrap(accountsValue), banking = kind === 'bna';
+  const batch = ownReceiptBatch(batchValue), accounts = bankAccountsBootstrap(accountsValue), banking = kind === 'bna', nacionOnly = banking && profile.destinationScope === 'nacion_ca';
   await ownReceiptVerifyHash(batch.snapshot, batch.snapshotSha256);
   const snapshot = batch.snapshot, issues = [], add = code => issues.push(code);
   if (!snapshot.recordCount) add('EMPTY');
@@ -100,22 +105,28 @@ async function prepareSource(batchValue, accountsValue, profile, closeValues, ki
     if (cents === null) codes.push('FRACTIONAL_CENTS');
     else if (cents <= 0n) codes.push('NON_POSITIVE');
     else if (banking && cents > 9999999999n) codes.push('AMOUNT_OVERFLOW');
-    return {ordinal:index+1,jurisdiction,selected:banking?jurisdiction.code===profile.jurisdictionCode:true,contractId:r.contractId,registrationId:r.registrationId,sourceGroupId:r.sourceGroupId,closeSha256:groups.get(r.sourceGroupId.toLowerCase()).snapshotSha256,runId:r.runId,liquidationVersion:r.liquidationVersion,employeeNumber:r.employeeNumber,name:r.name,cuil:r.cuil,departmentCode:r.departmentCode,agreementCode:r.agreementCode,liquidationType:source.value.snapshot.liquidationType,net:r.totals.net,cents:cents === null ? null : cents.toString(),account:account ? {id:account.id,bankLabel:account.bankLabel,accountType:account.accountType,accountNumber:account.accountNumber,cbu:account.cbu,currency:account.currency,validFrom:account.validFrom,validUntil:account.validUntil} : null,issues:codes};
+    const selected = !banking || jurisdiction.code === profile.jurisdictionCode && (!nacionOnly || account?.cbu.startsWith('011') && account.accountType === 'CA');
+    const selectionReason = selected ? 'Incluido' : !account ? 'Destino no informado' : jurisdiction.code === null ? 'Jurisdicción no informada' : nacionOnly && !account.cbu.startsWith('011') ? 'Otra entidad bancaria' : jurisdiction.code !== profile.jurisdictionCode ? 'Otra jurisdicción' : !account.accountType ? 'Tipo de cuenta no informado' : 'Otro tipo de cuenta';
+    if(nacionOnly && account?.cbu.startsWith('011') && !account.accountType)codes.push('ACCOUNT_TYPE_UNKNOWN');
+    return {ordinal:index+1,jurisdiction,selected,selectionReason,contractId:r.contractId,registrationId:r.registrationId,sourceGroupId:r.sourceGroupId,closeSha256:groups.get(r.sourceGroupId.toLowerCase()).snapshotSha256,runId:r.runId,liquidationVersion:r.liquidationVersion,employeeNumber:r.employeeNumber,name:r.name,cuil:r.cuil,departmentCode:r.departmentCode,agreementCode:r.agreementCode,liquidationType:source.value.snapshot.liquidationType,net:r.totals.net,cents:cents === null ? null : cents.toString(),account:account ? {id:account.id,bankLabel:account.bankLabel,accountType:account.accountType,accountNumber:account.accountNumber,cbu:account.cbu,currency:account.currency,validFrom:account.validFrom,validUntil:account.validUntil} : null,issues:codes};
   });
   if (!profile.allowRepeatedDestinations) for (const indexes of destinations.values()) if (indexes.length > 1) for (const i of indexes) rows[i].issues.push('REPEATED_DESTINATION');
   const selected=rows.filter(r=>r.selected);
   if(banking && rows.some(r=>r.issues.includes('JURISDICTION_MISSING')))add('JURISDICTION_MISSING');
-  if(banking && !selected.length)add('EMPTY_JURISDICTION');
+  if(nacionOnly && rows.some(r=>!r.account))add('ACCOUNT_DESTINATION_UNKNOWN');
+  if(nacionOnly && rows.some(r=>r.issues.includes('ACCOUNT_TYPE_UNKNOWN')))add('ACCOUNT_TYPE_UNKNOWN');
+  if(nacionOnly && rows.some(r=>r.issues.includes('IDENTITY_CHANGED')))add('IDENTITY_CHANGED');
+  if(banking && !selected.length)add(nacionOnly?'EMPTY_DESTINATION':'EMPTY_JURISDICTION');
   const ready = issues.length === 0 && selected.every(r => r.issues.length === 0), sum = ready ? selected.reduce((n,r) => n+BigInt(r.cents),0n) : null;
   need(!banking || sum === null || sum <= 999999999999999n, 'El total supera las quince posiciones BNA. No se dividió el archivo.');
-  const result = {version:'own-bank-output.v1',kind,period:snapshot.params.period,types:[...snapshot.params.types],selection:structuredClone(snapshot.params),issuer:structuredClone(snapshot.params.issuer),receiptId:batch.id,receiptSha256:batch.snapshotSha256,receiptReviewId:batch.review?.id ?? null,accountsVersion:accounts.configuration.version,accountsApprovalId:accounts.configuration.approvalId,accountsSourceVersion:accounts.sources.version,scopeVersion:accounts.scopeVersion,profile,rows,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:rows.filter(r=>r.jurisdiction.code!==null&&!r.selected).length,issues,ready,totalCents:sum === null ? null : sum.toString(),repeatedDestinationCount:[...destinations.values()].filter(v => v.length>1).length,currencyBasis:'declared_at_export',bankSubmitted:false,paymentExecuted:false};
+  const result = {version:'own-bank-output.v1',kind,period:snapshot.params.period,types:[...snapshot.params.types],selection:structuredClone(snapshot.params),issuer:structuredClone(snapshot.params.issuer),receiptId:batch.id,receiptSha256:batch.snapshotSha256,receiptReviewId:batch.review?.id ?? null,receiptDecision:structuredClone({preparedAt:batch.preparedAt,preparedBy:batch.preparedBy,review:batch.review}),accountsVersion:accounts.configuration.version,accountsApprovalId:accounts.configuration.approvalId,accountsSourceVersion:accounts.sources.version,scopeVersion:accounts.scopeVersion,profile,rows,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:banking?rows.filter(r=>r.jurisdiction.code!==null&&r.jurisdiction.code!==profile.jurisdictionCode).length:0,otherBankCount:nacionOnly?rows.filter(r=>r.account&&!r.account.cbu.startsWith('011')).length:0,otherAccountTypeCount:nacionOnly?rows.filter(r=>r.account?.cbu.startsWith('011')&&r.jurisdiction.code===profile.jurisdictionCode&&r.account.accountType!=='CA').length:0,issues,ready,totalCents:sum === null ? null : sum.toString(),repeatedDestinationCount:[...destinations.values()].filter(v => v.length>1&&(!nacionOnly||v.some(i=>rows[i].selected))).length,currencyBasis:'declared_at_export',bankSubmitted:false,paymentExecuted:false};
   result.fingerprint = await bankAccountsHash(result);
   freeze(result); reviews.add(result); return result;
 }
 
 export function bankOutputPage(review, search='', page=1) {
   need(reviews.has(review) && Number.isSafeInteger(page) && page>0, 'Revisá el conjunto completo.');
-  const term = String(search).trim().toLocaleLowerCase('es'), rows = review.rows.filter(r => !term || [r.employeeNumber,r.name,r.departmentCode,r.account?.bankLabel??'',...r.issues.map(c => BANK_OUTPUT_ISSUES[c])].some(v => v.toLocaleLowerCase('es').includes(term)));
+  const term = String(search).trim().toLocaleLowerCase('es'), rows = review.rows.filter(r => !term || [r.employeeNumber,r.name,r.departmentCode,r.account?.bankLabel??'',r.selectionReason,...r.issues.map(c => BANK_OUTPUT_ISSUES[c])].some(v => v.toLocaleLowerCase('es').includes(term)));
   const pages = Math.max(1,Math.ceil(rows.length/25)), current = Math.min(page,pages);
   return {rows:rows.slice((current-1)*25,current*25),page:current,pages,total:review.recordCount,filtered:rows.length};
 }
@@ -128,14 +139,14 @@ export function createBankOutputTxt(review) {
   for (const r of review.rows.filter(r=>r.selected)) { const cbu=r.account.cbu; lines.push('2'+'0'+cbu.slice(0,3)+cbu.slice(3,7)+cbu[7]+cbu.slice(8)+zero(r.cents,10)+zero(p.sendNumber,6)+zero(r.ordinal,9)+r.cuil.padEnd(22,' ')+'102'+r.cuil+'00'+spaces(13)+p.loanIdentifier+spaces(96)); }
   lines.push('3'+zero(review.totalCents,15)+zero(review.selectedCount,7)+'0'.repeat(94)+spaces(83));
   need(lines.every(s=>s.length===200&&/^[A-Z0-9 ]{200}$/.test(s)), 'El TXT no cumple el diseño completo.');
-  return {bytes:new TextEncoder().encode(lines.join('\r\n')+'\r\n'),filename:'haberes-propios-bna-'+review.period+'-j'+p.jurisdictionCode+'-envio-'+p.sendNumber+'.txt',recordCount:review.selectedCount,totalCents:review.totalCents};
+  return {bytes:new TextEncoder().encode(lines.join('\r\n')+'\r\n'),filename:'haberes-propios-bna-'+review.period+'-j'+p.jurisdictionCode+'-'+(p.destinationScope==='nacion_ca'?'nacion-ca':'todos-destinos')+'-envio-'+p.sendNumber+'.txt',recordCount:review.selectedCount,totalCents:review.totalCents};
 }
-const csvCell = (v, literal=false) => {let s=String(v??'');if(literal||/^[\s]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+const csvCell = (v, literal=false) => {let s=String(v??'');if(literal||/^[\s\u0000-\u001f]*[=+\-@]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 export function createBankOutputCsv(review) {
   need(reviews.has(review) && review.kind === 'bna', 'Revisá el conjunto completo antes de descargar.');
-  const columns=['Fila de origen','Legajo','Nombre','CUIL','CBU','Neto original','Moneda declarada','Observaciones','Contrato propio','Registro propio','Cierre propio','Huella cierre','Corrida propia','Versión liquidación','Cuenta propia','Emisión aprobada','Huella emisión','Revisión emisión','Aprobación cuentas','Versión cuentas','Compensación declarada','Acreditación declarada','Convenio BNA','Envío BNA','Identificador préstamo','Huella revisión completa','Jurisdicción conservada','Procedencia jurisdicción','Huella captura jurisdicción','Jurisdicción del TXT','Incluido en el TXT elegido'];
+  const columns=['Fila de origen','Legajo','Nombre','CUIL','CBU','Neto original','Moneda declarada','Observaciones','Contrato propio','Registro propio','Cierre propio','Huella cierre','Corrida propia','Versión liquidación','Cuenta propia','Emisión aprobada','Huella emisión','Revisión emisión','Aprobación cuentas','Versión cuentas','Compensación declarada','Acreditación declarada','Convenio BNA','Envío BNA','Identificador préstamo','Huella revisión completa','Jurisdicción conservada','Procedencia jurisdicción','Huella captura jurisdicción','Jurisdicción del TXT','Incluido en el TXT elegido','Destinos elegidos','Entidad del CBU aprobado','Tipo de cuenta aprobado','Motivo de selección','Número de cuenta declarado','Banco declarado'];
   const lines=[columns.map(v=>csvCell(v)).join(';')];
-  for(const r of review.rows)lines.push([r.ordinal,r.employeeNumber,r.name,r.cuil,r.account?.cbu,r.net,review.profile.currency,[...review.issues,...r.issues].map(c=>BANK_OUTPUT_ISSUES[c]).join(' | '),r.contractId,r.registrationId,r.sourceGroupId,r.closeSha256,r.runId,r.liquidationVersion,r.account?.id,review.receiptId,review.receiptSha256,review.receiptReviewId,review.accountsApprovalId,review.accountsVersion,review.profile.compensationDate,review.profile.creditDate,review.profile.agreementCode,review.profile.sendNumber,review.profile.loanIdentifier,review.fingerprint,r.jurisdiction.code,r.jurisdiction.basis,r.jurisdiction.sourceSha256,review.profile.jurisdictionCode,r.selected?'Sí':'No'].map((v,i)=>csvCell(v,[1,3,4,22,23,24].includes(i))).join(';'));
+  for(const r of review.rows)lines.push([r.ordinal,r.employeeNumber,r.name,r.cuil,r.account?.cbu,r.net,review.profile.currency,[...review.issues,...r.issues].map(c=>BANK_OUTPUT_ISSUES[c]).join(' | '),r.contractId,r.registrationId,r.sourceGroupId,r.closeSha256,r.runId,r.liquidationVersion,r.account?.id,review.receiptId,review.receiptSha256,review.receiptReviewId,review.accountsApprovalId,review.accountsVersion,review.profile.compensationDate,review.profile.creditDate,review.profile.agreementCode,review.profile.sendNumber,review.profile.loanIdentifier,review.fingerprint,r.jurisdiction.code,r.jurisdiction.basis,r.jurisdiction.sourceSha256,review.profile.jurisdictionCode,r.selected?'Sí':'No',BNA_DESTINATION_LABELS[review.profile.destinationScope],r.account?.cbu.slice(0,3),r.account?.accountType,r.selectionReason,r.account?.accountNumber,r.account?.bankLabel].map((v,i)=>csvCell(v,[1,3,4,22,23,24,32,35].includes(i))).join(';'));
   return {bytes:new TextEncoder().encode('\uFEFF'+lines.join('\r\n')+'\r\n'),filename:'control-bancario-propio-'+review.period+'.csv',recordCount:review.recordCount};
 }
 export const sameBankOutput = (a,b) => reviews.has(a) && reviews.has(b) && a.fingerprint === b.fingerprint && salarySerialized(a.profile) === salarySerialized(b.profile);
@@ -147,6 +158,17 @@ export function verifiedBankControl(review) {
 }
 export function bankControlGroups(review) {
   verifiedBankControl(review);
+  return groupedRows(review);
+}
+export function verifiedBankOutputControl(review) {
+  need(reviews.has(review) && review.kind === 'bna' && !review.issues.some(c=>['EMPTY','UNAPPROVED','UNAVAILABLE','ACCOUNTS_UNAPPROVED','ISSUER_INVALID','PAYMENT_DATE_CHANGED'].includes(c)) && !review.rows.some(r=>r.issues.includes('IDENTITY_CHANGED')), 'No se verificó la emisión y cuentas propias aprobadas para descargar el control Nación completo.');
+  return review;
+}
+export function bankOutputGroups(review) {
+  verifiedBankOutputControl(review);
+  return groupedRows(review);
+}
+function groupedRows(review) {
   const groups = new Map();
   for (const r of review.rows) {
     const dimensions = [r.departmentCode,r.account?.bankLabel??null,r.account?.accountType??null,r.jurisdiction.code,review.profile.currency,r.liquidationType], key = JSON.stringify(dimensions);

@@ -13,7 +13,8 @@ export function bankOutputFixture(count=35) {
   batch.snapshotSha256=ownRunHash(batch.snapshot);
   const accounts=syntheticBankAccountsBootstrap();accounts.sources.contracts=batch.snapshot.records.map(r=>({contractId:r.contractId,registrationId:r.registrationId,employeeNumber:r.employeeNumber,name:r.name}));
   accounts.configuration={version:hash('c'),revision:1,proposalId:uid(900),approvalId:uid(901),definition:{accounts:batch.snapshot.records.map((r,i)=>({...syntheticBankAccountsDefinition().accounts[0],id:uid(40000+i),contractId:r.contractId,cbu:syntheticCbu('9990001',String(i+1).padStart(13,'0')),validFrom:'2026-01-01'}))}};
-  const profile={jurisdictionCode:'42',payerCbu:syntheticCbu('0110001'),currency:'ARS',compensationDate:'2026-10-08',creditDate:'2026-10-09',agreementCode:'00004455',sendNumber:'000001',information:'PRUEBA SINTETICA',loanIdentifier:'0000',calendarConfirmed:true,allowRepeatedDestinations:false};
+  // Preserve the pre-existing full GT population as an explicitly chosen scope.
+  const profile={destinationScope:'all',jurisdictionCode:'42',payerCbu:syntheticCbu('0110001'),currency:'ARS',compensationDate:'2026-10-08',creditDate:'2026-10-09',agreementCode:'00004455',sendNumber:'000001',information:'PRUEBA SINTETICA',loanIdentifier:'0000',calendarConfirmed:true,allowRepeatedDestinations:false};
   const snapshot=ownCloseSnapshot(closeDetail(count),{kind:'all',values:[]});snapshot.version='own-close-snapshot.v2';for(const e of snapshot.employees)e.jurisdiction={code:'42',basis:'captured_own_registration',sourceSha256:hash('f')};
   const closes=[closeReceipt({snapshot,snapshotSha256:ownRunHash(snapshot)})];batch.snapshot.sources[0].snapshotSha256=closes[0].snapshotSha256;batch.snapshotSha256=ownRunHash(batch.snapshot);
   return {batch,accounts,profile,closes};
