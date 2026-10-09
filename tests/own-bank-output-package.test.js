@@ -2,7 +2,7 @@ import fs from 'node:fs';import path from 'node:path';import test from 'node:tes
 const root=path.resolve(import.meta.dirname,'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8');
 test('native bank workbench is included and connected without a legacy source reader or new writer',()=>{
  const nav=read('assets/payroll-navigation.js'),build=read('scripts/build-friendly.mjs'),panel=read('assets/own-bank-output-panel.js');assert.ok(nav.includes("{id:'banco',label:'Salida bancaria',nodes:[bankOutput]}"));
- for(const file of ['assets/own-bank-output-model.js','assets/own-bank-output-panel.js','assets/own-bank-output-panel.css'])assert.ok(build.includes("'"+file+"'"));
+ for(const file of ['assets/own-bank-output-model.js','assets/own-bank-output-export.js','assets/own-bank-output-panel.js','assets/own-bank-output-panel.css'])assert.ok(build.includes("'"+file+"'"));
  assert.ok(panel.includes('/api/internal-own-payroll-receipts?'));assert.ok(panel.includes('/api/internal-own-bank-accounts?resource=bootstrap'));assert.doesNotMatch(panel,/localStorage|sessionStorage|method\s*:\s*['"]POST|internal-payroll-bank-source|release-info\.json/);
 });
 test('QA rejects database, executable and partial-scope overrides before any synthetic work',()=>{
