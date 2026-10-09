@@ -1,0 +1,62 @@
+name: Own bank accounts
+on:
+  pull_request:
+    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-bank-accounts*', 'assets/payroll-navigation.js', 'api/internal-own-bank-accounts.js', 'lib/internal-own-bank-accounts.js', 'scripts/migrations/149-*', 'scripts/*own-bank-accounts*', 'scripts/lib/own-bank-accounts-installation.mjs', 'tests/own-bank-accounts*', 'tests/fixtures/own-bank-accounts*', 'scripts/build-friendly.mjs', '.github/workflows/own-bank-accounts.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-bank-accounts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  bank-accounts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated databases and restricted runtime
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+          createdb -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres own_bank_accounts_qa
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_bank_accounts_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto;'
+      - name: Unchanged prerequisites, installation conservation, complete configuration and independent review
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          node scripts/verify-own-bank-accounts-sql.mjs --ci --expected-major=${{ matrix.pg }} --write-sql=verification/bank-accounts-ci-pg${{ matrix.pg }}.sql
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_bank_accounts_qa -v ON_ERROR_STOP=1 -f verification/bank-accounts-ci-pg${{ matrix.pg }}.sql
+      - name: Built UI, actual HTTP/SQL, history, lost response, full pages and mobile access
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-bank-accounts-ui.mjs --ci --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/bank-accounts-ci-ui-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-bank-accounts-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/bank-accounts-ci*
+          retention-days: 5
