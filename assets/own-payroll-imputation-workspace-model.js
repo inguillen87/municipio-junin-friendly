@@ -1,7 +1,7 @@
 import {salaryExact,salaryHash,salaryUuid,salaryKey,salarySerialized,SalaryInputError} from './native-salary-catalog-model.js';
 import {accountingHash} from './own-payroll-accounting-model.js';
 import {verifiedImputation} from './own-payroll-imputation-model.js';
-import {ownRunWorkspaceAccess,OWN_RUN_NOMINAL,OWN_RUN_TYPES} from './own-payroll-run-workspace-model.js';
+import {ownRunWorkspaceAccess,OWN_RUN_NOMINAL,OWN_RUN_TYPES,OWN_RUN_NATURES} from './own-payroll-run-workspace-model.js';
 
 export const IMPUTATION_VERSION='own-payroll-imputation.v1';
 export const IMPUTATION_READ=Object.freeze([...OWN_RUN_NOMINAL,'payroll.calculation.approve']);
@@ -41,6 +41,21 @@ export async function imputationDetail(v){
  need(salaryExact(v,['version','scopeVersion','proposal','body','source','allocation','allocationSha256','sourceCurrent'])&&v.version===IMPUTATION_VERSION&&salaryHash(v.scopeVersion)&&typeof v.sourceCurrent==='boolean','No se verificó la revisión conservada.');
  const p=imputationSummary(v.proposal),b=imputationCommand(v.body);await imputationPreview({version:v.version,source:v.source,allocation:v.allocation,allocationSha256:v.allocationSha256,revision:b.baseRevision});
  need(b.command==='propose'&&await accountingHash(b)===p.requestSha256&&b.groupId.toLowerCase()===p.groupId.toLowerCase()&&b.groupId.toLowerCase()===v.source.group.groupId.toLowerCase()&&b.sourceVersion===p.sourceVersion&&b.sourceVersion===v.source.sourceVersion&&b.allocationSha256===p.allocationSha256&&b.allocationSha256===v.allocationSha256&&b.baseRevision===p.baseRevision&&b.fiscalYear===p.fiscalYear&&b.fiscalYear===v.source.fiscalYear&&v.allocation.ready&&v.allocation.employeeCount===p.employeeCount&&v.allocation.conceptCount===p.conceptCount,'La propuesta perdió o alteró su fuente y distribución.');return v;
+}
+// Internal control copy of one complete, current, approved distribution. This
+// is not an accounting exchange format. Every nonnumeric cell is literal text
+// (including money) to preserve codes/decimals and prevent spreadsheet formulas.
+export async function approvedImputationCsv(value){
+ const d=await imputationDetail(value),p=d.proposal,a=d.allocation,s=d.source.group.snapshot;
+ need(p.status==='approved'&&d.sourceCurrent,'Abrí una imputación aprobada vigente. Una propuesta pendiente, rechazada o reemplazada no habilita esta descarga.','EXPORT_UNAVAILABLE');
+ const headers=['Período','Tipo de liquidación','Año presupuestario','Revisión aprobada','Fila del grupo completo','Estado del concepto','Legajo','Fecha de liquidación','Jurisdicción','Convenio','Repartición','Concepto','Naturaleza','Unidad','Importe o valor exacto (texto)','Partida','Institución','Función','Proveedor','Acreedor','Cuenta contable','Cuenta bancaria','Banco','Vigencia del destino desde','Vigencia del destino hasta','Documento del destino','Documento institucional','Huella del cierre','Huella de la distribución','Legajos del grupo','Legajos de la población original','Alcance del grupo'];
+ const quote=v=>'"'+v.replaceAll('"','""')+'"';
+ const cell=v=>quote(v===null?'':typeof v==='number'?String(v):"'"+v);
+ const lines=[headers.map(quote).join(';')];
+ for(const r of a.rows){const dest=r.destination;
+  lines.push([s.period,OWN_RUN_TYPES[s.liquidationType],a.fiscalYear,p.decision.revision,r.ordinal,r.state==='auxiliary'?'Auxiliar · sin movimiento monetario':'Imputado',r.employeeNumber,r.liquidationDate,r.jurisdictionCode,r.agreementCode,r.departmentCode,r.conceptCode,OWN_RUN_NATURES[r.nature],r.unit,r.amount,...['budgetItemReference','institutionalReference','functionReference','supplierReference','creditorReference','accountingAccountReference','bankAccountReference','bankReference','validFrom','validUntil','ruleReference','institutionRuleReference'].map(k=>dest?.[k]??null),a.snapshotSha256,d.allocationSha256,s.employeeCount,s.populationCount,s.populationComplete?'Población completa':'Grupo parcial'].map(cell).join(';'));
+ }
+ return lines.join('\r\n')+'\r\n';
 }
 export async function prepareImputation(boot,preview,reason){
  imputationBootstrap(boot);await imputationPreview(preview);need(boot.permissions.canPropose&&preview.source.scopeVersion===boot.scopeVersion&&boot.groups.some(g=>g.id.toLowerCase()===preview.source.group.groupId.toLowerCase()&&g.state==='closed'&&g.snapshotSha256===preview.source.group.snapshotSha256)&&preview.allocation.ready,'Revisá todas las observaciones del grupo cerrado antes de preparar.','INPUT_INVALID');
