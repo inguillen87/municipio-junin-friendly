@@ -2,9 +2,9 @@ name: Own payroll closed reports
 on:
   push:
     branches: ['master', 'codex/own-payroll-reports-20261005']
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
   pull_request:
-    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
+    paths: ['assets/own-payroll-*', 'assets/payroll-navigation.js', 'assets/report-document.js', 'api/internal-own-payroll-close.js', 'lib/internal-own-payroll-*', 'scripts/*own-payroll*report*.mjs', 'scripts/lib/own-payroll-*', 'tests/own-payroll-report*.test.js', 'tests/fixtures/own-payroll-*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-reports.yml']
 permissions:
   contents: read
 jobs:
@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
       - run: mkdir -p verification
       - run: psql -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
-      - run: node --test tests/own-payroll-report.test.js tests/own-payroll-close*.test.js tests/source-report-catalog.test.js tests/payroll-monthly-summary.test.js
+      - run: node --test tests/own-payroll-report*.test.js tests/own-payroll-close*.test.js tests/source-report-catalog.test.js tests/payroll-monthly-summary.test.js
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Real HTTP and SQL, complete downloads, mobile and revocation

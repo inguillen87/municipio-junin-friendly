@@ -155,6 +155,7 @@ const shellFiles = [
   'assets/own-payroll-close-panel.js',
   'assets/own-payroll-close-panel.css',
   'assets/own-payroll-report-model.js',
+  'assets/own-payroll-report-variables.js',
   'assets/own-payroll-jurisdiction-model.js',
   'assets/own-payroll-report-panel.js',
   'assets/own-payroll-report-panel.css',

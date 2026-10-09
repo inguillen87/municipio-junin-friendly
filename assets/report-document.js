@@ -37,7 +37,8 @@ export function reportPdf(d){checked(d);if(['own-position-comparison.v1','own-pa
   }
   y+=10;
   for(const note of ['own-payroll-report.v1','own-position-comparison.v1','own-payroll-comparison.v1'].includes(d.layout)&&pages.length>1?[]:d.notes){for(const l of lines(note,Math.floor(width/4.5))){text(left,y,l,8);y+=11}y+=5}
-  y+=8;rect(left,y,width,32,'0.09 0.24 0.30');let x=left;d.columns.forEach((c,i)=>{lines(c.label,Math.max(7,Math.floor((widths[i]-12)/4.5))).forEach((l,j)=>text(x+6,y+12+j*10,l,8,true,'1 1 1'));x+=widths[i]});y+=32;footer();
+  const headings=d.columns.map((c,i)=>lines(c.label,Math.max(7,Math.floor((widths[i]-12)/4.5)))),headerHeight=d.layout==='own-payroll-report.v1'?Math.max(32,...headings.map(p=>p.length*10+14)):32;
+  y+=8;rect(left,y,width,headerHeight,'0.09 0.24 0.30');let x=left;headings.forEach((parts,i)=>{parts.forEach((l,j)=>text(x+6,y+12+j*10,l,8,true,'1 1 1'));x+=widths[i]});y+=headerHeight;footer();
  }
  head();d.rows.forEach((r,index)=>{const parts=r.map((v,i)=>lines(shown(v,d.columns[i]),Math.max(7,Math.floor((widths[i]-12)/4.3))));const height=Math.max(...parts.map(p=>p.length))*12+14;if(y+height>H-62)head();if(index%2===0)rect(left,y,width,height,'0.94 0.97 0.97');let x=left;parts.forEach((p,i)=>{p.forEach((l,j)=>text(x+6,y+15+j*12,l,8.5,i>0&&d.columns[i].type!=='text'));x+=widths[i]});y+=height});
  if(!d.rows.length)text(left,y+25,'Sin resultados para los filtros seleccionados.',10);
