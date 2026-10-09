@@ -4,9 +4,9 @@ import {pinsCheck} from './native-leave-installation.mjs';
 import {qaLiteral as q} from './own-payroll-durable-qa.mjs';
 // Rebuild only schema-qualified metadata checks; application bodies and business
 // guards remain the reviewed composition. No municipal destination is admitted.
-export function relocateOwnRunDateInstallation(batch,qa,jurisdiction,previous){
+export function relocateOwnRunDateInstallation(batch,qa,beforeReady,previous){
  const n=qa.normalized;
- let ready=n(jurisdiction.ready.slice(0,jurisdiction.ready.indexOf(' BEGIN ')))+' BEGIN '+jurisdiction.readyChecks.map(s=>'EXECUTE '+q(n(s))+';').join('\n')+' END $operator$';
+ let ready=beforeReady;
  assert.ok(ready.includes(batch.beforePins[0].sha256));ready=ready.replaceAll(batch.beforePins[0].sha256,batch.afterPins[0].sha256);
  ready=ready.replace(' BEGIN ',()=> ' BEGIN EXECUTE '+q(n(pinsCheck([batch.afterPins[1],batch.newPin],'RUN_DATE_PROTOCOL_CHANGED')))+'; ');
  const readyPin={...ownInstallationFunctionPin(ready.replace('CREATE FUNCTION '+qa.schema+'.','CREATE FUNCTION public.')),signature:batch.afterPins[2].signature.replace('public.',qa.schema+'.'),runtime:false};

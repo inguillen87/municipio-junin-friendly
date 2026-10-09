@@ -38,14 +38,14 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
   }
   async function calculate({period,selection,expectedCount}){
    await fresh('/nomina-control.html#calculo');const r=k=>page.locator('[data-own-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
-   await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(!await page.locator('[data-own-fields]').isDisabled(),await r('status').innerText());await r('period').fill(period);await r('type').selectOption('monthly');await r('kind').selectOption(selection.kind);
+   await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(!await page.locator('[data-own-fields]').isDisabled(),await r('status').innerText());await r('period').fill(period);await r('type').selectOption('monthly');await r('period-end').click();const liquidationDate=await r('date').inputValue();assert.ok(liquidationDate.startsWith(period+'-'));check(!await r('confirm').isChecked(),'declaring the liquidation date requires a fresh explicit review');await r('kind').selectOption(selection.kind);
    if(selection.kind==='contracts'){
     assert.equal(selection.values.length,1);await r('picker').click();const picker=page.locator('#ownRunPicker');await picker.locator('#ownRunPickerSearch').fill('A/3501');await picker.locator('[data-picker-form] button[type=submit]').click();
     const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact opaque adopted legajo from PostgreSQL');
     check((await picker.innerText()).includes('Registro propio de MuniControl'),'picker describes municipal ownership without confusing adopted records with hires');
     await input.check();await picker.locator('[data-picker-apply]').click();check((await r('chips').innerText()).includes('A/3501'),'actual calculator preserves the exact selected identifier');
    }
-   await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.saved.result.employeeCount,expectedCount);}});
+   await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.body.liquidationDate,liquidationDate);assert.equal(value.saved.result.employeeCount,expectedCount);}});
    check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill('a/3501');check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact opaque legajo');
    return result;
   }

@@ -5,6 +5,17 @@ import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa,relocateNoeliaNoveltyInst
 import {buildAdoptedOwnNoveltyInstallation} from './lib/adopted-own-novelties-installation.mjs';
 import {buildOwnJurisdictionInstallation} from './lib/own-payroll-jurisdiction-installation.mjs';
 import {buildOwnRunDateInstallation,assertOwnRunDateDurability} from './lib/own-payroll-run-date-installation.mjs';
+import {buildFinalAdoptionQa,relocateFinalAdoption} from './lib/final-contract-adoption-qa.mjs';
+import {buildInactiveJurisdictionInstallation} from './lib/adoption-inactive-jurisdiction-installation.mjs';
+import {relocateInactiveJurisdictionInstallation} from './lib/adoption-inactive-jurisdiction-qa.mjs';
+import {buildFinalContractAdoptionInstallation} from './lib/final-contract-adoption-installation.mjs';
+import {buildActiveContractAdoptionInstallation} from './lib/active-contract-adoption-installation.mjs';
+import {relocateActiveAdoption} from './lib/active-contract-adoption-qa.mjs';
+import {buildActiveAdoptionSerializationInstallation,relocateActiveAdoptionSerialization} from './lib/active-adoption-serialization-installation.mjs';
+import {buildFinalIdentityProfileInstallation,relocateFinalIdentityProfiles} from './lib/final-identity-profile-installation.mjs';
+import {buildActiveSourceDeclarationsInstallation} from './lib/active-source-declarations-installation.mjs';
+import {relocateActiveSourceDeclarations} from './lib/active-source-declarations-qa.mjs';
+import {pinsCheck} from './lib/native-leave-installation.mjs';
 import {relocateOwnRunDateInstallation} from './lib/own-payroll-run-date-qa.mjs';
 import {qaLiteral as q} from './lib/own-payroll-durable-qa.mjs';
 import {preservationSnapshot} from './lib/native-leave-installation.mjs';
@@ -15,7 +26,9 @@ import {ownLiquidationIndividual,ownLiquidationNextPreparation} from '../assets/
 import {ownRunPeriodEnd} from '../assets/own-payroll-run-date.js';
 const root=path.resolve(import.meta.dirname,'..'),{major,output,sourceCommit,transport}=noeliaCircuitOptions(process.argv.slice(2)),destination=path.resolve(output);
 assert.ok(destination.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(destination));if(transport==='ci')assert.equal(sourceCommit,process.env.GITHUB_SHA);
-const options={sourceCommit,read:p=>fs.readFileSync(path.join(root,p),'utf8')},qa=buildNoeliaCircuitQa(major,{jurisdictions:true}),bulk=buildAdoptedOwnNoveltyInstallation(options),b=relocateNoeliaNoveltyInstallation(bulk,qa),jurisdiction=buildOwnJurisdictionInstallation(options),j=relocateNoeliaJurisdictionInstallation(jurisdiction,qa,b),batch=buildOwnRunDateInstallation(options),date=relocateOwnRunDateInstallation(batch,qa,jurisdiction,j),db=createNoeliaCircuitPsqlQa({major,port:55400+major,schema:qa.schema,pins:qa.pins,transport,browser:'none'});
+const options={sourceCommit,read:p=>fs.readFileSync(path.join(root,p),'utf8')},qa=buildFinalAdoptionQa(major),bulk=buildAdoptedOwnNoveltyInstallation(options),b=relocateNoeliaNoveltyInstallation(bulk,qa),jurisdiction=buildOwnJurisdictionInstallation(options),j=relocateNoeliaJurisdictionInstallation(jurisdiction,qa,b),batch=buildOwnRunDateInstallation(options),db=createNoeliaCircuitPsqlQa({major,port:55400+major,schema:qa.schema,pins:qa.pins,transport,browser:'none'});
+const inactive=relocateInactiveJurisdictionInstallation(buildInactiveJurisdictionInstallation(options),qa,j),final=relocateFinalAdoption(buildFinalContractAdoptionInstallation({...options,legacyIdentityComparison:true}),qa,inactive),active=relocateActiveAdoption(buildActiveContractAdoptionInstallation({...options,legacyIdentityComparison:true}),qa,final),serialization=relocateActiveAdoptionSerialization(buildActiveAdoptionSerializationInstallation({...options,legacyIdentityComparison:true}),qa,active),profile=relocateFinalIdentityProfiles(buildFinalIdentityProfileInstallation(options),qa,serialization),declared=buildActiveSourceDeclarationsInstallation(options),declaredQa=relocateActiveSourceDeclarations(declared,qa,profile);
+const replacements=s=>declared.beforePins.slice(0,-1).reduce((v,p,i)=>v.replaceAll(p.sha256,declared.afterPins[i].sha256),s),source=declared.afterDefinitions.at(-1),beforeReady=qa.normalized(source.slice(0,source.indexOf(' BEGIN ')))+' BEGIN '+[...declared.current.readyChecks.map(replacements),pinsCheck(declared.newPins,'DECLARATIONS_NEW_METADATA')].map(s=>'EXECUTE '+q(qa.normalized(s))+';').join('\n')+' END $operator$',date=relocateOwnRunDateInstallation(batch,qa,beforeReady,declaredQa);
 fs.mkdirSync(destination);let step=0,seeded=false,report,failure;const checks=[],ok=(v,label)=>{assert.ok(v,label);checks.push(label);};
 const run=(sql,error)=>{const file=path.join(destination,String(++step).padStart(3,'0')+'.sql');fs.writeFileSync(file,sql,{flag:'wx'});const r=spawnSync(db.executable,[...db.args,'--no-password','-f',file],{encoding:'utf8',windowsHide:true,env:db.environment,maxBuffer:12*1024*1024});fs.writeFileSync(file+'.log',r.stdout+r.stderr);if(error){assert.equal(r.status,3);assert.ok(r.stderr.includes(error),r.stderr);return;}assert.equal(r.status,0,r.stderr.slice(-3500));return r.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);};
 const tx=s=>`BEGIN ISOLATION LEVEL REPEATABLE READ;SET LOCAL statement_timeout='180s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${qa.schema},public,pg_temp;DO $$ BEGIN ${qa.pins} END $$;${s.join(';\n')};COMMIT;`;
@@ -24,10 +37,10 @@ const identity=a=>({principal:{user:{email:a.actorEmail},tenant:{source:'members
 const calc=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input),close=(op,input)=>ownCloseOperation(db,checker.principal,checker.session,op,input);
 const prior=proof();assert.equal(prior.schemas,0);
 try{
- run(qa.sql);seeded=true;run(tx(b.operator.consumers.statements));run(tx(b.operator.statements));
+ run(qa.sql);seeded=true;run(tx([qa.sourceFixture]));run(tx(b.operator.consumers.statements));run(tx(b.operator.statements));
  const boot=await adoptionPreparationOperation(db,maker.principal,maker.session,'bootstrap'),proposal=await adoptionPreparationOperation(db,maker.principal,maker.session,'propose',{key:randomUUID(),body:await adoptionPreparationPayload(boot.review,boot.catalogVersion,'42','Resolución exclusivamente sintética QA','Adopción inventada para verificar fecha declarada y conservación')});
  const view=await municipalAdoptionOperation(db,checker.principal,checker.session,'review',{id:proposal.receipt.proposalId});await municipalAdoptionOperation(db,checker.principal,checker.session,'command',{key:randomUUID(),body:{reviewVersion:view.reviewVersion,review:{proposalId:view.proposal.proposalId,proposalVersion:view.proposal.proposalVersion,sourceContextVersion:view.proposal.sourceContextVersion,catalogVersion:view.proposal.catalogVersion,decision:'approve',reason:'Revisión independiente exclusivamente sintética QA'},reviewConfirmed:true}});
- run(tx(b.installation));run(tx(j.installation));
+ run(tx(b.installation));run(tx(j.installation));run(tx(inactive.installation));run(tx(final.installation));run(tx(active.installation));run(tx(serialization.installation));run(tx(profile.installation));run(tx(declaredQa.installation));
  const initial=await calc('bootstrap'),period=await db.run("SELECT to_jsonb(greatest('2026-10',to_char(clock_timestamp() AT TIME ZONE 'America/Argentina/Mendoza','YYYY-MM')))");
  const body={period,liquidationType:'monthly',selection:{kind:'all',values:[]},scopeVersion:initial.scopeVersion,programVersion:initial.programVersion,populationDomain:'native_registered'};
  const old=await calc('calculate',{key:randomUUID(),body}),pendingKey=randomUUID(),pending=(await db.query('SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result',[JSON.stringify(qa.actors.maker),JSON.stringify(body),pendingKey,ownRunAlgorithmHash()]))[0].result;

@@ -315,3 +315,7 @@ local-agents/
 !scripts/migrations/141-adopted-own-payroll-close.sql
 !scripts/migrations/142-adopted-own-payroll-receipts.sql
 !scripts/migrations/143-own-payroll-jurisdiction-snapshot.sql
+
+# Reviewed source contracts required by declared-date build regression tests.
+!scripts/migrations/144-final-grh-source-revision.sql
+!scripts/migrations/145-own-declared-liquidation-date.sql
