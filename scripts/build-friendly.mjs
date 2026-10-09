@@ -175,6 +175,7 @@ const shellFiles = [
   'assets/own-bank-accounts-model.js',
   'assets/own-bank-accounts-workspace-model.js',
   'assets/own-bank-output-model.js',
+  'assets/own-bank-output-export.js',
   'assets/own-bank-output-panel.js',
   'assets/own-bank-output-panel.css',
   'assets/own-payroll-accounting-panel.js',

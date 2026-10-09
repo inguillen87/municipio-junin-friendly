@@ -50,17 +50,27 @@ export function bankOutputCents(value) {
   const cents = BigInt(whole) * 100n + BigInt(fraction.slice(0,2).padEnd(2,'0'));
   return negative ? -cents : cents;
 }
+export function bankControlProfile(value) {
+  need(salaryExact(value, ['currency','creditDate']) && ['ARS','USD'].includes(value.currency) && isoDay(value.creditDate), 'Elegí la moneda y la fecha de acreditación del control. No se deducen ni convierten.');
+  return {...value};
+}
 const recordKey = r => r.sourceGroupId.toLowerCase() + ':' + r.contractId.toLowerCase();
 
 export async function prepareBankOutput(batchValue, accountsValue, profileValue, closeValues) {
-  const batch = ownReceiptBatch(batchValue), accounts = bankAccountsBootstrap(accountsValue), profile = bankOutputProfile(profileValue);
+  return prepareSource(batchValue, accountsValue, bankOutputProfile(profileValue), closeValues, 'bna');
+}
+export async function prepareBankControl(batchValue, accountsValue, profileValue, closeValues) {
+  return prepareSource(batchValue, accountsValue, bankControlProfile(profileValue), closeValues, 'control');
+}
+async function prepareSource(batchValue, accountsValue, profile, closeValues, kind) {
+  const batch = ownReceiptBatch(batchValue), accounts = bankAccountsBootstrap(accountsValue), banking = kind === 'bna';
   await ownReceiptVerifyHash(batch.snapshot, batch.snapshotSha256);
   const snapshot = batch.snapshot, issues = [], add = code => issues.push(code);
   if (!snapshot.recordCount) add('EMPTY');
   if (batch.state !== 'approved') add('UNAPPROVED');
   if (!batch.sourceCurrent || !batch.permissions.canDownload || batch.state === 'withdrawn') add('UNAVAILABLE');
   if (!accounts.configuration.revision) add('ACCOUNTS_UNAPPROVED');
-  if (snapshot.params.types.length !== 1) add('MIXED_TYPES');
+  if (banking && snapshot.params.types.length !== 1) add('MIXED_TYPES');
   if (!validCuil(snapshot.params.issuer.taxId)) add('ISSUER_INVALID');
   if (snapshot.params.paymentDate !== null && snapshot.params.paymentDate !== profile.creditDate) add('PAYMENT_DATE_CHANGED');
   const identities = new Map(accounts.sources.contracts.map(r => [r.contractId.toLowerCase(), r])), groups = new Map(snapshot.sources.map(g => [g.id.toLowerCase(),g]));
@@ -89,30 +99,30 @@ export async function prepareBankOutput(batchValue, accountsValue, profileValue,
     const cents = bankOutputCents(r.totals.net);
     if (cents === null) codes.push('FRACTIONAL_CENTS');
     else if (cents <= 0n) codes.push('NON_POSITIVE');
-    else if (cents > 9999999999n) codes.push('AMOUNT_OVERFLOW');
-    return {ordinal:index+1,jurisdiction,selected:jurisdiction.code===profile.jurisdictionCode,contractId:r.contractId,registrationId:r.registrationId,sourceGroupId:r.sourceGroupId,closeSha256:groups.get(r.sourceGroupId.toLowerCase()).snapshotSha256,runId:r.runId,liquidationVersion:r.liquidationVersion,employeeNumber:r.employeeNumber,name:r.name,cuil:r.cuil,net:r.totals.net,cents:cents === null ? null : cents.toString(),account:account ? {id:account.id,cbu:account.cbu,currency:account.currency,validFrom:account.validFrom,validUntil:account.validUntil} : null,issues:codes};
+    else if (banking && cents > 9999999999n) codes.push('AMOUNT_OVERFLOW');
+    return {ordinal:index+1,jurisdiction,selected:banking?jurisdiction.code===profile.jurisdictionCode:true,contractId:r.contractId,registrationId:r.registrationId,sourceGroupId:r.sourceGroupId,closeSha256:groups.get(r.sourceGroupId.toLowerCase()).snapshotSha256,runId:r.runId,liquidationVersion:r.liquidationVersion,employeeNumber:r.employeeNumber,name:r.name,cuil:r.cuil,departmentCode:r.departmentCode,agreementCode:r.agreementCode,liquidationType:source.value.snapshot.liquidationType,net:r.totals.net,cents:cents === null ? null : cents.toString(),account:account ? {id:account.id,bankLabel:account.bankLabel,accountType:account.accountType,accountNumber:account.accountNumber,cbu:account.cbu,currency:account.currency,validFrom:account.validFrom,validUntil:account.validUntil} : null,issues:codes};
   });
   if (!profile.allowRepeatedDestinations) for (const indexes of destinations.values()) if (indexes.length > 1) for (const i of indexes) rows[i].issues.push('REPEATED_DESTINATION');
   const selected=rows.filter(r=>r.selected);
-  if(rows.some(r=>r.issues.includes('JURISDICTION_MISSING')))add('JURISDICTION_MISSING');
-  if(!selected.length)add('EMPTY_JURISDICTION');
+  if(banking && rows.some(r=>r.issues.includes('JURISDICTION_MISSING')))add('JURISDICTION_MISSING');
+  if(banking && !selected.length)add('EMPTY_JURISDICTION');
   const ready = issues.length === 0 && selected.every(r => r.issues.length === 0), sum = ready ? selected.reduce((n,r) => n+BigInt(r.cents),0n) : null;
-  need(sum === null || sum <= 999999999999999n, 'El total supera las quince posiciones BNA. No se dividió el archivo.');
-  const result = {version:'own-bank-output.v1',period:snapshot.params.period,types:[...snapshot.params.types],selection:structuredClone(snapshot.params),issuer:structuredClone(snapshot.params.issuer),receiptId:batch.id,receiptSha256:batch.snapshotSha256,receiptReviewId:batch.review?.id ?? null,accountsVersion:accounts.configuration.version,accountsApprovalId:accounts.configuration.approvalId,accountsSourceVersion:accounts.sources.version,scopeVersion:accounts.scopeVersion,profile,rows,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:rows.filter(r=>r.jurisdiction.code!==null&&!r.selected).length,issues,ready,totalCents:sum === null ? null : sum.toString(),repeatedDestinationCount:[...destinations.values()].filter(v => v.length>1).length,currencyBasis:'declared_at_export',bankSubmitted:false,paymentExecuted:false};
+  need(!banking || sum === null || sum <= 999999999999999n, 'El total supera las quince posiciones BNA. No se dividió el archivo.');
+  const result = {version:'own-bank-output.v1',kind,period:snapshot.params.period,types:[...snapshot.params.types],selection:structuredClone(snapshot.params),issuer:structuredClone(snapshot.params.issuer),receiptId:batch.id,receiptSha256:batch.snapshotSha256,receiptReviewId:batch.review?.id ?? null,accountsVersion:accounts.configuration.version,accountsApprovalId:accounts.configuration.approvalId,accountsSourceVersion:accounts.sources.version,scopeVersion:accounts.scopeVersion,profile,rows,recordCount:rows.length,selectedCount:selected.length,otherJurisdictionCount:rows.filter(r=>r.jurisdiction.code!==null&&!r.selected).length,issues,ready,totalCents:sum === null ? null : sum.toString(),repeatedDestinationCount:[...destinations.values()].filter(v => v.length>1).length,currencyBasis:'declared_at_export',bankSubmitted:false,paymentExecuted:false};
   result.fingerprint = await bankAccountsHash(result);
   freeze(result); reviews.add(result); return result;
 }
 
 export function bankOutputPage(review, search='', page=1) {
   need(reviews.has(review) && Number.isSafeInteger(page) && page>0, 'Revisá el conjunto completo.');
-  const term = String(search).trim().toLocaleLowerCase('es'), rows = review.rows.filter(r => !term || [r.employeeNumber,r.name,...r.issues.map(c => BANK_OUTPUT_ISSUES[c])].some(v => v.toLocaleLowerCase('es').includes(term)));
+  const term = String(search).trim().toLocaleLowerCase('es'), rows = review.rows.filter(r => !term || [r.employeeNumber,r.name,r.departmentCode,r.account?.bankLabel??'',...r.issues.map(c => BANK_OUTPUT_ISSUES[c])].some(v => v.toLocaleLowerCase('es').includes(term)));
   const pages = Math.max(1,Math.ceil(rows.length/25)), current = Math.min(page,pages);
   return {rows:rows.slice((current-1)*25,current*25),page:current,pages,total:review.recordCount,filtered:rows.length};
 }
 
 // Public BNA GT design: three record types, exactly 200 ASCII/ANSI positions.
 export function createBankOutputTxt(review) {
-  need(reviews.has(review) && review.ready, 'No se generó un TXT parcial. Corregí todas las observaciones y revisá nuevamente.');
+  need(reviews.has(review) && review.kind === 'bna' && review.ready, 'No se generó un TXT parcial. Corregí todas las observaciones y revisá nuevamente.');
   const p=review.profile, zero=(v,n)=>{const s=String(v);need(/^\d+$/.test(s)&&s.length<=n,'Un importe o referencia supera el diseño BNA.');return s.padStart(n,'0');}, spaces=n=>' '.repeat(n);
   const lines = ['1'+review.issuer.taxId+p.payerCbu.slice(3,7)+p.payerCbu.slice(8)+(p.currency==='ARS'?'0':'1')+p.compensationDate.replaceAll('-','')+p.information.padEnd(20,' ')+'SUE1'+zero(p.agreementCode,10)+zero(p.sendNumber,6)+spaces(121)];
   for (const r of review.rows.filter(r=>r.selected)) { const cbu=r.account.cbu; lines.push('2'+'0'+cbu.slice(0,3)+cbu.slice(3,7)+cbu[7]+cbu.slice(8)+zero(r.cents,10)+zero(p.sendNumber,6)+zero(r.ordinal,9)+r.cuil.padEnd(22,' ')+'102'+r.cuil+'00'+spaces(13)+p.loanIdentifier+spaces(96)); }
@@ -122,10 +132,26 @@ export function createBankOutputTxt(review) {
 }
 const csvCell = (v, literal=false) => {let s=String(v??'');if(literal||/^[\s]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 export function createBankOutputCsv(review) {
-  need(reviews.has(review), 'Revisá el conjunto completo antes de descargar.');
+  need(reviews.has(review) && review.kind === 'bna', 'Revisá el conjunto completo antes de descargar.');
   const columns=['Fila de origen','Legajo','Nombre','CUIL','CBU','Neto original','Moneda declarada','Observaciones','Contrato propio','Registro propio','Cierre propio','Huella cierre','Corrida propia','Versión liquidación','Cuenta propia','Emisión aprobada','Huella emisión','Revisión emisión','Aprobación cuentas','Versión cuentas','Compensación declarada','Acreditación declarada','Convenio BNA','Envío BNA','Identificador préstamo','Huella revisión completa','Jurisdicción conservada','Procedencia jurisdicción','Huella captura jurisdicción','Jurisdicción del TXT','Incluido en el TXT elegido'];
   const lines=[columns.map(v=>csvCell(v)).join(';')];
   for(const r of review.rows)lines.push([r.ordinal,r.employeeNumber,r.name,r.cuil,r.account?.cbu,r.net,review.profile.currency,[...review.issues,...r.issues].map(c=>BANK_OUTPUT_ISSUES[c]).join(' | '),r.contractId,r.registrationId,r.sourceGroupId,r.closeSha256,r.runId,r.liquidationVersion,r.account?.id,review.receiptId,review.receiptSha256,review.receiptReviewId,review.accountsApprovalId,review.accountsVersion,review.profile.compensationDate,review.profile.creditDate,review.profile.agreementCode,review.profile.sendNumber,review.profile.loanIdentifier,review.fingerprint,r.jurisdiction.code,r.jurisdiction.basis,r.jurisdiction.sourceSha256,review.profile.jurisdictionCode,r.selected?'Sí':'No'].map((v,i)=>csvCell(v,[1,3,4,22,23,24].includes(i))).join(';'));
   return {bytes:new TextEncoder().encode('\uFEFF'+lines.join('\r\n')+'\r\n'),filename:'control-bancario-propio-'+review.period+'.csv',recordCount:review.recordCount};
 }
 export const sameBankOutput = (a,b) => reviews.has(a) && reviews.has(b) && a.fingerprint === b.fingerprint && salarySerialized(a.profile) === salarySerialized(b.profile);
+
+// Control exports may retain observations, but never an unapproved or stale source.
+export function verifiedBankControl(review) {
+  need(reviews.has(review) && review.kind === 'control' && review.issues.length === 0 && !review.rows.some(r=>r.issues.includes('IDENTITY_CHANGED')), 'No se verificó una emisión y cuentas aprobadas vigentes para descargar el control completo.');
+  return review;
+}
+export function bankControlGroups(review) {
+  verifiedBankControl(review);
+  const groups = new Map();
+  for (const r of review.rows) {
+    const dimensions = [r.departmentCode,r.account?.bankLabel??null,r.account?.accountType??null,r.jurisdiction.code,review.profile.currency,r.liquidationType], key = JSON.stringify(dimensions);
+    if (!groups.has(key)) groups.set(key,{departmentCode:dimensions[0],bankLabel:dimensions[1],accountType:dimensions[2],jurisdictionCode:dimensions[3],currency:dimensions[4],liquidationType:dimensions[5],recordCount:0,observedCount:0,unresolvedNetCount:0,knownCents:0n});
+    const g=groups.get(key);g.recordCount++;if(r.issues.length)g.observedCount++;if(r.cents===null)g.unresolvedNetCount++;else g.knownCents+=BigInt(r.cents);
+  }
+  return [...groups.entries()].sort(([a],[b])=>a<b?-1:a>b?1:0).map(([,g])=>({...g,knownCents:g.knownCents.toString(),totalCents:g.unresolvedNetCount?null:g.knownCents.toString()}));
+}
