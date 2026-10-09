@@ -1,0 +1,62 @@
+name: Own payroll accounting associations
+on:
+  pull_request:
+    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting-installation.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
+  push:
+    branches: ['master']
+    paths: ['assets/own-payroll-accounting*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-accounting.js', 'lib/internal-own-payroll-accounting.js', 'scripts/migrations/147-*', 'scripts/*own-payroll-accounting*', 'scripts/*own-accounting*', 'scripts/lib/own-accounting-installation.mjs', 'tests/own-payroll-accounting*', 'tests/fixtures/own-payroll-accounting*', 'scripts/build-friendly.mjs', '.github/workflows/own-payroll-accounting.yml']
+permissions:
+  contents: read
+concurrency:
+  group: own-payroll-accounting-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  accounting:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg }}
+        env:
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: own_payroll_run_qa
+        ports: ['554${{ matrix.pg }}:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare isolated databases and restricted runtime
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOLOGIN NOSUPERUSER NOBYPASSRLS;'
+          createdb -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres own_payroll_accounting_qa
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_accounting_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto;'
+      - name: Unchanged prerequisites, installation conservation, complete configuration and independent review
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: |
+          node scripts/verify-own-payroll-accounting-sql.mjs --ci --expected-major=${{ matrix.pg }} --write-sql=verification/accounting-ci-pg${{ matrix.pg }}.sql
+          psql -X -h 127.0.0.1 -p 554${{ matrix.pg }} -U postgres -d own_payroll_accounting_qa -v ON_ERROR_STOP=1 -f verification/accounting-ci-pg${{ matrix.pg }}.sql
+      - name: Built UI, actual HTTP/SQL, history, lost response, full pages and mobile access
+        env:
+          PGPASSWORD: synthetic_ci_only
+        run: node scripts/verify-own-payroll-accounting-ui.mjs --ci --built --major=${{ matrix.pg }} --psql=psql --browser=chromium --output=verification/accounting-ci-ui-pg${{ matrix.pg }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: own-payroll-accounting-pg${{ matrix.pg }}-${{ github.run_id }}
+          path: verification/accounting-ci*
+          retention-days: 5
