@@ -1,7 +1,7 @@
 import {buildOwnAnnulInstallation,assertOwnAnnulDurability} from './lib/own-payroll-annulment-installation.mjs';
 import {relocateOwnAnnulInstallation} from './lib/own-payroll-annulment-installation-qa.mjs';
 // Committed synthetic PG17/18, complete installed adoption/jurisdiction sources.
-import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {spawn,spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';
 import {noeliaCircuitOptions} from './lib/noelia-circuit-runtime.mjs';
 import {buildNoeliaCircuitQa,createNoeliaCircuitPsqlQa,relocateNoeliaNoveltyInstallation,relocateNoeliaJurisdictionInstallation} from './lib/noelia-payroll-circuit-qa.mjs';
 import {buildAdoptedOwnNoveltyInstallation} from './lib/adopted-own-novelties-installation.mjs';
@@ -36,7 +36,18 @@ const run=(sql,error)=>{const file=path.join(destination,String(++step).padStart
 const tx=s=>`BEGIN ISOLATION LEVEL REPEATABLE READ;SET LOCAL statement_timeout='180s';SET LOCAL lock_timeout='2s';SET LOCAL search_path=pg_catalog,${qa.schema},public,pg_temp;DO $$ BEGIN ${qa.pins} END $$;${s.join(';\n')};COMMIT;`;
 const proof=()=>JSON.parse(run(tx(['SET TRANSACTION READ ONLY',preservationSnapshot('after'),"SELECT jsonb_build_object('fingerprint',encode(public.digest(current_setting('municontrol_sql111.after')::jsonb::text,'sha256'),'hex'),'schemas',(SELECT count(*) FROM pg_namespace WHERE nspname LIKE 'mc_qa_%'))"])));
 const identity=a=>({principal:{user:{email:a.actorEmail},tenant:{source:'membership',id:a.tenantId,membershipId:a.membershipId,effectiveCapabilities:qa.caps}},session:{email:a.actorEmail,id:a.actorSessionId,version:a.actorSessionVersion,releaseSha:a.releaseSha}}),maker=identity(qa.actors.maker),checker=identity(qa.actors.checker);
-const calc=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input),close=(op,input)=>ownCloseOperation(db,checker.principal,checker.session,op,input);
+const calc=(op,input)=>ownRunOperation(db,maker.principal,maker.session,op,input),liquidation=(op,input)=>ownLiquidationOperation(db,checker.principal,checker.session,op,input);
+// PostgreSQL's synthetic CI autovacuum can briefly own a relation lock. A
+// failed read is safe to repeat with its exact parameters. Never retry writes
+// here, suppress another error, disable maintenance, or alter application SQL.
+const busyReadRetries=[];
+const closeDb={...db,query:async(query,values)=>{
+ for(let retry=0;;retry++)try{return await db.query(query,values);}catch(e){
+  if(!/^SELECT public\.own_close_detail_v1\(/.test(query)||!/^psql:.*ERROR:\s+could not obtain lock on relation /.test(e.message)||retry>=2)throw e;
+  busyReadRetries.push({operation:'own_close_detail_v1',retry:retry+1});console.warn('QA_READ_LOCK_RETRY '+(retry+1));await new Promise(resolve=>setTimeout(resolve,250*(retry+1)));
+ }
+}};
+const close=(op,input)=>ownCloseOperation(closeDb,checker.principal,checker.session,op,input);
 const prior=proof();assert.equal(prior.schemas,0);
 try{
  run(qa.sql);seeded=true;run(tx([qa.sourceFixture]));run(tx(b.operator.consumers.statements));run(tx(b.operator.statements));
@@ -57,6 +68,11 @@ try{
  const reuseBefore=proof();await assert.rejects(()=>calc('calculate',{key,body:{...modern,liquidationDate:period+'-15'}}),e=>e.code==='OWN_RUN_IDEMPOTENCY_REUSE');assert.deepEqual(proof(),reuseBefore);ok(true,'changing only date with same key rejects without recapture or calculation');
  for(const invalid of ['2026-02-29','1900-02-29','2026-04-31','2026-10-31T00:00:00Z',null])await assert.rejects(()=>db.query('SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result',[JSON.stringify(qa.actors.maker),JSON.stringify({...modern,liquidationDate:invalid}),randomUUID(),ownRunAlgorithmHash()]),/OWN_RUN_INPUT_INVALID/);assert.deepEqual(proof(),reuseBefore);ok(true,'SQL itself refuses impossible dates, null and timestamps before recording a capture');
  const v1=await calc('bootstrap'),v2=await calc('bootstrap',{contractVersion:'2'});ok(v1.version==='own-payroll-bootstrap.v1'&&v1.runs.every(r=>!Object.hasOwn(r,'liquidationDate'))&&v2.runs.find(r=>r.key===old.key).liquidationDate===null&&v2.runs.find(r=>r.key===key).liquidationDate===modern.liquidationDate,'negotiated full metadata retains exact v1 output and explicit absent dates');
+ const lockBefore=proof(),retriesBefore=busyReadRetries.length,holder=spawn(db.executable,[...db.args,'--no-password','-f','-'],{windowsHide:true,env:db.environment}),holderOutput=[];let holderErrors='';
+ const released=new Promise((resolve,reject)=>{holder.on('error',reject);holder.stderr.on('data',b=>{holderErrors+=b;});holder.on('close',code=>code===0?resolve():reject(Error(holderErrors)));});
+ const held=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{holder.kill();reject(Error('QA_CLOSE_READ_LOCK_NOT_HELD'));},5000);holder.stdout.on('data',b=>{holderOutput.push(b.toString());if(holderOutput.join('').includes('QA_CLOSE_READ_LOCK_HELD')){clearTimeout(timer);resolve();}});released.catch(e=>{clearTimeout(timer);reject(e);});});
+ holder.stdin.end(`${db.prefix} LOCK TABLE ${qa.schema}.employment_contract IN SHARE UPDATE EXCLUSIVE MODE;SELECT 'QA_CLOSE_READ_LOCK_HELD';SELECT pg_sleep(0.4);COMMIT;`,'utf8');
+ await held;await close('detail',{period,liquidationType:'monthly'});await released;assert.ok(busyReadRetries.length>retriesBefore);assert.deepEqual(proof(),lockBefore);ok(true,'actual transient relation lock repeats only the unchanged read, without bypassing locks or changing any state');
  const decide=async(command)=>{const d=await liquidation('detail',{id:dated.id});return liquidation('command',{key:randomUUID(),body:{runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command,selection:{kind:'all',values:[]},reason:'Decisión exclusivamente sintética para verificar fecha histórica',reviewConfirmed:true}});};
  await decide('confirm');const cd=await close('detail',{period,liquidationType:'monthly'}),closed=await close('command',{key:randomUUID(),body:{period,liquidationType:'monthly',scopeVersion:cd.scopeVersion,stateVersion:cd.stateVersion,selection:{kind:'all',values:[]},command:'close',groupId:null,reason:'Cierre exclusivamente sintético para fecha histórica',reviewConfirmed:true}});
  ok(closed.snapshot.employeeCount===29&&(await close('detail',{period,liquidationType:'monthly'})).captures.some(c=>c.body.liquidationDate===modern.liquidationDate),'close bundles keep the dated original capture and all participants');
@@ -74,6 +90,6 @@ try{
  const populatedReceipt=await db.run('SELECT own_annul_command_v1('+q(JSON.stringify(qa.actors.checker))+'::jsonb,'+q(JSON.stringify(annulBody))+'::jsonb,'+q(annulKey)+'::uuid)',true);assert.equal(populatedReceipt.affected.length,29);
  const populatedProof=JSON.parse(run(tx(annul.installation))),populatedDurable=JSON.parse(run(tx(annul.durableVerification)));assertOwnAnnulDurability({installed:populatedProof,durable:populatedDurable,batch:annul});assert.equal(populatedProof.eventRows,1);assert.match(populatedProof.eventRowsSha256,/^[a-f0-9]{64}$/);assert.deepEqual(await db.run('SELECT own_annul_attempt_v1('+q(JSON.stringify(qa.actors.checker))+'::jsonb,'+q(annulKey)+'::uuid)',true),{...populatedReceipt,replayed:true});ok(true,'repeat installation with a real synthetic consolidated decision preserves its complete original receipt and row digest');
  const constraintSpec=JSON.parse(run(tx([`SELECT coalesce(jsonb_agg(pg_get_constraintdef(oid) ORDER BY pg_get_constraintdef(oid) COLLATE "C"),'[]') FROM pg_constraint WHERE conrelid='${qa.schema}.own_payroll_annul_event'::regclass AND contype<>'n'`])));
- report={passed:true,major,sourceCommit,checks,installed:annulInstalled,durable:annulDurable,populatedProof,populatedDurable,constraintSpec,synthetic:true,nominalMunicipalRowsUsed:0};
+ report={passed:true,major,sourceCommit,checks,busyReadRetries,installed:annulInstalled,durable:annulDurable,populatedProof,populatedDurable,constraintSpec,synthetic:true,nominalMunicipalRowsUsed:0};
 }catch(e){failure=e;report={passed:false,major,sourceCommit,checks,message:e.message,synthetic:true};process.exitCode=1;}
 finally{if(seeded)run(tx([`DROP SCHEMA ${qa.schema} CASCADE`]));const after=proof();assert.deepEqual(after,prior);report.qaSchemaRemoved=true;report.preexistingStateRestored=true;fs.writeFileSync(path.join(destination,'result.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({passed:report.passed,major,checks:checks.length,qaSchemaRemoved:true,message:failure?.message.slice(0,300)}));}
